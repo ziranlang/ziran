@@ -190,90 +190,119 @@ TreePointerUpdate(Session session, PointerFrame frame)
     if (TreeIsBuilding(session)) {
         return -1;
     }
-    active_sample[input_slot] = frame;
+    PointerFrame* value_0 = &(active_sample[input_slot]);
+    (*value_0) = frame;
     int32_t hit = TreeHitAt(session, frame.x, frame.y, false);
     if (frame.pressed) {
         active_focus_visible = session_SessionFlagSet(active_focus_visible, input_slot, false);
-        (active_pointer[input_slot]).press = (PointerPress){.serial = (int32_t)((uint32_t)(((active_pointer[input_slot]).press).serial) + 1u), .x = frame.x, .y = frame.y};
-        (active_pointer[input_slot]).focus_generation = 0ULL;
-        bool value_0 = hit >= 0 && tree_input_TreeTextFocused(session);
-        bool value_1 = value_0;
-        if (value_1) {
-            NodeCore value_2 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, hit);
-            int32_t value_3 = value_2.kind;
-            bool value_4 = false;
+        PointerPress* value_1 = &((active_pointer[input_slot]).press);
+        (*value_1) = (PointerPress){.serial = (int32_t)((uint32_t)(((active_pointer[input_slot]).press).serial) + 1u), .x = frame.x, .y = frame.y};
+        uint64_t* value_2 = &((active_pointer[input_slot]).focus_generation);
+        (*value_2) = 0ULL;
+        bool value_3 = hit >= 0 && tree_input_TreeTextFocused(session);
+        bool value_4 = value_3;
+        if (value_4) {
+            NodeCore value_5 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, hit);
+            int32_t value_6 = value_5.kind;
+            bool value_7 = false;
             {
-                int32_t kind = value_3;
-                value_4 = kind == 9 || kind == 10 || kind == 2;
+                int32_t kind = value_6;
+                value_7 = kind == 9 || kind == 10 || kind == 2;
             }
-            value_1 = !value_4;
+            value_4 = !value_7;
         }
-        if (value_1) {
-            NodeCore value_6 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, hit);
-            (active_pointer[input_slot]).focus_generation = value_6.identity_generation;
+        if (value_4) {
+            uint64_t* value_9 = &((active_pointer[input_slot]).focus_generation);
+            NodeCore value_10 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, hit);
+            (*value_9) = value_10.identity_generation;
         } else {
             TreeFocusAt(session, hit);
         }
     }
-    (active_pointer[input_slot]).hovered_generation = 0ULL;
+    uint64_t* value_11 = &((active_pointer[input_slot]).hovered_generation);
+    (*value_11) = 0ULL;
     if (hit >= 0) {
-        NodeCore value_7 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, hit);
-        (active_pointer[input_slot]).hovered_generation = value_7.identity_generation;
+        uint64_t* value_12 = &((active_pointer[input_slot]).hovered_generation);
+        NodeCore value_13 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, hit);
+        (*value_12) = value_13.identity_generation;
     }
     if (frame.pressed) {
-        (active_pointer[input_slot]).captures_drag = false;
-        (active_pointer[input_slot]).held_generation = 0ULL;
-        (active_pointer[input_slot]).pressed_generation = 0ULL;
-        (active_pointer[input_slot]).released_generation = 0ULL;
+        bool* value_14 = &((active_pointer[input_slot]).captures_drag);
+        (*value_14) = false;
+        uint64_t* value_15 = &((active_pointer[input_slot]).held_generation);
+        (*value_15) = 0ULL;
+        uint64_t* value_16 = &((active_pointer[input_slot]).pressed_generation);
+        (*value_16) = 0ULL;
+        uint64_t* value_17 = &((active_pointer[input_slot]).released_generation);
+        (*value_17) = 0ULL;
         if ((frame.down || frame.released) && hit >= 0) {
             NodeInput entry = TreeInputAt(session, hit);
-            (active_pointer[input_slot]).held_generation = entry.identity_generation;
-            (active_pointer[input_slot]).pressed_generation = (active_pointer[input_slot]).held_generation;
-            (active_pointer[input_slot]).grab_x = frame.x - entry.bounds.x;
-            (active_pointer[input_slot]).grab_y = frame.y - entry.bounds.y;
-            (active_pointer[input_slot]).captures_drag = entry.captures_drag;
+            uint64_t* value_18 = &((active_pointer[input_slot]).held_generation);
+            (*value_18) = entry.identity_generation;
+            uint64_t* value_19 = &((active_pointer[input_slot]).pressed_generation);
+            (*value_19) = (active_pointer[input_slot]).held_generation;
+            float* value_20 = &((active_pointer[input_slot]).grab_x);
+            (*value_20) = frame.x - entry.bounds.x;
+            float* value_21 = &((active_pointer[input_slot]).grab_y);
+            (*value_21) = frame.y - entry.bounds.y;
+            bool* value_22 = &((active_pointer[input_slot]).captures_drag);
+            (*value_22) = entry.captures_drag;
         }
     }
-    bool value_8 = frame.down;
-    if (value_8) {
-        uint64_t value_9 = (active_pointer[input_slot]).held_generation;
-        value_8 = (value_9 != 0ULL);
+    bool value_23 = frame.down;
+    if (value_23) {
+        uint64_t value_24 = (active_pointer[input_slot]).held_generation;
+        value_23 = (value_24 != 0ULL);
     }
-    if (value_8) {
-        (active_pointer[input_slot]).held_x = frame.x;
-        (active_pointer[input_slot]).held_y = frame.y;
+    if (value_23) {
+        float* value_25 = &((active_pointer[input_slot]).held_x);
+        (*value_25) = frame.x;
+        float* value_26 = &((active_pointer[input_slot]).held_y);
+        (*value_26) = frame.y;
     }
     if (frame.released) {
-        uint64_t value_10 = (active_pointer[input_slot]).held_generation;
-        if (value_10 != 0ULL) {
-            (active_pointer[input_slot]).released_generation = (active_pointer[input_slot]).held_generation;
-            (active_pointer[input_slot]).released_x = frame.x;
-            (active_pointer[input_slot]).released_y = frame.y;
-            bool value_11 = hit >= 0;
-            if (value_11) {
-                uint64_t value_12 = (active_pointer[input_slot]).held_generation;
-                NodeCore value_13 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, hit);
-                uint64_t value_14 = value_13.identity_generation;
-                value_11 = (value_12 == value_14);
+        uint64_t value_27 = (active_pointer[input_slot]).held_generation;
+        if (value_27 != 0ULL) {
+            uint64_t* value_28 = &((active_pointer[input_slot]).released_generation);
+            (*value_28) = (active_pointer[input_slot]).held_generation;
+            float* value_29 = &((active_pointer[input_slot]).released_x);
+            (*value_29) = frame.x;
+            float* value_30 = &((active_pointer[input_slot]).released_y);
+            (*value_30) = frame.y;
+            bool value_31 = hit >= 0;
+            if (value_31) {
+                uint64_t value_32 = (active_pointer[input_slot]).held_generation;
+                NodeCore value_33 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, hit);
+                uint64_t value_34 = value_33.identity_generation;
+                value_31 = (value_32 == value_34);
             }
-            if (value_11) {
-                (active_pointer[input_slot]).activation_generation = (active_pointer[input_slot]).held_generation;
-                (active_pointer[input_slot]).activation_pointed = true;
-                (active_pointer[input_slot]).activation_x = frame.x;
-                (active_pointer[input_slot]).activation_y = frame.y;
-                uint64_t value_15 = (active_pointer[input_slot]).focus_generation;
-                uint64_t value_16 = (active_pointer[input_slot]).held_generation;
-                if (value_15 == value_16) {
+            if (value_31) {
+                uint64_t* value_35 = &((active_pointer[input_slot]).activation_generation);
+                (*value_35) = (active_pointer[input_slot]).held_generation;
+                bool* value_36 = &((active_pointer[input_slot]).activation_pointed);
+                (*value_36) = true;
+                float* value_37 = &((active_pointer[input_slot]).activation_x);
+                (*value_37) = frame.x;
+                float* value_38 = &((active_pointer[input_slot]).activation_y);
+                (*value_38) = frame.y;
+                uint64_t value_39 = (active_pointer[input_slot]).focus_generation;
+                uint64_t value_40 = (active_pointer[input_slot]).held_generation;
+                if (value_39 == value_40) {
                     TreeFocusAt(session, hit);
                 }
             }
         }
-        (active_pointer[input_slot]).held_generation = 0ULL;
-        (active_pointer[input_slot]).focus_generation = 0ULL;
+        uint64_t* value_41 = &((active_pointer[input_slot]).held_generation);
+        (*value_41) = 0ULL;
+        uint64_t* value_42 = &((active_pointer[input_slot]).focus_generation);
+        (*value_42) = 0ULL;
     } else if (!frame.down) {
-        (active_pointer[input_slot]).held_generation = 0ULL;
-        (active_pointer[input_slot]).pressed_generation = 0ULL;
-        (active_pointer[input_slot]).focus_generation = 0ULL;
+        uint64_t* value_43 = &((active_pointer[input_slot]).held_generation);
+        (*value_43) = 0ULL;
+        uint64_t* value_44 = &((active_pointer[input_slot]).pressed_generation);
+        (*value_44) = 0ULL;
+        uint64_t* value_45 = &((active_pointer[input_slot]).focus_generation);
+        (*value_45) = 0ULL;
     }
     return hit;
 }
@@ -331,7 +360,8 @@ TreeFocusAt(Session session, int32_t index)
     if (value_1) {
         return false;
     }
-    ZIRAN_INDEX(active_focus, sizeof(active_focus) / sizeof(active_focus[0]), session.slot) = node.identity_generation;
+    uint64_t* value_3 = &(ZIRAN_INDEX(active_focus, sizeof(active_focus) / sizeof(active_focus[0]), session.slot));
+    (*value_3) = node.identity_generation;
     return true;
 }
 
@@ -379,8 +409,10 @@ TreeActivateAt(Session session, int32_t index)
     if (!value_1) {
         return false;
     }
-    (ZIRAN_INDEX(active_pointer, sizeof(active_pointer) / sizeof(active_pointer[0]), session.slot)).activation_generation = node.identity_generation;
-    (ZIRAN_INDEX(active_pointer, sizeof(active_pointer) / sizeof(active_pointer[0]), session.slot)).activation_pointed = false;
+    uint64_t* value_2 = &((ZIRAN_INDEX(active_pointer, sizeof(active_pointer) / sizeof(active_pointer[0]), session.slot)).activation_generation);
+    (*value_2) = node.identity_generation;
+    bool* value_3 = &((ZIRAN_INDEX(active_pointer, sizeof(active_pointer) / sizeof(active_pointer[0]), session.slot)).activation_pointed);
+    (*value_3) = false;
     return true;
 }
 
@@ -417,12 +449,17 @@ TreeTakePointerActivationAt(Session session, int32_t index)
     if (value_6) {
         return activation;
     }
-    (active_pointer[input_slot]).activation_generation = 0ULL;
-    activation.activated = true;
-    activation.pointed = (active_pointer[input_slot]).activation_pointed;
+    uint64_t* value_9 = &((active_pointer[input_slot]).activation_generation);
+    (*value_9) = 0ULL;
+    bool* value_10 = &(activation.activated);
+    (*value_10) = true;
+    bool* value_11 = &(activation.pointed);
+    (*value_11) = (active_pointer[input_slot]).activation_pointed;
     if (activation.pointed) {
-        activation.x = (active_pointer[input_slot]).activation_x;
-        activation.y = (active_pointer[input_slot]).activation_y;
+        float* value_12 = &(activation.x);
+        (*value_12) = (active_pointer[input_slot]).activation_x;
+        float* value_13 = &(activation.y);
+        (*value_13) = (active_pointer[input_slot]).activation_y;
     }
     return activation;
 }
@@ -443,16 +480,19 @@ TreeKeyboardRoute(Session session)
     }
     int32_t slot = session.slot;
     int32_t key = ZIRAN_INDEX(active_key, 9, slot);
-    ZIRAN_INDEX(active_dismissal, sizeof(active_dismissal) / sizeof(active_dismissal[0]), slot) = 0ULL;
+    uint64_t* value_1 = &(ZIRAN_INDEX(active_dismissal, sizeof(active_dismissal) / sizeof(active_dismissal[0]), slot));
+    (*value_1) = 0ULL;
     active_escape_captured = session_SessionFlagSet(active_escape_captured, slot, false);
     if (key == 256) {
         int32_t index = (int32_t)((uint32_t)(TreeCount(session)) - 1u);
         while (index > 0) {
             NodeCore entry = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).count, index);
             if ((entry.kind == 46 || entry.popup) && TreeInputAllowedAt(session, index)) {
-                ZIRAN_INDEX(active_dismissal, sizeof(active_dismissal) / sizeof(active_dismissal[0]), slot) = entry.identity_generation;
+                uint64_t* value_2 = &(ZIRAN_INDEX(active_dismissal, sizeof(active_dismissal) / sizeof(active_dismissal[0]), slot));
+                (*value_2) = entry.identity_generation;
                 active_escape_captured = session_SessionFlagSet(active_escape_captured, slot, true);
-                ZIRAN_INDEX(active_key, sizeof(active_key) / sizeof(active_key[0]), slot) = 0;
+                int32_t* value_3 = &(ZIRAN_INDEX(active_key, sizeof(active_key) / sizeof(active_key[0]), slot));
+                (*value_3) = 0;
                 return true;
             }
             index = (int32_t)((uint32_t)index - 1u);
@@ -486,13 +526,13 @@ TreeKeyboardRoute(Session session)
             if (entry.clipped) {
                 visible = RectangleIntersection(visible, entry.clip);
             }
-            bool value_1 = input.kind == 9 && input.interactive && !input.disabled && !input.loading && visible.width > ((float)0.0);
-            bool value_2 = value_1 && visible.height > ((float)0.0) && entry.interaction_index >= 0;
-            if (value_2) {
-                InteractionData value_3 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_interactions).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_interactions).count, entry.interaction_index);
-                value_2 = value_3.capture_tab;
+            bool value_4 = input.kind == 9 && input.interactive && !input.disabled && !input.loading && visible.width > ((float)0.0);
+            bool value_5 = value_4 && visible.height > ((float)0.0) && entry.interaction_index >= 0;
+            if (value_5) {
+                InteractionData value_6 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_interactions).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_interactions).count, entry.interaction_index);
+                value_5 = value_6.capture_tab;
             }
-            if (value_2) {
+            if (value_5) {
                 return false;
             }
         }
@@ -509,10 +549,11 @@ TreeKeyboardRoute(Session session)
                 current = 0;
             }
             NodeInput node = TreeInputAt(session, current);
-            bool value_4 = TreePointerActivatable(node.kind, node.focus_id, node.disabled, node.loading);
-            if (value_4 && TreeFocusAt(session, current)) {
+            bool value_7 = TreePointerActivatable(node.kind, node.focus_id, node.disabled, node.loading);
+            if (value_7 && TreeFocusAt(session, current)) {
                 active_focus_visible = session_SessionFlagSet(active_focus_visible, slot, true);
-                ZIRAN_INDEX(active_key, sizeof(active_key) / sizeof(active_key[0]), slot) = 0;
+                int32_t* value_8 = &(ZIRAN_INDEX(active_key, sizeof(active_key) / sizeof(active_key[0]), slot));
+                (*value_8) = 0;
                 return true;
             }
             tries = (int32_t)((uint32_t)tries + 1u);
@@ -524,11 +565,13 @@ TreeKeyboardRoute(Session session)
             int32_t index = range_first_66;
             if (index <= range_last_66) for (;;) {
                 NodeInput node = TreeInputAt(session, index);
-                bool value_5 = TreeFocusedAt(session, index);
-                if (value_5 && node.kind != 9 && node.kind != 10 && node.kind != 12 && TreeActivateAt(session, index)) {
-                    ZIRAN_INDEX(active_key, sizeof(active_key) / sizeof(active_key[0]), slot) = 0;
+                bool value_9 = TreeFocusedAt(session, index);
+                if (value_9 && node.kind != 9 && node.kind != 10 && node.kind != 12 && TreeActivateAt(session, index)) {
+                    int32_t* value_10 = &(ZIRAN_INDEX(active_key, sizeof(active_key) / sizeof(active_key[0]), slot));
+                    (*value_10) = 0;
                     if (key == 32) {
-                        ZIRAN_INDEX(active_codepoints, sizeof(active_codepoints) / sizeof(active_codepoints[0]), slot) = (TypedInputQueue){0};
+                        TypedInputQueue* value_11 = &(ZIRAN_INDEX(active_codepoints, sizeof(active_codepoints) / sizeof(active_codepoints[0]), slot));
+                        (*value_11) = (TypedInputQueue){0};
                     }
                     return true;
                 }

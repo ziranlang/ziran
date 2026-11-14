@@ -26,10 +26,13 @@ func Session_SessionOpen() Session {
 	for slot < 9 {
 		mask := uint32(1) << shiftCount(uint64(uint32(slot)), 32)
 		if (session_active & mask) == 0 && session_epochs[slot] != 18446744073709551615 {
-			session_epochs[slot]++
+			value_0 := &(session_epochs[slot])
+			(*value_0)++
 			session_active = session_active | mask
-			result.Slot = slot
-			result.Epoch = session_epochs[slot]
+			value_1 := &(result.Slot)
+			(*value_1) = slot
+			value_2 := &(result.Epoch)
+			(*value_2) = session_epochs[slot]
 			return result
 		}
 		slot++

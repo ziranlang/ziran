@@ -198,10 +198,14 @@ shape_paint_ShapeTurn_ziran_inline(Vector2 a, Vector2 b, Vector2 c)
 static inline void
 shape_paint_ShapeBatchBegin_ziran_inline(PaintCommand command, Color color)
 {
-    shape_batch.count = 0;
-    shape_batch.color = color;
-    shape_batch.clip = command.clip;
-    shape_batch.clipped = command.clip_set;
+    int32_t* value_0 = &(shape_batch.count);
+    (*value_0) = 0;
+    Color* value_1 = &(shape_batch.color);
+    (*value_1) = color;
+    Rectangle* value_2 = &(shape_batch.clip);
+    (*value_2) = command.clip;
+    bool* value_3 = &(shape_batch.clipped);
+    (*value_3) = command.clip_set;
 }
 
 static inline bool
@@ -288,14 +292,15 @@ shape_paint_ShapeClipSide_ziran_inline(ShapePolygon polygon, int32_t side, float
         }
         bool current_inside = value_6;
         if (current_inside != previous_inside && result.count < 8) {
-            int32_t value_8 = side;
-            float value_9 = limit;
-            Vector2 value_10 = {0};
+            Vector2* value_8 = &(ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count));
+            int32_t value_9 = side;
+            float value_10 = limit;
+            Vector2 value_11 = {0};
             {
                 Vector2 first = previous;
                 Vector2 second = current;
-                int32_t side = value_8;
-                float limit = value_9;
+                int32_t side = value_9;
+                float limit = value_10;
                 Vector2 from = first;
                 Vector2 to = second;
                 if (to.x < from.x || (to.x == from.x && to.y < from.y)) {
@@ -304,19 +309,22 @@ shape_paint_ShapeClipSide_ziran_inline(ShapePolygon polygon, int32_t side, float
                 }
                 if (side < 2) {
                     float share = (limit - from.x) / (to.x - from.x);
-                    value_10 = (Vector2){.x = limit, .y = from.y + ((to.y - from.y) * share)};
-                    goto value_11;
+                    value_11 = (Vector2){.x = limit, .y = from.y + ((to.y - from.y) * share)};
+                    goto value_12;
                 }
                 float share = (limit - from.y) / (to.y - from.y);
-                value_10 = (Vector2){.x = from.x + ((to.x - from.x) * share), .y = limit};
-            value_11: ;
+                value_11 = (Vector2){.x = from.x + ((to.x - from.x) * share), .y = limit};
+            value_12: ;
             }
-            ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count) = value_10;
-            result.count = (int32_t)((uint32_t)(result.count) + 1u);
+            (*value_8) = value_11;
+            int32_t* value_13 = &(result.count);
+            (*value_13) = (int32_t)((uint32_t)((*value_13)) + 1u);
         }
         if (current_inside && result.count < 8) {
-            ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count) = current;
-            result.count = (int32_t)((uint32_t)(result.count) + 1u);
+            Vector2* value_14 = &(ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count));
+            (*value_14) = current;
+            int32_t* value_15 = &(result.count);
+            (*value_15) = (int32_t)((uint32_t)((*value_15)) + 1u);
         }
         previous = current;
         previous_inside = current_inside;

@@ -5,7 +5,6 @@ package main
 // #import drawing_props
 // #import geometry
 // #import overlay_behavior
-// #import overlay_props
 // #import paint_queue
 // #import tree
 // #import tree_input
@@ -18,18 +17,24 @@ func Overlay_OverlayPanelKey() uint64 {
 	return 2
 }
 
-func Overlay_DismissibleOverlay(session Session, props DismissibleOverlayProps) DismissibleOverlayResult {
+func Overlay_Draw(session Session, props zir_369927f740a3063a_Props) DismissibleOverlayResult {
 	var result DismissibleOverlayResult = DismissibleOverlayResult{}
-	result.Node = -1
-	result.PanelNode = -1
+	value_0 := &(result.Node)
+	(*value_0) = -1
+	value_1 := &(result.PanelNode)
+	(*value_1) = -1
 	viewport := Tree_TreeRootBounds(session)
 	if props.ViewWidth > 0 {
-		viewport.X = 0.0
-		viewport.Width = float32(props.ViewWidth)
+		value_2 := &(viewport.X)
+		(*value_2) = 0.0
+		value_3 := &(viewport.Width)
+		(*value_3) = float32(props.ViewWidth)
 	}
 	if props.ViewHeight > 0 {
-		viewport.Y = 0.0
-		viewport.Height = float32(props.ViewHeight)
+		value_4 := &(viewport.Y)
+		(*value_4) = 0.0
+		value_5 := &(viewport.Height)
+		(*value_5) = float32(props.ViewHeight)
 	}
 	if viewport.Width <= 0.0 || viewport.Height <= 0.0 {
 		return result
@@ -39,37 +44,43 @@ func Overlay_DismissibleOverlay(session Session, props DismissibleOverlayProps) 
 		key = Tree_TreeNextKey(session)
 	}
 	var scrim_node int32 = -1
-	var value_0 int32 = 0
+	var value_6 int32 = 0
 	if props.NonModal {
-		value_0 = int32(25)
+		value_6 = int32(25)
 	} else {
-		value_0 = int32(46)
+		value_6 = int32(46)
 	}
-	var kind int32 = value_0
+	var kind int32 = value_6
 	if Tree_TreeIsBuilding(session) {
 		previous_overlay := Tree_TreePrevious(session, Tree_TreeCurrentParent(session), key, kind)
 		previous := Tree_TreePreviousCommitted(session, previous_overlay, Overlay_OverlayScrimKey(), 8)
 		release := TreeInput_TreeTakeDragAt(session, previous)
 		if release.Ended {
-			var value_1 bool = true
-			var value_2 bool = false
-			var value_3 bool = InputProtocol_PointInBounds(release.X, release.Y, props.Bounds)
-			var value_4 bool = value_3
-			if !value_4 {
-				var value_5 bool = InputProtocol_PointInBounds(release.X, release.Y, props.KeepBounds)
-				value_4 = value_5
+			var value_7 bool = true
+			var value_8 bool = false
+			var value_9 bool = InputProtocol_PointInBounds(release.X, release.Y, props.Bounds)
+			var value_10 bool = value_9
+			if !value_10 {
+				var value_11 bool = InputProtocol_PointInBounds(release.X, release.Y, props.KeepBounds)
+				value_10 = value_11
 			}
-			policy := OverlayBehavior_DismissibleOverlayPolicyFor(value_1, value_2, props.DismissDisabled, value_4)
-			result.Closed = policy.Closed
-			result.OutsideReleased = policy.OutsideReleased
-			result.ReleaseConsumed = policy.ReleaseConsumed
-			result.Tapped = policy.Tapped
+			policy := OverlayBehavior_DismissibleOverlayPolicyFor(value_7, value_8, props.DismissDisabled, value_10)
+			value_12 := &(result.Closed)
+			(*value_12) = policy.Closed
+			value_13 := &(result.OutsideReleased)
+			(*value_13) = policy.OutsideReleased
+			value_14 := &(result.ReleaseConsumed)
+			(*value_14) = policy.ReleaseConsumed
+			value_15 := &(result.Tapped)
+			(*value_15) = policy.Tapped
 		}
-		var value_6 bool = TreeInput_TreeTakeDismissalAt(session, previous_overlay)
-		if value_6 && !props.DismissDisabled {
-			result.Closed = true
+		var value_16 bool = TreeInput_TreeTakeDismissalAt(session, previous_overlay)
+		if value_16 && !props.DismissDisabled {
+			value_17 := &(result.Closed)
+			(*value_17) = true
 		}
-		result.Node = Tree_TreeSubmitCurrent(session, key, kind, viewport)
+		value_18 := &(result.Node)
+		(*value_18) = Tree_TreeSubmitCurrent(session, key, kind, viewport)
 		if result.Node < 0 {
 			return result
 		}
@@ -81,7 +92,8 @@ func Overlay_DismissibleOverlay(session Session, props DismissibleOverlayProps) 
 			return result
 		}
 		Tree_TreeSetInteractive(session, scrim_node, false, false, 0)
-		result.PanelNode = Tree_TreeSubmit(session, Overlay_OverlayPanelKey(), result.Node, 25, props.Bounds)
+		value_19 := &(result.PanelNode)
+		(*value_19) = Tree_TreeSubmit(session, Overlay_OverlayPanelKey(), result.Node, 25, props.Bounds)
 		if result.PanelNode < 0 {
 			return result
 		}
@@ -96,44 +108,50 @@ func Overlay_DismissibleOverlay(session Session, props DismissibleOverlayProps) 
 
 func Overlay_Popup(session Session, props PopupProps) PopupResult {
 	var result PopupResult = PopupResult{}
-	result.Node = -1
-	result.PanelNode = -1
-	var value_0 bool = Tree_TreeIsBuilding(session)
-	if !value_0 {
+	value_0 := &(result.Node)
+	(*value_0) = -1
+	value_1 := &(result.PanelNode)
+	(*value_1) = -1
+	var value_2 bool = Tree_TreeIsBuilding(session)
+	if !value_2 {
 		return result
 	}
 	press := TreeInput_TreeLastPress(session)
 	previous := Tree_TreePrevious(session, Tree_TreeCurrentParent(session), props.Key, 25)
 	if TreeInput_TreeTakeDismissalAt(session, previous) {
-		result.Closed = true
+		value_3 := &(result.Closed)
+		(*value_3) = true
 		return result
 	}
 	seen := press.Serial
 	if previous >= 0 {
-		var value_1 WidgetState = Tree_TreePreviousWidgetState(session, previous)
-		seen = value_1.Index
+		var value_4 WidgetState = Tree_TreePreviousWidgetState(session, previous)
+		seen = value_4.Index
 	}
-	var value_2 bool = press.Serial != seen
-	if value_2 {
-		var value_3 bool = InputProtocol_PointInBounds(press.X, press.Y, props.Bounds)
-		value_2 = !value_3
+	var value_5 bool = press.Serial != seen
+	if value_5 {
+		var value_6 bool = InputProtocol_PointInBounds(press.X, press.Y, props.Bounds)
+		value_5 = !value_6
 	}
-	var value_4 bool = value_2
-	if value_4 {
-		var value_5 bool = InputProtocol_PointInBounds(press.X, press.Y, props.KeepBounds)
-		value_4 = !value_5
+	var value_7 bool = value_5
+	if value_7 {
+		var value_8 bool = InputProtocol_PointInBounds(press.X, press.Y, props.KeepBounds)
+		value_7 = !value_8
 	}
-	if value_4 {
-		result.Closed = true
+	if value_7 {
+		value_9 := &(result.Closed)
+		(*value_9) = true
 		return result
 	}
-	result.Node = Tree_TreeSubmitCurrent(session, props.Key, 25, Tree_TreeRootBounds(session))
+	value_10 := &(result.Node)
+	(*value_10) = Tree_TreeSubmitCurrent(session, props.Key, 25, Tree_TreeRootBounds(session))
 	if result.Node < 0 {
 		return result
 	}
 	Tree_TreeSetPopup(session, result.Node)
 	Tree_TreeSetWidgetState(session, result.Node, WidgetState{Open: true, Index: press.Serial, Offset: 0})
-	result.PanelNode = Tree_TreeSubmit(session, Overlay_OverlayPanelKey(), result.Node, 25, props.Bounds)
+	value_11 := &(result.PanelNode)
+	(*value_11) = Tree_TreeSubmit(session, Overlay_OverlayPanelKey(), result.Node, 25, props.Bounds)
 	Tree_TreeSetStyleClass(session, result.PanelNode, props.ClassName)
 	Tree_TreeSetStyleId(session, result.PanelNode, props.ID)
 	return result

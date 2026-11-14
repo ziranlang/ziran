@@ -55,7 +55,8 @@ svg_icon_behavior_SvgIconRetire(Texture2D texture)
         SvgIconTextureFree value_0 = svg_icon_texture_free;
         value_0.call(value_0.context, oldest);
     }
-    ZIRAN_INDEX(svg_icon_retired, sizeof(svg_icon_retired) / sizeof(svg_icon_retired[0]), svg_icon_retired_next) = texture;
+    Texture2D* value_1 = &(ZIRAN_INDEX(svg_icon_retired, sizeof(svg_icon_retired) / sizeof(svg_icon_retired[0]), svg_icon_retired_next));
+    (*value_1) = texture;
     svg_icon_retired_next = ((int32_t)((uint32_t)svg_icon_retired_next + 1u)) % 64;
 }
 
@@ -68,31 +69,35 @@ svg_icon_behavior_SvgIconTexture(int32_t slot)
     int32_t size = (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).size;
     int32_t index = 0;
     while (index < (int32_t)((uint32_t)size * (uint32_t)size)) {
-        ZIRAN_INDEX(svg_icon_pixels, sizeof(svg_icon_pixels) / sizeof(svg_icon_pixels[0]), ((int32_t)((uint32_t)index * 2u))) = 255;
-        ZIRAN_INDEX(svg_icon_pixels, sizeof(svg_icon_pixels) / sizeof(svg_icon_pixels[0]), ((int32_t)(((uint32_t)index * 2u) + 1u))) = 0;
+        uint8_t* value_0 = &(ZIRAN_INDEX(svg_icon_pixels, sizeof(svg_icon_pixels) / sizeof(svg_icon_pixels[0]), ((int32_t)((uint32_t)index * 2u))));
+        (*value_0) = 255;
+        uint8_t* value_1 = &(ZIRAN_INDEX(svg_icon_pixels, sizeof(svg_icon_pixels) / sizeof(svg_icon_pixels[0]), ((int32_t)(((uint32_t)index * 2u) + 1u))));
+        (*value_1) = 0;
         index = (int32_t)((uint32_t)index + 1u);
     }
     int64_t part_index = 0LL;
     while (true) {
-        int64_t value_0 = ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).count;
-        if (!(part_index < value_0)) { break; }
+        int64_t value_2 = ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).count;
+        if (!(part_index < value_2)) { break; }
         SvgIconCell part = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data, ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).count, part_index);
         uint8_t alpha = (uint8_t)((((int32_t)(255u * (uint32_t)(part.level))) / 32));
         int32_t row = (int32_t)(part.y);
         while (row < (int32_t)((uint32_t)(part.y) + (uint32_t)(part.height))) {
             int32_t column = (int32_t)(part.x);
             while (column < (int32_t)((uint32_t)(part.x) + (uint32_t)(part.width))) {
-                ZIRAN_INDEX(svg_icon_pixels, sizeof(svg_icon_pixels) / sizeof(svg_icon_pixels[0]), ((int32_t)(((uint32_t)(((uint32_t)row * (uint32_t)size) + (uint32_t)column) * 2u) + 1u))) = alpha;
+                uint8_t* value_3 = &(ZIRAN_INDEX(svg_icon_pixels, sizeof(svg_icon_pixels) / sizeof(svg_icon_pixels[0]), ((int32_t)(((uint32_t)(((uint32_t)row * (uint32_t)size) + (uint32_t)column) * 2u) + 1u))));
+                (*value_3) = alpha;
                 column = (int32_t)((uint32_t)column + 1u);
             }
             row = (int32_t)((uint32_t)row + 1u);
         }
         part_index = (int64_t)((uint64_t)part_index + UINT64_C(1));
     }
-    SvgIconTextureMake value_1 = svg_icon_texture_make;
-    Slice value_2 = {svg_icon_pixels, 18432};
-    Texture2D value_3 = value_1.call(value_1.context, SliceRange(value_2, (int64_t)0LL, (int64_t)((int32_t)(((uint32_t)size * (uint32_t)size) * 2u)), sizeof(uint8_t)), size);
-    (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).texture = value_3;
+    Texture2D* value_4 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).texture);
+    SvgIconTextureMake value_5 = svg_icon_texture_make;
+    Slice value_6 = {svg_icon_pixels, 18432};
+    Texture2D value_7 = value_5.call(value_5.context, SliceRange(value_6, (int64_t)0LL, (int64_t)((int32_t)(((uint32_t)size * (uint32_t)size) * 2u)), sizeof(uint8_t)), size);
+    (*value_4) = value_7;
     return (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).texture;
 }
 
@@ -113,8 +118,9 @@ svg_icon_behavior_SvgIconCells(int32_t slot, int32_t size)
 {
     int32_t index = 0;
     while (index < (int32_t)((uint32_t)size * (uint32_t)size)) {
-        uint8_t value_0 = (uint8_t)((((int32_t)(((uint32_t)(ZIRAN_INDEX(svg_icon_coverage, 9216, index)) * 32u) + 127u)) / 255));
-        ZIRAN_INDEX(svg_icon_levels, sizeof(svg_icon_levels) / sizeof(svg_icon_levels[0]), index) = value_0;
+        uint8_t* value_0 = &(ZIRAN_INDEX(svg_icon_levels, sizeof(svg_icon_levels) / sizeof(svg_icon_levels[0]), index));
+        uint8_t value_1 = (uint8_t)((((int32_t)(((uint32_t)(ZIRAN_INDEX(svg_icon_coverage, 9216, index)) * 32u) + 127u)) / 255));
+        (*value_0) = value_1;
         index = (int32_t)((uint32_t)index + 1u);
     }
     (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells.count = 0;
@@ -122,20 +128,20 @@ svg_icon_behavior_SvgIconCells(int32_t slot, int32_t size)
     while (row < size) {
         int32_t column = 0;
         while (column < size) {
-            uint8_t value_1 = ZIRAN_INDEX(svg_icon_levels, 9216, ((int32_t)(((uint32_t)row * (uint32_t)size) + (uint32_t)column)));
-            int32_t level = (int32_t)(value_1);
+            uint8_t value_2 = ZIRAN_INDEX(svg_icon_levels, 9216, ((int32_t)(((uint32_t)row * (uint32_t)size) + (uint32_t)column)));
+            int32_t level = (int32_t)(value_2);
             if (level == 0) {
                 column = (int32_t)((uint32_t)column + 1u);
                 continue;
             }
             int32_t width = 1;
             while (true) {
-                bool value_2 = (int32_t)((uint32_t)column + (uint32_t)width) < size;
-                if (value_2) {
-                    uint8_t value_3 = ZIRAN_INDEX(svg_icon_levels, 9216, ((int32_t)((uint32_t)(((uint32_t)row * (uint32_t)size) + (uint32_t)column) + (uint32_t)width)));
-                    value_2 = ((int32_t)(value_3) == level);
+                bool value_3 = (int32_t)((uint32_t)column + (uint32_t)width) < size;
+                if (value_3) {
+                    uint8_t value_4 = ZIRAN_INDEX(svg_icon_levels, 9216, ((int32_t)((uint32_t)(((uint32_t)row * (uint32_t)size) + (uint32_t)column) + (uint32_t)width)));
+                    value_3 = ((int32_t)(value_4) == level);
                 }
-                if (!value_2) { break; }
+                if (!value_3) { break; }
                 width = (int32_t)((uint32_t)width + 1u);
             }
             int32_t height = 1;
@@ -143,8 +149,8 @@ svg_icon_behavior_SvgIconCells(int32_t slot, int32_t size)
             while (growing && (int32_t)((uint32_t)row + (uint32_t)height) < size) {
                 int32_t across = 0;
                 while (across < width) {
-                    int32_t value_4 = (int32_t)(((uint32_t)(((uint32_t)row + (uint32_t)height) * (uint32_t)size) + (uint32_t)column) + (uint32_t)across);
-                    if ((int32_t)(ZIRAN_INDEX(svg_icon_levels, 9216, value_4)) != level) {
+                    int32_t value_5 = (int32_t)(((uint32_t)(((uint32_t)row + (uint32_t)height) * (uint32_t)size) + (uint32_t)column) + (uint32_t)across);
+                    if ((int32_t)(ZIRAN_INDEX(svg_icon_levels, 9216, value_5)) != level) {
                         growing = false;
                         break;
                     }
@@ -155,23 +161,24 @@ svg_icon_behavior_SvgIconCells(int32_t slot, int32_t size)
                 }
             }
             SvgIconCell part = {.x = (uint8_t)(column), .y = (uint8_t)(row), .width = (uint8_t)(width), .height = (uint8_t)(height), .level = (uint8_t)(level)};
-            SvgIconCell value_5 = part;
-            bool value_6 = false;
-            void *value_7 = ZirVecGrow((void *)((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data, &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).capacity, ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).count, sizeof(*((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data));
-            if (value_7 != NULL) {
-                ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data = (SvgIconCell *)value_7;
-                ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data[((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).count++] = value_5;
-                value_6 = true;
+            SvgIconCell value_6 = part;
+            bool value_7 = false;
+            void *value_8 = ZirVecGrow((void *)((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data, &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).capacity, ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).count, sizeof(*((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data));
+            if (value_8 != NULL) {
+                ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data = (SvgIconCell *)value_8;
+                ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data[((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).count++] = value_6;
+                value_7 = true;
             }
-            if (!value_6) {
+            if (!value_7) {
                 return false;
             }
             int32_t paint_row = 0;
             while (paint_row < height) {
                 int32_t across = 0;
                 while (across < width) {
-                    int32_t value_8 = (int32_t)(((uint32_t)(((uint32_t)row + (uint32_t)paint_row) * (uint32_t)size) + (uint32_t)column) + (uint32_t)across);
-                    ZIRAN_INDEX(svg_icon_levels, sizeof(svg_icon_levels) / sizeof(svg_icon_levels[0]), value_8) = 0;
+                    int32_t value_9 = (int32_t)(((uint32_t)(((uint32_t)row + (uint32_t)paint_row) * (uint32_t)size) + (uint32_t)column) + (uint32_t)across);
+                    uint8_t* value_10 = &(ZIRAN_INDEX(svg_icon_levels, sizeof(svg_icon_levels) / sizeof(svg_icon_levels[0]), value_9));
+                    (*value_10) = 0;
                     across = (int32_t)((uint32_t)across + 1u);
                 }
                 paint_row = (int32_t)((uint32_t)paint_row + 1u);
@@ -197,36 +204,44 @@ svg_icon_behavior_SvgIconSlot(String shape, int32_t size)
             value_0 = (value_1 == hash);
         }
         if (value_0 && (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).size == size) {
-            (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).stamp = svg_icon_clock;
+            uint64_t* value_2 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).stamp);
+            (*value_2) = svg_icon_clock;
             return slot;
         }
-        uint64_t value_2 = (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).stamp;
-        uint64_t value_3 = (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), oldest)).stamp;
-        if (value_2 < value_3) {
+        uint64_t value_3 = (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).stamp;
+        uint64_t value_4 = (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), oldest)).stamp;
+        if (value_3 < value_4) {
             oldest = slot;
         }
         slot = (int32_t)((uint32_t)slot + 1u);
     }
     slot = oldest;
     svg_icon_behavior_SvgIconRetire((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).texture);
-    (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).texture = (Texture2D){0};
-    (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).used = false;
-    (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).stamp = 0ULL;
-    Slice value_4 = {svg_icon_coverage, 9216};
-    bool value_5 = ShapeRaster(shape, size, value_4);
-    bool value_6 = !value_5;
-    if (!value_6) {
-        bool value_7 = svg_icon_behavior_SvgIconCells(slot, size);
-        value_6 = !value_7;
+    Texture2D* value_5 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).texture);
+    (*value_5) = (Texture2D){0};
+    bool* value_6 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).used);
+    (*value_6) = false;
+    uint64_t* value_7 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).stamp);
+    (*value_7) = 0ULL;
+    Slice value_8 = {svg_icon_coverage, 9216};
+    bool value_9 = ShapeRaster(shape, size, value_8);
+    bool value_10 = !value_9;
+    if (!value_10) {
+        bool value_11 = svg_icon_behavior_SvgIconCells(slot, size);
+        value_10 = !value_11;
     }
-    if (value_6) {
+    if (value_10) {
         return -1;
     }
     svg_icon_rasters = (int64_t)((uint64_t)svg_icon_rasters + UINT64_C(1));
-    (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).hash = hash;
-    (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).size = size;
-    (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).used = true;
-    (ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).stamp = svg_icon_clock;
+    uint64_t* value_12 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).hash);
+    (*value_12) = hash;
+    int32_t* value_13 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).size);
+    (*value_13) = size;
+    bool* value_14 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).used);
+    (*value_14) = true;
+    uint64_t* value_15 = &((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).stamp);
+    (*value_15) = svg_icon_clock;
     return slot;
 }
 
@@ -285,9 +300,10 @@ svg_icon_behavior_PaintSvgIcon(Session session, int32_t node, String shape, Rect
         if (!(index < value_0)) { break; }
         SvgIconCell part = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).data, ((ZIRAN_INDEX(svg_icon_cache, sizeof(svg_icon_cache) / sizeof(svg_icon_cache[0]), slot)).cells).count, index);
         Color fill = color;
-        fill.a = (uint8_t)((((int32_t)((uint32_t)(color.a) * (uint32_t)(part.level))) / 32));
-        Rectangle value_1 = (Rectangle){.x = left + ((float)(part.x) * cell), .y = top + ((float)(part.y) * cell), .width = (float)(part.width) * cell, .height = (float)(part.height) * cell};
-        PaintRoundedFill(session, node, value_1, (float)0.0, 1, fill);
+        uint8_t* value_1 = &(fill.a);
+        (*value_1) = (uint8_t)((((int32_t)((uint32_t)(color.a) * (uint32_t)(part.level))) / 32));
+        Rectangle value_2 = (Rectangle){.x = left + ((float)(part.x) * cell), .y = top + ((float)(part.y) * cell), .width = (float)(part.width) * cell, .height = (float)(part.height) * cell};
+        PaintRoundedFill(session, node, value_2, (float)0.0, 1, fill);
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
 }

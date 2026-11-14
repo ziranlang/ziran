@@ -75,14 +75,15 @@ tree_TreeBuildOldIndex(Session session)
     }
     (trees[slot]).slots.count = 0;
     if ((trees[slot]).committed_count == 0) {
-        (trees[slot]).identity_index_valid = true;
+        bool* value_0 = &((trees[slot]).identity_index_valid);
+        (*value_0) = true;
         return true;
     }
     int32_t capacity = 8;
     while (true) {
-        int64_t value_0 = (int64_t)(capacity);
-        int64_t value_1 = (int64_t)((uint64_t)((trees[slot]).committed_count) * UINT64_C(2));
-        if (!(value_0 <= value_1)) { break; }
+        int64_t value_1 = (int64_t)(capacity);
+        int64_t value_2 = (int64_t)((uint64_t)((trees[slot]).committed_count) * UINT64_C(2));
+        if (!(value_1 <= value_2)) { break; }
         if (capacity > 1073741824) {
             return false;
         }
@@ -90,15 +91,15 @@ tree_TreeBuildOldIndex(Session session)
     }
     int32_t index = 0;
     while (index < capacity) {
-        int32_t value_2 = -1;
-        bool value_3 = false;
-        void *value_4 = ZirVecGrow((void *)((trees[slot]).slots).data, &((trees[slot]).slots).capacity, ((trees[slot]).slots).count, sizeof(*((trees[slot]).slots).data));
-        if (value_4 != NULL) {
-            ((trees[slot]).slots).data = (int32_t *)value_4;
-            ((trees[slot]).slots).data[((trees[slot]).slots).count++] = value_2;
-            value_3 = true;
+        int32_t value_3 = -1;
+        bool value_4 = false;
+        void *value_5 = ZirVecGrow((void *)((trees[slot]).slots).data, &((trees[slot]).slots).capacity, ((trees[slot]).slots).count, sizeof(*((trees[slot]).slots).data));
+        if (value_5 != NULL) {
+            ((trees[slot]).slots).data = (int32_t *)value_5;
+            ((trees[slot]).slots).data[((trees[slot]).slots).count++] = value_3;
+            value_4 = true;
         }
-        if (!value_3) {
+        if (!value_4) {
             return false;
         }
         index = (int32_t)((uint32_t)index + 1u);
@@ -112,10 +113,12 @@ tree_TreeBuildOldIndex(Session session)
         while (ZIRAN_VEC_INDEX(((trees[slot]).slots).data, ((trees[slot]).slots).count, position) >= 0) {
             position = (int32_t)(((uint32_t)position + 1u) & ((uint32_t)capacity - 1u));
         }
-        ZIRAN_VEC_INDEX(((trees[slot]).slots).data, ((trees[slot]).slots).count, position) = index;
+        int32_t* value_6 = &(ZIRAN_VEC_INDEX(((trees[slot]).slots).data, ((trees[slot]).slots).count, position));
+        (*value_6) = index;
         index = (int32_t)((uint32_t)index + 1u);
     }
-    (trees[slot]).identity_index_valid = true;
+    bool* value_7 = &((trees[slot]).identity_index_valid);
+    (*value_7) = true;
     return true;
 }
 
@@ -161,7 +164,8 @@ tree_TreeBuildNewIndex(Session session, int32_t needed)
             while (ZIRAN_VEC_INDEX(((trees[slot]).new_slots).data, ((trees[slot]).new_slots).count, position) >= 0) {
                 position = (int32_t)(((uint32_t)position + 1u) & ((uint32_t)capacity - 1u));
             }
-            ZIRAN_VEC_INDEX(((trees[slot]).new_slots).data, ((trees[slot]).new_slots).count, position) = index;
+            int32_t* value_5 = &(ZIRAN_VEC_INDEX(((trees[slot]).new_slots).data, ((trees[slot]).new_slots).count, position));
+            (*value_5) = index;
         }
         index = (int32_t)((uint32_t)index + 1u);
     }
@@ -266,30 +270,49 @@ tree_TreeRead(Session session, int32_t index, bool committed)
         }
         node = ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index);
     }
-    entry.key = node.key;
+    uint64_t* value_0 = &(entry.key);
+    (*value_0) = node.key;
     if (node.parent >= 0) {
         if (committed) {
-            entry.parent_key = (ZIRAN_VEC_INDEX(((trees[slot]).committed).data, ((trees[slot]).committed).count, node.parent)).key;
+            uint64_t* value_1 = &(entry.parent_key);
+            (*value_1) = (ZIRAN_VEC_INDEX(((trees[slot]).committed).data, ((trees[slot]).committed).count, node.parent)).key;
         } else {
-            entry.parent_key = (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, node.parent)).key;
+            uint64_t* value_2 = &(entry.parent_key);
+            (*value_2) = (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, node.parent)).key;
         }
     }
-    entry.auto_key = node.auto_key;
-    entry.auto_ordinal = node.auto_ordinal;
-    entry.next_auto_ordinal = node.next_auto_ordinal;
-    entry.kind = node.kind;
-    entry.bounds = node.bounds;
-    entry.clip = node.clip;
-    entry.child_clip = node.child_clip;
-    entry.clipped = node.clipped;
-    entry.clips_children = node.clips_children;
-    entry.measured_bounds = node.measured_bounds;
-    entry.auto_placed = node.auto_placed;
-    entry.parent = node.parent;
-    entry.first_child = node.first_child;
-    entry.last_child = node.last_child;
-    entry.next_sibling = node.next_sibling;
-    entry.identity_generation = node.identity_generation;
+    bool* value_3 = &(entry.auto_key);
+    (*value_3) = node.auto_key;
+    int32_t* value_4 = &(entry.auto_ordinal);
+    (*value_4) = node.auto_ordinal;
+    int32_t* value_5 = &(entry.next_auto_ordinal);
+    (*value_5) = node.next_auto_ordinal;
+    int32_t* value_6 = &(entry.kind);
+    (*value_6) = node.kind;
+    Rectangle* value_7 = &(entry.bounds);
+    (*value_7) = node.bounds;
+    Rectangle* value_8 = &(entry.clip);
+    (*value_8) = node.clip;
+    Rectangle* value_9 = &(entry.child_clip);
+    (*value_9) = node.child_clip;
+    bool* value_10 = &(entry.clipped);
+    (*value_10) = node.clipped;
+    bool* value_11 = &(entry.clips_children);
+    (*value_11) = node.clips_children;
+    Rectangle* value_12 = &(entry.measured_bounds);
+    (*value_12) = node.measured_bounds;
+    bool* value_13 = &(entry.auto_placed);
+    (*value_13) = node.auto_placed;
+    int32_t* value_14 = &(entry.parent);
+    (*value_14) = node.parent;
+    int32_t* value_15 = &(entry.first_child);
+    (*value_15) = node.first_child;
+    int32_t* value_16 = &(entry.last_child);
+    (*value_16) = node.last_child;
+    int32_t* value_17 = &(entry.next_sibling);
+    (*value_17) = node.next_sibling;
+    uint64_t* value_18 = &(entry.identity_generation);
+    (*value_18) = node.identity_generation;
     if (node.semantic_index >= 0) {
         SemanticData semantic = {0};
         if (committed) {
@@ -299,42 +322,58 @@ tree_TreeRead(Session session, int32_t index, bool committed)
         }
         if (semantic.label_length > 0LL) {
             if (committed) {
-                Slice value_0 = {ZIRAN_INDEX(((trees[slot]).labels), sizeof(((trees[slot]).labels)) / sizeof(((trees[slot]).labels)[0]), (trees[slot]).committed_label_buffer), 65536};
-                Slice value_1 = SliceRange(value_0, (int64_t)semantic.label_offset, (int64_t)((int64_t)((uint64_t)(semantic.label_offset) + (uint64_t)(semantic.label_length))), sizeof(uint8_t));
-                Slice value_2 = value_1;
-                entry.semantic_label = StringView((const char *)(value_2).data, (size_t)(value_2).length);
+                String* value_19 = &(entry.semantic_label);
+                Slice value_20 = {ZIRAN_INDEX(((trees[slot]).labels), sizeof(((trees[slot]).labels)) / sizeof(((trees[slot]).labels)[0]), (trees[slot]).committed_label_buffer), 65536};
+                Slice value_21 = SliceRange(value_20, (int64_t)semantic.label_offset, (int64_t)((int64_t)((uint64_t)(semantic.label_offset) + (uint64_t)(semantic.label_length))), sizeof(uint8_t));
+                Slice value_22 = value_21;
+                (*value_19) = StringView((const char *)(value_22).data, (size_t)(value_22).length);
             } else {
-                Slice value_3 = {ZIRAN_INDEX(((trees[slot]).labels), sizeof(((trees[slot]).labels)) / sizeof(((trees[slot]).labels)[0]), ((int32_t)(1u - (uint32_t)((trees[slot]).committed_label_buffer)))), 65536};
-                Slice value_4 = SliceRange(value_3, (int64_t)semantic.label_offset, (int64_t)((int64_t)((uint64_t)(semantic.label_offset) + (uint64_t)(semantic.label_length))), sizeof(uint8_t));
-                Slice value_5 = value_4;
-                entry.semantic_label = StringView((const char *)(value_5).data, (size_t)(value_5).length);
+                String* value_23 = &(entry.semantic_label);
+                Slice value_24 = {ZIRAN_INDEX(((trees[slot]).labels), sizeof(((trees[slot]).labels)) / sizeof(((trees[slot]).labels)[0]), ((int32_t)(1u - (uint32_t)((trees[slot]).committed_label_buffer)))), 65536};
+                Slice value_25 = SliceRange(value_24, (int64_t)semantic.label_offset, (int64_t)((int64_t)((uint64_t)(semantic.label_offset) + (uint64_t)(semantic.label_length))), sizeof(uint8_t));
+                Slice value_26 = value_25;
+                (*value_23) = StringView((const char *)(value_26).data, (size_t)(value_26).length);
             }
         }
         if (semantic.detail_length > 0LL) {
             if (committed) {
-                Slice value_6 = {ZIRAN_INDEX(((trees[slot]).labels), sizeof(((trees[slot]).labels)) / sizeof(((trees[slot]).labels)[0]), (trees[slot]).committed_label_buffer), 65536};
-                Slice value_7 = SliceRange(value_6, (int64_t)semantic.detail_offset, (int64_t)((int64_t)((uint64_t)(semantic.detail_offset) + (uint64_t)(semantic.detail_length))), sizeof(uint8_t));
-                Slice value_8 = value_7;
-                entry.semantic_detail = StringView((const char *)(value_8).data, (size_t)(value_8).length);
+                String* value_27 = &(entry.semantic_detail);
+                Slice value_28 = {ZIRAN_INDEX(((trees[slot]).labels), sizeof(((trees[slot]).labels)) / sizeof(((trees[slot]).labels)[0]), (trees[slot]).committed_label_buffer), 65536};
+                Slice value_29 = SliceRange(value_28, (int64_t)semantic.detail_offset, (int64_t)((int64_t)((uint64_t)(semantic.detail_offset) + (uint64_t)(semantic.detail_length))), sizeof(uint8_t));
+                Slice value_30 = value_29;
+                (*value_27) = StringView((const char *)(value_30).data, (size_t)(value_30).length);
             } else {
-                Slice value_9 = {ZIRAN_INDEX(((trees[slot]).labels), sizeof(((trees[slot]).labels)) / sizeof(((trees[slot]).labels)[0]), ((int32_t)(1u - (uint32_t)((trees[slot]).committed_label_buffer)))), 65536};
-                Slice value_10 = SliceRange(value_9, (int64_t)semantic.detail_offset, (int64_t)((int64_t)((uint64_t)(semantic.detail_offset) + (uint64_t)(semantic.detail_length))), sizeof(uint8_t));
-                Slice value_11 = value_10;
-                entry.semantic_detail = StringView((const char *)(value_11).data, (size_t)(value_11).length);
+                String* value_31 = &(entry.semantic_detail);
+                Slice value_32 = {ZIRAN_INDEX(((trees[slot]).labels), sizeof(((trees[slot]).labels)) / sizeof(((trees[slot]).labels)[0]), ((int32_t)(1u - (uint32_t)((trees[slot]).committed_label_buffer)))), 65536};
+                Slice value_33 = SliceRange(value_32, (int64_t)semantic.detail_offset, (int64_t)((int64_t)((uint64_t)(semantic.detail_offset) + (uint64_t)(semantic.detail_length))), sizeof(uint8_t));
+                Slice value_34 = value_33;
+                (*value_31) = StringView((const char *)(value_34).data, (size_t)(value_34).length);
             }
         }
-        entry.style_class = semantic.style_class;
-        entry.style_id = semantic.style_id;
-        entry.text_bytes = semantic.text_bytes;
-        entry.text_cursor = semantic.text_cursor;
-        entry.text_anchor = semantic.text_anchor;
-        entry.has_text = semantic.has_text;
-        entry.read_only = semantic.read_only;
-        entry.secure = semantic.secure;
-        entry.semantic_kind = (SemanticKind)(semantic.kind);
-        entry.heading_level = semantic.heading_level;
-        entry.selected = semantic.selected;
-        entry.hidden_lines = semantic.hidden_lines;
+        int32_t* value_35 = &(entry.style_class);
+        (*value_35) = semantic.style_class;
+        int32_t* value_36 = &(entry.style_id);
+        (*value_36) = semantic.style_id;
+        int32_t* value_37 = &(entry.text_bytes);
+        (*value_37) = semantic.text_bytes;
+        int32_t* value_38 = &(entry.text_cursor);
+        (*value_38) = semantic.text_cursor;
+        int32_t* value_39 = &(entry.text_anchor);
+        (*value_39) = semantic.text_anchor;
+        bool* value_40 = &(entry.has_text);
+        (*value_40) = semantic.has_text;
+        bool* value_41 = &(entry.read_only);
+        (*value_41) = semantic.read_only;
+        bool* value_42 = &(entry.secure);
+        (*value_42) = semantic.secure;
+        SemanticKind* value_43 = &(entry.semantic_kind);
+        (*value_43) = (SemanticKind)(semantic.kind);
+        int32_t* value_44 = &(entry.heading_level);
+        (*value_44) = semantic.heading_level;
+        bool* value_45 = &(entry.selected);
+        (*value_45) = semantic.selected;
+        int32_t* value_46 = &(entry.hidden_lines);
+        (*value_46) = semantic.hidden_lines;
     }
     if (node.interaction_index >= 0) {
         InteractionData interaction = {0};
@@ -343,20 +382,31 @@ tree_TreeRead(Session session, int32_t index, bool committed)
         } else {
             interaction = ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, node.interaction_index);
         }
-        entry.interactive = true;
-        entry.disabled = interaction.disabled;
-        entry.loading = interaction.loading;
-        entry.focus_id = interaction.focus_id;
+        bool* value_47 = &(entry.interactive);
+        (*value_47) = true;
+        bool* value_48 = &(entry.disabled);
+        (*value_48) = interaction.disabled;
+        bool* value_49 = &(entry.loading);
+        (*value_49) = interaction.loading;
+        int32_t* value_50 = &(entry.focus_id);
+        (*value_50) = interaction.focus_id;
     }
     if (!committed && node.layout_index >= 0) {
         LayoutData layout = ZIRAN_VEC_INDEX(((trees[slot]).layouts).data, ((trees[slot]).layouts).count, node.layout_index);
-        entry.placement = layout.placement;
-        entry.places_children = layout.places_children;
-        entry.layout_gap = layout.gap;
-        entry.layout_padding = layout.padding;
-        entry.grid_columns = layout.columns;
-        entry.grid_min_item_width = layout.min_item_width;
-        entry.grid_max_columns = layout.max_columns;
+        TreePlacement* value_51 = &(entry.placement);
+        (*value_51) = layout.placement;
+        bool* value_52 = &(entry.places_children);
+        (*value_52) = layout.places_children;
+        int32_t* value_53 = &(entry.layout_gap);
+        (*value_53) = layout.gap;
+        int32_t* value_54 = &(entry.layout_padding);
+        (*value_54) = layout.padding;
+        int32_t* value_55 = &(entry.grid_columns);
+        (*value_55) = layout.columns;
+        int32_t* value_56 = &(entry.grid_min_item_width);
+        (*value_56) = layout.min_item_width;
+        int32_t* value_57 = &(entry.grid_max_columns);
+        (*value_57) = layout.max_columns;
     }
     return entry;
 }
@@ -370,10 +420,14 @@ TreeSubmittedGeometryAt(Session session, int32_t index)
         return geometry;
     }
     NodeCore* node = &(ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index));
-    geometry.bounds = node->bounds;
-    geometry.measured_bounds = node->measured_bounds;
-    geometry.clip = node->clip;
-    geometry.clipped = node->clipped;
+    Rectangle* value_0 = &(geometry.bounds);
+    (*value_0) = node->bounds;
+    Rectangle* value_1 = &(geometry.measured_bounds);
+    (*value_1) = node->measured_bounds;
+    Rectangle* value_2 = &(geometry.clip);
+    (*value_2) = node->clip;
+    bool* value_3 = &(geometry.clipped);
+    (*value_3) = node->clipped;
     return geometry;
 }
 
@@ -386,21 +440,34 @@ TreeInputAt(Session session, int32_t index)
         return input;
     }
     NodeCore* node = &(ZIRAN_VEC_INDEX(((trees[slot]).committed).data, ((trees[slot]).committed).count, index));
-    input.key = node->key;
-    input.identity_generation = node->identity_generation;
-    input.kind = node->kind;
-    input.bounds = node->bounds;
-    input.clip = node->clip;
-    input.clipped = node->clipped;
+    uint64_t* value_0 = &(input.key);
+    (*value_0) = node->key;
+    uint64_t* value_1 = &(input.identity_generation);
+    (*value_1) = node->identity_generation;
+    int32_t* value_2 = &(input.kind);
+    (*value_2) = node->kind;
+    Rectangle* value_3 = &(input.bounds);
+    (*value_3) = node->bounds;
+    Rectangle* value_4 = &(input.clip);
+    (*value_4) = node->clip;
+    bool* value_5 = &(input.clipped);
+    (*value_5) = node->clipped;
     if (node->interaction_index >= 0) {
         InteractionData* interaction = &(ZIRAN_VEC_INDEX(((trees[slot]).committed_interactions).data, ((trees[slot]).committed_interactions).count, node->interaction_index));
-        input.interactive = true;
-        input.disabled = interaction->disabled;
-        input.loading = interaction->loading;
-        input.circle_hit = interaction->circle_hit;
-        input.captures_drag = interaction->captures_drag;
-        input.focus_id = interaction->focus_id;
-        input.cursor = interaction->cursor;
+        bool* value_6 = &(input.interactive);
+        (*value_6) = true;
+        bool* value_7 = &(input.disabled);
+        (*value_7) = interaction->disabled;
+        bool* value_8 = &(input.loading);
+        (*value_8) = interaction->loading;
+        bool* value_9 = &(input.circle_hit);
+        (*value_9) = interaction->circle_hit;
+        bool* value_10 = &(input.captures_drag);
+        (*value_10) = interaction->captures_drag;
+        int32_t* value_11 = &(input.focus_id);
+        (*value_11) = interaction->focus_id;
+        int32_t* value_12 = &(input.cursor);
+        (*value_12) = interaction->cursor;
     }
     return input;
 }
@@ -424,10 +491,12 @@ tree_TreeEnsureSemantic(Session session, int32_t index)
         value_1 = true;
     }
     if (!value_1) {
-        (trees[slot]).error = (FrameStatus)(6LL);
+        FrameStatus* value_3 = &((trees[slot]).error);
+        (*value_3) = (FrameStatus)(6LL);
         return -1;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).semantic_index = next;
+    int32_t* value_4 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).semantic_index);
+    (*value_4) = next;
     return next;
 }
 
@@ -450,10 +519,12 @@ tree_TreeEnsureInteraction(Session session, int32_t index)
         value_1 = true;
     }
     if (!value_1) {
-        (trees[slot]).error = (FrameStatus)(6LL);
+        FrameStatus* value_3 = &((trees[slot]).error);
+        (*value_3) = (FrameStatus)(6LL);
         return -1;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).interaction_index = next;
+    int32_t* value_4 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).interaction_index);
+    (*value_4) = next;
     return next;
 }
 
@@ -468,28 +539,42 @@ TreeStart(Session session, uint64_t screen_key, Rectangle bounds)
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted.count = 0;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_semantics.count = 0;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_text.count = 0;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_count = 0LL;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_spans = 0LL;
+    int64_t* value_1 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_count);
+    (*value_1) = 0LL;
+    int64_t* value_2 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_spans);
+    (*value_2) = 0LL;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow.count = 0;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_interactions.count = 0;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_states.count = 0;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).layouts.count = 0;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count = 0;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_modal_layer = 0;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth = 0;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).building = true;
+    int32_t* value_3 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count);
+    (*value_3) = 0;
+    int32_t* value_4 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_modal_layer);
+    (*value_4) = 0;
+    int32_t* value_5 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth);
+    (*value_5) = 0;
+    bool* value_6 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).building);
+    (*value_6) = true;
     cursor_CursorHoverFrameStart(session);
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(0LL);
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_key = 0ULL;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_kind = 0;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_key = 0ULL;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_kind = 0;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).next_identity_generation;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_order_unchanged = true;
+    FrameStatus* value_7 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+    (*value_7) = (FrameStatus)(0LL);
+    uint64_t* value_8 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_key);
+    (*value_8) = 0ULL;
+    int32_t* value_9 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_kind);
+    (*value_9) = 0;
+    uint64_t* value_10 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_key);
+    (*value_10) = 0ULL;
+    int32_t* value_11 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_kind);
+    (*value_11) = 0;
+    uint64_t* value_12 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation);
+    (*value_12) = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).next_identity_generation;
+    bool* value_13 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_order_unchanged);
+    (*value_13) = true;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).new_slots.count = 0;
-    bool value_1 = tree_TreeBuildOldIndex(session);
-    if (!value_1) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(6LL);
+    bool value_14 = tree_TreeBuildOldIndex(session);
+    if (!value_14) {
+        FrameStatus* value_15 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_15) = (FrameStatus)(6LL);
         return;
     }
     uint64_t key = screen_key;
@@ -497,8 +582,10 @@ TreeStart(Session session, uint64_t screen_key, Rectangle bounds)
         key = 1ULL;
     }
     if (TreeSubmit(session, key, -1, 0, bounds) == 0) {
-        ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope)[0] = 0;
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth = 1;
+        int32_t* value_16 = &(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope)[0]);
+        (*value_16) = 0;
+        int32_t* value_17 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth);
+        (*value_17) = 1;
     }
 }
 
@@ -522,14 +609,20 @@ TreeCurrentPaintGeometry(Session session)
     }
     int32_t value_0 = SessionIndex(session);
     NodeCore node = ZIRAN_VEC_INDEX(((trees[value_0]).submitted).data, ((trees[value_0]).submitted).count, parent);
-    geometry.bounds = node.bounds;
-    geometry.measured_bounds = node.measured_bounds;
+    Rectangle* value_1 = &(geometry.bounds);
+    (*value_1) = node.bounds;
+    Rectangle* value_2 = &(geometry.measured_bounds);
+    (*value_2) = node.measured_bounds;
     if (node.clips_children) {
-        geometry.clip = node.child_clip;
-        geometry.clipped = true;
+        Rectangle* value_3 = &(geometry.clip);
+        (*value_3) = node.child_clip;
+        bool* value_4 = &(geometry.clipped);
+        (*value_4) = true;
     } else if (node.clipped) {
-        geometry.clip = node.clip;
-        geometry.clipped = true;
+        Rectangle* value_5 = &(geometry.clip);
+        (*value_5) = node.clip;
+        bool* value_6 = &(geometry.clipped);
+        (*value_6) = true;
     }
     return geometry;
 }
@@ -569,16 +662,19 @@ TreePushScope(Session session, int32_t index)
     if (value_8) {
         bool value_10 = SessionValid(session);
         if (value_10 && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), session.slot)).building) {
-            (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), session.slot)).error = (FrameStatus)(4LL);
+            FrameStatus* value_11 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), session.slot)).error);
+            (*value_11) = (FrameStatus)(4LL);
         }
         return false;
     }
-    int32_t value_11 = SessionIndex(session);
     int32_t value_12 = SessionIndex(session);
-    ZIRAN_INDEX(((trees[value_11]).scope), sizeof(((trees[value_11]).scope)) / sizeof(((trees[value_11]).scope)[0]), (trees[value_12]).scope_depth) = index;
     int32_t value_13 = SessionIndex(session);
-    int32_t value_14 = (trees[value_13]).scope_depth;
-    (trees[value_13]).scope_depth = (int32_t)((uint32_t)value_14 + 1u);
+    int32_t* value_14 = &(ZIRAN_INDEX(((trees[value_12]).scope), sizeof(((trees[value_12]).scope)) / sizeof(((trees[value_12]).scope)[0]), (trees[value_13]).scope_depth));
+    (*value_14) = index;
+    int32_t value_15 = SessionIndex(session);
+    int32_t* value_16 = &((trees[value_15]).scope_depth);
+    int32_t value_17 = *value_16;
+    (*value_16) = (int32_t)((uint32_t)value_17 + 1u);
     return true;
 }
 
@@ -595,13 +691,15 @@ TreePopScope(Session session)
     if (value_2) {
         bool value_4 = SessionValid(session);
         if (value_4 && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), session.slot)).building) {
-            (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), session.slot)).error = (FrameStatus)(4LL);
+            FrameStatus* value_5 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), session.slot)).error);
+            (*value_5) = (FrameStatus)(4LL);
         }
         return false;
     }
-    int32_t value_5 = SessionIndex(session);
-    int32_t value_6 = (trees[value_5]).scope_depth;
-    (trees[value_5]).scope_depth = (int32_t)((uint32_t)value_6 - 1u);
+    int32_t value_6 = SessionIndex(session);
+    int32_t* value_7 = &((trees[value_6]).scope_depth);
+    int32_t value_8 = *value_7;
+    (*value_7) = (int32_t)((uint32_t)value_8 - 1u);
     return true;
 }
 
@@ -623,37 +721,46 @@ TreeSubmit(Session session, uint64_t key, int32_t parent_index, int32_t kind, Re
         return -1;
     }
     if ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count == 2147483647) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(6LL);
+        FrameStatus* value_1 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_1) = (FrameStatus)(6LL);
         return -1;
     }
-    bool value_1 = parent_index >= (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count || parent_index < -1;
-    if (value_1 || (parent_index < 0 && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count > 0)) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(3LL);
+    bool value_2 = parent_index >= (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count || parent_index < -1;
+    if (value_2 || (parent_index < 0 && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count > 0)) {
+        FrameStatus* value_3 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_3) = (FrameStatus)(3LL);
         return -1;
     }
     int32_t index = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count;
-    bool value_2 = tree_TreeBuildNewIndex(session, (int32_t)((uint32_t)index + 1u));
-    if (!value_2) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(6LL);
+    bool value_4 = tree_TreeBuildNewIndex(session, (int32_t)((uint32_t)index + 1u));
+    if (!value_4) {
+        FrameStatus* value_5 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_5) = (FrameStatus)(6LL);
         return -1;
     }
     NodeCore node = {.key = key, .auto_key = key == 0ULL, .semantic_index = -1, .interaction_index = -1, .state_index = -1, .layout_index = -1};
     uint64_t parent_generation = 0ULL;
     if (parent_index >= 0) {
-        NodeCore value_3 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
-        parent_generation = value_3.identity_generation;
+        NodeCore value_6 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
+        parent_generation = value_6.identity_generation;
         if (node.auto_key) {
-            NodeCore value_4 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
-            node.auto_ordinal = (int32_t)((uint32_t)(value_4.next_auto_ordinal) + 1u);
-            node.key = (uint64_t)(node.auto_ordinal);
+            int32_t* value_7 = &(node.auto_ordinal);
+            NodeCore value_8 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
+            (*value_7) = (int32_t)((uint32_t)(value_8.next_auto_ordinal) + 1u);
+            uint64_t* value_9 = &(node.key);
+            (*value_9) = (uint64_t)(node.auto_ordinal);
         }
         NodeCore parent_clip = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
         if (parent_clip.clips_children) {
-            node.clip = parent_clip.child_clip;
-            node.clipped = true;
+            Rectangle* value_10 = &(node.clip);
+            (*value_10) = parent_clip.child_clip;
+            bool* value_11 = &(node.clipped);
+            (*value_11) = true;
         } else if (parent_clip.clipped) {
-            node.clip = parent_clip.clip;
-            node.clipped = true;
+            Rectangle* value_12 = &(node.clip);
+            (*value_12) = parent_clip.clip;
+            bool* value_13 = &(node.clipped);
+            (*value_13) = true;
         }
     }
     if (!node.auto_key && tree_TreeExplicitExists(session, parent_generation, key)) {
@@ -664,92 +771,119 @@ TreeSubmit(Session session, uint64_t key, int32_t parent_index, int32_t kind, Re
             derived = widget_key_WidgetRepeatedKey(key, attempt);
         }
         if (attempt >= 64) {
-            (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(5LL);
-            (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_key = key;
-            (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_kind = kind;
+            FrameStatus* value_14 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+            (*value_14) = (FrameStatus)(5LL);
+            uint64_t* value_15 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_key);
+            (*value_15) = key;
+            int32_t* value_16 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_kind);
+            (*value_16) = kind;
             return -1;
         }
-        uint64_t value_5 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_key;
-        if (value_5 == 0ULL) {
-            (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_key = key;
-            (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_kind = kind;
+        uint64_t value_17 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_key;
+        if (value_17 == 0ULL) {
+            uint64_t* value_18 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_key);
+            (*value_18) = key;
+            int32_t* value_19 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).repeated_kind);
+            (*value_19) = kind;
         }
-        node.key = derived;
+        uint64_t* value_20 = &(node.key);
+        (*value_20) = derived;
     }
-    node.kind = kind;
-    node.measured_bounds = bounds;
-    bool value_6 = parent_index >= 0 && bounds.x == ((float)0.0) && bounds.y == ((float)0.0);
-    if (value_6) {
-        NodeCore value_7 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
-        value_6 = (value_7.layout_index >= 0);
+    int32_t* value_21 = &(node.kind);
+    (*value_21) = kind;
+    Rectangle* value_22 = &(node.measured_bounds);
+    (*value_22) = bounds;
+    bool value_23 = parent_index >= 0 && bounds.x == ((float)0.0) && bounds.y == ((float)0.0);
+    if (value_23) {
+        NodeCore value_24 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
+        value_23 = (value_24.layout_index >= 0);
     }
-    if (value_6) {
-        NodeCore value_8 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
-        LayoutData layout = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).layouts).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).layouts).count, value_8.layout_index);
+    if (value_23) {
+        NodeCore value_25 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
+        LayoutData layout = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).layouts).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).layouts).count, value_25.layout_index);
         if (layout.places_children) {
             TreePlacement placement = layout.placement;
             (void)placement;
-            TreePlacement value_9 = placement;
-            node.bounds = value_9.call(value_9.context, session, parent_index, bounds);
-            node.auto_placed = true;
+            Rectangle* value_26 = &(node.bounds);
+            TreePlacement value_27 = placement;
+            (*value_26) = value_27.call(value_27.context, session, parent_index, bounds);
+            bool* value_28 = &(node.auto_placed);
+            (*value_28) = true;
         }
     }
     if (!node.auto_placed) {
-        node.bounds = bounds;
+        Rectangle* value_29 = &(node.bounds);
+        (*value_29) = bounds;
     }
-    node.parent = parent_index;
+    int32_t* value_30 = &(node.parent);
+    (*value_30) = parent_index;
     if (parent_index >= 0) {
-        NodeCore value_10 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
-        int32_t last_sibling = value_10.last_child;
-        node.sibling_ordinal = 1;
+        NodeCore value_31 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
+        int32_t last_sibling = value_31.last_child;
+        int32_t* value_32 = &(node.sibling_ordinal);
+        (*value_32) = 1;
         if (last_sibling >= 0) {
-            NodeCore value_11 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, last_sibling);
-            node.sibling_ordinal = (int32_t)((uint32_t)(value_11.sibling_ordinal) + 1u);
+            int32_t* value_33 = &(node.sibling_ordinal);
+            NodeCore value_34 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, last_sibling);
+            (*value_33) = (int32_t)((uint32_t)(value_34.sibling_ordinal) + 1u);
         }
     }
-    node.first_child = -1;
-    node.last_child = -1;
-    node.next_sibling = -1;
+    int32_t* value_35 = &(node.first_child);
+    (*value_35) = -1;
+    int32_t* value_36 = &(node.last_child);
+    (*value_36) = -1;
+    int32_t* value_37 = &(node.next_sibling);
+    (*value_37) = -1;
     int32_t old_index = tree_TreeFindOld(session, parent_generation, node.key, kind, node.auto_key, node.auto_ordinal);
     if (old_index != index) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_order_unchanged = false;
+        bool* value_38 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_order_unchanged);
+        (*value_38) = false;
     }
     if (old_index >= 0) {
-        NodeCore value_12 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).count, old_index);
-        node.identity_generation = value_12.identity_generation;
+        uint64_t* value_39 = &(node.identity_generation);
+        NodeCore value_40 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).count, old_index);
+        (*value_39) = value_40.identity_generation;
     } else {
-        uint64_t value_13 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation;
-        if (value_13 == 18446744073709551615ULL) {
-            (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(7LL);
+        uint64_t value_41 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation;
+        if (value_41 == 18446744073709551615ULL) {
+            FrameStatus* value_42 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+            (*value_42) = (FrameStatus)(7LL);
             return -1;
         }
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation = (uint64_t)((uint64_t)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation) + UINT64_C(1));
-        node.identity_generation = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation;
+        uint64_t* value_43 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation);
+        (*value_43) = (uint64_t)((uint64_t)((*value_43)) + UINT64_C(1));
+        uint64_t* value_44 = &(node.identity_generation);
+        (*value_44) = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation;
     }
-    NodeCore value_14 = node;
-    bool value_15 = false;
-    void *value_16 = ZirVecGrow((void *)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).capacity, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, sizeof(*((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data));
-    if (value_16 != NULL) {
-        ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data = (NodeCore *)value_16;
-        ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data[((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count++] = value_14;
-        value_15 = true;
+    NodeCore value_45 = node;
+    bool value_46 = false;
+    void *value_47 = ZirVecGrow((void *)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).capacity, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, sizeof(*((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data));
+    if (value_47 != NULL) {
+        ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data = (NodeCore *)value_47;
+        ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data[((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count++] = value_45;
+        value_46 = true;
     }
-    if (!value_15) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(6LL);
+    if (!value_46) {
+        FrameStatus* value_48 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_48) = (FrameStatus)(6LL);
         return -1;
     }
     if (parent_index >= 0) {
         if (node.auto_key) {
-            (ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index)).next_auto_ordinal = node.auto_ordinal;
+            int32_t* value_49 = &((ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index)).next_auto_ordinal);
+            (*value_49) = node.auto_ordinal;
         }
-        NodeCore value_17 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
-        int32_t last = value_17.last_child;
+        NodeCore value_50 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index);
+        int32_t last = value_50.last_child;
         if (last < 0) {
-            (ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index)).first_child = index;
+            int32_t* value_51 = &((ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index)).first_child);
+            (*value_51) = index;
         } else {
-            (ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, last)).next_sibling = index;
+            int32_t* value_52 = &((ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, last)).next_sibling);
+            (*value_52) = index;
         }
-        (ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index)).last_child = index;
+        int32_t* value_53 = &((ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, parent_index)).last_child);
+        (*value_53) = index;
     }
     if (!node.auto_key) {
         int32_t capacity = (int32_t)(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).new_slots).count);
@@ -758,11 +892,14 @@ TreeSubmit(Session session, uint64_t key, int32_t parent_index, int32_t kind, Re
         while (ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).new_slots).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).new_slots).count, position) >= 0) {
             position = (int32_t)(((uint32_t)position + 1u) & ((uint32_t)capacity - 1u));
         }
-        ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).new_slots).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).new_slots).count, position) = index;
+        int32_t* value_54 = &(ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).new_slots).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).new_slots).count, position));
+        (*value_54) = index;
     }
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count = (int32_t)((uint32_t)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count) + 1u);
+    int32_t* value_55 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count);
+    (*value_55) = (int32_t)((uint32_t)((*value_55)) + 1u);
     if (kind == 46 && index > 0) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_modal_layer = (int32_t)((uint32_t)index + 1u);
+        int32_t* value_56 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_modal_layer);
+        (*value_56) = (int32_t)((uint32_t)index + 1u);
     }
     return index;
 }
@@ -784,8 +921,10 @@ TreeDefer(Session session, TreeLate run)
     while (index < 4) {
         bool value_1 = (ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)[0]), index)).used;
         if (!value_1) {
-            (ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)[0]), index)).run = run;
-            (ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)[0]), index)).used = true;
+            TreeLate* value_2 = &((ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)[0]), index)).run);
+            (*value_2) = run;
+            bool* value_3 = &((ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), session.slot)[0]), index)).used);
+            (*value_3) = true;
             return true;
         }
         index = (int32_t)((uint32_t)index + 1u);
@@ -802,67 +941,80 @@ TreeFinish(Session session)
     }
     int32_t slot = session.slot;
     if (!(ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).building) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(2LL);
+        FrameStatus* value_1 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_1) = (FrameStatus)(2LL);
         return false;
     }
     int32_t late = 0;
     while (late < 4) {
         if ((ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot)[0]), late)).used) {
-            (ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot)[0]), late)).used = false;
-            bool value_1 = ((FrameStatus)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error)) == ((FrameStatus)(0LL));
-            if (value_1 && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth == 1) {
+            bool* value_2 = &((ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot)[0]), late)).used);
+            (*value_2) = false;
+            bool value_3 = ((FrameStatus)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error)) == ((FrameStatus)(0LL));
+            if (value_3 && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth == 1) {
                 TreeLate run = (ZIRAN_INDEX(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot), sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot)) / sizeof(ZIRAN_INDEX(tree_late, sizeof(tree_late) / sizeof(tree_late[0]), slot)[0]), late)).run;
                 (void)run;
-                TreeLate value_2 = run;
-                value_2.call(value_2.context, session);
+                TreeLate value_4 = run;
+                value_4.call(value_4.context, session);
             }
         }
         late = (int32_t)((uint32_t)late + 1u);
     }
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).building = false;
+    bool* value_5 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).building);
+    (*value_5) = false;
     if ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth != 1 && ((FrameStatus)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error)) == ((FrameStatus)(0LL))) {
         int32_t pending = 1;
         while (pending < (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth) {
             int32_t pending_node = ZIRAN_INDEX((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope, 64, pending);
             if (pending_node >= 0 && pending_node < (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count) {
-                NodeCore value_3 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, pending_node);
-                (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_key = value_3.key;
-                NodeCore value_4 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, pending_node);
-                (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_kind = value_4.kind;
+                uint64_t* value_6 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_key);
+                NodeCore value_7 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, pending_node);
+                (*value_6) = value_7.key;
+                int32_t* value_8 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error_kind);
+                NodeCore value_9 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, pending_node);
+                (*value_8) = value_9.kind;
             }
             pending = (int32_t)((uint32_t)pending + 1u);
         }
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(4LL);
+        FrameStatus* value_10 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_10) = (FrameStatus)(4LL);
     }
-    bool value_5 = ((FrameStatus)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error)) != ((FrameStatus)(0LL));
-    if (value_5 || (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth != 1) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth = 0;
+    bool value_11 = ((FrameStatus)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error)) != ((FrameStatus)(0LL));
+    if (value_11 || (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth != 1) {
+        int32_t* value_12 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth);
+        (*value_12) = 0;
         return false;
     }
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth = 0;
-    bool value_6 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_index_valid && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_order_unchanged;
-    bool value_7 = value_6 && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count == (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_count;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_index_valid = value_7;
-    __type_ee79891e04412b8c value_8 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed;
+    int32_t* value_13 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).scope_depth);
+    (*value_13) = 0;
+    bool* value_14 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_index_valid);
+    bool value_15 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_index_valid && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).identity_order_unchanged;
+    bool value_16 = value_15 && (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count == (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_count;
+    (*value_14) = value_16;
+    __type_ee79891e04412b8c value_17 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted = value_8;
-    __type_d2f67d864711b86f value_9 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_semantics;
+    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted = value_17;
+    __type_d2f67d864711b86f value_18 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_semantics;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_semantics = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_semantics;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_semantics = value_9;
-    __type_838711075b90279a value_10 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_text;
+    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_semantics = value_18;
+    __type_838711075b90279a value_19 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_text;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_text = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_text;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_text = value_10;
-    int32_t value_11 = (int32_t)(1u - (uint32_t)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_label_buffer));
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_label_buffer = value_11;
-    __type_c3a937d4337fc935 value_12 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_interactions;
+    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_text = value_19;
+    int32_t* value_20 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_label_buffer);
+    int32_t value_21 = (int32_t)(1u - (uint32_t)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_label_buffer));
+    (*value_20) = value_21;
+    __type_c3a937d4337fc935 value_22 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_interactions;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_interactions = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_interactions;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_interactions = value_12;
-    __type_43317e71a82841f0 value_13 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_states;
+    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_interactions = value_22;
+    __type_43317e71a82841f0 value_23 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_states;
     (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_states = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_states;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_states = value_13;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_count = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_modal_layer = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_modal_layer;
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).next_identity_generation = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation;
+    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_states = value_23;
+    int32_t* value_24 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_count);
+    (*value_24) = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count;
+    int32_t* value_25 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_modal_layer);
+    (*value_25) = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_modal_layer;
+    uint64_t* value_26 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).next_identity_generation);
+    (*value_26) = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).staged_identity_generation;
     cursor_CursorHoverFrameCommit(session);
     return true;
 }
@@ -936,19 +1088,25 @@ void
 TreeCancel(Session session)
 {
     int32_t slot = SessionIndex(session);
-    (trees[slot]).building = false;
+    bool* value_0 = &((trees[slot]).building);
+    (*value_0) = false;
     (trees[slot]).submitted.count = 0;
     (trees[slot]).submitted_semantics.count = 0;
     (trees[slot]).submitted_text.count = 0;
-    (trees[slot]).submitted_label_count = 0LL;
-    (trees[slot]).submitted_label_spans = 0LL;
+    int64_t* value_1 = &((trees[slot]).submitted_label_count);
+    (*value_1) = 0LL;
+    int64_t* value_2 = &((trees[slot]).submitted_label_spans);
+    (*value_2) = 0LL;
     (trees[slot]).submitted_label_overflow.count = 0;
     (trees[slot]).submitted_interactions.count = 0;
     (trees[slot]).submitted_states.count = 0;
     (trees[slot]).layouts.count = 0;
-    (trees[slot]).submitted_count = 0;
-    (trees[slot]).scope_depth = 0;
-    (trees[slot]).error = (FrameStatus)(0LL);
+    int32_t* value_3 = &((trees[slot]).submitted_count);
+    (*value_3) = 0;
+    int32_t* value_4 = &((trees[slot]).scope_depth);
+    (*value_4) = 0;
+    FrameStatus* value_5 = &((trees[slot]).error);
+    (*value_5) = (FrameStatus)(0LL);
 }
 
 TreeEntry
@@ -1003,8 +1161,10 @@ TreeSetPopup(Session session, int32_t index)
     if (!(trees[slot]).building || index < 0 || index >= (trees[slot]).submitted_count) {
         return;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).popup = true;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).clipped = false;
+    bool* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).popup);
+    (*value_0) = true;
+    bool* value_1 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).clipped);
+    (*value_1) = false;
 }
 
 void
@@ -1031,20 +1191,29 @@ TreeSetTextValue(Session session, int32_t index, String value, int32_t cursor, i
                 value_1 = true;
             }
             if (!value_1) {
-                (trees[slot]).error = (FrameStatus)(6LL);
+                FrameStatus* value_3 = &((trees[slot]).error);
+                (*value_3) = (FrameStatus)(6LL);
                 return;
             }
             byte = (int64_t)((uint64_t)byte + UINT64_C(1));
         }
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).has_text = true;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_offset = start;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_length = (int64_t)((uint64_t)(((trees[slot]).submitted_text).count) - (uint64_t)start);
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_bytes = (int32_t)((int64_t)(value).length);
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_cursor = cursor;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_anchor = anchor;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).read_only = read_only;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).secure = secure;
+    bool* value_4 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).has_text);
+    (*value_4) = true;
+    int64_t* value_5 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_offset);
+    (*value_5) = start;
+    int64_t* value_6 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_length);
+    (*value_6) = (int64_t)((uint64_t)(((trees[slot]).submitted_text).count) - (uint64_t)start);
+    int32_t* value_7 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_bytes);
+    (*value_7) = (int32_t)((int64_t)(value).length);
+    int32_t* value_8 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_cursor);
+    (*value_8) = cursor;
+    int32_t* value_9 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).text_anchor);
+    (*value_9) = anchor;
+    bool* value_10 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).read_only);
+    (*value_10) = read_only;
+    bool* value_11 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).secure);
+    (*value_11) = secure;
 }
 
 LabelSpan
@@ -1060,9 +1229,11 @@ void
 tree_TreeSetLabelSpan(int32_t slot, int64_t index, LabelSpan span)
 {
     if (index < 64LL) {
-        ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)[0]), index) = span;
+        LabelSpan* value_0 = &(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)[0]), index));
+        (*value_0) = span;
     } else {
-        ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count, ((int64_t)((uint64_t)index - UINT64_C(64)))) = span;
+        LabelSpan* value_1 = &(ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count, ((int64_t)((uint64_t)index - UINT64_C(64)))));
+        (*value_1) = span;
     }
 }
 
@@ -1073,7 +1244,8 @@ tree_TreeStoreLabel(int32_t slot, String value)
         return 0LL;
     }
     if ((int64_t)(value).length > 65536LL) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(6LL);
+        FrameStatus* value_0 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_0) = (FrameStatus)(6LL);
         return -1LL;
     }
     int32_t buffer = (int32_t)(1u - (uint32_t)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_label_buffer));
@@ -1095,10 +1267,10 @@ tree_TreeStoreLabel(int32_t slot, String value)
         if (span.length == (uint32_t)((int64_t)(value).length)) {
             before = span.prefix < prefix;
             if (span.prefix == prefix) {
-                Slice value_0 = {ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)[0]), buffer), 65536};
-                Slice value_1 = SliceRange(value_0, (int64_t)span.offset, (int64_t)((int64_t)((uint64_t)(span.offset) + (uint64_t)(span.length))), sizeof(uint8_t));
-                Slice value_2 = value_1;
-                String stored = StringView((const char *)(value_2).data, (size_t)(value_2).length);
+                Slice value_1 = {ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)[0]), buffer), 65536};
+                Slice value_2 = SliceRange(value_1, (int64_t)span.offset, (int64_t)((int64_t)((uint64_t)(span.offset) + (uint64_t)(span.length))), sizeof(uint8_t));
+                Slice value_3 = value_2;
+                String stored = StringView((const char *)(value_3).data, (size_t)(value_3).length);
                 if (StringEqual(stored, value)) {
                     return (int64_t)(span.offset);
                 }
@@ -1117,26 +1289,28 @@ tree_TreeStoreLabel(int32_t slot, String value)
     }
     int64_t start = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_count;
     if ((int64_t)(value).length > (int64_t)(UINT64_C(65536) - (uint64_t)start)) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(6LL);
+        FrameStatus* value_4 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_4) = (FrameStatus)(6LL);
         return -1LL;
     }
     LabelSpan span = {.offset = (uint32_t)(start), .length = (uint32_t)((int64_t)(value).length), .prefix = prefix};
-    int64_t value_3 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_spans;
-    bool value_4 = value_3 >= 64LL;
-    bool value_5 = value_4;
-    if (value_5) {
-        LabelSpan value_6 = span;
-        bool value_7 = false;
-        void *value_8 = ZirVecGrow((void *)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data, &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).capacity, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count, sizeof(*((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data));
-        if (value_8 != NULL) {
-            ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data = (LabelSpan *)value_8;
-            ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data[((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count++] = value_6;
-            value_7 = true;
+    int64_t value_5 = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_spans;
+    bool value_6 = value_5 >= 64LL;
+    bool value_7 = value_6;
+    if (value_7) {
+        LabelSpan value_8 = span;
+        bool value_9 = false;
+        void *value_10 = ZirVecGrow((void *)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data, &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).capacity, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count, sizeof(*((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data));
+        if (value_10 != NULL) {
+            ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data = (LabelSpan *)value_10;
+            ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data[((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count++] = value_8;
+            value_9 = true;
         }
-        value_5 = !value_7;
+        value_7 = !value_9;
     }
-    if (value_5) {
-        (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error = (FrameStatus)(6LL);
+    if (value_7) {
+        FrameStatus* value_11 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).error);
+        (*value_11) = (FrameStatus)(6LL);
         return -1LL;
     }
     int64_t at = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_spans;
@@ -1145,13 +1319,16 @@ tree_TreeStoreLabel(int32_t slot, String value)
         at = (int64_t)((uint64_t)at - UINT64_C(1));
     }
     tree_TreeSetLabelSpan(slot, low, span);
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_spans = (int64_t)((uint64_t)((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_spans) + UINT64_C(1));
+    int64_t* value_12 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_spans);
+    (*value_12) = (int64_t)((uint64_t)((*value_12)) + UINT64_C(1));
     byte = 0LL;
     while (byte < (int64_t)(value).length) {
-        ZIRAN_INDEX(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)[0]), buffer), sizeof(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)[0]), buffer)) / sizeof(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)[0]), buffer)[0]), ((int64_t)((uint64_t)start + (uint64_t)byte))) = (uint8_t)ZIRAN_INDEX(value.data, value.length, byte);
+        uint8_t* value_13 = &(ZIRAN_INDEX(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)[0]), buffer), sizeof(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)[0]), buffer)) / sizeof(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).labels)[0]), buffer)[0]), ((int64_t)((uint64_t)start + (uint64_t)byte))));
+        (*value_13) = (uint8_t)ZIRAN_INDEX(value.data, value.length, byte);
         byte = (int64_t)((uint64_t)byte + UINT64_C(1));
     }
-    (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_count = (int64_t)((uint64_t)start + (uint64_t)byte);
+    int64_t* value_14 = &((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_count);
+    (*value_14) = (int64_t)((uint64_t)start + (uint64_t)byte);
     return start;
 }
 
@@ -1170,8 +1347,10 @@ TreeSetLabel(Session session, int32_t index, String label)
     if (start < 0LL) {
         return;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).label_offset = start;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).label_length = (int64_t)(label).length;
+    int64_t* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).label_offset);
+    (*value_0) = start;
+    int64_t* value_1 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).label_length);
+    (*value_1) = (int64_t)(label).length;
 }
 
 void
@@ -1189,8 +1368,10 @@ TreeSetSemanticDetail(Session session, int32_t index, String detail)
     if (start < 0LL) {
         return;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).detail_offset = start;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).detail_length = (int64_t)(detail).length;
+    int64_t* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).detail_offset);
+    (*value_0) = start;
+    int64_t* value_1 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).detail_length);
+    (*value_1) = (int64_t)(detail).length;
 }
 
 void
@@ -1214,8 +1395,10 @@ TreeSetSemantic(Session session, int32_t index, SemanticKind kind, int32_t headi
     if (semantic < 0) {
         return;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).kind = kind;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).heading_level = heading_level;
+    SemanticKind* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).kind);
+    (*value_0) = kind;
+    int32_t* value_1 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).heading_level);
+    (*value_1) = heading_level;
 }
 
 void
@@ -1229,9 +1412,12 @@ TreeSetInteractive(Session session, int32_t index, bool disabled, bool loading, 
     if (interaction < 0) {
         return;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).disabled = disabled;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).loading = loading;
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).focus_id = focus_id;
+    bool* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).disabled);
+    (*value_0) = disabled;
+    bool* value_1 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).loading);
+    (*value_1) = loading;
+    int32_t* value_2 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).focus_id);
+    (*value_2) = focus_id;
 }
 
 void
@@ -1247,7 +1433,8 @@ TreeSetCaptureTab(Session session, int32_t index, bool capture)
     }
     int32_t interaction = tree_TreeEnsureInteraction(session, index);
     if (interaction >= 0) {
-        (ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).capture_tab = capture;
+        bool* value_1 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).capture_tab);
+        (*value_1) = capture;
     }
 }
 
@@ -1260,23 +1447,26 @@ TreeSetWidgetState(Session session, int32_t index, WidgetState state)
     }
     int32_t existing = (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).state_index;
     if (existing >= 0) {
-        ZIRAN_VEC_INDEX(((trees[slot]).submitted_states).data, ((trees[slot]).submitted_states).count, existing) = state;
+        WidgetState* value_0 = &(ZIRAN_VEC_INDEX(((trees[slot]).submitted_states).data, ((trees[slot]).submitted_states).count, existing));
+        (*value_0) = state;
         return;
     }
     int32_t next = (int32_t)(((trees[slot]).submitted_states).count);
-    WidgetState value_0 = state;
-    bool value_1 = false;
-    void *value_2 = ZirVecGrow((void *)((trees[slot]).submitted_states).data, &((trees[slot]).submitted_states).capacity, ((trees[slot]).submitted_states).count, sizeof(*((trees[slot]).submitted_states).data));
-    if (value_2 != NULL) {
-        ((trees[slot]).submitted_states).data = (WidgetState *)value_2;
-        ((trees[slot]).submitted_states).data[((trees[slot]).submitted_states).count++] = value_0;
-        value_1 = true;
+    WidgetState value_1 = state;
+    bool value_2 = false;
+    void *value_3 = ZirVecGrow((void *)((trees[slot]).submitted_states).data, &((trees[slot]).submitted_states).capacity, ((trees[slot]).submitted_states).count, sizeof(*((trees[slot]).submitted_states).data));
+    if (value_3 != NULL) {
+        ((trees[slot]).submitted_states).data = (WidgetState *)value_3;
+        ((trees[slot]).submitted_states).data[((trees[slot]).submitted_states).count++] = value_1;
+        value_2 = true;
     }
-    if (!value_1) {
-        (trees[slot]).error = (FrameStatus)(6LL);
+    if (!value_2) {
+        FrameStatus* value_4 = &((trees[slot]).error);
+        (*value_4) = (FrameStatus)(6LL);
         return;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).state_index = next;
+    int32_t* value_5 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).state_index);
+    (*value_5) = next;
 }
 
 WidgetState
@@ -1305,7 +1495,8 @@ TreeSetCircleHit(Session session, int32_t index, bool circle_hit)
     if (interaction < 0) {
         return;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).circle_hit = circle_hit;
+    bool* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_interactions).data, ((trees[slot]).submitted_interactions).count, interaction)).circle_hit);
+    (*value_0) = circle_hit;
 }
 
 void
@@ -1319,7 +1510,8 @@ TreeSetSelected(Session session, int32_t index, bool selected)
     if (semantic < 0) {
         return;
     }
-    (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).selected = selected;
+    bool* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).selected);
+    (*value_0) = selected;
 }
 
 void
@@ -1331,7 +1523,8 @@ TreeSetStyleClass(Session session, int32_t index, int32_t style_class)
     }
     int32_t semantic = tree_TreeEnsureSemantic(session, index);
     if (semantic >= 0) {
-        (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).style_class = style_class;
+        int32_t* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).style_class);
+        (*value_0) = style_class;
     }
 }
 
@@ -1344,6 +1537,7 @@ TreeSetStyleId(Session session, int32_t index, int32_t style_id)
     }
     int32_t semantic = tree_TreeEnsureSemantic(session, index);
     if (semantic >= 0) {
-        (ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).style_id = style_id;
+        int32_t* value_0 = &((ZIRAN_VEC_INDEX(((trees[slot]).submitted_semantics).data, ((trees[slot]).submitted_semantics).count, semantic)).style_id);
+        (*value_0) = style_id;
     }
 }

@@ -155,14 +155,29 @@ std_math_MathSplit(double value)
         value = value * step;
         exponent = (int32_t)((uint32_t)exponent - 64u);
     }
-    int32_t width = 32;
-    while (width >= 1) {
-        double power = std_math_SmallPowerOfTwo(width);
-        if (value >= power) {
-            value = value / power;
-            exponent = (int32_t)((uint32_t)exponent + (uint32_t)width);
-        }
-        width = width / 2;
+    if (value >= 4294967296.0) {
+        value = value * 2.3283064365386962890625e-10;
+        exponent = (int32_t)((uint32_t)exponent + 32u);
+    }
+    if (value >= 65536.0) {
+        value = value * 0.0000152587890625;
+        exponent = (int32_t)((uint32_t)exponent + 16u);
+    }
+    if (value >= 256.0) {
+        value = value * 0.00390625;
+        exponent = (int32_t)((uint32_t)exponent + 8u);
+    }
+    if (value >= 16.0) {
+        value = value * 0.0625;
+        exponent = (int32_t)((uint32_t)exponent + 4u);
+    }
+    if (value >= 4.0) {
+        value = value * 0.25;
+        exponent = (int32_t)((uint32_t)exponent + 2u);
+    }
+    if (value >= 2.0) {
+        value = value * 0.5;
+        exponent = (int32_t)((uint32_t)exponent + 1u);
     }
     return (MathParts){.mantissa = value, .exponent = exponent};
 }

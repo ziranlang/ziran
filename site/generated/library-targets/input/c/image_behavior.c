@@ -4,10 +4,9 @@
 #include "image_behavior.h"
 #include "drawing_props.h"
 #include "geometry.h"
-#include "image_props.h"
 
 Rectangle
-ImageFitRect(ImageProps image, Texture2D texture)
+ImageFitRect(zir_a62ab5d98ba48716_Props image, Texture2D texture)
 {
     return ImageFitBounds(image.bounds, image.source, texture.width, texture.height, (int32_t)(((ImageFit)(image.fit))));
 }
@@ -37,22 +36,28 @@ ImagePolygonValid(Slice points)
 }
 
 ImageDrawPlan
-ImageDrawPlanFor(ImageProps image, Texture2D texture, Color tint)
+ImageDrawPlanFor(zir_a62ab5d98ba48716_Props image, Texture2D texture, Color tint)
 {
     ImageDrawPlan plan = {0};
     bool value_0 = texture.id == 0 || texture.width <= 0 || texture.height <= 0 || image.bounds.width <= ((float)0.0);
     if (value_0 || image.bounds.height <= ((float)0.0)) {
         return plan;
     }
-    plan.draw = true;
-    plan.source = image.source;
+    bool* value_1 = &(plan.draw);
+    (*value_1) = true;
+    Rectangle* value_2 = &(plan.source);
+    (*value_2) = image.source;
     if (plan.source.width == ((float)0.0) || plan.source.height == ((float)0.0)) {
-        plan.source = (Rectangle){.x = (float)0.0, .y = (float)0.0, .width = (float)(texture.width), .height = (float)(texture.height)};
+        Rectangle* value_3 = &(plan.source);
+        (*value_3) = (Rectangle){.x = (float)0.0, .y = (float)0.0, .width = (float)(texture.width), .height = (float)(texture.height)};
     }
-    plan.destination = ImageFitRect(image, texture);
-    plan.tint = tint;
+    Rectangle* value_4 = &(plan.destination);
+    (*value_4) = ImageFitRect(image, texture);
+    Color* value_5 = &(plan.tint);
+    (*value_5) = tint;
     if (plan.tint.a == 0) {
-        plan.tint = (Color){.r = 255, .g = 255, .b = 255, .a = 255};
+        Color* value_6 = &(plan.tint);
+        (*value_6) = (Color){.r = 255, .g = 255, .b = 255, .a = 255};
     }
     return plan;
 }
@@ -91,10 +96,14 @@ ImageFitBounds(Rectangle bounds, Rectangle source, int32_t texture_width, int32_
                 scale = sy;
             }
         }
-        dst.width = src_w * scale;
-        dst.height = src_h * scale;
-        dst.x = bounds.x + ((bounds.width - dst.width) * ((float)0.5));
-        dst.y = bounds.y + ((bounds.height - dst.height) * ((float)0.5));
+        float* value_0 = &(dst.width);
+        (*value_0) = src_w * scale;
+        float* value_1 = &(dst.height);
+        (*value_1) = src_h * scale;
+        float* value_2 = &(dst.x);
+        (*value_2) = bounds.x + ((bounds.width - dst.width) * ((float)0.5));
+        float* value_3 = &(dst.y);
+        (*value_3) = bounds.y + ((bounds.height - dst.height) * ((float)0.5));
     }
     return dst;
 }

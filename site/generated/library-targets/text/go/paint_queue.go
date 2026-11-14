@@ -7,7 +7,6 @@ import "unsafe"
 // #import control_props
 // #import geometry
 // #import elevation
-// #import image_props
 // #import image_behavior
 // #import paint_texture
 // #import raster
@@ -229,7 +228,8 @@ func PaintQueue_KeepShortPaintBytes(slot int32, value string) PaintTextRange {
 		range_last_4 := int64(len(value)) - 1
 		at := range_first_4
 		for at <= range_last_4 {
-			(((pending_short_text[slot]).Data[kept.Block]).Bytes)[(int64(kept.Start) + at)] = value[at]
+			value_0 := &((((pending_short_text[slot]).Data[kept.Block]).Bytes)[(int64(kept.Start) + at)])
+			(*value_0) = value[at]
 			if at == range_last_4 {
 				break
 			}
@@ -237,7 +237,8 @@ func PaintQueue_KeepShortPaintBytes(slot int32, value string) PaintTextRange {
 		}
 	}
 	PaintQueue_ZiSpec27099373fae5fe98(&(pending_short_text[slot]))
-	kept.Start = (0 - kept.Start) - 1
+	value_1 := &(kept.Start)
+	(*value_1) = (0 - kept.Start) - 1
 	return kept
 }
 
@@ -251,7 +252,8 @@ func PaintQueue_KeepMediumPaintBytes(slot int32, value string) PaintTextRange {
 		range_last_4 := int64(len(value)) - 1
 		at := range_first_4
 		for at <= range_last_4 {
-			(((pending_medium_text[slot]).Data[kept.Block]).Bytes)[(int64(kept.Start) + at)] = value[at]
+			value_0 := &((((pending_medium_text[slot]).Data[kept.Block]).Bytes)[(int64(kept.Start) + at)])
+			(*value_0) = value[at]
 			if at == range_last_4 {
 				break
 			}
@@ -259,7 +261,8 @@ func PaintQueue_KeepMediumPaintBytes(slot int32, value string) PaintTextRange {
 		}
 	}
 	PaintQueue_ZiSpec17277838aa4fe0e7(&(pending_medium_text[slot]))
-	kept.Start = ((0 - kept.Start) - 256) - 1
+	value_1 := &(kept.Start)
+	(*value_1) = ((0 - kept.Start) - 256) - 1
 	return kept
 }
 
@@ -273,7 +276,8 @@ func PaintQueue_KeepLongPaintBytes(slot int32, value string) PaintTextRange {
 		range_last_4 := int64(len(value)) - 1
 		at := range_first_4
 		for at <= range_last_4 {
-			(((pending_text[slot]).Data[kept.Block]).Bytes)[(int64(kept.Start) + at)] = value[at]
+			value_0 := &((((pending_text[slot]).Data[kept.Block]).Bytes)[(int64(kept.Start) + at)])
+			(*value_0) = value[at]
 			if at == range_last_4 {
 				break
 			}
@@ -294,7 +298,8 @@ func PaintQueue_KeepPaintBytes(slot int32, value string) PaintTextRange {
 	if int64(len(value)) <= 32768 {
 		return PaintQueue_KeepLongPaintBytes(slot, value)
 	}
-	(pending_paint[slot]).Overflow = true
+	value_0 := &((pending_paint[slot]).Overflow)
+	(*value_0) = true
 	var invalid PaintTextRange = PaintTextRange{}
 	return invalid
 }
@@ -324,10 +329,14 @@ func PaintQueue_KeepPaintText(slot int32, data *PaintCommand, value string) {
 	if !retained.Valid {
 		return
 	}
-	data.TextStart = int64(retained.Start)
-	data.TextCount = int64(len(value))
-	data.TextBlock = retained.Block
-	data.OwnsText = true
+	value_0 := &(data.TextStart)
+	(*value_0) = int64(retained.Start)
+	value_1 := &(data.TextCount)
+	(*value_1) = int64(len(value))
+	value_2 := &(data.TextBlock)
+	(*value_2) = retained.Block
+	value_3 := &(data.OwnsText)
+	(*value_3) = true
 }
 
 func PaintQueue_KeepPaintAsset(slot int32, data *PaintCommand, path string) {
@@ -338,22 +347,30 @@ func PaintQueue_KeepPaintAsset(slot int32, data *PaintCommand, path string) {
 	if !retained.Valid {
 		return
 	}
-	data.AssetStart = int64(retained.Start)
-	data.AssetCount = int64(len(path))
-	data.AssetBlock = retained.Block
-	data.OwnsAsset = true
+	value_0 := &(data.AssetStart)
+	(*value_0) = int64(retained.Start)
+	value_1 := &(data.AssetCount)
+	(*value_1) = int64(len(path))
+	value_2 := &(data.AssetBlock)
+	(*value_2) = retained.Block
+	value_3 := &(data.OwnsAsset)
+	(*value_3) = true
 }
 
 func PaintQueue_ResolvePaintText(slot int32, data *PaintCommand) {
-	data.Value = ""
-	data.AssetPath = ""
+	value_0 := &(data.Value)
+	(*value_0) = ""
+	value_1 := &(data.AssetPath)
+	(*value_1) = ""
 	if data.OwnsText {
-		var value_0 string = PaintQueue_PendingTextValue(slot, data.TextBlock, data.TextStart, data.TextCount)
-		data.Value = value_0
+		value_2 := &(data.Value)
+		var value_3 string = PaintQueue_PendingTextValue(slot, data.TextBlock, data.TextStart, data.TextCount)
+		(*value_2) = value_3
 	}
 	if data.OwnsAsset {
-		var value_1 string = PaintQueue_PendingTextValue(slot, data.AssetBlock, data.AssetStart, data.AssetCount)
-		data.AssetPath = value_1
+		value_4 := &(data.AssetPath)
+		var value_5 string = PaintQueue_PendingTextValue(slot, data.AssetBlock, data.AssetStart, data.AssetCount)
+		(*value_4) = value_5
 	}
 }
 
@@ -383,10 +400,12 @@ func PaintQueue_EmitPaintNow(command QueuedPaint, value string, asset string) {
 		(*value_0).Count = 0
 		return
 	}
-	if 0 < 0 || int64(len(value)) < 0 || int64(len(value)) > ziran_keyword_copy_0.Count { panic("slice range out of bounds") }
-	command.Data.Value = string(ziran_keyword_copy_0.Data[0:int64(len(value))])
-	if int64(len(value)) < 0 || ziran_keyword_copy_0.Count < int64(len(value)) || ziran_keyword_copy_0.Count > ziran_keyword_copy_0.Count { panic("slice range out of bounds") }
-	command.Data.AssetPath = string(ziran_keyword_copy_0.Data[int64(len(value)):ziran_keyword_copy_0.Count])
+	value_4 := &(command.Data.Value)
+	if int64(0) < 0 || int64(int64(len(value))) < int64(0) || int64(int64(len(value))) > ziran_keyword_copy_0.Count { panic("slice range out of bounds") }
+	(*value_4) = string(ziran_keyword_copy_0.Data[0:int64(len(value))])
+	value_6 := &(command.Data.AssetPath)
+	if int64(int64(len(value))) < 0 || int64(ziran_keyword_copy_0.Count) < int64(int64(len(value))) || int64(ziran_keyword_copy_0.Count) > ziran_keyword_copy_0.Count { panic("slice range out of bounds") }
+	(*value_6) = string(ziran_keyword_copy_0.Data[int64(len(value)):ziran_keyword_copy_0.Count])
 	PaintQueue_EmitPaint(command)
 	ziran_keyword_copy_0.Data = nil
 	ziran_keyword_copy_0.Capacity = 0
@@ -438,15 +457,22 @@ func PaintQueue_KeepMeshPoints(blocks *__type_d590da4570cbd205, points []Vector2
 	var at int32 = 0
 	for int64(at) < count {
 		point := points[at]
-		point.X += dx
-		point.Y += dy
-		block.Points[(start + at)] = point
+		value_2 := &(point.X)
+		(*value_2) += dx
+		value_3 := &(point.Y)
+		(*value_3) += dy
+		value_4 := &(block.Points[(start + at)])
+		(*value_4) = point
 		at++
 	}
-	block.Count = start + at
-	result.Block = block_index
-	result.Start = start
-	result.Valid = true
+	value_5 := &(block.Count)
+	(*value_5) = start + at
+	value_6 := &(result.Block)
+	(*value_6) = block_index
+	value_7 := &(result.Start)
+	(*value_7) = start
+	value_8 := &(result.Valid)
+	(*value_8) = true
 	return result
 }
 
@@ -461,12 +487,16 @@ func PaintQueue_KeepPaintMesh(slot int32, data *PaintCommand, dx float32, dy flo
 	}
 	kept := PaintQueue_KeepMeshPoints(&(pending_mesh[slot]), data.MeshPoints, count, dx, dy)
 	if !kept.Valid {
-		(pending_paint[slot]).Overflow = true
+		value_0 := &((pending_paint[slot]).Overflow)
+		(*value_0) = true
 		return
 	}
-	data.MeshBlock = kept.Block
-	data.MeshStart = kept.Start
-	data.OwnsMesh = true
+	value_1 := &(data.MeshBlock)
+	(*value_1) = kept.Block
+	value_2 := &(data.MeshStart)
+	(*value_2) = kept.Start
+	value_3 := &(data.OwnsMesh)
+	(*value_3) = true
 }
 
 func PaintQueue_EmitPaint(command QueuedPaint) {
@@ -665,8 +695,10 @@ func PaintQueue_EmitLine(command PaintCommand) {
 			if x1 <= x0 {
 				return
 			}
-			line.X = x0
-			line.Width = x1 - x0
+			value_0 := &(line.X)
+			(*value_0) = x0
+			value_1 := &(line.Width)
+			(*value_1) = x1 - x0
 		} else {
 			if line.X < clip.X || line.X > clip.X + clip.Width {
 				return
@@ -682,8 +714,10 @@ func PaintQueue_EmitLine(command PaintCommand) {
 			if y1 <= y0 {
 				return
 			}
-			line.Y = y0
-			line.Height = y1 - y0
+			value_2 := &(line.Y)
+			(*value_2) = y0
+			value_3 := &(line.Height)
+			(*value_3) = y1 - y0
 		}
 		Raster_StrokeLine(line, command.Color)
 		return
@@ -803,7 +837,8 @@ func PaintQueue_EmitImage(command PaintCommand) {
 		} else {
 			WidgetBenchmarkHost_RasterImage(command.AssetPath, uint32(command.TextureId), command.Source, command.Bounds, command.Clip, command.Origin, float32(command.Rotation), float32(command.Radius), command.Color)
 		}
-		emitting_texture.ID = 0
+		value_0 := &(emitting_texture.ID)
+		(*value_0) = 0
 		emitting_smooth = false
 		if int64(0) < 0 || int64(0) < int64(0) || int64(0) > int64(len(emitting_image_polygon)) {
 			panic("slice range out of bounds")
@@ -814,31 +849,40 @@ func PaintQueue_EmitImage(command PaintCommand) {
 
 func PaintQueue_ClipLabel(command PaintCommand, geometry NodeGeometry) PaintCommand {
 	if command.Rotation != 0.0 {
-		command.TextOuterClip = geometry.Clip
-		command.TextOuterClipped = true
+		value_0 := &(command.TextOuterClip)
+		(*value_0) = geometry.Clip
+		value_1 := &(command.TextOuterClipped)
+		(*value_1) = true
 		return command
 	}
 	if command.Kind == 4 {
-		command.Kind = 6
-		command.Clip = geometry.Clip
+		value_2 := &(command.Kind)
+		(*value_2) = 6
+		value_3 := &(command.Clip)
+		(*value_3) = geometry.Clip
 	} else {
-		command.Clip = Geometry_RectangleIntersection(command.Clip, geometry.Clip)
+		value_4 := &(command.Clip)
+		(*value_4) = Geometry_RectangleIntersection(command.Clip, geometry.Clip)
 	}
 	return command
 }
 
 func PaintQueue_ClipShape(command PaintCommand, geometry NodeGeometry) PaintCommand {
 	if command.ClipSet {
-		command.Clip = Geometry_RectangleIntersection(command.Clip, geometry.Clip)
+		value_0 := &(command.Clip)
+		(*value_0) = Geometry_RectangleIntersection(command.Clip, geometry.Clip)
 	} else {
-		command.Clip = geometry.Clip
-		command.ClipSet = true
+		value_1 := &(command.Clip)
+		(*value_1) = geometry.Clip
+		value_2 := &(command.ClipSet)
+		(*value_2) = true
 	}
 	return command
 }
 
 func PaintQueue_ClipImage(command PaintCommand, geometry NodeGeometry) PaintCommand {
-	command.Clip = Geometry_RectangleIntersection(command.Clip, geometry.Clip)
+	value_0 := &(command.Clip)
+	(*value_0) = Geometry_RectangleIntersection(command.Clip, geometry.Clip)
 	return command
 }
 
@@ -847,16 +891,19 @@ func PaintQueue_SubmitPaint(session Session, command QueuedPaint) {
 }
 
 func PaintQueue_QueuePaint(session Session, command *QueuedPaint, value string, asset string) {
-	command.Data.OwnsText = false
-	command.Data.OwnsAsset = false
-	command.Data.OwnsMesh = false
-	var value_0 bool = command.Data.Node < 0
-	var value_1 bool = value_0
-	if value_1 {
-		var value_2 bool = Tree_TreeIsBuilding(session)
-		value_1 = !value_2
+	value_0 := &(command.Data.OwnsText)
+	(*value_0) = false
+	value_1 := &(command.Data.OwnsAsset)
+	(*value_1) = false
+	value_2 := &(command.Data.OwnsMesh)
+	(*value_2) = false
+	var value_3 bool = command.Data.Node < 0
+	var value_4 bool = value_3
+	if value_4 {
+		var value_5 bool = Tree_TreeIsBuilding(session)
+		value_4 = !value_5
 	}
-	if value_1 {
+	if value_4 {
 		PaintQueue_EmitPaintNow(*(command), value, asset)
 		return
 	}
@@ -864,107 +911,136 @@ func PaintQueue_QueuePaint(session Session, command *QueuedPaint, value string, 
 	if layer_node < 0 {
 		layer_node = Tree_TreeCurrentParent(session)
 	}
-	var value_3 Session = session
-	var value_4 int32 = layer_node
-	var value_5 bool = Tree_TreeIsBuilding(session)
-	var value_6 int32 = Tree_TreeOverlayLayerAt(value_3, value_4, !value_5)
-	command.Data.OverlayLayer = value_6
+	value_6 := &(command.Data.OverlayLayer)
+	var value_7 Session = session
+	var value_8 int32 = layer_node
+	var value_9 bool = Tree_TreeIsBuilding(session)
+	var value_10 int32 = Tree_TreeOverlayLayerAt(value_7, value_8, !value_9)
+	(*value_6) = value_10
 	slot := Session_SessionIndex(session)
 	if command.Data.OverlayLayer > 0 {
-		(pending_paint[slot]).Overlays = true
+		value_11 := &((pending_paint[slot]).Overlays)
+		(*value_11) = true
 	}
-	(pending_paint[slot]).Ordered = false
+	value_12 := &((pending_paint[slot]).Ordered)
+	(*value_12) = false
 	PaintQueue_KeepPaintText(slot, &(command.Data), value)
 	PaintQueue_KeepPaintAsset(slot, &(command.Data), asset)
 	PaintQueue_ResolvePaintText(slot, &(command.Data))
-	var value_7 bool = command.Data.Node < 0
-	var value_8 bool = value_7
-	if value_8 {
-		var value_9 bool = Tree_TreeIsBuilding(session)
-		value_8 = value_9
+	var value_13 bool = command.Data.Node < 0
+	var value_14 bool = value_13
+	if value_14 {
+		var value_15 bool = Tree_TreeIsBuilding(session)
+		value_14 = value_15
 	}
-	if value_8 && command.Clips {
+	if value_14 && command.Clips {
 		scope := Tree_TreeCurrentPaintGeometry(session)
 		if scope.Clipped {
 			var clip_for PaintClipper = command.ClipFor
 			_ = clip_for
-			var value_10 PaintClipper = clip_for
-			var value_11 PaintCommand = value_10(command.Data, scope)
-			command.Data = value_11
+			value_16 := &(command.Data)
+			var value_17 PaintClipper = clip_for
+			var value_18 PaintCommand = value_17(command.Data, scope)
+			(*value_16) = value_18
 		}
 	}
 	var moved_x float32 = 0.0
 	var moved_y float32 = 0.0
-	var value_12 bool = command.Data.Node >= 0
-	var value_13 bool = value_12
-	if value_13 {
-		var value_14 bool = Tree_TreeIsBuilding(session)
-		value_13 = value_14
+	var value_19 bool = command.Data.Node >= 0
+	var value_20 bool = value_19
+	if value_20 {
+		var value_21 bool = Tree_TreeIsBuilding(session)
+		value_20 = value_21
 	}
-	if value_13 {
+	if value_20 {
 		geometry := Tree_TreeSubmittedGeometryAt(session, command.Data.Node)
 		dx := geometry.Bounds.X - geometry.MeasuredBounds.X
 		dy := geometry.Bounds.Y - geometry.MeasuredBounds.Y
 		moved_x = dx
 		moved_y = dy
-		var value_15 bool = command.Data.Bounds.X == geometry.MeasuredBounds.X && command.Data.Bounds.Y == geometry.MeasuredBounds.Y
-		full_bounds := value_15 && command.Data.Bounds.Width == geometry.MeasuredBounds.Width && command.Data.Bounds.Height == geometry.MeasuredBounds.Height
-		var value_16 bool = command.Data.Clip.X == geometry.MeasuredBounds.X && command.Data.Clip.Y == geometry.MeasuredBounds.Y
-		full_clip := value_16 && command.Data.Clip.Width == geometry.MeasuredBounds.Width && command.Data.Clip.Height == geometry.MeasuredBounds.Height
-		command.Data.Bounds.X += dx
-		command.Data.Bounds.Y += dy
-		command.Data.Clip.X += dx
-		command.Data.Clip.Y += dy
+		var value_22 bool = command.Data.Bounds.X == geometry.MeasuredBounds.X && command.Data.Bounds.Y == geometry.MeasuredBounds.Y
+		full_bounds := value_22 && command.Data.Bounds.Width == geometry.MeasuredBounds.Width && command.Data.Bounds.Height == geometry.MeasuredBounds.Height
+		var value_23 bool = command.Data.Clip.X == geometry.MeasuredBounds.X && command.Data.Clip.Y == geometry.MeasuredBounds.Y
+		full_clip := value_23 && command.Data.Clip.Width == geometry.MeasuredBounds.Width && command.Data.Clip.Height == geometry.MeasuredBounds.Height
+		value_24 := &(command.Data.Bounds.X)
+		(*value_24) += dx
+		value_25 := &(command.Data.Bounds.Y)
+		(*value_25) += dy
+		value_26 := &(command.Data.Clip.X)
+		(*value_26) += dx
+		value_27 := &(command.Data.Clip.Y)
+		(*value_27) += dy
 		if command.Data.Rotation != 0.0 && (command.Data.Kind == 4 || command.Data.Kind == 6) {
-			command.Data.Origin.X += dx
-			command.Data.Origin.Y += dy
+			value_28 := &(command.Data.Origin.X)
+			(*value_28) += dx
+			value_29 := &(command.Data.Origin.Y)
+			(*value_29) += dy
 		}
-		command.Data.X += int32(floatToInt(float64(dx), 32, true))
-		command.Data.Y += int32(floatToInt(float64(dy), 32, true))
+		value_30 := &(command.Data.X)
+		(*value_30) += int32(floatToInt(float64(dx), 32, true))
+		value_31 := &(command.Data.Y)
+		(*value_31) += int32(floatToInt(float64(dy), 32, true))
 		if full_bounds {
-			command.Data.Bounds.Width = geometry.Bounds.Width
-			command.Data.Bounds.Height = geometry.Bounds.Height
+			value_32 := &(command.Data.Bounds.Width)
+			(*value_32) = geometry.Bounds.Width
+			value_33 := &(command.Data.Bounds.Height)
+			(*value_33) = geometry.Bounds.Height
 		}
 		if full_clip {
-			command.Data.Clip.Width = geometry.Bounds.Width
-			command.Data.Clip.Height = geometry.Bounds.Height
+			value_34 := &(command.Data.Clip.Width)
+			(*value_34) = geometry.Bounds.Width
+			value_35 := &(command.Data.Clip.Height)
+			(*value_35) = geometry.Bounds.Height
 		}
 		if geometry.Clipped && command.Clips {
 			var clip_for PaintClipper = command.ClipFor
 			_ = clip_for
-			var value_17 PaintClipper = clip_for
-			var value_18 PaintCommand = value_17(command.Data, geometry)
-			command.Data = value_18
+			value_36 := &(command.Data)
+			var value_37 PaintClipper = clip_for
+			var value_38 PaintCommand = value_37(command.Data, geometry)
+			(*value_36) = value_38
 		}
 	}
 	destination := Session_SessionIndex(session)
 	PaintQueue_KeepPaintMesh(destination, &(command.Data), moved_x, moved_y)
-	command.Data.Value = ""
-	command.Data.AssetPath = ""
-	var value_19 QueuedPaint = *(command)
-	var value_20 bool = false
-	(pending_paint[destination]).Items.Data = append((pending_paint[destination]).Items.Data[:(pending_paint[destination]).Items.Count], value_19)
+	value_39 := &(command.Data.Value)
+	(*value_39) = ""
+	value_40 := &(command.Data.AssetPath)
+	(*value_40) = ""
+	var value_41 QueuedPaint = *(command)
+	var value_42 bool = false
+	(pending_paint[destination]).Items.Data = append((pending_paint[destination]).Items.Data[:(pending_paint[destination]).Items.Count], value_41)
 	(pending_paint[destination]).Items.Count = int64(len((pending_paint[destination]).Items.Data))
 	(pending_paint[destination]).Items.Capacity = int64(cap((pending_paint[destination]).Items.Data))
-	value_20 = true
-	if !value_20 {
-		(pending_paint[destination]).Overflow = true
+	value_42 = true
+	if !value_42 {
+		value_43 := &((pending_paint[destination]).Overflow)
+		(*value_43) = true
 	}
 }
 
 func PaintQueue_PaintLine(session Session, node int32, bounds Rectangle, color Color) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 1
-	command.Data.Node = node
-	command.Data.Bounds = bounds
-	command.Data.Color = color
-	var emit PaintEmitter = func(value_0 PaintCommand) { PaintQueue_EmitLine(value_0) }
-	command.Emit = emit
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_1, value_2) }
-	command.ClipFor = clip_for
-	command.Clips = true
+	value_0 := &(command.Data.Kind)
+	(*value_0) = 1
+	value_1 := &(command.Data.Node)
+	(*value_1) = node
+	value_2 := &(command.Data.Bounds)
+	(*value_2) = bounds
+	value_3 := &(command.Data.Color)
+	(*value_3) = color
+	var emit PaintEmitter = func(value_4 PaintCommand) { PaintQueue_EmitLine(value_4) }
+	value_5 := &(command.Emit)
+	(*value_5) = emit
+	value_6 := &(command.HasEmitter)
+	(*value_6) = true
+	value_7 := &(command.BuiltinEmitter)
+	(*value_7) = true
+	var clip_for PaintClipper = func(value_8 PaintCommand, value_9 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_8, value_9) }
+	value_10 := &(command.ClipFor)
+	(*value_10) = clip_for
+	value_11 := &(command.Clips)
+	(*value_11) = true
 	PaintQueue_QueuePaint(session, &(command), "", "")
 }
 
@@ -981,139 +1057,228 @@ func PaintQueue_PillRadius(bounds Rectangle) float32 {
 
 func PaintQueue_PaintRoundedFill(session Session, node int32, bounds Rectangle, radius float32, segments int32, color Color) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 2
-	command.Data.Node = node
-	command.Data.Bounds = bounds
-	command.Data.Radius = radius
-	command.Data.Segments = segments
-	command.Data.Color = color
-	var emit PaintEmitter = func(value_0 PaintCommand) { PaintQueue_EmitRoundedFill(value_0) }
-	command.Emit = emit
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_1, value_2) }
-	command.ClipFor = clip_for
-	command.Clips = true
+	value_0 := &(command.Data.Kind)
+	(*value_0) = 2
+	value_1 := &(command.Data.Node)
+	(*value_1) = node
+	value_2 := &(command.Data.Bounds)
+	(*value_2) = bounds
+	value_3 := &(command.Data.Radius)
+	(*value_3) = radius
+	value_4 := &(command.Data.Segments)
+	(*value_4) = segments
+	value_5 := &(command.Data.Color)
+	(*value_5) = color
+	var emit PaintEmitter = func(value_6 PaintCommand) { PaintQueue_EmitRoundedFill(value_6) }
+	value_7 := &(command.Emit)
+	(*value_7) = emit
+	value_8 := &(command.HasEmitter)
+	(*value_8) = true
+	value_9 := &(command.BuiltinEmitter)
+	(*value_9) = true
+	var clip_for PaintClipper = func(value_10 PaintCommand, value_11 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_10, value_11) }
+	value_12 := &(command.ClipFor)
+	(*value_12) = clip_for
+	value_13 := &(command.Clips)
+	(*value_13) = true
 	PaintQueue_QueuePaint(session, &(command), "", "")
 }
 
 func PaintQueue_PaintVerticalGradient(session Session, node int32, bounds Rectangle, top Color, bottom Color) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 7
-	command.Data.Node = node
-	command.Data.Bounds = bounds
-	command.Data.Color = top
-	command.Data.EndColor = bottom
-	var emit PaintEmitter = func(value_0 PaintCommand) { PaintQueue_EmitVerticalGradient(value_0) }
-	command.Emit = emit
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_1, value_2) }
-	command.ClipFor = clip_for
-	command.Clips = true
+	value_0 := &(command.Data.Kind)
+	(*value_0) = 7
+	value_1 := &(command.Data.Node)
+	(*value_1) = node
+	value_2 := &(command.Data.Bounds)
+	(*value_2) = bounds
+	value_3 := &(command.Data.Color)
+	(*value_3) = top
+	value_4 := &(command.Data.EndColor)
+	(*value_4) = bottom
+	var emit PaintEmitter = func(value_5 PaintCommand) { PaintQueue_EmitVerticalGradient(value_5) }
+	value_6 := &(command.Emit)
+	(*value_6) = emit
+	value_7 := &(command.HasEmitter)
+	(*value_7) = true
+	value_8 := &(command.BuiltinEmitter)
+	(*value_8) = true
+	var clip_for PaintClipper = func(value_9 PaintCommand, value_10 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_9, value_10) }
+	value_11 := &(command.ClipFor)
+	(*value_11) = clip_for
+	value_12 := &(command.Clips)
+	(*value_12) = true
 	PaintQueue_QueuePaint(session, &(command), "", "")
 }
 
 func PaintQueue_PaintRoundedOutline(session Session, node int32, bounds Rectangle, radius float32, segments int32, line_width float32, color Color) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 3
-	command.Data.Node = node
-	command.Data.Bounds = bounds
-	command.Data.Radius = radius
-	command.Data.Segments = segments
-	command.Data.LineWidth = line_width
-	command.Data.Color = color
-	var emit PaintEmitter = func(value_0 PaintCommand) { PaintQueue_EmitRoundedOutline(value_0) }
-	command.Emit = emit
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_1, value_2) }
-	command.ClipFor = clip_for
-	command.Clips = true
+	value_0 := &(command.Data.Kind)
+	(*value_0) = 3
+	value_1 := &(command.Data.Node)
+	(*value_1) = node
+	value_2 := &(command.Data.Bounds)
+	(*value_2) = bounds
+	value_3 := &(command.Data.Radius)
+	(*value_3) = radius
+	value_4 := &(command.Data.Segments)
+	(*value_4) = segments
+	value_5 := &(command.Data.LineWidth)
+	(*value_5) = line_width
+	value_6 := &(command.Data.Color)
+	(*value_6) = color
+	var emit PaintEmitter = func(value_7 PaintCommand) { PaintQueue_EmitRoundedOutline(value_7) }
+	value_8 := &(command.Emit)
+	(*value_8) = emit
+	value_9 := &(command.HasEmitter)
+	(*value_9) = true
+	value_10 := &(command.BuiltinEmitter)
+	(*value_10) = true
+	var clip_for PaintClipper = func(value_11 PaintCommand, value_12 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_11, value_12) }
+	value_13 := &(command.ClipFor)
+	(*value_13) = clip_for
+	value_14 := &(command.Clips)
+	(*value_14) = true
 	PaintQueue_QueuePaint(session, &(command), "", "")
 }
 
 func PaintQueue_PaintLabel(session Session, node int32, value string, x int32, y int32, font int32, color Color, typeface string) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 4
-	command.Data.Node = node
-	command.Data.X = x
-	command.Data.Y = y
-	command.Data.Font = font
-	command.Data.Color = color
-	var emit PaintEmitter = func(value_0 PaintCommand) { PaintQueue_EmitLabel(value_0) }
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipLabel(value_1, value_2) }
-	command.Emit = emit
-	command.ClipFor = clip_for
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	command.Clips = true
+	value_0 := &(command.Data.Kind)
+	(*value_0) = 4
+	value_1 := &(command.Data.Node)
+	(*value_1) = node
+	value_2 := &(command.Data.X)
+	(*value_2) = x
+	value_3 := &(command.Data.Y)
+	(*value_3) = y
+	value_4 := &(command.Data.Font)
+	(*value_4) = font
+	value_5 := &(command.Data.Color)
+	(*value_5) = color
+	var emit PaintEmitter = func(value_6 PaintCommand) { PaintQueue_EmitLabel(value_6) }
+	var clip_for PaintClipper = func(value_7 PaintCommand, value_8 NodeGeometry) PaintCommand { return PaintQueue_ClipLabel(value_7, value_8) }
+	value_9 := &(command.Emit)
+	(*value_9) = emit
+	value_10 := &(command.ClipFor)
+	(*value_10) = clip_for
+	value_11 := &(command.HasEmitter)
+	(*value_11) = true
+	value_12 := &(command.BuiltinEmitter)
+	(*value_12) = true
+	value_13 := &(command.Clips)
+	(*value_13) = true
 	PaintQueue_QueuePaint(session, &(command), value, typeface)
 }
 
 func PaintQueue_PaintClippedLabel(session Session, node int32, value string, x int32, y int32, font int32, color Color, clip Rectangle, typeface string, rotation float32, origin Vector2) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 6
-	command.Data.Node = node
-	command.Data.X = x
-	command.Data.Y = y
-	command.Data.Font = font
-	command.Data.Color = color
-	command.Data.Rotation = rotation
-	command.Data.Origin = origin
-	command.Data.Clip = clip
-	var emit PaintEmitter = func(value_0 PaintCommand) { PaintQueue_EmitLabel(value_0) }
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipLabel(value_1, value_2) }
-	command.Emit = emit
-	command.ClipFor = clip_for
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	command.Clips = true
+	value_0 := &(command.Data.Kind)
+	(*value_0) = 6
+	value_1 := &(command.Data.Node)
+	(*value_1) = node
+	value_2 := &(command.Data.X)
+	(*value_2) = x
+	value_3 := &(command.Data.Y)
+	(*value_3) = y
+	value_4 := &(command.Data.Font)
+	(*value_4) = font
+	value_5 := &(command.Data.Color)
+	(*value_5) = color
+	value_6 := &(command.Data.Rotation)
+	(*value_6) = rotation
+	value_7 := &(command.Data.Origin)
+	(*value_7) = origin
+	value_8 := &(command.Data.Clip)
+	(*value_8) = clip
+	var emit PaintEmitter = func(value_9 PaintCommand) { PaintQueue_EmitLabel(value_9) }
+	var clip_for PaintClipper = func(value_10 PaintCommand, value_11 NodeGeometry) PaintCommand { return PaintQueue_ClipLabel(value_10, value_11) }
+	value_12 := &(command.Emit)
+	(*value_12) = emit
+	value_13 := &(command.ClipFor)
+	(*value_13) = clip_for
+	value_14 := &(command.HasEmitter)
+	(*value_14) = true
+	value_15 := &(command.BuiltinEmitter)
+	(*value_15) = true
+	value_16 := &(command.Clips)
+	(*value_16) = true
 	PaintQueue_QueuePaint(session, &(command), value, typeface)
 }
 
 func PaintQueue_PaintClippedEmphasis(session Session, node int32, value string, x int32, y int32, font int32, color Color, clip Rectangle, typeface string, rotation float32, origin Vector2) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 6
-	command.Data.Node = node
-	command.Data.X = x
-	command.Data.Y = y
-	command.Data.Font = font
-	command.Data.Color = color
-	command.Data.Rotation = rotation
-	command.Data.Origin = origin
-	command.Data.Clip = clip
-	command.Data.Emphasis = true
-	var emit PaintEmitter = func(value_0 PaintCommand) { PaintQueue_EmitLabel(value_0) }
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipLabel(value_1, value_2) }
-	command.Emit = emit
-	command.ClipFor = clip_for
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	command.Clips = true
+	value_0 := &(command.Data.Kind)
+	(*value_0) = 6
+	value_1 := &(command.Data.Node)
+	(*value_1) = node
+	value_2 := &(command.Data.X)
+	(*value_2) = x
+	value_3 := &(command.Data.Y)
+	(*value_3) = y
+	value_4 := &(command.Data.Font)
+	(*value_4) = font
+	value_5 := &(command.Data.Color)
+	(*value_5) = color
+	value_6 := &(command.Data.Rotation)
+	(*value_6) = rotation
+	value_7 := &(command.Data.Origin)
+	(*value_7) = origin
+	value_8 := &(command.Data.Clip)
+	(*value_8) = clip
+	value_9 := &(command.Data.Emphasis)
+	(*value_9) = true
+	var emit PaintEmitter = func(value_10 PaintCommand) { PaintQueue_EmitLabel(value_10) }
+	var clip_for PaintClipper = func(value_11 PaintCommand, value_12 NodeGeometry) PaintCommand { return PaintQueue_ClipLabel(value_11, value_12) }
+	value_13 := &(command.Emit)
+	(*value_13) = emit
+	value_14 := &(command.ClipFor)
+	(*value_14) = clip_for
+	value_15 := &(command.HasEmitter)
+	(*value_15) = true
+	value_16 := &(command.BuiltinEmitter)
+	(*value_16) = true
+	value_17 := &(command.Clips)
+	(*value_17) = true
 	PaintQueue_QueuePaint(session, &(command), value, typeface)
 }
 
 func PaintQueue_PaintClippedSlanted(session Session, node int32, value string, x int32, y int32, font int32, color Color, clip Rectangle, emphasis bool, typeface string, rotation float32, origin Vector2) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 6
-	command.Data.Node = node
-	command.Data.X = x
-	command.Data.Y = y
-	command.Data.Font = font
-	command.Data.Color = color
-	command.Data.Rotation = rotation
-	command.Data.Origin = origin
-	command.Data.Clip = clip
-	command.Data.Emphasis = emphasis
-	command.Data.Italic = true
-	var emit PaintEmitter = func(value_0 PaintCommand) { PaintQueue_EmitLabel(value_0) }
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipLabel(value_1, value_2) }
-	command.Emit = emit
-	command.ClipFor = clip_for
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	command.Clips = true
+	value_0 := &(command.Data.Kind)
+	(*value_0) = 6
+	value_1 := &(command.Data.Node)
+	(*value_1) = node
+	value_2 := &(command.Data.X)
+	(*value_2) = x
+	value_3 := &(command.Data.Y)
+	(*value_3) = y
+	value_4 := &(command.Data.Font)
+	(*value_4) = font
+	value_5 := &(command.Data.Color)
+	(*value_5) = color
+	value_6 := &(command.Data.Rotation)
+	(*value_6) = rotation
+	value_7 := &(command.Data.Origin)
+	(*value_7) = origin
+	value_8 := &(command.Data.Clip)
+	(*value_8) = clip
+	value_9 := &(command.Data.Emphasis)
+	(*value_9) = emphasis
+	value_10 := &(command.Data.Italic)
+	(*value_10) = true
+	var emit PaintEmitter = func(value_11 PaintCommand) { PaintQueue_EmitLabel(value_11) }
+	var clip_for PaintClipper = func(value_12 PaintCommand, value_13 NodeGeometry) PaintCommand { return PaintQueue_ClipLabel(value_12, value_13) }
+	value_14 := &(command.Emit)
+	(*value_14) = emit
+	value_15 := &(command.ClipFor)
+	(*value_15) = clip_for
+	value_16 := &(command.HasEmitter)
+	(*value_16) = true
+	value_17 := &(command.BuiltinEmitter)
+	(*value_17) = true
+	value_18 := &(command.Clips)
+	(*value_18) = true
 	PaintQueue_QueuePaint(session, &(command), value, typeface)
 }
 
@@ -1133,27 +1298,46 @@ func PaintQueue_PaintImageWithPolygon(session Session, node int32, asset_path st
 		return
 	}
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 5
-	command.Data.Smooth = smooth
-	command.Data.Node = node
-	command.Data.TextureId = texture_id
-	command.Data.Texture = texture
-	command.Data.Source = source
-	command.Data.Bounds = destination
-	command.Data.Clip = clip
-	command.Data.Origin = origin
-	command.Data.Rotation = rotation
-	command.Data.Radius = radius
-	command.Data.Color = tint
-	command.Data.ImageClipCount = int32(int64(len(clip_polygon)))
-	command.Data.MeshPoints = clip_polygon
-	var emit PaintEmitter = func(value_2 PaintCommand) { PaintQueue_EmitImage(value_2) }
-	var clip_for PaintClipper = func(value_3 PaintCommand, value_4 NodeGeometry) PaintCommand { return PaintQueue_ClipImage(value_3, value_4) }
-	command.Emit = emit
-	command.ClipFor = clip_for
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	command.Clips = true
+	value_2 := &(command.Data.Kind)
+	(*value_2) = 5
+	value_3 := &(command.Data.Smooth)
+	(*value_3) = smooth
+	value_4 := &(command.Data.Node)
+	(*value_4) = node
+	value_5 := &(command.Data.TextureId)
+	(*value_5) = texture_id
+	value_6 := &(command.Data.Texture)
+	(*value_6) = texture
+	value_7 := &(command.Data.Source)
+	(*value_7) = source
+	value_8 := &(command.Data.Bounds)
+	(*value_8) = destination
+	value_9 := &(command.Data.Clip)
+	(*value_9) = clip
+	value_10 := &(command.Data.Origin)
+	(*value_10) = origin
+	value_11 := &(command.Data.Rotation)
+	(*value_11) = rotation
+	value_12 := &(command.Data.Radius)
+	(*value_12) = radius
+	value_13 := &(command.Data.Color)
+	(*value_13) = tint
+	value_14 := &(command.Data.ImageClipCount)
+	(*value_14) = int32(int64(len(clip_polygon)))
+	value_15 := &(command.Data.MeshPoints)
+	(*value_15) = clip_polygon
+	var emit PaintEmitter = func(value_16 PaintCommand) { PaintQueue_EmitImage(value_16) }
+	var clip_for PaintClipper = func(value_17 PaintCommand, value_18 NodeGeometry) PaintCommand { return PaintQueue_ClipImage(value_17, value_18) }
+	value_19 := &(command.Emit)
+	(*value_19) = emit
+	value_20 := &(command.ClipFor)
+	(*value_20) = clip_for
+	value_21 := &(command.HasEmitter)
+	(*value_21) = true
+	value_22 := &(command.BuiltinEmitter)
+	(*value_22) = true
+	value_23 := &(command.Clips)
+	(*value_23) = true
 	PaintQueue_QueuePaint(session, &(command), "", asset_path)
 }
 
@@ -1168,25 +1352,42 @@ func PaintQueue_PaintImageMesh(session Session, node int32, asset_path string, t
 		return
 	}
 	var command QueuedPaint = QueuedPaint{}
-	command.Data.Kind = 5
-	command.Data.Smooth = smooth
-	command.Data.Node = node
-	command.Data.TextureId = texture_id
-	command.Data.Texture = texture
-	command.Data.Source = source
-	command.Data.Bounds = clip
-	command.Data.Clip = clip
-	command.Data.Color = tint
-	command.Data.MeshColumns = columns
-	command.Data.MeshRows = rows
-	command.Data.MeshPoints = points
-	var emit PaintEmitter = func(value_3 PaintCommand) { PaintQueue_EmitImage(value_3) }
-	command.Emit = emit
-	var clip_for PaintClipper = func(value_4 PaintCommand, value_5 NodeGeometry) PaintCommand { return PaintQueue_ClipImage(value_4, value_5) }
-	command.ClipFor = clip_for
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	command.Clips = true
+	value_3 := &(command.Data.Kind)
+	(*value_3) = 5
+	value_4 := &(command.Data.Smooth)
+	(*value_4) = smooth
+	value_5 := &(command.Data.Node)
+	(*value_5) = node
+	value_6 := &(command.Data.TextureId)
+	(*value_6) = texture_id
+	value_7 := &(command.Data.Texture)
+	(*value_7) = texture
+	value_8 := &(command.Data.Source)
+	(*value_8) = source
+	value_9 := &(command.Data.Bounds)
+	(*value_9) = clip
+	value_10 := &(command.Data.Clip)
+	(*value_10) = clip
+	value_11 := &(command.Data.Color)
+	(*value_11) = tint
+	value_12 := &(command.Data.MeshColumns)
+	(*value_12) = columns
+	value_13 := &(command.Data.MeshRows)
+	(*value_13) = rows
+	value_14 := &(command.Data.MeshPoints)
+	(*value_14) = points
+	var emit PaintEmitter = func(value_15 PaintCommand) { PaintQueue_EmitImage(value_15) }
+	value_16 := &(command.Emit)
+	(*value_16) = emit
+	var clip_for PaintClipper = func(value_17 PaintCommand, value_18 NodeGeometry) PaintCommand { return PaintQueue_ClipImage(value_17, value_18) }
+	value_19 := &(command.ClipFor)
+	(*value_19) = clip_for
+	value_20 := &(command.HasEmitter)
+	(*value_20) = true
+	value_21 := &(command.BuiltinEmitter)
+	(*value_21) = true
+	value_22 := &(command.Clips)
+	(*value_22) = true
 	PaintQueue_QueuePaint(session, &(command), "", asset_path)
 }
 
@@ -1202,9 +1403,12 @@ func PaintQueue_PaintClear(session Session) {
 	pending_text[slot].Count = 0
 	pending_mesh[slot].Data = pending_mesh[slot].Data[:0]
 	pending_mesh[slot].Count = 0
-	(pending_paint[slot]).Overflow = false
-	(pending_paint[slot]).Overlays = false
-	(pending_paint[slot]).Ordered = false
+	value_0 := &((pending_paint[slot]).Overflow)
+	(*value_0) = false
+	value_1 := &((pending_paint[slot]).Overlays)
+	(*value_1) = false
+	value_2 := &((pending_paint[slot]).Ordered)
+	(*value_2) = false
 }
 
 func PaintQueue_PaintOrder(session Session) bool {
@@ -1229,7 +1433,8 @@ func PaintQueue_PaintOrder(session Session) bool {
 				ordered_paint[slot].Capacity = int64(cap(ordered_paint[slot].Data))
 				value_1 = true
 				if !value_1 {
-					(pending_paint[slot]).Overflow = true
+					value_2 := &((pending_paint[slot]).Overflow)
+					(*value_2) = true
 					return false
 				}
 			} else if candidate > layer && (next < 0 || candidate < next) {
@@ -1239,10 +1444,11 @@ func PaintQueue_PaintOrder(session Session) bool {
 		}
 		layer = next
 	}
-	var value_2 __type_2f80215b34a3b082 = (pending_paint[slot]).Items
+	var value_3 __type_2f80215b34a3b082 = (pending_paint[slot]).Items
 	(pending_paint[slot]).Items = ordered_paint[slot]
-	ordered_paint[slot] = value_2
-	(pending_paint[slot]).Ordered = true
+	ordered_paint[slot] = value_3
+	value_4 := &((pending_paint[slot]).Ordered)
+	(*value_4) = true
 	return true
 }
 
@@ -1267,8 +1473,9 @@ func PaintQueue_PendingPaintAt(session Session, index int32) PaintCommand {
 	if data.OwnsMesh {
 		var value_0 int64 = PaintQueue_PaintPointCount(data)
 		count := int32(value_0)
-		var value_1 int32 = data.MeshStart + count
-		data.MeshPoints = ((pending_mesh[slot]).Data[data.MeshBlock]).Points[data.MeshStart:value_1:value_1]
+		value_1 := &(data.MeshPoints)
+		var value_2 int32 = data.MeshStart + count
+		(*value_1) = ((pending_mesh[slot]).Data[data.MeshBlock]).Points[data.MeshStart:value_2:value_2]
 	}
 	return data
 }
@@ -1316,7 +1523,8 @@ func PaintQueue_SnapshotTextAppend(slot int32, values bool, value string) int64 
 				at := range_first_24
 				_ = at
 				for at <= range_last_24 {
-					kept.Bytes[(offset + at)] = value[(copied + at)]
+					value_2 := &(kept.Bytes[(offset + at)])
+					(*value_2) = value[(copied + at)]
 					if at == range_last_24 {
 						break
 					}
@@ -1325,19 +1533,20 @@ func PaintQueue_SnapshotTextAppend(slot int32, values bool, value string) int64 
 			}
 			copied += part
 		}
-		paint_snapshot_value_counts[slot] = start + int64(len(value))
+		value_3 := &(paint_snapshot_value_counts[slot])
+		(*value_3) = start + int64(len(value))
 	} else {
 		start = paint_snapshot_asset_counts[slot]
 		for (paint_snapshot_assets[slot]).Count * 512 < start + int64(len(value)) {
 			var block PaintSnapshotBlock = PaintSnapshotBlock{}
 			_ = block
-			var value_2 PaintSnapshotBlock = block
-			var value_3 bool = false
-			paint_snapshot_assets[slot].Data = append(paint_snapshot_assets[slot].Data[:paint_snapshot_assets[slot].Count], value_2)
+			var value_4 PaintSnapshotBlock = block
+			var value_5 bool = false
+			paint_snapshot_assets[slot].Data = append(paint_snapshot_assets[slot].Data[:paint_snapshot_assets[slot].Count], value_4)
 			paint_snapshot_assets[slot].Count = int64(len(paint_snapshot_assets[slot].Data))
 			paint_snapshot_assets[slot].Capacity = int64(cap(paint_snapshot_assets[slot].Data))
-			value_3 = true
-			if !value_3 {
+			value_5 = true
+			if !value_5 {
 				return -1
 			}
 		}
@@ -1361,7 +1570,8 @@ func PaintQueue_SnapshotTextAppend(slot int32, values bool, value string) int64 
 				at := range_first_48
 				_ = at
 				for at <= range_last_48 {
-					kept.Bytes[(offset + at)] = value[(copied + at)]
+					value_6 := &(kept.Bytes[(offset + at)])
+					(*value_6) = value[(copied + at)]
 					if at == range_last_48 {
 						break
 					}
@@ -1370,7 +1580,8 @@ func PaintQueue_SnapshotTextAppend(slot int32, values bool, value string) int64 
 			}
 			copied += part
 		}
-		paint_snapshot_asset_counts[slot] = start + int64(len(value))
+		value_7 := &(paint_snapshot_asset_counts[slot])
+		(*value_7) = start + int64(len(value))
 	}
 	return start
 }
@@ -1545,8 +1756,10 @@ func PaintQueue_PaintSnapshotInvalidate(session Session) {
 	paint_snapshot_assets[slot].Count = 0
 	paint_snapshot_meshes[slot].Data = paint_snapshot_meshes[slot].Data[:0]
 	paint_snapshot_meshes[slot].Count = 0
-	paint_snapshot_value_counts[slot] = 0
-	paint_snapshot_asset_counts[slot] = 0
+	value_1 := &(paint_snapshot_value_counts[slot])
+	(*value_1) = 0
+	value_2 := &(paint_snapshot_asset_counts[slot])
+	(*value_2) = 0
 	paint_snapshots_valid = Session_SessionFlagSet(paint_snapshots_valid, slot, false)
 	frame_paint_unchanged = Session_SessionFlagSet(frame_paint_unchanged, slot, false)
 }
@@ -1561,28 +1774,38 @@ func PaintQueue_PaintSnapshotStore(session Session) bool {
 	paint_snapshot_assets[slot].Count = 0
 	paint_snapshot_meshes[slot].Data = paint_snapshot_meshes[slot].Data[:0]
 	paint_snapshot_meshes[slot].Count = 0
-	paint_snapshot_value_counts[slot] = 0
-	paint_snapshot_asset_counts[slot] = 0
+	value_0 := &(paint_snapshot_value_counts[slot])
+	(*value_0) = 0
+	value_1 := &(paint_snapshot_asset_counts[slot])
+	(*value_1) = 0
 	var index int32 = 0
 	for int64(index) < ((pending_paint[slot]).Items).Count {
 		current := PaintQueue_PendingPaintAt(session, index)
 		var previous PaintSnapshot = PaintSnapshot{}
-		previous.Data = current
-		previous.Emit = (((pending_paint[slot]).Items).Data[index]).Emit
-		previous.HasEmitter = (((pending_paint[slot]).Items).Data[index]).HasEmitter
-		previous.BuiltinEmitter = (((pending_paint[slot]).Items).Data[index]).BuiltinEmitter
-		previous.ValueStart = PaintQueue_SnapshotTextAppend(slot, true, current.Value)
+		value_2 := &(previous.Data)
+		(*value_2) = current
+		value_3 := &(previous.Emit)
+		(*value_3) = (((pending_paint[slot]).Items).Data[index]).Emit
+		value_4 := &(previous.HasEmitter)
+		(*value_4) = (((pending_paint[slot]).Items).Data[index]).HasEmitter
+		value_5 := &(previous.BuiltinEmitter)
+		(*value_5) = (((pending_paint[slot]).Items).Data[index]).BuiltinEmitter
+		value_6 := &(previous.ValueStart)
+		(*value_6) = PaintQueue_SnapshotTextAppend(slot, true, current.Value)
 		if previous.ValueStart < 0 {
 			PaintQueue_PaintSnapshotInvalidate(session)
 			return false
 		}
-		previous.ValueCount = int64(len(current.Value))
-		previous.AssetStart = PaintQueue_SnapshotTextAppend(slot, false, current.AssetPath)
+		value_7 := &(previous.ValueCount)
+		(*value_7) = int64(len(current.Value))
+		value_8 := &(previous.AssetStart)
+		(*value_8) = PaintQueue_SnapshotTextAppend(slot, false, current.AssetPath)
 		if previous.AssetStart < 0 {
 			PaintQueue_PaintSnapshotInvalidate(session)
 			return false
 		}
-		previous.AssetCount = int64(len(current.AssetPath))
+		value_9 := &(previous.AssetCount)
+		(*value_9) = int64(len(current.AssetPath))
 		mesh_count := PaintQueue_PaintPointCount(current)
 		if mesh_count > 0 {
 			kept := PaintQueue_KeepMeshPoints(&(paint_snapshot_meshes[slot]), current.MeshPoints, mesh_count, 0.0, 0.0)
@@ -1590,16 +1813,18 @@ func PaintQueue_PaintSnapshotStore(session Session) bool {
 				PaintQueue_PaintSnapshotInvalidate(session)
 				return false
 			}
-			previous.MeshBlock = kept.Block
-			previous.MeshStart = kept.Start
+			value_10 := &(previous.MeshBlock)
+			(*value_10) = kept.Block
+			value_11 := &(previous.MeshStart)
+			(*value_11) = kept.Start
 		}
-		var value_0 PaintSnapshot = previous
-		var value_1 bool = false
-		paint_snapshots[slot].Data = append(paint_snapshots[slot].Data[:paint_snapshots[slot].Count], value_0)
+		var value_12 PaintSnapshot = previous
+		var value_13 bool = false
+		paint_snapshots[slot].Data = append(paint_snapshots[slot].Data[:paint_snapshots[slot].Count], value_12)
 		paint_snapshots[slot].Count = int64(len(paint_snapshots[slot].Data))
 		paint_snapshots[slot].Capacity = int64(cap(paint_snapshots[slot].Data))
-		value_1 = true
-		if !value_1 {
+		value_13 = true
+		if !value_13 {
 			PaintQueue_PaintSnapshotInvalidate(session)
 			return false
 		}
@@ -1707,11 +1932,13 @@ func PaintQueue_PaintSnapshotEmit(session Session) bool {
 		for index <= range_last_9 {
 			previous := (paint_snapshots[slot]).Data[index]
 			var command QueuedPaint = QueuedPaint{}
-			command.Data = previous.Data
-			command.Data.Value = PaintQueue_SnapshotTextRead(slot, true, previous.ValueStart, previous.ValueCount)
+			value_4 := &(command.Data)
+			(*value_4) = previous.Data
+			value_5 := &(command.Data.Value)
+			(*value_5) = PaintQueue_SnapshotTextRead(slot, true, previous.ValueStart, previous.ValueCount)
 			if int64(len(command.Data.Value)) != previous.ValueCount {
-				var value_4 bool = PaintQueue_SnapshotTextJoin(slot, true, previous.ValueStart, previous.ValueCount, &(value_text))
-				if !value_4 {
+				var value_6 bool = PaintQueue_SnapshotTextJoin(slot, true, previous.ValueStart, previous.ValueCount, &(value_text))
+				if !value_6 {
 					cleanup_return_0 := false
 					{
 						value_text.Data = nil
@@ -1721,22 +1948,24 @@ func PaintQueue_PaintSnapshotEmit(session Session) bool {
 						asset_text.Capacity = 0
 						asset_text.Count = 0
 					}
-					var value_5 bool = cleanup_return_0
+					var value_7 bool = cleanup_return_0
 					(*value_3).Data = nil
 					(*value_3).Capacity = 0
 					(*value_3).Count = 0
 					(*value_2).Data = nil
 					(*value_2).Capacity = 0
 					(*value_2).Count = 0
-					return value_5
+					return value_7
 				}
-				if 0 < 0 || value_text.Count < 0 || value_text.Count > value_text.Count { panic("slice range out of bounds") }
-				command.Data.Value = string(value_text.Data[0:value_text.Count])
+				value_8 := &(command.Data.Value)
+				if int64(0) < 0 || int64(value_text.Count) < int64(0) || int64(value_text.Count) > value_text.Count { panic("slice range out of bounds") }
+				(*value_8) = string(value_text.Data[0:value_text.Count])
 			}
-			command.Data.AssetPath = PaintQueue_SnapshotTextRead(slot, false, previous.AssetStart, previous.AssetCount)
+			value_10 := &(command.Data.AssetPath)
+			(*value_10) = PaintQueue_SnapshotTextRead(slot, false, previous.AssetStart, previous.AssetCount)
 			if int64(len(command.Data.AssetPath)) != previous.AssetCount {
-				var value_7 bool = PaintQueue_SnapshotTextJoin(slot, false, previous.AssetStart, previous.AssetCount, &(asset_text))
-				if !value_7 {
+				var value_11 bool = PaintQueue_SnapshotTextJoin(slot, false, previous.AssetStart, previous.AssetCount, &(asset_text))
+				if !value_11 {
 					cleanup_return_1 := false
 					{
 						value_text.Data = nil
@@ -1746,27 +1975,32 @@ func PaintQueue_PaintSnapshotEmit(session Session) bool {
 						asset_text.Capacity = 0
 						asset_text.Count = 0
 					}
-					var value_8 bool = cleanup_return_1
+					var value_12 bool = cleanup_return_1
 					(*value_3).Data = nil
 					(*value_3).Capacity = 0
 					(*value_3).Count = 0
 					(*value_2).Data = nil
 					(*value_2).Capacity = 0
 					(*value_2).Count = 0
-					return value_8
+					return value_12
 				}
-				if 0 < 0 || asset_text.Count < 0 || asset_text.Count > asset_text.Count { panic("slice range out of bounds") }
-				command.Data.AssetPath = string(asset_text.Data[0:asset_text.Count])
+				value_13 := &(command.Data.AssetPath)
+				if int64(0) < 0 || int64(asset_text.Count) < int64(0) || int64(asset_text.Count) > asset_text.Count { panic("slice range out of bounds") }
+				(*value_13) = string(asset_text.Data[0:asset_text.Count])
 			}
-			var value_10 int64 = PaintQueue_PaintPointCount(previous.Data)
-			mesh_count := int32(value_10)
+			var value_15 int64 = PaintQueue_PaintPointCount(previous.Data)
+			mesh_count := int32(value_15)
 			if mesh_count > 0 {
-				var value_11 int32 = previous.MeshStart + mesh_count
-				command.Data.MeshPoints = ((paint_snapshot_meshes[slot]).Data[previous.MeshBlock]).Points[previous.MeshStart:value_11:value_11]
+				value_16 := &(command.Data.MeshPoints)
+				var value_17 int32 = previous.MeshStart + mesh_count
+				(*value_16) = ((paint_snapshot_meshes[slot]).Data[previous.MeshBlock]).Points[previous.MeshStart:value_17:value_17]
 			}
-			command.Emit = previous.Emit
-			command.HasEmitter = previous.HasEmitter
-			command.BuiltinEmitter = previous.BuiltinEmitter
+			value_18 := &(command.Emit)
+			(*value_18) = previous.Emit
+			value_19 := &(command.HasEmitter)
+			(*value_19) = previous.HasEmitter
+			value_20 := &(command.BuiltinEmitter)
+			(*value_20) = previous.BuiltinEmitter
 			PaintQueue_EmitPaint(command)
 			if index == range_last_9 {
 				break
@@ -1783,14 +2017,14 @@ func PaintQueue_PaintSnapshotEmit(session Session) bool {
 		asset_text.Capacity = 0
 		asset_text.Count = 0
 	}
-	var value_12 bool = cleanup_return_2
+	var value_21 bool = cleanup_return_2
 	(*value_3).Data = nil
 	(*value_3).Capacity = 0
 	(*value_3).Count = 0
 	(*value_2).Data = nil
 	(*value_2).Capacity = 0
 	(*value_2).Count = 0
-	return value_12
+	return value_21
 }
 
 func PaintQueue_PaintPlanUnchanged(session Session) bool {
@@ -1831,14 +2065,17 @@ func PaintQueue_PaintCommandArea(command PaintCommand, area *Rectangle) bool {
 	var margin float32 = 2.0 + command.LineWidth
 	kind := command.Kind
 	if kind == 6 || kind == 5 || (kind == 4 && (command.Italic || command.Emphasis)) {
-		var value_0 Rectangle = Rectangle{X: (command.Clip.X - margin), Y: (command.Clip.Y - margin), Width: (command.Clip.Width + (margin * 2.0)), Height: (command.Clip.Height + (margin * 2.0))}
-		(*(area)) = value_0
+		value_0 := &((*(area)))
+		var value_1 Rectangle = Rectangle{X: (command.Clip.X - margin), Y: (command.Clip.Y - margin), Width: (command.Clip.Width + (margin * 2.0)), Height: (command.Clip.Height + (margin * 2.0))}
+		(*value_0) = value_1
 		if kind == 6 && command.Rotation != 0.0 {
-			var value_1 Rectangle = Geometry_RotatedRectangleBounds(*(area), command.Origin, command.Rotation)
-			(*(area)) = value_1
+			value_2 := &((*(area)))
+			var value_3 Rectangle = Geometry_RotatedRectangleBounds(*(area), command.Origin, command.Rotation)
+			(*value_2) = value_3
 			if command.TextOuterClipped {
-				var value_2 Rectangle = Geometry_RectangleIntersection(*(area), command.TextOuterClip)
-				(*(area)) = value_2
+				value_4 := &((*(area)))
+				var value_5 Rectangle = Geometry_RectangleIntersection(*(area), command.TextOuterClip)
+				(*value_4) = value_5
 			}
 		}
 		return area.Width > 0.0 && area.Height > 0.0
@@ -1846,9 +2083,9 @@ func PaintQueue_PaintCommandArea(command PaintCommand, area *Rectangle) bool {
 	if kind == 4 {
 		var lines int32 = 1
 		{
-			value_3 := command.Value
-			if int64(0) < 0 || int64(len(value_3)) < int64(0) || int64(len(value_3)) > int64(len(value_3)) { panic("string range out of bounds") }
-			loop_view_14 := value_3[0:len(value_3)]
+			value_6 := command.Value
+			if int64(0) < 0 || int64(len(value_6)) < int64(0) || int64(len(value_6)) > int64(len(value_6)) { panic("string range out of bounds") }
+			loop_view_14 := value_6[0:len(value_6)]
 			loop_count_14 := int64(len(loop_view_14))
 			var loop_cursor_14 int64 = 0
 			for loop_cursor_14 < loop_count_14 {
@@ -1861,8 +2098,9 @@ func PaintQueue_PaintCommandArea(command PaintCommand, area *Rectangle) bool {
 			}
 		}
 		font := float32(command.Font)
-		var value_4 Rectangle = Rectangle{X: (float32(command.X) - font), Y: (float32(command.Y) - font), Width: ((float32(int64(len(command.Value))) * font) + (font * 2.0)), Height: (((float32(lines) * font) * 2.0) + (font * 2.0))}
-		(*(area)) = value_4
+		value_7 := &((*(area)))
+		var value_8 Rectangle = Rectangle{X: (float32(command.X) - font), Y: (float32(command.Y) - font), Width: ((float32(int64(len(command.Value))) * font) + (font * 2.0)), Height: (((float32(lines) * font) * 2.0) + (font * 2.0))}
+		(*value_7) = value_8
 		return true
 	}
 	if kind < 1 || kind > 11 {
@@ -1870,19 +2108,25 @@ func PaintQueue_PaintCommandArea(command PaintCommand, area *Rectangle) bool {
 	}
 	bounds := command.Bounds
 	if bounds.Width < 0.0 {
-		bounds.X += bounds.Width
-		bounds.Width = -bounds.Width
+		value_9 := &(bounds.X)
+		(*value_9) += bounds.Width
+		value_10 := &(bounds.Width)
+		(*value_10) = -bounds.Width
 	}
 	if bounds.Height < 0.0 {
-		bounds.Y += bounds.Height
-		bounds.Height = -bounds.Height
+		value_11 := &(bounds.Y)
+		(*value_11) += bounds.Height
+		value_12 := &(bounds.Height)
+		(*value_12) = -bounds.Height
 	}
-	var value_5 Rectangle = Rectangle{X: (bounds.X - margin), Y: (bounds.Y - margin), Width: (bounds.Width + (margin * 2.0)), Height: (bounds.Height + (margin * 2.0))}
-	(*(area)) = value_5
+	value_13 := &((*(area)))
+	var value_14 Rectangle = Rectangle{X: (bounds.X - margin), Y: (bounds.Y - margin), Width: (bounds.Width + (margin * 2.0)), Height: (bounds.Height + (margin * 2.0))}
+	(*value_13) = value_14
 	if command.ClipSet {
-		var value_6 Rectangle = Rectangle{X: (command.Clip.X - margin), Y: (command.Clip.Y - margin), Width: (command.Clip.Width + (margin * 2.0)), Height: (command.Clip.Height + (margin * 2.0))}
-		var value_7 Rectangle = Geometry_RectangleIntersection(*(area), value_6)
-		(*(area)) = value_7
+		value_15 := &((*(area)))
+		var value_16 Rectangle = Rectangle{X: (command.Clip.X - margin), Y: (command.Clip.Y - margin), Width: (command.Clip.Width + (margin * 2.0)), Height: (command.Clip.Height + (margin * 2.0))}
+		var value_17 Rectangle = Geometry_RectangleIntersection(*(area), value_16)
+		(*value_15) = value_17
 	}
 	return true
 }
@@ -1892,39 +2136,42 @@ func PaintQueue_PaintAreaJoin(area *Rectangle, joined *bool, next Rectangle) {
 		return
 	}
 	if !*(joined) {
-		(*(area)) = next
-		(*(joined)) = true
+		value_0 := &((*(area)))
+		(*value_0) = next
+		value_1 := &((*(joined)))
+		(*value_1) = true
 		return
 	}
-	var value_0 float32 = 0
-	if next.X < area.X {
-		value_0 = next.X
-	} else {
-		value_0 = area.X
-	}
-	left := value_0
-	var value_1 float32 = 0
-	if next.Y < area.Y {
-		value_1 = next.Y
-	} else {
-		value_1 = area.Y
-	}
-	top := value_1
 	var value_2 float32 = 0
-	if next.X + next.Width > area.X + area.Width {
-		value_2 = next.X + next.Width
+	if next.X < area.X {
+		value_2 = next.X
 	} else {
-		value_2 = area.X + area.Width
+		value_2 = area.X
 	}
-	right := value_2
+	left := value_2
 	var value_3 float32 = 0
-	if next.Y + next.Height > area.Y + area.Height {
-		value_3 = next.Y + next.Height
+	if next.Y < area.Y {
+		value_3 = next.Y
 	} else {
-		value_3 = area.Y + area.Height
+		value_3 = area.Y
 	}
-	bottom := value_3
-	(*(area)) = Rectangle{X: left, Y: top, Width: (right - left), Height: (bottom - top)}
+	top := value_3
+	var value_4 float32 = 0
+	if next.X + next.Width > area.X + area.Width {
+		value_4 = next.X + next.Width
+	} else {
+		value_4 = area.X + area.Width
+	}
+	right := value_4
+	var value_5 float32 = 0
+	if next.Y + next.Height > area.Y + area.Height {
+		value_5 = next.Y + next.Height
+	} else {
+		value_5 = area.Y + area.Height
+	}
+	bottom := value_5
+	value_6 := &((*(area)))
+	(*value_6) = Rectangle{X: left, Y: top, Width: (right - left), Height: (bottom - top)}
 }
 
 func PaintQueue_PaintAreasNear(first Rectangle, second Rectangle) bool {
@@ -1949,16 +2196,20 @@ func PaintQueue_PaintDamageAdd(damage *PaintDamageAreas, next Rectangle) {
 	for index < damage.Count {
 		if PaintQueue_PaintAreasNear(damage.Areas[index], merged) {
 			merged = PaintQueue_PaintAreasUnion(damage.Areas[index], merged)
-			damage.Count--
-			damage.Areas[index] = damage.Areas[damage.Count]
+			value_0 := &(damage.Count)
+			(*value_0)--
+			value_1 := &(damage.Areas[index])
+			(*value_1) = damage.Areas[damage.Count]
 			index = 0
 		} else {
 			index++
 		}
 	}
 	if damage.Count < 4 {
-		damage.Areas[damage.Count] = merged
-		damage.Count++
+		value_2 := &(damage.Areas[damage.Count])
+		(*value_2) = merged
+		value_3 := &(damage.Count)
+		(*value_3)++
 		return
 	}
 	var best int32 = 0
@@ -1982,8 +2233,10 @@ func PaintQueue_PaintDamageAdd(damage *PaintDamageAreas, next Rectangle) {
 		}
 	}
 	grown := PaintQueue_PaintAreasUnion(damage.Areas[best], merged)
-	damage.Count--
-	damage.Areas[best] = damage.Areas[damage.Count]
+	value_4 := &(damage.Count)
+	(*value_4)--
+	value_5 := &(damage.Areas[best])
+	(*value_5) = damage.Areas[damage.Count]
 	PaintQueue_PaintDamageAdd(damage, grown)
 }
 
@@ -2017,20 +2270,21 @@ func PaintQueue_PaintDamage(session Session) PaintFrameDamage {
 		return result
 	}
 	slot := Session_SessionIndex(session)
-	(paint_damage_areas[slot]).Count = 0
-	var value_1 bool = Session_SessionFlagGet(paint_snapshots_valid, slot)
-	if !value_1 {
+	value_1 := &((paint_damage_areas[slot]).Count)
+	(*value_1) = 0
+	var value_2 bool = Session_SessionFlagGet(paint_snapshots_valid, slot)
+	if !value_2 {
 		return result
 	}
 	count := ((pending_paint[slot]).Items).Count
 	previous := (paint_snapshots[slot]).Count
-	var value_2 int64 = 0
+	var value_3 int64 = 0
 	if count > previous {
-		value_2 = count
+		value_3 = count
 	} else {
-		value_2 = previous
+		value_3 = previous
 	}
-	total := value_2
+	total := value_3
 	var joined bool = false
 	var area Rectangle = Rectangle{}
 	{
@@ -2048,18 +2302,18 @@ func PaintQueue_PaintDamage(session Session) PaintFrameDamage {
 			if index < count {
 				current = PaintQueue_PendingPaintAt(session, int32(index))
 			}
-			var value_3 bool = index < count && index < previous
-			if value_3 {
-				var value_4 bool = (((pending_paint[slot]).Items).Data[index]).HasEmitter == ((paint_snapshots[slot]).Data[index]).HasEmitter
-				value_3 = value_4
+			var value_4 bool = index < count && index < previous
+			if value_4 {
+				var value_5 bool = (((pending_paint[slot]).Items).Data[index]).HasEmitter == ((paint_snapshots[slot]).Data[index]).HasEmitter
+				value_4 = value_5
 			}
-			var value_5 bool = value_3
-			var value_6 bool = value_5
-			if value_6 {
-				var value_7 bool = PaintQueue_PaintCommandEqual(slot, current, (paint_snapshots[slot]).Data[index])
-				value_6 = value_7
+			var value_6 bool = value_4
+			var value_7 bool = value_6
+			if value_7 {
+				var value_8 bool = PaintQueue_PaintCommandEqual(slot, current, (paint_snapshots[slot]).Data[index])
+				value_7 = value_8
 			}
-			if value_6 {
+			if value_7 {
 				if index == range_last_14 {
 					break
 				}
@@ -2068,8 +2322,8 @@ func PaintQueue_PaintDamage(session Session) PaintFrameDamage {
 			}
 			var box Rectangle = Rectangle{}
 			if index < count {
-				var value_8 bool = PaintQueue_PaintCommandArea(current, &(box))
-				if !value_8 {
+				var value_9 bool = PaintQueue_PaintCommandArea(current, &(box))
+				if !value_9 {
 					return result
 				}
 				PaintQueue_PaintAreaJoin(&(area), &(joined), box)
@@ -2078,13 +2332,14 @@ func PaintQueue_PaintDamage(session Session) PaintFrameDamage {
 			if index < previous {
 				kept := (paint_snapshots[slot]).Data[index]
 				before := kept.Data
-				before.Value = PaintQueue_SnapshotTextRead(slot, true, kept.ValueStart, kept.ValueCount)
-				var value_9 bool = int64(len(before.Value)) != kept.ValueCount
-				if !value_9 {
-					var value_10 bool = PaintQueue_PaintCommandArea(before, &(box))
-					value_9 = !value_10
+				value_10 := &(before.Value)
+				(*value_10) = PaintQueue_SnapshotTextRead(slot, true, kept.ValueStart, kept.ValueCount)
+				var value_11 bool = int64(len(before.Value)) != kept.ValueCount
+				if !value_11 {
+					var value_12 bool = PaintQueue_PaintCommandArea(before, &(box))
+					value_11 = !value_12
 				}
-				if value_9 {
+				if value_11 {
 					return result
 				}
 				PaintQueue_PaintAreaJoin(&(area), &(joined), box)
@@ -2099,9 +2354,12 @@ func PaintQueue_PaintDamage(session Session) PaintFrameDamage {
 			index++
 		}
 	}
-	result.Unchanged = !joined
-	result.Partial = joined
-	result.Area = area
+	value_13 := &(result.Unchanged)
+	(*value_13) = !joined
+	value_14 := &(result.Partial)
+	(*value_14) = joined
+	value_15 := &(result.Area)
+	(*value_15) = area
 	return result
 }
 
@@ -2149,7 +2407,8 @@ func PaintQueue_PaintFlushAreas(session Session, areas []Rectangle) {
 			}
 			if touched {
 				resolved := *(queued)
-				resolved.Data = data
+				value_7 := &(resolved.Data)
+				(*value_7) = data
 				PaintQueue_EmitPaint(resolved)
 			}
 		}
@@ -2186,7 +2445,8 @@ func PaintQueue_PaintFlush(session Session) {
 		queued := &(((pending_paint[slot]).Items).Data[index])
 		if queued.HasEmitter {
 			resolved := *(queued)
-			resolved.Data = PaintQueue_PendingPaintAt(session, index)
+			value_4 := &(resolved.Data)
+			(*value_4) = PaintQueue_PendingPaintAt(session, index)
 			PaintQueue_EmitPaint(resolved)
 		}
 		index++
@@ -2229,9 +2489,12 @@ func PaintQueue_PaintDispose(session Session) {
 	pending_mesh[session.Slot].Data = nil
 	pending_mesh[session.Slot].Capacity = 0
 	pending_mesh[session.Slot].Count = 0
-	(pending_paint[session.Slot]).Overflow = false
-	paint_snapshot_value_counts[session.Slot] = 0
-	paint_snapshot_asset_counts[session.Slot] = 0
+	value_1 := &((pending_paint[session.Slot]).Overflow)
+	(*value_1) = false
+	value_2 := &(paint_snapshot_value_counts[session.Slot])
+	(*value_2) = 0
+	value_3 := &(paint_snapshot_asset_counts[session.Slot])
+	(*value_3) = 0
 	paint_snapshots_valid = Session_SessionFlagSet(paint_snapshots_valid, session.Slot, false)
 	frame_paint_unchanged = Session_SessionFlagSet(frame_paint_unchanged, session.Slot, false)
 }
@@ -2292,16 +2555,21 @@ func PaintQueue_ZiSpec9308732530dd822f(blocks *__type_494ea4ad55fe9fdb, slot int
 			value_1 = !value_3
 		}
 		if value_1 {
-			(pending_paint[slot]).Overflow = true
+			value_4 := &((pending_paint[slot]).Overflow)
+			(*value_4) = true
 			return result
 		}
 		block_index++
 		start = 0
 	}
-	(((*(blocks))).Data[block_index]).Length = start + int32(count)
-	result.Start = start
-	result.Block = block_index
-	result.Valid = true
+	value_5 := &((((*(blocks))).Data[block_index]).Length)
+	(*value_5) = start + int32(count)
+	value_6 := &(result.Start)
+	(*value_6) = start
+	value_7 := &(result.Block)
+	(*value_7) = block_index
+	value_8 := &(result.Valid)
+	(*value_8) = true
 	return result
 }
 
@@ -2349,16 +2617,21 @@ func PaintQueue_ZiSpec27a25ba88f17713a(blocks *__type_5b77e2bb45c14992, slot int
 			value_1 = !value_3
 		}
 		if value_1 {
-			(pending_paint[slot]).Overflow = true
+			value_4 := &((pending_paint[slot]).Overflow)
+			(*value_4) = true
 			return result
 		}
 		block_index++
 		start = 0
 	}
-	(((*(blocks))).Data[block_index]).Length = start + int32(count)
-	result.Start = start
-	result.Block = block_index
-	result.Valid = true
+	value_5 := &((((*(blocks))).Data[block_index]).Length)
+	(*value_5) = start + int32(count)
+	value_6 := &(result.Start)
+	(*value_6) = start
+	value_7 := &(result.Block)
+	(*value_7) = block_index
+	value_8 := &(result.Valid)
+	(*value_8) = true
 	return result
 }
 
@@ -2406,16 +2679,21 @@ func PaintQueue_ZiSpec542e1e54e11043bf(blocks *__type_60d5a134727d5dcb, slot int
 			value_1 = !value_3
 		}
 		if value_1 {
-			(pending_paint[slot]).Overflow = true
+			value_4 := &((pending_paint[slot]).Overflow)
+			(*value_4) = true
 			return result
 		}
 		block_index++
 		start = 0
 	}
-	(((*(blocks))).Data[block_index]).Length = start + int32(count)
-	result.Start = start
-	result.Block = block_index
-	result.Valid = true
+	value_5 := &((((*(blocks))).Data[block_index]).Length)
+	(*value_5) = start + int32(count)
+	value_6 := &(result.Start)
+	(*value_6) = start
+	value_7 := &(result.Block)
+	(*value_7) = block_index
+	value_8 := &(result.Valid)
+	(*value_8) = true
 	return result
 }
 

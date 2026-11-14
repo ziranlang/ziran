@@ -381,6 +381,7 @@ int32_t TreeCount(Session session);
 int32_t TreeModalLayer(Session session);
 FrameStatus TreeFrameStatus(Session session);
 bool TreeIsBuilding(Session session);
+Rectangle TreeRootBounds(Session session);
 void TreeCancel(Session session);
 TreeEntry TreeNodeAt(Session session, int32_t index);
 int32_t TreeOverlayLayerAt(Session session, int32_t index, bool committed);
@@ -528,9 +529,11 @@ static inline void
 tree_TreeSetLabelSpan_ziran_inline(int32_t slot, int64_t index, LabelSpan span)
 {
     if (index < 64LL) {
-        ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)[0]), index) = span;
+        LabelSpan* value_0 = &(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)[0]), index));
+        (*value_0) = span;
     } else {
-        ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count, ((int64_t)((uint64_t)index - UINT64_C(64)))) = span;
+        LabelSpan* value_1 = &(ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count, ((int64_t)((uint64_t)index - UINT64_C(64)))));
+        (*value_1) = span;
     }
 }
 #endif

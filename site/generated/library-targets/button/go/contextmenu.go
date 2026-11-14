@@ -7,10 +7,9 @@ package main
 // #import font_metrics
 // #import geometry
 // #import overlay_behavior
-// #import overlay_props
-// #import overlay
 // #import paint_queue
 // #import semantic
+// #import svg_icon_behavior
 // #import tree
 // #import tree_input
 // #import widget_kind
@@ -21,9 +20,12 @@ type ContextMenuItem struct {
 	Separator bool
 	Inline bool
 	Parent int32
+	Accelerator string
+	Checkable bool
+	Checked bool
 }
 
-type ContextMenuProps struct {
+type zir_bc889c92ea67167a_Props struct {
 	Key uint64
 	ID int32
 	ClassName int32
@@ -51,6 +53,9 @@ const CONTEXT_MENU_INLINE_FONT = 18
 const CONTEXT_MENU_INLINE_MINIMUM = 32
 const CONTEXT_MENU_INLINE_GAP = 2
 const CONTEXT_MENU_ARROW = 16
+const CONTEXT_MENU_CHECK = 14
+const CONTEXT_MENU_CHECK_GAP = 8
+const CONTEXT_MENU_ACCELERATOR_GAP = 32
 const CONTEXT_MENU_DEPTH = 8
 func Contextmenu_ContextMenuOverlayKey(key uint64) uint64 {
 	return (key * 65599) + 13
@@ -78,6 +83,25 @@ func Contextmenu_ContextMenuOpens(items []ContextMenuItem, id int32) bool {
 	return false
 }
 
+func Contextmenu_ContextMenuLevelChecks(items []ContextMenuItem, parent int32) bool {
+	for _, item := range items {
+		if item.Parent == parent && item.Checkable && !item.Separator && !item.Inline {
+			return true
+		}
+	}
+	return false
+}
+
+func Contextmenu_ContextMenuTextLeft(checks bool, scale float32) int32 {
+	left := Dpi_ScalePixels(12, scale)
+	if checks {
+		var value_0 int32 = left
+		var value_1 int32 = Dpi_ScalePixels(22, scale)
+		left = value_0 + value_1
+	}
+	return left
+}
+
 func Contextmenu_ContextMenuFind(items []ContextMenuItem, id int32) int32 {
 	var index int32 = 0
 	for index < int32(int64(len(items))) {
@@ -99,6 +123,7 @@ func Contextmenu_ContextMenuInlineWidth(item ContextMenuItem, scale float32) int
 
 func Contextmenu_ContextMenuLevelBounds(items []ContextMenuItem, parent int32, x float32, y float32, view Rectangle, scale float32) Rectangle {
 	width := Dpi_ScalePixels(168, scale)
+	text_left := Contextmenu_ContextMenuTextLeft(Contextmenu_ContextMenuLevelChecks(items, parent), scale)
 	height := Dpi_ScalePixels(4, scale) * 2
 	var index int32 = 0
 	for index < int32(int64(len(items))) {
@@ -130,11 +155,17 @@ func Contextmenu_ContextMenuLevelBounds(items []ContextMenuItem, parent int32, x
 			var value_7 int32 = Dpi_ScalePixels(26, scale)
 			height = value_6 + value_7
 			var value_8 string = (items[index]).Label
-			label := FontMetrics_GlyphWidth(value_8, Dpi_ScalePixels(14, scale), "") + (Dpi_ScalePixels(12, scale) * 2)
+			label := (FontMetrics_GlyphWidth(value_8, Dpi_ScalePixels(14, scale), "") + text_left) + Dpi_ScalePixels(12, scale)
 			if Contextmenu_ContextMenuOpens(items, (items[index]).ID) {
 				var value_9 int32 = label
 				var value_10 int32 = Dpi_ScalePixels(16, scale)
 				label = value_9 + value_10
+			}
+			if (items[index]).Accelerator != "" {
+				var value_11 int32 = label
+				var value_12 string = (items[index]).Accelerator
+				var value_13 int32 = Dpi_ScalePixels(32, scale) + FontMetrics_GlyphWidth(value_12, Dpi_ScalePixels(14, scale), "")
+				label = value_11 + value_13
 			}
 			if label > width {
 				width = label
@@ -209,11 +240,12 @@ func Contextmenu_ContextMenuSubmenuBounds(items []ContextMenuItem, at int32, par
 	return Contextmenu_ContextMenuLevelBounds(items, id, left, top, view, scale)
 }
 
-func Contextmenu_ContextMenuLevel(session Session, props ContextMenuProps, items []ContextMenuItem, key uint64, parent int32, panel Rectangle, panel_node int32, open []int32) {
+func Contextmenu_ContextMenuLevel(session Session, props zir_bc889c92ea67167a_Props, items []ContextMenuItem, key uint64, parent int32, panel Rectangle, panel_node int32, open []int32) {
 	fill := DrawingProps_StyleTokenColorOr("card", DrawingProps_ColorFromPacked(Theme_CurrentSurface()))
 	border := DrawingProps_StyleTokenColorOr("border", DrawingProps_ColorFromPacked(Theme_CurrentBorder()))
 	ink := DrawingProps_StyleTokenColorOr("text", DrawingProps_ColorFromPacked(Theme_CurrentText()))
 	muted := DrawingProps_StyleTokenColorOr("muted", DrawingProps_ColorFromPacked(Theme_CurrentDisabled()))
+	secondary := DrawingProps_ColorFromPacked(Theme_CurrentMuted())
 	highlight := DrawingProps_StyleTokenColorOr("accent-soft", DrawingProps_ColorFromPacked(Theme_CurrentSelection()))
 	var value_0 int32 = Dpi_ScalePixels(6, props.Scale)
 	PaintQueue_PaintRoundedFill(session, panel_node, panel, float32(value_0), 8, fill)
@@ -230,6 +262,7 @@ func Contextmenu_ContextMenuLevel(session Session, props ContextMenuProps, items
 	top := panel.Y + float32(value_4)
 	var value_5 int32 = Dpi_ScalePixels(3, props.Scale)
 	left := panel.X + float32(value_5)
+	text_left := Contextmenu_ContextMenuTextLeft(Contextmenu_ContextMenuLevelChecks(items, parent), props.Scale)
 	var index int32 = 0
 	for index < int32(int64(len(items))) {
 		item := items[index]
@@ -310,6 +343,9 @@ func Contextmenu_ContextMenuLevel(session Session, props ContextMenuProps, items
 				Tree_TreeSetInteractive(session, node, item.Disabled, false, 0)
 				Tree_TreeSetSemantic(session, node, SemanticKind(11), 0)
 				Tree_TreeSetLabel(session, node, item.Label)
+				if item.Checkable {
+					Tree_TreeSetSelected(session, node, item.Checked)
+				}
 				hovered := TreeInput_TreeHoveredAt(session, Tree_TreePrevious(session, panel_node, Contextmenu_ContextMenuRowKey(key, index), 49))
 				_ = hovered
 				opens := Contextmenu_ContextMenuOpens(items, item.ID)
@@ -330,31 +366,73 @@ func Contextmenu_ContextMenuLevel(session Session, props ContextMenuProps, items
 				}
 				var value_30 int32 = Dpi_ScalePixels(26, props.Scale)
 				text_top := int32(floatToInt(float64((top + ((float32(value_30) - float32(line_height)) * 0.5))), 32, true))
-				var value_31 int32 = Dpi_ScalePixels(12, props.Scale)
-				var value_32 int32 = int32(floatToInt(float64((panel.X + float32(value_31))), 32, true))
-				var value_33 int32 = Dpi_ScalePixels(14, props.Scale)
-				var value_34 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
-				PaintQueue_PaintClippedLabel(session, node, item.Label, value_32, text_top, value_33, color, row, "", 0.0, value_34)
+				if item.Checkable {
+					var value_31 int32 = Dpi_ScalePixels(14, props.Scale)
+					size := float32(value_31)
+					var value_32 Rectangle = Rectangle{}
+					var value_33 int32 = Dpi_ScalePixels(12, props.Scale)
+					value_32.X = panel.X + float32(value_33)
+					var value_34 int32 = Dpi_ScalePixels(26, props.Scale)
+					value_32.Y = top + ((float32(value_34) - size) * 0.5)
+					value_32.Width = size
+					value_32.Height = size
+					box := value_32
+					var value_35 int32 = Dpi_ScalePixels(2, props.Scale)
+					var value_36 int32 = Dpi_ScalePixels(1, props.Scale)
+					PaintQueue_PaintRoundedOutline(session, node, box, float32(value_35), 8, float32(value_36), color)
+					if item.Checked {
+						inset := size * 0.22
+						var value_37 [3]Vector2
+						value_37[0] = Vector2{X: (box.X + inset), Y: (box.Y + (size * 0.52))}
+						value_37[1] = Vector2{X: (box.X + (size * 0.42)), Y: ((box.Y + size) - inset)}
+						value_37[2] = Vector2{X: ((box.X + size) - inset), Y: (box.Y + inset)}
+						check := value_37
+						_ = check
+						var value_38 []Vector2 = check[0:3:3]
+						var value_39 int32 = Dpi_ScalePixels(2, props.Scale)
+						SvgIconBehavior_PaintStroke(session, node, value_38, float32(value_39), color)
+					}
+				}
+				var value_40 int32 = Dpi_ScalePixels(14, props.Scale)
+				var value_41 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+				PaintQueue_PaintClippedLabel(session, node, item.Label, int32(floatToInt(float64(panel.X), 32, true)) + text_left, text_top, value_40, color, row, "", 0.0, value_41)
+				if item.Accelerator != "" {
+					accelerator_color := secondary
+					if item.Disabled {
+						accelerator_color = muted
+					}
+					right := int32(floatToInt(float64((panel.X + panel.Width)), 32, true)) - Dpi_ScalePixels(12, props.Scale)
+					if opens {
+						var value_42 int32 = right
+						var value_43 int32 = Dpi_ScalePixels(16, props.Scale)
+						right = value_42 - value_43
+					}
+					var value_44 int32 = right - FontMetrics_GlyphWidth(item.Accelerator, Dpi_ScalePixels(14, props.Scale), "")
+					var value_45 int32 = Dpi_ScalePixels(14, props.Scale)
+					var value_46 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+					PaintQueue_PaintClippedLabel(session, node, item.Accelerator, value_44, text_top, value_45, accelerator_color, row, "", 0.0, value_46)
+				}
 				if opens {
 					arrow := FontMetrics_GlyphWidth("›", Dpi_ScalePixels(14, props.Scale), "")
-					var value_35 int32 = (int32(floatToInt(float64((panel.X + panel.Width)), 32, true)) - Dpi_ScalePixels(12, props.Scale)) - arrow
-					var value_36 int32 = Dpi_ScalePixels(14, props.Scale)
-					var value_37 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
-					PaintQueue_PaintClippedLabel(session, node, "›", value_35, text_top, value_36, color, row, "", 0.0, value_37)
+					var value_47 int32 = (int32(floatToInt(float64((panel.X + panel.Width)), 32, true)) - Dpi_ScalePixels(12, props.Scale)) - arrow
+					var value_48 int32 = Dpi_ScalePixels(14, props.Scale)
+					var value_49 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+					PaintQueue_PaintClippedLabel(session, node, "›", value_47, text_top, value_48, color, row, "", 0.0, value_49)
 				}
 			}
-			var value_38 float32 = top
-			var value_39 int32 = Dpi_ScalePixels(26, props.Scale)
-			top = value_38 + float32(value_39)
+			var value_50 float32 = top
+			var value_51 int32 = Dpi_ScalePixels(26, props.Scale)
+			top = value_50 + float32(value_51)
 		}
 		index++
 	}
 	Tree_End(session)
 }
 
-func Contextmenu_ContextMenu(session Session, props ContextMenuProps, items []ContextMenuItem) ContextMenuResult {
+func Contextmenu_Draw(session Session, props zir_bc889c92ea67167a_Props, items []ContextMenuItem) ContextMenuResult {
 	var result ContextMenuResult = ContextMenuResult{}
-	result.Open = props.Open
+	value_0 := &(result.Open)
+	(*value_0) = props.Open
 	if !props.Open || int64(len(items)) == 0 {
 		return result
 	}
@@ -363,15 +441,17 @@ func Contextmenu_ContextMenu(session Session, props ContextMenuProps, items []Co
 		key = Tree_TreeNextKey(session)
 	}
 	if props.Escape {
-		result.Open = false
-		result.Closed = true
+		value_1 := &(result.Open)
+		(*value_1) = false
+		value_2 := &(result.Closed)
+		(*value_2) = true
 		return result
 	}
 	var open int32 = 0
 	if Tree_TreeIsBuilding(session) {
 		previous_overlay := Tree_TreePrevious(session, Tree_TreeCurrentParent(session), Contextmenu_ContextMenuOverlayKey(key), 46)
-		var value_0 WidgetState = Tree_TreePreviousWidgetState(session, previous_overlay)
-		open = value_0.Index
+		var value_3 WidgetState = Tree_TreePreviousWidgetState(session, previous_overlay)
+		open = value_3.Index
 		var rested int32 = -1
 		var index int32 = 0
 		for index < int32(int64(len(items))) {
@@ -383,27 +463,30 @@ func Contextmenu_ContextMenu(session Session, props ContextMenuProps, items []Co
 				}
 				previous_panel := Tree_TreePreviousCommitted(session, previous_overlay, panel_key, 25)
 				row := Tree_TreePreviousCommitted(session, previous_panel, Contextmenu_ContextMenuRowKey(key, index), 49)
-				var value_1 bool = !item.Disabled && item.ID > 0
-				if value_1 {
-					var value_2 bool = TreeInput_TreeTakeActivationAt(session, row)
-					value_1 = value_2
+				var value_4 bool = !item.Disabled && item.ID > 0
+				if value_4 {
+					var value_5 bool = TreeInput_TreeTakeActivationAt(session, row)
+					value_4 = value_5
 				}
-				if value_1 {
-					var value_3 bool = Contextmenu_ContextMenuOpens(items, item.ID)
-					if !value_3 {
-						result.ActivatedID = item.ID
-						result.Open = false
-						result.Closed = true
+				if value_4 {
+					var value_6 bool = Contextmenu_ContextMenuOpens(items, item.ID)
+					if !value_6 {
+						value_7 := &(result.ActivatedID)
+						(*value_7) = item.ID
+						value_8 := &(result.Open)
+						(*value_8) = false
+						value_9 := &(result.Closed)
+						(*value_9) = true
 						return result
 					}
 					rested = index
 				} else {
-					var value_4 bool = rested < 0
-					if value_4 {
-						var value_5 bool = TreeInput_TreeHoveredAt(session, row)
-						value_4 = value_5
+					var value_10 bool = rested < 0
+					if value_10 {
+						var value_11 bool = TreeInput_TreeHoveredAt(session, row)
+						value_10 = value_11
 					}
-					if value_4 {
+					if value_10 {
 						rested = index
 					}
 				}
@@ -412,13 +495,13 @@ func Contextmenu_ContextMenu(session Session, props ContextMenuProps, items []Co
 		}
 		if rested >= 0 {
 			open = (items[rested]).Parent
-			var value_6 bool = !(items[rested]).Disabled
-			var value_7 bool = value_6
-			if value_7 {
-				var value_8 bool = Contextmenu_ContextMenuOpens(items, (items[rested]).ID)
-				value_7 = value_8
+			var value_12 bool = !(items[rested]).Disabled
+			var value_13 bool = value_12
+			if value_13 {
+				var value_14 bool = Contextmenu_ContextMenuOpens(items, (items[rested]).ID)
+				value_13 = value_14
 			}
-			if value_7 {
+			if value_13 {
 				open = (items[rested]).ID
 			}
 		}
@@ -427,13 +510,14 @@ func Contextmenu_ContextMenu(session Session, props ContextMenuProps, items []Co
 	var depth int32 = 0
 	at := Contextmenu_ContextMenuFind(items, open)
 	for {
-		var value_9 bool = at >= 0 && depth < 8
-		if value_9 {
-			var value_10 bool = Contextmenu_ContextMenuOpens(items, (items[at]).ID)
-			value_9 = value_10
+		var value_15 bool = at >= 0 && depth < 8
+		if value_15 {
+			var value_16 bool = Contextmenu_ContextMenuOpens(items, (items[at]).ID)
+			value_15 = value_16
 		}
-		if !value_9 { break }
-		walk[depth] = at
+		if !value_15 { break }
+		value_17 := &(walk[depth])
+		(*value_17) = at
 		depth++
 		if (items[at]).Parent == 0 {
 			break
@@ -448,17 +532,21 @@ func Contextmenu_ContextMenu(session Session, props ContextMenuProps, items []Co
 	var ids [8]int32
 	var level int32 = 0
 	for level < depth {
-		chain[level] = walk[((depth - 1) - level)]
-		ids[level] = (items[chain[level]]).ID
+		value_18 := &(chain[level])
+		(*value_18) = walk[((depth - 1) - level)]
+		value_19 := &(ids[level])
+		(*value_19) = (items[chain[level]]).ID
 		level++
 	}
 	view := Tree_TreeRootBounds(session)
 	var panels [9]Rectangle
-	panels[0] = Contextmenu_ContextMenuBounds(items, props.X, props.Y, view, props.Scale)
+	value_20 := &(panels[0])
+	(*value_20) = Contextmenu_ContextMenuBounds(items, props.X, props.Y, view, props.Scale)
 	var keep Rectangle = Rectangle{}
 	level = 0
 	for level < depth {
-		panels[(level + 1)] = Contextmenu_ContextMenuSubmenuBounds(items, chain[level], panels[level], view, props.Scale)
+		value_21 := &(panels[(level + 1)])
+		(*value_21) = Contextmenu_ContextMenuSubmenuBounds(items, chain[level], panels[level], view, props.Scale)
 		next := panels[(level + 1)]
 		if level > 0 {
 			right := keep.X + keep.Width
@@ -470,27 +558,38 @@ func Contextmenu_ContextMenu(session Session, props ContextMenuProps, items []Co
 				bottom = next.Y + next.Height
 			}
 			if keep.X < next.X {
-				next.X = keep.X
+				value_22 := &(next.X)
+				(*value_22) = keep.X
 			}
 			if keep.Y < next.Y {
-				next.Y = keep.Y
+				value_23 := &(next.Y)
+				(*value_23) = keep.Y
 			}
-			next.Width = right - next.X
-			next.Height = bottom - next.Y
+			value_24 := &(next.Width)
+			(*value_24) = right - next.X
+			value_25 := &(next.Height)
+			(*value_25) = bottom - next.Y
 		}
 		keep = next
 		level++
 	}
-	var overlay_props DismissibleOverlayProps = DismissibleOverlayProps{}
-	overlay_props.Key = Contextmenu_ContextMenuOverlayKey(key)
-	overlay_props.ID = props.ID
-	overlay_props.ClassName = props.ClassName
-	overlay_props.Bounds = panels[0]
-	overlay_props.KeepBounds = keep
-	overlay := Overlay_DismissibleOverlay(session, overlay_props)
+	var overlay_props zir_369927f740a3063a_Props = zir_369927f740a3063a_Props{}
+	value_26 := &(overlay_props.Key)
+	(*value_26) = Contextmenu_ContextMenuOverlayKey(key)
+	value_27 := &(overlay_props.ID)
+	(*value_27) = props.ID
+	value_28 := &(overlay_props.ClassName)
+	(*value_28) = props.ClassName
+	value_29 := &(overlay_props.Bounds)
+	(*value_29) = panels[0]
+	value_30 := &(overlay_props.KeepBounds)
+	(*value_30) = keep
+	overlay := Overlay_Draw(session, overlay_props)
 	if overlay.Closed {
-		result.Open = false
-		result.Closed = true
+		value_31 := &(result.Open)
+		(*value_31) = false
+		value_32 := &(result.Closed)
+		(*value_32) = true
 		return result
 	}
 	if overlay.PanelNode < 0 {

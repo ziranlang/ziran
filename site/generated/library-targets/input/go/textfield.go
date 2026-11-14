@@ -3,8 +3,6 @@ package main
 
 // #import text_host
 // #import session
-// #import button_props
-// #import button
 // #import control_props
 // #import drawing_props
 // #import font_metrics
@@ -18,13 +16,12 @@ package main
 // #import text_context_menu
 // #import text_input
 // #import text_input_platform
-// #import text_input_props
-// #import text
 // #import tree
 // #import tree_input
 // #import text_request
+// #import text_boundary
 // #import widget_kind
-func Textfield_TextFieldKey(session Session, props TextFieldProps) uint64 {
+func Textfield_TextFieldKey(session Session, props zir_e3d05ce257aa07f3_Props) uint64 {
 	if props.Key != 0 {
 		return props.Key
 	}
@@ -36,20 +33,30 @@ func Textfield_TextFieldKey(session Session, props TextFieldProps) uint64 {
 
 func Textfield_TextFieldDefaultFace() StyleData {
 	var face StyleData = StyleData{}
-	face.Fields = 1279
-	face.Background = Theme_CurrentSunken()
-	face.Foreground = Theme_CurrentText()
-	face.Border = Theme_CurrentBorderStrong()
-	face.Focus = Theme_CurrentAccent()
-	face.Radius = Theme_ShapeSmall()
-	face.BorderWidth = 1.0
-	face.Opacity = 1.0
-	face.PaddingX = 12.0
-	face.FontSize = Theme_TypeLabel()
+	value_0 := &(face.Fields)
+	(*value_0) = 1279
+	value_1 := &(face.Background)
+	(*value_1) = Theme_CurrentSunken()
+	value_2 := &(face.Foreground)
+	(*value_2) = Theme_CurrentText()
+	value_3 := &(face.Border)
+	(*value_3) = Theme_CurrentBorderStrong()
+	value_4 := &(face.Focus)
+	(*value_4) = Theme_CurrentAccent()
+	value_5 := &(face.Radius)
+	(*value_5) = Theme_ShapeSmall()
+	value_6 := &(face.BorderWidth)
+	(*value_6) = 1.0
+	value_7 := &(face.Opacity)
+	(*value_7) = 1.0
+	value_8 := &(face.PaddingX)
+	(*value_8) = 12.0
+	value_9 := &(face.FontSize)
+	(*value_9) = Theme_TypeLabel()
 	return face
 }
 
-func Textfield_TextFieldFaceFor(props TextFieldProps, focused bool) StyleFrame {
+func Textfield_TextFieldFaceFor(props zir_e3d05ce257aa07f3_Props, focused bool) StyleFrame {
 	var state int32 = 1
 	if focused {
 		state = 4
@@ -61,11 +68,15 @@ func Textfield_TextFieldFaceFor(props TextFieldProps, focused bool) StyleFrame {
 	var frame StyleFrame = StyleFrame{}
 	defaults := Textfield_TextFieldDefaultFace()
 	if props.Disabled {
-		defaults.Background = Surface_Opacity(defaults.Background, 0.45)
-		defaults.Foreground = Surface_Opacity(defaults.Foreground, 0.45)
-		defaults.Border = Surface_Opacity(defaults.Border, 0.45)
+		value_0 := &(defaults.Background)
+		(*value_0) = Surface_Opacity(defaults.Background, 0.45)
+		value_1 := &(defaults.Foreground)
+		(*value_1) = Surface_Opacity(defaults.Foreground, 0.45)
+		value_2 := &(defaults.Border)
+		(*value_2) = Surface_Opacity(defaults.Border, 0.45)
 	}
-	frame.Value = StyleSheet_ResolveInstalledStyleRules(defaults, facts, state)
+	value_3 := &(frame.Value)
+	(*value_3) = StyleSheet_ResolveInstalledStyleRules(defaults, facts, state)
 	return frame
 }
 
@@ -120,7 +131,7 @@ func Textfield_TextFieldInputTextAllowed(value string) bool {
 	return true
 }
 
-func Textfield_TextFieldReplacementAllowed(props TextFieldProps, start int32, end int32, replacement string) bool {
+func Textfield_TextFieldReplacementAllowed(props zir_e3d05ce257aa07f3_Props, start int32, end int32, replacement string) bool {
 	if start < 0 || end < start || end > int32(int64(len(props.Value))) {
 		return false
 	}
@@ -175,45 +186,62 @@ func Textfield_TextFieldDisplayByteFor(value string, display string, cursor int3
 	return Textfield_TextFieldByteAfter(display, count)
 }
 
-func Textfield_TextFieldEditFor(props TextFieldProps, cursor int32, anchor int32) TextFieldEdit {
-	var edit TextFieldEdit = TextFieldEdit{}
+func Textfield_TextFieldEditFor(props zir_e3d05ce257aa07f3_Props, cursor int32, anchor int32) Edit {
+	var edit Edit = Edit{}
 	selection := TextInput_TextSelectionRangeForLength(anchor, cursor, int32(int64(len(props.Value))))
 	if Textfield_TextFieldInputTextAllowed(props.Input.Text) {
 		var value_0 bool = Textfield_TextFieldReplacementAllowed(props, selection.Start, selection.End, props.Input.Text)
 		if !value_0 {
 			return edit
 		}
-		edit.Start = selection.Start
-		edit.End = selection.End
-		edit.Replacement = props.Input.Text
-		edit.Changed = true
+		value_1 := &(edit.Start)
+		(*value_1) = selection.Start
+		value_2 := &(edit.End)
+		(*value_2) = selection.End
+		value_3 := &(edit.Replacement)
+		(*value_3) = props.Input.Text
+		value_4 := &(edit.Changed)
+		(*value_4) = true
 		return edit
 	}
 	if props.Input.Backspace {
-		edit.Start = selection.Start
-		edit.End = selection.End
+		value_5 := &(edit.Start)
+		(*value_5) = selection.Start
+		value_6 := &(edit.End)
+		(*value_6) = selection.End
 		if !selection.HasSelection {
-			edit.Start = Textfield_TextFieldPrevious(props.Value, cursor)
+			value_7 := &(edit.Start)
+			(*value_7) = Textfield_TextFieldPrevious(props.Value, cursor)
 		}
 	} else if props.Input.DeleteForward {
-		edit.Start = selection.Start
-		edit.End = selection.End
+		value_8 := &(edit.Start)
+		(*value_8) = selection.Start
+		value_9 := &(edit.End)
+		(*value_9) = selection.End
 		if !selection.HasSelection {
-			edit.End = Textfield_TextFieldNext(props.Value, cursor)
+			value_10 := &(edit.End)
+			(*value_10) = Textfield_TextFieldNext(props.Value, cursor)
 		}
 	}
-	edit.Changed = edit.End > edit.Start
+	value_11 := &(edit.Changed)
+	(*value_11) = edit.End > edit.Start
 	return edit
 }
 
-func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldResult {
-	var result TextFieldResult = TextFieldResult{}
-	result.Node = -1
-	result.Cursor = StdGrapheme_Boundary(props.Value, props.Cursor)
-	result.Anchor = StdGrapheme_Boundary(props.Value, props.Anchor)
-	result.ScrollX = props.ScrollX
-	result.Focused = props.Focused
-	result.Composition = props.Composition
+func Textfield_TextFieldCore(session Session, props zir_e3d05ce257aa07f3_Props) Result {
+	var result Result = Result{}
+	value_0 := &(result.Node)
+	(*value_0) = -1
+	value_1 := &(result.Cursor)
+	(*value_1) = StdGrapheme_Boundary(props.Value, props.Cursor)
+	value_2 := &(result.Anchor)
+	(*value_2) = StdGrapheme_Boundary(props.Value, props.Anchor)
+	value_3 := &(result.ScrollX)
+	(*value_3) = props.ScrollX
+	value_4 := &(result.Focused)
+	(*value_4) = props.Focused
+	value_5 := &(result.Composition)
+	(*value_5) = props.Composition
 	if props.Bounds.Width <= 0.0 || props.Bounds.Height <= 0.0 {
 		return result
 	}
@@ -224,29 +252,33 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 	}
 	activated := TreeInput_TreeTakeActivationAt(session, previous)
 	drag := TreeInput_TreeTakeDragAt(session, previous)
-	var value_0 WidgetState = Tree_TreePreviousWidgetState(session, previous)
-	select_number := value_0.Open && (drag.Active || drag.Ended || activated)
+	var value_6 WidgetState = Tree_TreePreviousWidgetState(session, previous)
+	select_number := value_6.Open && (drag.Active || drag.Ended || activated)
 	if props.Numeric && drag.Started {
 		select_number = !props.Focused
 	}
 	if TreeInput_TreeHasFocus(session) {
-		result.Focused = TreeInput_TreeFocusedAt(session, previous)
+		value_7 := &(result.Focused)
+		(*value_7) = TreeInput_TreeFocusedAt(session, previous)
 	}
 	if props.Disabled || props.Input.Blur {
-		result.Focused = false
+		value_8 := &(result.Focused)
+		(*value_8) = false
 		TreeInput_TreeBlurAt(session, previous)
 	}
 	if !props.Disabled && props.Input.Focus {
-		result.Focused = true
+		value_9 := &(result.Focused)
+		(*value_9) = true
 		TreeInput_TreeFocusAt(session, previous)
 	}
-	var value_1 bool = previous >= 0
-	if value_1 {
-		var value_2 bool = TreeInput_TreeInputAllowedAt(session, previous)
-		value_1 = !value_2
+	var value_10 bool = previous >= 0
+	if value_10 {
+		var value_11 bool = TreeInput_TreeInputAllowedAt(session, previous)
+		value_10 = !value_11
 	}
-	if value_1 {
-		result.Focused = false
+	if value_10 {
+		value_12 := &(result.Focused)
+		(*value_12) = false
 	}
 	face := Textfield_TextFieldFaceFor(props, result.Focused)
 	scale := props.Scale
@@ -260,8 +292,8 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 	}
 	var clear_size float32 = 0.0
 	if props.ClearLabel != "" && props.Value != "" && !props.ReadOnly {
-		var value_3 int32 = TextInput_TextInputScaledMetric(44.0, scale)
-		clear_size = float32(value_3)
+		var value_13 int32 = TextInput_TextInputScaledMetric(44.0, scale)
+		clear_size = float32(value_13)
 		if clear_size > props.Bounds.Height {
 			clear_size = props.Bounds.Height
 		}
@@ -275,16 +307,18 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 	}
 	text_width := FontMetrics_GlyphWidth(display, font, face.Value.Typeface)
 	scroll := TextInput_TextFieldScrollFor(props.Bounds.X, props.Bounds.Width - clear_size, padding_x, text_width, result.ScrollX)
-	result.ScrollX = scroll.Scroll
+	value_14 := &(result.ScrollX)
+	(*value_14) = scroll.Scroll
 	if !props.Disabled && (activated || drag.Started || drag.Active || drag.Ended) {
-		result.Focused = true
+		value_15 := &(result.Focused)
+		(*value_15) = true
 		sample_x := drag.X
 		if drag.Started {
 			sample_x = props.Bounds.X + drag.GrabX
 		} else if previous >= 0 {
-			var value_4 float32 = sample_x
-			var value_5 TreeEntry = Tree_TreeNodeAt(session, previous)
-			sample_x = value_4 - (value_5.Bounds.X - props.Bounds.X)
+			var value_16 float32 = sample_x
+			var value_17 TreeEntry = Tree_TreeNodeAt(session, previous)
+			sample_x = value_16 - (value_17.Bounds.X - props.Bounds.X)
 		}
 		selected := Textfield_TextFieldCursorAtX(display, TextInput_TextPointerOffset(sample_x, scroll.TextOriginX), font, face.Value.Typeface)
 		if props.Secure {
@@ -292,29 +326,38 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 			selected = StdGrapheme_Boundary(props.Value, Textfield_TextFieldByteAfter(props.Value, count))
 		}
 		if drag.Started || activated {
-			result.Anchor = selected
+			value_18 := &(result.Anchor)
+			(*value_18) = selected
 		}
-		result.Cursor = selected
+		value_19 := &(result.Cursor)
+		(*value_19) = selected
 		if select_number {
-			result.Anchor = 0
-			result.Cursor = int32(int64(len(props.Value)))
+			value_20 := &(result.Anchor)
+			(*value_20) = 0
+			value_21 := &(result.Cursor)
+			(*value_21) = int32(int64(len(props.Value)))
 		}
 	}
 	composition_state := props.Composition
 	if activated || drag.Started || drag.Active || drag.Ended {
 		if composition_state.Active {
 			composition_state = CompositionState{}
-			result.CompositionChanged = true
+			value_22 := &(result.CompositionChanged)
+			(*value_22) = true
 		}
 	}
 	transition := TextInput_CompositionTransitionFor(composition_state, props.Input.CompositionEvent, result.Focused, props.ReadOnly || props.Disabled)
-	result.Composition = transition.State
-	result.CompositionChanged = result.CompositionChanged || transition.Changed
+	value_23 := &(result.Composition)
+	(*value_23) = transition.State
+	value_24 := &(result.CompositionChanged)
+	(*value_24) = result.CompositionChanged || transition.Changed
 	if result.Focused && !props.Disabled {
-		var value_6 bool = CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0) && !result.Composition.Active
-		if value_6 && props.Input.SelectAll {
-			result.Anchor = 0
-			result.Cursor = int32(int64(len(props.Value)))
+		var value_25 bool = CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0) && !result.Composition.Active
+		if value_25 && props.Input.SelectAll {
+			value_26 := &(result.Anchor)
+			(*value_26) = 0
+			value_27 := &(result.Cursor)
+			(*value_27) = int32(int64(len(props.Value)))
 		} else if CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0) && !result.Composition.Active {
 			target := result.Cursor
 			selection := TextInput_TextSelectionRangeForLength(result.Anchor, result.Cursor, int32(int64(len(props.Value))))
@@ -341,19 +384,26 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 			}
 			if moved {
 				state := TextInput_TextSelectionAfterMove(result.Anchor, result.Cursor, target, props.Input.Shift)
-				result.Anchor = state.Anchor
-				result.Cursor = state.Cursor
+				value_28 := &(result.Anchor)
+				(*value_28) = state.Anchor
+				value_29 := &(result.Cursor)
+				(*value_29) = state.Cursor
 			}
 		}
-		result.Committed = props.Input.Commit && !result.Composition.Active && CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0)
+		value_30 := &(result.Committed)
+		(*value_30) = props.Input.Commit && !result.Composition.Active && CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0)
 		if props.Input.Escape && result.Composition.Active {
-			result.Composition = CompositionState{}
-			result.CompositionChanged = true
+			value_31 := &(result.Composition)
+			(*value_31) = CompositionState{}
+			value_32 := &(result.CompositionChanged)
+			(*value_32) = true
 		} else {
-			result.Escaped = props.Input.Escape && CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0)
+			value_33 := &(result.Escaped)
+			(*value_33) = props.Input.Escape && CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0)
 		}
 		if result.Escaped {
-			result.Focused = false
+			value_34 := &(result.Focused)
+			(*value_34) = false
 			TreeInput_TreeBlurAt(session, previous)
 		}
 		var command int32 = 0
@@ -367,114 +417,148 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 		if transition.Commit {
 			selection := TextInput_TextSelectionRangeForLength(result.Anchor, result.Cursor, int32(int64(len(props.Value))))
 			_ = selection
-			var value_7 bool = Textfield_TextFieldInputTextAllowed(transition.CommitText)
-			var value_8 bool = value_7
-			if value_8 {
-				var value_9 bool = Textfield_TextFieldReplacementAllowed(props, selection.Start, selection.End, transition.CommitText)
-				value_8 = value_9
+			var value_35 bool = Textfield_TextFieldInputTextAllowed(transition.CommitText)
+			var value_36 bool = value_35
+			if value_36 {
+				var value_37 bool = Textfield_TextFieldReplacementAllowed(props, selection.Start, selection.End, transition.CommitText)
+				value_36 = value_37
 			}
-			if value_8 {
-				result.Edit.Start = selection.Start
-				result.Edit.End = selection.End
-				result.Edit.Replacement = transition.CommitText
-				result.Edit.Changed = true
+			if value_36 {
+				value_38 := &(result.Edit.Start)
+				(*value_38) = selection.Start
+				value_39 := &(result.Edit.End)
+				(*value_39) = selection.End
+				value_40 := &(result.Edit.Replacement)
+				(*value_40) = transition.CommitText
+				value_41 := &(result.Edit.Changed)
+				(*value_41) = true
 			}
 		} else {
-			var value_10 bool = CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0) && !result.Composition.Active
-			if value_10 && !props.Input.Escape && command != 0 {
+			var value_42 bool = CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0) && !result.Composition.Active
+			if value_42 && !props.Input.Escape && command != 0 {
 				selection := TextInput_TextSelectionRangeForLength(result.Anchor, result.Cursor, int32(int64(len(props.Value))))
 				_ = selection
-				var value_11 bool = !props.Secure
-				if value_11 {
-					var value_12 bool = command != TextInput_TextContextCommandCut()
-					value_11 = (value_12 || !props.ReadOnly)
+				var value_43 bool = !props.Secure
+				if value_43 {
+					var value_44 bool = command != TextInput_TextContextCommandCut()
+					value_43 = (value_44 || !props.ReadOnly)
 				}
-				allow_copy := value_11
+				allow_copy := value_43
 				decision := TextInput_TextEditCommandDecisionFor(command, selection.HasSelection, true, true, int32(int64(len(props.Value))) > 0, allow_copy, !props.ReadOnly && !props.Secure, !props.ReadOnly)
 				if decision.CopySelection {
-					result.ClipboardWrite = true
-					result.ClipboardText = Text_TextSpan(props.Value, selection.Start, selection.End - selection.Start)
+					value_45 := &(result.ClipboardWrite)
+					(*value_45) = true
+					value_46 := &(result.ClipboardText)
+					(*value_46) = Text_TextSpan(props.Value, selection.Start, selection.End - selection.Start)
 				} else if decision.CopyAll {
-					result.ClipboardWrite = true
-					result.ClipboardText = props.Value
+					value_47 := &(result.ClipboardWrite)
+					(*value_47) = true
+					value_48 := &(result.ClipboardText)
+					(*value_48) = props.Value
 				}
 				if decision.Paste && int64(len(props.Input.PasteText)) == 0 {
-					result.PasteWithoutText = true
+					value_49 := &(result.PasteWithoutText)
+					(*value_49) = true
 				} else {
-					var value_13 bool = decision.Paste
-					if value_13 {
-						var value_14 bool = Textfield_TextFieldInputTextAllowed(props.Input.PasteText)
-						value_13 = value_14
+					var value_50 bool = decision.Paste
+					if value_50 {
+						var value_51 bool = Textfield_TextFieldInputTextAllowed(props.Input.PasteText)
+						value_50 = value_51
 					}
-					var value_15 bool = value_13
-					if value_15 {
-						var value_16 bool = Textfield_TextFieldReplacementAllowed(props, selection.Start, selection.End, props.Input.PasteText)
-						value_15 = value_16
+					var value_52 bool = value_50
+					if value_52 {
+						var value_53 bool = Textfield_TextFieldReplacementAllowed(props, selection.Start, selection.End, props.Input.PasteText)
+						value_52 = value_53
 					}
-					if value_15 {
-						result.Edit.Start = selection.Start
-						result.Edit.End = selection.End
-						result.Edit.Replacement = props.Input.PasteText
-						result.Edit.Changed = true
+					if value_52 {
+						value_54 := &(result.Edit.Start)
+						(*value_54) = selection.Start
+						value_55 := &(result.Edit.End)
+						(*value_55) = selection.End
+						value_56 := &(result.Edit.Replacement)
+						(*value_56) = props.Input.PasteText
+						value_57 := &(result.Edit.Changed)
+						(*value_57) = true
 					} else if !decision.Paste && (decision.DeleteSelection || decision.ClearAll) {
-						result.Edit.Start = selection.Start
-						result.Edit.End = selection.End
+						value_58 := &(result.Edit.Start)
+						(*value_58) = selection.Start
+						value_59 := &(result.Edit.End)
+						(*value_59) = selection.End
 						if decision.ClearAll {
-							result.Edit.Start = 0
-							result.Edit.End = int32(int64(len(props.Value)))
+							value_60 := &(result.Edit.Start)
+							(*value_60) = 0
+							value_61 := &(result.Edit.End)
+							(*value_61) = int32(int64(len(props.Value)))
 						}
-						result.Edit.Changed = result.Edit.End > result.Edit.Start
+						value_62 := &(result.Edit.Changed)
+						(*value_62) = result.Edit.End > result.Edit.Start
 					}
 				}
 			} else {
-				var value_17 bool = !props.ReadOnly && CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0) && !result.Composition.Active
-				if value_17 && !props.Input.Escape {
-					result.Edit = Textfield_TextFieldEditFor(props, result.Cursor, result.Anchor)
+				var value_63 bool = !props.ReadOnly && CompositionPhase(props.Input.CompositionEvent.Phase) == CompositionPhase(0) && !result.Composition.Active
+				if value_63 && !props.Input.Escape {
+					value_64 := &(result.Edit)
+					(*value_64) = Textfield_TextFieldEditFor(props, result.Cursor, result.Anchor)
 				}
 			}
 		}
 		if result.Edit.Changed {
-			result.Cursor = result.Edit.Start + int32(int64(len(result.Edit.Replacement)))
-			result.Anchor = result.Cursor
+			value_65 := &(result.Cursor)
+			(*value_65) = result.Edit.Start + int32(int64(len(result.Edit.Replacement)))
+			value_66 := &(result.Anchor)
+			(*value_66) = result.Cursor
 			if result.Composition.Active {
-				result.Composition = CompositionState{}
-				result.CompositionChanged = true
+				value_67 := &(result.Composition)
+				(*value_67) = CompositionState{}
+				value_68 := &(result.CompositionChanged)
+				(*value_68) = true
 			}
 		}
 	}
 	request := TextRequest_TextRequestTake(session, previous)
 	if request.Pending && !props.Disabled {
 		if !request.Replace {
-			result.Cursor = StdGrapheme_Boundary(props.Value, request.Cursor)
-			result.Anchor = StdGrapheme_Boundary(props.Value, request.Anchor)
+			value_69 := &(result.Cursor)
+			(*value_69) = StdGrapheme_Boundary(props.Value, request.Cursor)
+			value_70 := &(result.Anchor)
+			(*value_70) = StdGrapheme_Boundary(props.Value, request.Anchor)
 		} else {
-			var value_18 bool = !props.ReadOnly
-			if value_18 {
-				var value_19 bool = int64(len(request.Value)) == 0
-				if !value_19 {
-					var value_20 bool = Textfield_TextFieldInputTextAllowed(request.Value)
-					value_19 = value_20
+			var value_71 bool = !props.ReadOnly
+			if value_71 {
+				var value_72 bool = int64(len(request.Value)) == 0
+				if !value_72 {
+					var value_73 bool = Textfield_TextFieldInputTextAllowed(request.Value)
+					value_72 = value_73
 				}
-				value_18 = value_19
+				value_71 = value_72
 			}
-			var value_21 bool = value_18
-			if value_21 {
-				var value_22 bool = Textfield_TextFieldReplacementAllowed(props, 0, int32(int64(len(props.Value))), request.Value)
-				value_21 = value_22
+			var value_74 bool = value_71
+			if value_74 {
+				var value_75 bool = Textfield_TextFieldReplacementAllowed(props, 0, int32(int64(len(props.Value))), request.Value)
+				value_74 = value_75
 			}
-			if value_21 {
+			if value_74 {
 				change := TextRequest_TextRequestChangeFor(props.Value, request.Value)
-				result.Edit.Start = change.Start
-				result.Edit.End = change.End
-				result.Edit.Replacement = change.Replacement
-				result.Edit.Changed = change.Changed
-				result.Cursor = request.Cursor
-				result.Anchor = request.Anchor
+				value_76 := &(result.Edit.Start)
+				(*value_76) = change.Start
+				value_77 := &(result.Edit.End)
+				(*value_77) = change.End
+				value_78 := &(result.Edit.Replacement)
+				(*value_78) = change.Replacement
+				value_79 := &(result.Edit.Changed)
+				(*value_79) = change.Changed
+				value_80 := &(result.Cursor)
+				(*value_80) = request.Cursor
+				value_81 := &(result.Anchor)
+				(*value_81) = request.Anchor
 			}
 		}
-		result.Focused = true
-		result.Composition = CompositionState{}
-		result.CompositionChanged = result.CompositionChanged || props.Composition.Active
+		value_82 := &(result.Focused)
+		(*value_82) = true
+		value_83 := &(result.Composition)
+		(*value_83) = CompositionState{}
+		value_84 := &(result.CompositionChanged)
+		(*value_84) = result.CompositionChanged || props.Composition.Active
 	}
 	composing := result.Composition.Active && result.Focused && !props.Secure
 	var composition_prefix string = ""
@@ -489,7 +573,8 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 		preedit_width = FontMetrics_GlyphWidth(result.Composition.Text, font, face.Value.Typeface)
 		text_width = (prefix_width + preedit_width) + FontMetrics_GlyphWidth(composition_suffix, font, face.Value.Typeface)
 		scroll = TextInput_TextFieldScrollFor(props.Bounds.X, props.Bounds.Width - clear_size, padding_x, text_width, result.ScrollX)
-		result.ScrollX = scroll.Scroll
+		value_85 := &(result.ScrollX)
+		(*value_85) = scroll.Scroll
 	}
 	face = Textfield_TextFieldFaceFor(props, result.Focused)
 	display_cursor := Textfield_TextFieldDisplayByteFor(props.Value, display, result.Cursor, props.Secure)
@@ -499,11 +584,13 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 	if composing {
 		cursor_text_x = prefix_width + FontMetrics_GlyphWidth(Text_TextSpan(result.Composition.Text, 0, result.Composition.Cursor), font, face.Value.Typeface)
 	}
-	result.ScrollX = TextInput_TextFieldRevealScroll(result.ScrollX, scroll.MaxScroll, scroll.ClipWidth, cursor_text_x, padding_x)
+	value_86 := &(result.ScrollX)
+	(*value_86) = TextInput_TextFieldRevealScroll(result.ScrollX, scroll.MaxScroll, scroll.ClipWidth, cursor_text_x, padding_x)
 	opacity := Style_StyleOpacityValue(face.Value.Fields, face.Value.Opacity)
 	bounds := props.Bounds
 	if Tree_TreeIsBuilding(session) {
-		result.Node = Tree_TreeSubmitCurrent(session, key, 9, bounds)
+		value_87 := &(result.Node)
+		(*value_87) = Tree_TreeSubmitCurrent(session, key, 9, bounds)
 		if result.Node < 0 {
 			return result
 		}
@@ -535,7 +622,8 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 	}
 	line_height := FontMetrics_GlyphLineHeight(font, face.Value.Typeface)
 	text_bounds := bounds
-	text_bounds.Width -= clear_size
+	value_88 := &(text_bounds.Width)
+	(*value_88) -= clear_size
 	paint := TextInput_TextFieldPaintFor(text_bounds, padding_x, result.ScrollX, font, line_height, TextInput_TextFieldMinCursorHeight(scale), TextInput_TextFieldCursorVerticalPadding(scale), TextInput_TextFieldClipGuard(scale))
 	value_to_paint := display
 	foreground := face.Value.Foreground
@@ -569,80 +657,97 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 			right = clip_right
 		}
 		if right > left {
-			var value_23 Rectangle = Rectangle{X: float32(left), Y: float32(text_y), Width: float32((right - left)), Height: float32(line_height)}
-			PaintQueue_PaintRoundedFill(session, result.Node, value_23, 0.0, 1, DrawingProps_ColorFromPacked(Surface_Opacity((Theme_CurrentAccent() & 4294967040) | 136, opacity)))
+			var value_89 Rectangle = Rectangle{X: float32(left), Y: float32(text_y), Width: float32((right - left)), Height: float32(line_height)}
+			PaintQueue_PaintRoundedFill(session, result.Node, value_89, 0.0, 1, DrawingProps_ColorFromPacked(Surface_Opacity((Theme_CurrentAccent() & 4294967040) | 136, opacity)))
 		}
 	}
 	if composing {
 		foreground = face.Value.Foreground
 		if composition_prefix != "" {
-			var value_24 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
-			var value_25 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
-			PaintQueue_PaintClippedLabel(session, result.Node, composition_prefix, paint.TextX, text_y, font, value_24, paint.ClipBounds, "", 0.0, value_25)
+			var value_90 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
+			var value_91 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+			PaintQueue_PaintClippedLabel(session, result.Node, composition_prefix, paint.TextX, text_y, font, value_90, paint.ClipBounds, "", 0.0, value_91)
 		}
 		if result.Composition.Text != "" {
-			var value_26 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
-			var value_27 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
-			PaintQueue_PaintClippedLabel(session, result.Node, result.Composition.Text, paint.TextX + prefix_width, text_y, font, value_26, paint.ClipBounds, "", 0.0, value_27)
+			var value_92 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
+			var value_93 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+			PaintQueue_PaintClippedLabel(session, result.Node, result.Composition.Text, paint.TextX + prefix_width, text_y, font, value_92, paint.ClipBounds, "", 0.0, value_93)
 		}
 		if composition_suffix != "" {
-			var value_28 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
-			var value_29 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
-			PaintQueue_PaintClippedLabel(session, result.Node, composition_suffix, (paint.TextX + prefix_width) + preedit_width, text_y, font, value_28, paint.ClipBounds, "", 0.0, value_29)
+			var value_94 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
+			var value_95 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+			PaintQueue_PaintClippedLabel(session, result.Node, composition_suffix, (paint.TextX + prefix_width) + preedit_width, text_y, font, value_94, paint.ClipBounds, "", 0.0, value_95)
 		}
 		stroke := TextInput_TextInputStrokeWidth(scale)
-		var value_30 Rectangle = Rectangle{}
-		value_30.X = float32((paint.TextX + prefix_width))
-		var value_31 int32 = TextInput_TextCompositionUnderlineY(text_y, line_height, stroke)
-		value_30.Y = float32(value_31)
-		var value_32 int32 = TextInput_TextCompositionUnderlineEndX(0, preedit_width, stroke)
-		value_30.Width = float32(value_32)
-		value_30.Height = float32(stroke)
-		underline := Geometry_RectangleIntersection(value_30, paint.ClipBounds)
+		var value_96 Rectangle = Rectangle{}
+		value_96.X = float32((paint.TextX + prefix_width))
+		var value_97 int32 = TextInput_TextCompositionUnderlineY(text_y, line_height, stroke)
+		value_96.Y = float32(value_97)
+		var value_98 int32 = TextInput_TextCompositionUnderlineEndX(0, preedit_width, stroke)
+		value_96.Width = float32(value_98)
+		value_96.Height = float32(stroke)
+		underline := Geometry_RectangleIntersection(value_96, paint.ClipBounds)
 		if underline.Width > 0.0 && underline.Height > 0.0 {
 			PaintQueue_PaintRoundedFill(session, result.Node, underline, 0.0, 1, DrawingProps_ColorFromPacked(Surface_Opacity(face.Value.Focus, opacity)))
 		}
 	} else if value_to_paint != "" {
-		var value_33 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
-		var value_34 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
-		PaintQueue_PaintClippedLabel(session, result.Node, value_to_paint, paint.TextX, text_y, font, value_33, paint.ClipBounds, "", 0.0, value_34)
+		var value_99 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
+		var value_100 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+		PaintQueue_PaintClippedLabel(session, result.Node, value_to_paint, paint.TextX, text_y, font, value_99, paint.ClipBounds, "", 0.0, value_100)
 	}
 	if result.Focused && !props.Disabled {
 		x := paint.TextX + cursor_text_x
 		if x >= int32(floatToInt(float64(paint.ClipBounds.X), 32, true)) && x <= int32(floatToInt(float64((paint.ClipBounds.X + paint.ClipBounds.Width)), 32, true)) {
-			var value_35 Rectangle = Rectangle{X: float32(x), Y: float32(paint.CursorY), Width: 0.0, Height: float32(paint.CursorHeight)}
-			PaintQueue_PaintLine(session, result.Node, value_35, DrawingProps_ColorFromPacked(Surface_Opacity(face.Value.Foreground, opacity)))
+			var value_101 Rectangle = Rectangle{X: float32(x), Y: float32(paint.CursorY), Width: 0.0, Height: float32(paint.CursorHeight)}
+			PaintQueue_PaintLine(session, result.Node, value_101, DrawingProps_ColorFromPacked(Surface_Opacity(face.Value.Foreground, opacity)))
 		}
 	}
 	if clear_size > 0.0 {
-		var ziran_keyword_clear_0 ButtonProps = ButtonProps{}
+		var ziran_keyword_clear_0 zir_2b2386d69a109fee_Props = zir_2b2386d69a109fee_Props{}
 		field_key := key
 		if result.Node >= 0 {
-			var value_36 TreeEntry = Tree_TreeSubmittedNodeAt(session, result.Node)
-			field_key = value_36.Key
+			var value_102 TreeEntry = Tree_TreeSubmittedNodeAt(session, result.Node)
+			field_key = value_102.Key
 		}
-		ziran_keyword_clear_0.Key = (field_key * 65599) + 41
-		ziran_keyword_clear_0.Bounds = Rectangle{X: ((bounds.X + bounds.Width) - clear_size), Y: bounds.Y, Width: clear_size, Height: bounds.Height}
+		value_103 := &(ziran_keyword_clear_0.Key)
+		(*value_103) = (field_key * 65599) + 41
+		value_104 := &(ziran_keyword_clear_0.Bounds)
+		(*value_104) = Rectangle{X: ((bounds.X + bounds.Width) - clear_size), Y: bounds.Y, Width: clear_size, Height: bounds.Height}
 		if result.Node >= 0 {
-			var value_37 TreeEntry = Tree_TreeSubmittedNodeAt(session, result.Node)
-			placed := value_37.Bounds
-			ziran_keyword_clear_0.Bounds.X += (placed.X - bounds.X)
-			ziran_keyword_clear_0.Bounds.Y += (placed.Y - bounds.Y)
+			var value_105 TreeEntry = Tree_TreeSubmittedNodeAt(session, result.Node)
+			placed := value_105.Bounds
+			value_106 := &(ziran_keyword_clear_0.Bounds.X)
+			(*value_106) += (placed.X - bounds.X)
+			value_107 := &(ziran_keyword_clear_0.Bounds.Y)
+			(*value_107) += (placed.Y - bounds.Y)
 		}
-		ziran_keyword_clear_0.Label = props.ClearLabel
-		ziran_keyword_clear_0.IconShape = "S1.8rr:M6 6L18 18M18 6L6 18"
-		ziran_keyword_clear_0.IconOnly = true
-		ziran_keyword_clear_0.FitContent = true
-		ziran_keyword_clear_0.Emphasis = ButtonEmphasis(3)
-		ziran_keyword_clear_0.Disabled = props.Disabled
-		if Button_Button(session, ziran_keyword_clear_0) != 0 {
-			result.Edit = TextFieldEdit{Start: 0, End: int32(int64(len(props.Value))), Replacement: "", Changed: true}
-			result.Cursor = 0
-			result.Anchor = 0
-			result.ScrollX = 0
-			result.CompositionChanged = result.Composition.Active
-			result.Composition = CompositionState{}
-			result.Focused = true
+		value_108 := &(ziran_keyword_clear_0.Label)
+		(*value_108) = props.ClearLabel
+		value_109 := &(ziran_keyword_clear_0.IconShape)
+		(*value_109) = "S1.8rr:M6 6L18 18M18 6L6 18"
+		value_110 := &(ziran_keyword_clear_0.IconOnly)
+		(*value_110) = true
+		value_111 := &(ziran_keyword_clear_0.FitContent)
+		(*value_111) = true
+		value_112 := &(ziran_keyword_clear_0.Emphasis)
+		(*value_112) = ButtonEmphasis(3)
+		value_113 := &(ziran_keyword_clear_0.Disabled)
+		(*value_113) = props.Disabled
+		if Button_Draw(session, ziran_keyword_clear_0) != 0 {
+			value_114 := &(result.Edit)
+			(*value_114) = Edit{Start: 0, End: int32(int64(len(props.Value))), Replacement: "", Changed: true}
+			value_115 := &(result.Cursor)
+			(*value_115) = 0
+			value_116 := &(result.Anchor)
+			(*value_116) = 0
+			value_117 := &(result.ScrollX)
+			(*value_117) = 0
+			value_118 := &(result.CompositionChanged)
+			(*value_118) = result.Composition.Active
+			value_119 := &(result.Composition)
+			(*value_119) = CompositionState{}
+			value_120 := &(result.Focused)
+			(*value_120) = true
 			TreeInput_TreeFocusAt(session, previous)
 			TextHost_TextHostPresent(session, result.Node, props.Value, 0, 0, props.Secure, props.Numeric, props.ReadOnly, true)
 		}
@@ -650,25 +755,30 @@ func Textfield_TextFieldCore(session Session, props TextFieldProps) TextFieldRes
 	return result
 }
 
-func Textfield_TextField(session Session, props TextFieldProps) TextFieldResult {
+func Textfield_Draw(session Session, props zir_e3d05ce257aa07f3_Props) Result {
 	key := Textfield_TextFieldKey(session, props)
 	editable := !props.ReadOnly && !props.Secure
 	selection := TextInput_TextSelectionRangeForLength(props.Anchor, props.Cursor, int32(int64(len(props.Value))))
 	command := TextContextMenu_TextMenuTakeCommand(session, key)
 	if command == 1 {
-		props.Input.Cut = true
+		value_0 := &(props.Input.Cut)
+		(*value_0) = true
 	}
 	if command == 2 {
-		props.Input.Copy = true
+		value_1 := &(props.Input.Copy)
+		(*value_1) = true
 	}
 	if command == 3 {
-		props.Input.Paste = true
+		value_2 := &(props.Input.Paste)
+		(*value_2) = true
 	}
 	if command == 4 {
-		props.Input.SelectAll = true
+		value_3 := &(props.Input.SelectAll)
+		(*value_3) = true
 	}
 	if props.Input.Paste && int64(len(props.Input.PasteText)) == 0 {
-		props.Input.PasteText = TextContextMenu_TextMenuPasteText()
+		value_4 := &(props.Input.PasteText)
+		(*value_4) = TextContextMenu_TextMenuPasteText()
 	}
 	opened := TextContextMenu_TextMenuOpenRequested(session, key, props.Bounds, props.Disabled)
 	result := Textfield_TextFieldCore(session, props)
@@ -676,7 +786,8 @@ func Textfield_TextField(session Session, props TextFieldProps) TextFieldResult 
 		SystemClipboard_SystemClipboardSet(result.ClipboardText)
 	}
 	if opened {
-		result.Focused = true
+		value_5 := &(result.Focused)
+		(*value_5) = true
 	}
 	if result.Focused && !props.ReadOnly && !props.Disabled {
 		TextInputPlatform_TextInputNoteFocused(session)
@@ -685,4 +796,14 @@ func Textfield_TextField(session Session, props TextFieldProps) TextFieldResult 
 		TextContextMenu_TextMenuShow(session, editable && selection.HasSelection, !props.Secure && selection.HasSelection, !props.ReadOnly, int64(len(props.Value)) > 0, props.Input.Escape)
 	}
 	return result
+}
+
+var Textfield_ziranInitState uint8
+func Textfield_ziranInit() {
+	if Textfield_ziranInitState == 2 { return }
+	if Textfield_ziranInitState == 1 { panic("cyclic module startup") }
+	Textfield_ziranInitState = 1
+	TextBoundary_ziranInit()
+	TextBoundary_ziranInit()
+	Textfield_ziranInitState = 2
 }

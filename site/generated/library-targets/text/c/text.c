@@ -25,6 +25,7 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
     return sign ? (uint64_t)(int64_t)x : (uint64_t)x;
 }
 #endif
+#include "std_vec.h"
 #include "session.h"
 #include "control_props.h"
 #include "drawing_props.h"
@@ -39,10 +40,10 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 #include "surface.h"
 #include "text_behavior.h"
 #include "text_align.h"
-#include "text_props.h"
 #include "text_style.h"
 #include "tree.h"
 #include "text_selection_host.h"
+#include "std_vec.h"
 
 String
 TextSpan(String source, int32_t start, int32_t length)
@@ -54,24 +55,29 @@ TextFace
 DefaultTextFace(void)
 {
     TextFace face = {0};
-    face.value.fields = 1026;
-    face.value.foreground = CurrentText();
-    face.value.font_size = (float)16.0;
-    face.fallback_font = 16;
+    uint32_t* value_0 = &(face.value.fields);
+    (*value_0) = 1026;
+    uint32_t* value_1 = &(face.value.foreground);
+    (*value_1) = CurrentText();
+    float* value_2 = &(face.value.font_size);
+    (*value_2) = (float)16.0;
+    int32_t* value_3 = &(face.fallback_font);
+    (*value_3) = 16;
     return face;
 }
 
 TextFace
-TextFaceFor(TextProps props, TextFace defaults)
+TextFaceFor(zir_5988125b9981443f_Props props, TextFace defaults)
 {
     TextFace face = defaults;
     TextStyleRequest request = {.kind = props.style_kind, .id = props.id, .class_name = props.class_name, .disabled = props.disabled};
-    face.value = TextStyleFor(request, defaults.value);
+    StyleData* value_0 = &(face.value);
+    (*value_0) = TextStyleFor(request, defaults.value);
     return face;
 }
 
 bool
-text_TextRangeValid(String text, TextRange range, int32_t previous_end)
+text_TextRangeValid(String text, Range range, int32_t previous_end)
 {
     if (range.start < previous_end || range.start < 0 || range.end <= range.start || (int64_t)(range.end) > (int64_t)(text).length) {
         return false;
@@ -83,7 +89,7 @@ text_TextRangeValid(String text, TextRange range, int32_t previous_end)
 }
 
 void
-text_PaintTextEmphasis(Session session, int32_t node, TextProps props, PreparedText prepared, TextLinePlan line, int32_t x, int32_t y, Rectangle clip)
+text_PaintTextEmphasis(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared, TextLinePlan line, int32_t x, int32_t y, Rectangle clip)
 {
     int32_t previous_end = 0;
     {
@@ -93,14 +99,14 @@ text_PaintTextEmphasis(Session session, int32_t node, TextProps props, PreparedT
         int64_t loop_cursor_1 = 0LL;
         while (loop_cursor_1 < loop_count_1) {
             int64_t loop_index_1 = loop_cursor_1;
-            TextRange range = ((TextRange *)loop_view_1.data)[SliceIndex(loop_view_1, (int64_t)loop_index_1)];
+            Range range = ((Range *)loop_view_1.data)[SliceIndex(loop_view_1, (int64_t)loop_index_1)];
             String value_1 = props.text;
-            TextRange value_2 = range;
+            Range value_2 = range;
             int32_t value_3 = previous_end;
             bool value_4 = false;
             {
                 String text = value_1;
-                TextRange range = value_2;
+                Range range = value_2;
                 int32_t previous_end = value_3;
                 if (range.start < previous_end || range.start < 0 || range.end <= range.start || (int64_t)(range.end) > (int64_t)(text).length) {
                     value_4 = false;
@@ -158,12 +164,13 @@ Color
 text_TextLinkColor(Color text)
 {
     Color link = StyleTokenColorOr(StringLiteral("link"), ColorFromPacked(CurrentAccent()));
-    link.a = (uint8_t)((((int32_t)((uint32_t)(link.a) * (uint32_t)(text.a))) / 255));
+    uint8_t* value_0 = &(link.a);
+    (*value_0) = (uint8_t)((((int32_t)((uint32_t)(link.a) * (uint32_t)(text.a))) / 255));
     return link;
 }
 
 TextLinkRun
-text_TextLinkRunAt(TextProps props, int32_t at, int32_t limit)
+text_TextLinkRunAt(zir_5988125b9981443f_Props props, int32_t at, int32_t limit)
 {
     TextLinkRun run = {.end = limit, .link = false};
     int32_t previous_end = 0;
@@ -174,14 +181,14 @@ text_TextLinkRunAt(TextProps props, int32_t at, int32_t limit)
         int64_t loop_cursor_2 = 0LL;
         while (loop_cursor_2 < loop_count_2) {
             int64_t loop_index_2 = loop_cursor_2;
-            TextRange range = ((TextRange *)loop_view_2.data)[SliceIndex(loop_view_2, (int64_t)loop_index_2)];
+            Range range = ((Range *)loop_view_2.data)[SliceIndex(loop_view_2, (int64_t)loop_index_2)];
             String value_1 = props.text;
-            TextRange value_2 = range;
+            Range value_2 = range;
             int32_t value_3 = previous_end;
             bool value_4 = false;
             {
                 String text = value_1;
-                TextRange range = value_2;
+                Range range = value_2;
                 int32_t previous_end = value_3;
                 if (range.start < previous_end || range.start < 0 || range.end <= range.start || (int64_t)(range.end) > (int64_t)(text).length) {
                     value_4 = false;
@@ -204,14 +211,17 @@ text_TextLinkRunAt(TextProps props, int32_t at, int32_t limit)
                 continue;
             }
             if (range.start <= at) {
-                run.link = true;
+                bool* value_6 = &(run.link);
+                (*value_6) = true;
                 if (range.end < limit) {
-                    run.end = range.end;
+                    int32_t* value_7 = &(run.end);
+                    (*value_7) = range.end;
                 }
                 return run;
             }
             if (range.start < limit) {
-                run.end = range.start;
+                int32_t* value_8 = &(run.end);
+                (*value_8) = range.start;
             }
             return run;
         }
@@ -220,7 +230,7 @@ text_TextLinkRunAt(TextProps props, int32_t at, int32_t limit)
 }
 
 void
-text_PaintTextLineRuns(Session session, int32_t node, TextProps props, PreparedText prepared, int32_t line_start, String value, int32_t x, int32_t y, Rectangle clip)
+text_PaintTextLineRuns(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared, int32_t line_start, String value, int32_t x, int32_t y, Rectangle clip)
 {
     int32_t line_end = (int32_t)((uint32_t)line_start + (uint32_t)((int64_t)(value).length));
     int32_t at = line_start;
@@ -250,49 +260,60 @@ text_PaintTextLineRuns(Session session, int32_t node, TextProps props, PreparedT
 }
 
 PreparedText
-PrepareText(TextProps props, TextFace face)
+PrepareText(zir_5988125b9981443f_Props props, TextFace face)
 {
     PreparedText prepared = {0};
-    prepared.bounds = props.bounds;
-    String value_0 = StringView(NULL, 0);
+    Rectangle* value_0 = &(prepared.bounds);
+    (*value_0) = props.bounds;
+    String* value_1 = &(prepared.typeface);
+    String value_2 = StringView(NULL, 0);
     if (!StringEqual(props.typeface, StringLiteral(""))) {
-        value_0 = props.typeface;
+        value_2 = props.typeface;
     } else {
-        value_0 = face.value.typeface;
+        value_2 = face.value.typeface;
     }
-    prepared.typeface = value_0;
-    int32_t value_1 = ResolveFont(0, StyleFontValue(face.value.fields, face.value.font_size), face.fallback_font);
-    uint32_t value_2 = CurrentText();
-    TextAppearance appearance = ResolveTextStyle(props.font, 0, value_1, face.value.foreground, 0, value_2, false, ((uint32_t)((uint32_t)(face.value.fields) & 2u)) != 0, props.disabled && ((uint32_t)((uint32_t)(face.value.fields) & 64u)) == 0, false, 0);
-    prepared.font = appearance.font;
-    prepared.color = ColorFromPacked(Opacity(appearance.color, StyleOpacityValue(face.value.fields, face.value.opacity)));
-    prepared.line_height = GlyphLineHeight(prepared.font, prepared.typeface);
+    (*value_1) = value_2;
+    int32_t value_3 = ResolveFont(0, StyleFontValue(face.value.fields, face.value.font_size), face.fallback_font);
+    uint32_t value_4 = CurrentText();
+    TextAppearance appearance = ResolveTextStyle(props.size, 0, value_3, face.value.foreground, 0, value_4, false, ((uint32_t)((uint32_t)(face.value.fields) & 2u)) != 0, props.disabled && ((uint32_t)((uint32_t)(face.value.fields) & 64u)) == 0, false, 0);
+    int32_t* value_5 = &(prepared.font);
+    (*value_5) = appearance.font;
+    Color* value_6 = &(prepared.color);
+    (*value_6) = ColorFromPacked(Opacity(appearance.color, StyleOpacityValue(face.value.fields, face.value.opacity)));
+    int32_t* value_7 = &(prepared.line_height);
+    (*value_7) = GlyphLineHeight(prepared.font, prepared.typeface);
     if (prepared.line_height < 1) {
-        prepared.line_height = prepared.font;
+        int32_t* value_8 = &(prepared.line_height);
+        (*value_8) = prepared.font;
     }
-    int32_t value_3 = 0;
+    int32_t* value_9 = &(prepared.line_gap);
+    int32_t value_10 = 0;
     if (props.line_gap > 0) {
-        value_3 = props.line_gap;
+        value_10 = props.line_gap;
     } else {
-        int32_t value_4 = TextDefaultLineGap((float)1.0);
-        value_3 = value_4;
+        int32_t value_11 = TextDefaultLineGap((float)1.0);
+        value_10 = value_11;
     }
-    prepared.line_gap = value_3;
-    int32_t value_5 = TextWrapPolicy(props.bounds.width, (int32_t)(((TextWrap)(props.wrap))));
-    prepared.wrap = (TextWrap)((int64_t)(value_5));
+    (*value_9) = value_10;
+    Wrap* value_12 = &(prepared.wrap);
+    int32_t value_13 = TextWrapPolicy(props.bounds.width, (int32_t)(((Wrap)(props.wrap))));
+    (*value_12) = (Wrap)((int64_t)(value_13));
     int32_t start = 0;
     int32_t maximum = 0;
     while (start <= (int32_t)((int64_t)(props.text).length)) {
-        TextLinePlan line = NextTextLine(props.text, start, props.bounds.width, (TextWrap)(prepared.wrap), prepared.font, prepared.typeface);
-        prepared.line_count = (int32_t)((uint32_t)(prepared.line_count) + 1u);
+        TextLinePlan line = NextTextLine(props.text, start, props.bounds.width, (Wrap)(prepared.wrap), prepared.font, prepared.typeface);
+        int32_t* value_14 = &(prepared.line_count);
+        (*value_14) = (int32_t)((uint32_t)((*value_14)) + 1u);
         if (line.width > maximum) {
             maximum = line.width;
         }
         start = line.next;
     }
-    prepared.bounds.width = TextExtent(props.bounds.width, (float)(maximum));
+    float* value_15 = &(prepared.bounds.width);
+    (*value_15) = TextExtent(props.bounds.width, (float)(maximum));
     int32_t height = TextLayoutTotalHeight(prepared.line_count, prepared.line_height, prepared.line_gap);
-    prepared.bounds.height = TextExtent(props.bounds.height, (float)(height));
+    float* value_16 = &(prepared.bounds.height);
+    (*value_16) = TextExtent(props.bounds.height, (float)(height));
     return prepared;
 }
 
@@ -313,7 +334,7 @@ text_TextEllipsisStart(String value, int32_t max_width, int32_t font, String typ
 }
 
 int32_t
-TextHiddenLines(TextProps props, PreparedText prepared)
+TextHiddenLines(zir_5988125b9981443f_Props props, PreparedText prepared)
 {
     if (props.bounds.height <= ((float)0.0)) {
         return 0;
@@ -335,7 +356,7 @@ TextHiddenLines(TextProps props, PreparedText prepared)
 }
 
 void
-PaintTextLines(Session session, int32_t node, TextProps props, PreparedText prepared)
+PaintTextLines(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared)
 {
     int32_t total_height = TextLayoutTotalHeight(prepared.line_count, prepared.line_height, prepared.line_gap);
     float value_0 = TextAlignmentOffset(prepared.bounds.height, (float)(total_height), (int32_t)(((TextAlign)(props.vertical_align))));
@@ -346,35 +367,42 @@ PaintTextLines(Session session, int32_t node, TextProps props, PreparedText prep
     }
     int32_t start = 0;
     while (start <= (int32_t)((int64_t)(props.text).length)) {
-        TextLinePlan line = NextTextLine(props.text, start, prepared.bounds.width, (TextWrap)(prepared.wrap), prepared.font, prepared.typeface);
+        TextLinePlan line = NextTextLine(props.text, start, prepared.bounds.width, (Wrap)(prepared.wrap), prepared.font, prepared.typeface);
         if (line.start >= typed_end && typed_end < (int32_t)((int64_t)(props.text).length)) {
             break;
         }
         String value = TextSpan(props.text, line.start, (int32_t)((uint32_t)(line.end) - (uint32_t)(line.start)));
-        bool ellipsis = ((TextWrap)(props.wrap)) == ((TextWrap)(2)) && prepared.bounds.width > ((float)0.0) && (float)(line.width) > prepared.bounds.width;
+        bool ellipsis = ((Wrap)(props.wrap)) == ((Wrap)(2)) && prepared.bounds.width > ((float)0.0) && (float)(line.width) > prepared.bounds.width;
         int32_t dots_width = 0;
         if (ellipsis) {
             dots_width = GlyphWidth(StringLiteral("..."), prepared.font, prepared.typeface);
             value = text_TextEllipsisStart(value, (int32_t)((uint32_t)((int32_t)SignedBits(FloatToInt(prepared.bounds.width, 32, 1), 32)) - (uint32_t)dots_width), prepared.font, prepared.typeface);
-            line.width = (int32_t)((uint32_t)(GlyphWidth(value, prepared.font, prepared.typeface)) + (uint32_t)dots_width);
-            line.end = (int32_t)((uint32_t)(line.start) + (uint32_t)((int64_t)(value).length));
+            int32_t* value_1 = &(line.width);
+            (*value_1) = (int32_t)((uint32_t)(GlyphWidth(value, prepared.font, prepared.typeface)) + (uint32_t)dots_width);
+            int32_t* value_2 = &(line.end);
+            (*value_2) = (int32_t)((uint32_t)(line.start) + (uint32_t)((int64_t)(value).length));
         }
         int32_t x = TextLineXFor((int32_t)SignedBits(FloatToInt(prepared.bounds.x, 32, 1), 32), (int32_t)SignedBits(FloatToInt(prepared.bounds.width, 32, 1), 32), line.width, (int32_t)(((TextAlign)(props.align))));
         if (line.end > typed_end) {
             value = TextSpan(props.text, line.start, (int32_t)((uint32_t)typed_end - (uint32_t)(line.start)));
-            line.end = typed_end;
-            line.width = GlyphWidth(value, prepared.font, prepared.typeface);
+            int32_t* value_3 = &(line.end);
+            (*value_3) = typed_end;
+            int32_t* value_4 = &(line.width);
+            (*value_4) = GlyphWidth(value, prepared.font, prepared.typeface);
             ellipsis = false;
         }
         Rectangle clip = prepared.bounds;
         if ((float)(y) < clip.y + clip.height) {
             if ((float)(y) < clip.y) {
-                clip.height = clip.height + (clip.y - (float)(y));
-                clip.y = (float)(y);
+                float* value_5 = &(clip.height);
+                (*value_5) = (*value_5) + (clip.y - (float)(y));
+                float* value_6 = &(clip.y);
+                (*value_6) = (float)(y);
             }
             float line_bottom = (float)(((int32_t)((uint32_t)y + (uint32_t)(prepared.line_height))));
             if (line_bottom > clip.y + clip.height) {
-                clip.height = line_bottom - clip.y;
+                float* value_7 = &(clip.height);
+                (*value_7) = line_bottom - clip.y;
             }
         }
         if (!StringEqual(value, StringLiteral(""))) {
@@ -397,7 +425,7 @@ PaintTextLines(Session session, int32_t node, TextProps props, PreparedText prep
 }
 
 void
-text_PaintTextRule(Session session, int32_t node, TextProps props, PreparedText prepared, Rectangle bounds, Color color)
+text_PaintTextRule(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared, Rectangle bounds, Color color)
 {
     if (props.rotation == ((float)0.0)) {
         PaintRoundedFill(session, node, bounds, (float)0.0, 1, color);
@@ -415,24 +443,26 @@ text_PaintTextRule(Session session, int32_t node, TextProps props, PreparedText 
 }
 
 Vector2
-text_TextOrigin(TextProps props, PreparedText prepared)
+text_TextOrigin(zir_5988125b9981443f_Props props, PreparedText prepared)
 {
     return (Vector2){.x = prepared.bounds.x + props.origin.x, .y = prepared.bounds.y + props.origin.y};
 }
 
 TextFace
-text_TextFaceOf(TextProps props)
+text_TextFaceOf(zir_5988125b9981443f_Props props)
 {
     TextFace defaults = DefaultTextFace();
     if (props.fallback_font > 0) {
-        defaults.fallback_font = props.fallback_font;
-        defaults.value.font_size = (float)(props.fallback_font);
+        int32_t* value_0 = &(defaults.fallback_font);
+        (*value_0) = props.fallback_font;
+        float* value_1 = &(defaults.value.font_size);
+        (*value_1) = (float)(props.fallback_font);
     }
     return TextFaceFor(props, defaults);
 }
 
 void
-Text(Session session, TextProps props)
+text_DrawSession(Session session, zir_5988125b9981443f_Props props)
 {
     bool value_0 = Finite32(props.rotation);
     bool value_1 = !value_0;
@@ -447,6 +477,10 @@ Text(Session session, TextProps props)
     }
     if (value_3) {
         return;
+    }
+    if (props.bounds.width == ((float)0.0) && props.bounds.height == ((float)0.0)) {
+        Rectangle* value_5 = &(props.bounds);
+        (*value_5) = TreeRootBounds(session);
     }
     TextFace face = text_TextFaceOf(props);
     PreparedText prepared = PrepareText(props, face);
@@ -469,4 +503,10 @@ Text(Session session, TextProps props)
         return;
     }
     PaintTextLines(session, node, props, prepared);
+}
+
+void
+text___zi_spec_6a19f7c98e79a734(Session frame, zir_5988125b9981443f_Props props)
+{
+    text_DrawSession((Session){.slot = frame.slot, .epoch = frame.epoch}, props);
 }

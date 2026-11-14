@@ -59,9 +59,12 @@ var cursor_requests [9]CursorStorage
 var cursor_pointing CursorStorage
 var cursor_hovers [9]CursorHoverState
 func Cursor_CursorBeginFrame(state CursorFrame) CursorFrame {
-	state.Requested = state.Applied
-	state.Priority = 0
-	state.HasRequest = false
+	value_0 := &(state.Requested)
+	(*value_0) = state.Applied
+	value_1 := &(state.Priority)
+	(*value_1) = 0
+	value_2 := &(state.HasRequest)
+	(*value_2) = false
 	return state
 }
 
@@ -104,20 +107,27 @@ func Cursor_CursorRequest(state CursorFrame, shape int32) CursorFrame {
 	if state.HasRequest && priority < state.Priority {
 		return state
 	}
-	state.Requested = shape
-	state.Priority = priority
-	state.HasRequest = true
+	value_0 := &(state.Requested)
+	(*value_0) = shape
+	value_1 := &(state.Priority)
+	(*value_1) = priority
+	value_2 := &(state.HasRequest)
+	(*value_2) = true
 	return state
 }
 
 func Cursor_CursorEndFrame(state CursorFrame) CursorDecision {
 	var decision CursorDecision = CursorDecision{}
 	if !state.HasRequest {
-		state.Requested = 0
+		value_0 := &(state.Requested)
+		(*value_0) = 0
 	}
-	decision.Apply = state.Requested != state.Applied
-	state.Applied = state.Requested
-	decision.State = state
+	value_1 := &(decision.Apply)
+	(*value_1) = state.Requested != state.Applied
+	value_2 := &(state.Applied)
+	(*value_2) = state.Requested
+	value_3 := &(decision.State)
+	(*value_3) = state
 	return decision
 }
 
@@ -157,7 +167,8 @@ func Cursor_CursorReplacesShape(shape int32) bool {
 
 func Cursor_CursorStore(storage *CursorStorage, props CursorProps) {
 	if Cursor_CursorPropsEmpty(props) {
-		storage.Requested = false
+		value_0 := &(storage.Requested)
+		(*value_0) = false
 		return
 	}
 	{
@@ -165,17 +176,21 @@ func Cursor_CursorStore(storage *CursorStorage, props CursorProps) {
 		range_last_4 := int32(int64(len(props.AssetPath))) - 1
 		index := range_first_4
 		for index <= range_last_4 {
-			storage.Path[index] = props.AssetPath[index]
+			value_1 := &(storage.Path[index])
+			(*value_1) = props.AssetPath[index]
 			if index == range_last_4 {
 				break
 			}
 			index++
 		}
 	}
-	storage.Length = int32(int64(len(props.AssetPath)))
-	var value_0 CursorProps = CursorProps{Width: props.Width, Height: props.Height, HotspotX: props.HotspotX, HotspotY: props.HotspotY, Hidden: props.Hidden, Shape: props.Shape}
-	storage.Props = value_0
-	storage.Requested = true
+	value_2 := &(storage.Length)
+	(*value_2) = int32(int64(len(props.AssetPath)))
+	value_3 := &(storage.Props)
+	var value_4 CursorProps = CursorProps{Width: props.Width, Height: props.Height, HotspotX: props.HotspotX, HotspotY: props.HotspotY, Hidden: props.Hidden, Shape: props.Shape}
+	(*value_3) = value_4
+	value_5 := &(storage.Requested)
+	(*value_5) = true
 }
 
 func Cursor_CursorStored(slot int32) CursorProps {
@@ -183,8 +198,9 @@ func Cursor_CursorStored(slot int32) CursorProps {
 		return CursorProps{}
 	}
 	result := (cursor_requests[slot]).Props
-	var value_0 int32 = (cursor_requests[slot]).Length
-	result.AssetPath = string((cursor_requests[slot]).Path[0:value_0:value_0])
+	value_0 := &(result.AssetPath)
+	var value_1 int32 = (cursor_requests[slot]).Length
+	(*value_0) = string((cursor_requests[slot]).Path[0:value_1:value_1])
 	return result
 }
 
@@ -212,7 +228,8 @@ func Cursor_CursorSet(session Session, props CursorProps) bool {
 		return false
 	}
 	if (cursor_requests[slot]).Epoch != session.Epoch {
-		cursor_requests[slot] = CursorStorage{Epoch: session.Epoch}
+		value_2 := &(cursor_requests[slot])
+		(*value_2) = CursorStorage{Epoch: session.Epoch}
 	}
 	Cursor_CursorStore(&(cursor_requests[slot]), props)
 	return true
@@ -241,8 +258,9 @@ func Cursor_CursorGetPointing() CursorProps {
 		return CursorProps{}
 	}
 	result := cursor_pointing.Props
-	var value_0 int32 = cursor_pointing.Length
-	result.AssetPath = string(cursor_pointing.Path[0:value_0:value_0])
+	value_0 := &(result.AssetPath)
+	var value_1 int32 = cursor_pointing.Length
+	(*value_0) = string(cursor_pointing.Path[0:value_1:value_1])
 	return result
 }
 
@@ -252,10 +270,12 @@ func Cursor_CursorHover(session Session, shape int32) bool {
 		return false
 	}
 	if (cursor_hovers[slot]).Epoch != session.Epoch {
-		cursor_hovers[slot] = CursorHoverState{Epoch: session.Epoch}
+		value_0 := &(cursor_hovers[slot])
+		(*value_0) = CursorHoverState{Epoch: session.Epoch}
 	}
 	if Cursor_CursorPriorityFor(shape) >= Cursor_CursorPriorityFor((cursor_hovers[slot]).Building) {
-		(cursor_hovers[slot]).Building = shape
+		value_1 := &((cursor_hovers[slot]).Building)
+		(*value_1) = shape
 	}
 	return true
 }
@@ -266,9 +286,11 @@ func Cursor_CursorHoverFrameStart(session Session) {
 		return
 	}
 	if (cursor_hovers[slot]).Epoch != session.Epoch {
-		cursor_hovers[slot] = CursorHoverState{Epoch: session.Epoch}
+		value_0 := &(cursor_hovers[slot])
+		(*value_0) = CursorHoverState{Epoch: session.Epoch}
 	}
-	(cursor_hovers[slot]).Building = 0
+	value_1 := &((cursor_hovers[slot]).Building)
+	(*value_1) = 0
 }
 
 func Cursor_CursorHoverFrameCommit(session Session) {
@@ -276,7 +298,8 @@ func Cursor_CursorHoverFrameCommit(session Session) {
 	if slot == 0 || (cursor_hovers[slot]).Epoch != session.Epoch {
 		return
 	}
-	(cursor_hovers[slot]).Committed = (cursor_hovers[slot]).Building
+	value_0 := &((cursor_hovers[slot]).Committed)
+	(*value_0) = (cursor_hovers[slot]).Building
 }
 
 func Cursor_CursorHovered(session Session) int32 {
@@ -313,7 +336,9 @@ func Cursor_CursorResolve(session Session, widget_shape int32) CursorProps {
 func Cursor_CursorSessionEnd(session Session) {
 	slot := Session_SessionIndex(session)
 	if slot != 0 {
-		cursor_requests[slot] = CursorStorage{}
-		cursor_hovers[slot] = CursorHoverState{}
+		value_0 := &(cursor_requests[slot])
+		(*value_0) = CursorStorage{}
+		value_1 := &(cursor_hovers[slot])
+		(*value_1) = CursorHoverState{}
 	}
 }

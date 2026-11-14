@@ -2,7 +2,10 @@
 // A literal of 64 or more numeric literals is read-only data decoded by one
 // loop, and a fixed-array or record local or parameter of more than 4096
 // bytes lives in a frame slot, so a loop over it does not copy it on every
-// iteration.
+// iteration. A store whose value comes from a call reaches its place again
+// after the call, so filling a million-byte buffer through a function needs no
+// address entry per byte.
+#import "vec"
 Grid :: struct { cells: [600]s64; total: s64 }
 
 table: [64]s32 = .[
@@ -21,6 +24,24 @@ Sum16 :: (values: [64]s16) -> s64 {
 Total :: (cells: [600]s64) -> s64 {
     total: s64
     for i: 0..599 { total += cells[i] * cast(s64)(i % 5) }
+    return total
+}
+
+Cell :: struct { tag: u8; weight: s32 }
+Shade :: (value: s64) -> u8 { return cast(u8)(value % 251) }
+
+Paint :: () -> s64 {
+    pixels: Vec(u8)
+    unused VecResize(pixels, 1100000)
+    for i: 0..1099999 { pixels[i] = Shade(cast(s64)i) }
+    cells: Vec(Cell)
+    unused VecResize(cells, 600000)
+    for i: 0..599999 { cells[i].tag = Shade(cast(s64)i * 3) }
+    total: s64
+    for i: 0..1099999 { total += cast(s64)pixels[i] }
+    for i: 0..599999 { total += cast(s64)cells[i].tag }
+    VecFree(pixels)
+    VecFree(cells)
     return total
 }
 
@@ -69,7 +90,7 @@ main :: () -> s32 {
     grid = Fill(grid)
     big: [600]s64
     for i: 0..599 { big[i] = grid.cells[i] + cast(s64)i }
-    print("tables % % % % % % % %\n", Sum16(words), narrow, wide, real, table[0], table[63], grid.total,
-        Total(big))
+    print("tables % % % % % % % % %\n", Sum16(words), narrow, wide, real, table[0], table[63], grid.total,
+        Total(big), Paint())
     return cast(s32)(grid.cells[47] - 99)
 }

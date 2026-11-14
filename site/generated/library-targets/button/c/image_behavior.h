@@ -20,9 +20,9 @@ struct ImageDrawPlan {
     Rectangle destination;
     Color tint;
 };
-Rectangle ImageFitRect(ImageProps image, Texture2D texture);
+Rectangle ImageFitRect(zir_a62ab5d98ba48716_Props image, Texture2D texture);
 bool ImagePolygonValid(Slice points);
-ImageDrawPlan ImageDrawPlanFor(ImageProps image, Texture2D texture, Color tint);
+ImageDrawPlan ImageDrawPlanFor(zir_a62ab5d98ba48716_Props image, Texture2D texture, Color tint);
 Rectangle ImageFitBounds(Rectangle bounds, Rectangle source, int32_t texture_width, int32_t texture_height, int32_t fit);
 
 #ifdef __cplusplus

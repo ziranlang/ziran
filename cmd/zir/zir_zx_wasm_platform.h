@@ -43,6 +43,10 @@ typedef struct ZxWasmPlatform {
     int (*budget_left)(void *context, unsigned long handle, long long *budget);
     /* Drop an instance created by instantiate. A NULL entry is allowed. */
     void (*release)(void *context, unsigned long handle);
+    /* Nonzero when host calls may suspend the stack (Asyncify): modules
+     * are lowered with ZxWasmLowerProgramSuspendable and the provider
+     * drives their zx_async_state. */
+    int suspends;
 } ZxWasmPlatform;
 
 /* Installs the provider used by new bundle instances. Passing NULL

@@ -4,11 +4,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "button_props.h"
+#include "image.h"
 #include "theme.h"
 #include "session.h"
 #include "card_behavior.h"
 #include "button_behavior.h"
-#include "button_props.h"
 #include "control_props.h"
 #include "drawing_props.h"
 #include "focus.h"
@@ -16,8 +17,6 @@
 #include "geometry.h"
 #include "icon.h"
 #include "image_behavior.h"
-#include "image_props.h"
-#include "image.h"
 #include "paint_queue.h"
 #include "style.h"
 #include "style_sheet.h"
@@ -29,31 +28,31 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-StyleData ButtonDefaultFace(ButtonProps props, int32_t state);
-StyleData ButtonInstalledFaceFor(ButtonProps props, int32_t state);
-StyleFacts button_ButtonFaceFacts(ButtonProps props, int32_t state);
-StyleData button_ButtonFaceFinish(ButtonProps props, StyleData face);
+StyleData ButtonDefaultFace(zir_2b2386d69a109fee_Props props, int32_t state);
+StyleData ButtonInstalledFaceFor(zir_2b2386d69a109fee_Props props, int32_t state);
+StyleFacts button_ButtonFaceFacts(zir_2b2386d69a109fee_Props props, int32_t state);
+StyleData button_ButtonFaceFinish(zir_2b2386d69a109fee_Props props, StyleData face);
 float ButtonMinimumHeight(ControlSize size);
 int32_t button_ButtonDetailFont(int32_t font);
-Vector2 button_ButtonDetailSize(ButtonProps props, int32_t font, StyleData face);
-StyleData button_ButtonFitContentFace(ButtonProps props, Rectangle bounds, StyleData face, int32_t font, int32_t label_width, int32_t label_height);
-void PaintButtonForNode(Session session, int32_t node, ButtonProps props, Rectangle bounds, StyleData face, int32_t font, int32_t label_width, int32_t label_height, bool focus_visible);
-int32_t SubmitButton(Session session, ButtonProps props, int32_t parent_index);
-int32_t Button(Session session, ButtonProps props);
+Vector2 button_ButtonDetailSize(zir_2b2386d69a109fee_Props props, int32_t font, StyleData face);
+StyleData button_ButtonFitContentFace(zir_2b2386d69a109fee_Props props, Rectangle bounds, StyleData face, int32_t font, int32_t label_width, int32_t label_height);
+void PaintButtonForNode(Session session, int32_t node, zir_2b2386d69a109fee_Props props, Rectangle bounds, StyleData face, int32_t font, int32_t label_width, int32_t label_height, bool focus_visible);
+int32_t SubmitButton(Session session, zir_2b2386d69a109fee_Props props, int32_t parent_index);
+int32_t button_Draw(Session session, zir_2b2386d69a109fee_Props props);
 
 /* Small procedures other modules inline; button.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_BUTTON_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
 #include <stdbool.h>
-static inline StyleFacts button_ButtonFaceFacts_ziran_inline(ButtonProps props, int32_t state);
+static inline StyleFacts button_ButtonFaceFacts_ziran_inline(zir_2b2386d69a109fee_Props props, int32_t state);
 #define button_ButtonFaceFacts(...) button_ButtonFaceFacts_ziran_inline(__VA_ARGS__)
-static inline StyleData button_ButtonFaceFinish_ziran_inline(ButtonProps props, StyleData face);
+static inline StyleData button_ButtonFaceFinish_ziran_inline(zir_2b2386d69a109fee_Props props, StyleData face);
 #define button_ButtonFaceFinish(...) button_ButtonFaceFinish_ziran_inline(__VA_ARGS__)
 static inline int32_t button_ButtonDetailFont_ziran_inline(int32_t font);
 #define button_ButtonDetailFont(...) button_ButtonDetailFont_ziran_inline(__VA_ARGS__)
 
 static inline StyleFacts
-button_ButtonFaceFacts_ziran_inline(ButtonProps props, int32_t state)
+button_ButtonFaceFacts_ziran_inline(zir_2b2386d69a109fee_Props props, int32_t state)
 {
     int32_t kind = props.style_kind;
     if (kind <= 0) {
@@ -67,7 +66,7 @@ button_ButtonFaceFacts_ziran_inline(ButtonProps props, int32_t state)
 }
 
 static inline StyleData
-button_ButtonFaceFinish_ziran_inline(ButtonProps props, StyleData face)
+button_ButtonFaceFinish_ziran_inline(zir_2b2386d69a109fee_Props props, StyleData face)
 {
     int32_t kind = props.style_kind;
     if (kind <= 0) {
@@ -75,8 +74,10 @@ button_ButtonFaceFinish_ziran_inline(ButtonProps props, StyleData face)
     }
     bool value_0 = kind == StyleKindModal();
     if (value_0 || kind == StyleKindSegment()) {
-        face.offset_x = (float)0.0;
-        face.offset_y = (float)0.0;
+        float* value_1 = &(face.offset_x);
+        (*value_1) = (float)0.0;
+        float* value_2 = &(face.offset_y);
+        (*value_2) = (float)0.0;
     }
     return face;
 }

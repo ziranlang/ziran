@@ -11,7 +11,7 @@ std_grapheme_IsControl(int32_t property)
 }
 
 Step
-std_grapheme_Push(State state, uint32_t scalar, bool valid)
+std_grapheme_Push(zir_938805e83ac04593_State state, uint32_t scalar, bool valid)
 {
     Step result = {0};
     int32_t flags = std_grapheme_data_Property(scalar);
@@ -55,34 +55,49 @@ std_grapheme_Push(State state, uint32_t scalar, bool valid)
             }
         }
     }
-    result.boundary = state.active && !join;
+    bool* value_5 = &(result.boundary);
+    (*value_5) = state.active && !join;
     if (!join) {
-        state = (State){0};
+        state = (zir_938805e83ac04593_State){0};
     }
-    state.joined_pictographic = current == 5 && state.pictographic;
+    bool* value_6 = &(state.joined_pictographic);
+    (*value_6) = current == 5 && state.pictographic;
     if (((int32_t)((uint32_t)flags & 256u)) != 0) {
-        state.pictographic = true;
+        bool* value_7 = &(state.pictographic);
+        (*value_7) = true;
     } else if (current != 4) {
-        state.pictographic = false;
+        bool* value_8 = &(state.pictographic);
+        (*value_8) = false;
     }
     if (((int32_t)((uint32_t)flags & 512u)) != 0) {
-        state.consonant = true;
-        state.linker = false;
+        bool* value_9 = &(state.consonant);
+        (*value_9) = true;
+        bool* value_10 = &(state.linker);
+        (*value_10) = false;
     } else if (((int32_t)((uint32_t)flags & 2048u)) != 0) {
-        state.linker = state.consonant;
+        bool* value_11 = &(state.linker);
+        (*value_11) = state.consonant;
     } else if (((int32_t)((uint32_t)flags & 1024u)) == 0) {
-        state.consonant = false;
-        state.linker = false;
+        bool* value_12 = &(state.consonant);
+        (*value_12) = false;
+        bool* value_13 = &(state.linker);
+        (*value_13) = false;
     }
     if (current == 6) {
-        state.regional = (int32_t)((uint32_t)(state.regional) + 1u);
+        int32_t* value_14 = &(state.regional);
+        (*value_14) = (int32_t)((uint32_t)((*value_14)) + 1u);
     } else {
-        state.regional = 0;
+        int32_t* value_15 = &(state.regional);
+        (*value_15) = 0;
     }
-    state.previous = current;
-    state.active = true;
-    state.valid = valid;
-    result.state = state;
+    int32_t* value_16 = &(state.previous);
+    (*value_16) = current;
+    bool* value_17 = &(state.active);
+    (*value_17) = true;
+    bool* value_18 = &(state.valid);
+    (*value_18) = valid;
+    zir_938805e83ac04593_State* value_19 = &(result.state);
+    (*value_19) = state;
     return result;
 }
 
@@ -96,7 +111,7 @@ GraphemeNext(String value, int32_t at)
     if (at >= length) {
         return length;
     }
-    State state = {0};
+    zir_938805e83ac04593_State state = {0};
     int32_t cursor = at;
     while (cursor < length) {
         Decoded point = Decode(value, cursor);
@@ -108,4 +123,24 @@ GraphemeNext(String value, int32_t at)
         cursor = point.after;
     }
     return length;
+}
+
+int32_t
+std_grapheme_Boundary(String value, int32_t at)
+{
+    if (at <= 0) {
+        return 0;
+    }
+    if (at >= (int32_t)((int64_t)(value).length)) {
+        return (int32_t)((int64_t)(value).length);
+    }
+    int32_t cursor = 0;
+    while (cursor < at) {
+        int32_t after = GraphemeNext(value, cursor);
+        if (after > at) {
+            return cursor;
+        }
+        cursor = after;
+    }
+    return cursor;
 }

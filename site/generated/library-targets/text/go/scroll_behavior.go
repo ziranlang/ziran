@@ -115,14 +115,22 @@ func ScrollBehavior_ScrollMetricsFor(scale float32, track StyleFrame, thumb Styl
 		scale = 1.0
 	}
 	var metrics ScrollMetrics = ScrollMetrics{}
-	metrics.ScrollbarWidth = ScrollBehavior_ScrollMetric(track.Value.Fields, 2048, track.Value.IconSize, 10.0, scale)
-	metrics.ReservedWidth = ScrollBehavior_ScrollMetric(track.Value.Fields, 128, track.Value.PaddingX, 16.0, scale)
-	metrics.SafeGap = ScrollBehavior_ScrollMetric(track.Value.Fields, 512, track.Value.Gap, 20.0, scale)
-	metrics.DefaultWheelStep = ScrollBehavior_ScrollMetric(track.Value.Fields, 4096, track.Value.OffsetY, 42.0, scale)
-	metrics.DragThreshold = ScrollBehavior_ScrollMetric(track.Value.Fields, 4096, track.Value.OffsetX, 5.0, scale)
-	metrics.VisualBleed = ScrollBehavior_ScrollMetric(track.Value.Fields, 256, track.Value.PaddingY, 8.0, scale)
-	metrics.ThumbMinHeight = ScrollBehavior_ScrollMetric(thumb.Value.Fields, 2048, thumb.Value.IconSize, 16.0, scale)
-	metrics.ThumbInset = ScrollBehavior_ScrollMetric(thumb.Value.Fields, 128, thumb.Value.PaddingX, 2.0, scale)
+	value_0 := &(metrics.ScrollbarWidth)
+	(*value_0) = ScrollBehavior_ScrollMetric(track.Value.Fields, 2048, track.Value.IconSize, 10.0, scale)
+	value_1 := &(metrics.ReservedWidth)
+	(*value_1) = ScrollBehavior_ScrollMetric(track.Value.Fields, 128, track.Value.PaddingX, 16.0, scale)
+	value_2 := &(metrics.SafeGap)
+	(*value_2) = ScrollBehavior_ScrollMetric(track.Value.Fields, 512, track.Value.Gap, 20.0, scale)
+	value_3 := &(metrics.DefaultWheelStep)
+	(*value_3) = ScrollBehavior_ScrollMetric(track.Value.Fields, 4096, track.Value.OffsetY, 42.0, scale)
+	value_4 := &(metrics.DragThreshold)
+	(*value_4) = ScrollBehavior_ScrollMetric(track.Value.Fields, 4096, track.Value.OffsetX, 5.0, scale)
+	value_5 := &(metrics.VisualBleed)
+	(*value_5) = ScrollBehavior_ScrollMetric(track.Value.Fields, 256, track.Value.PaddingY, 8.0, scale)
+	value_6 := &(metrics.ThumbMinHeight)
+	(*value_6) = ScrollBehavior_ScrollMetric(thumb.Value.Fields, 2048, thumb.Value.IconSize, 16.0, scale)
+	value_7 := &(metrics.ThumbInset)
+	(*value_7) = ScrollBehavior_ScrollMetric(thumb.Value.Fields, 128, thumb.Value.PaddingX, 2.0, scale)
 	return metrics
 }
 
@@ -131,28 +139,39 @@ func ScrollBehavior_ScrollFace(kind int32, class_name int32, disabled bool, stat
 		track_width = 10.0
 	}
 	var face StyleData = StyleData{}
-	face.Fields = 2257
-	face.Background = 0
-	face.Radius = Theme_ShapeFull()
-	face.Opacity = 1.0
-	face.IconSize = track_width
-	face.PaddingX = 2.0
+	value_0 := &(face.Fields)
+	(*value_0) = 2257
+	value_1 := &(face.Background)
+	(*value_1) = 0
+	value_2 := &(face.Radius)
+	(*value_2) = Theme_ShapeFull()
+	value_3 := &(face.Opacity)
+	(*value_3) = 1.0
+	value_4 := &(face.IconSize)
+	(*value_4) = track_width
+	value_5 := &(face.PaddingX)
+	(*value_5) = 2.0
 	if kind == StyleSheet_StyleKindScrollThumb() {
-		face.Background = Theme_CurrentBorderStrong()
+		value_6 := &(face.Background)
+		(*value_6) = Theme_CurrentBorderStrong()
 		if state == 2 {
-			face.Background = Theme_CurrentMuted()
+			value_7 := &(face.Background)
+			(*value_7) = Theme_CurrentMuted()
 		}
 		if state == 3 {
-			face.Background = Theme_CurrentText()
+			value_8 := &(face.Background)
+			(*value_8) = Theme_CurrentText()
 		}
-		face.IconSize = 16.0
+		value_9 := &(face.IconSize)
+		(*value_9) = 16.0
 	}
 	if disabled {
 		state = 5
 	}
 	facts := StyleSheet_StyleControlRoleFacts(kind, id, class_name, StyleSheet_StyleAny(), 0, 0, 0, state)
 	var frame StyleFrame = StyleFrame{}
-	frame.Value = StyleSheet_ResolveInstalledStyleRules(face, facts, state)
+	value_10 := &(frame.Value)
+	(*value_10) = StyleSheet_ResolveInstalledStyleRules(face, facts, state)
 	return frame
 }
 
@@ -177,9 +196,11 @@ func ScrollBehavior_ScrollMax(content_height int32, viewport_height int32) int32
 func ScrollBehavior_ScrollContentBounds(bounds Rectangle, has_scroll bool, metrics ScrollMetrics) Rectangle {
 	content := bounds
 	if has_scroll {
-		content.Width = bounds.Width - float32(metrics.ScrollbarWidth)
+		value_0 := &(content.Width)
+		(*value_0) = bounds.Width - float32(metrics.ScrollbarWidth)
 		if content.Width < 0.0 {
-			content.Width = 0.0
+			value_1 := &(content.Width)
+			(*value_1) = 0.0
 		}
 	}
 	return content
@@ -214,35 +235,47 @@ func ScrollBehavior_ScrollDragDeltaOffsetFor(start_scroll int32, delta_y int32, 
 
 func ScrollBehavior_ScrollBarDragReleaseFor(drag_active bool, mouse_released bool, content_disabled bool) ScrollBarDragReleaseDecision {
 	var decision ScrollBarDragReleaseDecision = ScrollBarDragReleaseDecision{}
-	decision.ClearDrag = drag_active && (mouse_released || content_disabled)
-	decision.ConsumeRelease = drag_active && mouse_released
+	value_0 := &(decision.ClearDrag)
+	(*value_0) = drag_active && (mouse_released || content_disabled)
+	value_1 := &(decision.ConsumeRelease)
+	(*value_1) = drag_active && mouse_released
 	return decision
 }
 
 func ScrollBehavior_ScrollContentDragFor(max_scroll int32, mouse_pressed bool, mouse_down bool, inside bool, input_captured bool, on_scrollbar bool, pointer_owner_none bool, pointer_owner_scroll bool, blocked_by_other_drag bool, active bool, dragging bool, current_scroll int32, start_scroll int32, delta_y int32, drag_threshold int32) ScrollContentDragDecision {
 	var decision ScrollContentDragDecision = ScrollContentDragDecision{}
-	decision.ScrollOffset = ScrollBehavior_ScrollClamp(current_scroll, max_scroll)
+	value_0 := &(decision.ScrollOffset)
+	(*value_0) = ScrollBehavior_ScrollClamp(current_scroll, max_scroll)
 	if blocked_by_other_drag {
 		return decision
 	}
 	if max_scroll > 0 && pointer_owner_none && mouse_pressed && inside && !input_captured && !on_scrollbar {
-		decision.StartDrag = true
-		decision.Active = true
-		decision.GesturePending = true
+		value_1 := &(decision.StartDrag)
+		(*value_1) = true
+		value_2 := &(decision.Active)
+		(*value_2) = true
+		value_3 := &(decision.GesturePending)
+		(*value_3) = true
 		return decision
 	}
 	if active && mouse_down && (pointer_owner_none || pointer_owner_scroll) {
-		decision.Active = true
+		value_4 := &(decision.Active)
+		(*value_4) = true
 		if dragging || delta_y > drag_threshold || delta_y < (0 - drag_threshold) {
-			decision.Dragging = true
-			decision.ClaimScrollOwner = true
-			decision.CaptureInput = true
-			decision.ScrollOffset = ScrollBehavior_ScrollDragDeltaOffsetFor(start_scroll, delta_y, max_scroll)
+			value_5 := &(decision.Dragging)
+			(*value_5) = true
+			value_6 := &(decision.ClaimScrollOwner)
+			(*value_6) = true
+			value_7 := &(decision.CaptureInput)
+			(*value_7) = true
+			value_8 := &(decision.ScrollOffset)
+			(*value_8) = ScrollBehavior_ScrollDragDeltaOffsetFor(start_scroll, delta_y, max_scroll)
 		}
 		return decision
 	}
 	if active && dragging {
-		decision.CaptureInput = true
+		value_9 := &(decision.CaptureInput)
+		(*value_9) = true
 	}
 	return decision
 }
@@ -302,25 +335,38 @@ func ScrollBehavior_ScrollBarPaintFor(x int32, y int32, viewport_h int32, conten
 	if thumb_w < 0 {
 		thumb_w = 0
 	}
-	paint.TrackBounds.X = float32(x)
-	paint.TrackBounds.Y = float32(y)
-	paint.TrackBounds.Width = float32(scrollbar_w)
-	paint.TrackBounds.Height = float32(viewport_h)
-	paint.ThumbBounds.X = float32((x + inset))
-	paint.ThumbBounds.Y = float32(thumb_y)
-	paint.ThumbBounds.Width = float32(thumb_w)
-	paint.ThumbBounds.Height = float32(thumb_h)
-	paint.TrackSpan = track_span
-	paint.ScrollPerPixel = 0.0
+	value_0 := &(paint.TrackBounds.X)
+	(*value_0) = float32(x)
+	value_1 := &(paint.TrackBounds.Y)
+	(*value_1) = float32(y)
+	value_2 := &(paint.TrackBounds.Width)
+	(*value_2) = float32(scrollbar_w)
+	value_3 := &(paint.TrackBounds.Height)
+	(*value_3) = float32(viewport_h)
+	value_4 := &(paint.ThumbBounds.X)
+	(*value_4) = float32((x + inset))
+	value_5 := &(paint.ThumbBounds.Y)
+	(*value_5) = float32(thumb_y)
+	value_6 := &(paint.ThumbBounds.Width)
+	(*value_6) = float32(thumb_w)
+	value_7 := &(paint.ThumbBounds.Height)
+	(*value_7) = float32(thumb_h)
+	value_8 := &(paint.TrackSpan)
+	(*value_8) = track_span
+	value_9 := &(paint.ScrollPerPixel)
+	(*value_9) = 0.0
 	if track_span > 0 {
-		paint.ScrollPerPixel = float32(max_scroll) / float32(track_span)
+		value_10 := &(paint.ScrollPerPixel)
+		(*value_10) = float32(max_scroll) / float32(track_span)
 	}
 	return paint
 }
 
 func ScrollBehavior_ScrollGlideStep(frame ScrollFrame, input ScrollFrameInput, target int32, elapsed float32) ScrollFrame {
-	frame.GlideTarget = target
-	frame.SampleSeconds = input.NowSeconds
+	value_0 := &(frame.GlideTarget)
+	(*value_0) = target
+	value_1 := &(frame.SampleSeconds)
+	(*value_1) = input.NowSeconds
 	remaining := target - frame.Offset
 	share := elapsed * float32(18.0)
 	if share > 1.0 {
@@ -333,8 +379,10 @@ func ScrollBehavior_ScrollGlideStep(frame ScrollFrame, input ScrollFrameInput, t
 	if moved == 0 && remaining < 0 {
 		moved = -1
 	}
-	frame.Offset += moved
-	frame.Gliding = frame.Offset != target
+	value_2 := &(frame.Offset)
+	(*value_2) += moved
+	value_3 := &(frame.Gliding)
+	(*value_3) = frame.Offset != target
 	return frame
 }
 
@@ -358,28 +406,36 @@ func ScrollBehavior_ScrollSpeed(velocity float32) float32 {
 
 func ScrollBehavior_ScrollFlingStep(frame ScrollFrame, input ScrollFrameInput, maximum int32) ScrollFrame {
 	elapsed := ScrollBehavior_ScrollElapsed(input)
-	frame.Velocity = input.Velocity
-	frame.SampleSeconds = input.NowSeconds
-	frame.Flinging = true
+	value_0 := &(frame.Velocity)
+	(*value_0) = input.Velocity
+	value_1 := &(frame.SampleSeconds)
+	(*value_1) = input.NowSeconds
+	value_2 := &(frame.Flinging)
+	(*value_2) = true
 	if elapsed <= 0.0 {
 		return frame
 	}
 	moved := int64(floatToInt(float64((input.Velocity * elapsed)), 64, true))
 	offset := int64(frame.Offset) + moved
 	if offset <= 0 || offset >= int64(maximum) {
-		frame.Flinging = false
+		value_3 := &(frame.Flinging)
+		(*value_3) = false
 	}
-	frame.Offset = ScrollBehavior_ScrollClamp(int32(offset), maximum)
+	value_4 := &(frame.Offset)
+	(*value_4) = ScrollBehavior_ScrollClamp(int32(offset), maximum)
 	var keep float32 = 1.0 - (float32(3.5) * elapsed)
 	if keep < 0.0 {
 		keep = 0.0
 	}
-	frame.Velocity = input.Velocity * keep
+	value_5 := &(frame.Velocity)
+	(*value_5) = input.Velocity * keep
 	if ScrollBehavior_ScrollSpeed(frame.Velocity) < float32(20.0) {
-		frame.Flinging = false
+		value_6 := &(frame.Flinging)
+		(*value_6) = false
 	}
 	if !frame.Flinging {
-		frame.Velocity = 0.0
+		value_7 := &(frame.Velocity)
+		(*value_7) = 0.0
 	}
 	return frame
 }
@@ -390,30 +446,46 @@ func ScrollBehavior_ScrollPointInside(point Vector2, bounds Rectangle) bool {
 
 func ScrollBehavior_ScrollFrameFor(input ScrollFrameInput, metrics ScrollMetrics) ScrollFrame {
 	if input.Horizontal {
-		input.Horizontal = false
-		input.Bounds = ScrollBehavior_ScrollSwapAxes(input.Bounds)
-		input.Mouse = Vector2{X: input.Mouse.Y, Y: input.Mouse.X}
-		input.ContentHeight = input.ContentWidth
+		value_0 := &(input.Horizontal)
+		(*value_0) = false
+		value_1 := &(input.Bounds)
+		(*value_1) = ScrollBehavior_ScrollSwapAxes(input.Bounds)
+		value_2 := &(input.Mouse)
+		(*value_2) = Vector2{X: input.Mouse.Y, Y: input.Mouse.X}
+		value_3 := &(input.ContentHeight)
+		(*value_3) = input.ContentWidth
 		horizontal := ScrollBehavior_ScrollFrameFor(input, metrics)
-		horizontal.Clip = ScrollBehavior_ScrollSwapAxes(horizontal.Clip)
-		horizontal.Content = ScrollBehavior_ScrollSwapAxes(horizontal.Content)
-		horizontal.Paint.TrackBounds = ScrollBehavior_ScrollSwapAxes(horizontal.Paint.TrackBounds)
-		horizontal.Paint.ThumbBounds = ScrollBehavior_ScrollSwapAxes(horizontal.Paint.ThumbBounds)
+		value_4 := &(horizontal.Clip)
+		(*value_4) = ScrollBehavior_ScrollSwapAxes(horizontal.Clip)
+		value_5 := &(horizontal.Content)
+		(*value_5) = ScrollBehavior_ScrollSwapAxes(horizontal.Content)
+		value_6 := &(horizontal.Paint.TrackBounds)
+		(*value_6) = ScrollBehavior_ScrollSwapAxes(horizontal.Paint.TrackBounds)
+		value_7 := &(horizontal.Paint.ThumbBounds)
+		(*value_7) = ScrollBehavior_ScrollSwapAxes(horizontal.Paint.ThumbBounds)
 		return horizontal
 	}
 	var frame ScrollFrame = ScrollFrame{}
-	frame.Clip = input.Bounds
-	frame.Grab = input.Grab
-	frame.ThumbState = 1
+	value_8 := &(frame.Clip)
+	(*value_8) = input.Bounds
+	value_9 := &(frame.Grab)
+	(*value_9) = input.Grab
+	value_10 := &(frame.ThumbState)
+	(*value_10) = 1
 	maximum := ScrollBehavior_ScrollMax(input.ContentHeight, int32(floatToInt(float64(input.Bounds.Height), 32, true)))
 	active := input.OwnsDrag && !input.ContentDrag
 	content_active := input.OwnsDrag && input.ContentDrag
-	frame.ContentDrag = content_active
-	frame.DragOriginY = input.DragOriginY
-	frame.DragOriginOffset = input.DragOriginOffset
-	frame.DragMoving = input.DragMoving
+	value_11 := &(frame.ContentDrag)
+	(*value_11) = content_active
+	value_12 := &(frame.DragOriginY)
+	(*value_12) = input.DragOriginY
+	value_13 := &(frame.DragOriginOffset)
+	(*value_13) = input.DragOriginOffset
+	value_14 := &(frame.DragMoving)
+	(*value_14) = input.DragMoving
 	if input.HasOffset {
-		frame.Offset = ScrollBehavior_ScrollClamp(input.Offset, maximum)
+		value_15 := &(frame.Offset)
+		(*value_15) = ScrollBehavior_ScrollClamp(input.Offset, maximum)
 		if input.PointerAllowed && !input.Disabled && input.Wheel != 0.0 {
 			if input.NowSeconds > 0.0 && !input.ImmediateWheel {
 				base := frame.Offset
@@ -429,70 +501,94 @@ func ScrollBehavior_ScrollFrameFor(input ScrollFrameInput, metrics ScrollMetrics
 				}
 				frame = ScrollBehavior_ScrollGlideStep(frame, input, target, elapsed)
 			} else {
-				frame.Offset = ScrollBehavior_ScrollWheelOffsetFor(frame.Offset, input.Wheel, maximum, metrics.DefaultWheelStep)
+				value_16 := &(frame.Offset)
+				(*value_16) = ScrollBehavior_ScrollWheelOffsetFor(frame.Offset, input.Wheel, maximum, metrics.DefaultWheelStep)
 			}
-			frame.ConsumeWheel = true
+			value_17 := &(frame.ConsumeWheel)
+			(*value_17) = true
 		} else if input.Gliding && !input.ImmediateWheel && !input.Disabled && !input.OwnsDrag {
 			frame = ScrollBehavior_ScrollGlideStep(frame, input, ScrollBehavior_ScrollClamp(input.GlideTarget, maximum), ScrollBehavior_ScrollElapsed(input))
 		}
-		var value_0 bool = !input.ExternalScrollbar && (maximum > 0 || input.KeepScrollbar) && input.Bounds.Width > float32(metrics.ScrollbarWidth)
-		frame.Scrollbar = value_0 && input.Bounds.Height > 0.0
+		value_18 := &(frame.Scrollbar)
+		var value_19 bool = !input.ExternalScrollbar && (maximum > 0 || input.KeepScrollbar) && input.Bounds.Width > float32(metrics.ScrollbarWidth)
+		(*value_18) = value_19 && input.Bounds.Height > 0.0
 	}
 	scrolls := (frame.Scrollbar || input.ExternalScrollbar) && maximum > 0 && input.Bounds.Width > 0.0 && input.Bounds.Height > 0.0
 	if input.ExternalScrollbar && active {
 		active = false
-		frame.ClearDrag = true
+		value_20 := &(frame.ClearDrag)
+		(*value_20) = true
 	}
 	if !scrolls || input.Disabled || input.OwnerCaptured {
-		frame.ClearDrag = active || content_active
-		frame.ConsumeRelease = (active || content_active) && input.Released
+		value_21 := &(frame.ClearDrag)
+		(*value_21) = active || content_active
+		value_22 := &(frame.ConsumeRelease)
+		(*value_22) = (active || content_active) && input.Released
 		active = false
 		content_active = false
-		frame.ContentDrag = false
+		value_23 := &(frame.ContentDrag)
+		(*value_23) = false
 	}
 	if frame.Scrollbar || input.ExternalScrollbar {
 		x := int32(floatToInt(float64((input.Bounds.X + input.Bounds.Width)), 32, true)) - metrics.ScrollbarWidth
 		if frame.Scrollbar {
-			frame.Paint = ScrollBehavior_ScrollBarPaintFor(x, int32(floatToInt(float64(input.Bounds.Y), 32, true)), int32(floatToInt(float64(input.Bounds.Height), 32, true)), input.ContentHeight, frame.Offset, maximum, metrics)
+			value_24 := &(frame.Paint)
+			(*value_24) = ScrollBehavior_ScrollBarPaintFor(x, int32(floatToInt(float64(input.Bounds.Y), 32, true)), int32(floatToInt(float64(input.Bounds.Height), 32, true)), input.ContentHeight, frame.Offset, maximum, metrics)
 		}
-		var value_1 bool = frame.Scrollbar && scrolls && !input.Disabled && !input.OwnerCaptured && input.PointerAllowed && input.Pressed
-		var value_2 bool = value_1
-		if value_2 {
-			var value_3 bool = ScrollBehavior_ScrollPointInside(input.Mouse, frame.Paint.TrackBounds)
-			value_2 = value_3
+		var value_25 bool = frame.Scrollbar && scrolls && !input.Disabled && !input.OwnerCaptured && input.PointerAllowed && input.Pressed
+		var value_26 bool = value_25
+		if value_26 {
+			var value_27 bool = ScrollBehavior_ScrollPointInside(input.Mouse, frame.Paint.TrackBounds)
+			value_26 = value_27
 		}
-		if value_2 {
-			frame.StartDrag = true
-			frame.ClearDrag = false
+		if value_26 {
+			value_28 := &(frame.StartDrag)
+			(*value_28) = true
+			value_29 := &(frame.ClearDrag)
+			(*value_29) = false
 			active = true
-			frame.Grab = frame.Paint.ThumbBounds.Height / 2.0
+			value_30 := &(frame.Grab)
+			(*value_30) = frame.Paint.ThumbBounds.Height / 2.0
 			if ScrollBehavior_ScrollPointInside(input.Mouse, frame.Paint.ThumbBounds) {
-				frame.Grab = input.Mouse.Y - frame.Paint.ThumbBounds.Y
+				value_31 := &(frame.Grab)
+				(*value_31) = input.Mouse.Y - frame.Paint.ThumbBounds.Y
 			}
 		}
-		var value_4 bool = scrolls && !active && !content_active && !input.Disabled && !input.OwnerCaptured && input.PointerAllowed
-		var value_5 bool = value_4 && input.Pressed
-		if value_5 {
-			var value_6 bool = ScrollBehavior_ScrollPointInside(input.Mouse, input.Bounds)
-			value_5 = value_6
+		var value_32 bool = scrolls && !active && !content_active && !input.Disabled && !input.OwnerCaptured && input.PointerAllowed
+		var value_33 bool = value_32 && input.Pressed
+		if value_33 {
+			var value_34 bool = ScrollBehavior_ScrollPointInside(input.Mouse, input.Bounds)
+			value_33 = value_34
 		}
-		if value_5 {
-			frame.StartDrag = true
-			frame.ClearDrag = false
-			frame.ContentDrag = true
-			frame.DragOriginY = input.Mouse.Y
-			frame.DragOriginOffset = frame.Offset
-			frame.DragMoving = false
-			frame.SampleSeconds = input.NowSeconds
-			frame.Velocity = 0.0
+		if value_33 {
+			value_35 := &(frame.StartDrag)
+			(*value_35) = true
+			value_36 := &(frame.ClearDrag)
+			(*value_36) = false
+			value_37 := &(frame.ContentDrag)
+			(*value_37) = true
+			value_38 := &(frame.DragOriginY)
+			(*value_38) = input.Mouse.Y
+			value_39 := &(frame.DragOriginOffset)
+			(*value_39) = frame.Offset
+			value_40 := &(frame.DragMoving)
+			(*value_40) = false
+			value_41 := &(frame.SampleSeconds)
+			(*value_41) = input.NowSeconds
+			value_42 := &(frame.Velocity)
+			(*value_42) = 0.0
 			content_active = true
 		} else if content_active {
-			frame.SampleSeconds = input.SampleSeconds
-			frame.Velocity = input.Velocity
+			value_43 := &(frame.SampleSeconds)
+			(*value_43) = input.SampleSeconds
+			value_44 := &(frame.Velocity)
+			(*value_44) = input.Velocity
 		}
 		if content_active && !frame.DragMoving && !input.PointerAllowed {
-			frame.ClearDrag = true
-			frame.ContentDrag = false
+			value_45 := &(frame.ClearDrag)
+			(*value_45) = true
+			value_46 := &(frame.ContentDrag)
+			(*value_46) = false
 			content_active = false
 		}
 		if content_active {
@@ -500,46 +596,57 @@ func ScrollBehavior_ScrollFrameFor(input ScrollFrameInput, metrics ScrollMetrics
 			holding := input.Down || input.Pressed
 			if holding || input.Released {
 				if !frame.DragMoving && (delta > metrics.DragThreshold || delta < (0 - metrics.DragThreshold)) {
-					frame.DragMoving = true
-					frame.CancelPress = true
+					value_47 := &(frame.DragMoving)
+					(*value_47) = true
+					value_48 := &(frame.CancelPress)
+					(*value_48) = true
 				}
 				if frame.DragMoving {
 					previous := frame.Offset
 					target := ScrollBehavior_ScrollDragDeltaOffsetFor(frame.DragOriginOffset, delta, maximum)
 					_ = target
 					if holding || target != previous {
-						frame.Offset = target
+						value_49 := &(frame.Offset)
+						(*value_49) = target
 						elapsed := ScrollBehavior_ScrollElapsed(input)
 						_ = elapsed
 						if elapsed > 0.0 {
 							now := float32((frame.Offset - previous)) / elapsed
-							frame.Velocity = (now * 0.7) + (input.Velocity * 0.3)
-							var value_7 bool = !holding && now * input.Velocity > 0.0
-							if value_7 {
-								var value_8 bool = ScrollBehavior_ScrollSpeed(input.Velocity) > ScrollBehavior_ScrollSpeed(frame.Velocity)
-								value_7 = value_8
+							value_50 := &(frame.Velocity)
+							(*value_50) = (now * 0.7) + (input.Velocity * 0.3)
+							var value_51 bool = !holding && now * input.Velocity > 0.0
+							if value_51 {
+								var value_52 bool = ScrollBehavior_ScrollSpeed(input.Velocity) > ScrollBehavior_ScrollSpeed(frame.Velocity)
+								value_51 = value_52
 							}
-							if value_7 {
-								frame.Velocity = input.Velocity
+							if value_51 {
+								value_53 := &(frame.Velocity)
+								(*value_53) = input.Velocity
 							}
 						}
-						frame.SampleSeconds = input.NowSeconds
+						value_54 := &(frame.SampleSeconds)
+						(*value_54) = input.NowSeconds
 					}
 				}
 			}
 			if input.Released || !holding {
-				frame.ConsumeRelease = frame.DragMoving && input.Released
-				var value_9 bool = frame.DragMoving && input.Released
-				if value_9 {
-					var value_10 bool = ScrollBehavior_ScrollSpeed(frame.Velocity) >= float32(150.0)
-					value_9 = value_10
+				value_55 := &(frame.ConsumeRelease)
+				(*value_55) = frame.DragMoving && input.Released
+				var value_56 bool = frame.DragMoving && input.Released
+				if value_56 {
+					var value_57 bool = ScrollBehavior_ScrollSpeed(frame.Velocity) >= float32(150.0)
+					value_56 = value_57
 				}
-				if value_9 && input.NowSeconds - frame.SampleSeconds < 0.1 {
-					frame.Flinging = true
-					frame.SampleSeconds = input.NowSeconds
+				if value_56 && input.NowSeconds - frame.SampleSeconds < 0.1 {
+					value_58 := &(frame.Flinging)
+					(*value_58) = true
+					value_59 := &(frame.SampleSeconds)
+					(*value_59) = input.NowSeconds
 				}
-				frame.ClearDrag = true
-				frame.ContentDrag = false
+				value_60 := &(frame.ClearDrag)
+				(*value_60) = true
+				value_61 := &(frame.ContentDrag)
+				(*value_61) = false
 				content_active = false
 			}
 		} else if scrolls && input.Flinging && !active && !frame.ConsumeWheel && !input.Disabled {
@@ -547,36 +654,47 @@ func ScrollBehavior_ScrollFrameFor(input ScrollFrameInput, metrics ScrollMetrics
 		}
 		if active {
 			if frame.Paint.TrackSpan > 0 && (input.Down || input.Pressed) {
-				frame.Offset = ScrollBehavior_ScrollDragOffsetFor(input.Mouse.Y, frame.Paint.TrackBounds.Y, frame.Grab, maximum, frame.Paint)
+				value_62 := &(frame.Offset)
+				(*value_62) = ScrollBehavior_ScrollDragOffsetFor(input.Mouse.Y, frame.Paint.TrackBounds.Y, frame.Grab, maximum, frame.Paint)
 			}
 			if input.Released {
-				frame.ConsumeRelease = true
-				frame.ClearDrag = true
+				value_63 := &(frame.ConsumeRelease)
+				(*value_63) = true
+				value_64 := &(frame.ClearDrag)
+				(*value_64) = true
 				active = false
 			}
 		}
 		if frame.Scrollbar {
-			frame.Paint = ScrollBehavior_ScrollBarPaintFor(x, int32(floatToInt(float64(input.Bounds.Y), 32, true)), int32(floatToInt(float64(input.Bounds.Height), 32, true)), input.ContentHeight, frame.Offset, maximum, metrics)
+			value_65 := &(frame.Paint)
+			(*value_65) = ScrollBehavior_ScrollBarPaintFor(x, int32(floatToInt(float64(input.Bounds.Y), 32, true)), int32(floatToInt(float64(input.Bounds.Height), 32, true)), input.ContentHeight, frame.Offset, maximum, metrics)
 			if active {
-				frame.ThumbState = 3
+				value_66 := &(frame.ThumbState)
+				(*value_66) = 3
 			} else {
-				var value_11 bool = scrolls && !input.Disabled && input.PointerAllowed
-				if value_11 {
-					var value_12 bool = ScrollBehavior_ScrollPointInside(input.Mouse, frame.Paint.ThumbBounds)
-					value_11 = value_12
+				var value_67 bool = scrolls && !input.Disabled && input.PointerAllowed
+				if value_67 {
+					var value_68 bool = ScrollBehavior_ScrollPointInside(input.Mouse, frame.Paint.ThumbBounds)
+					value_67 = value_68
 				}
-				if value_11 {
-					frame.ThumbState = 2
+				if value_67 {
+					value_69 := &(frame.ThumbState)
+					(*value_69) = 2
 				}
 			}
-			frame.Clip = ScrollBehavior_ScrollContentBounds(input.Bounds, true, metrics)
+			value_70 := &(frame.Clip)
+			(*value_70) = ScrollBehavior_ScrollContentBounds(input.Bounds, true, metrics)
 		}
 	}
-	frame.Content = frame.Clip
-	frame.Content.Y -= float32(frame.Offset)
-	frame.Content.Height = float32(input.ContentHeight)
+	value_71 := &(frame.Content)
+	(*value_71) = frame.Clip
+	value_72 := &(frame.Content.Y)
+	(*value_72) -= float32(frame.Offset)
+	value_73 := &(frame.Content.Height)
+	(*value_73) = float32(input.ContentHeight)
 	if frame.Content.Height < 0.0 {
-		frame.Content.Height = 0.0
+		value_74 := &(frame.Content.Height)
+		(*value_74) = 0.0
 	}
 	return frame
 }

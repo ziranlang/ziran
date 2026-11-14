@@ -40,7 +40,8 @@ cursor_CursorHoverFrameCommit_ziran_inline(Session session)
     if (value_0) {
         return;
     }
-    (cursor_hovers[slot]).committed = (cursor_hovers[slot]).building;
+    int32_t* value_3 = &((cursor_hovers[slot]).committed);
+    (*value_3) = (cursor_hovers[slot]).building;
 }
 #endif
 

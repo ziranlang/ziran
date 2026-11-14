@@ -27,7 +27,6 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 #include "session.h"
 #include "card_behavior.h"
 #include "button_behavior.h"
-#include "button_props.h"
 #include "control_props.h"
 #include "drawing_props.h"
 #include "focus.h"
@@ -35,8 +34,6 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 #include "geometry.h"
 #include "icon.h"
 #include "image_behavior.h"
-#include "image_props.h"
-#include "image.h"
 #include "paint_queue.h"
 #include "style.h"
 #include "style_sheet.h"
@@ -46,85 +43,125 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 #include "tree_input.h"
 
 StyleData
-ButtonDefaultFace(ButtonProps props, int32_t state)
+ButtonDefaultFace(zir_2b2386d69a109fee_Props props, int32_t state)
 {
     StyleData face = {0};
-    face.fields = 32149503;
+    uint32_t* value_0 = &(face.fields);
+    (*value_0) = 32149503;
     Palette palette = CurrentPalette();
     ThemeTokens theme = CurrentTheme();
-    face.background = palette.surface;
-    face.foreground = palette.foreground;
-    face.focus = palette.focus;
-    face.border = 0;
+    uint32_t* value_1 = &(face.background);
+    (*value_1) = palette.surface;
+    uint32_t* value_2 = &(face.foreground);
+    (*value_2) = palette.foreground;
+    uint32_t* value_3 = &(face.focus);
+    (*value_3) = palette.focus;
+    uint32_t* value_4 = &(face.border);
+    (*value_4) = 0;
     if (((ButtonTone)(props.tone)) == ((ButtonTone)(1LL))) {
-        face.background = palette.accent;
-        face.foreground = palette.on_accent;
+        uint32_t* value_5 = &(face.background);
+        (*value_5) = palette.accent;
+        uint32_t* value_6 = &(face.foreground);
+        (*value_6) = palette.on_accent;
     } else if (((ButtonTone)(props.tone)) == ((ButtonTone)(2LL))) {
-        face.background = palette.danger;
-        face.foreground = palette.on_danger;
+        uint32_t* value_7 = &(face.background);
+        (*value_7) = palette.danger;
+        uint32_t* value_8 = &(face.foreground);
+        (*value_8) = palette.on_danger;
     } else if (((ButtonTone)(props.tone)) == ((ButtonTone)(3LL))) {
-        face.background = palette.success;
-        face.foreground = palette.on_success;
+        uint32_t* value_9 = &(face.background);
+        (*value_9) = palette.success;
+        uint32_t* value_10 = &(face.foreground);
+        (*value_10) = palette.on_success;
     } else if (((ButtonTone)(props.tone)) == ((ButtonTone)(4LL))) {
-        face.background = palette.warning;
-        face.foreground = palette.on_warning;
+        uint32_t* value_11 = &(face.background);
+        (*value_11) = palette.warning;
+        uint32_t* value_12 = &(face.foreground);
+        (*value_12) = palette.on_warning;
     }
     uint32_t ink = face.background;
     if (((ButtonTone)(props.tone)) == ((ButtonTone)(0LL))) {
         ink = face.foreground;
     }
     if (((ButtonEmphasis)(props.emphasis)) == ((ButtonEmphasis)(1LL))) {
-        face.foreground = ink;
-        face.background = StateLayer(palette.surface, ink, 12);
+        uint32_t* value_13 = &(face.foreground);
+        (*value_13) = ink;
+        uint32_t* value_14 = &(face.background);
+        (*value_14) = StateLayer(palette.surface, ink, 12);
     } else if (((ButtonEmphasis)(props.emphasis)) == ((ButtonEmphasis)(2LL))) {
-        face.foreground = ink;
-        face.border = ink;
-        face.background = 0;
-        face.border_width = (float)1.0;
+        uint32_t* value_15 = &(face.foreground);
+        (*value_15) = ink;
+        uint32_t* value_16 = &(face.border);
+        (*value_16) = ink;
+        uint32_t* value_17 = &(face.background);
+        (*value_17) = 0;
+        float* value_18 = &(face.border_width);
+        (*value_18) = (float)1.0;
     } else if (((ButtonEmphasis)(props.emphasis)) == ((ButtonEmphasis)(3LL)) || ((ButtonEmphasis)(props.emphasis)) == ((ButtonEmphasis)(4LL))) {
-        face.foreground = ink;
-        face.background = 0;
+        uint32_t* value_19 = &(face.foreground);
+        (*value_19) = ink;
+        uint32_t* value_20 = &(face.background);
+        (*value_20) = 0;
     }
     if (state == 2) {
-        face.background = StateLayer(face.background, face.foreground, 5);
+        uint32_t* value_21 = &(face.background);
+        (*value_21) = StateLayer(face.background, face.foreground, 5);
     } else if (state == 3 || state == 7) {
-        face.background = StateLayer(face.background, face.foreground, 8);
+        uint32_t* value_22 = &(face.background);
+        (*value_22) = StateLayer(face.background, face.foreground, 8);
     } else if (state == 5 || state == 6) {
         if (((uint32_t)((uint32_t)(face.background) & 255u)) != 0) {
-            face.background = Opacity(face.background, (float)0.55);
+            uint32_t* value_23 = &(face.background);
+            (*value_23) = Opacity(face.background, (float)0.55);
         }
-        face.foreground = Opacity(face.foreground, (float)0.55);
-        face.border = Opacity(face.border, (float)0.55);
+        uint32_t* value_24 = &(face.foreground);
+        (*value_24) = Opacity(face.foreground, (float)0.55);
+        uint32_t* value_25 = &(face.border);
+        (*value_25) = Opacity(face.border, (float)0.55);
     }
     if (props.style_kind == StyleKindCard()) {
         return CardDefaultFace((ButtonEmphasis)(props.emphasis), state);
     }
-    face.radius = ShapeMedium();
-    face.opacity = (float)1.0;
-    face.padding_x = (float)10.0;
-    face.padding_y = (float)0.0;
-    face.font_size = TypeLabel();
-    face.icon_size = (float)14.0;
-    face.gap = (float)8.0;
-    face.typeface = FontForRole(theme, 1);
-    face.min_height = ControlHeightFor((int32_t)(((ControlSize)(props.size))));
-    face.font_role = (FontRole)(1LL);
-    face.motion_duration = MotionDuration(2, theme.motion.reduced_motion, theme.motion.multiplier);
-    face.motion_multiplier = theme.motion.multiplier;
-    face.motion_easing = (MotionEasing)(1LL);
-    face.motion_reduced = theme.motion.reduced_motion;
+    float* value_26 = &(face.radius);
+    (*value_26) = ShapeMedium();
+    float* value_27 = &(face.opacity);
+    (*value_27) = (float)1.0;
+    float* value_28 = &(face.padding_x);
+    (*value_28) = (float)10.0;
+    float* value_29 = &(face.padding_y);
+    (*value_29) = (float)0.0;
+    float* value_30 = &(face.font_size);
+    (*value_30) = TypeLabel();
+    float* value_31 = &(face.icon_size);
+    (*value_31) = (float)14.0;
+    float* value_32 = &(face.gap);
+    (*value_32) = (float)8.0;
+    String* value_33 = &(face.typeface);
+    (*value_33) = FontForRole(theme, 1);
+    float* value_34 = &(face.min_height);
+    (*value_34) = ControlHeightFor((int32_t)(((ControlSize)(props.size))));
+    FontRole* value_35 = &(face.font_role);
+    (*value_35) = (FontRole)(1LL);
+    float* value_36 = &(face.motion_duration);
+    (*value_36) = MotionDuration(2, theme.motion.reduced_motion, theme.motion.multiplier);
+    float* value_37 = &(face.motion_multiplier);
+    (*value_37) = theme.motion.multiplier;
+    MotionEasing* value_38 = &(face.motion_easing);
+    (*value_38) = (MotionEasing)(1LL);
+    bool* value_39 = &(face.motion_reduced);
+    (*value_39) = theme.motion.reduced_motion;
     return face;
 }
 
 StyleData
-ButtonInstalledFaceFor(ButtonProps props, int32_t state)
+ButtonInstalledFaceFor(zir_2b2386d69a109fee_Props props, int32_t state)
 {
     StyleData value_0 = ButtonDefaultFace(props, state);
     return button_ButtonFaceFinish(props, ResolveInstalledStyleRules(value_0, button_ButtonFaceFacts(props, state), state));
 }
 
 StyleFacts
-button_ButtonFaceFacts(ButtonProps props, int32_t state)
+button_ButtonFaceFacts(zir_2b2386d69a109fee_Props props, int32_t state)
 {
     int32_t kind = props.style_kind;
     if (kind <= 0) {
@@ -138,7 +175,7 @@ button_ButtonFaceFacts(ButtonProps props, int32_t state)
 }
 
 StyleData
-button_ButtonFaceFinish(ButtonProps props, StyleData face)
+button_ButtonFaceFinish(zir_2b2386d69a109fee_Props props, StyleData face)
 {
     int32_t kind = props.style_kind;
     if (kind <= 0) {
@@ -146,8 +183,10 @@ button_ButtonFaceFinish(ButtonProps props, StyleData face)
     }
     bool value_0 = kind == StyleKindModal();
     if (value_0 || kind == StyleKindSegment()) {
-        face.offset_x = (float)0.0;
-        face.offset_y = (float)0.0;
+        float* value_1 = &(face.offset_x);
+        (*value_1) = (float)0.0;
+        float* value_2 = &(face.offset_y);
+        (*value_2) = (float)0.0;
     }
     return face;
 }
@@ -169,7 +208,7 @@ button_ButtonDetailFont(int32_t font)
 }
 
 Vector2
-button_ButtonDetailSize(ButtonProps props, int32_t font, StyleData face)
+button_ButtonDetailSize(zir_2b2386d69a109fee_Props props, int32_t font, StyleData face)
 {
     if (StringEqual(props.detail, StringLiteral("")) || props.icon_only || StringEqual(props.label, StringLiteral(""))) {
         return (Vector2){.x = (float)0.0, .y = (float)0.0};
@@ -196,7 +235,7 @@ button_ButtonDetailSize(ButtonProps props, int32_t font, StyleData face)
 }
 
 StyleData
-button_ButtonFitContentFace(ButtonProps props, Rectangle bounds, StyleData face, int32_t font, int32_t label_width, int32_t label_height)
+button_ButtonFitContentFace(zir_2b2386d69a109fee_Props props, Rectangle bounds, StyleData face, int32_t font, int32_t label_width, int32_t label_height)
 {
     bool value_0 = !StringEqual(props.icon_shape, StringLiteral("")) || props.icon_type != 0 || !StringEqual(props.image.asset_path, StringLiteral(""));
     bool has_icon = value_0 || props.image.texture.id != 0;
@@ -233,32 +272,40 @@ button_ButtonFitContentFace(ButtonProps props, Rectangle bounds, StyleData face,
     if (factor >= ((float)1.0)) {
         return face;
     }
-    face.icon_size = face.icon_size * factor;
-    face.gap = face.gap * factor;
-    face.padding_x = face.padding_x * factor;
-    face.padding_y = face.padding_y * factor;
-    face.offset_x = face.offset_x * factor;
-    face.offset_y = face.offset_y * factor;
+    float* value_1 = &(face.icon_size);
+    (*value_1) = (*value_1) * factor;
+    float* value_2 = &(face.gap);
+    (*value_2) = (*value_2) * factor;
+    float* value_3 = &(face.padding_x);
+    (*value_3) = (*value_3) * factor;
+    float* value_4 = &(face.padding_y);
+    (*value_4) = (*value_4) * factor;
+    float* value_5 = &(face.offset_x);
+    (*value_5) = (*value_5) * factor;
+    float* value_6 = &(face.offset_y);
+    (*value_6) = (*value_6) * factor;
     int32_t fitted_font = (int32_t)SignedBits(FloatToInt(((float)(font) * factor), 32, 1), 32);
     if (fitted_font < 1) {
         fitted_font = 1;
     }
     while (true) {
-        bool value_1 = fitted_font > 1 && !props.icon_only;
-        if (value_1) {
-            int32_t value_2 = GlyphWidth(props.label, fitted_font, face.typeface);
-            value_1 = ((float)(value_2) + (face.padding_x * ((float)2.0)) > bounds.width);
+        bool value_7 = fitted_font > 1 && !props.icon_only;
+        if (value_7) {
+            int32_t value_8 = GlyphWidth(props.label, fitted_font, face.typeface);
+            value_7 = ((float)(value_8) + (face.padding_x * ((float)2.0)) > bounds.width);
         }
-        if (!value_1) { break; }
+        if (!value_7) { break; }
         fitted_font = (int32_t)((uint32_t)fitted_font - 1u);
     }
-    face.fields = (uint32_t)((uint32_t)(face.fields) | 1024u);
-    face.font_size = (float)(fitted_font);
+    uint32_t* value_9 = &(face.fields);
+    (*value_9) = (uint32_t)((uint32_t)((*value_9)) | 1024u);
+    float* value_10 = &(face.font_size);
+    (*value_10) = (float)(fitted_font);
     return face;
 }
 
 void
-PaintButtonForNode(Session session, int32_t node, ButtonProps props, Rectangle bounds, StyleData face, int32_t font, int32_t label_width, int32_t label_height, bool focus_visible)
+PaintButtonForNode(Session session, int32_t node, zir_2b2386d69a109fee_Props props, Rectangle bounds, StyleData face, int32_t font, int32_t label_width, int32_t label_height, bool focus_visible)
 {
     if (props.invisible) {
         return;
@@ -272,7 +319,8 @@ PaintButtonForNode(Session session, int32_t node, ButtonProps props, Rectangle b
     if (props.swatch) {
         background = props.swatch_color;
         if (props.disabled) {
-            background.a = (uint8_t)(((int32_t)(background.a) / 2));
+            uint8_t* value_0 = &(background.a);
+            (*value_0) = (uint8_t)(((int32_t)(background.a) / 2));
         }
     }
     if (background.a > 0) {
@@ -302,31 +350,32 @@ PaintButtonForNode(Session session, int32_t node, ButtonProps props, Rectangle b
     if (focus_visible) {
         uint32_t focus = face.focus;
         if (((uint32_t)((uint32_t)focus & 255u)) == 0) {
-            Palette value_0 = CurrentPalette();
-            focus = value_0.focus;
+            Palette value_1 = CurrentPalette();
+            focus = value_1.focus;
         }
-        Rectangle value_1 = FocusDefaultOutlineBounds(bounds, (float)1.0);
-        PaintRoundedOutline(session, node, value_1, radius + ((float)2.0), 12, (float)2.0, ColorFromPacked(focus));
+        Rectangle value_2 = FocusDefaultOutlineBounds(bounds, (float)1.0);
+        PaintRoundedOutline(session, node, value_2, radius + ((float)2.0), 12, (float)2.0, ColorFromPacked(focus));
     }
-    ImageProps icon_image = props.image;
+    zir_a62ab5d98ba48716_Props icon_image = props.image;
     if (StringEqual(icon_image.asset_path, StringLiteral("")) && icon_image.texture.id == 0 && props.icon_type != 0) {
         icon_image = ImageForIcon(props.icon_type, bounds, props.label);
     }
     bool has_shape = !StringEqual(props.icon_shape, StringLiteral(""));
     bool has_image = !StringEqual(icon_image.asset_path, StringLiteral("")) || icon_image.texture.id != 0 || has_shape;
-    bool value_2 = !has_shape && (!StringEqual(props.image.asset_path, StringLiteral("")) || props.image.texture.id != 0);
-    bool picture = value_2 && !StringEqual(props.image.asset_path, StringLiteral("icons/ui.webp"));
+    bool value_3 = !has_shape && (!StringEqual(props.image.asset_path, StringLiteral("")) || props.image.texture.id != 0);
+    bool picture = value_3 && !StringEqual(props.image.asset_path, StringLiteral("icons/ui.webp"));
     float icon_size = ButtonPictureSize(bounds.width, bounds.height, face.icon_size, props.icon_only, picture);
     if (picture && !props.icon_only && !StringEqual(props.label, StringLiteral("")) && ((IconPlacement)(props.icon_placement)) != ((IconPlacement)(1LL))) {
         icon_size = ButtonLabeledPictureSize(bounds.width, bounds.height, icon_size, (float)(label_height), face.gap, ((IconPlacement)(props.icon_placement)) == ((IconPlacement)(2LL)));
     }
     ButtonContent content = ContentLayout(bounds.width, bounds.height, (float)(label_width), icon_size, face.gap, has_image, props.icon_only, (int32_t)(((IconPlacement)(props.icon_placement))) == 1, face.offset_x, face.offset_y, ((IconPlacement)(props.icon_placement)) == ((IconPlacement)(2LL)), (float)(label_height), (ContentAlignment)(props.content_alignment), face.padding_x);
     if (has_shape && content.icon_size > ((float)0.0)) {
-        Rectangle value_3 = (Rectangle){.x = bounds.x + content.icon_x, .y = bounds.y + content.icon_y, .width = content.icon_size, .height = content.icon_size};
-        svg_icon_behavior_PaintSvgIcon(session, node, props.icon_shape, value_3, ColorFromPacked(Opacity(face.foreground, opacity)));
+        Rectangle value_4 = (Rectangle){.x = bounds.x + content.icon_x, .y = bounds.y + content.icon_y, .width = content.icon_size, .height = content.icon_size};
+        svg_icon_behavior_PaintSvgIcon(session, node, props.icon_shape, value_4, ColorFromPacked(Opacity(face.foreground, opacity)));
     } else if (has_image && content.icon_size > ((float)0.0)) {
-        ImageProps image = icon_image;
-        image.bounds = (Rectangle){.x = bounds.x + content.icon_x, .y = bounds.y + content.icon_y, .width = content.icon_size, .height = content.icon_size};
+        zir_a62ab5d98ba48716_Props image = icon_image;
+        Rectangle* value_5 = &(image.bounds);
+        (*value_5) = (Rectangle){.x = bounds.x + content.icon_x, .y = bounds.y + content.icon_y, .width = content.icon_size, .height = content.icon_size};
         Texture2D texture = ImageTextureFor(image);
         uint32_t tint_color = 4294967295;
         if (image.tint != 0) {
@@ -391,36 +440,36 @@ PaintButtonForNode(Session session, int32_t node, ButtonProps props, Rectangle b
     if (!props.icon_only && !StringEqual(props.label, StringLiteral(""))) {
         Vector2 detail = button_ButtonDetailSize(props, font, face);
         int32_t x = (int32_t)SignedBits(FloatToInt((bounds.x + content.text_x), 32, 1), 32);
-        float value_4 = (bounds.y + (((bounds.height - (float)(label_height)) - detail.y) * ((float)0.5))) + face.offset_y;
-        int32_t y = (int32_t)SignedBits(FloatToInt(value_4, 32, 1), 32);
+        float value_6 = (bounds.y + (((bounds.height - (float)(label_height)) - detail.y) * ((float)0.5))) + face.offset_y;
+        int32_t y = (int32_t)SignedBits(FloatToInt(value_6, 32, 1), 32);
         if (((IconPlacement)(props.icon_placement)) == ((IconPlacement)(2LL)) && has_image) {
             y = (int32_t)SignedBits(FloatToInt((bounds.y + content.text_y), 32, 1), 32);
         }
-        Color value_5 = ColorFromPacked(Opacity(face.foreground, opacity));
-        Vector2 value_6 = paint_queue_zi_default_85e272ac12b7f186();
-        PaintClippedLabel(session, node, props.label, x, y, font, value_5, bounds, StringLiteral(""), (float)0.0, value_6);
+        Color value_7 = ColorFromPacked(Opacity(face.foreground, opacity));
+        Vector2 value_8 = paint_queue_zi_default_85e272ac12b7f186();
+        PaintClippedLabel(session, node, props.label, x, y, font, value_7, bounds, StringLiteral(""), (float)0.0, value_8);
         if (detail.y > ((float)0.0)) {
-            int32_t value_7 = font;
-            int32_t value_8 = 0;
+            int32_t value_9 = font;
+            int32_t value_10 = 0;
             {
-                int32_t font = value_7;
+                int32_t font = value_9;
                 int32_t detail = ((int32_t)((uint32_t)font * 85u)) / 100;
                 if (detail < 1) {
-                    value_8 = 1;
-                    goto value_9;
+                    value_10 = 1;
+                    goto value_11;
                 }
-                value_8 = detail;
-            value_9: ;
+                value_10 = detail;
+            value_11: ;
             }
-            Color value_10 = ColorFromPacked(Opacity(face.foreground, opacity * ((float)0.7)));
-            Vector2 value_11 = paint_queue_zi_default_85e272ac12b7f186();
-            PaintClippedLabel(session, node, props.detail, x, (int32_t)((uint32_t)y + (uint32_t)label_height), value_8, value_10, bounds, StringLiteral(""), (float)0.0, value_11);
+            Color value_12 = ColorFromPacked(Opacity(face.foreground, opacity * ((float)0.7)));
+            Vector2 value_13 = paint_queue_zi_default_85e272ac12b7f186();
+            PaintClippedLabel(session, node, props.detail, x, (int32_t)((uint32_t)y + (uint32_t)label_height), value_10, value_12, bounds, StringLiteral(""), (float)0.0, value_13);
         }
     }
 }
 
 int32_t
-SubmitButton(Session session, ButtonProps props, int32_t parent_index)
+SubmitButton(Session session, zir_2b2386d69a109fee_Props props, int32_t parent_index)
 {
     uint64_t key = props.key;
     if (key == 0ULL && props.id > 0) {
@@ -489,7 +538,7 @@ SubmitButton(Session session, ButtonProps props, int32_t parent_index)
 }
 
 int32_t
-Button(Session session, ButtonProps props)
+button_Draw(Session session, zir_2b2386d69a109fee_Props props)
 {
     return SubmitButton(session, props, TreeCurrentParent(session));
 }

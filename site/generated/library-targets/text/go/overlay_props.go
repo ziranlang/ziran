@@ -3,7 +3,7 @@ package main
 
 // #import drawing_props
 // #import geometry
-type DismissibleOverlayProps struct {
+type zir_369927f740a3063a_Props struct {
 	Key uint64
 	ID int32
 	ClassName int32

@@ -1,6 +1,6 @@
-/* An Asyncify runtime whose host suspends inside a bundle call: the Wasm
- * tier stays out, since a module instance cannot be suspended, and the
- * instruction engine runs the bundle with the suspending host. */
+/* An Asyncify runtime whose host suspends inside a bundle call: the bundle
+ * runs on the Wasm tier as a suspendable module, which unwinds with the
+ * page's stack and resumes at the host call. */
 #include "ziran_host.h"
 
 #include <emscripten.h>
@@ -23,22 +23,31 @@ static int adjust(void *context, const char *module, const char *function,
     return 1;
 }
 
-static int run(BundleInstance *instance, long long expected)
+static long long run(BundleInstance *instance)
 {
     long long result = -1;
     int present = 0;
-    return BundleInstanceRun(instance, &result, &present) && present && result == expected;
+    return instance != NULL && BundleInstanceRun(instance, &result, &present) && present ? result : -1;
 }
 
+/* Prints each run's result, the suspensions and whether the Wasm tier ran:
+ * the same with ZIRAN_WASM_TIER=0, which runs the engine, but for the
+ * tier. The second bundle suspends in an initializer and in a helper
+ * called in a loop. */
 int main(int argc, char **argv)
 {
     HostBinding bindings[] = {{.module = "component", .function = "Adjust", .call = adjust}};
-    Bundle *bundle = argc == 2 ? BundleOpen(argv[1]) : NULL;
+    Bundle *bundle = argc == 3 ? BundleOpen(argv[1]) : NULL;
+    Bundle *deep = argc == 3 ? BundleOpen(argv[2]) : NULL;
     BundleInstance *instance = bundle == NULL ? NULL : BundleInstantiate(bundle, bindings, 1);
-    int ok = instance != NULL && run(instance, 89) && run(instance, 99) && suspended == 2 &&
-             EM_ASM_INT({ return globalThis.zxWasmTier === undefined; });
-    printf("%s suspending-host-engine\n", ok ? "PASS" : "FAIL");
+    BundleInstance *nested = deep == NULL ? NULL : BundleInstantiate(deep, bindings, 1);
+    long long first = run(instance), second = run(instance);
+    long long third = run(nested), fourth = run(nested);
+    printf("results %lld %lld %lld %lld suspended %d tier %d\n", first, second, third, fourth, suspended,
+           EM_ASM_INT({ return globalThis.zxWasmTier !== undefined && globalThis.zxWasmTier.instances.size === 2; }));
+    BundleInstanceClose(nested);
     BundleInstanceClose(instance);
+    BundleClose(deep);
     BundleClose(bundle);
-    return !ok;
+    return 0;
 }

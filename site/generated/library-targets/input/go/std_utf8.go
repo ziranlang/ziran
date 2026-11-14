@@ -22,17 +22,22 @@ func StdUtf8_Decode(text string, at int32) Decoded {
 		return result
 	}
 	if at >= int32(int64(len(text))) {
-		result.After = int32(int64(len(text)))
+		value_0 := &(result.After)
+		(*value_0) = int32(int64(len(text)))
 		return result
 	}
 	first := text[at]
-	result.After = at + 1
+	value_1 := &(result.After)
+	(*value_1) = at + 1
 	if first < 128 {
-		result.Value = uint32(first)
-		result.Valid = true
+		value_2 := &(result.Value)
+		(*value_2) = uint32(first)
+		value_3 := &(result.Valid)
+		(*value_3) = true
 		return result
 	}
-	result.Value = 65533
+	value_4 := &(result.Value)
+	(*value_4) = 65533
 	var count int32 = 0
 	var codepoint uint32 = 0
 	var minimum uint32 = 0
@@ -55,8 +60,8 @@ func StdUtf8_Decode(text string, at int32) Decoded {
 	var index int32 = 1
 	for index <= count {
 		part := text[(at + index)]
-		var value_0 bool = StdUtf8_Continuation(part)
-		if !value_0 {
+		var value_5 bool = StdUtf8_Continuation(part)
+		if !value_5 {
 			return result
 		}
 		codepoint = (codepoint << 6) | uint32((part & 63))
@@ -65,9 +70,12 @@ func StdUtf8_Decode(text string, at int32) Decoded {
 	if codepoint < minimum || codepoint > 1114111 || (codepoint >= 55296 && codepoint <= 57343) {
 		return result
 	}
-	result.Value = codepoint
-	result.After = (at + count) + 1
-	result.Valid = true
+	value_6 := &(result.Value)
+	(*value_6) = codepoint
+	value_7 := &(result.After)
+	(*value_7) = (at + count) + 1
+	value_8 := &(result.Valid)
+	(*value_8) = true
 	return result
 }
 
@@ -130,21 +138,28 @@ func StdUtf8_Copy(source []uint8, destination []uint8) CopyResult {
 			}
 			var index int64 = 0
 			for index < length {
-				destination[(result.Count + index)] = source[(at + index)]
+				value_1 := &(destination[(result.Count + index)])
+				(*value_1) = source[(at + index)]
 				index++
 			}
-			result.Count += length
+			value_2 := &(result.Count)
+			(*value_2) += length
 		} else {
 			if 3 > int64(len(destination)) - result.Count {
 				return result
 			}
-			destination[result.Count] = 239
-			destination[(result.Count + 1)] = 191
-			destination[(result.Count + 2)] = 189
-			result.Count += 3
+			value_3 := &(destination[result.Count])
+			(*value_3) = 239
+			value_4 := &(destination[(result.Count + 1)])
+			(*value_4) = 191
+			value_5 := &(destination[(result.Count + 2)])
+			(*value_5) = 189
+			value_6 := &(result.Count)
+			(*value_6) += 3
 		}
 		at += length
 	}
-	result.Complete = true
+	value_7 := &(result.Complete)
+	(*value_7) = true
 	return result
 }

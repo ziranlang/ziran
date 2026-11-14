@@ -216,7 +216,8 @@ func DrawingProps_SetStyleTokenColorBytes(name []uint8, color uint32) bool {
 	var index int32 = 0
 	for index < style_color_token_count {
 		if DrawingProps_StyleTokenNameMatches(style_color_tokens[index], name) {
-			(style_color_tokens[index]).Color = color
+			value_0 := &((style_color_tokens[index]).Color)
+			(*value_0) = color
 			return true
 		}
 		index++
@@ -225,11 +226,14 @@ func DrawingProps_SetStyleTokenColorBytes(name []uint8, color uint32) bool {
 		return false
 	}
 	index = style_color_token_count
-	(style_color_tokens[index]).Length = int32(int64(len(name)))
-	(style_color_tokens[index]).Color = color
+	value_1 := &((style_color_tokens[index]).Length)
+	(*value_1) = int32(int64(len(name)))
+	value_2 := &((style_color_tokens[index]).Color)
+	(*value_2) = color
 	var at int32 = 0
 	for at < int32(int64(len(name))) {
-		((style_color_tokens[index]).Name)[at] = name[at]
+		value_3 := &(((style_color_tokens[index]).Name)[at])
+		(*value_3) = name[at]
 		at++
 	}
 	style_color_token_count++

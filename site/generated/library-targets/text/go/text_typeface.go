@@ -35,7 +35,8 @@ func TextTypeface_TextTypefaceKey(path string, output []uint8) string {
 		index := range_first_9
 		_ = index
 		for index <= range_last_9 {
-			output[index] = prefix[index]
+			value_0 := &(output[index])
+			(*value_0) = prefix[index]
 			if index == range_last_9 {
 				break
 			}
@@ -49,14 +50,16 @@ func TextTypeface_TextTypefaceKey(path string, output []uint8) string {
 		_ = index
 		for index <= range_last_12 {
 			digit := int32(((hash >> shiftCount(uint64(uint64((60 - (index * 4)))), 64)) & 15))
-			output[(index + 5)] = digits[digit]
+			value_1 := &(output[(index + 5)])
+			(*value_1) = digits[digit]
 			if index == range_last_12 {
 				break
 			}
 			index++
 		}
 	}
-	output[21] = 0
+	value_2 := &(output[21])
+	(*value_2) = 0
 	if int64(0) < 0 || int64(21) < int64(0) || int64(21) > int64(len(output)) {
 		panic("slice range out of bounds")
 	}

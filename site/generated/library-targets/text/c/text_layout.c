@@ -27,7 +27,6 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 #endif
 #include "font_metrics.h"
 #include "text_align.h"
-#include "text_props.h"
 #include "std_utf8.h"
 TextLineCache text_line_cache[128] = {0};
 uint64_t text_line_clock = {0};
@@ -141,87 +140,93 @@ TextTokenNext(String value, int32_t offset, bool icons)
         if (!value_0) { break; }
         offset = (int32_t)((uint32_t)offset + 1u);
     }
-    token.start = offset;
-    token.end = offset;
-    token.next = offset;
+    int32_t* value_4 = &(token.start);
+    (*value_4) = offset;
+    int32_t* value_5 = &(token.end);
+    (*value_5) = offset;
+    int32_t* value_6 = &(token.next);
+    (*value_6) = offset;
     if (offset >= (int32_t)((int64_t)(value).length)) {
         return token;
     }
-    token.valid = true;
+    bool* value_7 = &(token.valid);
+    (*value_7) = true;
     uint8_t current = (uint8_t)ZIRAN_INDEX(value.data, value.length, offset);
     if (current == 10 || current == 13) {
-        token.line_break = true;
+        bool* value_8 = &(token.line_break);
+        (*value_8) = true;
         offset = (int32_t)((uint32_t)offset + 1u);
         if (current == 13 && offset < (int32_t)((int64_t)(value).length) && (uint8_t)ZIRAN_INDEX(value.data, value.length, offset) == 10) {
             offset = (int32_t)((uint32_t)offset + 1u);
         }
     } else if (icons && current == 37 && (int32_t)((uint32_t)offset + 1u) < (int32_t)((int64_t)(value).length) && (uint8_t)ZIRAN_INDEX(value.data, value.length, ((int32_t)((uint32_t)offset + 1u))) == 105) {
-        token.icon = true;
+        bool* value_9 = &(token.icon);
+        (*value_9) = true;
         offset = (int32_t)((uint32_t)offset + 2u);
     } else {
         uint32_t previous = 0;
         bool have_previous = false;
         while (offset < (int32_t)((int64_t)(value).length)) {
             current = (uint8_t)ZIRAN_INDEX(value.data, value.length, offset);
-            bool value_4 = false;
+            bool value_10 = false;
             {
                 uint8_t value = current;
-                value_4 = value == 32 || value == 9 || value == 11 || value == 12;
+                value_10 = value == 32 || value == 9 || value == 11 || value == 12;
             }
-            if (value_4 || current == 10 || current == 13) {
+            if (value_10 || current == 10 || current == 13) {
                 break;
             }
             if (icons && current == 37 && (int32_t)((uint32_t)offset + 1u) < (int32_t)((int64_t)(value).length) && (uint8_t)ZIRAN_INDEX(value.data, value.length, ((int32_t)((uint32_t)offset + 1u))) == 105) {
                 break;
             }
             Decoded point = Decode(value, offset);
-            bool value_6 = have_previous;
-            if (value_6) {
-                uint32_t value_7 = point.value;
-                bool value_8 = false;
+            bool value_12 = have_previous;
+            if (value_12) {
+                uint32_t value_13 = point.value;
+                bool value_14 = false;
                 {
                     uint32_t before = previous;
-                    uint32_t after = value_7;
-                    bool value_10 = false;
+                    uint32_t after = value_13;
+                    bool value_16 = false;
                     {
                         uint32_t point = before;
                         int32_t code = (int32_t)(point);
-                        bool value_12 = (code >= 12288 && code <= 12543) || (code >= 13312 && code <= 19903) || (code >= 19968 && code <= 40959);
-                        value_10 = value_12 || (code >= 63744 && code <= 64255) || (code >= 65280 && code <= 65519) || (code >= 131072 && code <= 262143);
+                        bool value_18 = (code >= 12288 && code <= 12543) || (code >= 13312 && code <= 19903) || (code >= 19968 && code <= 40959);
+                        value_16 = value_18 || (code >= 63744 && code <= 64255) || (code >= 65280 && code <= 65519) || (code >= 131072 && code <= 262143);
                     }
-                    bool value_13 = !value_10;
-                    if (value_13) {
-                        bool value_14 = false;
+                    bool value_19 = !value_16;
+                    if (value_19) {
+                        bool value_20 = false;
                         {
                             uint32_t point = after;
                             int32_t code = (int32_t)(point);
-                            bool value_16 = (code >= 12288 && code <= 12543) || (code >= 13312 && code <= 19903) || (code >= 19968 && code <= 40959);
-                            value_14 = value_16 || (code >= 63744 && code <= 64255) || (code >= 65280 && code <= 65519) || (code >= 131072 && code <= 262143);
+                            bool value_22 = (code >= 12288 && code <= 12543) || (code >= 13312 && code <= 19903) || (code >= 19968 && code <= 40959);
+                            value_20 = value_22 || (code >= 63744 && code <= 64255) || (code >= 65280 && code <= 65519) || (code >= 131072 && code <= 262143);
                         }
-                        value_13 = !value_14;
+                        value_19 = !value_20;
                     }
-                    if (value_13) {
-                        value_8 = false;
-                        goto value_9;
+                    if (value_19) {
+                        value_14 = false;
+                        goto value_15;
                     }
-                    bool value_17 = text_layout_TextNoBreakBefore(after);
-                    bool value_18 = !value_17;
-                    if (value_18) {
-                        bool value_19 = false;
+                    bool value_23 = text_layout_TextNoBreakBefore(after);
+                    bool value_24 = !value_23;
+                    if (value_24) {
+                        bool value_25 = false;
                         {
                             uint32_t point = before;
                             int32_t code = (int32_t)(point);
-                            bool value_21 = code == 40 || code == 91 || code == 123 || code == 12296 || code == 12298 || code == 12300 || code == 12302;
-                            value_19 = value_21 || code == 12304 || code == 12308 || code == 65288 || code == 65339 || code == 65371;
+                            bool value_27 = code == 40 || code == 91 || code == 123 || code == 12296 || code == 12298 || code == 12300 || code == 12302;
+                            value_25 = value_27 || code == 12304 || code == 12308 || code == 65288 || code == 65339 || code == 65371;
                         }
-                        value_18 = !value_19;
+                        value_24 = !value_25;
                     }
-                    value_8 = value_18;
-                value_9: ;
+                    value_14 = value_24;
+                value_15: ;
                 }
-                value_6 = value_8;
+                value_12 = value_14;
             }
-            if (value_6) {
+            if (value_12) {
                 break;
             }
             previous = point.value;
@@ -229,8 +234,10 @@ TextTokenNext(String value, int32_t offset, bool icons)
             offset = point.after;
         }
     }
-    token.end = offset;
-    token.next = offset;
+    int32_t* value_28 = &(token.end);
+    (*value_28) = offset;
+    int32_t* value_29 = &(token.next);
+    (*value_29) = offset;
     return token;
 }
 
@@ -268,7 +275,7 @@ text_layout_TextLineCacheMatches(TextLineCache* entry, uint64_t revision, uint64
 }
 
 TextLinePlan
-NextTextLine(String value, int32_t start, float max_width, TextWrap wrap, int32_t font, String typeface)
+NextTextLine(String value, int32_t start, float max_width, Wrap wrap, int32_t font, String typeface)
 {
     uint64_t revision = GlyphMetricsRevision();
     if (revision == 0ULL || start < 0 || start > (int32_t)((int64_t)(value).length)) {
@@ -383,13 +390,15 @@ NextTextLine(String value, int32_t start, float max_width, TextWrap wrap, int32_
                     index = (int32_t)((uint32_t)index + 1u);
                 }
             }
-            ZIRAN_INDEX(text_line_cache, sizeof(text_line_cache) / sizeof(text_line_cache[0]), slot) = (TextLineCache){.revision = revision, .hash = hash, .count = (int64_t)(value).length, .face = face, .font = font, .width = max_width, .wrap = (int32_t)(wrap)};
+            TextLineCache* value_34 = &(ZIRAN_INDEX(text_line_cache, sizeof(text_line_cache) / sizeof(text_line_cache[0]), slot));
+            (*value_34) = (TextLineCache){.revision = revision, .hash = hash, .count = (int64_t)(value).length, .face = face, .font = font, .width = max_width, .wrap = (int32_t)(wrap)};
         }
         text_line_last = slot;
     }
     TextLineCache* entry = &(ZIRAN_INDEX(text_line_cache, sizeof(text_line_cache) / sizeof(text_line_cache[0]), slot));
     text_line_clock = (uint64_t)((uint64_t)text_line_clock + UINT64_C(1));
-    entry->used = text_line_clock;
+    uint64_t* value_35 = &(entry->used);
+    (*value_35) = text_line_clock;
     int32_t low = 0;
     int32_t high = entry->rows;
     while (low < high) {
@@ -404,51 +413,58 @@ NextTextLine(String value, int32_t start, float max_width, TextWrap wrap, int32_
         return ZIRAN_INDEX(entry->lines, 32, low);
     }
     TextLinePlan line = text_layout_NextTextLineUncached(value, start, max_width, wrap, font, typeface);
-    bool value_34 = entry->rows < 32;
-    bool value_35 = value_34;
-    if (value_35) {
-        uint64_t value_36 = GlyphMetricsRevision();
-        value_35 = (value_36 == revision);
+    bool value_36 = entry->rows < 32;
+    bool value_37 = value_36;
+    if (value_37) {
+        uint64_t value_38 = GlyphMetricsRevision();
+        value_37 = (value_38 == revision);
     }
-    if (value_35) {
+    if (value_37) {
         int32_t row = entry->rows;
         while (row > low) {
-            ZIRAN_INDEX(entry->lines, sizeof(entry->lines) / sizeof(entry->lines[0]), row) = ZIRAN_INDEX(entry->lines, 32, ((int32_t)((uint32_t)row - 1u)));
+            TextLinePlan* value_39 = &(ZIRAN_INDEX(entry->lines, sizeof(entry->lines) / sizeof(entry->lines[0]), row));
+            (*value_39) = ZIRAN_INDEX(entry->lines, 32, ((int32_t)((uint32_t)row - 1u)));
             row = (int32_t)((uint32_t)row - 1u);
         }
-        ZIRAN_INDEX(entry->lines, sizeof(entry->lines) / sizeof(entry->lines[0]), low) = line;
-        entry->rows = (int32_t)((uint32_t)(entry->rows) + 1u);
+        TextLinePlan* value_40 = &(ZIRAN_INDEX(entry->lines, sizeof(entry->lines) / sizeof(entry->lines[0]), low));
+        (*value_40) = line;
+        int32_t* value_41 = &(entry->rows);
+        (*value_41) = (int32_t)((uint32_t)((*value_41)) + 1u);
     }
     return line;
 }
 
 TextLinePlan
-text_layout_NextTextLineUncached(String value, int32_t start, float max_width, TextWrap wrap, int32_t font, String typeface)
+text_layout_NextTextLineUncached(String value, int32_t start, float max_width, Wrap wrap, int32_t font, String typeface)
 {
     TextLinePlan line = {.start = start, .end = start, .next = (int32_t)((uint32_t)((int64_t)(value).length) + 1u)};
     if (start >= (int32_t)((int64_t)(value).length)) {
         return line;
     }
-    if (wrap == ((TextWrap)(3LL)) && max_width > ((float)0.0)) {
+    if (wrap == ((Wrap)(3LL)) && max_width > ((float)0.0)) {
         int32_t offset = start;
         while (offset < (int32_t)((int64_t)(value).length)) {
             int32_t after = GraphemeNext(value, offset);
             if ((uint8_t)ZIRAN_INDEX(value.data, value.length, offset) == 10 || (uint8_t)ZIRAN_INDEX(value.data, value.length, offset) == 13) {
-                line.next = after;
+                int32_t* value_0 = &(line.next);
+                (*value_0) = after;
                 return line;
             }
             int32_t width = GlyphWidth(StringRange(value, (int64_t)start, (int64_t)after), font, typeface);
             if (line.end > start && (float)(width) > max_width) {
-                line.next = offset;
+                int32_t* value_1 = &(line.next);
+                (*value_1) = offset;
                 return line;
             }
-            line.end = after;
-            line.width = width;
+            int32_t* value_2 = &(line.end);
+            (*value_2) = after;
+            int32_t* value_3 = &(line.width);
+            (*value_3) = width;
             offset = after;
         }
         return line;
     }
-    bool wrapped = wrap == ((TextWrap)(0LL)) && max_width > ((float)0.0);
+    bool wrapped = wrap == ((Wrap)(0LL)) && max_width > ((float)0.0);
     int32_t offset = start;
     while (offset < (int32_t)((int64_t)(value).length)) {
         TextToken token = TextTokenNext(value, offset, false);
@@ -456,9 +472,11 @@ text_layout_NextTextLineUncached(String value, int32_t start, float max_width, T
             break;
         }
         if (token.line_break) {
-            line.next = token.next;
+            int32_t* value_4 = &(line.next);
+            (*value_4) = token.next;
             if (!wrapped && line.end > line.start) {
-                line.width = GlyphWidth(StringRange(value, (int64_t)line.start, (int64_t)line.end), font, typeface);
+                int32_t* value_5 = &(line.width);
+                (*value_5) = GlyphWidth(StringRange(value, (int64_t)line.start, (int64_t)line.end), font, typeface);
             }
             return line;
         }
@@ -468,15 +486,19 @@ text_layout_NextTextLineUncached(String value, int32_t start, float max_width, T
             width = GlyphWidth(candidate, font, typeface);
         }
         if (wrapped && line.end > line.start && (float)(width) > max_width) {
-            line.next = token.start;
+            int32_t* value_6 = &(line.next);
+            (*value_6) = token.start;
             return line;
         }
-        line.end = token.end;
-        line.width = width;
+        int32_t* value_7 = &(line.end);
+        (*value_7) = token.end;
+        int32_t* value_8 = &(line.width);
+        (*value_8) = width;
         offset = token.next;
     }
     if (!wrapped && line.end > line.start) {
-        line.width = GlyphWidth(StringRange(value, (int64_t)line.start, (int64_t)line.end), font, typeface);
+        int32_t* value_9 = &(line.width);
+        (*value_9) = GlyphWidth(StringRange(value, (int64_t)line.start, (int64_t)line.end), font, typeface);
     }
     return line;
 }

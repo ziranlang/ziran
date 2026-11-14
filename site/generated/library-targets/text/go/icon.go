@@ -2,27 +2,32 @@
 package main
 
 // #import geometry
-// #import image_props
-func Icon_ImageForIcon(icon_type int32, bounds Rectangle, alt_text string) ImageProps {
-	var image ImageProps = ImageProps{}
-	image.Bounds = bounds
-	image.AltText = alt_text
+func Icon_ImageForIcon(icon_type int32, bounds Rectangle, alt_text string) zir_a62ab5d98ba48716_Props {
+	var image zir_a62ab5d98ba48716_Props = zir_a62ab5d98ba48716_Props{}
+	value_0 := &(image.Bounds)
+	(*value_0) = bounds
+	value_1 := &(image.AltText)
+	(*value_1) = alt_text
 	var index int32 = -1
 	var columns int32 = 1
 	if icon_type >= 1 && icon_type <= 15 {
-		image.AssetPath = "icons/ui.webp"
+		value_2 := &(image.AssetPath)
+		(*value_2) = "icons/ui.webp"
 		index = icon_type - 1
 		columns = 8
 	} else if icon_type >= 16 && icon_type <= 20 {
-		image.AssetPath = "icons/language.png"
+		value_3 := &(image.AssetPath)
+		(*value_3) = "icons/language.png"
 		index = icon_type - 16
 		columns = 5
 	} else if icon_type >= 21 && icon_type <= 30 {
-		image.AssetPath = "icons/ui.webp"
+		value_4 := &(image.AssetPath)
+		(*value_4) = "icons/ui.webp"
 		index = icon_type - 6
 		columns = 8
 	} else if icon_type >= 31 && icon_type <= 35 {
-		image.AssetPath = "icons/ui.webp"
+		value_5 := &(image.AssetPath)
+		(*value_5) = "icons/ui.webp"
 		if icon_type == 31 {
 			index = 58
 		}
@@ -40,60 +45,74 @@ func Icon_ImageForIcon(icon_type int32, bounds Rectangle, alt_text string) Image
 		}
 		columns = 8
 	} else if icon_type >= 36 && icon_type <= 38 {
-		image.AssetPath = "icons/payments.png"
+		value_6 := &(image.AssetPath)
+		(*value_6) = "icons/payments.png"
 		index = icon_type - 36
 		columns = 3
 	} else if icon_type >= 39 && icon_type <= 40 {
-		image.AssetPath = "icons/ui.webp"
+		value_7 := &(image.AssetPath)
+		(*value_7) = "icons/ui.webp"
 		index = icon_type - 13
 		columns = 8
 	} else if icon_type >= 41 && icon_type <= 65 {
-		image.AssetPath = "icons/pfp.webp"
+		value_8 := &(image.AssetPath)
+		(*value_8) = "icons/pfp.webp"
 		index = icon_type - 41
 		columns = 5
 	} else if icon_type >= 66 && icon_type <= 88 {
-		image.AssetPath = "icons/platforms.png"
+		value_9 := &(image.AssetPath)
+		(*value_9) = "icons/platforms.png"
 		index = icon_type - 66
 		columns = 6
 	} else if icon_type >= 89 && icon_type <= 91 {
-		image.AssetPath = "icons/ui.webp"
+		value_10 := &(image.AssetPath)
+		(*value_10) = "icons/ui.webp"
 		index = icon_type - 61
 		columns = 8
 	} else if icon_type >= 92 && icon_type <= 93 {
-		image.AssetPath = "icons/logos.png"
+		value_11 := &(image.AssetPath)
+		(*value_11) = "icons/logos.png"
 		index = icon_type - 92
 		columns = 2
 	} else if icon_type >= 94 && icon_type <= 108 {
-		image.AssetPath = "icons/ui.webp"
+		value_12 := &(image.AssetPath)
+		(*value_12) = "icons/ui.webp"
 		index = icon_type - 63
 		columns = 8
 	} else if icon_type >= 109 && icon_type <= 112 {
-		image.AssetPath = "icons/tiles.png"
+		value_13 := &(image.AssetPath)
+		(*value_13) = "icons/tiles.png"
 		index = icon_type - 109
 		columns = 4
 	} else if icon_type >= 113 && icon_type <= 116 {
-		image.AssetPath = "icons/ui.webp"
+		value_14 := &(image.AssetPath)
+		(*value_14) = "icons/ui.webp"
 		index = icon_type - 67
 		columns = 8
 	} else if icon_type == 117 {
-		image.AssetPath = "icons/ui.webp"
+		value_15 := &(image.AssetPath)
+		(*value_15) = "icons/ui.webp"
 		index = 56
 		columns = 8
 	} else if icon_type >= 118 && icon_type <= 123 {
-		image.AssetPath = "icons/ui.webp"
+		value_16 := &(image.AssetPath)
+		(*value_16) = "icons/ui.webp"
 		index = icon_type - 68
 		columns = 8
 	} else if icon_type >= 124 && icon_type <= 126 {
-		image.AssetPath = "icons/pfp.webp"
+		value_17 := &(image.AssetPath)
+		(*value_17) = "icons/pfp.webp"
 		index = icon_type - 99
 		columns = 5
 	} else if icon_type == 127 {
-		image.AssetPath = "icons/ui.webp"
+		value_18 := &(image.AssetPath)
+		(*value_18) = "icons/ui.webp"
 		index = 61
 		columns = 8
 	}
 	if index >= 0 {
-		image.Source = Rectangle{X: float32(((index % columns) * 64)), Y: float32(((index / columns) * 64)), Width: 64.0, Height: 64.0}
+		value_19 := &(image.Source)
+		(*value_19) = Rectangle{X: float32(((index % columns) * 64)), Y: float32(((index / columns) * 64)), Width: 64.0, Height: 64.0}
 	}
 	return image
 }

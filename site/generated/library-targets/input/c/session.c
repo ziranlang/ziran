@@ -53,10 +53,13 @@ SessionOpen(void)
             value_0 = (value_1 != 18446744073709551615ULL);
         }
         if (value_0) {
-            ZIRAN_INDEX(session_epochs, sizeof(session_epochs) / sizeof(session_epochs[0]), slot) = (uint64_t)((uint64_t)(ZIRAN_INDEX(session_epochs, sizeof(session_epochs) / sizeof(session_epochs[0]), slot)) + UINT64_C(1));
+            uint64_t* value_2 = &(ZIRAN_INDEX(session_epochs, sizeof(session_epochs) / sizeof(session_epochs[0]), slot));
+            (*value_2) = (uint64_t)((uint64_t)((*value_2)) + UINT64_C(1));
             session_active = (uint32_t)((uint32_t)session_active | (uint32_t)mask);
-            result.slot = slot;
-            result.epoch = ZIRAN_INDEX(session_epochs, 9, slot);
+            int32_t* value_3 = &(result.slot);
+            (*value_3) = slot;
+            uint64_t* value_4 = &(result.epoch);
+            (*value_4) = ZIRAN_INDEX(session_epochs, 9, slot);
             return result;
         }
         slot = (int32_t)((uint32_t)slot + 1u);

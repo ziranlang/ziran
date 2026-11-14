@@ -34,20 +34,32 @@ func ScrollProps_ScrollFrameInputFor(input ScrollInput) ScrollFrameInput {
 
 func ScrollProps_ScrollInputAfter(input ScrollInput, frame ScrollFrame) ScrollInput {
 	if frame.StartDrag {
-		input.OwnsDrag = true
+		value_0 := &(input.OwnsDrag)
+		(*value_0) = true
 	}
 	if frame.ClearDrag {
-		input.OwnsDrag = false
+		value_1 := &(input.OwnsDrag)
+		(*value_1) = false
 	}
-	input.Grab = frame.Grab
-	input.ContentDrag = frame.ContentDrag
-	input.DragOriginY = frame.DragOriginY
-	input.DragOriginOffset = frame.DragOriginOffset
-	input.DragMoving = frame.DragMoving
-	input.SampleSeconds = frame.SampleSeconds
-	input.Velocity = frame.Velocity
-	input.Flinging = frame.Flinging
-	input.Gliding = frame.Gliding
-	input.GlideTarget = frame.GlideTarget
+	value_2 := &(input.Grab)
+	(*value_2) = frame.Grab
+	value_3 := &(input.ContentDrag)
+	(*value_3) = frame.ContentDrag
+	value_4 := &(input.DragOriginY)
+	(*value_4) = frame.DragOriginY
+	value_5 := &(input.DragOriginOffset)
+	(*value_5) = frame.DragOriginOffset
+	value_6 := &(input.DragMoving)
+	(*value_6) = frame.DragMoving
+	value_7 := &(input.SampleSeconds)
+	(*value_7) = frame.SampleSeconds
+	value_8 := &(input.Velocity)
+	(*value_8) = frame.Velocity
+	value_9 := &(input.Flinging)
+	(*value_9) = frame.Flinging
+	value_10 := &(input.Gliding)
+	(*value_10) = frame.Gliding
+	value_11 := &(input.GlideTarget)
+	(*value_11) = frame.GlideTarget
 	return input
 }

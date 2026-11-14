@@ -3,13 +3,14 @@
 #define ZIRAN_ICON_H
 
 #include "zir_string_types.h"
+#include "image.h"
 #include "geometry.h"
 #include "image_props.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-ImageProps ImageForIcon(int32_t icon_type, Rectangle bounds, String alt_text);
+zir_a62ab5d98ba48716_Props ImageForIcon(int32_t icon_type, Rectangle bounds, String alt_text);
 
 #ifdef __cplusplus
 }

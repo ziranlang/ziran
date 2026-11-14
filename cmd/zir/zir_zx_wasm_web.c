@@ -3,9 +3,9 @@
  *
  * Compiled only by Emscripten builds of libziran: the provider reaches the
  * browser's WebAssembly engine through EM_JS, installs itself when the
- * module loads (unless ZIRAN_WASM_TIER=0 or the runtime suspends hosts,
- * which leave bundles to the instruction engine), and memoizes compiled
- * modules per page session
+ * module loads (unless ZIRAN_WASM_TIER=0 or a JSPI runtime, which leave
+ * bundles to the instruction engine), and memoizes compiled modules per
+ * page session
  * keyed by the module image, so reopening a bundle pays instantiation but
  * not compilation again. Bundles outside the Wasm lowering fail with its
  * wasm.gap diagnostic.
@@ -15,6 +15,13 @@
  * the host images from the instance's memory, translates them to the
  * page's VmHostValue bindings (ExecHosts) and writes the result back,
  * placing result images with the module's zx_reserve.
+ *
+ * Under Asyncify a host may suspend the page's stack inside a host call.
+ * Modules are then lowered suspendable: when the host call returns while
+ * the stack unwinds, the module is told to unwind too and saves its
+ * frames; when the stack rewinds into the call of zx_entry or
+ * zx_initialize, the module is told to rewind and resumes at the host
+ * call, which re-enters the suspended host.
  */
 #include "zir_zx_wasm_platform.h"
 #include "zir_zx_wasm.h"
@@ -44,6 +51,9 @@ EM_JS(unsigned long, zx_wasm_web_instantiate,
             tier.modules.set(key, compiled);
         }
         const budget = new WebAssembly.Global({value: 'i64', mutable: true}, 0n);
+        const entry = {instance: null, budget: budget};
+        const unwinding = () => typeof Asyncify !== 'undefined' && Asyncify.State !== undefined &&
+                                Asyncify.state === Asyncify.State.Unwinding;
         const instance = new WebAssembly.Instance(compiled, {
             zx: {
                 overrun: () => { throw new Error('zx budget spent'); },
@@ -51,13 +61,20 @@ EM_JS(unsigned long, zx_wasm_web_instantiate,
                     return _zx_wasm_provider_print(host, index >>> 0, value);
                 },
                 host: (index, record) => {
-                    return _zx_wasm_provider_call(host, index >>> 0, record >>> 0);
+                    const ok = _zx_wasm_provider_call(host, index >>> 0, record >>> 0);
+                    const state = entry.instance.exports.zx_async_state;
+                    if(state !== undefined && unwinding()) {
+                        state.value = 1;
+                        return 0;
+                    }
+                    return ok;
                 },
                 budget: budget,
             },
         });
+        entry.instance = instance;
         const id = tier.next++;
-        tier.instances.set(id, {instance: instance, budget: budget});
+        tier.instances.set(id, entry);
         return id;
     } catch(error) {
         console.error('zx wasm tier: ' + error);
@@ -78,7 +95,15 @@ EM_JS(int, zx_wasm_web_call, (unsigned long handle, long long *result), {
     if(entry === undefined)
         return 1;
     try {
-        setValue(result, entry.instance.exports.zx_entry(), 'i64');
+        const state = entry.instance.exports.zx_async_state;
+        if(state !== undefined && typeof Asyncify !== 'undefined' && Asyncify.state === Asyncify.State.Rewinding)
+            state.value = 2;
+        const value = entry.instance.exports.zx_entry();
+        /* The page's stack unwinds through this call; it calls again to
+         * rewind. */
+        if(state !== undefined && state.value === 1)
+            return 0;
+        setValue(result, value, 'i64');
         return 0;
     } catch(error) {
         /* A trap the module could not see coming leaves its output in its
@@ -138,6 +163,9 @@ EM_JS(int, zx_wasm_web_initialize, (unsigned long handle), {
     if(entry === undefined)
         return 1;
     try {
+        const state = entry.instance.exports.zx_async_state;
+        if(state !== undefined && typeof Asyncify !== 'undefined' && Asyncify.state === Asyncify.State.Rewinding)
+            state.value = 2;
         if(entry.instance.exports.zx_initialize !== undefined)
             entry.instance.exports.zx_initialize();
         return 0;
@@ -161,15 +189,22 @@ EM_JS(void, zx_wasm_web_release, (unsigned long handle), {
 });
 
 EM_JS(int, zx_wasm_web_enabled, (void), {
-    /* An Asyncify or JSPI runtime lets a host suspend its stack, but a
-     * module instance on that stack cannot be suspended: the unwind would
-     * hand it a failed host call. */
-    if(typeof Asyncify !== 'undefined')
+    /* A JSPI runtime suspends through JavaScript frames, which the module
+     * calls go through. */
+    if(typeof Asyncify !== 'undefined' && Asyncify.State === undefined)
         return 0;
     if(typeof process !== 'undefined' && process.env !== undefined &&
        process.env.ZIRAN_WASM_TIER === '0')
         return 0;
+    /* A page opts out before the runtime loads. */
+    if(globalThis.ZIRAN_WASM_TIER === '0')
+        return 0;
     return 1;
+});
+
+/* Asyncify: hosts may suspend the stack, so modules are lowered to follow. */
+EM_JS(int, zx_wasm_web_suspends, (void), {
+    return typeof Asyncify !== 'undefined' && Asyncify.State !== undefined ? 1 : 0;
 });
 
 EM_JS(void, zx_wasm_web_host_failed, (void), {
@@ -255,8 +290,8 @@ web_release(void *context, unsigned long handle)
 }
 
 /* Called from the load-time constructor: a rebuilt web runtime activates
- * the tier without any host change; ZIRAN_WASM_TIER=0 and runtimes whose
- * hosts may suspend leave bundles to the instruction engine. */
+ * the tier without any host change; ZIRAN_WASM_TIER=0 and JSPI runtimes
+ * leave bundles to the instruction engine. */
 void
 ZxWasmInstallBundledPlatform(void)
 {
@@ -274,6 +309,7 @@ ZxWasmInstallBundledPlatform(void)
     platform.initialize = web_initialize;
     platform.budget_left = web_budget_left;
     platform.release = web_release;
+    platform.suspends = zx_wasm_web_suspends();
     ZxWasmSetPlatform(&platform);
 }
 

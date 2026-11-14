@@ -372,9 +372,12 @@ func StyleSheet_StyleIndexInstall() {
 		i := range_first_0
 		_ = i
 		for i <= range_last_0 {
-			installed_kind_bits[i] = 0
-			installed_class_bits[i] = 0
-			installed_state_bits[i] = 0
+			value_0 := &(installed_kind_bits[i])
+			(*value_0) = 0
+			value_1 := &(installed_class_bits[i])
+			(*value_1) = 0
+			value_2 := &(installed_state_bits[i])
+			(*value_2) = 0
 			if i == range_last_0 {
 				break
 			}
@@ -387,9 +390,12 @@ func StyleSheet_StyleIndexInstall() {
 		i := range_first_5
 		_ = i
 		for i <= range_last_5 {
-			installed_any_kind[i] = 0
-			installed_any_class[i] = 0
-			installed_any_state[i] = 0
+			value_3 := &(installed_any_kind[i])
+			(*value_3) = 0
+			value_4 := &(installed_any_class[i])
+			(*value_4) = 0
+			value_5 := &(installed_any_state[i])
+			(*value_5) = 0
 			if i == range_last_5 {
 				break
 			}
@@ -405,14 +411,16 @@ func StyleSheet_StyleIndexInstall() {
 		i := range_first_13
 		_ = i
 		for i <= range_last_13 {
-			var value_0 StylePriority = StylePriority{}
-			value_0.Present = true
-			value_0.Layer = (installed_rules.Items[i]).Layer
-			var value_1 int32 = StyleSheet_StyleSelectorSpecificity((installed_rules.Items[i]).Selector)
-			value_0.Specificity = value_1
-			value_0.Order = (installed_rules.Items[i]).Order
-			priorities[i] = value_0
-			installed_rule_indices[i] = i
+			value_6 := &(priorities[i])
+			var value_7 StylePriority = StylePriority{}
+			value_7.Present = true
+			value_7.Layer = (installed_rules.Items[i]).Layer
+			var value_8 int32 = StyleSheet_StyleSelectorSpecificity((installed_rules.Items[i]).Selector)
+			value_7.Specificity = value_8
+			value_7.Order = (installed_rules.Items[i]).Order
+			(*value_6) = value_7
+			value_9 := &(installed_rule_indices[i])
+			(*value_9) = i
 			if i == range_last_13 {
 				break
 			}
@@ -436,19 +444,22 @@ func StyleSheet_StyleIndexInstall() {
 			out := start
 			for out < end {
 				if left >= middle {
-					scratch[out] = installed_rule_indices[right]
+					value_10 := &(scratch[out])
+					(*value_10) = installed_rule_indices[right]
 					right++
 				} else {
-					var value_2 bool = right < end
-					if value_2 {
-						var value_3 bool = StyleSheet_StylePriorityWins(priorities[installed_rule_indices[right]], priorities[installed_rule_indices[left]])
-						value_2 = value_3
+					var value_11 bool = right < end
+					if value_11 {
+						var value_12 bool = StyleSheet_StylePriorityWins(priorities[installed_rule_indices[right]], priorities[installed_rule_indices[left]])
+						value_11 = value_12
 					}
-					if value_2 {
-						scratch[out] = installed_rule_indices[right]
+					if value_11 {
+						value_13 := &(scratch[out])
+						(*value_13) = installed_rule_indices[right]
 						right++
 					} else {
-						scratch[out] = installed_rule_indices[left]
+						value_14 := &(scratch[out])
+						(*value_14) = installed_rule_indices[left]
 						left++
 					}
 				}
@@ -462,7 +473,8 @@ func StyleSheet_StyleIndexInstall() {
 			i := range_first_49
 			_ = i
 			for i <= range_last_49 {
-				installed_rule_indices[i] = scratch[i]
+				value_15 := &(installed_rule_indices[i])
+				(*value_15) = scratch[i]
 				if i == range_last_49 {
 					break
 				}
@@ -480,32 +492,40 @@ func StyleSheet_StyleIndexInstall() {
 			source := installed_rule_indices[i]
 			selector := (installed_rules.Items[source]).Selector
 			state := (installed_rules.Items[source]).State
-			installed_selectors[i] = selector
-			installed_states[i] = state
+			value_16 := &(installed_selectors[i])
+			(*value_16) = selector
+			value_17 := &(installed_states[i])
+			(*value_17) = state
 			installed_fields |= (((installed_rules.Items[source]).Style).Fields & 33554431)
 			word := i / 64
 			bit := uint64(1) << shiftCount(uint64(uint64(uint32((i % 64)))), 64)
 			if selector.Kind == 0 {
-				installed_any_kind[word] |= bit
+				value_18 := &(installed_any_kind[word])
+				(*value_18) |= bit
 			} else {
-				var value_4 int32 = (StyleSheet_StyleBucket(selector.Kind) * 8) + word
-				var value_5 uint64 = installed_kind_bits[value_4]
-				installed_kind_bits[value_4] = value_5 | bit
+				var value_19 int32 = (StyleSheet_StyleBucket(selector.Kind) * 8) + word
+				value_20 := &(installed_kind_bits[value_19])
+				var value_21 uint64 = *value_20
+				(*value_20) = value_21 | bit
 			}
 			if selector.ClassName == 0 {
-				installed_any_class[word] |= bit
+				value_22 := &(installed_any_class[word])
+				(*value_22) |= bit
 			} else {
-				var value_6 int32 = (StyleSheet_StyleBucket(selector.ClassName) * 8) + word
-				var value_7 uint64 = installed_class_bits[value_6]
-				installed_class_bits[value_6] = value_7 | bit
+				var value_23 int32 = (StyleSheet_StyleBucket(selector.ClassName) * 8) + word
+				value_24 := &(installed_class_bits[value_23])
+				var value_25 uint64 = *value_24
+				(*value_24) = value_25 | bit
 			}
-			var value_8 bool = state == StyleSheet_StyleStateAny()
-			if value_8 || state == 1 {
-				installed_any_state[word] |= bit
+			var value_26 bool = state == StyleSheet_StyleStateAny()
+			if value_26 || state == 1 {
+				value_27 := &(installed_any_state[word])
+				(*value_27) |= bit
 			} else {
-				var value_9 int32 = (StyleSheet_StyleBucket(state) * 8) + word
-				var value_10 uint64 = installed_state_bits[value_9]
-				installed_state_bits[value_9] = value_10 | bit
+				var value_28 int32 = (StyleSheet_StyleBucket(state) * 8) + word
+				value_29 := &(installed_state_bits[value_28])
+				var value_30 uint64 = *value_29
+				(*value_29) = value_30 | bit
 			}
 			if i == range_last_54 {
 				break
@@ -564,44 +584,51 @@ func StyleSheet_InstallStyleRules(rules StyleRules) bool {
 		index++
 	}
 	var snapshot StyleRules = StyleRules{}
-	snapshot.Count = limit
+	value_0 := &(snapshot.Count)
+	(*value_0) = limit
 	index = 0
 	for index < limit {
 		typeface := ((rules.Items[index]).Style).Typeface
 		_ = typeface
 		var builder __type_838711075b90279a = __type_838711075b90279a{}
-		var value_0 *__type_838711075b90279a = &builder
-		var value_1 bool = false
+		var value_1 *__type_838711075b90279a = &builder
+		var value_2 bool = false
 		builder.Data = append(builder.Data, typeface...)
 		builder.Count = int64(len(builder.Data))
 		builder.Capacity = int64(cap(builder.Data))
-		value_1 = true
-		if !value_1 {
-			var value_2 bool = false
-			(*value_0).Data = nil
-			(*value_0).Capacity = 0
-			(*value_0).Count = 0
-			return value_2
+		value_2 = true
+		if !value_2 {
+			var value_3 bool = false
+			(*value_1).Data = nil
+			(*value_1).Capacity = 0
+			(*value_1).Count = 0
+			return value_3
 		}
-		(snapshot.Items[index]).Selector = (rules.Items[index]).Selector
-		(snapshot.Items[index]).State = (rules.Items[index]).State
-		(snapshot.Items[index]).Layer = (rules.Items[index]).Layer
-		(snapshot.Items[index]).Order = (rules.Items[index]).Order
-		(snapshot.Items[index]).Style = StyleSheet_StyleWithoutTypeface((rules.Items[index]).Style)
-		var value_3 string = ""
-		value_3 = string(builder.Data[:builder.Count])
+		value_4 := &((snapshot.Items[index]).Selector)
+		(*value_4) = (rules.Items[index]).Selector
+		value_5 := &((snapshot.Items[index]).State)
+		(*value_5) = (rules.Items[index]).State
+		value_6 := &((snapshot.Items[index]).Layer)
+		(*value_6) = (rules.Items[index]).Layer
+		value_7 := &((snapshot.Items[index]).Order)
+		(*value_7) = (rules.Items[index]).Order
+		value_8 := &((snapshot.Items[index]).Style)
+		(*value_8) = StyleSheet_StyleWithoutTypeface((rules.Items[index]).Style)
+		value_9 := &(((snapshot.Items[index]).Style).Typeface)
+		var value_10 string = ""
+		value_10 = string(builder.Data[:builder.Count])
 		builder.Data = nil
 		builder.Capacity = 0
 		builder.Count = 0
-		((snapshot.Items[index]).Style).Typeface = value_3
+		(*value_9) = value_10
 		index++
-		(*value_0).Data = nil
-		(*value_0).Capacity = 0
-		(*value_0).Count = 0
+		(*value_1).Data = nil
+		(*value_1).Capacity = 0
+		(*value_1).Count = 0
 	}
 	installed_rules = snapshot
 	StyleSheet_StyleIndexInstall()
-	var resolver TextStyleResolver = func(value_4 TextStyleRequest, value_5 StyleData) StyleData { return StyleSheet_ResolveInstalledTextStyle(value_4, value_5) }
+	var resolver TextStyleResolver = func(value_11 TextStyleRequest, value_12 StyleData) StyleData { return StyleSheet_ResolveInstalledTextStyle(value_11, value_12) }
 	TextStyle_SetTextStyleResolver(resolver)
 	return true
 }
@@ -624,55 +651,84 @@ func StyleSheet_ResolveInstalledTextStyle(request TextStyleRequest, base StyleDa
 
 func StyleSheet_StyleDefaultFacts(kind int32) StyleFacts {
 	var facts StyleFacts = StyleFacts{}
-	facts.Kind = kind
-	facts.Role = StyleSheet_StyleAny()
-	facts.Tone = StyleSheet_StyleAny()
-	facts.Emphasis = StyleSheet_StyleAny()
-	facts.Size = StyleSheet_StyleAny()
-	facts.State = StyleSheet_StyleAny()
-	facts.Validation = StyleSheet_StyleAny()
-	facts.Orientation = StyleSheet_StyleAny()
-	facts.Placement = StyleSheet_StyleAny()
+	value_0 := &(facts.Kind)
+	(*value_0) = kind
+	value_1 := &(facts.Role)
+	(*value_1) = StyleSheet_StyleAny()
+	value_2 := &(facts.Tone)
+	(*value_2) = StyleSheet_StyleAny()
+	value_3 := &(facts.Emphasis)
+	(*value_3) = StyleSheet_StyleAny()
+	value_4 := &(facts.Size)
+	(*value_4) = StyleSheet_StyleAny()
+	value_5 := &(facts.State)
+	(*value_5) = StyleSheet_StyleAny()
+	value_6 := &(facts.Validation)
+	(*value_6) = StyleSheet_StyleAny()
+	value_7 := &(facts.Orientation)
+	(*value_7) = StyleSheet_StyleAny()
+	value_8 := &(facts.Placement)
+	(*value_8) = StyleSheet_StyleAny()
 	return facts
 }
 
 func StyleSheet_StyleControlFacts(kind int32, id int32, class_name int32, tone int32, emphasis int32, size int32, state int32) StyleFacts {
 	facts := StyleSheet_StyleDefaultFacts(kind)
-	facts.ID = id
-	facts.ClassName = class_name
-	facts.Tone = tone
-	facts.Emphasis = emphasis
-	facts.Size = size
-	facts.State = state
+	value_0 := &(facts.ID)
+	(*value_0) = id
+	value_1 := &(facts.ClassName)
+	(*value_1) = class_name
+	value_2 := &(facts.Tone)
+	(*value_2) = tone
+	value_3 := &(facts.Emphasis)
+	(*value_3) = emphasis
+	value_4 := &(facts.Size)
+	(*value_4) = size
+	value_5 := &(facts.State)
+	(*value_5) = state
 	return facts
 }
 
 func StyleSheet_StyleControlRoleFacts(kind int32, id int32, class_name int32, role int32, tone int32, emphasis int32, size int32, state int32) StyleFacts {
 	facts := StyleSheet_StyleControlFacts(kind, id, class_name, tone, emphasis, size, state)
-	facts.Role = role
+	value_0 := &(facts.Role)
+	(*value_0) = role
 	return facts
 }
 
 func StyleSheet_StyleTextFacts(id int32, class_name int32, role int32, state int32) StyleFacts {
 	facts := StyleSheet_StyleDefaultFacts(StyleSheet_StyleKindText())
-	facts.ID = id
-	facts.ClassName = class_name
-	facts.Role = role
-	facts.State = state
+	value_0 := &(facts.ID)
+	(*value_0) = id
+	value_1 := &(facts.ClassName)
+	(*value_1) = class_name
+	value_2 := &(facts.Role)
+	(*value_2) = role
+	value_3 := &(facts.State)
+	(*value_3) = state
 	return facts
 }
 
 func StyleSheet_StyleDefaultSelector() StyleSelector {
 	var selector StyleSelector = StyleSelector{}
-	selector.Kind = StyleSheet_StyleKindAny()
-	selector.Role = StyleSheet_StyleAny()
-	selector.Tone = StyleSheet_StyleAny()
-	selector.Emphasis = StyleSheet_StyleAny()
-	selector.Size = StyleSheet_StyleAny()
-	selector.State = StyleSheet_StyleAny()
-	selector.Validation = StyleSheet_StyleAny()
-	selector.Orientation = StyleSheet_StyleAny()
-	selector.Placement = StyleSheet_StyleAny()
+	value_0 := &(selector.Kind)
+	(*value_0) = StyleSheet_StyleKindAny()
+	value_1 := &(selector.Role)
+	(*value_1) = StyleSheet_StyleAny()
+	value_2 := &(selector.Tone)
+	(*value_2) = StyleSheet_StyleAny()
+	value_3 := &(selector.Emphasis)
+	(*value_3) = StyleSheet_StyleAny()
+	value_4 := &(selector.Size)
+	(*value_4) = StyleSheet_StyleAny()
+	value_5 := &(selector.State)
+	(*value_5) = StyleSheet_StyleAny()
+	value_6 := &(selector.Validation)
+	(*value_6) = StyleSheet_StyleAny()
+	value_7 := &(selector.Orientation)
+	(*value_7) = StyleSheet_StyleAny()
+	value_8 := &(selector.Placement)
+	(*value_8) = StyleSheet_StyleAny()
 	return selector
 }
 
@@ -820,7 +876,8 @@ func StyleSheet_StylePriorityWins(priority StylePriority, current StylePriority)
 
 func StyleSheet_BeginStyleCascade(base StyleData) StyleCascade {
 	var cascade StyleCascade = StyleCascade{}
-	cascade.Result = base
+	value_0 := &(cascade.Result)
+	(*value_0) = base
 	return cascade
 }
 
@@ -835,285 +892,365 @@ func StyleSheet_ApplyStyleRules(cascade StyleCascade, rules []StyleRule, facts S
 		}
 		if value_1 {
 			var priority StylePriority = StylePriority{}
-			priority.Present = true
-			priority.Layer = (rules[index]).Layer
-			priority.Specificity = StyleSheet_StyleSelectorSpecificity((rules[index]).Selector)
-			priority.Order = (rules[index]).Order
-			var value_3 bool = (((rules[index]).Style).Fields & 1) != 0
-			var value_4 bool = value_3
-			if value_4 {
-				var value_5 bool = StyleSheet_StylePriorityWins(priority, cascade.BackgroundPriority)
-				value_4 = value_5
+			value_3 := &(priority.Present)
+			(*value_3) = true
+			value_4 := &(priority.Layer)
+			(*value_4) = (rules[index]).Layer
+			value_5 := &(priority.Specificity)
+			(*value_5) = StyleSheet_StyleSelectorSpecificity((rules[index]).Selector)
+			value_6 := &(priority.Order)
+			(*value_6) = (rules[index]).Order
+			var value_7 bool = (((rules[index]).Style).Fields & 1) != 0
+			var value_8 bool = value_7
+			if value_8 {
+				var value_9 bool = StyleSheet_StylePriorityWins(priority, cascade.BackgroundPriority)
+				value_8 = value_9
 			}
-			if value_4 {
-				cascade.Result.Background = ((rules[index]).Style).Background
-				cascade.Result.Fields = cascade.Result.Fields | 1
-				cascade.BackgroundPriority = priority
+			if value_8 {
+				value_10 := &(cascade.Result.Background)
+				(*value_10) = ((rules[index]).Style).Background
+				value_11 := &(cascade.Result.Fields)
+				(*value_11) = cascade.Result.Fields | 1
+				value_12 := &(cascade.BackgroundPriority)
+				(*value_12) = priority
 			}
-			var value_6 bool = (((rules[index]).Style).Fields & 2) != 0
-			var value_7 bool = value_6
-			if value_7 {
-				var value_8 bool = StyleSheet_StylePriorityWins(priority, cascade.ForegroundPriority)
-				value_7 = value_8
+			var value_13 bool = (((rules[index]).Style).Fields & 2) != 0
+			var value_14 bool = value_13
+			if value_14 {
+				var value_15 bool = StyleSheet_StylePriorityWins(priority, cascade.ForegroundPriority)
+				value_14 = value_15
 			}
-			if value_7 {
-				cascade.Result.Foreground = ((rules[index]).Style).Foreground
-				cascade.Result.Fields = cascade.Result.Fields | 2
-				cascade.ForegroundPriority = priority
+			if value_14 {
+				value_16 := &(cascade.Result.Foreground)
+				(*value_16) = ((rules[index]).Style).Foreground
+				value_17 := &(cascade.Result.Fields)
+				(*value_17) = cascade.Result.Fields | 2
+				value_18 := &(cascade.ForegroundPriority)
+				(*value_18) = priority
 			}
-			var value_9 bool = (((rules[index]).Style).Fields & 4) != 0
-			var value_10 bool = value_9
-			if value_10 {
-				var value_11 bool = StyleSheet_StylePriorityWins(priority, cascade.BorderPriority)
-				value_10 = value_11
+			var value_19 bool = (((rules[index]).Style).Fields & 4) != 0
+			var value_20 bool = value_19
+			if value_20 {
+				var value_21 bool = StyleSheet_StylePriorityWins(priority, cascade.BorderPriority)
+				value_20 = value_21
 			}
-			if value_10 {
-				cascade.Result.Border = ((rules[index]).Style).Border
-				cascade.Result.Fields = cascade.Result.Fields | 4
-				cascade.BorderPriority = priority
+			if value_20 {
+				value_22 := &(cascade.Result.Border)
+				(*value_22) = ((rules[index]).Style).Border
+				value_23 := &(cascade.Result.Fields)
+				(*value_23) = cascade.Result.Fields | 4
+				value_24 := &(cascade.BorderPriority)
+				(*value_24) = priority
 			}
-			var value_12 bool = (((rules[index]).Style).Fields & 8) != 0
-			var value_13 bool = value_12
-			if value_13 {
-				var value_14 bool = StyleSheet_StylePriorityWins(priority, cascade.FocusPriority)
-				value_13 = value_14
+			var value_25 bool = (((rules[index]).Style).Fields & 8) != 0
+			var value_26 bool = value_25
+			if value_26 {
+				var value_27 bool = StyleSheet_StylePriorityWins(priority, cascade.FocusPriority)
+				value_26 = value_27
 			}
-			if value_13 {
-				cascade.Result.Focus = ((rules[index]).Style).Focus
-				cascade.Result.Fields = cascade.Result.Fields | 8
-				cascade.FocusPriority = priority
+			if value_26 {
+				value_28 := &(cascade.Result.Focus)
+				(*value_28) = ((rules[index]).Style).Focus
+				value_29 := &(cascade.Result.Fields)
+				(*value_29) = cascade.Result.Fields | 8
+				value_30 := &(cascade.FocusPriority)
+				(*value_30) = priority
 			}
-			var value_15 bool = (((rules[index]).Style).Fields & 16) != 0
-			var value_16 bool = value_15
-			if value_16 {
-				var value_17 bool = StyleSheet_StylePriorityWins(priority, cascade.RadiusPriority)
-				value_16 = value_17
+			var value_31 bool = (((rules[index]).Style).Fields & 16) != 0
+			var value_32 bool = value_31
+			if value_32 {
+				var value_33 bool = StyleSheet_StylePriorityWins(priority, cascade.RadiusPriority)
+				value_32 = value_33
 			}
-			if value_16 {
-				cascade.Result.Radius = ((rules[index]).Style).Radius
-				cascade.Result.Fields = cascade.Result.Fields | 16
-				cascade.RadiusPriority = priority
+			if value_32 {
+				value_34 := &(cascade.Result.Radius)
+				(*value_34) = ((rules[index]).Style).Radius
+				value_35 := &(cascade.Result.Fields)
+				(*value_35) = cascade.Result.Fields | 16
+				value_36 := &(cascade.RadiusPriority)
+				(*value_36) = priority
 			}
-			var value_18 bool = (((rules[index]).Style).Fields & 32) != 0
-			var value_19 bool = value_18
-			if value_19 {
-				var value_20 bool = StyleSheet_StylePriorityWins(priority, cascade.BorderWidthPriority)
-				value_19 = value_20
+			var value_37 bool = (((rules[index]).Style).Fields & 32) != 0
+			var value_38 bool = value_37
+			if value_38 {
+				var value_39 bool = StyleSheet_StylePriorityWins(priority, cascade.BorderWidthPriority)
+				value_38 = value_39
 			}
-			if value_19 {
-				cascade.Result.BorderWidth = ((rules[index]).Style).BorderWidth
-				cascade.Result.Fields = cascade.Result.Fields | 32
-				cascade.BorderWidthPriority = priority
+			if value_38 {
+				value_40 := &(cascade.Result.BorderWidth)
+				(*value_40) = ((rules[index]).Style).BorderWidth
+				value_41 := &(cascade.Result.Fields)
+				(*value_41) = cascade.Result.Fields | 32
+				value_42 := &(cascade.BorderWidthPriority)
+				(*value_42) = priority
 			}
-			var value_21 bool = (((rules[index]).Style).Fields & 64) != 0
-			var value_22 bool = value_21
-			if value_22 {
-				var value_23 bool = StyleSheet_StylePriorityWins(priority, cascade.OpacityPriority)
-				value_22 = value_23
+			var value_43 bool = (((rules[index]).Style).Fields & 64) != 0
+			var value_44 bool = value_43
+			if value_44 {
+				var value_45 bool = StyleSheet_StylePriorityWins(priority, cascade.OpacityPriority)
+				value_44 = value_45
 			}
-			if value_22 {
-				cascade.Result.Opacity = ((rules[index]).Style).Opacity
-				cascade.Result.Fields = cascade.Result.Fields | 64
-				cascade.OpacityPriority = priority
+			if value_44 {
+				value_46 := &(cascade.Result.Opacity)
+				(*value_46) = ((rules[index]).Style).Opacity
+				value_47 := &(cascade.Result.Fields)
+				(*value_47) = cascade.Result.Fields | 64
+				value_48 := &(cascade.OpacityPriority)
+				(*value_48) = priority
 			}
-			var value_24 bool = (((rules[index]).Style).Fields & 128) != 0
-			var value_25 bool = value_24
-			if value_25 {
-				var value_26 bool = StyleSheet_StylePriorityWins(priority, cascade.PaddingXPriority)
-				value_25 = value_26
+			var value_49 bool = (((rules[index]).Style).Fields & 128) != 0
+			var value_50 bool = value_49
+			if value_50 {
+				var value_51 bool = StyleSheet_StylePriorityWins(priority, cascade.PaddingXPriority)
+				value_50 = value_51
 			}
-			if value_25 {
-				cascade.Result.PaddingX = ((rules[index]).Style).PaddingX
-				cascade.Result.Fields = cascade.Result.Fields | 128
-				cascade.PaddingXPriority = priority
+			if value_50 {
+				value_52 := &(cascade.Result.PaddingX)
+				(*value_52) = ((rules[index]).Style).PaddingX
+				value_53 := &(cascade.Result.Fields)
+				(*value_53) = cascade.Result.Fields | 128
+				value_54 := &(cascade.PaddingXPriority)
+				(*value_54) = priority
 			}
-			var value_27 bool = (((rules[index]).Style).Fields & 256) != 0
-			var value_28 bool = value_27
-			if value_28 {
-				var value_29 bool = StyleSheet_StylePriorityWins(priority, cascade.PaddingYPriority)
-				value_28 = value_29
+			var value_55 bool = (((rules[index]).Style).Fields & 256) != 0
+			var value_56 bool = value_55
+			if value_56 {
+				var value_57 bool = StyleSheet_StylePriorityWins(priority, cascade.PaddingYPriority)
+				value_56 = value_57
 			}
-			if value_28 {
-				cascade.Result.PaddingY = ((rules[index]).Style).PaddingY
-				cascade.Result.Fields = cascade.Result.Fields | 256
-				cascade.PaddingYPriority = priority
+			if value_56 {
+				value_58 := &(cascade.Result.PaddingY)
+				(*value_58) = ((rules[index]).Style).PaddingY
+				value_59 := &(cascade.Result.Fields)
+				(*value_59) = cascade.Result.Fields | 256
+				value_60 := &(cascade.PaddingYPriority)
+				(*value_60) = priority
 			}
-			var value_30 bool = (((rules[index]).Style).Fields & 512) != 0
-			var value_31 bool = value_30
-			if value_31 {
-				var value_32 bool = StyleSheet_StylePriorityWins(priority, cascade.GapPriority)
-				value_31 = value_32
+			var value_61 bool = (((rules[index]).Style).Fields & 512) != 0
+			var value_62 bool = value_61
+			if value_62 {
+				var value_63 bool = StyleSheet_StylePriorityWins(priority, cascade.GapPriority)
+				value_62 = value_63
 			}
-			if value_31 {
-				cascade.Result.Gap = ((rules[index]).Style).Gap
-				cascade.Result.Fields = cascade.Result.Fields | 512
-				cascade.GapPriority = priority
+			if value_62 {
+				value_64 := &(cascade.Result.Gap)
+				(*value_64) = ((rules[index]).Style).Gap
+				value_65 := &(cascade.Result.Fields)
+				(*value_65) = cascade.Result.Fields | 512
+				value_66 := &(cascade.GapPriority)
+				(*value_66) = priority
 			}
-			var value_33 bool = (((rules[index]).Style).Fields & 1024) != 0
-			var value_34 bool = value_33
-			if value_34 {
-				var value_35 bool = StyleSheet_StylePriorityWins(priority, cascade.FontSizePriority)
-				value_34 = value_35
+			var value_67 bool = (((rules[index]).Style).Fields & 1024) != 0
+			var value_68 bool = value_67
+			if value_68 {
+				var value_69 bool = StyleSheet_StylePriorityWins(priority, cascade.FontSizePriority)
+				value_68 = value_69
 			}
-			if value_34 {
-				cascade.Result.FontSize = ((rules[index]).Style).FontSize
-				cascade.Result.Fields = cascade.Result.Fields | 1024
-				cascade.FontSizePriority = priority
+			if value_68 {
+				value_70 := &(cascade.Result.FontSize)
+				(*value_70) = ((rules[index]).Style).FontSize
+				value_71 := &(cascade.Result.Fields)
+				(*value_71) = cascade.Result.Fields | 1024
+				value_72 := &(cascade.FontSizePriority)
+				(*value_72) = priority
 			}
-			var value_36 bool = (((rules[index]).Style).Fields & 65536) != 0
-			var value_37 bool = value_36
-			if value_37 {
-				var value_38 bool = StyleSheet_StylePriorityWins(priority, cascade.LetterSpacingPriority)
-				value_37 = value_38
+			var value_73 bool = (((rules[index]).Style).Fields & 65536) != 0
+			var value_74 bool = value_73
+			if value_74 {
+				var value_75 bool = StyleSheet_StylePriorityWins(priority, cascade.LetterSpacingPriority)
+				value_74 = value_75
 			}
-			if value_37 {
-				cascade.Result.LetterSpacing = ((rules[index]).Style).LetterSpacing
-				cascade.Result.Fields = cascade.Result.Fields | 65536
-				cascade.LetterSpacingPriority = priority
+			if value_74 {
+				value_76 := &(cascade.Result.LetterSpacing)
+				(*value_76) = ((rules[index]).Style).LetterSpacing
+				value_77 := &(cascade.Result.Fields)
+				(*value_77) = cascade.Result.Fields | 65536
+				value_78 := &(cascade.LetterSpacingPriority)
+				(*value_78) = priority
 			}
-			var value_39 bool = (((rules[index]).Style).Fields & 131072) != 0
-			var value_40 bool = value_39
-			if value_40 {
-				var value_41 bool = StyleSheet_StylePriorityWins(priority, cascade.MinHeightPriority)
-				value_40 = value_41
+			var value_79 bool = (((rules[index]).Style).Fields & 131072) != 0
+			var value_80 bool = value_79
+			if value_80 {
+				var value_81 bool = StyleSheet_StylePriorityWins(priority, cascade.MinHeightPriority)
+				value_80 = value_81
 			}
-			if value_40 {
-				cascade.Result.MinHeight = ((rules[index]).Style).MinHeight
-				cascade.Result.Fields = cascade.Result.Fields | 131072
-				cascade.MinHeightPriority = priority
+			if value_80 {
+				value_82 := &(cascade.Result.MinHeight)
+				(*value_82) = ((rules[index]).Style).MinHeight
+				value_83 := &(cascade.Result.Fields)
+				(*value_83) = cascade.Result.Fields | 131072
+				value_84 := &(cascade.MinHeightPriority)
+				(*value_84) = priority
 			}
-			var value_42 bool = (((rules[index]).Style).Fields & 262144) != 0
-			var value_43 bool = value_42
-			if value_43 {
-				var value_44 bool = StyleSheet_StylePriorityWins(priority, cascade.LineHeightPriority)
-				value_43 = value_44
+			var value_85 bool = (((rules[index]).Style).Fields & 262144) != 0
+			var value_86 bool = value_85
+			if value_86 {
+				var value_87 bool = StyleSheet_StylePriorityWins(priority, cascade.LineHeightPriority)
+				value_86 = value_87
 			}
-			if value_43 {
-				cascade.Result.LineHeight = ((rules[index]).Style).LineHeight
-				cascade.Result.Fields = cascade.Result.Fields | 262144
-				cascade.LineHeightPriority = priority
+			if value_86 {
+				value_88 := &(cascade.Result.LineHeight)
+				(*value_88) = ((rules[index]).Style).LineHeight
+				value_89 := &(cascade.Result.Fields)
+				(*value_89) = cascade.Result.Fields | 262144
+				value_90 := &(cascade.LineHeightPriority)
+				(*value_90) = priority
 			}
-			var value_45 bool = (((rules[index]).Style).Fields & 524288) != 0
-			var value_46 bool = value_45
-			if value_46 {
-				var value_47 bool = StyleSheet_StylePriorityWins(priority, cascade.FontRolePriority)
-				value_46 = value_47
+			var value_91 bool = (((rules[index]).Style).Fields & 524288) != 0
+			var value_92 bool = value_91
+			if value_92 {
+				var value_93 bool = StyleSheet_StylePriorityWins(priority, cascade.FontRolePriority)
+				value_92 = value_93
 			}
-			if value_46 {
-				cascade.Result.FontRole = FontRole(((rules[index]).Style).FontRole)
-				cascade.Result.Fields = cascade.Result.Fields | 524288
-				cascade.FontRolePriority = priority
+			if value_92 {
+				value_94 := &(cascade.Result.FontRole)
+				(*value_94) = FontRole(((rules[index]).Style).FontRole)
+				value_95 := &(cascade.Result.Fields)
+				(*value_95) = cascade.Result.Fields | 524288
+				value_96 := &(cascade.FontRolePriority)
+				(*value_96) = priority
 			}
-			var value_48 bool = (((rules[index]).Style).Fields & 1048576) != 0
-			var value_49 bool = value_48
-			if value_49 {
-				var value_50 bool = StyleSheet_StylePriorityWins(priority, cascade.ElevationPriority)
-				value_49 = value_50
+			var value_97 bool = (((rules[index]).Style).Fields & 1048576) != 0
+			var value_98 bool = value_97
+			if value_98 {
+				var value_99 bool = StyleSheet_StylePriorityWins(priority, cascade.ElevationPriority)
+				value_98 = value_99
 			}
-			if value_49 {
-				cascade.Result.Elevation = ElevationRole(((rules[index]).Style).Elevation)
-				cascade.Result.Fields = cascade.Result.Fields | 1048576
-				cascade.ElevationPriority = priority
+			if value_98 {
+				value_100 := &(cascade.Result.Elevation)
+				(*value_100) = ElevationRole(((rules[index]).Style).Elevation)
+				value_101 := &(cascade.Result.Fields)
+				(*value_101) = cascade.Result.Fields | 1048576
+				value_102 := &(cascade.ElevationPriority)
+				(*value_102) = priority
 			}
-			var value_51 bool = (((rules[index]).Style).Fields & 2097152) != 0
-			var value_52 bool = value_51
-			if value_52 {
-				var value_53 bool = StyleSheet_StylePriorityWins(priority, cascade.MotionDurationPriority)
-				value_52 = value_53
+			var value_103 bool = (((rules[index]).Style).Fields & 2097152) != 0
+			var value_104 bool = value_103
+			if value_104 {
+				var value_105 bool = StyleSheet_StylePriorityWins(priority, cascade.MotionDurationPriority)
+				value_104 = value_105
 			}
-			if value_52 {
-				cascade.Result.MotionDuration = ((rules[index]).Style).MotionDuration
-				cascade.Result.Fields = cascade.Result.Fields | 2097152
-				cascade.MotionDurationPriority = priority
+			if value_104 {
+				value_106 := &(cascade.Result.MotionDuration)
+				(*value_106) = ((rules[index]).Style).MotionDuration
+				value_107 := &(cascade.Result.Fields)
+				(*value_107) = cascade.Result.Fields | 2097152
+				value_108 := &(cascade.MotionDurationPriority)
+				(*value_108) = priority
 			}
-			var value_54 bool = (((rules[index]).Style).Fields & 4194304) != 0
-			var value_55 bool = value_54
-			if value_55 {
-				var value_56 bool = StyleSheet_StylePriorityWins(priority, cascade.MotionMultiplierPriority)
-				value_55 = value_56
+			var value_109 bool = (((rules[index]).Style).Fields & 4194304) != 0
+			var value_110 bool = value_109
+			if value_110 {
+				var value_111 bool = StyleSheet_StylePriorityWins(priority, cascade.MotionMultiplierPriority)
+				value_110 = value_111
 			}
-			if value_55 {
-				cascade.Result.MotionMultiplier = ((rules[index]).Style).MotionMultiplier
-				cascade.Result.Fields = cascade.Result.Fields | 4194304
-				cascade.MotionMultiplierPriority = priority
+			if value_110 {
+				value_112 := &(cascade.Result.MotionMultiplier)
+				(*value_112) = ((rules[index]).Style).MotionMultiplier
+				value_113 := &(cascade.Result.Fields)
+				(*value_113) = cascade.Result.Fields | 4194304
+				value_114 := &(cascade.MotionMultiplierPriority)
+				(*value_114) = priority
 			}
-			var value_57 bool = (((rules[index]).Style).Fields & 8388608) != 0
-			var value_58 bool = value_57
-			if value_58 {
-				var value_59 bool = StyleSheet_StylePriorityWins(priority, cascade.MotionEasingPriority)
-				value_58 = value_59
+			var value_115 bool = (((rules[index]).Style).Fields & 8388608) != 0
+			var value_116 bool = value_115
+			if value_116 {
+				var value_117 bool = StyleSheet_StylePriorityWins(priority, cascade.MotionEasingPriority)
+				value_116 = value_117
 			}
-			if value_58 {
-				cascade.Result.MotionEasing = MotionEasing(((rules[index]).Style).MotionEasing)
-				cascade.Result.Fields = cascade.Result.Fields | 8388608
-				cascade.MotionEasingPriority = priority
+			if value_116 {
+				value_118 := &(cascade.Result.MotionEasing)
+				(*value_118) = MotionEasing(((rules[index]).Style).MotionEasing)
+				value_119 := &(cascade.Result.Fields)
+				(*value_119) = cascade.Result.Fields | 8388608
+				value_120 := &(cascade.MotionEasingPriority)
+				(*value_120) = priority
 			}
-			var value_60 bool = (((rules[index]).Style).Fields & 16777216) != 0
-			var value_61 bool = value_60
-			if value_61 {
-				var value_62 bool = StyleSheet_StylePriorityWins(priority, cascade.MotionReducedPriority)
-				value_61 = value_62
+			var value_121 bool = (((rules[index]).Style).Fields & 16777216) != 0
+			var value_122 bool = value_121
+			if value_122 {
+				var value_123 bool = StyleSheet_StylePriorityWins(priority, cascade.MotionReducedPriority)
+				value_122 = value_123
 			}
-			if value_61 {
-				cascade.Result.MotionReduced = ((rules[index]).Style).MotionReduced
-				cascade.Result.Fields = cascade.Result.Fields | 16777216
-				cascade.MotionReducedPriority = priority
+			if value_122 {
+				value_124 := &(cascade.Result.MotionReduced)
+				(*value_124) = ((rules[index]).Style).MotionReduced
+				value_125 := &(cascade.Result.Fields)
+				(*value_125) = cascade.Result.Fields | 16777216
+				value_126 := &(cascade.MotionReducedPriority)
+				(*value_126) = priority
 			}
-			var value_63 bool = (((rules[index]).Style).Fields & 2048) != 0
-			var value_64 bool = value_63
-			if value_64 {
-				var value_65 bool = StyleSheet_StylePriorityWins(priority, cascade.IconSizePriority)
-				value_64 = value_65
+			var value_127 bool = (((rules[index]).Style).Fields & 2048) != 0
+			var value_128 bool = value_127
+			if value_128 {
+				var value_129 bool = StyleSheet_StylePriorityWins(priority, cascade.IconSizePriority)
+				value_128 = value_129
 			}
-			if value_64 {
-				cascade.Result.IconSize = ((rules[index]).Style).IconSize
-				cascade.Result.Fields = cascade.Result.Fields | 2048
-				cascade.IconSizePriority = priority
+			if value_128 {
+				value_130 := &(cascade.Result.IconSize)
+				(*value_130) = ((rules[index]).Style).IconSize
+				value_131 := &(cascade.Result.Fields)
+				(*value_131) = cascade.Result.Fields | 2048
+				value_132 := &(cascade.IconSizePriority)
+				(*value_132) = priority
 			}
-			var value_66 bool = (((rules[index]).Style).Fields & 4096) != 0
-			var value_67 bool = value_66
-			if value_67 {
-				var value_68 bool = StyleSheet_StylePriorityWins(priority, cascade.ContentOffsetPriority)
-				value_67 = value_68
+			var value_133 bool = (((rules[index]).Style).Fields & 4096) != 0
+			var value_134 bool = value_133
+			if value_134 {
+				var value_135 bool = StyleSheet_StylePriorityWins(priority, cascade.ContentOffsetPriority)
+				value_134 = value_135
 			}
-			if value_67 {
-				cascade.Result.OffsetX = ((rules[index]).Style).OffsetX
-				cascade.Result.OffsetY = ((rules[index]).Style).OffsetY
-				cascade.Result.Fields = cascade.Result.Fields | 4096
-				cascade.ContentOffsetPriority = priority
+			if value_134 {
+				value_136 := &(cascade.Result.OffsetX)
+				(*value_136) = ((rules[index]).Style).OffsetX
+				value_137 := &(cascade.Result.OffsetY)
+				(*value_137) = ((rules[index]).Style).OffsetY
+				value_138 := &(cascade.Result.Fields)
+				(*value_138) = cascade.Result.Fields | 4096
+				value_139 := &(cascade.ContentOffsetPriority)
+				(*value_139) = priority
 			}
-			var value_69 bool = (((rules[index]).Style).Fields & 8192) != 0
-			var value_70 bool = value_69
-			if value_70 {
-				var value_71 bool = StyleSheet_StylePriorityWins(priority, cascade.BackgroundEndPriority)
-				value_70 = value_71
+			var value_140 bool = (((rules[index]).Style).Fields & 8192) != 0
+			var value_141 bool = value_140
+			if value_141 {
+				var value_142 bool = StyleSheet_StylePriorityWins(priority, cascade.BackgroundEndPriority)
+				value_141 = value_142
 			}
-			if value_70 {
-				cascade.Result.BackgroundEnd = ((rules[index]).Style).BackgroundEnd
-				cascade.Result.Fields = cascade.Result.Fields | 8192
-				cascade.BackgroundEndPriority = priority
+			if value_141 {
+				value_143 := &(cascade.Result.BackgroundEnd)
+				(*value_143) = ((rules[index]).Style).BackgroundEnd
+				value_144 := &(cascade.Result.Fields)
+				(*value_144) = cascade.Result.Fields | 8192
+				value_145 := &(cascade.BackgroundEndPriority)
+				(*value_145) = priority
 			}
-			var value_72 bool = (((rules[index]).Style).Fields & 16384) != 0
-			var value_73 bool = value_72
-			if value_73 {
-				var value_74 bool = StyleSheet_StylePriorityWins(priority, cascade.MaterialPriority)
-				value_73 = value_74
+			var value_146 bool = (((rules[index]).Style).Fields & 16384) != 0
+			var value_147 bool = value_146
+			if value_147 {
+				var value_148 bool = StyleSheet_StylePriorityWins(priority, cascade.MaterialPriority)
+				value_147 = value_148
 			}
-			if value_73 {
-				cascade.Result.Material = MaterialKind(((rules[index]).Style).Material)
-				cascade.Result.Fields = cascade.Result.Fields | 16384
-				cascade.MaterialPriority = priority
+			if value_147 {
+				value_149 := &(cascade.Result.Material)
+				(*value_149) = MaterialKind(((rules[index]).Style).Material)
+				value_150 := &(cascade.Result.Fields)
+				(*value_150) = cascade.Result.Fields | 16384
+				value_151 := &(cascade.MaterialPriority)
+				(*value_151) = priority
 			}
-			var value_75 bool = (((rules[index]).Style).Fields & 32768) != 0
-			var value_76 bool = value_75
-			if value_76 {
-				var value_77 bool = StyleSheet_StylePriorityWins(priority, cascade.TypefacePriority)
-				value_76 = value_77
+			var value_152 bool = (((rules[index]).Style).Fields & 32768) != 0
+			var value_153 bool = value_152
+			if value_153 {
+				var value_154 bool = StyleSheet_StylePriorityWins(priority, cascade.TypefacePriority)
+				value_153 = value_154
 			}
-			if value_76 {
-				cascade.Result.Typeface = ((rules[index]).Style).Typeface
-				cascade.Result.Fields = cascade.Result.Fields | 32768
-				cascade.TypefacePriority = priority
+			if value_153 {
+				value_155 := &(cascade.Result.Typeface)
+				(*value_155) = ((rules[index]).Style).Typeface
+				value_156 := &(cascade.Result.Fields)
+				(*value_156) = cascade.Result.Fields | 32768
+				value_157 := &(cascade.TypefacePriority)
+				(*value_157) = priority
 			}
 		}
 		index++
@@ -1162,7 +1299,8 @@ func StyleSheet_ResolveInstalledStyleRules(base StyleData, facts StyleFacts, act
 				}
 				if value_2 {
 					value := (installed_rules.Items[installed_rule_indices[index]]).Style
-					value.Fields &= remaining
+					value_4 := &(value.Fields)
+					(*value_4) &= remaining
 					base = Style_MergeValues(base, value)
 					remaining &= (^value.Fields)
 					if remaining == 0 {

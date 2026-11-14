@@ -17,7 +17,7 @@ type ImageMesh struct {
 	Points []Vector2
 }
 
-type ImageProps struct {
+type zir_a62ab5d98ba48716_Props struct {
 	AssetPath string
 	AltText string
 	Bounds Rectangle

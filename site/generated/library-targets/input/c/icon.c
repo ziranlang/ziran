@@ -27,30 +27,35 @@ static inline int32_t ZiRemS32(int32_t a, int32_t b) {
 #endif
 #endif
 #include "geometry.h"
-#include "image_props.h"
 
-ImageProps
+zir_a62ab5d98ba48716_Props
 ImageForIcon(int32_t icon_type, Rectangle bounds, String alt_text)
 {
-    ImageProps image = {0};
-    image.bounds = bounds;
-    image.alt_text = alt_text;
+    zir_a62ab5d98ba48716_Props image = {0};
+    Rectangle* value_0 = &(image.bounds);
+    (*value_0) = bounds;
+    String* value_1 = &(image.alt_text);
+    (*value_1) = alt_text;
     int32_t index = -1;
     int32_t columns = 1;
     if (icon_type >= 1 && icon_type <= 15) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_2 = &(image.asset_path);
+        (*value_2) = StringLiteral("icons/ui.webp");
         index = (int32_t)((uint32_t)icon_type - 1u);
         columns = 8;
     } else if (icon_type >= 16 && icon_type <= 20) {
-        image.asset_path = StringLiteral("icons/language.png");
+        String* value_3 = &(image.asset_path);
+        (*value_3) = StringLiteral("icons/language.png");
         index = (int32_t)((uint32_t)icon_type - 16u);
         columns = 5;
     } else if (icon_type >= 21 && icon_type <= 30) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_4 = &(image.asset_path);
+        (*value_4) = StringLiteral("icons/ui.webp");
         index = (int32_t)((uint32_t)icon_type - 6u);
         columns = 8;
     } else if (icon_type >= 31 && icon_type <= 35) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_5 = &(image.asset_path);
+        (*value_5) = StringLiteral("icons/ui.webp");
         if (icon_type == 31) {
             index = 58;
         }
@@ -68,60 +73,74 @@ ImageForIcon(int32_t icon_type, Rectangle bounds, String alt_text)
         }
         columns = 8;
     } else if (icon_type >= 36 && icon_type <= 38) {
-        image.asset_path = StringLiteral("icons/payments.png");
+        String* value_6 = &(image.asset_path);
+        (*value_6) = StringLiteral("icons/payments.png");
         index = (int32_t)((uint32_t)icon_type - 36u);
         columns = 3;
     } else if (icon_type >= 39 && icon_type <= 40) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_7 = &(image.asset_path);
+        (*value_7) = StringLiteral("icons/ui.webp");
         index = (int32_t)((uint32_t)icon_type - 13u);
         columns = 8;
     } else if (icon_type >= 41 && icon_type <= 65) {
-        image.asset_path = StringLiteral("icons/pfp.webp");
+        String* value_8 = &(image.asset_path);
+        (*value_8) = StringLiteral("icons/pfp.webp");
         index = (int32_t)((uint32_t)icon_type - 41u);
         columns = 5;
     } else if (icon_type >= 66 && icon_type <= 88) {
-        image.asset_path = StringLiteral("icons/platforms.png");
+        String* value_9 = &(image.asset_path);
+        (*value_9) = StringLiteral("icons/platforms.png");
         index = (int32_t)((uint32_t)icon_type - 66u);
         columns = 6;
     } else if (icon_type >= 89 && icon_type <= 91) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_10 = &(image.asset_path);
+        (*value_10) = StringLiteral("icons/ui.webp");
         index = (int32_t)((uint32_t)icon_type - 61u);
         columns = 8;
     } else if (icon_type >= 92 && icon_type <= 93) {
-        image.asset_path = StringLiteral("icons/logos.png");
+        String* value_11 = &(image.asset_path);
+        (*value_11) = StringLiteral("icons/logos.png");
         index = (int32_t)((uint32_t)icon_type - 92u);
         columns = 2;
     } else if (icon_type >= 94 && icon_type <= 108) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_12 = &(image.asset_path);
+        (*value_12) = StringLiteral("icons/ui.webp");
         index = (int32_t)((uint32_t)icon_type - 63u);
         columns = 8;
     } else if (icon_type >= 109 && icon_type <= 112) {
-        image.asset_path = StringLiteral("icons/tiles.png");
+        String* value_13 = &(image.asset_path);
+        (*value_13) = StringLiteral("icons/tiles.png");
         index = (int32_t)((uint32_t)icon_type - 109u);
         columns = 4;
     } else if (icon_type >= 113 && icon_type <= 116) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_14 = &(image.asset_path);
+        (*value_14) = StringLiteral("icons/ui.webp");
         index = (int32_t)((uint32_t)icon_type - 67u);
         columns = 8;
     } else if (icon_type == 117) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_15 = &(image.asset_path);
+        (*value_15) = StringLiteral("icons/ui.webp");
         index = 56;
         columns = 8;
     } else if (icon_type >= 118 && icon_type <= 123) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_16 = &(image.asset_path);
+        (*value_16) = StringLiteral("icons/ui.webp");
         index = (int32_t)((uint32_t)icon_type - 68u);
         columns = 8;
     } else if (icon_type >= 124 && icon_type <= 126) {
-        image.asset_path = StringLiteral("icons/pfp.webp");
+        String* value_17 = &(image.asset_path);
+        (*value_17) = StringLiteral("icons/pfp.webp");
         index = (int32_t)((uint32_t)icon_type - 99u);
         columns = 5;
     } else if (icon_type == 127) {
-        image.asset_path = StringLiteral("icons/ui.webp");
+        String* value_18 = &(image.asset_path);
+        (*value_18) = StringLiteral("icons/ui.webp");
         index = 61;
         columns = 8;
     }
     if (index >= 0) {
-        image.source = (Rectangle){.x = (float)(((int32_t)((uint32_t)((ZiRemS32(index, columns))) * 64u))), .y = (float)(((int32_t)((uint32_t)((ZiDivS32(index, columns, INT32_MIN))) * 64u))), .width = (float)64.0, .height = (float)64.0};
+        Rectangle* value_19 = &(image.source);
+        (*value_19) = (Rectangle){.x = (float)(((int32_t)((uint32_t)((ZiRemS32(index, columns))) * 64u))), .y = (float)(((int32_t)((uint32_t)((ZiDivS32(index, columns, INT32_MIN))) * 64u))), .width = (float)64.0, .height = (float)64.0};
     }
     return image;
 }

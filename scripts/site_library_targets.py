@@ -37,7 +37,7 @@ def archive(directory, output):
     return public(output)
 
 
-def build(project, manifest_path, samples):
+def build(project, manifest_path, samples, revision=None):
     manifest = json.loads(manifest_path.read_text())
     source = project / manifest['source']
     module = source.stem
@@ -75,8 +75,10 @@ def build(project, manifest_path, samples):
     add_licenses(source_dir)
     add_licenses(ir)
     data = {'schema_version': 1, 'name': manifest['name'], 'repository': manifest['repository'],
-            'revision': run(['git', 'rev-parse', 'HEAD']),
-            'dirty_inputs': bool(run(['git', 'status', '--porcelain', '--', 'src', 'tests', 'ziran.toml', 'ziran.lock'])),
+            # An exported tree (git archive) carries no history: it names its commit.
+            'revision': revision or run(['git', 'rev-parse', 'HEAD']),
+            'dirty_inputs': False if revision else
+                bool(run(['git', 'status', '--porcelain', '--', 'src', 'tests', 'ziran.toml', 'ziran.lock'])),
             'measured_at': datetime.now(timezone.utc).isoformat(), 'host': base.cpu_name(),
             'versions': {'cc': run(['cc', '--version']).splitlines()[0], 'go': run(['go', 'version'])},
             'methodology': manifest['methodology'] + ' Symmetric 1.5×IQR filtering excludes outliers from the median; raw samples and excluded indices are retained.', 'samples': samples,
@@ -183,6 +185,7 @@ if __name__ == '__main__':
     parser.add_argument('--project', type=Path)
     parser.add_argument('--manifest', type=Path)
     parser.add_argument('--samples', type=int, default=9)
+    parser.add_argument('--revision', help='the commit a --project tree exported with git archive holds')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     if args.check:
@@ -190,4 +193,4 @@ if __name__ == '__main__':
     else:
         if not args.project or not args.manifest or not 3 <= args.samples <= 31:
             parser.error('Pass --project, --manifest and 3–31 samples')
-        build(args.project.resolve(), args.manifest.resolve(), args.samples)
+        build(args.project.resolve(), args.manifest.resolve(), args.samples, args.revision)

@@ -3,12 +3,11 @@
 #include <stdbool.h>
 #include "text_selection_host.h"
 #include "session.h"
-#include "text_props.h"
 TextSelectionPainter selection_painter = {0};
 bool selection_painter_ready = {0};
 
 bool
-text_selection_host_TextSelectionPresent(Session session, int32_t node, TextProps props, PreparedText prepared)
+text_selection_host_TextSelectionPresent(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared)
 {
     if (!selection_painter_ready) {
         return false;

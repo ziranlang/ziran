@@ -14,10 +14,14 @@ func Elevation_ElevationEdgeBounds(bounds Rectangle, layer int32, radius float32
 	if radius > bounds.Width * 0.5 {
 		radius = bounds.Width * 0.5
 	}
-	result.X = bounds.X + radius
-	result.Y = (bounds.Y + bounds.Height) + float32((layer - 1))
-	result.Width = bounds.Width - (radius * 2.0)
-	result.Height = 1.0
+	value_0 := &(result.X)
+	(*value_0) = bounds.X + radius
+	value_1 := &(result.Y)
+	(*value_1) = (bounds.Y + bounds.Height) + float32((layer - 1))
+	value_2 := &(result.Width)
+	(*value_2) = bounds.Width - (radius * 2.0)
+	value_3 := &(result.Height)
+	(*value_3) = 1.0
 	return result
 }
 

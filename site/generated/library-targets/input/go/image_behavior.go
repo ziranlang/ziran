@@ -3,7 +3,6 @@ package main
 
 // #import drawing_props
 // #import geometry
-// #import image_props
 type ImagePlaceholderLayout struct {
 	Bounds Rectangle
 	LabelX int32
@@ -21,7 +20,7 @@ func ImageBehavior_ImageLabelRole() int32 {
 	return 6
 }
 
-func ImageBehavior_ImageFitRect(image ImageProps, texture Texture2D) Rectangle {
+func ImageBehavior_ImageFitRect(image zir_a62ab5d98ba48716_Props, texture Texture2D) Rectangle {
 	return ImageBehavior_ImageFitBounds(image.Bounds, image.Source, texture.Width, texture.Height, int32(ImageFit(image.Fit)))
 }
 
@@ -60,7 +59,7 @@ func ImageBehavior_ImagePolygonValid(points []Vector2) bool {
 	return true
 }
 
-func ImageBehavior_ImagePreviewUsable(image ImageProps) bool {
+func ImageBehavior_ImagePreviewUsable(image zir_a62ab5d98ba48716_Props) bool {
 	if image.PreviewPath == "" || image.Texture.ID != 0 {
 		return false
 	}
@@ -92,20 +91,26 @@ func ImageBehavior_ImageShowingFor(full Texture2D, preview Texture2D) ImageShowi
 	return ImageShowingUnavailable
 }
 
-func ImageBehavior_ImageDrawPlanFor(image ImageProps, texture Texture2D, tint Color) ImageDrawPlan {
+func ImageBehavior_ImageDrawPlanFor(image zir_a62ab5d98ba48716_Props, texture Texture2D, tint Color) ImageDrawPlan {
 	var plan ImageDrawPlan = ImageDrawPlan{}
 	if texture.ID == 0 || texture.Width <= 0 || texture.Height <= 0 || image.Bounds.Width <= 0.0 || image.Bounds.Height <= 0.0 {
 		return plan
 	}
-	plan.Draw = true
-	plan.Source = image.Source
+	value_0 := &(plan.Draw)
+	(*value_0) = true
+	value_1 := &(plan.Source)
+	(*value_1) = image.Source
 	if plan.Source.Width == 0.0 || plan.Source.Height == 0.0 {
-		plan.Source = Rectangle{X: 0.0, Y: 0.0, Width: float32(texture.Width), Height: float32(texture.Height)}
+		value_2 := &(plan.Source)
+		(*value_2) = Rectangle{X: 0.0, Y: 0.0, Width: float32(texture.Width), Height: float32(texture.Height)}
 	}
-	plan.Destination = ImageBehavior_ImageFitRect(image, texture)
-	plan.Tint = tint
+	value_3 := &(plan.Destination)
+	(*value_3) = ImageBehavior_ImageFitRect(image, texture)
+	value_4 := &(plan.Tint)
+	(*value_4) = tint
 	if plan.Tint.A == 0 {
-		plan.Tint = Color{R: 255, G: 255, B: 255, A: 255}
+		value_5 := &(plan.Tint)
+		(*value_5) = Color{R: 255, G: 255, B: 255, A: 255}
 	}
 	return plan
 }
@@ -142,10 +147,14 @@ func ImageBehavior_ImageFitBounds(bounds Rectangle, source Rectangle, texture_wi
 				scale = sy
 			}
 		}
-		dst.Width = src_w * scale
-		dst.Height = src_h * scale
-		dst.X = bounds.X + ((bounds.Width - dst.Width) * 0.5)
-		dst.Y = bounds.Y + ((bounds.Height - dst.Height) * 0.5)
+		value_0 := &(dst.Width)
+		(*value_0) = src_w * scale
+		value_1 := &(dst.Height)
+		(*value_1) = src_h * scale
+		value_2 := &(dst.X)
+		(*value_2) = bounds.X + ((bounds.Width - dst.Width) * 0.5)
+		value_3 := &(dst.Y)
+		(*value_3) = bounds.Y + ((bounds.Height - dst.Height) * 0.5)
 	}
 	return dst
 }
@@ -168,9 +177,13 @@ func ImageBehavior_ImageStripSource(source_base Rectangle, dst Rectangle, strip 
 	if dst.Width == 0.0 || dst.Height == 0.0 {
 		return source
 	}
-	source.X = source_base.X + (((strip.X - dst.X) * source_base.Width) / dst.Width)
-	source.Y = source_base.Y + (((strip.Y - dst.Y) * source_base.Height) / dst.Height)
-	source.Width = (strip.Width * source_base.Width) / dst.Width
-	source.Height = (strip.Height * source_base.Height) / dst.Height
+	value_0 := &(source.X)
+	(*value_0) = source_base.X + (((strip.X - dst.X) * source_base.Width) / dst.Width)
+	value_1 := &(source.Y)
+	(*value_1) = source_base.Y + (((strip.Y - dst.Y) * source_base.Height) / dst.Height)
+	value_2 := &(source.Width)
+	(*value_2) = (strip.Width * source_base.Width) / dst.Width
+	value_3 := &(source.Height)
+	(*value_3) = (strip.Height * source_base.Height) / dst.Height
 	return source
 }

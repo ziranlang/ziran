@@ -9,13 +9,17 @@ RectangleIntersection(Rectangle a, Rectangle b)
     float bottom = a.y + a.height;
     float other_right = b.x + b.width;
     float other_bottom = b.y + b.height;
-    result.x = a.x;
+    float* value_0 = &(result.x);
+    (*value_0) = a.x;
     if (b.x > a.x) {
-        result.x = b.x;
+        float* value_1 = &(result.x);
+        (*value_1) = b.x;
     }
-    result.y = a.y;
+    float* value_2 = &(result.y);
+    (*value_2) = a.y;
     if (b.y > a.y) {
-        result.y = b.y;
+        float* value_3 = &(result.y);
+        (*value_3) = b.y;
     }
     if (other_right < right) {
         right = other_right;
@@ -23,13 +27,17 @@ RectangleIntersection(Rectangle a, Rectangle b)
     if (other_bottom < bottom) {
         bottom = other_bottom;
     }
-    result.width = right - result.x;
-    result.height = bottom - result.y;
+    float* value_4 = &(result.width);
+    (*value_4) = right - result.x;
+    float* value_5 = &(result.height);
+    (*value_5) = bottom - result.y;
     if (result.width < ((float)0.0)) {
-        result.width = (float)0.0;
+        float* value_6 = &(result.width);
+        (*value_6) = (float)0.0;
     }
     if (result.height < ((float)0.0)) {
-        result.height = (float)0.0;
+        float* value_7 = &(result.height);
+        (*value_7) = (float)0.0;
     }
     return result;
 }

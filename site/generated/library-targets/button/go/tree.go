@@ -366,21 +366,28 @@ func Tree_FrameStatusMessage(status int32) string {
 
 func Tree_FrameFailureAt(session Session) FrameFailure {
 	var result FrameFailure = FrameFailure{}
-	var value_0 FrameStatus = FrameStatus(Tree_TreeFrameStatus(session))
-	result.Status = int32(value_0)
-	result.Message = Tree_FrameStatusMessage(result.Status)
+	value_0 := &(result.Status)
+	var value_1 FrameStatus = FrameStatus(Tree_TreeFrameStatus(session))
+	(*value_0) = int32(value_1)
+	value_2 := &(result.Message)
+	(*value_2) = Tree_FrameStatusMessage(result.Status)
 	if Session_SessionValid(session) {
-		result.Key = (trees[session.Slot]).ErrorKey
-		result.Kind = (trees[session.Slot]).ErrorKind
+		value_3 := &(result.Key)
+		(*value_3) = (trees[session.Slot]).ErrorKey
+		value_4 := &(result.Kind)
+		(*value_4) = (trees[session.Slot]).ErrorKind
 	}
 	return result
 }
 
 func Tree_TreeCommitFor(activation bool, committed_count int32, submitted_count int32) TreeCommitPlan {
 	var plan TreeCommitPlan = TreeCommitPlan{}
-	plan.KeepCommitted = activation && committed_count > 0 && submitted_count >= 0 && submitted_count < committed_count
-	plan.Reconcile = !plan.KeepCommitted
-	plan.RouteInput = !plan.KeepCommitted
+	value_0 := &(plan.KeepCommitted)
+	(*value_0) = activation && committed_count > 0 && submitted_count >= 0 && submitted_count < committed_count
+	value_1 := &(plan.Reconcile)
+	(*value_1) = !plan.KeepCommitted
+	value_2 := &(plan.RouteInput)
+	(*value_2) = !plan.KeepCommitted
 	return plan
 }
 
@@ -413,7 +420,8 @@ func Tree_TreeBuildOldIndex(session Session) bool {
 	(trees[slot]).Slots.Data = (trees[slot]).Slots.Data[:0]
 	(trees[slot]).Slots.Count = 0
 	if (trees[slot]).CommittedCount == 0 {
-		(trees[slot]).IdentityIndexValid = true
+		value_0 := &((trees[slot]).IdentityIndexValid)
+		(*value_0) = true
 		return true
 	}
 	var capacity int32 = 8
@@ -425,13 +433,13 @@ func Tree_TreeBuildOldIndex(session Session) bool {
 	}
 	var index int32 = 0
 	for index < capacity {
-		var value_0 int32 = -1
-		var value_1 bool = false
-		(trees[slot]).Slots.Data = append((trees[slot]).Slots.Data[:(trees[slot]).Slots.Count], value_0)
+		var value_1 int32 = -1
+		var value_2 bool = false
+		(trees[slot]).Slots.Data = append((trees[slot]).Slots.Data[:(trees[slot]).Slots.Count], value_1)
 		(trees[slot]).Slots.Count = int64(len((trees[slot]).Slots.Data))
 		(trees[slot]).Slots.Capacity = int64(cap((trees[slot]).Slots.Data))
-		value_1 = true
-		if !value_1 {
+		value_2 = true
+		if !value_2 {
 			return false
 		}
 		index++
@@ -445,10 +453,12 @@ func Tree_TreeBuildOldIndex(session Session) bool {
 		for ((trees[slot]).Slots).Data[position] >= 0 {
 			position = (position + 1) & (capacity - 1)
 		}
-		((trees[slot]).Slots).Data[position] = index
+		value_3 := &(((trees[slot]).Slots).Data[position])
+		(*value_3) = index
 		index++
 	}
-	(trees[slot]).IdentityIndexValid = true
+	value_4 := &((trees[slot]).IdentityIndexValid)
+	(*value_4) = true
 	return true
 }
 
@@ -489,7 +499,8 @@ func Tree_TreeBuildNewIndex(session Session, needed int32) bool {
 			for ((trees[slot]).NewSlots).Data[position] >= 0 {
 				position = (position + 1) & (capacity - 1)
 			}
-			((trees[slot]).NewSlots).Data[position] = index
+			value_2 := &(((trees[slot]).NewSlots).Data[position])
+			(*value_2) = index
 		}
 		index++
 	}
@@ -601,30 +612,49 @@ func Tree_TreeRead(session Session, index int32, committed bool) TreeEntry {
 		}
 		node = ((trees[slot]).Submitted).Data[index]
 	}
-	entry.Key = node.Key
+	value_0 := &(entry.Key)
+	(*value_0) = node.Key
 	if node.Parent >= 0 {
 		if committed {
-			entry.ParentKey = (((trees[slot]).Committed).Data[node.Parent]).Key
+			value_1 := &(entry.ParentKey)
+			(*value_1) = (((trees[slot]).Committed).Data[node.Parent]).Key
 		} else {
-			entry.ParentKey = (((trees[slot]).Submitted).Data[node.Parent]).Key
+			value_2 := &(entry.ParentKey)
+			(*value_2) = (((trees[slot]).Submitted).Data[node.Parent]).Key
 		}
 	}
-	entry.AutoKey = node.AutoKey
-	entry.AutoOrdinal = node.AutoOrdinal
-	entry.NextAutoOrdinal = node.NextAutoOrdinal
-	entry.Kind = node.Kind
-	entry.Bounds = node.Bounds
-	entry.Clip = node.Clip
-	entry.ChildClip = node.ChildClip
-	entry.Clipped = node.Clipped
-	entry.ClipsChildren = node.ClipsChildren
-	entry.MeasuredBounds = node.MeasuredBounds
-	entry.AutoPlaced = node.AutoPlaced
-	entry.Parent = node.Parent
-	entry.FirstChild = node.FirstChild
-	entry.LastChild = node.LastChild
-	entry.NextSibling = node.NextSibling
-	entry.IdentityGeneration = node.IdentityGeneration
+	value_3 := &(entry.AutoKey)
+	(*value_3) = node.AutoKey
+	value_4 := &(entry.AutoOrdinal)
+	(*value_4) = node.AutoOrdinal
+	value_5 := &(entry.NextAutoOrdinal)
+	(*value_5) = node.NextAutoOrdinal
+	value_6 := &(entry.Kind)
+	(*value_6) = node.Kind
+	value_7 := &(entry.Bounds)
+	(*value_7) = node.Bounds
+	value_8 := &(entry.Clip)
+	(*value_8) = node.Clip
+	value_9 := &(entry.ChildClip)
+	(*value_9) = node.ChildClip
+	value_10 := &(entry.Clipped)
+	(*value_10) = node.Clipped
+	value_11 := &(entry.ClipsChildren)
+	(*value_11) = node.ClipsChildren
+	value_12 := &(entry.MeasuredBounds)
+	(*value_12) = node.MeasuredBounds
+	value_13 := &(entry.AutoPlaced)
+	(*value_13) = node.AutoPlaced
+	value_14 := &(entry.Parent)
+	(*value_14) = node.Parent
+	value_15 := &(entry.FirstChild)
+	(*value_15) = node.FirstChild
+	value_16 := &(entry.LastChild)
+	(*value_16) = node.LastChild
+	value_17 := &(entry.NextSibling)
+	(*value_17) = node.NextSibling
+	value_18 := &(entry.IdentityGeneration)
+	(*value_18) = node.IdentityGeneration
 	if node.SemanticIndex >= 0 {
 		var semantic SemanticData = SemanticData{}
 		if committed {
@@ -634,37 +664,54 @@ func Tree_TreeRead(session Session, index int32, committed bool) TreeEntry {
 		}
 		if semantic.LabelLength > 0 {
 			if committed {
-				var value_0 int64 = semantic.LabelOffset + semantic.LabelLength
-				entry.SemanticLabel = string(((trees[slot]).Labels)[(trees[slot]).CommittedLabelBuffer][semantic.LabelOffset:value_0:value_0])
+				value_19 := &(entry.SemanticLabel)
+				var value_20 int64 = semantic.LabelOffset + semantic.LabelLength
+				var value_21 []uint8 = ((trees[slot]).Labels)[(trees[slot]).CommittedLabelBuffer][semantic.LabelOffset:value_20:value_20]
+				(*value_19) = string(value_21)
 			} else {
-				var value_1 int64 = semantic.LabelOffset + semantic.LabelLength
-				var value_2 []uint8 = ((trees[slot]).Labels)[(1 - (trees[slot]).CommittedLabelBuffer)][semantic.LabelOffset:value_1:value_1]
-				entry.SemanticLabel = string(value_2)
+				value_22 := &(entry.SemanticLabel)
+				var value_23 int64 = semantic.LabelOffset + semantic.LabelLength
+				var value_24 []uint8 = ((trees[slot]).Labels)[(1 - (trees[slot]).CommittedLabelBuffer)][semantic.LabelOffset:value_23:value_23]
+				(*value_22) = string(value_24)
 			}
 		}
 		if semantic.DetailLength > 0 {
 			if committed {
-				var value_3 int64 = semantic.DetailOffset + semantic.DetailLength
-				var value_4 []uint8 = ((trees[slot]).Labels)[(trees[slot]).CommittedLabelBuffer][semantic.DetailOffset:value_3:value_3]
-				entry.SemanticDetail = string(value_4)
+				value_25 := &(entry.SemanticDetail)
+				var value_26 int64 = semantic.DetailOffset + semantic.DetailLength
+				var value_27 []uint8 = ((trees[slot]).Labels)[(trees[slot]).CommittedLabelBuffer][semantic.DetailOffset:value_26:value_26]
+				(*value_25) = string(value_27)
 			} else {
-				var value_5 int64 = semantic.DetailOffset + semantic.DetailLength
-				var value_6 []uint8 = ((trees[slot]).Labels)[(1 - (trees[slot]).CommittedLabelBuffer)][semantic.DetailOffset:value_5:value_5]
-				entry.SemanticDetail = string(value_6)
+				value_28 := &(entry.SemanticDetail)
+				var value_29 int64 = semantic.DetailOffset + semantic.DetailLength
+				var value_30 []uint8 = ((trees[slot]).Labels)[(1 - (trees[slot]).CommittedLabelBuffer)][semantic.DetailOffset:value_29:value_29]
+				(*value_28) = string(value_30)
 			}
 		}
-		entry.StyleClass = semantic.StyleClass
-		entry.StyleId = semantic.StyleId
-		entry.TextBytes = semantic.TextBytes
-		entry.TextCursor = semantic.TextCursor
-		entry.TextAnchor = semantic.TextAnchor
-		entry.HasText = semantic.HasText
-		entry.ReadOnly = semantic.ReadOnly
-		entry.Secure = semantic.Secure
-		entry.SemanticKind = SemanticKind(semantic.Kind)
-		entry.HeadingLevel = semantic.HeadingLevel
-		entry.Selected = semantic.Selected
-		entry.HiddenLines = semantic.HiddenLines
+		value_31 := &(entry.StyleClass)
+		(*value_31) = semantic.StyleClass
+		value_32 := &(entry.StyleId)
+		(*value_32) = semantic.StyleId
+		value_33 := &(entry.TextBytes)
+		(*value_33) = semantic.TextBytes
+		value_34 := &(entry.TextCursor)
+		(*value_34) = semantic.TextCursor
+		value_35 := &(entry.TextAnchor)
+		(*value_35) = semantic.TextAnchor
+		value_36 := &(entry.HasText)
+		(*value_36) = semantic.HasText
+		value_37 := &(entry.ReadOnly)
+		(*value_37) = semantic.ReadOnly
+		value_38 := &(entry.Secure)
+		(*value_38) = semantic.Secure
+		value_39 := &(entry.SemanticKind)
+		(*value_39) = SemanticKind(semantic.Kind)
+		value_40 := &(entry.HeadingLevel)
+		(*value_40) = semantic.HeadingLevel
+		value_41 := &(entry.Selected)
+		(*value_41) = semantic.Selected
+		value_42 := &(entry.HiddenLines)
+		(*value_42) = semantic.HiddenLines
 	}
 	if node.InteractionIndex >= 0 {
 		var interaction InteractionData = InteractionData{}
@@ -673,20 +720,31 @@ func Tree_TreeRead(session Session, index int32, committed bool) TreeEntry {
 		} else {
 			interaction = ((trees[slot]).SubmittedInteractions).Data[node.InteractionIndex]
 		}
-		entry.Interactive = true
-		entry.Disabled = interaction.Disabled
-		entry.Loading = interaction.Loading
-		entry.FocusID = interaction.FocusID
+		value_43 := &(entry.Interactive)
+		(*value_43) = true
+		value_44 := &(entry.Disabled)
+		(*value_44) = interaction.Disabled
+		value_45 := &(entry.Loading)
+		(*value_45) = interaction.Loading
+		value_46 := &(entry.FocusID)
+		(*value_46) = interaction.FocusID
 	}
 	if !committed && node.LayoutIndex >= 0 {
 		layout := ((trees[slot]).Layouts).Data[node.LayoutIndex]
-		entry.Placement = layout.Placement
-		entry.PlacesChildren = layout.PlacesChildren
-		entry.LayoutGap = layout.Gap
-		entry.LayoutPadding = layout.Padding
-		entry.GridColumns = layout.Columns
-		entry.GridMinItemWidth = layout.MinItemWidth
-		entry.GridMaxColumns = layout.MaxColumns
+		value_47 := &(entry.Placement)
+		(*value_47) = layout.Placement
+		value_48 := &(entry.PlacesChildren)
+		(*value_48) = layout.PlacesChildren
+		value_49 := &(entry.LayoutGap)
+		(*value_49) = layout.Gap
+		value_50 := &(entry.LayoutPadding)
+		(*value_50) = layout.Padding
+		value_51 := &(entry.GridColumns)
+		(*value_51) = layout.Columns
+		value_52 := &(entry.GridMinItemWidth)
+		(*value_52) = layout.MinItemWidth
+		value_53 := &(entry.GridMaxColumns)
+		(*value_53) = layout.MaxColumns
 	}
 	return entry
 }
@@ -698,10 +756,14 @@ func Tree_TreeSubmittedGeometryAt(session Session, index int32) NodeGeometry {
 		return geometry
 	}
 	node := &(((trees[slot]).Submitted).Data[index])
-	geometry.Bounds = node.Bounds
-	geometry.MeasuredBounds = node.MeasuredBounds
-	geometry.Clip = node.Clip
-	geometry.Clipped = node.Clipped
+	value_0 := &(geometry.Bounds)
+	(*value_0) = node.Bounds
+	value_1 := &(geometry.MeasuredBounds)
+	(*value_1) = node.MeasuredBounds
+	value_2 := &(geometry.Clip)
+	(*value_2) = node.Clip
+	value_3 := &(geometry.Clipped)
+	(*value_3) = node.Clipped
 	return geometry
 }
 
@@ -721,21 +783,34 @@ func Tree_TreeInputAt(session Session, index int32) NodeInput {
 		return input
 	}
 	node := &(((trees[slot]).Committed).Data[index])
-	input.Key = node.Key
-	input.IdentityGeneration = node.IdentityGeneration
-	input.Kind = node.Kind
-	input.Bounds = node.Bounds
-	input.Clip = node.Clip
-	input.Clipped = node.Clipped
+	value_0 := &(input.Key)
+	(*value_0) = node.Key
+	value_1 := &(input.IdentityGeneration)
+	(*value_1) = node.IdentityGeneration
+	value_2 := &(input.Kind)
+	(*value_2) = node.Kind
+	value_3 := &(input.Bounds)
+	(*value_3) = node.Bounds
+	value_4 := &(input.Clip)
+	(*value_4) = node.Clip
+	value_5 := &(input.Clipped)
+	(*value_5) = node.Clipped
 	if node.InteractionIndex >= 0 {
 		interaction := &(((trees[slot]).CommittedInteractions).Data[node.InteractionIndex])
-		input.Interactive = true
-		input.Disabled = interaction.Disabled
-		input.Loading = interaction.Loading
-		input.CircleHit = interaction.CircleHit
-		input.CapturesDrag = interaction.CapturesDrag
-		input.FocusID = interaction.FocusID
-		input.Cursor = interaction.Cursor
+		value_6 := &(input.Interactive)
+		(*value_6) = true
+		value_7 := &(input.Disabled)
+		(*value_7) = interaction.Disabled
+		value_8 := &(input.Loading)
+		(*value_8) = interaction.Loading
+		value_9 := &(input.CircleHit)
+		(*value_9) = interaction.CircleHit
+		value_10 := &(input.CapturesDrag)
+		(*value_10) = interaction.CapturesDrag
+		value_11 := &(input.FocusID)
+		(*value_11) = interaction.FocusID
+		value_12 := &(input.Cursor)
+		(*value_12) = interaction.Cursor
 	}
 	return input
 }
@@ -747,14 +822,20 @@ func Tree_TreeLayoutAt(session Session, index int32) LayoutInfo {
 		return info
 	}
 	node := ((trees[slot]).Submitted).Data[index]
-	info.Bounds = node.Bounds
+	value_0 := &(info.Bounds)
+	(*value_0) = node.Bounds
 	if node.LayoutIndex >= 0 {
 		layout := ((trees[slot]).Layouts).Data[node.LayoutIndex]
-		info.Gap = layout.Gap
-		info.Padding = layout.Padding
-		info.Columns = layout.Columns
-		info.MinItemWidth = layout.MinItemWidth
-		info.MaxColumns = layout.MaxColumns
+		value_1 := &(info.Gap)
+		(*value_1) = layout.Gap
+		value_2 := &(info.Padding)
+		(*value_2) = layout.Padding
+		value_3 := &(info.Columns)
+		(*value_3) = layout.Columns
+		value_4 := &(info.MinItemWidth)
+		(*value_4) = layout.MinItemWidth
+		value_5 := &(info.MaxColumns)
+		(*value_5) = layout.MaxColumns
 	}
 	return info
 }
@@ -774,10 +855,12 @@ func Tree_TreeEnsureSemantic(session Session, index int32) int32 {
 	(trees[slot]).SubmittedSemantics.Capacity = int64(cap((trees[slot]).SubmittedSemantics.Data))
 	value_1 = true
 	if !value_1 {
-		(trees[slot]).Error = FrameStatus(6)
+		value_2 := &((trees[slot]).Error)
+		(*value_2) = FrameStatus(6)
 		return -1
 	}
-	(((trees[slot]).Submitted).Data[index]).SemanticIndex = next
+	value_3 := &((((trees[slot]).Submitted).Data[index]).SemanticIndex)
+	(*value_3) = next
 	return next
 }
 
@@ -796,10 +879,12 @@ func Tree_TreeEnsureInteraction(session Session, index int32) int32 {
 	(trees[slot]).SubmittedInteractions.Capacity = int64(cap((trees[slot]).SubmittedInteractions.Data))
 	value_1 = true
 	if !value_1 {
-		(trees[slot]).Error = FrameStatus(6)
+		value_2 := &((trees[slot]).Error)
+		(*value_2) = FrameStatus(6)
 		return -1
 	}
-	(((trees[slot]).Submitted).Data[index]).InteractionIndex = next
+	value_3 := &((((trees[slot]).Submitted).Data[index]).InteractionIndex)
+	(*value_3) = next
 	return next
 }
 
@@ -818,10 +903,12 @@ func Tree_TreeEnsureLayout(session Session, index int32) int32 {
 	(trees[slot]).Layouts.Capacity = int64(cap((trees[slot]).Layouts.Data))
 	value_1 = true
 	if !value_1 {
-		(trees[slot]).Error = FrameStatus(6)
+		value_2 := &((trees[slot]).Error)
+		(*value_2) = FrameStatus(6)
 		return -1
 	}
-	(((trees[slot]).Submitted).Data[index]).LayoutIndex = next
+	value_3 := &((((trees[slot]).Submitted).Data[index]).LayoutIndex)
+	(*value_3) = next
 	return next
 }
 
@@ -847,7 +934,8 @@ func Tree_TreeSetLayoutProgress(session Session, index int32, progress LayoutPro
 	if layout < 0 {
 		return
 	}
-	(((trees[slot]).Layouts).Data[layout]).Progress = progress
+	value_0 := &((((trees[slot]).Layouts).Data[layout]).Progress)
+	(*value_0) = progress
 }
 
 func Tree_TreeStart(session Session, screen_key uint64, bounds Rectangle) {
@@ -862,8 +950,10 @@ func Tree_TreeStart(session Session, screen_key uint64, bounds Rectangle) {
 	(trees[slot]).SubmittedSemantics.Count = 0
 	(trees[slot]).SubmittedText.Data = (trees[slot]).SubmittedText.Data[:0]
 	(trees[slot]).SubmittedText.Count = 0
-	(trees[slot]).SubmittedLabelCount = 0
-	(trees[slot]).SubmittedLabelSpans = 0
+	value_1 := &((trees[slot]).SubmittedLabelCount)
+	(*value_1) = 0
+	value_2 := &((trees[slot]).SubmittedLabelSpans)
+	(*value_2) = 0
 	(trees[slot]).SubmittedLabelOverflow.Data = (trees[slot]).SubmittedLabelOverflow.Data[:0]
 	(trees[slot]).SubmittedLabelOverflow.Count = 0
 	(trees[slot]).SubmittedInteractions.Data = (trees[slot]).SubmittedInteractions.Data[:0]
@@ -872,23 +962,35 @@ func Tree_TreeStart(session Session, screen_key uint64, bounds Rectangle) {
 	(trees[slot]).SubmittedStates.Count = 0
 	(trees[slot]).Layouts.Data = (trees[slot]).Layouts.Data[:0]
 	(trees[slot]).Layouts.Count = 0
-	(trees[slot]).SubmittedCount = 0
-	(trees[slot]).SubmittedModalLayer = 0
-	(trees[slot]).ScopeDepth = 0
-	(trees[slot]).Building = true
+	value_3 := &((trees[slot]).SubmittedCount)
+	(*value_3) = 0
+	value_4 := &((trees[slot]).SubmittedModalLayer)
+	(*value_4) = 0
+	value_5 := &((trees[slot]).ScopeDepth)
+	(*value_5) = 0
+	value_6 := &((trees[slot]).Building)
+	(*value_6) = true
 	Cursor_CursorHoverFrameStart(session)
-	(trees[slot]).Error = FrameStatus(0)
-	(trees[slot]).ErrorKey = 0
-	(trees[slot]).ErrorKind = 0
-	(trees[slot]).RepeatedKey = 0
-	(trees[slot]).RepeatedKind = 0
-	(trees[slot]).StagedIdentityGeneration = (trees[slot]).NextIdentityGeneration
-	(trees[slot]).IdentityOrderUnchanged = true
+	value_7 := &((trees[slot]).Error)
+	(*value_7) = FrameStatus(0)
+	value_8 := &((trees[slot]).ErrorKey)
+	(*value_8) = 0
+	value_9 := &((trees[slot]).ErrorKind)
+	(*value_9) = 0
+	value_10 := &((trees[slot]).RepeatedKey)
+	(*value_10) = 0
+	value_11 := &((trees[slot]).RepeatedKind)
+	(*value_11) = 0
+	value_12 := &((trees[slot]).StagedIdentityGeneration)
+	(*value_12) = (trees[slot]).NextIdentityGeneration
+	value_13 := &((trees[slot]).IdentityOrderUnchanged)
+	(*value_13) = true
 	(trees[slot]).NewSlots.Data = (trees[slot]).NewSlots.Data[:0]
 	(trees[slot]).NewSlots.Count = 0
-	var value_1 bool = Tree_TreeBuildOldIndex(session)
-	if !value_1 {
-		(trees[slot]).Error = FrameStatus(6)
+	var value_14 bool = Tree_TreeBuildOldIndex(session)
+	if !value_14 {
+		value_15 := &((trees[slot]).Error)
+		(*value_15) = FrameStatus(6)
 		return
 	}
 	key := screen_key
@@ -896,8 +998,10 @@ func Tree_TreeStart(session Session, screen_key uint64, bounds Rectangle) {
 		key = 1
 	}
 	if Tree_TreeSubmit(session, key, -1, 0, bounds) == 0 {
-		((trees[slot]).Scope)[0] = 0
-		(trees[slot]).ScopeDepth = 1
+		value_16 := &(((trees[slot]).Scope)[0])
+		(*value_16) = 0
+		value_17 := &((trees[slot]).ScopeDepth)
+		(*value_17) = 1
 	}
 }
 
@@ -917,14 +1021,20 @@ func Tree_TreeCurrentPaintGeometry(session Session) NodeGeometry {
 	}
 	var value_0 int32 = Session_SessionIndex(session)
 	node := ((trees[value_0]).Submitted).Data[parent]
-	geometry.Bounds = node.Bounds
-	geometry.MeasuredBounds = node.MeasuredBounds
+	value_1 := &(geometry.Bounds)
+	(*value_1) = node.Bounds
+	value_2 := &(geometry.MeasuredBounds)
+	(*value_2) = node.MeasuredBounds
 	if node.ClipsChildren {
-		geometry.Clip = node.ChildClip
-		geometry.Clipped = true
+		value_3 := &(geometry.Clip)
+		(*value_3) = node.ChildClip
+		value_4 := &(geometry.Clipped)
+		(*value_4) = true
 	} else if node.Clipped {
-		geometry.Clip = node.Clip
-		geometry.Clipped = true
+		value_5 := &(geometry.Clip)
+		(*value_5) = node.Clip
+		value_6 := &(geometry.Clipped)
+		(*value_6) = true
 	}
 	return geometry
 }
@@ -979,16 +1089,19 @@ func Tree_TreePushScope(session Session, index int32) bool {
 	if value_8 {
 		var value_10 bool = Session_SessionValid(session)
 		if value_10 && (trees[session.Slot]).Building {
-			(trees[session.Slot]).Error = FrameStatus(4)
+			value_11 := &((trees[session.Slot]).Error)
+			(*value_11) = FrameStatus(4)
 		}
 		return false
 	}
-	var value_11 int32 = Session_SessionIndex(session)
 	var value_12 int32 = Session_SessionIndex(session)
-	((trees[value_11]).Scope)[(trees[value_12]).ScopeDepth] = index
 	var value_13 int32 = Session_SessionIndex(session)
-	var value_14 int32 = (trees[value_13]).ScopeDepth
-	(trees[value_13]).ScopeDepth = value_14 + 1
+	value_14 := &(((trees[value_12]).Scope)[(trees[value_13]).ScopeDepth])
+	(*value_14) = index
+	var value_15 int32 = Session_SessionIndex(session)
+	value_16 := &((trees[value_15]).ScopeDepth)
+	var value_17 int32 = *value_16
+	(*value_16) = value_17 + 1
 	return true
 }
 
@@ -1003,13 +1116,15 @@ func Tree_TreePopScope(session Session) bool {
 	if value_2 {
 		var value_4 bool = Session_SessionValid(session)
 		if value_4 && (trees[session.Slot]).Building {
-			(trees[session.Slot]).Error = FrameStatus(4)
+			value_5 := &((trees[session.Slot]).Error)
+			(*value_5) = FrameStatus(4)
 		}
 		return false
 	}
-	var value_5 int32 = Session_SessionIndex(session)
-	var value_6 int32 = (trees[value_5]).ScopeDepth
-	(trees[value_5]).ScopeDepth = value_6 - 1
+	var value_6 int32 = Session_SessionIndex(session)
+	value_7 := &((trees[value_6]).ScopeDepth)
+	var value_8 int32 = *value_7
+	(*value_7) = value_8 - 1
 	return true
 }
 
@@ -1027,17 +1142,20 @@ func Tree_TreeSubmit(session Session, key uint64, parent_index int32, kind int32
 		return -1
 	}
 	if (trees[slot]).SubmittedCount == 2147483647 {
-		(trees[slot]).Error = FrameStatus(6)
+		value_1 := &((trees[slot]).Error)
+		(*value_1) = FrameStatus(6)
 		return -1
 	}
 	if parent_index >= (trees[slot]).SubmittedCount || parent_index < -1 || (parent_index < 0 && (trees[slot]).SubmittedCount > 0) {
-		(trees[slot]).Error = FrameStatus(3)
+		value_2 := &((trees[slot]).Error)
+		(*value_2) = FrameStatus(3)
 		return -1
 	}
 	index := (trees[slot]).SubmittedCount
-	var value_1 bool = Tree_TreeBuildNewIndex(session, index + 1)
-	if !value_1 {
-		(trees[slot]).Error = FrameStatus(6)
+	var value_3 bool = Tree_TreeBuildNewIndex(session, index + 1)
+	if !value_3 {
+		value_4 := &((trees[slot]).Error)
+		(*value_4) = FrameStatus(6)
 		return -1
 	}
 	node := NodeCore{Key: key, AutoKey: (key == 0), SemanticIndex: -1, InteractionIndex: -1, StateIndex: -1, LayoutIndex: -1}
@@ -1045,109 +1163,142 @@ func Tree_TreeSubmit(session Session, key uint64, parent_index int32, kind int32
 	if parent_index >= 0 {
 		parent_generation = (((trees[slot]).Submitted).Data[parent_index]).IdentityGeneration
 		if node.AutoKey {
-			node.AutoOrdinal = (((trees[slot]).Submitted).Data[parent_index]).NextAutoOrdinal + 1
-			node.Key = uint64(node.AutoOrdinal)
+			value_5 := &(node.AutoOrdinal)
+			(*value_5) = (((trees[slot]).Submitted).Data[parent_index]).NextAutoOrdinal + 1
+			value_6 := &(node.Key)
+			(*value_6) = uint64(node.AutoOrdinal)
 		}
 		parent_clip := ((trees[slot]).Submitted).Data[parent_index]
 		if parent_clip.ClipsChildren {
-			node.Clip = parent_clip.ChildClip
-			node.Clipped = true
+			value_7 := &(node.Clip)
+			(*value_7) = parent_clip.ChildClip
+			value_8 := &(node.Clipped)
+			(*value_8) = true
 		} else if parent_clip.Clipped {
-			node.Clip = parent_clip.Clip
-			node.Clipped = true
+			value_9 := &(node.Clip)
+			(*value_9) = parent_clip.Clip
+			value_10 := &(node.Clipped)
+			(*value_10) = true
 		}
 	}
-	var value_2 bool = !node.AutoKey
-	if value_2 {
-		var value_3 bool = Tree_TreeExplicitExists(session, parent_generation, key)
-		value_2 = value_3
+	var value_11 bool = !node.AutoKey
+	if value_11 {
+		var value_12 bool = Tree_TreeExplicitExists(session, parent_generation, key)
+		value_11 = value_12
 	}
-	if value_2 {
+	if value_11 {
 		var attempt int32 = 0
 		derived := WidgetKey_WidgetRepeatedKey(key, attempt)
 		for {
-			var value_4 bool = attempt < 64
-			if value_4 {
-				var value_5 bool = Tree_TreeExplicitExists(session, parent_generation, derived)
-				value_4 = value_5
+			var value_13 bool = attempt < 64
+			if value_13 {
+				var value_14 bool = Tree_TreeExplicitExists(session, parent_generation, derived)
+				value_13 = value_14
 			}
-			if !value_4 { break }
+			if !value_13 { break }
 			attempt++
 			derived = WidgetKey_WidgetRepeatedKey(key, attempt)
 		}
 		if attempt >= 64 {
-			(trees[slot]).Error = FrameStatus(5)
-			(trees[slot]).ErrorKey = key
-			(trees[slot]).ErrorKind = kind
+			value_15 := &((trees[slot]).Error)
+			(*value_15) = FrameStatus(5)
+			value_16 := &((trees[slot]).ErrorKey)
+			(*value_16) = key
+			value_17 := &((trees[slot]).ErrorKind)
+			(*value_17) = kind
 			return -1
 		}
 		if (trees[slot]).RepeatedKey == 0 {
-			(trees[slot]).RepeatedKey = key
-			(trees[slot]).RepeatedKind = kind
+			value_18 := &((trees[slot]).RepeatedKey)
+			(*value_18) = key
+			value_19 := &((trees[slot]).RepeatedKind)
+			(*value_19) = kind
 		}
-		node.Key = derived
+		value_20 := &(node.Key)
+		(*value_20) = derived
 	}
-	node.Kind = kind
-	node.MeasuredBounds = bounds
+	value_21 := &(node.Kind)
+	(*value_21) = kind
+	value_22 := &(node.MeasuredBounds)
+	(*value_22) = bounds
 	if parent_index >= 0 && bounds.X == 0.0 && bounds.Y == 0.0 && (((trees[slot]).Submitted).Data[parent_index]).LayoutIndex >= 0 {
 		layout := ((trees[slot]).Layouts).Data[(((trees[slot]).Submitted).Data[parent_index]).LayoutIndex]
 		if layout.PlacesChildren {
 			var placement TreePlacement = layout.Placement
 			_ = placement
-			var value_6 TreePlacement = placement
-			node.Bounds = value_6(session, parent_index, bounds)
-			node.AutoPlaced = true
+			value_23 := &(node.Bounds)
+			var value_24 TreePlacement = placement
+			(*value_23) = value_24(session, parent_index, bounds)
+			value_25 := &(node.AutoPlaced)
+			(*value_25) = true
 		}
 	}
 	if !node.AutoPlaced {
-		node.Bounds = bounds
+		value_26 := &(node.Bounds)
+		(*value_26) = bounds
 	}
-	node.Parent = parent_index
+	value_27 := &(node.Parent)
+	(*value_27) = parent_index
 	if parent_index >= 0 {
 		last_sibling := (((trees[slot]).Submitted).Data[parent_index]).LastChild
-		node.SiblingOrdinal = 1
+		value_28 := &(node.SiblingOrdinal)
+		(*value_28) = 1
 		if last_sibling >= 0 {
-			node.SiblingOrdinal = (((trees[slot]).Submitted).Data[last_sibling]).SiblingOrdinal + 1
+			value_29 := &(node.SiblingOrdinal)
+			(*value_29) = (((trees[slot]).Submitted).Data[last_sibling]).SiblingOrdinal + 1
 		}
 	}
-	node.FirstChild = -1
-	node.LastChild = -1
-	node.NextSibling = -1
+	value_30 := &(node.FirstChild)
+	(*value_30) = -1
+	value_31 := &(node.LastChild)
+	(*value_31) = -1
+	value_32 := &(node.NextSibling)
+	(*value_32) = -1
 	old_index := Tree_TreeFindOld(session, parent_generation, node.Key, kind, node.AutoKey, node.AutoOrdinal)
 	if old_index != index {
-		(trees[slot]).IdentityOrderUnchanged = false
+		value_33 := &((trees[slot]).IdentityOrderUnchanged)
+		(*value_33) = false
 	}
 	if old_index >= 0 {
-		node.IdentityGeneration = (((trees[slot]).Committed).Data[old_index]).IdentityGeneration
+		value_34 := &(node.IdentityGeneration)
+		(*value_34) = (((trees[slot]).Committed).Data[old_index]).IdentityGeneration
 	} else {
 		if (trees[slot]).StagedIdentityGeneration == 18446744073709551615 {
-			(trees[slot]).Error = FrameStatus(7)
+			value_35 := &((trees[slot]).Error)
+			(*value_35) = FrameStatus(7)
 			return -1
 		}
-		(trees[slot]).StagedIdentityGeneration++
-		node.IdentityGeneration = (trees[slot]).StagedIdentityGeneration
+		value_36 := &((trees[slot]).StagedIdentityGeneration)
+		(*value_36)++
+		value_37 := &(node.IdentityGeneration)
+		(*value_37) = (trees[slot]).StagedIdentityGeneration
 	}
-	var value_7 NodeCore = node
-	var value_8 bool = false
-	(trees[slot]).Submitted.Data = append((trees[slot]).Submitted.Data[:(trees[slot]).Submitted.Count], value_7)
+	var value_38 NodeCore = node
+	var value_39 bool = false
+	(trees[slot]).Submitted.Data = append((trees[slot]).Submitted.Data[:(trees[slot]).Submitted.Count], value_38)
 	(trees[slot]).Submitted.Count = int64(len((trees[slot]).Submitted.Data))
 	(trees[slot]).Submitted.Capacity = int64(cap((trees[slot]).Submitted.Data))
-	value_8 = true
-	if !value_8 {
-		(trees[slot]).Error = FrameStatus(6)
+	value_39 = true
+	if !value_39 {
+		value_40 := &((trees[slot]).Error)
+		(*value_40) = FrameStatus(6)
 		return -1
 	}
 	if parent_index >= 0 {
 		if node.AutoKey {
-			(((trees[slot]).Submitted).Data[parent_index]).NextAutoOrdinal = node.AutoOrdinal
+			value_41 := &((((trees[slot]).Submitted).Data[parent_index]).NextAutoOrdinal)
+			(*value_41) = node.AutoOrdinal
 		}
 		last := (((trees[slot]).Submitted).Data[parent_index]).LastChild
 		if last < 0 {
-			(((trees[slot]).Submitted).Data[parent_index]).FirstChild = index
+			value_42 := &((((trees[slot]).Submitted).Data[parent_index]).FirstChild)
+			(*value_42) = index
 		} else {
-			(((trees[slot]).Submitted).Data[last]).NextSibling = index
+			value_43 := &((((trees[slot]).Submitted).Data[last]).NextSibling)
+			(*value_43) = index
 		}
-		(((trees[slot]).Submitted).Data[parent_index]).LastChild = index
+		value_44 := &((((trees[slot]).Submitted).Data[parent_index]).LastChild)
+		(*value_44) = index
 	}
 	if !node.AutoKey {
 		capacity := int32(((trees[slot]).NewSlots).Count)
@@ -1156,11 +1307,14 @@ func Tree_TreeSubmit(session Session, key uint64, parent_index int32, kind int32
 		for ((trees[slot]).NewSlots).Data[position] >= 0 {
 			position = (position + 1) & (capacity - 1)
 		}
-		((trees[slot]).NewSlots).Data[position] = index
+		value_45 := &(((trees[slot]).NewSlots).Data[position])
+		(*value_45) = index
 	}
-	(trees[slot]).SubmittedCount++
+	value_46 := &((trees[slot]).SubmittedCount)
+	(*value_46)++
 	if kind == 46 && index > 0 {
-		(trees[slot]).SubmittedModalLayer = index + 1
+		value_47 := &((trees[slot]).SubmittedModalLayer)
+		(*value_47) = index + 1
 	}
 	return index
 }
@@ -1174,11 +1328,16 @@ func Tree_TreeSetLayout(session Session, index int32, gap int32, padding int32, 
 	if layout < 0 {
 		return
 	}
-	(((trees[slot]).Layouts).Data[layout]).Gap = gap
-	(((trees[slot]).Layouts).Data[layout]).Padding = padding
-	(((trees[slot]).Layouts).Data[layout]).Columns = columns
-	(((trees[slot]).Layouts).Data[layout]).MinItemWidth = min_item_width
-	(((trees[slot]).Layouts).Data[layout]).MaxColumns = max_columns
+	value_0 := &((((trees[slot]).Layouts).Data[layout]).Gap)
+	(*value_0) = gap
+	value_1 := &((((trees[slot]).Layouts).Data[layout]).Padding)
+	(*value_1) = padding
+	value_2 := &((((trees[slot]).Layouts).Data[layout]).Columns)
+	(*value_2) = columns
+	value_3 := &((((trees[slot]).Layouts).Data[layout]).MinItemWidth)
+	(*value_3) = min_item_width
+	value_4 := &((((trees[slot]).Layouts).Data[layout]).MaxColumns)
+	(*value_4) = max_columns
 }
 
 func Tree_TreeSetPlacement(session Session, index int32, placement TreePlacement) {
@@ -1190,8 +1349,10 @@ func Tree_TreeSetPlacement(session Session, index int32, placement TreePlacement
 	if layout < 0 {
 		return
 	}
-	(((trees[slot]).Layouts).Data[layout]).Placement = placement
-	(((trees[slot]).Layouts).Data[layout]).PlacesChildren = true
+	value_0 := &((((trees[slot]).Layouts).Data[layout]).Placement)
+	(*value_0) = placement
+	value_1 := &((((trees[slot]).Layouts).Data[layout]).PlacesChildren)
+	(*value_1) = true
 }
 
 func Tree_TreeSetChildClip(session Session, index int32, bounds Rectangle) {
@@ -1200,12 +1361,15 @@ func Tree_TreeSetChildClip(session Session, index int32, bounds Rectangle) {
 		return
 	}
 	if (((trees[slot]).Submitted).Data[index]).Clipped {
-		var value_0 Rectangle = Geometry_RectangleIntersection(bounds, (((trees[slot]).Submitted).Data[index]).Clip)
-		(((trees[slot]).Submitted).Data[index]).ChildClip = value_0
+		value_0 := &((((trees[slot]).Submitted).Data[index]).ChildClip)
+		var value_1 Rectangle = Geometry_RectangleIntersection(bounds, (((trees[slot]).Submitted).Data[index]).Clip)
+		(*value_0) = value_1
 	} else {
-		(((trees[slot]).Submitted).Data[index]).ChildClip = bounds
+		value_2 := &((((trees[slot]).Submitted).Data[index]).ChildClip)
+		(*value_2) = bounds
 	}
-	(((trees[slot]).Submitted).Data[index]).ClipsChildren = true
+	value_3 := &((((trees[slot]).Submitted).Data[index]).ClipsChildren)
+	(*value_3) = true
 }
 
 func Tree_TreeSubmittedNodeAt(session Session, index int32) TreeEntry {
@@ -1286,8 +1450,10 @@ func Tree_TreeDefer(session Session, run TreeLate) bool {
 	var index int32 = 0
 	for index < 4 {
 		if !(tree_late[session.Slot][index]).Used {
-			(tree_late[session.Slot][index]).Run = run
-			(tree_late[session.Slot][index]).Used = true
+			value_1 := &((tree_late[session.Slot][index]).Run)
+			(*value_1) = run
+			value_2 := &((tree_late[session.Slot][index]).Used)
+			(*value_2) = true
 			return true
 		}
 		index++
@@ -1302,61 +1468,74 @@ func Tree_TreeFinish(session Session) bool {
 	}
 	slot := session.Slot
 	if !(trees[slot]).Building {
-		(trees[slot]).Error = FrameStatus(2)
+		value_1 := &((trees[slot]).Error)
+		(*value_1) = FrameStatus(2)
 		return false
 	}
 	var late int32 = 0
 	for late < 4 {
 		if (tree_late[slot][late]).Used {
-			(tree_late[slot][late]).Used = false
+			value_2 := &((tree_late[slot][late]).Used)
+			(*value_2) = false
 			if FrameStatus((trees[slot]).Error) == FrameStatus(0) && (trees[slot]).ScopeDepth == 1 {
 				var run TreeLate = (tree_late[slot][late]).Run
 				_ = run
-				var value_1 TreeLate = run
-				value_1(session)
+				var value_3 TreeLate = run
+				value_3(session)
 			}
 		}
 		late++
 	}
-	(trees[slot]).Building = false
+	value_4 := &((trees[slot]).Building)
+	(*value_4) = false
 	if (trees[slot]).ScopeDepth != 1 && FrameStatus((trees[slot]).Error) == FrameStatus(0) {
 		var pending int32 = 1
 		for pending < (trees[slot]).ScopeDepth {
 			pending_node := ((trees[slot]).Scope)[pending]
 			if pending_node >= 0 && pending_node < (trees[slot]).SubmittedCount {
-				(trees[slot]).ErrorKey = (((trees[slot]).Submitted).Data[pending_node]).Key
-				(trees[slot]).ErrorKind = (((trees[slot]).Submitted).Data[pending_node]).Kind
+				value_5 := &((trees[slot]).ErrorKey)
+				(*value_5) = (((trees[slot]).Submitted).Data[pending_node]).Key
+				value_6 := &((trees[slot]).ErrorKind)
+				(*value_6) = (((trees[slot]).Submitted).Data[pending_node]).Kind
 			}
 			pending++
 		}
-		(trees[slot]).Error = FrameStatus(4)
+		value_7 := &((trees[slot]).Error)
+		(*value_7) = FrameStatus(4)
 	}
 	if FrameStatus((trees[slot]).Error) != FrameStatus(0) || (trees[slot]).ScopeDepth != 1 {
-		(trees[slot]).ScopeDepth = 0
+		value_8 := &((trees[slot]).ScopeDepth)
+		(*value_8) = 0
 		return false
 	}
-	(trees[slot]).ScopeDepth = 0
-	var value_2 bool = (trees[slot]).IdentityIndexValid && (trees[slot]).IdentityOrderUnchanged && (trees[slot]).SubmittedCount == (trees[slot]).CommittedCount
-	(trees[slot]).IdentityIndexValid = value_2
-	var value_3 __type_ee79891e04412b8c = (trees[slot]).Committed
+	value_9 := &((trees[slot]).ScopeDepth)
+	(*value_9) = 0
+	value_10 := &((trees[slot]).IdentityIndexValid)
+	var value_11 bool = (trees[slot]).IdentityIndexValid && (trees[slot]).IdentityOrderUnchanged && (trees[slot]).SubmittedCount == (trees[slot]).CommittedCount
+	(*value_10) = value_11
+	var value_12 __type_ee79891e04412b8c = (trees[slot]).Committed
 	(trees[slot]).Committed = (trees[slot]).Submitted
-	(trees[slot]).Submitted = value_3
-	var value_4 __type_d2f67d864711b86f = (trees[slot]).CommittedSemantics
+	(trees[slot]).Submitted = value_12
+	var value_13 __type_d2f67d864711b86f = (trees[slot]).CommittedSemantics
 	(trees[slot]).CommittedSemantics = (trees[slot]).SubmittedSemantics
-	(trees[slot]).SubmittedSemantics = value_4
-	var value_5 __type_838711075b90279a = (trees[slot]).CommittedText
+	(trees[slot]).SubmittedSemantics = value_13
+	var value_14 __type_838711075b90279a = (trees[slot]).CommittedText
 	(trees[slot]).CommittedText = (trees[slot]).SubmittedText
-	(trees[slot]).SubmittedText = value_5
-	(trees[slot]).CommittedLabelBuffer = 1 - (trees[slot]).CommittedLabelBuffer
-	var value_6 __type_c3a937d4337fc935 = (trees[slot]).CommittedInteractions
+	(trees[slot]).SubmittedText = value_14
+	value_15 := &((trees[slot]).CommittedLabelBuffer)
+	(*value_15) = 1 - (trees[slot]).CommittedLabelBuffer
+	var value_16 __type_c3a937d4337fc935 = (trees[slot]).CommittedInteractions
 	(trees[slot]).CommittedInteractions = (trees[slot]).SubmittedInteractions
-	(trees[slot]).SubmittedInteractions = value_6
-	var value_7 __type_43317e71a82841f0 = (trees[slot]).CommittedStates
+	(trees[slot]).SubmittedInteractions = value_16
+	var value_17 __type_43317e71a82841f0 = (trees[slot]).CommittedStates
 	(trees[slot]).CommittedStates = (trees[slot]).SubmittedStates
-	(trees[slot]).SubmittedStates = value_7
-	(trees[slot]).CommittedCount = (trees[slot]).SubmittedCount
-	(trees[slot]).CommittedModalLayer = (trees[slot]).SubmittedModalLayer
-	(trees[slot]).NextIdentityGeneration = (trees[slot]).StagedIdentityGeneration
+	(trees[slot]).SubmittedStates = value_17
+	value_18 := &((trees[slot]).CommittedCount)
+	(*value_18) = (trees[slot]).SubmittedCount
+	value_19 := &((trees[slot]).CommittedModalLayer)
+	(*value_19) = (trees[slot]).SubmittedModalLayer
+	value_20 := &((trees[slot]).NextIdentityGeneration)
+	(*value_20) = (trees[slot]).StagedIdentityGeneration
 	Cursor_CursorHoverFrameCommit(session)
 	return true
 }
@@ -1460,15 +1639,18 @@ func Tree_TreeRootBounds(session Session) Rectangle {
 
 func Tree_TreeCancel(session Session) {
 	slot := Session_SessionIndex(session)
-	(trees[slot]).Building = false
+	value_0 := &((trees[slot]).Building)
+	(*value_0) = false
 	(trees[slot]).Submitted.Data = (trees[slot]).Submitted.Data[:0]
 	(trees[slot]).Submitted.Count = 0
 	(trees[slot]).SubmittedSemantics.Data = (trees[slot]).SubmittedSemantics.Data[:0]
 	(trees[slot]).SubmittedSemantics.Count = 0
 	(trees[slot]).SubmittedText.Data = (trees[slot]).SubmittedText.Data[:0]
 	(trees[slot]).SubmittedText.Count = 0
-	(trees[slot]).SubmittedLabelCount = 0
-	(trees[slot]).SubmittedLabelSpans = 0
+	value_1 := &((trees[slot]).SubmittedLabelCount)
+	(*value_1) = 0
+	value_2 := &((trees[slot]).SubmittedLabelSpans)
+	(*value_2) = 0
 	(trees[slot]).SubmittedLabelOverflow.Data = (trees[slot]).SubmittedLabelOverflow.Data[:0]
 	(trees[slot]).SubmittedLabelOverflow.Count = 0
 	(trees[slot]).SubmittedInteractions.Data = (trees[slot]).SubmittedInteractions.Data[:0]
@@ -1477,9 +1659,12 @@ func Tree_TreeCancel(session Session) {
 	(trees[slot]).SubmittedStates.Count = 0
 	(trees[slot]).Layouts.Data = (trees[slot]).Layouts.Data[:0]
 	(trees[slot]).Layouts.Count = 0
-	(trees[slot]).SubmittedCount = 0
-	(trees[slot]).ScopeDepth = 0
-	(trees[slot]).Error = FrameStatus(0)
+	value_3 := &((trees[slot]).SubmittedCount)
+	(*value_3) = 0
+	value_4 := &((trees[slot]).ScopeDepth)
+	(*value_4) = 0
+	value_5 := &((trees[slot]).Error)
+	(*value_5) = FrameStatus(0)
 }
 
 func Tree_TreeNodeAt(session Session, index int32) TreeEntry {
@@ -1524,8 +1709,10 @@ func Tree_TreeSetPopup(session Session, index int32) {
 	if !(trees[slot]).Building || index < 0 || index >= (trees[slot]).SubmittedCount {
 		return
 	}
-	(((trees[slot]).Submitted).Data[index]).Popup = true
-	(((trees[slot]).Submitted).Data[index]).Clipped = false
+	value_0 := &((((trees[slot]).Submitted).Data[index]).Popup)
+	(*value_0) = true
+	value_1 := &((((trees[slot]).Submitted).Data[index]).Clipped)
+	(*value_1) = false
 }
 
 func Tree_TreeSetWheelScrolls(session Session, index int32, scrolls bool) {
@@ -1533,7 +1720,8 @@ func Tree_TreeSetWheelScrolls(session Session, index int32, scrolls bool) {
 	if !(trees[slot]).Building || index < 0 || index >= (trees[slot]).SubmittedCount {
 		return
 	}
-	(((trees[slot]).Submitted).Data[index]).WheelScrolls = scrolls
+	value_0 := &((((trees[slot]).Submitted).Data[index]).WheelScrolls)
+	(*value_0) = scrolls
 }
 
 func Tree_TreeSetDragScrolls(session Session, index int32, scrolls bool) {
@@ -1541,7 +1729,8 @@ func Tree_TreeSetDragScrolls(session Session, index int32, scrolls bool) {
 	if !(trees[slot]).Building || index < 0 || index >= (trees[slot]).SubmittedCount {
 		return
 	}
-	(((trees[slot]).Submitted).Data[index]).DragScrolls = scrolls
+	value_0 := &((((trees[slot]).Submitted).Data[index]).DragScrolls)
+	(*value_0) = scrolls
 }
 
 func Tree_TreeTextRange(session Session, index int32, first int32, last int32, output []uint8) string {
@@ -1565,8 +1754,9 @@ func Tree_TreeTextRange(session Session, index int32, first int32, last int32, o
 	}
 	var ziran_keyword_byte_0 int32 = 0
 	for ziran_keyword_byte_0 < last - first {
-		var value_3 uint8 = ((trees[slot]).CommittedText).Data[((data.TextOffset + int64(first)) + int64(ziran_keyword_byte_0))]
-		output[ziran_keyword_byte_0] = value_3
+		value_3 := &(output[ziran_keyword_byte_0])
+		var value_4 uint8 = ((trees[slot]).CommittedText).Data[((data.TextOffset + int64(first)) + int64(ziran_keyword_byte_0))]
+		(*value_3) = value_4
 		ziran_keyword_byte_0++
 	}
 	if int64(0) < 0 || int64(ziran_keyword_byte_0) < int64(0) || int64(ziran_keyword_byte_0) > int64(len(output)) {
@@ -1595,20 +1785,29 @@ func Tree_TreeSetTextValue(session Session, index int32, value string, cursor in
 			(trees[slot]).SubmittedText.Capacity = int64(cap((trees[slot]).SubmittedText.Data))
 			value_1 = true
 			if !value_1 {
-				(trees[slot]).Error = FrameStatus(6)
+				value_2 := &((trees[slot]).Error)
+				(*value_2) = FrameStatus(6)
 				return
 			}
 			ziran_keyword_byte_0++
 		}
 	}
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).HasText = true
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).TextOffset = start
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).TextLength = ((trees[slot]).SubmittedText).Count - start
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).TextBytes = int32(int64(len(value)))
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).TextCursor = cursor
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).TextAnchor = anchor
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).ReadOnly = read_only
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).Secure = secure
+	value_3 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).HasText)
+	(*value_3) = true
+	value_4 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).TextOffset)
+	(*value_4) = start
+	value_5 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).TextLength)
+	(*value_5) = ((trees[slot]).SubmittedText).Count - start
+	value_6 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).TextBytes)
+	(*value_6) = int32(int64(len(value)))
+	value_7 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).TextCursor)
+	(*value_7) = cursor
+	value_8 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).TextAnchor)
+	(*value_8) = anchor
+	value_9 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).ReadOnly)
+	(*value_9) = read_only
+	value_10 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).Secure)
+	(*value_10) = secure
 }
 
 func Tree_TreeLabelSpanAt(slot int32, index int64) LabelSpan {
@@ -1620,9 +1819,11 @@ func Tree_TreeLabelSpanAt(slot int32, index int64) LabelSpan {
 
 func Tree_TreeSetLabelSpan(slot int32, index int64, span LabelSpan) {
 	if index < 64 {
-		((trees[slot]).SubmittedLabels)[index] = span
+		value_0 := &(((trees[slot]).SubmittedLabels)[index])
+		(*value_0) = span
 	} else {
-		((trees[slot]).SubmittedLabelOverflow).Data[(index - 64)] = span
+		value_1 := &(((trees[slot]).SubmittedLabelOverflow).Data[(index - 64)])
+		(*value_1) = span
 	}
 }
 
@@ -1631,7 +1832,8 @@ func Tree_TreeStoreLabel(slot int32, value string) int64 {
 		return 0
 	}
 	if int64(len(value)) > 65536 {
-		(trees[slot]).Error = FrameStatus(6)
+		value_0 := &((trees[slot]).Error)
+		(*value_0) = FrameStatus(6)
 		return -1
 	}
 	var buffer int32 = 1 - (trees[slot]).CommittedLabelBuffer
@@ -1654,8 +1856,8 @@ func Tree_TreeStoreLabel(slot int32, value string) int64 {
 		if span.Length == uint32(int64(len(value))) {
 			before = span.Prefix < prefix
 			if span.Prefix == prefix {
-				var value_0 int64 = int64(span.Offset) + int64(span.Length)
-				stored := string(((trees[slot]).Labels)[buffer][span.Offset:value_0:value_0])
+				var value_1 int64 = int64(span.Offset) + int64(span.Length)
+				stored := string(((trees[slot]).Labels)[buffer][span.Offset:value_1:value_1])
 				if stored == value {
 					return int64(span.Offset)
 				}
@@ -1674,24 +1876,26 @@ func Tree_TreeStoreLabel(slot int32, value string) int64 {
 	}
 	start := (trees[slot]).SubmittedLabelCount
 	if int64(len(value)) > 65536 - start {
-		(trees[slot]).Error = FrameStatus(6)
+		value_2 := &((trees[slot]).Error)
+		(*value_2) = FrameStatus(6)
 		return -1
 	}
 	span := LabelSpan{Offset: uint32(start), Length: uint32(int64(len(value))), Prefix: prefix}
 	_ = span
-	var value_1 bool = (trees[slot]).SubmittedLabelSpans >= 64
-	var value_2 bool = value_1
-	if value_2 {
-		var value_3 LabelSpan = span
-		var value_4 bool = false
-		(trees[slot]).SubmittedLabelOverflow.Data = append((trees[slot]).SubmittedLabelOverflow.Data[:(trees[slot]).SubmittedLabelOverflow.Count], value_3)
+	var value_3 bool = (trees[slot]).SubmittedLabelSpans >= 64
+	var value_4 bool = value_3
+	if value_4 {
+		var value_5 LabelSpan = span
+		var value_6 bool = false
+		(trees[slot]).SubmittedLabelOverflow.Data = append((trees[slot]).SubmittedLabelOverflow.Data[:(trees[slot]).SubmittedLabelOverflow.Count], value_5)
 		(trees[slot]).SubmittedLabelOverflow.Count = int64(len((trees[slot]).SubmittedLabelOverflow.Data))
 		(trees[slot]).SubmittedLabelOverflow.Capacity = int64(cap((trees[slot]).SubmittedLabelOverflow.Data))
-		value_4 = true
-		value_2 = !value_4
+		value_6 = true
+		value_4 = !value_6
 	}
-	if value_2 {
-		(trees[slot]).Error = FrameStatus(6)
+	if value_4 {
+		value_7 := &((trees[slot]).Error)
+		(*value_7) = FrameStatus(6)
 		return -1
 	}
 	at := (trees[slot]).SubmittedLabelSpans
@@ -1700,13 +1904,16 @@ func Tree_TreeStoreLabel(slot int32, value string) int64 {
 		at--
 	}
 	Tree_TreeSetLabelSpan(slot, low, span)
-	(trees[slot]).SubmittedLabelSpans++
+	value_8 := &((trees[slot]).SubmittedLabelSpans)
+	(*value_8)++
 	ziran_keyword_byte_0 = 0
 	for ziran_keyword_byte_0 < int64(len(value)) {
-		(((trees[slot]).Labels)[buffer])[(start + ziran_keyword_byte_0)] = value[ziran_keyword_byte_0]
+		value_9 := &((((trees[slot]).Labels)[buffer])[(start + ziran_keyword_byte_0)])
+		(*value_9) = value[ziran_keyword_byte_0]
 		ziran_keyword_byte_0++
 	}
-	(trees[slot]).SubmittedLabelCount = start + ziran_keyword_byte_0
+	value_10 := &((trees[slot]).SubmittedLabelCount)
+	(*value_10) = start + ziran_keyword_byte_0
 	return start
 }
 
@@ -1723,8 +1930,10 @@ func Tree_TreeSetLabel(session Session, index int32, label string) {
 	if start < 0 {
 		return
 	}
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).LabelOffset = start
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).LabelLength = int64(len(label))
+	value_0 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).LabelOffset)
+	(*value_0) = start
+	value_1 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).LabelLength)
+	(*value_1) = int64(len(label))
 }
 
 func Tree_TreeSetSemanticDetail(session Session, index int32, detail string) {
@@ -1740,8 +1949,10 @@ func Tree_TreeSetSemanticDetail(session Session, index int32, detail string) {
 	if start < 0 {
 		return
 	}
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).DetailOffset = start
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).DetailLength = int64(len(detail))
+	value_0 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).DetailOffset)
+	(*value_0) = start
+	value_1 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).DetailLength)
+	(*value_1) = int64(len(detail))
 }
 
 func Tree_TreeSetSemantic(session Session, index int32, kind SemanticKind, heading_level int32) {
@@ -1763,8 +1974,10 @@ func Tree_TreeSetSemantic(session Session, index int32, kind SemanticKind, headi
 	if semantic < 0 {
 		return
 	}
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).Kind = kind
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).HeadingLevel = heading_level
+	value_0 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).Kind)
+	(*value_0) = kind
+	value_1 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).HeadingLevel)
+	(*value_1) = heading_level
 }
 
 func Tree_TreeSetInteractive(session Session, index int32, disabled bool, loading bool, focus_id int32) {
@@ -1776,9 +1989,12 @@ func Tree_TreeSetInteractive(session Session, index int32, disabled bool, loadin
 	if interaction < 0 {
 		return
 	}
-	(((trees[slot]).SubmittedInteractions).Data[interaction]).Disabled = disabled
-	(((trees[slot]).SubmittedInteractions).Data[interaction]).Loading = loading
-	(((trees[slot]).SubmittedInteractions).Data[interaction]).FocusID = focus_id
+	value_0 := &((((trees[slot]).SubmittedInteractions).Data[interaction]).Disabled)
+	(*value_0) = disabled
+	value_1 := &((((trees[slot]).SubmittedInteractions).Data[interaction]).Loading)
+	(*value_1) = loading
+	value_2 := &((((trees[slot]).SubmittedInteractions).Data[interaction]).FocusID)
+	(*value_2) = focus_id
 }
 
 func Tree_TreeSetCaptureTab(session Session, index int32, capture bool) {
@@ -1792,7 +2008,8 @@ func Tree_TreeSetCaptureTab(session Session, index int32, capture bool) {
 	}
 	interaction := Tree_TreeEnsureInteraction(session, index)
 	if interaction >= 0 {
-		(((trees[slot]).SubmittedInteractions).Data[interaction]).CaptureTab = capture
+		value_1 := &((((trees[slot]).SubmittedInteractions).Data[interaction]).CaptureTab)
+		(*value_1) = capture
 	}
 }
 
@@ -1803,21 +2020,24 @@ func Tree_TreeSetWidgetState(session Session, index int32, state WidgetState) {
 	}
 	existing := (((trees[slot]).Submitted).Data[index]).StateIndex
 	if existing >= 0 {
-		((trees[slot]).SubmittedStates).Data[existing] = state
+		value_0 := &(((trees[slot]).SubmittedStates).Data[existing])
+		(*value_0) = state
 		return
 	}
 	next := int32(((trees[slot]).SubmittedStates).Count)
-	var value_0 WidgetState = state
-	var value_1 bool = false
-	(trees[slot]).SubmittedStates.Data = append((trees[slot]).SubmittedStates.Data[:(trees[slot]).SubmittedStates.Count], value_0)
+	var value_1 WidgetState = state
+	var value_2 bool = false
+	(trees[slot]).SubmittedStates.Data = append((trees[slot]).SubmittedStates.Data[:(trees[slot]).SubmittedStates.Count], value_1)
 	(trees[slot]).SubmittedStates.Count = int64(len((trees[slot]).SubmittedStates.Data))
 	(trees[slot]).SubmittedStates.Capacity = int64(cap((trees[slot]).SubmittedStates.Data))
-	value_1 = true
-	if !value_1 {
-		(trees[slot]).Error = FrameStatus(6)
+	value_2 = true
+	if !value_2 {
+		value_3 := &((trees[slot]).Error)
+		(*value_3) = FrameStatus(6)
 		return
 	}
-	(((trees[slot]).Submitted).Data[index]).StateIndex = next
+	value_4 := &((((trees[slot]).Submitted).Data[index]).StateIndex)
+	(*value_4) = next
 }
 
 func Tree_TreePreviousWidgetState(session Session, index int32) WidgetState {
@@ -1842,7 +2062,8 @@ func Tree_TreeSetDragCapture(session Session, index int32, captures_drag bool) {
 	if interaction < 0 {
 		return
 	}
-	(((trees[slot]).SubmittedInteractions).Data[interaction]).CapturesDrag = captures_drag
+	value_0 := &((((trees[slot]).SubmittedInteractions).Data[interaction]).CapturesDrag)
+	(*value_0) = captures_drag
 }
 
 func Tree_TreeSetCursor(session Session, index int32, shape int32) {
@@ -1857,7 +2078,8 @@ func Tree_TreeSetCursor(session Session, index int32, shape int32) {
 	if shape < 0 || shape > 10 {
 		shape = 0
 	}
-	(((trees[slot]).SubmittedInteractions).Data[interaction]).Cursor = shape
+	value_0 := &((((trees[slot]).SubmittedInteractions).Data[interaction]).Cursor)
+	(*value_0) = shape
 }
 
 func Tree_TreeSetCircleHit(session Session, index int32, circle_hit bool) {
@@ -1869,7 +2091,8 @@ func Tree_TreeSetCircleHit(session Session, index int32, circle_hit bool) {
 	if interaction < 0 {
 		return
 	}
-	(((trees[slot]).SubmittedInteractions).Data[interaction]).CircleHit = circle_hit
+	value_0 := &((((trees[slot]).SubmittedInteractions).Data[interaction]).CircleHit)
+	(*value_0) = circle_hit
 }
 
 func Tree_TreeSetSelected(session Session, index int32, selected bool) {
@@ -1881,7 +2104,8 @@ func Tree_TreeSetSelected(session Session, index int32, selected bool) {
 	if semantic < 0 {
 		return
 	}
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).Selected = selected
+	value_0 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).Selected)
+	(*value_0) = selected
 }
 
 func Tree_TreeSetHiddenLines(session Session, index int32, hidden_lines int32) {
@@ -1893,7 +2117,8 @@ func Tree_TreeSetHiddenLines(session Session, index int32, hidden_lines int32) {
 	if semantic < 0 {
 		return
 	}
-	(((trees[slot]).SubmittedSemantics).Data[semantic]).HiddenLines = hidden_lines
+	value_0 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).HiddenLines)
+	(*value_0) = hidden_lines
 }
 
 func Tree_TreeChild(session Session, parent_index int32, key uint64, kind int32) int32 {
@@ -1940,7 +2165,8 @@ func Tree_TreeDispose(session Session) {
 	(trees[slot]).SubmittedLabelOverflow.Data = nil
 	(trees[slot]).SubmittedLabelOverflow.Capacity = 0
 	(trees[slot]).SubmittedLabelOverflow.Count = 0
-	(trees[slot]).SubmittedLabelSpans = 0
+	value_1 := &((trees[slot]).SubmittedLabelSpans)
+	(*value_1) = 0
 	(trees[slot]).CommittedInteractions.Data = nil
 	(trees[slot]).CommittedInteractions.Capacity = 0
 	(trees[slot]).CommittedInteractions.Count = 0
@@ -1962,16 +2188,26 @@ func Tree_TreeDispose(session Session) {
 	(trees[slot]).NewSlots.Data = nil
 	(trees[slot]).NewSlots.Capacity = 0
 	(trees[slot]).NewSlots.Count = 0
-	(trees[slot]).ScopeDepth = 0
-	(trees[slot]).CommittedCount = 0
-	(trees[slot]).SubmittedCount = 0
-	(trees[slot]).CommittedModalLayer = 0
-	(trees[slot]).SubmittedModalLayer = 0
-	(trees[slot]).NextIdentityGeneration = 0
-	(trees[slot]).StagedIdentityGeneration = 0
-	(trees[slot]).IdentityIndexValid = false
-	(trees[slot]).IdentityOrderUnchanged = false
-	(trees[slot]).Building = false
+	value_2 := &((trees[slot]).ScopeDepth)
+	(*value_2) = 0
+	value_3 := &((trees[slot]).CommittedCount)
+	(*value_3) = 0
+	value_4 := &((trees[slot]).SubmittedCount)
+	(*value_4) = 0
+	value_5 := &((trees[slot]).CommittedModalLayer)
+	(*value_5) = 0
+	value_6 := &((trees[slot]).SubmittedModalLayer)
+	(*value_6) = 0
+	value_7 := &((trees[slot]).NextIdentityGeneration)
+	(*value_7) = 0
+	value_8 := &((trees[slot]).StagedIdentityGeneration)
+	(*value_8) = 0
+	value_9 := &((trees[slot]).IdentityIndexValid)
+	(*value_9) = false
+	value_10 := &((trees[slot]).IdentityOrderUnchanged)
+	(*value_10) = false
+	value_11 := &((trees[slot]).Building)
+	(*value_11) = false
 }
 
 func Tree_TreeSetStyleClass(session Session, index int32, style_class int32) {
@@ -1981,7 +2217,8 @@ func Tree_TreeSetStyleClass(session Session, index int32, style_class int32) {
 	}
 	semantic := Tree_TreeEnsureSemantic(session, index)
 	if semantic >= 0 {
-		(((trees[slot]).SubmittedSemantics).Data[semantic]).StyleClass = style_class
+		value_0 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).StyleClass)
+		(*value_0) = style_class
 	}
 }
 
@@ -1992,6 +2229,7 @@ func Tree_TreeSetStyleId(session Session, index int32, style_id int32) {
 	}
 	semantic := Tree_TreeEnsureSemantic(session, index)
 	if semantic >= 0 {
-		(((trees[slot]).SubmittedSemantics).Data[semantic]).StyleId = style_id
+		value_0 := &((((trees[slot]).SubmittedSemantics).Data[semantic]).StyleId)
+		(*value_0) = style_id
 	}
 }

@@ -30,7 +30,6 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 #include "drawing_props.h"
 #include "control_props.h"
 #include "geometry.h"
-#include "image_props.h"
 #include "image_behavior.h"
 #include "paint_texture.h"
 #include "raster.h"
@@ -68,7 +67,8 @@ paint_queue_KeepShortPaintBytes(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))) = (uint8_t)value.data[at];
+            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
             }
@@ -76,7 +76,8 @@ paint_queue_KeepShortPaintBytes(int32_t slot, String value)
         }
     }
     paint_queue___zi_spec_27099373fae5fe98(&(ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)));
-    kept.start = (int32_t)((uint32_t)(0u - (uint32_t)(kept.start)) - 1u);
+    int32_t* value_1 = &(kept.start);
+    (*value_1) = (int32_t)((uint32_t)(0u - (uint32_t)(kept.start)) - 1u);
     return kept;
 }
 
@@ -92,7 +93,8 @@ paint_queue_KeepMediumPaintBytes(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))) = (uint8_t)value.data[at];
+            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
             }
@@ -100,7 +102,8 @@ paint_queue_KeepMediumPaintBytes(int32_t slot, String value)
         }
     }
     paint_queue___zi_spec_17277838aa4fe0e7(&(ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)));
-    kept.start = (int32_t)(((uint32_t)(0u - (uint32_t)(kept.start)) - 256u) - 1u);
+    int32_t* value_1 = &(kept.start);
+    (*value_1) = (int32_t)(((uint32_t)(0u - (uint32_t)(kept.start)) - 256u) - 1u);
     return kept;
 }
 
@@ -116,7 +119,8 @@ paint_queue_KeepLongPaintBytes(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))) = (uint8_t)value.data[at];
+            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
             }
@@ -139,7 +143,8 @@ paint_queue_KeepPaintBytes(int32_t slot, String value)
     if ((int64_t)(value).length <= 32768LL) {
         return paint_queue_KeepLongPaintBytes(slot, value);
     }
-    (ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow = true;
+    bool* value_0 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+    (*value_0) = true;
     PaintTextRange invalid = {0};
     return invalid;
 }
@@ -177,10 +182,14 @@ paint_queue_KeepPaintText(int32_t slot, PaintCommand* data, String value)
     if (!retained.valid) {
         return;
     }
-    data->text_start = (int64_t)(retained.start);
-    data->text_count = (int64_t)(value).length;
-    data->text_block = retained.block;
-    data->owns_text = true;
+    int64_t* value_0 = &(data->text_start);
+    (*value_0) = (int64_t)(retained.start);
+    int64_t* value_1 = &(data->text_count);
+    (*value_1) = (int64_t)(value).length;
+    int32_t* value_2 = &(data->text_block);
+    (*value_2) = retained.block;
+    bool* value_3 = &(data->owns_text);
+    (*value_3) = true;
 }
 
 void
@@ -193,24 +202,32 @@ paint_queue_KeepPaintAsset(int32_t slot, PaintCommand* data, String path)
     if (!retained.valid) {
         return;
     }
-    data->asset_start = (int64_t)(retained.start);
-    data->asset_count = (int64_t)(path).length;
-    data->asset_block = retained.block;
-    data->owns_asset = true;
+    int64_t* value_0 = &(data->asset_start);
+    (*value_0) = (int64_t)(retained.start);
+    int64_t* value_1 = &(data->asset_count);
+    (*value_1) = (int64_t)(path).length;
+    int32_t* value_2 = &(data->asset_block);
+    (*value_2) = retained.block;
+    bool* value_3 = &(data->owns_asset);
+    (*value_3) = true;
 }
 
 void
 paint_queue_ResolvePaintText(int32_t slot, PaintCommand* data)
 {
-    data->value = StringLiteral("");
-    data->asset_path = StringLiteral("");
+    String* value_0 = &(data->value);
+    (*value_0) = StringLiteral("");
+    String* value_1 = &(data->asset_path);
+    (*value_1) = StringLiteral("");
     if (data->owns_text) {
-        String value_0 = paint_queue_PendingTextValue(slot, data->text_block, data->text_start, data->text_count);
-        data->value = value_0;
+        String* value_2 = &(data->value);
+        String value_3 = paint_queue_PendingTextValue(slot, data->text_block, data->text_start, data->text_count);
+        (*value_2) = value_3;
     }
     if (data->owns_asset) {
-        String value_1 = paint_queue_PendingTextValue(slot, data->asset_block, data->asset_start, data->asset_count);
-        data->asset_path = value_1;
+        String* value_4 = &(data->asset_path);
+        String value_5 = paint_queue_PendingTextValue(slot, data->asset_block, data->asset_start, data->asset_count);
+        (*value_4) = value_5;
     }
 }
 
@@ -258,12 +275,14 @@ paint_queue_EmitPaintNow(QueuedPaint command, String value, String asset)
         (*value_0).count = 0;
         return;
     }
-    Slice value_6 = {(copy).data, (copy).count};
-    Slice value_7 = SliceRange(value_6, 0LL, (int64_t)(value).length, sizeof(*(copy).data));
-    command.data.value = StringView((const char *)(value_7).data, (size_t)(value_7).length);
-    Slice value_8 = {(copy).data, (copy).count};
-    Slice value_9 = SliceRange(value_8, (int64_t)(value).length, copy.count, sizeof(*(copy).data));
-    command.data.asset_path = StringView((const char *)(value_9).data, (size_t)(value_9).length);
+    String* value_6 = &(command.data.value);
+    Slice value_7 = {(copy).data, (copy).count};
+    Slice value_8 = SliceRange(value_7, 0LL, (int64_t)(value).length, sizeof(*(copy).data));
+    (*value_6) = StringView((const char *)(value_8).data, (size_t)(value_8).length);
+    String* value_9 = &(command.data.asset_path);
+    Slice value_10 = {(copy).data, (copy).count};
+    Slice value_11 = SliceRange(value_10, (int64_t)(value).length, copy.count, sizeof(*(copy).data));
+    (*value_9) = StringView((const char *)(value_11).data, (size_t)(value_11).length);
     EmitPaint(command);
     free((copy).data);
     (copy).data = NULL;
@@ -349,15 +368,22 @@ paint_queue_KeepMeshPoints(__type_d590da4570cbd205* blocks, Slice points, int64_
     int32_t at = 0;
     while ((int64_t)(at) < count) {
         Vector2 point = ((Vector2 *)points.data)[SliceIndex(points, (int64_t)at)];
-        point.x = point.x + dx;
-        point.y = point.y + dy;
-        ZIRAN_INDEX(block->points, sizeof(block->points) / sizeof(block->points[0]), ((int32_t)((uint32_t)start + (uint32_t)at))) = point;
+        float* value_6 = &(point.x);
+        (*value_6) = (*value_6) + dx;
+        float* value_7 = &(point.y);
+        (*value_7) = (*value_7) + dy;
+        Vector2* value_8 = &(ZIRAN_INDEX(block->points, sizeof(block->points) / sizeof(block->points[0]), ((int32_t)((uint32_t)start + (uint32_t)at))));
+        (*value_8) = point;
         at = (int32_t)((uint32_t)at + 1u);
     }
-    block->count = (int32_t)((uint32_t)start + (uint32_t)at);
-    result.block = block_index;
-    result.start = start;
-    result.valid = true;
+    int32_t* value_9 = &(block->count);
+    (*value_9) = (int32_t)((uint32_t)start + (uint32_t)at);
+    int32_t* value_10 = &(result.block);
+    (*value_10) = block_index;
+    int32_t* value_11 = &(result.start);
+    (*value_11) = start;
+    bool* value_12 = &(result.valid);
+    (*value_12) = true;
     return result;
 }
 
@@ -374,12 +400,16 @@ paint_queue_KeepPaintMesh(int32_t slot, PaintCommand* data, float dx, float dy)
     }
     PaintMeshRange kept = paint_queue_KeepMeshPoints(&(ZIRAN_INDEX(pending_mesh, sizeof(pending_mesh) / sizeof(pending_mesh[0]), slot)), data->mesh_points, count, dx, dy);
     if (!kept.valid) {
-        (ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow = true;
+        bool* value_0 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+        (*value_0) = true;
         return;
     }
-    data->mesh_block = kept.block;
-    data->mesh_start = kept.start;
-    data->owns_mesh = true;
+    int32_t* value_1 = &(data->mesh_block);
+    (*value_1) = kept.block;
+    int32_t* value_2 = &(data->mesh_start);
+    (*value_2) = kept.start;
+    bool* value_3 = &(data->owns_mesh);
+    (*value_3) = true;
 }
 
 void
@@ -649,8 +679,10 @@ paint_queue_EmitLine(PaintCommand command)
             if (x1 <= x0) {
                 return;
             }
-            line.x = x0;
-            line.width = x1 - x0;
+            float* value_0 = &(line.x);
+            (*value_0) = x0;
+            float* value_1 = &(line.width);
+            (*value_1) = x1 - x0;
         } else {
             if (line.x < clip.x || line.x > clip.x + clip.width) {
                 return;
@@ -666,8 +698,10 @@ paint_queue_EmitLine(PaintCommand command)
             if (y1 <= y0) {
                 return;
             }
-            line.y = y0;
-            line.height = y1 - y0;
+            float* value_2 = &(line.y);
+            (*value_2) = y0;
+            float* value_3 = &(line.height);
+            (*value_3) = y1 - y0;
         }
         StrokeLine(line, command.color);
         return;
@@ -759,10 +793,11 @@ paint_queue_EmitImage(PaintCommand command)
         } else {
             RasterImage(command.asset_path, command.texture_id, command.source, command.bounds, command.clip, command.origin, command.rotation, command.radius, command.color);
         }
-        emitting_texture.id = 0;
+        uint32_t* value_4 = &(emitting_texture.id);
+        (*value_4) = 0;
         emitting_smooth = false;
-        Slice value_4 = emitting_image_polygon;
-        emitting_image_polygon = SliceRange(value_4, (int64_t)0, (int64_t)0LL, sizeof(Vector2));
+        Slice value_5 = emitting_image_polygon;
+        emitting_image_polygon = SliceRange(value_5, (int64_t)0, (int64_t)0LL, sizeof(Vector2));
     }
 }
 
@@ -770,15 +805,20 @@ PaintCommand
 paint_queue_ClipLabel(PaintCommand command, NodeGeometry geometry)
 {
     if (command.rotation != ((float)0.0)) {
-        command.text_outer_clip = geometry.clip;
-        command.text_outer_clipped = true;
+        Rectangle* value_0 = &(command.text_outer_clip);
+        (*value_0) = geometry.clip;
+        bool* value_1 = &(command.text_outer_clipped);
+        (*value_1) = true;
         return command;
     }
     if (command.kind == 4) {
-        command.kind = 6;
-        command.clip = geometry.clip;
+        int32_t* value_2 = &(command.kind);
+        (*value_2) = 6;
+        Rectangle* value_3 = &(command.clip);
+        (*value_3) = geometry.clip;
     } else {
-        command.clip = RectangleIntersection(command.clip, geometry.clip);
+        Rectangle* value_4 = &(command.clip);
+        (*value_4) = RectangleIntersection(command.clip, geometry.clip);
     }
     return command;
 }
@@ -787,10 +827,13 @@ PaintCommand
 paint_queue_ClipShape(PaintCommand command, NodeGeometry geometry)
 {
     if (command.clip_set) {
-        command.clip = RectangleIntersection(command.clip, geometry.clip);
+        Rectangle* value_0 = &(command.clip);
+        (*value_0) = RectangleIntersection(command.clip, geometry.clip);
     } else {
-        command.clip = geometry.clip;
-        command.clip_set = true;
+        Rectangle* value_1 = &(command.clip);
+        (*value_1) = geometry.clip;
+        bool* value_2 = &(command.clip_set);
+        (*value_2) = true;
     }
     return command;
 }
@@ -798,23 +841,27 @@ paint_queue_ClipShape(PaintCommand command, NodeGeometry geometry)
 PaintCommand
 paint_queue_ClipImage(PaintCommand command, NodeGeometry geometry)
 {
-    command.clip = RectangleIntersection(command.clip, geometry.clip);
+    Rectangle* value_0 = &(command.clip);
+    (*value_0) = RectangleIntersection(command.clip, geometry.clip);
     return command;
 }
 
 void
 paint_queue_QueuePaint(Session session, QueuedPaint* command, String value, String asset)
 {
-    command->data.owns_text = false;
-    command->data.owns_asset = false;
-    command->data.owns_mesh = false;
-    bool value_0 = command->data.node < 0;
-    bool value_1 = value_0;
-    if (value_1) {
-        bool value_2 = TreeIsBuilding(session);
-        value_1 = !value_2;
+    bool* value_0 = &(command->data.owns_text);
+    (*value_0) = false;
+    bool* value_1 = &(command->data.owns_asset);
+    (*value_1) = false;
+    bool* value_2 = &(command->data.owns_mesh);
+    (*value_2) = false;
+    bool value_3 = command->data.node < 0;
+    bool value_4 = value_3;
+    if (value_4) {
+        bool value_5 = TreeIsBuilding(session);
+        value_4 = !value_5;
     }
-    if (value_1) {
+    if (value_4) {
         paint_queue_EmitPaintNow(*(command), value, asset);
         return;
     }
@@ -822,136 +869,168 @@ paint_queue_QueuePaint(Session session, QueuedPaint* command, String value, Stri
     if (layer_node < 0) {
         layer_node = TreeCurrentParent(session);
     }
-    Session value_3 = session;
-    int32_t value_4 = layer_node;
-    bool value_5 = TreeIsBuilding(session);
-    int32_t value_6 = TreeOverlayLayerAt(value_3, value_4, !value_5);
-    command->data.overlay_layer = value_6;
+    int32_t* value_6 = &(command->data.overlay_layer);
+    Session value_7 = session;
+    int32_t value_8 = layer_node;
+    bool value_9 = TreeIsBuilding(session);
+    int32_t value_10 = TreeOverlayLayerAt(value_7, value_8, !value_9);
+    (*value_6) = value_10;
     int32_t slot = SessionIndex(session);
     if (command->data.overlay_layer > 0) {
-        (pending_paint[slot]).overlays = true;
+        bool* value_11 = &((pending_paint[slot]).overlays);
+        (*value_11) = true;
     }
-    (pending_paint[slot]).ordered = false;
-    int32_t value_7 = slot;
-    PaintCommand* value_8 = &(command->data);
-    String value_9 = value;
+    bool* value_12 = &((pending_paint[slot]).ordered);
+    (*value_12) = false;
+    int32_t value_13 = slot;
+    PaintCommand* value_14 = &(command->data);
+    String value_15 = value;
     {
-        int32_t slot = value_7;
-        PaintCommand* data = value_8;
-        String value = value_9;
+        int32_t slot = value_13;
+        PaintCommand* data = value_14;
+        String value = value_15;
         if ((int64_t)(value).length == 0LL) {
-            goto value_10;
+            goto value_16;
         }
         PaintTextRange retained = paint_queue_KeepPaintBytes(slot, value);
         if (!retained.valid) {
-            goto value_10;
+            goto value_16;
         }
-        data->text_start = (int64_t)(retained.start);
-        data->text_count = (int64_t)(value).length;
-        data->text_block = retained.block;
-        data->owns_text = true;
-    value_10: ;
+        int64_t* value_17 = &(data->text_start);
+        (*value_17) = (int64_t)(retained.start);
+        int64_t* value_18 = &(data->text_count);
+        (*value_18) = (int64_t)(value).length;
+        int32_t* value_19 = &(data->text_block);
+        (*value_19) = retained.block;
+        bool* value_20 = &(data->owns_text);
+        (*value_20) = true;
+    value_16: ;
     }
-    int32_t value_11 = slot;
-    PaintCommand* value_12 = &(command->data);
+    int32_t value_21 = slot;
+    PaintCommand* value_22 = &(command->data);
     {
-        int32_t slot = value_11;
-        PaintCommand* data = value_12;
+        int32_t slot = value_21;
+        PaintCommand* data = value_22;
         String path = asset;
         if ((int64_t)(path).length == 0LL) {
-            goto value_13;
+            goto value_23;
         }
         PaintTextRange retained = paint_queue_KeepPaintBytes(slot, path);
         if (!retained.valid) {
-            goto value_13;
+            goto value_23;
         }
-        data->asset_start = (int64_t)(retained.start);
-        data->asset_count = (int64_t)(path).length;
-        data->asset_block = retained.block;
-        data->owns_asset = true;
-    value_13: ;
+        int64_t* value_24 = &(data->asset_start);
+        (*value_24) = (int64_t)(retained.start);
+        int64_t* value_25 = &(data->asset_count);
+        (*value_25) = (int64_t)(path).length;
+        int32_t* value_26 = &(data->asset_block);
+        (*value_26) = retained.block;
+        bool* value_27 = &(data->owns_asset);
+        (*value_27) = true;
+    value_23: ;
     }
-    int32_t value_14 = slot;
-    PaintCommand* value_15 = &(command->data);
+    int32_t value_28 = slot;
+    PaintCommand* value_29 = &(command->data);
     {
-        int32_t slot = value_14;
-        PaintCommand* data = value_15;
-        data->value = StringLiteral("");
-        data->asset_path = StringLiteral("");
+        int32_t slot = value_28;
+        PaintCommand* data = value_29;
+        String* value_31 = &(data->value);
+        (*value_31) = StringLiteral("");
+        String* value_32 = &(data->asset_path);
+        (*value_32) = StringLiteral("");
         if (data->owns_text) {
-            String value_17 = paint_queue_PendingTextValue(slot, data->text_block, data->text_start, data->text_count);
-            data->value = value_17;
+            String* value_33 = &(data->value);
+            String value_34 = paint_queue_PendingTextValue(slot, data->text_block, data->text_start, data->text_count);
+            (*value_33) = value_34;
         }
         if (data->owns_asset) {
-            String value_18 = paint_queue_PendingTextValue(slot, data->asset_block, data->asset_start, data->asset_count);
-            data->asset_path = value_18;
+            String* value_35 = &(data->asset_path);
+            String value_36 = paint_queue_PendingTextValue(slot, data->asset_block, data->asset_start, data->asset_count);
+            (*value_35) = value_36;
         }
     }
-    bool value_19 = command->data.node < 0;
-    bool value_20 = value_19 && TreeIsBuilding(session);
-    if (value_20 && command->clips) {
+    bool value_37 = command->data.node < 0;
+    bool value_38 = value_37 && TreeIsBuilding(session);
+    if (value_38 && command->clips) {
         NodeGeometry scope = TreeCurrentPaintGeometry(session);
         if (scope.clipped) {
             PaintClipper clip_for = command->clip_for;
             (void)clip_for;
-            PaintClipper value_21 = clip_for;
-            PaintCommand value_22 = value_21.call(value_21.context, command->data, scope);
-            command->data = value_22;
+            PaintCommand* value_39 = &(command->data);
+            PaintClipper value_40 = clip_for;
+            PaintCommand value_41 = value_40.call(value_40.context, command->data, scope);
+            (*value_39) = value_41;
         }
     }
     float moved_x = (float)0.0;
     float moved_y = (float)0.0;
-    bool value_23 = command->data.node >= 0;
-    if (value_23 && TreeIsBuilding(session)) {
+    bool value_42 = command->data.node >= 0;
+    if (value_42 && TreeIsBuilding(session)) {
         NodeGeometry geometry = TreeSubmittedGeometryAt(session, command->data.node);
         float dx = geometry.bounds.x - geometry.measured_bounds.x;
         float dy = geometry.bounds.y - geometry.measured_bounds.y;
         moved_x = dx;
         moved_y = dy;
-        bool value_24 = command->data.bounds.x == geometry.measured_bounds.x && command->data.bounds.y == geometry.measured_bounds.y;
-        bool full_bounds = value_24 && command->data.bounds.width == geometry.measured_bounds.width && command->data.bounds.height == geometry.measured_bounds.height;
-        bool value_25 = command->data.clip.x == geometry.measured_bounds.x && command->data.clip.y == geometry.measured_bounds.y;
-        bool full_clip = value_25 && command->data.clip.width == geometry.measured_bounds.width && command->data.clip.height == geometry.measured_bounds.height;
-        command->data.bounds.x = command->data.bounds.x + dx;
-        command->data.bounds.y = command->data.bounds.y + dy;
-        command->data.clip.x = command->data.clip.x + dx;
-        command->data.clip.y = command->data.clip.y + dy;
+        bool value_43 = command->data.bounds.x == geometry.measured_bounds.x && command->data.bounds.y == geometry.measured_bounds.y;
+        bool full_bounds = value_43 && command->data.bounds.width == geometry.measured_bounds.width && command->data.bounds.height == geometry.measured_bounds.height;
+        bool value_44 = command->data.clip.x == geometry.measured_bounds.x && command->data.clip.y == geometry.measured_bounds.y;
+        bool full_clip = value_44 && command->data.clip.width == geometry.measured_bounds.width && command->data.clip.height == geometry.measured_bounds.height;
+        float* value_45 = &(command->data.bounds.x);
+        (*value_45) = (*value_45) + dx;
+        float* value_46 = &(command->data.bounds.y);
+        (*value_46) = (*value_46) + dy;
+        float* value_47 = &(command->data.clip.x);
+        (*value_47) = (*value_47) + dx;
+        float* value_48 = &(command->data.clip.y);
+        (*value_48) = (*value_48) + dy;
         if (command->data.rotation != ((float)0.0) && (command->data.kind == 4 || command->data.kind == 6)) {
-            command->data.origin.x = command->data.origin.x + dx;
-            command->data.origin.y = command->data.origin.y + dy;
+            float* value_49 = &(command->data.origin.x);
+            (*value_49) = (*value_49) + dx;
+            float* value_50 = &(command->data.origin.y);
+            (*value_50) = (*value_50) + dy;
         }
-        command->data.x = (int32_t)((uint32_t)(command->data.x) + (uint32_t)((int32_t)SignedBits(FloatToInt(dx, 32, 1), 32)));
-        command->data.y = (int32_t)((uint32_t)(command->data.y) + (uint32_t)((int32_t)SignedBits(FloatToInt(dy, 32, 1), 32)));
+        int32_t* value_51 = &(command->data.x);
+        (*value_51) = (int32_t)((uint32_t)((*value_51)) + (uint32_t)((int32_t)SignedBits(FloatToInt(dx, 32, 1), 32)));
+        int32_t* value_52 = &(command->data.y);
+        (*value_52) = (int32_t)((uint32_t)((*value_52)) + (uint32_t)((int32_t)SignedBits(FloatToInt(dy, 32, 1), 32)));
         if (full_bounds) {
-            command->data.bounds.width = geometry.bounds.width;
-            command->data.bounds.height = geometry.bounds.height;
+            float* value_53 = &(command->data.bounds.width);
+            (*value_53) = geometry.bounds.width;
+            float* value_54 = &(command->data.bounds.height);
+            (*value_54) = geometry.bounds.height;
         }
         if (full_clip) {
-            command->data.clip.width = geometry.bounds.width;
-            command->data.clip.height = geometry.bounds.height;
+            float* value_55 = &(command->data.clip.width);
+            (*value_55) = geometry.bounds.width;
+            float* value_56 = &(command->data.clip.height);
+            (*value_56) = geometry.bounds.height;
         }
         if (geometry.clipped && command->clips) {
             PaintClipper clip_for = command->clip_for;
             (void)clip_for;
-            PaintClipper value_26 = clip_for;
-            PaintCommand value_27 = value_26.call(value_26.context, command->data, geometry);
-            command->data = value_27;
+            PaintCommand* value_57 = &(command->data);
+            PaintClipper value_58 = clip_for;
+            PaintCommand value_59 = value_58.call(value_58.context, command->data, geometry);
+            (*value_57) = value_59;
         }
     }
     int32_t destination = SessionIndex(session);
     paint_queue_KeepPaintMesh(destination, &(command->data), moved_x, moved_y);
-    command->data.value = StringLiteral("");
-    command->data.asset_path = StringLiteral("");
-    QueuedPaint value_28 = *(command);
-    bool value_29 = false;
-    void *value_30 = ZirVecGrow((void *)((pending_paint[destination]).items).data, &((pending_paint[destination]).items).capacity, ((pending_paint[destination]).items).count, sizeof(*((pending_paint[destination]).items).data));
-    if (value_30 != NULL) {
-        ((pending_paint[destination]).items).data = (QueuedPaint *)value_30;
-        ((pending_paint[destination]).items).data[((pending_paint[destination]).items).count++] = value_28;
-        value_29 = true;
+    String* value_60 = &(command->data.value);
+    (*value_60) = StringLiteral("");
+    String* value_61 = &(command->data.asset_path);
+    (*value_61) = StringLiteral("");
+    QueuedPaint value_62 = *(command);
+    bool value_63 = false;
+    void *value_64 = ZirVecGrow((void *)((pending_paint[destination]).items).data, &((pending_paint[destination]).items).capacity, ((pending_paint[destination]).items).count, sizeof(*((pending_paint[destination]).items).data));
+    if (value_64 != NULL) {
+        ((pending_paint[destination]).items).data = (QueuedPaint *)value_64;
+        ((pending_paint[destination]).items).data[((pending_paint[destination]).items).count++] = value_62;
+        value_63 = true;
     }
-    if (!value_29) {
-        (pending_paint[destination]).overflow = true;
+    if (!value_63) {
+        bool* value_65 = &((pending_paint[destination]).overflow);
+        (*value_65) = true;
     }
 }
 
@@ -969,17 +1048,26 @@ void
 PaintLine(Session session, int32_t node, Rectangle bounds, Color color)
 {
     QueuedPaint command = {0};
-    command.data.kind = 1;
-    command.data.node = node;
-    command.data.bounds = bounds;
-    command.data.color = color;
+    int32_t* value_0 = &(command.data.kind);
+    (*value_0) = 1;
+    int32_t* value_1 = &(command.data.node);
+    (*value_1) = node;
+    Rectangle* value_2 = &(command.data.bounds);
+    (*value_2) = bounds;
+    Color* value_3 = &(command.data.color);
+    (*value_3) = color;
     PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_32_16};
-    command.emit = emit;
-    command.has_emitter = true;
-    command.builtin_emitter = true;
+    PaintEmitter* value_4 = &(command.emit);
+    (*value_4) = emit;
+    bool* value_5 = &(command.has_emitter);
+    (*value_5) = true;
+    bool* value_6 = &(command.builtin_emitter);
+    (*value_6) = true;
     PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_32_26};
-    command.clip_for = clip_for;
-    command.clips = true;
+    PaintClipper* value_7 = &(command.clip_for);
+    (*value_7) = clip_for;
+    bool* value_8 = &(command.clips);
+    (*value_8) = true;
     paint_queue_QueuePaint(session, &(command), StringLiteral(""), StringLiteral(""));
 }
 
@@ -997,19 +1085,30 @@ void
 PaintRoundedFill(Session session, int32_t node, Rectangle bounds, float radius, int32_t segments, Color color)
 {
     QueuedPaint command = {0};
-    command.data.kind = 2;
-    command.data.node = node;
-    command.data.bounds = bounds;
-    command.data.radius = radius;
-    command.data.segments = segments;
-    command.data.color = color;
+    int32_t* value_0 = &(command.data.kind);
+    (*value_0) = 2;
+    int32_t* value_1 = &(command.data.node);
+    (*value_1) = node;
+    Rectangle* value_2 = &(command.data.bounds);
+    (*value_2) = bounds;
+    float* value_3 = &(command.data.radius);
+    (*value_3) = radius;
+    int32_t* value_4 = &(command.data.segments);
+    (*value_4) = segments;
+    Color* value_5 = &(command.data.color);
+    (*value_5) = color;
     PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_33_24};
-    command.emit = emit;
-    command.has_emitter = true;
-    command.builtin_emitter = true;
+    PaintEmitter* value_6 = &(command.emit);
+    (*value_6) = emit;
+    bool* value_7 = &(command.has_emitter);
+    (*value_7) = true;
+    bool* value_8 = &(command.builtin_emitter);
+    (*value_8) = true;
     PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_33_34};
-    command.clip_for = clip_for;
-    command.clips = true;
+    PaintClipper* value_9 = &(command.clip_for);
+    (*value_9) = clip_for;
+    bool* value_10 = &(command.clips);
+    (*value_10) = true;
     paint_queue_QueuePaint(session, &(command), StringLiteral(""), StringLiteral(""));
 }
 
@@ -1027,20 +1126,32 @@ void
 PaintRoundedOutline(Session session, int32_t node, Rectangle bounds, float radius, int32_t segments, float line_width, Color color)
 {
     QueuedPaint command = {0};
-    command.data.kind = 3;
-    command.data.node = node;
-    command.data.bounds = bounds;
-    command.data.radius = radius;
-    command.data.segments = segments;
-    command.data.line_width = line_width;
-    command.data.color = color;
+    int32_t* value_0 = &(command.data.kind);
+    (*value_0) = 3;
+    int32_t* value_1 = &(command.data.node);
+    (*value_1) = node;
+    Rectangle* value_2 = &(command.data.bounds);
+    (*value_2) = bounds;
+    float* value_3 = &(command.data.radius);
+    (*value_3) = radius;
+    int32_t* value_4 = &(command.data.segments);
+    (*value_4) = segments;
+    float* value_5 = &(command.data.line_width);
+    (*value_5) = line_width;
+    Color* value_6 = &(command.data.color);
+    (*value_6) = color;
     PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_34_28};
-    command.emit = emit;
-    command.has_emitter = true;
-    command.builtin_emitter = true;
+    PaintEmitter* value_7 = &(command.emit);
+    (*value_7) = emit;
+    bool* value_8 = &(command.has_emitter);
+    (*value_8) = true;
+    bool* value_9 = &(command.builtin_emitter);
+    (*value_9) = true;
     PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_34_38};
-    command.clip_for = clip_for;
-    command.clips = true;
+    PaintClipper* value_10 = &(command.clip_for);
+    (*value_10) = clip_for;
+    bool* value_11 = &(command.clips);
+    (*value_11) = true;
     paint_queue_QueuePaint(session, &(command), StringLiteral(""), StringLiteral(""));
 }
 
@@ -1058,22 +1169,36 @@ void
 PaintClippedLabel(Session session, int32_t node, String value, int32_t x, int32_t y, int32_t font, Color color, Rectangle clip, String typeface, float rotation, Vector2 origin)
 {
     QueuedPaint command = {0};
-    command.data.kind = 6;
-    command.data.node = node;
-    command.data.x = x;
-    command.data.y = y;
-    command.data.font = font;
-    command.data.color = color;
-    command.data.rotation = rotation;
-    command.data.origin = origin;
-    command.data.clip = clip;
+    int32_t* value_0 = &(command.data.kind);
+    (*value_0) = 6;
+    int32_t* value_1 = &(command.data.node);
+    (*value_1) = node;
+    int32_t* value_2 = &(command.data.x);
+    (*value_2) = x;
+    int32_t* value_3 = &(command.data.y);
+    (*value_3) = y;
+    int32_t* value_4 = &(command.data.font);
+    (*value_4) = font;
+    Color* value_5 = &(command.data.color);
+    (*value_5) = color;
+    float* value_6 = &(command.data.rotation);
+    (*value_6) = rotation;
+    Vector2* value_7 = &(command.data.origin);
+    (*value_7) = origin;
+    Rectangle* value_8 = &(command.data.clip);
+    (*value_8) = clip;
     PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_35_36};
     PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_35_37};
-    command.emit = emit;
-    command.clip_for = clip_for;
-    command.has_emitter = true;
-    command.builtin_emitter = true;
-    command.clips = true;
+    PaintEmitter* value_9 = &(command.emit);
+    (*value_9) = emit;
+    PaintClipper* value_10 = &(command.clip_for);
+    (*value_10) = clip_for;
+    bool* value_11 = &(command.has_emitter);
+    (*value_11) = true;
+    bool* value_12 = &(command.builtin_emitter);
+    (*value_12) = true;
+    bool* value_13 = &(command.clips);
+    (*value_13) = true;
     paint_queue_QueuePaint(session, &(command), value, typeface);
 }
 
@@ -1107,27 +1232,46 @@ paint_queue_PaintImageWithPolygon(Session session, int32_t node, String asset_pa
         return;
     }
     QueuedPaint command = {0};
-    command.data.kind = 5;
-    command.data.smooth = smooth;
-    command.data.node = node;
-    command.data.texture_id = texture_id;
-    command.data.texture = texture;
-    command.data.source = source;
-    command.data.bounds = destination;
-    command.data.clip = clip;
-    command.data.origin = origin;
-    command.data.rotation = rotation;
-    command.data.radius = radius;
-    command.data.color = tint;
-    command.data.image_clip_count = (int32_t)((int64_t)(clip_polygon).length);
-    command.data.mesh_points = clip_polygon;
+    int32_t* value_2 = &(command.data.kind);
+    (*value_2) = 5;
+    bool* value_3 = &(command.data.smooth);
+    (*value_3) = smooth;
+    int32_t* value_4 = &(command.data.node);
+    (*value_4) = node;
+    uint32_t* value_5 = &(command.data.texture_id);
+    (*value_5) = texture_id;
+    Texture2D* value_6 = &(command.data.texture);
+    (*value_6) = texture;
+    Rectangle* value_7 = &(command.data.source);
+    (*value_7) = source;
+    Rectangle* value_8 = &(command.data.bounds);
+    (*value_8) = destination;
+    Rectangle* value_9 = &(command.data.clip);
+    (*value_9) = clip;
+    Vector2* value_10 = &(command.data.origin);
+    (*value_10) = origin;
+    float* value_11 = &(command.data.rotation);
+    (*value_11) = rotation;
+    float* value_12 = &(command.data.radius);
+    (*value_12) = radius;
+    Color* value_13 = &(command.data.color);
+    (*value_13) = tint;
+    int32_t* value_14 = &(command.data.image_clip_count);
+    (*value_14) = (int32_t)((int64_t)(clip_polygon).length);
+    Slice* value_15 = &(command.data.mesh_points);
+    (*value_15) = clip_polygon;
     PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_37_66};
     PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_37_67};
-    command.emit = emit;
-    command.clip_for = clip_for;
-    command.has_emitter = true;
-    command.builtin_emitter = true;
-    command.clips = true;
+    PaintEmitter* value_16 = &(command.emit);
+    (*value_16) = emit;
+    PaintClipper* value_17 = &(command.clip_for);
+    (*value_17) = clip_for;
+    bool* value_18 = &(command.has_emitter);
+    (*value_18) = true;
+    bool* value_19 = &(command.builtin_emitter);
+    (*value_19) = true;
+    bool* value_20 = &(command.clips);
+    (*value_20) = true;
     paint_queue_QueuePaint(session, &(command), StringLiteral(""), asset_path);
 }
 
@@ -1140,9 +1284,12 @@ PaintClear(Session session)
     pending_medium_text[slot].count = 0;
     pending_text[slot].count = 0;
     pending_mesh[slot].count = 0;
-    (pending_paint[slot]).overflow = false;
-    (pending_paint[slot]).overlays = false;
-    (pending_paint[slot]).ordered = false;
+    bool* value_0 = &((pending_paint[slot]).overflow);
+    (*value_0) = false;
+    bool* value_1 = &((pending_paint[slot]).overlays);
+    (*value_1) = false;
+    bool* value_2 = &((pending_paint[slot]).ordered);
+    (*value_2) = false;
 }
 
 bool
@@ -1172,7 +1319,8 @@ PaintOrder(Session session)
                     value_2 = true;
                 }
                 if (!value_2) {
-                    (pending_paint[slot]).overflow = true;
+                    bool* value_4 = &((pending_paint[slot]).overflow);
+                    (*value_4) = true;
                     return false;
                 }
             } else if (candidate > layer && (next < 0 || candidate < next)) {
@@ -1182,10 +1330,11 @@ PaintOrder(Session session)
         }
         layer = next;
     }
-    __type_2f80215b34a3b082 value_4 = (pending_paint[slot]).items;
+    __type_2f80215b34a3b082 value_5 = (pending_paint[slot]).items;
     (pending_paint[slot]).items = ordered_paint[slot];
-    ordered_paint[slot] = value_4;
-    (pending_paint[slot]).ordered = true;
+    ordered_paint[slot] = value_5;
+    bool* value_6 = &((pending_paint[slot]).ordered);
+    (*value_6) = true;
     return true;
 }
 
@@ -1216,23 +1365,28 @@ PendingPaintAt(Session session, int32_t index)
     {
         int32_t slot = value_3;
         PaintCommand* data = value_4;
-        data->value = StringLiteral("");
-        data->asset_path = StringLiteral("");
+        String* value_6 = &(data->value);
+        (*value_6) = StringLiteral("");
+        String* value_7 = &(data->asset_path);
+        (*value_7) = StringLiteral("");
         if (data->owns_text) {
-            String value_6 = paint_queue_PendingTextValue(slot, data->text_block, data->text_start, data->text_count);
-            data->value = value_6;
+            String* value_8 = &(data->value);
+            String value_9 = paint_queue_PendingTextValue(slot, data->text_block, data->text_start, data->text_count);
+            (*value_8) = value_9;
         }
         if (data->owns_asset) {
-            String value_7 = paint_queue_PendingTextValue(slot, data->asset_block, data->asset_start, data->asset_count);
-            data->asset_path = value_7;
+            String* value_10 = &(data->asset_path);
+            String value_11 = paint_queue_PendingTextValue(slot, data->asset_block, data->asset_start, data->asset_count);
+            (*value_10) = value_11;
         }
     }
     if (data.owns_mesh) {
-        int64_t value_8 = paint_queue_PaintPointCount(data);
-        int32_t count = (int32_t)(value_8);
-        Slice value_9 = {(ZIRAN_VEC_INDEX((pending_mesh[slot]).data, (pending_mesh[slot]).count, data.mesh_block)).points, 4096};
-        Slice value_10 = SliceRange(value_9, (int64_t)data.mesh_start, (int64_t)((int32_t)((uint32_t)(data.mesh_start) + (uint32_t)count)), sizeof(Vector2));
-        data.mesh_points = value_10;
+        int64_t value_12 = paint_queue_PaintPointCount(data);
+        int32_t count = (int32_t)(value_12);
+        Slice* value_13 = &(data.mesh_points);
+        Slice value_14 = {(ZIRAN_VEC_INDEX((pending_mesh[slot]).data, (pending_mesh[slot]).count, data.mesh_block)).points, 4096};
+        Slice value_15 = SliceRange(value_14, (int64_t)data.mesh_start, (int64_t)((int32_t)((uint32_t)(data.mesh_start) + (uint32_t)count)), sizeof(Vector2));
+        (*value_13) = value_15;
     }
     return data;
 }
@@ -1249,8 +1403,10 @@ paint_queue_PaintSnapshotInvalidate(Session session)
     paint_snapshot_values[slot].count = 0;
     paint_snapshot_assets[slot].count = 0;
     paint_snapshot_meshes[slot].count = 0;
-    paint_snapshot_value_counts[slot] = 0LL;
-    paint_snapshot_asset_counts[slot] = 0LL;
+    int64_t* value_1 = &(paint_snapshot_value_counts[slot]);
+    (*value_1) = 0LL;
+    int64_t* value_2 = &(paint_snapshot_asset_counts[slot]);
+    (*value_2) = 0LL;
     paint_snapshots_valid = session_SessionFlagSet(paint_snapshots_valid, slot, false);
     frame_paint_unchanged = session_SessionFlagSet(frame_paint_unchanged, slot, false);
 }
@@ -1378,11 +1534,13 @@ paint_queue_PaintSnapshotEmit(Session session)
         if (index <= range_last_9) for (;;) {
             PaintSnapshot previous = ZIRAN_VEC_INDEX((paint_snapshots[slot]).data, (paint_snapshots[slot]).count, index);
             QueuedPaint command = {0};
-            command.data = previous.data;
-            command.data.value = paint_queue_SnapshotTextRead(slot, true, previous.value_start, previous.value_count);
+            PaintCommand* value_4 = &(command.data);
+            (*value_4) = previous.data;
+            String* value_5 = &(command.data.value);
+            (*value_5) = paint_queue_SnapshotTextRead(slot, true, previous.value_start, previous.value_count);
             if ((int64_t)(command.data.value).length != previous.value_count) {
-                bool value_4 = paint_queue_SnapshotTextJoin(slot, true, previous.value_start, previous.value_count, &(value_text));
-                if (!value_4) {
+                bool value_6 = paint_queue_SnapshotTextJoin(slot, true, previous.value_start, previous.value_count, &(value_text));
+                if (!value_6) {
                     bool cleanup_return_0 = false;
                     {
                         free((value_text).data);
@@ -1394,7 +1552,7 @@ paint_queue_PaintSnapshotEmit(Session session)
                         asset_text.capacity = 0;
                         asset_text.count = 0;
                     }
-                    bool value_5 = cleanup_return_0;
+                    bool value_7 = cleanup_return_0;
                     free((*value_3).data);
                     (*value_3).data = NULL;
                     (*value_3).capacity = 0;
@@ -1403,16 +1561,18 @@ paint_queue_PaintSnapshotEmit(Session session)
                     (*value_2).data = NULL;
                     (*value_2).capacity = 0;
                     (*value_2).count = 0;
-                    return value_5;
+                    return value_7;
                 }
-                Slice value_6 = {(value_text).data, (value_text).count};
-                Slice value_7 = SliceRange(value_6, 0LL, value_text.count, sizeof(*(value_text).data));
-                command.data.value = StringView((const char *)(value_7).data, (size_t)(value_7).length);
+                String* value_8 = &(command.data.value);
+                Slice value_9 = {(value_text).data, (value_text).count};
+                Slice value_10 = SliceRange(value_9, 0LL, value_text.count, sizeof(*(value_text).data));
+                (*value_8) = StringView((const char *)(value_10).data, (size_t)(value_10).length);
             }
-            command.data.asset_path = paint_queue_SnapshotTextRead(slot, false, previous.asset_start, previous.asset_count);
+            String* value_11 = &(command.data.asset_path);
+            (*value_11) = paint_queue_SnapshotTextRead(slot, false, previous.asset_start, previous.asset_count);
             if ((int64_t)(command.data.asset_path).length != previous.asset_count) {
-                bool value_8 = paint_queue_SnapshotTextJoin(slot, false, previous.asset_start, previous.asset_count, &(asset_text));
-                if (!value_8) {
+                bool value_12 = paint_queue_SnapshotTextJoin(slot, false, previous.asset_start, previous.asset_count, &(asset_text));
+                if (!value_12) {
                     bool cleanup_return_1 = false;
                     {
                         free((value_text).data);
@@ -1424,7 +1584,7 @@ paint_queue_PaintSnapshotEmit(Session session)
                         asset_text.capacity = 0;
                         asset_text.count = 0;
                     }
-                    bool value_9 = cleanup_return_1;
+                    bool value_13 = cleanup_return_1;
                     free((*value_3).data);
                     (*value_3).data = NULL;
                     (*value_3).capacity = 0;
@@ -1433,21 +1593,26 @@ paint_queue_PaintSnapshotEmit(Session session)
                     (*value_2).data = NULL;
                     (*value_2).capacity = 0;
                     (*value_2).count = 0;
-                    return value_9;
+                    return value_13;
                 }
-                Slice value_10 = {(asset_text).data, (asset_text).count};
-                Slice value_11 = SliceRange(value_10, 0LL, asset_text.count, sizeof(*(asset_text).data));
-                command.data.asset_path = StringView((const char *)(value_11).data, (size_t)(value_11).length);
+                String* value_14 = &(command.data.asset_path);
+                Slice value_15 = {(asset_text).data, (asset_text).count};
+                Slice value_16 = SliceRange(value_15, 0LL, asset_text.count, sizeof(*(asset_text).data));
+                (*value_14) = StringView((const char *)(value_16).data, (size_t)(value_16).length);
             }
-            int64_t value_12 = paint_queue_PaintPointCount(previous.data);
-            int32_t mesh_count = (int32_t)(value_12);
+            int64_t value_17 = paint_queue_PaintPointCount(previous.data);
+            int32_t mesh_count = (int32_t)(value_17);
             if (mesh_count > 0) {
-                Slice value_13 = {(ZIRAN_VEC_INDEX((paint_snapshot_meshes[slot]).data, (paint_snapshot_meshes[slot]).count, previous.mesh_block)).points, 4096};
-                command.data.mesh_points = SliceRange(value_13, (int64_t)previous.mesh_start, (int64_t)((int32_t)((uint32_t)(previous.mesh_start) + (uint32_t)mesh_count)), sizeof(Vector2));
+                Slice* value_18 = &(command.data.mesh_points);
+                Slice value_19 = {(ZIRAN_VEC_INDEX((paint_snapshot_meshes[slot]).data, (paint_snapshot_meshes[slot]).count, previous.mesh_block)).points, 4096};
+                (*value_18) = SliceRange(value_19, (int64_t)previous.mesh_start, (int64_t)((int32_t)((uint32_t)(previous.mesh_start) + (uint32_t)mesh_count)), sizeof(Vector2));
             }
-            command.emit = previous.emit;
-            command.has_emitter = previous.has_emitter;
-            command.builtin_emitter = previous.builtin_emitter;
+            PaintEmitter* value_20 = &(command.emit);
+            (*value_20) = previous.emit;
+            bool* value_21 = &(command.has_emitter);
+            (*value_21) = previous.has_emitter;
+            bool* value_22 = &(command.builtin_emitter);
+            (*value_22) = previous.builtin_emitter;
             EmitPaint(command);
             if (index == range_last_9) {
                 break;
@@ -1466,7 +1631,7 @@ paint_queue_PaintSnapshotEmit(Session session)
         asset_text.capacity = 0;
         asset_text.count = 0;
     }
-    bool value_14 = cleanup_return_2;
+    bool value_23 = cleanup_return_2;
     free((*value_3).data);
     (*value_3).data = NULL;
     (*value_3).capacity = 0;
@@ -1475,7 +1640,7 @@ paint_queue_PaintSnapshotEmit(Session session)
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
     (*value_2).count = 0;
-    return value_14;
+    return value_23;
 }
 
 void
@@ -1501,7 +1666,8 @@ PaintFlush(Session session)
         QueuedPaint* queued = &(ZIRAN_VEC_INDEX(((pending_paint[slot]).items).data, ((pending_paint[slot]).items).count, index));
         if (queued->has_emitter) {
             QueuedPaint resolved = *(queued);
-            resolved.data = PendingPaintAt(session, index);
+            PaintCommand* value_6 = &(resolved.data);
+            (*value_6) = PendingPaintAt(session, index);
             EmitPaint(resolved);
         }
         index = (int32_t)((uint32_t)index + 1u);
@@ -1547,16 +1713,21 @@ paint_queue___zi_spec_9308732530dd822f(__type_494ea4ad55fe9fdb* blocks, int32_t 
             value_5 = !value_7;
         }
         if (value_5) {
-            (ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow = true;
+            bool* value_9 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+            (*value_9) = true;
             return result;
         }
         block_index = (int32_t)((uint32_t)block_index + 1u);
         start = 0;
     }
-    (ZIRAN_VEC_INDEX(((*(blocks))).data, ((*(blocks))).count, block_index)).length = (int32_t)((uint32_t)start + (uint32_t)(count));
-    result.start = start;
-    result.block = block_index;
-    result.valid = true;
+    int32_t* value_10 = &((ZIRAN_VEC_INDEX(((*(blocks))).data, ((*(blocks))).count, block_index)).length);
+    (*value_10) = (int32_t)((uint32_t)start + (uint32_t)(count));
+    int32_t* value_11 = &(result.start);
+    (*value_11) = start;
+    int32_t* value_12 = &(result.block);
+    (*value_12) = block_index;
+    bool* value_13 = &(result.valid);
+    (*value_13) = true;
     return result;
 }
 
@@ -1612,16 +1783,21 @@ paint_queue___zi_spec_27a25ba88f17713a(__type_5b77e2bb45c14992* blocks, int32_t 
             value_5 = !value_7;
         }
         if (value_5) {
-            (ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow = true;
+            bool* value_9 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+            (*value_9) = true;
             return result;
         }
         block_index = (int32_t)((uint32_t)block_index + 1u);
         start = 0;
     }
-    (ZIRAN_VEC_INDEX(((*(blocks))).data, ((*(blocks))).count, block_index)).length = (int32_t)((uint32_t)start + (uint32_t)(count));
-    result.start = start;
-    result.block = block_index;
-    result.valid = true;
+    int32_t* value_10 = &((ZIRAN_VEC_INDEX(((*(blocks))).data, ((*(blocks))).count, block_index)).length);
+    (*value_10) = (int32_t)((uint32_t)start + (uint32_t)(count));
+    int32_t* value_11 = &(result.start);
+    (*value_11) = start;
+    int32_t* value_12 = &(result.block);
+    (*value_12) = block_index;
+    bool* value_13 = &(result.valid);
+    (*value_13) = true;
     return result;
 }
 
@@ -1677,16 +1853,21 @@ paint_queue___zi_spec_542e1e54e11043bf(__type_60d5a134727d5dcb* blocks, int32_t 
             value_5 = !value_7;
         }
         if (value_5) {
-            (ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow = true;
+            bool* value_9 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+            (*value_9) = true;
             return result;
         }
         block_index = (int32_t)((uint32_t)block_index + 1u);
         start = 0;
     }
-    (ZIRAN_VEC_INDEX(((*(blocks))).data, ((*(blocks))).count, block_index)).length = (int32_t)((uint32_t)start + (uint32_t)(count));
-    result.start = start;
-    result.block = block_index;
-    result.valid = true;
+    int32_t* value_10 = &((ZIRAN_VEC_INDEX(((*(blocks))).data, ((*(blocks))).count, block_index)).length);
+    (*value_10) = (int32_t)((uint32_t)start + (uint32_t)(count));
+    int32_t* value_11 = &(result.start);
+    (*value_11) = start;
+    int32_t* value_12 = &(result.block);
+    (*value_12) = block_index;
+    bool* value_13 = &(result.valid);
+    (*value_13) = true;
     return result;
 }
 

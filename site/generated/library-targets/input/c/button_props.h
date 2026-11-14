@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#include "image.h"
 #include "control_props.h"
 #include "drawing_props.h"
 #include "geometry.h"
@@ -13,7 +14,7 @@
 extern "C" {
 #endif
 typedef int64_t ArrowDirection;
-typedef struct ButtonProps ButtonProps;
+typedef struct zir_2b2386d69a109fee_Props zir_2b2386d69a109fee_Props;
 
 enum {
     ArrowDirection_ArrowLeft = 0,
@@ -22,7 +23,7 @@ enum {
     ArrowDirection_ArrowDown = 3,
 };
 
-struct ButtonProps {
+struct zir_2b2386d69a109fee_Props {
     uint64_t key;
     Rectangle bounds;
     String label;
@@ -49,7 +50,7 @@ struct ButtonProps {
     bool icon_only;
     bool fit_content;
     bool square;
-    ImageProps image;
+    zir_a62ab5d98ba48716_Props image;
     bool swatch;
     Color swatch_color;
     bool arrow;

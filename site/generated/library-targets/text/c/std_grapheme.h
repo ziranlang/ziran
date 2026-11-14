@@ -10,10 +10,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct State State;
+typedef struct zir_938805e83ac04593_State zir_938805e83ac04593_State;
 typedef struct Step Step;
 
-struct State {
+struct zir_938805e83ac04593_State {
     bool active;
     bool valid;
     int32_t previous;
@@ -25,24 +25,47 @@ struct State {
 };
 
 struct Step {
-    State state;
+    zir_938805e83ac04593_State state;
     bool boundary;
 };
 bool std_grapheme_IsControl(int32_t property);
-Step std_grapheme_Push(State state, uint32_t scalar, bool valid);
+Step std_grapheme_Push(zir_938805e83ac04593_State state, uint32_t scalar, bool valid);
 int32_t GraphemeNext(String value, int32_t at);
+int32_t std_grapheme_Boundary(String value, int32_t at);
 
 /* Small procedures other modules inline; std_grapheme.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_STD_GRAPHEME_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
-#include <stdint.h>
 #include <stdbool.h>
+#include "zir_string_types.h"
 static inline bool std_grapheme_IsControl_ziran_inline(int32_t property);
 #define std_grapheme_IsControl(...) std_grapheme_IsControl_ziran_inline(__VA_ARGS__)
+static inline int32_t std_grapheme_Boundary_ziran_inline(String value, int32_t at);
+#define std_grapheme_Boundary(...) std_grapheme_Boundary_ziran_inline(__VA_ARGS__)
 
 static inline bool
 std_grapheme_IsControl_ziran_inline(int32_t property)
 {
     return property == 1 || property == 2 || property == 3;
+}
+
+static inline int32_t
+std_grapheme_Boundary_ziran_inline(String value, int32_t at)
+{
+    if (at <= 0) {
+        return 0;
+    }
+    if (at >= (int32_t)((int64_t)(value).length)) {
+        return (int32_t)((int64_t)(value).length);
+    }
+    int32_t cursor = 0;
+    while (cursor < at) {
+        int32_t after = GraphemeNext(value, cursor);
+        if (after > at) {
+            return cursor;
+        }
+        cursor = after;
+    }
+    return cursor;
 }
 #endif
 

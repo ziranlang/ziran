@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "text_context_menu.h"
-#include "contextmenu.h"
 #include "geometry.h"
 #include "session.h"
 #include "system_clipboard.h"
@@ -155,28 +154,41 @@ text_context_menu_TextMenuDraw(Session session)
         }
     }
     ContextMenuItem items[5] = {0};
-    (items[0]).id = 1;
-    (items[0]).label = StringLiteral("Cut");
-    (items[0]).disabled = !text_menu_cut_enabled;
-    (items[1]).id = 2;
-    (items[1]).label = StringLiteral("Copy");
-    (items[1]).disabled = !text_menu_copy_enabled;
-    (items[2]).id = 3;
-    (items[2]).label = StringLiteral("Paste");
-    bool value_8 = !text_menu_paste_enabled;
-    bool value_9 = value_8;
-    if (!value_9) {
-        bool value_10 = SystemClipboardHasText();
-        value_9 = !value_10;
+    int32_t* value_8 = &((items[0]).id);
+    (*value_8) = 1;
+    String* value_9 = &((items[0]).label);
+    (*value_9) = StringLiteral("Cut");
+    bool* value_10 = &((items[0]).disabled);
+    (*value_10) = !text_menu_cut_enabled;
+    int32_t* value_11 = &((items[1]).id);
+    (*value_11) = 2;
+    String* value_12 = &((items[1]).label);
+    (*value_12) = StringLiteral("Copy");
+    bool* value_13 = &((items[1]).disabled);
+    (*value_13) = !text_menu_copy_enabled;
+    int32_t* value_14 = &((items[2]).id);
+    (*value_14) = 3;
+    String* value_15 = &((items[2]).label);
+    (*value_15) = StringLiteral("Paste");
+    bool* value_16 = &((items[2]).disabled);
+    bool value_17 = !text_menu_paste_enabled;
+    bool value_18 = value_17;
+    if (!value_18) {
+        bool value_19 = SystemClipboardHasText();
+        value_18 = !value_19;
     }
-    (items[2]).disabled = value_9;
-    (items[3]).separator = true;
-    (items[4]).id = 4;
-    (items[4]).label = StringLiteral("Select all");
-    (items[4]).disabled = !text_menu_select_enabled;
-    ContextMenuProps props = {.key = (uint64_t)(((uint64_t)text_menu_key * UINT64_C(31)) + UINT64_C(17)), .open = true, .x = text_menu_x, .y = text_menu_y, .escape = text_menu_escape};
-    Slice value_11 = {items, 5};
-    ContextMenuResult menu = ContextMenu(session, props, SliceRange(value_11, (int64_t)0LL, (int64_t)5LL, sizeof(ContextMenuItem)));
+    (*value_16) = value_18;
+    bool* value_20 = &((items[3]).separator);
+    (*value_20) = true;
+    int32_t* value_21 = &((items[4]).id);
+    (*value_21) = 4;
+    String* value_22 = &((items[4]).label);
+    (*value_22) = StringLiteral("Select all");
+    bool* value_23 = &((items[4]).disabled);
+    (*value_23) = !text_menu_select_enabled;
+    zir_bc889c92ea67167a_Props props = {.key = (uint64_t)(((uint64_t)text_menu_key * UINT64_C(31)) + UINT64_C(17)), .open = true, .x = text_menu_x, .y = text_menu_y, .escape = text_menu_escape};
+    Slice value_24 = {items, 5};
+    ContextMenuResult menu = contextmenu_Draw(session, props, SliceRange(value_24, (int64_t)0LL, (int64_t)5LL, sizeof(ContextMenuItem)));
     if (menu.activated_id != 0) {
         text_menu_command = menu.activated_id;
         text_menu_command_key = text_menu_key;

@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
+#include "overlay.h"
 #include "session.h"
 #include "theme.h"
 #include "drawing_props.h"
@@ -12,10 +13,9 @@
 #include "font_metrics.h"
 #include "geometry.h"
 #include "overlay_behavior.h"
-#include "overlay_props.h"
-#include "overlay.h"
 #include "paint_queue.h"
 #include "semantic.h"
+#include "svg_icon_behavior.h"
 #include "tree.h"
 #include "tree_input.h"
 
@@ -33,9 +33,12 @@ extern "C" {
 #define CONTEXT_MENU_INLINE_MINIMUM 32
 #define CONTEXT_MENU_INLINE_GAP 2
 #define CONTEXT_MENU_ARROW 16
+#define CONTEXT_MENU_CHECK 14
+#define CONTEXT_MENU_CHECK_GAP 8
+#define CONTEXT_MENU_ACCELERATOR_GAP 32
 #define CONTEXT_MENU_DEPTH 8
 typedef struct ContextMenuItem ContextMenuItem;
-typedef struct ContextMenuProps ContextMenuProps;
+typedef struct zir_bc889c92ea67167a_Props zir_bc889c92ea67167a_Props;
 typedef struct ContextMenuResult ContextMenuResult;
 
 struct ContextMenuItem {
@@ -45,9 +48,12 @@ struct ContextMenuItem {
     bool separator;
     bool ziran_keyword_inline_0;
     int32_t parent;
+    String accelerator;
+    bool checkable;
+    bool checked;
 };
 
-struct ContextMenuProps {
+struct zir_bc889c92ea67167a_Props {
     uint64_t key;
     int32_t id;
     int32_t class_name;
@@ -67,6 +73,8 @@ uint64_t ContextMenuOverlayKey(uint64_t key);
 uint64_t ContextMenuRowKey(uint64_t key, int32_t index);
 uint64_t contextmenu_ContextMenuPanelKey(int32_t parent);
 bool contextmenu_ContextMenuOpens(Slice items, int32_t id);
+bool contextmenu_ContextMenuLevelChecks(Slice items, int32_t parent);
+int32_t contextmenu_ContextMenuTextLeft(bool checks, float scale);
 int32_t contextmenu_ContextMenuFind(Slice items, int32_t id);
 int32_t contextmenu_ContextMenuInlineWidth(ContextMenuItem item, float scale);
 Rectangle contextmenu_ContextMenuLevelBounds(Slice items, int32_t parent, float x, float y, Rectangle view, float scale);
@@ -74,8 +82,8 @@ Rectangle ContextMenuBounds(Slice items, float x, float y, Rectangle view, float
 bool contextmenu_ContextMenuInlineEnds(Slice items, int32_t index);
 float contextmenu_ContextMenuRowTop(Slice items, int32_t at, Rectangle panel, float scale);
 Rectangle contextmenu_ContextMenuSubmenuBounds(Slice items, int32_t at, Rectangle parent_panel, Rectangle view, float scale);
-void contextmenu_ContextMenuLevel(Session session, ContextMenuProps props, Slice items, uint64_t key, int32_t parent, Rectangle panel, int32_t panel_node, Slice open);
-ContextMenuResult ContextMenu(Session session, ContextMenuProps props, Slice items);
+void contextmenu_ContextMenuLevel(Session session, zir_bc889c92ea67167a_Props props, Slice items, uint64_t key, int32_t parent, Rectangle panel, int32_t panel_node, Slice open);
+ContextMenuResult contextmenu_Draw(Session session, zir_bc889c92ea67167a_Props props, Slice items);
 
 /* Small procedures other modules inline; contextmenu.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_CONTEXTMENU_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
@@ -85,6 +93,10 @@ static inline uint64_t contextmenu_ContextMenuPanelKey_ziran_inline(int32_t pare
 #define contextmenu_ContextMenuPanelKey(...) contextmenu_ContextMenuPanelKey_ziran_inline(__VA_ARGS__)
 static inline bool contextmenu_ContextMenuOpens_ziran_inline(Slice items, int32_t id);
 #define contextmenu_ContextMenuOpens(...) contextmenu_ContextMenuOpens_ziran_inline(__VA_ARGS__)
+static inline bool contextmenu_ContextMenuLevelChecks_ziran_inline(Slice items, int32_t parent);
+#define contextmenu_ContextMenuLevelChecks(...) contextmenu_ContextMenuLevelChecks_ziran_inline(__VA_ARGS__)
+static inline int32_t contextmenu_ContextMenuTextLeft_ziran_inline(bool checks, float scale);
+#define contextmenu_ContextMenuTextLeft(...) contextmenu_ContextMenuTextLeft_ziran_inline(__VA_ARGS__)
 static inline int32_t contextmenu_ContextMenuFind_ziran_inline(Slice items, int32_t id);
 #define contextmenu_ContextMenuFind(...) contextmenu_ContextMenuFind_ziran_inline(__VA_ARGS__)
 static inline bool contextmenu_ContextMenuInlineEnds_ziran_inline(Slice items, int32_t index);
@@ -112,6 +124,30 @@ contextmenu_ContextMenuOpens_ziran_inline(Slice items, int32_t id)
         index = (int32_t)((uint32_t)index + 1u);
     }
     return false;
+}
+
+static inline bool
+contextmenu_ContextMenuLevelChecks_ziran_inline(Slice items, int32_t parent)
+{
+    for (int64_t it_index = 0LL; it_index < (int64_t)(items).length; it_index++) {
+        ContextMenuItem item = ((ContextMenuItem *)items.data)[it_index];
+        if (item.parent == parent && item.checkable && !item.separator && !item.ziran_keyword_inline_0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static inline int32_t
+contextmenu_ContextMenuTextLeft_ziran_inline(bool checks, float scale)
+{
+    int32_t left = ScalePixels(12, scale);
+    if (checks) {
+        int32_t value_0 = left;
+        int32_t value_1 = ScalePixels(22, scale);
+        left = (int32_t)((uint32_t)value_0 + (uint32_t)value_1);
+    }
+    return left;
 }
 
 static inline int32_t

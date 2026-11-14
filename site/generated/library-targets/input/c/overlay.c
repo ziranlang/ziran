@@ -6,7 +6,6 @@
 #include "drawing_props.h"
 #include "geometry.h"
 #include "overlay_behavior.h"
-#include "overlay_props.h"
 #include "paint_queue.h"
 #include "tree.h"
 #include "tree_input.h"
@@ -24,19 +23,25 @@ OverlayPanelKey(void)
 }
 
 DismissibleOverlayResult
-DismissibleOverlay(Session session, DismissibleOverlayProps props)
+overlay_Draw(Session session, zir_369927f740a3063a_Props props)
 {
     DismissibleOverlayResult result = {0};
-    result.node = -1;
-    result.panel_node = -1;
+    int32_t* value_0 = &(result.node);
+    (*value_0) = -1;
+    int32_t* value_1 = &(result.panel_node);
+    (*value_1) = -1;
     Rectangle viewport = TreeRootBounds(session);
     if (props.view_width > 0) {
-        viewport.x = (float)0.0;
-        viewport.width = (float)(props.view_width);
+        float* value_2 = &(viewport.x);
+        (*value_2) = (float)0.0;
+        float* value_3 = &(viewport.width);
+        (*value_3) = (float)(props.view_width);
     }
     if (props.view_height > 0) {
-        viewport.y = (float)0.0;
-        viewport.height = (float)(props.view_height);
+        float* value_4 = &(viewport.y);
+        (*value_4) = (float)0.0;
+        float* value_5 = &(viewport.height);
+        (*value_5) = (float)(props.view_height);
     }
     if (viewport.width <= ((float)0.0) || viewport.height <= ((float)0.0)) {
         return result;
@@ -46,32 +51,38 @@ DismissibleOverlay(Session session, DismissibleOverlayProps props)
         key = TreeNextKey(session);
     }
     int32_t scrim_node = -1;
-    int32_t value_0 = 0;
+    int32_t value_6 = 0;
     if (props.non_modal) {
-        value_0 = 25;
+        value_6 = 25;
     } else {
-        value_0 = 46;
+        value_6 = 46;
     }
-    int32_t kind = value_0;
+    int32_t kind = value_6;
     if (TreeIsBuilding(session)) {
         int32_t previous_overlay = TreePrevious(session, TreeCurrentParent(session), key, kind);
         int32_t previous = TreePreviousCommitted(session, previous_overlay, OverlayScrimKey(), 8);
         PointerDrag release = TreeTakeDragAt(session, previous);
         if (release.ended) {
-            bool value_1 = true;
-            bool value_2 = false;
-            bool value_3 = PointInBounds(release.x, release.y, props.bounds);
-            DismissibleOverlayPolicy policy = DismissibleOverlayPolicyFor(value_1, value_2, props.dismiss_disabled, value_3 || PointInBounds(release.x, release.y, props.keep_bounds));
-            result.closed = policy.closed;
-            result.outside_released = policy.outside_released;
-            result.release_consumed = policy.release_consumed;
-            result.tapped = policy.tapped;
+            bool value_7 = true;
+            bool value_8 = false;
+            bool value_9 = PointInBounds(release.x, release.y, props.bounds);
+            DismissibleOverlayPolicy policy = DismissibleOverlayPolicyFor(value_7, value_8, props.dismiss_disabled, value_9 || PointInBounds(release.x, release.y, props.keep_bounds));
+            bool* value_10 = &(result.closed);
+            (*value_10) = policy.closed;
+            bool* value_11 = &(result.outside_released);
+            (*value_11) = policy.outside_released;
+            bool* value_12 = &(result.release_consumed);
+            (*value_12) = policy.release_consumed;
+            bool* value_13 = &(result.tapped);
+            (*value_13) = policy.tapped;
         }
-        bool value_4 = TreeTakeDismissalAt(session, previous_overlay);
-        if (value_4 && !props.dismiss_disabled) {
-            result.closed = true;
+        bool value_14 = TreeTakeDismissalAt(session, previous_overlay);
+        if (value_14 && !props.dismiss_disabled) {
+            bool* value_15 = &(result.closed);
+            (*value_15) = true;
         }
-        result.node = TreeSubmitCurrent(session, key, kind, viewport);
+        int32_t* value_16 = &(result.node);
+        (*value_16) = TreeSubmitCurrent(session, key, kind, viewport);
         if (result.node < 0) {
             return result;
         }
@@ -83,7 +94,8 @@ DismissibleOverlay(Session session, DismissibleOverlayProps props)
             return result;
         }
         TreeSetInteractive(session, scrim_node, false, false, 0);
-        result.panel_node = TreeSubmit(session, OverlayPanelKey(), result.node, 25, props.bounds);
+        int32_t* value_17 = &(result.panel_node);
+        (*value_17) = TreeSubmit(session, OverlayPanelKey(), result.node, 25, props.bounds);
         if (result.panel_node < 0) {
             return result;
         }

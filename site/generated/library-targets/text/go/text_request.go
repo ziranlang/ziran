@@ -4,6 +4,8 @@ package main
 // #import session
 // #import tree
 // #import tree_input
+type TextBoundary func(string, int32) int32
+
 type TextRequest struct {
 	Value string
 	Cursor int32
@@ -30,48 +32,60 @@ type TextRequestChange struct {
 	Changed bool
 }
 
+var text_boundary TextBoundary
 var text_requests [9]PendingTextRequest
+func TextRequest_TextRequestUseBoundary(boundary TextBoundary) bool {
+	text_boundary = boundary
+	return true
+}
+
 func TextRequest_TextRequestSend(session Session, index int32, value string, replace bool, cursor int32, anchor int32) bool {
-	var value_0 bool = Session_SessionValid(session)
-	var value_1 bool = !value_0 || index < 0
+	var value_0 bool = text_boundary == nil
+	var value_1 bool = value_0
 	if !value_1 {
-		var value_2 bool = index >= Tree_TreeCount(session)
-		value_1 = value_2
+		var value_2 bool = Session_SessionValid(session)
+		value_1 = !value_2
 	}
-	if value_1 {
+	var value_3 bool = value_1 || index < 0
+	var value_4 bool = value_3
+	if !value_4 {
+		var value_5 bool = index >= Tree_TreeCount(session)
+		value_4 = value_5
+	}
+	if value_4 {
 		return false
 	}
 	node := Tree_TreeNodeAt(session, index)
-	var value_3 bool = !node.HasText || node.Disabled || node.Loading || (replace && node.ReadOnly) || (!replace && node.Secure)
-	var value_4 bool = value_3
-	if !value_4 {
-		var value_5 bool = TreeInput_TreeInputAllowedAt(session, index)
-		value_4 = !value_5
+	var value_6 bool = !node.HasText || node.Disabled || node.Loading || (replace && node.ReadOnly) || (!replace && node.Secure)
+	var value_7 bool = value_6
+	if !value_7 {
+		var value_8 bool = TreeInput_TreeInputAllowedAt(session, index)
+		value_7 = !value_8
 	}
-	if value_4 {
+	if value_7 {
 		return false
 	}
 	slot := session.Slot
 	if (text_requests[slot]).Pending && ((text_requests[slot]).Session).Epoch == session.Epoch {
 		var old int32 = 0
 		for old < Tree_TreeCount(session) {
-			var value_6 TreeEntry = Tree_TreeNodeAt(session, old)
-			if value_6.IdentityGeneration == (text_requests[slot]).Generation {
+			var value_9 TreeEntry = Tree_TreeNodeAt(session, old)
+			if value_9.IdentityGeneration == (text_requests[slot]).Generation {
 				return false
 			}
 			old++
 		}
 	}
-	var value_7 bool = replace
-	if value_7 {
-		var value_8 bool = int64(len(value)) > 65536
-		if !value_8 {
-			var value_9 bool = StdUtf8_Valid(value)
-			value_8 = !value_9
+	var value_10 bool = replace
+	if value_10 {
+		var value_11 bool = int64(len(value)) > 65536
+		if !value_11 {
+			var value_12 bool = StdUtf8_Valid(value)
+			value_11 = !value_12
 		}
-		value_7 = value_8
+		value_10 = value_11
 	}
-	if value_7 {
+	if value_10 {
 		return false
 	}
 	var bytes [65536]uint8
@@ -83,39 +97,50 @@ func TextRequest_TextRequestSend(session Session, index int32, value string, rep
 	if replace {
 		selection_value = value
 	}
-	var value_10 bool = cursor < 0 || anchor < 0 || int64(cursor) > int64(len(selection_value)) || int64(anchor) > int64(len(selection_value))
-	var value_11 bool = value_10
-	if !value_11 {
-		var value_12 bool = StdGrapheme_Boundary(selection_value, cursor) != cursor
-		value_11 = value_12
+	var value_13 bool = cursor < 0 || anchor < 0 || int64(cursor) > int64(len(selection_value)) || int64(anchor) > int64(len(selection_value))
+	var value_14 bool = value_13
+	if !value_14 {
+		var value_15 TextBoundary = text_boundary
+		var value_16 bool = value_15(selection_value, cursor) != cursor
+		value_14 = value_16
 	}
-	var value_13 bool = value_11
-	if !value_13 {
-		var value_14 bool = StdGrapheme_Boundary(selection_value, anchor) != anchor
-		value_13 = value_14
+	var value_17 bool = value_14
+	if !value_17 {
+		var value_18 TextBoundary = text_boundary
+		var value_19 bool = value_18(selection_value, anchor) != anchor
+		value_17 = value_19
 	}
-	if value_13 {
+	if value_17 {
 		return false
 	}
-	var value_15 bool = TreeInput_TreeFocusAt(session, index)
-	if !value_15 {
+	var value_20 bool = TreeInput_TreeFocusAt(session, index)
+	if !value_20 {
 		return false
 	}
-	(text_requests[slot]).Session = session
-	(text_requests[slot]).Generation = node.IdentityGeneration
-	(text_requests[slot]).Replace = replace
-	(text_requests[slot]).Cursor = cursor
-	(text_requests[slot]).Anchor = anchor
-	(text_requests[slot]).Count = 0
+	value_21 := &((text_requests[slot]).Session)
+	(*value_21) = session
+	value_22 := &((text_requests[slot]).Generation)
+	(*value_22) = node.IdentityGeneration
+	value_23 := &((text_requests[slot]).Replace)
+	(*value_23) = replace
+	value_24 := &((text_requests[slot]).Cursor)
+	(*value_24) = cursor
+	value_25 := &((text_requests[slot]).Anchor)
+	(*value_25) = anchor
+	value_26 := &((text_requests[slot]).Count)
+	(*value_26) = 0
 	if replace {
 		var ziran_keyword_byte_0 int32 = 0
 		for int64(ziran_keyword_byte_0) < int64(len(value)) {
-			((text_requests[slot]).Bytes)[ziran_keyword_byte_0] = value[ziran_keyword_byte_0]
+			value_27 := &(((text_requests[slot]).Bytes)[ziran_keyword_byte_0])
+			(*value_27) = value[ziran_keyword_byte_0]
 			ziran_keyword_byte_0++
 		}
-		(text_requests[slot]).Count = ziran_keyword_byte_0
+		value_28 := &((text_requests[slot]).Count)
+		(*value_28) = ziran_keyword_byte_0
 	}
-	(text_requests[slot]).Pending = true
+	value_29 := &((text_requests[slot]).Pending)
+	(*value_29) = true
 	return true
 }
 
@@ -141,39 +166,51 @@ func TextRequest_TextRequestTake(session Session, index int32) TextRequest {
 	if value_4 {
 		return result
 	}
-	(text_requests[slot]).Pending = false
-	var value_7 bool = TreeInput_TreeInputAllowedAt(session, index)
-	if !value_7 {
+	value_7 := &((text_requests[slot]).Pending)
+	(*value_7) = false
+	var value_8 bool = TreeInput_TreeInputAllowedAt(session, index)
+	if !value_8 {
 		return result
 	}
-	result.Pending = true
-	result.Replace = (text_requests[slot]).Replace
-	result.Cursor = (text_requests[slot]).Cursor
-	result.Anchor = (text_requests[slot]).Anchor
-	var value_8 int32 = (text_requests[slot]).Count
-	result.Value = string((text_requests[slot]).Bytes[0:value_8:value_8])
+	value_9 := &(result.Pending)
+	(*value_9) = true
+	value_10 := &(result.Replace)
+	(*value_10) = (text_requests[slot]).Replace
+	value_11 := &(result.Cursor)
+	(*value_11) = (text_requests[slot]).Cursor
+	value_12 := &(result.Anchor)
+	(*value_12) = (text_requests[slot]).Anchor
+	value_13 := &(result.Value)
+	var value_14 int32 = (text_requests[slot]).Count
+	(*value_13) = string((text_requests[slot]).Bytes[0:value_14:value_14])
 	return result
 }
 
 func TextRequest_TextRequestClear(session Session) {
 	if Session_SessionValid(session) {
-		text_requests[session.Slot] = PendingTextRequest{}
+		value_0 := &(text_requests[session.Slot])
+		(*value_0) = PendingTextRequest{}
 	}
 }
 
 func TextRequest_TextRequestChangeFor(before string, after string) TextRequestChange {
+	if text_boundary == nil {
+		return TextRequestChange{Start: 0, End: int32(int64(len(before))), Replacement: after, Changed: (before != after)}
+	}
 	var start int32 = 0
 	for int64(start) < int64(len(before)) && int64(start) < int64(len(after)) && before[start] == after[start] {
 		start++
 	}
 	for {
-		var value_0 bool = StdGrapheme_Boundary(before, start) != start
-		var value_1 bool = value_0
-		if !value_1 {
-			var value_2 bool = StdGrapheme_Boundary(after, start) != start
-			value_1 = value_2
+		var value_0 TextBoundary = text_boundary
+		var value_1 bool = value_0(before, start) != start
+		var value_2 bool = value_1
+		if !value_2 {
+			var value_3 TextBoundary = text_boundary
+			var value_4 bool = value_3(after, start) != start
+			value_2 = value_4
 		}
-		if !value_1 { break }
+		if !value_2 { break }
 		start--
 	}
 	old_end := int32(int64(len(before)))
@@ -183,17 +220,19 @@ func TextRequest_TextRequestChangeFor(before string, after string) TextRequestCh
 		new_end--
 	}
 	for {
-		var value_3 bool = int64(old_end) < int64(len(before))
-		if value_3 {
-			var value_4 bool = StdGrapheme_Boundary(before, old_end) != old_end
-			var value_5 bool = value_4
-			if !value_5 {
-				var value_6 bool = StdGrapheme_Boundary(after, new_end) != new_end
-				value_5 = value_6
+		var value_5 bool = int64(old_end) < int64(len(before))
+		if value_5 {
+			var value_6 TextBoundary = text_boundary
+			var value_7 bool = value_6(before, old_end) != old_end
+			var value_8 bool = value_7
+			if !value_8 {
+				var value_9 TextBoundary = text_boundary
+				var value_10 bool = value_9(after, new_end) != new_end
+				value_8 = value_10
 			}
-			value_3 = value_5
+			value_5 = value_8
 		}
-		if !value_3 { break }
+		if !value_5 { break }
 		old_end++
 		new_end++
 	}

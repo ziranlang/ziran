@@ -13,35 +13,35 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef int64_t TextWrap;
-typedef struct TextRange TextRange;
-typedef struct TextProps TextProps;
+typedef int64_t Wrap;
+typedef struct Range Range;
+typedef struct zir_5988125b9981443f_Props zir_5988125b9981443f_Props;
 typedef struct PreparedText PreparedText;
 
 enum {
-    TextWrapAuto = 0,
-    TextWrapNone = 1,
-    TextWrapEllipsis = 2,
-    TextWrapAnywhere = 3,
+    Wrap_TextWrapAuto = 0,
+    Wrap_TextWrapNone = 1,
+    Wrap_TextWrapEllipsis = 2,
+    Wrap_TextWrapAnywhere = 3,
 };
 
-struct TextRange {
+struct Range {
     int32_t start;
     int32_t end;
 };
 
-struct TextProps {
+struct zir_5988125b9981443f_Props {
     uint64_t key;
     Rectangle bounds;
     String text;
-    int32_t font;
+    int32_t size;
     int32_t fallback_font;
     int32_t style_kind;
     int32_t id;
     SemanticKind semantic_kind;
     int32_t heading_level;
     int32_t class_name;
-    TextWrap wrap;
+    Wrap wrap;
     TextAlign align;
     TextAlign vertical_align;
     bool disabled;
@@ -65,7 +65,7 @@ struct PreparedText {
     int32_t line_height;
     int32_t line_gap;
     int32_t line_count;
-    TextWrap wrap;
+    Wrap wrap;
 };
 
 #ifdef __cplusplus

@@ -8,6 +8,7 @@
 #include "session.h"
 #include "tree.h"
 #include "tree_input.h"
+#include "text_request.h"
 #include "text_input_platform.h"
 uint32_t frame_retained = {0};
 uint32_t frame_input_changed = {0};
@@ -21,9 +22,12 @@ void
 tree_draw_FrameInputCommit(Session session)
 {
     int32_t slot = SessionIndex(session);
-    frame_owners[slot] = session;
-    frame_pointer[slot] = (frame_current_pointer)[slot];
-    frame_modifiers[slot] = (frame_current_modifiers)[slot];
+    Session* value_0 = &(frame_owners[slot]);
+    (*value_0) = session;
+    PointerFrame* value_1 = &(frame_pointer[slot]);
+    (*value_1) = (frame_current_pointer)[slot];
+    int32_t* value_2 = &(frame_modifiers[slot]);
+    (*value_2) = (frame_current_modifiers)[slot];
 }
 
 FrameStatus
@@ -50,15 +54,17 @@ BeginFrame(Session session, uint64_t screen_key, Rectangle bounds)
     if (!same_owner) {
         paint_queue_PaintSnapshotInvalidate(session);
     }
-    frame_current_pointer[slot] = pointer;
-    frame_current_modifiers[slot] = (active_modifiers)[slot];
+    PointerFrame* value_7 = &(frame_current_pointer[slot]);
+    (*value_7) = pointer;
+    int32_t* value_8 = &(frame_current_modifiers[slot]);
+    (*value_8) = (active_modifiers)[slot];
     frame_retained = session_SessionFlagSet(frame_retained, slot, false);
     TreeKeyboardRoute(session);
     TextInputFocusFrameBegin(session);
     PaintClear(session);
-    uint32_t value_7 = frame_paint_unchanged;
-    int32_t value_8 = SessionIndex(session);
-    frame_paint_unchanged = session_SessionFlagSet(value_7, value_8, false);
+    uint32_t value_9 = frame_paint_unchanged;
+    int32_t value_10 = SessionIndex(session);
+    frame_paint_unchanged = session_SessionFlagSet(value_9, value_10, false);
     TreeStart(session, screen_key, bounds);
     return (FrameStatus)(TreeFrameStatus(session));
 }

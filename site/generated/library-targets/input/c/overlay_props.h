@@ -10,10 +10,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct DismissibleOverlayProps DismissibleOverlayProps;
+typedef struct zir_369927f740a3063a_Props zir_369927f740a3063a_Props;
 typedef struct DismissibleOverlayResult DismissibleOverlayResult;
 
-struct DismissibleOverlayProps {
+struct zir_369927f740a3063a_Props {
     uint64_t key;
     int32_t id;
     int32_t class_name;

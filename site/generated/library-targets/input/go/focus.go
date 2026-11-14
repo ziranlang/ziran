@@ -44,18 +44,23 @@ func Focus_TreeFocusBegin(current int32, count int32, depth int32, down bool, up
 		if current + 1 >= count {
 			return scan
 		}
-		scan.Index = current + 1
-		scan.Child = !down && right
+		value_0 := &(scan.Index)
+		(*value_0) = current + 1
+		value_1 := &(scan.Child)
+		(*value_1) = !down && right
 	} else if up || left {
 		if current <= 0 {
 			return scan
 		}
-		scan.Index = current - 1
-		scan.Parent = !up && left
+		value_2 := &(scan.Index)
+		(*value_2) = current - 1
+		value_3 := &(scan.Parent)
+		(*value_3) = !up && left
 	} else {
 		return scan
 	}
-	scan.Done = false
+	value_4 := &(scan.Done)
+	(*value_4) = false
 	return scan
 }
 
@@ -65,13 +70,17 @@ func Focus_TreeFocusAdvance(scan TreeFocusScan, candidate_depth int32) TreeFocus
 	}
 	if scan.Parent && candidate_depth >= scan.Depth {
 		if scan.Index > 0 {
-			scan.Index--
+			value_0 := &(scan.Index)
+			(*value_0)--
 			return scan
 		}
-		scan.Index = scan.Origin
+		value_1 := &(scan.Index)
+		(*value_1) = scan.Origin
 	} else if scan.Child && candidate_depth <= scan.Depth {
-		scan.Index = scan.Origin
+		value_2 := &(scan.Index)
+		(*value_2) = scan.Origin
 	}
-	scan.Done = true
+	value_3 := &(scan.Done)
+	(*value_3) = true
 	return scan
 }

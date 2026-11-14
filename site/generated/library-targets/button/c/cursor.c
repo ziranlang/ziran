@@ -16,9 +16,11 @@ cursor_CursorHoverFrameStart(Session session)
     uint64_t value_0 = (cursor_hovers[slot]).epoch;
     uint64_t value_1 = session.epoch;
     if (value_0 != value_1) {
-        cursor_hovers[slot] = (CursorHoverState){.epoch = session.epoch};
+        CursorHoverState* value_2 = &(cursor_hovers[slot]);
+        (*value_2) = (CursorHoverState){.epoch = session.epoch};
     }
-    (cursor_hovers[slot]).building = 0;
+    int32_t* value_3 = &((cursor_hovers[slot]).building);
+    (*value_3) = 0;
 }
 
 void
@@ -34,5 +36,6 @@ cursor_CursorHoverFrameCommit(Session session)
     if (value_0) {
         return;
     }
-    (cursor_hovers[slot]).committed = (cursor_hovers[slot]).building;
+    int32_t* value_3 = &((cursor_hovers[slot]).committed);
+    (*value_3) = (cursor_hovers[slot]).building;
 }

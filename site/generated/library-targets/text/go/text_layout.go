@@ -3,7 +3,6 @@ package main
 
 // #import font_metrics
 // #import text_align
-// #import text_props
 // #import std_utf8
 type TextLinePlan struct {
 	Start int32
@@ -112,42 +111,48 @@ func TextLayout_TextTokenNext(value string, offset int32, icons bool) TextToken 
 		if !value_0 { break }
 		offset++
 	}
-	token.Start = offset
-	token.End = offset
-	token.Next = offset
+	value_2 := &(token.Start)
+	(*value_2) = offset
+	value_3 := &(token.End)
+	(*value_3) = offset
+	value_4 := &(token.Next)
+	(*value_4) = offset
 	if offset >= int32(int64(len(value))) {
 		return token
 	}
-	token.Valid = true
+	value_5 := &(token.Valid)
+	(*value_5) = true
 	current := value[offset]
 	if current == 10 || current == 13 {
-		token.LineBreak = true
+		value_6 := &(token.LineBreak)
+		(*value_6) = true
 		offset++
 		if current == 13 && offset < int32(int64(len(value))) && value[offset] == 10 {
 			offset++
 		}
 	} else if icons && current == 37 && offset + 1 < int32(int64(len(value))) && value[(offset + 1)] == 105 {
-		token.Icon = true
+		value_7 := &(token.Icon)
+		(*value_7) = true
 		offset += 2
 	} else {
 		var previous uint32 = 0
 		have_previous := false
 		for offset < int32(int64(len(value))) {
 			current = value[offset]
-			var value_2 bool = TextLayout_TextIsSpace(current)
-			if value_2 || current == 10 || current == 13 {
+			var value_8 bool = TextLayout_TextIsSpace(current)
+			if value_8 || current == 10 || current == 13 {
 				break
 			}
 			if icons && current == 37 && offset + 1 < int32(int64(len(value))) && value[(offset + 1)] == 105 {
 				break
 			}
 			point := StdUtf8_Decode(value, offset)
-			var value_3 bool = have_previous
-			if value_3 {
-				var value_4 bool = TextLayout_TextBreaksBetween(previous, point.Value)
-				value_3 = value_4
+			var value_9 bool = have_previous
+			if value_9 {
+				var value_10 bool = TextLayout_TextBreaksBetween(previous, point.Value)
+				value_9 = value_10
 			}
-			if value_3 {
+			if value_9 {
 				break
 			}
 			previous = point.Value
@@ -155,8 +160,10 @@ func TextLayout_TextTokenNext(value string, offset int32, icons bool) TextToken 
 			offset = point.After
 		}
 	}
-	token.End = offset
-	token.Next = offset
+	value_11 := &(token.End)
+	(*value_11) = offset
+	value_12 := &(token.Next)
+	(*value_12) = offset
 	return token
 }
 
@@ -174,7 +181,7 @@ func TextLayout_TextLineCacheMatches(entry *TextLineCache, revision uint64, hash
 	return value_0 && entry.Width == width && entry.Wrap == wrap
 }
 
-func TextLayout_NextTextLine(value string, start int32, max_width float32, wrap TextWrap, font int32, typeface string) TextLinePlan {
+func TextLayout_NextTextLine(value string, start int32, max_width float32, wrap Wrap, font int32, typeface string) TextLinePlan {
 	revision := FontMetrics_GlyphMetricsRevision()
 	if revision == 0 || start < 0 || start > int32(int64(len(value))) {
 		return TextLayout_NextTextLineUncached(value, start, max_width, wrap, font, typeface)
@@ -219,14 +226,16 @@ func TextLayout_NextTextLine(value string, start int32, max_width float32, wrap 
 					index++
 				}
 			}
-			var value_1 TextLineCache = TextLineCache{Revision: revision, Hash: hash, Count: int64(len(value)), Face: face, Font: font, Width: max_width, Wrap: int32(wrap)}
-			text_line_cache[slot] = value_1
+			value_1 := &(text_line_cache[slot])
+			var value_2 TextLineCache = TextLineCache{Revision: revision, Hash: hash, Count: int64(len(value)), Face: face, Font: font, Width: max_width, Wrap: int32(wrap)}
+			(*value_1) = value_2
 		}
 		text_line_last = slot
 	}
 	entry := &(text_line_cache[slot])
 	text_line_clock++
-	entry.Used = text_line_clock
+	value_3 := &(entry.Used)
+	(*value_3) = text_line_clock
 	var low int32 = 0
 	high := entry.Rows
 	for low < high {
@@ -241,51 +250,58 @@ func TextLayout_NextTextLine(value string, start int32, max_width float32, wrap 
 		return entry.Lines[low]
 	}
 	line := TextLayout_NextTextLineUncached(value, start, max_width, wrap, font, typeface)
-	var value_2 bool = entry.Rows < 32
-	var value_3 bool = value_2
-	if value_3 {
-		var value_4 bool = FontMetrics_GlyphMetricsRevision() == revision
-		value_3 = value_4
+	var value_4 bool = entry.Rows < 32
+	var value_5 bool = value_4
+	if value_5 {
+		var value_6 bool = FontMetrics_GlyphMetricsRevision() == revision
+		value_5 = value_6
 	}
-	if value_3 {
+	if value_5 {
 		row := entry.Rows
 		for row > low {
-			entry.Lines[row] = entry.Lines[(row - 1)]
+			value_7 := &(entry.Lines[row])
+			(*value_7) = entry.Lines[(row - 1)]
 			row--
 		}
-		entry.Lines[low] = line
-		entry.Rows++
+		value_8 := &(entry.Lines[low])
+		(*value_8) = line
+		value_9 := &(entry.Rows)
+		(*value_9)++
 	}
 	return line
 }
 
-func TextLayout_NextTextLineUncached(value string, start int32, max_width float32, wrap TextWrap, font int32, typeface string) TextLinePlan {
+func TextLayout_NextTextLineUncached(value string, start int32, max_width float32, wrap Wrap, font int32, typeface string) TextLinePlan {
 	line := TextLinePlan{Start: start, End: start, Next: (int32(int64(len(value))) + 1)}
 	if start >= int32(int64(len(value))) {
 		return line
 	}
-	if wrap == TextWrap(3) && max_width > 0.0 {
+	if wrap == Wrap(3) && max_width > 0.0 {
 		offset := start
 		_ = offset
 		for offset < int32(int64(len(value))) {
 			after := StdGrapheme_Next(value, offset)
 			if value[offset] == 10 || value[offset] == 13 {
-				line.Next = after
+				value_0 := &(line.Next)
+				(*value_0) = after
 				return line
 			}
 			width := FontMetrics_GlyphWidth(value[start:after], font, typeface)
 			_ = width
 			if line.End > start && float32(width) > max_width {
-				line.Next = offset
+				value_1 := &(line.Next)
+				(*value_1) = offset
 				return line
 			}
-			line.End = after
-			line.Width = width
+			value_2 := &(line.End)
+			(*value_2) = after
+			value_3 := &(line.Width)
+			(*value_3) = width
 			offset = after
 		}
 		return line
 	}
-	wrapped := wrap == TextWrap(0) && max_width > 0.0
+	wrapped := wrap == Wrap(0) && max_width > 0.0
 	offset := start
 	_ = offset
 	for offset < int32(int64(len(value))) {
@@ -294,9 +310,11 @@ func TextLayout_NextTextLineUncached(value string, start int32, max_width float3
 			break
 		}
 		if token.LineBreak {
-			line.Next = token.Next
+			value_4 := &(line.Next)
+			(*value_4) = token.Next
 			if !wrapped && line.End > line.Start {
-				line.Width = FontMetrics_GlyphWidth(value[line.Start:line.End], font, typeface)
+				value_5 := &(line.Width)
+				(*value_5) = FontMetrics_GlyphWidth(value[line.Start:line.End], font, typeface)
 			}
 			return line
 		}
@@ -307,15 +325,19 @@ func TextLayout_NextTextLineUncached(value string, start int32, max_width float3
 			width = FontMetrics_GlyphWidth(candidate, font, typeface)
 		}
 		if wrapped && line.End > line.Start && float32(width) > max_width {
-			line.Next = token.Start
+			value_6 := &(line.Next)
+			(*value_6) = token.Start
 			return line
 		}
-		line.End = token.End
-		line.Width = width
+		value_7 := &(line.End)
+		(*value_7) = token.End
+		value_8 := &(line.Width)
+		(*value_8) = width
 		offset = token.Next
 	}
 	if !wrapped && line.End > line.Start {
-		line.Width = FontMetrics_GlyphWidth(value[line.Start:line.End], font, typeface)
+		value_9 := &(line.Width)
+		(*value_9) = FontMetrics_GlyphWidth(value[line.Start:line.End], font, typeface)
 	}
 	return line
 }

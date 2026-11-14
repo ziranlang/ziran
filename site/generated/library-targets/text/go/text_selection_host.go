@@ -2,8 +2,7 @@
 package main
 
 // #import session
-// #import text_props
-type TextSelectionPainter func(Session, int32, TextProps, PreparedText)
+type TextSelectionPainter func(Session, int32, zir_5988125b9981443f_Props, PreparedText)
 
 type TextSelectionActivity func(Session) bool
 
@@ -11,7 +10,7 @@ var selection_painter TextSelectionPainter
 var selection_painter_ready bool
 var selection_activity TextSelectionActivity
 var selection_activity_ready bool
-func TextSelectionHost_TextSelectionPresent(session Session, node int32, props TextProps, prepared PreparedText) bool {
+func TextSelectionHost_TextSelectionPresent(session Session, node int32, props zir_5988125b9981443f_Props, prepared PreparedText) bool {
 	if !selection_painter_ready {
 		return false
 	}

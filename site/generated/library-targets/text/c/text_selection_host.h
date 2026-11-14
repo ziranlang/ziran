@@ -4,19 +4,19 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "session.h"
 #include "text_props.h"
+#include "session.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 typedef struct TextSelectionPainter {
     void *context;
-    void (*call)(void *, Session, int32_t, TextProps, PreparedText);
+    void (*call)(void *, Session, int32_t, zir_5988125b9981443f_Props, PreparedText);
 } TextSelectionPainter;
 extern TextSelectionPainter selection_painter;
 extern bool selection_painter_ready;
-bool text_selection_host_TextSelectionPresent(Session session, int32_t node, TextProps props, PreparedText prepared);
+bool text_selection_host_TextSelectionPresent(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared);
 
 #ifdef __cplusplus
 }

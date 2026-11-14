@@ -8,15 +8,13 @@
 #include "geometry.h"
 #include "control_props.h"
 #include "button.h"
-#include "button_props.h"
 #include "text.h"
 #include "textfield.h"
-#include "text_input_props.h"
 #include "tree.h"
 #include "tree_draw.h"
 #include "tree_input.h"
 #include "widget_benchmark_host.h"
-#include "ziran_system_clipboard_host.h"
+#include "system_clipboard_host.h"
 
 #ifdef __cplusplus
 extern "C" {

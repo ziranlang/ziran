@@ -188,10 +188,13 @@ A host that installs a WebAssembly provider with `ZxWasmSetPlatform`
 `BundleInstantiate` lowers the bundle's verified program with
 `zx_wasm_lower`, instantiates it through the provider, runs its module
 initializers, and charges the run budget like the instruction engine. An
-Emscripten build of `libziran` installs the browser provider itself, except in an
-Asyncify or JSPI runtime: its hosts may suspend the stack, which a module instance
-cannot follow, so the instruction engine runs bundles there. Set
-`ZIRAN_WASM_TIER=0` to leave bundles to the instruction engine. Each instance
+Emscripten build of `libziran` installs the browser provider itself. In an
+Asyncify runtime, whose hosts may suspend the stack, modules are lowered
+suspendable (`ZxWasmLowerProgramSuspendable`): a module unwinds with the stack
+and resumes at the host call when it rewinds. A JSPI runtime leaves bundles to the
+instruction engine. Set `ZIRAN_WASM_TIER=0` in the environment, or
+`globalThis.ZIRAN_WASM_TIER = "0"` before a page loads the runtime, to leave
+bundles to the instruction engine. Each instance
 keeps its own bindings and linear memory. Host calls and module state cross as
 host images, which the embedding API translates to `VmHostValue` trees by the
 host interface section, so typed capabilities, records, strings, slices and

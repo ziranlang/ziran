@@ -4,7 +4,6 @@ package main
 // #import control_props
 // #import geometry
 // #import scroll_behavior
-// #import scroll_props
 // #import session
 // #import style
 // #import style_sheet
@@ -38,49 +37,112 @@ type ScrollDevice struct {
 	GlideTarget int32
 }
 
-var scroll_device ScrollDevice
+const SCROLL_DEVICE_SLOTS = 9
+var scroll_devices [9]ScrollDevice
+var scroll_device_current int32
+func ScrollDevice_ScrollDeviceSlot(session Session) int32 {
+	slot := Session_SessionIndex(session)
+	if slot <= 0 || slot >= 9 {
+		return 0
+	}
+	return slot
+}
+
+func ScrollDevice_ScrollDeviceCurrent() *ScrollDevice {
+	return &(scroll_devices[scroll_device_current])
+}
+
 func ScrollDevice_ScrollDeviceMoving(session Session) bool {
-	var value_0 bool = ScrollDevice_ScrollDeviceSampled(session)
-	return value_0 && (scroll_device.Owner != 0 || scroll_device.FlingOwner != 0 || scroll_device.GlideOwner != 0)
+	var value_0 int32 = ScrollDevice_ScrollDeviceSlot(session)
+	device := &(scroll_devices[value_0])
+	var value_1 bool = ScrollDevice_ScrollDeviceSampled(session)
+	return value_1 && (device.Owner != 0 || device.FlingOwner != 0 || device.GlideOwner != 0)
 }
 
 func ScrollDevice_ScrollDeviceRelease() {
-	scroll_device.Owner = 0
-	scroll_device.Grab = 0.0
-	scroll_device.ContentDrag = false
-	scroll_device.DragMoving = false
-	scroll_device.SampleSeconds = 0.0
-	scroll_device.Velocity = 0.0
+	device := ScrollDevice_ScrollDeviceCurrent()
+	value_0 := &(device.Owner)
+	(*value_0) = 0
+	value_1 := &(device.Grab)
+	(*value_1) = 0.0
+	value_2 := &(device.ContentDrag)
+	(*value_2) = false
+	value_3 := &(device.DragMoving)
+	(*value_3) = false
+	value_4 := &(device.SampleSeconds)
+	(*value_4) = 0.0
+	value_5 := &(device.Velocity)
+	(*value_5) = 0.0
 }
 
 func ScrollDevice_ScrollDeviceSampled(session Session) bool {
-	var value_0 bool = scroll_device.Sampled
-	var value_1 bool = value_0
-	if value_1 {
-		var value_2 bool = Session_SessionValid(session)
-		value_1 = value_2
+	var value_0 bool = Session_SessionValid(session)
+	if !value_0 {
+		return false
 	}
-	return value_1 && scroll_device.Session.Slot == session.Slot && scroll_device.Session.Epoch == session.Epoch
+	var value_1 int32 = ScrollDevice_ScrollDeviceSlot(session)
+	device := &(scroll_devices[value_1])
+	return device.Sampled && device.Session.Slot == session.Slot && device.Session.Epoch == session.Epoch
+}
+
+func ScrollDevice_ScrollDeviceGlideSet(session Session, key uint64) {
+	var value_0 int32 = ScrollDevice_ScrollDeviceSlot(session)
+	value_1 := &((scroll_devices[value_0]).GlideOwner)
+	(*value_1) = key
 }
 
 func ScrollDevice_BeginScrollFrame(session Session, mouse Vector2, pressed bool, down bool, released bool, wheel float32, now_seconds float64) {
-	scroll_device.Sampled = true
-	scroll_device.NowSeconds = now_seconds
+	slot := ScrollDevice_ScrollDeviceSlot(session)
+	scroll_device_current = slot
+	device := &(scroll_devices[slot])
+	if device.Session.Slot != session.Slot || device.Session.Epoch != session.Epoch {
+		value_0 := &(device.Owner)
+		(*value_0) = 0
+		value_1 := &(device.Grab)
+		(*value_1) = 0.0
+		value_2 := &(device.ContentDrag)
+		(*value_2) = false
+		value_3 := &(device.DragMoving)
+		(*value_3) = false
+		value_4 := &(device.SampleSeconds)
+		(*value_4) = 0.0
+		value_5 := &(device.Velocity)
+		(*value_5) = 0.0
+		value_6 := &(device.FlingOwner)
+		(*value_6) = 0
+		value_7 := &(device.GlideOwner)
+		(*value_7) = 0
+	}
+	value_8 := &(device.Sampled)
+	(*value_8) = true
+	value_9 := &(device.NowSeconds)
+	(*value_9) = now_seconds
 	if pressed || wheel != 0.0 {
-		scroll_device.FlingOwner = 0
+		value_10 := &(device.FlingOwner)
+		(*value_10) = 0
 	}
 	if pressed {
-		scroll_device.GlideOwner = 0
-		scroll_device.PressOrigin = mouse
+		value_11 := &(device.GlideOwner)
+		(*value_11) = 0
+		value_12 := &(device.PressOrigin)
+		(*value_12) = mouse
 	}
-	scroll_device.Session = session
-	scroll_device.Mouse = mouse
-	scroll_device.Pressed = pressed
-	scroll_device.Down = down
-	scroll_device.Released = released
-	scroll_device.Wheel = wheel
-	scroll_device.WheelX = 0.0
-	scroll_device.WheelConsumed = false
+	value_13 := &(device.Session)
+	(*value_13) = session
+	value_14 := &(device.Mouse)
+	(*value_14) = mouse
+	value_15 := &(device.Pressed)
+	(*value_15) = pressed
+	value_16 := &(device.Down)
+	(*value_16) = down
+	value_17 := &(device.Released)
+	(*value_17) = released
+	value_18 := &(device.Wheel)
+	(*value_18) = wheel
+	value_19 := &(device.WheelX)
+	(*value_19) = 0.0
+	value_20 := &(device.WheelConsumed)
+	(*value_20) = false
 	if !down && !released {
 		ScrollDevice_ScrollDeviceRelease()
 	}
@@ -91,9 +153,13 @@ func ScrollDevice_ScrollDeviceSideways(session Session, wheel_x float32) {
 	if !value_0 {
 		return
 	}
-	scroll_device.WheelX = wheel_x
+	var value_1 int32 = ScrollDevice_ScrollDeviceSlot(session)
+	device := &(scroll_devices[value_1])
+	value_2 := &(device.WheelX)
+	(*value_2) = wheel_x
 	if wheel_x != 0.0 {
-		scroll_device.FlingOwner = 0
+		value_3 := &(device.FlingOwner)
+		(*value_3) = 0
 	}
 }
 
@@ -106,17 +172,22 @@ func ScrollDevice_ScrollDeviceStopMotion(session Session, key uint64) {
 	if value_0 {
 		return
 	}
-	if scroll_device.FlingOwner == key {
-		scroll_device.FlingOwner = 0
+	var value_2 int32 = ScrollDevice_ScrollDeviceSlot(session)
+	device := &(scroll_devices[value_2])
+	if device.FlingOwner == key {
+		value_3 := &(device.FlingOwner)
+		(*value_3) = 0
 	}
-	if scroll_device.GlideOwner == key {
-		scroll_device.GlideOwner = 0
+	if device.GlideOwner == key {
+		value_4 := &(device.GlideOwner)
+		(*value_4) = 0
 	}
 }
 
 func ScrollDevice_ScrollDeviceAcross(horizontal bool, scale float32) bool {
-	dx := ScrollDevice_ScrollWheelSize(scroll_device.Mouse.X - scroll_device.PressOrigin.X)
-	dy := ScrollDevice_ScrollWheelSize(scroll_device.Mouse.Y - scroll_device.PressOrigin.Y)
+	device := ScrollDevice_ScrollDeviceCurrent()
+	dx := ScrollDevice_ScrollWheelSize(device.Mouse.X - device.PressOrigin.X)
+	dy := ScrollDevice_ScrollWheelSize(device.Mouse.Y - device.PressOrigin.Y)
 	along := dy
 	across := dx
 	if horizontal {
@@ -137,86 +208,121 @@ func ScrollDevice_ScrollWheelSize(wheel float32) float32 {
 }
 
 func ScrollDevice_ScrollDeviceWheelFor(horizontal bool) float32 {
+	device := ScrollDevice_ScrollDeviceCurrent()
 	var value_0 bool = horizontal
 	if value_0 {
-		var value_1 bool = ScrollDevice_ScrollWheelSize(scroll_device.WheelX) > ScrollDevice_ScrollWheelSize(scroll_device.Wheel)
+		var value_1 bool = ScrollDevice_ScrollWheelSize(device.WheelX) > ScrollDevice_ScrollWheelSize(device.Wheel)
 		value_0 = value_1
 	}
 	if value_0 {
-		return 0.0 - scroll_device.WheelX
+		return 0.0 - device.WheelX
 	}
-	return scroll_device.Wheel
+	return device.Wheel
 }
 
-func ScrollDevice_ScrollObservationFor(key uint64, bounds Rectangle, horizontal bool, scale float32) ScrollInput {
+func ScrollDevice_ScrollObservationFor(session Session, key uint64, bounds Rectangle, horizontal bool, scale float32) ScrollInput {
+	slot := ScrollDevice_ScrollDeviceSlot(session)
+	scroll_device_current = slot
+	device := &(scroll_devices[slot])
 	var input ScrollInput = ScrollInput{}
-	input.Enabled = true
-	input.Device = true
-	var value_0 bool = TreeInput_TreeScrollAllowed(scroll_device.Session, key)
-	if !value_0 {
-		if scroll_device.Owner == key {
+	value_0 := &(input.Enabled)
+	(*value_0) = true
+	value_1 := &(input.Device)
+	(*value_1) = true
+	var value_2 bool = TreeInput_TreeScrollAllowed(session, key)
+	if !value_2 {
+		if device.Owner == key {
 			ScrollDevice_ScrollDeviceRelease()
 		}
-		if scroll_device.FlingOwner == key {
-			scroll_device.FlingOwner = 0
+		if device.FlingOwner == key {
+			value_3 := &(device.FlingOwner)
+			(*value_3) = 0
 		}
-		if scroll_device.GlideOwner == key {
-			scroll_device.GlideOwner = 0
+		if device.GlideOwner == key {
+			value_4 := &(device.GlideOwner)
+			(*value_4) = 0
 		}
-		input.Disabled = true
+		value_5 := &(input.Disabled)
+		(*value_5) = true
 		return input
 	}
-	input.Mouse = scroll_device.Mouse
-	input.Pressed = scroll_device.Pressed
-	input.Down = scroll_device.Down
-	input.Released = scroll_device.Released
-	input.OwnsDrag = key != 0 && scroll_device.Owner == key
-	input.OwnerCaptured = scroll_device.Owner != 0 && !input.OwnsDrag
-	input.Grab = scroll_device.Grab
-	input.NowSeconds = scroll_device.NowSeconds
+	value_6 := &(input.Mouse)
+	(*value_6) = device.Mouse
+	value_7 := &(input.Pressed)
+	(*value_7) = device.Pressed
+	value_8 := &(input.Down)
+	(*value_8) = device.Down
+	value_9 := &(input.Released)
+	(*value_9) = device.Released
+	value_10 := &(input.OwnsDrag)
+	(*value_10) = key != 0 && device.Owner == key
+	value_11 := &(input.OwnerCaptured)
+	(*value_11) = device.Owner != 0 && !input.OwnsDrag
+	value_12 := &(input.Grab)
+	(*value_12) = device.Grab
+	value_13 := &(input.NowSeconds)
+	(*value_13) = device.NowSeconds
 	if input.OwnsDrag {
-		input.ContentDrag = scroll_device.ContentDrag
-		input.DragOriginY = scroll_device.DragOriginY
-		input.DragOriginOffset = scroll_device.DragOriginOffset
-		input.DragMoving = scroll_device.DragMoving
-		input.SampleSeconds = scroll_device.SampleSeconds
-		input.Velocity = scroll_device.Velocity
-	} else if key != 0 && scroll_device.FlingOwner == key {
-		input.Flinging = true
-		input.SampleSeconds = scroll_device.FlingSeconds
-		input.Velocity = scroll_device.FlingVelocity
-	} else if key != 0 && scroll_device.GlideOwner == key {
-		input.Gliding = true
-		input.SampleSeconds = scroll_device.GlideSeconds
-		input.GlideTarget = scroll_device.GlideTarget
+		value_14 := &(input.ContentDrag)
+		(*value_14) = device.ContentDrag
+		value_15 := &(input.DragOriginY)
+		(*value_15) = device.DragOriginY
+		value_16 := &(input.DragOriginOffset)
+		(*value_16) = device.DragOriginOffset
+		value_17 := &(input.DragMoving)
+		(*value_17) = device.DragMoving
+		value_18 := &(input.SampleSeconds)
+		(*value_18) = device.SampleSeconds
+		value_19 := &(input.Velocity)
+		(*value_19) = device.Velocity
+	} else if key != 0 && device.FlingOwner == key {
+		value_20 := &(input.Flinging)
+		(*value_20) = true
+		value_21 := &(input.SampleSeconds)
+		(*value_21) = device.FlingSeconds
+		value_22 := &(input.Velocity)
+		(*value_22) = device.FlingVelocity
+	} else if key != 0 && device.GlideOwner == key {
+		value_23 := &(input.Gliding)
+		(*value_23) = true
+		value_24 := &(input.SampleSeconds)
+		(*value_24) = device.GlideSeconds
+		value_25 := &(input.GlideTarget)
+		(*value_25) = device.GlideTarget
 	}
 	inside := ScrollBehavior_ScrollPointInside(input.Mouse, bounds)
-	target := TreeInput_TreeScrollAt(scroll_device.Session, input.Mouse.X, input.Mouse.Y, false)
+	target := TreeInput_TreeScrollAt(session, input.Mouse.X, input.Mouse.Y, false)
 	targeted := target == 0 || target == key
-	var value_1 bool = ((inside && targeted) || input.OwnsDrag) && !input.OwnerCaptured
-	if value_1 {
-		var value_2 bool = TreeInput_TreePointerCapturesDrag(scroll_device.Session)
-		value_1 = !value_2
+	value_26 := &(input.PointerAllowed)
+	var value_27 bool = ((inside && targeted) || input.OwnsDrag) && !input.OwnerCaptured
+	if value_27 {
+		var value_28 bool = TreeInput_TreePointerCapturesDrag(session)
+		value_27 = !value_28
 	}
-	input.PointerAllowed = value_1
-	var value_3 bool = input.OwnsDrag && scroll_device.ContentDrag && !scroll_device.DragMoving
-	var value_4 bool = value_3
-	if value_4 {
-		var value_5 bool = ScrollDevice_ScrollDeviceAcross(horizontal, scale)
-		value_4 = value_5
+	(*value_26) = value_27
+	var value_29 bool = input.OwnsDrag && device.ContentDrag && !device.DragMoving
+	var value_30 bool = value_29
+	if value_30 {
+		var value_31 bool = ScrollDevice_ScrollDeviceAcross(horizontal, scale)
+		value_30 = value_31
 	}
-	if value_4 {
-		input.PointerAllowed = false
+	if value_30 {
+		value_32 := &(input.PointerAllowed)
+		(*value_32) = false
 	}
-	wheel_target := TreeInput_TreeScrollAt(scroll_device.Session, input.Mouse.X, input.Mouse.Y, true)
+	wheel_target := TreeInput_TreeScrollAt(session, input.Mouse.X, input.Mouse.Y, true)
 	wheel_targeted := wheel_target == 0 || wheel_target == key
-	if inside && wheel_targeted && !scroll_device.WheelConsumed && !input.OwnerCaptured {
-		input.Wheel = ScrollDevice_ScrollDeviceWheelFor(horizontal)
+	if inside && wheel_targeted && !device.WheelConsumed && !input.OwnerCaptured {
+		value_33 := &(input.Wheel)
+		(*value_33) = ScrollDevice_ScrollDeviceWheelFor(horizontal)
 	}
 	return input
 }
 
 func ScrollDevice_ScrollWheelTake(session Session, key uint64, bounds Rectangle, scrolls bool, horizontal bool) float32 {
+	slot := ScrollDevice_ScrollDeviceSlot(session)
+	scroll_device_current = slot
+	device := &(scroll_devices[slot])
 	var value_0 bool = !scrolls
 	if !value_0 {
 		var value_1 bool = ScrollDevice_ScrollDeviceSampled(session)
@@ -227,99 +333,129 @@ func ScrollDevice_ScrollWheelTake(session Session, key uint64, bounds Rectangle,
 		var value_3 bool = ScrollDevice_ScrollDeviceWheelFor(horizontal) == 0.0
 		value_2 = value_3
 	}
-	if value_2 || scroll_device.WheelConsumed || scroll_device.Owner != 0 {
+	if value_2 || device.WheelConsumed || device.Owner != 0 {
 		return 0.0
 	}
 	var value_4 bool = TreeInput_TreeScrollAllowed(session, key)
 	var value_5 bool = !value_4
 	if !value_5 {
-		var value_6 bool = ScrollBehavior_ScrollPointInside(scroll_device.Mouse, bounds)
+		var value_6 bool = ScrollBehavior_ScrollPointInside(device.Mouse, bounds)
 		value_5 = !value_6
 	}
 	if value_5 {
 		return 0.0
 	}
-	target := TreeInput_TreeScrollAt(session, scroll_device.Mouse.X, scroll_device.Mouse.Y, true)
+	target := TreeInput_TreeScrollAt(session, device.Mouse.X, device.Mouse.Y, true)
 	if target != 0 && target != key {
 		return 0.0
 	}
-	scroll_device.WheelConsumed = true
+	value_7 := &(device.WheelConsumed)
+	(*value_7) = true
 	return ScrollDevice_ScrollDeviceWheelFor(horizontal)
 }
 
 func ScrollDevice_ScrollDeviceContentDrag(session Session, key uint64, bounds Rectangle, max_scroll int32, offset int32, scale float32, horizontal bool) ScrollFrame {
 	var frame ScrollFrame = ScrollFrame{}
-	frame.Offset = offset
-	var value_0 bool = key == 0
-	if !value_0 {
-		var value_1 bool = ScrollDevice_ScrollDeviceSampled(session)
-		value_0 = !value_1
+	value_0 := &(frame.Offset)
+	(*value_0) = offset
+	scroll_device_current = ScrollDevice_ScrollDeviceSlot(session)
+	var value_1 bool = key == 0
+	if !value_1 {
+		var value_2 bool = ScrollDevice_ScrollDeviceSampled(session)
+		value_1 = !value_2
 	}
-	if value_0 {
+	if value_1 {
 		return frame
 	}
 	if max_scroll < 0 {
 		max_scroll = 0
 	}
-	input := ScrollProps_ScrollFrameInputFor(ScrollDevice_ScrollObservationFor(key, bounds, horizontal, scale))
-	input.Bounds = bounds
-	input.Horizontal = horizontal
-	input.ContentHeight = int32(floatToInt(float64(bounds.Height), 32, true)) + max_scroll
-	input.ContentWidth = int32(floatToInt(float64(bounds.Width), 32, true)) + max_scroll
-	input.HasOffset = true
-	input.Offset = offset
-	input.Wheel = 0.0
-	input.Gliding = false
-	var value_2 int32 = StyleSheet_StyleKindScroll()
-	track := ScrollBehavior_ScrollFace(value_2, 0, false, 1, 10.0, 0)
-	var value_3 int32 = StyleSheet_StyleKindScrollThumb()
-	thumb := ScrollBehavior_ScrollFace(value_3, 0, false, 1, 10.0, 0)
+	input := ScrollProps_ScrollFrameInputFor(ScrollDevice_ScrollObservationFor(session, key, bounds, horizontal, scale))
+	value_3 := &(input.Bounds)
+	(*value_3) = bounds
+	value_4 := &(input.Horizontal)
+	(*value_4) = horizontal
+	value_5 := &(input.ContentHeight)
+	(*value_5) = int32(floatToInt(float64(bounds.Height), 32, true)) + max_scroll
+	value_6 := &(input.ContentWidth)
+	(*value_6) = int32(floatToInt(float64(bounds.Width), 32, true)) + max_scroll
+	value_7 := &(input.HasOffset)
+	(*value_7) = true
+	value_8 := &(input.Offset)
+	(*value_8) = offset
+	value_9 := &(input.Wheel)
+	(*value_9) = 0.0
+	value_10 := &(input.Gliding)
+	(*value_10) = false
+	var value_11 int32 = StyleSheet_StyleKindScroll()
+	track := ScrollBehavior_ScrollFace(value_11, 0, false, 1, 10.0, 0)
+	var value_12 int32 = StyleSheet_StyleKindScrollThumb()
+	thumb := ScrollBehavior_ScrollFace(value_12, 0, false, 1, 10.0, 0)
 	metrics := ScrollBehavior_ScrollMetricsFor(scale, track, thumb)
-	metrics.ScrollbarWidth = 0
+	value_13 := &(metrics.ScrollbarWidth)
+	(*value_13) = 0
 	frame = ScrollBehavior_ScrollFrameFor(input, metrics)
 	ScrollDevice_CommitScroll(key, frame)
 	return frame
 }
 
 func ScrollDevice_CommitScroll(key uint64, frame ScrollFrame) {
+	device := ScrollDevice_ScrollDeviceCurrent()
 	if frame.ConsumeWheel {
-		scroll_device.WheelConsumed = true
+		value_0 := &(device.WheelConsumed)
+		(*value_0) = true
 	}
 	if key == 0 {
 		return
 	}
 	if frame.Flinging {
-		scroll_device.FlingOwner = key
-		scroll_device.FlingSeconds = frame.SampleSeconds
-		scroll_device.FlingVelocity = frame.Velocity
-	} else if scroll_device.FlingOwner == key {
-		scroll_device.FlingOwner = 0
+		value_1 := &(device.FlingOwner)
+		(*value_1) = key
+		value_2 := &(device.FlingSeconds)
+		(*value_2) = frame.SampleSeconds
+		value_3 := &(device.FlingVelocity)
+		(*value_3) = frame.Velocity
+	} else if device.FlingOwner == key {
+		value_4 := &(device.FlingOwner)
+		(*value_4) = 0
 	}
 	if frame.Gliding {
-		scroll_device.GlideOwner = key
-		scroll_device.GlideSeconds = frame.SampleSeconds
-		scroll_device.GlideTarget = frame.GlideTarget
-	} else if scroll_device.GlideOwner == key {
-		scroll_device.GlideOwner = 0
+		value_5 := &(device.GlideOwner)
+		(*value_5) = key
+		value_6 := &(device.GlideSeconds)
+		(*value_6) = frame.SampleSeconds
+		value_7 := &(device.GlideTarget)
+		(*value_7) = frame.GlideTarget
+	} else if device.GlideOwner == key {
+		value_8 := &(device.GlideOwner)
+		(*value_8) = 0
 	}
-	if frame.StartDrag && scroll_device.Owner == 0 {
-		scroll_device.Owner = key
+	if frame.StartDrag && device.Owner == 0 {
+		value_9 := &(device.Owner)
+		(*value_9) = key
 	}
-	if scroll_device.Owner != key {
+	if device.Owner != key {
 		return
 	}
 	if frame.CancelPress {
-		TreeInput_TreePointerCancel(scroll_device.Session)
+		TreeInput_TreePointerCancel(device.Session)
 	}
 	if frame.ClearDrag {
 		ScrollDevice_ScrollDeviceRelease()
 		return
 	}
-	scroll_device.Grab = frame.Grab
-	scroll_device.ContentDrag = frame.ContentDrag
-	scroll_device.DragOriginY = frame.DragOriginY
-	scroll_device.DragOriginOffset = frame.DragOriginOffset
-	scroll_device.DragMoving = frame.DragMoving
-	scroll_device.SampleSeconds = frame.SampleSeconds
-	scroll_device.Velocity = frame.Velocity
+	value_10 := &(device.Grab)
+	(*value_10) = frame.Grab
+	value_11 := &(device.ContentDrag)
+	(*value_11) = frame.ContentDrag
+	value_12 := &(device.DragOriginY)
+	(*value_12) = frame.DragOriginY
+	value_13 := &(device.DragOriginOffset)
+	(*value_13) = frame.DragOriginOffset
+	value_14 := &(device.DragMoving)
+	(*value_14) = frame.DragMoving
+	value_15 := &(device.SampleSeconds)
+	(*value_15) = frame.SampleSeconds
+	value_16 := &(device.Velocity)
+	(*value_16) = frame.Velocity
 }

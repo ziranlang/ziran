@@ -10,12 +10,25 @@ assembly: $(BIN_DIR)/zi2asm
 
 check: $(BIN_DIR)/zi2asm
 
-$(ASSEMBLY_C)/.generated: assembly.mk $(ASSEMBLY_SOURCES) $(BIN_DIR)/zi2c
-	@mkdir -p $(ASSEMBLY_C)
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd -o $(ASSEMBLY_C) \
+# The generator runs whenever its sources or zi2c change, but only files
+# whose text changed are replaced, and .generated moves only then: a zi2c
+# relinked for a new checkout path (a prebuilt tree) recompiles nothing.
+$(ASSEMBLY_C)/.ran: assembly.mk $(ASSEMBLY_SOURCES) $(BIN_DIR)/zi2c
+	rm -rf $(BUILD_DIR)/compiler-assembly.next
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd -o $(BUILD_DIR)/compiler-assembly.next \
 	    cmd/compiler_lowered_verify.zi cmd/compiler_lowered_x64.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
 	    cmd/compiler_machine_pipeline.zi
+	@mkdir -p $(ASSEMBLY_C); changed=; \
+	for f in $(BUILD_DIR)/compiler-assembly.next/*; do \
+	    cmp -s "$$f" "$(ASSEMBLY_C)/$${f##*/}" || { cp "$$f" $(ASSEMBLY_C)/; changed=1; }; done; \
+	for f in $(ASSEMBLY_C)/*; do \
+	    [ -e "$(BUILD_DIR)/compiler-assembly.next/$${f##*/}" ] || { rm -f "$$f"; changed=1; }; done; \
+	if [ -n "$$changed" ] || [ ! -e $(ASSEMBLY_C)/.generated ]; then touch $(ASSEMBLY_C)/.generated; fi
+	rm -rf $(BUILD_DIR)/compiler-assembly.next
 	touch $@
+
+$(ASSEMBLY_C)/.generated: $(ASSEMBLY_C)/.ran
+	@test -f $@ || touch $@
 
 $(BUILD_DIR)/obj/assembly-core.o: $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(BUILD_DIR)/obj/assembly

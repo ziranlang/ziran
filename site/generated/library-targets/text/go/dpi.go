@@ -42,7 +42,8 @@ func Dpi_DPIScaled(state DPIState) DPIState {
 	if scale < 0.1 {
 		scale = 0.1
 	}
-	state.RenderScale = scale
+	value_0 := &(state.RenderScale)
+	(*value_0) = scale
 	layout_width := int32(floatToInt(float64(((float32(state.PhysicalWidth) / scale) + 0.5)), 32, true))
 	layout_height := int32(floatToInt(float64(((float32(state.PhysicalHeight) / scale) + 0.5)), 32, true))
 	if layout_width < 1 {
@@ -51,23 +52,36 @@ func Dpi_DPIScaled(state DPIState) DPIState {
 	if layout_height < 1 {
 		layout_height = 1
 	}
-	state.LayoutWidth = layout_width
-	state.LayoutHeight = layout_height
-	state.ViewWidth = layout_width
-	state.ViewHeight = layout_height
-	state.CameraZoom = scale
-	state.NeedsUpdate = true
+	value_1 := &(state.LayoutWidth)
+	(*value_1) = layout_width
+	value_2 := &(state.LayoutHeight)
+	(*value_2) = layout_height
+	value_3 := &(state.ViewWidth)
+	(*value_3) = layout_width
+	value_4 := &(state.ViewHeight)
+	(*value_4) = layout_height
+	value_5 := &(state.CameraZoom)
+	(*value_5) = scale
+	value_6 := &(state.NeedsUpdate)
+	(*value_6) = true
 	return state
 }
 
 func Dpi_InvalidateDPI(state DPIState) DPIState {
-	state.PhysicalWidth = -1
-	state.PhysicalHeight = -1
-	state.ViewWidth = -1
-	state.ViewHeight = -1
-	state.LayoutWidth = -1
-	state.LayoutHeight = -1
-	state.NeedsUpdate = true
+	value_0 := &(state.PhysicalWidth)
+	(*value_0) = -1
+	value_1 := &(state.PhysicalHeight)
+	(*value_1) = -1
+	value_2 := &(state.ViewWidth)
+	(*value_2) = -1
+	value_3 := &(state.ViewHeight)
+	(*value_3) = -1
+	value_4 := &(state.LayoutWidth)
+	(*value_4) = -1
+	value_5 := &(state.LayoutHeight)
+	(*value_5) = -1
+	value_6 := &(state.NeedsUpdate)
+	(*value_6) = true
 	return state
 }
 
@@ -76,15 +90,19 @@ func Dpi_ResolveDPI(state DPIState, view_width int32, view_height int32, platfor
 		zoom := state.Zoom
 		state = Dpi_InitialDPI()
 		if zoom > 0.0 {
-			state.Zoom = zoom
+			value_0 := &(state.Zoom)
+			(*value_0) = zoom
 		}
 	}
 	if state.PhysicalWidth == view_width && state.PhysicalHeight == view_height {
-		state.NeedsUpdate = false
+		value_1 := &(state.NeedsUpdate)
+		(*value_1) = false
 		return state
 	}
-	state.PhysicalWidth = view_width
-	state.PhysicalHeight = view_height
+	value_2 := &(state.PhysicalWidth)
+	(*value_2) = view_width
+	value_3 := &(state.PhysicalHeight)
+	(*value_3) = view_height
 	var viewport_scale float32 = 1.0
 	if view_height > 0 {
 		viewport_scale = float32(view_height) / float32(state.BaseHeight)
@@ -112,10 +130,13 @@ func Dpi_ResolveDPI(state DPIState, view_width int32, view_height int32, platfor
 	if !(real_dpi > 0.0) || real_dpi > 8.0 {
 		real_dpi = 1.0
 	}
-	state.UiScale = real_dpi
-	state.UiScaleClamped = real_dpi
+	value_4 := &(state.UiScale)
+	(*value_4) = real_dpi
+	value_5 := &(state.UiScaleClamped)
+	(*value_5) = real_dpi
 	if state.UiScaleClamped < 1.0 {
-		state.UiScaleClamped = 1.0
+		value_6 := &(state.UiScaleClamped)
+		(*value_6) = 1.0
 	}
 	return Dpi_DPIScaled(state)
 }
@@ -128,7 +149,8 @@ func Dpi_ZoomDPI(state DPIState, zoom float32) DPIState {
 	if value_0 && state.Zoom > 0.0 {
 		return state
 	}
-	state.Zoom = zoom
+	value_1 := &(state.Zoom)
+	(*value_1) = zoom
 	if state.PhysicalWidth <= 0 || state.PhysicalHeight <= 0 {
 		return state
 	}
@@ -140,24 +162,36 @@ func Dpi_OffscreenDPI(state DPIState, view_width int32, view_height int32, force
 	if !(forced_scale > 0.0) {
 		return state
 	}
-	state.UiScale = forced_scale
-	state.UiScaleClamped = forced_scale
+	value_0 := &(state.UiScale)
+	(*value_0) = forced_scale
+	value_1 := &(state.UiScaleClamped)
+	(*value_1) = forced_scale
 	if state.UiScaleClamped < 1.0 {
-		state.UiScaleClamped = 1.0
+		value_2 := &(state.UiScaleClamped)
+		(*value_2) = 1.0
 	}
-	state.RenderScale = state.UiScaleClamped
-	state.LayoutWidth = int32(floatToInt(float64(((float32(view_width) / state.RenderScale) + 0.5)), 32, true))
-	state.LayoutHeight = int32(floatToInt(float64(((float32(view_height) / state.RenderScale) + 0.5)), 32, true))
+	value_3 := &(state.RenderScale)
+	(*value_3) = state.UiScaleClamped
+	value_4 := &(state.LayoutWidth)
+	(*value_4) = int32(floatToInt(float64(((float32(view_width) / state.RenderScale) + 0.5)), 32, true))
+	value_5 := &(state.LayoutHeight)
+	(*value_5) = int32(floatToInt(float64(((float32(view_height) / state.RenderScale) + 0.5)), 32, true))
 	if state.LayoutWidth < 1 {
-		state.LayoutWidth = 1
+		value_6 := &(state.LayoutWidth)
+		(*value_6) = 1
 	}
 	if state.LayoutHeight < 1 {
-		state.LayoutHeight = 1
+		value_7 := &(state.LayoutHeight)
+		(*value_7) = 1
 	}
-	state.ViewWidth = state.LayoutWidth
-	state.ViewHeight = state.LayoutHeight
-	state.CameraZoom = state.RenderScale
-	state.NeedsUpdate = true
+	value_8 := &(state.ViewWidth)
+	(*value_8) = state.LayoutWidth
+	value_9 := &(state.ViewHeight)
+	(*value_9) = state.LayoutHeight
+	value_10 := &(state.CameraZoom)
+	(*value_10) = state.RenderScale
+	value_11 := &(state.NeedsUpdate)
+	(*value_11) = true
 	return state
 }
 

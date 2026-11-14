@@ -4,9 +4,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "text_props.h"
 #include "geometry.h"
 #include "style.h"
-#include "text_props.h"
 
 #ifdef __cplusplus
 extern "C" {

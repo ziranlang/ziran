@@ -61,7 +61,8 @@ func SvgShape_ShapeAddEdge(ax float32, ay float32, bx float32, by float32) {
 		shape_overflow = true
 		return
 	}
-	shape_edges[shape_edge_count] = ShapeEdge{Ax: ax, Ay: ay, Bx: bx, By: by}
+	value_0 := &(shape_edges[shape_edge_count])
+	(*value_0) = ShapeEdge{Ax: ax, Ay: ay, Bx: bx, By: by}
 	shape_edge_count++
 }
 
@@ -97,24 +98,38 @@ func SvgShape_ShapeAddCircle(cx float32, cy float32, radius float32) {
 }
 
 func SvgShape_ShapeQuad(x0 float32, y0 float32, x1 float32, y1 float32, x2 float32, y2 float32, x3 float32, y3 float32) {
-	polygon_x[0] = x0
-	polygon_y[0] = y0
-	polygon_x[1] = x1
-	polygon_y[1] = y1
-	polygon_x[2] = x2
-	polygon_y[2] = y2
-	polygon_x[3] = x3
-	polygon_y[3] = y3
+	value_0 := &(polygon_x[0])
+	(*value_0) = x0
+	value_1 := &(polygon_y[0])
+	(*value_1) = y0
+	value_2 := &(polygon_x[1])
+	(*value_2) = x1
+	value_3 := &(polygon_y[1])
+	(*value_3) = y1
+	value_4 := &(polygon_x[2])
+	(*value_4) = x2
+	value_5 := &(polygon_y[2])
+	(*value_5) = y2
+	value_6 := &(polygon_x[3])
+	(*value_6) = x3
+	value_7 := &(polygon_y[3])
+	(*value_7) = y3
 	SvgShape_ShapeAddPolygon(4)
 }
 
 func SvgShape_ShapeTriangle(x0 float32, y0 float32, x1 float32, y1 float32, x2 float32, y2 float32) {
-	polygon_x[0] = x0
-	polygon_y[0] = y0
-	polygon_x[1] = x1
-	polygon_y[1] = y1
-	polygon_x[2] = x2
-	polygon_y[2] = y2
+	value_0 := &(polygon_x[0])
+	(*value_0) = x0
+	value_1 := &(polygon_y[0])
+	(*value_1) = y0
+	value_2 := &(polygon_x[1])
+	(*value_2) = x1
+	value_3 := &(polygon_y[1])
+	(*value_3) = y1
+	value_4 := &(polygon_x[2])
+	(*value_4) = x2
+	value_5 := &(polygon_y[2])
+	(*value_5) = y2
 	SvgShape_ShapeAddPolygon(3)
 }
 
@@ -141,8 +156,10 @@ func SvgShape_ShapeCollapse() {
 			keep = (dx * dx) + (dy * dy) > 0.000001
 		}
 		if keep {
-			shape_x[write] = shape_x[read]
-			shape_y[write] = shape_y[read]
+			value_0 := &(shape_x[write])
+			(*value_0) = shape_x[read]
+			value_1 := &(shape_y[write])
+			(*value_1) = shape_y[read]
 			write++
 		}
 		read++
@@ -341,8 +358,10 @@ func SvgShape_ShapeAddPoint(x float32, y float32) {
 		shape_overflow = true
 		return
 	}
-	shape_x[shape_point_count] = x
-	shape_y[shape_point_count] = y
+	value_0 := &(shape_x[shape_point_count])
+	(*value_0) = x
+	value_1 := &(shape_y[shape_point_count])
+	(*value_1) = y
 	shape_point_count++
 }
 
@@ -441,7 +460,8 @@ func SvgShape_ShapeBuildPath(text string, start int32, end int32, scale float32,
 				if index >= end {
 					return false
 				}
-				values[count] = SvgShape_ShapeNumber(text, end, index) * scale
+				value_8 := &(values[count])
+				(*value_8) = SvgShape_ShapeNumber(text, end, index) * scale
 				index = shape_after
 				count++
 			}
@@ -479,17 +499,21 @@ func SvgShape_ShapeAddSpan(start float32, stop float32, width int32, weight floa
 	first := int32(floatToInt(float64(start), 32, true))
 	last := int32(floatToInt(float64(stop), 32, true))
 	if first == last {
-		row_accumulator[first] += ((stop - start) * weight)
+		value_0 := &(row_accumulator[first])
+		(*value_0) += ((stop - start) * weight)
 		return
 	}
-	row_accumulator[first] += ((float32((first + 1)) - start) * weight)
+	value_1 := &(row_accumulator[first])
+	(*value_1) += ((float32((first + 1)) - start) * weight)
 	index := first + 1
 	for index < last {
-		row_accumulator[index] += weight
+		value_2 := &(row_accumulator[index])
+		(*value_2) += weight
 		index++
 	}
 	if last < width {
-		row_accumulator[last] += ((stop - float32(last)) * weight)
+		value_3 := &(row_accumulator[last])
+		(*value_3) += ((stop - float32(last)) * weight)
 	}
 }
 
@@ -499,7 +523,8 @@ func SvgShape_ShapeCoverEdges(even_odd bool, width int32, height int32, coverage
 	for row < height {
 		var column int32 = 0
 		for column < width {
-			row_accumulator[column] = 0.0
+			value_0 := &(row_accumulator[column])
+			(*value_0) = 0.0
 			column++
 		}
 		var sample int32 = 0
@@ -522,12 +547,16 @@ func SvgShape_ShapeCoverEdges(even_odd bool, width int32, height int32, coverage
 					at := count
 					_ = at
 					for at > 0 && crossing_x[(at - 1)] > x {
-						crossing_x[at] = crossing_x[(at - 1)]
-						crossing_direction[at] = crossing_direction[(at - 1)]
+						value_1 := &(crossing_x[at])
+						(*value_1) = crossing_x[(at - 1)]
+						value_2 := &(crossing_direction[at])
+						(*value_2) = crossing_direction[(at - 1)]
 						at--
 					}
-					crossing_x[at] = x
-					crossing_direction[at] = direction
+					value_3 := &(crossing_x[at])
+					(*value_3) = x
+					value_4 := &(crossing_direction[at])
+					(*value_4) = direction
 					count++
 				}
 				edge++
@@ -556,7 +585,8 @@ func SvgShape_ShapeCoverEdges(even_odd bool, width int32, height int32, coverage
 			}
 			level := uint8(floatToInt(float64(value), 8, false))
 			if level > coverage[((row * width) + column)] {
-				coverage[((row * width) + column)] = level
+				value_5 := &(coverage[((row * width) + column)])
+				(*value_5) = level
 			}
 			column++
 		}
@@ -570,7 +600,8 @@ func SvgShape_ShapeRaster(shape string, size int32, coverage []uint8) bool {
 	}
 	var index int32 = 0
 	for index < size * size {
-		coverage[index] = 0
+		value_0 := &(coverage[index])
+		(*value_0) = 0
 		index++
 	}
 	scale := float32(size) / 24.0
@@ -604,8 +635,8 @@ func SvgShape_ShapeRaster(shape string, size int32, coverage []uint8) bool {
 		}
 		shape_edge_count = 0
 		shape_point_count = 0
-		var value_0 bool = SvgShape_ShapeBuildPath(shape, cursor + 1, end, scale, stroke, half, ziran_keyword_cap_0, join)
-		if !value_0 {
+		var value_1 bool = SvgShape_ShapeBuildPath(shape, cursor + 1, end, scale, stroke, half, ziran_keyword_cap_0, join)
+		if !value_1 {
 			ok = false
 			break
 		}

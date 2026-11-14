@@ -6,6 +6,7 @@
 #include "zir_string_types.h"
 #include "zir_bounds.h"
 #include "zir_slice.h"
+#include "text_props.h"
 #include "theme.h"
 #include "session.h"
 #include "control_props.h"
@@ -21,7 +22,6 @@
 #include "surface.h"
 #include "text_behavior.h"
 #include "text_align.h"
-#include "text_props.h"
 #include "text_style.h"
 #include "tree.h"
 #include "text_selection_host.h"
@@ -44,33 +44,34 @@ struct TextLinkRun {
 };
 String TextSpan(String source, int32_t start, int32_t length);
 TextFace DefaultTextFace(void);
-TextFace TextFaceFor(TextProps props, TextFace defaults);
-bool text_TextRangeValid(String text, TextRange range, int32_t previous_end);
-void text_PaintTextEmphasis(Session session, int32_t node, TextProps props, PreparedText prepared, TextLinePlan line, int32_t x, int32_t y, Rectangle clip);
+TextFace TextFaceFor(zir_5988125b9981443f_Props props, TextFace defaults);
+bool text_TextRangeValid(String text, Range range, int32_t previous_end);
+void text_PaintTextEmphasis(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared, TextLinePlan line, int32_t x, int32_t y, Rectangle clip);
 Color text_TextLinkColor(Color text);
-TextLinkRun text_TextLinkRunAt(TextProps props, int32_t at, int32_t limit);
-void text_PaintTextLineRuns(Session session, int32_t node, TextProps props, PreparedText prepared, int32_t line_start, String value, int32_t x, int32_t y, Rectangle clip);
-PreparedText PrepareText(TextProps props, TextFace face);
+TextLinkRun text_TextLinkRunAt(zir_5988125b9981443f_Props props, int32_t at, int32_t limit);
+void text_PaintTextLineRuns(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared, int32_t line_start, String value, int32_t x, int32_t y, Rectangle clip);
+PreparedText PrepareText(zir_5988125b9981443f_Props props, TextFace face);
 String text_TextEllipsisStart(String value, int32_t max_width, int32_t font, String typeface);
-int32_t TextHiddenLines(TextProps props, PreparedText prepared);
-void PaintTextLines(Session session, int32_t node, TextProps props, PreparedText prepared);
-void text_PaintTextRule(Session session, int32_t node, TextProps props, PreparedText prepared, Rectangle bounds, Color color);
-Vector2 text_TextOrigin(TextProps props, PreparedText prepared);
-TextFace text_TextFaceOf(TextProps props);
-void Text(Session session, TextProps props);
+int32_t TextHiddenLines(zir_5988125b9981443f_Props props, PreparedText prepared);
+void PaintTextLines(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared);
+void text_PaintTextRule(Session session, int32_t node, zir_5988125b9981443f_Props props, PreparedText prepared, Rectangle bounds, Color color);
+Vector2 text_TextOrigin(zir_5988125b9981443f_Props props, PreparedText prepared);
+TextFace text_TextFaceOf(zir_5988125b9981443f_Props props);
+void text_DrawSession(Session session, zir_5988125b9981443f_Props props);
+void text___zi_spec_6a19f7c98e79a734(Session frame, zir_5988125b9981443f_Props props);
 
 /* Small procedures other modules inline; text.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_TEXT_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_bounds.h"
-static inline bool text_TextRangeValid_ziran_inline(String text, TextRange range, int32_t previous_end);
+static inline bool text_TextRangeValid_ziran_inline(String text, Range range, int32_t previous_end);
 #define text_TextRangeValid(...) text_TextRangeValid_ziran_inline(__VA_ARGS__)
-static inline TextFace text_TextFaceOf_ziran_inline(TextProps props);
+static inline TextFace text_TextFaceOf_ziran_inline(zir_5988125b9981443f_Props props);
 #define text_TextFaceOf(...) text_TextFaceOf_ziran_inline(__VA_ARGS__)
 
 static inline bool
-text_TextRangeValid_ziran_inline(String text, TextRange range, int32_t previous_end)
+text_TextRangeValid_ziran_inline(String text, Range range, int32_t previous_end)
 {
     if (range.start < previous_end || range.start < 0 || range.end <= range.start || (int64_t)(range.end) > (int64_t)(text).length) {
         return false;
@@ -82,12 +83,14 @@ text_TextRangeValid_ziran_inline(String text, TextRange range, int32_t previous_
 }
 
 static inline TextFace
-text_TextFaceOf_ziran_inline(TextProps props)
+text_TextFaceOf_ziran_inline(zir_5988125b9981443f_Props props)
 {
     TextFace defaults = DefaultTextFace();
     if (props.fallback_font > 0) {
-        defaults.fallback_font = props.fallback_font;
-        defaults.value.font_size = (float)(props.fallback_font);
+        int32_t* value_0 = &(defaults.fallback_font);
+        (*value_0) = props.fallback_font;
+        float* value_1 = &(defaults.value.font_size);
+        (*value_1) = (float)(props.fallback_font);
     }
     return TextFaceFor(props, defaults);
 }

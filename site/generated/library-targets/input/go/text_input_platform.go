@@ -52,10 +52,13 @@ func TextInputPlatform_TextInputNoteFocused(session Session) {
 	index := Session_SessionIndex(session)
 	var value_1 bool = TextInputPlatform_TextInputOwnerMatches((text_focus_frames[index]).Owner, session)
 	if !value_1 {
-		text_focus_frames[index] = TextFocusFrameState{}
-		(text_focus_frames[index]).Owner = session
+		value_2 := &(text_focus_frames[index])
+		(*value_2) = TextFocusFrameState{}
+		value_3 := &((text_focus_frames[index]).Owner)
+		(*value_3) = session
 	}
-	(text_focus_frames[index]).Building = true
+	value_4 := &((text_focus_frames[index]).Building)
+	(*value_4) = true
 }
 
 func TextInputPlatform_TextInputFocusFrameBegin(session Session) {
@@ -66,12 +69,16 @@ func TextInputPlatform_TextInputFocusFrameBegin(session Session) {
 	index := Session_SessionIndex(session)
 	var value_1 bool = TextInputPlatform_TextInputOwnerMatches((text_focus_frames[index]).Owner, session)
 	if !value_1 {
-		text_focus_frames[index] = TextFocusFrameState{}
-		(text_focus_frames[index]).Owner = session
+		value_2 := &(text_focus_frames[index])
+		(*value_2) = TextFocusFrameState{}
+		value_3 := &((text_focus_frames[index]).Owner)
+		(*value_3) = session
 		return
 	}
-	(text_focus_frames[index]).Last = (text_focus_frames[index]).Building
-	(text_focus_frames[index]).Building = false
+	value_4 := &((text_focus_frames[index]).Last)
+	(*value_4) = (text_focus_frames[index]).Building
+	value_5 := &((text_focus_frames[index]).Building)
+	(*value_5) = false
 }
 
 func TextInputPlatform_TextInputFocused(session Session) bool {
@@ -102,9 +109,12 @@ func TextInputPlatform_TextInputQueueBind(session Session) bool {
 		return false
 	}
 	index := Session_SessionIndex(session)
-	(text_input_queues[index]).Owner = session
-	(text_input_queues[index]).Head = 0
-	(text_input_queues[index]).Count = 0
+	value_1 := &((text_input_queues[index]).Owner)
+	(*value_1) = session
+	value_2 := &((text_input_queues[index]).Head)
+	(*value_2) = 0
+	value_3 := &((text_input_queues[index]).Count)
+	(*value_3) = 0
 	return true
 }
 
@@ -118,8 +128,10 @@ func TextInputPlatform_TextInputQueueReset(session Session) bool {
 	if !value_1 {
 		return false
 	}
-	(text_input_queues[index]).Head = 0
-	(text_input_queues[index]).Count = 0
+	value_2 := &((text_input_queues[index]).Head)
+	(*value_2) = 0
+	value_3 := &((text_input_queues[index]).Count)
+	(*value_3) = 0
 	return true
 }
 
@@ -128,9 +140,12 @@ func TextInputPlatform_TextInputQueueRelease(session Session) bool {
 	if index <= 0 || index >= 9 || ((text_input_queues[index]).Owner).Epoch != session.Epoch {
 		return false
 	}
-	(text_input_queues[index]).Owner = Session{}
-	(text_input_queues[index]).Head = 0
-	(text_input_queues[index]).Count = 0
+	value_0 := &((text_input_queues[index]).Owner)
+	(*value_0) = Session{}
+	value_1 := &((text_input_queues[index]).Head)
+	(*value_1) = 0
+	value_2 := &((text_input_queues[index]).Count)
+	(*value_2) = 0
 	return true
 }
 
@@ -153,8 +168,10 @@ func TextInputPlatform_TextInputQueueSend(session Session, event TextInputEvent)
 		return false
 	}
 	tail := ((text_input_queues[index]).Head + (text_input_queues[index]).Count) % 1024
-	((text_input_queues[index]).Events)[tail] = event
-	(text_input_queues[index]).Count++
+	value_2 := &(((text_input_queues[index]).Events)[tail])
+	(*value_2) = event
+	value_3 := &((text_input_queues[index]).Count)
+	(*value_3)++
 	return true
 }
 
@@ -176,8 +193,10 @@ func TextInputPlatform_TextInputQueueTake(session Session) TextInputEvent {
 	event := TextInputPlatform_TextInputQueuePeek(session)
 	if event.Kind != 0 {
 		index := Session_SessionIndex(session)
-		(text_input_queues[index]).Head = ((text_input_queues[index]).Head + 1) % 1024
-		(text_input_queues[index]).Count--
+		value_0 := &((text_input_queues[index]).Head)
+		(*value_0) = ((text_input_queues[index]).Head + 1) % 1024
+		value_1 := &((text_input_queues[index]).Count)
+		(*value_1)--
 	}
 	return event
 }
@@ -188,7 +207,8 @@ func TextInputPlatform_TextKeyboardRelease(session Session) bool {
 		return false
 	}
 	visible := (text_keyboards[index]).Visible
-	text_keyboards[index] = TextKeyboardState{}
+	value_0 := &(text_keyboards[index])
+	(*value_0) = TextKeyboardState{}
 	if visible {
 		textInputPlatformHost.SetPlatformTextKeyboardVisible(session, false)
 	}
@@ -203,7 +223,8 @@ func TextInputPlatform_TextKeyboardBind(session Session) bool {
 	index := Session_SessionIndex(session)
 	previous := (text_keyboards[index]).Owner
 	TextInputPlatform_TextKeyboardRelease(previous)
-	(text_keyboards[index]).Owner = session
+	value_1 := &((text_keyboards[index]).Owner)
+	(*value_1) = session
 	return true
 }
 
@@ -220,7 +241,8 @@ func TextInputPlatform_TextKeyboardSetVisible(session Session, visible bool) boo
 	if (text_keyboards[index]).Visible == visible {
 		return true
 	}
-	(text_keyboards[index]).Visible = visible
+	value_2 := &((text_keyboards[index]).Visible)
+	(*value_2) = visible
 	textInputPlatformHost.SetPlatformTextKeyboardVisible(session, visible)
 	return true
 }

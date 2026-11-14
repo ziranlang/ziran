@@ -4,10 +4,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "image.h"
 #include "drawing_props.h"
 #include "font_metrics.h"
 #include "geometry.h"
-#include "image_props.h"
 #include "style.h"
 #include "style_sheet.h"
 #include "surface.h"
@@ -40,7 +40,7 @@ StyleFacts ButtonRoleFactsFor(int32_t style_kind, int32_t name, int32_t class_na
 float ButtonPictureSize(float width, float height, float styled_size, bool icon_only, bool picture);
 float ButtonLabeledPictureSize(float width, float height, float styled_size, float label_height, float gap, bool above);
 float ButtonCornerRadius(float radius, float height);
-Rectangle MeasureBounds(ButtonProps props, StyleData paint, float minimum_height, int32_t font, float label_width, float available_width, float scale, bool disclosure, float detail_height);
+Rectangle MeasureBounds(zir_2b2386d69a109fee_Props props, StyleData paint, float minimum_height, int32_t font, float label_width, float available_width, float scale, bool disclosure, float detail_height);
 ContentSize MeasureContent(float height, float label_width, float requested_icon_size, float gap, float padding_x, bool has_icon, bool icon_only, bool above);
 ButtonContent ContentLayout(float width, float height, float label_width, float requested_icon_size, float gap, bool has_icon, bool icon_only, bool trailing, float offset_x, float offset_y, bool above, float label_height, ContentAlignment alignment, float padding_x);
 float ShapeWidth(float width, float height, float measured_width, float available_width, bool full_width, bool square, bool circle);

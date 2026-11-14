@@ -317,7 +317,9 @@ ZxWasmOpenExec(const ExecBundle *bundle, ExecFindBinding find, void *context, lo
         return NULL;
     }
     wasm->exec = bundle;
-    if(!ZxWasmLowerProgram(ExecBundleProgram(bundle), &wasm->image))
+    int lowered = active_platform.suspends ? ZxWasmLowerProgramSuspendable(ExecBundleProgram(bundle), &wasm->image)
+                                           : ZxWasmLowerProgram(ExecBundleProgram(bundle), &wasm->image);
+    if(!lowered)
         goto failed;
     wasm->hosts = ExecHostsOpen(bundle, find, context);
     wasm->host_of = calloc(wasm->image.capability_count + 1, sizeof(*wasm->host_of));

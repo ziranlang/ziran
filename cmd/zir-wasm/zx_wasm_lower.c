@@ -43,13 +43,21 @@ enum {
     /* Output buffer: a length word, the bytes, then room to format one
      * number. */
     ZXW_OUT_CAPACITY = 4096,
-    ZXW_OUT_REGION = 8 + ZXW_OUT_CAPACITY + 32
+    ZXW_OUT_REGION = 8 + ZXW_OUT_CAPACITY + 32,
+    /* The frames a suspendable module saves while its caller's stack
+     * unwinds. */
+    ZXW_ASYNC_SIZE = 1 << 20
 };
 
 /* Global indices: the imported budget, the stack pointer, the initializer
  * flag and the stack limit (which is also the heap base); with a heap the
  * heap top; with host images the image base, cursor and length. */
-enum { G_BUDGET, G_SP, G_INIT, G_LIMIT, G_TOP, G_BASE, G_CURSOR, G_LENGTH, G_DEPTH };
+enum { G_BUDGET, G_SP, G_INIT, G_LIMIT, G_TOP, G_BASE, G_CURSOR, G_LENGTH, G_DEPTH,
+       /* A suspendable module: the unwind state (exported as
+        * zx_async_state), the save stack, its frame count and limit, and
+        * the next module initializer to run. */
+       G_ASTATE, G_ASTACK, G_AFRAMES, G_ALIMIT, G_INITAT };
+enum { ASYNC_NORMAL, ASYNC_UNWIND, ASYNC_REWIND };
 
 /* Heap block states. */
 enum { BLOCK_FREE, BLOCK_PROGRAM, BLOCK_HOST };
@@ -177,6 +185,10 @@ typedef struct Lower {
     int64_t *sizes;
     uint32_t *global_address;
     unsigned char *host_kind;
+    /* Suspendable lowering: which procedures can reach a host capability,
+     * and so unwind with their caller's stack. */
+    int suspendable;
+    unsigned char *suspends;
     uint32_t *host_index;
     uint32_t *wasm_function;
     Buf data;
@@ -786,6 +798,13 @@ typedef struct Fn {
     uint32_t pc;
     uint32_t result_address;
     int has_frame;
+    /* A procedure that can suspend runs its blocks as segments split at
+     * each call that can suspend, so a rewind resumes at that call. */
+    int async;
+    int64_t *seg_first;
+    int64_t segment;
+    int64_t segment_count;
+    size_t prologue_end;
     /* Control: structured loops when each loop is a span of blocks entered
      * at its header, else one dispatch loop. */
     int dispatch;
@@ -1220,6 +1239,8 @@ edge_jump(Fn *fn, int64_t current, const LirEdge *edge, unsigned extra)
         WasmGap(fn->lower, "wasm.gap.control", "edge to b%lld leaves its loop structure", (long long)edge->block);
         return;
     }
+    target = fn->seg_first[target];
+    current = fn->segment;
     if(target > current) {
         if(target == current + 1 && extra == 0)
             return;
@@ -1228,7 +1249,55 @@ edge_jump(Fn *fn, int64_t current, const LirEdge *edge, unsigned extra)
     }
     i32_const(fn, (int32_t)target);
     local_set(fn, fn->pc);
-    op_u(fn, 0x0c, (uint64_t)(fn->block_count - 1 - current + extra));
+    op_u(fn, 0x0c, (uint64_t)(fn->segment_count - 1 - current + extra));
+}
+
+/* Whether a call can suspend: a host capability, a procedure that can
+ * reach one, or any indirect call. */
+static int
+suspension_site(Lower *lower, const LirInstruction *instruction)
+{
+    int32_t symbol = instruction->symbol;
+    if(instruction->op == LirOp_CallIndirect)
+        return 1;
+    if(symbol < 0 || symbol >= lower->function_count)
+        return 0;
+    if(instruction->op == LirOp_HostCall)
+        return lower->host_kind[symbol] == HOST_CAPABILITY;
+    return instruction->op == LirOp_Call && !lower->functions[symbol].external && lower->suspends[symbol];
+}
+
+/* Starts the segment a rewind resumes at: the call that follows. */
+static void
+segment_boundary(Fn *fn)
+{
+    op(fn, 0x0b);
+    fn->segment++;
+}
+
+/* After a call that can suspend: when the stack unwinds, record this
+ * segment and leave for the frame save at the end of the procedure. */
+static void
+unwind_check(Fn *fn)
+{
+    global_get(fn, G_ASTATE); i32_const(fn, ASYNC_UNWIND); op(fn, 0x46);
+    if_begin(fn);
+    i32_const(fn, (int32_t)fn->segment); local_set(fn, fn->pc);
+    op_u(fn, 0x0c, (uint64_t)(fn->segment_count - fn->segment + 1));
+    end(fn);
+}
+
+/* Moves local `local` between the save stack, 8 bytes a local, and the
+ * procedure. */
+static void
+async_local(Fn *fn, uint32_t local, int store)
+{
+    static const unsigned char loads[] = {0x28, 0x29, 0x2a, 0x2b}, stores[] = {0x36, 0x37, 0x38, 0x39};
+    unsigned type = fn->locals[local];
+    int kind = type == W_I32 ? 0 : type == W_I64 ? 1 : type == W_F32 ? 2 : 3;
+    global_get(fn, G_ASTACK);
+    if(store) { local_get(fn, local); memarg(fn, stores[kind], 8 * local); }
+    else { memarg(fn, loads[kind], 8 * local); local_set(fn, local); }
 }
 
 /* The successors of every block, last edge first: succ[start[b]..start[b+1]). */
@@ -2179,6 +2248,8 @@ lower_call(Fn *fn, const LirInstruction *instruction)
         return;
     }
     (void)parameters;
+    int suspends = fn->async && suspension_site(lower, instruction);
+    if(suspends) segment_boundary(fn);
     int aggregate_result = type_aggregate(lower, result_type);
     if(aggregate_result) {
         if(instruction->result == LirNoId) {
@@ -2207,6 +2278,7 @@ lower_call(Fn *fn, const LirInstruction *instruction)
         if(instruction->result == LirNoId) op(fn, 0x1a);
         else set(fn, instruction->result);
     }
+    if(suspends) unwind_check(fn);
 }
 
 /* Pushes the header address of the heap block whose payload is the i32
@@ -2297,10 +2369,17 @@ lower_capability_call(Fn *fn, const LirInstruction *instruction)
     uint32_t result = (uint32_t)base + 16 * count;
     local_get(fn, fn->fp); i64_const(fn, 0); memarg(fn, 0x37, result);
     local_get(fn, fn->fp); i64_const(fn, 0); memarg(fn, 0x37, result + 8);
+    if(fn->async) segment_boundary(fn);
     i32_const(fn, (int32_t)lower->host_index[instruction->symbol]);
     local_get(fn, fn->fp); i32_const(fn, (int32_t)base); op(fn, 0x6a);
     flush_output(fn);
     call(fn, lower->host_import);
+    if(fn->async) {
+        uint32_t status = fn_temp(fn, W_I32, 0);
+        local_set(fn, status);
+        unwind_check(fn);
+        local_get(fn, status);
+    }
     op(fn, 0x45); trap_if(fn);
     /* A host that changed a []T argument's elements gives them back in
      * place; the module copies them into the slice. Nothing else may
@@ -3033,9 +3112,22 @@ lower_function(Lower *lower, int64_t index, Buf *output)
         counted += blocks[block].instructions.length;
         fn.loop_end[block] = -1;
     }
-    if(fn.loops || function->entry != 0) {
+    fn.async = lower->suspendable && lower->suspends[index];
+    if(fn.async) {
+        fn.dispatch = 1;
+    } else if(fn.loops || function->entry != 0) {
         order_blocks(&fn);
         fn.dispatch = !plan_loops(&fn);
+    }
+    if(fn.dispatch) {
+        fn.seg_first = malloc((size_t)(fn.block_count + 1) * sizeof(*fn.seg_first));
+        if(fn.seg_first == NULL) { DiagnosticOutOfMemory(); lower->failed = 1; goto done; }
+        for(int64_t block = 0; block < fn.block_count; block++) {
+            fn.seg_first[block] = fn.segment_count++;
+            const LirInstruction *instructions = instructions_of(&blocks[block]);
+            for(int64_t item = 0; fn.async && item < blocks[block].instructions.length; item++)
+                if(suspension_site(lower, &instructions[item])) fn.segment_count++;
+        }
     }
     if(fn.has_frame) fn.fp = fn_local(&fn, W_I32);
     if(fn.dispatch) fn.pc = fn_local(&fn, W_I32);
@@ -3079,29 +3171,71 @@ lower_function(Lower *lower, int64_t index, Buf *output)
     if(!fn.dispatch) {
         emit_region(&fn, 0, fn.block_count - 1, 0);
     } else {
-        i32_const(&fn, function->entry);
+        i32_const(&fn, (int32_t)fn.seg_first[function->entry]);
         local_set(&fn, fn.pc);
+        fn.prologue_end = fn.code.count;
+        if(fn.async) { op(&fn, 0x02); op(&fn, 0x40); }
         op(&fn, 0x03); op(&fn, 0x40);
-        for(int64_t block = fn.block_count - 1; block >= 0; block--) {
+        for(int64_t segment = fn.segment_count - 1; segment >= 0; segment--) {
             op(&fn, 0x02); op(&fn, 0x40);
         }
         local_get(&fn, fn.pc);
-        op_u(&fn, 0x0e, (uint64_t)fn.block_count);
-        for(int64_t block = 0; block < fn.block_count; block++)
-            buf_uleb(&fn.code, (uint64_t)block);
-        buf_uleb(&fn.code, (uint64_t)(fn.block_count - 1));
+        op_u(&fn, 0x0e, (uint64_t)fn.segment_count);
+        for(int64_t segment = 0; segment < fn.segment_count; segment++)
+            buf_uleb(&fn.code, (uint64_t)segment);
+        buf_uleb(&fn.code, (uint64_t)(fn.segment_count - 1));
         for(int64_t block = 0; block < fn.block_count && !lower->failed; block++) {
             op(&fn, 0x0b);
+            fn.segment = fn.seg_first[block];
             const LirInstruction *instructions = instructions_of(&blocks[block]);
             for(int64_t item = 0; item < blocks[block].instructions.length && !lower->failed; item++, at++)
                 lower_instruction(&fn, block, &instructions[item], fn.alloca_slot[at]);
         }
         op(&fn, 0x0b);
+        if(fn.async) {
+            /* The stack unwinds: save every local, the segment among them,
+             * and leave without the epilogue, so the frame stays. */
+            op(&fn, 0x00);
+            op(&fn, 0x0b);
+            uint32_t size = 8 * fn.local_count;
+            global_get(&fn, G_ASTACK); i32_const(&fn, (int32_t)size); op(&fn, 0x6a);
+            global_get(&fn, G_ALIMIT); op(&fn, 0x4b); trap_if(&fn);
+            for(uint32_t local = 0; local < fn.local_count; local++) async_local(&fn, local, 1);
+            global_get(&fn, G_ASTACK); i32_const(&fn, (int32_t)size); op(&fn, 0x6a); global_set(&fn, G_ASTACK);
+            global_get(&fn, G_AFRAMES); i32_const(&fn, 1); op(&fn, 0x6a); global_set(&fn, G_AFRAMES);
+            if(sig.result == W_I32) i32_const(&fn, 0);
+            else if(sig.result == W_I64) i64_const(&fn, 0);
+            else if(sig.result == W_F32) { op(&fn, 0x43); buf_raw(&fn.code, (const unsigned char *)"\0\0\0\0", 4); }
+            else if(sig.result == W_F64) { op(&fn, 0x44); buf_raw(&fn.code, (const unsigned char *)"\0\0\0\0\0\0\0\0", 8); }
+            op(&fn, 0x0f);
+        }
     }
     op(&fn, 0x00);
     op(&fn, 0x0b);
     if(lower->failed) goto done;
     if(fn.code.failed) { DiagnosticOutOfMemory(); lower->failed = 1; goto done; }
+    if(fn.async) {
+        /* A rewind restores the frame this procedure saved, last saved
+         * first, and resumes at its segment; the innermost frame ends the
+         * rewind. Otherwise the prologue runs. */
+        Buf body = fn.code;
+        fn.code = (Buf){0};
+        uint32_t size = 8 * fn.local_count;
+        global_get(&fn, G_ASTATE); i32_const(&fn, ASYNC_REWIND); op(&fn, 0x46);
+        op(&fn, 0x04); op(&fn, 0x40);
+        global_get(&fn, G_ASTACK); i32_const(&fn, (int32_t)size); op(&fn, 0x6b); global_set(&fn, G_ASTACK);
+        for(uint32_t local = 0; local < fn.local_count; local++) async_local(&fn, local, 0);
+        global_get(&fn, G_AFRAMES); i32_const(&fn, 1); op(&fn, 0x6b); global_set(&fn, G_AFRAMES);
+        global_get(&fn, G_AFRAMES); op(&fn, 0x45);
+        if_begin(&fn); i32_const(&fn, ASYNC_NORMAL); global_set(&fn, G_ASTATE); end(&fn);
+        op(&fn, 0x05);
+        buf_raw(&fn.code, body.data, fn.prologue_end);
+        op(&fn, 0x0b);
+        buf_raw(&fn.code, body.data + fn.prologue_end, body.count - fn.prologue_end);
+        int failed = body.failed;
+        buf_free(&body);
+        if(failed || fn.code.failed) { DiagnosticOutOfMemory(); lower->failed = 1; goto done; }
+    }
     if(!fn_body(&fn, output)) goto done;
     ok = 1;
 done:
@@ -3116,6 +3250,7 @@ done:
     free(aggregate);
     free(rep);
     free(fn.loop_end);
+    free(fn.seg_first);
     free(fn.order);
     free(fn.position);
     free(fn.first);
@@ -3724,7 +3859,11 @@ emit_initialize(Lower *lower, Buf *output, uint32_t stack_base)
     fn.lower = lower;
     global_get(&fn, G_INIT);
     if_begin(&fn); op(&fn, 0x0f); end(&fn);
+    if(lower->suspendable) {
+        global_get(&fn, G_ASTATE); i32_const(&fn, ASYNC_REWIND); op(&fn, 0x47); if_begin(&fn);
+    }
     i32_const(&fn, (int32_t)stack_base); global_set(&fn, G_SP);
+    if(lower->suspendable) end(&fn);
     for(int64_t index = 0; index < program->initializers.length; index++) {
         int32_t initializer = initializers[index];
         if(initializer < 0 || initializer >= lower->function_count || lower->functions[initializer].external ||
@@ -3733,7 +3872,18 @@ emit_initialize(Lower *lower, Buf *output, uint32_t stack_base)
             buf_free(&fn.code);
             return WasmGap(lower, "wasm.gap.initializer", "module initializer @%d is not a () -> void procedure", initializer);
         }
+        if(!lower->suspendable) {
+            call(&fn, lower->wasm_function[initializer]);
+            continue;
+        }
+        /* Initializers already run are skipped on a rewind. */
+        global_get(&fn, G_INITAT); i32_const(&fn, (int32_t)index); op(&fn, 0x4d);
+        if_begin(&fn);
         call(&fn, lower->wasm_function[initializer]);
+        global_get(&fn, G_ASTATE); i32_const(&fn, ASYNC_UNWIND); op(&fn, 0x46);
+        if_begin(&fn); op(&fn, 0x0f); end(&fn);
+        i32_const(&fn, (int32_t)index + 1); global_set(&fn, G_INITAT);
+        end(&fn);
     }
     i32_const(&fn, 1); global_set(&fn, G_INIT);
     flush_output(&fn);
@@ -3760,9 +3910,20 @@ emit_entry(Lower *lower, Buf *output, uint32_t stack_base)
         return WasmGap(lower, "wasm.gap.entry", "zx_entry needs a procedure with no parameters returning void, bool or an integer");
     Fn fn = {0};
     fn.lower = lower;
+    /* A rewind keeps the stack it unwound from. */
+    if(lower->suspendable) {
+        global_get(&fn, G_ASTATE); i32_const(&fn, ASYNC_REWIND); op(&fn, 0x47); if_begin(&fn);
+    }
     i32_const(&fn, (int32_t)stack_base); global_set(&fn, G_SP);
-    if(program->initializers.length > 0)
+    if(lower->suspendable) end(&fn);
+    if(program->initializers.length > 0) {
         call(&fn, lower->initialize_function);
+        if(lower->suspendable) {
+            global_get(&fn, G_ASTATE); i32_const(&fn, ASYNC_UNWIND); op(&fn, 0x46);
+            if_begin(&fn); i64_const(&fn, 0); op(&fn, 0x0f); end(&fn);
+        }
+    }
+    /* An entry that unwinds returns a value the host ignores. */
     op_u(&fn, 0x10, lower->wasm_function[program->entry]);
     flush_output(&fn);
     if(result->kind == LirTypeKind_Void) i64_const(&fn, 0);
@@ -3781,10 +3942,38 @@ emit_entry(Lower *lower, Buf *output, uint32_t stack_base)
     return failed ? 0 : 1;
 }
 
+/* Which procedures can suspend: those with a host capability call or an
+ * indirect call, and every procedure that calls one of them. */
 static int
-lower_module(const LirProgram *program, ZxWasmImage *image)
+plan_suspends(Lower *lower)
+{
+    lower->suspends = calloc((size_t)(lower->function_count ? lower->function_count : 1), 1);
+    if(lower->suspends == NULL) {
+        DiagnosticOutOfMemory();
+        lower->failed = 1;
+        return 0;
+    }
+    for(int changed = 1; changed; ) {
+        changed = 0;
+        for(int64_t index = 0; index < lower->function_count; index++) {
+            const LirFunction *function = &lower->functions[index];
+            if(function->external || lower->suspends[index]) continue;
+            const LirBlock *blocks = function->blocks.data;
+            for(int64_t block = 0; block < function->blocks.length && !lower->suspends[index]; block++) {
+                const LirInstruction *instructions = blocks[block].instructions.data;
+                for(int64_t item = 0; item < blocks[block].instructions.length; item++)
+                    if(suspension_site(lower, &instructions[item])) { lower->suspends[index] = 1; changed = 1; break; }
+            }
+        }
+    }
+    return 1;
+}
+
+static int
+lower_module(const LirProgram *program, ZxWasmImage *image, int suspendable)
 {
     Lower lower = {0};
+    lower.suspendable = suspendable;
     Buf module = {0}, content = {0}, code = {0};
     int ok = 0;
     lower.program = program;
@@ -3821,7 +4010,8 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     }
     for(size_t index = 0; index < types; index++)
         lower.sizes[index] = -1;
-    if(!classify_externals(&lower) || !scan_program(&lower) || !layout_globals(&lower))
+    if(!classify_externals(&lower) || !scan_program(&lower) || !layout_globals(&lower) ||
+       (lower.suspendable && !plan_suspends(&lower)))
         goto done;
     if(lower.uses_capability && lower.uses_images) lower.uses_heap = 1;
     /* Imported state places the elements of a global's views with
@@ -3934,6 +4124,11 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         lower.out_base = stack_base;
         stack_base = (uint32_t)((lower.out_base + ZXW_OUT_REGION + 15) & ~(uint32_t)15);
     }
+    uint32_t async_base = 0;
+    if(lower.suspendable) {
+        async_base = stack_base;
+        stack_base = async_base + ZXW_ASYNC_SIZE;
+    }
     uint32_t stack_limit = stack_base + ZXW_STACK_SIZE;
     if(lower.uses_heap) {
         emit_alloc(&lower, &code);
@@ -4031,8 +4226,9 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     /* Globals: stack pointer, initializer flag, stack limit, then the heap
      * top and the image base, cursor, length and view depth. */
     {
-        unsigned count = lower.uses_images ? 8 : lower.uses_heap ? 4 : 3;
-        int32_t initial[] = {(int32_t)stack_base, 0, (int32_t)stack_limit, (int32_t)stack_limit, 0, 0, 0, 0};
+        unsigned count = lower.suspendable ? 13 : lower.uses_images ? 8 : lower.uses_heap ? 4 : 3;
+        int32_t initial[] = {(int32_t)stack_base, 0, (int32_t)stack_limit, (int32_t)stack_limit, 0, 0, 0, 0,
+                             ASYNC_NORMAL, (int32_t)async_base, 0, (int32_t)(async_base + ZXW_ASYNC_SIZE), 0};
         buf_uleb(&content, count);
         for(unsigned index = 0; index < count; index++) {
             buf_byte(&content, W_I32); buf_byte(&content, index == 2 ? 0x00 : 0x01);
@@ -4041,7 +4237,11 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     }
     section(&module, 6, &content);
     /* Exports. */
-    buf_uleb(&content, 2 + (lower.uses_heap ? 1 : 0) + (initializes ? 1 : 0) + (lower.uses_print ? 1 : 0));
+    buf_uleb(&content, 2 + (lower.uses_heap ? 1 : 0) + (initializes ? 1 : 0) + (lower.uses_print ? 1 : 0) +
+                       (lower.suspendable ? 1 : 0));
+    if(lower.suspendable) {
+        buf_name(&content, "zx_async_state", 14); buf_byte(&content, 0x03); buf_uleb(&content, G_ASTATE);
+    }
     buf_name(&content, "zx_entry", 8); buf_byte(&content, 0x00); buf_uleb(&content, lower.entry_function);
     buf_name(&content, "memory", 6); buf_byte(&content, 0x02); buf_uleb(&content, 0);
     if(initializes) {
@@ -4130,6 +4330,7 @@ done:
     free(lower.sizes);
     free(lower.global_address);
     free(lower.host_kind);
+    free(lower.suspends);
     free(lower.host_index);
     free(lower.wasm_function);
     free(lower.sigs);
@@ -4374,7 +4575,16 @@ ZxWasmLowerProgram(const struct LirProgram *program, ZxWasmImage *image)
     if(image == NULL)
         return 0;
     memset(image, 0, sizeof(*image));
-    return program != NULL && lower_module(program, image);
+    return program != NULL && lower_module(program, image, 0);
+}
+
+int
+ZxWasmLowerProgramSuspendable(const struct LirProgram *program, ZxWasmImage *image)
+{
+    if(image == NULL)
+        return 0;
+    memset(image, 0, sizeof(*image));
+    return program != NULL && lower_module(program, image, 1);
 }
 
 int
@@ -4409,7 +4619,7 @@ ZxWasmLowerExecutable(const unsigned char *zx, size_t size, ZxWasmImage *image)
                    diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
                    diagnostic.value, diagnostic.origin);
     else
-        ok = lower_module(&program, image);
+        ok = lower_module(&program, image, 0);
     compiler_exec_link_ZxExecReadFree(&owner);
     return ok;
 }

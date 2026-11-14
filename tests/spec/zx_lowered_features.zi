@@ -1,6 +1,7 @@
 // Lowering features pinned by tests/zx_lowered_parity.sh: global procedure
 // slots, typed null, slice element stores (scalar and record elements),
-// views of records, and comparisons of unsigned values with literals.
+// views of records, comparisons of unsigned values with literals, and an
+// untyped float literal compared with a float32, which takes the float32 type.
 Callback :: #type (value: s32) -> s32;
 slot: Callback;
 ready: bool;
@@ -22,6 +23,16 @@ Total :: (values: []s32) -> s64 {
     return sum
 }
 
+Pick :: (dark: bool) -> float32 { return ifx dark then 0.55 else 0.5 }
+Half :: (value: float32) -> bool { return value == 0.5 }
+Float32Literals :: () -> bool {
+    x: float32 = 0.55
+    y: float32 = ifx x > 0.5 then 0.55 else 0.5
+    z: float64 = 0.55
+    return x == 0.55 && 0.55 == x && y == 0.55 && !(y < 0.55) && Pick(true) == 0.55 &&
+        Half(Pick(false)) && z == 0.55 && cast(float32)z == x
+}
+
 main :: () -> s32 {
     if slot != null || null != slot { return 1 }
     Install(Twice)
@@ -38,6 +49,7 @@ main :: () -> s32 {
     if wide != cast(u64)-1 || wide < 1 { return 6 }
     numbers: [3]s32 = .[4, -9, 40]
     if Total(numbers[:]) != 35 || Total(numbers[1:]) != 31 { return 7 }
+    if !Float32Literals() { return 8 }
     print("features: % % % %\n", bytes[2], pairs[0].a, small, wide)
     return 42
 }

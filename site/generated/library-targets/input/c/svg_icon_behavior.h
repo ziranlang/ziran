@@ -78,14 +78,42 @@ bool svg_icon_behavior_SvgIconCells(int32_t slot, int32_t size);
 int32_t svg_icon_behavior_SvgIconSlot(String shape, int32_t size);
 float SvgIconSnap(float value, float scale);
 void svg_icon_behavior_PaintSvgIcon(Session session, int32_t node, String shape, Rectangle bounds, Color color);
+void svg_icon_behavior_StrokeAppendNumber(Slice output, int32_t* length, float value);
+void svg_icon_behavior_StrokeAppendByte(Slice output, int32_t* length, uint8_t byte);
+void PaintStroke(Session session, int32_t node, Slice points, float width, Color color);
 
 /* Small procedures other modules inline; svg_icon_behavior.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_SVG_ICON_BEHAVIOR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include "zir_vec.h"
 #include "zir_string_types.h"
 #include "zir_bounds.h"
+#ifndef ZIRAN_HELPER_SignedBits
+#define ZIRAN_HELPER_SignedBits
+/* SignedBits reads the low w bits of x as a signed number. */
+static inline int64_t SignedBits(uint64_t x, int w) {
+    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;
+    x &= mask;
+    return x <= (mask >> 1) ? (int64_t)x : -1 - (int64_t)(mask - x);
+}
+#endif
+
+#ifndef ZIRAN_HELPER_FloatToInt
+#define ZIRAN_HELPER_FloatToInt
+/* FloatToInt converts x to a w-bit integer, aborting when it does not fit. */
+static inline uint64_t FloatToInt(double x, int w, int sign) {
+    /* Powers of two are exact in double, including the unsigned 64-bit bound. */
+    double bound = w - sign == 64 ? 18446744073709551616.0 :
+        (double)(UINT64_C(1) << (w - sign));
+    if(!(x >= (sign ? -bound : 0) && x < bound)) abort();
+    return sign ? (uint64_t)(int64_t)x : (uint64_t)x;
+}
+#endif
 static inline uint64_t svg_icon_behavior_SvgIconHash_ziran_inline(String shape);
 #define svg_icon_behavior_SvgIconHash(...) svg_icon_behavior_SvgIconHash_ziran_inline(__VA_ARGS__)
+static inline void svg_icon_behavior_StrokeAppendNumber_ziran_inline(Slice output, int32_t* length, float value);
+#define svg_icon_behavior_StrokeAppendNumber(...) svg_icon_behavior_StrokeAppendNumber_ziran_inline(__VA_ARGS__)
+static inline void svg_icon_behavior_StrokeAppendByte_ziran_inline(Slice output, int32_t* length, uint8_t byte);
+#define svg_icon_behavior_StrokeAppendByte(...) svg_icon_behavior_StrokeAppendByte_ziran_inline(__VA_ARGS__)
 
 static inline uint64_t
 svg_icon_behavior_SvgIconHash_ziran_inline(String shape)
@@ -97,6 +125,57 @@ svg_icon_behavior_SvgIconHash_ziran_inline(String shape)
         index = (int32_t)((uint32_t)index + 1u);
     }
     return hash;
+}
+
+static inline void
+svg_icon_behavior_StrokeAppendNumber_ziran_inline(Slice output, int32_t* length, float value)
+{
+    int32_t hundredths = (int32_t)SignedBits(FloatToInt(((value * ((float)100.0)) + ((float)0.5)), 32, 1), 32);
+    if (hundredths < 0) {
+        hundredths = 0;
+    }
+    uint8_t digits[12] = {0};
+    int32_t count = 0;
+    int32_t whole = hundredths / 100;
+    if (whole == 0) {
+        uint8_t* value_0 = &(digits[0]);
+        (*value_0) = 48;
+        count = 1;
+    }
+    while (whole > 0) {
+        uint8_t* value_1 = &(ZIRAN_INDEX(digits, sizeof(digits) / sizeof(digits[0]), count));
+        (*value_1) = (uint8_t)(((int32_t)(48u + (uint32_t)((whole % 10)))));
+        count = (int32_t)((uint32_t)count + 1u);
+        whole = whole / 10;
+    }
+    while (count > 0 && *(length) < (int32_t)((int64_t)(output).length)) {
+        count = (int32_t)((uint32_t)count - 1u);
+        uint8_t* value_2 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(length))]);
+        (*value_2) = ZIRAN_INDEX(digits, 12, count);
+        int32_t* value_3 = &((*(length)));
+        (*value_3) = (int32_t)((uint32_t)((*value_3)) + 1u);
+    }
+    if ((int32_t)((uint32_t)(*(length)) + 3u) <= (int32_t)((int64_t)(output).length)) {
+        uint8_t* value_4 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(length))]);
+        (*value_4) = 46;
+        uint8_t* value_5 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int32_t)((uint32_t)(*(length)) + 1u)))]);
+        (*value_5) = (uint8_t)(((int32_t)(48u + (uint32_t)(((hundredths / 10) % 10)))));
+        uint8_t* value_6 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int32_t)((uint32_t)(*(length)) + 2u)))]);
+        (*value_6) = (uint8_t)(((int32_t)(48u + (uint32_t)((hundredths % 10)))));
+        int32_t* value_7 = &((*(length)));
+        (*value_7) = (int32_t)((uint32_t)((*value_7)) + 3u);
+    }
+}
+
+static inline void
+svg_icon_behavior_StrokeAppendByte_ziran_inline(Slice output, int32_t* length, uint8_t byte)
+{
+    if (*(length) < (int32_t)((int64_t)(output).length)) {
+        uint8_t* value_0 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(length))]);
+        (*value_0) = byte;
+        int32_t* value_1 = &((*(length)));
+        (*value_1) = (int32_t)((uint32_t)((*value_1)) + 1u);
+    }
 }
 #endif
 

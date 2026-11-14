@@ -5,12 +5,10 @@
 #include "drawing_props.h"
 #include "font_metrics.h"
 #include "geometry.h"
-#include "image_props.h"
 #include "style.h"
 #include "style_sheet.h"
 #include "surface.h"
 #include "control_props.h"
-#include "button_props.h"
 
 StyleFacts
 ButtonRoleFactsFor(int32_t style_kind, int32_t name, int32_t class_name, int32_t role, int32_t tone, int32_t emphasis, int32_t size, int32_t state)
@@ -76,7 +74,7 @@ ButtonCornerRadius(float radius, float height)
 }
 
 Rectangle
-MeasureBounds(ButtonProps props, StyleData paint, float minimum_height, int32_t font, float label_width, float available_width, float scale, bool disclosure, float detail_height)
+MeasureBounds(zir_2b2386d69a109fee_Props props, StyleData paint, float minimum_height, int32_t font, float label_width, float available_width, float scale, bool disclosure, float detail_height)
 {
     if (scale <= ((float)0.0)) {
         scale = (float)1.0;
@@ -99,12 +97,15 @@ MeasureBounds(ButtonProps props, StyleData paint, float minimum_height, int32_t 
     ContentSize content = MeasureContent(height, label_width / scale, paint.icon_size, paint.gap, paint.padding_x, has_icon, props.icon_only, above);
     float width = ShapeWidth(bounds.width / scale, height, content.width, available_width / scale, props.full_width, props.square || props.icon_only, props.circle);
     if (bounds.height <= ((float)0.0)) {
-        bounds.height = height * scale;
+        float* value_1 = &(bounds.height);
+        (*value_1) = height * scale;
     }
     if (props.square || props.circle || props.icon_only) {
-        bounds.width = bounds.height;
+        float* value_2 = &(bounds.width);
+        (*value_2) = bounds.height;
     } else if (bounds.width <= ((float)0.0)) {
-        bounds.width = width * scale;
+        float* value_3 = &(bounds.width);
+        (*value_3) = width * scale;
     }
     return bounds;
 }
@@ -129,19 +130,27 @@ MeasureContent(float height, float label_width, float requested_icon_size, float
     if (!has_icon || icon_size == ((float)0.0) || icon_only || label_width <= ((float)0.0)) {
         gap = (float)0.0;
     }
-    result.text_width = label_width;
-    result.icon_size = icon_size;
-    result.gap = gap;
-    result.width = (label_width + gap) + (((float)2.0) * padding_x);
+    float* value_0 = &(result.text_width);
+    (*value_0) = label_width;
+    float* value_1 = &(result.icon_size);
+    (*value_1) = icon_size;
+    float* value_2 = &(result.gap);
+    (*value_2) = gap;
+    float* value_3 = &(result.width);
+    (*value_3) = (label_width + gap) + (((float)2.0) * padding_x);
     if (has_icon) {
-        result.width = result.width + icon_size;
+        float* value_4 = &(result.width);
+        (*value_4) = (*value_4) + icon_size;
     }
     if (above && has_icon) {
-        result.width = label_width;
+        float* value_5 = &(result.width);
+        (*value_5) = label_width;
         if (result.width < icon_size) {
-            result.width = icon_size;
+            float* value_6 = &(result.width);
+            (*value_6) = icon_size;
         }
-        result.width = result.width + (((float)2.0) * padding_x);
+        float* value_7 = &(result.width);
+        (*value_7) = (*value_7) + (((float)2.0) * padding_x);
     }
     return result;
 }
@@ -160,13 +169,20 @@ ContentLayout(float width, float height, float label_width, float requested_icon
     } else if (alignment == ((ContentAlignment)(2LL))) {
         x = ((width - measured.width) - padding_x) + offset_x;
     }
-    result.icon_x = x;
-    result.icon_y = ((height - icon_size) * ((float)0.5)) + offset_y;
-    result.icon_size = icon_size;
-    result.text_x = x;
-    result.text_y = offset_y;
-    result.text_width = label_width;
-    result.text_height = height;
+    float* value_0 = &(result.icon_x);
+    (*value_0) = x;
+    float* value_1 = &(result.icon_y);
+    (*value_1) = ((height - icon_size) * ((float)0.5)) + offset_y;
+    float* value_2 = &(result.icon_size);
+    (*value_2) = icon_size;
+    float* value_3 = &(result.text_x);
+    (*value_3) = x;
+    float* value_4 = &(result.text_y);
+    (*value_4) = offset_y;
+    float* value_5 = &(result.text_width);
+    (*value_5) = label_width;
+    float* value_6 = &(result.text_height);
+    (*value_6) = height;
     if (above && has_icon && !icon_only) {
         float available_icon = ((height - label_height) - gap) - ((float)12.0);
         if (icon_size > available_icon) {
@@ -179,19 +195,27 @@ ContentLayout(float width, float height, float label_width, float requested_icon
             gap = (float)0.0;
         }
         float stack_height = (icon_size + gap) + label_height;
-        result.icon_x = ((width - icon_size) * ((float)0.5)) + offset_x;
-        result.icon_y = ((height - stack_height) * ((float)0.5)) + offset_y;
-        result.icon_size = icon_size;
-        result.text_x = ((width - label_width) * ((float)0.5)) + offset_x;
-        result.text_y = (result.icon_y + icon_size) + gap;
-        result.text_height = label_height;
+        float* value_7 = &(result.icon_x);
+        (*value_7) = ((width - icon_size) * ((float)0.5)) + offset_x;
+        float* value_8 = &(result.icon_y);
+        (*value_8) = ((height - stack_height) * ((float)0.5)) + offset_y;
+        float* value_9 = &(result.icon_size);
+        (*value_9) = icon_size;
+        float* value_10 = &(result.text_x);
+        (*value_10) = ((width - label_width) * ((float)0.5)) + offset_x;
+        float* value_11 = &(result.text_y);
+        (*value_11) = (result.icon_y + icon_size) + gap;
+        float* value_12 = &(result.text_height);
+        (*value_12) = label_height;
         return result;
     }
     if (has_icon) {
         if (trailing) {
-            result.icon_x = result.icon_x + (label_width + gap);
+            float* value_13 = &(result.icon_x);
+            (*value_13) = (*value_13) + (label_width + gap);
         } else {
-            result.text_x = result.text_x + (icon_size + gap);
+            float* value_14 = &(result.text_x);
+            (*value_14) = (*value_14) + (icon_size + gap);
         }
     }
     return result;

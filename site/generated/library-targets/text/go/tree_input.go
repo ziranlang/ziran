@@ -94,29 +94,50 @@ func TreeInput_TreeInputSuspend(session Session) InputSnapshot {
 		return snapshot
 	}
 	slot := Session_SessionIndex(session)
-	snapshot.Session = session
-	snapshot.Pointer = active_pointer[slot]
-	snapshot.Sample = active_sample[slot]
-	snapshot.Secondary = active_secondary[slot]
-	snapshot.Key = active_key[slot]
-	snapshot.Dismissal = active_dismissal[slot]
-	snapshot.EscapeCaptured = Session_SessionFlagGet(active_escape_captured, slot)
-	snapshot.Modifiers = active_modifiers[slot]
-	snapshot.Focus = active_focus[slot]
-	snapshot.FocusVisible = Session_SessionFlagGet(active_focus_visible, slot)
-	snapshot.Codepoints = active_codepoints[slot]
-	snapshot.Wheel = active_wheel[slot]
-	active_pointer[slot] = PointerState{}
-	active_sample[slot] = PointerFrame{X: -1.0, Y: -1.0, Down: false, Pressed: false, Released: false}
-	active_secondary[slot] = SecondaryPointerFrame{}
-	active_key[slot] = 0
-	active_dismissal[slot] = 0
+	value_1 := &(snapshot.Session)
+	(*value_1) = session
+	value_2 := &(snapshot.Pointer)
+	(*value_2) = active_pointer[slot]
+	value_3 := &(snapshot.Sample)
+	(*value_3) = active_sample[slot]
+	value_4 := &(snapshot.Secondary)
+	(*value_4) = active_secondary[slot]
+	value_5 := &(snapshot.Key)
+	(*value_5) = active_key[slot]
+	value_6 := &(snapshot.Dismissal)
+	(*value_6) = active_dismissal[slot]
+	value_7 := &(snapshot.EscapeCaptured)
+	(*value_7) = Session_SessionFlagGet(active_escape_captured, slot)
+	value_8 := &(snapshot.Modifiers)
+	(*value_8) = active_modifiers[slot]
+	value_9 := &(snapshot.Focus)
+	(*value_9) = active_focus[slot]
+	value_10 := &(snapshot.FocusVisible)
+	(*value_10) = Session_SessionFlagGet(active_focus_visible, slot)
+	value_11 := &(snapshot.Codepoints)
+	(*value_11) = active_codepoints[slot]
+	value_12 := &(snapshot.Wheel)
+	(*value_12) = active_wheel[slot]
+	value_13 := &(active_pointer[slot])
+	(*value_13) = PointerState{}
+	value_14 := &(active_sample[slot])
+	(*value_14) = PointerFrame{X: -1.0, Y: -1.0, Down: false, Pressed: false, Released: false}
+	value_15 := &(active_secondary[slot])
+	(*value_15) = SecondaryPointerFrame{}
+	value_16 := &(active_key[slot])
+	(*value_16) = 0
+	value_17 := &(active_dismissal[slot])
+	(*value_17) = 0
 	active_escape_captured = Session_SessionFlagSet(active_escape_captured, slot, false)
-	active_modifiers[slot] = 0
-	active_focus[slot] = 0
+	value_18 := &(active_modifiers[slot])
+	(*value_18) = 0
+	value_19 := &(active_focus[slot])
+	(*value_19) = 0
 	active_focus_visible = Session_SessionFlagSet(active_focus_visible, slot, false)
-	active_codepoints[slot] = TypedInputQueue{}
-	active_wheel[slot] = PointerWheelState{}
+	value_20 := &(active_codepoints[slot])
+	(*value_20) = TypedInputQueue{}
+	value_21 := &(active_wheel[slot])
+	(*value_21) = PointerWheelState{}
 	return snapshot
 }
 
@@ -126,17 +147,26 @@ func TreeInput_TreeInputResume(session Session, snapshot InputSnapshot) bool {
 		return false
 	}
 	slot := Session_SessionIndex(session)
-	active_pointer[slot] = snapshot.Pointer
-	active_sample[slot] = snapshot.Sample
-	active_secondary[slot] = snapshot.Secondary
-	active_key[slot] = snapshot.Key
-	active_dismissal[slot] = snapshot.Dismissal
+	value_1 := &(active_pointer[slot])
+	(*value_1) = snapshot.Pointer
+	value_2 := &(active_sample[slot])
+	(*value_2) = snapshot.Sample
+	value_3 := &(active_secondary[slot])
+	(*value_3) = snapshot.Secondary
+	value_4 := &(active_key[slot])
+	(*value_4) = snapshot.Key
+	value_5 := &(active_dismissal[slot])
+	(*value_5) = snapshot.Dismissal
 	active_escape_captured = Session_SessionFlagSet(active_escape_captured, slot, snapshot.EscapeCaptured)
-	active_modifiers[slot] = snapshot.Modifiers
-	active_focus[slot] = snapshot.Focus
+	value_6 := &(active_modifiers[slot])
+	(*value_6) = snapshot.Modifiers
+	value_7 := &(active_focus[slot])
+	(*value_7) = snapshot.Focus
 	active_focus_visible = Session_SessionFlagSet(active_focus_visible, slot, snapshot.FocusVisible)
-	active_codepoints[slot] = snapshot.Codepoints
-	active_wheel[slot] = snapshot.Wheel
+	value_8 := &(active_codepoints[slot])
+	(*value_8) = snapshot.Codepoints
+	value_9 := &(active_wheel[slot])
+	(*value_9) = snapshot.Wheel
 	return true
 }
 
@@ -146,7 +176,8 @@ func TreeInput_KeyboardSend(session Session, key int32) bool {
 		return false
 	}
 	var value_1 int32 = Session_SessionIndex(session)
-	active_key[value_1] = key
+	value_2 := &(active_key[value_1])
+	(*value_2) = key
 	return true
 }
 
@@ -157,7 +188,8 @@ func TreeInput_KeyboardTake(session Session) int32 {
 	}
 	index := Session_SessionIndex(session)
 	key := active_key[index]
-	active_key[index] = 0
+	value_1 := &(active_key[index])
+	(*value_1) = 0
 	return key
 }
 
@@ -167,7 +199,8 @@ func TreeInput_KeyboardModifiersSend(session Session, modifiers int32) bool {
 		return false
 	}
 	var value_1 int32 = Session_SessionIndex(session)
-	active_modifiers[value_1] = modifiers
+	value_2 := &(active_modifiers[value_1])
+	(*value_2) = modifiers
 	return true
 }
 
@@ -190,8 +223,10 @@ func TreeInput_TypedCodepointSend(session Session, codepoint int32) bool {
 		return false
 	}
 	tail := ((active_codepoints[index]).Head + (active_codepoints[index]).Count) % 32
-	((active_codepoints[index]).Values)[tail] = codepoint
-	(active_codepoints[index]).Count++
+	value_1 := &(((active_codepoints[index]).Values)[tail])
+	(*value_1) = codepoint
+	value_2 := &((active_codepoints[index]).Count)
+	(*value_2)++
 	return true
 }
 
@@ -227,8 +262,10 @@ func TreeInput_TypedCodepointTake(session Session) int32 {
 	}
 	head := (active_codepoints[index]).Head
 	codepoint := ((active_codepoints[index]).Values)[head]
-	(active_codepoints[index]).Head = (head + 1) % 32
-	(active_codepoints[index]).Count--
+	value_1 := &((active_codepoints[index]).Head)
+	(*value_1) = (head + 1) % 32
+	value_2 := &((active_codepoints[index]).Count)
+	(*value_2)--
 	return codepoint
 }
 
@@ -238,7 +275,8 @@ func TreeInput_TreeSecondaryPointerUpdate(session Session, frame SecondaryPointe
 		return
 	}
 	var value_1 int32 = Session_SessionIndex(session)
-	active_secondary[value_1] = frame
+	value_2 := &(active_secondary[value_1])
+	(*value_2) = frame
 }
 
 func TreeInput_SecondaryPointerSample(session Session) SecondaryPointerFrame {
@@ -267,9 +305,12 @@ func TreeInput_PointerWheelSend(session Session, x float32, y float32, delta flo
 		return
 	}
 	index := Session_SessionIndex(session)
-	(active_wheel[index]).X = x
-	(active_wheel[index]).Y = y
-	(active_wheel[index]).Delta = delta
+	value_1 := &((active_wheel[index]).X)
+	(*value_1) = x
+	value_2 := &((active_wheel[index]).Y)
+	(*value_2) = y
+	value_3 := &((active_wheel[index]).Delta)
+	(*value_3) = delta
 }
 
 func TreeInput_PointerWheelTake(session Session, bounds Rectangle) float32 {
@@ -283,7 +324,8 @@ func TreeInput_PointerWheelTake(session Session, bounds Rectangle) float32 {
 		return 0.0
 	}
 	delta := (active_wheel[index]).Delta
-	(active_wheel[index]).Delta = 0.0
+	value_2 := &((active_wheel[index]).Delta)
+	(*value_2) = 0.0
 	return delta
 }
 
@@ -513,76 +555,105 @@ func TreeInput_TreePointerUpdate(session Session, frame PointerFrame) int32 {
 	if Tree_TreeIsBuilding(session) {
 		return -1
 	}
-	active_sample[input_slot] = frame
+	value_0 := &(active_sample[input_slot])
+	(*value_0) = frame
 	hit := TreeInput_TreeHitAt(session, frame.X, frame.Y, false)
 	if frame.Pressed {
 		active_focus_visible = Session_SessionFlagSet(active_focus_visible, input_slot, false)
-		(active_pointer[input_slot]).Press = PointerPress{Serial: (((active_pointer[input_slot]).Press).Serial + 1), X: frame.X, Y: frame.Y}
-		(active_pointer[input_slot]).FocusGeneration = 0
-		var value_0 bool = hit >= 0
-		if value_0 {
-			var value_1 bool = TreeInput_TreeTextFocused(session)
-			value_0 = value_1
+		value_1 := &((active_pointer[input_slot]).Press)
+		(*value_1) = PointerPress{Serial: (((active_pointer[input_slot]).Press).Serial + 1), X: frame.X, Y: frame.Y}
+		value_2 := &((active_pointer[input_slot]).FocusGeneration)
+		(*value_2) = 0
+		var value_3 bool = hit >= 0
+		if value_3 {
+			var value_4 bool = TreeInput_TreeTextFocused(session)
+			value_3 = value_4
 		}
-		var value_2 bool = value_0
-		if value_2 {
-			var value_3 bool = TreeInput_TreeTextKind((((trees[input_slot]).Committed).Data[hit]).Kind)
-			value_2 = !value_3
+		var value_5 bool = value_3
+		if value_5 {
+			var value_6 bool = TreeInput_TreeTextKind((((trees[input_slot]).Committed).Data[hit]).Kind)
+			value_5 = !value_6
 		}
-		if value_2 {
-			(active_pointer[input_slot]).FocusGeneration = (((trees[input_slot]).Committed).Data[hit]).IdentityGeneration
+		if value_5 {
+			value_7 := &((active_pointer[input_slot]).FocusGeneration)
+			(*value_7) = (((trees[input_slot]).Committed).Data[hit]).IdentityGeneration
 		} else {
 			TreeInput_TreeFocusAt(session, hit)
 		}
 	}
-	(active_pointer[input_slot]).HoveredGeneration = 0
+	value_8 := &((active_pointer[input_slot]).HoveredGeneration)
+	(*value_8) = 0
 	if hit >= 0 {
-		(active_pointer[input_slot]).HoveredGeneration = (((trees[input_slot]).Committed).Data[hit]).IdentityGeneration
+		value_9 := &((active_pointer[input_slot]).HoveredGeneration)
+		(*value_9) = (((trees[input_slot]).Committed).Data[hit]).IdentityGeneration
 	}
 	if frame.Pressed {
-		(active_pointer[input_slot]).CapturesDrag = false
-		(active_pointer[input_slot]).HeldGeneration = 0
-		(active_pointer[input_slot]).PressedGeneration = 0
-		(active_pointer[input_slot]).ReleasedGeneration = 0
+		value_10 := &((active_pointer[input_slot]).CapturesDrag)
+		(*value_10) = false
+		value_11 := &((active_pointer[input_slot]).HeldGeneration)
+		(*value_11) = 0
+		value_12 := &((active_pointer[input_slot]).PressedGeneration)
+		(*value_12) = 0
+		value_13 := &((active_pointer[input_slot]).ReleasedGeneration)
+		(*value_13) = 0
 		if (frame.Down || frame.Released) && hit >= 0 {
 			entry := Tree_TreeInputAt(session, hit)
-			(active_pointer[input_slot]).HeldGeneration = entry.IdentityGeneration
-			(active_pointer[input_slot]).PressedGeneration = (active_pointer[input_slot]).HeldGeneration
-			(active_pointer[input_slot]).GrabX = frame.X - entry.Bounds.X
-			(active_pointer[input_slot]).GrabY = frame.Y - entry.Bounds.Y
-			(active_pointer[input_slot]).CapturesDrag = entry.CapturesDrag
+			value_14 := &((active_pointer[input_slot]).HeldGeneration)
+			(*value_14) = entry.IdentityGeneration
+			value_15 := &((active_pointer[input_slot]).PressedGeneration)
+			(*value_15) = (active_pointer[input_slot]).HeldGeneration
+			value_16 := &((active_pointer[input_slot]).GrabX)
+			(*value_16) = frame.X - entry.Bounds.X
+			value_17 := &((active_pointer[input_slot]).GrabY)
+			(*value_17) = frame.Y - entry.Bounds.Y
+			value_18 := &((active_pointer[input_slot]).CapturesDrag)
+			(*value_18) = entry.CapturesDrag
 		}
 	}
 	if frame.Down && (active_pointer[input_slot]).HeldGeneration != 0 {
-		(active_pointer[input_slot]).HeldX = frame.X
-		(active_pointer[input_slot]).HeldY = frame.Y
+		value_19 := &((active_pointer[input_slot]).HeldX)
+		(*value_19) = frame.X
+		value_20 := &((active_pointer[input_slot]).HeldY)
+		(*value_20) = frame.Y
 	}
 	if frame.Released {
 		if (active_pointer[input_slot]).HeldGeneration != 0 {
-			(active_pointer[input_slot]).ReleasedGeneration = (active_pointer[input_slot]).HeldGeneration
-			(active_pointer[input_slot]).ReleasedX = frame.X
-			(active_pointer[input_slot]).ReleasedY = frame.Y
-			var value_4 bool = hit >= 0
-			if value_4 {
-				var value_5 bool = (active_pointer[input_slot]).HeldGeneration == (((trees[input_slot]).Committed).Data[hit]).IdentityGeneration
-				value_4 = value_5
+			value_21 := &((active_pointer[input_slot]).ReleasedGeneration)
+			(*value_21) = (active_pointer[input_slot]).HeldGeneration
+			value_22 := &((active_pointer[input_slot]).ReleasedX)
+			(*value_22) = frame.X
+			value_23 := &((active_pointer[input_slot]).ReleasedY)
+			(*value_23) = frame.Y
+			var value_24 bool = hit >= 0
+			if value_24 {
+				var value_25 bool = (active_pointer[input_slot]).HeldGeneration == (((trees[input_slot]).Committed).Data[hit]).IdentityGeneration
+				value_24 = value_25
 			}
-			if value_4 {
-				(active_pointer[input_slot]).ActivationGeneration = (active_pointer[input_slot]).HeldGeneration
-				(active_pointer[input_slot]).ActivationPointed = true
-				(active_pointer[input_slot]).ActivationX = frame.X
-				(active_pointer[input_slot]).ActivationY = frame.Y
+			if value_24 {
+				value_26 := &((active_pointer[input_slot]).ActivationGeneration)
+				(*value_26) = (active_pointer[input_slot]).HeldGeneration
+				value_27 := &((active_pointer[input_slot]).ActivationPointed)
+				(*value_27) = true
+				value_28 := &((active_pointer[input_slot]).ActivationX)
+				(*value_28) = frame.X
+				value_29 := &((active_pointer[input_slot]).ActivationY)
+				(*value_29) = frame.Y
 				if (active_pointer[input_slot]).FocusGeneration == (active_pointer[input_slot]).HeldGeneration {
 					TreeInput_TreeFocusAt(session, hit)
 				}
 			}
 		}
-		(active_pointer[input_slot]).HeldGeneration = 0
-		(active_pointer[input_slot]).FocusGeneration = 0
+		value_30 := &((active_pointer[input_slot]).HeldGeneration)
+		(*value_30) = 0
+		value_31 := &((active_pointer[input_slot]).FocusGeneration)
+		(*value_31) = 0
 	} else if !frame.Down {
-		(active_pointer[input_slot]).HeldGeneration = 0
-		(active_pointer[input_slot]).PressedGeneration = 0
-		(active_pointer[input_slot]).FocusGeneration = 0
+		value_32 := &((active_pointer[input_slot]).HeldGeneration)
+		(*value_32) = 0
+		value_33 := &((active_pointer[input_slot]).PressedGeneration)
+		(*value_33) = 0
+		value_34 := &((active_pointer[input_slot]).FocusGeneration)
+		(*value_34) = 0
 	}
 	return hit
 }
@@ -614,7 +685,8 @@ func TreeInput_TreeCapturePressAt(session Session, index int32) {
 	}
 	generation := (((trees[input_slot]).Committed).Data[index]).IdentityGeneration
 	if generation != 0 && (active_pointer[input_slot]).HeldGeneration == generation {
-		(active_pointer[input_slot]).CapturesDrag = true
+		value_3 := &((active_pointer[input_slot]).CapturesDrag)
+		(*value_3) = true
 	}
 }
 
@@ -643,40 +715,56 @@ func TreeInput_TreeTakeDragAt(session Session, index int32) PointerDrag {
 	}
 	if value_4 {
 		if (active_pointer[input_slot]).HeldGeneration == generation {
-			(active_pointer[input_slot]).HeldGeneration = 0
+			value_6 := &((active_pointer[input_slot]).HeldGeneration)
+			(*value_6) = 0
 		}
 		if (active_pointer[input_slot]).PressedGeneration == generation {
-			(active_pointer[input_slot]).PressedGeneration = 0
+			value_7 := &((active_pointer[input_slot]).PressedGeneration)
+			(*value_7) = 0
 		}
 		if (active_pointer[input_slot]).ReleasedGeneration == generation {
-			(active_pointer[input_slot]).ReleasedGeneration = 0
+			value_8 := &((active_pointer[input_slot]).ReleasedGeneration)
+			(*value_8) = 0
 		}
 		if (active_pointer[input_slot]).ActivationGeneration == generation {
-			(active_pointer[input_slot]).ActivationGeneration = 0
+			value_9 := &((active_pointer[input_slot]).ActivationGeneration)
+			(*value_9) = 0
 		}
 		return drag
 	}
-	drag.Active = generation != 0 && (active_pointer[input_slot]).HeldGeneration == generation
-	drag.Started = generation != 0 && (active_pointer[input_slot]).PressedGeneration == generation
-	drag.Ended = generation != 0 && (active_pointer[input_slot]).ReleasedGeneration == generation
+	value_10 := &(drag.Active)
+	(*value_10) = generation != 0 && (active_pointer[input_slot]).HeldGeneration == generation
+	value_11 := &(drag.Started)
+	(*value_11) = generation != 0 && (active_pointer[input_slot]).PressedGeneration == generation
+	value_12 := &(drag.Ended)
+	(*value_12) = generation != 0 && (active_pointer[input_slot]).ReleasedGeneration == generation
 	if drag.Active || drag.Ended {
-		drag.GrabX = (active_pointer[input_slot]).GrabX
-		drag.GrabY = (active_pointer[input_slot]).GrabY
+		value_13 := &(drag.GrabX)
+		(*value_13) = (active_pointer[input_slot]).GrabX
+		value_14 := &(drag.GrabY)
+		(*value_14) = (active_pointer[input_slot]).GrabY
 	}
 	if drag.Active {
-		drag.X = (active_pointer[input_slot]).HeldX
-		drag.Y = (active_pointer[input_slot]).HeldY
+		value_15 := &(drag.X)
+		(*value_15) = (active_pointer[input_slot]).HeldX
+		value_16 := &(drag.Y)
+		(*value_16) = (active_pointer[input_slot]).HeldY
 	}
 	if drag.Ended {
-		drag.X = (active_pointer[input_slot]).ReleasedX
-		drag.Y = (active_pointer[input_slot]).ReleasedY
-		(active_pointer[input_slot]).ReleasedGeneration = 0
+		value_17 := &(drag.X)
+		(*value_17) = (active_pointer[input_slot]).ReleasedX
+		value_18 := &(drag.Y)
+		(*value_18) = (active_pointer[input_slot]).ReleasedY
+		value_19 := &((active_pointer[input_slot]).ReleasedGeneration)
+		(*value_19) = 0
 		if (active_pointer[input_slot]).ActivationGeneration == generation {
-			(active_pointer[input_slot]).ActivationGeneration = 0
+			value_20 := &((active_pointer[input_slot]).ActivationGeneration)
+			(*value_20) = 0
 		}
 	}
 	if drag.Started {
-		(active_pointer[input_slot]).PressedGeneration = 0
+		value_21 := &((active_pointer[input_slot]).PressedGeneration)
+		(*value_21) = 0
 	}
 	return drag
 }
@@ -687,11 +775,16 @@ func TreeInput_TreePointerCancel(session Session) {
 	if !value_0 {
 		return
 	}
-	(active_pointer[input_slot]).HeldGeneration = 0
-	(active_pointer[input_slot]).PressedGeneration = 0
-	(active_pointer[input_slot]).ReleasedGeneration = 0
-	(active_pointer[input_slot]).ActivationGeneration = 0
-	(active_pointer[input_slot]).FocusGeneration = 0
+	value_1 := &((active_pointer[input_slot]).HeldGeneration)
+	(*value_1) = 0
+	value_2 := &((active_pointer[input_slot]).PressedGeneration)
+	(*value_2) = 0
+	value_3 := &((active_pointer[input_slot]).ReleasedGeneration)
+	(*value_3) = 0
+	value_4 := &((active_pointer[input_slot]).ActivationGeneration)
+	(*value_4) = 0
+	value_5 := &((active_pointer[input_slot]).FocusGeneration)
+	(*value_5) = 0
 }
 
 func TreeInput_TreeHoveredAt(session Session, index int32) bool {
@@ -736,7 +829,8 @@ func TreeInput_TreeFocusAt(session Session, index int32) bool {
 	if value_3 {
 		return false
 	}
-	active_focus[session.Slot] = node.IdentityGeneration
+	value_5 := &(active_focus[session.Slot])
+	(*value_5) = node.IdentityGeneration
 	return true
 }
 
@@ -771,7 +865,8 @@ func TreeInput_TreeFocusSubmittedAt(session Session, index int32) bool {
 	if value_1 {
 		return false
 	}
-	active_focus[slot] = entry.IdentityGeneration
+	value_4 := &(active_focus[slot])
+	(*value_4) = entry.IdentityGeneration
 	return true
 }
 
@@ -800,14 +895,16 @@ func TreeInput_TreeHasFocus(session Session) bool {
 			index++
 		}
 	}
-	active_focus[input_slot] = 0
+	value_3 := &(active_focus[input_slot])
+	(*value_3) = 0
 	return false
 }
 
 func TreeInput_TreeBlurAt(session Session, index int32) {
 	input_slot := Session_SessionIndex(session)
 	if input_slot != 0 && index >= 0 && index < (trees[input_slot]).CommittedCount && active_focus[input_slot] == (((trees[input_slot]).Committed).Data[index]).IdentityGeneration {
-		active_focus[input_slot] = 0
+		value_0 := &(active_focus[input_slot])
+		(*value_0) = 0
 	}
 }
 
@@ -847,8 +944,10 @@ func TreeInput_TreeActivateAt(session Session, index int32) bool {
 	if !value_1 {
 		return false
 	}
-	(active_pointer[session.Slot]).ActivationGeneration = node.IdentityGeneration
-	(active_pointer[session.Slot]).ActivationPointed = false
+	value_2 := &((active_pointer[session.Slot]).ActivationGeneration)
+	(*value_2) = node.IdentityGeneration
+	value_3 := &((active_pointer[session.Slot]).ActivationPointed)
+	(*value_3) = false
 	return true
 }
 
@@ -857,9 +956,12 @@ func TreeInput_TreeActivatePointAt(session Session, index int32, x float32, y fl
 	if !value_0 {
 		return false
 	}
-	(active_pointer[session.Slot]).ActivationPointed = true
-	(active_pointer[session.Slot]).ActivationX = x
-	(active_pointer[session.Slot]).ActivationY = y
+	value_1 := &((active_pointer[session.Slot]).ActivationPointed)
+	(*value_1) = true
+	value_2 := &((active_pointer[session.Slot]).ActivationX)
+	(*value_2) = x
+	value_3 := &((active_pointer[session.Slot]).ActivationY)
+	(*value_3) = y
 	return true
 }
 
@@ -888,12 +990,17 @@ func TreeInput_TreeTakePointerActivationAt(session Session, index int32) Pointer
 	if value_4 || (active_pointer[input_slot]).ActivationGeneration == 0 || (active_pointer[input_slot]).ActivationGeneration != entry.IdentityGeneration {
 		return activation
 	}
-	(active_pointer[input_slot]).ActivationGeneration = 0
-	activation.Activated = true
-	activation.Pointed = (active_pointer[input_slot]).ActivationPointed
+	value_6 := &((active_pointer[input_slot]).ActivationGeneration)
+	(*value_6) = 0
+	value_7 := &(activation.Activated)
+	(*value_7) = true
+	value_8 := &(activation.Pointed)
+	(*value_8) = (active_pointer[input_slot]).ActivationPointed
 	if activation.Pointed {
-		activation.X = (active_pointer[input_slot]).ActivationX
-		activation.Y = (active_pointer[input_slot]).ActivationY
+		value_9 := &(activation.X)
+		(*value_9) = (active_pointer[input_slot]).ActivationX
+		value_10 := &(activation.Y)
+		(*value_10) = (active_pointer[input_slot]).ActivationY
 	}
 	return activation
 }
@@ -935,7 +1042,8 @@ func TreeInput_TreeTakeDismissalAt(session Session, index int32) bool {
 	if value_4 {
 		return false
 	}
-	active_dismissal[slot] = 0
+	value_7 := &(active_dismissal[slot])
+	(*value_7) = 0
 	return true
 }
 
@@ -946,7 +1054,8 @@ func TreeInput_TreeKeyboardRoute(session Session) bool {
 	}
 	slot := session.Slot
 	key := active_key[slot]
-	active_dismissal[slot] = 0
+	value_1 := &(active_dismissal[slot])
+	(*value_1) = 0
 	active_escape_captured = Session_SessionFlagSet(active_escape_captured, slot, false)
 	if key == 256 {
 		index := Tree_TreeCount(session) - 1
@@ -954,15 +1063,17 @@ func TreeInput_TreeKeyboardRoute(session Session) bool {
 		for index > 0 {
 			entry := ((trees[slot]).Committed).Data[index]
 			_ = entry
-			var value_1 bool = entry.Kind == 46 || entry.Popup
-			if value_1 {
-				var value_2 bool = TreeInput_TreeInputAllowedAt(session, index)
-				value_1 = value_2
+			var value_2 bool = entry.Kind == 46 || entry.Popup
+			if value_2 {
+				var value_3 bool = TreeInput_TreeInputAllowedAt(session, index)
+				value_2 = value_3
 			}
-			if value_1 {
-				active_dismissal[slot] = entry.IdentityGeneration
+			if value_2 {
+				value_4 := &(active_dismissal[slot])
+				(*value_4) = entry.IdentityGeneration
 				active_escape_captured = Session_SessionFlagSet(active_escape_captured, slot, true)
-				active_key[slot] = 0
+				value_5 := &(active_key[slot])
+				(*value_5) = 0
 				return true
 			}
 			index--
@@ -998,8 +1109,8 @@ func TreeInput_TreeKeyboardRoute(session Session) bool {
 			if entry.Clipped {
 				visible = Geometry_RectangleIntersection(visible, entry.Clip)
 			}
-			var value_3 bool = input.Kind == 9 && input.Interactive && !input.Disabled && !input.Loading && visible.Width > 0.0 && visible.Height > 0.0
-			if value_3 && entry.InteractionIndex >= 0 && (((trees[slot]).CommittedInteractions).Data[entry.InteractionIndex]).CaptureTab {
+			var value_6 bool = input.Kind == 9 && input.Interactive && !input.Disabled && !input.Loading && visible.Width > 0.0 && visible.Height > 0.0
+			if value_6 && entry.InteractionIndex >= 0 && (((trees[slot]).CommittedInteractions).Data[entry.InteractionIndex]).CaptureTab {
 				return false
 			}
 		}
@@ -1017,26 +1128,27 @@ func TreeInput_TreeKeyboardRoute(session Session) bool {
 			}
 			node := Tree_TreeInputAt(session, current)
 			_ = node
-			var value_4 bool = Tree_TreePointerActivatable(node.Kind, node.FocusID, node.Disabled, node.Loading)
-			var value_5 bool = value_4
-			if value_5 {
-				var value_6 bool = TreeInput_TreeFocusAt(session, current)
-				value_5 = value_6
+			var value_7 bool = Tree_TreePointerActivatable(node.Kind, node.FocusID, node.Disabled, node.Loading)
+			var value_8 bool = value_7
+			if value_8 {
+				var value_9 bool = TreeInput_TreeFocusAt(session, current)
+				value_8 = value_9
 			}
-			if value_5 {
+			if value_8 {
 				active_focus_visible = Session_SessionFlagSet(active_focus_visible, slot, true)
-				active_key[slot] = 0
+				value_10 := &(active_key[slot])
+				(*value_10) = 0
 				return true
 			}
 			tries++
 		}
 	} else {
-		var value_7 bool = key == 257 || key == 32
-		if value_7 {
-			var value_8 bool = Session_SessionFlagGet(active_focus_visible, slot)
-			value_7 = value_8
+		var value_11 bool = key == 257 || key == 32
+		if value_11 {
+			var value_12 bool = Session_SessionFlagGet(active_focus_visible, slot)
+			value_11 = value_12
 		}
-		if value_7 {
+		if value_11 {
 			{
 				var range_first_66 int32 = 0
 				range_last_66 := Tree_TreeCount(session) - 1
@@ -1045,16 +1157,18 @@ func TreeInput_TreeKeyboardRoute(session Session) bool {
 				for index <= range_last_66 {
 					node := Tree_TreeInputAt(session, index)
 					_ = node
-					var value_9 bool = TreeInput_TreeFocusedAt(session, index)
-					var value_10 bool = value_9 && node.Kind != 9 && node.Kind != 10 && node.Kind != 12
-					if value_10 {
-						var value_11 bool = TreeInput_TreeActivateAt(session, index)
-						value_10 = value_11
+					var value_13 bool = TreeInput_TreeFocusedAt(session, index)
+					var value_14 bool = value_13 && node.Kind != 9 && node.Kind != 10 && node.Kind != 12
+					if value_14 {
+						var value_15 bool = TreeInput_TreeActivateAt(session, index)
+						value_14 = value_15
 					}
-					if value_10 {
-						active_key[slot] = 0
+					if value_14 {
+						value_16 := &(active_key[slot])
+						(*value_16) = 0
 						if key == 32 {
-							active_codepoints[slot] = TypedInputQueue{}
+							value_17 := &(active_codepoints[slot])
+							(*value_17) = TypedInputQueue{}
 						}
 						return true
 					}
@@ -1078,16 +1192,25 @@ func TreeInput_TreeInputReset(session Session) {
 	var sample PointerFrame = PointerFrame{}
 	var secondary SecondaryPointerFrame = SecondaryPointerFrame{}
 	var wheel PointerWheelState = PointerWheelState{}
-	active_pointer[session.Slot] = pointer
-	active_sample[session.Slot] = sample
-	active_secondary[session.Slot] = secondary
-	active_wheel[session.Slot] = wheel
-	active_key[session.Slot] = 0
-	active_dismissal[session.Slot] = 0
+	value_1 := &(active_pointer[session.Slot])
+	(*value_1) = pointer
+	value_2 := &(active_sample[session.Slot])
+	(*value_2) = sample
+	value_3 := &(active_secondary[session.Slot])
+	(*value_3) = secondary
+	value_4 := &(active_wheel[session.Slot])
+	(*value_4) = wheel
+	value_5 := &(active_key[session.Slot])
+	(*value_5) = 0
+	value_6 := &(active_dismissal[session.Slot])
+	(*value_6) = 0
 	active_escape_captured = Session_SessionFlagSet(active_escape_captured, session.Slot, false)
-	active_modifiers[session.Slot] = 0
-	active_focus[session.Slot] = 0
+	value_7 := &(active_modifiers[session.Slot])
+	(*value_7) = 0
+	value_8 := &(active_focus[session.Slot])
+	(*value_8) = 0
 	active_focus_visible = Session_SessionFlagSet(active_focus_visible, session.Slot, false)
 	var typed TypedInputQueue = TypedInputQueue{}
-	active_codepoints[session.Slot] = typed
+	value_9 := &(active_codepoints[session.Slot])
+	(*value_9) = typed
 }

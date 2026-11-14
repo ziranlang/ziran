@@ -10,10 +10,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct State State;
+typedef struct zir_938805e83ac04593_State zir_938805e83ac04593_State;
 typedef struct Step Step;
 
-struct State {
+struct zir_938805e83ac04593_State {
     bool active;
     bool valid;
     int32_t previous;
@@ -25,11 +25,11 @@ struct State {
 };
 
 struct Step {
-    State state;
+    zir_938805e83ac04593_State state;
     bool boundary;
 };
 bool std_grapheme_IsControl(int32_t property);
-Step std_grapheme_Push(State state, uint32_t scalar, bool valid);
+Step std_grapheme_Push(zir_938805e83ac04593_State state, uint32_t scalar, bool valid);
 int32_t GraphemeNext(String value, int32_t at);
 int32_t std_grapheme_Previous(String value, int32_t at);
 int32_t std_grapheme_Boundary(String value, int32_t at);

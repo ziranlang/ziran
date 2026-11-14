@@ -136,23 +136,53 @@ make -C "$repo" -j2 BUILD_DIR="$library" \
 
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/zx_web_lifecycle_cases.zi" -- "$ziran" "$work" "$chromium"
 
-# A host that suspends through Asyncify: the engine runs the bundle and the
-# tier never traps.
+# A host that suspends through Asyncify: the bundle runs on the Wasm tier,
+# which unwinds and rewinds with the page's stack.
 if command -v node >/dev/null 2>&1; then
+    # Suspensions inside an initializer, and in a helper called in a loop
+    # with a record, a string and a frame array live across the host call.
+    mkdir -p "$work/source/deep"
+    cat > "$work/source/deep/component.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Adjust :: (value: s64) -> s64 #foreign host_api;
+Item :: struct {
+    title: string
+    weight: s64
+}
+Seed :: () -> s64 { return Adjust(1) }
+total: s64 = Seed();
+Step :: (item: Item, round: s64) -> s64 {
+    kept: [4]s64 = s64.[round, round + 1, round + 2, round + 3]
+    value := Adjust(item.weight + kept[round % 4] - round + round % 4)
+    return value + cast(s64)item.title.count + kept[3] - round - 3
+}
+#program_export
+Next :: () -> s64 {
+    sum: s64 = total
+    item := Item.{.title = "abc", .weight = 5}
+    for round: 0..9 { sum += Step(item, round) + round }
+    return sum
+}
+ZI
+    "$ziran" bundle --root "$work/source/deep" --entry component:Next \
+        -o "$work/fixtures/deep.zx" "$work/source/deep/component.zi" > /dev/null
     "$emcc" -O2 -std=gnu99 -I"$repo/include" "$repo/tests/zx_web_suspending_host.c" \
         "$library/libziran.a" -o "$work/suspending.js" -s ASYNCIFY=1 -s ENVIRONMENT=node \
         -s ALLOW_MEMORY_GROWTH=1 -s STACK_SIZE=1048576 \
-        --embed-file "$work/fixtures/old.zx@/old.zx"
-    node "$work/suspending.js" /old.zx > "$work/suspending.out" 2> "$work/suspending.err" || {
-        cat "$work/suspending.out" "$work/suspending.err"
+        --embed-file "$work/fixtures/old.zx@/old.zx" --embed-file "$work/fixtures/deep.zx@/deep.zx"
+    node "$work/suspending.js" /old.zx /deep.zx > "$work/suspending.out" 2> "$work/suspending.err" &&
+        ZIRAN_WASM_TIER=0 node "$work/suspending.js" /old.zx /deep.zx > "$work/suspending-engine.out" 2>&1 || {
+        cat "$work/suspending.out" "$work/suspending.err" "$work/suspending-engine.out"
         exit 1
     }
+    wasm=$(cat "$work/suspending.out"); engine=$(cat "$work/suspending-engine.out")
     if grep -q 'zx wasm tier\|RuntimeError' "$work/suspending.err" ||
-       ! grep -qx 'PASS suspending-host-engine' "$work/suspending.out"; then
-        cat "$work/suspending.out" "$work/suspending.err"
+       test "$wasm" != "${engine%tier 0}tier 1" || test "${wasm#results 89 99 }" = "$wasm"; then
+        echo "zx-web-lifecycle: suspending hosts gave '$wasm' on the tier and '$engine' on the engine"
+        cat "$work/suspending.err"
         exit 1
     fi
-    echo "zx-web-lifecycle: an Asyncify host that suspends runs bundles on the engine"
+    echo "zx-web-lifecycle: an Asyncify host that suspends runs bundles on the Wasm tier"
 elif test "$require" = 1; then
     echo 'zx-web-lifecycle: node is unavailable for the suspending-host check' >&2
     exit 1

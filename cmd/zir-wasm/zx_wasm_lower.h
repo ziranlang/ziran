@@ -110,6 +110,16 @@ ZX_WASM_API int ZxWasmLowerExecutable(const unsigned char *zx, size_t size,
 /* Lowers a program its caller has already read and verified. */
 ZX_WASM_API int ZxWasmLowerProgram(const struct LirProgram *program,
                                    ZxWasmImage *image);
+/* The same, for a runtime whose host calls may suspend the caller's stack
+ * (Emscripten Asyncify). The module exports the mutable i32 global
+ * zx_async_state: 0 runs normally; the host sets 1 when a host call
+ * returns while the stack unwinds, and every procedure that can reach a
+ * host capability then saves its frame and returns; the host sets 2 before
+ * calling zx_entry or zx_initialize again to rewind, and each procedure
+ * restores its frame and resumes at its call, back to 0 at the host call
+ * that suspended. */
+ZX_WASM_API int ZxWasmLowerProgramSuspendable(const struct LirProgram *program,
+                                              ZxWasmImage *image);
 ZX_WASM_API void ZxWasmImageFree(ZxWasmImage *image);
 /* The host image of LIR global `global` of an instance: its bytes, then
  * the elements of each view inside it, read from memory. The caller frees

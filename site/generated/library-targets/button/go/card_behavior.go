@@ -8,34 +8,50 @@ package main
 // #import style_sheet
 func CardBehavior_CardDefaultFace(emphasis ButtonEmphasis, state int32) StyleData {
 	var face StyleData = StyleData{}
-	face.Fields = 1048703
+	value_0 := &(face.Fields)
+	(*value_0) = 1048703
 	palette := Theme_CurrentPalette()
-	face.Background = palette.SurfaceMuted
+	value_1 := &(face.Background)
+	(*value_1) = palette.SurfaceMuted
 	if emphasis == ButtonEmphasisFilled {
-		face.Background = palette.Surface
+		value_2 := &(face.Background)
+		(*value_2) = palette.Surface
 	}
-	face.Foreground = palette.Foreground
-	face.Border = palette.Border
-	face.Focus = palette.Focus
-	face.Radius = Theme_ShapeSurface()
-	face.Elevation = ElevationRole(0)
-	face.Opacity = 1.0
+	value_3 := &(face.Foreground)
+	(*value_3) = palette.Foreground
+	value_4 := &(face.Border)
+	(*value_4) = palette.Border
+	value_5 := &(face.Focus)
+	(*value_5) = palette.Focus
+	value_6 := &(face.Radius)
+	(*value_6) = Theme_ShapeSurface()
+	value_7 := &(face.Elevation)
+	(*value_7) = ElevationRole(0)
+	value_8 := &(face.Opacity)
+	(*value_8) = 1.0
 	if emphasis == ButtonEmphasisOutline {
-		face.Background = palette.Surface
-		face.BorderWidth = 1.0
+		value_9 := &(face.Background)
+		(*value_9) = palette.Surface
+		value_10 := &(face.BorderWidth)
+		(*value_10) = 1.0
 	}
 	if emphasis == ButtonEmphasisFilled {
-		face.Elevation = ElevationRole(3)
+		value_11 := &(face.Elevation)
+		(*value_11) = ElevationRole(3)
 	}
 	if state == int32(ButtonStateHover) {
-		face.Background = Theme_StateLayer(face.Background, face.Foreground, 5)
+		value_12 := &(face.Background)
+		(*value_12) = Theme_StateLayer(face.Background, face.Foreground, 5)
 	} else if state == int32(ButtonStatePressed) {
-		face.Background = Theme_StateLayer(face.Background, face.Foreground, 8)
+		value_13 := &(face.Background)
+		(*value_13) = Theme_StateLayer(face.Background, face.Foreground, 8)
 	} else if state == int32(ButtonStateSelected) {
-		face.Background = palette.AccentSubtle
+		value_14 := &(face.Background)
+		(*value_14) = palette.AccentSubtle
 	}
 	if state == int32(ButtonStateDisabled) {
-		face.Opacity = 0.55
+		value_15 := &(face.Opacity)
+		(*value_15) = 0.55
 	}
 	return face
 }

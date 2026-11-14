@@ -4,12 +4,10 @@ package main
 // #import drawing_props
 // #import font_metrics
 // #import geometry
-// #import image_props
 // #import style
 // #import style_sheet
 // #import surface
 // #import control_props
-// #import button_props
 // #import input_props
 type ButtonInput struct {
 	Flags StateFlags
@@ -53,10 +51,13 @@ func ButtonBehavior_ButtonArrowGlyph(direction ArrowDirection) int32 {
 
 func ButtonBehavior_ResolveButtonInput(state int32, disabled bool, loading bool, selected bool, sample Activation) ButtonInput {
 	var result ButtonInput = ButtonInput{}
-	result.Flags = Style_ResolveFlags(state, disabled, loading, selected)
+	value_0 := &(result.Flags)
+	(*value_0) = Style_ResolveFlags(state, disabled, loading, selected)
 	enabled := ButtonBehavior_CanActivate(result.Flags.Disabled, result.Flags.Loading)
-	result.Activated = enabled && sample.Activated
-	result.Interaction = Style_ResolveInteraction(state, result.Flags.Disabled, result.Flags.Loading, enabled && sample.Pressed, enabled && sample.Hovered, enabled && sample.Focused, result.Flags.Selected)
+	value_1 := &(result.Activated)
+	(*value_1) = enabled && sample.Activated
+	value_2 := &(result.Interaction)
+	(*value_2) = Style_ResolveInteraction(state, result.Flags.Disabled, result.Flags.Loading, enabled && sample.Pressed, enabled && sample.Hovered, enabled && sample.Focused, result.Flags.Selected)
 	return result
 }
 
@@ -137,7 +138,7 @@ func ButtonBehavior_ButtonCloseMenuAfterActivation(open bool, activated_id int32
 	return open
 }
 
-func ButtonBehavior_MeasureBounds(props ButtonProps, paint StyleData, minimum_height float32, font int32, label_width float32, available_width float32, scale float32, disclosure bool, detail_height float32) Rectangle {
+func ButtonBehavior_MeasureBounds(props zir_2b2386d69a109fee_Props, paint StyleData, minimum_height float32, font int32, label_width float32, available_width float32, scale float32, disclosure bool, detail_height float32) Rectangle {
 	if scale <= 0.0 {
 		scale = 1.0
 	}
@@ -159,12 +160,15 @@ func ButtonBehavior_MeasureBounds(props ButtonProps, paint StyleData, minimum_he
 	content := ButtonBehavior_MeasureContent(height, label_width / scale, paint.IconSize, paint.Gap, paint.PaddingX, has_icon, props.IconOnly, above)
 	width := ButtonBehavior_ShapeWidth(bounds.Width / scale, height, content.Width, available_width / scale, props.FullWidth, props.Square || props.IconOnly, props.Circle)
 	if bounds.Height <= 0.0 {
-		bounds.Height = height * scale
+		value_1 := &(bounds.Height)
+		(*value_1) = height * scale
 	}
 	if props.Square || props.Circle || props.IconOnly {
-		bounds.Width = bounds.Height
+		value_2 := &(bounds.Width)
+		(*value_2) = bounds.Height
 	} else if bounds.Width <= 0.0 {
-		bounds.Width = width * scale
+		value_3 := &(bounds.Width)
+		(*value_3) = width * scale
 	}
 	return bounds
 }
@@ -187,19 +191,27 @@ func ButtonBehavior_MeasureContent(height float32, label_width float32, requeste
 	if !has_icon || icon_size == 0.0 || icon_only || label_width <= 0.0 {
 		gap = 0.0
 	}
-	result.TextWidth = label_width
-	result.IconSize = icon_size
-	result.Gap = gap
-	result.Width = (label_width + gap) + (2.0 * padding_x)
+	value_0 := &(result.TextWidth)
+	(*value_0) = label_width
+	value_1 := &(result.IconSize)
+	(*value_1) = icon_size
+	value_2 := &(result.Gap)
+	(*value_2) = gap
+	value_3 := &(result.Width)
+	(*value_3) = (label_width + gap) + (2.0 * padding_x)
 	if has_icon {
-		result.Width += icon_size
+		value_4 := &(result.Width)
+		(*value_4) += icon_size
 	}
 	if above && has_icon {
-		result.Width = label_width
+		value_5 := &(result.Width)
+		(*value_5) = label_width
 		if result.Width < icon_size {
-			result.Width = icon_size
+			value_6 := &(result.Width)
+			(*value_6) = icon_size
 		}
-		result.Width += (2.0 * padding_x)
+		value_7 := &(result.Width)
+		(*value_7) += (2.0 * padding_x)
 	}
 	return result
 }
@@ -216,13 +228,20 @@ func ButtonBehavior_ContentLayout(width float32, height float32, label_width flo
 	} else if alignment == ContentAlignment(2) {
 		x = ((width - measured.Width) - padding_x) + offset_x
 	}
-	result.IconX = x
-	result.IconY = ((height - icon_size) * 0.5) + offset_y
-	result.IconSize = icon_size
-	result.TextX = x
-	result.TextY = offset_y
-	result.TextWidth = label_width
-	result.TextHeight = height
+	value_0 := &(result.IconX)
+	(*value_0) = x
+	value_1 := &(result.IconY)
+	(*value_1) = ((height - icon_size) * 0.5) + offset_y
+	value_2 := &(result.IconSize)
+	(*value_2) = icon_size
+	value_3 := &(result.TextX)
+	(*value_3) = x
+	value_4 := &(result.TextY)
+	(*value_4) = offset_y
+	value_5 := &(result.TextWidth)
+	(*value_5) = label_width
+	value_6 := &(result.TextHeight)
+	(*value_6) = height
 	if above && has_icon && !icon_only {
 		available_icon := ((height - label_height) - gap) - 12.0
 		if icon_size > available_icon {
@@ -235,19 +254,27 @@ func ButtonBehavior_ContentLayout(width float32, height float32, label_width flo
 			gap = 0.0
 		}
 		stack_height := (icon_size + gap) + label_height
-		result.IconX = ((width - icon_size) * 0.5) + offset_x
-		result.IconY = ((height - stack_height) * 0.5) + offset_y
-		result.IconSize = icon_size
-		result.TextX = ((width - label_width) * 0.5) + offset_x
-		result.TextY = (result.IconY + icon_size) + gap
-		result.TextHeight = label_height
+		value_7 := &(result.IconX)
+		(*value_7) = ((width - icon_size) * 0.5) + offset_x
+		value_8 := &(result.IconY)
+		(*value_8) = ((height - stack_height) * 0.5) + offset_y
+		value_9 := &(result.IconSize)
+		(*value_9) = icon_size
+		value_10 := &(result.TextX)
+		(*value_10) = ((width - label_width) * 0.5) + offset_x
+		value_11 := &(result.TextY)
+		(*value_11) = (result.IconY + icon_size) + gap
+		value_12 := &(result.TextHeight)
+		(*value_12) = label_height
 		return result
 	}
 	if has_icon {
 		if trailing {
-			result.IconX += (label_width + gap)
+			value_13 := &(result.IconX)
+			(*value_13) += (label_width + gap)
 		} else {
-			result.TextX += (icon_size + gap)
+			value_14 := &(result.TextX)
+			(*value_14) += (icon_size + gap)
 		}
 	}
 	return result

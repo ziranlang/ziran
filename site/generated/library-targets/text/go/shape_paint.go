@@ -48,11 +48,16 @@ func ShapePaint_LineCornersFor(start Vector2, end Vector2, thickness float32) Li
 	scale := thickness / (length * 2.0)
 	across_x := -dy * scale
 	across_y := dx * scale
-	corners.Points[0] = Vector2{X: (start.X - across_x), Y: (start.Y - across_y)}
-	corners.Points[1] = Vector2{X: (start.X + across_x), Y: (start.Y + across_y)}
-	corners.Points[2] = Vector2{X: (end.X - across_x), Y: (end.Y - across_y)}
-	corners.Points[3] = Vector2{X: (end.X + across_x), Y: (end.Y + across_y)}
-	corners.Valid = true
+	value_3 := &(corners.Points[0])
+	(*value_3) = Vector2{X: (start.X - across_x), Y: (start.Y - across_y)}
+	value_4 := &(corners.Points[1])
+	(*value_4) = Vector2{X: (start.X + across_x), Y: (start.Y + across_y)}
+	value_5 := &(corners.Points[2])
+	(*value_5) = Vector2{X: (end.X - across_x), Y: (end.Y - across_y)}
+	value_6 := &(corners.Points[3])
+	(*value_6) = Vector2{X: (end.X + across_x), Y: (end.Y + across_y)}
+	value_7 := &(corners.Valid)
+	(*value_7) = true
 	return corners
 }
 
@@ -136,10 +141,14 @@ func ShapePaint_ShapeTurn(a Vector2, b Vector2, c Vector2) float32 {
 }
 
 func ShapePaint_ShapeBatchBegin(command PaintCommand, color Color) {
-	shape_batch.Count = 0
-	shape_batch.Color = color
-	shape_batch.Clip = command.Clip
-	shape_batch.Clipped = command.ClipSet
+	value_0 := &(shape_batch.Count)
+	(*value_0) = 0
+	value_1 := &(shape_batch.Color)
+	(*value_1) = color
+	value_2 := &(shape_batch.Clip)
+	(*value_2) = command.Clip
+	value_3 := &(shape_batch.Clipped)
+	(*value_3) = command.ClipSet
 }
 
 func ShapePaint_ShapeBatchFlush() {
@@ -147,7 +156,8 @@ func ShapePaint_ShapeBatchFlush() {
 		var value_0 int32 = shape_batch.Count
 		RasterTriangles_FillTriangles(shape_batch.Points[0:value_0:value_0], shape_batch.Color)
 	}
-	shape_batch.Count = 0
+	value_1 := &(shape_batch.Count)
+	(*value_1) = 0
 }
 
 func ShapePaint_ShapeBatchAdd(a Vector2, b Vector2, c Vector2) {
@@ -160,15 +170,21 @@ func ShapePaint_ShapeBatchAdd(a Vector2, b Vector2, c Vector2) {
 		ShapePaint_ShapeBatchFlush()
 	}
 	at := shape_batch.Count
-	shape_batch.Points[at] = a
+	value_1 := &(shape_batch.Points[at])
+	(*value_1) = a
 	if turn > 0.0 {
-		shape_batch.Points[(at + 1)] = b
-		shape_batch.Points[(at + 2)] = c
+		value_2 := &(shape_batch.Points[(at + 1)])
+		(*value_2) = b
+		value_3 := &(shape_batch.Points[(at + 2)])
+		(*value_3) = c
 	} else {
-		shape_batch.Points[(at + 1)] = c
-		shape_batch.Points[(at + 2)] = b
+		value_4 := &(shape_batch.Points[(at + 1)])
+		(*value_4) = c
+		value_5 := &(shape_batch.Points[(at + 2)])
+		(*value_5) = b
 	}
-	shape_batch.Count = at + 3
+	value_6 := &(shape_batch.Count)
+	(*value_6) = at + 3
 }
 
 func ShapePaint_ShapeHidden(extent Rectangle) bool {
@@ -222,12 +238,16 @@ func ShapePaint_ShapeClipSide(polygon ShapePolygon, side int32, limit float32) S
 		current := polygon.Points[index]
 		current_inside := ShapePaint_ShapeInside(current, side, limit)
 		if current_inside != previous_inside && result.Count < 8 {
-			result.Points[result.Count] = ShapePaint_ShapeCrossing(previous, current, side, limit)
-			result.Count++
+			value_0 := &(result.Points[result.Count])
+			(*value_0) = ShapePaint_ShapeCrossing(previous, current, side, limit)
+			value_1 := &(result.Count)
+			(*value_1)++
 		}
 		if current_inside && result.Count < 8 {
-			result.Points[result.Count] = current
-			result.Count++
+			value_2 := &(result.Points[result.Count])
+			(*value_2) = current
+			value_3 := &(result.Count)
+			(*value_3)++
 		}
 		previous = current
 		previous_inside = current_inside
@@ -271,9 +291,12 @@ func ShapePaint_ShapeBatchTriangle(a Vector2, b Vector2, c Vector2) {
 		return
 	}
 	var corners [3]Vector2
-	corners[0] = a
-	corners[1] = b
-	corners[2] = c
+	value_11 := &(corners[0])
+	(*value_11) = a
+	value_12 := &(corners[1])
+	(*value_12) = b
+	value_13 := &(corners[2])
+	(*value_13) = c
 	extent := ShapePaint_PointsBounds(corners[0:3:3])
 	clip := shape_batch.Clip
 	if ShapePaint_ShapeHidden(extent) {
@@ -284,10 +307,14 @@ func ShapePaint_ShapeBatchTriangle(a Vector2, b Vector2, c Vector2) {
 		return
 	}
 	var polygon ShapePolygon = ShapePolygon{}
-	polygon.Points[0] = a
-	polygon.Points[1] = b
-	polygon.Points[2] = c
-	polygon.Count = 3
+	value_14 := &(polygon.Points[0])
+	(*value_14) = a
+	value_15 := &(polygon.Points[1])
+	(*value_15) = b
+	value_16 := &(polygon.Points[2])
+	(*value_16) = c
+	value_17 := &(polygon.Count)
+	(*value_17) = 3
 	polygon = ShapePaint_ShapeClipSide(polygon, 0, clip.X)
 	polygon = ShapePaint_ShapeClipSide(polygon, 1, clip.X + clip.Width)
 	polygon = ShapePaint_ShapeClipSide(polygon, 2, clip.Y)
@@ -304,16 +331,18 @@ func ShapePaint_ShapeArcDirections(start float32, sweep float32, segments int32)
 	var index int32 = 0
 	for index <= segments {
 		angle := start + (step * float32(index))
-		var value_0 Vector2 = Vector2{}
-		var value_1 float32 = StdMath_CosineDegrees(angle)
-		value_0.X = value_1
-		var value_2 float32 = StdMath_SineDegrees(angle)
-		value_0.Y = value_2
-		shape_directions[index] = value_0
+		value_0 := &(shape_directions[index])
+		var value_1 Vector2 = Vector2{}
+		var value_2 float32 = StdMath_CosineDegrees(angle)
+		value_1.X = value_2
+		var value_3 float32 = StdMath_SineDegrees(angle)
+		value_1.Y = value_3
+		(*value_0) = value_1
 		index++
 	}
 	if sweep >= 360.0 {
-		shape_directions[segments] = shape_directions[0]
+		value_4 := &(shape_directions[segments])
+		(*value_4) = shape_directions[0]
 	}
 }
 
@@ -459,26 +488,38 @@ func ShapePaint_EmitShape(command PaintCommand) {
 
 func ShapePaint_SubmitShape(session Session, data PaintCommand) {
 	var command QueuedPaint = QueuedPaint{}
-	command.Data = data
-	var emit PaintEmitter = func(value_0 PaintCommand) { ShapePaint_EmitShape(value_0) }
-	command.Emit = emit
-	command.HasEmitter = true
-	command.BuiltinEmitter = true
-	var clip_for PaintClipper = func(value_1 PaintCommand, value_2 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_1, value_2) }
-	command.ClipFor = clip_for
-	command.Clips = true
+	value_0 := &(command.Data)
+	(*value_0) = data
+	var emit PaintEmitter = func(value_1 PaintCommand) { ShapePaint_EmitShape(value_1) }
+	value_2 := &(command.Emit)
+	(*value_2) = emit
+	value_3 := &(command.HasEmitter)
+	(*value_3) = true
+	value_4 := &(command.BuiltinEmitter)
+	(*value_4) = true
+	var clip_for PaintClipper = func(value_5 PaintCommand, value_6 NodeGeometry) PaintCommand { return PaintQueue_ClipShape(value_5, value_6) }
+	value_7 := &(command.ClipFor)
+	(*value_7) = clip_for
+	value_8 := &(command.Clips)
+	(*value_8) = true
 	PaintQueue_SubmitPaint(session, command)
 }
 
 func ShapePaint_PaintTriangleShape(session Session, node int32, bounds Rectangle, first Vector2, second Vector2, third Vector2, color Color) {
 	var data PaintCommand = PaintCommand{}
-	data.Kind = 11
-	data.Node = node
-	data.Bounds = bounds
-	data.Origin = ShapePaint_ShapeOffset(bounds, first)
+	value_0 := &(data.Kind)
+	(*value_0) = 11
+	value_1 := &(data.Node)
+	(*value_1) = node
+	value_2 := &(data.Bounds)
+	(*value_2) = bounds
+	value_3 := &(data.Origin)
+	(*value_3) = ShapePaint_ShapeOffset(bounds, first)
 	second_offset := ShapePaint_ShapeOffset(bounds, second)
 	third_offset := ShapePaint_ShapeOffset(bounds, third)
-	data.Source = Rectangle{X: second_offset.X, Y: second_offset.Y, Width: third_offset.X, Height: third_offset.Y}
-	data.Color = color
+	value_4 := &(data.Source)
+	(*value_4) = Rectangle{X: second_offset.X, Y: second_offset.Y, Width: third_offset.X, Height: third_offset.Y}
+	value_5 := &(data.Color)
+	(*value_5) = color
 	ShapePaint_SubmitShape(session, data)
 }

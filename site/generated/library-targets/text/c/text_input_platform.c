@@ -15,12 +15,16 @@ TextInputFocusFrameBegin(Session session)
     int32_t index = SessionIndex(session);
     bool value_1 = TextInputOwnerMatches((text_focus_frames[index]).owner, session);
     if (!value_1) {
-        text_focus_frames[index] = (TextFocusFrameState){0};
-        (text_focus_frames[index]).owner = session;
+        TextFocusFrameState* value_2 = &(text_focus_frames[index]);
+        (*value_2) = (TextFocusFrameState){0};
+        Session* value_3 = &((text_focus_frames[index]).owner);
+        (*value_3) = session;
         return;
     }
-    (text_focus_frames[index]).last = (text_focus_frames[index]).building;
-    (text_focus_frames[index]).building = false;
+    bool* value_4 = &((text_focus_frames[index]).last);
+    (*value_4) = (text_focus_frames[index]).building;
+    bool* value_5 = &((text_focus_frames[index]).building);
+    (*value_5) = false;
 }
 
 bool

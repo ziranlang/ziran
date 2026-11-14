@@ -4,7 +4,6 @@ package main
 // #import control_props
 // #import drawing_props
 // #import geometry
-// #import image_props
 type ArrowDirection int64
 
 const (
@@ -14,7 +13,7 @@ const (
 	ArrowDirectionArrowDown = 3
 )
 
-type ButtonProps struct {
+type zir_2b2386d69a109fee_Props struct {
 	Key uint64
 	Bounds Rectangle
 	Label string
@@ -41,7 +40,7 @@ type ButtonProps struct {
 	IconOnly bool
 	FitContent bool
 	Square bool
-	Image ImageProps
+	Image zir_a62ab5d98ba48716_Props
 	Swatch bool
 	SwatchColor Color
 	Arrow bool

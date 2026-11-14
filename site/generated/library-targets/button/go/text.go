@@ -15,11 +15,11 @@ package main
 // #import surface
 // #import text_behavior
 // #import text_align
-// #import text_props
 // #import text_style
 // #import tree
 // #import text_selection_host
 // #import widget_kind
+// #import std_vec
 type TextFace struct {
 	Value StyleData
 	FallbackFont int32
@@ -36,21 +36,26 @@ func Text_TextSpan(source string, start int32, length int32) string {
 
 func Text_DefaultTextFace() TextFace {
 	var face TextFace = TextFace{}
-	face.Value.Fields = 1026
-	face.Value.Foreground = Theme_CurrentText()
-	face.Value.FontSize = 16.0
-	face.FallbackFont = 16
+	value_0 := &(face.Value.Fields)
+	(*value_0) = 1026
+	value_1 := &(face.Value.Foreground)
+	(*value_1) = Theme_CurrentText()
+	value_2 := &(face.Value.FontSize)
+	(*value_2) = 16.0
+	value_3 := &(face.FallbackFont)
+	(*value_3) = 16
 	return face
 }
 
-func Text_TextFaceFor(props TextProps, defaults TextFace) TextFace {
+func Text_TextFaceFor(props zir_5988125b9981443f_Props, defaults TextFace) TextFace {
 	face := defaults
 	request := TextStyleRequest{Kind: props.StyleKind, ID: props.ID, ClassName: props.ClassName, Disabled: props.Disabled}
-	face.Value = TextStyle_TextStyleFor(request, defaults.Value)
+	value_0 := &(face.Value)
+	(*value_0) = TextStyle_TextStyleFor(request, defaults.Value)
 	return face
 }
 
-func Text_TextRangeValid(text string, ziran_keyword_range_0 TextRange, previous_end int32) bool {
+func Text_TextRangeValid(text string, ziran_keyword_range_0 Range, previous_end int32) bool {
 	var value_0 bool = ziran_keyword_range_0.Start < previous_end || ziran_keyword_range_0.Start < 0 || ziran_keyword_range_0.End <= ziran_keyword_range_0.Start
 	if value_0 || int64(ziran_keyword_range_0.End) > int64(len(text)) {
 		return false
@@ -61,7 +66,7 @@ func Text_TextRangeValid(text string, ziran_keyword_range_0 TextRange, previous_
 	return int64(ziran_keyword_range_0.End) == int64(len(text)) || (text[ziran_keyword_range_0.End] & 192) != 128
 }
 
-func Text_PaintTextEmphasis(session Session, node int32, props TextProps, prepared PreparedText, line TextLinePlan, x int32, y int32, clip Rectangle) {
+func Text_PaintTextEmphasis(session Session, node int32, props zir_5988125b9981443f_Props, prepared PreparedText, line TextLinePlan, x int32, y int32, clip Rectangle) {
 	var previous_end int32 = 0
 	{
 		value_0 := props.Strong[:]
@@ -120,11 +125,12 @@ func Text_PaintTextEmphasis(session Session, node int32, props TextProps, prepar
 
 func Text_TextLinkColor(text Color) Color {
 	link := DrawingProps_StyleTokenColorOr("link", DrawingProps_ColorFromPacked(Theme_CurrentAccent()))
-	link.A = uint8(((int32(link.A) * int32(text.A)) / 255))
+	value_0 := &(link.A)
+	(*value_0) = uint8(((int32(link.A) * int32(text.A)) / 255))
 	return link
 }
 
-func Text_TextLinkRunAt(props TextProps, at int32, limit int32) TextLinkRun {
+func Text_TextLinkRunAt(props zir_5988125b9981443f_Props, at int32, limit int32) TextLinkRun {
 	run := TextLinkRun{End: limit, Link: false}
 	var previous_end int32 = 0
 	{
@@ -149,14 +155,17 @@ func Text_TextLinkRunAt(props TextProps, at int32, limit int32) TextLinkRun {
 				continue
 			}
 			if ziran_keyword_range_0.Start <= at {
-				run.Link = true
+				value_2 := &(run.Link)
+				(*value_2) = true
 				if ziran_keyword_range_0.End < limit {
-					run.End = ziran_keyword_range_0.End
+					value_3 := &(run.End)
+					(*value_3) = ziran_keyword_range_0.End
 				}
 				return run
 			}
 			if ziran_keyword_range_0.Start < limit {
-				run.End = ziran_keyword_range_0.Start
+				value_4 := &(run.End)
+				(*value_4) = ziran_keyword_range_0.Start
 			}
 			return run
 		}
@@ -164,7 +173,7 @@ func Text_TextLinkRunAt(props TextProps, at int32, limit int32) TextLinkRun {
 	return run
 }
 
-func Text_PaintTextLineRuns(session Session, node int32, props TextProps, prepared PreparedText, line_start int32, value string, x int32, y int32, clip Rectangle) {
+func Text_PaintTextLineRuns(session Session, node int32, props zir_5988125b9981443f_Props, prepared PreparedText, line_start int32, value string, x int32, y int32, clip Rectangle) {
 	line_end := line_start + int32(int64(len(value)))
 	at := line_start
 	for at < line_end {
@@ -195,48 +204,59 @@ func Text_PaintTextLineRuns(session Session, node int32, props TextProps, prepar
 	}
 }
 
-func Text_PrepareText(props TextProps, face TextFace) PreparedText {
+func Text_PrepareText(props zir_5988125b9981443f_Props, face TextFace) PreparedText {
 	var prepared PreparedText = PreparedText{}
-	prepared.Bounds = props.Bounds
-	var value_0 string = ""
+	value_0 := &(prepared.Bounds)
+	(*value_0) = props.Bounds
+	value_1 := &(prepared.Typeface)
+	var value_2 string = ""
 	if props.Typeface != "" {
-		value_0 = props.Typeface
+		value_2 = props.Typeface
 	} else {
-		value_0 = face.Value.Typeface
+		value_2 = face.Value.Typeface
 	}
-	prepared.Typeface = value_0
-	var value_1 int32 = Style_ResolveFont(0, Style_StyleFontValue(face.Value.Fields, face.Value.FontSize), face.FallbackFont)
-	var value_2 uint32 = Theme_CurrentText()
-	appearance := TextBehavior_ResolveTextStyle(props.Font, 0, value_1, face.Value.Foreground, 0, value_2, false, (face.Value.Fields & 2) != 0, props.Disabled && (face.Value.Fields & 64) == 0, false, 0)
-	prepared.Font = appearance.Font
-	prepared.Color = DrawingProps_ColorFromPacked(Surface_Opacity(appearance.Color, Style_StyleOpacityValue(face.Value.Fields, face.Value.Opacity)))
-	prepared.LineHeight = FontMetrics_GlyphLineHeight(prepared.Font, prepared.Typeface)
+	(*value_1) = value_2
+	var value_3 int32 = Style_ResolveFont(0, Style_StyleFontValue(face.Value.Fields, face.Value.FontSize), face.FallbackFont)
+	var value_4 uint32 = Theme_CurrentText()
+	appearance := TextBehavior_ResolveTextStyle(props.Size, 0, value_3, face.Value.Foreground, 0, value_4, false, (face.Value.Fields & 2) != 0, props.Disabled && (face.Value.Fields & 64) == 0, false, 0)
+	value_5 := &(prepared.Font)
+	(*value_5) = appearance.Font
+	value_6 := &(prepared.Color)
+	(*value_6) = DrawingProps_ColorFromPacked(Surface_Opacity(appearance.Color, Style_StyleOpacityValue(face.Value.Fields, face.Value.Opacity)))
+	value_7 := &(prepared.LineHeight)
+	(*value_7) = FontMetrics_GlyphLineHeight(prepared.Font, prepared.Typeface)
 	if prepared.LineHeight < 1 {
-		prepared.LineHeight = prepared.Font
+		value_8 := &(prepared.LineHeight)
+		(*value_8) = prepared.Font
 	}
-	var value_3 int32 = 0
+	value_9 := &(prepared.LineGap)
+	var value_10 int32 = 0
 	if props.LineGap > 0 {
-		value_3 = props.LineGap
+		value_10 = props.LineGap
 	} else {
-		var value_4 int32 = TextLayout_TextDefaultLineGap(1.0)
-		value_3 = value_4
+		var value_11 int32 = TextLayout_TextDefaultLineGap(1.0)
+		value_10 = value_11
 	}
-	prepared.LineGap = value_3
-	var value_5 int32 = TextBehavior_TextWrapPolicy(props.Bounds.Width, int32(TextWrap(props.Wrap)))
-	prepared.Wrap = TextWrap(int64(value_5))
+	(*value_9) = value_10
+	value_12 := &(prepared.Wrap)
+	var value_13 int32 = TextBehavior_TextWrapPolicy(props.Bounds.Width, int32(Wrap(props.Wrap)))
+	(*value_12) = Wrap(int64(value_13))
 	var start int32 = 0
 	var maximum int32 = 0
 	for start <= int32(int64(len(props.Text))) {
-		line := TextLayout_NextTextLine(props.Text, start, props.Bounds.Width, TextWrap(prepared.Wrap), prepared.Font, prepared.Typeface)
-		prepared.LineCount++
+		line := TextLayout_NextTextLine(props.Text, start, props.Bounds.Width, Wrap(prepared.Wrap), prepared.Font, prepared.Typeface)
+		value_14 := &(prepared.LineCount)
+		(*value_14)++
 		if line.Width > maximum {
 			maximum = line.Width
 		}
 		start = line.Next
 	}
-	prepared.Bounds.Width = TextBehavior_TextExtent(props.Bounds.Width, float32(maximum))
+	value_15 := &(prepared.Bounds.Width)
+	(*value_15) = TextBehavior_TextExtent(props.Bounds.Width, float32(maximum))
 	height := TextLayout_TextLayoutTotalHeight(prepared.LineCount, prepared.LineHeight, prepared.LineGap)
-	prepared.Bounds.Height = TextBehavior_TextExtent(props.Bounds.Height, float32(height))
+	value_16 := &(prepared.Bounds.Height)
+	(*value_16) = TextBehavior_TextExtent(props.Bounds.Height, float32(height))
 	return prepared
 }
 
@@ -254,7 +274,7 @@ func Text_TextEllipsisStart(value string, max_width int32, font int32, typeface 
 	return ""
 }
 
-func Text_TextHiddenLines(props TextProps, prepared PreparedText) int32 {
+func Text_TextHiddenLines(props zir_5988125b9981443f_Props, prepared PreparedText) int32 {
 	if props.Bounds.Height <= 0.0 {
 		return 0
 	}
@@ -274,7 +294,7 @@ func Text_TextHiddenLines(props TextProps, prepared PreparedText) int32 {
 	return hidden
 }
 
-func Text_PaintTextLines(session Session, node int32, props TextProps, prepared PreparedText) {
+func Text_PaintTextLines(session Session, node int32, props zir_5988125b9981443f_Props, prepared PreparedText) {
 	total_height := TextLayout_TextLayoutTotalHeight(prepared.LineCount, prepared.LineHeight, prepared.LineGap)
 	var value_0 float32 = TextBehavior_TextAlignmentOffset(prepared.Bounds.Height, float32(total_height), int32(TextAlign(props.VerticalAlign)))
 	y := int32(floatToInt(float64(prepared.Bounds.Y), 32, true)) + int32(floatToInt(float64(value_0), 32, true))
@@ -284,35 +304,42 @@ func Text_PaintTextLines(session Session, node int32, props TextProps, prepared 
 	}
 	var start int32 = 0
 	for start <= int32(int64(len(props.Text))) {
-		line := TextLayout_NextTextLine(props.Text, start, prepared.Bounds.Width, TextWrap(prepared.Wrap), prepared.Font, prepared.Typeface)
+		line := TextLayout_NextTextLine(props.Text, start, prepared.Bounds.Width, Wrap(prepared.Wrap), prepared.Font, prepared.Typeface)
 		if line.Start >= typed_end && typed_end < int32(int64(len(props.Text))) {
 			break
 		}
 		value := Text_TextSpan(props.Text, line.Start, line.End - line.Start)
-		ellipsis := TextWrap(props.Wrap) == TextWrapEllipsis && prepared.Bounds.Width > 0.0 && float32(line.Width) > prepared.Bounds.Width
+		ellipsis := Wrap(props.Wrap) == WrapTextWrapEllipsis && prepared.Bounds.Width > 0.0 && float32(line.Width) > prepared.Bounds.Width
 		var dots_width int32 = 0
 		if ellipsis {
 			dots_width = FontMetrics_GlyphWidth("...", prepared.Font, prepared.Typeface)
 			value = Text_TextEllipsisStart(value, int32(floatToInt(float64(prepared.Bounds.Width), 32, true)) - dots_width, prepared.Font, prepared.Typeface)
-			line.Width = FontMetrics_GlyphWidth(value, prepared.Font, prepared.Typeface) + dots_width
-			line.End = line.Start + int32(int64(len(value)))
+			value_1 := &(line.Width)
+			(*value_1) = FontMetrics_GlyphWidth(value, prepared.Font, prepared.Typeface) + dots_width
+			value_2 := &(line.End)
+			(*value_2) = line.Start + int32(int64(len(value)))
 		}
 		x := TextLayout_TextLineXFor(int32(floatToInt(float64(prepared.Bounds.X), 32, true)), int32(floatToInt(float64(prepared.Bounds.Width), 32, true)), line.Width, int32(TextAlign(props.Align)))
 		if line.End > typed_end {
 			value = Text_TextSpan(props.Text, line.Start, typed_end - line.Start)
-			line.End = typed_end
-			line.Width = FontMetrics_GlyphWidth(value, prepared.Font, prepared.Typeface)
+			value_3 := &(line.End)
+			(*value_3) = typed_end
+			value_4 := &(line.Width)
+			(*value_4) = FontMetrics_GlyphWidth(value, prepared.Font, prepared.Typeface)
 			ellipsis = false
 		}
 		clip := prepared.Bounds
 		if float32(y) < clip.Y + clip.Height {
 			if float32(y) < clip.Y {
-				clip.Height += (clip.Y - float32(y))
-				clip.Y = float32(y)
+				value_5 := &(clip.Height)
+				(*value_5) += (clip.Y - float32(y))
+				value_6 := &(clip.Y)
+				(*value_6) = float32(y)
 			}
 			line_bottom := float32((y + prepared.LineHeight))
 			if line_bottom > clip.Y + clip.Height {
-				clip.Height = line_bottom - clip.Y
+				value_7 := &(clip.Height)
+				(*value_7) = line_bottom - clip.Y
 			}
 		}
 		if value != "" {
@@ -334,7 +361,7 @@ func Text_PaintTextLines(session Session, node int32, props TextProps, prepared 
 	}
 }
 
-func Text_PaintTextRule(session Session, node int32, props TextProps, prepared PreparedText, bounds Rectangle, color Color) {
+func Text_PaintTextRule(session Session, node int32, props zir_5988125b9981443f_Props, prepared PreparedText, bounds Rectangle, color Color) {
 	if props.Rotation == 0.0 {
 		PaintQueue_PaintRoundedFill(session, node, bounds, 0.0, 1, color)
 		return
@@ -350,20 +377,22 @@ func Text_PaintTextRule(session Session, node int32, props TextProps, prepared P
 	ShapePaint_PaintTriangleShape(session, node, area, a, c, d, color)
 }
 
-func Text_TextOrigin(props TextProps, prepared PreparedText) Vector2 {
+func Text_TextOrigin(props zir_5988125b9981443f_Props, prepared PreparedText) Vector2 {
 	return Vector2{X: (prepared.Bounds.X + props.Origin.X), Y: (prepared.Bounds.Y + props.Origin.Y)}
 }
 
-func Text_TextFaceOf(props TextProps) TextFace {
+func Text_TextFaceOf(props zir_5988125b9981443f_Props) TextFace {
 	defaults := Text_DefaultTextFace()
 	if props.FallbackFont > 0 {
-		defaults.FallbackFont = props.FallbackFont
-		defaults.Value.FontSize = float32(props.FallbackFont)
+		value_0 := &(defaults.FallbackFont)
+		(*value_0) = props.FallbackFont
+		value_1 := &(defaults.Value.FontSize)
+		(*value_1) = float32(props.FallbackFont)
 	}
 	return Text_TextFaceFor(props, defaults)
 }
 
-func Text_Text(session Session, props TextProps) {
+func Text_DrawSession(session Session, props zir_5988125b9981443f_Props) {
 	var value_0 bool = StdMath_Finite32(props.Rotation)
 	var value_1 bool = !value_0
 	if !value_1 {
@@ -377,6 +406,10 @@ func Text_Text(session Session, props TextProps) {
 	}
 	if value_3 {
 		return
+	}
+	if props.Bounds.Width == 0.0 && props.Bounds.Height == 0.0 {
+		value_5 := &(props.Bounds)
+		(*value_5) = Tree_TreeRootBounds(session)
 	}
 	face := Text_TextFaceOf(props)
 	prepared := Text_PrepareText(props, face)
@@ -395,23 +428,23 @@ func Text_Text(session Session, props TextProps) {
 			Tree_TreeSetHiddenLines(session, node, hidden)
 		}
 	}
-	var value_5 bool = props.Selectable && node >= 0
-	if value_5 {
-		var value_6 bool = TextSelectionHost_TextSelectionPresent(session, node, props, prepared)
-		value_5 = value_6
+	var value_6 bool = props.Selectable && node >= 0
+	if value_6 {
+		var value_7 bool = TextSelectionHost_TextSelectionPresent(session, node, props, prepared)
+		value_6 = value_7
 	}
-	if value_5 {
+	if value_6 {
 		return
 	}
 	Text_PaintTextLines(session, node, props, prepared)
 }
 
-func Text_TextLinkAt(session Session, props TextProps, x float32, y float32) int32 {
+func Text_TextLinkAt(session Session, props zir_5988125b9981443f_Props, x float32, y float32) int32 {
 	_ = session
 	if int64(len(props.Links)) == 0 {
 		return -1
 	}
-	var value_0 TextProps = props
+	var value_0 zir_5988125b9981443f_Props = props
 	prepared := Text_PrepareText(value_0, Text_TextFaceOf(props))
 	origin := Text_TextOrigin(props, prepared)
 	point := Geometry_ScreenToWorld(Vector2{X: x, Y: y}, Camera{Offset: origin, Target: origin, Rotation: props.Rotation, Zoom: 1.0})
@@ -420,7 +453,7 @@ func Text_TextLinkAt(session Session, props TextProps, x float32, y float32) int
 	top := Text_TextFirstLineY(props, prepared)
 	var start int32 = 0
 	for start <= int32(int64(len(props.Text))) {
-		line := TextLayout_NextTextLine(props.Text, start, prepared.Bounds.Width, TextWrap(prepared.Wrap), prepared.Font, prepared.Typeface)
+		line := TextLayout_NextTextLine(props.Text, start, prepared.Bounds.Width, Wrap(prepared.Wrap), prepared.Font, prepared.Typeface)
 		bottom := (top + prepared.LineHeight) + prepared.LineGap
 		if y >= float32(top) && y < float32(bottom) {
 			left := TextLayout_TextLineXFor(int32(floatToInt(float64(prepared.Bounds.X), 32, true)), int32(floatToInt(float64(prepared.Bounds.Width), 32, true)), line.Width, int32(TextAlign(props.Align)))
@@ -484,8 +517,12 @@ func Text_TextLinkAt(session Session, props TextProps, x float32, y float32) int
 	return -1
 }
 
-func Text_TextFirstLineY(props TextProps, prepared PreparedText) int32 {
+func Text_TextFirstLineY(props zir_5988125b9981443f_Props, prepared PreparedText) int32 {
 	height := TextLayout_TextLayoutTotalHeight(prepared.LineCount, prepared.LineHeight, prepared.LineGap)
 	var value_0 float32 = TextBehavior_TextAlignmentOffset(prepared.Bounds.Height, float32(height), int32(TextAlign(props.VerticalAlign)))
 	return int32(floatToInt(float64(prepared.Bounds.Y), 32, true)) + int32(floatToInt(float64(value_0), 32, true))
+}
+
+func Text_ZiSpec6a19f7c98e79a734(frame Session, props zir_5988125b9981443f_Props) {
+	Text_DrawSession(Session{Slot: frame.Slot, Epoch: frame.Epoch}, props)
 }

@@ -2,6 +2,7 @@
 #ifndef ZIRAN_IMAGE_H
 #define ZIRAN_IMAGE_H
 
+#include "image_props.h"
 #include "theme.h"
 #include "session.h"
 #include "semantic.h"
@@ -10,7 +11,6 @@
 #include "font_metrics.h"
 #include "geometry.h"
 #include "image_behavior.h"
-#include "image_props.h"
 #include "image_raster.h"
 #include "paint_queue.h"
 #include "style.h"
@@ -21,7 +21,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-Texture2D ImageTextureFor(ImageProps image);
+Texture2D ImageTextureFor(zir_a62ab5d98ba48716_Props image);
 
 #ifdef __cplusplus
 }

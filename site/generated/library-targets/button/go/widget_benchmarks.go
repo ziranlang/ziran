@@ -4,17 +4,12 @@ package main
 // #import session
 // #import geometry
 // #import control_props
-// #import button
-// #import button_props
-// #import text
-// #import text_props
-// #import textfield
-// #import text_input_props
 // #import tree
 // #import tree_draw
 // #import tree_input
 // #import widget_benchmark_host
-// #import ziran_system_clipboard_host
+// #import system_clipboard_host
+// #import std_vec
 var benchmark_session Session
 var benchmark_frame uint64
 func WidgetBenchmarks_BeginCase() Session {
@@ -29,30 +24,33 @@ func WidgetBenchmarks_BeginCase() Session {
 
 func WidgetBenchmarks_ButtonCase() int32 {
 	session := WidgetBenchmarks_BeginCase()
-	var props ButtonProps = ButtonProps{}
-	props.Key = 7
-	props.Label = "Run task"
-	props.Bounds = Rectangle{X: 10.0, Y: 20.0, Width: 120.0, Height: 40.0}
+	var props zir_2b2386d69a109fee_Props = zir_2b2386d69a109fee_Props{}
+	value_0 := &(props.Key)
+	(*value_0) = 7
+	value_1 := &(props.Label)
+	(*value_1) = "Run task"
+	value_2 := &(props.Bounds)
+	(*value_2) = Rectangle{X: 10.0, Y: 20.0, Width: 120.0, Height: 40.0}
 	viewport := Rectangle{X: 0.0, Y: 0.0, Width: 300.0, Height: 160.0}
 	if FrameStatus(TreeDraw_BeginFrame(session, benchmark_frame, viewport)) != FrameStatus(0) {
 		return 1
 	}
-	var value_0 bool = Button_Button(session, props) != 0
-	var value_1 bool = value_0
-	if !value_1 {
-		var value_2 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
-		value_1 = value_2
-	}
-	if value_1 {
-		return 2
-	}
-	var value_3 bool = Tree_TreeCount(session) != 2
+	var value_3 bool = Button_Draw(session, props) != 0
 	var value_4 bool = value_3
 	if !value_4 {
-		var value_5 TreeEntry = Tree_TreeNodeAt(session, 1)
-		value_4 = (value_5.SemanticLabel != props.Label)
+		var value_5 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
+		value_4 = value_5
 	}
 	if value_4 {
+		return 2
+	}
+	var value_6 bool = Tree_TreeCount(session) != 2
+	var value_7 bool = value_6
+	if !value_7 {
+		var value_8 TreeEntry = Tree_TreeNodeAt(session, 1)
+		value_7 = (value_8.SemanticLabel != props.Label)
+	}
+	if value_7 {
 		return 3
 	}
 	TreeInput_TreePointerUpdate(session, PointerFrame{X: 30.0, Y: 35.0, Down: true, Pressed: true, Released: false})
@@ -60,23 +58,23 @@ func WidgetBenchmarks_ButtonCase() int32 {
 	if FrameStatus(TreeDraw_BeginFrame(session, benchmark_frame, viewport)) != FrameStatus(0) {
 		return 4
 	}
-	activated := Button_Button(session, props)
-	var value_6 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
-	if value_6 || activated != 1 {
+	activated := Button_Draw(session, props)
+	var value_9 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
+	if value_9 || activated != 1 {
 		return 5
 	}
-	var value_7 bool = WidgetBenchmarkHost_WidgetTextCount() < 2
-	var value_8 bool = value_7
-	if !value_8 {
-		var value_9 bool = WidgetBenchmarkHost_WidgetPaintCount() < 4
-		value_8 = value_9
+	var value_10 bool = WidgetBenchmarkHost_WidgetTextCount() < 2
+	var value_11 bool = value_10
+	if !value_11 {
+		var value_12 bool = WidgetBenchmarkHost_WidgetPaintCount() < 4
+		value_11 = value_12
 	}
-	var value_10 bool = value_8
-	if !value_10 {
-		var value_11 bool = WidgetBenchmarkHost_WidgetPaintChecksum() <= 0
-		value_10 = value_11
+	var value_13 bool = value_11
+	if !value_13 {
+		var value_14 bool = WidgetBenchmarkHost_WidgetPaintChecksum() <= 0
+		value_13 = value_14
 	}
-	if value_10 {
+	if value_13 {
 		return 6
 	}
 	return 0
@@ -84,11 +82,15 @@ func WidgetBenchmarks_ButtonCase() int32 {
 
 func WidgetBenchmarks_TextCase() int32 {
 	session := WidgetBenchmarks_BeginCase()
-	var props TextProps = TextProps{}
-	props.Key = 8
-	props.Text = "Alpha beta\ncafé 世界"
-	props.Bounds = Rectangle{X: 10.0, Y: 20.0, Width: 70.0, Height: 64.0}
-	props.Font = 14
+	var props zir_5988125b9981443f_Props = zir_5988125b9981443f_Props{}
+	value_0 := &(props.Key)
+	(*value_0) = 8
+	value_1 := &(props.Text)
+	(*value_1) = "Alpha beta\ncafé 世界"
+	value_2 := &(props.Bounds)
+	(*value_2) = Rectangle{X: 10.0, Y: 20.0, Width: 70.0, Height: 64.0}
+	value_3 := &(props.Size)
+	(*value_3) = 14
 	viewport := Rectangle{X: 0.0, Y: 0.0, Width: 300.0, Height: 160.0}
 	{
 		var range_first_7 int32 = 0
@@ -96,19 +98,20 @@ func WidgetBenchmarks_TextCase() int32 {
 		frame := range_first_7
 		for frame <= range_last_7 {
 			if frame == 1 {
-				props.Bounds.Width = 140.0
+				value_4 := &(props.Bounds.Width)
+				(*value_4) = 140.0
 			}
 			if FrameStatus(TreeDraw_BeginFrame(session, benchmark_frame, viewport)) != FrameStatus(0) {
 				return 1
 			}
-			Text_Text(session, props)
-			var value_0 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
-			var value_1 bool = value_0
-			if !value_1 {
-				var value_2 bool = Tree_TreeCount(session) != 2
-				value_1 = value_2
+			Text_ZiSpec6a19f7c98e79a734(session, props)
+			var value_5 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
+			var value_6 bool = value_5
+			if !value_6 {
+				var value_7 bool = Tree_TreeCount(session) != 2
+				value_6 = value_7
 			}
-			if value_1 {
+			if value_6 {
 				return 2
 			}
 			node := Tree_TreeNodeAt(session, 1)
@@ -121,13 +124,13 @@ func WidgetBenchmarks_TextCase() int32 {
 			frame++
 		}
 	}
-	var value_3 bool = WidgetBenchmarkHost_WidgetTextCount() < 4
-	var value_4 bool = value_3
-	if !value_4 {
-		var value_5 bool = WidgetBenchmarkHost_WidgetPaintChecksum() <= 0
-		value_4 = value_5
+	var value_8 bool = WidgetBenchmarkHost_WidgetTextCount() < 4
+	var value_9 bool = value_8
+	if !value_9 {
+		var value_10 bool = WidgetBenchmarkHost_WidgetPaintChecksum() <= 0
+		value_9 = value_10
 	}
-	if value_4 {
+	if value_9 {
 		return 4
 	}
 	return 0
@@ -135,48 +138,55 @@ func WidgetBenchmarks_TextCase() int32 {
 
 func WidgetBenchmarks_InputCase() int32 {
 	session := WidgetBenchmarks_BeginCase()
-	var props TextFieldProps = TextFieldProps{}
-	props.Key = 9
-	props.Bounds = Rectangle{X: 10.0, Y: 20.0, Width: 220.0, Height: 40.0}
-	props.Value = "AéB"
-	props.Label = "Name"
-	props.Cursor = 4
-	props.Anchor = 4
+	var props zir_e3d05ce257aa07f3_Props = zir_e3d05ce257aa07f3_Props{}
+	value_0 := &(props.Key)
+	(*value_0) = 9
+	value_1 := &(props.Bounds)
+	(*value_1) = Rectangle{X: 10.0, Y: 20.0, Width: 220.0, Height: 40.0}
+	value_2 := &(props.Value)
+	(*value_2) = "AéB"
+	value_3 := &(props.Label)
+	(*value_3) = "Name"
+	value_4 := &(props.Cursor)
+	(*value_4) = 4
+	value_5 := &(props.Anchor)
+	(*value_5) = 4
 	viewport := Rectangle{X: 0.0, Y: 0.0, Width: 300.0, Height: 160.0}
 	if FrameStatus(TreeDraw_BeginFrame(session, benchmark_frame, viewport)) != FrameStatus(0) {
 		return 1
 	}
-	first := Textfield_TextField(session, props)
-	var value_0 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
-	if value_0 || first.Edit.Changed {
+	first := Textfield_Draw(session, props)
+	var value_6 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
+	if value_6 || first.Edit.Changed {
 		return 2
 	}
 	TreeInput_TreePointerUpdate(session, PointerFrame{X: 200.0, Y: 40.0, Down: true, Pressed: true, Released: false})
 	TreeInput_TreePointerUpdate(session, PointerFrame{X: 200.0, Y: 40.0, Down: false, Pressed: false, Released: true})
-	props.Input.Text = "Z"
+	value_7 := &(props.Input.Text)
+	(*value_7) = "Z"
 	if FrameStatus(TreeDraw_BeginFrame(session, benchmark_frame, viewport)) != FrameStatus(0) {
 		return 3
 	}
-	edited := Textfield_TextField(session, props)
-	var value_1 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
-	if value_1 || !edited.Focused || !edited.Edit.Changed {
+	edited := Textfield_Draw(session, props)
+	var value_8 bool = FrameStatus(TreeDraw_EndFrame(session)) != FrameStatus(0)
+	if value_8 || !edited.Focused || !edited.Edit.Changed {
 		return 4
 	}
 	if edited.Edit.Start != 4 || edited.Edit.End != 4 || edited.Edit.Replacement != "Z" || edited.Cursor != 5 {
 		return 5
 	}
-	var value_2 TreeEntry = Tree_TreeNodeAt(session, edited.Node)
-	var value_3 bool = value_2.SemanticLabel != props.Label
-	if !value_3 {
-		var value_4 bool = WidgetBenchmarkHost_WidgetTextCount() < 2
-		value_3 = value_4
+	var value_9 TreeEntry = Tree_TreeNodeAt(session, edited.Node)
+	var value_10 bool = value_9.SemanticLabel != props.Label
+	if !value_10 {
+		var value_11 bool = WidgetBenchmarkHost_WidgetTextCount() < 2
+		value_10 = value_11
 	}
-	var value_5 bool = value_3
-	if !value_5 {
-		var value_6 bool = WidgetBenchmarkHost_WidgetPaintChecksum() <= 0
-		value_5 = value_6
+	var value_12 bool = value_10
+	if !value_12 {
+		var value_13 bool = WidgetBenchmarkHost_WidgetPaintChecksum() <= 0
+		value_12 = value_13
 	}
-	if value_5 {
+	if value_12 {
 		return 6
 	}
 	return 0
@@ -204,4 +214,13 @@ func WidgetBenchmarks_Main() int32 {
 		}
 	}
 	return 0
+}
+
+var WidgetBenchmarks_ziranInitState uint8
+func WidgetBenchmarks_ziranInit() {
+	if WidgetBenchmarks_ziranInitState == 2 { return }
+	if WidgetBenchmarks_ziranInitState == 1 { panic("cyclic module startup") }
+	WidgetBenchmarks_ziranInitState = 1
+	Textfield_ziranInit()
+	WidgetBenchmarks_ziranInitState = 2
 }

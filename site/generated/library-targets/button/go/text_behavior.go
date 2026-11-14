@@ -3,7 +3,6 @@ package main
 
 // #import geometry
 // #import style
-// #import text_props
 type TextAppearance struct {
 	Font int32
 	Color uint32
@@ -12,21 +11,28 @@ type TextAppearance struct {
 
 func TextBehavior_ResolveTextStyle(font int32, inherited_font int32, default_font int32, color uint32, inherited_color uint32, fallback_color uint32, inherited_color_set bool, color_set bool, disabled bool, inherited_disabled bool, letter_spacing int32) TextAppearance {
 	var style TextAppearance = TextAppearance{}
-	style.Font = Style_ResolveFont(font, inherited_font, default_font)
-	style.Color = color
+	value_0 := &(style.Font)
+	(*value_0) = Style_ResolveFont(font, inherited_font, default_font)
+	value_1 := &(style.Color)
+	(*value_1) = color
 	if !color_set {
-		style.Color = fallback_color
+		value_2 := &(style.Color)
+		(*value_2) = fallback_color
 		if inherited_color_set {
-			style.Color = inherited_color
+			value_3 := &(style.Color)
+			(*value_3) = inherited_color
 		}
 	}
 	if (disabled || inherited_disabled) && (color_set || !inherited_color_set || !inherited_disabled) {
 		alpha := uint32(floatToInt(float64((float32((style.Color & 255)) * 0.45)), 32, false))
-		style.Color = ((style.Color >> 8) << 8) | alpha
+		value_4 := &(style.Color)
+		(*value_4) = ((style.Color >> 8) << 8) | alpha
 	}
-	style.LetterSpacing = letter_spacing
+	value_5 := &(style.LetterSpacing)
+	(*value_5) = letter_spacing
 	if style.LetterSpacing < 0 {
-		style.LetterSpacing = 0
+		value_6 := &(style.LetterSpacing)
+		(*value_6) = 0
 	}
 	return style
 }
@@ -40,7 +46,7 @@ func TextBehavior_TextExtent(requested float32, measured float32) float32 {
 
 func TextBehavior_TextWrapPolicy(width float32, requested int32) int32 {
 	if width <= 0.0 {
-		return int32(TextWrapNone)
+		return int32(Wrap(1))
 	}
 	return requested
 }
@@ -84,9 +90,13 @@ func TextBehavior_TextStrikethroughBounds(x float32, y float32, width float32, l
 	if scale < 1.0 {
 		scale = 1.0
 	}
-	result.X = x
-	result.Y = y + (line_height * 0.5)
-	result.Width = width
-	result.Height = scale
+	value_0 := &(result.X)
+	(*value_0) = x
+	value_1 := &(result.Y)
+	(*value_1) = y + (line_height * 0.5)
+	value_2 := &(result.Width)
+	(*value_2) = width
+	value_3 := &(result.Height)
+	(*value_3) = scale
 	return result
 }

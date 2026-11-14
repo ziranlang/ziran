@@ -46,13 +46,17 @@ func Geometry_RectangleIntersection(a Rectangle, b Rectangle) Rectangle {
 	bottom := a.Y + a.Height
 	other_right := b.X + b.Width
 	other_bottom := b.Y + b.Height
-	result.X = a.X
+	value_0 := &(result.X)
+	(*value_0) = a.X
 	if b.X > a.X {
-		result.X = b.X
+		value_1 := &(result.X)
+		(*value_1) = b.X
 	}
-	result.Y = a.Y
+	value_2 := &(result.Y)
+	(*value_2) = a.Y
 	if b.Y > a.Y {
-		result.Y = b.Y
+		value_3 := &(result.Y)
+		(*value_3) = b.Y
 	}
 	if other_right < right {
 		right = other_right
@@ -60,13 +64,17 @@ func Geometry_RectangleIntersection(a Rectangle, b Rectangle) Rectangle {
 	if other_bottom < bottom {
 		bottom = other_bottom
 	}
-	result.Width = right - result.X
-	result.Height = bottom - result.Y
+	value_4 := &(result.Width)
+	(*value_4) = right - result.X
+	value_5 := &(result.Height)
+	(*value_5) = bottom - result.Y
 	if result.Width < 0.0 {
-		result.Width = 0.0
+		value_6 := &(result.Width)
+		(*value_6) = 0.0
 	}
 	if result.Height < 0.0 {
-		result.Height = 0.0
+		value_7 := &(result.Height)
+		(*value_7) = 0.0
 	}
 	return result
 }

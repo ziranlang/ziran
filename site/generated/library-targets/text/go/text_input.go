@@ -140,18 +140,23 @@ func TextInput_CompositionBoundaryFor(value string, offset int32) int32 {
 func TextInput_CompositionTransitionFor(state CompositionState, event CompositionEvent, focused bool, read_only bool) CompositionTransition {
 	var transition CompositionTransition = CompositionTransition{}
 	if !focused || read_only {
-		transition.Changed = state.Active
+		value_0 := &(transition.Changed)
+		(*value_0) = state.Active
 		return transition
 	}
-	transition.State = state
+	value_1 := &(transition.State)
+	(*value_1) = state
 	if CompositionPhase(event.Phase) == CompositionPhase(0) {
 		return transition
 	}
 	if CompositionPhase(event.Phase) == CompositionPhase(1) || CompositionPhase(event.Phase) == CompositionPhase(2) {
-		transition.State.Active = true
-		transition.State.Text = event.Text
+		value_2 := &(transition.State.Active)
+		(*value_2) = true
+		value_3 := &(transition.State.Text)
+		(*value_3) = event.Text
 		raw_cursor := TextInput_TextCursorForLength(event.Cursor, int32(int64(len(event.Text))))
-		transition.State.Cursor = TextInput_CompositionBoundaryFor(event.Text, raw_cursor)
+		value_4 := &(transition.State.Cursor)
+		(*value_4) = TextInput_CompositionBoundaryFor(event.Text, raw_cursor)
 		end := int32(int64(len(event.Text)))
 		if event.SelectionLength <= 0 {
 			end = raw_cursor
@@ -159,20 +164,28 @@ func TextInput_CompositionTransitionFor(state CompositionState, event Compositio
 			end = raw_cursor + event.SelectionLength
 		}
 		end = TextInput_CompositionBoundaryFor(event.Text, end)
-		transition.State.SelectionLength = end - transition.State.Cursor
-		transition.Changed = true
+		value_5 := &(transition.State.SelectionLength)
+		(*value_5) = end - transition.State.Cursor
+		value_6 := &(transition.Changed)
+		(*value_6) = true
 		return transition
 	}
 	if CompositionPhase(event.Phase) == CompositionPhase(3) {
-		transition.State = CompositionState{}
-		transition.Commit = true
-		transition.CommitText = event.Text
-		transition.Changed = true
+		value_7 := &(transition.State)
+		(*value_7) = CompositionState{}
+		value_8 := &(transition.Commit)
+		(*value_8) = true
+		value_9 := &(transition.CommitText)
+		(*value_9) = event.Text
+		value_10 := &(transition.Changed)
+		(*value_10) = true
 		return transition
 	}
 	if CompositionPhase(event.Phase) == CompositionPhase(4) {
-		transition.State = CompositionState{}
-		transition.Changed = state.Active
+		value_11 := &(transition.State)
+		(*value_11) = CompositionState{}
+		value_12 := &(transition.Changed)
+		(*value_12) = state.Active
 	}
 	return transition
 }
@@ -185,18 +198,23 @@ func TextInput_TextCompositionPaintSpanForLine(composition_start int32, composit
 	if line_end < line_start {
 		line_end = line_start
 	}
-	span.Start = composition_start
+	value_0 := &(span.Start)
+	(*value_0) = composition_start
 	if span.Start < line_start {
-		span.Start = line_start
+		value_1 := &(span.Start)
+		(*value_1) = line_start
 	}
-	span.End = composition_end
+	value_2 := &(span.End)
+	(*value_2) = composition_end
 	if span.End > line_end {
-		span.End = line_end
+		value_3 := &(span.End)
+		(*value_3) = line_end
 	}
 	if span.End <= span.Start {
 		return span
 	}
-	span.Visible = true
+	value_4 := &(span.Visible)
+	(*value_4) = true
 	return span
 }
 
@@ -225,22 +243,28 @@ func TextInput_TextSelectionPaintSpanForLine(selection_start int32, selection_en
 	if line_end < line_start {
 		line_end = line_start
 	}
-	span.Start = selection_start
+	value_0 := &(span.Start)
+	(*value_0) = selection_start
 	if span.Start < line_start {
-		span.Start = line_start
+		value_1 := &(span.Start)
+		(*value_1) = line_start
 	}
-	span.End = selection_end
+	value_2 := &(span.End)
+	(*value_2) = selection_end
 	if span.End > line_end {
-		span.End = line_end
+		value_3 := &(span.End)
+		(*value_3) = line_end
 	}
-	span.ContinuesPastLine = selection_start <= line_start && selection_end > line_end
+	value_4 := &(span.ContinuesPastLine)
+	(*value_4) = selection_start <= line_start && selection_end > line_end
 	if span.End < span.Start {
 		return span
 	}
 	if span.End == span.Start && !span.ContinuesPastLine {
 		return span
 	}
-	span.Visible = true
+	value_5 := &(span.Visible)
+	(*value_5) = true
 	return span
 }
 
@@ -264,33 +288,44 @@ func TextInput_TextEditCommandDecisionFor(command int32, has_selection bool, cop
 	var decision TextContextCommandDecision = TextContextCommandDecision{}
 	if command == TextInput_TextContextCommandCut() {
 		if has_selection {
-			decision.CopySelection = allow_copy
-			decision.DeleteSelection = allow_copy && allow_delete
+			value_0 := &(decision.CopySelection)
+			(*value_0) = allow_copy
+			value_1 := &(decision.DeleteSelection)
+			(*value_1) = allow_copy && allow_delete
 		} else if copy_all_when_empty && has_text {
-			decision.CopyAll = allow_copy
-			decision.ClearAll = allow_copy && allow_delete && clear_all_when_empty
+			value_2 := &(decision.CopyAll)
+			(*value_2) = allow_copy
+			value_3 := &(decision.ClearAll)
+			(*value_3) = allow_copy && allow_delete && clear_all_when_empty
 		}
-		decision.CollapseSelection = decision.CopySelection || decision.CopyAll || decision.DeleteSelection || decision.ClearAll
+		value_4 := &(decision.CollapseSelection)
+		(*value_4) = decision.CopySelection || decision.CopyAll || decision.DeleteSelection || decision.ClearAll
 		return decision
 	}
 	if command == TextInput_TextContextCommandCopy() {
 		if has_selection {
-			decision.CopySelection = allow_copy
+			value_5 := &(decision.CopySelection)
+			(*value_5) = allow_copy
 		} else if allow_copy && copy_all_when_empty && has_text {
-			decision.CopyAll = true
+			value_6 := &(decision.CopyAll)
+			(*value_6) = true
 		}
 		return decision
 	}
 	if command == TextInput_TextContextCommandPaste() {
 		if allow_paste {
-			decision.DeleteSelection = allow_delete && has_selection
-			decision.Paste = true
-			decision.CollapseSelection = true
+			value_7 := &(decision.DeleteSelection)
+			(*value_7) = allow_delete && has_selection
+			value_8 := &(decision.Paste)
+			(*value_8) = true
+			value_9 := &(decision.CollapseSelection)
+			(*value_9) = true
 		}
 		return decision
 	}
 	if command == TextInput_TextContextCommandSelectAll() {
-		decision.SelectAll = true
+		value_10 := &(decision.SelectAll)
+		(*value_10) = true
 		return decision
 	}
 	return decision
@@ -382,12 +417,13 @@ func TextInput_TextInputDoubleClickDecisionFor(same_owner bool, same_id bool, el
 	if dy < 0 {
 		dy = 0 - dy
 	}
-	var value_0 bool = same_owner && same_id
-	if value_0 {
-		var value_1 bool = elapsed_seconds <= TextInput_TextInputDoubleClickMaxSeconds()
-		value_0 = value_1
+	value_0 := &(decision.DoubleClick)
+	var value_1 bool = same_owner && same_id
+	if value_1 {
+		var value_2 bool = elapsed_seconds <= TextInput_TextInputDoubleClickMaxSeconds()
+		value_1 = value_2
 	}
-	decision.DoubleClick = value_0 && dx <= slop && dy <= slop
+	(*value_0) = value_1 && dx <= slop && dy <= slop
 	return decision
 }
 
@@ -453,43 +489,63 @@ func TextInput_TextAreaWrapWidthFor(bounds_width float32, padding_x int32, wrap 
 func TextInput_TextAreaPaintFor(bounds Rectangle, font int32, line_gap int32, padding_x int32, padding_y int32, wrap bool, content_height int32, scroll_y int32, text_line_height int32, min_wrap_width int32) TextAreaPaint {
 	var paint TextAreaPaint = TextAreaPaint{}
 	line_height := font + line_gap
-	paint.ViewportHeight = int32(floatToInt(float64(bounds.Height), 32, true)) - (padding_y * 2)
+	value_0 := &(paint.ViewportHeight)
+	(*value_0) = int32(floatToInt(float64(bounds.Height), 32, true)) - (padding_y * 2)
 	if paint.ViewportHeight < 0 {
-		paint.ViewportHeight = 0
+		value_1 := &(paint.ViewportHeight)
+		(*value_1) = 0
 	}
-	paint.MaxScroll = TextInput_TextAreaMaxScrollFor(content_height, bounds.Height, padding_y)
-	paint.ScrollY = TextInput_TextAreaScrollFor(scroll_y, paint.MaxScroll)
-	paint.WrapWidth = TextInput_TextAreaWrapWidthFor(bounds.Width, padding_x, wrap, min_wrap_width)
-	paint.ClipBounds.X = bounds.X + float32(padding_x)
-	paint.ClipBounds.Y = bounds.Y + float32(padding_y)
-	paint.ClipBounds.Width = bounds.Width - float32((padding_x * 2))
-	paint.ClipBounds.Height = bounds.Height - float32((padding_y * 2))
+	value_2 := &(paint.MaxScroll)
+	(*value_2) = TextInput_TextAreaMaxScrollFor(content_height, bounds.Height, padding_y)
+	value_3 := &(paint.ScrollY)
+	(*value_3) = TextInput_TextAreaScrollFor(scroll_y, paint.MaxScroll)
+	value_4 := &(paint.WrapWidth)
+	(*value_4) = TextInput_TextAreaWrapWidthFor(bounds.Width, padding_x, wrap, min_wrap_width)
+	value_5 := &(paint.ClipBounds.X)
+	(*value_5) = bounds.X + float32(padding_x)
+	value_6 := &(paint.ClipBounds.Y)
+	(*value_6) = bounds.Y + float32(padding_y)
+	value_7 := &(paint.ClipBounds.Width)
+	(*value_7) = bounds.Width - float32((padding_x * 2))
+	value_8 := &(paint.ClipBounds.Height)
+	(*value_8) = bounds.Height - float32((padding_y * 2))
 	if paint.ClipBounds.Width < 0.0 {
-		paint.ClipBounds.Width = 0.0
+		value_9 := &(paint.ClipBounds.Width)
+		(*value_9) = 0.0
 	}
 	if paint.ClipBounds.Height < 0.0 {
-		paint.ClipBounds.Height = 0.0
+		value_10 := &(paint.ClipBounds.Height)
+		(*value_10) = 0.0
 	}
-	paint.PlaceholderX = int32(floatToInt(float64(bounds.X), 32, true)) + padding_x
-	paint.PlaceholderY = (int32(floatToInt(float64(bounds.Y), 32, true)) + padding_y) + ((line_height - text_line_height) / 2)
+	value_11 := &(paint.PlaceholderX)
+	(*value_11) = int32(floatToInt(float64(bounds.X), 32, true)) + padding_x
+	value_12 := &(paint.PlaceholderY)
+	(*value_12) = (int32(floatToInt(float64(bounds.Y), 32, true)) + padding_y) + ((line_height - text_line_height) / 2)
 	return paint
 }
 
 func TextInput_TextFieldScrollFor(bounds_x float32, bounds_width float32, padding_x int32, text_width int32, scroll int32) TextFieldScroll {
 	var result TextFieldScroll = TextFieldScroll{}
-	result.ClipWidth = TextInput_TextInputContentWidth(bounds_width, padding_x)
-	result.MaxScroll = text_width - result.ClipWidth
+	value_0 := &(result.ClipWidth)
+	(*value_0) = TextInput_TextInputContentWidth(bounds_width, padding_x)
+	value_1 := &(result.MaxScroll)
+	(*value_1) = text_width - result.ClipWidth
 	if result.MaxScroll < 0 {
-		result.MaxScroll = 0
+		value_2 := &(result.MaxScroll)
+		(*value_2) = 0
 	}
 	if scroll < 0 {
-		result.Scroll = 0
+		value_3 := &(result.Scroll)
+		(*value_3) = 0
 	} else if scroll > result.MaxScroll {
-		result.Scroll = result.MaxScroll
+		value_4 := &(result.Scroll)
+		(*value_4) = result.MaxScroll
 	} else {
-		result.Scroll = scroll
+		value_5 := &(result.Scroll)
+		(*value_5) = scroll
 	}
-	result.TextOriginX = (int32(floatToInt(float64(bounds_x), 32, true)) + padding_x) - result.Scroll
+	value_6 := &(result.TextOriginX)
+	(*value_6) = (int32(floatToInt(float64(bounds_x), 32, true)) + padding_x) - result.Scroll
 	return result
 }
 
@@ -533,29 +589,42 @@ func TextInput_TextFieldCursorHeightFor(font int32, bounds_height float32, text_
 func TextInput_TextFieldPaintFor(bounds Rectangle, padding_x int32, scroll_x int32, font int32, text_line_height int32, min_cursor_height int32, cursor_vertical_padding int32, clip_guard int32) TextFieldPaint {
 	var paint TextFieldPaint = TextFieldPaint{}
 	clip_width := TextInput_TextInputContentWidth(bounds.Width, padding_x)
-	paint.ClipBounds.X = bounds.X + float32(padding_x)
-	paint.ClipBounds.Y = bounds.Y - float32(clip_guard)
-	paint.ClipBounds.Width = float32(clip_width)
-	paint.ClipBounds.Height = bounds.Height + float32((clip_guard * 2))
+	value_0 := &(paint.ClipBounds.X)
+	(*value_0) = bounds.X + float32(padding_x)
+	value_1 := &(paint.ClipBounds.Y)
+	(*value_1) = bounds.Y - float32(clip_guard)
+	value_2 := &(paint.ClipBounds.Width)
+	(*value_2) = float32(clip_width)
+	value_3 := &(paint.ClipBounds.Height)
+	(*value_3) = bounds.Height + float32((clip_guard * 2))
 	if paint.ClipBounds.Height < 0.0 {
-		paint.ClipBounds.Height = 0.0
+		value_4 := &(paint.ClipBounds.Height)
+		(*value_4) = 0.0
 	}
-	paint.TextX = (int32(floatToInt(float64(bounds.X), 32, true)) + padding_x) - scroll_x
-	paint.CursorHeight = TextInput_TextFieldCursorHeightFor(font, bounds.Height, text_line_height, min_cursor_height, cursor_vertical_padding)
-	paint.CursorY = int32(floatToInt(float64(bounds.Y), 32, true)) + ((int32(floatToInt(float64(bounds.Height), 32, true)) - paint.CursorHeight) / 2)
+	value_5 := &(paint.TextX)
+	(*value_5) = (int32(floatToInt(float64(bounds.X), 32, true)) + padding_x) - scroll_x
+	value_6 := &(paint.CursorHeight)
+	(*value_6) = TextInput_TextFieldCursorHeightFor(font, bounds.Height, text_line_height, min_cursor_height, cursor_vertical_padding)
+	value_7 := &(paint.CursorY)
+	(*value_7) = int32(floatToInt(float64(bounds.Y), 32, true)) + ((int32(floatToInt(float64(bounds.Height), 32, true)) - paint.CursorHeight) / 2)
 	return paint
 }
 
 func TextInput_TextSelectionRangeFor(anchor int32, cursor int32) TextSelectionRange {
 	var out TextSelectionRange = TextSelectionRange{}
 	if anchor < cursor {
-		out.Start = anchor
-		out.End = cursor
+		value_0 := &(out.Start)
+		(*value_0) = anchor
+		value_1 := &(out.End)
+		(*value_1) = cursor
 	} else {
-		out.Start = cursor
-		out.End = anchor
+		value_2 := &(out.Start)
+		(*value_2) = cursor
+		value_3 := &(out.End)
+		(*value_3) = anchor
 	}
-	out.HasSelection = out.Start != out.End
+	value_4 := &(out.HasSelection)
+	(*value_4) = out.Start != out.End
 	return out
 }
 
@@ -565,18 +634,23 @@ func TextInput_TextSelectionRangeForLength(anchor int32, cursor int32, length in
 		length = 0
 	}
 	if out.Start < 0 {
-		out.Start = 0
+		value_0 := &(out.Start)
+		(*value_0) = 0
 	}
 	if out.End < 0 {
-		out.End = 0
+		value_1 := &(out.End)
+		(*value_1) = 0
 	}
 	if out.Start > length {
-		out.Start = length
+		value_2 := &(out.Start)
+		(*value_2) = length
 	}
 	if out.End > length {
-		out.End = length
+		value_3 := &(out.End)
+		(*value_3) = length
 	}
-	out.HasSelection = out.Start != out.End
+	value_4 := &(out.HasSelection)
+	(*value_4) = out.Start != out.End
 	return out
 }
 
@@ -597,16 +671,22 @@ func TextInput_TextSelectionAfterMove(anchor int32, cursor int32, target int32, 
 	var out TextSelectionState = TextSelectionState{}
 	if extend {
 		if anchor == cursor {
-			out.Anchor = cursor
+			value_0 := &(out.Anchor)
+			(*value_0) = cursor
 		} else {
-			out.Anchor = anchor
+			value_1 := &(out.Anchor)
+			(*value_1) = anchor
 		}
-		out.Cursor = target
+		value_2 := &(out.Cursor)
+		(*value_2) = target
 	} else {
-		out.Anchor = target
-		out.Cursor = target
+		value_3 := &(out.Anchor)
+		(*value_3) = target
+		value_4 := &(out.Cursor)
+		(*value_4) = target
 	}
-	out.HasSelection = out.Anchor != out.Cursor
+	value_5 := &(out.HasSelection)
+	(*value_5) = out.Anchor != out.Cursor
 	return out
 }
 
@@ -618,8 +698,10 @@ func TextInput_TextBufferInsertDecisionFor(text_size int32, used int32, at int32
 	if used + insert_len >= text_size {
 		return decision
 	}
-	decision.CanInsert = true
-	decision.TailCount = (used - at) + 1
+	value_0 := &(decision.CanInsert)
+	(*value_0) = true
+	value_1 := &(decision.TailCount)
+	(*value_1) = (used - at) + 1
 	return decision
 }
 
@@ -628,8 +710,10 @@ func TextInput_TextBufferDeleteDecisionFor(used int32, at int32, delete_len int3
 	if used < 0 || at < 0 || delete_len <= 0 || at + delete_len > used {
 		return decision
 	}
-	decision.CanDelete = true
-	decision.TailCount = ((used - at) - delete_len) + 1
+	value_0 := &(decision.CanDelete)
+	(*value_0) = true
+	value_1 := &(decision.TailCount)
+	(*value_1) = ((used - at) - delete_len) + 1
 	return decision
 }
 
@@ -653,18 +737,25 @@ func TextInput_TextBufferDeleteRangeDecisionFor(used int32, start int32, end int
 	if end <= start {
 		return decision
 	}
-	decision.CanDelete = true
-	decision.Start = start
-	decision.End = end
-	decision.Cursor = start
-	decision.TailCount = (used - end) + 1
+	value_0 := &(decision.CanDelete)
+	(*value_0) = true
+	value_1 := &(decision.Start)
+	(*value_1) = start
+	value_2 := &(decision.End)
+	(*value_2) = end
+	value_3 := &(decision.Cursor)
+	(*value_3) = start
+	value_4 := &(decision.TailCount)
+	(*value_4) = (used - end) + 1
 	return decision
 }
 
 func TextInput_TextBufferInsertBytes(buffer []uint8, length int32, at int32, bytes []uint8) TextBufferEditResult {
 	var result TextBufferEditResult = TextBufferEditResult{}
-	result.Length = length
-	result.Cursor = TextInput_TextCursorForLength(at, length)
+	value_0 := &(result.Length)
+	(*value_0) = length
+	value_1 := &(result.Cursor)
+	(*value_1) = TextInput_TextCursorForLength(at, length)
 	decision := TextInput_TextBufferInsertDecisionFor(int32(int64(len(buffer))), length, at, int32(int64(len(bytes))))
 	if !decision.CanInsert || length >= int32(int64(len(buffer))) || buffer[length] != 0 {
 		return result
@@ -678,36 +769,47 @@ func TextInput_TextBufferInsertBytes(buffer []uint8, length int32, at int32, byt
 	}
 	index = length
 	for index >= at {
-		buffer[(index + int32(int64(len(bytes))))] = buffer[index]
+		value_2 := &(buffer[(index + int32(int64(len(bytes))))])
+		(*value_2) = buffer[index]
 		index--
 	}
 	index = 0
 	for index < int32(int64(len(bytes))) {
-		buffer[(at + index)] = bytes[index]
+		value_3 := &(buffer[(at + index)])
+		(*value_3) = bytes[index]
 		index++
 	}
-	result.Length = length + int32(int64(len(bytes)))
-	result.Cursor = at + int32(int64(len(bytes)))
-	result.Changed = true
+	value_4 := &(result.Length)
+	(*value_4) = length + int32(int64(len(bytes)))
+	value_5 := &(result.Cursor)
+	(*value_5) = at + int32(int64(len(bytes)))
+	value_6 := &(result.Changed)
+	(*value_6) = true
 	return result
 }
 
 func TextInput_TextBufferDeleteBytes(buffer []uint8, length int32, at int32, count int32) TextBufferEditResult {
 	var result TextBufferEditResult = TextBufferEditResult{}
-	result.Length = length
-	result.Cursor = TextInput_TextCursorForLength(at, length)
+	value_0 := &(result.Length)
+	(*value_0) = length
+	value_1 := &(result.Cursor)
+	(*value_1) = TextInput_TextCursorForLength(at, length)
 	decision := TextInput_TextBufferDeleteDecisionFor(length, at, count)
 	if !decision.CanDelete || length >= int32(int64(len(buffer))) || buffer[length] != 0 {
 		return result
 	}
 	index := at
 	for index <= length - count {
-		buffer[index] = buffer[(index + count)]
+		value_2 := &(buffer[index])
+		(*value_2) = buffer[(index + count)]
 		index++
 	}
-	result.Length = length - count
-	result.Cursor = at
-	result.Changed = true
+	value_3 := &(result.Length)
+	(*value_3) = length - count
+	value_4 := &(result.Cursor)
+	(*value_4) = at
+	value_5 := &(result.Changed)
+	(*value_5) = true
 	return result
 }
 
@@ -717,8 +819,10 @@ func TextInput_TextBufferDeleteRange(buffer []uint8, length int32, start int32, 
 		return TextInput_TextBufferDeleteBytes(buffer, length, decision.Start, decision.End - decision.Start)
 	}
 	var result TextBufferEditResult = TextBufferEditResult{}
-	result.Length = length
-	result.Cursor = TextInput_TextCursorForLength(start, length)
+	value_0 := &(result.Length)
+	(*value_0) = length
+	value_1 := &(result.Cursor)
+	(*value_1) = TextInput_TextCursorForLength(start, length)
 	return result
 }
 

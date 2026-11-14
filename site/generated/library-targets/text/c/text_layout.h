@@ -4,9 +4,9 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#include "text_props.h"
 #include "font_metrics.h"
 #include "text_align.h"
-#include "text_props.h"
 #include "std_utf8.h"
 #include "std_grapheme.h"
 
@@ -58,8 +58,8 @@ bool text_layout_TextBreaksBetween(uint32_t before, uint32_t after);
 TextToken TextTokenNext(String value, int32_t offset, bool icons);
 uint64_t text_layout_TextLineHash(String value);
 bool text_layout_TextLineCacheMatches(TextLineCache* entry, uint64_t revision, uint64_t hash, int64_t count, uint64_t face, int32_t font, float width, int32_t wrap);
-TextLinePlan NextTextLine(String value, int32_t start, float max_width, TextWrap wrap, int32_t font, String typeface);
-TextLinePlan text_layout_NextTextLineUncached(String value, int32_t start, float max_width, TextWrap wrap, int32_t font, String typeface);
+TextLinePlan NextTextLine(String value, int32_t start, float max_width, Wrap wrap, int32_t font, String typeface);
+TextLinePlan text_layout_NextTextLineUncached(String value, int32_t start, float max_width, Wrap wrap, int32_t font, String typeface);
 int32_t TextCharactersEnd(String value, int32_t count);
 int32_t TextDefaultLineGap(float scale);
 int32_t TextLayoutTotalHeight(int32_t line_count, int32_t drawn_line_height, int32_t line_gap);

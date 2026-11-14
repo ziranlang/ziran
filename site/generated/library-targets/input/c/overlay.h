@@ -3,11 +3,11 @@
 #define ZIRAN_OVERLAY_H
 
 #include <stdint.h>
+#include "overlay_props.h"
 #include "session.h"
 #include "drawing_props.h"
 #include "geometry.h"
 #include "overlay_behavior.h"
-#include "overlay_props.h"
 #include "paint_queue.h"
 #include "tree.h"
 #include "tree_input.h"
@@ -17,7 +17,7 @@ extern "C" {
 #endif
 uint64_t OverlayScrimKey(void);
 uint64_t OverlayPanelKey(void);
-DismissibleOverlayResult DismissibleOverlay(Session session, DismissibleOverlayProps props);
+DismissibleOverlayResult overlay_Draw(Session session, zir_369927f740a3063a_Props props);
 
 #ifdef __cplusplus
 }

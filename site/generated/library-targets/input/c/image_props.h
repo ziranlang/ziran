@@ -13,7 +13,7 @@ extern "C" {
 #define IMAGE_MESH_POINT_LIMIT 4096
 typedef int64_t ImageFit;
 typedef struct ImageMesh ImageMesh;
-typedef struct ImageProps ImageProps;
+typedef struct zir_a62ab5d98ba48716_Props zir_a62ab5d98ba48716_Props;
 
 enum {
     ImageFitStretch = 0,
@@ -25,7 +25,7 @@ struct ImageMesh {
     uint8_t _unused;
 };
 
-struct ImageProps {
+struct zir_a62ab5d98ba48716_Props {
     String asset_path;
     String alt_text;
     Rectangle bounds;

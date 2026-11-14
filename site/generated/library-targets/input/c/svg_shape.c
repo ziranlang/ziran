@@ -90,7 +90,8 @@ svg_shape_ShapeAddEdge(float ax, float ay, float bx, float by)
         shape_overflow = true;
         return;
     }
-    ZIRAN_INDEX(shape_edges, sizeof(shape_edges) / sizeof(shape_edges[0]), shape_edge_count) = (ShapeEdge){.ax = ax, .ay = ay, .bx = bx, .by = by};
+    ShapeEdge* value_0 = &(ZIRAN_INDEX(shape_edges, sizeof(shape_edges) / sizeof(shape_edges[0]), shape_edge_count));
+    (*value_0) = (ShapeEdge){.ax = ax, .ay = ay, .bx = bx, .by = by};
     shape_edge_count = (int32_t)((uint32_t)shape_edge_count + 1u);
 }
 
@@ -131,26 +132,40 @@ svg_shape_ShapeAddCircle(float cx, float cy, float radius)
 void
 svg_shape_ShapeQuad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3)
 {
-    polygon_x[0] = x0;
-    polygon_y[0] = y0;
-    polygon_x[1] = x1;
-    polygon_y[1] = y1;
-    polygon_x[2] = x2;
-    polygon_y[2] = y2;
-    polygon_x[3] = x3;
-    polygon_y[3] = y3;
+    float* value_0 = &(polygon_x[0]);
+    (*value_0) = x0;
+    float* value_1 = &(polygon_y[0]);
+    (*value_1) = y0;
+    float* value_2 = &(polygon_x[1]);
+    (*value_2) = x1;
+    float* value_3 = &(polygon_y[1]);
+    (*value_3) = y1;
+    float* value_4 = &(polygon_x[2]);
+    (*value_4) = x2;
+    float* value_5 = &(polygon_y[2]);
+    (*value_5) = y2;
+    float* value_6 = &(polygon_x[3]);
+    (*value_6) = x3;
+    float* value_7 = &(polygon_y[3]);
+    (*value_7) = y3;
     svg_shape_ShapeAddPolygon(4);
 }
 
 void
 svg_shape_ShapeTriangle(float x0, float y0, float x1, float y1, float x2, float y2)
 {
-    polygon_x[0] = x0;
-    polygon_y[0] = y0;
-    polygon_x[1] = x1;
-    polygon_y[1] = y1;
-    polygon_x[2] = x2;
-    polygon_y[2] = y2;
+    float* value_0 = &(polygon_x[0]);
+    (*value_0) = x0;
+    float* value_1 = &(polygon_y[0]);
+    (*value_1) = y0;
+    float* value_2 = &(polygon_x[1]);
+    (*value_2) = x1;
+    float* value_3 = &(polygon_y[1]);
+    (*value_3) = y1;
+    float* value_4 = &(polygon_x[2]);
+    (*value_4) = x2;
+    float* value_5 = &(polygon_y[2]);
+    (*value_5) = y2;
     svg_shape_ShapeAddPolygon(3);
 }
 
@@ -181,8 +196,10 @@ svg_shape_ShapeCollapse(void)
             keep = (dx * dx) + (dy * dy) > ((float)0.000001);
         }
         if (keep) {
-            ZIRAN_INDEX(shape_x, sizeof(shape_x) / sizeof(shape_x[0]), write) = ZIRAN_INDEX(shape_x, 4096, read);
-            ZIRAN_INDEX(shape_y, sizeof(shape_y) / sizeof(shape_y[0]), write) = ZIRAN_INDEX(shape_y, 4096, read);
+            float* value_0 = &(ZIRAN_INDEX(shape_x, sizeof(shape_x) / sizeof(shape_x[0]), write));
+            (*value_0) = ZIRAN_INDEX(shape_x, 4096, read);
+            float* value_1 = &(ZIRAN_INDEX(shape_y, sizeof(shape_y) / sizeof(shape_y[0]), write));
+            (*value_1) = ZIRAN_INDEX(shape_y, 4096, read);
             write = (int32_t)((uint32_t)write + 1u);
         }
         read = (int32_t)((uint32_t)read + 1u);
@@ -413,8 +430,10 @@ svg_shape_ShapeAddPoint(float x, float y)
         shape_overflow = true;
         return;
     }
-    ZIRAN_INDEX(shape_x, sizeof(shape_x) / sizeof(shape_x[0]), shape_point_count) = x;
-    ZIRAN_INDEX(shape_y, sizeof(shape_y) / sizeof(shape_y[0]), shape_point_count) = y;
+    float* value_0 = &(ZIRAN_INDEX(shape_x, sizeof(shape_x) / sizeof(shape_x[0]), shape_point_count));
+    (*value_0) = x;
+    float* value_1 = &(ZIRAN_INDEX(shape_y, sizeof(shape_y) / sizeof(shape_y[0]), shape_point_count));
+    (*value_1) = y;
     shape_point_count = (int32_t)((uint32_t)shape_point_count + 1u);
 }
 
@@ -550,7 +569,8 @@ svg_shape_ShapeBuildPath(String text, int32_t start, int32_t end, float scale, b
                     if (index >= end) {
                         return false;
                     }
-                    ZIRAN_INDEX(values, sizeof(values) / sizeof(values[0]), count) = svg_shape_ShapeNumber(text, end, index) * scale;
+                    float* value_16 = &(ZIRAN_INDEX(values, sizeof(values) / sizeof(values[0]), count));
+                    (*value_16) = svg_shape_ShapeNumber(text, end, index) * scale;
                     index = shape_after;
                     count = (int32_t)((uint32_t)count + 1u);
                 }
@@ -594,17 +614,21 @@ svg_shape_ShapeAddSpan(float start, float stop, int32_t width, float weight)
     int32_t first = (int32_t)SignedBits(FloatToInt(start, 32, 1), 32);
     int32_t last = (int32_t)SignedBits(FloatToInt(stop, 32, 1), 32);
     if (first == last) {
-        ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first) = ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first) + ((stop - start) * weight);
+        float* value_0 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first));
+        (*value_0) = (*value_0) + ((stop - start) * weight);
         return;
     }
-    ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first) = ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first) + (((float)(((int32_t)((uint32_t)first + 1u))) - start) * weight);
+    float* value_1 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first));
+    (*value_1) = (*value_1) + (((float)(((int32_t)((uint32_t)first + 1u))) - start) * weight);
     int32_t index = (int32_t)((uint32_t)first + 1u);
     while (index < last) {
-        ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), index) = ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), index) + weight;
+        float* value_2 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), index));
+        (*value_2) = (*value_2) + weight;
         index = (int32_t)((uint32_t)index + 1u);
     }
     if (last < width) {
-        ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), last) = ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), last) + ((stop - (float)(last)) * weight);
+        float* value_3 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), last));
+        (*value_3) = (*value_3) + ((stop - (float)(last)) * weight);
     }
 }
 
@@ -616,7 +640,8 @@ svg_shape_ShapeCoverEdges(bool even_odd, int32_t width, int32_t height, Slice co
     while (row < height) {
         int32_t column = 0;
         while (column < width) {
-            ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), column) = (float)0.0;
+            float* value_0 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), column));
+            (*value_0) = (float)0.0;
             column = (int32_t)((uint32_t)column + 1u);
         }
         int32_t sample = 0;
@@ -638,12 +663,16 @@ svg_shape_ShapeCoverEdges(bool even_odd, int32_t width, int32_t height, Slice co
                     float x = e.ax + (((sy - e.ay) * (e.bx - e.ax)) / (e.by - e.ay));
                     int32_t at = count;
                     while (at > 0 && ZIRAN_INDEX(crossing_x, 1024, ((int32_t)((uint32_t)at - 1u))) > x) {
-                        ZIRAN_INDEX(crossing_x, sizeof(crossing_x) / sizeof(crossing_x[0]), at) = ZIRAN_INDEX(crossing_x, 1024, ((int32_t)((uint32_t)at - 1u)));
-                        ZIRAN_INDEX(crossing_direction, sizeof(crossing_direction) / sizeof(crossing_direction[0]), at) = ZIRAN_INDEX(crossing_direction, 1024, ((int32_t)((uint32_t)at - 1u)));
+                        float* value_1 = &(ZIRAN_INDEX(crossing_x, sizeof(crossing_x) / sizeof(crossing_x[0]), at));
+                        (*value_1) = ZIRAN_INDEX(crossing_x, 1024, ((int32_t)((uint32_t)at - 1u)));
+                        int32_t* value_2 = &(ZIRAN_INDEX(crossing_direction, sizeof(crossing_direction) / sizeof(crossing_direction[0]), at));
+                        (*value_2) = ZIRAN_INDEX(crossing_direction, 1024, ((int32_t)((uint32_t)at - 1u)));
                         at = (int32_t)((uint32_t)at - 1u);
                     }
-                    ZIRAN_INDEX(crossing_x, sizeof(crossing_x) / sizeof(crossing_x[0]), at) = x;
-                    ZIRAN_INDEX(crossing_direction, sizeof(crossing_direction) / sizeof(crossing_direction[0]), at) = direction;
+                    float* value_3 = &(ZIRAN_INDEX(crossing_x, sizeof(crossing_x) / sizeof(crossing_x[0]), at));
+                    (*value_3) = x;
+                    int32_t* value_4 = &(ZIRAN_INDEX(crossing_direction, sizeof(crossing_direction) / sizeof(crossing_direction[0]), at));
+                    (*value_4) = direction;
                     count = (int32_t)((uint32_t)count + 1u);
                 }
                 edge = (int32_t)((uint32_t)edge + 1u);
@@ -671,7 +700,8 @@ svg_shape_ShapeCoverEdges(bool even_odd, int32_t width, int32_t height, Slice co
             }
             uint8_t level = (uint8_t)FloatToInt(value, 8, 0);
             if (level > ((uint8_t *)coverage.data)[SliceIndex(coverage, (int64_t)((int32_t)(((uint32_t)row * (uint32_t)width) + (uint32_t)column)))]) {
-                ((uint8_t *)coverage.data)[SliceIndex(coverage, (int64_t)((int32_t)(((uint32_t)row * (uint32_t)width) + (uint32_t)column)))] = level;
+                uint8_t* value_5 = &(((uint8_t *)coverage.data)[SliceIndex(coverage, (int64_t)((int32_t)(((uint32_t)row * (uint32_t)width) + (uint32_t)column)))]);
+                (*value_5) = level;
             }
             column = (int32_t)((uint32_t)column + 1u);
         }
@@ -687,7 +717,8 @@ ShapeRaster(String shape, int32_t size, Slice coverage)
     }
     int32_t index = 0;
     while (index < (int32_t)((uint32_t)size * (uint32_t)size)) {
-        ((uint8_t *)coverage.data)[SliceIndex(coverage, (int64_t)index)] = 0;
+        uint8_t* value_0 = &(((uint8_t *)coverage.data)[SliceIndex(coverage, (int64_t)index)]);
+        (*value_0) = 0;
         index = (int32_t)((uint32_t)index + 1u);
     }
     float scale = (float)(size) / ((float)24.0);
@@ -721,8 +752,8 @@ ShapeRaster(String shape, int32_t size, Slice coverage)
         }
         shape_edge_count = 0;
         shape_point_count = 0;
-        bool value_0 = svg_shape_ShapeBuildPath(shape, (int32_t)((uint32_t)cursor + 1u), end, scale, stroke, half, cap, join);
-        if (!value_0) {
+        bool value_1 = svg_shape_ShapeBuildPath(shape, (int32_t)((uint32_t)cursor + 1u), end, scale, stroke, half, cap, join);
+        if (!value_1) {
             ok = false;
             break;
         }

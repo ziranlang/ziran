@@ -4128,7 +4128,13 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             LirType left = *assembly_type_at(program, left_type);
             LirType right = *assembly_type_at(program, right_type);
             if(left.kind == LirTypeKind_Float || right.kind == LirTypeKind_Float) {
-                if(left.kind != LirTypeKind_Float || (right.kind == LirTypeKind_Float && right.bits > left.bits))
+                /* An untyped float literal takes the other operand's float
+                 * type, as `x != 0.55` compares with (float)0.55 in C. */
+                int left_untyped = !strcmp(function->source->exprs[expression->left].type, "real");
+                int right_untyped = !strcmp(function->source->exprs[expression->right].type, "real");
+                if(right_untyped && left.kind == LirTypeKind_Float) common = left_type;
+                else if(left_untyped && right.kind == LirTypeKind_Float) common = right_type;
+                else if(left.kind != LirTypeKind_Float || (right.kind == LirTypeKind_Float && right.bits > left.bits))
                     common = right_type;
             } else if(left.is_signed != right.is_signed) {
                 /* The checked language compares mixed-signedness integers
@@ -4538,6 +4544,55 @@ assembly_if(AssemblyProgram *program, AssemblyFunction *function, int index, int
     return next;
 }
 
+/* Whether code emitted since `end` instructions into block `block`, or in
+ * a block made since `blocks`, calls a procedure or resizes heap storage. */
+static int
+assembly_block_barrier(AssemblyFunction *function, int block, int from)
+{
+    AssemblyBlock *source = assembly_block_at(function, block);
+    LirInstruction *instructions = source->instructions.data;
+    for(int at = from; at < source->instructions.count; at++) {
+        LirOp op = instructions[at].op;
+        if(op == LirOp_Call || op == LirOp_CallIndirect || op == LirOp_HostCall || op == LirOp_Resize) return 1;
+    }
+    return 0;
+}
+
+static int
+assembly_emitted_barrier(AssemblyFunction *function, int block, int end, int blocks)
+{
+    if(block >= 0 && assembly_block_barrier(function, block, end)) return 1;
+    for(int index = blocks; index < function->blocks.count; index++)
+        if(index != block && assembly_block_barrier(function, index, 0)) return 1;
+    return 0;
+}
+
+/* An assignment's destination is reached before its value is computed, so a
+ * bad index fails first. When the value calls a procedure, the address is
+ * derived again from the same operands for the store, so each derivation is
+ * used only beside where it is made: the engine then keeps no lasting table
+ * entry for it, however many places a loop stores to. Only address
+ * derivations are repeated; nothing is loaded again. */
+static int
+assembly_rederive(AssemblyProgram *program, AssemblyFunction *function, int block, int value, int depth,
+                  ZirSourceSpan span)
+{
+    if(block < 0 || depth > 8 || program->failed) return value;
+    AssemblyBlock *source = assembly_block_at(function, block);
+    for(int at = source->instructions.count - 1; at >= 0; at--) {
+        LirInstruction found = ((LirInstruction *)source->instructions.data)[at];
+        if(found.result != value) continue;
+        if((found.op != LirOp_FieldAddress && found.op != LirOp_ElementAddress) ||
+           found.operands.length < 1 || found.operands.length > 3) return value;
+        int operands[3];
+        memcpy(operands, found.operands.data, (size_t)found.operands.length * sizeof(int));
+        operands[0] = assembly_rederive(program, function, block, operands[0], depth + 1, span);
+        return assembly_indexed(program, function, found.op, ((int *)function->values.data)[value],
+            operands, (int)found.operands.length, found.immediate, span);
+    }
+    return value;
+}
+
 static void
 assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begin, int end, int depth)
 {
@@ -4595,8 +4650,14 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
                     assembly_emit(program, function, LirOp_Load, identity,
                         address >= 0 ? &address : &destination->value, 1, -1, statement->span) :
                     destination->value;
+            int address_block = function->current;
+            int address_end = address_block >= 0 ? assembly_block_at(function, address_block)->instructions.count : 0;
+            int blocks_before = function->blocks.count;
             int value = assembly_expression_for(program, function, statement->expr_root,
                 union_member >= 0 ? union_member : identity, 0);
+            if(address >= 0 && !program->failed &&
+               assembly_emitted_barrier(function, address_block, address_end, blocks_before))
+                address = assembly_rederive(program, function, address_block, address, 0, statement->span);
             if(union_member >= 0 && !program->failed) {
                 int old = address >= 0 || destination->storage ?
                     assembly_emit(program, function, LirOp_Load, identity,

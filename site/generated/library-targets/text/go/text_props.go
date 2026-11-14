@@ -5,41 +5,41 @@ package main
 // #import drawing_props
 // #import semantic
 // #import text_align
-type TextWrap int64
+type Wrap int64
 
 const (
-	TextWrapAuto = 0
-	TextWrapNone = 1
-	TextWrapEllipsis = 2
-	TextWrapAnywhere = 3
+	WrapTextWrapAuto = 0
+	WrapTextWrapNone = 1
+	WrapTextWrapEllipsis = 2
+	WrapTextWrapAnywhere = 3
 )
 
-type TextRange struct {
+type Range struct {
 	Start int32
 	End int32
 }
 
-type TextProps struct {
+type zir_5988125b9981443f_Props struct {
 	Key uint64
 	Bounds Rectangle
 	Text string
-	Font int32
+	Size int32
 	FallbackFont int32
 	StyleKind int32
 	ID int32
 	SemanticKind SemanticKind
 	HeadingLevel int32
 	ClassName int32
-	Wrap TextWrap
+	Wrap Wrap
 	Align TextAlign
 	VerticalAlign TextAlign
 	Disabled bool
 	Selectable bool
 	Strikethrough bool
-	Strong []TextRange
+	Strong []Range
 	Typing bool
 	Typed int32
-	Links []TextRange
+	Links []Range
 	Typeface string
 	LineGap int32
 	Rotation float32
@@ -54,5 +54,5 @@ type PreparedText struct {
 	LineHeight int32
 	LineGap int32
 	LineCount int32
-	Wrap TextWrap
+	Wrap Wrap
 }

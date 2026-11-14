@@ -45,18 +45,23 @@ CompositionTransitionFor(CompositionState state, CompositionEvent event, bool fo
 {
     CompositionTransition transition = {0};
     if (!focused || read_only) {
-        transition.changed = state.active;
+        bool* value_0 = &(transition.changed);
+        (*value_0) = state.active;
         return transition;
     }
-    transition.state = state;
+    CompositionState* value_1 = &(transition.state);
+    (*value_1) = state;
     if (((CompositionPhase)(event.phase)) == ((CompositionPhase)(0LL))) {
         return transition;
     }
     if (((CompositionPhase)(event.phase)) == ((CompositionPhase)(1LL)) || ((CompositionPhase)(event.phase)) == ((CompositionPhase)(2LL))) {
-        transition.state.active = true;
-        transition.state.text = event.text;
+        bool* value_2 = &(transition.state.active);
+        (*value_2) = true;
+        String* value_3 = &(transition.state.text);
+        (*value_3) = event.text;
         int32_t raw_cursor = TextCursorForLength(event.cursor, (int32_t)((int64_t)(event.text).length));
-        transition.state.cursor = CompositionBoundaryFor(event.text, raw_cursor);
+        int32_t* value_4 = &(transition.state.cursor);
+        (*value_4) = CompositionBoundaryFor(event.text, raw_cursor);
         int32_t end = (int32_t)((int64_t)(event.text).length);
         if (event.selection_length <= 0) {
             end = raw_cursor;
@@ -64,20 +69,28 @@ CompositionTransitionFor(CompositionState state, CompositionEvent event, bool fo
             end = (int32_t)((uint32_t)raw_cursor + (uint32_t)(event.selection_length));
         }
         end = CompositionBoundaryFor(event.text, end);
-        transition.state.selection_length = (int32_t)((uint32_t)end - (uint32_t)(transition.state.cursor));
-        transition.changed = true;
+        int32_t* value_5 = &(transition.state.selection_length);
+        (*value_5) = (int32_t)((uint32_t)end - (uint32_t)(transition.state.cursor));
+        bool* value_6 = &(transition.changed);
+        (*value_6) = true;
         return transition;
     }
     if (((CompositionPhase)(event.phase)) == ((CompositionPhase)(3LL))) {
-        transition.state = (CompositionState){0};
-        transition.commit = true;
-        transition.commit_text = event.text;
-        transition.changed = true;
+        CompositionState* value_7 = &(transition.state);
+        (*value_7) = (CompositionState){0};
+        bool* value_8 = &(transition.commit);
+        (*value_8) = true;
+        String* value_9 = &(transition.commit_text);
+        (*value_9) = event.text;
+        bool* value_10 = &(transition.changed);
+        (*value_10) = true;
         return transition;
     }
     if (((CompositionPhase)(event.phase)) == ((CompositionPhase)(4LL))) {
-        transition.state = (CompositionState){0};
-        transition.changed = state.active;
+        CompositionState* value_11 = &(transition.state);
+        (*value_11) = (CompositionState){0};
+        bool* value_12 = &(transition.changed);
+        (*value_12) = state.active;
     }
     return transition;
 }
@@ -133,33 +146,44 @@ TextEditCommandDecisionFor(int32_t command, bool has_selection, bool copy_all_wh
     TextContextCommandDecision decision = {0};
     if (command == TextContextCommandCut()) {
         if (has_selection) {
-            decision.copy_selection = allow_copy;
-            decision.delete_selection = allow_copy && allow_delete;
+            bool* value_0 = &(decision.copy_selection);
+            (*value_0) = allow_copy;
+            bool* value_1 = &(decision.delete_selection);
+            (*value_1) = allow_copy && allow_delete;
         } else if (copy_all_when_empty && has_text) {
-            decision.copy_all = allow_copy;
-            decision.clear_all = allow_copy && allow_delete && clear_all_when_empty;
+            bool* value_2 = &(decision.copy_all);
+            (*value_2) = allow_copy;
+            bool* value_3 = &(decision.clear_all);
+            (*value_3) = allow_copy && allow_delete && clear_all_when_empty;
         }
-        decision.collapse_selection = decision.copy_selection || decision.copy_all || decision.delete_selection || decision.clear_all;
+        bool* value_4 = &(decision.collapse_selection);
+        (*value_4) = decision.copy_selection || decision.copy_all || decision.delete_selection || decision.clear_all;
         return decision;
     }
     if (command == TextContextCommandCopy()) {
         if (has_selection) {
-            decision.copy_selection = allow_copy;
+            bool* value_5 = &(decision.copy_selection);
+            (*value_5) = allow_copy;
         } else if (allow_copy && copy_all_when_empty && has_text) {
-            decision.copy_all = true;
+            bool* value_6 = &(decision.copy_all);
+            (*value_6) = true;
         }
         return decision;
     }
     if (command == TextContextCommandPaste()) {
         if (allow_paste) {
-            decision.delete_selection = allow_delete && has_selection;
-            decision.paste = true;
-            decision.collapse_selection = true;
+            bool* value_7 = &(decision.delete_selection);
+            (*value_7) = allow_delete && has_selection;
+            bool* value_8 = &(decision.paste);
+            (*value_8) = true;
+            bool* value_9 = &(decision.collapse_selection);
+            (*value_9) = true;
         }
         return decision;
     }
     if (command == TextContextCommandSelectAll()) {
-        decision.select_all = true;
+        bool* value_10 = &(decision.select_all);
+        (*value_10) = true;
         return decision;
     }
     return decision;
@@ -302,19 +326,26 @@ TextFieldScroll
 TextFieldScrollFor(float bounds_x, float bounds_width, int32_t padding_x, int32_t text_width, int32_t scroll)
 {
     TextFieldScroll result = {0};
-    result.clip_width = TextInputContentWidth(bounds_width, padding_x);
-    result.max_scroll = (int32_t)((uint32_t)text_width - (uint32_t)(result.clip_width));
+    int32_t* value_0 = &(result.clip_width);
+    (*value_0) = TextInputContentWidth(bounds_width, padding_x);
+    int32_t* value_1 = &(result.max_scroll);
+    (*value_1) = (int32_t)((uint32_t)text_width - (uint32_t)(result.clip_width));
     if (result.max_scroll < 0) {
-        result.max_scroll = 0;
+        int32_t* value_2 = &(result.max_scroll);
+        (*value_2) = 0;
     }
     if (scroll < 0) {
-        result.scroll = 0;
+        int32_t* value_3 = &(result.scroll);
+        (*value_3) = 0;
     } else if (scroll > result.max_scroll) {
-        result.scroll = result.max_scroll;
+        int32_t* value_4 = &(result.scroll);
+        (*value_4) = result.max_scroll;
     } else {
-        result.scroll = scroll;
+        int32_t* value_5 = &(result.scroll);
+        (*value_5) = scroll;
     }
-    result.text_origin_x = (int32_t)(((uint32_t)((int32_t)SignedBits(FloatToInt(bounds_x, 32, 1), 32)) + (uint32_t)padding_x) - (uint32_t)(result.scroll));
+    int32_t* value_6 = &(result.text_origin_x);
+    (*value_6) = (int32_t)(((uint32_t)((int32_t)SignedBits(FloatToInt(bounds_x, 32, 1), 32)) + (uint32_t)padding_x) - (uint32_t)(result.scroll));
     return result;
 }
 
@@ -364,16 +395,24 @@ TextFieldPaintFor(Rectangle bounds, int32_t padding_x, int32_t scroll_x, int32_t
 {
     TextFieldPaint paint = {0};
     int32_t clip_width = TextInputContentWidth(bounds.width, padding_x);
-    paint.clip_bounds.x = bounds.x + (float)(padding_x);
-    paint.clip_bounds.y = bounds.y - (float)(clip_guard);
-    paint.clip_bounds.width = (float)(clip_width);
-    paint.clip_bounds.height = bounds.height + (float)(((int32_t)((uint32_t)clip_guard * 2u)));
+    float* value_0 = &(paint.clip_bounds.x);
+    (*value_0) = bounds.x + (float)(padding_x);
+    float* value_1 = &(paint.clip_bounds.y);
+    (*value_1) = bounds.y - (float)(clip_guard);
+    float* value_2 = &(paint.clip_bounds.width);
+    (*value_2) = (float)(clip_width);
+    float* value_3 = &(paint.clip_bounds.height);
+    (*value_3) = bounds.height + (float)(((int32_t)((uint32_t)clip_guard * 2u)));
     if (paint.clip_bounds.height < ((float)0.0)) {
-        paint.clip_bounds.height = (float)0.0;
+        float* value_4 = &(paint.clip_bounds.height);
+        (*value_4) = (float)0.0;
     }
-    paint.text_x = (int32_t)(((uint32_t)((int32_t)SignedBits(FloatToInt(bounds.x, 32, 1), 32)) + (uint32_t)padding_x) - (uint32_t)scroll_x);
-    paint.cursor_height = TextFieldCursorHeightFor(font, bounds.height, text_line_height, min_cursor_height, cursor_vertical_padding);
-    paint.cursor_y = (int32_t)((uint32_t)((int32_t)SignedBits(FloatToInt(bounds.y, 32, 1), 32)) + (uint32_t)((((int32_t)((uint32_t)((int32_t)SignedBits(FloatToInt(bounds.height, 32, 1), 32)) - (uint32_t)(paint.cursor_height))) / 2)));
+    int32_t* value_5 = &(paint.text_x);
+    (*value_5) = (int32_t)(((uint32_t)((int32_t)SignedBits(FloatToInt(bounds.x, 32, 1), 32)) + (uint32_t)padding_x) - (uint32_t)scroll_x);
+    int32_t* value_6 = &(paint.cursor_height);
+    (*value_6) = TextFieldCursorHeightFor(font, bounds.height, text_line_height, min_cursor_height, cursor_vertical_padding);
+    int32_t* value_7 = &(paint.cursor_y);
+    (*value_7) = (int32_t)((uint32_t)((int32_t)SignedBits(FloatToInt(bounds.y, 32, 1), 32)) + (uint32_t)((((int32_t)((uint32_t)((int32_t)SignedBits(FloatToInt(bounds.height, 32, 1), 32)) - (uint32_t)(paint.cursor_height))) / 2)));
     return paint;
 }
 
@@ -382,13 +421,18 @@ TextSelectionRangeFor(int32_t anchor, int32_t cursor)
 {
     TextSelectionRange out = {0};
     if (anchor < cursor) {
-        out.start = anchor;
-        out.end = cursor;
+        int32_t* value_0 = &(out.start);
+        (*value_0) = anchor;
+        int32_t* value_1 = &(out.end);
+        (*value_1) = cursor;
     } else {
-        out.start = cursor;
-        out.end = anchor;
+        int32_t* value_2 = &(out.start);
+        (*value_2) = cursor;
+        int32_t* value_3 = &(out.end);
+        (*value_3) = anchor;
     }
-    out.has_selection = out.start != out.end;
+    bool* value_4 = &(out.has_selection);
+    (*value_4) = out.start != out.end;
     return out;
 }
 
@@ -400,18 +444,23 @@ TextSelectionRangeForLength(int32_t anchor, int32_t cursor, int32_t length)
         length = 0;
     }
     if (out.start < 0) {
-        out.start = 0;
+        int32_t* value_0 = &(out.start);
+        (*value_0) = 0;
     }
     if (out.end < 0) {
-        out.end = 0;
+        int32_t* value_1 = &(out.end);
+        (*value_1) = 0;
     }
     if (out.start > length) {
-        out.start = length;
+        int32_t* value_2 = &(out.start);
+        (*value_2) = length;
     }
     if (out.end > length) {
-        out.end = length;
+        int32_t* value_3 = &(out.end);
+        (*value_3) = length;
     }
-    out.has_selection = out.start != out.end;
+    bool* value_4 = &(out.has_selection);
+    (*value_4) = out.start != out.end;
     return out;
 }
 
@@ -436,16 +485,22 @@ TextSelectionAfterMove(int32_t anchor, int32_t cursor, int32_t target, bool exte
     TextSelectionState out = {0};
     if (extend) {
         if (anchor == cursor) {
-            out.anchor = cursor;
+            int32_t* value_0 = &(out.anchor);
+            (*value_0) = cursor;
         } else {
-            out.anchor = anchor;
+            int32_t* value_1 = &(out.anchor);
+            (*value_1) = anchor;
         }
-        out.cursor = target;
+        int32_t* value_2 = &(out.cursor);
+        (*value_2) = target;
     } else {
-        out.anchor = target;
-        out.cursor = target;
+        int32_t* value_3 = &(out.anchor);
+        (*value_3) = target;
+        int32_t* value_4 = &(out.cursor);
+        (*value_4) = target;
     }
-    out.has_selection = out.anchor != out.cursor;
+    bool* value_5 = &(out.has_selection);
+    (*value_5) = out.anchor != out.cursor;
     return out;
 }
 

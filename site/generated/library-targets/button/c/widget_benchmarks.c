@@ -3,16 +3,15 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "widget_benchmarks.h"
+#include "std_vec.h"
 #include "session.h"
 #include "geometry.h"
 #include "control_props.h"
-#include "button.h"
-#include "button_props.h"
-#include "text_input_props.h"
 #include "tree.h"
 #include "tree_draw.h"
 #include "tree_input.h"
 #include "widget_benchmark_host.h"
+#include "std_vec.h"
 Session benchmark_session = {0};
 uint64_t benchmark_frame = {0};
 
@@ -32,25 +31,28 @@ int32_t
 ButtonCase(void)
 {
     Session session = widget_benchmarks_BeginCase();
-    ButtonProps props = {0};
-    props.key = 7ULL;
-    props.label = StringLiteral("Run task");
-    props.bounds = (Rectangle){.x = (float)10.0, .y = (float)20.0, .width = (float)120.0, .height = (float)40.0};
+    zir_2b2386d69a109fee_Props props = {0};
+    uint64_t* value_0 = &(props.key);
+    (*value_0) = 7ULL;
+    String* value_1 = &(props.label);
+    (*value_1) = StringLiteral("Run task");
+    Rectangle* value_2 = &(props.bounds);
+    (*value_2) = (Rectangle){.x = (float)10.0, .y = (float)20.0, .width = (float)120.0, .height = (float)40.0};
     Rectangle viewport = {.x = (float)0.0, .y = (float)0.0, .width = (float)300.0, .height = (float)160.0};
     if (((FrameStatus)(BeginFrame(session, benchmark_frame, viewport))) != ((FrameStatus)(0LL))) {
         return 1;
     }
-    bool value_0 = Button(session, props) != 0;
-    if (value_0 || ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL))) {
+    bool value_3 = button_Draw(session, props) != 0;
+    if (value_3 || ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL))) {
         return 2;
     }
-    bool value_1 = TreeCount(session) != 2;
-    bool value_2 = value_1;
-    if (!value_2) {
-        TreeEntry value_3 = TreeNodeAt(session, 1);
-        value_2 = (!StringEqual(value_3.semantic_label, props.label));
+    bool value_4 = TreeCount(session) != 2;
+    bool value_5 = value_4;
+    if (!value_5) {
+        TreeEntry value_6 = TreeNodeAt(session, 1);
+        value_5 = (!StringEqual(value_6.semantic_label, props.label));
     }
-    if (value_2) {
+    if (value_5) {
         return 3;
     }
     TreePointerUpdate(session, (PointerFrame){.x = (float)30.0, .y = (float)35.0, .down = true, .pressed = true, .released = false});
@@ -58,24 +60,38 @@ ButtonCase(void)
     if (((FrameStatus)(BeginFrame(session, benchmark_frame, viewport))) != ((FrameStatus)(0LL))) {
         return 4;
     }
-    int32_t activated = Button(session, props);
-    bool value_4 = ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL));
-    if (value_4 || activated != 1) {
+    int32_t activated = button_Draw(session, props);
+    bool value_7 = ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL));
+    if (value_7 || activated != 1) {
         return 5;
     }
-    int64_t value_5 = widget_benchmark_host_WidgetTextCount();
-    bool value_6 = value_5 < 2LL;
-    if (!value_6) {
-        int64_t value_7 = widget_benchmark_host_WidgetPaintCount();
-        value_6 = (value_7 < 4LL);
+    int64_t value_8 = widget_benchmark_host_WidgetTextCount();
+    bool value_9 = value_8 < 2LL;
+    if (!value_9) {
+        int64_t value_10 = widget_benchmark_host_WidgetPaintCount();
+        value_9 = (value_10 < 4LL);
     }
-    bool value_8 = value_6;
-    if (!value_8) {
-        int64_t value_9 = widget_benchmark_host_WidgetPaintChecksum();
-        value_8 = (value_9 <= 0LL);
+    bool value_11 = value_9;
+    if (!value_11) {
+        int64_t value_12 = widget_benchmark_host_WidgetPaintChecksum();
+        value_11 = (value_12 <= 0LL);
     }
-    if (value_8) {
+    if (value_11) {
         return 6;
     }
     return 0;
+}
+
+#include <stdlib.h>
+void ziran_init_textfield(void);
+
+static int ziran_state_ziran_init_widget_benchmarks;
+void
+ziran_init_widget_benchmarks(void)
+{
+    if(ziran_state_ziran_init_widget_benchmarks == 2) return;
+    if(ziran_state_ziran_init_widget_benchmarks == 1) abort();
+    ziran_state_ziran_init_widget_benchmarks = 1;
+    ziran_init_textfield();
+    ziran_state_ziran_init_widget_benchmarks = 2;
 }

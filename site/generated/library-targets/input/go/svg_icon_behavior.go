@@ -62,7 +62,8 @@ func SvgIconBehavior_SvgIconRetire(texture Texture2D) {
 		var value_0 SvgIconTextureFree = svg_icon_texture_free
 		value_0(oldest)
 	}
-	svg_icon_retired[svg_icon_retired_next] = texture
+	value_1 := &(svg_icon_retired[svg_icon_retired_next])
+	(*value_1) = texture
 	svg_icon_retired_next = (svg_icon_retired_next + 1) % 64
 }
 
@@ -75,7 +76,8 @@ func SvgIconBehavior_SvgIconForgetTextures(release bool) {
 			var value_0 SvgIconTextureFree = svg_icon_texture_free
 			value_0(texture)
 		}
-		(svg_icon_cache[slot]).Texture = Texture2D{}
+		value_1 := &((svg_icon_cache[slot]).Texture)
+		(*value_1) = Texture2D{}
 		slot++
 	}
 	var index int32 = 0
@@ -83,10 +85,11 @@ func SvgIconBehavior_SvgIconForgetTextures(release bool) {
 		texture := svg_icon_retired[index]
 		_ = texture
 		if release && svg_icon_textures && texture.ID != 0 {
-			var value_1 SvgIconTextureFree = svg_icon_texture_free
-			value_1(texture)
+			var value_2 SvgIconTextureFree = svg_icon_texture_free
+			value_2(texture)
 		}
-		svg_icon_retired[index] = Texture2D{}
+		value_3 := &(svg_icon_retired[index])
+		(*value_3) = Texture2D{}
 		index++
 	}
 }
@@ -117,8 +120,10 @@ func SvgIconBehavior_SvgIconTexture(slot int32) Texture2D {
 	size := (svg_icon_cache[slot]).Size
 	var index int32 = 0
 	for index < size * size {
-		svg_icon_pixels[(index * 2)] = 255
-		svg_icon_pixels[((index * 2) + 1)] = 0
+		value_0 := &(svg_icon_pixels[(index * 2)])
+		(*value_0) = 255
+		value_1 := &(svg_icon_pixels[((index * 2) + 1)])
+		(*value_1) = 0
 		index++
 	}
 	var part_index int64 = 0
@@ -129,17 +134,19 @@ func SvgIconBehavior_SvgIconTexture(slot int32) Texture2D {
 		for row < int32(part.Y) + int32(part.Height) {
 			column := int32(part.X)
 			for column < int32(part.X) + int32(part.Width) {
-				svg_icon_pixels[((((row * size) + column) * 2) + 1)] = alpha
+				value_2 := &(svg_icon_pixels[((((row * size) + column) * 2) + 1)])
+				(*value_2) = alpha
 				column++
 			}
 			row++
 		}
 		part_index++
 	}
-	var value_0 SvgIconTextureMake = svg_icon_texture_make
-	var value_1 int32 = (size * size) * 2
-	var value_2 Texture2D = value_0(svg_icon_pixels[0:value_1:value_1], size)
-	(svg_icon_cache[slot]).Texture = value_2
+	value_3 := &((svg_icon_cache[slot]).Texture)
+	var value_4 SvgIconTextureMake = svg_icon_texture_make
+	var value_5 int32 = (size * size) * 2
+	var value_6 Texture2D = value_4(svg_icon_pixels[0:value_5:value_5], size)
+	(*value_3) = value_6
 	return (svg_icon_cache[slot]).Texture
 }
 
@@ -156,7 +163,8 @@ func SvgIconBehavior_SvgIconHash(shape string) uint64 {
 func SvgIconBehavior_SvgIconCells(slot int32, size int32) bool {
 	var index int32 = 0
 	for index < size * size {
-		svg_icon_levels[index] = uint8((((int32(svg_icon_coverage[index]) * 32) + 127) / 255))
+		value_0 := &(svg_icon_levels[index])
+		(*value_0) = uint8((((int32(svg_icon_coverage[index]) * 32) + 127) / 255))
 		index++
 	}
 	(svg_icon_cache[slot]).Cells.Data = (svg_icon_cache[slot]).Cells.Data[:0]
@@ -191,13 +199,13 @@ func SvgIconBehavior_SvgIconCells(slot int32, size int32) bool {
 				}
 			}
 			part := SvgIconCell{X: uint8(column), Y: uint8(row), Width: uint8(width), Height: uint8(height), Level: uint8(level)}
-			var value_0 SvgIconCell = part
-			var value_1 bool = false
-			(svg_icon_cache[slot]).Cells.Data = append((svg_icon_cache[slot]).Cells.Data[:(svg_icon_cache[slot]).Cells.Count], value_0)
+			var value_1 SvgIconCell = part
+			var value_2 bool = false
+			(svg_icon_cache[slot]).Cells.Data = append((svg_icon_cache[slot]).Cells.Data[:(svg_icon_cache[slot]).Cells.Count], value_1)
 			(svg_icon_cache[slot]).Cells.Count = int64(len((svg_icon_cache[slot]).Cells.Data))
 			(svg_icon_cache[slot]).Cells.Capacity = int64(cap((svg_icon_cache[slot]).Cells.Data))
-			value_1 = true
-			if !value_1 {
+			value_2 = true
+			if !value_2 {
 				return false
 			}
 			var paint_row int32 = 0
@@ -205,7 +213,8 @@ func SvgIconBehavior_SvgIconCells(slot int32, size int32) bool {
 				var across int32 = 0
 				_ = across
 				for across < width {
-					svg_icon_levels[((((row + paint_row) * size) + column) + across)] = 0
+					value_3 := &(svg_icon_levels[((((row + paint_row) * size) + column) + across)])
+					(*value_3) = 0
 					across++
 				}
 				paint_row++
@@ -224,7 +233,8 @@ func SvgIconBehavior_SvgIconSlot(shape string, size int32) int32 {
 	var slot int32 = 0
 	for slot < 256 {
 		if (svg_icon_cache[slot]).Used && (svg_icon_cache[slot]).Hash == hash && (svg_icon_cache[slot]).Size == size {
-			(svg_icon_cache[slot]).Stamp = svg_icon_clock
+			value_0 := &((svg_icon_cache[slot]).Stamp)
+			(*value_0) = svg_icon_clock
 			return slot
 		}
 		if (svg_icon_cache[slot]).Stamp < (svg_icon_cache[oldest]).Stamp {
@@ -234,23 +244,30 @@ func SvgIconBehavior_SvgIconSlot(shape string, size int32) int32 {
 	}
 	slot = oldest
 	SvgIconBehavior_SvgIconRetire((svg_icon_cache[slot]).Texture)
-	(svg_icon_cache[slot]).Texture = Texture2D{}
-	(svg_icon_cache[slot]).Used = false
-	(svg_icon_cache[slot]).Stamp = 0
-	var value_0 bool = SvgShape_ShapeRaster(shape, size, svg_icon_coverage[0:9216:9216])
-	var value_1 bool = !value_0
-	if !value_1 {
-		var value_2 bool = SvgIconBehavior_SvgIconCells(slot, size)
-		value_1 = !value_2
+	value_1 := &((svg_icon_cache[slot]).Texture)
+	(*value_1) = Texture2D{}
+	value_2 := &((svg_icon_cache[slot]).Used)
+	(*value_2) = false
+	value_3 := &((svg_icon_cache[slot]).Stamp)
+	(*value_3) = 0
+	var value_4 bool = SvgShape_ShapeRaster(shape, size, svg_icon_coverage[0:9216:9216])
+	var value_5 bool = !value_4
+	if !value_5 {
+		var value_6 bool = SvgIconBehavior_SvgIconCells(slot, size)
+		value_5 = !value_6
 	}
-	if value_1 {
+	if value_5 {
 		return -1
 	}
 	svg_icon_rasters++
-	(svg_icon_cache[slot]).Hash = hash
-	(svg_icon_cache[slot]).Size = size
-	(svg_icon_cache[slot]).Used = true
-	(svg_icon_cache[slot]).Stamp = svg_icon_clock
+	value_7 := &((svg_icon_cache[slot]).Hash)
+	(*value_7) = hash
+	value_8 := &((svg_icon_cache[slot]).Size)
+	(*value_8) = size
+	value_9 := &((svg_icon_cache[slot]).Used)
+	(*value_9) = true
+	value_10 := &((svg_icon_cache[slot]).Stamp)
+	(*value_10) = svg_icon_clock
 	return slot
 }
 
@@ -303,9 +320,10 @@ func SvgIconBehavior_PaintSvgIcon(session Session, node int32, shape string, bou
 	for index < ((svg_icon_cache[slot]).Cells).Count {
 		part := ((svg_icon_cache[slot]).Cells).Data[index]
 		fill := color
-		fill.A = uint8(((int32(color.A) * int32(part.Level)) / 32))
-		var value_0 Rectangle = Rectangle{X: (left + (float32(part.X) * cell)), Y: (top + (float32(part.Y) * cell)), Width: (float32(part.Width) * cell), Height: (float32(part.Height) * cell)}
-		PaintQueue_PaintRoundedFill(session, node, value_0, 0.0, 1, fill)
+		value_0 := &(fill.A)
+		(*value_0) = uint8(((int32(color.A) * int32(part.Level)) / 32))
+		var value_1 Rectangle = Rectangle{X: (left + (float32(part.X) * cell)), Y: (top + (float32(part.Y) * cell)), Width: (float32(part.Width) * cell), Height: (float32(part.Height) * cell)}
+		PaintQueue_PaintRoundedFill(session, node, value_1, 0.0, 1, fill)
 		index++
 	}
 }
@@ -319,31 +337,41 @@ func SvgIconBehavior_StrokeAppendNumber(output []uint8, length *int32, value flo
 	var count int32 = 0
 	whole := hundredths / 100
 	if whole == 0 {
-		digits[0] = 48
+		value_0 := &(digits[0])
+		(*value_0) = 48
 		count = 1
 	}
 	for whole > 0 {
-		digits[count] = uint8((48 + (whole % 10)))
+		value_1 := &(digits[count])
+		(*value_1) = uint8((48 + (whole % 10)))
 		count++
 		whole /= 10
 	}
 	for count > 0 && *(length) < int32(int64(len(output))) {
 		count--
-		output[*(length)] = digits[count]
-		(*(length))++
+		value_2 := &(output[*(length)])
+		(*value_2) = digits[count]
+		value_3 := &((*(length)))
+		(*value_3)++
 	}
 	if *(length) + 3 <= int32(int64(len(output))) {
-		output[*(length)] = 46
-		output[(*(length) + 1)] = uint8((48 + ((hundredths / 10) % 10)))
-		output[(*(length) + 2)] = uint8((48 + (hundredths % 10)))
-		(*(length)) += 3
+		value_4 := &(output[*(length)])
+		(*value_4) = 46
+		value_5 := &(output[(*(length) + 1)])
+		(*value_5) = uint8((48 + ((hundredths / 10) % 10)))
+		value_6 := &(output[(*(length) + 2)])
+		(*value_6) = uint8((48 + (hundredths % 10)))
+		value_7 := &((*(length)))
+		(*value_7) += 3
 	}
 }
 
 func SvgIconBehavior_StrokeAppendByte(output []uint8, length *int32, ziran_keyword_byte_0 uint8) {
 	if *(length) < int32(int64(len(output))) {
-		output[*(length)] = ziran_keyword_byte_0
-		(*(length))++
+		value_0 := &(output[*(length)])
+		(*value_0) = ziran_keyword_byte_0
+		value_1 := &((*(length)))
+		(*value_1)++
 	}
 }
 

@@ -7,8 +7,6 @@
 #include "drawing_props.h"
 #include "font_metrics.h"
 #include "geometry.h"
-#include "image_behavior.h"
-#include "image_props.h"
 #include "image_raster.h"
 #include "paint_queue.h"
 #include "style.h"
@@ -17,16 +15,19 @@
 #include "tree.h"
 
 Texture2D
-ImageTextureFor(ImageProps image)
+ImageTextureFor(zir_a62ab5d98ba48716_Props image)
 {
     Texture2D texture = image.texture;
     if (texture.id != 0 || StringEqual(image.asset_path, StringLiteral(""))) {
         return texture;
     }
-    texture.width = AssetWidth(image.asset_path);
-    texture.height = AssetHeight(image.asset_path);
+    int32_t* value_0 = &(texture.width);
+    (*value_0) = AssetWidth(image.asset_path);
+    int32_t* value_1 = &(texture.height);
+    (*value_1) = AssetHeight(image.asset_path);
     if (texture.width > 0 && texture.height > 0) {
-        texture.id = 1;
+        uint32_t* value_2 = &(texture.id);
+        (*value_2) = 1;
     }
     return texture;
 }

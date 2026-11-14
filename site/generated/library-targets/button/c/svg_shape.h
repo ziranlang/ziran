@@ -189,26 +189,40 @@ svg_shape_ShapeAddCircle_ziran_inline(float cx, float cy, float radius)
 static inline void
 svg_shape_ShapeQuad_ziran_inline(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3)
 {
-    polygon_x[0] = x0;
-    polygon_y[0] = y0;
-    polygon_x[1] = x1;
-    polygon_y[1] = y1;
-    polygon_x[2] = x2;
-    polygon_y[2] = y2;
-    polygon_x[3] = x3;
-    polygon_y[3] = y3;
+    float* value_0 = &(polygon_x[0]);
+    (*value_0) = x0;
+    float* value_1 = &(polygon_y[0]);
+    (*value_1) = y0;
+    float* value_2 = &(polygon_x[1]);
+    (*value_2) = x1;
+    float* value_3 = &(polygon_y[1]);
+    (*value_3) = y1;
+    float* value_4 = &(polygon_x[2]);
+    (*value_4) = x2;
+    float* value_5 = &(polygon_y[2]);
+    (*value_5) = y2;
+    float* value_6 = &(polygon_x[3]);
+    (*value_6) = x3;
+    float* value_7 = &(polygon_y[3]);
+    (*value_7) = y3;
     svg_shape_ShapeAddPolygon(4);
 }
 
 static inline void
 svg_shape_ShapeTriangle_ziran_inline(float x0, float y0, float x1, float y1, float x2, float y2)
 {
-    polygon_x[0] = x0;
-    polygon_y[0] = y0;
-    polygon_x[1] = x1;
-    polygon_y[1] = y1;
-    polygon_x[2] = x2;
-    polygon_y[2] = y2;
+    float* value_0 = &(polygon_x[0]);
+    (*value_0) = x0;
+    float* value_1 = &(polygon_y[0]);
+    (*value_1) = y0;
+    float* value_2 = &(polygon_x[1]);
+    (*value_2) = x1;
+    float* value_3 = &(polygon_y[1]);
+    (*value_3) = y1;
+    float* value_4 = &(polygon_x[2]);
+    (*value_4) = x2;
+    float* value_5 = &(polygon_y[2]);
+    (*value_5) = y2;
     svg_shape_ShapeAddPolygon(3);
 }
 
@@ -239,8 +253,10 @@ svg_shape_ShapeCollapse_ziran_inline(void)
             keep = (dx * dx) + (dy * dy) > ((float)0.000001);
         }
         if (keep) {
-            ZIRAN_INDEX(shape_x, sizeof(shape_x) / sizeof(shape_x[0]), write) = ZIRAN_INDEX(shape_x, 4096, read);
-            ZIRAN_INDEX(shape_y, sizeof(shape_y) / sizeof(shape_y[0]), write) = ZIRAN_INDEX(shape_y, 4096, read);
+            float* value_0 = &(ZIRAN_INDEX(shape_x, sizeof(shape_x) / sizeof(shape_x[0]), write));
+            (*value_0) = ZIRAN_INDEX(shape_x, 4096, read);
+            float* value_1 = &(ZIRAN_INDEX(shape_y, sizeof(shape_y) / sizeof(shape_y[0]), write));
+            (*value_1) = ZIRAN_INDEX(shape_y, 4096, read);
             write = (int32_t)((uint32_t)write + 1u);
         }
         read = (int32_t)((uint32_t)read + 1u);
@@ -267,8 +283,10 @@ svg_shape_ShapeAddPoint_ziran_inline(float x, float y)
         shape_overflow = true;
         return;
     }
-    ZIRAN_INDEX(shape_x, sizeof(shape_x) / sizeof(shape_x[0]), shape_point_count) = x;
-    ZIRAN_INDEX(shape_y, sizeof(shape_y) / sizeof(shape_y[0]), shape_point_count) = y;
+    float* value_0 = &(ZIRAN_INDEX(shape_x, sizeof(shape_x) / sizeof(shape_x[0]), shape_point_count));
+    (*value_0) = x;
+    float* value_1 = &(ZIRAN_INDEX(shape_y, sizeof(shape_y) / sizeof(shape_y[0]), shape_point_count));
+    (*value_1) = y;
     shape_point_count = (int32_t)((uint32_t)shape_point_count + 1u);
 }
 
@@ -298,17 +316,21 @@ svg_shape_ShapeAddSpan_ziran_inline(float start, float stop, int32_t width, floa
     int32_t first = (int32_t)SignedBits(FloatToInt(start, 32, 1), 32);
     int32_t last = (int32_t)SignedBits(FloatToInt(stop, 32, 1), 32);
     if (first == last) {
-        ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first) = ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first) + ((stop - start) * weight);
+        float* value_0 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first));
+        (*value_0) = (*value_0) + ((stop - start) * weight);
         return;
     }
-    ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first) = ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first) + (((float)(((int32_t)((uint32_t)first + 1u))) - start) * weight);
+    float* value_1 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), first));
+    (*value_1) = (*value_1) + (((float)(((int32_t)((uint32_t)first + 1u))) - start) * weight);
     int32_t index = (int32_t)((uint32_t)first + 1u);
     while (index < last) {
-        ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), index) = ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), index) + weight;
+        float* value_2 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), index));
+        (*value_2) = (*value_2) + weight;
         index = (int32_t)((uint32_t)index + 1u);
     }
     if (last < width) {
-        ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), last) = ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), last) + ((stop - (float)(last)) * weight);
+        float* value_3 = &(ZIRAN_INDEX(row_accumulator, sizeof(row_accumulator) / sizeof(row_accumulator[0]), last));
+        (*value_3) = (*value_3) + ((stop - (float)(last)) * weight);
     }
 }
 #endif

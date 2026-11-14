@@ -69,9 +69,12 @@ func Style_ResolveInteraction(explicit_state int32, disabled bool, loading bool,
 	state := Style_ResolveState(explicit_state, disabled, loading, pressed, hovered, focused, selected)
 	interaction := InteractionState{State: state, Hovered: hovered, Pressed: pressed, Focused: focused}
 	if explicit_state != 0 {
-		interaction.Hovered = state == 2
-		interaction.Pressed = state == 3
-		interaction.Focused = state == 4
+		value_0 := &(interaction.Hovered)
+		(*value_0) = state == 2
+		value_1 := &(interaction.Pressed)
+		(*value_1) = state == 3
+		value_2 := &(interaction.Focused)
+		(*value_2) = state == 4
 	}
 	return interaction
 }
@@ -166,99 +169,132 @@ func Style_ContentBounds(width float32, height float32, padding_x float32, paddi
 	if padding_y < 0.0 {
 		padding_y = 0.0
 	}
-	box.X = padding_x
-	box.Y = padding_y
-	box.Width = width - (2.0 * padding_x)
-	box.Height = height - (2.0 * padding_y)
+	value_0 := &(box.X)
+	(*value_0) = padding_x
+	value_1 := &(box.Y)
+	(*value_1) = padding_y
+	value_2 := &(box.Width)
+	(*value_2) = width - (2.0 * padding_x)
+	value_3 := &(box.Height)
+	(*value_3) = height - (2.0 * padding_y)
 	if box.Width < 0.0 {
-		box.Width = 0.0
+		value_4 := &(box.Width)
+		(*value_4) = 0.0
 	}
 	if box.Height < 0.0 {
-		box.Height = 0.0
+		value_5 := &(box.Height)
+		(*value_5) = 0.0
 	}
 	return box
 }
 
 func Style_MergeValues(base StyleData, override StyleData) StyleData {
 	if (override.Fields & 1) != 0 {
-		base.Background = override.Background
+		value_0 := &(base.Background)
+		(*value_0) = override.Background
 	}
 	if (override.Fields & 2) != 0 {
-		base.Foreground = override.Foreground
+		value_1 := &(base.Foreground)
+		(*value_1) = override.Foreground
 	}
 	if (override.Fields & 4) != 0 {
-		base.Border = override.Border
+		value_2 := &(base.Border)
+		(*value_2) = override.Border
 	}
 	if (override.Fields & 8) != 0 {
-		base.Focus = override.Focus
+		value_3 := &(base.Focus)
+		(*value_3) = override.Focus
 	}
 	if (override.Fields & 16) != 0 {
-		base.Radius = override.Radius
+		value_4 := &(base.Radius)
+		(*value_4) = override.Radius
 	}
 	if (override.Fields & 32) != 0 {
-		base.BorderWidth = override.BorderWidth
+		value_5 := &(base.BorderWidth)
+		(*value_5) = override.BorderWidth
 	}
 	if (override.Fields & 64) != 0 {
-		base.Opacity = override.Opacity
+		value_6 := &(base.Opacity)
+		(*value_6) = override.Opacity
 	}
 	if (override.Fields & 128) != 0 {
-		base.PaddingX = override.PaddingX
+		value_7 := &(base.PaddingX)
+		(*value_7) = override.PaddingX
 	}
 	if (override.Fields & 256) != 0 {
-		base.PaddingY = override.PaddingY
+		value_8 := &(base.PaddingY)
+		(*value_8) = override.PaddingY
 	}
 	if (override.Fields & 512) != 0 {
-		base.Gap = override.Gap
+		value_9 := &(base.Gap)
+		(*value_9) = override.Gap
 	}
 	if (override.Fields & 1024) != 0 {
-		base.FontSize = override.FontSize
+		value_10 := &(base.FontSize)
+		(*value_10) = override.FontSize
 	}
 	if (override.Fields & 2048) != 0 {
-		base.IconSize = override.IconSize
+		value_11 := &(base.IconSize)
+		(*value_11) = override.IconSize
 	}
 	if (override.Fields & 4096) != 0 {
-		base.OffsetX = override.OffsetX
+		value_12 := &(base.OffsetX)
+		(*value_12) = override.OffsetX
 	}
 	if (override.Fields & 4096) != 0 {
-		base.OffsetY = override.OffsetY
+		value_13 := &(base.OffsetY)
+		(*value_13) = override.OffsetY
 	}
 	if (override.Fields & 8192) != 0 {
-		base.BackgroundEnd = override.BackgroundEnd
+		value_14 := &(base.BackgroundEnd)
+		(*value_14) = override.BackgroundEnd
 	}
 	if (override.Fields & 16384) != 0 {
-		base.Material = MaterialKind(override.Material)
+		value_15 := &(base.Material)
+		(*value_15) = MaterialKind(override.Material)
 	}
 	if (override.Fields & 32768) != 0 {
-		base.Typeface = override.Typeface
+		value_16 := &(base.Typeface)
+		(*value_16) = override.Typeface
 	}
 	if (override.Fields & 65536) != 0 {
-		base.LetterSpacing = override.LetterSpacing
+		value_17 := &(base.LetterSpacing)
+		(*value_17) = override.LetterSpacing
 	}
 	if (override.Fields & 131072) != 0 {
-		base.MinHeight = override.MinHeight
+		value_18 := &(base.MinHeight)
+		(*value_18) = override.MinHeight
 	}
 	if (override.Fields & 262144) != 0 {
-		base.LineHeight = override.LineHeight
+		value_19 := &(base.LineHeight)
+		(*value_19) = override.LineHeight
 	}
 	if (override.Fields & 524288) != 0 {
-		base.FontRole = FontRole(override.FontRole)
+		value_20 := &(base.FontRole)
+		(*value_20) = FontRole(override.FontRole)
 	}
 	if (override.Fields & 1048576) != 0 {
-		base.Elevation = ElevationRole(override.Elevation)
+		value_21 := &(base.Elevation)
+		(*value_21) = ElevationRole(override.Elevation)
 	}
 	if (override.Fields & 2097152) != 0 {
-		base.MotionDuration = override.MotionDuration
+		value_22 := &(base.MotionDuration)
+		(*value_22) = override.MotionDuration
 	}
 	if (override.Fields & 4194304) != 0 {
-		base.MotionMultiplier = override.MotionMultiplier
+		value_23 := &(base.MotionMultiplier)
+		(*value_23) = override.MotionMultiplier
 	}
 	if (override.Fields & 8388608) != 0 {
-		base.MotionEasing = MotionEasing(override.MotionEasing)
+		value_24 := &(base.MotionEasing)
+		(*value_24) = MotionEasing(override.MotionEasing)
 	}
 	if (override.Fields & 16777216) != 0 {
-		base.MotionReduced = override.MotionReduced
+		value_25 := &(base.MotionReduced)
+		(*value_25) = override.MotionReduced
 	}
-	base.Fields = base.Fields | override.Fields
+	value_26 := &(base.Fields)
+	(*value_26) = base.Fields | override.Fields
 	return base
 }
 

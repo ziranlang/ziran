@@ -16,27 +16,33 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 #endif
 #include "geometry.h"
 #include "style.h"
-#include "text_props.h"
 
 TextAppearance
 ResolveTextStyle(int32_t font, int32_t inherited_font, int32_t default_font, uint32_t color, uint32_t inherited_color, uint32_t fallback_color, bool inherited_color_set, bool color_set, bool disabled, bool inherited_disabled, int32_t letter_spacing)
 {
     TextAppearance style = {0};
-    style.font = ResolveFont(font, inherited_font, default_font);
-    style.color = color;
+    int32_t* value_0 = &(style.font);
+    (*value_0) = ResolveFont(font, inherited_font, default_font);
+    uint32_t* value_1 = &(style.color);
+    (*value_1) = color;
     if (!color_set) {
-        style.color = fallback_color;
+        uint32_t* value_2 = &(style.color);
+        (*value_2) = fallback_color;
         if (inherited_color_set) {
-            style.color = inherited_color;
+            uint32_t* value_3 = &(style.color);
+            (*value_3) = inherited_color;
         }
     }
     if ((disabled || inherited_disabled) && (color_set || !inherited_color_set || !inherited_disabled)) {
         uint32_t alpha = (uint32_t)FloatToInt(((float)(((uint32_t)((uint32_t)(style.color) & 255u))) * ((float)0.45)), 32, 0);
-        style.color = (uint32_t)(((uint32_t)((style.color >> 8)) << 8) | (uint32_t)alpha);
+        uint32_t* value_4 = &(style.color);
+        (*value_4) = (uint32_t)(((uint32_t)((style.color >> 8)) << 8) | (uint32_t)alpha);
     }
-    style.letter_spacing = letter_spacing;
+    int32_t* value_5 = &(style.letter_spacing);
+    (*value_5) = letter_spacing;
     if (style.letter_spacing < 0) {
-        style.letter_spacing = 0;
+        int32_t* value_6 = &(style.letter_spacing);
+        (*value_6) = 0;
     }
     return style;
 }
@@ -54,7 +60,7 @@ int32_t
 TextWrapPolicy(float width, int32_t requested)
 {
     if (width <= ((float)0.0)) {
-        return (int32_t)(((TextWrap)(1)));
+        return (int32_t)(((Wrap)(1)));
     }
     return requested;
 }
@@ -78,9 +84,13 @@ TextStrikethroughBounds(float x, float y, float width, float line_height, float 
     if (scale < ((float)1.0)) {
         scale = (float)1.0;
     }
-    result.x = x;
-    result.y = y + (line_height * ((float)0.5));
-    result.width = width;
-    result.height = scale;
+    float* value_0 = &(result.x);
+    (*value_0) = x;
+    float* value_1 = &(result.y);
+    (*value_1) = y + (line_height * ((float)0.5));
+    float* value_2 = &(result.width);
+    (*value_2) = width;
+    float* value_3 = &(result.height);
+    (*value_3) = scale;
     return result;
 }

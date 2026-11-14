@@ -199,10 +199,11 @@ def mobile(data, samples, serial, ndk):
     assert cc.is_file(), cc
     out = WORK / 'mobile'
     out.mkdir(parents=True, exist_ok=True)
-    library = ROOT / 'build/bundle-runtime/android-armeabi-v7a/libziran.a'
-    # The ordinary Android portable archive is maintained by the repository.
-    run(['make', '-j4', 'BOOTSTRAP=1', 'BUILD_DIR=' + str(library.parent), 'CC=' + str(cc),
-         'AR=' + str(tools / 'llvm-ar'), 'OBJCOPY=' + str(tools / 'llvm-objcopy'), 'CFLAGS=-O2 -fPIC', library], env=env, timeout=600)
+    library = ROOT / 'build/android-runtime/armeabi-v7a/libziran.a'
+    # libziran with the instruction engine, which runs revision-28 bundles.
+    run(['make', '-j4', 'BUILD_DIR=' + str(library.parent), 'CC=' + str(cc),
+         'AR=' + str(tools / 'llvm-ar'), 'OBJCOPY=' + str(tools / 'llvm-objcopy'), 'CFLAGS=-O2 -fPIC',
+         'FRAMEFLAGS=-Wframe-larger-than=16384', library], env=env, timeout=1200)
     zx = out / 'zx-runner'
     runtime_build(cc, library, zx, ['-llog'])
     wamr = ROOT / 'build/benchmarks/zx-compare-apk/libwamr.a'

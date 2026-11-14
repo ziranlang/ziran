@@ -26,9 +26,12 @@ var frame_current_pointer [9]PointerFrame
 var frame_current_modifiers [9]int32
 func TreeDraw_FrameInputCommit(session Session) {
 	slot := Session_SessionIndex(session)
-	frame_owners[slot] = session
-	frame_pointer[slot] = frame_current_pointer[slot]
-	frame_modifiers[slot] = frame_current_modifiers[slot]
+	value_0 := &(frame_owners[slot])
+	(*value_0) = session
+	value_1 := &(frame_pointer[slot])
+	(*value_1) = frame_current_pointer[slot]
+	value_2 := &(frame_modifiers[slot])
+	(*value_2) = frame_current_modifiers[slot]
 }
 
 func TreeDraw_BeginFrame(session Session, screen_key uint64, bounds Rectangle) FrameStatus {
@@ -47,15 +50,17 @@ func TreeDraw_BeginFrame(session Session, screen_key uint64, bounds Rectangle) F
 	if !same_owner {
 		PaintQueue_PaintSnapshotInvalidate(session)
 	}
-	frame_current_pointer[slot] = pointer
-	frame_current_modifiers[slot] = active_modifiers[slot]
+	value_4 := &(frame_current_pointer[slot])
+	(*value_4) = pointer
+	value_5 := &(frame_current_modifiers[slot])
+	(*value_5) = active_modifiers[slot]
 	frame_retained = Session_SessionFlagSet(frame_retained, slot, false)
 	TreeInput_TreeKeyboardRoute(session)
 	TextInputPlatform_TextInputFocusFrameBegin(session)
 	PaintQueue_PaintClear(session)
-	var value_4 uint32 = frame_paint_unchanged
-	var value_5 int32 = Session_SessionIndex(session)
-	frame_paint_unchanged = Session_SessionFlagSet(value_4, value_5, false)
+	var value_6 uint32 = frame_paint_unchanged
+	var value_7 int32 = Session_SessionIndex(session)
+	frame_paint_unchanged = Session_SessionFlagSet(value_6, value_7, false)
 	Tree_TreeStart(session, screen_key, bounds)
 	return FrameStatus(Tree_TreeFrameStatus(session))
 }
@@ -180,29 +185,35 @@ func TreeDraw_EndFrameRetained(session Session, reuse bool, compare bool) FrameE
 		value_1 = value_3
 	}
 	retained := value_1
-	result.Status = FrameStatus(TreeDraw_CommitFrame(session))
+	value_4 := &(result.Status)
+	(*value_4) = FrameStatus(TreeDraw_CommitFrame(session))
 	if FrameStatus(result.Status) != FrameStatus(0) {
 		PaintQueue_PaintSnapshotInvalidate(session)
 		return result
 	}
 	slot := Session_SessionIndex(session)
 	if retained {
-		result.PaintCount = int32((paint_snapshots[slot]).Count)
-		result.PaintUnchanged = true
+		value_5 := &(result.PaintCount)
+		(*value_5) = int32((paint_snapshots[slot]).Count)
+		value_6 := &(result.PaintUnchanged)
+		(*value_6) = true
 		frame_paint_unchanged = Session_SessionFlagSet(frame_paint_unchanged, slot, reuse)
-		var value_4 bool = !reuse
-		if value_4 {
-			var value_5 bool = PaintQueue_PaintSnapshotEmit(session)
-			value_4 = !value_5
+		var value_7 bool = !reuse
+		if value_7 {
+			var value_8 bool = PaintQueue_PaintSnapshotEmit(session)
+			value_7 = !value_8
 		}
-		if value_4 {
+		if value_7 {
 			PaintQueue_PaintSnapshotInvalidate(session)
-			result.Status = FrameStatus(8)
-			result.PaintUnchanged = false
+			value_9 := &(result.Status)
+			(*value_9) = FrameStatus(8)
+			value_10 := &(result.PaintUnchanged)
+			(*value_10) = false
 		}
 		return result
 	}
-	result.PaintCount = PaintQueue_PendingPaintCount(session)
+	value_11 := &(result.PaintCount)
+	(*value_11) = PaintQueue_PendingPaintCount(session)
 	if !compare {
 		if Session_SessionFlagGet(paint_snapshots_valid, slot) {
 			PaintQueue_PaintSnapshotInvalidate(session)
@@ -216,14 +227,16 @@ func TreeDraw_EndFrameRetained(session Session, reuse bool, compare bool) FrameE
 	if !unchanged {
 		stored = PaintQueue_PaintSnapshotStore(session)
 	}
-	result.PaintUnchanged = unchanged && stored
+	value_12 := &(result.PaintUnchanged)
+	(*value_12) = unchanged && stored
 	frame_paint_unchanged = Session_SessionFlagSet(frame_paint_unchanged, slot, result.PaintUnchanged && reuse)
 	if result.PaintUnchanged && reuse {
 		PaintQueue_PaintClear(session)
 	} else {
 		PaintQueue_PaintFlush(session)
 	}
-	result.Status = FrameStatus(0)
+	value_13 := &(result.Status)
+	(*value_13) = FrameStatus(0)
 	return result
 }
 
@@ -247,25 +260,30 @@ func TreeDraw_CommitFrameDamaged(session Session) FrameEndResult {
 		return TreeDraw_EndFrameRetained(session, true, true)
 	}
 	var result FrameEndResult = FrameEndResult{}
-	result.Status = FrameStatus(TreeDraw_CommitFrame(session))
+	value_4 := &(result.Status)
+	(*value_4) = FrameStatus(TreeDraw_CommitFrame(session))
 	if FrameStatus(result.Status) != FrameStatus(0) {
 		PaintQueue_PaintSnapshotInvalidate(session)
 		return result
 	}
 	slot := Session_SessionIndex(session)
-	result.PaintCount = PaintQueue_PendingPaintCount(session)
+	value_5 := &(result.PaintCount)
+	(*value_5) = PaintQueue_PendingPaintCount(session)
 	damage := PaintQueue_PaintDamage(session)
 	stored := damage.Unchanged
 	if !damage.Unchanged {
 		stored = PaintQueue_PaintSnapshotStore(session)
 	}
-	result.PaintUnchanged = damage.Unchanged && stored
+	value_6 := &(result.PaintUnchanged)
+	(*value_6) = damage.Unchanged && stored
 	frame_paint_unchanged = Session_SessionFlagSet(frame_paint_unchanged, slot, result.PaintUnchanged)
 	if result.PaintUnchanged {
 		PaintQueue_PaintClear(session)
 	} else if damage.Partial && stored {
-		result.DamagePartial = true
-		result.Damage = damage.Area
+		value_7 := &(result.DamagePartial)
+		(*value_7) = true
+		value_8 := &(result.Damage)
+		(*value_8) = damage.Area
 	}
 	return result
 }

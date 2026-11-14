@@ -10,13 +10,18 @@ type DismissibleOverlayPolicy struct {
 
 func OverlayBehavior_DismissibleOverlayPolicyFor(released bool, release_consumed bool, dismiss_disabled bool, pointer_inside bool) DismissibleOverlayPolicy {
 	var policy DismissibleOverlayPolicy = DismissibleOverlayPolicy{}
-	policy.Tapped = released && !release_consumed
+	value_0 := &(policy.Tapped)
+	(*value_0) = released && !release_consumed
 	if released && !release_consumed && !dismiss_disabled && !pointer_inside {
-		policy.Closed = true
-		policy.OutsideReleased = true
-		policy.ReleaseConsumed = true
+		value_1 := &(policy.Closed)
+		(*value_1) = true
+		value_2 := &(policy.OutsideReleased)
+		(*value_2) = true
+		value_3 := &(policy.ReleaseConsumed)
+		(*value_3) = true
 		return policy
 	}
-	policy.ReleaseConsumed = release_consumed
+	value_4 := &(policy.ReleaseConsumed)
+	(*value_4) = release_consumed
 	return policy
 }

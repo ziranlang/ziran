@@ -7,8 +7,6 @@ package main
 // #import drawing_props
 // #import font_metrics
 // #import geometry
-// #import image_behavior
-// #import image_props
 // #import image_raster
 // #import paint_queue
 // #import style
@@ -22,47 +20,61 @@ type ImageFaces struct {
 }
 
 type ImageShown struct {
-	Image ImageProps
+	Image zir_a62ab5d98ba48716_Props
 	Texture Texture2D
 	Showing ImageShowing
 }
 
 func Image_DefaultImageFaces() ImageFaces {
 	var faces ImageFaces = ImageFaces{}
-	faces.Surface.Fields = 66
-	faces.Surface.Foreground = 4294967295
-	faces.Surface.Opacity = 1.0
-	faces.Label.Fields = 1026
-	faces.Label.Foreground = Theme_CurrentText()
-	faces.Label.FontSize = 14.0
+	value_0 := &(faces.Surface.Fields)
+	(*value_0) = 66
+	value_1 := &(faces.Surface.Foreground)
+	(*value_1) = 4294967295
+	value_2 := &(faces.Surface.Opacity)
+	(*value_2) = 1.0
+	value_3 := &(faces.Label.Fields)
+	(*value_3) = 1026
+	value_4 := &(faces.Label.Foreground)
+	(*value_4) = Theme_CurrentText()
+	value_5 := &(faces.Label.FontSize)
+	(*value_5) = 14.0
 	return faces
 }
 
-func Image_ImageFacesFor(image ImageProps, defaults ImageFaces) ImageFaces {
+func Image_ImageFacesFor(image zir_a62ab5d98ba48716_Props, defaults ImageFaces) ImageFaces {
 	faces := defaults
 	facts := StyleSheet_StyleDefaultFacts(StyleSheet_StyleKindImage())
-	facts.ID = image.ID
-	facts.ClassName = image.ClassName
-	faces.Surface = StyleSheet_ResolveInstalledStyleRules(defaults.Surface, facts, 1)
-	facts.Role = ImageBehavior_ImageLabelRole()
-	faces.Label = StyleSheet_ResolveInstalledStyleRules(defaults.Label, facts, 1)
+	value_0 := &(facts.ID)
+	(*value_0) = image.ID
+	value_1 := &(facts.ClassName)
+	(*value_1) = image.ClassName
+	value_2 := &(faces.Surface)
+	(*value_2) = StyleSheet_ResolveInstalledStyleRules(defaults.Surface, facts, 1)
+	value_3 := &(facts.Role)
+	(*value_3) = ImageBehavior_ImageLabelRole()
+	value_4 := &(faces.Label)
+	(*value_4) = StyleSheet_ResolveInstalledStyleRules(defaults.Label, facts, 1)
 	return faces
 }
 
-func Image_ImageTextureFor(image ImageProps) Texture2D {
+func Image_ImageTextureFor(image zir_a62ab5d98ba48716_Props) Texture2D {
 	texture := image.Texture
 	if texture.ID != 0 || image.AssetPath == "" {
 		return texture
 	}
-	texture.Width = ImageRaster_AssetWidth(image.AssetPath)
-	texture.Height = ImageRaster_AssetHeight(image.AssetPath)
+	value_0 := &(texture.Width)
+	(*value_0) = ImageRaster_AssetWidth(image.AssetPath)
+	value_1 := &(texture.Height)
+	(*value_1) = ImageRaster_AssetHeight(image.AssetPath)
 	if texture.Width > 0 && texture.Height > 0 {
-		texture.ID = 1
+		value_2 := &(texture.ID)
+		(*value_2) = 1
 	}
 	return texture
 }
 
-func Image_ImageShownFor(image ImageProps) ImageShown {
+func Image_ImageShownFor(image zir_a62ab5d98ba48716_Props) ImageShown {
 	full := Image_ImageTextureFor(image)
 	shown := ImageShown{Image: image, Texture: full}
 	var preview_texture Texture2D = Texture2D{}
@@ -73,15 +85,20 @@ func Image_ImageShownFor(image ImageProps) ImageShown {
 	}
 	if value_0 {
 		preview := image
-		preview.AssetPath = image.PreviewPath
+		value_2 := &(preview.AssetPath)
+		(*value_2) = image.PreviewPath
 		preview_texture = Image_ImageTextureFor(preview)
 		if preview_texture.ID != 0 {
-			preview.Source = ImageBehavior_ImagePreviewSource(image.Source, image.FullSize, preview_texture.Width, preview_texture.Height)
-			shown.Image = preview
-			shown.Texture = preview_texture
+			value_3 := &(preview.Source)
+			(*value_3) = ImageBehavior_ImagePreviewSource(image.Source, image.FullSize, preview_texture.Width, preview_texture.Height)
+			value_4 := &(shown.Image)
+			(*value_4) = preview
+			value_5 := &(shown.Texture)
+			(*value_5) = preview_texture
 		}
 	}
-	shown.Showing = ImageShowing(ImageBehavior_ImageShowingFor(full, preview_texture))
+	value_6 := &(shown.Showing)
+	(*value_6) = ImageShowing(ImageBehavior_ImageShowingFor(full, preview_texture))
 	return shown
 }
 
@@ -93,7 +110,7 @@ func Image_ImageTint(surface StyleData) Color {
 	return DrawingProps_ColorFromPacked(Surface_Opacity(packed, Style_StyleOpacityValue(surface.Fields, surface.Opacity)))
 }
 
-func Image_PaintImagePlaceholder(session Session, node int32, image ImageProps, label_style StyleData) {
+func Image_PaintImagePlaceholder(session Session, node int32, image zir_a62ab5d98ba48716_Props, label_style StyleData) {
 	label := image.AltText
 	if label == "" {
 		label = "Missing image"
@@ -104,82 +121,4 @@ func Image_PaintImagePlaceholder(session Session, node int32, image ImageProps, 
 	layout := ImageBehavior_ImagePlaceholderLayoutFor(image.Bounds, width, height)
 	var value_0 Color = DrawingProps_ColorFromPacked(Surface_Opacity(label_style.Foreground, Style_StyleOpacityValue(label_style.Fields, label_style.Opacity)))
 	PaintQueue_PaintLabel(session, node, label, layout.LabelX, layout.LabelY, font, value_0, "")
-}
-
-func Image_Image(session Session, image ImageProps) {
-	var value_0 bool = BitmapStore_BitmapTagged(image.Texture.ID)
-	var value_1 bool = value_0
-	if value_1 {
-		var value_2 bool = Session_SessionValid(session)
-		var value_3 bool = !value_2
-		if !value_3 {
-			var value_4 bool = BitmapStore_BitmapOwnedSlot(session.Slot, session.Epoch, image.Texture) < 0
-			value_3 = value_4
-		}
-		value_1 = value_3
-	}
-	if value_1 {
-		return
-	}
-	var node int32 = -1
-	if Tree_TreeIsBuilding(session) {
-		node = Tree_TreeSubmitCurrent(session, image.Key, 24, image.Bounds)
-		if node < 0 {
-			return
-		}
-		Tree_TreeSetStyleClass(session, node, image.ClassName)
-		Tree_TreeSetStyleId(session, node, image.ID)
-		Tree_TreeSetLabel(session, node, image.AltText)
-		Tree_TreeSetSemanticDetail(session, node, image.AssetPath)
-		Tree_TreeSetSemantic(session, node, SemanticKindSemanticImage, 0)
-	}
-	faces := Image_ImageFacesFor(image, Image_DefaultImageFaces())
-	var radius float32 = 0.0
-	if (faces.Surface.Fields & 16) != 0 {
-		radius = faces.Surface.Radius
-	}
-	if image.Radius > 0.0 {
-		radius = image.Radius
-	}
-	if (faces.Surface.Fields & 1) != 0 {
-		PaintQueue_PaintRoundedFill(session, node, image.Bounds, radius, 12, DrawingProps_ColorFromPacked(faces.Surface.Background))
-	}
-	shown := Image_ImageShownFor(image)
-	drawn := shown.Image
-	texture := shown.Texture
-	tint := Image_ImageTint(faces.Surface)
-	if image.Tint != 0 {
-		tint = DrawingProps_ColorFromPacked(Surface_Opacity(image.Tint, Style_StyleOpacityValue(faces.Surface.Fields, faces.Surface.Opacity)))
-	}
-	plan := ImageBehavior_ImageDrawPlanFor(drawn, texture, tint)
-	var value_5 bool = int64(len(image.ClipPolygon)) > 0
-	if value_5 {
-		var value_6 bool = ImageBehavior_ImagePolygonValid(image.ClipPolygon)
-		var value_7 bool = !value_6
-		if !value_7 {
-			var value_8 bool = ImageBehavior_ImageMeshActive(image.Mesh)
-			value_7 = value_8
-		}
-		value_5 = value_7
-	}
-	if value_5 {
-		return
-	}
-	if ImageBehavior_ImageMeshActive(image.Mesh) {
-		var value_9 bool = plan.Draw && tint.A > 0
-		if value_9 {
-			var value_10 bool = ImageBehavior_ImageMeshComplete(image.Mesh)
-			value_9 = value_10
-		}
-		if value_9 {
-			PaintQueue_PaintImageMesh(session, node, drawn.AssetPath, image.Texture.ID, plan.Source, image.Mesh.Columns, image.Mesh.Rows, image.Mesh.Points, image.Bounds, plan.Tint, image.Texture, image.Smooth)
-		}
-	} else if plan.Draw && tint.A > 0 {
-		PaintQueue_PaintImageWithPolygon(session, node, drawn.AssetPath, image.Texture.ID, plan.Source, plan.Destination, image.Bounds, image.Origin, image.Rotation, radius, plan.Tint, image.Texture, image.Smooth, image.ClipPolygon)
-	} else if !plan.Draw && texture.Width >= 0 && texture.Height >= 0 && ImageShowing(shown.Showing) != ImageShowingNone {
-		Image_PaintImagePlaceholder(session, node, image, faces.Label)
-	}
-	if (faces.Surface.Fields & 32) != 0 && faces.Surface.BorderWidth > 0.0 {
-		PaintQueue_PaintRoundedOutline(session, node, image.Bounds, radius, 12, faces.Surface.BorderWidth, DrawingProps_ColorFromPacked(faces.Surface.Border))
-	}
 }

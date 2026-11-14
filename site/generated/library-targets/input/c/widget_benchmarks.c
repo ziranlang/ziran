@@ -3,19 +3,16 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "widget_benchmarks.h"
+#include "std_vec.h"
 #include "session.h"
 #include "geometry.h"
 #include "control_props.h"
-#include "button.h"
-#include "button_props.h"
-#include "text.h"
-#include "textfield.h"
-#include "text_input_props.h"
 #include "tree.h"
 #include "tree_draw.h"
 #include "tree_input.h"
 #include "widget_benchmark_host.h"
-#include "ziran_system_clipboard_host.h"
+#include "system_clipboard_host.h"
+#include "std_vec.h"
 Session benchmark_session = {0};
 uint64_t benchmark_frame = {0};
 
@@ -35,50 +32,71 @@ int32_t
 InputCase(void)
 {
     Session session = widget_benchmarks_BeginCase();
-    TextFieldProps props = {0};
-    props.key = 9ULL;
-    props.bounds = (Rectangle){.x = (float)10.0, .y = (float)20.0, .width = (float)220.0, .height = (float)40.0};
-    props.value = StringLiteral("A\303\251B");
-    props.label = StringLiteral("Name");
-    props.cursor = 4;
-    props.anchor = 4;
+    zir_e3d05ce257aa07f3_Props props = {0};
+    uint64_t* value_0 = &(props.key);
+    (*value_0) = 9ULL;
+    Rectangle* value_1 = &(props.bounds);
+    (*value_1) = (Rectangle){.x = (float)10.0, .y = (float)20.0, .width = (float)220.0, .height = (float)40.0};
+    String* value_2 = &(props.value);
+    (*value_2) = StringLiteral("A\303\251B");
+    String* value_3 = &(props.label);
+    (*value_3) = StringLiteral("Name");
+    int32_t* value_4 = &(props.cursor);
+    (*value_4) = 4;
+    int32_t* value_5 = &(props.anchor);
+    (*value_5) = 4;
     Rectangle viewport = {.x = (float)0.0, .y = (float)0.0, .width = (float)300.0, .height = (float)160.0};
     if (((FrameStatus)(BeginFrame(session, benchmark_frame, viewport))) != ((FrameStatus)(0LL))) {
         return 1;
     }
-    TextFieldResult first = TextField(session, props);
-    bool value_0 = ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL));
-    if (value_0 || first.edit.changed) {
+    Result first = textfield_Draw(session, props);
+    bool value_6 = ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL));
+    if (value_6 || first.edit.changed) {
         return 2;
     }
     TreePointerUpdate(session, (PointerFrame){.x = (float)200.0, .y = (float)40.0, .down = true, .pressed = true, .released = false});
     TreePointerUpdate(session, (PointerFrame){.x = (float)200.0, .y = (float)40.0, .down = false, .pressed = false, .released = true});
-    props.input.text = StringLiteral("Z");
+    String* value_7 = &(props.input.text);
+    (*value_7) = StringLiteral("Z");
     if (((FrameStatus)(BeginFrame(session, benchmark_frame, viewport))) != ((FrameStatus)(0LL))) {
         return 3;
     }
-    TextFieldResult edited = TextField(session, props);
-    bool value_1 = ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL));
-    if (value_1 || !edited.focused || !edited.edit.changed) {
+    Result edited = textfield_Draw(session, props);
+    bool value_8 = ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL));
+    if (value_8 || !edited.focused || !edited.edit.changed) {
         return 4;
     }
-    bool value_2 = edited.edit.start != 4 || edited.edit.end != 4 || !StringEqual(edited.edit.replacement, StringLiteral("Z"));
-    if (value_2 || edited.cursor != 5) {
+    bool value_9 = edited.edit.start != 4 || edited.edit.end != 4 || !StringEqual(edited.edit.replacement, StringLiteral("Z"));
+    if (value_9 || edited.cursor != 5) {
         return 5;
     }
-    TreeEntry value_3 = TreeNodeAt(session, edited.node);
-    bool value_4 = !StringEqual(value_3.semantic_label, props.label);
-    if (!value_4) {
-        int64_t value_5 = widget_benchmark_host_WidgetTextCount();
-        value_4 = (value_5 < 2LL);
+    TreeEntry value_10 = TreeNodeAt(session, edited.node);
+    bool value_11 = !StringEqual(value_10.semantic_label, props.label);
+    if (!value_11) {
+        int64_t value_12 = widget_benchmark_host_WidgetTextCount();
+        value_11 = (value_12 < 2LL);
     }
-    bool value_6 = value_4;
-    if (!value_6) {
-        int64_t value_7 = widget_benchmark_host_WidgetPaintChecksum();
-        value_6 = (value_7 <= 0LL);
+    bool value_13 = value_11;
+    if (!value_13) {
+        int64_t value_14 = widget_benchmark_host_WidgetPaintChecksum();
+        value_13 = (value_14 <= 0LL);
     }
-    if (value_6) {
+    if (value_13) {
         return 6;
     }
     return 0;
+}
+
+#include <stdlib.h>
+void ziran_init_textfield(void);
+
+static int ziran_state_ziran_init_widget_benchmarks;
+void
+ziran_init_widget_benchmarks(void)
+{
+    if(ziran_state_ziran_init_widget_benchmarks == 2) return;
+    if(ziran_state_ziran_init_widget_benchmarks == 1) abort();
+    ziran_state_ziran_init_widget_benchmarks = 1;
+    ziran_init_textfield();
+    ziran_state_ziran_init_widget_benchmarks = 2;
 }

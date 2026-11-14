@@ -26,58 +26,19 @@ type BitmapStorage struct {
 }
 
 const BITMAP_IMAGE_LIMIT = 64
-const BITMAP_IMAGE_TAG = 2147483648
 var bitmap_release_notice BitmapReleaseNotice
 var bitmap_images [64]BitmapStorage
 var bitmap_revision uint64
 var bitmap_bytes int64
 var bitmap_changed BitmapChanged
 var bitmap_free BitmapFree
-func BitmapStore_BitmapTagged(id uint32) bool {
-	return (id & 2147483648) != 0
-}
-
-func BitmapStore_BitmapSlot(id uint32) int32 {
-	var value_0 bool = BitmapStore_BitmapTagged(id)
-	if !value_0 {
-		return -1
-	}
-	{
-		var range_first_3 int32 = 0
-		var range_last_3 int32 = 63
-		at := range_first_3
-		for at <= range_last_3 {
-			if ((bitmap_images[at]).Image).ID == id {
-				return at
-			}
-			if at == range_last_3 {
-				break
-			}
-			at++
-		}
-	}
-	return -1
-}
-
-func BitmapStore_BitmapOwnedSlot(slot int32, epoch uint64, image Texture2D) int32 {
-	at := BitmapStore_BitmapSlot(image.ID)
-	if at < 0 {
-		return -1
-	}
-	item := &(bitmap_images[at])
-	var value_0 bool = item.OwnerSlot != slot || item.OwnerEpoch != epoch || item.Image.Width != image.Width || item.Image.Height != image.Height
-	if value_0 || image.Mipmaps != 1 || image.Format != 7 {
-		return -1
-	}
-	return at
-}
-
 func BitmapStore_BitmapPublish(at int32) {
 	bitmap_revision++
-	(bitmap_images[at]).Revision = bitmap_revision
+	value_0 := &((bitmap_images[at]).Revision)
+	(*value_0) = bitmap_revision
 	if bitmap_changed != nil {
-		var value_0 BitmapChanged = bitmap_changed
-		value_0()
+		var value_1 BitmapChanged = bitmap_changed
+		value_1()
 	}
 }
 
@@ -101,10 +62,14 @@ func BitmapStore_BitmapDrop(at int32) {
 	item.Premultiplied.Data = nil
 	item.Premultiplied.Capacity = 0
 	item.Premultiplied.Count = 0
-	item.Image = Texture2D{}
-	item.OwnerSlot = 0
-	item.OwnerEpoch = 0
-	item.ProviderId = 0
+	value_2 := &(item.Image)
+	(*value_2) = Texture2D{}
+	value_3 := &(item.OwnerSlot)
+	(*value_3) = 0
+	value_4 := &(item.OwnerEpoch)
+	(*value_4) = 0
+	value_5 := &(item.ProviderId)
+	(*value_5) = 0
 	BitmapStore_BitmapPublish(at)
 }
 

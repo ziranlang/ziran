@@ -4,11 +4,12 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#include "text_field_props.h"
+#include "button.h"
+#include "text.h"
 #include "theme.h"
 #include "text_host.h"
 #include "session.h"
-#include "button_props.h"
-#include "button.h"
 #include "control_props.h"
 #include "drawing_props.h"
 #include "font_metrics.h"
@@ -22,31 +23,30 @@
 #include "text_context_menu.h"
 #include "text_input.h"
 #include "text_input_platform.h"
-#include "text_input_props.h"
-#include "text.h"
 #include "tree.h"
 #include "tree_input.h"
 #include "text_request.h"
+#include "text_boundary.h"
 #include "std_grapheme.h"
 #include "std_utf8.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-uint64_t TextFieldKey(Session session, TextFieldProps props);
+uint64_t TextFieldKey(Session session, zir_e3d05ce257aa07f3_Props props);
 StyleData TextFieldDefaultFace(void);
-StyleFrame TextFieldFaceFor(TextFieldProps props, bool focused);
+StyleFrame TextFieldFaceFor(zir_e3d05ce257aa07f3_Props props, bool focused);
 int32_t TextFieldPrevious(String value, int32_t cursor);
 int32_t TextFieldNext(String value, int32_t cursor);
 int32_t TextFieldCodepoints(String value);
 int32_t TextFieldByteAfter(String value, int32_t codepoints);
 bool TextFieldInputTextAllowed(String value);
-bool TextFieldReplacementAllowed(TextFieldProps props, int32_t start, int32_t end, String replacement);
+bool TextFieldReplacementAllowed(zir_e3d05ce257aa07f3_Props props, int32_t start, int32_t end, String replacement);
 int32_t TextFieldCursorAtX(String value, int32_t x, int32_t font, String typeface);
 int32_t TextFieldDisplayByteFor(String value, String display, int32_t cursor, bool secure);
-TextFieldEdit TextFieldEditFor(TextFieldProps props, int32_t cursor, int32_t anchor);
-TextFieldResult textfield_TextFieldCore(Session session, TextFieldProps props);
-TextFieldResult TextField(Session session, TextFieldProps props);
+Edit TextFieldEditFor(zir_e3d05ce257aa07f3_Props props, int32_t cursor, int32_t anchor);
+Result textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props);
+Result textfield_Draw(Session session, zir_e3d05ce257aa07f3_Props props);
 
 #ifdef __cplusplus
 }

@@ -53,24 +53,34 @@ type FillStates struct {
 
 func Surface_AdvanceMotion(track MotionTrack, target float32, delta_ms float32, duration_ms float32, immediate bool) MotionTrack {
 	if immediate || duration_ms <= 0.0 {
-		track.Value = target
-		track.Origin = target
-		track.Target = target
-		track.ElapsedMs = 0.0
+		value_0 := &(track.Value)
+		(*value_0) = target
+		value_1 := &(track.Origin)
+		(*value_1) = target
+		value_2 := &(track.Target)
+		(*value_2) = target
+		value_3 := &(track.ElapsedMs)
+		(*value_3) = 0.0
 		return track
 	}
 	if target != track.Target {
-		track.Origin = track.Value
-		track.Target = target
-		track.ElapsedMs = 0.0
+		value_4 := &(track.Origin)
+		(*value_4) = track.Value
+		value_5 := &(track.Target)
+		(*value_5) = target
+		value_6 := &(track.ElapsedMs)
+		(*value_6) = 0.0
 	}
 	if delta_ms > 0.0 {
-		track.ElapsedMs += delta_ms
+		value_7 := &(track.ElapsedMs)
+		(*value_7) += delta_ms
 	}
 	if track.ElapsedMs > duration_ms {
-		track.ElapsedMs = duration_ms
+		value_8 := &(track.ElapsedMs)
+		(*value_8) = duration_ms
 	}
-	track.Value = Surface_Transition(track.Origin, track.Target, track.ElapsedMs, duration_ms)
+	value_9 := &(track.Value)
+	(*value_9) = Surface_Transition(track.Origin, track.Target, track.ElapsedMs, duration_ms)
 	return track
 }
 
@@ -100,21 +110,25 @@ func Surface_AdvanceInteraction(track MotionTrack, channel int32, hovered bool, 
 }
 
 func Surface_AdvanceInteractionMotion(motion InteractionMotion, hovered bool, pressed bool, focused bool, enabled bool, explicit_state bool, disabled bool, loading bool, delta_ms float32, normal_ms float32, fast_ms float32) InteractionMotion {
-	motion.Hover = Surface_AdvanceInteraction(motion.Hover, 0, hovered, pressed, focused, enabled, explicit_state, disabled, loading, delta_ms, normal_ms, fast_ms)
-	motion.Press = Surface_AdvanceInteraction(motion.Press, 1, hovered, pressed, focused, enabled, explicit_state, disabled, loading, delta_ms, normal_ms, fast_ms)
-	motion.Focus = Surface_AdvanceInteraction(motion.Focus, 2, hovered, pressed, focused, enabled, explicit_state, disabled, loading, delta_ms, normal_ms, fast_ms)
-	var value_0 bool = Surface_MotionActive(motion.Hover)
-	var value_1 bool = value_0
-	if !value_1 {
-		var value_2 bool = Surface_MotionActive(motion.Press)
-		value_1 = value_2
+	value_0 := &(motion.Hover)
+	(*value_0) = Surface_AdvanceInteraction(motion.Hover, 0, hovered, pressed, focused, enabled, explicit_state, disabled, loading, delta_ms, normal_ms, fast_ms)
+	value_1 := &(motion.Press)
+	(*value_1) = Surface_AdvanceInteraction(motion.Press, 1, hovered, pressed, focused, enabled, explicit_state, disabled, loading, delta_ms, normal_ms, fast_ms)
+	value_2 := &(motion.Focus)
+	(*value_2) = Surface_AdvanceInteraction(motion.Focus, 2, hovered, pressed, focused, enabled, explicit_state, disabled, loading, delta_ms, normal_ms, fast_ms)
+	value_3 := &(motion.Active)
+	var value_4 bool = Surface_MotionActive(motion.Hover)
+	var value_5 bool = value_4
+	if !value_5 {
+		var value_6 bool = Surface_MotionActive(motion.Press)
+		value_5 = value_6
 	}
-	var value_3 bool = value_1
-	if !value_3 {
-		var value_4 bool = Surface_MotionActive(motion.Focus)
-		value_3 = value_4
+	var value_7 bool = value_5
+	if !value_7 {
+		var value_8 bool = Surface_MotionActive(motion.Focus)
+		value_7 = value_8
 	}
-	motion.Active = value_3
+	(*value_3) = value_7
 	return motion
 }
 
@@ -123,39 +137,58 @@ func Surface_FillState(fields uint32, start uint32, end uint32) FillStates {
 }
 
 func Surface_FillTransition(normal FillStates, hover FillStates, press FillStates, focus FillStates, h float32, p float32, f float32) FillStates {
-	normal.Hover = hover.Normal
-	normal.Press = press.Normal
-	normal.Focus = focus.Normal
-	normal.HoverStart = hover.NormalStart
-	normal.HoverEnd = hover.NormalEnd
-	normal.PressStart = press.NormalStart
-	normal.PressEnd = press.NormalEnd
-	normal.FocusStart = focus.NormalStart
-	normal.FocusEnd = focus.NormalEnd
-	normal.HoverAmount = h
-	normal.PressAmount = p
-	normal.FocusAmount = f
+	value_0 := &(normal.Hover)
+	(*value_0) = hover.Normal
+	value_1 := &(normal.Press)
+	(*value_1) = press.Normal
+	value_2 := &(normal.Focus)
+	(*value_2) = focus.Normal
+	value_3 := &(normal.HoverStart)
+	(*value_3) = hover.NormalStart
+	value_4 := &(normal.HoverEnd)
+	(*value_4) = hover.NormalEnd
+	value_5 := &(normal.PressStart)
+	(*value_5) = press.NormalStart
+	value_6 := &(normal.PressEnd)
+	(*value_6) = press.NormalEnd
+	value_7 := &(normal.FocusStart)
+	(*value_7) = focus.NormalStart
+	value_8 := &(normal.FocusEnd)
+	(*value_8) = focus.NormalEnd
+	value_9 := &(normal.HoverAmount)
+	(*value_9) = h
+	value_10 := &(normal.PressAmount)
+	(*value_10) = p
+	value_11 := &(normal.FocusAmount)
+	(*value_11) = f
 	return normal
 }
 
 func Surface_FlatLayer(index int32, width float32, height float32, radius float32, border_width float32, background uint32, border uint32, opacity float32) SurfaceLayer {
 	layer := SurfaceLayer{Width: width, Height: height, Radius: radius}
 	if index == 0 {
-		layer.Color = Surface_Opacity(background, opacity)
+		value_0 := &(layer.Color)
+		(*value_0) = Surface_Opacity(background, opacity)
 	}
 	if index == 1 && border_width > 0.0 {
-		layer.Color = Surface_Opacity(border, opacity)
-		layer.Stroke = border_width
+		value_1 := &(layer.Color)
+		(*value_1) = Surface_Opacity(border, opacity)
+		value_2 := &(layer.Stroke)
+		(*value_2) = border_width
 	}
 	return layer
 }
 
 func Surface_FillGradient(layer SurfaceLayer, enabled bool, start uint32, end uint32, opacity float32) SurfaceLayer {
 	if enabled {
-		layer.Color = Surface_Opacity(start, opacity)
-		layer.EndColor = Surface_Opacity(end, opacity)
-		layer.Gradient = true
-		layer.GradientBias = 0.0
+		value_0 := &(layer.Color)
+		(*value_0) = Surface_Opacity(start, opacity)
+		value_1 := &(layer.EndColor)
+		(*value_1) = Surface_Opacity(end, opacity)
+		value_2 := &(layer.Gradient)
+		(*value_2) = true
+		value_3 := &(layer.GradientBias)
+		(*value_3) = 0.0
 	}
 	return layer
 }
@@ -319,7 +352,8 @@ func Surface_MaterialLayer(material MaterialKind, index int32, width float32, he
 	var layer SurfaceLayer = SurfaceLayer{}
 	if index == 0 || index == 1 {
 		layer = Surface_FlatLayer(index, width, height, radius, border_width, background, border, opacity)
-		layer.IsFace = index == 0
+		value_0 := &(layer.IsFace)
+		(*value_0) = index == 0
 	}
 	if index == 2 && !disabled {
 		layer = Surface_FlatLayer(1, width, height, radius, 1.0, background, focus_color, opacity * Surface_Unit(focused))
@@ -339,58 +373,85 @@ func Surface_GlassLayer(index int32, width float32, height float32, radius float
 		f = 0.0
 	}
 	if index == 0 {
-		layer.Y = 5.0 * (1.0 - p)
-		layer.Blur = 12.0
+		value_0 := &(layer.Y)
+		(*value_0) = 5.0 * (1.0 - p)
+		value_1 := &(layer.Blur)
+		(*value_1) = 12.0
 		var shadow uint32 = 24
 		if light {
 			shadow = Surface_Opacity(Surface_GradientColor(ambient, border, 0.65), 0.20)
 		}
-		layer.Color = Surface_Opacity(shadow, opacity)
+		value_2 := &(layer.Color)
+		(*value_2) = Surface_Opacity(shadow, opacity)
 		if disabled {
-			layer.Color = 0
+			value_3 := &(layer.Color)
+			(*value_3) = 0
 		}
 	}
 	if index == 1 {
-		layer.Blur = 5.0 + (h * 3.0)
-		layer.Color = Surface_Opacity(border, ((0.12 + (0.30 * h)) * (1.0 - p)) * opacity)
+		value_4 := &(layer.Blur)
+		(*value_4) = 5.0 + (h * 3.0)
+		value_5 := &(layer.Color)
+		(*value_5) = Surface_Opacity(border, ((0.12 + (0.30 * h)) * (1.0 - p)) * opacity)
 		if disabled {
-			layer.Color = 0
+			value_6 := &(layer.Color)
+			(*value_6) = 0
 		}
 	}
 	if index == 2 {
-		layer.IsFace = true
-		layer.Color = Surface_Opacity(background, opacity)
+		value_7 := &(layer.IsFace)
+		(*value_7) = true
+		value_8 := &(layer.Color)
+		(*value_8) = Surface_Opacity(background, opacity)
 	}
 	if index == 3 {
-		layer.Stroke = border_width
-		layer.Gradient = true
+		value_9 := &(layer.Stroke)
+		(*value_9) = border_width
+		value_10 := &(layer.Gradient)
+		(*value_10) = true
 		var white uint32 = 4294967295
-		layer.Color = Surface_Opacity(Surface_GradientColor(border, white, 0.34), opacity)
-		layer.EndColor = Surface_Opacity(border, 0.72 * opacity)
+		value_11 := &(layer.Color)
+		(*value_11) = Surface_Opacity(Surface_GradientColor(border, white, 0.34), opacity)
+		value_12 := &(layer.EndColor)
+		(*value_12) = Surface_Opacity(border, 0.72 * opacity)
 		if light {
-			layer.Color = Surface_Opacity(border, opacity)
+			value_13 := &(layer.Color)
+			(*value_13) = Surface_Opacity(border, opacity)
 		}
 	}
 	if index == 4 && !light && !disabled {
-		layer.Stroke = 1.0
-		layer.InnerBlur = 9.0
-		layer.Gradient = true
-		layer.Color = Surface_Opacity(border, 0.16 * opacity)
-		layer.EndColor = Surface_Opacity(border, 0.54 * opacity)
+		value_14 := &(layer.Stroke)
+		(*value_14) = 1.0
+		value_15 := &(layer.InnerBlur)
+		(*value_15) = 9.0
+		value_16 := &(layer.Gradient)
+		(*value_16) = true
+		value_17 := &(layer.Color)
+		(*value_17) = Surface_Opacity(border, 0.16 * opacity)
+		value_18 := &(layer.EndColor)
+		(*value_18) = Surface_Opacity(border, 0.54 * opacity)
 	}
 	if index == 5 && !disabled {
-		layer.Stroke = 1.0
-		layer.Blur = 4.0
-		layer.Color = Surface_Opacity(focus, (f * 0.85) * opacity)
+		value_19 := &(layer.Stroke)
+		(*value_19) = 1.0
+		value_20 := &(layer.Blur)
+		(*value_20) = 4.0
+		value_21 := &(layer.Color)
+		(*value_21) = Surface_Opacity(focus, (f * 0.85) * opacity)
 	}
 	if index == 6 && !disabled {
-		layer.Stroke = 1.5
-		layer.Color = Surface_Opacity(focus, f * opacity)
+		value_22 := &(layer.Stroke)
+		(*value_22) = 1.5
+		value_23 := &(layer.Color)
+		(*value_23) = Surface_Opacity(focus, f * opacity)
 	}
 	if index == 7 && !light && !disabled {
-		layer.Stroke = 1.0
-		layer.InnerBlur = 2.0
-		layer.Color = Surface_Opacity(4294967295, (f * 0.8) * opacity)
+		value_24 := &(layer.Stroke)
+		(*value_24) = 1.0
+		value_25 := &(layer.InnerBlur)
+		(*value_25) = 2.0
+		value_26 := &(layer.Color)
+		(*value_26) = Surface_Opacity(4294967295, (f * 0.8) * opacity)
 	}
 	return layer
 }
@@ -398,11 +459,15 @@ func Surface_GlassLayer(index int32, width float32, height float32, radius float
 func Surface_FinishLightfieldLayer(layer SurfaceLayer, index int32, background uint32, opacity float32) SurfaceLayer {
 	if index == 0 || index == 1 || index == 4 {
 		face_opacity := float32((background & 255)) / 255.0
-		layer.Color = Surface_Opacity(layer.Color, face_opacity)
-		layer.EndColor = Surface_Opacity(layer.EndColor, face_opacity)
+		value_0 := &(layer.Color)
+		(*value_0) = Surface_Opacity(layer.Color, face_opacity)
+		value_1 := &(layer.EndColor)
+		(*value_1) = Surface_Opacity(layer.EndColor, face_opacity)
 	}
-	layer.Color = Surface_Opacity(layer.Color, opacity)
-	layer.EndColor = Surface_Opacity(layer.EndColor, opacity)
+	value_2 := &(layer.Color)
+	(*value_2) = Surface_Opacity(layer.Color, opacity)
+	value_3 := &(layer.EndColor)
+	(*value_3) = Surface_Opacity(layer.EndColor, opacity)
 	return layer
 }
 
@@ -411,15 +476,24 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		light = focus_color
 	}
 	var layer SurfaceLayer = SurfaceLayer{}
-	layer.X = 0.0
-	layer.Y = Surface_FaceOffset(hover, press, disabled)
-	layer.Width = width
-	layer.Height = height
-	layer.Radius = radius
-	layer.Stroke = 0.0
-	layer.Color = 0
-	layer.EndColor = 0
-	layer.Gradient = false
+	value_0 := &(layer.X)
+	(*value_0) = 0.0
+	value_1 := &(layer.Y)
+	(*value_1) = Surface_FaceOffset(hover, press, disabled)
+	value_2 := &(layer.Width)
+	(*value_2) = width
+	value_3 := &(layer.Height)
+	(*value_3) = height
+	value_4 := &(layer.Radius)
+	(*value_4) = radius
+	value_5 := &(layer.Stroke)
+	(*value_5) = 0.0
+	value_6 := &(layer.Color)
+	(*value_6) = 0
+	value_7 := &(layer.EndColor)
+	(*value_7) = 0
+	value_8 := &(layer.Gradient)
+	(*value_8) = false
 	h := Surface_Unit(hover)
 	p := Surface_Unit(press)
 	ambient_brightness := (((ambient >> 24) & 255) + ((ambient >> 16) & 255)) + ((ambient >> 8) & 255)
@@ -433,11 +507,13 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		h = 0.0
 		p = 0.0
 	}
-	var value_0 uint32 = Surface_ColorChroma(light)
-	broad_light := (broad * Surface_Unit((float32(value_0) - 128.0) / 64.0)) * (1.0 - p)
+	var value_9 uint32 = Surface_ColorChroma(light)
+	broad_light := (broad * Surface_Unit((float32(value_9) - 128.0) / 64.0)) * (1.0 - p)
 	if index == 0 {
-		layer.Y += (3.0 + h)
-		layer.Blur = 4.0 + (2.0 * h)
+		value_10 := &(layer.Y)
+		(*value_10) += (3.0 + h)
+		value_11 := &(layer.Blur)
+		(*value_11) = 4.0 + (2.0 * h)
 		var strength float32 = (((0.025 + (0.025 * broad)) + (0.08 * h)) + (0.06 * Surface_Unit(focused))) * (1.0 - (p * 0.8))
 		_ = strength
 		if !light_surroundings {
@@ -449,27 +525,33 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		if disabled {
 			strength = 0.0
 		}
-		layer.Color = Surface_Opacity(light, strength * opacity)
+		value_12 := &(layer.Color)
+		(*value_12) = Surface_Opacity(light, strength * opacity)
 		return layer
 	}
 	index--
 	if index == 0 {
-		layer.X = 1.0
-		layer.Y = 2.0 + (2.0 * p)
-		layer.Width = width - 2.0
-		layer.Blur = 3.0 + (2.0 * h)
+		value_13 := &(layer.X)
+		(*value_13) = 1.0
+		value_14 := &(layer.Y)
+		(*value_14) = 2.0 + (2.0 * p)
+		value_15 := &(layer.Width)
+		(*value_15) = width - 2.0
+		value_16 := &(layer.Blur)
+		(*value_16) = 3.0 + (2.0 * h)
 		var alpha float32 = (32.0 + (18.0 * h)) - (24.0 * p)
 		_ = alpha
 		if light_surroundings {
-			layer.Blur = 5.0 + (2.0 * h)
+			value_17 := &(layer.Blur)
+			(*value_17) = 5.0 + (2.0 * h)
 			brightness := (((background >> 24) & 255) + ((background >> 16) & 255)) + ((background >> 8) & 255)
 			_ = brightness
-			var value_1 uint32 = Surface_ColorChroma(background)
-			pale := Surface_Unit((32.0 - float32(value_1)) / 16.0) * Surface_Unit((float32(brightness) - 576.0) / 96.0)
+			var value_18 uint32 = Surface_ColorChroma(background)
+			pale := Surface_Unit((32.0 - float32(value_18)) / 16.0) * Surface_Unit((float32(brightness) - 576.0) / 96.0)
 			alpha = ((24.0 + (10.0 * h)) - (((20.0 * h) * (1.0 - p)) * pale)) - (18.0 * p)
-			var value_2 float32 = alpha
-			var value_3 float32 = 1.0 - (0.5 * Surface_Unit(focused))
-			alpha = value_2 * value_3
+			var value_19 float32 = alpha
+			var value_20 float32 = 1.0 - (0.5 * Surface_Unit(focused))
+			alpha = value_19 * value_20
 			if (border & 255) == 0 {
 				alpha *= (0.5 + (0.5 * p))
 			}
@@ -477,16 +559,22 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		if disabled {
 			alpha = 8.0
 		}
-		layer.Color = uint32(floatToInt(float64(alpha), 32, false))
+		value_21 := &(layer.Color)
+		(*value_21) = uint32(floatToInt(float64(alpha), 32, false))
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	if index == 1 {
-		layer.X = 1.0
-		layer.Y += ((2.0 - h) - (2.0 * p))
-		layer.Width = width - 2.0
-		layer.Blur = 2.0 + (5.0 * h)
+		value_22 := &(layer.X)
+		(*value_22) = 1.0
+		value_23 := &(layer.Y)
+		(*value_23) += ((2.0 - h) - (2.0 * p))
+		value_24 := &(layer.Width)
+		(*value_24) = width - 2.0
+		value_25 := &(layer.Blur)
+		(*value_25) = 2.0 + (5.0 * h)
 		if !light_surroundings && !disabled && (border & 255) != 0 {
-			layer.Blur = 2.0 + ((3.0 + (2.0 * h)) * (1.0 - p))
+			value_26 := &(layer.Blur)
+			(*value_26) = 2.0 + ((3.0 + (2.0 * h)) * (1.0 - p))
 		}
 		var alpha float32 = (34.0 + (90.0 * h)) - (26.0 * p)
 		_ = alpha
@@ -495,7 +583,8 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 			_ = raised
 			raised *= (raised * (1.0 - p))
 			alpha += (70.0 * raised)
-			layer.Blur += (3.0 * raised)
+			value_27 := &(layer.Blur)
+			(*value_27) += (3.0 * raised)
 		}
 		if disabled {
 			alpha = 8.0
@@ -503,8 +592,10 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		rim_light := light
 		_ = rim_light
 		if light_surroundings {
-			layer.Y = Surface_FaceOffset(hover, press, disabled) + 1.0
-			layer.Blur = 8.0 + (4.0 * Surface_Unit(h + focused))
+			value_28 := &(layer.Y)
+			(*value_28) = Surface_FaceOffset(hover, press, disabled) + 1.0
+			value_29 := &(layer.Blur)
+			(*value_29) = 8.0 + (4.0 * Surface_Unit(h + focused))
 			raised := Surface_Unit((height - 40.0) / 8.0)
 			_ = raised
 			alpha = ((((110.0 + (40.0 * raised)) - (10.0 * h)) - (40.0 * Surface_Unit(focused))) * (1.0 - (0.85 * p))) * (1.0 - (0.85 * broad))
@@ -516,25 +607,30 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 			}
 			rim_light = Surface_DepthColor(light, 0.65 - (0.30 * Surface_Unit(h + focused)))
 		}
-		layer.Color = ((rim_light >> 8) << 8) | uint32(floatToInt(float64(alpha), 32, false))
+		value_30 := &(layer.Color)
+		(*value_30) = ((rim_light >> 8) << 8) | uint32(floatToInt(float64(alpha), 32, false))
 		if light_surroundings {
-			layer.EndColor = layer.Color
-			layer.Color = Surface_Opacity(layer.Color, 0.0)
-			layer.Gradient = true
+			value_31 := &(layer.EndColor)
+			(*value_31) = layer.Color
+			value_32 := &(layer.Color)
+			(*value_32) = Surface_Opacity(layer.Color, 0.0)
+			value_33 := &(layer.Gradient)
+			(*value_33) = true
 		}
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	if index == 2 {
-		layer.IsFace = true
+		value_34 := &(layer.IsFace)
+		(*value_34) = true
 		focus_depth := (Surface_Unit(focused) * (1.0 - h)) * (1.0 - p)
 		if disabled {
 			focus_depth = 0.0
 		}
 		if !light_surroundings {
 			if !disabled {
-				var value_4 uint32 = Surface_ColorChroma(background)
-				var value_5 float32 = (((((broad * 0.11) * (1.0 - (float32(value_4) / 255.0))) * (1.0 - p)) * (1.0 - Surface_Unit(focused))) * float32((focus_color & 255))) / 255.0
-				reflected := Surface_GradientColor(background, focus_color, value_5)
+				var value_35 uint32 = Surface_ColorChroma(background)
+				var value_36 float32 = (((((broad * 0.11) * (1.0 - (float32(value_35) / 255.0))) * (1.0 - p)) * (1.0 - Surface_Unit(focused))) * float32((focus_color & 255))) / 255.0
+				reflected := Surface_GradientColor(background, focus_color, value_36)
 				background = ((reflected >> 8) << 8) | (background & 255)
 			}
 			if (border & 255) != 0 {
@@ -547,8 +643,8 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		var highlight float32 = 0.38 - (h * 0.06)
 		if light_surroundings {
 			highlight = 0.50 - (h * 0.40)
-			var value_6 uint32 = Surface_ColorChroma(background)
-			saturation := Surface_Unit((float32(value_6) - 128.0) / 64.0)
+			var value_37 uint32 = Surface_ColorChroma(background)
+			saturation := Surface_Unit((float32(value_37) - 128.0) / 64.0)
 			highlight -= (((0.50 * broad) * saturation) * (1.0 - h))
 		}
 		face_light := Surface_GradientColor(background, white, 0.30)
@@ -560,9 +656,9 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		brightness := (((background >> 24) & 255) + ((background >> 16) & 255)) + ((background >> 8) & 255)
 		_ = brightness
 		if !light_surroundings {
-			var value_7 float32 = highlight
-			var value_8 float32 = Surface_Unit((float32(brightness) - 90.0) / 80.0)
-			highlight = value_7 * value_8
+			var value_38 float32 = highlight
+			var value_39 float32 = Surface_Unit((float32(brightness) - 90.0) / 80.0)
+			highlight = value_38 * value_39
 			highlight *= (1.0 - (0.70 * focus_depth))
 		}
 		if brightness > 600 {
@@ -578,45 +674,59 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 			highlight = 0.02
 			shade = 0.02
 		}
-		layer.Color = Surface_GradientColor(background, face_light, highlight * (1.0 - p))
+		value_40 := &(layer.Color)
+		(*value_40) = Surface_GradientColor(background, face_light, highlight * (1.0 - p))
 		var depth float32 = 0.48
 		if light_surroundings {
 			depth = 0.35 + (0.13 * broad)
 		}
-		layer.EndColor = Surface_GradientColor(Surface_DepthColor(background, depth + (p * 0.24)), black, p * 0.18)
+		value_41 := &(layer.EndColor)
+		(*value_41) = Surface_GradientColor(Surface_DepthColor(background, depth + (p * 0.24)), black, p * 0.18)
 		if !light_surroundings && !disabled {
-			layer.EndColor = Surface_GradientColor(layer.EndColor, face_light, ((h * 0.65) * Surface_Unit((float32(brightness) - 90.0) / 80.0)) * (1.0 - p))
-			layer.GradientBias = h * (1.0 - p)
+			value_42 := &(layer.EndColor)
+			(*value_42) = Surface_GradientColor(layer.EndColor, face_light, ((h * 0.65) * Surface_Unit((float32(brightness) - 90.0) / 80.0)) * (1.0 - p))
+			value_43 := &(layer.GradientBias)
+			(*value_43) = h * (1.0 - p)
 		}
 		if brightness > 600 || disabled {
-			layer.EndColor = Surface_GradientColor(background, black, shade)
+			value_44 := &(layer.EndColor)
+			(*value_44) = Surface_GradientColor(background, black, shade)
 		}
-		var value_9 bool = disabled && !light_surroundings
-		if value_9 {
-			var value_10 bool = Surface_ColorChroma(background) > 64
-			value_9 = value_10
+		var value_45 bool = disabled && !light_surroundings
+		if value_45 {
+			var value_46 bool = Surface_ColorChroma(background) > 64
+			value_45 = value_46
 		}
-		if value_9 && ((background >> 8) & 255) > ((background >> 24) & 255) && ((background >> 8) & 255) > ((background >> 16) & 255) {
-			layer.Color = Surface_GradientColor(background, black, 0.15)
-			layer.EndColor = Surface_GradientColor(background, light, 0.30)
-			layer.EndColor = ((layer.EndColor >> 8) << 8) | (background & 255)
+		if value_45 && ((background >> 8) & 255) > ((background >> 24) & 255) && ((background >> 8) & 255) > ((background >> 16) & 255) {
+			value_47 := &(layer.Color)
+			(*value_47) = Surface_GradientColor(background, black, 0.15)
+			value_48 := &(layer.EndColor)
+			(*value_48) = Surface_GradientColor(background, light, 0.30)
+			value_49 := &(layer.EndColor)
+			(*value_49) = ((layer.EndColor >> 8) << 8) | (background & 255)
 		}
 		if light_surroundings && !disabled {
-			layer.EndColor = Surface_GradientColor(layer.EndColor, Surface_GradientColor(background, white, 0.12), h * (1.0 - p))
+			value_50 := &(layer.EndColor)
+			(*value_50) = Surface_GradientColor(layer.EndColor, Surface_GradientColor(background, white, 0.12), h * (1.0 - p))
 			if brightness > 600 {
 				middle := Surface_GradientColor(layer.Color, layer.EndColor, 0.5)
 				var balance float32 = 0.75 * focus_depth
-				layer.Color = Surface_GradientColor(layer.Color, middle, balance)
-				layer.EndColor = Surface_GradientColor(layer.EndColor, middle, balance)
+				value_51 := &(layer.Color)
+				(*value_51) = Surface_GradientColor(layer.Color, middle, balance)
+				value_52 := &(layer.EndColor)
+				(*value_52) = Surface_GradientColor(layer.EndColor, middle, balance)
 			}
 		}
-		layer.Gradient = true
+		value_53 := &(layer.Gradient)
+		(*value_53) = true
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	if index == 3 {
-		layer.Stroke = border_width
+		value_54 := &(layer.Stroke)
+		(*value_54) = border_width
 		if border_width > 0.0 {
-			layer.Color = border
+			value_55 := &(layer.Color)
+			(*value_55) = border
 			if light_surroundings && !disabled {
 				focus_edge := (Surface_Unit(focused) * float32((focus_color & 255))) / 255.0
 				edge_hover := h * (1.0 - p)
@@ -624,15 +734,20 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 				face_tint := ((background >> 8) << 8) | (border & 255)
 				var white uint32 = 4294967040 | (border & 255)
 				_ = white
-				layer.Color = Surface_Opacity(Surface_GradientColor(border, face_tint, 0.65 * edge_hover), 1.0 - (0.5 * focus_edge))
-				layer.EndColor = Surface_Opacity(Surface_GradientColor(border, white, 0.30 * edge_hover), 1.0 - (0.5 * focus_edge))
-				layer.Gradient = true
+				value_56 := &(layer.Color)
+				(*value_56) = Surface_Opacity(Surface_GradientColor(border, face_tint, 0.65 * edge_hover), 1.0 - (0.5 * focus_edge))
+				value_57 := &(layer.EndColor)
+				(*value_57) = Surface_Opacity(Surface_GradientColor(border, white, 0.30 * edge_hover), 1.0 - (0.5 * focus_edge))
+				value_58 := &(layer.Gradient)
+				(*value_58) = true
 			}
 			if !light_surroundings && !disabled {
 				var white uint32 = 4294967040 | (border & 255)
 				_ = white
-				layer.EndColor = Surface_GradientColor(border, white, (h * 0.30) * (1.0 - p))
-				layer.Gradient = true
+				value_59 := &(layer.EndColor)
+				(*value_59) = Surface_GradientColor(border, white, (h * 0.30) * (1.0 - p))
+				value_60 := &(layer.Gradient)
+				(*value_60) = true
 			}
 		}
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
@@ -643,15 +758,22 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		if !light_surroundings && !disabled && (border & 255) != 0 {
 			edge_hover = h
 		}
-		layer.X = 1.0
-		layer.Y += (1.0 - (edge_hover * (1.0 - p)))
-		layer.Width -= 2.0
-		layer.Height -= (2.0 - (edge_hover * (1.0 - p)))
-		layer.Radius = radius - 1.0
+		value_61 := &(layer.X)
+		(*value_61) = 1.0
+		value_62 := &(layer.Y)
+		(*value_62) += (1.0 - (edge_hover * (1.0 - p)))
+		value_63 := &(layer.Width)
+		(*value_63) -= 2.0
+		value_64 := &(layer.Height)
+		(*value_64) -= (2.0 - (edge_hover * (1.0 - p)))
+		value_65 := &(layer.Radius)
+		(*value_65) = radius - 1.0
 		if layer.Radius < 0.0 {
-			layer.Radius = 0.0
+			value_66 := &(layer.Radius)
+			(*value_66) = 0.0
 		}
-		layer.Stroke = 1.0
+		value_67 := &(layer.Stroke)
+		(*value_67) = 1.0
 		var white uint32 = 4294967295
 		_ = white
 		var top float32 = (0.12 + (0.12 * h)) * (1.0 - (p * 0.8))
@@ -659,8 +781,8 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		_ = raised
 		raised *= raised
 		luminance := ((float32(((light >> 24) & 255)) * 0.2126) + (float32(((light >> 16) & 255)) * 0.7152)) + (float32(((light >> 8) & 255)) * 0.0722)
-		var value_11 uint32 = Surface_ColorChroma(light)
-		reflection := Surface_Unit((float32(value_11) - 128.0) / 64.0) * Surface_Unit((160.0 - luminance) / 96.0)
+		var value_68 uint32 = Surface_ColorChroma(light)
+		reflection := Surface_Unit((float32(value_68) - 128.0) / 64.0) * Surface_Unit((160.0 - luminance) / 96.0)
 		var bottom float32 = ((((((0.20 + (0.28 * tall)) + ((0.17 + (0.33 * reflection)) * raised)) + (0.30 * broad)) + (0.50 * h)) + (0.25 * edge_hover)) + (0.40 * Surface_Unit(focused))) * (1.0 - p)
 		if light_surroundings {
 			bottom = ((0.08 + (0.28 * tall)) + (0.20 * h)) * (1.0 - p)
@@ -673,7 +795,8 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 			top = 0.02
 			bottom = 0.02
 		}
-		layer.Color = Surface_Opacity(white, top)
+		value_69 := &(layer.Color)
+		(*value_69) = Surface_Opacity(white, top)
 		rim_light := light
 		_ = rim_light
 		var whitening float32 = 0.72
@@ -692,8 +815,10 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 				whitening *= (1.0 - borderless_hover)
 			}
 		}
-		layer.EndColor = Surface_Opacity(Surface_GradientColor(rim_light, white, whitening), bottom)
-		layer.Gradient = true
+		value_70 := &(layer.EndColor)
+		(*value_70) = Surface_Opacity(Surface_GradientColor(rim_light, white, whitening), bottom)
+		value_71 := &(layer.Gradient)
+		(*value_71) = true
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	if index == 5 || index == 6 {
@@ -704,12 +829,18 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		if index == 5 && !light_surroundings {
 			gap = 0.0
 		}
-		layer.X -= gap
-		layer.Y -= gap
-		layer.Width += (2.0 * gap)
-		layer.Height += (2.0 * gap)
-		layer.Radius += gap
-		layer.Stroke = 1.0
+		value_72 := &(layer.X)
+		(*value_72) -= gap
+		value_73 := &(layer.Y)
+		(*value_73) -= gap
+		value_74 := &(layer.Width)
+		(*value_74) += (2.0 * gap)
+		value_75 := &(layer.Height)
+		(*value_75) += (2.0 * gap)
+		value_76 := &(layer.Radius)
+		(*value_76) += gap
+		value_77 := &(layer.Stroke)
+		(*value_77) = 1.0
 		strength := Surface_Unit(focused)
 		_ = strength
 		if disabled {
@@ -733,62 +864,74 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 			if disabled {
 				strength = 0.0
 			}
-			layer.Stroke = 0.0
-			layer.InnerBlur = 12.0
+			value_78 := &(layer.Stroke)
+			(*value_78) = 0.0
+			value_79 := &(layer.InnerBlur)
+			(*value_79) = 12.0
 		}
 		rim_color := focus_color
 		if index == 5 && !light_surroundings {
-			var value_12 bool = Surface_ColorChroma(light) > 64
-			if value_12 && (((light >> 24) & 255) > ((light >> 8) & 255) || ((light >> 16) & 255) > ((light >> 8) & 255)) {
+			var value_80 bool = Surface_ColorChroma(light) > 64
+			if value_80 && (((light >> 24) & 255) > ((light >> 8) & 255) || ((light >> 16) & 255) > ((light >> 8) & 255)) {
 				material := Surface_ChromaColor(light, 255)
 				rim_color = ((material >> 8) << 8) | (focus_color & 255)
 			}
 			rim_color = Surface_DepthColor(Surface_DepthColor(rim_color, 1.0), 0.4)
 		}
-		var value_13 bool = index == 6 && !light_surroundings && (border & 255) != 0
-		if value_13 {
-			var value_14 bool = Surface_ColorChroma(border) > 64
-			value_13 = value_14
+		var value_81 bool = index == 6 && !light_surroundings && (border & 255) != 0
+		if value_81 {
+			var value_82 bool = Surface_ColorChroma(border) > 64
+			value_81 = value_82
 		}
-		if value_13 {
+		if value_81 {
 			var white uint32 = 4294967040 | (focus_color & 255)
 			_ = white
-			var value_15 uint32 = Surface_ColorChroma(background)
-			var edge_white float32 = 0.50 + (0.22 * Surface_Unit((float32(value_15) - 128.0) / 64.0))
+			var value_83 uint32 = Surface_ColorChroma(background)
+			var edge_white float32 = 0.50 + (0.22 * Surface_Unit((float32(value_83) - 128.0) / 64.0))
 			rim_color = Surface_GradientColor(focus_color, white, edge_white)
-			layer.Stroke = 1.5
+			value_84 := &(layer.Stroke)
+			(*value_84) = 1.5
 		}
-		layer.Color = Surface_Opacity(rim_color, strength)
+		value_85 := &(layer.Color)
+		(*value_85) = Surface_Opacity(rim_color, strength)
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	if index == 7 {
-		var value_16 uint32 = Surface_ColorChroma(background)
-		borderless_hover := (h * (1.0 - p)) * Surface_Unit((64.0 - float32(value_16)) / 16.0)
+		var value_86 uint32 = Surface_ColorChroma(background)
+		borderless_hover := (h * (1.0 - p)) * Surface_Unit((64.0 - float32(value_86)) / 16.0)
 		_ = borderless_hover
 		var inset float32 = 1.5
 		if !light_surroundings {
 			inset += (0.5 * h)
 		}
-		layer.X = inset
-		layer.Y += inset
-		layer.Width -= (2.0 * inset)
-		layer.Height -= (2.0 * inset)
-		layer.Radius = radius - inset
+		value_87 := &(layer.X)
+		(*value_87) = inset
+		value_88 := &(layer.Y)
+		(*value_88) += inset
+		value_89 := &(layer.Width)
+		(*value_89) -= (2.0 * inset)
+		value_90 := &(layer.Height)
+		(*value_90) -= (2.0 * inset)
+		value_91 := &(layer.Radius)
+		(*value_91) = radius - inset
 		if layer.Radius < 0.0 {
-			layer.Radius = 0.0
+			value_92 := &(layer.Radius)
+			(*value_92) = 0.0
 		}
-		layer.InnerBlur = (18.0 + (6.0 * h)) + (4.0 * tall)
+		value_93 := &(layer.InnerBlur)
+		(*value_93) = (18.0 + (6.0 * h)) + (4.0 * tall)
 		if !light_surroundings {
-			var value_17 float32 = layer.InnerBlur
-			var value_18 float32 = 12.0 * Surface_Unit((p + focused) + Surface_Unit((height - 40.0) / 8.0))
-			layer.InnerBlur = value_17 + value_18
+			value_94 := &(layer.InnerBlur)
+			var value_95 float32 = *value_94
+			var value_96 float32 = 12.0 * Surface_Unit((p + focused) + Surface_Unit((height - 40.0) / 8.0))
+			(*value_94) = value_95 + value_96
 		}
 		var strength float32 = ((0.38 + (0.32 * h)) + (0.05 * Surface_Unit(focused))) * (1.0 - (p * 0.85))
 		_ = strength
 		if !light_surroundings {
-			var value_19 float32 = strength
-			var value_20 float32 = 1.0 - ((0.55 * Surface_Unit(focused)) * (1.0 - h))
-			strength = value_19 * value_20
+			var value_97 float32 = strength
+			var value_98 float32 = 1.0 - ((0.55 * Surface_Unit(focused)) * (1.0 - h))
+			strength = value_97 * value_98
 		}
 		if (border & 255) == 0 {
 			var borderless_light float32 = 0.15
@@ -800,10 +943,10 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		var raised_light float32 = 0.0
 		if light_surroundings && (border & 255) != 0 {
 			raised_light = Surface_Unit((height - 40.0) / 8.0)
-			var value_21 float32 = raised_light
-			var value_22 uint32 = Surface_ColorChroma(background)
-			var value_23 float32 = raised_light * Surface_Unit((float32(value_22) - 128.0) / 64.0)
-			raised_light = value_21 * value_23
+			var value_99 float32 = raised_light
+			var value_100 uint32 = Surface_ColorChroma(background)
+			var value_101 float32 = raised_light * Surface_Unit((float32(value_100) - 128.0) / 64.0)
+			raised_light = value_99 * value_101
 		}
 		if light_surroundings {
 			strength *= (0.12 + (1.88 * raised_light))
@@ -812,16 +955,17 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 			strength = 0.0
 		}
 		strength *= (float32((background & 255)) / 255.0)
-		layer.Color = Surface_Opacity(light, 0.0)
+		value_102 := &(layer.Color)
+		(*value_102) = Surface_Opacity(light, 0.0)
 		var white uint32 = 4294967040 | (light & 255)
 		_ = white
 		var whitening float32 = 0.22
 		_ = whitening
 		if !light_surroundings && (border & 255) != 0 {
-			var value_24 float32 = whitening
-			var value_25 uint32 = Surface_ColorChroma(light)
-			var value_26 float32 = 1.0 - ((((0.64 * Surface_Unit((float32(value_25) - 64.0) / 64.0)) * (1.0 - h)) * (1.0 - p)) * (1.0 - broad))
-			whitening = value_24 * value_26
+			var value_103 float32 = whitening
+			var value_104 uint32 = Surface_ColorChroma(light)
+			var value_105 float32 = 1.0 - ((((0.64 * Surface_Unit((float32(value_104) - 64.0) / 64.0)) * (1.0 - h)) * (1.0 - p)) * (1.0 - broad))
+			whitening = value_103 * value_105
 		}
 		reflected_light := light
 		if light_surroundings {
@@ -835,34 +979,44 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 			reflected_light = Surface_LiftColor(Surface_LiftColor(reflected_light, broad_light), broad_light)
 			whitening *= (1.0 - (0.5 * broad_light))
 		}
-		layer.EndColor = Surface_Opacity(Surface_GradientColor(reflected_light, white, whitening), strength)
-		layer.Gradient = true
+		value_106 := &(layer.EndColor)
+		(*value_106) = Surface_Opacity(Surface_GradientColor(reflected_light, white, whitening), strength)
+		value_107 := &(layer.Gradient)
+		(*value_107) = true
 		if !light_surroundings && (border & 255) != 0 {
-			var value_27 uint32 = Surface_ColorChroma(background)
-			body_chroma := float32(value_27)
-			var value_28 uint32 = Surface_ColorChroma(border)
-			edge_contrast := Surface_Unit(((float32(value_28) - body_chroma) - 64.0) / 64.0)
-			layer.GradientBias = (edge_contrast * Surface_Unit((96.0 - body_chroma) / 32.0)) * (1.0 - p)
+			var value_108 uint32 = Surface_ColorChroma(background)
+			body_chroma := float32(value_108)
+			var value_109 uint32 = Surface_ColorChroma(border)
+			edge_contrast := Surface_Unit(((float32(value_109) - body_chroma) - 64.0) / 64.0)
+			value_110 := &(layer.GradientBias)
+			(*value_110) = (edge_contrast * Surface_Unit((96.0 - body_chroma) / 32.0)) * (1.0 - p)
 		}
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	if index == 8 {
-		layer.X = 1.5
-		layer.Y += 1.5
-		layer.Width -= 3.0
-		layer.Height -= 3.0
-		layer.Radius = radius - 1.5
+		value_111 := &(layer.X)
+		(*value_111) = 1.5
+		value_112 := &(layer.Y)
+		(*value_112) += 1.5
+		value_113 := &(layer.Width)
+		(*value_113) -= 3.0
+		value_114 := &(layer.Height)
+		(*value_114) -= 3.0
+		value_115 := &(layer.Radius)
+		(*value_115) = radius - 1.5
 		if layer.Radius < 0.0 {
-			layer.Radius = 0.0
+			value_116 := &(layer.Radius)
+			(*value_116) = 0.0
 		}
-		layer.InnerBlur = 18.0 + (4.0 * h)
+		value_117 := &(layer.InnerBlur)
+		(*value_117) = 18.0 + (4.0 * h)
 		var strength float32 = (0.14 + (0.04 * h)) * (1.0 - p)
 		_ = strength
 		if !light_surroundings {
 			strength *= 0.30
-			var value_29 float32 = strength
-			var value_30 float32 = 1.0 - ((0.65 * Surface_Unit(focused)) * (1.0 - h))
-			strength = value_29 * value_30
+			var value_118 float32 = strength
+			var value_119 float32 = 1.0 - ((0.65 * Surface_Unit(focused)) * (1.0 - h))
+			strength = value_118 * value_119
 		}
 		if light_surroundings {
 			strength *= 0.65
@@ -875,21 +1029,31 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		}
 		var white uint32 = 4294967040 | (background & 255)
 		_ = white
-		layer.Color = Surface_Opacity(white, strength)
-		layer.EndColor = Surface_Opacity(white, 0.0)
-		layer.Gradient = true
+		value_120 := &(layer.Color)
+		(*value_120) = Surface_Opacity(white, strength)
+		value_121 := &(layer.EndColor)
+		(*value_121) = Surface_Opacity(white, 0.0)
+		value_122 := &(layer.Gradient)
+		(*value_122) = true
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	if index == 9 {
-		layer.X = 1.0
-		layer.Y += 1.0
-		layer.Width -= 2.0
-		layer.Height -= 2.0
-		layer.Radius = radius - 1.0
+		value_123 := &(layer.X)
+		(*value_123) = 1.0
+		value_124 := &(layer.Y)
+		(*value_124) += 1.0
+		value_125 := &(layer.Width)
+		(*value_125) -= 2.0
+		value_126 := &(layer.Height)
+		(*value_126) -= 2.0
+		value_127 := &(layer.Radius)
+		(*value_127) = radius - 1.0
 		if layer.Radius < 0.0 {
-			layer.Radius = 0.0
+			value_128 := &(layer.Radius)
+			(*value_128) = 0.0
 		}
-		layer.InnerBlur = 8.0
+		value_129 := &(layer.InnerBlur)
+		(*value_129) = 8.0
 		var strength float32 = 0.20 * p
 		_ = strength
 		if light_surroundings {
@@ -901,33 +1065,45 @@ func Surface_LightfieldLayer(index int32, width float32, height float32, radius 
 		if disabled {
 			strength = 0.0
 		}
-		layer.Color = Surface_Opacity(background & 255, strength)
-		layer.EndColor = 0
-		layer.Gradient = true
+		value_130 := &(layer.Color)
+		(*value_130) = Surface_Opacity(background & 255, strength)
+		value_131 := &(layer.EndColor)
+		(*value_131) = 0
+		value_132 := &(layer.Gradient)
+		(*value_132) = true
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	if index == 10 && !light_surroundings && !disabled {
-		layer.X -= 1.0
-		layer.Y -= 1.0
-		layer.Width += 2.0
-		layer.Height += 2.0
-		layer.Radius += 1.0
-		layer.Stroke = 2.0
-		layer.Blur = 8.0
-		layer.OutsideOnly = true
+		value_133 := &(layer.X)
+		(*value_133) -= 1.0
+		value_134 := &(layer.Y)
+		(*value_134) -= 1.0
+		value_135 := &(layer.Width)
+		(*value_135) += 2.0
+		value_136 := &(layer.Height)
+		(*value_136) += 2.0
+		value_137 := &(layer.Radius)
+		(*value_137) += 1.0
+		value_138 := &(layer.Stroke)
+		(*value_138) = 2.0
+		value_139 := &(layer.Blur)
+		(*value_139) = 8.0
+		value_140 := &(layer.OutsideOnly)
+		(*value_140) = true
 		var edge_light float32 = 0.15
 		if (border & 255) != 0 {
-			var value_31 float32 = edge_light
-			var value_32 uint32 = Surface_ColorChroma(border)
-			var value_33 float32 = 0.15 * Surface_Unit((float32(value_32) - 128.0) / 64.0)
-			edge_light = value_31 + value_33
+			var value_141 float32 = edge_light
+			var value_142 uint32 = Surface_ColorChroma(border)
+			var value_143 float32 = 0.15 * Surface_Unit((float32(value_142) - 128.0) / 64.0)
+			edge_light = value_141 + value_143
 		}
 		strength := Surface_Unit(focused) * edge_light
 		_ = strength
 		if (border & 255) == 0 {
 			strength *= 0.35
 		}
-		layer.Color = Surface_Opacity(Surface_DepthColor(focus_color, 1.0), strength)
+		value_144 := &(layer.Color)
+		(*value_144) = Surface_Opacity(Surface_DepthColor(focus_color, 1.0), strength)
 		return Surface_FinishLightfieldLayer(layer, index, background, opacity)
 	}
 	return Surface_FinishLightfieldLayer(layer, index, background, opacity)

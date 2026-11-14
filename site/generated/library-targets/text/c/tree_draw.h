@@ -8,6 +8,7 @@
 #include "session.h"
 #include "tree.h"
 #include "tree_input.h"
+#include "text_request.h"
 #include "text_input_platform.h"
 #include "text_selection_host.h"
 #include "input_protocol.h"
@@ -37,9 +38,12 @@ static inline void
 tree_draw_FrameInputCommit_ziran_inline(Session session)
 {
     int32_t slot = SessionIndex(session);
-    frame_owners[slot] = session;
-    frame_pointer[slot] = (frame_current_pointer)[slot];
-    frame_modifiers[slot] = (frame_current_modifiers)[slot];
+    Session* value_0 = &(frame_owners[slot]);
+    (*value_0) = session;
+    PointerFrame* value_1 = &(frame_pointer[slot]);
+    (*value_1) = (frame_current_pointer)[slot];
+    int32_t* value_2 = &(frame_modifiers[slot]);
+    (*value_2) = (frame_current_modifiers)[slot];
 }
 #endif
 

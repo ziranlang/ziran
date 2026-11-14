@@ -3,16 +3,15 @@
 #include <stdbool.h>
 #include "zir_string.h"
 #include "widget_benchmarks.h"
+#include "std_vec.h"
 #include "session.h"
 #include "geometry.h"
 #include "control_props.h"
-#include "text.h"
-#include "text_props.h"
-#include "text_input_props.h"
 #include "tree.h"
 #include "tree_draw.h"
 #include "tree_input.h"
 #include "widget_benchmark_host.h"
+#include "std_vec.h"
 Session benchmark_session = {0};
 uint64_t benchmark_frame = {0};
 
@@ -32,11 +31,15 @@ int32_t
 TextCase(void)
 {
     Session session = widget_benchmarks_BeginCase();
-    TextProps props = {0};
-    props.key = 8ULL;
-    props.text = StringLiteral("Alpha beta\ncaf\303\251 \344\270\226\347\225\214");
-    props.bounds = (Rectangle){.x = (float)10.0, .y = (float)20.0, .width = (float)70.0, .height = (float)64.0};
-    props.font = 14;
+    zir_5988125b9981443f_Props props = {0};
+    uint64_t* value_0 = &(props.key);
+    (*value_0) = 8ULL;
+    String* value_1 = &(props.text);
+    (*value_1) = StringLiteral("Alpha beta\ncaf\303\251 \344\270\226\347\225\214");
+    Rectangle* value_2 = &(props.bounds);
+    (*value_2) = (Rectangle){.x = (float)10.0, .y = (float)20.0, .width = (float)70.0, .height = (float)64.0};
+    int32_t* value_3 = &(props.size);
+    (*value_3) = 14;
     Rectangle viewport = {.x = (float)0.0, .y = (float)0.0, .width = (float)300.0, .height = (float)160.0};
     {
         int32_t range_first_7 = 0;
@@ -44,14 +47,15 @@ TextCase(void)
         int32_t frame = range_first_7;
         if (frame <= range_last_7) for (;;) {
             if (frame == 1) {
-                props.bounds.width = (float)140.0;
+                float* value_4 = &(props.bounds.width);
+                (*value_4) = (float)140.0;
             }
             if (((FrameStatus)(BeginFrame(session, benchmark_frame, viewport))) != ((FrameStatus)(0LL))) {
                 return 1;
             }
-            Text(session, props);
-            bool value_0 = ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL));
-            if (value_0 || TreeCount(session) != 2) {
+            text___zi_spec_6a19f7c98e79a734(session, props);
+            bool value_5 = ((FrameStatus)(EndFrame(session))) != ((FrameStatus)(0LL));
+            if (value_5 || TreeCount(session) != 2) {
                 return 2;
             }
             TreeEntry node = TreeNodeAt(session, 1);
@@ -64,14 +68,28 @@ TextCase(void)
             frame = (int32_t)((uint32_t)frame + 1u);
         }
     }
-    int64_t value_1 = widget_benchmark_host_WidgetTextCount();
-    bool value_2 = value_1 < 4LL;
-    if (!value_2) {
-        int64_t value_3 = widget_benchmark_host_WidgetPaintChecksum();
-        value_2 = (value_3 <= 0LL);
+    int64_t value_6 = widget_benchmark_host_WidgetTextCount();
+    bool value_7 = value_6 < 4LL;
+    if (!value_7) {
+        int64_t value_8 = widget_benchmark_host_WidgetPaintChecksum();
+        value_7 = (value_8 <= 0LL);
     }
-    if (value_2) {
+    if (value_7) {
         return 4;
     }
     return 0;
+}
+
+#include <stdlib.h>
+void ziran_init_textfield(void);
+
+static int ziran_state_ziran_init_widget_benchmarks;
+void
+ziran_init_widget_benchmarks(void)
+{
+    if(ziran_state_ziran_init_widget_benchmarks == 2) return;
+    if(ziran_state_ziran_init_widget_benchmarks == 1) abort();
+    ziran_state_ziran_init_widget_benchmarks = 1;
+    ziran_init_textfield();
+    ziran_state_ziran_init_widget_benchmarks = 2;
 }

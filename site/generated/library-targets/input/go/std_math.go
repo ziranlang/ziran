@@ -131,14 +131,29 @@ func StdMath_MathSplit(value float64) MathParts {
 		value *= step
 		exponent -= 64
 	}
-	var width int32 = 32
-	for width >= 1 {
-		power := StdMath_SmallPowerOfTwo(width)
-		if value >= power {
-			value /= power
-			exponent += width
-		}
-		width /= 2
+	if value >= 4294967296.0 {
+		value *= 2.3283064365386962890625e-10
+		exponent += 32
+	}
+	if value >= 65536.0 {
+		value *= 0.0000152587890625
+		exponent += 16
+	}
+	if value >= 256.0 {
+		value *= 0.00390625
+		exponent += 8
+	}
+	if value >= 16.0 {
+		value *= 0.0625
+		exponent += 4
+	}
+	if value >= 4.0 {
+		value *= 0.25
+		exponent += 2
+	}
+	if value >= 2.0 {
+		value *= 0.5
+		exponent++
 	}
 	return MathParts{Mantissa: value, Exponent: exponent}
 }

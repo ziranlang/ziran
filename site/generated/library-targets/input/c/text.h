@@ -3,6 +3,7 @@
 #define ZIRAN_TEXT_H
 
 #include "zir_string_types.h"
+#include "text_props.h"
 #include "theme.h"
 #include "session.h"
 #include "control_props.h"

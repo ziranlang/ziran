@@ -10,34 +10,50 @@ StyleData
 CardDefaultFace(ButtonEmphasis emphasis, int32_t state)
 {
     StyleData face = {0};
-    face.fields = 1048703;
+    uint32_t* value_0 = &(face.fields);
+    (*value_0) = 1048703;
     Palette palette = CurrentPalette();
-    face.background = palette.surface_muted;
+    uint32_t* value_1 = &(face.background);
+    (*value_1) = palette.surface_muted;
     if (emphasis == ((ButtonEmphasis)(0))) {
-        face.background = palette.surface;
+        uint32_t* value_2 = &(face.background);
+        (*value_2) = palette.surface;
     }
-    face.foreground = palette.foreground;
-    face.border = palette.border;
-    face.focus = palette.focus;
-    face.radius = ShapeSurface();
-    face.elevation = (ElevationRole)(0LL);
-    face.opacity = (float)1.0;
+    uint32_t* value_3 = &(face.foreground);
+    (*value_3) = palette.foreground;
+    uint32_t* value_4 = &(face.border);
+    (*value_4) = palette.border;
+    uint32_t* value_5 = &(face.focus);
+    (*value_5) = palette.focus;
+    float* value_6 = &(face.radius);
+    (*value_6) = ShapeSurface();
+    ElevationRole* value_7 = &(face.elevation);
+    (*value_7) = (ElevationRole)(0LL);
+    float* value_8 = &(face.opacity);
+    (*value_8) = (float)1.0;
     if (emphasis == ((ButtonEmphasis)(2))) {
-        face.background = palette.surface;
-        face.border_width = (float)1.0;
+        uint32_t* value_9 = &(face.background);
+        (*value_9) = palette.surface;
+        float* value_10 = &(face.border_width);
+        (*value_10) = (float)1.0;
     }
     if (emphasis == ((ButtonEmphasis)(0))) {
-        face.elevation = (ElevationRole)(3LL);
+        ElevationRole* value_11 = &(face.elevation);
+        (*value_11) = (ElevationRole)(3LL);
     }
     if (state == (int32_t)(((ButtonState)(2)))) {
-        face.background = StateLayer(face.background, face.foreground, 5);
+        uint32_t* value_12 = &(face.background);
+        (*value_12) = StateLayer(face.background, face.foreground, 5);
     } else if (state == (int32_t)(((ButtonState)(3)))) {
-        face.background = StateLayer(face.background, face.foreground, 8);
+        uint32_t* value_13 = &(face.background);
+        (*value_13) = StateLayer(face.background, face.foreground, 8);
     } else if (state == (int32_t)(((ButtonState)(7)))) {
-        face.background = palette.accent_subtle;
+        uint32_t* value_14 = &(face.background);
+        (*value_14) = palette.accent_subtle;
     }
     if (state == (int32_t)(((ButtonState)(5)))) {
-        face.opacity = (float)0.55;
+        float* value_15 = &(face.opacity);
+        (*value_15) = (float)0.55;
     }
     return face;
 }

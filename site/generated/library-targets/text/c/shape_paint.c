@@ -33,11 +33,16 @@ shape_paint_LineCornersFor(Vector2 start, Vector2 end, float thickness)
     float scale = thickness / (length * ((float)2.0));
     float across_x = -dy * scale;
     float across_y = dx * scale;
-    corners.points[0] = (Vector2){.x = start.x - across_x, .y = start.y - across_y};
-    corners.points[1] = (Vector2){.x = start.x + across_x, .y = start.y + across_y};
-    corners.points[2] = (Vector2){.x = end.x - across_x, .y = end.y - across_y};
-    corners.points[3] = (Vector2){.x = end.x + across_x, .y = end.y + across_y};
-    corners.valid = true;
+    Vector2* value_3 = &(corners.points[0]);
+    (*value_3) = (Vector2){.x = start.x - across_x, .y = start.y - across_y};
+    Vector2* value_4 = &(corners.points[1]);
+    (*value_4) = (Vector2){.x = start.x + across_x, .y = start.y + across_y};
+    Vector2* value_5 = &(corners.points[2]);
+    (*value_5) = (Vector2){.x = end.x - across_x, .y = end.y - across_y};
+    Vector2* value_6 = &(corners.points[3]);
+    (*value_6) = (Vector2){.x = end.x + across_x, .y = end.y + across_y};
+    bool* value_7 = &(corners.valid);
+    (*value_7) = true;
     return corners;
 }
 
@@ -191,10 +196,14 @@ shape_paint_ShapeTurn(Vector2 a, Vector2 b, Vector2 c)
 void
 shape_paint_ShapeBatchBegin(PaintCommand command, Color color)
 {
-    shape_batch.count = 0;
-    shape_batch.color = color;
-    shape_batch.clip = command.clip;
-    shape_batch.clipped = command.clip_set;
+    int32_t* value_0 = &(shape_batch.count);
+    (*value_0) = 0;
+    Color* value_1 = &(shape_batch.color);
+    (*value_1) = color;
+    Rectangle* value_2 = &(shape_batch.clip);
+    (*value_2) = command.clip;
+    bool* value_3 = &(shape_batch.clipped);
+    (*value_3) = command.clip_set;
 }
 
 void
@@ -204,7 +213,8 @@ shape_paint_ShapeBatchFlush(void)
         Slice value_0 = {shape_batch.points, 3072};
         FillTriangles(SliceRange(value_0, (int64_t)0LL, (int64_t)shape_batch.count, sizeof(Vector2)), shape_batch.color);
     }
-    shape_batch.count = 0;
+    int32_t* value_1 = &(shape_batch.count);
+    (*value_1) = 0;
 }
 
 void
@@ -229,15 +239,21 @@ shape_paint_ShapeBatchAdd(Vector2 a, Vector2 b, Vector2 c)
         shape_paint_ShapeBatchFlush();
     }
     int32_t at = shape_batch.count;
-    ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), at) = a;
+    Vector2* value_6 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), at));
+    (*value_6) = a;
     if (turn > ((float)0.0)) {
-        ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 1u))) = b;
-        ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 2u))) = c;
+        Vector2* value_7 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 1u))));
+        (*value_7) = b;
+        Vector2* value_8 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 2u))));
+        (*value_8) = c;
     } else {
-        ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 1u))) = c;
-        ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 2u))) = b;
+        Vector2* value_9 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 1u))));
+        (*value_9) = c;
+        Vector2* value_10 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 2u))));
+        (*value_10) = b;
     }
-    shape_batch.count = (int32_t)((uint32_t)at + 3u);
+    int32_t* value_11 = &(shape_batch.count);
+    (*value_11) = (int32_t)((uint32_t)at + 3u);
 }
 
 bool
@@ -341,14 +357,15 @@ shape_paint_ShapeClipSide(ShapePolygon polygon, int32_t side, float limit)
         }
         bool current_inside = value_6;
         if (current_inside != previous_inside && result.count < 8) {
-            int32_t value_8 = side;
-            float value_9 = limit;
-            Vector2 value_10 = {0};
+            Vector2* value_8 = &(ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count));
+            int32_t value_9 = side;
+            float value_10 = limit;
+            Vector2 value_11 = {0};
             {
                 Vector2 first = previous;
                 Vector2 second = current;
-                int32_t side = value_8;
-                float limit = value_9;
+                int32_t side = value_9;
+                float limit = value_10;
                 Vector2 from = first;
                 Vector2 to = second;
                 if (to.x < from.x || (to.x == from.x && to.y < from.y)) {
@@ -357,19 +374,22 @@ shape_paint_ShapeClipSide(ShapePolygon polygon, int32_t side, float limit)
                 }
                 if (side < 2) {
                     float share = (limit - from.x) / (to.x - from.x);
-                    value_10 = (Vector2){.x = limit, .y = from.y + ((to.y - from.y) * share)};
-                    goto value_11;
+                    value_11 = (Vector2){.x = limit, .y = from.y + ((to.y - from.y) * share)};
+                    goto value_12;
                 }
                 float share = (limit - from.y) / (to.y - from.y);
-                value_10 = (Vector2){.x = from.x + ((to.x - from.x) * share), .y = limit};
-            value_11: ;
+                value_11 = (Vector2){.x = from.x + ((to.x - from.x) * share), .y = limit};
+            value_12: ;
             }
-            ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count) = value_10;
-            result.count = (int32_t)((uint32_t)(result.count) + 1u);
+            (*value_8) = value_11;
+            int32_t* value_13 = &(result.count);
+            (*value_13) = (int32_t)((uint32_t)((*value_13)) + 1u);
         }
         if (current_inside && result.count < 8) {
-            ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count) = current;
-            result.count = (int32_t)((uint32_t)(result.count) + 1u);
+            Vector2* value_14 = &(ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count));
+            (*value_14) = current;
+            int32_t* value_15 = &(result.count);
+            (*value_15) = (int32_t)((uint32_t)((*value_15)) + 1u);
         }
         previous = current;
         previous_inside = current_inside;
@@ -415,11 +435,14 @@ shape_paint_ShapeBatchTriangle(Vector2 a, Vector2 b, Vector2 c)
         return;
     }
     Vector2 corners[3];
-    corners[0] = a;
-    corners[1] = b;
-    corners[2] = c;
-    Slice value_11 = {corners, 3};
-    Rectangle extent = shape_paint_PointsBounds(value_11);
+    Vector2* value_11 = &(corners[0]);
+    (*value_11) = a;
+    Vector2* value_12 = &(corners[1]);
+    (*value_12) = b;
+    Vector2* value_13 = &(corners[2]);
+    (*value_13) = c;
+    Slice value_14 = {corners, 3};
+    Rectangle extent = shape_paint_PointsBounds(value_14);
     Rectangle clip = shape_batch.clip;
     if (shape_paint_ShapeHidden(extent)) {
         return;
@@ -429,10 +452,14 @@ shape_paint_ShapeBatchTriangle(Vector2 a, Vector2 b, Vector2 c)
         return;
     }
     ShapePolygon polygon = {0};
-    polygon.points[0] = a;
-    polygon.points[1] = b;
-    polygon.points[2] = c;
-    polygon.count = 3;
+    Vector2* value_15 = &(polygon.points[0]);
+    (*value_15) = a;
+    Vector2* value_16 = &(polygon.points[1]);
+    (*value_16) = b;
+    Vector2* value_17 = &(polygon.points[2]);
+    (*value_17) = c;
+    int32_t* value_18 = &(polygon.count);
+    (*value_18) = 3;
     polygon = shape_paint_ShapeClipSide(polygon, 0, clip.x);
     polygon = shape_paint_ShapeClipSide(polygon, 1, clip.x + clip.width);
     polygon = shape_paint_ShapeClipSide(polygon, 2, clip.y);
@@ -451,16 +478,18 @@ shape_paint_ShapeArcDirections(float start, float sweep, int32_t segments)
     int32_t index = 0;
     while (index <= segments) {
         float angle = start + (step * (float)(index));
-        Vector2 value_0 = {0};
-        float value_1 = CosineDegrees(angle);
-        value_0.x = value_1;
-        float value_2 = SineDegrees(angle);
-        value_0.y = value_2;
-        ZIRAN_INDEX(shape_directions, sizeof(shape_directions) / sizeof(shape_directions[0]), index) = value_0;
+        Vector2* value_0 = &(ZIRAN_INDEX(shape_directions, sizeof(shape_directions) / sizeof(shape_directions[0]), index));
+        Vector2 value_1 = {0};
+        float value_2 = CosineDegrees(angle);
+        value_1.x = value_2;
+        float value_3 = SineDegrees(angle);
+        value_1.y = value_3;
+        (*value_0) = value_1;
         index = (int32_t)((uint32_t)index + 1u);
     }
     if (sweep >= ((float)360.0)) {
-        ZIRAN_INDEX(shape_directions, sizeof(shape_directions) / sizeof(shape_directions[0]), segments) = (shape_directions)[0];
+        Vector2* value_4 = &(ZIRAN_INDEX(shape_directions, sizeof(shape_directions) / sizeof(shape_directions[0]), segments));
+        (*value_4) = (shape_directions)[0];
     }
 }
 
@@ -636,14 +665,20 @@ void
 shape_paint_SubmitShape(Session session, PaintCommand data)
 {
     QueuedPaint command = {0};
-    command.data = data;
+    PaintCommand* value_0 = &(command.data);
+    (*value_0) = data;
     PaintEmitter emit = (PaintEmitter){NULL, number_shape_paint_slot_24_3};
-    command.emit = emit;
-    command.has_emitter = true;
-    command.builtin_emitter = true;
+    PaintEmitter* value_1 = &(command.emit);
+    (*value_1) = emit;
+    bool* value_2 = &(command.has_emitter);
+    (*value_2) = true;
+    bool* value_3 = &(command.builtin_emitter);
+    (*value_3) = true;
     PaintClipper clip_for = (PaintClipper){NULL, number_shape_paint_slot_24_13};
-    command.clip_for = clip_for;
-    command.clips = true;
+    PaintClipper* value_4 = &(command.clip_for);
+    (*value_4) = clip_for;
+    bool* value_5 = &(command.clips);
+    (*value_5) = true;
     SubmitPaint(session, command);
 }
 
@@ -651,34 +686,40 @@ void
 shape_paint_PaintTriangleShape(Session session, int32_t node, Rectangle bounds, Vector2 first, Vector2 second, Vector2 third, Color color)
 {
     PaintCommand data = {0};
-    data.kind = 11;
-    data.node = node;
-    data.bounds = bounds;
-    Rectangle value_0 = bounds;
-    Vector2 value_1 = {0};
+    int32_t* value_0 = &(data.kind);
+    (*value_0) = 11;
+    int32_t* value_1 = &(data.node);
+    (*value_1) = node;
+    Rectangle* value_2 = &(data.bounds);
+    (*value_2) = bounds;
+    Vector2* value_3 = &(data.origin);
+    Rectangle value_4 = bounds;
+    Vector2 value_5 = {0};
     {
-        Rectangle bounds = value_0;
+        Rectangle bounds = value_4;
         Vector2 point = first;
-        value_1 = (Vector2){.x = point.x - bounds.x, .y = point.y - bounds.y};
+        value_5 = (Vector2){.x = point.x - bounds.x, .y = point.y - bounds.y};
     }
-    data.origin = value_1;
-    Rectangle value_3 = bounds;
-    Vector2 value_4 = {0};
+    (*value_3) = value_5;
+    Rectangle value_7 = bounds;
+    Vector2 value_8 = {0};
     {
-        Rectangle bounds = value_3;
+        Rectangle bounds = value_7;
         Vector2 point = second;
-        value_4 = (Vector2){.x = point.x - bounds.x, .y = point.y - bounds.y};
+        value_8 = (Vector2){.x = point.x - bounds.x, .y = point.y - bounds.y};
     }
-    Vector2 second_offset = value_4;
-    Rectangle value_6 = bounds;
-    Vector2 value_7 = {0};
+    Vector2 second_offset = value_8;
+    Rectangle value_10 = bounds;
+    Vector2 value_11 = {0};
     {
-        Rectangle bounds = value_6;
+        Rectangle bounds = value_10;
         Vector2 point = third;
-        value_7 = (Vector2){.x = point.x - bounds.x, .y = point.y - bounds.y};
+        value_11 = (Vector2){.x = point.x - bounds.x, .y = point.y - bounds.y};
     }
-    Vector2 third_offset = value_7;
-    data.source = (Rectangle){.x = second_offset.x, .y = second_offset.y, .width = third_offset.x, .height = third_offset.y};
-    data.color = color;
+    Vector2 third_offset = value_11;
+    Rectangle* value_13 = &(data.source);
+    (*value_13) = (Rectangle){.x = second_offset.x, .y = second_offset.y, .width = third_offset.x, .height = third_offset.y};
+    Color* value_14 = &(data.color);
+    (*value_14) = color;
     shape_paint_SubmitShape(session, data);
 }

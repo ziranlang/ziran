@@ -268,213 +268,361 @@ func Theme_PackedColor(rgb uint32, alpha uint32) uint32 {
 
 func Theme_LightPalette() Palette {
 	var palette Palette = Palette{}
-	palette.Background = 4294967295
-	palette.Surface = 4294967295
-	palette.SurfaceRaised = 4294967295
-	palette.SurfaceMuted = 4177066239
-	palette.SurfaceSunken = 4092851199
-	palette.Foreground = 185273343
-	palette.TextSecondary = 1482184959
-	palette.TextMuted = 1987475199
-	palette.TextDisabled = 1987475090
-	palette.Icon = palette.Foreground
-	palette.IconMuted = palette.TextMuted
-	palette.Border = 3823363071
-	palette.SubtleBorder = 4042322175
-	palette.StrongBorder = 2492765439
-	palette.Focus = 528338918
-	palette.HoverLayer = 185273101
-	palette.ActiveLayer = 185273107
-	palette.Scrim = 168430674
-	palette.Selection = 8801057
-	palette.SelectionText = 7091967
-	palette.Accent = 8801279
-	palette.AccentStrong = 7091967
-	palette.AccentSubtle = 8801057
-	palette.OnAccent = 4294967295
-	palette.ControlOn = 8801279
-	palette.ControlGlyph = 4294967295
-	palette.ControlTrack = 3705462015
-	palette.ControlTrackHover = 3520188927
-	palette.ControlThumb = 4294967295
-	palette.ControlThumbOn = 4294967295
-	palette.Success = 7818751
-	palette.OnSuccess = 4294967295
-	palette.Warning = 2674000639
-	palette.OnWarning = 4294967295
-	palette.Danger = 3375377919
-	palette.OnDanger = 4294967295
-	palette.Info = 325951231
-	palette.OnInfo = 4294967295
-	palette.Link = palette.Accent
-	palette.Shadow = 9
+	value_0 := &(palette.Background)
+	(*value_0) = 4294967295
+	value_1 := &(palette.Surface)
+	(*value_1) = 4294967295
+	value_2 := &(palette.SurfaceRaised)
+	(*value_2) = 4294967295
+	value_3 := &(palette.SurfaceMuted)
+	(*value_3) = 4177066239
+	value_4 := &(palette.SurfaceSunken)
+	(*value_4) = 4092851199
+	value_5 := &(palette.Foreground)
+	(*value_5) = 185273343
+	value_6 := &(palette.TextSecondary)
+	(*value_6) = 1482184959
+	value_7 := &(palette.TextMuted)
+	(*value_7) = 1987475199
+	value_8 := &(palette.TextDisabled)
+	(*value_8) = 1987475090
+	value_9 := &(palette.Icon)
+	(*value_9) = palette.Foreground
+	value_10 := &(palette.IconMuted)
+	(*value_10) = palette.TextMuted
+	value_11 := &(palette.Border)
+	(*value_11) = 3823363071
+	value_12 := &(palette.SubtleBorder)
+	(*value_12) = 4042322175
+	value_13 := &(palette.StrongBorder)
+	(*value_13) = 2492765439
+	value_14 := &(palette.Focus)
+	(*value_14) = 528338918
+	value_15 := &(palette.HoverLayer)
+	(*value_15) = 185273101
+	value_16 := &(palette.ActiveLayer)
+	(*value_16) = 185273107
+	value_17 := &(palette.Scrim)
+	(*value_17) = 168430674
+	value_18 := &(palette.Selection)
+	(*value_18) = 8801057
+	value_19 := &(palette.SelectionText)
+	(*value_19) = 7091967
+	value_20 := &(palette.Accent)
+	(*value_20) = 8801279
+	value_21 := &(palette.AccentStrong)
+	(*value_21) = 7091967
+	value_22 := &(palette.AccentSubtle)
+	(*value_22) = 8801057
+	value_23 := &(palette.OnAccent)
+	(*value_23) = 4294967295
+	value_24 := &(palette.ControlOn)
+	(*value_24) = 8801279
+	value_25 := &(palette.ControlGlyph)
+	(*value_25) = 4294967295
+	value_26 := &(palette.ControlTrack)
+	(*value_26) = 3705462015
+	value_27 := &(palette.ControlTrackHover)
+	(*value_27) = 3520188927
+	value_28 := &(palette.ControlThumb)
+	(*value_28) = 4294967295
+	value_29 := &(palette.ControlThumbOn)
+	(*value_29) = 4294967295
+	value_30 := &(palette.Success)
+	(*value_30) = 7818751
+	value_31 := &(palette.OnSuccess)
+	(*value_31) = 4294967295
+	value_32 := &(palette.Warning)
+	(*value_32) = 2674000639
+	value_33 := &(palette.OnWarning)
+	(*value_33) = 4294967295
+	value_34 := &(palette.Danger)
+	(*value_34) = 3375377919
+	value_35 := &(palette.OnDanger)
+	(*value_35) = 4294967295
+	value_36 := &(palette.Info)
+	(*value_36) = 325951231
+	value_37 := &(palette.OnInfo)
+	(*value_37) = 4294967295
+	value_38 := &(palette.Link)
+	(*value_38) = palette.Accent
+	value_39 := &(palette.Shadow)
+	(*value_39) = 9
 	return palette
 }
 
 func Theme_DarkPalette() Palette {
 	palette := Theme_LightPalette()
-	palette.Background = 303174399
-	palette.Surface = 404232447
-	palette.SurfaceRaised = 522133503
-	palette.SurfaceMuted = 522133503
-	palette.SurfaceSunken = 235802367
-	palette.Foreground = 4076008191
-	palette.TextSecondary = 3031741695
-	palette.TextMuted = 2358021375
-	palette.TextDisabled = 2358021266
-	palette.Border = 724249599
-	palette.SubtleBorder = 572662527
-	palette.StrongBorder = 1734830079
-	palette.Focus = 1437466598
-	palette.HoverLayer = 4076007949
-	palette.ActiveLayer = 4076007955
-	palette.Scrim = 140
-	palette.Selection = 1406969395
-	palette.SelectionText = 2481967359
-	palette.Accent = 1406969599
-	palette.AccentStrong = 2481967359
-	palette.AccentSubtle = 1406969395
-	palette.OnAccent = 270538495
-	palette.ControlOn = 531527935
-	palette.ControlGlyph = 4294967295
-	palette.ControlTrack = 892679679
-	palette.ControlTrackHover = 1077952767
-	palette.ControlThumb = 4160223231
-	palette.ControlThumbOn = 488447487
-	palette.Success = 1440129023
-	palette.OnSuccess = 270538495
-	palette.Warning = 4072499455
-	palette.OnWarning = 605883135
-	palette.Danger = 4067519743
-	palette.OnDanger = 705498111
-	palette.Info = 2093281535
-	palette.OnInfo = 186263039
-	palette.Icon = palette.Foreground
-	palette.IconMuted = palette.TextMuted
-	palette.Link = palette.Accent
-	palette.Shadow = 46
+	value_0 := &(palette.Background)
+	(*value_0) = 303174399
+	value_1 := &(palette.Surface)
+	(*value_1) = 404232447
+	value_2 := &(palette.SurfaceRaised)
+	(*value_2) = 522133503
+	value_3 := &(palette.SurfaceMuted)
+	(*value_3) = 522133503
+	value_4 := &(palette.SurfaceSunken)
+	(*value_4) = 235802367
+	value_5 := &(palette.Foreground)
+	(*value_5) = 4076008191
+	value_6 := &(palette.TextSecondary)
+	(*value_6) = 3031741695
+	value_7 := &(palette.TextMuted)
+	(*value_7) = 2358021375
+	value_8 := &(palette.TextDisabled)
+	(*value_8) = 2358021266
+	value_9 := &(palette.Border)
+	(*value_9) = 724249599
+	value_10 := &(palette.SubtleBorder)
+	(*value_10) = 572662527
+	value_11 := &(palette.StrongBorder)
+	(*value_11) = 1734830079
+	value_12 := &(palette.Focus)
+	(*value_12) = 1437466598
+	value_13 := &(palette.HoverLayer)
+	(*value_13) = 4076007949
+	value_14 := &(palette.ActiveLayer)
+	(*value_14) = 4076007955
+	value_15 := &(palette.Scrim)
+	(*value_15) = 140
+	value_16 := &(palette.Selection)
+	(*value_16) = 1406969395
+	value_17 := &(palette.SelectionText)
+	(*value_17) = 2481967359
+	value_18 := &(palette.Accent)
+	(*value_18) = 1406969599
+	value_19 := &(palette.AccentStrong)
+	(*value_19) = 2481967359
+	value_20 := &(palette.AccentSubtle)
+	(*value_20) = 1406969395
+	value_21 := &(palette.OnAccent)
+	(*value_21) = 270538495
+	value_22 := &(palette.ControlOn)
+	(*value_22) = 531527935
+	value_23 := &(palette.ControlGlyph)
+	(*value_23) = 4294967295
+	value_24 := &(palette.ControlTrack)
+	(*value_24) = 892679679
+	value_25 := &(palette.ControlTrackHover)
+	(*value_25) = 1077952767
+	value_26 := &(palette.ControlThumb)
+	(*value_26) = 4160223231
+	value_27 := &(palette.ControlThumbOn)
+	(*value_27) = 488447487
+	value_28 := &(palette.Success)
+	(*value_28) = 1440129023
+	value_29 := &(palette.OnSuccess)
+	(*value_29) = 270538495
+	value_30 := &(palette.Warning)
+	(*value_30) = 4072499455
+	value_31 := &(palette.OnWarning)
+	(*value_31) = 605883135
+	value_32 := &(palette.Danger)
+	(*value_32) = 4067519743
+	value_33 := &(palette.OnDanger)
+	(*value_33) = 705498111
+	value_34 := &(palette.Info)
+	(*value_34) = 2093281535
+	value_35 := &(palette.OnInfo)
+	(*value_35) = 186263039
+	value_36 := &(palette.Icon)
+	(*value_36) = palette.Foreground
+	value_37 := &(palette.IconMuted)
+	(*value_37) = palette.TextMuted
+	value_38 := &(palette.Link)
+	(*value_38) = palette.Accent
+	value_39 := &(palette.Shadow)
+	(*value_39) = 46
 	return palette
 }
 
 func Theme_DefaultFonts() FontTokens {
 	var fonts FontTokens = FontTokens{}
-	fonts.Body = "Inter"
-	fonts.Control = "Inter Medium"
-	fonts.Heading = "Geist Medium"
-	fonts.Code = "Geist Mono"
-	fonts.Icon = "Lucide"
+	value_0 := &(fonts.Body)
+	(*value_0) = "Inter"
+	value_1 := &(fonts.Control)
+	(*value_1) = "Inter Medium"
+	value_2 := &(fonts.Heading)
+	(*value_2) = "Geist Medium"
+	value_3 := &(fonts.Code)
+	(*value_3) = "Geist Mono"
+	value_4 := &(fonts.Icon)
+	(*value_4) = "Lucide"
 	return fonts
 }
 
 func Theme_DefaultMetrics() Metrics {
 	var metrics Metrics = Metrics{}
-	metrics.RadiusMark = 6.0
-	metrics.RadiusItem = 8.0
-	metrics.RadiusSmall = 6.0
-	metrics.RadiusMedium = 10.0
-	metrics.RadiusLarge = 14.0
-	metrics.RadiusSurface = 18.0
-	metrics.RadiusPill = 999.0
-	metrics.BorderWidth = 1.0
-	metrics.FocusWidth = 2.0
-	metrics.FocusGap = 3.0
-	metrics.Space1 = 4.0
-	metrics.Space2 = 8.0
-	metrics.Space3 = 12.0
-	metrics.Space4 = 16.0
-	metrics.Space5 = 20.0
-	metrics.Space6 = 24.0
-	metrics.ControlHeightSmall = 30.0
-	metrics.ControlHeightMedium = 36.0
-	metrics.ControlHeightLarge = 44.0
-	metrics.ControlPaddingSmall = 8.0
-	metrics.ControlPaddingMedium = 10.0
-	metrics.ControlPaddingLarge = 12.0
-	metrics.ControlGap = 8.0
-	metrics.TextXs = 11.0
-	metrics.TextSm = 12.0
-	metrics.TextBody = 13.0
-	metrics.TextLg = 15.0
-	metrics.Heading1 = 36.0
-	metrics.Heading2 = 28.0
-	metrics.Heading3 = 22.0
-	metrics.Heading4 = 17.0
-	metrics.IconSizeSmall = 12.0
-	metrics.IconSizeMedium = 14.0
-	metrics.IconSizeLarge = 16.0
-	metrics.DisabledOpacity = 0.55
+	value_0 := &(metrics.RadiusMark)
+	(*value_0) = 6.0
+	value_1 := &(metrics.RadiusItem)
+	(*value_1) = 8.0
+	value_2 := &(metrics.RadiusSmall)
+	(*value_2) = 6.0
+	value_3 := &(metrics.RadiusMedium)
+	(*value_3) = 10.0
+	value_4 := &(metrics.RadiusLarge)
+	(*value_4) = 14.0
+	value_5 := &(metrics.RadiusSurface)
+	(*value_5) = 18.0
+	value_6 := &(metrics.RadiusPill)
+	(*value_6) = 999.0
+	value_7 := &(metrics.BorderWidth)
+	(*value_7) = 1.0
+	value_8 := &(metrics.FocusWidth)
+	(*value_8) = 2.0
+	value_9 := &(metrics.FocusGap)
+	(*value_9) = 3.0
+	value_10 := &(metrics.Space1)
+	(*value_10) = 4.0
+	value_11 := &(metrics.Space2)
+	(*value_11) = 8.0
+	value_12 := &(metrics.Space3)
+	(*value_12) = 12.0
+	value_13 := &(metrics.Space4)
+	(*value_13) = 16.0
+	value_14 := &(metrics.Space5)
+	(*value_14) = 20.0
+	value_15 := &(metrics.Space6)
+	(*value_15) = 24.0
+	value_16 := &(metrics.ControlHeightSmall)
+	(*value_16) = 30.0
+	value_17 := &(metrics.ControlHeightMedium)
+	(*value_17) = 36.0
+	value_18 := &(metrics.ControlHeightLarge)
+	(*value_18) = 44.0
+	value_19 := &(metrics.ControlPaddingSmall)
+	(*value_19) = 8.0
+	value_20 := &(metrics.ControlPaddingMedium)
+	(*value_20) = 10.0
+	value_21 := &(metrics.ControlPaddingLarge)
+	(*value_21) = 12.0
+	value_22 := &(metrics.ControlGap)
+	(*value_22) = 8.0
+	value_23 := &(metrics.TextXs)
+	(*value_23) = 11.0
+	value_24 := &(metrics.TextSm)
+	(*value_24) = 12.0
+	value_25 := &(metrics.TextBody)
+	(*value_25) = 13.0
+	value_26 := &(metrics.TextLg)
+	(*value_26) = 15.0
+	value_27 := &(metrics.Heading1)
+	(*value_27) = 36.0
+	value_28 := &(metrics.Heading2)
+	(*value_28) = 28.0
+	value_29 := &(metrics.Heading3)
+	(*value_29) = 22.0
+	value_30 := &(metrics.Heading4)
+	(*value_30) = 17.0
+	value_31 := &(metrics.IconSizeSmall)
+	(*value_31) = 12.0
+	value_32 := &(metrics.IconSizeMedium)
+	(*value_32) = 14.0
+	value_33 := &(metrics.IconSizeLarge)
+	(*value_33) = 16.0
+	value_34 := &(metrics.DisabledOpacity)
+	(*value_34) = 0.55
 	return metrics
 }
 
 func Theme_DefaultShadows(dark bool) ShadowTokens {
 	var shadows ShadowTokens = ShadowTokens{}
 	if dark {
-		shadows.Rest = ShadowLayer{Blur: 1.0, OffsetY: 2.0, Spread: 0.0, Opacity: 0.18}
-		shadows.Raised[0] = ShadowLayer{Blur: 8.0, OffsetY: 22.0, Spread: 0.0, Opacity: 0.22}
-		shadows.Floating[0] = ShadowLayer{Blur: 14.0, OffsetY: 36.0, Spread: -4.0, Opacity: 0.40}
-		shadows.Floating[1] = ShadowLayer{Blur: 1.0, OffsetY: 3.0, Spread: 0.0, Opacity: 0.24}
+		value_0 := &(shadows.Rest)
+		(*value_0) = ShadowLayer{Blur: 1.0, OffsetY: 2.0, Spread: 0.0, Opacity: 0.18}
+		value_1 := &(shadows.Raised[0])
+		(*value_1) = ShadowLayer{Blur: 8.0, OffsetY: 22.0, Spread: 0.0, Opacity: 0.22}
+		value_2 := &(shadows.Floating[0])
+		(*value_2) = ShadowLayer{Blur: 14.0, OffsetY: 36.0, Spread: -4.0, Opacity: 0.40}
+		value_3 := &(shadows.Floating[1])
+		(*value_3) = ShadowLayer{Blur: 1.0, OffsetY: 3.0, Spread: 0.0, Opacity: 0.24}
 	} else {
-		shadows.Rest = ShadowLayer{Blur: 1.0, OffsetY: 2.0, Spread: 0.0, Opacity: 0.035}
-		shadows.Raised[0] = ShadowLayer{Blur: 6.0, OffsetY: 18.0, Spread: 0.0, Opacity: 0.065}
-		shadows.Raised[1] = ShadowLayer{Blur: 1.0, OffsetY: 3.0, Spread: 0.0, Opacity: 0.035}
-		shadows.Floating[0] = ShadowLayer{Blur: 12.0, OffsetY: 32.0, Spread: -4.0, Opacity: 0.12}
-		shadows.Floating[1] = ShadowLayer{Blur: 1.0, OffsetY: 3.0, Spread: 0.0, Opacity: 0.06}
+		value_4 := &(shadows.Rest)
+		(*value_4) = ShadowLayer{Blur: 1.0, OffsetY: 2.0, Spread: 0.0, Opacity: 0.035}
+		value_5 := &(shadows.Raised[0])
+		(*value_5) = ShadowLayer{Blur: 6.0, OffsetY: 18.0, Spread: 0.0, Opacity: 0.065}
+		value_6 := &(shadows.Raised[1])
+		(*value_6) = ShadowLayer{Blur: 1.0, OffsetY: 3.0, Spread: 0.0, Opacity: 0.035}
+		value_7 := &(shadows.Floating[0])
+		(*value_7) = ShadowLayer{Blur: 12.0, OffsetY: 32.0, Spread: -4.0, Opacity: 0.12}
+		value_8 := &(shadows.Floating[1])
+		(*value_8) = ShadowLayer{Blur: 1.0, OffsetY: 3.0, Spread: 0.0, Opacity: 0.06}
 	}
 	return shadows
 }
 
 func Theme_DefaultMotion(reduced_motion bool) MotionTokens {
 	var motion MotionTokens = MotionTokens{}
-	motion.HighlightMs = 100.0
-	motion.HoverMs = 140.0
-	motion.StateMs = 180.0
-	motion.EnterMs = 260.0
-	motion.ExitMs = 160.0
-	motion.ThemeMs = 320.0
-	motion.Multiplier = 1.0
-	motion.SavedMultiplier = 1.0
-	motion.ReducedMotion = reduced_motion
+	value_0 := &(motion.HighlightMs)
+	(*value_0) = 100.0
+	value_1 := &(motion.HoverMs)
+	(*value_1) = 140.0
+	value_2 := &(motion.StateMs)
+	(*value_2) = 180.0
+	value_3 := &(motion.EnterMs)
+	(*value_3) = 260.0
+	value_4 := &(motion.ExitMs)
+	(*value_4) = 160.0
+	value_5 := &(motion.ThemeMs)
+	(*value_5) = 320.0
+	value_6 := &(motion.Multiplier)
+	(*value_6) = 1.0
+	value_7 := &(motion.SavedMultiplier)
+	(*value_7) = 1.0
+	value_8 := &(motion.ReducedMotion)
+	(*value_8) = reduced_motion
 	if reduced_motion {
-		motion.Multiplier = 0.0
+		value_9 := &(motion.Multiplier)
+		(*value_9) = 0.0
 	}
-	motion.OklabThemeTransition = true
+	value_10 := &(motion.OklabThemeTransition)
+	(*value_10) = true
 	return motion
 }
 
 func Theme_DefaultTheme(dark bool, reduced_motion bool) ThemeTokens {
 	var theme ThemeTokens = ThemeTokens{}
-	theme.Dark = dark
-	var value_0 Palette = Palette{}
+	value_0 := &(theme.Dark)
+	(*value_0) = dark
+	value_1 := &(theme.Colors)
+	var value_2 Palette = Palette{}
 	if dark {
-		var value_1 Palette = Theme_DarkPalette()
-		value_0 = value_1
+		var value_3 Palette = Theme_DarkPalette()
+		value_2 = value_3
 	} else {
-		var value_2 Palette = Theme_LightPalette()
-		value_0 = value_2
+		var value_4 Palette = Theme_LightPalette()
+		value_2 = value_4
 	}
-	theme.Colors = value_0
-	theme.Metrics = Theme_DefaultMetrics()
-	theme.Shadows = Theme_DefaultShadows(dark)
-	theme.Motion = Theme_DefaultMotion(reduced_motion)
-	theme.Fonts = Theme_DefaultFonts()
+	(*value_1) = value_2
+	value_5 := &(theme.Metrics)
+	(*value_5) = Theme_DefaultMetrics()
+	value_6 := &(theme.Shadows)
+	(*value_6) = Theme_DefaultShadows(dark)
+	value_7 := &(theme.Motion)
+	(*value_7) = Theme_DefaultMotion(reduced_motion)
+	value_8 := &(theme.Fonts)
+	(*value_8) = Theme_DefaultFonts()
 	if dark {
-		var value_3 [6]uint32
-		value_3[0] = 548109055
-		value_3[1] = 2390746879
-		value_3[2] = 3514761471
-		value_3[3] = 3714160639
-		value_3[4] = 1217588735
-		value_3[5] = 3899076351
-		theme.Series.Items = value_3
+		value_9 := &(theme.Series.Items)
+		var value_10 [6]uint32
+		value_10[0] = 548109055
+		value_10[1] = 2390746879
+		value_10[2] = 3514761471
+		value_10[3] = 3714160639
+		value_10[4] = 1217588735
+		value_10[5] = 3899076351
+		(*value_9) = value_10
 	} else {
-		var value_4 [6]uint32
-		value_4[0] = 464485119
-		value_4[1] = 1649465087
-		value_4[2] = 3986751743
-		value_4[3] = 3900417279
-		value_4[4] = 712562431
-		value_4[5] = 3949475071
-		theme.Series.Items = value_4
+		value_11 := &(theme.Series.Items)
+		var value_12 [6]uint32
+		value_12[0] = 464485119
+		value_12[1] = 1649465087
+		value_12[2] = 3986751743
+		value_12[3] = 3900417279
+		value_12[4] = 712562431
+		value_12[5] = 3949475071
+		(*value_11) = value_12
 	}
 	return theme
 }
@@ -502,41 +650,59 @@ func Theme_SetThemeMode(dark bool) bool {
 		return true
 	}
 	replacement := Theme_DefaultTheme(dark, theme.Motion.ReducedMotion)
-	replacement.Metrics = theme.Metrics
-	replacement.Fonts = theme.Fonts
-	replacement.Motion = theme.Motion
+	value_0 := &(replacement.Metrics)
+	(*value_0) = theme.Metrics
+	value_1 := &(replacement.Fonts)
+	(*value_1) = theme.Fonts
+	value_2 := &(replacement.Motion)
+	(*value_2) = theme.Motion
 	return Theme_InstallTheme(replacement)
 }
 
 func Theme_SetReducedMotion(reduced_motion bool) bool {
 	theme := Theme_CurrentTheme()
-	theme.Motion.ReducedMotion = reduced_motion
+	value_0 := &(theme.Motion.ReducedMotion)
+	(*value_0) = reduced_motion
 	if reduced_motion {
 		if theme.Motion.Multiplier > 0.0 {
-			theme.Motion.SavedMultiplier = theme.Motion.Multiplier
+			value_1 := &(theme.Motion.SavedMultiplier)
+			(*value_1) = theme.Motion.Multiplier
 		}
-		theme.Motion.Multiplier = 0.0
+		value_2 := &(theme.Motion.Multiplier)
+		(*value_2) = 0.0
 	} else {
 		if theme.Motion.Multiplier > 0.0 {
-			theme.Motion.SavedMultiplier = theme.Motion.Multiplier
+			value_3 := &(theme.Motion.SavedMultiplier)
+			(*value_3) = theme.Motion.Multiplier
 		}
-		theme.Motion.Multiplier = theme.Motion.SavedMultiplier
+		value_4 := &(theme.Motion.Multiplier)
+		(*value_4) = theme.Motion.SavedMultiplier
 	}
 	return Theme_InstallTheme(theme)
 }
 
 func Theme_WithAccent(theme ThemeTokens, accent uint32, on_accent uint32, accent_strong uint32, accent_subtle uint32) ThemeTokens {
 	result := theme
-	result.Colors.Accent = accent
-	result.Colors.OnAccent = on_accent
-	result.Colors.AccentStrong = accent_strong
-	result.Colors.AccentSubtle = accent_subtle
-	result.Colors.Selection = accent_subtle
-	result.Colors.SelectionText = accent_strong
-	result.Colors.Link = accent
-	result.Colors.ControlOn = accent
-	result.Colors.ControlGlyph = Theme_OnColor(accent)
-	result.Colors.ControlThumbOn = Theme_OnColor(accent)
+	value_0 := &(result.Colors.Accent)
+	(*value_0) = accent
+	value_1 := &(result.Colors.OnAccent)
+	(*value_1) = on_accent
+	value_2 := &(result.Colors.AccentStrong)
+	(*value_2) = accent_strong
+	value_3 := &(result.Colors.AccentSubtle)
+	(*value_3) = accent_subtle
+	value_4 := &(result.Colors.Selection)
+	(*value_4) = accent_subtle
+	value_5 := &(result.Colors.SelectionText)
+	(*value_5) = accent_strong
+	value_6 := &(result.Colors.Link)
+	(*value_6) = accent
+	value_7 := &(result.Colors.ControlOn)
+	(*value_7) = accent
+	value_8 := &(result.Colors.ControlGlyph)
+	(*value_8) = Theme_OnColor(accent)
+	value_9 := &(result.Colors.ControlThumbOn)
+	(*value_9) = Theme_OnColor(accent)
 	return result
 }
 
@@ -1074,33 +1240,58 @@ func Theme_SchemeFor(background uint32, surface uint32, text uint32, primary uin
 		value_0 = value_2
 	}
 	colors := value_0
-	scheme.Primary = primary
-	scheme.OnPrimary = Theme_OnColor(primary)
-	scheme.Secondary = secondary
-	scheme.OnSecondary = Theme_OnColor(secondary)
-	scheme.Surface = surface
+	value_3 := &(scheme.Primary)
+	(*value_3) = primary
+	value_4 := &(scheme.OnPrimary)
+	(*value_4) = Theme_OnColor(primary)
+	value_5 := &(scheme.Secondary)
+	(*value_5) = secondary
+	value_6 := &(scheme.OnSecondary)
+	(*value_6) = Theme_OnColor(secondary)
+	value_7 := &(scheme.Surface)
+	(*value_7) = surface
 	if (surface & 255) == 0 {
-		scheme.Surface = background
+		value_8 := &(scheme.Surface)
+		(*value_8) = background
 	}
-	scheme.OnSurface = text
-	scheme.SurfaceContainer = colors.SurfaceMuted
-	scheme.SurfaceVariant = colors.SurfaceRaised
-	scheme.OnSurfaceVariant = colors.TextSecondary
-	scheme.Outline = colors.Border
-	scheme.Error = colors.Danger
-	scheme.OnError = colors.OnDanger
-	scheme.DisabledContainer = colors.SurfaceMuted
-	scheme.DisabledContent = (text & 4294967040) | uint32(disabled_alpha)
-	scheme.PrimaryContainer = colors.AccentSubtle
-	scheme.OnPrimaryContainer = colors.AccentStrong
-	scheme.SecondaryContainer = Theme_StateLayer(colors.Surface, secondary, 16)
-	scheme.OnSecondaryContainer = text
-	scheme.SurfaceContainerLow = colors.SubtleBorder
-	scheme.SurfaceContainerHigh = colors.SurfaceMuted
-	scheme.OutlineVariant = colors.SubtleBorder
-	scheme.InverseSurface = text
-	scheme.OnInverseSurface = scheme.Surface
-	scheme.Scrim = colors.Scrim
+	value_9 := &(scheme.OnSurface)
+	(*value_9) = text
+	value_10 := &(scheme.SurfaceContainer)
+	(*value_10) = colors.SurfaceMuted
+	value_11 := &(scheme.SurfaceVariant)
+	(*value_11) = colors.SurfaceRaised
+	value_12 := &(scheme.OnSurfaceVariant)
+	(*value_12) = colors.TextSecondary
+	value_13 := &(scheme.Outline)
+	(*value_13) = colors.Border
+	value_14 := &(scheme.Error)
+	(*value_14) = colors.Danger
+	value_15 := &(scheme.OnError)
+	(*value_15) = colors.OnDanger
+	value_16 := &(scheme.DisabledContainer)
+	(*value_16) = colors.SurfaceMuted
+	value_17 := &(scheme.DisabledContent)
+	(*value_17) = (text & 4294967040) | uint32(disabled_alpha)
+	value_18 := &(scheme.PrimaryContainer)
+	(*value_18) = colors.AccentSubtle
+	value_19 := &(scheme.OnPrimaryContainer)
+	(*value_19) = colors.AccentStrong
+	value_20 := &(scheme.SecondaryContainer)
+	(*value_20) = Theme_StateLayer(colors.Surface, secondary, 16)
+	value_21 := &(scheme.OnSecondaryContainer)
+	(*value_21) = text
+	value_22 := &(scheme.SurfaceContainerLow)
+	(*value_22) = colors.SubtleBorder
+	value_23 := &(scheme.SurfaceContainerHigh)
+	(*value_23) = colors.SurfaceMuted
+	value_24 := &(scheme.OutlineVariant)
+	(*value_24) = colors.SubtleBorder
+	value_25 := &(scheme.InverseSurface)
+	(*value_25) = text
+	value_26 := &(scheme.OnInverseSurface)
+	(*value_26) = scheme.Surface
+	value_27 := &(scheme.Scrim)
+	(*value_27) = colors.Scrim
 	return scheme
 }
 

@@ -4,7 +4,6 @@ package main
 // #import session
 // #import card_behavior
 // #import button_behavior
-// #import button_props
 // #import control_props
 // #import drawing_props
 // #import focus
@@ -12,8 +11,6 @@ package main
 // #import geometry
 // #import icon
 // #import image_behavior
-// #import image_props
-// #import image
 // #import paint_queue
 // #import style
 // #import style_sheet
@@ -22,80 +19,120 @@ package main
 // #import tree
 // #import tree_input
 // #import widget_kind
-func Button_ButtonDefaultFace(props ButtonProps, state int32) StyleData {
+func Button_ButtonDefaultFace(props zir_2b2386d69a109fee_Props, state int32) StyleData {
 	var face StyleData = StyleData{}
-	face.Fields = 32149503
+	value_0 := &(face.Fields)
+	(*value_0) = 32149503
 	palette := Theme_CurrentPalette()
 	theme := Theme_CurrentTheme()
-	face.Background = palette.Surface
-	face.Foreground = palette.Foreground
-	face.Focus = palette.Focus
-	face.Border = 0
+	value_1 := &(face.Background)
+	(*value_1) = palette.Surface
+	value_2 := &(face.Foreground)
+	(*value_2) = palette.Foreground
+	value_3 := &(face.Focus)
+	(*value_3) = palette.Focus
+	value_4 := &(face.Border)
+	(*value_4) = 0
 	if ButtonTone(props.Tone) == ButtonTone(1) {
-		face.Background = palette.Accent
-		face.Foreground = palette.OnAccent
+		value_5 := &(face.Background)
+		(*value_5) = palette.Accent
+		value_6 := &(face.Foreground)
+		(*value_6) = palette.OnAccent
 	} else if ButtonTone(props.Tone) == ButtonTone(2) {
-		face.Background = palette.Danger
-		face.Foreground = palette.OnDanger
+		value_7 := &(face.Background)
+		(*value_7) = palette.Danger
+		value_8 := &(face.Foreground)
+		(*value_8) = palette.OnDanger
 	} else if ButtonTone(props.Tone) == ButtonTone(3) {
-		face.Background = palette.Success
-		face.Foreground = palette.OnSuccess
+		value_9 := &(face.Background)
+		(*value_9) = palette.Success
+		value_10 := &(face.Foreground)
+		(*value_10) = palette.OnSuccess
 	} else if ButtonTone(props.Tone) == ButtonTone(4) {
-		face.Background = palette.Warning
-		face.Foreground = palette.OnWarning
+		value_11 := &(face.Background)
+		(*value_11) = palette.Warning
+		value_12 := &(face.Foreground)
+		(*value_12) = palette.OnWarning
 	}
 	ink := face.Background
 	if ButtonTone(props.Tone) == ButtonTone(0) {
 		ink = face.Foreground
 	}
 	if ButtonEmphasis(props.Emphasis) == ButtonEmphasis(1) {
-		face.Foreground = ink
-		face.Background = Theme_StateLayer(palette.Surface, ink, 12)
+		value_13 := &(face.Foreground)
+		(*value_13) = ink
+		value_14 := &(face.Background)
+		(*value_14) = Theme_StateLayer(palette.Surface, ink, 12)
 	} else if ButtonEmphasis(props.Emphasis) == ButtonEmphasis(2) {
-		face.Foreground = ink
-		face.Border = ink
-		face.Background = 0
-		face.BorderWidth = 1.0
+		value_15 := &(face.Foreground)
+		(*value_15) = ink
+		value_16 := &(face.Border)
+		(*value_16) = ink
+		value_17 := &(face.Background)
+		(*value_17) = 0
+		value_18 := &(face.BorderWidth)
+		(*value_18) = 1.0
 	} else if ButtonEmphasis(props.Emphasis) == ButtonEmphasis(3) || ButtonEmphasis(props.Emphasis) == ButtonEmphasis(4) {
-		face.Foreground = ink
-		face.Background = 0
+		value_19 := &(face.Foreground)
+		(*value_19) = ink
+		value_20 := &(face.Background)
+		(*value_20) = 0
 	}
 	if state == 2 {
-		face.Background = Theme_StateLayer(face.Background, face.Foreground, 5)
+		value_21 := &(face.Background)
+		(*value_21) = Theme_StateLayer(face.Background, face.Foreground, 5)
 	} else if state == 3 || state == 7 {
-		face.Background = Theme_StateLayer(face.Background, face.Foreground, 8)
+		value_22 := &(face.Background)
+		(*value_22) = Theme_StateLayer(face.Background, face.Foreground, 8)
 	} else if state == 5 || state == 6 {
 		if (face.Background & 255) != 0 {
-			face.Background = Surface_Opacity(face.Background, 0.55)
+			value_23 := &(face.Background)
+			(*value_23) = Surface_Opacity(face.Background, 0.55)
 		}
-		face.Foreground = Surface_Opacity(face.Foreground, 0.55)
-		face.Border = Surface_Opacity(face.Border, 0.55)
+		value_24 := &(face.Foreground)
+		(*value_24) = Surface_Opacity(face.Foreground, 0.55)
+		value_25 := &(face.Border)
+		(*value_25) = Surface_Opacity(face.Border, 0.55)
 	}
 	if props.StyleKind == StyleSheet_StyleKindCard() {
 		return CardBehavior_CardDefaultFace(ButtonEmphasis(props.Emphasis), state)
 	}
-	face.Radius = Theme_ShapeMedium()
-	face.Opacity = 1.0
-	face.PaddingX = 10.0
-	face.PaddingY = 0.0
-	face.FontSize = Theme_TypeLabel()
-	face.IconSize = 14.0
-	face.Gap = 8.0
-	face.Typeface = Theme_FontForRole(theme, 1)
-	face.MinHeight = Theme_ControlHeightFor(int32(ControlSize(props.Size)))
-	face.FontRole = FontRole(1)
-	face.MotionDuration = Theme_MotionDuration(2, theme.Motion.ReducedMotion, theme.Motion.Multiplier)
-	face.MotionMultiplier = theme.Motion.Multiplier
-	face.MotionEasing = MotionEasing(1)
-	face.MotionReduced = theme.Motion.ReducedMotion
+	value_26 := &(face.Radius)
+	(*value_26) = Theme_ShapeMedium()
+	value_27 := &(face.Opacity)
+	(*value_27) = 1.0
+	value_28 := &(face.PaddingX)
+	(*value_28) = 10.0
+	value_29 := &(face.PaddingY)
+	(*value_29) = 0.0
+	value_30 := &(face.FontSize)
+	(*value_30) = Theme_TypeLabel()
+	value_31 := &(face.IconSize)
+	(*value_31) = 14.0
+	value_32 := &(face.Gap)
+	(*value_32) = 8.0
+	value_33 := &(face.Typeface)
+	(*value_33) = Theme_FontForRole(theme, 1)
+	value_34 := &(face.MinHeight)
+	(*value_34) = Theme_ControlHeightFor(int32(ControlSize(props.Size)))
+	value_35 := &(face.FontRole)
+	(*value_35) = FontRole(1)
+	value_36 := &(face.MotionDuration)
+	(*value_36) = Theme_MotionDuration(2, theme.Motion.ReducedMotion, theme.Motion.Multiplier)
+	value_37 := &(face.MotionMultiplier)
+	(*value_37) = theme.Motion.Multiplier
+	value_38 := &(face.MotionEasing)
+	(*value_38) = MotionEasing(1)
+	value_39 := &(face.MotionReduced)
+	(*value_39) = theme.Motion.ReducedMotion
 	return face
 }
 
-func Button_ButtonInstalledFaceFor(props ButtonProps, state int32) StyleData {
+func Button_ButtonInstalledFaceFor(props zir_2b2386d69a109fee_Props, state int32) StyleData {
 	return Button_ButtonFaceFinish(props, StyleSheet_ResolveInstalledStyleRules(Button_ButtonDefaultFace(props, state), Button_ButtonFaceFacts(props, state), state))
 }
 
-func Button_ButtonFaceFacts(props ButtonProps, state int32) StyleFacts {
+func Button_ButtonFaceFacts(props zir_2b2386d69a109fee_Props, state int32) StyleFacts {
 	kind := props.StyleKind
 	if kind <= 0 {
 		kind = StyleSheet_StyleKindButton()
@@ -107,7 +144,7 @@ func Button_ButtonFaceFacts(props ButtonProps, state int32) StyleFacts {
 	return ButtonBehavior_ButtonRoleFactsFor(kind, props.ID, props.ClassName, role, int32(ButtonTone(props.Tone)), int32(ButtonEmphasis(props.Emphasis)), int32(ControlSize(props.Size)), state)
 }
 
-func Button_ButtonFaceFinish(props ButtonProps, face StyleData) StyleData {
+func Button_ButtonFaceFinish(props zir_2b2386d69a109fee_Props, face StyleData) StyleData {
 	kind := props.StyleKind
 	if kind <= 0 {
 		kind = StyleSheet_StyleKindButton()
@@ -119,8 +156,10 @@ func Button_ButtonFaceFinish(props ButtonProps, face StyleData) StyleData {
 		value_1 = value_2
 	}
 	if value_1 {
-		face.OffsetX = 0.0
-		face.OffsetY = 0.0
+		value_3 := &(face.OffsetX)
+		(*value_3) = 0.0
+		value_4 := &(face.OffsetY)
+		(*value_4) = 0.0
 	}
 	return face
 }
@@ -137,7 +176,7 @@ func Button_ButtonDetailFont(font int32) int32 {
 	return detail
 }
 
-func Button_ButtonDetailSize(props ButtonProps, font int32, face StyleData) Vector2 {
+func Button_ButtonDetailSize(props zir_2b2386d69a109fee_Props, font int32, face StyleData) Vector2 {
 	if props.Detail == "" || props.IconOnly || props.Label == "" {
 		return Vector2{X: 0.0, Y: 0.0}
 	}
@@ -150,7 +189,7 @@ func Button_ButtonDetailSize(props ButtonProps, font int32, face StyleData) Vect
 	return value_0
 }
 
-func Button_ButtonFitContentFace(props ButtonProps, bounds Rectangle, face StyleData, font int32, label_width int32, label_height int32) StyleData {
+func Button_ButtonFitContentFace(props zir_2b2386d69a109fee_Props, bounds Rectangle, face StyleData, font int32, label_width int32, label_height int32) StyleData {
 	has_icon := props.IconShape != "" || props.IconType != 0 || props.Image.AssetPath != "" || props.Image.Texture.ID != 0
 	var icon_size float32 = 0.0
 	var gap float32 = 0.0
@@ -185,31 +224,39 @@ func Button_ButtonFitContentFace(props ButtonProps, bounds Rectangle, face Style
 	if factor >= 1.0 {
 		return face
 	}
-	face.IconSize *= factor
-	face.Gap *= factor
-	face.PaddingX *= factor
-	face.PaddingY *= factor
-	face.OffsetX *= factor
-	face.OffsetY *= factor
+	value_0 := &(face.IconSize)
+	(*value_0) *= factor
+	value_1 := &(face.Gap)
+	(*value_1) *= factor
+	value_2 := &(face.PaddingX)
+	(*value_2) *= factor
+	value_3 := &(face.PaddingY)
+	(*value_3) *= factor
+	value_4 := &(face.OffsetX)
+	(*value_4) *= factor
+	value_5 := &(face.OffsetY)
+	(*value_5) *= factor
 	fitted_font := int32(floatToInt(float64((float32(font) * factor)), 32, true))
 	if fitted_font < 1 {
 		fitted_font = 1
 	}
 	for {
-		var value_0 bool = fitted_font > 1 && !props.IconOnly
-		if value_0 {
-			var value_1 int32 = FontMetrics_GlyphWidth(props.Label, fitted_font, face.Typeface)
-			value_0 = (float32(value_1) + (face.PaddingX * 2.0) > bounds.Width)
+		var value_6 bool = fitted_font > 1 && !props.IconOnly
+		if value_6 {
+			var value_7 int32 = FontMetrics_GlyphWidth(props.Label, fitted_font, face.Typeface)
+			value_6 = (float32(value_7) + (face.PaddingX * 2.0) > bounds.Width)
 		}
-		if !value_0 { break }
+		if !value_6 { break }
 		fitted_font--
 	}
-	face.Fields |= 1024
-	face.FontSize = float32(fitted_font)
+	value_8 := &(face.Fields)
+	(*value_8) |= 1024
+	value_9 := &(face.FontSize)
+	(*value_9) = float32(fitted_font)
 	return face
 }
 
-func Button_PaintButtonForNode(session Session, node int32, props ButtonProps, bounds Rectangle, face StyleData, font int32, label_width int32, label_height int32, focus_visible bool) {
+func Button_PaintButtonForNode(session Session, node int32, props zir_2b2386d69a109fee_Props, bounds Rectangle, face StyleData, font int32, label_width int32, label_height int32, focus_visible bool) {
 	if props.Invisible {
 		return
 	}
@@ -222,7 +269,8 @@ func Button_PaintButtonForNode(session Session, node int32, props ButtonProps, b
 	if props.Swatch {
 		background = props.SwatchColor
 		if props.Disabled {
-			background.A = uint8((int32(background.A) / 2))
+			value_0 := &(background.A)
+			(*value_0) = uint8((int32(background.A) / 2))
 		}
 	}
 	if background.A > 0 {
@@ -252,8 +300,8 @@ func Button_PaintButtonForNode(session Session, node int32, props ButtonProps, b
 	if focus_visible {
 		focus := face.Focus
 		if (focus & 255) == 0 {
-			var value_0 Palette = Theme_CurrentPalette()
-			focus = value_0.Focus
+			var value_1 Palette = Theme_CurrentPalette()
+			focus = value_1.Focus
 		}
 		PaintQueue_PaintRoundedOutline(session, node, Focus_FocusDefaultOutlineBounds(bounds, 1.0), radius + 2.0, 12, 2.0, DrawingProps_ColorFromPacked(focus))
 	}
@@ -270,11 +318,12 @@ func Button_PaintButtonForNode(session Session, node int32, props ButtonProps, b
 	}
 	content := ButtonBehavior_ContentLayout(bounds.Width, bounds.Height, float32(label_width), icon_size, face.Gap, has_image, props.IconOnly, int32(IconPlacement(props.IconPlacement)) == 1, face.OffsetX, face.OffsetY, IconPlacement(props.IconPlacement) == IconPlacement(2), float32(label_height), ContentAlignment(props.ContentAlignment), face.PaddingX)
 	if has_shape && content.IconSize > 0.0 {
-		var value_1 Rectangle = Rectangle{X: (bounds.X + content.IconX), Y: (bounds.Y + content.IconY), Width: content.IconSize, Height: content.IconSize}
-		SvgIconBehavior_PaintSvgIcon(session, node, props.IconShape, value_1, DrawingProps_ColorFromPacked(Surface_Opacity(face.Foreground, opacity)))
+		var value_2 Rectangle = Rectangle{X: (bounds.X + content.IconX), Y: (bounds.Y + content.IconY), Width: content.IconSize, Height: content.IconSize}
+		SvgIconBehavior_PaintSvgIcon(session, node, props.IconShape, value_2, DrawingProps_ColorFromPacked(Surface_Opacity(face.Foreground, opacity)))
 	} else if has_image && content.IconSize > 0.0 {
 		image := icon_image
-		image.Bounds = Rectangle{X: (bounds.X + content.IconX), Y: (bounds.Y + content.IconY), Width: content.IconSize, Height: content.IconSize}
+		value_3 := &(image.Bounds)
+		(*value_3) = Rectangle{X: (bounds.X + content.IconX), Y: (bounds.Y + content.IconY), Width: content.IconSize, Height: content.IconSize}
 		texture := Image_ImageTextureFor(image)
 		var tint_color uint32 = 4294967295
 		if image.Tint != 0 {
@@ -343,19 +392,19 @@ func Button_PaintButtonForNode(session Session, node int32, props ButtonProps, b
 		if IconPlacement(props.IconPlacement) == IconPlacement(2) && has_image {
 			y = int32(floatToInt(float64((bounds.Y + content.TextY)), 32, true))
 		}
-		var value_2 Color = DrawingProps_ColorFromPacked(Surface_Opacity(face.Foreground, opacity))
-		var value_3 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
-		PaintQueue_PaintClippedLabel(session, node, props.Label, x, y, font, value_2, bounds, "", 0.0, value_3)
+		var value_4 Color = DrawingProps_ColorFromPacked(Surface_Opacity(face.Foreground, opacity))
+		var value_5 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+		PaintQueue_PaintClippedLabel(session, node, props.Label, x, y, font, value_4, bounds, "", 0.0, value_5)
 		if detail.Y > 0.0 {
-			var value_4 int32 = Button_ButtonDetailFont(font)
-			var value_5 Color = DrawingProps_ColorFromPacked(Surface_Opacity(face.Foreground, opacity * 0.7))
-			var value_6 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
-			PaintQueue_PaintClippedLabel(session, node, props.Detail, x, y + label_height, value_4, value_5, bounds, "", 0.0, value_6)
+			var value_6 int32 = Button_ButtonDetailFont(font)
+			var value_7 Color = DrawingProps_ColorFromPacked(Surface_Opacity(face.Foreground, opacity * 0.7))
+			var value_8 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+			PaintQueue_PaintClippedLabel(session, node, props.Detail, x, y + label_height, value_6, value_7, bounds, "", 0.0, value_8)
 		}
 	}
 }
 
-func Button_ButtonMeasure(props ButtonProps) Rectangle {
+func Button_ButtonMeasure(props zir_2b2386d69a109fee_Props) Rectangle {
 	face := Button_ButtonInstalledFaceFor(props, 0)
 	font := Style_ResolveFont(0, Style_StyleFontValue(face.Fields, face.FontSize), 14)
 	var label_width int32 = 0
@@ -370,7 +419,7 @@ func Button_ButtonMeasure(props ButtonProps) Rectangle {
 	return ButtonBehavior_MeasureBounds(props, face, value_0, font, float32(label_width), 0.0, 1.0, false, detail.Y)
 }
 
-func Button_SubmitButton(session Session, props ButtonProps, parent_index int32) int32 {
+func Button_SubmitButton(session Session, props zir_2b2386d69a109fee_Props, parent_index int32) int32 {
 	key := props.Key
 	if key == 0 && props.ID > 0 {
 		key = uint64(uint32(props.ID))
@@ -440,7 +489,7 @@ func Button_SubmitButton(session Session, props ButtonProps, parent_index int32)
 	return 0
 }
 
-func Button_Button(session Session, props ButtonProps) int32 {
+func Button_Draw(session Session, props zir_2b2386d69a109fee_Props) int32 {
 	return Button_SubmitButton(session, props, Tree_TreeCurrentParent(session))
 }
 

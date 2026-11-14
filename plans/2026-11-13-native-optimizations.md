@@ -549,11 +549,13 @@ instruction engine is 20 to 7,000 times slower than the Wasm module on these ker
 The tier stays out of Asyncify and JSPI runtimes (Kryon's player), whose hosts suspend the stack;
 the engine runs bundles there. Recursive host types cross the tier, bounded at 64 levels.
 
-Not done: the published site target matrix (`site/generated/targets`) has its desktop and web
-platforms regenerated on Alpha on 2026-11-14 with this compiler. The moto e6 phone is on
-Omega's USB and answers "unauthorized", so the mobile platform is missing and
-`tests/site_targets.sh` stops at "Collect every platform before publishing" until the owner
-allows USB debugging on it and `site_target_platforms.py --platform mobile` runs.
+Done, 2026-11-14: the published site target matrix (`site/generated/targets`) is regenerated
+with this compiler on all three platforms: desktop and web on Alpha, and mobile on the moto e6
+(on Omega's USB, reached from Alpha through an SSH tunnel to Omega's adb server, artifacts built
+on Alpha with NDK 28.2 and WAMR 2.4.5). The Android libziran is built with the instruction engine.
+The Kryon widget library matrix (`site/generated/library-targets`) is regenerated on Alpha from a
+`git archive` of Kryon 7baf8632 (`site_library_targets.py --revision`). `tests/site_targets.sh`
+passes.
 
 Owner, 2026-11-13: "i'm ondireng if zx and native basicalyl use the same piplen if we just
 unife it under native and show zx as a step in teh pielpn while ofcuesr being able to do zx
@@ -572,6 +574,27 @@ native lowering (`.zx -> machine code -> ELF`). Points to keep:
   separate generated routes, never "native".
 - Check whether the Wasm route (`zir_zx_wasm`) already lowers from `.zx`; if it does, it is
   another lowering of the same pipeline.
+
+### Next: native players, phones and a faster pipeline (owner, 2026-11-14)
+
+Owner, verbatim, in order: "but we still get zx to native do we not so couldnt we otpmize to
+be still rela natiev preframnec", "and implemnte the full playre", "and full phone supsrot must
+be implementd", "and wasm tier should work", "how wolud we improev it", "so do all".
+
+| # | Work | Owner | State |
+|---|------|-------|-------|
+| 1 | Engine bugs Kryon hit: float32 literal compared as float64; `shader_scene_test` address-limit | lowering specialist | in progress |
+| 2 | Resize on the native x86-64 encoder; one native encoder instead of two | lowering specialist | queued |
+| 3 | Native ZX loading in players (x86-64): verified ZX → machine code in memory, W^X, host trampolines into the embedding bridge, engine fallback per bundle | native-player task | queued (subtask slot) |
+| 4 | Phones: AArch64 and ARMv7 encoders on the merged machine pipeline, the same loading on Android, tests on the moto e6 | native-player task | after 3 |
+| 5 | Wasm tier inside Asyncify/JSPI runtimes, so Kryon's web player runs bundles as WebAssembly | Wasm specialist | after the Toolchains CI fix and the mobile site matrix |
+| 6 | Per-module cached lowering: lower each ZIR module once, cache it like an object file, link into ZX | lowering specialist | after 2 |
+| 7 | Self-hosting (owner: "and wyh arenty ou writing al of ziran in ziran so we can bootstarp it"): the compiler is 32,092 lines of Ziran (`cmd/*.zi`) and about 88,800 lines of C (`cmd/zir` 68,387, `cmd/zir-asm` 6,481, `cmd/zir-c` 4,832, `cmd/zir-wasm` 4,586, `cmd/zir-go` 4,266, `cmd/zir-zx` 279). Port the C to Ziran module by module, each landing with `make check` and `make check-bootstrap` green, deleting the C it replaces: ZIR → ZX lowering (`zir_asm_lower.c`) and ZX → Wasm first (they feed the one format), then the C and Go generators, then the checker and emitter in `cmd/zir`, then the drivers. `bootstrap/` then holds only generated C from the previous compiler plus a small runtime | dedicated self-hosting task | starts when a subtask slot frees |
+| 8 | Smaller saved ZIR (expression text as a slice of its statement), source positions kept through ZX into engine and native errors | lowering specialist | after 6 |
+| 9 | Docs describe one format everywhere (Ziran and Kryon) | docs task | queued (subtask slot) |
+| 10 | Tool names by format (owner: "zir-asm should probabyl be renabel to just something like zi2zx ... we wolud nede a clean naming to do the excats foramt we want"): `zi2zx` = source/ZIR → verified ZX (absorbs `zi2asm --emit zx/lir/opt-report`) and `zi2zx run`; `zx2wasm` = ZX → WebAssembly; `zx2native` = ZX → machine code (`--target x86_64/aarch64/armv7`, ELF on Linux and Android); `zi2asm` removed; folders match tools (`cmd/zi2zx/`, `cmd/zx2wasm/`, `cmd/zx2native/`, `cmd/zi2c/`, `cmd/zi2go/`, `cmd/zi2zir/`). One commit across Makefiles, tests, site scripts, CI workflows, the VS Code extension and docs, with `make check` green | coordinator, at a quiet point | after the current engine fixes and the Toolchains CI fix land |
+
+C and Go stay generated from ZIR: from the lowered form they would lose names and structure.
 
 ## Earlier question: should `.lirb` just be `.zx`?
 

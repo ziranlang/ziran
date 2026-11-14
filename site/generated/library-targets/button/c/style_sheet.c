@@ -100,15 +100,24 @@ StyleFacts
 StyleDefaultFacts(int32_t kind)
 {
     StyleFacts facts = {0};
-    facts.kind = kind;
-    facts.role = StyleAny();
-    facts.tone = StyleAny();
-    facts.emphasis = StyleAny();
-    facts.size = StyleAny();
-    facts.state = StyleAny();
-    facts.validation = StyleAny();
-    facts.orientation = StyleAny();
-    facts.placement = StyleAny();
+    int32_t* value_0 = &(facts.kind);
+    (*value_0) = kind;
+    int32_t* value_1 = &(facts.role);
+    (*value_1) = StyleAny();
+    int32_t* value_2 = &(facts.tone);
+    (*value_2) = StyleAny();
+    int32_t* value_3 = &(facts.emphasis);
+    (*value_3) = StyleAny();
+    int32_t* value_4 = &(facts.size);
+    (*value_4) = StyleAny();
+    int32_t* value_5 = &(facts.state);
+    (*value_5) = StyleAny();
+    int32_t* value_6 = &(facts.validation);
+    (*value_6) = StyleAny();
+    int32_t* value_7 = &(facts.orientation);
+    (*value_7) = StyleAny();
+    int32_t* value_8 = &(facts.placement);
+    (*value_8) = StyleAny();
     return facts;
 }
 
@@ -116,12 +125,18 @@ StyleFacts
 StyleControlFacts(int32_t kind, int32_t id, int32_t class_name, int32_t tone, int32_t emphasis, int32_t size, int32_t state)
 {
     StyleFacts facts = StyleDefaultFacts(kind);
-    facts.id = id;
-    facts.class_name = class_name;
-    facts.tone = tone;
-    facts.emphasis = emphasis;
-    facts.size = size;
-    facts.state = state;
+    int32_t* value_0 = &(facts.id);
+    (*value_0) = id;
+    int32_t* value_1 = &(facts.class_name);
+    (*value_1) = class_name;
+    int32_t* value_2 = &(facts.tone);
+    (*value_2) = tone;
+    int32_t* value_3 = &(facts.emphasis);
+    (*value_3) = emphasis;
+    int32_t* value_4 = &(facts.size);
+    (*value_4) = size;
+    int32_t* value_5 = &(facts.state);
+    (*value_5) = state;
     return facts;
 }
 
@@ -129,7 +144,8 @@ StyleFacts
 StyleControlRoleFacts(int32_t kind, int32_t id, int32_t class_name, int32_t role, int32_t tone, int32_t emphasis, int32_t size, int32_t state)
 {
     StyleFacts facts = StyleControlFacts(kind, id, class_name, tone, emphasis, size, state);
-    facts.role = role;
+    int32_t* value_0 = &(facts.role);
+    (*value_0) = role;
     return facts;
 }
 
@@ -246,7 +262,8 @@ ResolveInstalledStyleRules(StyleData base, StyleFacts facts, int32_t active_stat
                 bool value_10 = StyleRuleMatchesState(ZIRAN_INDEX(installed_states, 512, index), active_state);
                 if (value_10 && StyleSelectorMatches(ZIRAN_INDEX(installed_selectors, 512, index), facts)) {
                     StyleData value = (ZIRAN_INDEX(installed_rules.items, sizeof(installed_rules.items) / sizeof(installed_rules.items[0]), ZIRAN_INDEX(installed_rule_indices, 512, index))).style;
-                    value.fields = (uint32_t)((uint32_t)(value.fields) & (uint32_t)remaining);
+                    uint32_t* value_11 = &(value.fields);
+                    (*value_11) = (uint32_t)((uint32_t)((*value_11)) & (uint32_t)remaining);
                     base = MergeValues(base, value);
                     remaining = (uint32_t)((uint32_t)remaining & (uint32_t)(((uint32_t)~(uint32_t)(value.fields))));
                     if (remaining == 0) {

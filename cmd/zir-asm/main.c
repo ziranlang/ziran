@@ -27,9 +27,10 @@ assembly_usage(void)
 {
     fputs("usage: zi2asm --root DIR --entry MODULE:FUNCTION [-I DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [--target ARCH-OS] [--opt] [--machine] [--emit lir|map|zx|elf|wasm|opt-report] -o FILE INPUT...\n"
           "       zi2asm --input zx [--target ARCH-OS] [--machine] [--emit lir|map|zx|elf|wasm] -o FILE INPUT\n"
-          "       zi2asm --run [--opt] [--fuel N] [--work N] [--frames N] INPUT...\n"
+          "       zi2asm --run [--opt] [--fuel N] [--work N] [--frames N] [--heap-report] INPUT...\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
           "--machine requires --emit elf and selects the no-fallback machine-IR Linux x86-64 path\n"
+          "--heap-report prints the heap blocks still live after --run to standard error\n"
           "pipeline: source -> ZIR -> verified LIR -> optimization -> portable ZX -> interpreter OR direct machine code/ELF OR wasm32 module\n"
           "--emit wasm lowers the same verified ZX to one wasm32 module; it takes no --target, and unsupported forms are named wasm.gap errors\n"
           "native always reads verified ZX; C/Go generated binaries are separate routes, never native\n"
@@ -352,7 +353,7 @@ assembly_run_bind(LirExecInstance *instance, const LirProgram *program)
 }
 
 static int
-assembly_run(const LirProgram *program, LirExecLimits limits)
+assembly_run(const LirProgram *program, LirExecLimits limits, int heap_report)
 {
     if(program->entry < 0 || program->entry >= program->functions.length) {
         Diagnostic((ZirSourceSpan){0}, "assembly.execute", "instruction input has no entry procedure");
@@ -384,7 +385,8 @@ assembly_run(const LirProgram *program, LirExecLimits limits)
             (int)problem.length, problem.data, result.function, result.block, result.instruction, result.origin,
             (unsigned long long)result.trap, (long long)result.work_remaining, (long long)result.fuel_remaining);
         status = 125;
-    }
+    } else if(heap_report)
+        fprintf(stderr, "heap: %lld live blocks\n", (long long)compiler_exec_LirExecHeapLive(&instance));
     compiler_exec_LirExecInstanceClose(&instance);
     compiler_exec_LirExecPlanFree(&plan);
     return status;
@@ -666,6 +668,7 @@ main(int argc, char **argv)
     const char *address_end = NULL;
     AssemblyMapSelection selection = {.function = -1, .block = -1, .begin = -1, .end = -1};
     int run = 0;
+    int heap_report = 0;
     int optimize = 0;
     int machine = 0;
     const char **module_paths = CommandModulePaths(argc);
@@ -680,6 +683,7 @@ main(int argc, char **argv)
         COMMAND_TEXT("-o", output), COMMAND_TEXT("--emit", emit),
         COMMAND_TEXT("--input", input_kind), COMMAND_TEXT("--target", target),
         COMMAND_FLAG("--run", run), COMMAND_FLAG("--opt", optimize), COMMAND_FLAG("--machine", machine),
+        COMMAND_FLAG("--heap-report", heap_report),
         COMMAND_TEXT("--fuel", fuel),
         COMMAND_TEXT("--work", work), COMMAND_TEXT("--frames", frames),
         COMMAND_LIST("--bind", bindings, binding_count, 64, NULL),
@@ -694,7 +698,7 @@ main(int argc, char **argv)
     LirExecLimits execution_limits = compiler_exec_LirExecDefaultLimits();
     if(input <= 0 || (!run && output == NULL) ||
        (run && (output != NULL || strcmp(emit, "elf"))) ||
-       (!run && (fuel != NULL || work != NULL || frames != NULL)) ||
+       (!run && (fuel != NULL || work != NULL || frames != NULL || heap_report)) ||
        !assembly_limit(fuel, &execution_limits.fuel) || !assembly_limit(work, &execution_limits.work) ||
        !assembly_limit(frames, &execution_limits.frames) || execution_limits.frames < 1 ||
        !assembly_limit(function_id, &selection.function) || !assembly_limit(block_id, &selection.block) ||
@@ -828,7 +832,7 @@ main(int argc, char **argv)
         decoded = compiler_exec_link_ZxExecReadProgram(&zx_owner);
         view = &decoded;
     }
-    if(run) { status = assembly_run(view, execution_limits); goto done; }
+    if(run) { status = assembly_run(view, execution_limits, heap_report); goto done; }
     if(!strcmp(emit, "zx")) {
         /* Preserve all declared assets and optional sections when rewriting. */
         bytes = zx_bytes;

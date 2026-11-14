@@ -240,6 +240,22 @@ assembly_vec_element(AssemblyProgram *program, int identity)
     return -1;
 }
 
+/* Whether values of a type own heap storage: a vector, or a record or
+ * fixed array that holds one. Pointers and views own nothing. */
+static int
+assembly_owned(AssemblyProgram *program, int identity, int depth)
+{
+    if(depth > 32 || identity <= 0 || identity >= program->types.count) return 0;
+    if(assembly_vec_element(program, identity) >= 0) return 1;
+    LirType type = *assembly_type_at(program, identity);
+    if(type.kind == LirTypeKind_Array)
+        return type.count > 0 && assembly_owned(program, type.element, depth + 1);
+    if(type.kind != LirTypeKind_Record) return 0;
+    for(int64_t field = 0; field < type.fields.length; field++)
+        if(assembly_owned(program, ((int *)type.fields.data)[field], depth + 1)) return 1;
+    return 0;
+}
+
 /* `string` is the record {data: *u8, count: s64}. Literal bytes live in
  * read-only byte-array globals; an empty literal has a null data pointer. */
 static int
@@ -338,8 +354,6 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
         if(!ArrayElementType(name, element, sizeof(element), &count) || count < 0)
             return assembly_fail(program, span, "invalid checked fixed-array type");
         int element_type = assembly_type_in(program, module, element, span, depth + 1);
-        if(assembly_vec_element(program, element_type) >= 0)
-            return assembly_fail(program, span, "fixed arrays of vectors are not lowered yet");
         assembly_type_at(program, identity)->element = element_type;
         assembly_type_at(program, identity)->count = count;
     } else if(type.kind == LirTypeKind_Function) {
@@ -358,21 +372,16 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
         int status;
         while((status = TypeNextField(record, &cursor, &field)) == 1 && !program->failed) {
             int field_type = assembly_type_in(program, owner, field.type, span, depth + 1);
-            if(assembly_vec_element(program, field_type) >= 0)
-                return assembly_fail(program, span, "records that hold vectors are not lowered yet");
             assembly_push(program, &fields, &field_type);
         }
         if(status < 0) return assembly_fail(program, span, "invalid checked record fields");
         assembly_type_at(program, identity)->fields = assembly_slice(fields);
-        /* Vec(T) is {data: *T, count: s64, capacity: s64}; its elements may
-         * not own vectors themselves yet. */
+        /* Vec(T) is {data: *T, count: s64, capacity: s64}. */
         if(record->is_owned_vec) {
             int *members = fields.data;
             if(fields.count != 3 || assembly_type_at(program, members[0])->kind != LirTypeKind_Pointer ||
                members[1] != 8 || members[2] != 8)
                 return assembly_fail(program, span, "owned vector has an unexpected record shape");
-            if(assembly_vec_element(program, assembly_type_at(program, members[0])->element) >= 0)
-                return assembly_fail(program, span, "vectors of vectors are not lowered yet");
         }
     }
     return program->failed ? -1 : identity;
@@ -610,6 +619,7 @@ static int assembly_host_function(AssemblyProgram *, const ZirModule *, const ch
 static int assembly_expression(AssemblyProgram *, AssemblyFunction *, int, int);
 static int assembly_address(AssemblyProgram *, AssemblyFunction *, int, int);
 static AssemblyLocalPlace *assembly_capture_local(AssemblyProgram *, AssemblyFunction *, int, int);
+static void assembly_move_out(AssemblyProgram *, AssemblyFunction *, int, int, ZirSourceSpan);
 static void assembly_store_captured(AssemblyProgram *, AssemblyFunction *,
                                     const AssemblyLocalPlace *, int, ZirSourceSpan);
 
@@ -1485,7 +1495,72 @@ assembly_vec_release(AssemblyProgram *program, AssemblyFunction *function, int v
     assembly_emit(program, function, LirOp_Resize, pointer, operands, 3, -1, span);
 }
 
-/* Leaving a scope drops its owned vectors, newest first, as the C and Go
+static void assembly_drop_value(AssemblyProgram *, AssemblyFunction *, int, int, ZirSourceSpan, int);
+
+/* Drop every element of a vector whose elements own storage. The vector's
+ * own block and fields are left as they are. */
+static void
+assembly_drop_elements(AssemblyProgram *program, AssemblyFunction *function, int vector, int identity,
+                       ZirSourceSpan span, int depth)
+{
+    int element = assembly_vec_element(program, identity);
+    if(program->failed || function->current < 0 || element < 0 || !assembly_owned(program, element, 0)) return;
+    int pointer = assembly_pointer_type(program, element, span);
+    int data = assembly_indexed(program, function, LirOp_Extract, pointer, &vector, 1, 0, span);
+    int count = assembly_indexed(program, function, LirOp_Extract, 8, &vector, 1, 1, span);
+    int base = function->bindings.count;
+    AssemblyBinding cursor = {"", 8, assembly_constant(program, function, 8, 0, span), -1};
+    assembly_push(program, &function->bindings, &cursor);
+    int live = base + 1;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    int header = assembly_block(program, function, before, live);
+    int body = assembly_block(program, function, before, live);
+    int exit = assembly_block(program, function, before, live);
+    if(program->failed || before == NULL) return;
+    assembly_jump(program, function, header, live, span);
+    assembly_enter(function, header, before, live);
+    assembly_emit(program, function, LirOp_Fuel, 0, NULL, 0, -1, span);
+    int more_operands[] = {((AssemblyBinding *)function->bindings.data)[base].value, count};
+    int more = assembly_emit(program, function, LirOp_Less, 1, more_operands, 2, -1, span);
+    assembly_branch(program, function, more, body, exit, live, span);
+    assembly_enter(function, body, before, live);
+    int at = ((AssemblyBinding *)function->bindings.data)[base].value;
+    int slot_operands[] = {data, at, count};
+    int slot = assembly_emit(program, function, LirOp_ElementAddress, pointer, slot_operands, 3, -1, span);
+    int item = assembly_emit(program, function, LirOp_Load, element, &slot, 1, -1, span);
+    assembly_drop_value(program, function, item, element, span, depth + 1);
+    int next_operands[] = {at, assembly_constant(program, function, 8, 1, span)};
+    ((AssemblyBinding *)function->bindings.data)[base].value =
+        assembly_emit(program, function, LirOp_Add, 8, next_operands, 2, -1, span);
+    assembly_jump(program, function, header, live, span);
+    assembly_enter(function, exit, before, live);
+    function->bindings.count = base;
+}
+
+/* Free everything one owned value holds: a vector's elements and block,
+ * and the owned fields and elements of records and fixed arrays. */
+static void
+assembly_drop_value(AssemblyProgram *program, AssemblyFunction *function, int value, int identity,
+                    ZirSourceSpan span, int depth)
+{
+    if(program->failed || function->current < 0 || depth > 32 || !assembly_owned(program, identity, 0)) return;
+    if(assembly_vec_element(program, identity) >= 0) {
+        assembly_drop_elements(program, function, value, identity, span, depth);
+        assembly_vec_release(program, function, value, identity, span);
+        return;
+    }
+    LirType type = *assembly_type_at(program, identity);
+    int64_t members = type.kind == LirTypeKind_Array ? type.count : type.fields.length;
+    for(int64_t member = 0; member < members && !program->failed; member++) {
+        int member_type = type.kind == LirTypeKind_Array ? type.element : ((int *)type.fields.data)[member];
+        if(!assembly_owned(program, member_type, 0)) continue;
+        int item = assembly_indexed(program, function, LirOp_Extract, member_type, &value, 1,
+            (uint64_t)member, span);
+        assembly_drop_value(program, function, item, member_type, span, depth + 1);
+    }
+}
+
+/* Leaving a scope drops its owned values, newest first, as the C and Go
  * emitters do at block close, return, break and continue. */
 static void
 assembly_drop_bindings(AssemblyProgram *program, AssemblyFunction *function, int first, ZirSourceSpan span)
@@ -1493,12 +1568,33 @@ assembly_drop_bindings(AssemblyProgram *program, AssemblyFunction *function, int
     for(int index = function->bindings.count - 1;
         index >= first && !program->failed && function->current >= 0; index--) {
         AssemblyBinding binding = ((AssemblyBinding *)function->bindings.data)[index];
-        if(binding.name == NULL || !*binding.name || assembly_vec_element(program, binding.type) < 0) continue;
-        int vector = binding.storage_type >= 0 ?
+        if(binding.name == NULL || !*binding.name || !assembly_owned(program, binding.type, 0)) continue;
+        int value = binding.storage_type >= 0 ?
             assembly_emit(program, function, LirOp_Load, binding.type, &binding.value, 1, -1, span) :
             binding.value;
-        assembly_vec_release(program, function, vector, binding.type, span);
+        assembly_drop_value(program, function, value, binding.type, span, 0);
     }
+}
+
+/* Empty the source of a move. Only a local, or a member path rooted at
+ * one, can be moved from; the checker rejects every other source. */
+static void
+assembly_move_out(AssemblyProgram *program, AssemblyFunction *function, int root, int identity,
+                  ZirSourceSpan span)
+{
+    if(program->failed || function->current < 0 || !assembly_owned(program, identity, 0)) return;
+    int at = root;
+    while(at >= 0 && at < function->source->expr_count && function->source->exprs[at].kind == ZIR_EXPR_MEMBER)
+        at = function->source->exprs[at].left;
+    if(at < 0 || at >= function->source->expr_count) return;
+    const ZirExpr *base = &function->source->exprs[at];
+    if(base->kind != ZIR_EXPR_IDENT || base->is_global_value || assembly_binding(function, base->name) < 0)
+        return;
+    AssemblyVecPlace place = {-1, NULL};
+    if(assembly_addressable(program, function, root, 0))
+        place.address = assembly_address(program, function, root, 0);
+    else place.local = assembly_capture_local(program, function, root, 0);
+    assembly_vec_write(program, function, &place, assembly_zero(program, function, identity, span, 0), span);
 }
 
 /* VecSlice(values, low, high): a borrowed view of the vector's elements,
@@ -1566,13 +1662,14 @@ assembly_vec_call(AssemblyProgram *program, AssemblyFunction *function, const Zi
     if(program->failed) return -1;
     int zero = assembly_constant(program, function, 8, 0, span);
     if(!strcmp(expression->name, "VecClear")) {
+        assembly_drop_elements(program, function, current, identity, span, 0);
         int operands[] = {current, zero};
         assembly_vec_write(program, function, &place,
             assembly_indexed(program, function, LirOp_Insert, identity, operands, 2, 1, span), span);
         return -1;
     }
     if(!strcmp(expression->name, "VecFree")) {
-        assembly_vec_release(program, function, current, identity, span);
+        assembly_drop_value(program, function, current, identity, span, 0);
         assembly_vec_write(program, function, &place, assembly_zero(program, function, identity, span, 0), span);
         return -1;
     }
@@ -1660,15 +1757,29 @@ assembly_vec_call(AssemblyProgram *program, AssemblyFunction *function, const Zi
     return pushed;
 }
 
+static int assembly_expression_value(AssemblyProgram *, AssemblyFunction *, int, int);
+
+/* The checker marks each move. A move reads the owned value and leaves its
+ * source empty, as the C emitter's clear_owned_value does, so the source's
+ * drop at scope exit frees nothing. */
 static int
 assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int root, int depth)
+{
+    int value = assembly_expression_value(program, function, root, depth);
+    if(program->failed || value < 0 || root < 0 || root >= function->source->expr_count ||
+       !function->source->exprs[root].is_move) return value;
+    assembly_move_out(program, function, root, ((int *)function->values.data)[value],
+        function->source->exprs[root].span);
+    return value;
+}
+
+static int
+assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, int root, int depth)
 {
     if(!assembly_spend(program, function->source->span)) return -1;
     if(depth > 256 || root < 0 || root >= function->source->expr_count)
         return assembly_fail(program, function->source->span, "invalid or excessively deep expression graph");
     const ZirExpr *expression = &function->source->exprs[root];
-    if(expression->is_move)
-        return assembly_fail(program, expression->span, "owned moves are not lowered yet");
     int type = assembly_type(program, function, expression->type, expression->span);
     if(program->failed) return -1;
     if(expression->is_function_value) {
@@ -2081,10 +2192,7 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
         }
         if(statement->kind == ZIR_STMT_DECL) {
             int type = assembly_type(program, function, statement->type, statement->span);
-            if(!program->failed && statement->expr_root >= 0 && assembly_vec_element(program, type) >= 0) {
-                assembly_fail(program, statement->span, "moving an owned vector into a declaration is not lowered yet");
-                break;
-            }
+
             int value = statement->expr_root >= 0 ? assembly_expression(program, function, statement->expr_root, 0) :
                 assembly_zero(program, function, type, statement->span, 0);
             value = assembly_convert(program, function, value, type, statement->span);
@@ -2100,10 +2208,7 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
             }
             int previous = -1;
             int identity = assembly_type(program, function, function->source->exprs[statement->lhs_root].type, statement->span);
-            if(!program->failed && assembly_vec_element(program, identity) >= 0) {
-                assembly_fail(program, statement->span, "assigning an owned vector is not lowered yet");
-                break;
-            }
+
             int address = -1;
             AssemblyLocalPlace *destination = NULL;
             if(assembly_addressable(program, function, statement->lhs_root, 0))
@@ -2133,7 +2238,13 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
                 assembly_emit(program, function, LirOp_Store, 0, operands, 2, -1, statement->span);
             } else assembly_store_captured(program, function, destination, value, statement->span);
         } else if(statement->kind == ZIR_STMT_EXPR || statement->kind == ZIR_STMT_UNUSED) {
-            assembly_expression(program, function, statement->expr_root, 0);
+            int value = assembly_expression(program, function, statement->expr_root, 0);
+            /* A fresh owned result nobody keeps is dropped at once. */
+            if(!program->failed && value >= 0 && function->current >= 0 &&
+               statement->expr_root >= 0 && statement->expr_root < function->source->expr_count &&
+               function->source->exprs[statement->expr_root].kind == ZIR_EXPR_CALL)
+                assembly_drop_value(program, function, value, ((int *)function->values.data)[value],
+                    statement->span, 0);
         } else if(statement->kind == ZIR_STMT_RETURN) {
             int value = -1;
             if(function->result.result)
@@ -2228,16 +2339,12 @@ assembly_function(AssemblyProgram *program, const ZirModule *module, const ZirFu
         function->result.external = 1;
     }
     function->result.result = assembly_type(program, function, source->return_type, source->span);
-    if(!program->failed && assembly_vec_element(program, function->result.result) >= 0)
-        return assembly_fail(program, source->span, "owned vector results are not lowered yet");
     function->result.origin = assembly_origin(program, source->span);
     const ZirParameters *parameters = ParametersOf(FunctionArgs(source));
     int *types = assembly_allocate(program, (size_t)parameters->count, sizeof(*types));
     for(int index = 0; index < parameters->count && !program->failed; index++) {
         const ZirParameter *parameter = &parameters->items[index];
         types[index] = assembly_type(program, function, parameter->value_type, source->span);
-        if(!program->failed && assembly_vec_element(program, types[index]) >= 0)
-            return assembly_fail(program, source->span, "owned vector parameters are not lowered yet");
         AssemblyBinding binding = {assembly_text(program, parameter->binding_name), types[index], -1, -1};
         assembly_push(program, &function->bindings, &binding);
     }
@@ -2394,7 +2501,10 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
         assembly_sequence(program, builder, 0, builder->source->stmt_count, 0);
         if(builder->current >= 0 && !program->failed) {
             if(builder->result.result) assembly_fail(program, builder->source->span, "scalar procedure falls through without a return");
-            else assembly_emit(program, builder, LirOp_Return, 0, NULL, 0, -1, builder->source->span);
+            else {
+                assembly_drop_bindings(program, builder, 0, builder->source->span);
+                assembly_emit(program, builder, LirOp_Return, 0, NULL, 0, -1, builder->source->span);
+            }
         }
         LirBlock *blocks = assembly_allocate(program, (size_t)builder->blocks.count, sizeof(*blocks));
         if(program->failed) break;

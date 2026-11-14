@@ -1,0 +1,45 @@
+// Owned values on revision-28 ZX, pinned by tests/zx_lowered_parity.sh:
+// moves into declarations, parameters, results and vector elements,
+// records that hold a vector, vectors of vectors, and a fresh result
+// nobody keeps. Every heap block is freed by the time main returns.
+#import "std/vec"
+
+Bag :: struct { id: s32; items: Vec(s64) }
+
+Make :: (count: s64) -> Vec(s64) {
+    out: Vec(s64)
+    for i: 0..count - 1 { VecPush(out, i * 2) }
+    return out
+}
+
+Total :: (values: Vec(s64)) -> s64 {
+    sum: s64
+    for value: values[:] { sum += value }
+    return sum
+}
+
+Build :: (id: s32) -> Bag {
+    bag: Bag
+    bag.id = id
+    VecPush(bag.items, cast(s64)id)
+    VecPush(bag.items, cast(s64)id + 1)
+    return bag
+}
+
+main :: () -> s32 {
+    made := Make(5)
+    moved := made
+    first := Total(moved)
+    bag := Build(7)
+    spare := Build(20)
+    other := bag
+    rows: Vec(Vec(s64))
+    VecPush(rows, Make(3))
+    VecPush(rows, Make(4))
+    inner: s64
+    for i: 0..rows.count - 1 { inner += rows[i].count }
+    Make(9)
+    print("owned % % % % % %\n", first, other.id, other.items[1], other.items.count, inner, spare.items[0])
+    VecClear(rows)
+    return cast(s32)rows.count + 3
+}

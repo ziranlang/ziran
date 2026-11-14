@@ -200,10 +200,17 @@ doubling), `VecClear`, `VecFree`; drops of vector locals at block close, return,
 continue. `tests/spec/zx_lowered_vec.zi` matches the semantic route byte for byte, capacities
 included. Native and wasm stop at `assembly.gap.native-heap` and `wasm.gap.instruction`.
 
-Not yet lowered, each a named compile error: moving a vector (declaration with an initializer,
-assignment, parameter, result), records and fixed arrays that hold vectors, vectors of vectors,
-`VecPop`/`VecGet` (Option), `VecSwap`, `VecClone`, `VecReserve`, `VecResize`, the builders and
-`Text`. The interpreter's address table never reuses entries, so a long-running program that
+Second slice, same day: the checker's move flag (`is_move` on an identifier or member path) empties
+the moved source as the C emitter's `clear_owned_value` does; records and fixed arrays that hold
+vectors, vectors of vectors, vector parameters and results; recursive drops, including a loop over
+the elements of a vector whose elements own storage; a fresh owned result used as a statement is
+dropped at once. `zi2asm --run --heap-report` prints the heap blocks still live, and the parity
+test requires none for every program. `tests/spec/zx_lowered_owned.zi` covers these.
+Inventory: 34 of 71 spec entries lower.
+
+Not yet lowered, each a named compile error: `TextView` of a `Text`, the builders
+(`BuilderAppend`, `BuilderPrint`, `BuilderFinish`), `VecPop`/`VecGet` (Option), `VecSwap`,
+`VecClone`, `VecReserve`, `VecResize`. The interpreter's address table never reuses entries, so a long-running program that
 indexes many distinct elements reaches the `addresses` limit; that needs structured address
 tokens before the bundle cutover.
 

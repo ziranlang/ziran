@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Revision-28 lowering handles owned values beyond a single vector local: moves follow the checker's move flag and leave the source empty, records and fixed arrays may hold vectors, vectors may hold vectors, and vectors travel as parameters and results. Drops recurse through fields and elements, and a fresh owned result nobody keeps is dropped at once. `zi2asm --run --heap-report` prints the heap blocks still live after the run; the parity test requires none. 34 of the 71 `tests/spec` entries the semantic route runs now lower.
+
 - Revision-28 ZX gains heap storage and the first owned-vector lowering. LIR has one heap instruction, `resize(pointer, old_count, new_count)`; the portable interpreter keeps typed heap blocks whose addresses fail after a resize or free, and a request beyond the value-byte budget gives null. `Vec(T)` locals lower for elements that own no vectors: indexing, `count`, `capacity`, `VecSlice`, `VecPush` with the C runtime's growth, `VecClear`, `VecFree`, and drops at block close, return, break and continue. Moves, vector-bearing records, the Option-returning operations, builders and `Text` are named compile errors for now. Native and wasm output stop at `assembly.gap.native-heap` and `wasm.gap.instruction`.
 
 - `zi2asm --emit wasm` lowers verified portable ZX to one wasm32 module, the third lowering of the same image beside the interpreter and native ELF. Source input and saved-ZX input give identical bytes (`examples/hello.zi` is 287 bytes), and a form without wasm code stops at a named `wasm.gap.*` diagnostic. Of the 37 programs in `tests/zx_lowered_parity.sh`, 36 run as wasm modules with the interpreter's output. `zi2wasm` and the bundle Wasm tier still use the ZIR-based lowerer.

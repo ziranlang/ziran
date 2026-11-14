@@ -2211,6 +2211,15 @@ LirExecDefaultLimits :: () -> LirExecLimits {
         .values = 1048576, .addresses = 1048576, .value_bytes = 268435456}
 }
 
+// Heap blocks an instance still holds. A program that frees or drops every
+// owned value ends with none.
+LirExecHeapLive :: (instance: *LirExecInstance) -> s64 {
+    live: s64
+    if instance == null { return 0 }
+    for block: instance.heap_blocks { if block.live { live += 1 } }
+    return live
+}
+
 LirExecPlanFree :: (plan: *LirExecPlan) {
     if plan == null { return }
     VecFree(plan.type_sizes)

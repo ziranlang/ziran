@@ -6,6 +6,7 @@
 // Native ELF output must run with the same status or stop at a named
 // assembly.gap diagnostic. The wasm32 module from the same ZX must be
 // reproducible and print the same output, or stop at a named wasm.gap.
+// The interpreter must end every program with no live heap block.
 #import "native_test"
 #import "check_support"
 #import "std/file"
@@ -36,7 +37,7 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     unused NativeRun(test, lower[:])
     if test.failed { return }
     vm := string.[zi2zx, "run", "--vm", semantic]
-    interpreter := string.[zi2asm, "--run", "--work", "4000000000", "--fuel", "4000000000",
+    interpreter := string.[zi2asm, "--run", "--heap-report", "--work", "4000000000", "--fuel", "4000000000",
         "--frames", "100000", "--input", "zx", lowered]
     reference := NativeInvoke(test, vm[:])
     actual := NativeInvoke(test, interpreter[:])
@@ -64,6 +65,9 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     }
     if !NativeAssert(test, cast(s64)actual.code == status,
         CheckConcat(item.entry, CheckConcat(": interpreter status ", CheckNumber(actual.code)))) { return }
+    // Drops and moves free every heap block before the entry returns.
+    if !NativeAssert(test, TextContains(actual.error, "heap: 0 live blocks"),
+        CheckConcat(item.entry, CheckConcat(": heap blocks were still live: ", actual.error))) { return }
     // The same ZX lowers to one wasm32 module, byte for byte, or stops at a
     // named wasm.gap; the module prints what the interpreter prints.
     wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
@@ -121,6 +125,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     spec_root := CheckPath(test.repo, "tests/spec")
     ParityAdd(*cases, spec_root, "zx_lowered_features:main", CheckPath(spec_root, "zx_lowered_features.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_vec:main", CheckPath(spec_root, "zx_lowered_vec.zi"))
+    ParityAdd(*cases, spec_root, "zx_lowered_owned:main", CheckPath(spec_root, "zx_lowered_owned.zi"))
     for entry: spec {
         at: s64
         while entry[at] != cast(u8)58 { at += 1 }

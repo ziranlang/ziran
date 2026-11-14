@@ -1,0 +1,33 @@
+// Types two modules both spell, and long zero arrays, on revision-28 ZX,
+// pinned by tests/zx_lowered_parity.sh. `float32` and `[4]float32` are one
+// lowered type whichever module wrote them, so values pass between modules.
+// A zero `[1024]u8` is read whole from a slot the procedure never writes,
+// instead of built one element at a time, and every `block: Block` starts
+// from zeros again.
+Part :: #import "zx_lowered_shared_part"
+
+Block :: struct {
+    bytes: [1024]u8
+    count: s32
+}
+
+Fresh :: (round: s32) -> s32 {
+    block: Block
+    seen: s32 = cast(s32)block.bytes[round] + cast(s32)block.bytes[1023]
+    block.bytes[round] = 9
+    block.bytes[1023] = 7
+    block.count = seen
+    return block.count + cast(s32)block.bytes[round]
+}
+
+main :: () -> s32 {
+    point := Part.Point.{.x = 1.5, .y = 2.5}
+    by: float32 = 2.0
+    scaled := Part.Scale(point, by)
+    values: [4]float32 = .[1.0, 2.0, 3.0, 4.0]
+    total := Part.Sum(values) + scaled.x + scaled.y
+    fresh: s32
+    for round: 0..3 { fresh += Fresh(cast(s32)round) }
+    print("shared % %\n", cast(s32)total, fresh)
+    return cast(s32)total
+}

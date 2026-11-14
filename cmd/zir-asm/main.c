@@ -839,7 +839,6 @@ main(int argc, char **argv)
             "lowered IR rejected: problem=%d function=%d block=%d instruction=%d value=%d origin=%d",
             diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
             diagnostic.value, diagnostic.origin);
-        if(getenv("ZI2ASM_DEBUG_LIR")) AssemblyPrintLir(view, stderr); /* TEMPDEBUG */
         goto done;
     }
     int listing = !strcmp(emit, "lir");

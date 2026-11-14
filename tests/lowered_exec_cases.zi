@@ -1128,7 +1128,8 @@ VerifierBoundaries :: () -> bool {
     return true
 }
 
-typed_text: [2]u8 = .[42, 43];
+// A host image: the view's two words (offset 16, count 2), then its bytes.
+typed_text: [18]u8 = .[16, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 42, 43];
 typed_pair: [8]u8;
 
 TypedHost :: (context: *void, function: s32, arguments: []LirExecArgument,
@@ -1150,6 +1151,147 @@ MalformedTypedHost :: (context: *void, function: s32, arguments: []LirExecArgume
     result: *LirExecArgument) -> bool {
     <<result = .{.type = 5, .bits = 42}
     return true
+}
+
+// Row {text: string, n: s32} as a host image: the text view (offset 20,
+// count 3), n = 39, then the three bytes.
+shape_row: [23]u8 = .[20, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 39, 0, 0, 0, 97, 98, 99];
+// The same row with a view that runs past the end of the image.
+shape_row_outside: [23]u8 = .[21, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 39, 0, 0, 0, 97, 98, 99];
+shape_seen: s32;
+
+ShapeWord :: (bytes: []u8, at: s64) -> s64 {
+    result: s64
+    for index: cast(s64)0..7 { result |= cast(s64)bytes[at + index] << (index * 8) }
+    return result
+}
+
+// Function 1 gives the two-byte text; function 2 takes a []string and a
+// handle and gives a Row. The []string image is its view words, two element
+// views, then each element's bytes.
+ShapeHost :: (context: *void, function: s32, arguments: []LirExecArgument,
+    result: *LirExecArgument) -> bool {
+    if function == 1 {
+        <<result = .{.type = 4, .bytes = typed_text[:]}
+        return true
+    }
+    if function != 2 || arguments.count != 2 || arguments[0].type != 8 || arguments[1].type != 9 ||
+        arguments[1].bits != 0 || arguments[1].bytes.count != 0 || arguments[0].bytes.count != 52 { return false }
+    rows := arguments[0].bytes
+    if ShapeWord(rows, 0) != 16 || ShapeWord(rows, 8) != 2 ||
+        ShapeWord(rows, 16) != 48 || ShapeWord(rows, 24) != 2 ||
+        ShapeWord(rows, 32) != 50 || ShapeWord(rows, 40) != 2 ||
+        rows[48] != 42 || rows[49] != 43 || rows[50] != 42 || rows[51] != 43 { return false }
+    shape_seen += 1
+    <<result = .{.type = 6, .bytes = shape_row[:]}
+    return true
+}
+
+OutsideShapeHost :: (context: *void, function: s32, arguments: []LirExecArgument,
+    result: *LirExecArgument) -> bool {
+    <<result = .{.type = 6, .bytes = shape_row_outside[:]}
+    return true
+}
+
+// Host values with views inside: a slice of strings and a handle go in, a
+// record holding a string comes back.
+TypedHostShapes :: () -> bool {
+    string_fields: [2]s32 = .[3, 2]
+    row_fields: [2]s32 = .[4, 5]
+    strings_fields: [2]s32 = .[7, 2]
+    raw_fields: [2]s32 = .[12, 5]
+    types: [14]LirType = .[
+        .{.kind = .Void}, .{.kind = .Integer, .bits = 8},
+        .{.kind = .Integer, .bits = 64, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}, .{.kind = .Record, .fields = string_fields[:]},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Record, .fields = row_fields[:]}, .{.kind = .Pointer, .element = 4},
+        .{.kind = .Record, .fields = strings_fields[:]}, .{.kind = .Pointer, .element = 0},
+        .{.kind = .Array, .element = 4, .count = 2}, .{.kind = .Pointer, .element = 10},
+        .{.kind = .Pointer, .element = 5}, .{.kind = .Record, .fields = raw_fields[:]}]
+    modules: [1]string = .["host-shapes"]
+    empty: [0]s32
+    constants: [2]LirConstant = .[.{.type = 2, .bits = 2}, .{.type = 2, .bits = 0}]
+    both: [2]s32 = .[0, 0]
+    stored: [1]s32 = .[1]
+    first: [2]s32 = .[2, 3]
+    view: [2]s32 = .[4, 5]
+    call: [2]s32 = .[6, 7]
+    row: [1]s32 = .[8]
+    text: [1]s32 = .[10]
+    count: [1]s32 = .[11]
+    sum: [2]s32 = .[9, 12]
+    total: [1]s32 = .[13]
+    values: [14]s32 = .[4, 10, 11, 2, 7, 2, 8, 9, 6, 5, 4, 2, 5, 5]
+    instructions: [15]LirInstruction
+    instructions[0] = Instruction(.HostCall, 0, empty[:], 1); instructions[0].effect = 1
+    instructions[1] = Instruction(.Aggregate, 1, both[:])
+    instructions[2] = Instruction(.Allocate, 2, stored[:]); instructions[2].effect = 2
+    instructions[3] = Instruction(.Constant, 3, empty[:], 1)
+    instructions[4] = Instruction(.ElementAddress, 4, first[:])
+    instructions[5] = Instruction(.Constant, 5, empty[:], 0)
+    instructions[6] = Instruction(.Aggregate, 6, view[:])
+    instructions[7] = Instruction(.Null, 7, empty[:])
+    instructions[8] = Instruction(.HostCall, 8, call[:], 2); instructions[8].effect = 3
+    instructions[9] = Instruction(.Extract, 9, row[:]); instructions[9].immediate = 1
+    instructions[10] = Instruction(.Extract, 10, row[:]); instructions[10].immediate = 0
+    instructions[11] = Instruction(.Extract, 11, text[:]); instructions[11].immediate = 1
+    instructions[12] = Instruction(.Convert, 12, count[:])
+    instructions[13] = Instruction(.Add, 13, sum[:])
+    instructions[14] = Instruction(.Return, -1, total[:])
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    describe: [2]s32 = .[8, 9]
+    functions: [3]LirFunction = .[
+        .{.module = 0, .name = "entry", .result = 5, .values = values[:],
+            .blocks = blocks[:], .origin = -1},
+        .{.module = 0, .name = "Text", .result = 4, .calling = .Host,
+            .external = true, .entry = -1, .origin = -1},
+        .{.module = 0, .name = "Describe", .parameters = describe[:], .result = 6,
+            .calling = .Host, .external = true, .entry = -1, .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
+        LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 41, *instance).problem != .None ||
+        LirExecBindHostTyped(*instance, 1, ShapeHost, null) != .None ||
+        LirExecBindHostTyped(*instance, 2, ShapeHost, null) != .None { return false }
+    shape_seen = 0
+    made := LirExecRun(*instance)
+    // 39 from the row plus the three bytes of its text; the two-byte text
+    // and the row's three bytes are the only owned storage.
+    if made.problem != .None || made.value.bits != 42 || shape_seen != 1 ||
+        instance.owned.count != 5 { return false }
+
+    // A reply whose view leaves the image is refused and keeps nothing.
+    LirExecInstanceClose(*instance)
+    if LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 42, *instance).problem != .None ||
+        LirExecBindHostTyped(*instance, 1, ShapeHost, null) != .None ||
+        LirExecBindHostTyped(*instance, 2, OutsideShapeHost, null) != .None { return false }
+    refused := LirExecRun(*instance)
+    if refused.problem != .Host || instance.owned.count != 2 { return false }
+    LirExecInstanceClose(*instance)
+    LirExecPlanFree(*plan)
+
+    // A pointer to anything but void is not a host value, alone or in a record.
+    raw: [1]s32 = .[12]
+    raw_functions: [1]LirFunction = .[
+        .{.module = 0, .name = "Raw", .parameters = raw[:], .result = 0,
+            .calling = .Host, .external = true, .entry = -1, .origin = -1}]
+    raw_program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .functions = raw_functions[:], .entry = -1}
+    rejected := LirExecPlanBuild(raw_program, LirDefaultLimits(), *plan)
+    if rejected.problem != .InvalidProgram || rejected.verification.problem != .Unsupported { return false }
+    nested: [1]s32 = .[13]
+    nested_functions: [1]LirFunction = .[
+        .{.module = 0, .name = "Nested", .parameters = nested[:], .result = 0,
+            .calling = .Host, .external = true, .entry = -1, .origin = -1}]
+    nested_program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .functions = nested_functions[:], .entry = -1}
+    rejected = LirExecPlanBuild(nested_program, LirDefaultLimits(), *plan)
+    return rejected.problem == .InvalidProgram && rejected.verification.problem == .Unsupported
 }
 
 UnusedScalarHost :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
@@ -1289,6 +1431,7 @@ Answer :: () -> s32 {
     if !BytesEqualExtent() { return 21 }
     if !TypedHostBoundary() { return 22 }
     if !HeapResize() { return 23 }
+    if !TypedHostShapes() { return 24 }
     return 42
 }
 

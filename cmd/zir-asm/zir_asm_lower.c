@@ -58,6 +58,13 @@ typedef struct AssemblyBlock {
     int effect;
 } AssemblyBlock;
 
+/* A frame slot of one type that the procedure allocates on entry and never
+ * writes: the source of that type's long zero values. */
+typedef struct AssemblyZeroSlot {
+    int type;
+    int address;
+} AssemblyZeroSlot;
+
 typedef struct AssemblyLoop {
     int header;
     int exit;
@@ -86,6 +93,7 @@ typedef struct AssemblyFunction {
      * `literal_type`: a member or global the literal initializes. */
     int literal_at;
     int literal_type;
+    AssemblyVector zero_slots;
 } AssemblyFunction;
 
 struct AssemblyProgram {
@@ -348,9 +356,40 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
     }
     LirType type = {0};
     if(!strcmp(name, "float32") || !strcmp(name, "float64") || !strcmp(name, "real")) {
+        /* One float type per width for the whole program: a float passed
+         * between modules is the same type on both sides. */
+        int bits = !strcmp(name, "float32") ? 32 : 64;
+        for(int index = 0; index < program->types.count; index++) {
+            LirType known = *assembly_type_at(program, index);
+            if(known.kind == LirTypeKind_Float && known.bits == bits) return index;
+        }
         type.kind = LirTypeKind_Float;
-        type.bits = !strcmp(name, "float32") ? 32 : 64;
-    } else if(ArrayValueType(name)) type.kind = LirTypeKind_Array;
+        type.bits = bits;
+    } else if(ArrayValueType(name)) {
+        /* Fixed arrays are structural like views: every spelling of [N]T,
+         * whichever module wrote it, is one array of that element and count. */
+        char element[ZIR_NAME_MAX];
+        int count = 0;
+        if(!ArrayElementType(name, element, sizeof(element), &count) || count < 0)
+            return assembly_fail(program, span, "invalid checked fixed-array type");
+        int element_type = assembly_type_in(program, module, element, span, depth + 1);
+        if(program->failed) return -1;
+        int identity = -1;
+        for(int index = 0; index < program->types.count && identity < 0; index++) {
+            LirType known = *assembly_type_at(program, index);
+            if(known.kind == LirTypeKind_Array && known.element == element_type && known.count == count)
+                identity = index;
+        }
+        if(identity < 0) {
+            type.kind = LirTypeKind_Array;
+            type.element = element_type;
+            type.count = count;
+            identity = program->types.count;
+            if(!assembly_push(program, &program->types, &type)) return -1;
+        }
+        AssemblyType binding = {module, assembly_text(program, name), record, identity};
+        return assembly_push(program, &program->type_names, &binding) ? identity : -1;
+    }
     else if(record && record->is_procedure_type && !record->is_c_call)
         type.kind = LirTypeKind_Function;
     else if(record && !record->is_procedure_type && !record->is_union && !record->is_record_template &&
@@ -381,15 +420,7 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
     AssemblyType binding = {module, assembly_text(program, name), record, identity};
     if(!assembly_push(program, &program->types, &type) ||
        !assembly_push(program, &program->type_names, &binding)) return -1;
-    if(type.kind == LirTypeKind_Array) {
-        char element[ZIR_NAME_MAX];
-        int count = 0;
-        if(!ArrayElementType(name, element, sizeof(element), &count) || count < 0)
-            return assembly_fail(program, span, "invalid checked fixed-array type");
-        int element_type = assembly_type_in(program, module, element, span, depth + 1);
-        assembly_type_at(program, identity)->element = element_type;
-        assembly_type_at(program, identity)->count = count;
-    } else if(type.kind == LirTypeKind_Function) {
+    if(type.kind == LirTypeKind_Function) {
         const ZirParameters *parameters = ParametersOf(record->body);
         int *types = assembly_allocate(program, (size_t)parameters->count, sizeof(*types));
         if(parameters->count && types == NULL) return -1;
@@ -825,6 +856,46 @@ assembly_promote_binding(AssemblyProgram *program, AssemblyFunction *function,
     return address;
 }
 
+/* The zero value of a long fixed array is read from a frame slot that the
+ * procedure allocates on entry and never writes. Building it from one
+ * constant per element would cost an instruction per element: 65,536 of them
+ * for a `[65536]u8` buffer. A frame slot rather than a global, because the
+ * native encoder lists every element of a global. */
+#define ASSEMBLY_ZERO_ARRAY_INLINE 256
+
+static int
+assembly_zero_slot(AssemblyProgram *program, AssemblyFunction *function, int identity, ZirSourceSpan span)
+{
+    if(program->failed || function->current < 0) return -1;
+    if(!function->zero_slots.width) function->zero_slots.width = sizeof(AssemblyZeroSlot);
+    AssemblyZeroSlot *slots = function->zero_slots.data;
+    int address = -1;
+    for(int index = 0; index < function->zero_slots.count && address < 0; index++)
+        if(slots[index].type == identity) address = slots[index].address;
+    if(address < 0) {
+        int pointer_type = assembly_pointer_type(program, identity, span);
+        if(program->failed) return -1;
+        address = assembly_value(program, function, pointer_type);
+        LirInstruction allocate = {.op = LirOp_Allocate, .result = address, .symbol = -1,
+            .origin = assembly_origin(program, span)};
+        AssemblyBlock *entry = assembly_block_at(function, function->result.entry);
+        if(program->failed || !assembly_push(program, &entry->instructions, &allocate)) return -1;
+        /* The slot is allocated first, after the block's fuel charge, so it
+         * dominates every use; the block's effects are numbered again. */
+        LirInstruction *instructions = entry->instructions.data;
+        int count = entry->instructions.count;
+        int at = count > 1 && instructions[0].op == LirOp_Fuel ? 1 : 0;
+        memmove(&instructions[at + 1], &instructions[at], (size_t)(count - 1 - at) * sizeof(*instructions));
+        instructions[at] = allocate;
+        entry->effect = 0;
+        for(int index = 0; index < count; index++)
+            if(compiler_lowered_ir_LirEffectful(instructions[index].op)) instructions[index].effect = ++entry->effect;
+        AssemblyZeroSlot slot = {identity, address};
+        if(!assembly_push(program, &function->zero_slots, &slot)) return -1;
+    }
+    return assembly_emit(program, function, LirOp_Load, identity, &address, 1, -1, span);
+}
+
 static int
 assembly_zero(AssemblyProgram *program, AssemblyFunction *function, int identity,
               ZirSourceSpan span, int depth)
@@ -832,6 +903,8 @@ assembly_zero(AssemblyProgram *program, AssemblyFunction *function, int identity
     if(!assembly_spend(program, span)) return -1;
     if(depth > 256) return assembly_fail(program, span, "aggregate initialization nesting budget exhausted");
     LirType type = *assembly_type_at(program, identity);
+    if(type.kind == LirTypeKind_Array && type.count > ASSEMBLY_ZERO_ARRAY_INLINE)
+        return assembly_zero_slot(program, function, identity, span);
     if(type.kind == LirTypeKind_Record || type.kind == LirTypeKind_Array) {
         int64_t count = type.kind == LirTypeKind_Record ? type.fields.length : type.count;
         if(count < 0 || count > INT_MAX) return assembly_fail(program, span, "aggregate initialization size limit exceeded");
@@ -1971,6 +2044,86 @@ assembly_builder_finish(AssemblyProgram *program, AssemblyFunction *function, co
     return assembly_emit(program, function, LirOp_Aggregate, string, fields, 2, -1, span);
 }
 
+/* VecReserve(values, capacity): room for at least that many elements, with
+ * the count unchanged. The portable VM gives exactly the requested capacity
+ * when it grows; a negative request or a refused allocation gives false and
+ * leaves the vector as it was. */
+static int
+assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int depth)
+{
+    ZirSourceSpan span = expression->span;
+    int first = expression->first_child;
+    int second = first >= 0 && first < function->source->expr_count ?
+        function->source->exprs[first].next_sibling : -1;
+    if(second < 0 || second >= function->source->expr_count)
+        return assembly_fail(program, span, "VecReserve requires a vector place and a capacity");
+    int identity = assembly_type(program, function, function->source->exprs[first].type, span);
+    int element = assembly_vec_element(program, identity);
+    if(program->failed) return -1;
+    if(element < 0) return assembly_fail(program, span, "VecReserve requires an owned vector");
+    int pointer = assembly_pointer_type(program, element, span);
+    int requested = assembly_convert(program, function,
+        assembly_expression(program, function, second, depth + 1), 8, span);
+    AssemblyVecPlace place;
+    int current = assembly_vec_read(program, function, first, identity, &place, span);
+    if(program->failed) return -1;
+    int data = assembly_indexed(program, function, LirOp_Extract, pointer, &current, 1, 0, span);
+    int capacity = assembly_indexed(program, function, LirOp_Extract, 8, &current, 1, 2, span);
+    int zero = assembly_constant(program, function, 8, 0, span);
+    int carried = assembly_carry(program, function, identity, current);
+    int live = function->bindings.count;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    AssemblyBinding *answered = assembly_template(program, before, live, 1);
+    if(program->failed || before == NULL || answered == NULL) return -1;
+    int valid = assembly_block(program, function, before, live);
+    int rejected = assembly_block(program, function, before, live);
+    int fits = assembly_block(program, function, before, live);
+    int grow = assembly_block(program, function, before, live);
+    int granted = assembly_block(program, function, before, live);
+    int done = assembly_block(program, function, answered, live + 1);
+    if(program->failed) return -1;
+    int negative_operands[] = {requested, zero};
+    int negative = assembly_emit(program, function, LirOp_Less, 1, negative_operands, 2, -1, span);
+    assembly_branch(program, function, negative, rejected, valid, live, span);
+
+    assembly_enter(function, rejected, before, live);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 0, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, valid, before, live);
+    int enough_operands[] = {requested, capacity};
+    int enough = assembly_emit(program, function, LirOp_LessEqual, 1, enough_operands, 2, -1, span);
+    assembly_branch(program, function, enough, fits, grow, live, span);
+
+    assembly_enter(function, fits, before, live);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, grow, before, live);
+    int resize_operands[] = {data, capacity, requested};
+    int moved = assembly_emit(program, function, LirOp_Resize, pointer, resize_operands, 3, -1, span);
+    int failed_operands[] = {moved, assembly_emit(program, function, LirOp_Null, pointer, NULL, 0, -1, span)};
+    int failed = assembly_emit(program, function, LirOp_Equal, 1, failed_operands, 2, -1, span);
+    assembly_branch(program, function, failed, rejected, granted, live, span);
+
+    assembly_enter(function, granted, before, live);
+    int data_operands[] = {assembly_carried(function, carried), moved};
+    int with_data = assembly_indexed(program, function, LirOp_Insert, identity, data_operands, 2, 0, span);
+    int capacity_operands[] = {with_data, requested};
+    ((AssemblyBinding *)function->bindings.data)[carried].value =
+        assembly_indexed(program, function, LirOp_Insert, identity, capacity_operands, 2, 2, span);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    if(program->failed) return -1;
+    assembly_enter(function, done, answered, live + 1);
+    int final = assembly_carried(function, carried);
+    int answer = assembly_carried(function, live);
+    function->bindings.count = carried;
+    assembly_vec_write(program, function, &place, final, span);
+    return answer;
+}
+
 /* VecSwap(left, right): the two places exchange their vectors; no element
  * moves and nothing is allocated. */
 static int
@@ -2278,6 +2431,13 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
     if(expression->kind == ZIR_EXPR_UNARY) {
         if(!strcmp(expression->op, "&"))
             return assembly_address(program, function, expression->right, depth + 1);
+        /* A signed literal in a parsed global initializer is typed like the
+         * bare literal: by the member or global it initializes. */
+        if(function->literal_at == root + 1 && (!strcmp(expression->op, "-") || !strcmp(expression->op, "+"))) {
+            LirTypeKind own = assembly_type_at(program, type)->kind;
+            if(own != LirTypeKind_Float && own != LirTypeKind_Integer) type = function->literal_type;
+            function->literal_at = expression->right + 1;
+        }
         int value = assembly_expression(program, function, expression->right, depth + 1);
         if(program->failed) return -1;
         if(!strcmp(expression->op, "*"))
@@ -2388,6 +2548,8 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             return assembly_vec_call(program, function, expression, depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSlice"))
             return assembly_vec_slice(program, function, expression, depth + 1);
+        if(!indirect && !strcmp(expression->name, "VecReserve"))
+            return assembly_vec_reserve_call(program, function, expression, depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSwap"))
             return assembly_vec_swap(program, function, expression);
         if(!indirect && !strcmp(expression->name, "BuilderAppend"))

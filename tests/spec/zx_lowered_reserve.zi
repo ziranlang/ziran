@@ -1,0 +1,27 @@
+// VecReserve on revision-28 ZX, pinned by tests/zx_lowered_parity.sh: the
+// portable VM grows to exactly the requested capacity, refuses a negative
+// request, and reaches the vector through a dereferenced pointer.
+#import "vec"
+
+Keep :: (blocks: *Vec(s64)) {
+    if blocks.*.count < blocks.*.capacity { return }
+    unused VecReserve(blocks.*, blocks.*.count * 2 + 3)
+}
+
+main :: () -> s32 {
+    values: Vec(s64)
+    a := VecReserve(values, 10)
+    first := values.capacity
+    b := VecReserve(values, 4)
+    VecPush(values, 7)
+    c := VecReserve(values, 11)
+    second := values.capacity
+    d := VecReserve(values, -1)
+    for i: 0..20 { VecPush(values, cast(s64)i) }
+    third := values.capacity
+    Keep(*values)
+    grown: Vec(s64)
+    for i: 0..9 { Keep(*grown); VecPush(grown, cast(s64)i) }
+    print("reserve % % % % % % % % % %\n", a, first, b, c, second, d, third, values[0], grown.capacity, grown[9])
+    return cast(s32)values.count
+}

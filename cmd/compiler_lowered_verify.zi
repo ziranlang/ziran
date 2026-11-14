@@ -199,6 +199,9 @@ Origins :: (state: *State, program: LirProgram) -> bool {
 }
 
 Declarations :: (state: *State, program: LirProgram) -> bool {
+    shapes: Vec(u8)
+    if !Charge(state, program.types.count, 24) { return false }
+    if !LirHostShapes(program, *shapes) { return Fail(state, .Allocation) }
     for constant: program.constants {
         if !Spend(state, 1) { return false }
         if !ValueType(program, constant.type) { return Fail(state, .Constant) }
@@ -231,11 +234,13 @@ Declarations :: (state: *State, program: LirProgram) -> bool {
             // Host capabilities are bodiless typed signatures supplied by the embedder.
             if function.calling != .Host { return Fail(state, .Unsupported) }
             if function.blocks.count != 0 || function.values.count != 0 || function.entry != LirNoId { return Fail(state, .Function) }
-            if !HostType(program, function.result, true) { return Fail(state, .Unsupported) }
+            if program.types[function.result].kind != .Void && shapes[function.result] == 0 {
+                return Fail(state, .Unsupported)
+            }
             for parameter_index: cast(s64)0..function.parameters.count - 1 {
                 if !Spend(state, 1) { return false }
                 parameter := function.parameters[parameter_index]
-                if !HostType(program, parameter, false) &&
+                if (!Id(parameter, program.types.count) || shapes[parameter] == 0) &&
                     !PlatformWritePointer(program, function, parameter_index) { return Fail(state, .Unsupported) }
             }
         } else if function.calling != .Portable { return Fail(state, .Unsupported) }
@@ -275,43 +280,21 @@ ByteArray :: (program: LirProgram, type: s32) -> bool {
         program.types[element].bits == 8 && !program.types[element].is_signed
 }
 
-HostScalar :: (program: LirProgram, type: s32, allow_void: bool) -> bool {
-    if !Id(type, program.types.count) { return false }
-    kind := program.types[type].kind
-    return kind == .Bool || kind == .Integer || kind == .Float || allow_void && kind == .Void
-}
-
-HostByteView :: (program: LirProgram, type: s32) -> bool {
-    if !Id(type, program.types.count) { return false }
-    value := program.types[type]
-    if value.kind != .Record || value.fields.count != 2 { return false }
-    pointer_id := value.fields[0]
-    count_id := value.fields[1]
-    if !Id(pointer_id, program.types.count) || !Id(count_id, program.types.count) { return false }
-    pointer := program.types[pointer_id]
-    count := program.types[count_id]
-    if pointer.kind != .Pointer || !Id(pointer.element, program.types.count) ||
-        count.kind != .Integer || count.bits != 64 || !count.is_signed { return false }
-    element := program.types[pointer.element]
-    return element.kind == .Integer && element.bits == 8 && !element.is_signed
-}
-
-HostPlain :: (program: LirProgram, type: s32, depth: s64 = 0) -> bool {
-    if depth > program.types.count || !Id(type, program.types.count) { return false }
-    if HostScalar(program, type, false) { return true }
-    value := program.types[type]
-    if value.kind == .Record {
-        if HostByteView(program, type) { return false }
-        for field: value.fields {
-            if !HostPlain(program, field, depth + 1) { return false }
-        }
-        return true
+HostShapeChildren :: (program: LirProgram, id: s32) -> s64 {
+    type := program.types[id]
+    if type.kind == .Record {
+        if LirHostView(program, id) { return 1 }
+        return type.fields.count
     }
-    return value.kind == .Array && HostPlain(program, value.element, depth + 1)
+    if type.kind == .Array { return 1 }
+    return 0
 }
 
-HostType :: (program: LirProgram, type: s32, allow_void: bool) -> bool {
-    return HostScalar(program, type, allow_void) || HostByteView(program, type) || HostPlain(program, type)
+HostShapeChild :: (program: LirProgram, id: s32, index: s64) -> s32 {
+    type := program.types[id]
+    if type.kind == .Array { return type.element }
+    if LirHostView(program, id) { return program.types[type.fields[0]].element }
+    return type.fields[index]
 }
 
 PlatformWritePointer :: (program: LirProgram, function: LirFunction, parameter: s64) -> bool {
@@ -716,6 +699,87 @@ Function :: (state: *State, program: LirProgram, function: LirFunction) -> bool 
 }
 
 #scope_export
+// The deepest nesting of records, arrays and views a host value may have.
+LirHostShapeDepth :: 64
+// Set in a type's shape byte when the value holds a view somewhere inside.
+LirHostShapeViews :: 128
+
+// A view is the record `{data: *T, count: s64}` of a non-void element:
+// `string`, `[]T`. A host sees its elements, never the pointer.
+LirHostView :: (program: LirProgram, type: s32) -> bool {
+    if !Id(type, program.types.count) { return false }
+    value := program.types[type]
+    if value.kind != .Record || value.fields.count != 2 { return false }
+    pointer_id := value.fields[0]
+    count_id := value.fields[1]
+    if !Id(pointer_id, program.types.count) || !Id(count_id, program.types.count) { return false }
+    pointer := program.types[pointer_id]
+    count := program.types[count_id]
+    return pointer.kind == .Pointer && Id(pointer.element, program.types.count) &&
+        program.types[pointer.element].kind != .Void &&
+        count.kind == .Integer && count.bits == 64 && count.is_signed
+}
+
+// Fills `shapes` with one byte per type of a program whose type table has
+// been verified. Zero means the type cannot cross a typed host boundary.
+// Otherwise the low seven bits hold the nesting depth and LirHostShapeViews
+// says whether a view lies inside. Host shapes are bools, integers, floats,
+// opaque `*void` handles, and records, fixed arrays and views of host
+// shapes. Other pointers and procedure values are not shapes, and neither is
+// a type that reaches itself through a view or nests past LirHostShapeDepth.
+// Returns false only when memory runs out.
+LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
+    count := program.types.count
+    colors: Vec(u8)
+    stack: Vec(s32)
+    next: Vec(s64)
+    if !VecResizeBounded(<<shapes, count, count) || !VecResizeBounded(colors, count, count) ||
+        !VecResizeBounded(stack, count, count) || !VecResizeBounded(next, count, count) { return false }
+    if count == 0 { return true }
+    for index: cast(s64)0..count - 1 { (<<shapes)[index] = 0 }
+    for root: cast(s32)0..cast(s32)count - 1 {
+        if colors[root] != 0 { continue }
+        depth: s64 = 0
+        stack[0] = root
+        while depth >= 0 {
+            id := stack[depth]
+            colors[id] = 1
+            children := HostShapeChildren(program, id)
+            if next[id] < children {
+                child := HostShapeChild(program, id, next[id])
+                next[id] += 1
+                if colors[child] == 1 {
+                    // The type reaches itself through a view: no finite image.
+                    colors[id] = 2
+                    depth -= 1
+                    continue
+                }
+                if colors[child] == 0 { depth += 1; stack[depth] = child }
+                continue
+            }
+            type := program.types[id]
+            shape := type.kind == .Bool || type.kind == .Integer || type.kind == .Float ||
+                type.kind == .Record || type.kind == .Array
+            if type.kind == .Pointer { shape = program.types[type.element].kind == .Void }
+            views := LirHostView(program, id)
+            height: s64 = 1
+            for index: cast(s64)0..children - 1 {
+                child := cast(s64)(<<shapes)[HostShapeChild(program, id, index)]
+                if child == 0 { shape = false; break }
+                if (child & 127) + 1 > height { height = (child & 127) + 1 }
+                if child >= LirHostShapeViews { views = true }
+            }
+            if shape && height <= LirHostShapeDepth {
+                if views { height += LirHostShapeViews }
+                (<<shapes)[id] = cast(u8)height
+            }
+            colors[id] = 2
+            depth -= 1
+        }
+    }
+    return true
+}
+
 LirVerify :: (program: LirProgram, limits: LirLimits) -> LirDiagnostic {
     state := State.{remaining = limits.work, limits = limits,
         diagnostic = .{problem = .None, function = LirNoId, block = LirNoId,

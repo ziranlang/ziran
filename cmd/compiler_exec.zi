@@ -72,6 +72,8 @@ LirExecPlan :: struct {
     value_types: Vec(s32)
     value_canonical: Vec(u8)
     value_masks: Vec(u64)
+    // One byte per type, as LirHostShapes gives it.
+    host_shapes: Vec(u8)
     functions: Vec(LirExecFunctionPlan)
     block_edge_bases: Vec(s64)
     block_instruction_bases: Vec(s64)
@@ -1820,71 +1822,28 @@ ExecHostScalarType :: (type: LirType) -> bool {
     return type.kind == .Bool || type.kind == .Integer || type.kind == .Float
 }
 
-ExecHostViewType :: (program: LirProgram, type: s32) -> bool {
+ExecHostHandleType :: (program: LirProgram, type: s32) -> bool {
     value := program.types[type]
-    if value.kind != .Record || value.fields.count != 2 { return false }
-    pointer := program.types[value.fields[0]]
-    count := program.types[value.fields[1]]
-    if pointer.kind != .Pointer || count.kind != .Integer || count.bits != 64 || !count.is_signed {
-        return false
-    }
-    element := program.types[pointer.element]
-    return element.kind == .Integer && element.bits == 8 && !element.is_signed
+    return value.kind == .Pointer && program.types[value.element].kind == .Void
 }
 
-ExecHostPlainType :: (program: LirProgram, type: s32, depth: s64 = 0) -> bool {
-    if depth > program.types.count { return false }
-    value := program.types[type]
-    if ExecHostScalarType(value) { return true }
-    if value.kind == .Record {
-        if ExecHostViewType(program, type) { return false }
-        for field: value.fields {
-            if !ExecHostPlainType(program, field, depth + 1) { return false }
-        }
-        return true
-    }
-    if value.kind == .Array { return ExecHostPlainType(program, value.element, depth + 1) }
-    return false
+// Scalars and opaque handles cross a typed host boundary in `bits`; every
+// other host shape crosses as an image in `bytes`.
+ExecHostBitsType :: (program: LirProgram, type: s32) -> bool {
+    return ExecHostScalarType(program.types[type]) || ExecHostHandleType(program, type)
 }
 
-ExecHostTypedType :: (program: LirProgram, type: s32) -> bool {
-    return program.types[type].kind == .Void || ExecHostViewType(program, type) ||
-        ExecHostPlainType(program, type)
-}
-
-ExecHostSignature :: (program: LirProgram, function: s32, typed: bool) -> bool {
+ExecHostSignature :: (plan: *LirExecPlan, function: s32, typed: bool) -> bool {
+    program := plan.program
     fn := program.functions[function]
     for parameter: fn.parameters {
         if typed {
-            if !ExecHostTypedType(program, parameter) { return false }
+            if plan.host_shapes[parameter] == 0 { return false }
         } else if !ExecHostScalarType(program.types[parameter]) { return false }
     }
-    if typed { return ExecHostTypedType(program, fn.result) }
-    return program.types[fn.result].kind == .Void ||
-        ExecHostScalarType(program.types[fn.result])
-}
-
-ExecHostViewParts :: (instance: *LirExecInstance, frame_index: s64, value: s32,
-    address: *s64, count: *s64) -> bool {
-    if !ExecValueValid(instance, frame_index, value) { return false }
-    type := instance.plan.value_types[instance.current_value_base + value]
-    if !ExecHostViewType(instance.plan.program, type) { return ExecFail(instance, .Type) }
-    at := ExecFrameValueOffset(instance, frame_index, value)
-    token := ExecReadBits(instance.storage[:], at, 8)
-    bits := ExecReadBits(instance.storage[:], at + 8, 8)
-    if bits > cast(u64)9223372036854775807 { return ExecFail(instance, .Host) }
-    <<count = cast(s64)bits
-    <<address = -1
-    if token == 0 { return ifx bits == 0 then true else ExecFail(instance, .Host) }
-    found := ExecFindAddress(instance, token)
-    element := instance.plan.program.types[type].fields[0]
-    expected := instance.plan.program.types[element].element
-    if found < 0 || instance.addresses[found].type != expected ||
-        instance.addresses[found].extent < cast(s64)bits || !ExecAddressValid(instance, found) {
-        return ExecFail(instance, .Host)
-    }
-    <<address = found
-    return true
+    if program.types[fn.result].kind == .Void { return true }
+    if typed { return plan.host_shapes[fn.result] != 0 }
+    return ExecHostScalarType(program.types[fn.result])
 }
 
 ExecHostAvailable :: (instance: *LirExecInstance) -> s64 {
@@ -1892,112 +1851,224 @@ ExecHostAvailable :: (instance: *LirExecInstance) -> s64 {
         instance.words.count * 8 - instance.result_bytes.count - instance.owned.count
 }
 
+// A host image is the value's own bytes followed by the elements of every
+// view inside it. In the image a view's two words are the byte offset of its
+// first element from the start of the image and its element count; an empty
+// view is two zero words. Elements are images themselves, so views nest.
+// Handles keep their bits.
+//
+// Writes the image of the `type` value at `source[from]` to the host bytes at
+// `to` and appends its view elements. `base` is where the whole image starts
+// and `limit` bounds the host bytes.
+ExecHostEncode :: (instance: *LirExecInstance, type: s32, source: []u8, from: s64,
+    base: s64, to: s64, limit: s64) -> bool {
+    plan := instance.plan
+    program := plan.program
+    size := plan.type_sizes[type]
+    if plan.host_shapes[type] < LirHostShapeViews {
+        if !ExecSpend(instance, ExecCopyCost(size)) { return false }
+        for byte: cast(s64)0..size - 1 { instance.host_bytes[to + byte] = source[from + byte] }
+        return true
+    }
+    value := program.types[type]
+    if LirHostView(program, type) {
+        token := ExecReadBits(source, from, 8)
+        count := ExecReadBits(source, from + 8, 8)
+        if !ExecSpend(instance, 1) { return false }
+        if count == 0 {
+            ExecWriteBits(instance.host_bytes[:], to, 16, 0)
+            return true
+        }
+        element := program.types[value.fields[0]].element
+        width := plan.type_sizes[element]
+        found := ExecFindAddress(instance, token)
+        if found < 0 || width <= 0 || count > cast(u64)9223372036854775807 ||
+            instance.addresses[found].type != element || !ExecAddressValid(instance, found) ||
+            count > cast(u64)(instance.addresses[found].extent / width) { return ExecFail(instance, .Host) }
+        bytes := cast(s64)count * width
+        at := instance.host_bytes.count
+        if bytes > limit - at { return ExecFail(instance, .ValueBytes) }
+        if !VecResizeBounded(instance.host_bytes, at + bytes, limit) { return ExecFail(instance, .Allocation) }
+        ExecWriteBits(instance.host_bytes[:], to, 8, cast(u64)(at - base))
+        ExecWriteBits(instance.host_bytes[:], to + 8, 8, count)
+        // The elements live wherever the address was made: owned bytes,
+        // globals or a frame.
+        entry := instance.addresses[found]
+        elements := instance.storage[:]
+        if entry.owned { elements = instance.owned[:] }
+        else if entry.frame < 0 { elements = instance.globals[:] }
+        offset := ExecAddressOffset(instance, found)
+        if instance.failure.problem != .None { return false }
+        if plan.host_shapes[element] < LirHostShapeViews {
+            if !ExecSpend(instance, ExecCopyCost(bytes)) { return false }
+            for byte: cast(s64)0..bytes - 1 { instance.host_bytes[at + byte] = elements[offset + byte] }
+            return true
+        }
+        for index: cast(s64)0..cast(s64)count - 1 {
+            if !ExecHostEncode(instance, element, elements, offset + index * width,
+                base, at + index * width, limit) { return false }
+        }
+        return true
+    }
+    if value.kind == .Array {
+        width := plan.type_sizes[value.element]
+        for index: cast(s64)0..value.count - 1 {
+            if !ExecHostEncode(instance, value.element, source, from + index * width,
+                base, to + index * width, limit) { return false }
+        }
+        return true
+    }
+    offset: s64
+    for field: value.fields {
+        if !ExecHostEncode(instance, field, source, from + offset, base, to + offset, limit) { return false }
+        offset += plan.type_sizes[field]
+    }
+    return true
+}
+
 ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
     instruction: *LirInstruction) -> bool {
+    program := instance.plan.program
     count := instruction.operands.count
-    bytes: s64
-    for operand: instruction.operands {
-        type := instance.plan.value_types[instance.current_value_base + operand]
-        if ExecHostScalarType(instance.plan.program.types[type]) { continue }
-        size := instance.plan.type_sizes[type]
-        if ExecHostViewType(instance.plan.program, type) {
-            address: s64
-            if !ExecHostViewParts(instance, frame_index, operand, *address, *size) { return false }
-        } else if !ExecValueValid(instance, frame_index, operand) { return false }
-        if size < 0 || bytes > instance.limits.value_bytes - size { return ExecFail(instance, .ValueBytes) }
-        bytes += size
-    }
     available := ExecHostAvailable(instance)
-    if available < 0 || bytes > available { return ExecFail(instance, .ValueBytes) }
+    if available < 0 { return ExecFail(instance, .ValueBytes) }
+    unused VecResize(instance.host_bytes, 0)
     if !VecResizeBounded(instance.typed_arguments, count, count) ||
-        !VecResizeBounded(instance.host_bytes, bytes, available) { return ExecFail(instance, .Allocation) }
-    at: s64
+        !VecResizeBounded(instance.host_arguments, count, count) { return ExecFail(instance, .Allocation) }
     for index: cast(s64)0..count - 1 {
         operand := instruction.operands[index]
         type := instance.plan.value_types[instance.current_value_base + operand]
         value := LirExecArgument.{.type = type}
-        if ExecHostScalarType(instance.plan.program.types[type]) {
+        if ExecHostBitsType(program, type) {
             value.bits = ExecSlotBits(instance, operand)
             if instance.failure.problem != .None { return false }
         } else {
+            if !ExecValueValid(instance, frame_index, operand) { return false }
             size := instance.plan.type_sizes[type]
+            at := instance.host_bytes.count
+            if size > available - at { return ExecFail(instance, .ValueBytes) }
+            if !VecResizeBounded(instance.host_bytes, at + size, available) { return ExecFail(instance, .Allocation) }
             source := ExecFrameValueOffset(instance, frame_index, operand)
-            source_bytes := instance.storage[:]
-            if ExecHostViewType(instance.plan.program, type) {
-                address: s64
-                if !ExecHostViewParts(instance, frame_index, operand, *address, *size) { return false }
-                if size != 0 {
-                    source = ExecAddressOffset(instance, address)
-                    if instance.failure.problem != .None { return false }
-                    entry := instance.addresses[address]
-                    if entry.owned {
-                        source_bytes = instance.owned[:]
-                    } else if entry.frame < 0 {
-                        source_bytes = instance.globals[:]
-                    } else {
-                        source_bytes = instance.storage[:]
-                    }
-                }
-            }
-            if !ExecSpend(instance, ExecCopyCost(size)) { return false }
-            for byte: cast(s64)0..size - 1 { instance.host_bytes[at + byte] = source_bytes[source + byte] }
-            value.bytes = VecSlice(instance.host_bytes, at, size)
-            at += size
+            if !ExecHostEncode(instance, type, instance.storage[:], source, at, at, available) { return false }
+            // The image is sliced below, once the host bytes have stopped growing.
+            instance.host_arguments[index] = cast(u64)at
+            value.bits = cast(u64)(instance.host_bytes.count - at)
         }
         instance.typed_arguments[index] = value
+    }
+    for index: cast(s64)0..count - 1 {
+        if ExecHostBitsType(program, instance.typed_arguments[index].type) { continue }
+        length := cast(s64)instance.typed_arguments[index].bits
+        instance.typed_arguments[index].bits = 0
+        instance.typed_arguments[index].bytes = VecSlice(instance.host_bytes,
+            cast(s64)instance.host_arguments[index], length)
+    }
+    return true
+}
+
+// Reads the `type` value at `image[from]` of a host image into the frame
+// storage at `to`, or into the instance-owned bytes when `owned`. Each view's
+// elements become read-only instance-owned storage that stays valid for
+// globals and later calls.
+ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64,
+    owned: bool, to: s64) -> bool {
+    plan := instance.plan
+    program := plan.program
+    value := program.types[type]
+    size := plan.type_sizes[type]
+    if from < 0 || size > image.count - from { return ExecFail(instance, .Host) }
+    if !ExecSpend(instance, 1) { return false }
+    if value.kind == .Array {
+        width := plan.type_sizes[value.element]
+        for index: cast(s64)0..value.count - 1 {
+            if !ExecHostDecode(instance, value.element, image, from + index * width,
+                owned, to + index * width) { return false }
+        }
+        return true
+    }
+    if value.kind == .Record && !LirHostView(program, type) {
+        offset: s64
+        for field: value.fields {
+            if !ExecHostDecode(instance, field, image, from + offset, owned, to + offset) { return false }
+            offset += plan.type_sizes[field]
+        }
+        return true
+    }
+    if value.kind != .Record {
+        bits := ExecReadBits(image, from, size)
+        if value.kind == .Bool && bits > cast(u64)1 { return ExecFail(instance, .Host) }
+        if owned { ExecWriteBits(instance.owned[:], to, size, bits) }
+        else { ExecWriteBits(instance.storage[:], to, size, bits) }
+        return true
+    }
+    start := ExecReadBits(image, from, 8)
+    count := ExecReadBits(image, from + 8, 8)
+    token: u64
+    if count == 0 {
+        if start != 0 { return ExecFail(instance, .Host) }
+    } else {
+        element := program.types[value.fields[0]].element
+        width := plan.type_sizes[element]
+        if width <= 0 || start > cast(u64)image.count ||
+            count > cast(u64)((image.count - cast(s64)start) / width) { return ExecFail(instance, .Host) }
+        bytes := cast(s64)count * width
+        if bytes > ExecHostAvailable(instance) { return ExecFail(instance, .ValueBytes) }
+        base := instance.owned.count
+        if !VecResizeBounded(instance.owned, base + bytes, base + bytes) { return ExecFail(instance, .Allocation) }
+        if instance.addresses.count >= instance.limits.addresses ||
+            instance.addresses.count >= 4294967294 { return ExecFail(instance, .AddressLimit) }
+        address := LirExecAddress.{.token = ExecAddressToken(instance.identity, instance.addresses.count),
+            .global = -1, .frame = -1, .offset = base, .extent = bytes,
+            .type = element, .owned = true, .writable = false}
+        if !VecPush(instance.addresses, address) { return ExecFail(instance, .Allocation) }
+        token = address.token
+        kind := program.types[element].kind
+        if kind == .Integer || kind == .Float {
+            if !ExecSpend(instance, ExecCopyCost(bytes)) { return false }
+            for byte: cast(s64)0..bytes - 1 { instance.owned[base + byte] = image[cast(s64)start + byte] }
+        } else {
+            for index: cast(s64)0..cast(s64)count - 1 {
+                if !ExecHostDecode(instance, element, image, cast(s64)start + index * width,
+                    true, base + index * width) { return false }
+            }
+        }
+    }
+    if owned {
+        ExecWriteBits(instance.owned[:], to, 8, token)
+        ExecWriteBits(instance.owned[:], to + 8, 8, count)
+    } else {
+        ExecWriteBits(instance.storage[:], to, 8, token)
+        ExecWriteBits(instance.storage[:], to + 8, 8, count)
     }
     return true
 }
 
 ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
     instruction: *LirInstruction, result: LirExecArgument) -> bool {
-    expected := instance.plan.program.functions[instruction.symbol].result
+    program := instance.plan.program
+    expected := program.functions[instruction.symbol].result
     if result.type != expected { return ExecFail(instance, .Host) }
-    type := instance.plan.program.types[expected]
+    type := program.types[expected]
     if type.kind == .Void { return result.bytes.count == 0 || ExecFail(instance, .Host) }
     if instruction.result == LirNoId { return ExecFail(instance, .Host) }
-    if ExecHostScalarType(type) {
-        if result.bytes.count != 0 || !ExecHostCanonical(type, result.bits) { return ExecFail(instance, .Host) }
+    if ExecHostBitsType(program, expected) {
+        if result.bytes.count != 0 ||
+            ExecHostScalarType(type) && !ExecHostCanonical(type, result.bits) { return ExecFail(instance, .Host) }
         ExecWriteSlotBits(instance, instruction.result, result.bits)
         return instance.failure.problem == .None
     }
+    // A value without views is exactly its own bytes.
+    if instance.plan.host_shapes[expected] < LirHostShapeViews &&
+        result.bytes.count != instance.plan.type_sizes[expected] { return ExecFail(instance, .Host) }
     destination := ExecFrameValueOffset(instance, frame_index, instruction.result)
-    if ExecHostViewType(instance.plan.program, expected) {
-        size := result.bytes.count
-        if size < 0 || size > ExecHostAvailable(instance) { return ExecFail(instance, .ValueBytes) }
-        base := instance.owned.count
-        available := instance.limits.value_bytes - instance.globals.count - instance.storage.count -
-            instance.words.count * 8 - instance.result_bytes.count
-        if !VecResizeBounded(instance.owned, base + size, available) { return ExecFail(instance, .Allocation) }
-        for index: cast(s64)0..size - 1 { instance.owned[base + index] = result.bytes[index] }
-        token: u64
-        if size != 0 {
-            if instance.addresses.count >= instance.limits.addresses ||
-                instance.addresses.count >= 4294967294 {
-                unused VecResize(instance.owned, base)
-                return ExecFail(instance, .AddressLimit)
-            }
-            address_index := instance.addresses.count
-            element_pointer := type.fields[0]
-            element := instance.plan.program.types[element_pointer].element
-            address := LirExecAddress.{.token = ExecAddressToken(instance.identity, address_index),
-                .global = -1, .frame = -1, .offset = base, .extent = size,
-                .type = element, .owned = true, .writable = false}
-            if !VecPush(instance.addresses, address) {
-                unused VecResize(instance.owned, base)
-                return ExecFail(instance, .Allocation)
-            }
-            token = address.token
-        }
-        ExecWriteBits(instance.storage[:], destination, 8, token)
-        ExecWriteBits(instance.storage[:], destination + 8, 8, cast(u64)size)
-        ExecMarkValue(instance, frame_index, instruction.result)
-        return true
+    owned_count := instance.owned.count
+    address_count := instance.addresses.count
+    if !ExecHostDecode(instance, expected, result.bytes, 0, false, destination) {
+        // A rejected image leaves no storage or addresses behind.
+        unused VecResize(instance.owned, owned_count)
+        unused VecResize(instance.addresses, address_count)
+        return false
     }
-    size := instance.plan.type_sizes[expected]
-    if result.bytes.count != size { return ExecFail(instance, .Host) }
-    if !ExecSpend(instance, ExecCopyCost(size)) { return false }
-    for index: cast(s64)0..size - 1 { instance.storage[destination + index] = result.bytes[index] }
     ExecMarkValue(instance, frame_index, instruction.result)
     return true
 }
@@ -2229,6 +2300,7 @@ LirExecPlanFree :: (plan: *LirExecPlan) {
     VecFree(plan.value_types)
     VecFree(plan.value_canonical)
     VecFree(plan.value_masks)
+    VecFree(plan.host_shapes)
     VecFree(plan.functions)
     VecFree(plan.block_edge_bases)
     VecFree(plan.block_instruction_bases)
@@ -2289,6 +2361,7 @@ LirExecPlanBuild :: (program: LirProgram, verify_limits: LirLimits, output: *Lir
     }
     output.program = program
     problem := ExecPlanLayouts(program, output, verify_limits.bytes)
+    if problem == .None && !LirHostShapes(program, *output.host_shapes) { problem = .Allocation }
     if problem == .None { problem = ExecPlanFunctions(program, output, verify_limits.bytes) }
     if problem != .None {
         result := ExecResult(problem)
@@ -2371,7 +2444,7 @@ LirExecBindHost :: (instance: *LirExecInstance, function: s32, call: LirExecHost
     program := instance.plan.program
     if call == null || function < 0 || function >= program.functions.count ||
         !program.functions[function].external || program.functions[function].calling != .Host ||
-        ExecHostBinding(instance, function) >= 0 || !ExecHostSignature(program, function, false) { return .Calling }
+        ExecHostBinding(instance, function) >= 0 || !ExecHostSignature(instance.plan, function, false) { return .Calling }
     if !VecPush(instance.hosts, LirExecHostBinding.{function = function, call = call, context = context}) { return .Allocation }
     return .None
 }
@@ -2383,7 +2456,7 @@ LirExecBindHostTyped :: (instance: *LirExecInstance, function: s32,
     program := instance.plan.program
     if call == null || function < 0 || function >= program.functions.count ||
         !program.functions[function].external || program.functions[function].calling != .Host ||
-        ExecHostBinding(instance, function) >= 0 || !ExecHostSignature(program, function, true) { return .Calling }
+        ExecHostBinding(instance, function) >= 0 || !ExecHostSignature(instance.plan, function, true) { return .Calling }
     if !VecPush(instance.hosts, LirExecHostBinding.{function = function, typed = call, context = context}) {
         return .Allocation
     }

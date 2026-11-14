@@ -225,10 +225,60 @@ Inventory: 48 of 75 spec entries lower. All 89 built Kryon examples now get past
 fields, `VecSwap` and global initializers and stop at `paint_queue.zi:210`, `VecReserve` on a
 dereferenced `*Vec(T)`.
 
-Not yet lowered: `VecReserve`, `VecResize`, `VecPop`/`VecGet` (Option), `VecClone`, SIMD and map
-types, initializers that call procedures, wide literals, indirect calls through fields. The interpreter's address table never reuses entries, so a long-running program that
-indexes many distinct elements reaches the `addresses` limit; that needs structured address
-tokens before the bundle cutover.
+Fifth batch, 2026-11-14: `VecReserve` (exactly the requested capacity when it grows, false for a
+negative or refused request) and signed literals in global initializers. Host capability
+signatures: a host value is a bool, integer, float, `*void` handle, or a record, fixed array or
+view of host values (`LirHostShapes` in `cmd/compiler_lowered_verify.zi`); the interpreter passes
+each non-scalar value as one host image and turns returned views into read-only instance storage
+(`ExecHostEncode`, `ExecHostDecode`). Types two modules both spell: `float32`, `float64` and
+`[N]T` are one LIR type for the whole program; before this each module had its own `float32`, so a
+float passed between modules failed verification. The zero value of a fixed array longer than 256
+elements is a load from a frame slot the procedure allocates on entry and never writes (a global
+would not do: the native encoder lists every element of a global and refuses 9,000). Before, lowering Kryon's button example
+gave 147,027 instructions, 65,799 of them in `TextRequestSend` for one zeroed `[65536]u8`, and the
+ZX writer refused it at its work limit. Its saved program is now 28,828 instructions in 394
+procedures, the largest 1,149. The file is 2,187,468 bytes; the semantic bundle of the same
+example is 990,229.
+`tests/spec/zx_lowered_shared.zi` and `TypedHostShapes` in `tests/lowered_exec_cases.zi` cover these.
+
+Inventory, 2026-11-14:
+
+| Set | Programs the semantic route runs | Lower to revision 28 |
+|-----|----------------------------------|----------------------|
+| `examples/*.zi` | 14 | 14 |
+| `tests/spec` entries | 77 | 54 |
+| Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
+
+No program is rejected by the verifier any more. First rejection of the 23 spec programs left:
+
+| Count | Rejection | Programs |
+|-------|-----------|----------|
+| 11 | this type has no portable lowered representation yet | `json_*` (`json_bytes.zi:10`), `std_float_text`, `unicode_normalization_test`, `image_resize_fallible`, `vm_scalar_plans_test` |
+| 5 | call is not a direct concrete Ziran procedure | `vm_deep_marking_test`, `vm_inline_records_test`, `vm_nested_collection_test`, `vm_packed_arrays_test`, `vm_return_storage_test` |
+| 3 | invalid checked integer literal | `vm_local_reads_test`, `vm_storage_reads_test`, `vm_u64_enums_test` |
+| 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
+| 1 | lowered program allocation budget exhausted | `unicode_conformance` |
+| 1 | expression is outside the initial direct scalar backend | `vm_leaf_eval_test` |
+
+Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut over:
+
+1. Host calls: copy a host's changes to a mutable slice argument back into the caller's slice
+   (the semantic route does); pointer arguments such as `seed: *s32`.
+2. Host-returned storage is never reclaimed. A frame loop that asks a host for a string every
+   frame grows the instance until its byte limit. It needs a release rule.
+3. The interpreter's address table never reuses entries, so a long-running program that indexes
+   many distinct elements reaches the `addresses` limit; that needs structured address tokens.
+4. The embedding API (`BundleOpen`, `BundleRun`, `HostValue` in `ziran_host.h`) and Kryon's
+   bundle player speak the semantic VM's host values; they need a bridge to host images.
+5. The browser player: Kryon's `zx-services-test` and `zx-hosted-test` stop in the ZIR-based
+   Wasm tier with "host capability ... is outside the wasm s64 -> s64 execution subset"
+   (reported by the Kryon task, 2026-11-14). Host values beyond `s64 -> s64` on Wasm belong to
+   the revision-28 Wasm lowering that replaces that tier.
+6. Array literals with many elements still lower to one constant per element
+   (`unicode_conformance` exhausts the lowering budget); they belong in read-only data.
+
+Not yet lowered: `VecResize`, `VecPop`/`VecGet` (Option), `VecClone`, SIMD and map types,
+initializers that call procedures, wide literals, indirect calls through fields.
 
 ### Wasm from revision-28 ZX
 

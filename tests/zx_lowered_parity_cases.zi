@@ -130,6 +130,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     ParityAdd(*cases, spec_root, "zx_lowered_pointers:main", CheckPath(spec_root, "zx_lowered_pointers.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_swap:main", CheckPath(spec_root, "zx_lowered_swap.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_globals:main", CheckPath(spec_root, "zx_lowered_globals.zi"))
+    ParityAdd(*cases, spec_root, "zx_lowered_reserve:main", CheckPath(spec_root, "zx_lowered_reserve.zi"))
+    ParityAdd(*cases, spec_root, "zx_lowered_shared:main", CheckPath(spec_root, "zx_lowered_shared.zi"))
     for entry: spec {
         at: s64
         while entry[at] != cast(u8)58 { at += 1 }

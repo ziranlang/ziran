@@ -87,15 +87,22 @@ assembler, C compiler, or system linker to produce this executable.
   Every execution receives fresh zero-default or explicitly initialized storage.
   Native active-frame descriptors preserve aliases through calls and recursion;
   stale, wrong-type, forged, and exhausted-generation tokens trap with status 125.
-- `#foreign host_api` calls with bool, integer, float, structural byte-view and
-  pointer-free record/fixed-array signatures lower to
-  bodiless `Host` functions and explicit `host.call` instructions from source
-  and saved IR. The revision-28 container records the recomputed capability
+- `#foreign host_api` calls lower to bodiless `Host` functions and explicit
+  `host.call` instructions from source and saved IR. A host value is a bool,
+  integer, float, opaque `*void` handle, or a record, fixed array or view
+  (`string`, `[]T`) of host values, nested at most 64 deep. Other pointers,
+  procedure values and types that reach themselves through a view are
+  rejected. The revision-28 container records the recomputed capability
   count. Embedders use `LirExecBindHost` for the scalar ABI or
-  `LirExecBindHostTyped` for the typed ABI. Typed arguments are validated and
-  copied; returned byte views become instance-owned read-only storage that
-  remains valid for globals and later calls. Raw host pointers, procedure
-  values, malformed shapes and nested pointer-bearing aggregates are rejected.
+  `LirExecBindHostTyped` for the typed ABI. Typed scalars and handles cross in
+  `bits`. Every other value crosses in `bytes` as one host image: the value's
+  own bytes, then the elements of each view inside it. In the image a view's
+  two words are the byte offset of its first element from the start of the
+  image and its element count; an empty view is two zero words. Arguments are
+  validated and copied. Returned views become instance-owned read-only storage
+  that remains valid for globals and later calls; a malformed image fails the
+  call and keeps nothing. A host's changes to an argument image are not copied
+  back yet.
   A `--bind` provider already present in the checked Ziran program lowers to a
   direct portable call. Native output accepts only the exact typed
   target-owned console services described below; arbitrary host capabilities

@@ -1,0 +1,16 @@
+// The imported half of zx_lowered_shared.zi: floats, a record and a fixed
+// array that the importing module also spells itself.
+Point :: struct {
+    x: float32
+    y: float32
+}
+
+Scale :: (point: Point, by: float32) -> Point {
+    return .{.x = point.x * by, .y = point.y * by}
+}
+
+Sum :: (values: [4]float32) -> float32 {
+    total: float32
+    for value: values { total += value }
+    return total
+}

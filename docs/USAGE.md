@@ -701,6 +701,34 @@ as a module. It also accepts a raw `#string` body, and
 `Generated :: #import, string "...";` exposes its declarations as
 `Generated.Name`.
 
+### Module initializers
+
+A module-level variable whose initializer calls a procedure is the module's
+initializer. It runs once, before the entry, after the initializers of the
+modules it imports, on the C, Go and portable targets alike:
+
+```zi
+// feature.zi
+Host :: #import "host";
+
+Double :: (value: s32) -> s32 { return value * 2 }
+
+registered: bool = Host.Register(Double);
+```
+
+Importing a module is what includes it. `#import "feature"` runs the
+initializer even when the importer names nothing from the module, so a module
+can register a procedure with another module that never imports it. A program
+that does not import `feature` carries neither that module nor anything only
+it reaches, and `Host` finds its procedure variable still null.
+
+This is how an optional part of a library stays out of programs that do not
+use it. The library calls the part through a procedure variable instead of
+importing it, and the module a caller imports to use the part registers it.
+An exported procedure that nothing calls is left out in the same way.
+A startup cycle between initializers aborts the program at startup; no
+initializer is skipped or run twice.
+
 ## Foreign functions
 
 Ordinary `#import` accepts a module identifier. C headers are no longer

@@ -618,6 +618,28 @@ can nest, and imports inside loaded files resolve relative to those files.
 as a module. It also accepts a raw <code>#string</code> body, and
 <code>Generated :: #import, string "...";</code> exposes its declarations as
 <code>Generated.Name</code>.</p>
+<h3 id="module-initializers">Module initializers</h3>
+<p>A module-level variable whose initializer calls a procedure is the module's
+initializer. It runs once, before the entry, after the initializers of the
+modules it imports, on the C, Go and portable targets alike:</p>
+<pre><code class="language-zi">// feature.zi
+Host :: #import &quot;host&quot;;
+
+Double :: (value: s32) -&gt; s32 { return value * 2 }
+
+registered: bool = Host.Register(Double);
+</code></pre>
+<p>Importing a module is what includes it. <code>#import "feature"</code> runs the
+initializer even when the importer names nothing from the module, so a module
+can register a procedure with another module that never imports it. A program
+that does not import <code>feature</code> carries neither that module nor anything only
+it reaches, and <code>Host</code> finds its procedure variable still null.</p>
+<p>This is how an optional part of a library stays out of programs that do not
+use it. The library calls the part through a procedure variable instead of
+importing it, and the module a caller imports to use the part registers it.
+An exported procedure that nothing calls is left out in the same way.
+A startup cycle between initializers aborts the program at startup; no
+initializer is skipped or run twice.</p>
 <h2 id="foreign-functions">Foreign functions</h2>
 <p>Ordinary <code>#import</code> accepts a module identifier. C headers are no longer
 imported as source modules; foreign procedures use <code>#system_library</code> and

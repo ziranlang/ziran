@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Document module initializers in the usage guide and lock their behavior with a test: a module-level variable whose initializer calls a procedure runs once before the entry on the C, Go and portable targets, importing a module is what includes it, and a module can register a procedure with another module that never imports it. A program without the import carries neither the module nor what only it reaches.
+
 - Revision-28 lowering adds fields read and written through a pointer, `VecSwap`, and record, string, float and fixed-array global initializers, which private initializer procedures store before module startup code runs. Native output names `assembly.gap.native-pointer-field` instead of trapping at run time on a record field reached through a pointer argument. 48 of the 75 `tests/spec` entries the semantic route runs now lower.
 
 - Revision-28 lowering adds byte builders and owned `Text`: `BuilderAppend` reserves with the C runtime's policy before copying, `BuilderFinish` hands the bytes on, and `TextView` borrows a `Text` or `Vec(u8)` in place. Every module's spelling of `Vec(T)` is one LIR type. 39 of the 72 `tests/spec` entries the semantic route runs now lower.

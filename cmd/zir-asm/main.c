@@ -244,6 +244,11 @@ assembly_machine_gap(const LirProgram *program)
             const LirInstruction *instructions = blocks[block].instructions.data;
             for(int64_t instruction = 0; instruction < blocks[block].instructions.length; instruction++) {
                 LirInstruction current = instructions[instruction];
+                if(current.op == LirOp_Resize) {
+                    Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-heap",
+                        "assembly.gap.native-heap: machine ELF does not implement heap storage; no alternate engine was selected");
+                    return 1;
+                }
                 if(current.op == LirOp_BytesEqual) {
                     Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-string",
                         "machine ELF does not implement string comparison; no alternate engine was selected");
@@ -883,6 +888,11 @@ main(int argc, char **argv)
             for(int64_t block = 0; block < functions[function].blocks.length; block++) {
                 const LirInstruction *instructions = blocks[block].instructions.data;
                 for(int64_t instruction = 0; instruction < blocks[block].instructions.length; instruction++) {
+                    if(instructions[instruction].op == LirOp_Resize) {
+                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-heap",
+                            "assembly.gap.native-heap: selected target linux-x86_64-elf does not implement heap storage; no alternate engine was selected");
+                        goto done;
+                    }
                     if(instructions[instruction].op == LirOp_BytesEqual) {
                         Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-string-compare",
                             "assembly.gap.native-string-compare: selected target linux-x86_64-elf does not implement string comparison; no alternate engine was selected");

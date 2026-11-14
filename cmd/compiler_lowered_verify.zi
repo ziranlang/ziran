@@ -501,6 +501,18 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
         }
         return true
     }
+    if op == .Resize {
+        // A heap block of count sized values: the same element types a
+        // checked view may hold.
+        if operand_count != 3 || result == LirNoId || result != first_type ||
+            program.types[first_type].kind != .Pointer || program.types[second_type].kind != .Integer ||
+            program.types[function.values[instruction.operands[2]]].kind != .Integer {
+            return Fail(state, .Operand)
+        }
+        target := program.types[program.types[first_type].element]
+        if target.kind == .Void || target.kind == .Capability || target.kind == .Vector { return Fail(state, .Operand) }
+        return true
+    }
     if op == .Load || op == .Store {
         expected := ifx op == .Load then 1 else 2
         if operand_count != expected || program.types[first_type].kind != .Pointer {
@@ -630,7 +642,7 @@ Function :: (state: *State, program: LirProgram, function: LirFunction) -> bool 
             state.diagnostic.origin = instruction.origin
             state.diagnostic.value = instruction.result
             if !Spend(state, 1) { return false }
-            if cast(s32)instruction.op <= cast(s32)LirOp.Invalid || cast(s32)instruction.op > cast(s32)LirOp.Unreachable { return Fail(state, .Instruction) }
+            if cast(s32)instruction.op <= cast(s32)LirOp.Invalid || cast(s32)instruction.op > cast(s32)LirOp.Resize { return Fail(state, .Instruction) }
             if !Optional(instruction.origin, program.origins.count) { return Fail(state, .Origin) }
             if LirTerminator(instruction.op) != (at == block.instructions.count - 1) { return Fail(state, .Terminator) }
             if LirEffectful(instruction.op) {

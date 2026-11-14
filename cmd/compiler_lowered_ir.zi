@@ -31,6 +31,9 @@ LirOp :: enum s32 {
     Call; CallIndirect; HostCall
     Fuel; Trap
     Jump; Branch; Return; Unreachable
+    // Heap storage: resize(pointer: *T, old_count, new_count) -> *T. Appended
+    // so every earlier instruction keeps its number.
+    Resize
 }
 
 LirEdge :: struct { block: s32; arguments: []s32 }
@@ -125,12 +128,13 @@ LirTerminator :: (op: LirOp) -> bool {
 
 LirEffectful :: (op: LirOp) -> bool {
     return op == .Allocate || op == .Load || op == .Store || op == .Copy || op == .Zero ||
-        op == .Call || op == .CallIndirect || op == .HostCall || op == .Fuel || op == .Trap
+        op == .Call || op == .CallIndirect || op == .HostCall || op == .Fuel || op == .Trap ||
+        op == .Resize
 }
 
 LirProducesValue :: (op: LirOp) -> bool {
     return cast(s32)op >= cast(s32)LirOp.Constant && cast(s32)op <= cast(s32)LirOp.Load || op == .FieldAddress || op == .ElementAddress || op == .BytesEqual ||
-        op == .Call || op == .CallIndirect || op == .HostCall
+        op == .Call || op == .CallIndirect || op == .HostCall || op == .Resize
 }
 
 LirOpName :: (op: LirOp) -> string {
@@ -178,5 +182,6 @@ LirOpName :: (op: LirOp) -> string {
     if op == .Branch { return "branch" }
     if op == .Return { return "return" }
     if op == .Unreachable { return "unreachable" }
+    if op == .Resize { return "resize" }
     return "invalid"
 }

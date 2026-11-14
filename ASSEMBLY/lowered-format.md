@@ -252,6 +252,19 @@ optional debug data. It constructs no executable program until the full file
 is canonical, all caller limits hold, all owned storage is complete, and
 `LirVerify` succeeds. Re-encoding a successful decode is byte-exact.
 
+## Heap blocks
+
+`resize(pointer: *T, old_count, new_count) -> *T` is the one heap instruction.
+Its number follows `unreachable`, so every earlier instruction keeps its
+encoding. `T` is any sized value type a checked view may hold; both counts are
+integers and the result has the pointer's type. A null pointer with
+`old_count` 0 allocates, `new_count` 0 frees and gives null, and any other
+call gives a block that keeps the first `min(old_count, new_count)` elements
+and zero-fills the rest. When the engine cannot hold the request, the result
+is null and the old block stays valid. Only a block's own base pointer, with
+its exact element count, may be resized or freed. The instruction is effectful
+and produces a value, so optimization keeps it and its order.
+
 ## Current boundary
 
 - This file has no imports, exports, capability/link tables, assets, native

@@ -164,7 +164,7 @@ revision-28 interpreter, and native ELF either matches or stops at a named `asse
 Order from here: heap collections; global initializers; indirect calls; the remaining literal and
 expression forms; then the `ziran bundle`/`zi2zx` cutover and removal of revisions 26/27.
 
-#### Heap collections design (next, not started in code)
+#### Heap collections design (steps 1, 2 and a first slice of 3 and 4 landed)
 
 How the existing routes treat `Vec(T)` (`std/vec.zi`, `cmd/zir/zir_emit_value.c`):
 - ZIR has no drop statements. `Vec(T)` is a specialized record `{data: *T; count: s64; capacity: s64}`
@@ -191,6 +191,21 @@ Plan, in steps that each keep the suite green:
 5. Native x86-64 and wasm: `assembly.gap.native-heap` and `wasm.gap.heap` first; real allocators
    (mmap-backed veneer, linear-memory allocator) after the interpreter is at parity.
 6. `Text`, maps and records that hold Vecs follow from 3 and 4; then re-run the inventory.
+
+Landed 2026-11-13: the `resize` instruction with its verifier rule and interpreter heap
+(`tests/lowered_exec_cases.zi` covers allocate, grow, zero fill, stale pointer, wrong count, free
+and a refused request); the `Vec(T)` record type for elements that own no vectors; `v[i]`,
+`v.count`, `v.capacity`, `VecSlice`/`v[:]`, `VecPush` with the C runtime's growth (0 to 8, then
+doubling), `VecClear`, `VecFree`; drops of vector locals at block close, return, break and
+continue. `tests/spec/zx_lowered_vec.zi` matches the semantic route byte for byte, capacities
+included. Native and wasm stop at `assembly.gap.native-heap` and `wasm.gap.instruction`.
+
+Not yet lowered, each a named compile error: moving a vector (declaration with an initializer,
+assignment, parameter, result), records and fixed arrays that hold vectors, vectors of vectors,
+`VecPop`/`VecGet` (Option), `VecSwap`, `VecClone`, `VecReserve`, `VecResize`, the builders and
+`Text`. The interpreter's address table never reuses entries, so a long-running program that
+indexes many distinct elements reaches the `addresses` limit; that needs structured address
+tokens before the bundle cutover.
 
 ### Wasm from revision-28 ZX
 

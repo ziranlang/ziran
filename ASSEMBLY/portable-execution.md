@@ -94,7 +94,7 @@ The engine executes every operation and value type currently accepted by
 | Values | constant, null, global address, function address |
 | Numeric | add, subtract, multiply, divide, integer remainder, negate, bit operations, shifts, all comparisons, convert, bitcast |
 | Aggregate | aggregate, extract, insert |
-| Memory | field/checked dynamic fixed-array element address, checked allocate with optional initializer, load, store over instance globals and frame allocations |
+| Memory | field/checked dynamic fixed-array element address, checked allocate with optional initializer, load, store over instance globals and frame allocations; `resize` heap blocks |
 | Calls | direct and indirect portable calls, including bounded recursion |
 | Control | fuel, trap, jump, branch, return, unreachable |
 
@@ -137,10 +137,18 @@ external functions, non-portable calling conventions, variadics, and
 non-writable global addresses. Plan construction returns `InvalidProgram` with
 the verifier diagnostic for these forms. They are not silently skipped.
 
-Consequently this slice provides checked frame-local scalar allocation but does
-not yet provide heap allocation, arbitrary byte memory, heap-derived pointers,
+Heap blocks live in the instance-owned bytes beside host-returned storage. A
+block's address names the block and its generation. `resize` and free end that
+generation, so every address derived from the old block fails with `.Pointer`
+afterwards, as a pointer into a returned frame does. The last block of the
+owned bytes grows and shrinks in place; dead blocks at the end are given back.
+Heap bytes count against `value_bytes`, and a request beyond it gives a null
+result instead of a failure, so `VecPush` can report it.
+
+Consequently this slice provides checked frame-local scalar allocation and
+typed heap blocks, but does not yet provide arbitrary byte memory,
 host callbacks, native-width or SIMD values,
-capability values, strings or owned-vector values, state serialization or
+capability values, state serialization or
 migration, thread-safe concurrent use of one instance, or parallel/SIMD
 dispatch. Serialization, CLI selection, `.zx` integration, source lowering,
 x64 comparison, and cutover remain separate integration work.

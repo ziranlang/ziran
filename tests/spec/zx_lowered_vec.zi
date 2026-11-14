@@ -1,0 +1,49 @@
+// Owned vectors on revision-28 ZX, pinned by tests/zx_lowered_parity.sh:
+// growth, indexing, slices, VecClear and VecFree, and the drops at block
+// close, return, break and continue.
+#import "std/vec"
+
+Pair :: struct { key: s32; value: s64 }
+
+Fill :: (bytes: []u8) -> s64 {
+    total: s64
+    for byte: bytes { total += byte }
+    return total
+}
+
+Rounds :: (limit: s32) -> s64 {
+    total: s64
+    for round: 0..limit - 1 {
+        scratch: Vec(u8)
+        for i: 0..round { VecPush(scratch, cast(u8)(i + round)) }
+        if round == 3 { continue }
+        if round == 6 { break }
+        total += Fill(scratch[:]) + scratch.capacity
+    }
+    return total
+}
+
+Early :: (stop: bool) -> s64 {
+    kept: Vec(s64)
+    VecPush(kept, 5)
+    VecPush(kept, 6)
+    if stop { return kept[0] }
+    total := kept[1] + kept.count
+    VecFree(kept)
+    return total
+}
+
+main :: () -> s32 {
+    pairs: Vec(Pair)
+    for i: 0..19 { VecPush(pairs, Pair.{cast(s32)i, cast(s64)i * i}) }
+    pairs[3].value = 1000
+    sum: s64
+    for pair: pairs[:] { sum += pair.value + pair.key }
+    big: Vec(s32)
+    for i: 0..999 { if !VecPush(big, cast(s32)i) { return 1 } }
+    print("pairs % % % cap %\n", pairs.count, sum, pairs[19].value, pairs.capacity)
+    print("rounds % early % %\n", Rounds(8), Early(true), Early(false))
+    print("big % % %\n", big.count, big[999], big.capacity)
+    VecClear(big)
+    return cast(s32)big.count + 7
+}

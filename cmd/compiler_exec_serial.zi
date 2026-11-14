@@ -653,7 +653,7 @@ DecodeCore :: (decoder: *Decoder) {
                 effect := DecodeS32(decoder)
                 origin := DecodeS32(decoder)
                 if decoder.cursor.problem != .None { return }
-                if raw_op > cast(u32)LirOp.Unreachable { DecodeFail(decoder, .Field) }
+                if raw_op > cast(u32)LirOp.Resize { DecodeFail(decoder, .Field) }
                 if decoder.mode == ModeViews {
                     operands := VecSlice(decoder.owner.operands,
                         operands_span.at, operands_span.at + operands_span.count)

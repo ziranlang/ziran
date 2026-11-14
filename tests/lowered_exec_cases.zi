@@ -880,6 +880,69 @@ DynamicElementExtent :: () -> bool {
     return Execute(program).problem == .Pointer
 }
 
+// resize: allocate four s64, store 42 at index 2, grow to eight. Mode 0
+// reads the kept element from the grown block; 1 reads a zero-filled new
+// element; 2 uses a pointer into the block the resize ended; 3 names the
+// block with a wrong element count; 4 reads after the block is freed; 5
+// asks for more than the value-byte budget, gets null, and still reads 42
+// through the first block, which stays valid.
+HeapResizeCase :: (mode: s32) -> LirExecResult {
+    types: [3]LirType = .[
+        .{.kind = .Void}, .{.kind = .Integer, .bits = 64, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}]
+    constants: [7]LirConstant = .[.{.type = 1, .bits = 0}, .{.type = 1, .bits = 4},
+        .{.type = 1, .bits = 2}, .{.type = 1, .bits = 42}, .{.type = 1, .bits = 8},
+        .{.type = 1, .bits = 6}, .{.type = 1, .bits = 1099511627776}]
+    empty: [0]s32
+    allocate: [3]s32 = .[0, 1, 2]
+    first_element: [3]s32 = .[3, 4, 2]
+    store: [2]s32 = .[5, 6]
+    grow: [3]s32 = .[3, 2, 7]
+    wrong: [3]s32 = .[3, 7, 7]
+    kept_element: [3]s32 = .[8, 4, 7]
+    fresh_element: [3]s32 = .[8, 9, 7]
+    free: [3]s32 = .[8, 7, 1]
+    load_kept: [1]s32 = .[10]
+    load_stale: [1]s32 = .[5]
+    returned: [1]s32 = .[12]
+    instructions: [15]LirInstruction
+    instructions[0] = Instruction(.Null, 0, empty[:])
+    instructions[1] = Instruction(.Constant, 1, empty[:], 0)
+    instructions[2] = Instruction(.Constant, 2, empty[:], 1)
+    instructions[3] = Instruction(.Resize, 3, allocate[:]); instructions[3].effect = 1
+    instructions[4] = Instruction(.Constant, 4, empty[:], 2)
+    instructions[5] = Instruction(.ElementAddress, 5, first_element[:])
+    instructions[6] = Instruction(.Constant, 6, empty[:], 3)
+    instructions[7] = Instruction(.Store, -1, store[:]); instructions[7].effect = 2
+    instructions[8] = Instruction(.Constant, 7, empty[:], ifx mode == 5 then 6 else 4)
+    instructions[9] = Instruction(.Resize, 8, ifx mode == 3 then wrong[:] else grow[:]); instructions[9].effect = 3
+    instructions[10] = Instruction(.Constant, 9, empty[:], 5)
+    instructions[11] = Instruction(.ElementAddress, 10,
+        ifx mode == 1 then fresh_element[:] else ifx mode == 5 then first_element[:] else kept_element[:])
+    instructions[12] = Instruction(.Resize, 11, ifx mode == 4 then free[:] else allocate[:]); instructions[12].effect = 4
+    instructions[13] = Instruction(.Load, 12, ifx mode == 2 || mode == 5 then load_stale[:] else load_kept[:]); instructions[13].effect = 5
+    instructions[14] = Instruction(.Return, -1, returned[:])
+    values: [13]s32 = .[2, 1, 1, 2, 1, 2, 1, 1, 2, 1, 2, 2, 1]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["heap-resize"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "resize", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    return Execute(program)
+}
+
+HeapResize :: () -> bool {
+    kept := HeapResizeCase(0)
+    fresh := HeapResizeCase(1)
+    if kept.problem != .None || kept.value.bits != 42 || fresh.problem != .None || fresh.value.bits != 0 { return false }
+    for mode: cast(s32)2..4 {
+        if HeapResizeCase(mode).problem != .Pointer { return false }
+    }
+    refused := HeapResizeCase(5)
+    return refused.problem == .None && refused.value.bits == 42
+}
+
 BytesEqualExtent :: () -> bool {
     types: [7]LirType = .[
         .{.kind = .Void}, .{.kind = .Integer, .bits = 8},
@@ -1225,6 +1288,7 @@ Answer :: () -> s32 {
     if !DynamicElementExtent() { return 20 }
     if !BytesEqualExtent() { return 21 }
     if !TypedHostBoundary() { return 22 }
+    if !HeapResize() { return 23 }
     return 42
 }
 

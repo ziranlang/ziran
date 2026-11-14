@@ -36,7 +36,8 @@ item below.
   verifier-supported subset to every required portable opcode.
 - [x] Implement word-backed scalar slots and fixed aggregate storage for the
   current logical layouts while preserving checked pointer provenance.
-- [ ] Add dynamic/heap aggregate storage, slices and the remaining memory forms;
+- [ ] Add dynamic/heap aggregate storage, slices and the remaining memory forms
+  (typed heap blocks through `resize` exist; address-table reuse does not);
   do not replace the language memory model with WebAssembly linear-memory rules.
   Checked borrowed slices and instance-owned host-returned byte storage are
   implemented; resizable owned collections and their cleanup remain open.

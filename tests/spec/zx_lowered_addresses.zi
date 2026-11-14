@@ -1,0 +1,26 @@
+// More calls and allocations than the portable interpreter's address table
+// has slots, pinned by tests/zx_lowered_parity.sh. A frame gives its
+// addresses back when it returns and a heap block when it is freed; without
+// that the 1,048,575th address ended the run.
+#import "vec"
+
+Bump :: (value: *s64) { value.* += 1 }
+
+Step :: (seed: s64) -> s64 {
+    local := seed
+    Bump(*local)
+    return local
+}
+
+main :: () -> s32 {
+    total: s64
+    for round: 0..1199999 { total = Step(total) }
+    heap: s64
+    for round: 0..2999 {
+        values: Vec(s64)
+        VecPush(values, cast(s64)round)
+        heap += values[0]
+    }
+    print("addresses % %\n", total, heap)
+    return cast(s32)(total % 100)
+}

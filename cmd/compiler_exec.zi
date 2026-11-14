@@ -96,6 +96,11 @@ LirExecAddress :: struct {
     writable: bool
     // One more than the heap block this address lies in; 0 for none.
     heap: s64
+    // How many times this table slot has been given back and reused. It is
+    // part of the token, so no older pointer to the slot is valid again.
+    version: u64
+    // One more than the next entry made for the same frame or heap block.
+    next: s64
 }
 
 // A heap block is a range of the owned bytes. Resizing or freeing it ends
@@ -109,6 +114,8 @@ LirExecHeapBlock :: struct {
     // One more than the block that ended the owned bytes when this one was
     // put after it; 0 for none. Freed storage is given back down this chain.
     below: s64
+    // One more than the newest address entry made for this block.
+    addresses: s64
 }
 
 LirExecFrame :: struct {
@@ -122,6 +129,8 @@ LirExecFrame :: struct {
     valid_base: s64
     instruction_base: s64
     generation: u64
+    // One more than the newest address entry made for this frame's storage.
+    addresses: s64
 }
 
 LirExecInstance :: struct {
@@ -131,10 +140,12 @@ LirExecInstance :: struct {
     globals: Vec(u8)
     addresses: Vec(LirExecAddress)
     // Open-addressed index of `addresses` by the fields that make two
-    // addresses the same one: each slot is zero or one more than an entry.
-    // `address_indexed` counts the entries it already holds.
+    // addresses the same one: each slot is zero, -1 for a removed entry, or
+    // one more than an entry. `address_used` counts the nonzero slots.
     address_slots: Vec(s32)
-    address_indexed: s64
+    address_used: s64
+    // Table slots given back by frames that returned and heap blocks that died.
+    address_free: Vec(s64)
     storage: Vec(u8)
     words: Vec(u64)
     validity: Vec(u8)
@@ -773,16 +784,23 @@ ExecMember :: (instance: *LirExecInstance, type_id: s32, member: u64, offset: *s
     return true
 }
 
-ExecAddressToken :: (identity: u32, index: s64) -> u64 {
-    return (cast(u64)identity << cast(u64)32) | cast(u64)(index + 1)
+// A table holds at most this many entries, and a slot is reused at most
+// ExecAddressVersions times before it is retired.
+ExecAddressSlots :: 1048575
+ExecAddressVersions :: 268435455
+
+// A pointer's bits: the instance's identity (its low 16 bits), the slot's
+// version, and one more than the slot. Zero is the null pointer.
+ExecAddressToken :: (identity: u32, index: s64, version: u64 = 0) -> u64 {
+    return (cast(u64)(identity & 65535) << cast(u64)48) | (version << cast(u64)20) | cast(u64)(index + 1)
 }
 
 ExecFindAddress :: (instance: *LirExecInstance, token: u64) -> s32 {
-    if token == 0 || cast(u32)(token >> cast(u64)32) != instance.identity { return -1 }
-    low := token & cast(u64)0xffffffff
+    if token == 0 { return -1 }
+    low := token & cast(u64)1048575
     if low == 0 { return -1 }
     index := cast(s64)(low - cast(u64)1)
-    if index < 0 || index >= instance.addresses.count || instance.addresses[index].token != token { return -1 }
+    if index >= instance.addresses.count || instance.addresses[index].token != token { return -1 }
     return cast(s32)index
 }
 
@@ -804,60 +822,120 @@ ExecAddressSame :: (left: LirExecAddress, right: LirExecAddress) -> bool {
         left.type == right.type && left.owned == right.owned
 }
 
-// The slot holding an entry equal to `address`, or the empty slot it belongs in.
-ExecAddressSlot :: (instance: *LirExecInstance, address: LirExecAddress) -> s64 {
+// The table entry equal to `address`, or -1.
+ExecAddressLookup :: (instance: *LirExecInstance, address: LirExecAddress) -> s64 {
+    if instance.address_slots.count == 0 { return -1 }
     mask := instance.address_slots.count - 1
     slot := cast(s64)(ExecAddressHash(address) & cast(u64)mask)
     entry := instance.address_slots[slot]
-    while entry != 0 && !ExecAddressSame(instance.addresses[entry - 1], address) {
+    while entry != 0 {
+        if entry > 0 && ExecAddressSame(instance.addresses[entry - 1], address) { return cast(s64)entry - 1 }
         slot = (slot + 1) & mask
         entry = instance.address_slots[slot]
     }
-    return slot
+    return -1
 }
 
-ExecAddressesForget :: (instance: *LirExecInstance) {
-    for index: cast(s64)0..instance.address_slots.count - 1 { instance.address_slots[index] = 0 }
-    instance.address_indexed = 0
-}
-
-// Brings the index up to date with the table, which is appended to in many
-// places, keeping it at most half full. The first of two equal entries wins.
-ExecAddressIndex :: (instance: *LirExecInstance) -> bool {
-    count := instance.addresses.count
-    if (count + 1) * 2 > instance.address_slots.count {
-        capacity: s64 = 64
-        while capacity < (count + 1) * 4 { capacity *= 2 }
-        if !VecResizeBounded(instance.address_slots, capacity, capacity) { return false }
-        ExecAddressesForget(instance)
+// Rebuilds the index from the live entries, at most a quarter full.
+ExecAddressReindex :: (instance: *LirExecInstance) -> bool {
+    live: s64
+    for address: instance.addresses { if address.token != 0 { live += 1 } }
+    capacity: s64 = 64
+    while capacity < (live + 1) * 4 { capacity *= 2 }
+    if !VecResizeBounded(instance.address_slots, capacity, capacity) { return false }
+    for index: cast(s64)0..capacity - 1 { instance.address_slots[index] = 0 }
+    mask := capacity - 1
+    for index: cast(s64)0..instance.addresses.count - 1 {
+        if instance.addresses[index].token == 0 { continue }
+        slot := cast(s64)(ExecAddressHash(instance.addresses[index]) & cast(u64)mask)
+        while instance.address_slots[slot] != 0 { slot = (slot + 1) & mask }
+        instance.address_slots[slot] = cast(s32)(index + 1)
     }
-    for index: instance.address_indexed..count - 1 {
-        slot := ExecAddressSlot(instance, instance.addresses[index])
-        if instance.address_slots[slot] == 0 { instance.address_slots[slot] = cast(s32)(index + 1) }
-    }
-    instance.address_indexed = count
+    instance.address_used = live
     return true
 }
 
-// The token of the table entry equal to `address`, added when it is new.
+ExecAddressIndexAdd :: (instance: *LirExecInstance, index: s64) -> bool {
+    // Removed entries count as used until a rebuild drops them.
+    if (instance.address_used + 1) * 2 > instance.address_slots.count { return ExecAddressReindex(instance) }
+    mask := instance.address_slots.count - 1
+    slot := cast(s64)(ExecAddressHash(instance.addresses[index]) & cast(u64)mask)
+    while instance.address_slots[slot] > 0 { slot = (slot + 1) & mask }
+    if instance.address_slots[slot] == 0 { instance.address_used += 1 }
+    instance.address_slots[slot] = cast(s32)(index + 1)
+    return true
+}
+
+ExecAddressIndexRemove :: (instance: *LirExecInstance, index: s64) {
+    if instance.address_slots.count == 0 { return }
+    mask := instance.address_slots.count - 1
+    slot := cast(s64)(ExecAddressHash(instance.addresses[index]) & cast(u64)mask)
+    entry := instance.address_slots[slot]
+    while entry != 0 {
+        if cast(s64)entry == index + 1 { instance.address_slots[slot] = -1; return }
+        slot = (slot + 1) & mask
+        entry = instance.address_slots[slot]
+    }
+}
+
+// Makes a table entry for `address`: a slot that was given back, under its
+// next version, or a new slot. An address into a frame or a heap block joins
+// that frame's or block's chain and is given back when the frame returns or
+// the block dies. Returns the entry's index, or -1 with the failure recorded.
+ExecNewAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> s64 {
+    index: s64
+    version: u64
+    if instance.address_free.count > 0 {
+        index = instance.address_free[instance.address_free.count - 1]
+        unused VecResize(instance.address_free, instance.address_free.count - 1)
+        version = instance.addresses[index].version + 1
+    } else {
+        index = instance.addresses.count
+        if index >= instance.limits.addresses || index >= ExecAddressSlots {
+            unused ExecFail(instance, .AddressLimit)
+            return -1
+        }
+        if !VecPush(instance.addresses, LirExecAddress.{}) { unused ExecFail(instance, .Allocation); return -1 }
+    }
+    added := address
+    added.version = version
+    added.token = ExecAddressToken(instance.identity, index, version)
+    added.next = 0
+    if added.frame >= 0 {
+        added.next = instance.frames[added.frame].addresses
+        instance.frames[added.frame].addresses = index + 1
+    } else if added.heap != 0 {
+        added.next = instance.heap_blocks[added.heap - 1].addresses
+        instance.heap_blocks[added.heap - 1].addresses = index + 1
+    }
+    instance.addresses[index] = added
+    if !ExecAddressIndexAdd(instance, index) { unused ExecFail(instance, .Allocation); return -1 }
+    return index
+}
+
+// Gives back every entry of a chain. Its frame returned or its heap block
+// died, so no valid pointer names these entries any more.
+ExecReleaseAddresses :: (instance: *LirExecInstance, head: s64) {
+    at := head
+    while at != 0 {
+        index := at - 1
+        at = instance.addresses[index].next
+        ExecAddressIndexRemove(instance, index)
+        instance.addresses[index].token = 0
+        instance.addresses[index].next = 0
+        if instance.addresses[index].version < ExecAddressVersions { unused VecPush(instance.address_free, index) }
+    }
+}
+
+// The token of the table entry equal to `address`, made when it is new.
 // Deriving the same address again gives the same token, so pointers compare
 // equal exactly when they name the same bytes as the same type.
 ExecInternAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> u64 {
     if !ExecSpend(instance, 1) { return 0 }
-    if !ExecAddressIndex(instance) { unused ExecFail(instance, .Allocation); return 0 }
-    slot := ExecAddressSlot(instance, address)
-    found := instance.address_slots[slot]
-    if found != 0 { return instance.addresses[found - 1].token }
-    if instance.addresses.count >= instance.limits.addresses || instance.addresses.count >= 4294967294 {
-        unused ExecFail(instance, .AddressLimit); return 0
-    }
-    index := instance.addresses.count
-    added := address
-    added.token = ExecAddressToken(instance.identity, index)
-    if !VecPush(instance.addresses, added) { unused ExecFail(instance, .Allocation); return 0 }
-    instance.address_slots[slot] = cast(s32)(index + 1)
-    instance.address_indexed = index + 1
-    return added.token
+    index := ExecAddressLookup(instance, address)
+    if index < 0 { index = ExecNewAddress(instance, address) }
+    if index < 0 { return 0 }
+    return instance.addresses[index].token
 }
 
 ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, target_type: s32) -> u64 {
@@ -1022,6 +1100,7 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
 
 ExecPopFrame :: (instance: *LirExecInstance) {
     frame := instance.frames[instance.frames.count - 1]
+    ExecReleaseAddresses(instance, frame.addresses)
     function := instance.plan.program.functions[frame.function]
     instance.live_values -= function.values.count
     unused VecResize(instance.storage, frame.base)
@@ -1462,14 +1541,12 @@ ExecAllocate :: (instance: *LirExecInstance, frame_index: s64,
     size := instance.plan.type_sizes[pointee]
     base := instance.storage.count
     if !ExecResizeStorage(instance, base + size) { return false }
-    if instance.addresses.count >= instance.limits.addresses ||
-        instance.addresses.count >= 4294967294 { return ExecFail(instance, .AddressLimit) }
-    index := instance.addresses.count
-    address := LirExecAddress.{.token = ExecAddressToken(instance.identity, index),
-        .global = -1, .frame = frame_index, .generation = instance.frames[frame_index].generation,
+    index := ExecNewAddress(instance, .{.global = -1, .frame = frame_index,
+        .generation = instance.frames[frame_index].generation,
         .offset = base - instance.frames[frame_index].base, .extent = size, .type = pointee,
-        .writable = true}
-    if !VecPush(instance.addresses, address) { return ExecFail(instance, .Allocation) }
+        .writable = true})
+    if index < 0 { return false }
+    address := instance.addresses[index]
     if instruction.operands.count != 0 {
         value := instruction.operands[0]
         if !ExecValueValid(instance, frame_index, value) ||
@@ -1527,6 +1604,8 @@ ExecResize :: (instance: *LirExecInstance, instruction: *LirInstruction, result_
     if new_count == 0 {
         if previous >= 0 {
             instance.heap_blocks[previous].live = false
+            ExecReleaseAddresses(instance, instance.heap_blocks[previous].addresses)
+            instance.heap_blocks[previous].addresses = 0
             if !ExecHeapTrim(instance) { return false }
         }
         ExecWriteSlotBits(instance, instruction.result, 0)
@@ -1540,8 +1619,6 @@ ExecResize :: (instance: *LirExecInstance, instruction: *LirInstruction, result_
         return true
     }
     bytes := cast(s64)new_count * size
-    if instance.addresses.count >= instance.limits.addresses ||
-        instance.addresses.count >= 4294967294 { return ExecFail(instance, .AddressLimit) }
     if !ExecSpend(instance, ExecCopyCost(bytes)) { return false }
     base := instance.owned.count
     kept: s64
@@ -1566,6 +1643,11 @@ ExecResize :: (instance: *LirExecInstance, instruction: *LirInstruction, result_
     // otherwise it takes a freed record or a new one, above the old tail.
     record := previous
     below := instance.heap_tail
+    // The old block's generation ends here, and its addresses with it.
+    if previous >= 0 {
+        ExecReleaseAddresses(instance, instance.heap_blocks[previous].addresses)
+        instance.heap_blocks[previous].addresses = 0
+    }
     if previous >= 0 && base == instance.heap_blocks[previous].offset {
         below = instance.heap_blocks[previous].below
     } else {
@@ -1583,11 +1665,11 @@ ExecResize :: (instance: *LirExecInstance, instruction: *LirInstruction, result_
         .generation = instance.heap_epoch, .live = true, .below = below}
     instance.heap_blocks[record] = block
     instance.heap_tail = record + 1
-    index := instance.addresses.count
-    address := LirExecAddress.{.token = ExecAddressToken(instance.identity, index),
-        .global = -1, .frame = -1, .generation = block.generation, .offset = base, .extent = bytes,
-        .type = element, .owned = true, .writable = true, .heap = record + 1}
-    if !VecPush(instance.addresses, address) { return ExecFail(instance, .Allocation) }
+    index := ExecNewAddress(instance, .{.global = -1, .frame = -1, .generation = block.generation,
+        .offset = base, .extent = bytes, .type = element, .owned = true, .writable = true,
+        .heap = record + 1})
+    if index < 0 { return false }
+    address := instance.addresses[index]
     ExecWriteSlotBits(instance, instruction.result, address.token)
     return true
 }
@@ -2025,13 +2107,10 @@ ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64
         base := instance.owned.count
         if !VecResizeBounded(instance.owned, base + bytes, base + bytes) { return ExecFail(instance, .Allocation) }
         instance.heap_tail = 0
-        if instance.addresses.count >= instance.limits.addresses ||
-            instance.addresses.count >= 4294967294 { return ExecFail(instance, .AddressLimit) }
-        address := LirExecAddress.{.token = ExecAddressToken(instance.identity, instance.addresses.count),
-            .global = -1, .frame = -1, .offset = base, .extent = bytes,
-            .type = element, .owned = true, .writable = false}
-        if !VecPush(instance.addresses, address) { return ExecFail(instance, .Allocation) }
-        token = address.token
+        index := ExecNewAddress(instance, .{.global = -1, .frame = -1, .offset = base, .extent = bytes,
+            .type = element, .owned = true, .writable = false})
+        if index < 0 { return false }
+        token = instance.addresses[index].token
         kind := program.types[element].kind
         if kind == .Integer || kind == .Float {
             if !ExecSpend(instance, ExecCopyCost(bytes)) { return false }
@@ -2072,14 +2151,12 @@ ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
         result.bytes.count != instance.plan.type_sizes[expected] { return ExecFail(instance, .Host) }
     destination := ExecFrameValueOffset(instance, frame_index, instruction.result)
     owned_count := instance.owned.count
-    address_count := instance.addresses.count
     heap_tail := instance.heap_tail
     if !ExecHostDecode(instance, expected, result.bytes, 0, false, destination) {
-        // A rejected image leaves no storage or addresses behind.
+        // A rejected image leaves no storage behind; the addresses made for
+        // it name bytes that are gone, so they are never valid.
         instance.heap_tail = heap_tail
         unused VecResize(instance.owned, owned_count)
-        unused VecResize(instance.addresses, address_count)
-        ExecAddressesForget(instance)
         return false
     }
     ExecMarkValue(instance, frame_index, instruction.result)
@@ -2211,6 +2288,8 @@ ExecStep :: (instance: *LirExecInstance) -> bool {
 }
 
 ExecResetRun :: (instance: *LirExecInstance) -> bool {
+    // Frames a failed run left behind give their addresses back too.
+    for frame: instance.frames { ExecReleaseAddresses(instance, frame.addresses) }
     if !VecResize(instance.frames, 0) || !VecResize(instance.storage, 0) ||
         !VecResize(instance.words, 0) ||
         !VecResize(instance.validity, 0) || !VecResize(instance.result_bytes, 0) { return false }
@@ -2330,7 +2409,8 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     VecFree(instance.globals)
     VecFree(instance.addresses)
     VecFree(instance.address_slots)
-    instance.address_indexed = 0
+    VecFree(instance.address_free)
+    instance.address_used = 0
     VecFree(instance.storage)
     VecFree(instance.words)
     VecFree(instance.validity)

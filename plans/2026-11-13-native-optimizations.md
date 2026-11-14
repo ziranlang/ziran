@@ -271,8 +271,18 @@ Eleventh batch, 2026-11-14: an `if` with its `else if` links is lowered as one c
 block, so `unicode_normalization_cases.zi` (a 1,500-case list) lowers. Running it showed two more
 interpreter costs. Freeing a heap block scanned every block ever allocated; blocks now link to the
 block below them and freed storage is given back down that chain (`ExecHeapTrim`), and a block
-keeps its record when it grows in place. The program then stops at the `addresses` limit of
-1,048,576 after about 30 million fuel: see item 3 below.
+keeps its record when it grows in place. The program then stopped at the `addresses` limit of
+1,048,576 after about 30 million fuel.
+
+Twelfth batch, 2026-11-14: address entries are given back (`ExecNewAddress`,
+`ExecReleaseAddresses` in `cmd/compiler_exec.zi`). Each entry made for a frame's storage or a
+heap block is chained to it; the chain is released when the frame returns or the block is freed
+or resized, and the slots are reused. A pointer is the instance identity's low 16 bits, a 28-bit
+slot version and the slot, so a pointer kept from an earlier use of the slot never matches.
+`tests/spec/zx_lowered_addresses.zi` makes 1.2 million calls that each take a local's address.
+`unicode_normalization_test` now gets past the address limit and stops at its work budget
+instead: its 1,500-case `if index == { ... }` lowers to a chain of compares, so one lookup walks
+hundreds of blocks. Integer case lists should lower to a binary search.
 
 Inventory, 2026-11-14:
 
@@ -297,16 +307,10 @@ Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut 
    (the semantic route does); pointer arguments such as `seed: *s32`.
 2. Host-returned storage is never reclaimed. A frame loop that asks a host for a string every
    frame grows the instance until its byte limit. It needs a release rule.
-3. The interpreter's address table is indexed now but still never gives entries back: every
-   `allocate` is an entry on every call, every heap block is an entry on every resize, and every
-   distinct element address is an entry. `unicode_normalization_test` reaches the limit of
-   1,048,576 after about 30 million fuel, and a UI frame loop would too. The fix has two parts.
-   A returning frame gives back the entries made for its own storage, and a freed or resized
-   heap block gives back its entries; a reused entry needs a token that no older token of that
-   slot equals, so the token carries a per-slot version. Addresses that are only loaded from or
-   stored to in the block that makes them need no entry at all. The same program also spends
-   about 125 work units per fuel unit, which points at whole-table loads for indexed reads of
-   global arrays; measure before changing it.
+3. Done for frames and heap blocks, 2026-11-14 (twelfth batch). Still permanent: an entry for
+   each distinct address derived inside a global or inside host-returned storage. Addresses that
+   are only loaded from or stored to in the block that makes them need no entry at all; that
+   would also cut the work spent on them.
 4. The embedding API (`BundleOpen`, `BundleRun`, `HostValue` in `ziran_host.h`) and Kryon's
    bundle player speak the semantic VM's host values; they need a bridge to host images.
 5. The browser player: Kryon's `zx-services-test` and `zx-hosted-test` stop in the ZIR-based

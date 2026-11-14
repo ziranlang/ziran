@@ -164,6 +164,34 @@ revision-28 interpreter, and native ELF either matches or stops at a named `asse
 Order from here: heap collections; global initializers; indirect calls; the remaining literal and
 expression forms; then the `ziran bundle`/`zi2zx` cutover and removal of revisions 26/27.
 
+#### Heap collections design (next, not started in code)
+
+How the existing routes treat `Vec(T)` (`std/vec.zi`, `cmd/zir/zir_emit_value.c`):
+- ZIR has no drop statements. `Vec(T)` is a specialized record `{data: *T; count: s64; capacity: s64}`
+  flagged `is_owned_vec`; operations are calls by name (`VecPush`, `VecPop`, `VecGet`, `VecSlice`,
+  `VecSwap`, `VecClear`, `VecClone`, `VecFree`, `VecReserve`, `VecResize`, `VecResizeBounded`,
+  `BuilderAppend`, `BuilderPrint`, `BuilderFinish`), plus `v[i]`, `v[:]`, `v.count`.
+- The C emitter drops every local whose type contains a Vec at scope exit, return, break and
+  continue (`drop_locals`): free the data, zero the three fields, recursing into elements that
+  contain Vecs. A move leaves the source zeroed, so the unconditional drop is safe.
+
+Plan, in steps that each keep the suite green:
+1. LIR: one heap instruction, `resize(pointer: *T, old_count, new_count) -> *T`, appended after
+   `Unreachable` so existing numbers stay. It keeps `min(old, new)` elements, zero-fills new ones,
+   frees and returns null for `new_count == 0`, and returns null with the block unchanged when the
+   budget is exhausted. Verifier rule, text name `resize`, effectful and value-producing.
+2. Interpreter: typed heap blocks beside globals, frames and owned bytes. An address entry names its
+   block and generation; a resize or free ends the old generation, so stale pointers fail with
+   `.Pointer` as stale frame pointers do. A `heap` byte limit joins the instance limits.
+3. Lowering: the Vec record type, `count`/`capacity` reads, `v[i]` and `v[:]` through the checked
+   view path with `(data, count)`, then `VecPush`, `VecClear`, `VecFree`, `VecReserve`,
+   `VecResize`, `VecPop`/`VecGet` (Option), `VecSwap`, `VecClone`, `VecSlice`, and the builders.
+4. Lowering: drops at every scope exit edge, and zeroing the source of a move, mirroring
+   `drop_locals` and the emitter's move rule.
+5. Native x86-64 and wasm: `assembly.gap.native-heap` and `wasm.gap.heap` first; real allocators
+   (mmap-backed veneer, linear-memory allocator) after the interpreter is at parity.
+6. `Text`, maps and records that hold Vecs follow from 3 and 4; then re-run the inventory.
+
 ### Wasm from revision-28 ZX
 
 Landed as `zi2asm --emit wasm` (`cmd/zir-wasm/zx_wasm_lower.c`): the verified ZX payload lowers

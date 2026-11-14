@@ -1,6 +1,6 @@
 # Step 01 — Freeze the execution contract and completion matrix
 
-Status: in progress. The experimental [scalar prototype](README.md) does not close this step's completion gates. Delivery order, plan review and per-row cutover rules are in [milestones](milestones.md); capturing the Alpha physical-host baseline of the old engines is milestone M0, before any old path is replaced.
+Status: in progress. The experimental [scalar prototype](README.md) does not close this step's completion gates. Delivery order, plan review and per-row cutover rules are in [milestones](milestones.md); the Alpha physical-host baseline of the old engines was captured at milestone M0, before they were removed.
 
 The [assembly-target gap policy](gap-policy.md) is normative. A missing
 implementation is a named failing matrix cell with a stable diagnostic; no
@@ -54,23 +54,23 @@ Assembly listings are views of the instruction stream used for encoding, not a r
 
 ## Required decisions and deliverables
 
-- [ ] Create a feature-by-target matrix from current compiler capability reporting, tests, and documented limitations. Name each feature, reference fixture, source/saved-IR behavior, portable behavior, native behavior, and required execution platform.
+- [x] Create a [feature-by-target matrix](feature-matrix.md) from current compiler capability reporting, tests, and documented limitations. Name each feature, reference fixture, source/saved-IR behavior, portable behavior, native behavior, and required execution platform.
 - [ ] Separate portable language behavior, native language extensions, CPU requirements, OS services, and foreign-runtime requirements. A Go-only foreign type does not become a portable native type by renaming its representation.
 - [ ] Set the native language coverage target to all currently supported C-native language semantics, plus all currently supported portable ZX semantics. Keep C and Go output available. List legitimate target-specific exclusions explicitly.
-- [ ] Cover the maintained Linux, Android, Windows, macOS, and browser/WebAssembly combinations. Derive exact CPU/OS/ABI rows from the live toolchain and repository; include existing 32-bit ARM support. New architectures such as RISC-V are explicit extensions, not an unbounded definition of completion.
-- [ ] Specify numeric behavior, memory and pointer rules, ownership, cleanup, initialization, traps, call order, concurrency, fuel checkpoints, and capability contracts before assigning opcodes.
-- [ ] Define the new format as an incompatible executable-format revision. Do not reserve an arbitrary version number now; choose it against the current writer when implementing step 05.
-- [ ] Define backend APIs and ownership: verified portable program, target description, machine program, encoded image, and loaded instance. Separate immutable code from mutable instance state.
-- [ ] State that validated native code is not an operating-system sandbox. Keep malformed-input rejection, capability restrictions, and native process isolation claims distinct.
-- [ ] Define debug and release policies. Semantic checks remain correct in both; stripping inspection metadata is an explicit build choice.
-- [ ] Record that cross-compilation, successful encoding, a child-agent receipt, or a saved benchmark report does not establish target execution correctness.
+- [x] Cover the maintained Linux, Android, Windows, macOS, and browser/WebAssembly combinations. Derive exact CPU/OS/ABI rows from the live toolchain and repository; include existing 32-bit ARM support. New architectures such as RISC-V are explicit extensions, not an unbounded definition of completion. The [target registry](07-architecture-and-platform-coverage.md#target-registry-and-preflight) lists every row.
+- [x] Specify numeric behavior, memory and pointer rules, ownership, cleanup, initialization, traps, call order, concurrency, fuel checkpoints, and capability contracts before assigning opcodes: the [execution contract](execution-contract.md).
+- [x] Define the new format as an incompatible executable-format revision: [revision 28](zx-executable-format.md), chosen against the writer it replaced. A file of another revision is rejected.
+- [x] Define backend APIs and ownership: verified portable program, target description, machine program, encoded image, and loaded instance. Separate immutable code from mutable instance state. See the [contract layers](execution-contract.md#contract-layers).
+- [x] State that validated native code is not an operating-system sandbox. Keep malformed-input rejection, capability restrictions, and native process isolation claims distinct.
+- [x] Define debug and release policies. Semantic checks remain correct in both; stripping inspection metadata is an explicit build choice.
+- [x] Record that cross-compilation, successful encoding, a child-agent receipt, or a saved benchmark report does not establish target execution correctness.
 - [ ] Assign every non-Implemented matrix cell a stable Gap diagnostic or a
   deliberate Excluded contract. Verify rejection before output replacement,
   initialization, host calls or entry execution.
-- [ ] Make engine and target selection explicit. Portable, native, Wasm, C and
+- [x] Make engine and target selection explicit. Portable, native, Wasm, C and
   Go are separate contracts; none may rescue another after preflight fails.
 
-The current M0/M1 implementation keeps those routes distinct: portable runs
+The implementation keeps those routes distinct: portable runs
 verified LIR, native means direct verified-LIR-to-machine-code/platform output,
 and the separately selected C and Go backends generate source that can be
 compiled into platform binaries. Native slice comparison and host ABI gaps stop
@@ -87,8 +87,8 @@ silently skipped or satisfied by a fallback. Every remaining gap has its stable,
 side-effect-free error and stays visibly incomplete. Both source and saved
 `.zir` reach the same lowered semantics. `.zx` runs without reparsing semantic
 statement text or requiring embedded executable `.zir`. Native AOT and native
-ZX execution use the same code generator without generated C, TinyCC, an
-external assembler, or an external linker on the promised direct path. External
+ZX execution use the same code generator without generated C, an external
+assembler, or an external linker on the promised direct path. External
 OS libraries remain allowed dependencies.
 
 All ten exit gates must pass. A smaller scalar prototype is a milestone, never the finished upgrade. There is no promise of universally optimal machine code: performance acceptance uses declared workloads and measured regressions, not the phrase “absolute performance.” Missing hardware, signing facilities, or tools remain named incomplete gates.

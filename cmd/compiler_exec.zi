@@ -85,6 +85,8 @@ LirExecPlan :: struct {
     block_instruction_bases: Vec(s64)
     edge_direct: Vec(u8)
     instructions: Vec(LirInstruction)
+    // 1 for an address derivation that needs no table entry (ExecPlanTransients).
+    transient: Vec(u8)
     global_offsets: Vec(s64)
     global_bytes: s64
     ready: bool
@@ -122,6 +124,9 @@ LirExecHeapBlock :: struct {
     below: s64
     // One more than the newest address entry made for this block.
     addresses: s64
+    // Holds a value a host returned. The program never frees it; it lives
+    // while something the program can reach names it (ExecHostCollect).
+    host: bool
 }
 
 LirExecFrame :: struct {
@@ -152,6 +157,11 @@ LirExecInstance :: struct {
     address_used: s64
     // Table slots given back by frames that returned and heap blocks that died.
     address_free: Vec(s64)
+    // The table entries transient derivations take in turn (ExecTransient):
+    // ExecTransientSlots of them from transient_base, never indexed.
+    transient_base: s64
+    transient_count: s64
+    transient_next: s64
     storage: Vec(u8)
     words: Vec(u64)
     validity: Vec(u8)
@@ -164,11 +174,18 @@ LirExecInstance :: struct {
     host_bytes: Vec(u8)
     owned: Vec(u8)
     heap_blocks: Vec(LirExecHeapBlock)
-    // One more than the block that ends the owned bytes; 0 when host bytes do.
+    // One more than the block that ends the owned bytes; 0 for none.
     heap_tail: s64
     // Records of freed blocks whose bytes were given back, for reuse.
     heap_free: Vec(s64)
+    // Dead host blocks whose bytes are still in the owned region, for the
+    // next host values to reuse.
+    host_free: Vec(s64)
     heap_epoch: u64
+    // Bytes of host blocks made since the last collection, and the bytes
+    // that collection scanned: the next one waits until both are passed.
+    host_since: s64
+    host_scanned: s64
     live_values: s64
     frame_epoch: u64
     current_value_base: s64
@@ -408,6 +425,7 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
         !VecResizeBounded(plan.block_instruction_bases, blocks, blocks) ||
         !VecResizeBounded(plan.edge_direct, edges, edges) ||
         !VecResizeBounded(plan.instructions, instructions, instructions) ||
+        !VecResizeBounded(plan.transient, instructions, instructions) ||
         !VecResizeBounded(plan.global_offsets, program.globals.count, program.globals.count) { return .Allocation }
     value_at: s64
     block_at: s64
@@ -571,6 +589,7 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
         plan.functions[function_index] = .{.value_base = function_base, .block_base = block_at,
             .frame_bytes = offset + scratch, .word_count = words,
             .scratch_offset = offset, .scratch_bytes = scratch}
+        function_first := instruction_at
         for block: function.blocks {
             plan.block_edge_bases[block_at] = edge_at
             plan.block_instruction_bases[block_at] = instruction_at
@@ -586,6 +605,7 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
             }
             block_at += 1
         }
+        if !ExecPlanTransients(plan, function, function_first) { return .Allocation }
     }
     offset: s64
     for global_index: cast(s64)0..program.globals.count - 1 {
@@ -845,7 +865,9 @@ ExecAddressLookup :: (instance: *LirExecInstance, address: LirExecAddress) -> s6
 // Rebuilds the index from the live entries, at most a quarter full.
 ExecAddressReindex :: (instance: *LirExecInstance) -> bool {
     live: s64
-    for address: instance.addresses { if address.token != 0 { live += 1 } }
+    for index: cast(s64)0..instance.addresses.count - 1 {
+        if instance.addresses[index].token != 0 && !ExecTransientIndex(instance, index) { live += 1 }
+    }
     // The table never shrinks: a rebuild in place only drops removed entries.
     capacity: s64 = 64
     while capacity < (live + 1) * 4 { capacity *= 2 }
@@ -854,7 +876,7 @@ ExecAddressReindex :: (instance: *LirExecInstance) -> bool {
     for index: cast(s64)0..capacity - 1 { instance.address_slots[index] = 0 }
     mask := capacity - 1
     for index: cast(s64)0..instance.addresses.count - 1 {
-        if instance.addresses[index].token == 0 { continue }
+        if instance.addresses[index].token == 0 || ExecTransientIndex(instance, index) { continue }
         slot := cast(s64)(ExecAddressHash(instance.addresses[index]) & cast(u64)mask)
         while instance.address_slots[slot] != 0 { slot = (slot + 1) & mask }
         instance.address_slots[slot] = cast(s32)(index + 1)
@@ -946,7 +968,123 @@ ExecInternAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> u6
     return instance.addresses[index].token
 }
 
-ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, target_type: s32) -> u64 {
+// Transient addresses. A derivation whose result is only the address of a
+// Load or Store, or the base of another derivation, later in its own block,
+// with no call or resize between, makes no lasting table entry: it takes the
+// next of a few entries kept for this, in turn, with a new version, so its
+// token lives until that entry is taken again. The plan proves the uses come
+// first. Its checks and its work charge are an interned address's.
+ExecTransientSlots :: 256;
+
+ExecTransientIndex :: (instance: *LirExecInstance, index: s64) -> bool {
+    return instance.transient_count != 0 && index >= instance.transient_base &&
+        index < instance.transient_base + instance.transient_count
+}
+
+ExecTransient :: (instance: *LirExecInstance, address: LirExecAddress) -> u64 {
+    if !ExecSpend(instance, 1) { return 0 }
+    if instance.transient_count == 0 {
+        base := instance.addresses.count
+        if base + ExecTransientSlots > instance.limits.addresses || base + ExecTransientSlots > ExecAddressSlots {
+            unused ExecFail(instance, .AddressLimit)
+            return 0
+        }
+        for at: 1..ExecTransientSlots {
+            if !VecPush(instance.addresses, LirExecAddress.{}) { unused ExecFail(instance, .Allocation); return 0 }
+        }
+        instance.transient_base = base
+        instance.transient_count = ExecTransientSlots
+    }
+    index := instance.transient_base + instance.transient_next
+    instance.transient_next = (instance.transient_next + 1) % ExecTransientSlots
+    entry := address
+    entry.version = (instance.addresses[index].version + 1) & cast(u64)268435455
+    entry.token = ExecAddressToken(instance.identity, index, entry.version)
+    entry.next = 0
+    instance.addresses[index] = entry
+    return entry.token
+}
+
+ExecDeriveToken :: (instance: *LirExecInstance, address: LirExecAddress, transient: bool) -> u64 {
+    if transient { return ExecTransient(instance, address) }
+    return ExecInternAddress(instance, address)
+}
+
+ExecTransientBarrier :: (op: LirOp) -> bool {
+    return op == .Call || op == .CallIndirect || op == .HostCall || op == .Resize
+}
+
+// Marks the transient derivations of `function`, whose instructions start at
+// plan instruction `first`.
+ExecPlanTransients :: (plan: *LirExecPlan, function: LirFunction, first: s64) -> bool {
+    count := function.values.count
+    defined_in: Vec(s32)
+    defined_at: Vec(s64)
+    last_use: Vec(s64)
+    usable: Vec(u8)
+    defer VecFree(defined_in)
+    defer VecFree(defined_at)
+    defer VecFree(last_use)
+    defer VecFree(usable)
+    if !VecResizeBounded(defined_in, count, count) || !VecResizeBounded(defined_at, count, count) ||
+        !VecResizeBounded(last_use, count, count) || !VecResizeBounded(usable, count, count) { return false }
+    for value: cast(s64)0..count - 1 { defined_in[value] = -1 }
+    at := first
+    for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
+        block := function.blocks[block_index]
+        for index: cast(s64)0..block.instructions.count - 1 {
+            instruction := block.instructions[index]
+            plan.transient[at + index] = 0
+            if (instruction.op == .FieldAddress || instruction.op == .ElementAddress) && instruction.result != LirNoId {
+                defined_in[instruction.result] = block_index
+                defined_at[instruction.result] = at + index
+                last_use[instruction.result] = at + index
+                usable[instruction.result] = 1
+            }
+        }
+        at += block.instructions.count
+    }
+    at = first
+    for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
+        block := function.blocks[block_index]
+        for index: cast(s64)0..block.instructions.count - 1 {
+            instruction := block.instructions[index]
+            for operand: cast(s64)0..instruction.operands.count - 1 {
+                value := instruction.operands[operand]
+                if defined_in[value] < 0 { continue }
+                // An empty slice is its base's own token, so a slice may keep it.
+                address_use := operand == 0 && (instruction.op == .Load || instruction.op == .Store ||
+                    instruction.op == .FieldAddress ||
+                    instruction.op == .ElementAddress && instruction.operands.count != 4)
+                if defined_in[value] != block_index || defined_at[value] >= at + index || !address_use {
+                    usable[value] = 0
+                }
+                if at + index > last_use[value] { last_use[value] = at + index }
+            }
+            for edge: instruction.edges {
+                for value: edge.arguments { if defined_in[value] >= 0 { usable[value] = 0 } }
+            }
+        }
+        at += block.instructions.count
+    }
+    for value: cast(s64)0..count - 1 {
+        if defined_in[value] < 0 || usable[value] == 0 { continue }
+        from := defined_at[value]
+        to := last_use[value]
+        // Every derivation between takes an entry too; the uses must come
+        // before the entry comes round again.
+        if to - from >= ExecTransientSlots { continue }
+        clear := true
+        for between: from + 1..to - 1 {
+            if ExecTransientBarrier(plan.instructions[between].op) { clear = false; break }
+        }
+        if clear { plan.transient[from] = 1 }
+    }
+    return true
+}
+
+ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, target_type: s32,
+    transient: bool) -> u64 {
     base := instance.addresses[parent]
     member_offset: s64
     member_type: s32
@@ -970,13 +1108,13 @@ ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, targe
     } else if base.heap != 0 {
         child_generation = base.generation
     }
-    return ExecInternAddress(instance, .{.global = child_global, .frame = child_frame,
+    return ExecDeriveToken(instance, .{.global = child_global, .frame = child_frame,
         .generation = child_generation, .offset = offset, .extent = extent, .type = target_type,
-        .owned = base.owned, .writable = base.writable, .heap = base.heap})
+        .owned = base.owned, .writable = base.writable, .heap = base.heap}, transient)
 }
 
 ExecElementAddress :: (instance: *LirExecInstance, parent: s32, index: u64,
-    count: u64, target_type: s32) -> u64 {
+    count: u64, target_type: s32, transient: bool) -> u64 {
     base := instance.addresses[parent]
     size := instance.plan.type_sizes[target_type]
     if base.type != target_type || index >= count ||
@@ -988,13 +1126,13 @@ ExecElementAddress :: (instance: *LirExecInstance, parent: s32, index: u64,
     member_offset := cast(s64)index * size
     offset := base.offset + member_offset
     extent := base.extent - member_offset
-    return ExecInternAddress(instance, .{.global = base.global, .frame = base.frame,
+    return ExecDeriveToken(instance, .{.global = base.global, .frame = base.frame,
         .generation = base.generation, .offset = offset, .extent = extent, .type = target_type,
-        .owned = base.owned, .writable = base.writable, .heap = base.heap})
+        .owned = base.owned, .writable = base.writable, .heap = base.heap}, transient)
 }
 
 ExecSliceAddress :: (instance: *LirExecInstance, parent: s32, low: u64,
-    high: u64, count: u64, target_type: s32) -> u64 {
+    high: u64, count: u64, target_type: s32, transient: bool) -> u64 {
     base := instance.addresses[parent]
     size := instance.plan.type_sizes[target_type]
     if base.type != target_type || low > high || high > count ||
@@ -1004,7 +1142,7 @@ ExecSliceAddress :: (instance: *LirExecInstance, parent: s32, low: u64,
         return 0
     }
     if low == high { return base.token }
-    return ExecElementAddress(instance, parent, low, count, target_type)
+    return ExecElementAddress(instance, parent, low, count, target_type, transient)
 }
 
 ExecResizeStorage :: (instance: *LirExecInstance, count: s64) -> bool {
@@ -1142,10 +1280,9 @@ ExecValuesSameLocation :: (instance: *LirExecInstance, frame_index: s64,
 
 ExecEdge :: (instance: *LirExecInstance, frame_index: s64,
     edge: *LirEdge, direct_safe: bool) -> bool {
-    frame := instance.frames[frame_index]
-    function := instance.plan.program.functions[frame.function]
-    plan := instance.plan.functions[frame.function]
-    target := function.blocks[edge.block]
+    frame := *instance.frames[frame_index]
+    plan := *instance.plan.functions[frame.function]
+    target := *instance.plan.program.functions[frame.function].blocks[edge.block]
     if direct_safe {
         for index: cast(s64)0..target.parameters.count - 1 {
             source := edge.arguments[index]
@@ -1588,6 +1725,135 @@ ExecHeapTrim :: (instance: *LirExecInstance) -> bool {
     return true
 }
 
+// A read-only block of BYTES owned bytes for a value a host gave, and the
+// index of its address, or -1 after a failure.
+ExecHostBlock :: (instance: *LirExecInstance, bytes: s64, element: s32) -> s64 {
+    available := instance.limits.value_bytes - instance.globals.count - instance.storage.count -
+        instance.words.count * 8 - instance.result_bytes.count
+    instance.host_since += bytes
+    instance.heap_epoch += 1
+    // A dead host block of room enough lends its bytes and its place.
+    tries: s64 = 0
+    while tries < 8 && tries < instance.host_free.count {
+        at := instance.host_free.count - 1 - tries
+        record := instance.host_free[at]
+        block := instance.heap_blocks[record]
+        usable := !block.live && block.host && block.size > 0
+        if usable && block.size < bytes { tries += 1; continue }
+        instance.host_free[at] = instance.host_free[instance.host_free.count - 1]
+        unused VecResize(instance.host_free, instance.host_free.count - 1)
+        if !usable { continue }
+        instance.heap_blocks[record].live = true
+        instance.heap_blocks[record].count = cast(u64)bytes
+        instance.heap_blocks[record].generation = instance.heap_epoch
+        return ExecNewAddress(instance, .{.global = -1, .frame = -1, .generation = instance.heap_epoch,
+            .offset = block.offset, .extent = bytes, .type = element, .owned = true, .writable = false,
+            .heap = record + 1})
+    }
+    base := instance.owned.count
+    if bytes > available - base { unused ExecFail(instance, .ValueBytes); return -1 }
+    if !VecResizeBounded(instance.owned, base + bytes, available) { unused ExecFail(instance, .Allocation); return -1 }
+    record: s64
+    if instance.heap_free.count > 0 {
+        record = instance.heap_free[instance.heap_free.count - 1]
+        unused VecResize(instance.heap_free, instance.heap_free.count - 1)
+    } else {
+        record = instance.heap_blocks.count
+        if !VecPush(instance.heap_blocks, LirExecHeapBlock.{}) { unused ExecFail(instance, .Allocation); return -1 }
+    }
+    instance.heap_blocks[record] = .{.offset = base, .size = bytes, .count = cast(u64)bytes,
+        .generation = instance.heap_epoch, .live = true, .below = instance.heap_tail, .host = true}
+    instance.heap_tail = record + 1
+    return ExecNewAddress(instance, .{.global = -1, .frame = -1, .generation = instance.heap_epoch,
+        .offset = base, .extent = bytes, .type = element, .owned = true, .writable = false,
+        .heap = record + 1})
+}
+
+ExecHostEnd :: (instance: *LirExecInstance, index: s64) -> bool {
+    instance.heap_blocks[index].live = false
+    ExecReleaseAddresses(instance, instance.heap_blocks[index].addresses)
+    instance.heap_blocks[index].addresses = 0
+    return VecPush(instance.host_free, index) || ExecFail(instance, .Allocation)
+}
+
+// Ends every host block made after EPOCH: a rejected image leaves no
+// storage behind.
+ExecHostRollback :: (instance: *LirExecInstance, epoch: u64) {
+    for index: cast(s64)0..instance.heap_blocks.count - 1 {
+        block := instance.heap_blocks[index]
+        if block.live && block.host && block.generation > epoch { unused ExecHostEnd(instance, index) }
+    }
+    unused ExecHeapTrim(instance)
+}
+
+// Marks the live host block that TOKEN names, if any, to be scanned.
+ExecHostMarkToken :: (instance: *LirExecInstance, token: u64, marks: *Vec(u8), pending: *Vec(s64)) -> bool {
+    found := ExecFindAddress(instance, token)
+    if found < 0 || instance.addresses[found].heap == 0 { return true }
+    block := instance.addresses[found].heap - 1
+    if !instance.heap_blocks[block].live || !instance.heap_blocks[block].host || (<<marks)[block] != 0 { return true }
+    (<<marks)[block] = 1
+    return VecPush(<<pending, block) || ExecFail(instance, .Allocation)
+}
+
+// Every eight bytes of BYTES[from:from + count] that could be a token of
+// this instance, at any offset since values are packed.
+ExecHostMarkBytes :: (instance: *LirExecInstance, bytes: []u8, from: s64, count: s64,
+    marks: *Vec(u8), pending: *Vec(s64)) -> bool {
+    if count < 8 { return true }
+    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
+    low := cast(u8)(instance.identity & cast(u32)255)
+    high := cast(u8)((instance.identity >> cast(u32)8) & cast(u32)255)
+    for at: from..from + count - 8 {
+        if bytes[at + 7] != high || bytes[at + 6] != low { continue }
+        if !ExecHostMarkToken(instance, ExecReadBits(bytes, at, 8), marks, pending) { return false }
+    }
+    return true
+}
+
+// Gives back the host blocks the program can no longer reach. It reaches
+// the globals, the frames' storage and words, the result bytes and its own
+// heap blocks, and every host block those name. A name is any eight bytes
+// equal to a valid token of a block's address, so a reachable block is
+// never freed; bytes that only look like a token keep a block a little
+// longer. A dead block's addresses end, and its bytes go back down the
+// owned region's chain like a freed heap block's.
+ExecHostCollect :: (instance: *LirExecInstance) -> bool {
+    count := instance.heap_blocks.count
+    marks: Vec(u8)
+    pending: Vec(s64)
+    defer VecFree(marks)
+    defer VecFree(pending)
+    if !VecResize(marks, count) { return ExecFail(instance, .Allocation) }
+    scanned := instance.globals.count + instance.storage.count + instance.result_bytes.count + instance.words.count * 8
+    if !ExecHostMarkBytes(instance, instance.globals[:], 0, instance.globals.count, *marks, *pending) ||
+        !ExecHostMarkBytes(instance, instance.storage[:], 0, instance.storage.count, *marks, *pending) ||
+        !ExecHostMarkBytes(instance, instance.result_bytes[:], 0, instance.result_bytes.count, *marks, *pending) { return false }
+    if !ExecSpend(instance, instance.words.count) { return false }
+    for word: instance.words {
+        if !ExecHostMarkToken(instance, word, *marks, *pending) { return false }
+    }
+    for index: cast(s64)0..count - 1 {
+        block := instance.heap_blocks[index]
+        if !block.live || block.host { continue }
+        scanned += block.size
+        if !ExecHostMarkBytes(instance, instance.owned[:], block.offset, block.size, *marks, *pending) { return false }
+    }
+    while pending.count > 0 {
+        block := instance.heap_blocks[pending[pending.count - 1]]
+        unused VecResize(pending, pending.count - 1)
+        scanned += block.size
+        if !ExecHostMarkBytes(instance, instance.owned[:], block.offset, block.size, *marks, *pending) { return false }
+    }
+    for index: cast(s64)0..count - 1 {
+        block := instance.heap_blocks[index]
+        if block.live && block.host && marks[index] == 0 && !ExecHostEnd(instance, index) { return false }
+    }
+    instance.host_since = 0
+    instance.host_scanned = scanned
+    return ExecHeapTrim(instance)
+}
+
 // resize(pointer: *T, old_count, new_count) -> *T. A null pointer with
 // old_count 0 allocates; new_count 0 frees and gives null. The new block
 // keeps the first min(old_count, new_count) elements and zero-fills the
@@ -1712,20 +1978,22 @@ ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
         if instance.addresses[address].type != expected { return ExecFail(instance, .Type) }
         target := instance.plan.program.types[result_type].element
         member := instruction.immediate
+        transient := instance.plan.transient[instance.frames[frame_index].instruction_base +
+            instance.frames[frame_index].instruction] != 0
         child: u64
         if instruction.op == .ElementAddress && instruction.operands.count == 4 {
-            child = ExecSliceAddress(instance, address, low, high, count, target)
+            child = ExecSliceAddress(instance, address, low, high, count, target, transient)
         } else if instruction.op == .ElementAddress && instruction.operands.count == 3 {
             index := ExecIndexBits(instance, instruction.operands[1])
             count := ExecIndexBits(instance, instruction.operands[2])
             if instance.failure.problem != .None { return false }
-            child = ExecElementAddress(instance, address, index, count, target)
+            child = ExecElementAddress(instance, address, index, count, target, transient)
         } else {
             if instruction.op == .ElementAddress {
                 member = ExecIndexBits(instance, instruction.operands[1])
                 if instance.failure.problem != .None { return false }
             }
-            child = ExecFieldAddress(instance, address, member, target)
+            child = ExecFieldAddress(instance, address, member, target, transient)
         }
         if instance.failure.problem != .None { return false }
         ExecWriteSlotBits(instance, instruction.result, child)
@@ -1972,12 +2240,14 @@ ExecHostAvailable :: (instance: *LirExecInstance) -> s64 {
 //
 // Writes the image of the `type` value at `source[from]` to the host bytes at
 // `to` and appends its view elements. `base` is where the whole image starts
-// and `limit` bounds the host bytes.
+// and `limit` bounds the host bytes. A type may hold itself through a view, so
+// `depth` counts the levels a value nests and stops past LirHostShapeDepth.
 ExecHostEncode :: (instance: *LirExecInstance, type: s32, source: []u8, from: s64,
-    base: s64, to: s64, limit: s64) -> bool {
+    base: s64, to: s64, limit: s64, depth: s64) -> bool {
     plan := instance.plan
     program := plan.program
     size := plan.type_sizes[type]
+    if depth > LirHostShapeDepth { return ExecFail(instance, .Host) }
     if plan.host_shapes[type] < LirHostShapeViews {
         if !ExecSpend(instance, ExecCopyCost(size)) { return false }
         for byte: cast(s64)0..size - 1 { instance.host_bytes[to + byte] = source[from + byte] }
@@ -2020,7 +2290,7 @@ ExecHostEncode :: (instance: *LirExecInstance, type: s32, source: []u8, from: s6
         }
         for index: cast(s64)0..cast(s64)count - 1 {
             if !ExecHostEncode(instance, element, elements, offset + index * width,
-                base, at + index * width, limit) { return false }
+                base, at + index * width, limit, depth + 1) { return false }
         }
         return true
     }
@@ -2028,13 +2298,13 @@ ExecHostEncode :: (instance: *LirExecInstance, type: s32, source: []u8, from: s6
         width := plan.type_sizes[value.element]
         for index: cast(s64)0..value.count - 1 {
             if !ExecHostEncode(instance, value.element, source, from + index * width,
-                base, to + index * width, limit) { return false }
+                base, to + index * width, limit, depth + 1) { return false }
         }
         return true
     }
     offset: s64
     for field: value.fields {
-        if !ExecHostEncode(instance, field, source, from + offset, base, to + offset, limit) { return false }
+        if !ExecHostEncode(instance, field, source, from + offset, base, to + offset, limit, depth + 1) { return false }
         offset += plan.type_sizes[field]
     }
     return true
@@ -2064,7 +2334,7 @@ ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
             if size > available - at { return ExecFail(instance, .ValueBytes) }
             if !VecResizeBounded(instance.host_bytes, at + size, available) { return ExecFail(instance, .Allocation) }
             source := ExecFrameValueOffset(instance, frame_index, operand)
-            if !ExecHostEncode(instance, type, instance.storage[:], source, at, at, available) { return false }
+            if !ExecHostEncode(instance, type, instance.storage[:], source, at, at, available, 0) { return false }
             // The image is sliced below, once the host bytes have stopped growing.
             instance.host_arguments[index] = cast(u64)at
             value.bits = cast(u64)(instance.host_bytes.count - at)
@@ -2083,27 +2353,27 @@ ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
 
 // Reads the `type` value at `image[from]` of a host image into `store` at
 // `to`. Each view's elements become read-only instance-owned storage that
-// stays valid for globals and later calls.
+// stays valid for globals and later calls. `depth` is as for ExecHostEncode.
 ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64,
-    store: ExecStore, to: s64) -> bool {
+    store: ExecStore, to: s64, depth: s64) -> bool {
     plan := instance.plan
     program := plan.program
     value := program.types[type]
     size := plan.type_sizes[type]
-    if from < 0 || size > image.count - from { return ExecFail(instance, .Host) }
+    if depth > LirHostShapeDepth || from < 0 || size > image.count - from { return ExecFail(instance, .Host) }
     if !ExecSpend(instance, 1) { return false }
     if value.kind == .Array {
         width := plan.type_sizes[value.element]
         for index: cast(s64)0..value.count - 1 {
             if !ExecHostDecode(instance, value.element, image, from + index * width,
-                store, to + index * width) { return false }
+                store, to + index * width, depth + 1) { return false }
         }
         return true
     }
     if value.kind == .Record && !LirHostView(program, type) {
         offset: s64
         for field: value.fields {
-            if !ExecHostDecode(instance, field, image, from + offset, store, to + offset) { return false }
+            if !ExecHostDecode(instance, field, image, from + offset, store, to + offset, depth + 1) { return false }
             offset += plan.type_sizes[field]
         }
         return true
@@ -2125,13 +2395,9 @@ ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64
         if width <= 0 || start > cast(u64)image.count ||
             count > cast(u64)((image.count - cast(s64)start) / width) { return ExecFail(instance, .Host) }
         bytes := cast(s64)count * width
-        if bytes > ExecHostAvailable(instance) { return ExecFail(instance, .ValueBytes) }
-        base := instance.owned.count
-        if !VecResizeBounded(instance.owned, base + bytes, base + bytes) { return ExecFail(instance, .Allocation) }
-        instance.heap_tail = 0
-        index := ExecNewAddress(instance, .{.global = -1, .frame = -1, .offset = base, .extent = bytes,
-            .type = element, .owned = true, .writable = false})
+        index := ExecHostBlock(instance, bytes, element)
         if index < 0 { return false }
+        base := instance.addresses[index].offset
         token = instance.addresses[index].token
         kind := program.types[element].kind
         if kind == .Integer || kind == .Float {
@@ -2140,7 +2406,7 @@ ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64
         } else {
             for index: cast(s64)0..cast(s64)count - 1 {
                 if !ExecHostDecode(instance, element, image, cast(s64)start + index * width,
-                    .Owned, base + index * width) { return false }
+                    .Owned, base + index * width, depth + 1) { return false }
             }
         }
     }
@@ -2167,13 +2433,9 @@ ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
     if instance.plan.host_shapes[expected] < LirHostShapeViews &&
         result.bytes.count != instance.plan.type_sizes[expected] { return ExecFail(instance, .Host) }
     destination := ExecFrameValueOffset(instance, frame_index, instruction.result)
-    owned_count := instance.owned.count
-    heap_tail := instance.heap_tail
-    if !ExecHostDecode(instance, expected, result.bytes, 0, .Frame, destination) {
-        // A rejected image leaves no storage behind; the addresses made for
-        // it name bytes that are gone, so they are never valid.
-        instance.heap_tail = heap_tail
-        unused VecResize(instance.owned, owned_count)
+    epoch := instance.heap_epoch
+    if !ExecHostDecode(instance, expected, result.bytes, 0, .Frame, destination, 0) {
+        ExecHostRollback(instance, epoch)
         return false
     }
     ExecMarkValue(instance, frame_index, instruction.result)
@@ -2276,7 +2538,7 @@ ExecTypedHostCopyBack :: (instance: *LirExecInstance, frame_index: s64,
             from := cast(s64)start + item * width
             if ExecBytesMatchAcross(image, from, instance.host_bytes[:], given + item * width, width) { continue }
             if !writable { return ExecFail(instance, .Pointer) }
-            if !ExecHostDecode(instance, element, image, from, store, at + item * width) { return false }
+            if !ExecHostDecode(instance, element, image, from, store, at + item * width, 1) { return false }
         }
     }
     return true
@@ -2340,6 +2602,10 @@ ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: *Lir
     host := instance.hosts[binding]
     if host.write != null { return ExecPlatformWriteCall(instance, frame_index, instruction, host) }
     if host.typed != null {
+        // Host values the program dropped give their storage back once a
+        // collection's worth of new ones has come in.
+        if instance.host_since >= 65536 && instance.host_since >= instance.host_scanned &&
+            !ExecHostCollect(instance) { return false }
         if !ExecTypedHostArguments(instance, frame_index, instruction) ||
             !ExecHostViewsApart(instance, frame_index, instruction, host) { return false }
         result := LirExecArgument.{.type = LirNoId}
@@ -2374,7 +2640,9 @@ ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: *Lir
 
 ExecStep :: (instance: *LirExecInstance) -> bool {
     frame_index := instance.frames.count - 1
-    frame := instance.frames[frame_index]
+    // Read in place: the step runs for every instruction, and a copy of the
+    // frame record cost more than the step's own work.
+    frame := *instance.frames[frame_index]
     instruction := *instance.plan.instructions[frame.instruction_base + frame.instruction]
     if !ExecSpend(instance, 1) { return false }
     op := instruction.op
@@ -2387,8 +2655,7 @@ ExecStep :: (instance: *LirExecInstance) -> bool {
     }
     if op == .Trap { return ExecFail(instance, .Trap, instruction.immediate) }
     if op == .Unreachable { return ExecFail(instance, .Unreachable) }
-    function_plan := instance.plan.functions[frame.function]
-    edge_base := instance.plan.block_edge_bases[function_plan.block_base + frame.block]
+    edge_base := instance.plan.block_edge_bases[instance.plan.functions[frame.function].block_base + frame.block]
     if op == .Jump {
         return ExecEdge(instance, frame_index, *instruction.edges[0],
             instance.plan.edge_direct[edge_base] != 0)
@@ -2508,12 +2775,12 @@ LirExecDefaultLimits :: () -> LirExecLimits {
         .values = 1048576, .addresses = 1048576, .value_bytes = 268435456}
 }
 
-// Heap blocks an instance still holds. A program that frees or drops every
-// owned value ends with none.
+// Heap blocks the program allocated and still holds. A program that frees
+// or drops every owned value ends with none.
 LirExecHeapLive :: (instance: *LirExecInstance) -> s64 {
     live: s64
     if instance == null { return 0 }
-    for block: instance.heap_blocks { if block.live { live += 1 } }
+    for block: instance.heap_blocks { if block.live && !block.host { live += 1 } }
     return live
 }
 
@@ -2532,6 +2799,7 @@ LirExecPlanFree :: (plan: *LirExecPlan) {
     VecFree(plan.block_instruction_bases)
     VecFree(plan.edge_direct)
     VecFree(plan.instructions)
+    VecFree(plan.transient)
     VecFree(plan.global_offsets)
     plan.program = .{}
     plan.global_bytes = 0
@@ -2557,8 +2825,11 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     VecFree(instance.owned)
     VecFree(instance.heap_blocks)
     VecFree(instance.heap_free)
+    VecFree(instance.host_free)
     instance.heap_tail = 0
     instance.heap_epoch = 0
+    instance.host_since = 0
+    instance.host_scanned = 0
     instance.plan = null
     instance.limits = .{}
     instance.identity = 0
@@ -2682,7 +2953,7 @@ LirExecGlobalImage :: (instance: *LirExecInstance, global: s32) -> LirExecProble
     unused VecResize(instance.host_bytes, 0)
     if size > available { return .ValueBytes }
     if !VecResizeBounded(instance.host_bytes, size, available) { return .Allocation }
-    if !ExecHostEncode(instance, type, instance.globals[:], plan.global_offsets[global], 0, 0, available) {
+    if !ExecHostEncode(instance, type, instance.globals[:], plan.global_offsets[global], 0, 0, available, 0) {
         return instance.failure.problem
     }
     return .None
@@ -2698,11 +2969,9 @@ LirExecGlobalStore :: (instance: *LirExecInstance, global: s32, image: []u8) -> 
     type := plan.program.globals[global].type
     if !plan.program.globals[global].writable { return .Pointer }
     if plan.host_shapes[type] < LirHostShapeViews && image.count != plan.type_sizes[type] { return .Host }
-    owned_count := instance.owned.count
-    heap_tail := instance.heap_tail
-    if !ExecHostDecode(instance, type, image, 0, .Globals, plan.global_offsets[global]) {
-        instance.heap_tail = heap_tail
-        unused VecResize(instance.owned, owned_count)
+    epoch := instance.heap_epoch
+    if !ExecHostDecode(instance, type, image, 0, .Globals, plan.global_offsets[global], 0) {
+        ExecHostRollback(instance, epoch)
         return instance.failure.problem
     }
     return .None

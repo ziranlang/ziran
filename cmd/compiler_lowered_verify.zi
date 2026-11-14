@@ -726,8 +726,9 @@ LirHostView :: (program: LirProgram, type: s32) -> bool {
 // says whether a view lies inside. Host shapes are bools, integers, floats,
 // pointers, which cross as opaque handles, and records, fixed arrays and
 // views of host shapes. Procedure values are not shapes, and neither is a
-// type that reaches itself through a view or nests past LirHostShapeDepth.
-// Returns false only when memory runs out.
+// type that nests past LirHostShapeDepth. A type may reach itself through a
+// view: its values are finite, and a host crossing stops one that nests past
+// LirHostShapeDepth. Returns false only when memory runs out.
 LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
     count := program.types.count
     colors: Vec(u8)
@@ -748,12 +749,6 @@ LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
             if next[id] < children {
                 child := HostShapeChild(program, id, next[id])
                 next[id] += 1
-                if colors[child] == 1 {
-                    // The type reaches itself through a view: no finite image.
-                    colors[id] = 2
-                    depth -= 1
-                    continue
-                }
                 if colors[child] == 0 { depth += 1; stack[depth] = child }
                 continue
             }
@@ -767,7 +762,11 @@ LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
             views := LirHostView(program, id)
             height: s64 = 1
             for index: cast(s64)0..children - 1 {
-                child := cast(s64)(<<shapes)[HostShapeChild(program, id, index)]
+                child_id := HostShapeChild(program, id, index)
+                // A child still being visited holds this type: a type has a
+                // finite size, so the cycle passes through a view.
+                if colors[child_id] == 1 { views = true; continue }
+                child := cast(s64)(<<shapes)[child_id]
                 if child == 0 { shape = false; break }
                 if (child & 127) + 1 > height { height = (child & 127) + 1 }
                 if child >= LirHostShapeViews { views = true }
@@ -778,6 +777,22 @@ LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
             }
             colors[id] = 2
             depth -= 1
+        }
+    }
+    // A cycle was taken to be a shape while it was visited; a member that is
+    // not one makes every type holding it not one either.
+    changed := true
+    while changed {
+        changed = false
+        for id: cast(s32)0..cast(s32)count - 1 {
+            if (<<shapes)[id] == 0 { continue }
+            for index: cast(s64)0..HostShapeChildren(program, id) - 1 {
+                if (<<shapes)[HostShapeChild(program, id, index)] == 0 {
+                    (<<shapes)[id] = 0
+                    changed = true
+                    break
+                }
+            }
         }
     }
     return true

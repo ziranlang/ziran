@@ -1,77 +1,126 @@
-file build/site-targets/text_demo/zx/text_demo.zx
-bundle entry text_demo:Answer
-  laws 0 waivers 0 assets 0
-module text from text.zi
-  function LowerASCII(value: u8) -> u8 export @ text.zi:4:1
-    stmt 0 if expr=%8  // if value >= cast(u8)65 && value <= cast(u8)90 {
-    stmt 1 return expr=%12  // return value + cast(u8)32
-    stmt 2 block_close  // }
-    stmt 3 return expr=%13  // return value
-    %0 ident type=u8 name=value
-    %1 int 65 -> integer
-    %2 cast type=u8 name=u8 right=%1
-    %3 binary type=bool op=>= left=%0 right=%2
-    %4 ident type=u8 name=value
-    %5 int 90 -> integer
-    %6 cast type=u8 name=u8 right=%5
-    %7 binary type=bool op=<= left=%4 right=%6
-    %8 binary type=bool op=&& left=%3 right=%7
-    %9 ident type=u8 name=value
-    %10 int 32 -> integer
-    %11 cast type=u8 name=u8 right=%10
-    %12 binary type=u8 op=+ left=%9 right=%11
-    %13 ident type=u8 name=value
-  function StartsWithFoldASCII(value: string, prefix: string) -> bool export @ text.zi:12:1
-    stmt 0 if expr=%6  // if (cast(s32)prefix.count) > (cast(s32)value.count) {
-    stmt 1 return expr=%7  // return false
-    stmt 2 block_close  // }
-    stmt 3 decl name=index type=s32 expr=%8  // index: s32 = 0
-    stmt 4 while expr=%13  // while index < (cast(s32)prefix.count) {
-    stmt 5 if expr=%22  // if LowerASCII(value[index]) != LowerASCII(prefix[index]) {
-    stmt 6 return expr=%23  // return false
-    stmt 7 block_close  // }
-    stmt 8 assign expr=%26 lhs=%27  // index = index + 1
-    stmt 9 block_close  // }
-    stmt 10 return expr=%28  // return true
-    %0 ident type=string name=prefix
-    %1 member type=s64 name=count op=. left=%0
-    %2 cast type=s32 name=s32 right=%1
-    %3 ident type=string name=value
-    %4 member type=s64 name=count op=. left=%3
-    %5 cast type=s32 name=s32 right=%4
-    %6 binary type=bool op=> left=%2 right=%5
-    %7 ident type=bool name=false
-    %8 int 0 -> integer
-    %9 ident type=s32 name=index
-    %10 ident type=string name=prefix
-    %11 member type=s64 name=count op=. left=%10
-    %12 cast type=s32 name=s32 right=%11
-    %13 binary type=bool op=< left=%9 right=%12
-    %14 ident type=string name=value
-    %15 ident type=s32 name=index
-    %16 index type=u8 left=%14 right=%15
-    %17 call LowerASCII(%16) -> u8
-    %18 ident type=string name=prefix
-    %19 ident type=s32 name=index
-    %20 index type=u8 left=%18 right=%19
-    %21 call LowerASCII(%20) -> u8
-    %22 binary type=bool op=!= left=%17 right=%21
-    %23 ident type=bool name=false
-    %24 ident type=s32 name=index
-    %25 int 1 -> integer
-    %26 binary type=s32 op=+ left=%24 right=%25
-    %27 ident type=s32 name=index
-    %28 ident type=bool name=true
-module text_demo from text_demo.zi
-  import open text -> text @ text_demo.zi:2:1
-  import module __zi_open_0 -> text @ text_demo.zi:2:1
-  function Answer() -> s32 @ text_demo.zi:3:1
-    stmt 0 if expr=%2  // if StartsWithFoldASCII("Ziran", "zi") {
-    stmt 1 return expr=%3  // return 1;
-    stmt 2 block_close  // }
-    stmt 3 return expr=%4  // return 0;
-    %0 string "Ziran" next=%1
-    %1 string "zi"
-    %2 call StartsWithFoldASCII(%0, %1) -> bool
-    %3 int 1 -> integer
-    %4 int 0 -> integer
+lir 4 entry @0
+module m0 "text_demo"
+module m1 "text"
+type t0 kind=2 bits=1 signed=0 native=0 element=t0 count=0 result=t0 fields=() parameters=()
+type t1 kind=3 bits=8 signed=0 native=0 element=t0 count=0 result=t0 fields=() parameters=()
+type t2 kind=3 bits=32 signed=1 native=0 element=t0 count=0 result=t0 fields=() parameters=()
+type t3 kind=3 bits=64 signed=1 native=0 element=t0 count=0 result=t0 fields=() parameters=()
+type t4 kind=5 bits=0 signed=0 native=0 element=t1 count=0 result=t0 fields=() parameters=()
+type t5 kind=7 bits=0 signed=0 native=0 element=t0 count=0 result=t0 fields=(t4,t3) parameters=()
+type t6 kind=6 bits=0 signed=0 native=0 element=t1 count=5 result=t0 fields=() parameters=()
+type t7 kind=5 bits=0 signed=0 native=0 element=t6 count=0 result=t0 fields=() parameters=()
+type t8 kind=6 bits=0 signed=0 native=0 element=t1 count=2 result=t0 fields=() parameters=()
+type t9 kind=5 bits=0 signed=0 native=0 element=t8 count=0 result=t0 fields=() parameters=()
+constant c0:t6 = 0x0000000000000000 bytes=5a6972616e
+constant c1:t3 = 0x0000000000000000 bytes=
+constant c2:t3 = 0x0000000000000005 bytes=
+constant c3:t8 = 0x0000000000000000 bytes=7a69
+constant c4:t3 = 0x0000000000000000 bytes=
+constant c5:t3 = 0x0000000000000002 bytes=
+constant c6:t0 = 0x0000000000000000 bytes=
+constant c7:t0 = 0x0000000000000000 bytes=
+constant c8:t0 = 0x0000000000000001 bytes=
+constant c9:t0 = 0x0000000000000000 bytes=
+constant c10:t2 = 0x0000000000000001 bytes=
+constant c11:t2 = 0x0000000000000000 bytes=
+constant c12:t2 = 0x0000000000000000 bytes=
+constant c13:t2 = 0x0000000000000001 bytes=
+constant c14:t1 = 0x0000000000000041 bytes=
+constant c15:t1 = 0x000000000000005a bytes=
+constant c16:t1 = 0x0000000000000020 bytes=
+global g0:t6 module=m0 constant=c0 writable=0 name="string.0"
+global g1:t8 module=m0 constant=c3 writable=0 name="string.1"
+function @0 module=m0 name="Answer" result=t2 entry=b0 calling=0 external=0 variadic=0 origin=o-1 parameters=() values=(v0:t7,v1:t3,v2:t4,v3:t3,v4:t5,v5:t9,v6:t3,v7:t4,v8:t3,v9:t5,v10:t0,v11:t2,v12:t2)
+  b0():
+    i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
+    i1 v0:t7 = global.address symbol=0 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v1:t3 = constant symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v2:t4 = element.address v0 v1 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 v3:t3 = constant symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
+    i5 v4:t5 = aggregate v2 v3 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 v5:t9 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
+    i7 v6:t3 = constant symbol=4 immediate=0 alignment=0 effect=0 origin=o-1
+    i8 v7:t4 = element.address v5 v6 immediate=0 alignment=0 effect=0 origin=o-1
+    i9 v8:t3 = constant symbol=5 immediate=0 alignment=0 effect=0 origin=o-1
+    i10 v9:t5 = aggregate v7 v8 immediate=0 alignment=0 effect=0 origin=o-1
+    i11 v10:t0 = call v4 v9 symbol=1 immediate=0 alignment=0 effect=2 origin=o-1
+    i12 branch v10 immediate=0 alignment=0 -> b1() -> b2() effect=0 origin=o-1
+  b1():
+    i0 v11:t2 = constant symbol=10 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v11 immediate=0 alignment=0 effect=0 origin=o-1
+  b2():
+    i0 jump immediate=0 alignment=0 -> b3() effect=0 origin=o-1
+  b3():
+    i0 v12:t2 = constant symbol=11 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v12 immediate=0 alignment=0 effect=0 origin=o-1
+function @1 module=m1 name="StartsWithFoldASCII" result=t0 entry=b0 calling=0 external=0 variadic=0 origin=o-1 parameters=(t5,t5) values=(v0:t5,v1:t5,v2:t3,v3:t2,v4:t3,v5:t2,v6:t0,v7:t0,v8:t2,v9:t2,v10:t3,v11:t2,v12:t0,v13:t4,v14:t3,v15:t4,v16:t1,v17:t1,v18:t4,v19:t3,v20:t4,v21:t1,v22:t1,v23:t0,v24:t0,v25:t2,v26:t2,v27:t0)
+  b0(v0:t5, v1:t5):
+    i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
+    i1 v2:t3 = extract v1 immediate=1 alignment=0 effect=0 origin=o-1
+    i2 v3:t2 = convert v2 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v4:t3 = extract v0 immediate=1 alignment=0 effect=0 origin=o-1
+    i4 v5:t2 = convert v4 immediate=0 alignment=0 effect=0 origin=o-1
+    i5 v6:t0 = greater v3 v5 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 branch v6 immediate=0 alignment=0 -> b1() -> b2() effect=0 origin=o-1
+  b1():
+    i0 v7:t0 = constant symbol=6 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v7 immediate=0 alignment=0 effect=0 origin=o-1
+  b2():
+    i0 jump immediate=0 alignment=0 -> b3() effect=0 origin=o-1
+  b3():
+    i0 v8:t2 = constant symbol=12 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 jump immediate=0 alignment=0 -> b4(v8) effect=0 origin=o-1
+  b4(v9:t2):
+    i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
+    i1 v10:t3 = extract v1 immediate=1 alignment=0 effect=0 origin=o-1
+    i2 v11:t2 = convert v10 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v12:t0 = less v9 v11 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 branch v12 immediate=0 alignment=0 -> b5() -> b6() effect=0 origin=o-1
+  b5():
+    i0 v13:t4 = extract v0 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v14:t3 = extract v0 immediate=1 alignment=0 effect=0 origin=o-1
+    i2 v15:t4 = element.address v13 v9 v14 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v16:t1 = load v15 immediate=0 alignment=0 effect=1 origin=o-1
+    i4 v17:t1 = call v16 symbol=2 immediate=0 alignment=0 effect=2 origin=o-1
+    i5 v18:t4 = extract v1 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 v19:t3 = extract v1 immediate=1 alignment=0 effect=0 origin=o-1
+    i7 v20:t4 = element.address v18 v9 v19 immediate=0 alignment=0 effect=0 origin=o-1
+    i8 v21:t1 = load v20 immediate=0 alignment=0 effect=3 origin=o-1
+    i9 v22:t1 = call v21 symbol=2 immediate=0 alignment=0 effect=4 origin=o-1
+    i10 v23:t0 = not.equal v17 v22 immediate=0 alignment=0 effect=0 origin=o-1
+    i11 branch v23 immediate=0 alignment=0 -> b7() -> b8() effect=0 origin=o-1
+  b6():
+    i0 v27:t0 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v27 immediate=0 alignment=0 effect=0 origin=o-1
+  b7():
+    i0 v24:t0 = constant symbol=7 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v24 immediate=0 alignment=0 effect=0 origin=o-1
+  b8():
+    i0 jump immediate=0 alignment=0 -> b9() effect=0 origin=o-1
+  b9():
+    i0 v25:t2 = constant symbol=13 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v26:t2 = add v9 v25 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 jump immediate=0 alignment=0 -> b4(v26) effect=0 origin=o-1
+function @2 module=m1 name="LowerASCII" result=t1 entry=b0 calling=0 external=0 variadic=0 origin=o-1 parameters=(t1) values=(v0:t1,v1:t1,v2:t0,v3:t1,v4:t0,v5:t0,v6:t0,v7:t1,v8:t1)
+  b0(v0:t1):
+    i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
+    i1 v1:t1 = constant symbol=14 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v2:t0 = greater.equal v0 v1 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 branch v2 immediate=0 alignment=0 -> b1() -> b2() effect=0 origin=o-1
+  b1():
+    i0 v3:t1 = constant symbol=15 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v4:t0 = less.equal v0 v3 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 jump immediate=0 alignment=0 -> b3(v4) effect=0 origin=o-1
+  b2():
+    i0 v5:t0 = constant symbol=9 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 jump immediate=0 alignment=0 -> b3(v5) effect=0 origin=o-1
+  b3(v6:t0):
+    i0 branch v6 immediate=0 alignment=0 -> b4() -> b5() effect=0 origin=o-1
+  b4():
+    i0 v7:t1 = constant symbol=16 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v8:t1 = add v0 v7 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 return v8 immediate=0 alignment=0 effect=0 origin=o-1
+  b5():
+    i0 jump immediate=0 alignment=0 -> b6() effect=0 origin=o-1
+  b6():
+    i0 return v0 immediate=0 alignment=0 effect=0 origin=o-1

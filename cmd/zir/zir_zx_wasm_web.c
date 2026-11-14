@@ -3,8 +3,9 @@
  *
  * Compiled only by Emscripten builds of libziran: the provider reaches the
  * browser's WebAssembly engine through EM_JS, installs itself when the
- * module loads (unless ZIRAN_WASM_TIER=0, which leaves bundles to the
- * instruction engine), and memoizes compiled modules per page session
+ * module loads (unless ZIRAN_WASM_TIER=0 or the runtime suspends hosts,
+ * which leave bundles to the instruction engine), and memoizes compiled
+ * modules per page session
  * keyed by the module image, so reopening a bundle pays instantiation but
  * not compilation again. Bundles outside the Wasm lowering fail with its
  * wasm.gap diagnostic.
@@ -80,6 +81,13 @@ EM_JS(int, zx_wasm_web_call, (unsigned long handle, long long *result), {
         setValue(result, entry.instance.exports.zx_entry(), 'i64');
         return 0;
     } catch(error) {
+        /* A trap the module could not see coming leaves its output in its
+         * buffer. */
+        try {
+            if(entry.instance.exports.zx_flush !== undefined)
+                entry.instance.exports.zx_flush();
+        } catch(ignored) {
+        }
         console.error('zx wasm tier: ' + error);
         return 1;
     }
@@ -153,6 +161,11 @@ EM_JS(void, zx_wasm_web_release, (unsigned long handle), {
 });
 
 EM_JS(int, zx_wasm_web_enabled, (void), {
+    /* An Asyncify or JSPI runtime lets a host suspend its stack, but a
+     * module instance on that stack cannot be suspended: the unwind would
+     * hand it a failed host call. */
+    if(typeof Asyncify !== 'undefined')
+        return 0;
     if(typeof process !== 'undefined' && process.env !== undefined &&
        process.env.ZIRAN_WASM_TIER === '0')
         return 0;
@@ -242,8 +255,8 @@ web_release(void *context, unsigned long handle)
 }
 
 /* Called from the load-time constructor: a rebuilt web runtime activates
- * the tier without any host change; ZIRAN_WASM_TIER=0 leaves bundles to
- * the instruction engine. */
+ * the tier without any host change; ZIRAN_WASM_TIER=0 and runtimes whose
+ * hosts may suspend leave bundles to the instruction engine. */
 void
 ZxWasmInstallBundledPlatform(void)
 {

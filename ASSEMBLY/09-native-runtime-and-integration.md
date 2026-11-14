@@ -10,7 +10,7 @@ Next: [inspection and final cutover](10-inspection-performance-and-cutover.md).
 
 Run `.zx` through the explicitly selected shared native backend or explicitly
 selected new instruction interpreter. Integrate source builds, packages,
-libraries, hosts, cache, and embedding APIs without relying on C/TinyCC for
+libraries, hosts, cache, and embedding APIs without relying on generated C for
 new-native code generation and without switching engines after a gap is found.
 
 The experimental pipeline is source → `.zir` → linked LIR → verify →
@@ -42,10 +42,9 @@ so the static executable has no undefined symbols or misleading trap aliases.
 
 ## Existing integration points
 
-- [Native bundle API](../cmd/zir/zir_zx_native.h), [native engine](../cmd/zir/zir_zx_native.c), and [instance execution](../cmd/zir/zir_zx_native_run.c).
-- [Host-value bridge](../cmd/zir/zir_zx_host.c), [host lifecycle](../cmd/zir/zir_host.c), and [browser integration](../cmd/zir/zir_zx_wasm_web.c).
+- [Embedding API](../include/ziran_host.h), [bundle lifecycle](../cmd/zir/zir_host.c) and the [engine bridge](../cmd/zir/zir_host_exec.c), which translates host values for the [portable instruction engine](../cmd/compiler_exec.zi). There is no native ZX loader yet.
+- [Wasm lowering](../cmd/zir-wasm/zx_wasm_lower.h) and [browser integration](../cmd/zir/zir_zx_wasm_web.c).
 - [Package entry](../cmd/package_entry.zi), [options](../cmd/package_options.zi), [bundle run](../cmd/package_bundle_run.zi), and [capability reporting](../cmd/package_capabilities.zi).
-- [Current native engine build rules](../native-zx.mk).
 
 Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`, `cmd/compiler_exec_instance.zi`, and a native backend command entry integrated into the existing package driver.
 
@@ -70,23 +69,23 @@ Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`,
   preflight failure never changes that selection.
 - [ ] Add direct-native build/run targets to the package driver and target capability reports. Keep existing C/Go/wasm commands and legitimate target-specific bindings usable.
 - [ ] Integrate package dependency recipes, native artifact caching, sysroots, host providers, assets, executable entries, libraries, install paths, and incremental rebuild dependencies.
-- [ ] Replace the browser's generated-C bundle compilation path with direct wasm output from the same portable IR. Interpreter execution remains an explicit separate mode where browser/runtime policy permits it, never a direct-Wasm fallback.
+- [x] Replace the browser's generated-C bundle compilation path with direct wasm output from the same portable IR. Interpreter execution remains an explicit separate mode where browser/runtime policy permits it, never a direct-Wasm fallback.
 - [ ] Build runtime helpers through the new backend and verify self-hosting of the new compiler modules. Retain the established bootstrap mechanism; regeneration must be deterministic and locally checked.
-- [ ] Remove TinyCC and generated-C dependencies from the new native ZX path after their replacement tests pass. Remove build/library dependencies only when no other maintained consumer needs them.
-- [ ] Reconcile embedding API changes deliberately. Preserve semantic contracts, update callers through their owning projects, and reject retired entry points where repository policy requires a clean cutover.
+- [x] Remove TinyCC and generated-C dependencies from the new native ZX path after their replacement tests pass. Remove build/library dependencies only when no other maintained consumer needs them. TinyCC, the generated-C ZX route and `libziran-vm.a` are gone.
+- [x] Reconcile embedding API changes deliberately. Preserve semantic contracts, update callers through their owning projects, and reject retired entry points where repository policy requires a clean cutover. `BundleUsePortableVm` and `BundleInstantiatePortable` are deleted; Kryon calls neither.
 - [ ] Verify installation from the current working tree at the stable executable path. Do not require a commit first, replace the owner's running application, or produce alternate task-specific binaries.
 
 ## Tests
 
 Extend [native run](../tests/native_run.sh), [portable entry](../tests/portable_entry.sh), [bundle providers](../tests/bundle_runtime_provider.sh), [cache tests](../tests/native_build_cache.sh), [object reuse](../tests/native_object_reuse_cases.zi), [build concurrency](../tests/native_build_parallel.sh), [browser lifecycle](../tests/zx_web_lifecycle.sh), and [install tests](../tests/install_user.sh).
 
-Add cold/warm cache correctness, interrupted writes, incompatible CPU cache reuse, stale runtime ABI, corrupted entries, load/unload races, nested host callbacks, parallel failure, and mutable-state separation. Test from stripped bundles with generated C/TinyCC unavailable. Run independent native AOT and native ZX instances against the same fixture expectations.
+Add cold/warm cache correctness, interrupted writes, incompatible CPU cache reuse, stale runtime ABI, corrupted entries, load/unload races, nested host callbacks, parallel failure, and mutable-state separation. Test from stripped bundles with no C compiler available. Run independent native AOT and native ZX instances against the same fixture expectations.
 
 Use the full native local stack. All builds go through `build-queue --`; tests remove inherited display variables or use private displays. Dedicated performance measurement belongs on Alpha, not the desktop.
 
 ## Exit gate
 
-The new-native standalone and ZX paths share code generation and encoding, all required hosts/packages work, cold/warm execution is correct, and current-tree installation is verified. No AST/C/TinyCC/interpreter fallback remains on a path advertised as the new native engine. Every required downstream gap has a stable error and remains incomplete until implemented and executed.
+The new-native standalone and ZX paths share code generation and encoding, all required hosts/packages work, cold/warm execution is correct, and current-tree installation is verified. No AST, generated-C or interpreter fallback remains on a path advertised as the new native engine. Every required downstream gap has a stable error and remains incomplete until implemented and executed.
 
 ## Handoff
 

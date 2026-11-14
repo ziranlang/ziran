@@ -63,9 +63,8 @@ assembler, C compiler, or system linker to produce this executable.
   fixed-array element addresses
   rooted in globals or checked pointers are bounds-checked, including nested
   records/arrays and addresses returned across procedure calls.
-  Retained tests compare C, Go and explicit old-VM execution where the old VM
-  supports the construct. A call-valued dereference assignment has C/Go/new-engine
-  parity, but is outside the old VM's portable subset. Dependency-ordered
+  Retained tests compare C, Go and the portable instruction engine, including
+  a call-valued dereference assignment. Dependency-ordered
   runtime module initializers execute once per portable instance before entry;
   a failed initializer is sticky and entry is not started. Native ELF runs the
   same ordered initializer list before entry. Mutable global state, readonly

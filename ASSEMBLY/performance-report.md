@@ -95,12 +95,12 @@ Current honest selectors are:
 
 | Engine | Selector | Status |
 | --- | --- | --- |
-| `old-portable-vm` | `zx-vm` | Supported only with explicit `run --vm`. |
-| `new-portable` | `lowered-portable` | Supported only with explicit `zi2asm --run`; this is the lowered reference engine, not a replacement ZX format claim. |
+| `old-portable-vm` | `zx-vm` | Only a preserved pre-cutover `ziran` with `run --vm`; the current tree has no VM, and the M0 receipts hold its measurements. |
+| `new-portable` | `lowered-portable` | Supported with explicit `zi2asm --run`, the engine that runs every `.zx`. |
 | `direct-aot` | `direct-aot` | Supported only by executing the exact hashed ELF artifact. It is never relabeled as native ZX. |
 | `control-c`, `control-go`, `control-wasm` | matching selector | Supported with an exact absolute command and complete hashed closure. |
-| `old-c-tinycc-native` | — | Missing: the current CLI default does not provide native-only selection proof. |
-| `new-native` | — | Missing: there is no selectable real new-native ZX engine. |
+| `old-c-tinycc-native` | — | Missing: the TinyCC route is removed, and its pre-cutover CLI default never gave native-only selection proof. |
+| `new-native` | — | Missing: there is no native ZX engine until milestone M3. |
 
 Requests for either missing execution mode fail plan validation. They may and
 should remain in `required_cells`, where the processor reports them as missing
@@ -314,9 +314,10 @@ until the implementation and its local correctness gates are complete.
 
 `bench/assembly_collect.zi` supplies the strict collector prerequisite for
 genuinely selectable modes, but cannot complete the five-core matrix: both
-native cells described above remain unavailable. After native-only baseline
-proof and a real new-native ZX integration exist, the same plan format can add
-those jobs.
+native cells described above remain unavailable. The TinyCC cell can no longer
+be measured, since its route is removed; the M0 receipts are its only data.
+Once a real new-native ZX integration exists, the same plan format can add
+that job.
 
 The older `bench/zx_compare.py` harness has now produced a labeled interim
 portable-engine comparison on physical Alpha; see

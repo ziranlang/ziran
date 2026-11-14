@@ -21,12 +21,13 @@ arrays_main(void)
     int32_t empty[5] = {0};
     printf("empty: %lld %lld %lld %lld %lld\n", (long long)((empty)[0]), (long long)((empty)[1]), (long long)((empty)[2]), (long long)((empty)[3]), (long long)((empty)[4]));
     int32_t numbers[5] = {1, 2, 3, 4, 5};
-    numbers[4] = 100;
+    int32_t* value_0 = &(numbers[4]);
+    (*value_0) = 100;
     printf("set: %lld, count: %lld\n", (long long)((numbers)[4]), 5LL);
-    Slice value_0 = {numbers, 5};
-    Slice middle = SliceRange(value_0, (int64_t)1LL, (int64_t)4LL, sizeof(int32_t));
-    printf("middle has %lld items starting with %lld\n", (long long)((int64_t)(middle).length), (long long)(((int32_t *)middle.data)[SliceIndex(middle, (int64_t)0)]));
     Slice value_1 = {numbers, 5};
-    printf("sum of all: %lld\n", (long long)arrays_Sum(value_1));
+    Slice middle = SliceRange(value_1, (int64_t)1LL, (int64_t)4LL, sizeof(int32_t));
+    printf("middle has %lld items starting with %lld\n", (long long)((int64_t)(middle).length), (long long)(((int32_t *)middle.data)[SliceIndex(middle, (int64_t)0)]));
+    Slice value_2 = {numbers, 5};
+    printf("sum of all: %lld\n", (long long)arrays_Sum(value_2));
     printf("sum of middle: %lld\n", (long long)arrays_Sum(middle));
 }

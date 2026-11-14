@@ -54,6 +54,15 @@ static VmHostValue *state_field(BundleStateValue *value, const char *name)
     return value == NULL ? NULL : record_field(&value->value, name);
 }
 
+/* Whether the state has integer global `name` holding `expected`. */
+static int state_integer(const BundleState *state, const char *name, long long expected)
+{
+    size_t index = 0;
+    BundleStateValue value;
+    return state_find(state, name, &index) && BundleStateValueAt(state, index, &value) &&
+           value.value.kind == VM_HOST_INTEGER && value.value.integer == expected;
+}
+
 static int copy_owned_string(VmHostValue *target, const VmHostValue *source)
 {
     if(target == NULL || source == NULL || target->kind != VM_HOST_STRING ||
@@ -92,7 +101,9 @@ static int migrate(void *context, const BundleState *old_state,
              (new_first = state_field(new_value, "first")) != NULL &&
              (old_history = state_field((BundleStateValue *)&old_value, "history")) != NULL &&
              (new_history = state_field(new_value, "history")) != NULL &&
-             (new_open = state_field(new_value, "open")) != NULL;
+             (new_open = state_field(new_value, "open")) != NULL &&
+             state_integer(old_state, "schema_version", 1) &&
+             state_integer(new_state, "schema_version", 2);
     if(!ok)
         return 0;
     new_count->integer = old_count->integer + 100;

@@ -142,7 +142,8 @@ ZxExecProblemText(LirExecProblem problem)
 
 /* ---- Opened files ------------------------------------------------------- */
 
-enum { NODE_SCALAR, NODE_STRING, NODE_POINTER, NODE_SLICE, NODE_ARRAY, NODE_RECORD };
+/* A procedure value is code, not a value a host or a state snapshot takes. */
+enum { NODE_SCALAR, NODE_STRING, NODE_POINTER, NODE_PROCEDURE, NODE_SLICE, NODE_ARRAY, NODE_RECORD };
 enum { EXEC_DEPTH = 64 };
 
 typedef struct ExecNode {
@@ -239,7 +240,9 @@ exec_number(const char *text, int *value)
     return 1;
 }
 
-/* Parses the host interface section. Every node names only earlier nodes. */
+/* Parses the host interface section. A node may name any node, itself
+ * included: a type can hold itself through a slice. Host and global lines
+ * follow the nodes. */
 static int
 exec_parse_interface(ExecBundle *bundle, ExecHost **hosts, int *host_lines)
 {
@@ -266,11 +269,13 @@ exec_parse_interface(ExecBundle *bundle, ExecHost **hosts, int *host_lines)
             node->child = -1;
             const char *class = fields[1];
             int extra = count - 3;
-            if(!strcmp(class, "scalar") || !strcmp(class, "string") || !strcmp(class, "pointer")) {
+            if(!strcmp(class, "scalar") || !strcmp(class, "string") || !strcmp(class, "pointer") ||
+               !strcmp(class, "procedure")) {
                 if(extra != 0) return 0;
-                node->class = !strcmp(class, "scalar") ? NODE_SCALAR : !strcmp(class, "string") ? NODE_STRING : NODE_POINTER;
+                node->class = !strcmp(class, "scalar") ? NODE_SCALAR : !strcmp(class, "string") ? NODE_STRING :
+                    !strcmp(class, "pointer") ? NODE_POINTER : NODE_PROCEDURE;
             } else if(!strcmp(class, "slice") || !strcmp(class, "array")) {
-                if(extra != 1 || !exec_number(fields[3], &node->child) || node->child < 0 || node->child >= id) return 0;
+                if(extra != 1 || !exec_number(fields[3], &node->child) || node->child < 0) return 0;
                 node->class = !strcmp(class, "slice") ? NODE_SLICE : NODE_ARRAY;
             } else if(!strcmp(class, "record")) {
                 if(extra % 2) return 0;
@@ -282,7 +287,7 @@ exec_parse_interface(ExecBundle *bundle, ExecHost **hosts, int *host_lines)
                 for(int field = 0; field < node->field_count; field++) {
                     node->field_names[field] = fields[3 + 2 * field];
                     if(!exec_number(fields[4 + 2 * field], &node->field_nodes[field]) ||
-                       node->field_nodes[field] < 0 || node->field_nodes[field] >= id) return 0;
+                       node->field_nodes[field] < 0) return 0;
                 }
             } else return 0;
             bundle->node_count++;
@@ -327,6 +332,12 @@ exec_parse_interface(ExecBundle *bundle, ExecHost **hosts, int *host_lines)
             bundle->entry_arguments = fields[0];
             bundle->entry_return = fields[1];
         } else return 0;
+    }
+    for(int id = 0; id < bundle->node_count; id++) {
+        const ExecNode *node = &bundle->nodes[id];
+        if(node->child >= bundle->node_count) return 0;
+        for(int field = 0; field < node->field_count; field++)
+            if(node->field_nodes[field] >= bundle->node_count) return 0;
     }
     return 1;
 }
@@ -673,6 +684,7 @@ exec_from_image(ExecHosts *hosts, int node_id, int32_t type, const unsigned char
     int64_t width = exec_size(bundle, type);
     if(depth > EXEC_DEPTH || at < 0 || width < 0 || at > size || width > size - at) return 0;
     out->type = node->spelling;
+    if(node->class == NODE_PROCEDURE) return 0;
     if(node->class == NODE_SCALAR) return exec_scalar_value(node, shape, exec_read(image + at, width), out);
     if(node->class == NODE_POINTER) {
         if(shape->kind != LirTypeKind_Pointer) return 0;
@@ -741,6 +753,10 @@ exec_image_grow(ExecImage *image, int64_t count)
 {
     if(count < 0 || (size_t)count > SIZE_MAX / 2 - image->length) return -1;
     size_t needed = image->length + (size_t)count;
+    /* An image is decoded into the instance's value storage, which holds no
+     * more than its value-byte limit, so a larger one is refused before any
+     * of it is allocated. */
+    if(needed > (size_t)compiler_exec_LirExecDefaultLimits().value_bytes) return -1;
     if(needed > image->capacity) {
         size_t capacity = image->capacity ? image->capacity : 256;
         while(capacity < needed) capacity *= 2;
@@ -848,7 +864,8 @@ exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, con
     const ExecNode *node = &bundle->nodes[node_id];
     const LirType *shape = exec_type(bundle, type);
     int64_t width = exec_size(bundle, type);
-    if(depth > EXEC_DEPTH || width < 0 || !exec_type_matches(node->spelling, value->type, 0)) return 0;
+    if(depth > EXEC_DEPTH || width < 0 || node->class == NODE_PROCEDURE ||
+       !exec_type_matches(node->spelling, value->type, 0)) return 0;
     if(node->class == NODE_SCALAR || node->class == NODE_POINTER) {
         uint64_t bits;
         if(!exec_scalar_bits(node, shape, value, &bits)) return 0;

@@ -976,11 +976,22 @@ slice_index(Emitter *e, const char *type, const char *base, const char *index,
     }
     char element[ZIR_NAME_MAX], mapped[ZIR_NAME_MAX];
     SliceElementType(type, element, sizeof(element));
-    const char *scalar = TargetType(element, e->target);
+    /* A pointer element maps its pointee and keeps its depth: []*u8 holds
+     * uint8_t* values. */
+    const char *pointee = element;
+    size_t depth = 0;
+    while(pointee[depth] == '*')
+        depth++;
+    pointee += depth;
+    const char *scalar = TargetType(pointee, e->target);
     if(scalar != NULL)
         copy_text(mapped, sizeof(mapped), scalar);
     else
-        e->resolve(e->context, element, mapped, sizeof(mapped));
+        e->resolve(e->context, pointee, mapped, sizeof(mapped));
+    size_t used = strlen(mapped);
+    for(; depth > 0 && used + 1 < sizeof(mapped); depth--)
+        mapped[used++] = '*';
+    mapped[used] = '\0';
     if(checked)
         format(out, size, "((%s *)%s.data)[SliceIndex(%s, (int64_t)%s)]", mapped, base, base, index);
     else

@@ -150,7 +150,7 @@ def desktop(data, samples):
     zx = out / 'zx-runner'
     runtime_build(os.environ.get('CC', 'cc'), library, zx)
     result = metadata('Desktop', platform.system() + ' ' + platform.machine() + ' · ' + base.cpu_name(),
-                      {'c': 'C · cc -O2', 'go': 'Go · native', 'zx': 'ZX · portable VM', 'wasm': 'WebAssembly · Node / V8'}, samples)
+                      {'c': 'C · cc -O2', 'go': 'Go · native', 'zx': 'ZX · instruction engine', 'wasm': 'WebAssembly · Node / V8'}, samples)
     jobs = []
     for example in data['examples']:
         directory = out / example['id']
@@ -188,7 +188,7 @@ def mobile(data, samples, serial, ndk):
     model = shell('getprop', 'ro.product.model')
     release = shell('getprop', 'ro.build.version.release')
     result = metadata('Mobile', model + ' · Android ' + release + ' · ARMv7',
-                      {'c': 'C · Android Clang -O2', 'go': 'Go · Android / ARMv7', 'zx': 'ZX · portable VM', 'wasm': 'WebAssembly · WAMR AOT'}, samples)
+                      {'c': 'C · Android Clang -O2', 'go': 'Go · Android / ARMv7', 'zx': 'ZX · instruction engine', 'wasm': 'WebAssembly · WAMR AOT'}, samples)
     result['serial_sha256'] = hashlib.sha256(serial.encode()).hexdigest()
     def battery():
         text = shell('dumpsys', 'battery')
@@ -253,7 +253,7 @@ def build_web(data, emcc):
     env['EM_CACHE'] = str(ROOT / 'build/emscripten-cache')
     WEB.mkdir(parents=True, exist_ok=True)
     runtime = ROOT / 'build/playground64/libziran.a'
-    run(['make', '-j4', 'BUILD_DIR=build/playground64', 'CC=' + shlex.quote(str(emcc)) + ' -sMEMORY64=2',
+    run(['make', '-j4', 'BUILD_DIR=' + str(runtime.parent), 'CC=' + shlex.quote(str(emcc)) + ' -sMEMORY64=2',
          'AR=' + str(emcc.parent / 'emar'), 'OBJCOPY=true', 'CFLAGS=-O2',
          'FRAMEFLAGS=-Wframe-larger-than=16384', runtime], env=env, timeout=600)
     zx_script = WEB / 'zx-runtime.js'
@@ -318,7 +318,7 @@ def main():
         run(['node', ROOT / 'scripts/site_target_browser.mjs', manifest, output], env=environment(), timeout=300)
         measured = json.loads(output.read_text())
         result = metadata('Web', measured['browser'], {'c': 'C · Emscripten / Wasm', 'go': 'Go · js/wasm',
-                          'zx': 'ZX · browser VM', 'wasm': 'WebAssembly · browser / V8'}, args.samples)
+                          'zx': 'ZX · browser engine', 'wasm': 'WebAssembly · browser / V8'}, args.samples)
         for example in data['examples']:
             result['examples'][example['id']] = {target: summarize(measured['examples'][example['id']][target], example['expected']) for target in TARGETS}
         data['platforms']['web'] = result

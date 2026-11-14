@@ -18,12 +18,18 @@
  *   imports  (zx, overrun) () -> ()            a spent budget
  *            (zx, budget) mutable i64 global    charged by every LIR fuel
  *            (zx, host_i64) (i32, i64) -> i64   platform output, when used:
- *                index ZX_WASM_PRINT_*; a string is (length << 32 | address)
+ *                index ZX_WASM_PRINT_*; a string is (length << 32 | address).
+ *                The module formats integers and bools into a buffer of its
+ *                own and hands over whole strings: when the entry returns,
+ *                before a host call or float output, before a trap it
+ *                raises, and when the buffer fills
  *            (zx, host) (i32, i32) -> i32       host capabilities, when used
  *   exports  zx_entry () -> i64, memory; with module initializers
  *            zx_initialize () -> (), which zx_entry calls first and a host
  *            may call to initialize an instance when it opens; with a heap
- *            zx_reserve (i32 bytes) -> i32 address (0 when memory runs out)
+ *            zx_reserve (i32 bytes) -> i32 address (0 when memory runs out);
+ *            with output zx_flush () -> (), which a host calls after a trap
+ *            the module could not see coming, such as a division by zero
  *   custom   zxhost: each capability's module, function and parameter
  *            count, by capability index
  *

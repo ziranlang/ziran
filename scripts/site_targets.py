@@ -134,7 +134,10 @@ def build(bin_dir, samples, render_page=True):
                 for file in cell['files']:
                     relative = Path(file['path']).relative_to(Path('generated/targets') / name / target)
                     artifact = directory / relative
-                    listing = execute([bin_dir / 'zi-inspect', artifact.relative_to(REPO)], env=environment)[0].stdout
+                    # Checked IR lists its declarations; executable ZX lists its instructions.
+                    inspect = ([bin_dir / 'zi-inspect', artifact.relative_to(REPO)] if target == 'zir' else
+                               [bin_dir / 'zi2asm', '--input', 'zx', '--emit', 'lir', '-o', '-', artifact.relative_to(REPO)])
+                    listing = execute(inspect, env=environment)[0].stdout
                     listing_path = artifact.with_suffix(artifact.suffix + '.txt')
                     listing_path.write_text(listing)
                     file['inspection'] = store(listing_path, Path(name) / target / relative.with_suffix(relative.suffix + '.txt'))

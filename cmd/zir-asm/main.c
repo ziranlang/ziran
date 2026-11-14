@@ -739,7 +739,8 @@ main(int argc, char **argv)
     if(!serialized && canonical) {
         size_t interface_length = 0;
         const char *interface = AssemblyHostInterface(lowered, &interface_length);
-        String interface_text = {interface ? interface : "", interface_length};
+        if(interface == NULL) goto done;
+        String interface_text = {interface, interface_length};
         ZxExecResult measured = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){0}, interface_text);
         if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
             String problem = compiler_exec_link_ZxExecProblemName(measured.problem);

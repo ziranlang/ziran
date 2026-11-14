@@ -15,7 +15,7 @@ What the plan gets right:
   ZX container; native always reads verified ZX before encoding. Listings are views of encoder records,
   not a write-and-reparse stage.
 - Every boundary is verified and bounded; unsupported constructs fail
-  explicitly instead of silently falling back to C or TinyCC.
+  explicitly instead of silently falling back to another engine.
 - The [gap policy](gap-policy.md) makes missing work observable: a gap has a
   stable error and an open matrix cell, never a substituted engine.
 - Measurement rules (Alpha physical host, raw samples, symmetric 1.5×IQR) are
@@ -87,10 +87,10 @@ itself moves to Ziran.
 | **M0** Integrate and baseline | Land the in-flight slices behind one passing local `make check` and `make check-bootstrap`. On Alpha's physical host, measure the old portable VM and old TinyCC native ZX with the M1 workloads, hashing and preserving the exact old binaries. | Green local suites; baseline receipt with raw samples under `bench/results/`. |
 | **M1** Workload-complete portable path | Typed host capability calls (`s64 -> s64` first, then scalar/string/record signatures), in-bundle `--bind` providers, immutable strings (literal, copy, `.count`, checked index), runtime global initializers. The revision-28 container lists capabilities recomputed from reachable `HostCall` instructions. Add a C embedding API for the new engine (open, list capabilities, bind, run with fuel) that the existing comparison harness can drive. Unsupported operations are Gap diagnostics, not calls into the old VM. | Corpus-coverage report shows every benchmark workload lowering; source, saved IR and new ZX agree with the oracle; negative fixtures account for every remaining Gap; **interim comparison 1**: explicitly selected new portable engine vs explicitly selected old VM. |
 | **M2** Register-allocated x86-64 | Liveness, linear-scan allocation with splitting and spilling, a post-allocation verifier, and machine-IR-to-x86-64 encoding that reuses the existing byte encoders. Fuel at loop back-edges and calls. Constant-time token dispatch. | Every x86-64 fixture passes on the machine-IR path; the direct LIR encoder is removed. |
-| **M3** Native ZX on Linux x86-64 (first cutover row) | In-memory loading with W^X pages, relocation of the same encoder output, host trampolines, stack and fuel checks, and a content/CPU/backend-keyed cache. `ziran run app.zx` selects revision 28 on linux-x86_64; unsupported native features fail preflight without starting the portable engine, and revisions 26/27 get the rebuild diagnostic. | Full local suite on the new default for that row, including no-fallback negative fixtures; installed tool verified; **interim comparison 2**: explicitly selected new native ZX vs explicitly selected TinyCC native ZX, plus AOT and C controls. |
+| **M3** Native ZX on Linux x86-64 (first cutover row) | In-memory loading with W^X pages, relocation of the same encoder output, host trampolines, stack and fuel checks, and a content/CPU/backend-keyed cache. `ziran run app.zx` runs revision 28 natively on linux-x86_64; unsupported native features fail preflight without starting the portable engine. | Full local suite on the new default for that row, including no-fallback negative fixtures; installed tool verified; **interim comparison 2**: explicitly selected new native ZX vs the M0 TinyCC native ZX receipts, plus AOT and C controls. |
 | **M4** ARM rows and direct wasm | AArch64 and ARMv7 (USB Moto) machine targets, and direct wasm lowering from LIR. Each row is cut over separately. | Per-row execution evidence; Moto comparison on the device. |
 | **M5** Objects, linker and foreign libraries | Relocatable ELF/COFF/Mach-O, archive reading, external C ABI and foreign libraries, Windows/macOS ABIs and required signing. | Step 07/08 rows with real launches. |
-| **M6** Inspection closure and final cutover | Unwind/debug/profiler mapping, removal of the TinyCC/generated-C ZX path, and the owner's **full before/after ZX comparison**. | The step-10 completion receipt. |
+| **M6** Inspection closure and final cutover | Unwind/debug/profiler mapping and the owner's **full before/after ZX comparison**. The TinyCC/generated-C ZX path is already removed. | The step-10 completion receipt. |
 
 ## Current position
 
@@ -103,8 +103,16 @@ Retained tests require text below 200 bytes, ELF below 1.5 KB and valid retained
 function extents, with inlined platform service declarations omitted rather than trap
 aliases. Pointer token runs lower with bounds-checked base/index arithmetic.
 These fixes do not close M2/M3: machine-IR service lowering, native fuel,
-source debug origins and broader ABI coverage remain gaps. Wasm still lowers
-semantic ZIR, not revision-28 executable instructions.
+source debug origins and broader ABI coverage remain gaps. Wasm lowers the
+same verified ZX, both for `zi2asm --emit wasm` and for the bundle Wasm tier.
+
+There is one ZX format. Every `.zx` is revision 28; the semantic bundle writer
+and reader, the portable VM with `run --vm`, `BundleUsePortableVm`,
+`BundleInstantiatePortable`, `libziran-vm.a`, bundle libraries, TinyCC and the
+generated-C native ZX route are removed. `ziran run` and the embedding API run
+every bundle on the portable instruction engine, or on the Wasm tier where a
+provider is installed. No native ZX engine exists until M3. The old VM and
+TinyCC measurements survive as the M0 baseline receipts.
 
 M0 integration is in progress. M4's first slice, the explicit
 [target registry and preflight](07-architecture-and-platform-coverage.md#target-registry-and-preflight),
@@ -148,6 +156,7 @@ The M0/M1 implementation also covers dependency-ordered once-only runtime
 initializers, local aggregate/procedure address-taking, checked portable slices
 and string comparison, native readonly data, the first no-libc Linux x86-64
 console veneer and validated typed host values
-with instance-owned returned bytes. Resizable collection ownership, reentrant
+with instance-owned returned bytes, released once nothing the program can reach
+names them. Resizable collection ownership, reentrant
 callbacks and general native string/arbitrary-host instructions remain explicit gaps;
 none of the M2–M6 exit criteria is claimed by this subset.

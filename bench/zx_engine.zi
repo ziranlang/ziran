@@ -1,0 +1,123 @@
+// Revision-28 instruction engine against the C target, run on Alpha's
+// physical host. Each case is one program lowered to ZX and the same program
+// built by the C target; the two run interleaved, one sample each per round,
+// and each run is a fresh process, startup included. Raw samples stay in run
+// order; symmetric 1.5xIQR fences (benchmark_statistics) pick the median.
+//
+// ziran run --target=c --root bench bench/zx_engine.zi -- OUT HOST COMMIT LABEL SAMPLES ZI2ASM \
+//     NAME ZX C_EXECUTABLE [NAME ZX C_EXECUTABLE ...]
+#import "benchmark_statistics"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+#scope_file
+EngineCase :: struct { name: string; zx: string; c: string }
+
+Number :: (value: s64) -> string {
+    bytes: [64]u8
+    return TextDetach(TextCopy(FormatInteger(value, bytes[:])))
+}
+
+Join :: (parts: []string) -> string { return TextDetach(TextJoin(parts, "")) }
+
+// One run's wall time in nanoseconds, or -1 when it did not exit with `code`.
+Time :: (arguments: []string, code: *s32, first: bool) -> s64 {
+    options: ProcessOptions = .{.arguments = arguments, .output_path = "/dev/null", .error_path = "/dev/null"}
+    run: ProcessRun
+    started := MonotonicNanoseconds()
+    if !RunProcess(options, *run) { return -1 }
+    elapsed := MonotonicNanoseconds() - started
+    if first { <<code = run.code } else if run.code != <<code { return -1 }
+    return elapsed
+}
+
+Series :: (samples: []float64) -> string {
+    parts: Vec(string)
+    VecPush(parts, "{\"samples_ns\": [")
+    for index: cast(s64)0..samples.count - 1 {
+        if index > 0 { VecPush(parts, ", ") }
+        VecPush(parts, Number(cast(s64)samples[index]))
+    }
+    VecPush(parts, "], \"excluded\": [")
+    statistics := BenchmarkAnalyze(samples)
+    for index: cast(s64)0..statistics.excluded.count - 1 {
+        if index > 0 { VecPush(parts, ", ") }
+        VecPush(parts, Number(statistics.excluded[index]))
+    }
+    VecPush(parts, "], \"median_ns\": ")
+    VecPush(parts, Number(cast(s64)statistics.median))
+    VecPush(parts, "}")
+    return Join(parts[:])
+}
+
+#scope_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    arguments: Vec(string)
+    for index: 1..argc - 1 { VecPush(arguments, TextFromCString(argv[index])) }
+    if arguments.count < 9 || (arguments.count - 6) % 3 != 0 {
+        print("usage: zx_engine OUT HOST COMMIT LABEL SAMPLES ZI2ASM NAME ZX C_EXECUTABLE ...\n")
+        return 2
+    }
+    out := arguments[0]
+    samples, valid := TextInteger(arguments[4])
+    if !valid || samples < 3 { print("zx_engine: SAMPLES must be at least 3\n"); return 2 }
+    zi2asm := arguments[5]
+    cases: Vec(EngineCase)
+    at: s64 = 6
+    while at < arguments.count {
+        VecPush(cases, EngineCase.{arguments[at], arguments[at + 1], arguments[at + 2]})
+        at += 3
+    }
+    parts: Vec(string)
+    VecPush(parts, "{\"benchmark\": \"zx-engine\", \"host\": \"")
+    VecPush(parts, arguments[1])
+    VecPush(parts, "\", \"commit\": \"")
+    VecPush(parts, arguments[2])
+    VecPush(parts, "\", \"label\": \"")
+    VecPush(parts, arguments[3])
+    VecPush(parts, "\", \"outliers\": \"symmetric 1.5xIQR, inclusive interpolated quartiles\", \"cases\": [")
+    for index: cast(s64)0..cases.count - 1 {
+        item := cases[index]
+        engine_command := string.[zi2asm, "--run", "--work", "9223372036854775807", "--fuel",
+            "9223372036854775807", "--input", "zx", item.zx]
+        c_command := string.[item.c]
+        engine: Vec(float64)
+        native: Vec(float64)
+        engine_code: s32
+        c_code: s32
+        for round: 0..samples - 1 {
+            engine_time := Time(engine_command[:], *engine_code, round == 0)
+            c_time := Time(c_command[:], *c_code, round == 0)
+            if engine_time < 0 || c_time < 0 || engine_code != c_code {
+                print("zx_engine: % failed or the two runs disagree\n", item.name)
+                return 1
+            }
+            VecPush(engine, cast(float64)engine_time)
+            VecPush(native, cast(float64)c_time)
+        }
+        engine_statistics := BenchmarkAnalyze(engine[:])
+        c_statistics := BenchmarkAnalyze(native[:])
+        if !engine_statistics.valid || !c_statistics.valid {
+            print("zx_engine: % has too few samples inside the fences\n", item.name)
+            return 1
+        }
+        if index > 0 { VecPush(parts, ", ") }
+        VecPush(parts, "{\"name\": \"")
+        VecPush(parts, item.name)
+        VecPush(parts, "\", \"engine\": ")
+        VecPush(parts, Series(engine[:]))
+        VecPush(parts, ", \"c\": ")
+        VecPush(parts, Series(native[:]))
+        VecPush(parts, "}")
+        print("% engine % ms, C % ms\n", item.name, cast(s64)(engine_statistics.median / 1000000.0),
+            cast(s64)(c_statistics.median / 1000000.0))
+    }
+    VecPush(parts, "]}\n")
+    if !WriteEntireFile(out, Join(parts[:])) { print("zx_engine: cannot write %\n", out); return 1 }
+    return 0
+}

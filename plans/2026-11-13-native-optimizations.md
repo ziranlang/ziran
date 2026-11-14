@@ -473,6 +473,27 @@ passing; `wasm_enums` and `global_owned_storage` were fixed after that run.
   for "out of bounds", "nested calls filled the stack" and "unreachable code executed".
   `zx_native_asm` expects the bundle to carry `#asm` machine code, a semantic-only feature.
 
+### Engine speed and the slow suite (in progress, 2026-11-14)
+
+Owner: "improve it to make it fasetr bencahark and improev teh coer isuse alawys".
+- The suite's slowdown at full parallelism and Omega's low-memory freezes came from one process:
+  `tests/host_slices.sh` `return_huge`, where the host returns a slice of 2^32 elements and the
+  embedding bridge built the 16 GB image before refusing it. `exec_image_grow` now refuses an
+  image past the instance's value-byte limit first (peak 15.6 GB -> 78 MB). Alone, the checks
+  reported slow take 1 to 30 s; the suite is CPU-bound at 4 to 6 jobs.
+- The longest checks spend their time in the instruction engine (`std_float_text`: 65 of
+  79 s is one bundle run). gprof on that run: dispatch 33%, memory instructions 23%, address
+  interning 18%, block edges 14%.
+- Done: the optimizer removes block parameters every edge passes one value (float-text program
+  32,168 -> 1,031); the engine reads frame and plan records in place; an address only loaded
+  from or stored to later in its own block takes a scratch table entry instead of an interned
+  one (also fixes Jungle's `address-limit` on a few MB of saved pictures). Float-text run
+  63.9 -> 45.0 s locally. A derivation cache keyed by parent and member gave nothing and was
+  removed. Alpha before/after: `bench/zx_engine.zi`, results under `bench/results/`.
+- Next by the profile: dispatch (one call chain per instruction through `ExecStep` and
+  `ExecValueInstruction`) and the per-instruction work and validity bookkeeping.
+- Not started: Resize on the native x86-64 encoder, so programs with `Vec` build as ELF.
+
 ### Wasm from revision-28 ZX
 
 Landed as `zi2asm --emit wasm` (`cmd/zir-wasm/zx_wasm_lower.c`): the verified ZX payload lowers
@@ -508,10 +529,31 @@ tier only in Chromium (state migration, components, every rollback); `zx_linked_
 builds revision-28 ZX in the page (`ZxExecBuild` compiled into its runtime, the optimizer in
 `libziran`'s engine) and runs it on the engine; `tests/playground_runtime.cjs` passes on it.
 
-Not done: the published site target matrix (`site/generated/targets`) holds semantic `.zx`
-files and `zi2wasm` modules measured on Alpha, the moto e6 phone and headless Chromium; it must
-be regenerated there with the updated `scripts/site_targets.py` before `tests/site_targets.sh`
-passes again.
+Done, 2026-11-14 (Wasm speed, measured on Alpha's physical host, i7-8700, Node; raw samples in
+`bench/results/wasm-tier-alpha-physical-2026-11-14.json`, `bench/wasm_tier.py`): µs per call.
+
+| kernel | C | engine | Wasm before | Wasm now |
+|---|---|---|---|---|
+| Sieve | 33 | 19,640 | 286 | 61 |
+| Records | 13 | 247,555 | 3,547 | 35 |
+| Hash | 28 | 17,832 | 187 | 50 |
+| Vectors | 37 | 29,959 | 499 | 92 |
+| Calls | 11 | 4,658 | 35 | 34 |
+| Printing | 9.7 | 99 | 453 | 4.9 |
+
+Aggregate slots coalesce by liveness; output is buffered (`zx_flush`); looping functions keep
+the budget in a local; blocks are laid out in a weak topological order so loops are Wasm `loop`s;
+records read from an array are read, and changed, in place; small copies are unrolled. The
+instruction engine is 20 to 7,000 times slower than the Wasm module on these kernels.
+
+The tier stays out of Asyncify and JSPI runtimes (Kryon's player), whose hosts suspend the stack;
+the engine runs bundles there. Recursive host types cross the tier, bounded at 64 levels.
+
+Not done: the published site target matrix (`site/generated/targets`) has its desktop and web
+platforms regenerated on Alpha on 2026-11-14 with this compiler. The moto e6 phone is on
+Omega's USB and answers "unauthorized", so the mobile platform is missing and
+`tests/site_targets.sh` stops at "Collect every platform before publishing" until the owner
+allows USB debugging on it and `site_target_platforms.py --platform mobile` runs.
 
 Owner, 2026-11-13: "i'm ondireng if zx and native basicalyl use the same piplen if we just
 unife it under native and show zx as a step in teh pielpn while ofcuesr being able to do zx

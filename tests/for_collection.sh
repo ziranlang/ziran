@@ -75,6 +75,21 @@ NamedCollection :: () -> s32 {
     if total != 0 { return 0 }
     return 42
 }
+// A slice whose elements are pointers yields each pointer.
+#program_export
+PointerElements :: () -> s32 {
+    first: s32 = 20
+    second: s32 = 22
+    cells: [2]*s32
+    cells[0] = *first
+    cells[1] = *second
+    view: []*s32 = cells[:]
+    total: s32 = 0
+    for cell: view { total += cell.* }
+    for cell, index: view { cell.* += cast(s32) index }
+    if second != 23 { return 0 }
+    return total
+}
 ZI
 
 "$ziran" check --root "$work" "$work/collections.zi"
@@ -93,6 +108,9 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry collections:NamedCollection \
         -o "$work/$input-named.zx" "$file"
     test "$("$ziran" run "$work/$input-named.zx")" = 42
+    "$ziran" bundle --root "$root" --entry collections:PointerElements \
+        -o "$work/$input-pointers.zx" "$file"
+    test "$("$ziran" run "$work/$input-pointers.zx")" = 42
     for target in c go; do
         out=$work/$input-$target
         if test "$target" = go; then
@@ -103,6 +121,7 @@ package main
 func main() {
     if Collections_Answer() != 42 { panic("Jai collection loop") }
     if Collections_NamedCollection() != 42 { panic("Jai named collection loop") }
+    if Collections_PointerElements() != 42 { panic("pointer element loop") }
 }
 GO
             GO111MODULE=off go run "$out/collections.go" "$out/main.go"
@@ -110,7 +129,7 @@ GO
             "$ziran" build --target=c --root "$root" -o "$out" "$file"
             cat > "$out/main.c" <<'C'
 #include "collections.h"
-int main(void) { return Answer() == 42 && NamedCollection() == 42 ? 0 : 1; }
+int main(void) { return Answer() == 42 && NamedCollection() == 42 && PointerElements() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out/collections.c" "$out/main.c" -o "$out/app"

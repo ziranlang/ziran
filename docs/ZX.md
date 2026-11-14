@@ -83,7 +83,10 @@ same instance and is absent from the capability list. The optional host
 interface section names, for each capability, the type spellings and record
 field names of its parameters and result, its declaration as written, the
 program's module globals and the entry's signature: what an embedder sees and
-the instruction payload does not keep.
+the instruction payload does not keep. Every global of the entry module is
+named, read or not; another module's globals are named when the program
+reaches them. A record may hold itself through a slice. A bundle whose
+interface cannot be written fails with `assembly.container` instead.
 
 ## Embedding
 
@@ -111,7 +114,10 @@ copied back into the caller's slice after a successful call. Two slice
 arguments of one call may not share elements. Declared pointer types cross as
 `VM_HOST_POINTER`: an opaque handle that bundles store, compare and pass back,
 and that fails the run when the program reads through it. The host owns the
-storage behind every handle it hands out.
+storage behind every handle it hands out. A value that nests past 64 levels,
+such as a tree that holds itself, fails the call. Values a host returns are
+copied into the instance, which gives their storage back once nothing the
+program can reach names them.
 
 A run is not bounded: like the program's native builds, it continues until the
 entry returns. `BundleInstantiateLimited(bundle, bindings, count, max_steps)`
@@ -159,9 +165,9 @@ running a stale handle fails without touching the current instance.
 `BundleInstanceExportState` snapshots the module globals the interface section
 names as recursive `BundleStateValue` data, by module, name and declared type.
 Strings, fixed arrays, records, enums and vectors are deep-copied; pointers,
-slices and other borrowed or host resources are rejected. Snapshots are bounded
-in depth and by 16 MiB of copied payload, which `BundleStateValueBytes`
-reports. A migration callback receives the old snapshot and a mutable snapshot
+procedure values, slices and other borrowed or host resources are rejected.
+Snapshots are bounded in depth and by 16 MiB of copied payload, which
+`BundleStateValueBytes` reports. A migration callback receives the old snapshot and a mutable snapshot
 of the replacement's initialized state, then `BundleInstanceImportState`
 converts every value before changing any global.
 
@@ -182,7 +188,9 @@ A host that installs a WebAssembly provider with `ZxWasmSetPlatform`
 `BundleInstantiate` lowers the bundle's verified program with
 `zx_wasm_lower`, instantiates it through the provider, runs its module
 initializers, and charges the run budget like the instruction engine. An
-Emscripten build of `libziran` installs the browser provider itself; set
+Emscripten build of `libziran` installs the browser provider itself, except in an
+Asyncify or JSPI runtime: its hosts may suspend the stack, which a module instance
+cannot follow, so the instruction engine runs bundles there. Set
 `ZIRAN_WASM_TIER=0` to leave bundles to the instruction engine. Each instance
 keeps its own bindings and linear memory. Host calls and module state cross as
 host images, which the embedding API translates to `VmHostValue` trees by the

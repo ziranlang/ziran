@@ -92,6 +92,69 @@ if "$ziran" run "$work/tampered.zx" 2> "$work/tampered.err"; then
 fi
 # The changed program fails its identity check.
 grep -Fq 'executable ZX rejected' "$work/tampered.err"
+# Host strings the program drops give their storage back: a frame loop of
+# 100,000 host calls stays small, while strings it keeps, in a global or a
+# local across later calls, stay readable.
+cat > "$work/labels.zi" <<'EOF'
+host_api :: #system_library "host_api";
+Label :: (index: s64) -> string #foreign host_api;
+kept: string = "";
+calls: s64 = 0;
+#program_export
+Frame :: () -> s64 {
+    first := Label(calls)
+    calls += 1
+    total: s64 = 0
+    index: s64 = 0
+    while index < 1000 {
+        text := Label(calls)
+        total += text.count
+        if calls == 500 { kept = text }
+        calls += 1
+        index += 1
+    }
+    if first.count != 64 || first[0] != #char "l" || first[63] != #char "." { return -1 }
+    if kept.count != 64 || kept[6] != #char "5" || kept[9] != #char "." { return -2 }
+    return total
+}
+EOF
+"$ziran" bundle --root "$work" --entry labels:Frame -o "$work/labels.zx" "$work/labels.zi"
+"$host_test" "$work/labels.zx" strings
+# A record that holds itself through a slice, in a global and through a host
+# capability that takes and gives back such a tree. A value that holds itself
+# stops at the nesting bound instead of running on.
+cat > "$work/tree.zi" <<'EOF'
+host_api :: #system_library "host_api";
+Node :: struct {
+    value: s32
+    children: []Node
+}
+Grow :: (tree: Node) -> Node #foreign host_api;
+tree: Node;
+leaves: [2]Node;
+ring: [1]Node;
+#program_export
+Answer :: () -> s32 {
+    leaves[0].value = 2
+    leaves[1].value = 3
+    tree.value = 1
+    tree.children = leaves[:]
+    tree = Grow(tree)
+    if tree.value != 6 || tree.children.count != 2 { return 1 }
+    if tree.children[0].value != 100 || tree.children[1].children.count != 1 { return 2 }
+    return tree.children[1].children[0].value
+}
+#program_export
+Cycle :: () -> s32 {
+    ring[0].value = 1
+    ring[0].children = ring[:]
+    return Grow(ring[0]).value
+}
+EOF
+"$ziran" bundle --root "$work" --entry tree:Answer -o "$work/tree.zx" "$work/tree.zi"
+"$ziran" bundle --root "$work" --entry tree:Cycle -o "$work/cycle.zx" "$work/tree.zi"
+"$host_test" "$work/tree.zx" tree "$work/cycle.zx" 2> "$work/tree.err"
+grep -Fq 'problem=host' "$work/tree.err"
 cat > "$work/unsupported.zi" <<'EOF'
 host_api :: #system_library "host_api";
 MakeHandleHost :: () -> *s32 #foreign host_api;

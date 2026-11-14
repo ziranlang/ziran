@@ -63,4 +63,3 @@ C
     done
 done
 cmp "$work/source.zx" "$work/saved.zx"
-

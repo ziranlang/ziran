@@ -30,9 +30,10 @@ timeout 20 "$work/host" "$work/loop.zx" "$work/finite.zx"
 
 # A component is a positive-budget instance whose bundle is replaced with its
 # state carried over: typed ABI, state export, migration and import, rollback
-# on failure and generationed handles.
+# on failure and generationed handles. The entry never reads
+# schema_version, and it is exported state all the same.
 write_component() {
-    directory=$1; version=$2; extra_state=$3; open_body=$4
+    directory=$1; version=$2; extra_state=$3; open_body=$4; schema=${5:-1}
     mkdir -p "$directory"
     cat > "$directory/component.zi" <<ZI
 host_api :: #system_library "host_api";
@@ -49,6 +50,7 @@ $extra_state
 }
 state: State = State.{.count = $version, .first = Item.{.title = "old", .weight = 3}, .history = s64.[1, 2, 3]};
 bonus: s64 = 2;
+schema_version: s64 = $schema;
 #program_export
 Next :: () -> s64 {
     state.count = Adjust(state.count)
@@ -60,7 +62,7 @@ $open_body
 ZI
 }
 write_component "$work/old" 7 '' ''
-write_component "$work/new" 0 '    open: bool' '    if state.open { result += 1000 }'
+write_component "$work/new" 0 '    open: bool' '    if state.open { result += 1000 }' 2
 # A different capability signature.
 mkdir -p "$work/wrong"
 cat > "$work/wrong/component.zi" <<'ZI'

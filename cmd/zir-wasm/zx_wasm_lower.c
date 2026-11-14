@@ -39,13 +39,17 @@ enum {
     /* The largest heap block and host image. */
     ZXW_BLOCK_LIMIT = 1 << 30,
     /* Free lists by capacity 16 << class; a block is at most 1 GiB. */
-    ZXW_CLASSES = 27
+    ZXW_CLASSES = 27,
+    /* Output buffer: a length word, the bytes, then room to format one
+     * number. */
+    ZXW_OUT_CAPACITY = 4096,
+    ZXW_OUT_REGION = 8 + ZXW_OUT_CAPACITY + 32
 };
 
 /* Global indices: the imported budget, the stack pointer, the initializer
  * flag and the stack limit (which is also the heap base); with a heap the
  * heap top; with host images the image base, cursor and length. */
-enum { G_BUDGET, G_SP, G_INIT, G_LIMIT, G_TOP, G_BASE, G_CURSOR, G_LENGTH };
+enum { G_BUDGET, G_SP, G_INIT, G_LIMIT, G_TOP, G_BASE, G_CURSOR, G_LENGTH, G_DEPTH };
 
 /* Heap block states. */
 enum { BLOCK_FREE, BLOCK_PROGRAM, BLOCK_HOST };
@@ -182,6 +186,10 @@ typedef struct Lower {
     ZxWasmCapability *capabilities;
     size_t capability_count;
     unsigned char *shapes;
+    /* Types whose shape is being found, by depth, and the shallowest of
+     * them a result depended on. */
+    int32_t shape_stack[66];
+    int shape_low;
     unsigned char *needs;
     uint32_t *measure_function;
     uint32_t *encode_function;
@@ -204,6 +212,17 @@ typedef struct Lower {
     uint32_t stub_function;
     uint32_t initialize_function;
     uint32_t entry_function;
+    /* Platform output, formatted into a buffer in memory and flushed in
+     * one host call: which print services the program uses, the helpers,
+     * the buffer and the "truefalse" text. */
+    unsigned print_kinds;
+    uint32_t flush_function;
+    uint32_t put_function;
+    uint32_t signed_function;
+    uint32_t unsigned_function;
+    uint32_t bool_function;
+    uint32_t out_base;
+    uint32_t words_address;
     int failed;
 } Lower;
 
@@ -456,8 +475,10 @@ view_element(Lower *lower, int32_t type)
 }
 
 /* Host shape flags, by the rules of LirHostShapes: scalars, pointers as
- * handles, and records, arrays and views of host shapes. A type that
- * reaches itself or nests past 64 levels is not a shape. */
+ * handles, and records, arrays and views of host shapes. A type nesting
+ * past 64 levels is not a shape. A type that reaches itself does so
+ * through a view; it counts as a shape with views until its own fields
+ * decide, and nothing whose answer leaned on that is kept before then. */
 static unsigned
 host_shape_at(Lower *lower, int32_t type, int depth)
 {
@@ -466,9 +487,16 @@ host_shape_at(Lower *lower, int32_t type, int depth)
     unsigned char *shape = &lower->shapes[type];
     if(*shape & SHAPE_DONE)
         return *shape & 7;
-    if(*shape & SHAPE_BUSY)
-        return 0;
+    if(*shape & SHAPE_BUSY) {
+        for(int at = 0; at < depth; at++)
+            if(lower->shape_stack[at] == type && at < lower->shape_low)
+                lower->shape_low = at;
+        return SHAPE_VALID | SHAPE_VIEWS;
+    }
     *shape |= SHAPE_BUSY;
+    lower->shape_stack[depth] = type;
+    int outer = lower->shape_low;
+    lower->shape_low = depth;
     const LirType *value = &lower->types[type];
     unsigned flags = 0;
     int32_t element = view_element(lower, type);
@@ -492,13 +520,19 @@ host_shape_at(Lower *lower, int32_t type, int depth)
             flags |= field;
         }
     }
-    *shape = (unsigned char)(SHAPE_DONE | flags);
+    int low = lower->shape_low;
+    lower->shape_low = low < outer ? low : outer;
+    if(low < depth)
+        *shape &= (unsigned char)~SHAPE_BUSY;
+    else
+        *shape = (unsigned char)(SHAPE_DONE | flags);
     return flags;
 }
 
 static unsigned
 host_shape(Lower *lower, int32_t type)
 {
+    lower->shape_low = 0;
     return host_shape_at(lower, type, 0);
 }
 
@@ -719,6 +753,13 @@ layout_globals(Lower *lower)
 
 /* ---------------------------------------------------------------- bodies */
 
+typedef struct Addr {
+    int kind;
+    uint32_t local;
+    int64_t offset;
+} Addr;
+enum { ADDR_LOCAL, ADDR_FRAME, ADDR_ABSOLUTE };
+
 typedef struct Fn {
     Lower *lower;
     const LirFunction *function;
@@ -729,6 +770,13 @@ typedef struct Fn {
     uint32_t param_count;
     int32_t *value_local;
     int64_t *value_slot;
+    /* An aggregate extract read in place: its address in the slot of the
+     * aggregate it reads (kind -1 when it has a slot of its own), and that
+     * slot. */
+    Addr *view;
+    int64_t *view_root;
+    /* An insert of a view back where it was read: nothing to do. */
+    unsigned char *elided;
     int64_t *alloca_slot;
     int64_t frame;
     int64_t scratch;
@@ -738,7 +786,24 @@ typedef struct Fn {
     uint32_t pc;
     uint32_t result_address;
     int has_frame;
+    /* Control: structured loops when each loop is a span of blocks entered
+     * at its header, else one dispatch loop. */
     int dispatch;
+    int loops;
+    /* Structured blocks are laid out in `order`; position is its inverse,
+     * loop_end is by position, and first is a block's first instruction
+     * counted in the function's own order. */
+    int64_t *order;
+    int64_t *position;
+    int64_t *first;
+    int64_t *loop_end;
+    struct Label *labels;
+    size_t label_count;
+    size_t label_capacity;
+    /* The budget, kept in a local while the function runs; it reaches the
+     * global around calls, returns and an overrun. */
+    int has_budget;
+    uint32_t budget;
     int64_t block_count;
     uint32_t temp[4][3];
     unsigned temp_used[4];
@@ -791,12 +856,15 @@ static void i64_const(Fn *fn, int64_t value) { buf_byte(&fn->code, 0x42); buf_sl
 static void memarg(Fn *fn, unsigned code, uint32_t offset) { buf_byte(&fn->code, code); buf_uleb(&fn->code, 0); buf_uleb(&fn->code, offset); }
 static void memory_copy(Fn *fn) { buf_byte(&fn->code, 0xfc); buf_uleb(&fn->code, 10); buf_byte(&fn->code, 0); buf_byte(&fn->code, 0); }
 static void memory_fill(Fn *fn) { buf_byte(&fn->code, 0xfc); buf_uleb(&fn->code, 11); buf_byte(&fn->code, 0); }
-static void trap_if(Fn *fn) { op(fn, 0x04); op(fn, 0x40); op(fn, 0x00); op(fn, 0x0b); }
 static void if_begin(Fn *fn) { op(fn, 0x04); op(fn, 0x40); }
 static void block_begin(Fn *fn) { op(fn, 0x02); op(fn, 0x40); }
 static void loop_begin(Fn *fn) { op(fn, 0x03); op(fn, 0x40); }
 static void end(Fn *fn) { op(fn, 0x0b); }
 static void call(Fn *fn, uint32_t function) { op_u(fn, 0x10, function); }
+/* Buffered output reaches the host before anything that can stop the
+ * module or let the host print. */
+static void flush_output(Fn *fn) { if(fn->lower->uses_print) call(fn, fn->lower->flush_function); }
+static void trap_if(Fn *fn) { if_begin(fn); flush_output(fn); op(fn, 0x00); op(fn, 0x0b); }
 static void return_zero(Fn *fn) { i32_const(fn, 0); op(fn, 0x0f); }
 
 static int
@@ -851,16 +919,12 @@ set(Fn *fn, int32_t value)
 
 /* An address: a base (pointer local, frame pointer, or absolute zero) plus a
  * constant byte offset. */
-typedef struct Addr {
-    int kind;
-    uint32_t local;
-    int64_t offset;
-} Addr;
-enum { ADDR_LOCAL, ADDR_FRAME, ADDR_ABSOLUTE };
 
 static Addr
 addr_of_slot(Fn *fn, int32_t value)
 {
+    if(value_valid(fn, value) && fn->view != NULL && fn->view[value].kind >= 0)
+        return fn->view[value];
     return (Addr){ADDR_FRAME, 0, value_valid(fn, value) ? fn->value_slot[value] : 0};
 }
 
@@ -891,6 +955,32 @@ offset_fits(Fn *fn, int64_t offset)
 {
     return offset >= 0 && offset <= 0x7fffffff ? 1 :
         WasmGap(fn->lower, "wasm.gap.offset", "memory offset %lld is outside wasm32", (long long)offset);
+}
+
+/* Copies `size` bytes between two places that do not overlap: unrolled
+ * loads and stores for a small value, memory.copy otherwise. */
+static void
+copy_fixed(Fn *fn, Addr destination, Addr source, int64_t size)
+{
+    if(size <= 0)
+        return;
+    if(size > 64 || !offset_fits(fn, destination.offset + size) || !offset_fits(fn, source.offset + size)) {
+        push_full(fn, destination);
+        push_full(fn, source);
+        i32_const(fn, (int32_t)size);
+        memory_copy(fn);
+        return;
+    }
+    static const unsigned char loads[] = {0x29, 0x28, 0x2f, 0x2d}, stores[] = {0x37, 0x36, 0x3b, 0x3a};
+    int64_t at = 0;
+    for(int kind = 0, width = 8; kind < 4; kind++, width /= 2) {
+        for(; size - at >= width; at += width) {
+            push_base(fn, destination);
+            push_base(fn, source);
+            memarg(fn, loads[kind], (uint32_t)(source.offset + at));
+            memarg(fn, stores[kind], (uint32_t)(destination.offset + at));
+        }
+    }
 }
 
 /* Scalar memory access of one LIR type at base + memarg offset. */
@@ -950,13 +1040,7 @@ store_value(Fn *fn, Addr destination, int32_t value)
         store_scalar(fn, value_type(fn, value), (uint32_t)destination.offset);
         return;
     }
-    int64_t size = type_size(fn->lower, value_type(fn, value));
-    if(size <= 0)
-        return;
-    push_full(fn, destination);
-    push_full(fn, addr_of_slot(fn, value));
-    i32_const(fn, (int32_t)size);
-    memory_copy(fn);
+    copy_fixed(fn, destination, addr_of_slot(fn, value), type_size(fn->lower, value_type(fn, value)));
 }
 
 static void
@@ -970,13 +1054,7 @@ load_value(Fn *fn, Addr source, int32_t value)
         set(fn, value);
         return;
     }
-    int64_t size = type_size(fn->lower, value_type(fn, value));
-    if(size <= 0)
-        return;
-    push_full(fn, addr_of_slot(fn, value));
-    push_full(fn, source);
-    i32_const(fn, (int32_t)size);
-    memory_copy(fn);
+    copy_fixed(fn, addr_of_slot(fn, value), source, type_size(fn->lower, value_type(fn, value)));
 }
 
 /* Keeps an i32 integer canonical after an operation of a narrow type. */
@@ -1040,6 +1118,18 @@ instructions_of(const LirBlock *block)
     return block->instructions.data;
 }
 
+/* Whether an edge must move this argument into its parameter: a scalar
+ * that is another value, or an aggregate in another slot. */
+static int
+edge_moves(Fn *fn, int32_t argument, int32_t parameter, int aggregate)
+{
+    if(aggregate != !value_scalar(fn, parameter))
+        return 0;
+    if(aggregate)
+        return value_valid(fn, argument) && fn->value_slot[argument] != fn->value_slot[parameter];
+    return argument != parameter;
+}
+
 /* Edge copies: parameters are assigned in parallel. */
 static void
 edge_copy(Fn *fn, const LirEdge *edge)
@@ -1059,32 +1149,54 @@ edge_copy(Fn *fn, const LirEdge *edge)
     int64_t count = edge->arguments.length;
     int aggregates = 0;
     for(int64_t index = 0; index < count; index++)
-        if(!value_scalar(fn, parameters[index]) && arguments[index] != parameters[index])
+        if(edge_moves(fn, arguments[index], parameters[index], 1))
             aggregates++;
     if(aggregates == 1) {
         for(int64_t index = 0; index < count; index++)
-            if(!value_scalar(fn, parameters[index]) && arguments[index] != parameters[index])
+            if(edge_moves(fn, arguments[index], parameters[index], 1))
                 store_value(fn, addr_of_slot(fn, parameters[index]), arguments[index]);
     } else if(aggregates > 1) {
         int64_t at = fn->scratch;
         for(int64_t index = 0; index < count; index++) {
-            if(value_scalar(fn, parameters[index]) || arguments[index] == parameters[index]) continue;
+            if(!edge_moves(fn, arguments[index], parameters[index], 1)) continue;
             store_value(fn, (Addr){ADDR_FRAME, 0, at}, arguments[index]);
             at += type_size(fn->lower, value_type(fn, parameters[index]));
         }
         at = fn->scratch;
         for(int64_t index = 0; index < count; index++) {
-            if(value_scalar(fn, parameters[index]) || arguments[index] == parameters[index]) continue;
+            if(!edge_moves(fn, arguments[index], parameters[index], 1)) continue;
             load_value(fn, (Addr){ADDR_FRAME, 0, at}, parameters[index]);
             at += type_size(fn->lower, value_type(fn, parameters[index]));
         }
     }
     for(int64_t index = 0; index < count; index++)
-        if(value_scalar(fn, parameters[index]) && arguments[index] != parameters[index])
+        if(edge_moves(fn, arguments[index], parameters[index], 0))
             get(fn, arguments[index]);
     for(int64_t index = count - 1; index >= 0; index--)
-        if(value_scalar(fn, parameters[index]) && arguments[index] != parameters[index])
+        if(edge_moves(fn, arguments[index], parameters[index], 0))
             set(fn, parameters[index]);
+}
+
+/* A structured label: a branch to a block label reaches that block's code
+ * (the label's block ends just before it), one to a loop label reaches the
+ * loop's header. */
+typedef struct Label { int loop; int64_t block; } Label;
+
+static void
+label_push(Fn *fn, int loop, int64_t block)
+{
+    if(fn->label_count == fn->label_capacity) {
+        size_t capacity = fn->label_capacity ? fn->label_capacity * 2 : 16;
+        Label *labels = realloc(fn->labels, capacity * sizeof(*labels));
+        if(labels == NULL) {
+            fn->lower->failed = 1;
+            DiagnosticOutOfMemory();
+            return;
+        }
+        fn->labels = labels;
+        fn->label_capacity = capacity;
+    }
+    fn->labels[fn->label_count++] = (Label){loop, block};
 }
 
 /* Transfers control from code(b_current) to b_target, `extra` labels deep. */
@@ -1093,14 +1205,25 @@ edge_jump(Fn *fn, int64_t current, const LirEdge *edge, unsigned extra)
 {
     edge_copy(fn, edge);
     int64_t target = edge->block;
+    if(!fn->dispatch) {
+        current = fn->position[current];
+        target = fn->position[target];
+        if(target == current + 1 && extra == 0)
+            return;
+        int loop = target <= current;
+        for(size_t at = fn->label_count; at > 0; at--) {
+            if(fn->labels[at - 1].loop == loop && fn->labels[at - 1].block == target) {
+                op_u(fn, 0x0c, (uint64_t)(fn->label_count - at + extra));
+                return;
+            }
+        }
+        WasmGap(fn->lower, "wasm.gap.control", "edge to b%lld leaves its loop structure", (long long)edge->block);
+        return;
+    }
     if(target > current) {
         if(target == current + 1 && extra == 0)
             return;
         op_u(fn, 0x0c, (uint64_t)(target - current - 1 + extra));
-        return;
-    }
-    if(!fn->dispatch) {
-        WasmGap(fn->lower, "wasm.gap.control", "backward edge without a dispatch loop");
         return;
     }
     i32_const(fn, (int32_t)target);
@@ -1108,9 +1231,376 @@ edge_jump(Fn *fn, int64_t current, const LirEdge *edge, unsigned extra)
     op_u(fn, 0x0c, (uint64_t)(fn->block_count - 1 - current + extra));
 }
 
+/* The successors of every block, last edge first: succ[start[b]..start[b+1]). */
+typedef struct Successors { int64_t *start; int64_t *succ; } Successors;
+
+static int
+successors_of(Fn *fn, Successors *out)
+{
+    const LirBlock *blocks = fn->function->blocks.data;
+    int64_t count = fn->block_count, total = 0;
+    for(int64_t block = 0; block < count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++)
+            total += instructions[item].edges.length;
+    }
+    out->start = malloc((size_t)(count + 1) * sizeof(*out->start));
+    out->succ = malloc((size_t)(total ? total : 1) * sizeof(*out->succ));
+    if(out->start == NULL || out->succ == NULL)
+        return 0;
+    int64_t at = 0;
+    for(int64_t block = 0; block < count; block++) {
+        out->start[block] = at;
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = blocks[block].instructions.length - 1; item >= 0; item--) {
+            const LirEdge *edges = instructions[item].edges.data;
+            for(int64_t edge = instructions[item].edges.length - 1; edge >= 0; edge--) {
+                if(edges[edge].block < 0 || edges[edge].block >= count) return 0;
+                out->succ[at++] = edges[edge].block;
+            }
+        }
+    }
+    out->start[count] = at;
+    return 1;
+}
+
+/* Orders the blocks so that each loop is contiguous from its header and
+ * every other edge goes forward, when the control flow allows it: a weak
+ * topological order (Bourdoncle), built without recursion. Unreachable
+ * blocks go last. Leaves the function's own order on failure. */
+static void
+order_blocks(Fn *fn)
+{
+    enum { VISIT, COMPONENT };
+    typedef struct Frame { int64_t block, cursor, head; int kind, loop, waiting; } Frame;
+    int64_t count = fn->block_count;
+    Successors next = {0};
+    int64_t *number = calloc((size_t)count, sizeof(*number));
+    int64_t *stack = malloc((size_t)count * sizeof(*stack));
+    int64_t *out = malloc((size_t)count * sizeof(*out));
+    Frame *frames = malloc((size_t)(count + 1) * sizeof(*frames));
+    if(number == NULL || stack == NULL || out == NULL || frames == NULL || !successors_of(fn, &next))
+        goto done;
+    int64_t numbered = 0, top = 0, place = count, returned = 0;
+    size_t depth = 0;
+    int64_t entry = fn->function->entry;
+    stack[top++] = entry;
+    number[entry] = ++numbered;
+    frames[depth++] = (Frame){entry, next.start[entry], number[entry], VISIT, 0, 0};
+    while(depth > 0) {
+        Frame *frame = &frames[depth - 1];
+        int64_t block = frame->block;
+        if(frame->waiting) {
+            frame->waiting = 0;
+            if(frame->kind == VISIT && returned <= frame->head) { frame->head = returned; frame->loop = 1; }
+        }
+        int pushed = 0;
+        while(frame->cursor < next.start[block + 1] && !pushed) {
+            int64_t target = next.succ[frame->cursor++];
+            if(number[target] == 0) {
+                if(depth > (size_t)count || top >= count) goto done;
+                frame->waiting = 1;
+                stack[top++] = target;
+                number[target] = ++numbered;
+                frames[depth++] = (Frame){target, next.start[target], number[target], VISIT, 0, 0};
+                pushed = 1;
+            } else if(frame->kind == VISIT && number[target] <= frame->head) {
+                frame->head = number[target];
+                frame->loop = 1;
+            }
+        }
+        if(pushed)
+            continue;
+        if(frame->kind == VISIT && frame->head == number[block]) {
+            number[block] = INT64_MAX;
+            int64_t element = stack[--top];
+            if(frame->loop) {
+                while(element != block) { number[element] = 0; element = stack[--top]; }
+                frame->kind = COMPONENT;
+                frame->cursor = next.start[block];
+                continue;
+            }
+        }
+        /* A finished head, or a component whose members are placed. */
+        if(number[block] == INT64_MAX && place > 0)
+            out[--place] = block;
+        returned = frame->head;
+        depth--;
+    }
+    /* Reachable blocks in order, then the rest as they were. */
+    int64_t at = 0;
+    for(int64_t index = place; index < count; index++) fn->order[at++] = out[index];
+    for(int64_t block = 0; block < count; block++)
+        if(number[block] != INT64_MAX) fn->order[at++] = block;
+    if(at != count) {
+        for(int64_t block = 0; block < count; block++) fn->order[block] = block;
+    }
+    for(int64_t index = 0; index < count; index++) fn->position[fn->order[index]] = index;
+done:
+    free(next.start); free(next.succ); free(number); free(stack); free(out); free(frames);
+}
+
+/* Whether the blocks, in their order, form structured loops: every
+ * backward edge reaches a header whose loop spans the header to its last
+ * back edge, loops nest, and nothing enters a loop but at its header.
+ * Fills loop_end[header position] with the loop's last position, -1
+ * elsewhere. */
+static int
+plan_loops(Fn *fn)
+{
+    const LirBlock *blocks = fn->function->blocks.data;
+    int64_t count = fn->block_count;
+    if(fn->position[fn->function->entry] != 0)
+        return 0;
+    for(int64_t at = 0; at < count; at++)
+        fn->loop_end[at] = -1;
+    int64_t headers = 0;
+    for(int64_t at = 0; at < count; at++) {
+        const LirBlock *block = &blocks[fn->order[at]];
+        const LirInstruction *instructions = block->instructions.data;
+        for(int64_t item = 0; item < block->instructions.length; item++) {
+            const LirEdge *edges = instructions[item].edges.data;
+            for(int64_t edge = 0; edge < instructions[item].edges.length; edge++) {
+                if(edges[edge].block < 0 || edges[edge].block >= count) return 0;
+                int64_t target = fn->position[edges[edge].block];
+                if(target <= at && fn->loop_end[target] < at) {
+                    if(fn->loop_end[target] < 0) headers++;
+                    fn->loop_end[target] = at;
+                }
+            }
+        }
+    }
+    if(headers > 4096)
+        return 0;
+    for(int64_t outer = 0; outer < count; outer++) {
+        if(fn->loop_end[outer] < 0) continue;
+        for(int64_t inner = outer + 1; inner <= fn->loop_end[outer]; inner++)
+            if(fn->loop_end[inner] > fn->loop_end[outer]) return 0;
+    }
+    for(int64_t at = 0; at < count; at++) {
+        const LirBlock *block = &blocks[fn->order[at]];
+        const LirInstruction *instructions = block->instructions.data;
+        for(int64_t item = 0; item < block->instructions.length; item++) {
+            const LirEdge *edges = instructions[item].edges.data;
+            for(int64_t edge = 0; edge < instructions[item].edges.length; edge++) {
+                int64_t target = fn->position[edges[edge].block];
+                for(int64_t header = 0; header < target; header++)
+                    if(fn->loop_end[header] >= target && (at < header || at > fn->loop_end[header]))
+                        return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+/* Whether two inserts or extracts name the same member. */
+static int
+same_member(const LirInstruction *left, int64_t left_fixed, const LirInstruction *right, int64_t right_fixed)
+{
+    int64_t dynamic = left->operands.length == left_fixed + 1;
+    if(dynamic != (right->operands.length == right_fixed + 1))
+        return 0;
+    if(dynamic)
+        return ((const int32_t *)left->operands.data)[left_fixed] ==
+               ((const int32_t *)right->operands.data)[right_fixed];
+    return left->immediate == right->immediate;
+}
+
+/* Views: an aggregate extract read only by extracts in its own block,
+ * while nothing writes the slot it reads from, is read in place there
+ * instead of copied out. One that a single insert then changes, put back
+ * where it came from, is changed in place: the insert writes into the
+ * source and putting it back does nothing. */
+static int
+plan_views(Fn *fn, const unsigned char *aggregate)
+{
+    const LirBlock *blocks = fn->function->blocks.data;
+    int64_t count = fn->function->values.length;
+    size_t items = (size_t)(count ? count : 1);
+    /* home: the block of all of a value's uses, -1 when unused, -2 for
+     * several blocks or an edge; read: the last read by extract; update:
+     * the one insert that changes it, -2 for more; other: the last other
+     * use; writes: a view that writes its source. */
+    int64_t *home = malloc(items * sizeof(*home)), *read = malloc(items * sizeof(*read));
+    int64_t *update = malloc(items * sizeof(*update)), *other = malloc(items * sizeof(*other));
+    int64_t *uses = calloc(items, sizeof(*uses));
+    unsigned char *writes = calloc(items, 1);
+    int ok = home != NULL && read != NULL && update != NULL && other != NULL && uses != NULL && writes != NULL;
+    if(!ok) {
+        DiagnosticOutOfMemory();
+        fn->lower->failed = 1;
+        goto done;
+    }
+    for(int64_t value = 0; value < count; value++) {
+        home[value] = read[value] = update[value] = other[value] = -1;
+        fn->view[value].kind = -1;
+    }
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            const int32_t *operands = instruction->operands.data;
+            for(int64_t at = 0; at < instruction->operands.length; at++) {
+                int32_t value = operands[at];
+                if(!value_valid(fn, value)) continue;
+                uses[value]++;
+                home[value] = home[value] == -1 || home[value] == block ? block : -2;
+                if(instruction->op == LirOp_Extract && at == 0) read[value] = item;
+                else if(instruction->op == LirOp_Insert && at == 0) update[value] = update[value] == -1 ? item : -2;
+                else other[value] = item;
+            }
+            const LirEdge *edges = instruction->edges.data;
+            for(int64_t edge = 0; edge < instruction->edges.length; edge++) {
+                const int32_t *arguments = edges[edge].arguments.data;
+                for(int64_t at = 0; at < edges[edge].arguments.length; at++)
+                    if(value_valid(fn, arguments[at])) home[arguments[at]] = -2;
+            }
+        }
+    }
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        int64_t length = blocks[block].instructions.length;
+        for(int64_t item = 0; item < length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            int32_t result = instruction->result;
+            if(instruction->op != LirOp_Extract || !value_valid(fn, result) || !aggregate[result] ||
+               home[result] != block || other[result] >= 0 || update[result] == -2 ||
+               instruction->operands.length < 1)
+                continue;
+            int32_t source = ((const int32_t *)instruction->operands.data)[0];
+            if(!value_valid(fn, source) || !aggregate[source])
+                continue;
+            int64_t root = fn->view[source].kind >= 0 ? fn->view_root[source] : fn->value_slot[source];
+            /* A changed view: its insert is its last use, the changed value
+             * goes straight back into an in-place insert of the source at
+             * the same member, and nothing reads the source in between. */
+            int64_t changed = update[result], back = -1;
+            int32_t changed_value = -1, put = -1;
+            if(changed >= 0) {
+                changed_value = instructions[changed].result;
+                if(changed <= read[result] || fn->view[source].kind >= 0 || !value_valid(fn, changed_value) ||
+                   home[changed_value] != block || uses[changed_value] != 1 || other[changed_value] < 0)
+                    continue;
+                back = other[changed_value];
+                const LirInstruction *putting = &instructions[back];
+                const int32_t *operands = putting->operands.data;
+                put = putting->result;
+                if(putting->op != LirOp_Insert || putting->operands.length < 2 || operands[0] != source ||
+                   operands[1] != changed_value || !same_member(putting, 2, instruction, 1) ||
+                   !value_valid(fn, put) || fn->value_slot[put] != root)
+                    continue;
+                int reads = 0;
+                for(int64_t between = changed + 1; between < back && !reads; between++) {
+                    const int32_t *others = instructions[between].operands.data;
+                    for(int64_t at = 0; at < instructions[between].operands.length && !reads; at++) {
+                        int32_t value = others[at];
+                        reads = value == source || (value_valid(fn, value) && fn->view[value].kind >= 0 &&
+                                                    fn->view_root[value] == root);
+                    }
+                }
+                if(reads)
+                    continue;
+            } else if(read[result] <= item) {
+                continue;
+            }
+            int64_t until = changed >= 0 ? back : read[result];
+            int written = 0;
+            for(int64_t between = item + 1; between < until && !written; between++) {
+                int32_t value = instructions[between].result;
+                written = value_valid(fn, value) && aggregate[value] &&
+                          ((fn->view[value].kind < 0 && fn->value_slot[value] == root) ||
+                           (writes[value] && fn->view_root[value] == root));
+            }
+            if(written)
+                continue;
+            Addr place = addr_of_slot(fn, source);
+            int32_t type = value_type(fn, source);
+            if(instruction->operands.length == 2) {
+                if(type_at(fn->lower, type)->kind != LirTypeKind_Array)
+                    continue;
+                place = (Addr){ADDR_LOCAL, fn_local(fn, W_I32), 0};
+            } else {
+                int64_t offset;
+                int32_t member;
+                if(instruction->operands.length != 1 ||
+                   !member_offset(fn, type, instruction->immediate, &offset, &member))
+                    continue;
+                place.offset += offset;
+            }
+            fn->view[result] = place;
+            fn->view_root[result] = root;
+            if(changed >= 0) {
+                fn->view[changed_value] = place;
+                fn->view_root[changed_value] = root;
+                writes[changed_value] = 1;
+                fn->elided[put] = 1;
+            }
+        }
+    }
+done:
+    free(home); free(read); free(update); free(other); free(uses); free(writes);
+    return ok && !fn->lower->failed;
+}
+
+static void lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int64_t slot);
+
+/* Emits positions start..last: a loop when `loop`, with a block label for
+ * each of its own blocks after the first, and nested loops in turn. */
+static void
+emit_region(Fn *fn, int64_t start, int64_t last, int loop)
+{
+    const LirBlock *blocks = fn->function->blocks.data;
+    if(loop) {
+        loop_begin(fn);
+        label_push(fn, 1, start);
+    }
+    for(int64_t at = last; at > start; at--) {
+        int inner = 0;
+        for(int64_t header = start + 1; header < at && !inner; header++)
+            if(fn->loop_end[header] >= at) inner = 1;
+        if(!inner) {
+            block_begin(fn);
+            label_push(fn, 0, at);
+        }
+    }
+    for(int64_t at = start; at <= last && !fn->lower->failed; ) {
+        if(at > start) {
+            end(fn);
+            fn->label_count--;
+        }
+        if(at > start && fn->loop_end[at] >= 0) {
+            emit_region(fn, at, fn->loop_end[at], 1);
+            at = fn->loop_end[at] + 1;
+            continue;
+        }
+        int64_t block = fn->order[at];
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length && !fn->lower->failed; item++)
+            lower_instruction(fn, block, &instructions[item], fn->alloca_slot[fn->first[block] + item]);
+        at++;
+    }
+    if(loop) {
+        end(fn);
+        fn->label_count--;
+    }
+}
+
+static void
+budget_store(Fn *fn)
+{
+    if(fn->has_budget) { local_get(fn, fn->budget); global_set(fn, G_BUDGET); }
+}
+
+static void
+budget_load(Fn *fn)
+{
+    if(fn->has_budget) { global_get(fn, G_BUDGET); local_set(fn, fn->budget); }
+}
+
 static void
 epilogue(Fn *fn)
 {
+    budget_store(fn);
     if(fn->has_frame) {
         local_get(fn, fn->fp);
         global_set(fn, G_SP);
@@ -1466,16 +1956,24 @@ lower_extract_insert(Fn *fn, const LirInstruction *instruction)
         return;
     }
     int32_t aggregate_type = value_type(fn, aggregate);
-    int32_t target = insert ? instruction->result : aggregate;
-    if(insert && instruction->result != aggregate) {
-        int64_t size = type_size(lower, aggregate_type);
-        if(size > 0) {
-            push_full(fn, addr_of_slot(fn, instruction->result));
+    /* A read view needs only its address. */
+    if(!insert && fn->view != NULL && fn->view[instruction->result].kind >= 0) {
+        if(instruction->operands.length == fixed + 1) {
+            const LirType *type = type_at(lower, aggregate_type);
+            checked_index(fn, operands[fixed], -1, type->count, type_size(lower, type->element));
             push_full(fn, addr_of_slot(fn, aggregate));
-            i32_const(fn, (int32_t)size);
-            memory_copy(fn);
+            op(fn, 0x6a);
+            local_set(fn, fn->view[instruction->result].local);
         }
+        return;
     }
+    if(insert && fn->elided != NULL && fn->elided[instruction->result])
+        return;
+    int32_t target = insert ? instruction->result : aggregate;
+    /* An insert whose result shares its source's place updates in place. */
+    Addr to = addr_of_slot(fn, instruction->result), from = addr_of_slot(fn, aggregate);
+    if(insert && (to.kind != from.kind || to.local != from.local || to.offset != from.offset))
+        copy_fixed(fn, to, from, type_size(lower, aggregate_type));
     Addr place = addr_of_slot(fn, target);
     if(instruction->operands.length == fixed + 1) {
         const LirType *type = type_at(lower, aggregate_type);
@@ -1693,6 +2191,7 @@ lower_call(Fn *fn, const LirInstruction *instruction)
         if(value_scalar(fn, operands[index])) get(fn, operands[index]);
         else push_full(fn, addr_of_slot(fn, operands[index]));
     }
+    budget_store(fn);
     if(indirect) {
         Sig sig;
         if(!signature_of(lower, parameters, parameter_count, result_type, &sig))
@@ -1703,6 +2202,7 @@ lower_call(Fn *fn, const LirInstruction *instruction)
     } else {
         op_u(fn, 0x10, lower->wasm_function[instruction->symbol]);
     }
+    budget_load(fn);
     if(!aggregate_result && valtype(lower, result_type) != 0) {
         if(instruction->result == LirNoId) op(fn, 0x1a);
         else set(fn, instruction->result);
@@ -1755,6 +2255,8 @@ lower_capability_call(Fn *fn, const LirInstruction *instruction)
     uint32_t total = fn_temp(fn, W_I64, 0);
     if(base < 0 || !offset_fits(fn, base + 16 * (int64_t)count + 16))
         return;
+    /* A trap inside an image helper leaves its depth behind. */
+    if(lower->uses_images) { i32_const(fn, 0); global_set(fn, G_DEPTH); }
     for(uint32_t index = 0; index < count && !lower->failed; index++) {
         const ZxWasmValue *value = &capability->parameters[index];
         uint32_t at = (uint32_t)base + 16 * index;
@@ -1797,6 +2299,7 @@ lower_capability_call(Fn *fn, const LirInstruction *instruction)
     local_get(fn, fn->fp); i64_const(fn, 0); memarg(fn, 0x37, result + 8);
     i32_const(fn, (int32_t)lower->host_index[instruction->symbol]);
     local_get(fn, fn->fp); i32_const(fn, (int32_t)base); op(fn, 0x6a);
+    flush_output(fn);
     call(fn, lower->host_import);
     op(fn, 0x45); trap_if(fn);
     /* A host that changed a []T argument's elements gives them back in
@@ -1910,39 +2413,36 @@ lower_host_call(Fn *fn, const LirInstruction *instruction)
     }
     unsigned kind = lower->host_kind[instruction->symbol];
     switch(kind) {
-    case HOST_WRITE: {
+    case HOST_WRITE:
         /* Only descriptor 1 is the module's builtin output stream. */
         get_i64(fn, operands[0], 0);
         i64_const(fn, 1);
         op(fn, 0x52);
         trap_if(fn);
-        i32_const(fn, (int32_t)ZX_WASM_PRINT_STRING);
-        get_i64(fn, operands[2], 0);
-        i64_const(fn, 32);
-        op(fn, 0x86);
         get(fn, operands[1]);
-        op(fn, 0xad);
-        op(fn, 0x84);
-        break;
-    }
+        get_i64(fn, operands[2], 0);
+        call(fn, lower->put_function);
+        return;
     case HOST_SIGNED:
-        i32_const(fn, (int32_t)ZX_WASM_PRINT_SIGNED);
         get_i64(fn, operands[0], 1);
-        break;
+        call(fn, lower->signed_function);
+        return;
     case HOST_UNSIGNED:
-        i32_const(fn, (int32_t)ZX_WASM_PRINT_UNSIGNED);
         get_i64(fn, operands[0], 0);
-        break;
+        call(fn, lower->unsigned_function);
+        return;
     case HOST_BOOL:
-        i32_const(fn, (int32_t)ZX_WASM_PRINT_BOOL);
         get_i64(fn, operands[0], 0);
-        if(value_lir(fn, operands[0])->kind == LirTypeKind_Integer) { i64_const(fn, 0); op(fn, 0x52); op(fn, 0xad); }
-        break;
+        i64_const(fn, 0); op(fn, 0x52);
+        call(fn, lower->bool_function);
+        return;
     case HOST_FLOAT32:
+        flush_output(fn);
         i32_const(fn, (int32_t)ZX_WASM_PRINT_FLOAT32);
         get(fn, operands[0]); op(fn, 0xbc); op(fn, 0xad);
         break;
     case HOST_FLOAT64:
+        flush_output(fn);
         i32_const(fn, (int32_t)ZX_WASM_PRINT_FLOAT64);
         get(fn, operands[0]); op(fn, 0xbd);
         break;
@@ -1988,9 +2488,19 @@ lower_fuel(Fn *fn, uint64_t amount)
         WasmGap(fn->lower, "wasm.gap.fuel", "fuel charge is outside i64");
         return;
     }
-    global_get(fn, G_BUDGET); i64_const(fn, (int64_t)amount); op(fn, 0x53);
-    op(fn, 0x04); op(fn, 0x40); op_u(fn, 0x10, 0); op(fn, 0x0b);
-    global_get(fn, G_BUDGET); i64_const(fn, (int64_t)amount); op(fn, 0x7d); global_set(fn, G_BUDGET);
+    /* The budget never goes below zero before a charge, so it is spent
+     * exactly when the charge leaves it negative. A function that loops
+     * charges its local copy; any other charges the global directly. */
+    if(fn->has_budget) {
+        local_get(fn, fn->budget); i64_const(fn, (int64_t)amount); op(fn, 0x7d);
+        op_u(fn, 0x22, fn->budget);
+    } else {
+        uint32_t left = fn_temp(fn, W_I64, 0);
+        global_get(fn, G_BUDGET); i64_const(fn, (int64_t)amount); op(fn, 0x7d);
+        op_u(fn, 0x22, left); global_set(fn, G_BUDGET); local_get(fn, left);
+    }
+    i64_const(fn, 0); op(fn, 0x53);
+    if_begin(fn); budget_store(fn); flush_output(fn); op_u(fn, 0x10, 0); op(fn, 0x0b);
 }
 
 static void
@@ -2049,7 +2559,7 @@ lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int6
     case LirOp_HostCall: lower_host_call(fn, instruction); return;
     case LirOp_Resize: lower_resize(fn, instruction); return;
     case LirOp_Fuel: lower_fuel(fn, instruction->immediate); return;
-    case LirOp_Trap: case LirOp_Unreachable: op(fn, 0x00); return;
+    case LirOp_Trap: case LirOp_Unreachable: flush_output(fn); op(fn, 0x00); return;
     case LirOp_Jump:
         if(instruction->edges.length != 1) { WasmGap(lower, "wasm.gap.control", "jump without one edge"); return; }
         edge_jump(fn, block, &edges[0], 0);
@@ -2069,13 +2579,7 @@ lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int6
         int32_t result = fn->function->result;
         if(type_aggregate(lower, result)) {
             if(!operand_count(fn, instruction, 1, 1)) return;
-            int64_t size = type_size(lower, result);
-            if(size > 0) {
-                local_get(fn, fn->result_address);
-                push_full(fn, addr_of_slot(fn, operands[0]));
-                i32_const(fn, (int32_t)size);
-                memory_copy(fn);
-            }
+            copy_fixed(fn, (Addr){ADDR_LOCAL, fn->result_address, 0}, addr_of_slot(fn, operands[0]), type_size(lower, result));
         } else if(valtype(lower, result) != 0) {
             if(!operand_count(fn, instruction, 1, 1)) return;
             get(fn, operands[0]);
@@ -2089,6 +2593,273 @@ lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int6
             (int)compiler_lowered_ir_LirOpName(instruction->op).length,
             compiler_lowered_ir_LirOpName(instruction->op).data);
     }
+}
+
+/* ------------------------------------------------------- aggregate slots */
+
+/* Bit sets over the aggregate values of one function. */
+typedef struct Bits {
+    uint64_t *words;
+    size_t width;
+} Bits;
+
+static uint64_t *bits_row(Bits *bits, size_t row) { return bits->words + row * bits->width; }
+static void bits_set(uint64_t *row, size_t bit) { row[bit / 64] |= (uint64_t)1 << (bit % 64); }
+static void bits_clear(uint64_t *row, size_t bit) { row[bit / 64] &= ~((uint64_t)1 << (bit % 64)); }
+static int bits_has(const uint64_t *row, size_t bit) { return (row[bit / 64] >> (bit % 64)) & 1; }
+
+typedef struct Coalesce {
+    Fn *fn;
+    int32_t *index;   /* value -> aggregate index, or -1 */
+    int32_t *values;  /* aggregate index -> value */
+    size_t count;
+    Bits live_in, live_out, interfere, members;
+    int32_t *parent;
+} Coalesce;
+
+static int32_t
+coalesce_find(Coalesce *state, int32_t at)
+{
+    while(state->parent[at] != at) {
+        state->parent[at] = state->parent[state->parent[at]];
+        at = state->parent[at];
+    }
+    return at;
+}
+
+/* Joins the classes of two aggregate values of one type unless a member of
+ * one is live where a member of the other is. */
+static void
+coalesce_try(Coalesce *state, int32_t left, int32_t right)
+{
+    if(left < 0 || right < 0 || state->index[left] < 0 || state->index[right] < 0 ||
+       value_type(state->fn, left) != value_type(state->fn, right))
+        return;
+    int32_t a = coalesce_find(state, state->index[left]), b = coalesce_find(state, state->index[right]);
+    if(a == b)
+        return;
+    uint64_t *rows_a = bits_row(&state->interfere, (size_t)a), *members_b = bits_row(&state->members, (size_t)b);
+    for(size_t word = 0; word < state->interfere.width; word++)
+        if(rows_a[word] & members_b[word])
+            return;
+    state->parent[b] = a;
+    uint64_t *rows_b = bits_row(&state->interfere, (size_t)b), *members_a = bits_row(&state->members, (size_t)a);
+    for(size_t word = 0; word < state->interfere.width; word++) {
+        rows_a[word] |= rows_b[word];
+        members_a[word] |= members_b[word];
+    }
+}
+
+static void
+coalesce_conflict(Coalesce *state, int32_t defined, const uint64_t *live)
+{
+    uint64_t *row = bits_row(&state->interfere, (size_t)defined);
+    for(size_t word = 0; word < state->interfere.width; word++) {
+        uint64_t others = live[word];
+        row[word] |= others;
+        for(; others; others &= others - 1) {
+            size_t other = word * 64 + (size_t)__builtin_ctzll(others);
+            bits_set(bits_row(&state->interfere, other), (size_t)defined);
+        }
+    }
+    bits_clear(row, (size_t)defined);
+}
+
+static void
+coalesce_use(Coalesce *state, uint64_t *live, int32_t value)
+{
+    if(value_valid(state->fn, value) && state->index[value] >= 0)
+        bits_set(live, (size_t)state->index[value]);
+}
+
+/* Aggregate values whose lifetimes never overlap share one frame slot: an
+ * insert's result takes its source's slot when the source dies there, and a
+ * block parameter takes its arguments' slots, so a record or array updated
+ * in a loop copies only the member that changes. This is SSA coalescing
+ * over the liveness of the aggregate values alone. Fills rep[value] with
+ * the value whose slot it uses. Returns 0 only when memory runs out. */
+static int
+coalesce_aggregates(Fn *fn, const unsigned char *aggregate, int32_t *rep)
+{
+    const LirFunction *function = fn->function;
+    const LirBlock *blocks = function->blocks.data;
+    int64_t value_count = function->values.length, block_count = fn->block_count;
+    Coalesce state = {0};
+    int ok = 0;
+    state.fn = fn;
+    for(int64_t value = 0; value < value_count; value++)
+        rep[value] = (int32_t)value;
+    state.index = malloc((size_t)(value_count ? value_count : 1) * sizeof(*state.index));
+    state.values = malloc((size_t)(value_count ? value_count : 1) * sizeof(*state.values));
+    if(state.index == NULL || state.values == NULL)
+        goto done;
+    for(int64_t value = 0; value < value_count; value++) {
+        state.index[value] = -1;
+        if(aggregate[value]) {
+            state.index[value] = (int32_t)state.count;
+            state.values[state.count++] = (int32_t)value;
+        }
+    }
+    size_t width = (state.count + 63) / 64;
+    /* Without aggregates, or with too many to compare, each keeps its slot. */
+    if(state.count < 2 || state.count > 8192 || (uint64_t)block_count * width > ((uint64_t)1 << 22)) {
+        ok = 1;
+        goto done;
+    }
+    Bits *sets[] = {&state.live_in, &state.live_out};
+    for(int at = 0; at < 2; at++) {
+        sets[at]->width = width;
+        sets[at]->words = calloc((size_t)block_count * width, sizeof(uint64_t));
+        if(sets[at]->words == NULL) goto done;
+    }
+    state.interfere.width = state.members.width = width;
+    state.interfere.words = calloc(state.count * width, sizeof(uint64_t));
+    state.members.words = calloc(state.count * width, sizeof(uint64_t));
+    state.parent = malloc(state.count * sizeof(*state.parent));
+    uint64_t *live = calloc(width, sizeof(uint64_t));
+    if(state.interfere.words == NULL || state.members.words == NULL || state.parent == NULL || live == NULL) {
+        free(live);
+        goto done;
+    }
+    for(size_t at = 0; at < state.count; at++) {
+        state.parent[at] = (int32_t)at;
+        bits_set(bits_row(&state.members, at), at);
+    }
+    /* Liveness, to a fixed point. An edge's arguments are used at the end
+     * of its block; a block's parameters are defined at its start. */
+    for(int changed = 1; changed; ) {
+        changed = 0;
+        for(int64_t block = block_count - 1; block >= 0; block--) {
+            uint64_t *out = bits_row(&state.live_out, (size_t)block);
+            const LirInstruction *instructions = blocks[block].instructions.data;
+            memset(live, 0, width * sizeof(uint64_t));
+            for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+                const LirEdge *edges = instructions[item].edges.data;
+                for(int64_t edge = 0; edge < instructions[item].edges.length; edge++) {
+                    if(edges[edge].block < 0 || edges[edge].block >= block_count) continue;
+                    const uint64_t *in = bits_row(&state.live_in, (size_t)edges[edge].block);
+                    const int32_t *parameters = blocks[edges[edge].block].parameters.data;
+                    for(size_t word = 0; word < width; word++) live[word] |= in[word];
+                    for(int64_t parameter = 0; parameter < blocks[edges[edge].block].parameters.length; parameter++)
+                        if(value_valid(fn, parameters[parameter]) && state.index[parameters[parameter]] >= 0)
+                            bits_clear(live, (size_t)state.index[parameters[parameter]]);
+                }
+            }
+            if(memcmp(out, live, width * sizeof(uint64_t))) {
+                memcpy(out, live, width * sizeof(uint64_t));
+                changed = 1;
+            }
+            for(int64_t item = blocks[block].instructions.length - 1; item >= 0; item--) {
+                const LirInstruction *instruction = &instructions[item];
+                const int32_t *operands = instruction->operands.data;
+                const LirEdge *edges = instruction->edges.data;
+                if(value_valid(fn, instruction->result) && state.index[instruction->result] >= 0)
+                    bits_clear(live, (size_t)state.index[instruction->result]);
+                for(int64_t operand = 0; operand < instruction->operands.length; operand++)
+                    coalesce_use(&state, live, operands[operand]);
+                for(int64_t edge = 0; edge < instruction->edges.length; edge++) {
+                    const int32_t *arguments = edges[edge].arguments.data;
+                    for(int64_t argument = 0; argument < edges[edge].arguments.length; argument++)
+                        coalesce_use(&state, live, arguments[argument]);
+                }
+            }
+            const int32_t *parameters = blocks[block].parameters.data;
+            for(int64_t parameter = 0; parameter < blocks[block].parameters.length; parameter++)
+                if(value_valid(fn, parameters[parameter]) && state.index[parameters[parameter]] >= 0)
+                    bits_clear(live, (size_t)state.index[parameters[parameter]]);
+            uint64_t *in = bits_row(&state.live_in, (size_t)block);
+            if(memcmp(in, live, width * sizeof(uint64_t))) {
+                memcpy(in, live, width * sizeof(uint64_t));
+                changed = 1;
+            }
+        }
+    }
+    /* Interference: a value defined where another is live. An instruction's
+     * aggregate operands also conflict with its result, so no instruction
+     * reads a slot it writes; an insert updating its source in place is the
+     * one exception. */
+    for(int64_t block = 0; block < block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        memcpy(live, bits_row(&state.live_out, (size_t)block), width * sizeof(uint64_t));
+        for(int64_t item = blocks[block].instructions.length - 1; item >= 0; item--) {
+            const LirInstruction *instruction = &instructions[item];
+            const int32_t *operands = instruction->operands.data;
+            const LirEdge *edges = instruction->edges.data;
+            for(int64_t edge = 0; edge < instruction->edges.length; edge++) {
+                const int32_t *arguments = edges[edge].arguments.data;
+                for(int64_t argument = 0; argument < edges[edge].arguments.length; argument++)
+                    coalesce_use(&state, live, arguments[argument]);
+            }
+            int32_t defined = value_valid(fn, instruction->result) ? state.index[instruction->result] : -1;
+            if(defined >= 0) {
+                bits_clear(live, (size_t)defined);
+                coalesce_conflict(&state, defined, live);
+                for(int64_t operand = 0; operand < instruction->operands.length; operand++) {
+                    if(instruction->op == LirOp_Insert && operand == 0) continue;
+                    int32_t used = value_valid(fn, operands[operand]) ? state.index[operands[operand]] : -1;
+                    if(used >= 0 && used != defined) {
+                        bits_set(bits_row(&state.interfere, (size_t)defined), (size_t)used);
+                        bits_set(bits_row(&state.interfere, (size_t)used), (size_t)defined);
+                    }
+                }
+            }
+            for(int64_t operand = 0; operand < instruction->operands.length; operand++)
+                coalesce_use(&state, live, operands[operand]);
+        }
+        const int32_t *parameters = blocks[block].parameters.data;
+        for(int64_t parameter = 0; parameter < blocks[block].parameters.length; parameter++) {
+            int32_t defined = value_valid(fn, parameters[parameter]) ? state.index[parameters[parameter]] : -1;
+            if(defined < 0) continue;
+            bits_clear(live, (size_t)defined);
+            coalesce_conflict(&state, defined, live);
+            /* Parameters of one block are defined together. */
+            for(int64_t other = 0; other < blocks[block].parameters.length; other++) {
+                int32_t peer = value_valid(fn, parameters[other]) ? state.index[parameters[other]] : -1;
+                if(peer >= 0 && peer != defined) {
+                    bits_set(bits_row(&state.interfere, (size_t)defined), (size_t)peer);
+                    bits_set(bits_row(&state.interfere, (size_t)peer), (size_t)defined);
+                }
+            }
+        }
+    }
+    free(live);
+    /* In program order: updates in place first, then edges. */
+    for(int64_t block = 0; block < block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++)
+            if(instructions[item].op == LirOp_Insert && instructions[item].operands.length > 0)
+                coalesce_try(&state, instructions[item].result, ((const int32_t *)instructions[item].operands.data)[0]);
+    }
+    for(int64_t block = 0; block < block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirEdge *edges = instructions[item].edges.data;
+            for(int64_t edge = 0; edge < instructions[item].edges.length; edge++) {
+                if(edges[edge].block < 0 || edges[edge].block >= block_count ||
+                   edges[edge].arguments.length != blocks[edges[edge].block].parameters.length) continue;
+                const int32_t *arguments = edges[edge].arguments.data;
+                const int32_t *parameters = blocks[edges[edge].block].parameters.data;
+                for(int64_t argument = 0; argument < edges[edge].arguments.length; argument++)
+                    coalesce_try(&state, parameters[argument], arguments[argument]);
+            }
+        }
+    }
+    for(size_t at = 0; at < state.count; at++)
+        rep[state.values[at]] = state.values[coalesce_find(&state, (int32_t)at)];
+    ok = 1;
+done:
+    if(!ok) {
+        DiagnosticOutOfMemory();
+        fn->lower->failed = 1;
+    }
+    free(state.index);
+    free(state.values);
+    free(state.live_in.words);
+    free(state.live_out.words);
+    free(state.interfere.words);
+    free(state.members.words);
+    free(state.parent);
+    return ok;
 }
 
 /* Writes one function body: run-length locals after the parameters, then
@@ -2139,13 +2910,19 @@ lower_function(Lower *lower, int64_t index, Buf *output)
     const LirBlock *blocks = function->blocks.data;
     const int32_t *parameters = function->parameters.data;
     int ok = 0;
+    unsigned char *aggregate = NULL;
+    int32_t *rep = NULL;
     int64_t instruction_count = 0;
     for(int64_t block = 0; block < fn.block_count; block++)
         instruction_count += blocks[block].instructions.length;
     fn.value_local = calloc((size_t)(value_count ? value_count : 1), sizeof(*fn.value_local));
     fn.value_slot = calloc((size_t)(value_count ? value_count : 1), sizeof(*fn.value_slot));
     fn.alloca_slot = calloc((size_t)(instruction_count ? instruction_count : 1), sizeof(*fn.alloca_slot));
-    if(fn.value_local == NULL || fn.value_slot == NULL || fn.alloca_slot == NULL) {
+    fn.view = calloc((size_t)(value_count ? value_count : 1), sizeof(*fn.view));
+    fn.view_root = calloc((size_t)(value_count ? value_count : 1), sizeof(*fn.view_root));
+    fn.elided = calloc((size_t)(value_count ? value_count : 1), 1);
+    if(fn.value_local == NULL || fn.value_slot == NULL || fn.alloca_slot == NULL || fn.view == NULL ||
+       fn.view_root == NULL || fn.elided == NULL) {
         DiagnosticOutOfMemory();
         lower->failed = 1;
         goto done;
@@ -2163,11 +2940,20 @@ lower_function(Lower *lower, int64_t index, Buf *output)
     fn.param_count = (uint32_t)sig.params;
     uint32_t first_parameter = type_aggregate(lower, function->result) ? 1 : 0;
     fn.result_address = 0;
+    aggregate = calloc((size_t)(value_count ? value_count : 1), 1);
+    rep = malloc((size_t)(value_count ? value_count : 1) * sizeof(*rep));
+    if(aggregate == NULL || rep == NULL) { DiagnosticOutOfMemory(); lower->failed = 1; goto done; }
+    for(int64_t value = 0; value < value_count; value++) {
+        if(!type_lowered(lower, values[value])) goto done;
+        aggregate[value] = (unsigned char)type_aggregate(lower, values[value]);
+    }
+    if(!coalesce_aggregates(&fn, aggregate, rep)) goto done;
     for(int64_t value = 0; value < value_count; value++) {
         fn.value_local[value] = -1;
         fn.value_slot[value] = -1;
-        if(!type_lowered(lower, values[value])) goto done;
-        if(type_aggregate(lower, values[value])) {
+        if(aggregate[value]) {
+            /* A value that shares a slot takes its class's once laid out. */
+            if(rep[value] != value) continue;
             fn.frame = (fn.frame + 7) & ~(int64_t)7;
             fn.value_slot[value] = fn.frame;
             fn.frame += type_size(lower, values[value]);
@@ -2180,6 +2966,10 @@ lower_function(Lower *lower, int64_t index, Buf *output)
             goto done;
         }
     }
+    for(int64_t value = 0; value < value_count; value++)
+        if(aggregate[value] && rep[value] != value)
+            fn.value_slot[value] = fn.value_slot[rep[value]];
+    if(!plan_views(&fn, aggregate)) goto done;
     int64_t at = 0;
     int64_t host_area = 0;
     for(int64_t block = 0; block < fn.block_count; block++) {
@@ -2207,8 +2997,8 @@ lower_function(Lower *lower, int64_t index, Buf *output)
                 host_area = 16 * (instruction->operands.length + 1);
             const LirEdge *edges = instruction->edges.data;
             for(int64_t edge = 0; edge < instruction->edges.length; edge++)
-                if(edges[edge].block <= block || function->entry != 0)
-                    fn.dispatch = 1;
+                if(edges[edge].block <= block)
+                    fn.loops = 1;
         }
     }
     if(fn.scratch > 0) {
@@ -2230,9 +3020,33 @@ lower_function(Lower *lower, int64_t index, Buf *output)
         goto done;
     }
     fn.has_frame = fn.frame > 0;
+    fn.loop_end = malloc((size_t)fn.block_count * sizeof(*fn.loop_end));
+    fn.order = malloc((size_t)fn.block_count * sizeof(*fn.order));
+    fn.position = malloc((size_t)fn.block_count * sizeof(*fn.position));
+    fn.first = malloc((size_t)fn.block_count * sizeof(*fn.first));
+    if(fn.loop_end == NULL || fn.order == NULL || fn.position == NULL || fn.first == NULL) {
+        DiagnosticOutOfMemory(); lower->failed = 1; goto done;
+    }
+    for(int64_t block = 0, counted = 0; block < fn.block_count; block++) {
+        fn.order[block] = fn.position[block] = block;
+        fn.first[block] = counted;
+        counted += blocks[block].instructions.length;
+        fn.loop_end[block] = -1;
+    }
+    if(fn.loops || function->entry != 0) {
+        order_blocks(&fn);
+        fn.dispatch = !plan_loops(&fn);
+    }
     if(fn.has_frame) fn.fp = fn_local(&fn, W_I32);
     if(fn.dispatch) fn.pc = fn_local(&fn, W_I32);
+    for(int64_t block = 0; fn.loops && block < fn.block_count && !fn.has_budget; block++) {
+        const LirInstruction *instructions = instructions_of(&blocks[block]);
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++)
+            if(instructions[item].op == LirOp_Fuel && instructions[item].immediate != 0) fn.has_budget = 1;
+    }
+    if(fn.has_budget) fn.budget = fn_local(&fn, W_I64);
     if(lower->failed) goto done;
+    budget_load(&fn);
 
     if(fn.has_frame) {
         uint32_t top = fn_temp(&fn, W_I32, 0);
@@ -2257,42 +3071,33 @@ lower_function(Lower *lower, int64_t index, Buf *output)
                 local_get(&fn, local);
                 set(&fn, value);
             } else {
-                int64_t size = type_size(lower, value_type(&fn, value));
-                if(size > 0) {
-                    push_full(&fn, addr_of_slot(&fn, value));
-                    local_get(&fn, local);
-                    i32_const(&fn, (int32_t)size);
-                    memory_copy(&fn);
-                }
+                copy_fixed(&fn, addr_of_slot(&fn, value), (Addr){ADDR_LOCAL, local, 0}, type_size(lower, value_type(&fn, value)));
             }
         }
     }
-    if(fn.dispatch) {
+    at = 0;
+    if(!fn.dispatch) {
+        emit_region(&fn, 0, fn.block_count - 1, 0);
+    } else {
         i32_const(&fn, function->entry);
         local_set(&fn, fn.pc);
         op(&fn, 0x03); op(&fn, 0x40);
-    }
-    for(int64_t block = fn.block_count - 1; block >= (fn.dispatch ? 0 : 1); block--) {
-        op(&fn, 0x02); op(&fn, 0x40);
-    }
-    if(fn.dispatch) {
+        for(int64_t block = fn.block_count - 1; block >= 0; block--) {
+            op(&fn, 0x02); op(&fn, 0x40);
+        }
         local_get(&fn, fn.pc);
         op_u(&fn, 0x0e, (uint64_t)fn.block_count);
         for(int64_t block = 0; block < fn.block_count; block++)
             buf_uleb(&fn.code, (uint64_t)block);
         buf_uleb(&fn.code, (uint64_t)(fn.block_count - 1));
-    }
-    at = 0;
-    for(int64_t block = 0; block < fn.block_count && !lower->failed; block++) {
-        if(fn.dispatch || block > 0)
+        for(int64_t block = 0; block < fn.block_count && !lower->failed; block++) {
             op(&fn, 0x0b);
-        const LirInstruction *instructions = instructions_of(&blocks[block]);
-        for(int64_t item = 0; item < blocks[block].instructions.length && !lower->failed; item++, at++) {
-            lower_instruction(&fn, block, &instructions[item], fn.alloca_slot[at]);
+            const LirInstruction *instructions = instructions_of(&blocks[block]);
+            for(int64_t item = 0; item < blocks[block].instructions.length && !lower->failed; item++, at++)
+                lower_instruction(&fn, block, &instructions[item], fn.alloca_slot[at]);
         }
-    }
-    if(fn.dispatch)
         op(&fn, 0x0b);
+    }
     op(&fn, 0x00);
     op(&fn, 0x0b);
     if(lower->failed) goto done;
@@ -2304,7 +3109,17 @@ done:
     free(fn.locals);
     free(fn.value_local);
     free(fn.value_slot);
+    free(fn.view);
+    free(fn.view_root);
+    free(fn.elided);
     free(fn.alloca_slot);
+    free(aggregate);
+    free(rep);
+    free(fn.loop_end);
+    free(fn.order);
+    free(fn.position);
+    free(fn.first);
+    free(fn.labels);
     return ok && !lower->failed;
 }
 
@@ -2515,6 +3330,21 @@ emit_reserve(Lower *lower, Buf *output)
     helper_finish(&fn, output);
 }
 
+/* Views inside views: a value that holds itself stops at 64 levels, as on
+ * the engine, instead of running on. */
+static void
+depth_enter(Fn *fn)
+{
+    global_get(fn, G_DEPTH); i32_const(fn, 1); op(fn, 0x6a); global_set(fn, G_DEPTH);
+    global_get(fn, G_DEPTH); i32_const(fn, 64); op(fn, 0x4b); trap_if(fn);
+}
+
+static void
+depth_leave(Fn *fn)
+{
+    global_get(fn, G_DEPTH); i32_const(fn, 1); op(fn, 0x6b); global_set(fn, G_DEPTH);
+}
+
 /* Calls `function` (i32 address -> ...) for each of the elements at
  * `first` (an i32 local) up to `bytes` (a local, or the constant `fixed`
  * when `bytes` is UINT32_MAX), `width` apart. `second`, when not
@@ -2564,7 +3394,9 @@ emit_measure(Lower *lower, int32_t type, Buf *output)
         if(lower->needs[element] & NEED_ENCODE) {
             local_get(&fn, 0); memarg(&fn, 0x29, 0); op(&fn, 0xa7); local_set(&fn, data);
             local_get(&fn, count); i64_const(&fn, width); op(&fn, 0x7e); op(&fn, 0xa7); local_set(&fn, bytes);
+            depth_enter(&fn);
             each_element(&fn, data, UINT32_MAX, bytes, 0, width, lower->measure_function[element], total);
+            depth_leave(&fn);
         }
     } else if(value->kind == LirTypeKind_Array) {
         int64_t width = type_size(lower, value->element);
@@ -2614,8 +3446,11 @@ emit_encode(Lower *lower, int32_t type, Buf *output)
         local_get(&fn, 1); local_get(&fn, at); global_get(&fn, G_BASE); op(&fn, 0x6b); op(&fn, 0xad); memarg(&fn, 0x37, 0);
         local_get(&fn, 1); local_get(&fn, count); memarg(&fn, 0x37, 8);
         local_get(&fn, at); local_get(&fn, data); local_get(&fn, bytes); memory_copy(&fn);
-        if(lower->needs[element] & NEED_ENCODE)
+        if(lower->needs[element] & NEED_ENCODE) {
+            depth_enter(&fn);
             each_element(&fn, data, at, bytes, 0, width, lower->encode_function[element], UINT32_MAX);
+            depth_leave(&fn);
+        }
     } else if(value->kind == LirTypeKind_Array) {
         int64_t width = type_size(lower, value->element);
         each_element(&fn, 0, 1, UINT32_MAX, width * value->count, width,
@@ -2670,7 +3505,9 @@ emit_decode(Lower *lower, int32_t type, Buf *output)
             op_u(&fn, 0x22, data); op(&fn, 0xad); memarg(&fn, 0x37, 0);
             if(lower->needs[element] & NEED_DECODE) {
                 local_get(&fn, count); i64_const(&fn, width); op(&fn, 0x7e); op(&fn, 0xa7); local_set(&fn, bytes);
+                depth_enter(&fn);
                 each_element(&fn, data, UINT32_MAX, bytes, 0, width, lower->decode_function[element], UINT32_MAX);
+                depth_leave(&fn);
             }
         }
     } else if(value->kind == LirTypeKind_Array) {
@@ -2688,6 +3525,118 @@ emit_decode(Lower *lower, int32_t type, Buf *output)
             offset += type_size(lower, fields[index]);
         }
     }
+    helper_finish(&fn, output);
+}
+
+/* ------------------------------------------------------- platform output */
+
+/* Pushes host_i64's string word for `length` (an i64 already pushed) bytes
+ * at the i32 local or constant address. */
+static void
+print_string_word(Fn *fn)
+{
+    i64_const(fn, 32); op(fn, 0x86); op(fn, 0x84);
+}
+
+/* flush (): hands the buffered bytes to the host in one call. */
+static void
+emit_flush(Lower *lower, Buf *output)
+{
+    Fn fn;
+    helper_start(&fn, lower, NULL, 0);
+    uint32_t length = fn_local(&fn, W_I32);
+    i32_const(&fn, (int32_t)lower->out_base); memarg(&fn, 0x28, 0); op_u(&fn, 0x22, length);
+    if_begin(&fn);
+    i32_const(&fn, (int32_t)ZX_WASM_PRINT_STRING);
+    i32_const(&fn, (int32_t)(lower->out_base + 8)); op(&fn, 0xad);
+    local_get(&fn, length); op(&fn, 0xad); print_string_word(&fn);
+    call(&fn, lower->print_import); op(&fn, 0x1a);
+    i32_const(&fn, (int32_t)lower->out_base); i32_const(&fn, 0); memarg(&fn, 0x36, 0);
+    end(&fn);
+    helper_finish(&fn, output);
+}
+
+/* put (address, count): appends bytes, flushing when they do not fit; a
+ * run longer than the buffer goes to the host directly. */
+static void
+emit_put(Lower *lower, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32, W_I64};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 2);
+    uint32_t length = fn_local(&fn, W_I32);
+    local_get(&fn, 1); op(&fn, 0x50);
+    if_begin(&fn); op(&fn, 0x0f); end(&fn);
+    i32_const(&fn, (int32_t)lower->out_base); memarg(&fn, 0x28, 0); local_set(&fn, length);
+    local_get(&fn, length); op(&fn, 0xad); local_get(&fn, 1); op(&fn, 0x7c);
+    i64_const(&fn, ZXW_OUT_CAPACITY); op(&fn, 0x56);
+    if_begin(&fn);
+    call(&fn, lower->flush_function);
+    local_get(&fn, 1); i64_const(&fn, ZXW_OUT_CAPACITY); op(&fn, 0x56);
+    if_begin(&fn);
+    i32_const(&fn, (int32_t)ZX_WASM_PRINT_STRING);
+    local_get(&fn, 0); op(&fn, 0xad); local_get(&fn, 1); print_string_word(&fn);
+    call(&fn, lower->print_import); op(&fn, 0x1a);
+    op(&fn, 0x0f);
+    end(&fn);
+    i32_const(&fn, 0); local_set(&fn, length);
+    end(&fn);
+    i32_const(&fn, (int32_t)(lower->out_base + 8)); local_get(&fn, length); op(&fn, 0x6a);
+    local_get(&fn, 0); local_get(&fn, 1); op(&fn, 0xa7); memory_copy(&fn);
+    i32_const(&fn, (int32_t)lower->out_base);
+    local_get(&fn, length); local_get(&fn, 1); op(&fn, 0xa7); op(&fn, 0x6a);
+    memarg(&fn, 0x36, 0);
+    helper_finish(&fn, output);
+}
+
+/* number (value): decimal digits, with a sign when `is_signed`. */
+static void
+emit_number(Lower *lower, Buf *output, int is_signed)
+{
+    static const unsigned char parameters[] = {W_I64};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 1);
+    uint32_t magnitude = fn_local(&fn, W_I64), at = fn_local(&fn, W_I32), negative = fn_local(&fn, W_I32);
+    int32_t limit = (int32_t)(lower->out_base + ZXW_OUT_REGION);
+    if(is_signed) {
+        local_get(&fn, 0); i64_const(&fn, 0); op(&fn, 0x53); local_set(&fn, negative);
+        i64_const(&fn, 0); local_get(&fn, 0); op(&fn, 0x7d);
+        local_get(&fn, 0); local_get(&fn, negative); op(&fn, 0x1b);
+        local_set(&fn, magnitude);
+    } else {
+        local_get(&fn, 0); local_set(&fn, magnitude);
+    }
+    i32_const(&fn, limit); local_set(&fn, at);
+    loop_begin(&fn);
+    local_get(&fn, at); i32_const(&fn, 1); op(&fn, 0x6b); op_u(&fn, 0x22, at);
+    local_get(&fn, magnitude); i64_const(&fn, 10); op(&fn, 0x82); op(&fn, 0xa7); i32_const(&fn, '0'); op(&fn, 0x6a);
+    memarg(&fn, 0x3a, 0);
+    local_get(&fn, magnitude); i64_const(&fn, 10); op(&fn, 0x80); op_u(&fn, 0x22, magnitude);
+    i64_const(&fn, 0); op(&fn, 0x52); op_u(&fn, 0x0d, 0);
+    end(&fn);
+    if(is_signed) {
+        local_get(&fn, negative);
+        if_begin(&fn);
+        local_get(&fn, at); i32_const(&fn, 1); op(&fn, 0x6b); op_u(&fn, 0x22, at);
+        i32_const(&fn, '-'); memarg(&fn, 0x3a, 0);
+        end(&fn);
+    }
+    local_get(&fn, at); i32_const(&fn, limit); local_get(&fn, at); op(&fn, 0x6b); op(&fn, 0xad);
+    call(&fn, lower->put_function);
+    helper_finish(&fn, output);
+}
+
+/* bool (value): "true" or "false". */
+static void
+emit_bool(Lower *lower, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 1);
+    i32_const(&fn, (int32_t)lower->words_address); i32_const(&fn, (int32_t)lower->words_address + 4);
+    local_get(&fn, 0); op(&fn, 0x1b);
+    i64_const(&fn, 4); i64_const(&fn, 5); local_get(&fn, 0); op(&fn, 0x1b);
+    call(&fn, lower->put_function);
     helper_finish(&fn, output);
 }
 
@@ -2717,7 +3666,10 @@ scan_program(Lower *lower)
                 int32_t symbol = instruction->symbol;
                 if(code == LirOp_HostCall && symbol >= 0 && symbol < lower->function_count) {
                     if(lower->host_kind[symbol] == HOST_CAPABILITY) lower->uses_capability = 1;
-                    else if(lower->host_kind[symbol] != HOST_NONE) lower->uses_print = 1;
+                    else if(lower->host_kind[symbol] != HOST_NONE) {
+                        lower->uses_print = 1;
+                        lower->print_kinds |= 1u << lower->host_kind[symbol];
+                    }
                 }
                 if(code == LirOp_BytesEqual) lower->uses_bytes_equal = 1;
                 if(code == LirOp_FunctionAddress || code == LirOp_CallIndirect) lower->uses_table = 1;
@@ -2784,6 +3736,7 @@ emit_initialize(Lower *lower, Buf *output, uint32_t stack_base)
         call(&fn, lower->wasm_function[initializer]);
     }
     i32_const(&fn, 1); global_set(&fn, G_INIT);
+    flush_output(&fn);
     end(&fn);
     buf_uleb(output, fn.code.count + 1);
     buf_uleb(output, 0);
@@ -2811,6 +3764,7 @@ emit_entry(Lower *lower, Buf *output, uint32_t stack_base)
     if(program->initializers.length > 0)
         call(&fn, lower->initialize_function);
     op_u(&fn, 0x10, lower->wasm_function[program->entry]);
+    flush_output(&fn);
     if(result->kind == LirTypeKind_Void) i64_const(&fn, 0);
     else if(result->kind == LirTypeKind_Bool) op(&fn, 0xad);
     else if(result->bits < 64) {
@@ -2879,6 +3833,11 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         lower.free_table = data_reserve(&lower, 4 * ZXW_CLASSES);
         if(lower.failed) goto done;
     }
+    if(lower.print_kinds & (1u << HOST_BOOL)) {
+        lower.words_address = data_reserve(&lower, 9);
+        if(lower.failed) goto done;
+        memcpy(lower.data.data + (lower.words_address - ZXW_DATA_BASE), "truefalse", 9);
+    }
 
     /* Function index space: imports, LIR procedures, helpers, zx_entry. */
     uint32_t next = 1;
@@ -2895,6 +3854,13 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         lower.free_function = next++;
         lower.resize_function = next++;
         lower.reserve_function = next++;
+    }
+    if(lower.uses_print) {
+        lower.flush_function = next++;
+        lower.put_function = next++;
+        if(lower.print_kinds & (1u << HOST_SIGNED)) lower.signed_function = next++;
+        if(lower.print_kinds & (1u << HOST_UNSIGNED)) lower.unsigned_function = next++;
+        if(lower.print_kinds & (1u << HOST_BOOL)) lower.bool_function = next++;
     }
     for(int64_t type = 0; type < lower.type_count; type++) {
         if(lower.needs[type] & NEED_ENCODE) {
@@ -2930,7 +3896,14 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     }
     uint32_t bytes_type = lower.uses_bytes_equal ? signature_index(&lower, &bytes) : 0;
     uint32_t alloc_type = 0, address_type = 0, resize_type = 0, reserve_type = 0;
-    uint32_t measure_type = 0, encode_type = 0;
+    uint32_t measure_type = 0, encode_type = 0, put_type = 0, number_type = 0, flag_type = 0;
+    Sig put = {{W_I32, W_I64}, 2, 0};
+    Sig number = {{W_I64}, 1, 0};
+    if(lower.uses_print) {
+        put_type = signature_index(&lower, &put);
+        number_type = signature_index(&lower, &number);
+        flag_type = signature_index(&lower, &address);
+    }
     if(lower.uses_heap) {
         alloc_type = signature_index(&lower, &alloc);
         address_type = signature_index(&lower, &address);
@@ -2956,12 +3929,24 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     if(lower.uses_table) { buf_uleb(&code, 3); buf_uleb(&code, 0); buf_byte(&code, 0x00); buf_byte(&code, 0x0b); }
     size_t data_end = ZXW_DATA_BASE + lower.data.count;
     uint32_t stack_base = (uint32_t)((data_end + 15) & ~(size_t)15);
+    /* The output buffer lies between the data and the stack. */
+    if(lower.uses_print) {
+        lower.out_base = stack_base;
+        stack_base = (uint32_t)((lower.out_base + ZXW_OUT_REGION + 15) & ~(uint32_t)15);
+    }
     uint32_t stack_limit = stack_base + ZXW_STACK_SIZE;
     if(lower.uses_heap) {
         emit_alloc(&lower, &code);
         emit_free(&lower, &code);
         emit_resize(&lower, &code);
         emit_reserve(&lower, &code);
+    }
+    if(lower.uses_print) {
+        emit_flush(&lower, &code);
+        emit_put(&lower, &code);
+        if(lower.print_kinds & (1u << HOST_SIGNED)) emit_number(&lower, &code, 1);
+        if(lower.print_kinds & (1u << HOST_UNSIGNED)) emit_number(&lower, &code, 0);
+        if(lower.print_kinds & (1u << HOST_BOOL)) emit_bool(&lower, &code);
     }
     for(int64_t type = 0; type < lower.type_count && !lower.failed; type++) {
         if(lower.needs[type] & NEED_ENCODE) {
@@ -3015,6 +4000,13 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         buf_uleb(&content, resize_type);
         buf_uleb(&content, reserve_type);
     }
+    if(lower.uses_print) {
+        buf_uleb(&content, unit_type);
+        buf_uleb(&content, put_type);
+        if(lower.print_kinds & (1u << HOST_SIGNED)) buf_uleb(&content, number_type);
+        if(lower.print_kinds & (1u << HOST_UNSIGNED)) buf_uleb(&content, number_type);
+        if(lower.print_kinds & (1u << HOST_BOOL)) buf_uleb(&content, flag_type);
+    }
     for(int64_t type = 0; type < lower.type_count; type++) {
         if(lower.needs[type] & NEED_ENCODE) {
             buf_uleb(&content, measure_type);
@@ -3037,10 +4029,10 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     buf_uleb(&content, (stack_limit + 65535u) / 65536u);
     section(&module, 5, &content);
     /* Globals: stack pointer, initializer flag, stack limit, then the heap
-     * top and the image base, cursor and length. */
+     * top and the image base, cursor, length and view depth. */
     {
-        unsigned count = lower.uses_images ? 7 : lower.uses_heap ? 4 : 3;
-        int32_t initial[] = {(int32_t)stack_base, 0, (int32_t)stack_limit, (int32_t)stack_limit, 0, 0, 0};
+        unsigned count = lower.uses_images ? 8 : lower.uses_heap ? 4 : 3;
+        int32_t initial[] = {(int32_t)stack_base, 0, (int32_t)stack_limit, (int32_t)stack_limit, 0, 0, 0, 0};
         buf_uleb(&content, count);
         for(unsigned index = 0; index < count; index++) {
             buf_byte(&content, W_I32); buf_byte(&content, index == 2 ? 0x00 : 0x01);
@@ -3049,7 +4041,7 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     }
     section(&module, 6, &content);
     /* Exports. */
-    buf_uleb(&content, 2 + (lower.uses_heap ? 1 : 0) + (initializes ? 1 : 0));
+    buf_uleb(&content, 2 + (lower.uses_heap ? 1 : 0) + (initializes ? 1 : 0) + (lower.uses_print ? 1 : 0));
     buf_name(&content, "zx_entry", 8); buf_byte(&content, 0x00); buf_uleb(&content, lower.entry_function);
     buf_name(&content, "memory", 6); buf_byte(&content, 0x02); buf_uleb(&content, 0);
     if(initializes) {
@@ -3057,6 +4049,9 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     }
     if(lower.uses_heap) {
         buf_name(&content, "zx_reserve", 10); buf_byte(&content, 0x00); buf_uleb(&content, lower.reserve_function);
+    }
+    if(lower.uses_print) {
+        buf_name(&content, "zx_flush", 8); buf_byte(&content, 0x00); buf_uleb(&content, lower.flush_function);
     }
     section(&module, 7, &content);
     if(lower.uses_table) {

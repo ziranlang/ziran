@@ -727,14 +727,11 @@ assembly_constant_initializer(AssemblyProgram *program, const ZirModule *owner, 
         assembly_push(program, &program->constant_initializers, &identity);
 }
 
+/* The LIR global of a checked declaration, lowered on first use. */
 static int
-assembly_global_address(AssemblyProgram *program, AssemblyFunction *function,
-                        const char *name, ZirSourceSpan span)
+assembly_global_symbol(AssemblyProgram *program, const ZirModule *owner,
+                       const ZirGlobal *source, ZirSourceSpan span)
 {
-    const ZirModule *owner = NULL;
-    const ZirGlobal *source = NULL;
-    if(ResolveGlobalAt(function->module, name, SpanPath(span), &owner, &source) != 1)
-        return assembly_fail(program, span, "global reference has no unique checked declaration");
     int symbol = -1;
     AssemblyGlobal *globals = program->globals.data;
     for(int index = 0; index < program->globals.count; index++) {
@@ -783,6 +780,19 @@ assembly_global_address(AssemblyProgram *program, AssemblyFunction *function,
          * checked expression it is and stored by a private initializer. */
         if(parsed && !assembly_constant_initializer(program, owner, source, symbol)) return -1;
     }
+    return symbol;
+}
+
+static int
+assembly_global_address(AssemblyProgram *program, AssemblyFunction *function,
+                        const char *name, ZirSourceSpan span)
+{
+    const ZirModule *owner = NULL;
+    const ZirGlobal *source = NULL;
+    if(ResolveGlobalAt(function->module, name, SpanPath(span), &owner, &source) != 1)
+        return assembly_fail(program, span, "global reference has no unique checked declaration");
+    int symbol = assembly_global_symbol(program, owner, source, span);
+    if(symbol < 0) return -1;
     int element = ((AssemblyGlobal *)program->globals.data)[symbol].result.type;
     int pointer_type = assembly_pointer_type(program, element, span);
     return assembly_emit(program, function, LirOp_GlobalAddress, pointer_type, NULL, 0, symbol, span);
@@ -4882,6 +4892,11 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
             if(!strcmp(module->functions[index].name, function_name)) function = &module->functions[index];
     if(function == NULL) assembly_fail(program, (ZirSourceSpan){0}, "entry procedure was not found");
     if(!program->failed) assembly_function(program, module, function);
+    /* The entry module's globals are the program's exported state, so each
+     * is lowered even when no reached code names it. A runtime initializer
+     * is already a startup procedure; what is left is constant. */
+    for(int index = 0; module && index < module->global_count && !program->failed; index++)
+        assembly_global_symbol(program, module, &module->globals[index], module->globals[index].span);
     unsigned char *startup_state = assembly_allocate(program, (size_t)source->module_count, 1);
     if(!program->failed)
         for(int index = 0; index < source->module_count; index++)
@@ -4986,8 +5001,8 @@ AssemblyFree(AssemblyProgram *program)
  * type node, then the rest, fields separated by tabs:
  *
  *   node ID CLASS SPELLING [...]   CLASS is scalar, string, pointer,
- *                                  slice CHILD, array CHILD, or
- *                                  record NAME CHILD NAME CHILD ...
+ *                                  procedure, slice CHILD, array CHILD,
+ *                                  or record NAME CHILD NAME CHILD ...
  *   host FUNCTION RESULT PARAMETER...
  *   abi FUNCTION VARIADIC READS SIGNATURE ARGUMENTS RETURN
  *   global GLOBAL NODE
@@ -4996,17 +5011,22 @@ AssemblyFree(AssemblyProgram *program)
  * SPELLING is the type as declared at that position, which a host sees as a
  * value's type name. FUNCTION is the LIR function index, RESULT -1 for void,
  * GLOBAL the LIR global index. An abi line gives a host declaration's text
- * and the entry line the entry's, with tabs and line ends as spaces. */
+ * and the entry line the entry's, with tabs and line ends as spaces. Node
+ * lines come in id order, and a CHILD may be any node: a type that holds
+ * itself through a slice names its own node. */
 typedef struct InterfaceText {
     char *data;
     size_t length, capacity;
     int failed;
+    /* The type that could not be described, when one could not. */
+    char type[ZIR_NAME_MAX];
 } InterfaceText;
 
 typedef struct InterfaceNode {
     const ZirModule *module;
     const char *spelling;
     int id;
+    InterfaceText line;
 } InterfaceNode;
 
 static void
@@ -5038,15 +5058,28 @@ interface_field(InterfaceText *text, const char *part)
     }
 }
 
+static void
+interface_reject(InterfaceText *text, const char *spelling)
+{
+    if(text->failed) return;
+    text->failed = 1;
+    snprintf(text->type, sizeof(text->type), "%s", spelling);
+}
+
 static int
 interface_node(AssemblyProgram *program, InterfaceText *text, AssemblyVector *nodes,
                const ZirModule *module, const char *spelling, int depth)
 {
-    if(depth > 64 || text->failed) { text->failed = 1; return -1; }
+    if(text->failed) return -1;
     InterfaceNode *known = nodes->data;
     for(int index = 0; index < nodes->count; index++)
         if(known[index].module == module && !strcmp(known[index].spelling, spelling)) return known[index].id;
-    /* Children first, so every line names only nodes before it. */
+    if(depth > 64) { interface_reject(text, spelling); return -1; }
+    /* The id is taken before the children are described, so a type that
+     * reaches itself finds its own node. */
+    int id = nodes->count;
+    InterfaceNode reserved = {module, assembly_text(program, spelling), id, {0}};
+    if(program->failed || !assembly_push(program, nodes, &reserved)) { text->failed = 1; return -1; }
     char element[ZIR_NAME_MAX];
     int count = 0, child = -1;
     const char *class = "scalar";
@@ -5064,10 +5097,12 @@ interface_node(AssemblyProgram *program, InterfaceText *text, AssemblyVector *no
         child = interface_node(program, text, nodes, module, element, depth + 1);
     } else if(!strcmp(spelling, "string")) class = "string";
     else if(spelling[0] == '*') class = "pointer";
+    else if(spelling[0] == '(') class = "procedure";
     else if(!ScalarWidth(spelling) && strcmp(spelling, "bool") && strcmp(spelling, "float32") &&
             strcmp(spelling, "float64") && (record = FindType(module, spelling, &owner)) != NULL &&
-            !record->is_enum && !record->is_union) class = "record";
+            !record->is_enum && !record->is_union) class = record->is_procedure_type ? "procedure" : "record";
     else record = NULL;
+    if(record != NULL && record->is_procedure_type) record = NULL;
     AssemblyVector fields = {.width = sizeof(int)};
     if(record != NULL) {
         size_t cursor = 0;
@@ -5077,33 +5112,33 @@ interface_node(AssemblyProgram *program, InterfaceText *text, AssemblyVector *no
             int node = interface_node(program, text, nodes, owner, field.type, depth + 1);
             assembly_push(program, &fields, &node);
         }
-        if(status < 0) text->failed = 1;
+        if(status < 0) interface_reject(text, spelling);
     }
     if(text->failed || program->failed) { text->failed = 1; return -1; }
-    int id = nodes->count;
+    InterfaceText line = {0};
     char number[32];
     snprintf(number, sizeof(number), "node\t%d\t", id);
-    interface_put(text, number);
-    interface_put(text, class);
-    interface_put(text, "\t");
-    interface_put(text, spelling);
+    interface_put(&line, number);
+    interface_put(&line, class);
+    interface_put(&line, "\t");
+    interface_put(&line, spelling);
     if(child >= 0) {
         snprintf(number, sizeof(number), "\t%d", child);
-        interface_put(text, number);
+        interface_put(&line, number);
     }
     if(record != NULL) {
         size_t cursor = 0;
         ZirTypeField field;
         for(int index = 0; index < fields.count && TypeNextField(record, &cursor, &field) == 1; index++) {
-            interface_put(text, "\t");
-            interface_put(text, field.name);
+            interface_put(&line, "\t");
+            interface_put(&line, field.name);
             snprintf(number, sizeof(number), "\t%d", ((int *)fields.data)[index]);
-            interface_put(text, number);
+            interface_put(&line, number);
         }
     }
-    interface_put(text, "\n");
-    InterfaceNode node = {module, assembly_text(program, spelling), id};
-    if(!assembly_push(program, nodes, &node)) text->failed = 1;
+    interface_put(&line, "\n");
+    ((InterfaceNode *)nodes->data)[id].line = line;
+    if(line.failed) text->failed = 1;
     return id;
 }
 
@@ -5117,11 +5152,14 @@ AssemblyHostInterface(AssemblyProgram *program, size_t *length)
     AssemblyVector nodes = {.width = sizeof(InterfaceNode)};
     AssemblyFunction **functions = program->functions.data;
     InterfaceText hosts = {0};
+    /* The declaration being described, for a diagnostic. */
+    ZirSourceSpan span = {0};
     for(int index = 0; index < program->functions.count && !text.failed; index++) {
         AssemblyFunction *function = functions[index];
         if(!function->result.external || function->source == NULL ||
            !function->source->is_extern || function->source->extern_kind != ZIR_EXTERN_HOST) continue;
         const ZirFunction *source = function->source;
+        span = source->span;
         int result = source->return_type[0] && strcmp(source->return_type, "void") ?
             interface_node(program, &text, &nodes, function->module, source->return_type, 0) : -1;
         char number[48];
@@ -5152,6 +5190,7 @@ AssemblyHostInterface(AssemblyProgram *program, size_t *length)
     AssemblyGlobal *globals = program->globals.data;
     for(int index = 0; index < program->globals.count && !text.failed; index++) {
         if(globals[index].source == NULL) continue;
+        span = globals[index].source->span;
         int node = interface_node(program, &text, &nodes, globals[index].module, globals[index].source->type, 0);
         char number[48];
         snprintf(number, sizeof(number), "global\t%d\t%d\n", index, node);
@@ -5163,10 +5202,18 @@ AssemblyHostInterface(AssemblyProgram *program, size_t *length)
         interface_field(&hosts, functions[0]->source->return_type);
         interface_put(&hosts, "\n");
     }
+    InterfaceNode *described = nodes.data;
+    for(int index = 0; index < nodes.count; index++) {
+        if(described[index].line.data != NULL) interface_put(&text, described[index].line.data);
+        free(described[index].line.data);
+    }
     if(hosts.data != NULL) interface_put(&text, hosts.data);
     free(hosts.data);
     if(text.failed || hosts.failed || program->failed) {
+        if(text.type[0]) Diagnostic(span, "assembly.container", "the host interface cannot describe type %s", text.type);
+        else if(!program->failed) DiagnosticOutOfMemory();
         free(text.data);
+        program->failed = 1;
         return NULL;
     }
     program->interface = text.data;

@@ -2,6 +2,7 @@
 #import "package_fixture_support"
 #import "check_support"
 #import "std/byte_text_linux"
+#import "std/environment_linux"
 #import "std/file"
 #import "std/file_tree_linux"
 #import "std/text_tools"
@@ -148,7 +149,8 @@ Artifacts :: (test: *NativeTest) -> bool {
     changed_options := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", play[:])
     if !NativeAssert(test, changed_options != direct && ArtifactDependency(test, changed_options) != base, "changed options did not invalidate consumer and prerequisite") || !ArtifactCount(test, provider, before + 4) { return false }
     bad_options := string.["Missing:mode=x", "Provider:mode", "Provider:mode=", "Provider:unknown=x", "Provider:enabled=1", "Provider:mode=x\ny=z", "Provider:variant.path=x", "Provider:variant..path=x"]
-    NativeSet(test, "CC", "must-not-be-invoked")
+    // The artifact key names the compiler, so CC returns to what the caller set.
+    original_cc := TextDetach(TextCopy(EnvironmentText("CC"))); NativeSet(test, "CC", "must-not-be-invoked")
     for bad: bad_options {
         one := string.[bad]
         failure := ArtifactBuild(test, app, "linux-x86_64-gnu", false, "Provider:object", one[:])
@@ -166,7 +168,7 @@ Artifacts :: (test: *NativeTest) -> bool {
         failure := PackageCommand(test, app, command[:], false)
         if !NativeAssert(test, TextContains(failure, "option") && !TextContains(failure, "compiler"), "invalid option syntax reached compiler") { return false }
     }
-    NativeUnset(test, "CC")
+    if original_cc == "" { NativeUnset(test, "CC") } else { NativeSet(test, "CC", original_cc) }
     if !ArtifactCount(test, provider, before + 4) { return false }
     saved := NativeRead(test, direct)
     fail_options := string.["Provider:mode=failed"]

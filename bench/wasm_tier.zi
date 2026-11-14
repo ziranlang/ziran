@@ -1,0 +1,73 @@
+// Kernels for comparing a revision-28 bundle's Wasm module with the
+// instruction engine and generated C, run by bench/wasm_tier.py. Each entry
+// returns a checksum; Printing prints instead.
+#import "vec"
+
+// Loops and a fixed array of flags.
+Sieve :: () -> s64 {
+    flags: [20000]bool
+    count: s64
+    for i: 2..19999 {
+        if !flags[i] {
+            count += 1
+            j := i * i
+            while j < 20000 { flags[j] = true; j += i }
+        }
+    }
+    return count
+}
+
+Particle :: struct { x: s64; y: s64; dx: s64; dy: s64 }
+
+// Records in a fixed array, updated in place.
+Records :: () -> s64 {
+    particles: [64]Particle
+    for i: 0..63 { particles[i] = Particle.{x = i, y = 2 * i, dx = i % 5 + 1, dy = i % 3 + 1} }
+    for step: 0..199 {
+        for i: 0..63 {
+            particles[i].x += particles[i].dx
+            particles[i].y += particles[i].dy
+            if particles[i].x > 1000 || particles[i].x < 0 { particles[i].dx = -particles[i].dx }
+            if particles[i].y > 1000 || particles[i].y < 0 { particles[i].dy = -particles[i].dy }
+        }
+    }
+    total: s64
+    for i: 0..63 { total += particles[i].x + particles[i].y }
+    return total
+}
+
+TEXT :: "the quick brown fox jumps over the lazy dog, again and again";
+
+// Bytes of a string, hashed.
+Hash :: () -> s64 {
+    hash: u64 = 1469598103934665603
+    for round: 0..499 {
+        for i: 0..cast(s64)TEXT.count - 1 { hash = (hash ^ cast(u64)TEXT[i]) * 1099511628211 }
+    }
+    return cast(s64)(hash % 1000000007)
+}
+
+// Vectors growing on the heap and freed.
+Vectors :: () -> s64 {
+    total: s64
+    for round: 0..19 {
+        values: Vec(s64)
+        for i: 0..999 { VecPush(values, i * round) }
+        for i: 0..999 { total += values[i] }
+        VecFree(values)
+    }
+    return total
+}
+
+Fib :: (n: s64) -> s64 {
+    if n < 2 { return n }
+    return Fib(n - 1) + Fib(n - 2)
+}
+
+// Calls.
+Calls :: () -> s64 { return Fib(20) }
+
+// Formatted output: the host boundary for every value.
+Printing :: () {
+    for i: 0..99 { print("% % %\n", i, i * i, i % 7 == 0) }
+}

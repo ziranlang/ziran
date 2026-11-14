@@ -375,6 +375,122 @@ ResolveAlias :: (state: *OptState, aliases: []s32, value: s32) -> s32 {
     return root
 }
 
+// The edges into each block, as (source block, instruction, edge) triples
+// grouped by target: the edges into block b are entries first[b] ..
+// first[b + 1] - 1.
+IncomingEdges :: (state: *OptState, function: LirFunction, first: *Vec(s32), edges: *Vec(s32)) -> bool {
+    blocks := function.blocks.count
+    if !VecResizeBounded(<<first, blocks + 1, blocks + 1) { return Fail(state, .Allocation) }
+    for at: 0..blocks { first.*[at] = 0 }
+    total: s64
+    for block: function.blocks {
+        for instruction: block.instructions {
+            for edge: instruction.edges {
+                if !Spend(state, 1) { return false }
+                first.*[edge.block + 1] += 1
+                total += 1
+            }
+        }
+    }
+    for at: 1..blocks { first.*[at] += first.*[at - 1] }
+    if !Scratch(state, total, 12) || !VecResizeBounded(<<edges, total * 3, total * 3) { return Fail(state, .Allocation) }
+    fill: Vec(s32)
+    defer VecFree(fill)
+    if !VecResizeBounded(fill, blocks, blocks) { return Fail(state, .Allocation) }
+    for at: 0..blocks - 1 { fill[at] = first.*[at] }
+    for block_index: 0..function.blocks.count - 1 {
+        block := function.blocks[block_index]
+        for instruction_index: 0..block.instructions.count - 1 {
+            instruction := block.instructions[instruction_index]
+            for edge_index: 0..instruction.edges.count - 1 {
+                at := cast(s64)fill[instruction.edges[edge_index].block]
+                fill[instruction.edges[edge_index].block] += 1
+                edges.*[at * 3] = cast(s32)block_index
+                edges.*[at * 3 + 1] = cast(s32)instruction_index
+                edges.*[at * 3 + 2] = cast(s32)edge_index
+            }
+        }
+    }
+    return true
+}
+
+// A block parameter that every edge into its block gives one value, or the
+// parameter itself, is a copy of that value. The lowering passes every live
+// binding to every block, so a loop's invariant bindings are such copies.
+ParameterAliases :: (state: *OptState, function: LirFunction, aliases: []s32,
+    first: []s32, edges: []s32) -> bool {
+    changed := true
+    while changed {
+        changed = false
+        for block_index: 0..function.blocks.count - 1 {
+            if cast(s32)block_index == function.entry { continue }
+            block := function.blocks[block_index]
+            for at: 0..block.parameters.count - 1 {
+                parameter := block.parameters[at]
+                if aliases[parameter] != parameter { continue }
+                candidate: s32 = LirNoId
+                single := true
+                for incoming: first[block_index]..first[block_index + 1] - 1 {
+                    if !Spend(state, 1) { return false }
+                    edge := function.blocks[edges[incoming * 3]].instructions[edges[incoming * 3 + 1]].edges[
+                        edges[incoming * 3 + 2]]
+                    value := ResolveAlias(state, aliases, edge.arguments[at])
+                    if state.problem != .None { return false }
+                    if value == parameter { continue }
+                    if candidate == LirNoId { candidate = value }
+                    else if candidate != value { single = false; break }
+                }
+                if single && candidate != LirNoId {
+                    aliases[parameter] = candidate
+                    changed = true
+                }
+            }
+        }
+    }
+    return true
+}
+
+// Drops the parameters ParameterAliases made copies, and their arguments on
+// every edge into the block.
+DropParameters :: (state: *OptState, function: *LirFunction, aliases: []s32,
+    first: []s32, edges: []s32) -> s64 {
+    dropped: s64
+    for block_index: 0..function.blocks.count - 1 {
+        if cast(s32)block_index == function.entry { continue }
+        block := function.blocks[block_index]
+        kept: s64
+        for at: 0..block.parameters.count - 1 {
+            if aliases[block.parameters[at]] != block.parameters[at] { continue }
+            kept += 1
+        }
+        if kept == block.parameters.count { continue }
+        for incoming: first[block_index]..first[block_index + 1] - 1 {
+            source := function.blocks[edges[incoming * 3]]
+            instruction := source.instructions[edges[incoming * 3 + 1]]
+            edge := instruction.edges[edges[incoming * 3 + 2]]
+            write: s64
+            for at: 0..block.parameters.count - 1 {
+                if aliases[block.parameters[at]] != block.parameters[at] { continue }
+                edge.arguments[write] = edge.arguments[at]
+                write += 1
+            }
+            edge.arguments = edge.arguments[:write]
+            instruction.edges[edges[incoming * 3 + 2]] = edge
+            source.instructions[edges[incoming * 3 + 1]] = instruction
+        }
+        write: s64
+        for at: 0..block.parameters.count - 1 {
+            if aliases[block.parameters[at]] != block.parameters[at] { continue }
+            block.parameters[write] = block.parameters[at]
+            write += 1
+        }
+        dropped += block.parameters.count - write
+        block.parameters = block.parameters[:write]
+        function.blocks[block_index] = block
+    }
+    return dropped
+}
+
 CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     state.counters.copy.runs += 1
     for function_index: 0..program.functions.count - 1 {
@@ -469,6 +585,15 @@ CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
             }
             function.blocks[block_index] = block
         }
+        first: Vec(s32)
+        incoming: Vec(s32)
+        if !IncomingEdges(state, function, *first, *incoming) ||
+            !ParameterAliases(state, function, aliases[:], first[:], incoming[:]) {
+            VecFree(first); VecFree(incoming)
+            VecFree(aliases); VecFree(changed); VecFree(aggregate_block)
+            VecFree(aggregate_instruction); VecFree(escapes); VecFree(symbols); VecFree(non_null)
+            return false
+        }
         for block_index: 0..function.blocks.count - 1 {
             block := function.blocks[block_index]
             for instruction_index: 0..block.instructions.count - 1 {
@@ -503,6 +628,18 @@ CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
         }
         for value: 0..changed.count - 1 {
             if changed[value] != 0 { state.counters.copy.instructions += 1; state.counters.copy.values += 1 }
+        }
+        dropped := DropParameters(state, *function, aliases[:], first[:], incoming[:])
+        VecFree(first)
+        VecFree(incoming)
+        if dropped > 0 {
+            state.counters.copy.values += dropped
+            empty: []u8
+            if !CompactValues(state, *function, empty, *state.counters.copy) {
+                VecFree(aliases); VecFree(changed); VecFree(aggregate_block)
+                VecFree(aggregate_instruction); VecFree(escapes); VecFree(symbols); VecFree(non_null)
+                return false
+            }
         }
         program.functions[function_index] = function
         VecFree(aliases)

@@ -296,6 +296,38 @@ Main :: () -> s64 {
 }
 ZI
     "$zi2asm" --root "$work" --entry state:Main --emit zx -o "$work/state.zx" "$work/state.zi"
+    # A record that holds itself through a slice crosses both ways; one
+    # that holds itself stops at the nesting bound.
+    cat >"$work/tree.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Node :: struct {
+    value: s32
+    children: []Node
+}
+Grow :: (tree: Node) -> Node #foreign host_api;
+tree: Node;
+leaves: [2]Node;
+ring: [1]Node;
+#program_export
+Answer :: () -> s32 {
+    leaves[0].value = 2
+    leaves[1].value = 3
+    tree.value = 1
+    tree.children = leaves[:]
+    tree = Grow(tree)
+    if tree.value != 6 || tree.children.count != 2 { return 1 }
+    if tree.children[0].value != 100 || tree.children[1].children.count != 1 { return 2 }
+    return tree.children[1].children[0].value
+}
+#program_export
+Cycle :: () -> s32 {
+    ring[0].value = 1
+    ring[0].children = ring[:]
+    return Grow(ring[0]).value
+}
+ZI
+    "$ziran" bundle --root "$work" --entry tree:Answer -o "$work/tree.zx" "$work/tree.zi"
+    "$ziran" bundle --root "$work" --entry tree:Cycle -o "$work/cycle.zx" "$work/tree.zi"
     cat >"$work/tier.c" <<'C'
 #include "ziran_host.h"
 #include "zir_zx_wasm_platform.h"
@@ -305,6 +337,19 @@ ZI
 #include <string.h>
 static char text[64], title[32];
 static VmHostField fields[3];
+static long long tree_sum(const VmHostValue *node)
+{
+    long long sum = node->fields[0].value.integer;
+    const VmHostValue *children = &node->fields[1].value;
+    for(size_t at = 0; at < children->length; at++) sum += tree_sum(&children->elements[at]);
+    return sum;
+}
+static VmHostValue tree_node(VmHostField parts[2], long long value, VmHostValue *children, size_t count)
+{
+    parts[0] = (VmHostField){"value", {.kind = VM_HOST_INTEGER, .type = "s32", .integer = value, .bits = (uint64_t)value}};
+    parts[1] = (VmHostField){"children", {.kind = VM_HOST_SLICE, .type = "[]Node", .length = count, .elements = children}};
+    return (VmHostValue){.kind = VM_HOST_RECORD, .type = "Node", .fields = parts, .field_count = 2};
+}
 static int call(void *context, const char *module, const char *function,
                 const VmHostValue *args, int count, VmHostValue *result)
 {
@@ -335,6 +380,15 @@ static int call(void *context, const char *module, const char *function,
         result->kind = VM_HOST_INTEGER; result->integer = 7;
     } else if(!strcmp(function, "AddHost")) {
         result->kind = VM_HOST_INTEGER; result->integer = args[0].integer + 1000;
+    } else if(!strcmp(function, "Grow")) {
+        /* The given tree's sum over leaves 100 and 200, the second with a
+         * leaf 7 of its own. */
+        static VmHostField root[2], first[2], second[2], inner[2];
+        static VmHostValue leaves[2], below[1];
+        below[0] = tree_node(inner, 7, NULL, 0);
+        leaves[0] = tree_node(first, 100, NULL, 0);
+        leaves[1] = tree_node(second, 200, below, 1);
+        *result = tree_node(root, tree_sum(&args[0]), leaves, 2);
     } else return 0;
     return 1;
 }
@@ -350,8 +404,9 @@ static unsigned long reject(void *context, const unsigned char *bytes, size_t si
     return 0;
 }
 /* Runs typed.zx, then state.zx: two instances side by side with their own
- * globals, then a third that takes the first one's state, changed. */
-static void scenario(const char *engine, Bundle *typed, Bundle *state)
+ * globals, then a third that takes the first one's state, changed; then a
+ * tree that holds itself through a slice, and a cycle that must fail. */
+static void scenario(const char *engine, Bundle *typed, Bundle *state, Bundle *tree, Bundle *cycle)
 {
     static const char *names[] = {"Greet", "Weigh", "Fill", "Flag", "Note", "Count"};
     HostBinding bindings[6];
@@ -387,16 +442,26 @@ static void scenario(const char *engine, Bundle *typed, Bundle *state)
     BundleInstanceClose(moved);
     BundleInstanceClose(beside);
     BundleInstanceClose(first);
+    HostBinding grow = {.module = "tree", .function = "Grow", .call = call};
+    BundleInstance *grown = BundleInstantiate(tree, &grow, 1), *ring = BundleInstantiate(cycle, &grow, 1);
+    long long spent = -1;
+    int has = 0, cycled = ring != NULL && BundleInstanceRun(ring, &spent, &has);
+    printf("%s tree %lld cycle %s\n", engine, run(grown), cycled ? "ran" : "failed");
+    fflush(stdout);
+    BundleInstanceClose(ring);
+    BundleInstanceClose(grown);
 }
 int main(int argc, char **argv)
 {
-    Bundle *typed = argc == 3 ? BundleOpen(argv[1]) : NULL;
-    Bundle *state = argc == 3 ? BundleOpen(argv[2]) : NULL;
-    if(typed == NULL || state == NULL) return 3;
+    Bundle *typed = argc == 5 ? BundleOpen(argv[1]) : NULL;
+    Bundle *state = argc == 5 ? BundleOpen(argv[2]) : NULL;
+    Bundle *tree = argc == 5 ? BundleOpen(argv[3]) : NULL;
+    Bundle *cycle = argc == 5 ? BundleOpen(argv[4]) : NULL;
+    if(typed == NULL || state == NULL || tree == NULL || cycle == NULL) return 3;
     const ZxWasmPlatform *active = ZxWasmPlatformActive();
     if(active == NULL) return 4;
     ZxWasmPlatform provider = *active;
-    scenario("wasm", typed, state);
+    scenario("wasm", typed, state, tree, cycle);
     printf("wasm modules %d\n", EM_ASM_INT({ return globalThis.zxWasmTier.modules.size; }));
     /* A module the provider rejects is an error; no other engine runs it. */
     ZxWasmPlatform rejecting = provider;
@@ -408,15 +473,17 @@ int main(int argc, char **argv)
     BundleInstanceClose(refused);
     /* Without a provider the instruction engine runs the same bundles. */
     ZxWasmSetPlatform(NULL);
-    scenario("engine", typed, state);
+    scenario("engine", typed, state, tree, cycle);
     BundleClose(typed);
     BundleClose(state);
+    BundleClose(tree);
+    BundleClose(cycle);
     return 0;
 }
 C
     "$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" "$work/tier.c" "$work/lib/libziran.a" \
         -o "$work/tier.js" -s ENVIRONMENT=node -s NODERAWFS=1 -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=1
-    tier=$("$nodebin" "$work/tier.js" "$work/typed.zx" "$work/state.zx" 2> "$work/tier.err") || {
+    tier=$("$nodebin" "$work/tier.js" "$work/typed.zx" "$work/state.zx" "$work/tree.zx" "$work/cycle.zx" 2> "$work/tier.err") || {
         cat "$work/tier.err"
         exit 1
     }
@@ -424,18 +491,20 @@ C
 hi zx x2 box! false
 wasm typed 78
 wasm state 5151 5251 5151 11254
-wasm modules 2
+wasm tree 7 cycle failed
+wasm modules 4
 rejected 1
 note -5 200 -300
 hi zx x2 box! false
 engine typed 78
-engine state 5151 5251 5151 11254'
+engine state 5151 5251 5151 11254
+engine tree 7 cycle failed'
     test "$tier" = "$expected_tier" || {
         echo "zx-wasm-test: the bundle Wasm tier and the engine gave '$tier'"
         cat "$work/tier.err"
         exit 1
     }
-    echo 'zx-wasm-test: revision-28 bundles ran on the bundle Wasm tier: typed host calls, independent instances and moved state'
+    echo 'zx-wasm-test: revision-28 bundles ran on the bundle Wasm tier: typed host calls, recursive host types, independent instances and moved state'
 else
     echo 'zx-wasm-test: no emcc; skipping the bundle Wasm tier'
 fi

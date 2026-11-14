@@ -135,3 +135,25 @@ make -C "$repo" -j2 BUILD_DIR="$library" \
     --preload-file "$work/fixtures@/fixtures"
 
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/zx_web_lifecycle_cases.zi" -- "$ziran" "$work" "$chromium"
+
+# A host that suspends through Asyncify: the engine runs the bundle and the
+# tier never traps.
+if command -v node >/dev/null 2>&1; then
+    "$emcc" -O2 -std=gnu99 -I"$repo/include" "$repo/tests/zx_web_suspending_host.c" \
+        "$library/libziran.a" -o "$work/suspending.js" -s ASYNCIFY=1 -s ENVIRONMENT=node \
+        -s ALLOW_MEMORY_GROWTH=1 -s STACK_SIZE=1048576 \
+        --embed-file "$work/fixtures/old.zx@/old.zx"
+    node "$work/suspending.js" /old.zx > "$work/suspending.out" 2> "$work/suspending.err" || {
+        cat "$work/suspending.out" "$work/suspending.err"
+        exit 1
+    }
+    if grep -q 'zx wasm tier\|RuntimeError' "$work/suspending.err" ||
+       ! grep -qx 'PASS suspending-host-engine' "$work/suspending.out"; then
+        cat "$work/suspending.out" "$work/suspending.err"
+        exit 1
+    fi
+    echo "zx-web-lifecycle: an Asyncify host that suspends runs bundles on the engine"
+elif test "$require" = 1; then
+    echo 'zx-web-lifecycle: node is unavailable for the suspending-host check' >&2
+    exit 1
+fi

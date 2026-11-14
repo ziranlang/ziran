@@ -15,7 +15,8 @@ func Arrays_Main() {
 	var empty [5]int32
 	fmt.Printf("empty: %d %d %d %d %d\n", empty[0], empty[1], empty[2], empty[3], empty[4])
 	numbers := Arrays_ziran_table0
-	numbers[4] = 100
+	value_0 := &(numbers[4])
+	(*value_0) = 100
 	fmt.Printf("set: %d, count: %d\n", numbers[4], 5)
 	middle := numbers[1:4:4]
 	fmt.Printf("middle has %d items starting with %d\n", int64(len(middle)), middle[0])

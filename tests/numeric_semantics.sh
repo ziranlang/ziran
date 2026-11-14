@@ -112,8 +112,6 @@ FloatLiteral :: (x: float32) -> float32 {
     return x * 0.5 + x * 0.3
 }
 
-// The portable VM (zi2zx run --vm) still computes the literals in double;
-// the manifest case records that gap.
 #program_export
 Float32Literal :: () -> s32 {
     // Bits 0x3e991279 give 0x3e74ea5c; a double chain gives 0x3e74ea5b.

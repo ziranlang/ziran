@@ -4,7 +4,7 @@ Status: in progress; [scalar, record, fixed-array, procedure-value and restricte
 
 Missing lowering follows the [gap policy](gap-policy.md): it is a stable,
 source-located compiler error and an open matrix cell, never a request to
-evaluate the AST, generate C, invoke TinyCC, or select another engine.
+evaluate the AST, generate C, or select another engine.
 
 ## Objective
 
@@ -46,7 +46,7 @@ Proposed modules: `cmd/compiler_lower.zi`, `cmd/compiler_lower_expr.zi`, `cmd/co
 - [ ] Preserve `#asm` portable implementations and typed native variant bindings as separate target implementations. A portable build lowers the portable implementation; a direct native build requires a matching architecture/feature variant and rejects its absence. Native templates have explicit operands, effects, clobbers, architecture, and CPU requirements; they cannot become portable opcode semantics.
 - [ ] Reject reachable foreign Go objects, Go maps/interfaces, reflection-only tags, or runtime operations in targets that cannot implement them. Retain the Go backend and its existing valid programs.
 - [ ] Carry global initialization order, reachability roots, callback roots, exported ABI layouts, diagnostic spans, and law/proof provenance into the lowered program.
-- [ ] Feed the result through the step-02 verifier unconditionally and make lowering failures recoverable through the compiler API.
+- [x] Feed the result through the step-02 verifier unconditionally and make lowering failures recoverable through the compiler API.
 
 ## Tests
 

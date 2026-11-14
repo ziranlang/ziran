@@ -7,6 +7,64 @@
 
 static int storage = 7;
 
+/* The sum of a tree's values through every level of children. */
+static long long
+tree_sum(const VmHostValue *node)
+{
+    assert(node->kind == VM_HOST_RECORD && strcmp(node->type, "Node") == 0 && node->field_count == 2);
+    const VmHostValue *children = &node->fields[1].value;
+    assert(strcmp(node->fields[1].name, "children") == 0 && children->kind == VM_HOST_SLICE);
+    long long sum = node->fields[0].value.integer;
+    for(size_t i = 0; i < children->length; i++) sum += tree_sum(&children->elements[i]);
+    return sum;
+}
+
+static VmHostValue
+tree_node(VmHostField fields[2], long long value, VmHostValue *children, size_t count)
+{
+    fields[0] = (VmHostField){"value", {.kind = VM_HOST_INTEGER, .type = "s32", .integer = value,
+                                        .bits = (uint64_t)value}};
+    fields[1] = (VmHostField){"children", {.kind = VM_HOST_SLICE, .type = "[]Node", .length = count,
+                                           .elements = children}};
+    return (VmHostValue){.kind = VM_HOST_RECORD, .type = "Node", .fields = fields, .field_count = 2};
+}
+
+/* Gives back a tree with the given tree's sum at its root, over leaves 100
+ * and 200, the second with a leaf 7 of its own. */
+static int
+grow_host(void *context, const char *module, const char *function,
+          const VmHostValue *args, int arg_count, VmHostValue *result)
+{
+    static VmHostField root[2], first[2], second[2], inner[2];
+    static VmHostValue leaves[2], below[1];
+    (void)module; (void)function;
+    (*(int *)context)++;
+    if(arg_count != 1) return 0;
+    below[0] = tree_node(inner, 7, NULL, 0);
+    leaves[0] = tree_node(first, 100, NULL, 0);
+    leaves[1] = tree_node(second, 200, below, 1);
+    *result = tree_node(root, tree_sum(&args[0]), leaves, 2);
+    return 1;
+}
+
+/* A 64-byte label for each index, in storage the next call reuses. */
+static int
+label_host(void *context, const char *module, const char *function,
+           const VmHostValue *args, int arg_count, VmHostValue *result)
+{
+    static unsigned char text[64];
+    (void)module; (void)function;
+    if(arg_count != 1 || args[0].kind != VM_HOST_INTEGER) return 0;
+    (*(int *)context)++;
+    memset(text, '.', sizeof(text));
+    int written = snprintf((char *)text, sizeof(text), "label-%lld", (long long)args[0].integer);
+    text[written] = '.';
+    result->kind = VM_HOST_STRING;
+    result->data = text;
+    result->length = sizeof(text);
+    return 1;
+}
+
 /* The one capability of a program that reads through the handle it gets. */
 static int
 make_handle(void *context, const char *module, const char *function,
@@ -108,7 +166,48 @@ main(int argc, char **argv)
     };
     HostBinding bindings[7];
     int bound[7] = {0};
-    assert(argc == 2 || (argc == 3 && strcmp(argv[2], "dereference") == 0));
+    assert(argc == 2 || (argc == 3 && (strcmp(argv[2], "dereference") == 0 ||
+                                       strcmp(argv[2], "strings") == 0)) ||
+           (argc == 4 && strcmp(argv[2], "tree") == 0));
+    if(argc == 3 && strcmp(argv[2], "strings") == 0) {
+        /* 100,100 host strings of 64 bytes would hold 6.4 MB. The ones the
+         * program drops give their storage back; the ones it keeps stay. */
+        Bundle *labels = BundleOpen(argv[1]);
+        assert(labels != NULL && BundleCapabilityCount(labels) == 1);
+        HostBinding label = {BundleCapabilityModule(labels, 0), BundleCapabilityFunction(labels, 0),
+                             label_host, &calls};
+        BundleComponent *component = BundleComponentOpen(labels, &label, 1, 2147483647);
+        BundleComponentHandle *handle = BundleComponentAcquire(component);
+        assert(component != NULL && handle != NULL);
+        size_t most = 0;
+        for(int frame = 0; frame < 100; frame++) {
+            assert(BundleComponentRun(handle, &result, &has_result) && has_result && result == 64000);
+            size_t live = BundleComponentLiveValueBytes(component);
+            if(live > most) most = live;
+        }
+        assert(calls == 100100 && most < 512 * 1024);
+        BundleComponentHandleClose(handle);
+        BundleComponentClose(component);
+        BundleClose(labels);
+        return 0;
+    }
+    if(argc == 4 && strcmp(argv[2], "tree") == 0) {
+        /* A type that holds itself through a slice crosses a host call both
+         * ways. A value that holds itself fails the run before the host is
+         * called. */
+        int grown = 0;
+        for(int file = 0; file < 2; file++) {
+            Bundle *trees = BundleOpen(argv[file == 0 ? 1 : 3]);
+            assert(trees != NULL && BundleCapabilityCount(trees) == 1);
+            HostBinding grow = {BundleCapabilityModule(trees, 0), BundleCapabilityFunction(trees, 0),
+                                grow_host, &grown};
+            int ran = BundleRun(trees, &grow, 1, &result, &has_result);
+            if(file == 0) assert(ran && has_result && result == 7 && grown == 1);
+            else assert(!ran && grown == 1);
+            BundleClose(trees);
+        }
+        return 0;
+    }
     if(argc == 3) {
         /* A host's pointer is an opaque handle: reading through it fails
          * when the program runs. */

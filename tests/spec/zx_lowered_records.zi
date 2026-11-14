@@ -1,0 +1,57 @@
+// Records in arrays, read and changed by member: every read must see the
+// value as it was when read, whichever order the reads and writes come in.
+
+Point :: struct { x: s64; y: s64 }
+Pair :: struct { left: Point; right: Point; tags: [3]s64 }
+
+main :: () -> s32 {
+    points: [4]Point
+    for i: 0..3 { points[i] = Point.{x = i, y = 10 * i} }
+
+    // A record read, then its source changed, then the record used.
+    kept := points[1]
+    points[1].x = 99
+    print("% %\n", kept.x, points[1].x)
+
+    // Changed and put back where it came from, with the source read before
+    // it goes back.
+    moved := points[2]
+    moved.y = 7
+    before := points[2].y
+    points[2] = moved
+    print("% % %\n", before, points[2].y, moved.y)
+
+    // Put back somewhere else.
+    copied := points[0]
+    copied.x = 55
+    points[3] = copied
+    print("% % %\n", points[0].x, points[3].x, points[3].y)
+
+    // Members updated in place in a loop.
+    for round: 0..9 {
+        for i: 0..3 {
+            points[i].x += points[i].y
+            points[i].y -= 1
+        }
+    }
+    total: s64
+    for i: 0..3 { total += points[i].x * 3 + points[i].y }
+    print("%\n", total)
+
+    // Records inside records, an array inside a record.
+    pairs: [2]Pair
+    pairs[0].left.x = 1
+    pairs[0].right.y = 2
+    pairs[0].tags[1] = 3
+    pairs[1] = pairs[0]
+    pairs[1].tags[1] += 40
+    inner := pairs[1].left
+    pairs[1].left.x = 8
+    print("% % % % %\n", pairs[0].tags[1], pairs[1].tags[1], inner.x, pairs[1].left.x, pairs[1].right.y)
+
+    // A read used in another block.
+    seen := points[1]
+    if seen.x > 0 { points[1].x = 0 }
+    print("% %\n", seen.x, points[1].x)
+    return 0
+}

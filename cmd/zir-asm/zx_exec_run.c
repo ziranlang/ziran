@@ -114,7 +114,8 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     LirProgram optimized_program = compiler_opt_LirOptProgram(&optimized);
     size_t interface_length = 0;
     const char *interface = AssemblyHostInterface(lowered, &interface_length);
-    String interface_text = {interface ? interface : "", interface_length};
+    if(interface == NULL) goto done;
+    String interface_text = {interface, interface_length};
     ZxExecResult measured = compiler_exec_link_ZxExecWrite(optimized_program, assets, (Slice){0}, interface_text);
     if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
         String problem = compiler_exec_link_ZxExecProblemName(measured.problem);

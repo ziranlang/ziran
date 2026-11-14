@@ -15,7 +15,6 @@ Create a structured, serializable representation of executable operations below 
 - [Checked compiler records](../cmd/compiler_ir.zi).
 - [ZIR reader and writer](../cmd/zir/zir_serial.c).
 - [Scalar semantic helpers](../cmd/zir/zir_scalar.h).
-- [Current portable verifier](../cmd/zir/zir_vm_verify.c).
 - [Compiler embedding contract](../docs/COMPILER_API.md).
 
 Proposed new modules: `cmd/compiler_lowered_ir.zi`, `cmd/compiler_lowered_verify.zi`, and `cmd/compiler_lowered_text.zi`. Keep binary ZX framing in step 05 rather than coupling instruction records to file offsets.

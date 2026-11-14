@@ -92,7 +92,7 @@ def build(compiler, samples):
     data = {'schema_version': 1, 'host': platform.node() + ' · ' + base.cpu_name(),
             'measured_at': datetime.now(timezone.utc).isoformat(), 'samples': samples,
             'compiler': {tool: base.sha(compiler / 'build/bin' / tool)
-                         for tool in ('zi2c', 'zi2go', 'zi2zx', 'zi2wasm')},
+                         for tool in ('zi2c', 'zi2go', 'zi2zx', 'zi2asm')},
             'stdlib': {str(p.relative_to(compiler)): base.sha(p) for p in sorted((compiler / 'std').glob('*.zi'))},
             'harnesses': {p: base.sha((ROOT if p == 'bench/json_text.py' else HARNESS_ROOT) / p) for p in HARNESSES},
             'versions': {name: hosts.run(command, env=env).splitlines()[0] for name, command in
@@ -114,8 +114,8 @@ def build(compiler, samples):
             if directory.exists():
                 shutil.rmtree(directory)
             directory.mkdir(parents=True, exist_ok=True)
-            command = [compiler / 'build/bin' / ('zi2' + target),
-                       *(['bundle'] if target == 'zx' else ['--no-main'] if target in ('c', 'go') else []),
+            command = [compiler / 'build/bin' / ('zi2asm' if target == 'wasm' else 'zi2' + target),
+                       *(['bundle'] if target == 'zx' else ['--no-main'] if target in ('c', 'go') else ['--emit', 'wasm']),
                        *(['--pkg', 'main'] if target == 'go' else []),
                        '--root', source.parent, '--module-path', compiler / 'std', '--entry', name + ':Answer',
                        '-o', directory / (name + '.' + target) if target in ('zx', 'wasm') else directory, source]

@@ -67,11 +67,6 @@ EOF
 cmp "$work/source.zx" "$work/saved.zx"
 "$host_test" "$work/source.zx"
 "$host_test" "$work/saved.zx"
-# The same host, unchanged, runs the program as revision-28 executable ZX
-# through the embedding API, which translates its host values.
-"$(dirname -- "$ziran")/zi2asm" --root "$work" --entry record_host:Answer --emit zx \
-    -o "$work/executable.zx" "$work/record_host.zi"
-"$host_test" "$work/executable.zx"
 
 for input in source saved; do
     if test "$input" = source; then

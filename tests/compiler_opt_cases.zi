@@ -254,7 +254,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     unused NativeRun(*test, save[:])
     if test.failed { return 1 }
     expected := "compiler optimizer: verified bounded passes and differential execution local tests passed\n"
-    vm_expected := CheckConcat(expected, "0\n")
+    bundle_expected := CheckConcat(expected, "0\n")
     forms: [2]string = .["source", "saved"]
     for form: forms {
         input := ifx form == "source" then source else CheckPath(saved, CheckConcat(module, ".zir"))
@@ -264,8 +264,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
             "--module-path", modules, "--entry", CheckConcat(module, ":Run"),
             "-o", bundle, input]
         unused NativeRun(*test, bundle_command[:])
-        vm := string.[test.ziran, "run", "--vm", bundle]
-        if test.failed || !NativeExpect(*test, vm[:], vm_expected) { return 1 }
+        bundle_run := string.[test.ziran, "run", bundle]
+        if test.failed || !NativeExpect(*test, bundle_run[:], bundle_expected) { return 1 }
         c_output := CheckPath(test.work, CheckConcat(form, "-c"))
         c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
             CheckConcat(module, ":Run"), "--root", input_root, "--module-path", modules,
@@ -285,6 +285,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         for file: go_files { VecPush(go_run, file) }
         if test.failed || !NativeExpect(*test, go_run[:], expected) { return 1 }
     }
-    print("compiler optimizer: source/saved C, Go and explicit VM local tests passed\n")
+    print("compiler optimizer: source/saved C, Go and bundle local tests passed\n")
     return 0
 }

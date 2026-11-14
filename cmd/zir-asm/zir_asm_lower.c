@@ -966,18 +966,19 @@ assembly_promote_binding(AssemblyProgram *program, AssemblyFunction *function,
 
 static int64_t assembly_layout_size(AssemblyProgram *, int, int64_t *, int);
 
-/* A fixed-array local or parameter larger than this many bytes lives in a
- * frame slot, like one whose address is taken. A value would be passed to
- * every block it is live in, and each pass copies it: a loop over a large
- * table would copy the whole table on every iteration. A smaller array stays
- * a value, which the optimizer can take apart. */
+/* A fixed-array or record local or parameter larger than this many bytes
+ * lives in a frame slot, like one whose address is taken. A value would be
+ * passed to every block it is live in, and each pass copies it: a loop over a
+ * large table would copy the whole table on every iteration. A smaller one
+ * stays a value, which the optimizer can take apart. */
 #define ASSEMBLY_VALUE_BYTES 4096
 
 static int
 assembly_kept_in_storage(AssemblyProgram *program, int identity)
 {
-    if(program->failed || identity <= 0 || assembly_owned(program, identity, 0) ||
-       assembly_type_at(program, identity)->kind != LirTypeKind_Array) return 0;
+    if(program->failed || identity <= 0 || assembly_owned(program, identity, 0)) return 0;
+    LirTypeKind kind = assembly_type_at(program, identity)->kind;
+    if(kind != LirTypeKind_Array && kind != LirTypeKind_Record) return 0;
     int64_t alignment = 1;
     return assembly_layout_size(program, identity, &alignment, 0) > ASSEMBLY_VALUE_BYTES;
 }
@@ -3426,8 +3427,10 @@ assembly_simd_memory(const AssemblySimd *s, const SimdOp *op, const int *roots, 
     AssemblyFunction *function = s->function;
     int store = op->shape == SIMD_STORE, gather = op->shape == SIMD_GATHER;
     if(count != (store ? 3 : 2)) return assembly_fail(program, s->span, "invalid checked vector memory operation");
+    /* Indices are unsigned, so a negative one is past the end and fails as
+     * an out-of-bounds access. */
     int memory = assembly_expression(program, function, roots[0], depth + 1);
-    int at = gather ? -1 : simd_cast(s, assembly_expression(program, function, roots[1], depth + 1), 8);
+    int at = gather ? -1 : simd_cast(s, assembly_expression(program, function, roots[1], depth + 1), 9);
     AssemblyLanes vector = {0};
     if(store || gather) {
         int value = assembly_expression(program, function, roots[store ? 2 : 1], depth + 1);
@@ -3444,8 +3447,8 @@ assembly_simd_memory(const AssemblySimd *s, const SimdOp *op, const int *roots, 
     int reach = low ? 64 / zi_kbits(simd_kind(s, lane_type)) : lanes;
     int indices[32];
     for(int lane = 0; lane < reach; lane++)
-        indices[lane] = gather ? simd_cast(s, vector.lanes[lane], 8) : lane == 0 ? at :
-            simd_two(s, LirOp_Add, 8, at, simd_k(s, 8, (uint64_t)lane));
+        indices[lane] = gather ? simd_cast(s, vector.lanes[lane], 9) : lane == 0 ? at :
+            simd_two(s, LirOp_Add, 9, at, simd_k(s, 9, (uint64_t)lane));
     int values[32];
     LirType held = *assembly_type_at(program, simd_type(s, memory));
     if(held.kind == LirTypeKind_Array && !store) {
@@ -3462,7 +3465,7 @@ assembly_simd_memory(const AssemblySimd *s, const SimdOp *op, const int *roots, 
         int addresses[32];
         for(int lane = 0; lane < reach; lane++) {
             int operands[] = {data, indices[lane], length >= 0 ? length :
-                simd_two(s, LirOp_Add, 8, indices[lane], simd_k(s, 8, 1))};
+                simd_two(s, LirOp_Add, 9, indices[lane], simd_k(s, 9, 1))};
             addresses[lane] = assembly_emit(program, function, LirOp_ElementAddress, pointer, operands, 3, -1, s->span);
         }
         if(store) {

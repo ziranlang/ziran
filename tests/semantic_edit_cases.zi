@@ -158,7 +158,7 @@ SemanticTests :: (test: *NativeTest) -> bool {
     output := CheckPath(test.work, "ir"); save := string.[test.ziran, "ir", "--root", context.root, "-o", output, context.source]; unused NativeRun(test, save[:])
     for form: 0..1 {
         root := ifx form == 0 then context.root else output; input := ifx form == 0 then context.source else CheckPath(output, "main.zir"); bundle := CheckPath(test.work, ifx form == 0 then "source.zx" else "saved.zx")
-        build := string.[test.ziran, "bundle", "--root", root, "--entry", "main:main", "-o", bundle, input]; unused NativeRun(test, build[:]); run := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "run", "--vm", bundle]; result := NativeRun(test, run[:])
+        build := string.[test.ziran, "bundle", "--root", root, "--entry", "main:main", "-o", bundle, input]; unused NativeRun(test, build[:]); run := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "run", bundle]; result := NativeRun(test, run[:])
         if !NativeAssert(test, !test.failed && result.output == "42\n", "edited source and saved IR no longer execute the repaired program") { return false }
     }
     print("semantic edit: preview/apply, declaration IDs, rollback, paths, imports, UTF-8 and stale versions passed local tests\n")

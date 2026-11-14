@@ -14,10 +14,10 @@ image-thumbnail-test: $(BIN_DIR)/ziran $(BIN_DIR)/zi2zx
 	env -u DISPLAY -u WAYLAND_DISPLAY $(IMAGE_THUMBNAIL_DIR)/saved/image_thumbnail_test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(IMAGE_THUMBNAIL_COMPILER) bundle --entry image_thumbnail_test:Portable $(IMAGE_THUMBNAIL_ARGS) -o $(IMAGE_THUMBNAIL_DIR)/source.zx $(IMAGE_THUMBNAIL_SOURCE)
 	test "$$(env -u DISPLAY -u WAYLAND_DISPLAY $(IMAGE_THUMBNAIL_COMPILER) run $(IMAGE_THUMBNAIL_DIR)/source.zx)" = 0
-	test "$$(env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2zx run --vm $(IMAGE_THUMBNAIL_DIR)/source.zx)" = 0
+	test "$$(env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2zx run $(IMAGE_THUMBNAIL_DIR)/source.zx)" = 0
 	env -u DISPLAY -u WAYLAND_DISPLAY $(IMAGE_THUMBNAIL_COMPILER) bundle --entry image_thumbnail_test:Portable --root $(IMAGE_THUMBNAIL_DIR)/ir --module-path $(IMAGE_THUMBNAIL_DIR)/ir -o $(IMAGE_THUMBNAIL_DIR)/saved.zx $(IMAGE_THUMBNAIL_DIR)/ir/image_thumbnail_test.zir
 	test "$$(env -u DISPLAY -u WAYLAND_DISPLAY $(IMAGE_THUMBNAIL_COMPILER) run $(IMAGE_THUMBNAIL_DIR)/saved.zx)" = 0
-	test "$$(env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2zx run --vm $(IMAGE_THUMBNAIL_DIR)/saved.zx)" = 0
+	test "$$(env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2zx run $(IMAGE_THUMBNAIL_DIR)/saved.zx)" = 0
 	env -u DISPLAY -u WAYLAND_DISPLAY $(IMAGE_THUMBNAIL_COMPILER) build --target=go --pkg main --exe --entry image_thumbnail_test:Portable $(IMAGE_THUMBNAIL_ARGS) -o $(IMAGE_THUMBNAIL_DIR)/go $(IMAGE_THUMBNAIL_SOURCE)
 	env -u DISPLAY -u WAYLAND_DISPLAY GO111MODULE=off go run $(IMAGE_THUMBNAIL_DIR)/go/*.go
 	env -u DISPLAY -u WAYLAND_DISPLAY $(IMAGE_THUMBNAIL_COMPILER) build --target=go --pkg main --exe --entry image_thumbnail_test:Portable --root $(IMAGE_THUMBNAIL_DIR)/ir --module-path $(IMAGE_THUMBNAIL_DIR)/ir -o $(IMAGE_THUMBNAIL_DIR)/saved-go $(IMAGE_THUMBNAIL_DIR)/ir/image_thumbnail_test.zir

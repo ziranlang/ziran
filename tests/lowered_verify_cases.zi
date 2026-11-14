@@ -31,11 +31,11 @@ main :: (argc: s32, argv: **u8) -> s32 {
             build := string.[test.ziran, "bundle", "--root", root, "--module-path", modules,
                 "--entry", CheckConcat(module, CheckConcat(":", entry)), "-o", bundle, input]
             unused NativeRun(*test, build[:])
-            vm := string.[test.ziran, "run", "--vm", bundle]
-            result := NativeRun(*test, vm[:])
+            bundle_run := string.[test.ziran, "run", bundle]
+            result := NativeRun(*test, bundle_run[:])
             if test.failed { return 1 }
             if entry == "Answer" {
-                if !NativeAssert(*test, result.output == "42\n", "verifier cases must pass in the explicit portable VM") { return 1 }
+                if !NativeAssert(*test, result.output == "42\n", "verifier cases must pass when their bundle runs") { return 1 }
             } else {
                 combined := CheckConcat("42 ", result.output)
                 if expected == "" { expected = combined }
@@ -59,6 +59,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         for path: go_files { VecPush(go_run, path) }
         if test.failed || !NativeExpect(*test, go_run[:], expected) { return 1 }
     }
-    print("lowered verifier: source/saved IR C, Go and explicit portable VM local tests passed\n")
+    print("lowered verifier: source/saved IR C, Go and bundle local tests passed\n")
     return 0
 }

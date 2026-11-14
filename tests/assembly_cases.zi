@@ -561,8 +561,7 @@ OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
     return true
 }
 
-GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: string, operation: string,
-    legacy_vm: bool = true) -> bool {
+GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: string, operation: string) -> bool {
     if !LowerExercise(test, compiler, name, source, 42, operation, true) { return false }
     input := CheckPath(test.work, CheckConcat(name, ".zi"))
     saved := CheckPath(test.work, CheckConcat(name, CheckConcat("-ir/", CheckConcat(name, ".zir"))))
@@ -571,13 +570,11 @@ GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: st
     entry := CheckConcat(name, ":Answer")
     for index: 0..inputs.count - 1 {
         form := CheckConcat(name, CheckConcat("-", forms[index]))
-        if legacy_vm {
-            bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
-            bundle_build := string.[test.ziran, "bundle", "--root", PathParent(inputs[index]), "--entry", entry, "-o", bundle, inputs[index]]
-            unused NativeRun(test, bundle_build[:])
-            vm := string.[test.ziran, "run", "--vm", bundle]
-            if test.failed || !NativeExpect(test, vm[:], "42\n") { return false }
-        }
+        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+        bundle_build := string.[test.ziran, "bundle", "--root", PathParent(inputs[index]), "--entry", entry, "-o", bundle, inputs[index]]
+        unused NativeRun(test, bundle_build[:])
+        bundle_run := string.[test.ziran, "run", bundle]
+        if test.failed || !NativeExpect(test, bundle_run[:], "42\n") { return false }
         optimized := string.[compiler, "--opt", "--run", "--root", PathParent(inputs[index]), "--entry", entry, inputs[index]]
         unused NativeRun(test, optimized[:], "", 42)
         optimized_wire := string.[compiler, "--opt", "--run", "--input", "zx", CheckConcat(inputs[index], ".zx")]
@@ -873,13 +870,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
     global_pointer := "counter: s32 = 41; Choose :: () -> *s32 { return *counter }; Bump :: (pointer: *s32) -> s32 { <<pointer += 1; return <<pointer }; Answer :: () -> s32 { initial := counter; selected := Choose(); if initial != 41 { return 1 }; return Bump(selected) }\n"
     if !GlobalExercise(*test, compiler, "global_pointer", global_pointer, "load") { return 1 }
     global_field_pointer := "Pair :: struct { left: s32; right: s32 }; Box :: struct { pair: Pair }; state: Box; picks: s32; Pick :: () -> *s32 { picks += 1; return *state.pair.right }; Next :: () -> s32 { state.pair.left = 21; state.pair.right = 99; if picks != 1 { return 8 }; return 1 }; Answer :: () -> s32 { state.pair.right = 20; <<Pick() += Next(); if picks != 1 { return 1 }; return state.pair.left + state.pair.right }\n"
-    if !GlobalExercise(*test, compiler, "global_field_pointer", global_field_pointer, "field.address", false) { return 1 }
+    if !GlobalExercise(*test, compiler, "global_field_pointer", global_field_pointer, "field.address") { return 1 }
     global_pointer_alias := "left: s32; right: s32; selected: *s32; Swap :: () -> s32 { selected = *right; return 42 }; Answer :: () -> s32 { selected = *left; <<selected = Swap(); if left != 42 || right != 0 { return 1 }; return left }\n"
     if !GlobalExercise(*test, compiler, "global_pointer_alias", global_pointer_alias, "store") { return 1 }
     global_elements := "values: [3]s32; Set :: (pointer: *s32, value: s32) { <<pointer = value }; At :: (index: s32) -> *s32 { return *values[index] }; #program_export\nAnswer :: () -> s32 { index: s32 = 0; while index < 3 { Set(At(index), 20 + index); index += 1 }; if At(1) != *values[1] { return 1 }; return values[0] + values[2] }\n"
     if !GlobalExercise(*test, compiler, "global_elements", global_elements, "element.address") { return 1 }
     nested_elements := "Row :: struct { values: [2]s32 }; grid: [2]Row; Select :: (row: s32, column: u64) -> *s32 { return *grid[row].values[column] }; #program_export\nAnswer :: () -> s32 { <<Select(0, 1) = 20; <<Select(1, 0) = 22; if Select(0, 1) != *grid[0].values[1] { return 1 }; return grid[0].values[1] + grid[1].values[0] }\n"
-    if !GlobalExercise(*test, compiler, "nested_elements", nested_elements, "element.address", false) { return 1 }
+    if !GlobalExercise(*test, compiler, "nested_elements", nested_elements, "element.address") { return 1 }
     element_alias := "Cell :: struct { value: s32 }; Row :: struct { cells: [3]Cell }; data: Row; other: Row; selected: *Row; calls: s32; Index :: () -> s32 { calls += 1; return 1 }; Rebind :: () -> s32 { selected = *other; data.cells[1].value = 100; other.cells[1].value = 99; return 2 }; #program_export\nAnswer :: () -> s32 { data.cells[1].value = 20; selected = *data; (<<selected).cells[Index()].value += Rebind(); if data.cells[1].value != 22 || other.cells[1].value != 99 || calls != 1 { return 1 }; pointer := *data.cells[1].value; return <<pointer + 20 }\n"
     if !GlobalExercise(*test, compiler, "element_alias", element_alias, "element.address") { return 1 }
     global_library := CheckPath(test.work, "global_library.zi")

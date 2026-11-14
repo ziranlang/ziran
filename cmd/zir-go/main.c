@@ -8,7 +8,7 @@
 #include "zir_command.h"
 #include "zir_serial.h"
 #include "zir_load.h"
-#include "zir_bundle.h"
+#include "zir_link.h"
 #include "zir_emit.h"
 #include "zir_go_lower.h"
 

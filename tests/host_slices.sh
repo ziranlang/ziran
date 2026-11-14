@@ -4,7 +4,6 @@ set -eu
 ziran=$1
 host_test=$2
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-zi2asm=$(dirname -- "$ziran")/zi2asm
 include=${ZIRAN_INCLUDE:-"$root/include"}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -93,11 +92,6 @@ GO
     done
 done
 cmp "$work/source.zx" "$work/saved.zx"
-# The same host, unchanged, runs each program as revision-28 executable ZX,
-# whose host changes to slice elements are copied back.
-"$zi2asm" --root "$work" --entry host_buffer:Answer --emit zx \
-    -o "$work/executable.zx" "$work/host_buffer.zi"
-"$host_test" "$work/executable.zx"
 
 # A library can expose a foreign slice parameter without any Ziran function
 # body. Its generated native header must still declare Slice.
@@ -140,11 +134,6 @@ for input in source saved; do
     "$host_test" "$work/returned-$input.zx" return_huge
 done
 cmp "$work/returned-source.zx" "$work/returned-saved.zx"
-"$zi2asm" --root "$work" --entry returned:Answer --emit zx \
-    -o "$work/returned-executable.zx" "$work/returned.zi"
-for mode in return_view return_empty return_huge; do
-    "$host_test" "$work/returned-executable.zx" "$mode"
-done
 
 cat > "$work/record_slices.zi" <<'ZI'
 Point :: struct { x: s32; y: s32; }
@@ -216,10 +205,6 @@ GO
     done
 done
 cmp "$work/record-source.zx" "$work/record-saved.zx"
-"$zi2asm" --root "$work" --entry record_slices:Answer --emit zx \
-    -o "$work/record-executable.zx" "$work/record_slices.zi"
-"$host_test" "$work/record-executable.zx" records
-"$host_test" "$work/record-executable.zx" records_bad
 
 # A foreign declaration and its caller may name the same record through
 # different module aliases. The portable host ABI carries the declaration's
@@ -264,9 +249,6 @@ for input in source saved; do
     "$host_test" "$work/named-$input.zx" named_records
 done
 cmp "$work/named-source.zx" "$work/named-saved.zx"
-"$zi2asm" --root "$work/named" --entry named_slices:Answer --emit zx \
-    -o "$work/named-executable.zx" "$work/named/named_slices.zi"
-"$host_test" "$work/named-executable.zx" named_records
 
 cat > "$work/bad_return.zi" <<'ZI'
 host_api :: #system_library "host_api";
@@ -295,6 +277,3 @@ ZI
 "$ziran" bundle --root "$work" --entry overlap:Answer \
     -o "$work/overlap.zx" "$work/overlap.zi"
 "$host_test" "$work/overlap.zx" overlap
-"$zi2asm" --root "$work" --entry overlap:Answer --emit zx \
-    -o "$work/overlap-executable.zx" "$work/overlap.zi"
-"$host_test" "$work/overlap-executable.zx" overlap

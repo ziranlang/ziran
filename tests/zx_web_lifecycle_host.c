@@ -1,7 +1,7 @@
-/* End-to-end lifecycle host for a browser WebAssembly embedding. */
+/* End-to-end lifecycle host for a browser WebAssembly embedding: every
+ * instance runs on the bundle Wasm tier through the page's provider. */
 #define _POSIX_C_SOURCE 200809L
 #include "ziran_host.h"
-#include "zir_zx_wasm_platform.h"
 
 #include <emscripten.h>
 #include <stdint.h>
@@ -158,11 +158,9 @@ static int run_handle(BundleComponentHandle *handle, long long expected)
 }
 
 static int migrate_instance(BundleInstance *old, const Bundle *replacement,
-                            const HostBinding *bindings, int portable)
+                            const HostBinding *bindings)
 {
-    BundleInstance *candidate = portable ?
-        BundleInstantiatePortable(replacement, bindings, 1) :
-        BundleInstantiate(replacement, bindings, 1);
+    BundleInstance *candidate = BundleInstantiate(replacement, bindings, 1);
     BundleState *old_state = NULL, *new_state = NULL;
     int ok = candidate != NULL &&
              BundleInstanceExportState(old, &old_state) &&
@@ -204,115 +202,30 @@ static int exported_title_is_old(BundleInstance *instance)
     return ok;
 }
 
-EM_JS(unsigned long, zx_wasm_js_instantiate, (int ptr, int size), {
-    const bytes = new Uint8Array(HEAPU8.buffer, ptr, size).slice();
-    try {
-        const budget = new WebAssembly.Global({value: 'i64', mutable: true}, 0n);
-        const instance = new WebAssembly.Instance(new WebAssembly.Module(bytes), {
-            zx: {
-                overrun: () => { throw new Error('zx budget spent'); },
-                budget: budget,
-            },
-        });
-        if(globalThis.zxWasmInstances === undefined)
-            globalThis.zxWasmInstances = new Map();
-        const id = globalThis.zxWasmInstances.size + 1;
-        globalThis.zxWasmInstances.set(id, {instance: instance, budget: budget});
-        return id;
-    } catch(error) {
-        console.error('instantiate failed: ' + error);
-        return 0;
-    }
-});
-
-EM_JS(int, zx_wasm_js_set_budget, (unsigned long handle, long long budget), {
-    if(globalThis.zxWasmInstances === undefined)
-        return 1;
-    const entry = globalThis.zxWasmInstances.get(handle);
-    if(entry === undefined)
-        return 1;
-    entry.budget.value = BigInt.asIntN(64, BigInt(budget));
-    return 0;
-});
-
-EM_JS(int, zx_wasm_js_call, (unsigned long handle, long long *result), {
-    if(globalThis.zxWasmInstances === undefined)
-        return 1;
-    const entry = globalThis.zxWasmInstances.get(handle);
-    if(entry === undefined)
-        return 1;
-    try {
-        const value = entry.instance.exports.zx_entry();
-        setValue(result, value, 'i64');
-        return 0;
-    } catch(error) {
-        console.error('run trapped: ' + error);
-        return 1;
-    }
-});
-
-EM_JS(int, zx_wasm_js_release, (unsigned long handle), {
-    if(globalThis.zxWasmInstances === undefined)
-        return 1;
-    return globalThis.zxWasmInstances.delete(handle) ? 0 : 1;
-});
-
-static unsigned long provider_instantiate(void *context,
-                                           const unsigned char *bytes, size_t size)
-{
-    (void)context;
-    return zx_wasm_js_instantiate((int)bytes, (int)size);
-}
-
-static int provider_set_budget(void *context, unsigned long handle,
-                               long long budget)
-{
-    (void)context;
-    return zx_wasm_js_set_budget(handle, budget);
-}
-
-static int provider_call(void *context, unsigned long handle, long long *result)
-{
-    (void)context;
-    return zx_wasm_js_call(handle, result);
-}
-
-static void provider_release(void *context, unsigned long handle)
-{
-    (void)context;
-    zx_wasm_js_release(handle);
-}
-
 int main(int argc, char **argv)
 {
     Bundle *old, *replacement, *wrong_abi, *init_failure, *unrelated_bundle;
     unsigned char old_identity[32], new_identity[32];
     BundleCapabilityAbi capability;
-    BundleInstance *left, *right, *state_instance;
+    BundleInstance *left, *right;
     BundleComponent *component, *same_code, *unrelated, *bounded;
     BundleComponentHandle *handle, *same_handle, *unrelated_handle;
     BundleComponentHandle *replacement_handle, *current, *bounded_handle;
     HostBinding bindings[] = {
         {.module = "component", .function = "Adjust", .call = adjust}
     };
-    int wasm_mode, capability_found = 0;
+    int capability_found = 0;
     char done[64];
 
-    if(argc != 7) {
-        fprintf(stderr,
-                "usage: zx_web_lifecycle_host wasm|linked old new wrong init unrelated\n");
+    if(argc != 6) {
+        fprintf(stderr, "usage: zx_web_lifecycle_host old new wrong init unrelated\n");
         return 2;
     }
-    wasm_mode = strcmp(argv[1], "wasm") == 0;
-    if(!wasm_mode && strcmp(argv[1], "linked") != 0) {
-        fprintf(stderr, "unknown lifecycle host mode %s\n", argv[1]);
-        return 2;
-    }
-    old = BundleOpen(argv[2]);
-    replacement = BundleOpen(argv[3]);
-    wrong_abi = BundleOpen(argv[4]);
-    init_failure = BundleOpen(argv[5]);
-    unrelated_bundle = BundleOpen(argv[6]);
+    old = BundleOpen(argv[1]);
+    replacement = BundleOpen(argv[2]);
+    wrong_abi = BundleOpen(argv[3]);
+    init_failure = BundleOpen(argv[4]);
+    unrelated_bundle = BundleOpen(argv[5]);
     if(old == NULL || replacement == NULL || wrong_abi == NULL ||
        init_failure == NULL || unrelated_bundle == NULL) {
         fprintf(stderr, "cannot open browser lifecycle fixtures\n");
@@ -338,27 +251,16 @@ int main(int argc, char **argv)
 
     left = BundleInstantiate(old, bindings, 1);
     right = BundleInstantiate(old, bindings, 1);
-    report(wasm_mode ? "wasm-provider-independent" : "linked-independent",
+    report("wasm-provider-independent",
            left != NULL && right != NULL && run_instance(left, 89) &&
            run_instance(left, 99) && run_instance(right, 89) &&
            run_instance(right, 99));
-    if(wasm_mode)
-        report("wasm-engine-active", EM_ASM_INT({
-            return globalThis.zxWasmTier !== undefined &&
-                   globalThis.zxWasmTier.instances.size === 2;
-        }));
-    /* Linked native code has opaque globals; its component lifecycle uses
-     * portable instances. The Wasm provider exposes its typed state table. */
-    state_instance = wasm_mode ? left :
-        BundleInstantiatePortable(old, bindings, 1);
-    int state_ready = wasm_mode || (state_instance != NULL &&
-                      run_instance(state_instance, 89) &&
-                      run_instance(state_instance, 99));
-    report("instance-state-migration", state_ready &&
-           exported_title_is_old(state_instance) &&
-           migrate_instance(state_instance, replacement, bindings, !wasm_mode));
-    if(!wasm_mode)
-        BundleInstanceClose(state_instance);
+    report("wasm-engine-active", EM_ASM_INT({
+        return globalThis.zxWasmTier !== undefined &&
+               globalThis.zxWasmTier.instances.size === 2;
+    }));
+    report("instance-state-migration", exported_title_is_old(left) &&
+           migrate_instance(left, replacement, bindings));
     BundleInstanceClose(left);
     BundleInstanceClose(right);
 
@@ -428,8 +330,7 @@ int main(int argc, char **argv)
     BundleClose(init_failure);
     BundleClose(unrelated_bundle);
 
-    printf("%s browser-lifecycle %s\n", failed ? "FAIL" : "PASS",
-           wasm_mode ? "wasm" : "linked");
+    printf("%s browser-lifecycle wasm\n", failed ? "FAIL" : "PASS");
     snprintf(done, sizeof(done), "globalThis.lifecycleDone = %d",
              failed ? 1 : 0);
     emscripten_run_script(done);

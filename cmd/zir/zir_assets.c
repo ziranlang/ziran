@@ -1,9 +1,10 @@
 #include "zir_memory.h"
 #include "zir_files.h"
-#include "zir_bundle.h"
+#include "zir_link.h"
 #include "zir_diagnostic.h"
 #include "compiler_bundle.h"
 #include <dirent.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,13 +14,30 @@ void
 ZxAssetsFree(ZxAssets *assets)
 {
     if(assets == NULL) return;
-    for(size_t i = 0; assets->storage == NULL && i < assets->count; i++) {
+    for(size_t i = 0; i < assets->count; i++) {
         free(assets->items[i].name);
         free(assets->items[i].data);
     }
-    free(assets->storage);
     free(assets->items);
     memset(assets, 0, sizeof(*assets));
+}
+
+/* The rest of IN in one block; NULL when it cannot be read. */
+static unsigned char *
+read_rest(FILE *in, size_t *size)
+{
+    long start = ftell(in), end;
+    if(start < 0 || fseek(in, 0, SEEK_END) != 0 || (end = ftell(in)) < start ||
+       fseek(in, start, SEEK_SET) != 0 || (uint64_t)(end - start) >= SIZE_MAX)
+        return NULL;
+    *size = (size_t)(end - start);
+    unsigned char *bytes = malloc(*size ? *size : 1);
+    if(bytes != NULL &&
+       (fread(bytes, 1, *size, in) != *size || fgetc(in) != EOF || ferror(in))) {
+        free(bytes);
+        return NULL;
+    }
+    return bytes;
 }
 
 static char *
@@ -84,7 +102,7 @@ collect_path(ZxAssets *assets, const char *name, const char *path)
     }
     size_t size = 0;
     FILE *input = S_ISREG(stat.st_mode) ? fopen(path, "rb") : NULL;
-    unsigned char *data = input != NULL ? BundleReadStream(input, &size) : NULL;
+    unsigned char *data = input != NULL ? read_rest(input, &size) : NULL;
     int ok = data != NULL && ZxAssetsAdd(assets, name, data, size);
     if(input != NULL && fclose(input) != 0) ok = 0;
     free(data);

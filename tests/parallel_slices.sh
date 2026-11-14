@@ -77,7 +77,7 @@ for input in source saved; do
     fi
     "$ziran" bundle --root "$root" --entry slices:Answer -o "$work/$input.zx" "$module"
     for threads in 1 4; do
-        test "$(ZIRAN_NATIVE_CACHE=0 ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/$input.zx")" = 205368
+        test "$(ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/$input.zx")" = 205368
     done
     "$ziran" build --target=c --entry slices:Answer --root "$root" -o "$work/c-$input" "$module"
     cat > "$work/c-$input/main.c" <<'C'
@@ -115,7 +115,7 @@ Answer :: () -> s64 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry local:Answer -o "$work/local.zx" "$work/local.zi"
-test "$(ZIRAN_NATIVE_CACHE=0 ZIRAN_PAR_THREADS=4 "$ziran" run "$work/local.zx")" = 20
+test "$(ZIRAN_PAR_THREADS=4 "$ziran" run "$work/local.zx")" = 20
 
 # A callee may write through a slice it is handed only when the iteration
 # owns that storage: an array it declares, or its own window.
@@ -147,7 +147,7 @@ Answer :: () -> s64 {
 ZI
 "$ziran" bundle --root "$work" --entry callees:Answer -o "$work/callees.zx" "$work/callees.zi"
 for threads in 1 4; do
-    test "$(ZIRAN_NATIVE_CACHE=0 ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/callees.zx")" = 144
+    test "$(ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/callees.zx")" = 144
 done
 
 reject() {

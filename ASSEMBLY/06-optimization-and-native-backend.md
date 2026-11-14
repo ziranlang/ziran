@@ -10,9 +10,8 @@ The `zi2asm` CLI now runs verified LIR optimization before writing portable ZX.
 Both native entry routes read and verify those bytes before selecting direct
 LIR or machine-IR target lowering. `--opt` selects optimized source inspection,
 not a second optimization pass on ZX input. `--emit wasm` lowers the same
-verified ZX to a wasm32 module. Source/debug origin attachments, default
-runtime cutover and moving `zi2wasm` and the bundle Wasm tier onto that
-lowering remain gaps.
+verified ZX to a wasm32 module, which `ziran build --target=wasm` and the
+bundle Wasm tier use. Source/debug origin attachments remain a gap.
 
 Implement a native backend shared by standalone compilation and native ZX execution. Start with Linux x86-64 System V as the first execution milestone, then complete the required target matrix in step 07. A first working return-value executable is not completion of this step.
 

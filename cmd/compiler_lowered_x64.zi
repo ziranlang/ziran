@@ -46,7 +46,12 @@ X64FunctionLayout :: struct {
     result_pointer: s64
 }
 X64AddressLayout :: struct { global: s32; offset: s64; extent: s64; type: s32; child_base: s64 }
-X64AllocateSite :: struct { pointee: s32; token_base: s64; token_count: s64 }
+// An allocation's tokens name the addresses inside it, as a global's do:
+// node `n` of the site is token `token_base + n` (see X64AllocationNodes).
+X64AllocateSite :: struct { pointee: s32; token_base: s64; token_count: s64; node_base: s64 }
+// Consecutive nodes of one site with one type, each one element further into
+// the same array: a base plus an index.
+X64AllocationRun :: struct { site: s64; first: s64; count: s64 }
 X64Layout :: struct {
     type_sizes: Vec(s64)
     member_bases: Vec(s64)
@@ -58,6 +63,10 @@ X64Layout :: struct {
     addresses: Vec(X64AddressLayout)
     address_children: Vec(s64)
     allocate_sites: Vec(X64AllocateSite)
+    allocate_nodes: Vec(X64AddressLayout)
+    allocate_runs: Vec(X64AllocationRun)
+    // Whether some address inside an allocation has this type.
+    allocated_types: Vec(bool)
     readonly_bytes: s64
     writable_bytes: s64
     readonly_address: u64
@@ -182,6 +191,74 @@ X64LayoutFree :: (layout: *X64Layout) {
     VecFree(layout.addresses)
     VecFree(layout.address_children)
     VecFree(layout.allocate_sites)
+    VecFree(layout.allocate_nodes)
+    VecFree(layout.allocate_runs)
+    VecFree(layout.allocated_types)
+}
+
+// The addresses inside one allocation of `pointee`, numbered as its tokens:
+// the whole value, then level by level each record's fields and each array's
+// elements, with extents as a global's. The children of consecutive nodes are
+// consecutive, so the elements of an allocated array keep tokens base + 1 ...
+X64AllocationNodes :: (program: LirProgram, layout: *X64Layout, pointee: s32, site: s32,
+    limit: s64) -> LirProblem {
+    first := layout.allocate_nodes.count
+    if limit < 1 { return .Limit }
+    if !VecPush(layout.allocate_nodes, .{.global = site, .offset = 0,
+        .extent = layout.type_sizes[pointee], .type = pointee}) { return .Allocation }
+    at := first
+    while at < layout.allocate_nodes.count {
+        node := layout.allocate_nodes[at]
+        type := program.types[node.type]
+        if type.kind == .Record || type.kind == .Array {
+            child_count := ifx type.kind == .Record then type.fields.count else type.count
+            if child_count > limit - (layout.allocate_nodes.count - first) { return .Limit }
+            layout.allocate_nodes[at].child_base = layout.allocate_nodes.count - first
+            for member: cast(s64)0..child_count - 1 {
+                child_type := type.element
+                child_offset := member * layout.type_sizes[type.element]
+                if type.kind == .Record {
+                    child_type = type.fields[member]
+                    child_offset = layout.member_offsets[layout.member_bases[node.type] + member]
+                }
+                child_extent := ifx type.kind == .Array then node.extent - child_offset else layout.type_sizes[child_type]
+                if !VecPush(layout.allocate_nodes, .{.global = site, .offset = node.offset + child_offset,
+                    .extent = child_extent, .type = child_type}) { return .Allocation }
+            }
+        }
+        at += 1
+    }
+    return .None
+}
+
+// The length of the run of nodes of `site` that starts at node `first`.
+X64NodeRun :: (layout: *X64Layout, site: X64AllocateSite, first: s64) -> s64 {
+    node := layout.allocate_nodes[site.node_base + first]
+    size := layout.type_sizes[node.type]
+    if size <= 0 { return 1 }
+    count: s64 = 1
+    while first + count < site.token_count {
+        next := layout.allocate_nodes[site.node_base + first + count]
+        if next.type != node.type || next.offset != node.offset + count * size ||
+            next.extent != node.extent - count * size { break }
+        count += 1
+    }
+    return count
+}
+
+// Jumps past the following code unless the low token bits in `eax` (or
+// `edx`) name a node of `run`; `below` and `above` take the two jumps to fix up.
+X64RunRange :: (writer: *X64Writer, layout: *X64Layout, run: X64AllocationRun, edx: bool,
+    below: *s64, above: *s64) {
+    first := layout.allocate_sites[run.site].token_base + run.first
+    if edx { X64Byte(writer, 129); X64Byte(writer, 250) } else { X64Byte(writer, 61) }
+    X64Word(writer, cast(u64)first, 4)
+    X64Condition(writer, 130, 0)
+    <<below = writer.at
+    if edx { X64Byte(writer, 129); X64Byte(writer, 250) } else { X64Byte(writer, 61) }
+    X64Word(writer, cast(u64)(first + run.count - 1), 4)
+    X64Condition(writer, 135, 0)
+    <<above = writer.at
 }
 
 X64AddressAdd :: (layout: *X64Layout, global: s32, offset: s64, extent: s64,
@@ -337,19 +414,30 @@ X64LayoutBuild :: (program: LirProgram, layout: *X64Layout) -> LirProblem {
                 pointee := program.types[function.values[instruction.result]].element
                 size := layout.type_sizes[pointee]
                 if size > X64AllocateRegion - X64AllocateRecord { return .Limit }
-                type := program.types[pointee]
-                token_count: s64 = 1
-                if type.kind == .Array {
-                    if type.count > 16777216 - token_count { return .Limit }
-                    token_count += type.count
-                }
-                if token_at > 16777216 - token_count { return .Limit }
+                node_base := layout.allocate_nodes.count
+                problem := X64AllocationNodes(program, layout, pointee, cast(s32)layout.allocate_sites.count,
+                    16777216 - token_at)
+                if problem != .None { return problem }
+                token_count := layout.allocate_nodes.count - node_base
                 if !VecPush(layout.allocate_sites, .{.pointee = pointee,
-                    .token_base = token_at, .token_count = token_count}) {
+                    .token_base = token_at, .token_count = token_count, .node_base = node_base}) {
                     return .Allocation
                 }
                 token_at += token_count
             }
+        }
+    }
+    if !VecResize(layout.allocated_types, program.types.count) { return .Allocation }
+    for site_index: cast(s64)0..layout.allocate_sites.count - 1 {
+        site := layout.allocate_sites[site_index]
+        node_index: s64
+        while node_index < site.token_count {
+            count := X64NodeRun(layout, site, node_index)
+            if !VecPush(layout.allocate_runs, .{.site = site_index, .first = node_index, .count = count}) {
+                return .Allocation
+            }
+            layout.allocated_types[layout.allocate_nodes[site.node_base + node_index].type] = true
+            node_index += count
         }
     }
     if !VecResize(layout.value_offsets, value_count) ||
@@ -716,24 +804,22 @@ X64PrintBytes :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
     }
     pointer_type := LirType.{.kind = .Pointer}
     X64MoveRegister(writer, 7, 0)
-    for site: cast(s64)0..layout.allocate_sites.count - 1 {
+    for run: layout.allocate_runs {
+        site := run.site
         allocation := layout.allocate_sites[site]
         pointee := allocation.pointee
-        allocated := program.types[pointee]
-        if allocated.kind != .Array || allocated.element != element { continue }
+        node := layout.allocate_nodes[allocation.node_base + run.first]
+        if node.type != element { continue }
+        // The bytes reach from the node to the end of its array.
         X64Byte(writer, 137); X64Byte(writer, 248)
         X64Byte(writer, 37); X64Word(writer, 16777215, 4)
-        X64Byte(writer, 61); X64Word(writer, cast(u64)(allocation.token_base + 1), 4)
-        X64Condition(writer, 130, 0)
-        candidate_low_end := writer.at
-        X64Byte(writer, 61); X64Word(writer,
-            cast(u64)(allocation.token_base + allocated.count), 4)
-        X64Condition(writer, 135, 0)
-        candidate_high_end := writer.at
+        candidate_low_end: s64
+        candidate_high_end: s64
+        X64RunRange(writer, layout, run, false, *candidate_low_end, *candidate_high_end)
         X64Byte(writer, 72); X64Byte(writer, 45)
-        X64Word(writer, cast(u64)(allocation.token_base + 1), 4)
+        X64Word(writer, cast(u64)(allocation.token_base + run.first), 4)
         X64MoveRegister(writer, 9, 0)
-        X64Immediate(writer, 0, cast(u64)allocated.count)
+        X64Immediate(writer, 0, cast(u64)node.extent)
         X64Bytes(writer, 76, 41, 200)
         X64Bytes(writer, 72, 57, 194)
         X64Condition(writer, 135, X64Trap)
@@ -777,6 +863,7 @@ X64PrintBytes :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
         X64Condition(writer, 135, X64Trap)
         X64Lea(writer, 6, 1, X64AllocateRecord)
         X64Bytes(writer, 76, 1, 206)
+        if node.offset != 0 { X64Bytes(writer, 72, 129, 198); X64Word(writer, cast(u64)node.offset, 4) }
         X64Jump(writer, write)
         X64Fixup(writer, candidate_low_end, writer.at)
         X64Fixup(writer, candidate_high_end, writer.at)
@@ -1181,40 +1268,26 @@ X64AllocationDispatch :: (writer: *X64Writer, program: LirProgram, layout: *X64L
     expected: s32, done: s64) {
     pointer_type := LirType.{.kind = .Pointer}
     X64MoveRegister(writer, 1, 0)
-    for site: cast(s64)0..layout.allocate_sites.count - 1 {
+    for run: layout.allocate_runs {
+        site := run.site
         allocation := layout.allocate_sites[site]
-        pointee := program.types[allocation.pointee]
-        direct := allocation.pointee == expected
-        element := pointee.kind == .Array && pointee.element == expected
-        if !direct && !element { continue }
+        node := layout.allocate_nodes[allocation.node_base + run.first]
+        if node.type != expected { continue }
+        // rdi is the node's byte offset inside the allocation.
         X64Byte(writer, 137); X64Byte(writer, 202)
         X64Byte(writer, 129); X64Byte(writer, 226); X64Word(writer, 16777215, 4)
         candidate_low_end: s64
         candidate_high_end: s64
-        if direct {
-            X64Byte(writer, 129); X64Byte(writer, 250)
-            X64Word(writer, cast(u64)allocation.token_base, 4)
-            X64Condition(writer, 133, 0)
-            candidate_low_end = writer.at
-            X64Byte(writer, 49); X64Byte(writer, 255)
-        } else {
-            X64Byte(writer, 129); X64Byte(writer, 250)
-            X64Word(writer, cast(u64)(allocation.token_base + 1), 4)
-            X64Condition(writer, 130, 0)
-            candidate_low_end = writer.at
-            X64Byte(writer, 129); X64Byte(writer, 250)
-            X64Word(writer, cast(u64)(allocation.token_base + pointee.count), 4)
-            X64Condition(writer, 135, 0)
-            candidate_high_end = writer.at
-            X64Byte(writer, 129); X64Byte(writer, 234)
-            X64Word(writer, cast(u64)(allocation.token_base + 1), 4)
-            X64Byte(writer, 137); X64Byte(writer, 215)
-            element_size := layout.type_sizes[expected]
-            if element_size != 1 {
-                X64Bytes(writer, 72, 105, 255)
-                X64Word(writer, cast(u64)element_size, 4)
-            }
+        X64RunRange(writer, layout, run, true, *candidate_low_end, *candidate_high_end)
+        X64Byte(writer, 129); X64Byte(writer, 234)
+        X64Word(writer, cast(u64)(allocation.token_base + run.first), 4)
+        X64Byte(writer, 137); X64Byte(writer, 215)
+        element_size := layout.type_sizes[expected]
+        if element_size != 1 {
+            X64Bytes(writer, 72, 105, 255)
+            X64Word(writer, cast(u64)element_size, 4)
         }
+        if node.offset != 0 { X64Bytes(writer, 72, 129, 199); X64Word(writer, cast(u64)node.offset, 4) }
         X64MoveRegister(writer, 6, 1)
         X64Bytes(writer, 72, 129, 230); X64Word(writer, 4278190080, 4)
         X64Bytes(writer, 72, 129, 198); X64Word(writer, cast(u64)allocation.token_base, 4)
@@ -1254,7 +1327,7 @@ X64AllocationDispatch :: (writer: *X64Writer, program: LirProgram, layout: *X64L
         X64LoadMemory(writer, 2, 2, 0, pointer_type)
         X64Jump(writer, loop)
         X64Fixup(writer, candidate_low_end, writer.at)
-        if candidate_high_end != 0 { X64Fixup(writer, candidate_high_end, writer.at) }
+        X64Fixup(writer, candidate_high_end, writer.at)
     }
     X64Jump(writer, X64Trap)
 }
@@ -1268,39 +1341,26 @@ X64AllocationAddressDispatch :: (writer: *X64Writer, program: LirProgram,
     slice := instruction.operands.count == 4
     view := instruction.operands.count >= 3
     X64MoveRegister(writer, 7, 0)
-    for site: cast(s64)0..layout.allocate_sites.count - 1 {
-        allocation := layout.allocate_sites[site]
-        pointee := allocation.pointee
-        allocated := program.types[pointee]
-        matches := ifx view then allocated.kind == .Array && allocated.element == expected else pointee == expected
-        if !matches { continue }
+    for run: layout.allocate_runs {
+        allocation := layout.allocate_sites[run.site]
+        node := layout.allocate_nodes[allocation.node_base + run.first]
+        if node.type != expected { continue }
+        first := allocation.token_base + run.first
+        // eax is the node's place in its run.
         X64Byte(writer, 137); X64Byte(writer, 248)
         X64Byte(writer, 37); X64Word(writer, 16777215, 4)
         candidate_low_end: s64
         candidate_high_end: s64
-        if view {
-            X64Byte(writer, 61); X64Word(writer,
-                cast(u64)(allocation.token_base + 1), 4)
-            X64Condition(writer, 130, 0)
-            candidate_low_end = writer.at
-            X64Byte(writer, 61); X64Word(writer,
-                cast(u64)(allocation.token_base + allocated.count), 4)
-            X64Condition(writer, 135, 0)
-            candidate_high_end = writer.at
-            X64Byte(writer, 45); X64Word(writer,
-                cast(u64)(allocation.token_base + 1), 4)
-            X64MoveRegister(writer, 8, 0)
-        } else {
-            X64Byte(writer, 61); X64Word(writer, cast(u64)allocation.token_base, 4)
-            X64Condition(writer, 133, 0)
-            candidate_low_end = writer.at
-        }
+        X64RunRange(writer, layout, run, false, *candidate_low_end, *candidate_high_end)
+        X64Byte(writer, 45); X64Word(writer, cast(u64)first, 4)
         index_type := program.types[fn.values[instruction.operands[1]]]
         if index_type.is_signed {
             X64Bytes(writer, 72, 133, 201)
             X64Condition(writer, 136, X64Trap)
         }
         if view {
+            // A view from an element reaches to the end of its array.
+            X64MoveRegister(writer, 8, 0)
             high_type := program.types[fn.values[instruction.operands[2]]]
             count_operand := ifx slice then instruction.operands[3] else instruction.operands[2]
             count_type := program.types[fn.values[count_operand]]
@@ -1318,7 +1378,9 @@ X64AllocationAddressDispatch :: (writer: *X64Writer, program: LirProgram,
                 X64Bytes(writer, 72, 57, 242)
                 X64Condition(writer, 135, X64Trap)
             }
-            X64Immediate(writer, 9, cast(u64)allocated.count)
+            size := layout.type_sizes[expected]
+            room := ifx size > 0 then node.extent / size else run.count
+            X64Immediate(writer, 9, cast(u64)room)
             X64Bytes(writer, 77, 41, 193)
             X64Bytes(writer, 76, 57, ifx slice then cast(u8)206 else cast(u8)202)
             X64Condition(writer, 135, X64Trap)
@@ -1333,7 +1395,7 @@ X64AllocationAddressDispatch :: (writer: *X64Writer, program: LirProgram,
             X64Bytes(writer, 72, 1, 200)
             X64Bytes(writer, 72, 1, 248)
             X64Byte(writer, 72); X64Byte(writer, 5)
-            X64Word(writer, cast(u64)(allocation.token_base + 1), 4)
+            X64Word(writer, cast(u64)first, 4)
             X64Jump(writer, done)
             if slice {
                 X64Fixup(writer, empty_end, writer.at)
@@ -1341,22 +1403,51 @@ X64AllocationAddressDispatch :: (writer: *X64Writer, program: LirProgram,
                 X64Jump(writer, done)
             }
         } else {
-            if allocated.kind == .Array {
-                X64Bytes(writer, 72, 129, 249); X64Word(writer, cast(u64)allocated.count, 4)
-                X64Condition(writer, 131, X64Trap)
-            }
-            if allocated.kind == .Array && allocated.count == 0 { X64Jump(writer, X64Trap) }
+            // The elements of consecutive arrays of a run follow each other.
+            array := program.types[expected]
+            X64Bytes(writer, 72, 129, 249); X64Word(writer, cast(u64)array.count, 4)
+            X64Condition(writer, 131, X64Trap)
+            if array.count == 0 { X64Jump(writer, X64Trap) }
             else {
+                if array.count != 1 { X64Bytes(writer, 72, 105, 192); X64Word(writer, cast(u64)array.count, 4) }
                 X64Bytes(writer, 72, 129, 231); X64Word(writer, 4278190080, 4)
-                X64MoveRegister(writer, 0, 7)
+                X64Bytes(writer, 72, 1, 248)
                 X64Bytes(writer, 72, 1, 200)
                 X64Byte(writer, 72); X64Byte(writer, 5)
-                X64Word(writer, cast(u64)(allocation.token_base + 1), 4)
+                X64Word(writer, cast(u64)(allocation.token_base + node.child_base), 4)
                 X64Jump(writer, done)
             }
         }
         X64Fixup(writer, candidate_low_end, writer.at)
-        if candidate_high_end != 0 { X64Fixup(writer, candidate_high_end, writer.at) }
+        X64Fixup(writer, candidate_high_end, writer.at)
+    }
+    X64Jump(writer, X64Trap)
+}
+
+// A record field inside an allocation: the token of the field's node. The
+// fields of consecutive records of a run follow each other.
+X64AllocationFieldDispatch :: (writer: *X64Writer, program: LirProgram,
+    layout: *X64Layout, instruction: LirInstruction, expected: s32, done: s64) {
+    fields := program.types[expected].fields.count
+    X64MoveRegister(writer, 7, 0)
+    for run: layout.allocate_runs {
+        allocation := layout.allocate_sites[run.site]
+        node := layout.allocate_nodes[allocation.node_base + run.first]
+        if node.type != expected { continue }
+        X64Byte(writer, 137); X64Byte(writer, 248)
+        X64Byte(writer, 37); X64Word(writer, 16777215, 4)
+        candidate_low_end: s64
+        candidate_high_end: s64
+        X64RunRange(writer, layout, run, false, *candidate_low_end, *candidate_high_end)
+        X64Byte(writer, 45); X64Word(writer, cast(u64)(allocation.token_base + run.first), 4)
+        if fields != 1 { X64Bytes(writer, 72, 105, 192); X64Word(writer, cast(u64)fields, 4) }
+        X64Bytes(writer, 72, 129, 231); X64Word(writer, 4278190080, 4)
+        X64Bytes(writer, 72, 1, 248)
+        X64Byte(writer, 72); X64Byte(writer, 5)
+        X64Word(writer, cast(u64)(allocation.token_base + node.child_base + cast(s64)instruction.immediate), 4)
+        X64Jump(writer, done)
+        X64Fixup(writer, candidate_low_end, writer.at)
+        X64Fixup(writer, candidate_high_end, writer.at)
     }
     X64Jump(writer, X64Trap)
 }
@@ -1389,33 +1480,18 @@ X64GlobalInstruction :: (writer: *X64Writer, program: LirProgram, layout: *X64La
     global_measure: X64Writer
     X64GlobalDispatch(*global_measure, program, layout, function, fn, instruction, expected, 0)
     if global_measure.problem != .None { writer.problem = global_measure.problem; return }
-    dereference := instruction.op == .Load || instruction.op == .Store
-    allocations: bool
-    allocation_addresses: bool
-    if dereference {
-        for site: layout.allocate_sites {
-            pointee := program.types[site.pointee]
-            if site.pointee == expected ||
-                pointee.kind == .Array && pointee.element == expected {
-                allocations = true
-                break
-            }
-        }
-    } else if instruction.op == .ElementAddress {
-        for site: layout.allocate_sites {
-            pointee := program.types[site.pointee]
-            if site.pointee == expected || instruction.operands.count >= 3 && pointee.kind == .Array && pointee.element == expected {
-                allocations = true
-                allocation_addresses = true
-                break
-            }
-        }
-    }
+    // Allocations hold an address of the pointee type when one of their
+    // nodes has it.
+    allocations := layout.allocated_types[expected]
+    allocation_addresses := allocations && instruction.op == .ElementAddress
+    allocation_fields := allocations && instruction.op == .FieldAddress
     dispatch_size: s64
     if allocations {
         measured: X64Writer
         if allocation_addresses {
             X64AllocationAddressDispatch(*measured, program, layout, fn, instruction, expected, 0)
+        } else if allocation_fields {
+            X64AllocationFieldDispatch(*measured, program, layout, instruction, expected, 0)
         } else {
             action_type := ifx instruction.op == .Load then program.types[fn.values[instruction.result]] else program.types[fn.values[instruction.operands[1]]]
             X64AllocationDispatch(*measured, program, layout, function, fn, instruction,
@@ -1434,6 +1510,8 @@ X64GlobalInstruction :: (writer: *X64Writer, program: LirProgram, layout: *X64La
     if allocations {
         if allocation_addresses {
             X64AllocationAddressDispatch(writer, program, layout, fn, instruction, expected, done)
+        } else if allocation_fields {
+            X64AllocationFieldDispatch(writer, program, layout, instruction, expected, done)
         } else {
             action_type := ifx instruction.op == .Load then program.types[fn.values[instruction.result]] else program.types[fn.values[instruction.operands[1]]]
             X64AllocationDispatch(writer, program, layout, function, fn, instruction,
@@ -1694,7 +1772,7 @@ X64LayoutWork :: (program: LirProgram, layout: *X64Layout) -> LirProblem {
             for instruction: block.instructions {
                 if instruction.op != .FieldAddress && instruction.op != .ElementAddress &&
                     instruction.op != .Load && instruction.op != .Store { continue }
-                candidates := layout.addresses.count + layout.allocate_sites.count
+                candidates := layout.addresses.count + layout.allocate_runs.count
                 if candidates > (X64CompileWork - work) / 2 { return .Limit }
                 work += candidates * 2
                 if instruction.op != .ElementAddress { continue }

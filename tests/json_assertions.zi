@@ -212,43 +212,6 @@ JsonTestRecord :: (test: *NativeTest, document: *JsonDocument, mode: string, exp
         if !JsonTestProfile(test, document, root, mode == "portable-profile") { return false }
         return index != 1 || NativeAssert(test, JsonTestNamed(document, JsonMember(document, root, "phases"), "emit.c") >= 0, "missing C emission phase")
     }
-    if mode == "concurrent-profile" || mode == "concurrent-cold" {
-        phase := JsonTestNamed(document, JsonMember(document, root, "phases"), "concurrent_probe_phase")
-        return NativeAssert(test, CheckInteger(document, JsonMember(document, root, "counters"), "concurrent_probe") == 8 * 600 && CheckInteger(document, phase, "calls") == 8 * 600 &&
-            (mode == "concurrent-cold" || CheckInteger(document, root, "workspace_allocation_calls") >= 8 * 600), "concurrent profile lost updates")
-    }
-    if mode == "concurrent-diagnostics" {
-        return NativeAssert(test, CheckField(document, root, "code") == "zx.entry" && CheckField(document, root, "path") == "<bundle>", "invalid concurrent diagnostic")
-    }
-    if mode == "vm-profile" || mode == "vm-returns" {
-        if !NativeAssert(test, JsonTestTrue(document, root, "complete") && JsonTestFalse(document, root, "failed"), "incomplete VM profile") { return false }
-        functions := JsonMember(document, root, "functions")
-        if mode == "vm-profile" {
-            if !NativeAssert(test, CheckField(document, root, "clock") == "process_cpu" && CheckInteger(document, root, "live_value_bytes") >= 0 &&
-                JsonKindOf(document, JsonMember(document, root, "metadata_caches")) == .Missing, "invalid VM profile metadata") { return false }
-            names := string.["main", "Child", "Leaf"]
-            for name: names {
-                row := JsonTestNamed(document, functions, name, "function")
-                if !NativeAssert(test, CheckField(document, row, "module") == "app" && CheckInteger(document, row, "calls") == (ifx name == "main" then 1 else 1000), "wrong VM call count") { return false }
-                if name == "Leaf" && !NativeAssert(test, CheckInteger(document, row, "self_allocations") > 0, "missing leaf allocations") { return false }
-            }
-            for at: cast(s32)0..JsonCount(document, functions) - 1 {
-                row := JsonElement(document, functions, at)
-                if CheckField(document, row, "module") != "app" { continue }
-                own := JsonTestNumber(document, row, "self_cpu_ms")
-                if !NativeAssert(test, own >= 0 && JsonTestNumber(document, row, "inclusive_cpu_ms") >= own, "invalid inclusive/self VM timings") { return false }
-            }
-            return true
-        }
-        names := string.["MakeRecord", "MakeArray", "MakeArrayLiteral", "RelayRecord", "RelayArray", "GuardedRecord", "GuardedArray", "GuardedPointerArray", "GuardedNested"]
-        allocations := s64.[0, 1, 1, 0, 0, 0, 2, 2, 4]
-        for at: cast(s64)0..names.count - 1 {
-            row := JsonTestNamed(document, functions, names[at], "function")
-            calls := CheckInteger(document, row, "calls")
-            if !NativeAssert(test, calls > 0 && CheckInteger(document, row, "self_allocations") == calls * allocations[at], CheckConcat("wrong aggregate return allocations: ", names[at])) { return false }
-        }
-        return true
-    }
     return NativeAssert(test, false, CheckConcat("unknown JSON assertion mode: ", mode))
 }
 
@@ -297,11 +260,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     lines := TextLines(TextTrimEnd(contents))
     if !NativeAssert(*test, lines.count > 0, "missing JSON records") { return 1 }
     wanted: s64 = -1
-    if mode == "compiler-profile" || mode == "vm-profile" { wanted = 2 }
-    if mode == "portable-profile" || mode == "concurrent-profile" || mode == "concurrent-cold" || mode == "vm-returns" || mode == "native-children" { wanted = 1 }
-    if mode == "concurrent-diagnostics" { wanted = 8 }
+    if mode == "compiler-profile" { wanted = 2 }
+    if mode == "portable-profile" || mode == "native-children" { wanted = 1 }
     if wanted >= 0 && !NativeAssert(*test, lines.count == wanted, "wrong JSON record count") { return 1 }
-    if mode == "vm-profile" && !NativeAssert(*test, !TextContains(contents, "arguments-must-never-enter-a-profile"), "VM profile disclosed argument data") { return 1 }
     matches: s64 = 0
     for index: cast(s64)0..lines.count - 1 {
         document: JsonDocument

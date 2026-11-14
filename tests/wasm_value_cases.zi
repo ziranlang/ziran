@@ -28,13 +28,13 @@ WasmValueRun :: (test: *NativeTest, cases: []WasmValueCase, compare_images: bool
             input := ifx form == 0 then source else CheckPath(ir, CheckConcat(name, ".zir"))
             prefix := CheckPath(test.work, CheckConcat(name, ifx form == 0 then "-source" else "-saved")); image := CheckConcat(prefix, ".wasm"); bundle := CheckConcat(prefix, ".zx")
             entry := CheckConcat(name, ":Answer")
-            wasm := string.[CheckPath(tools, "zi2wasm"), "--root", root, "--entry", entry, "-o", image, input]
+            wasm := string.[CheckPath(tools, "zi2asm"), "--root", root, "--entry", entry, "--emit", "wasm", "-o", image, input]
             zx := string.[CheckPath(tools, "zi2zx"), "bundle", "--root", root, "--entry", entry, "-o", bundle, input]
             unused WasmValueCommand(test, wasm[:]); unused WasmValueCommand(test, zx[:])
             if test.failed { return false }
-            node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), image]; vm := string.[CheckPath(tools, "zi2zx"), "run", "--vm", bundle]
+            node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), image]; vm := string.[CheckPath(tools, "zi2zx"), "run", bundle]
             actual_wasm := WasmValueCommand(test, node[:]); actual_vm := WasmValueCommand(test, vm[:])
-            if !NativeAssert(test, !test.failed && TextTrim(actual_wasm.output) == item.expected && TextTrim(actual_vm.output) == item.expected, CheckConcat("WebAssembly or VM value differs: ", name)) { return false }
+            if !NativeAssert(test, !test.failed && TextTrim(actual_wasm.output) == item.expected && TextTrim(actual_vm.output) == item.expected, CheckConcat("WebAssembly or engine value differs: ", name)) { return false }
         }
         if compare_images && !NativeAssert(test, NativeSameFile(CheckPath(test.work, CheckConcat(name, "-source.wasm")), CheckPath(test.work, CheckConcat(name, "-saved.wasm"))), "WebAssembly source and saved IR outputs differ") { return false }
     }
@@ -65,7 +65,7 @@ WasmValueEnums :: (test: *NativeTest) -> bool {
     parts := string.[TextDetach(BuilderFinish(declarations)), "Answer :: () -> s64 {\n", TextDetach(BuilderFinish(checks)), "return 42;\n}\n"]
     if !NativeWrite(test, CheckPath(test.work, "widths.zi"), TextJoin(parts[:], "")) || !WasmValueFixture(test, "foreign", "wasm_foreign_enums.zi.in") || !WasmValueFixture(test, "storage", "wasm_enum_storage.zi.in") { return false }
     if !WasmValueRun(test, cases[:], true) { return false }
-    print("WebAssembly and VM: eight enum backings, limits, flags, storage, imports and entries agree from source and saved IR in local tests\n")
+    print("WebAssembly and the engine: eight enum backings, limits, flags, storage, imports and entries agree from source and saved IR in local tests\n")
     return true
 }
 
@@ -80,7 +80,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     else if mode == "slices" {
         cases := WasmValueCase.[.{"slices", "42"}]
         valid = WasmValueFixture(*test, "slices", "wasm_slices.zi.in") && WasmValueRun(*test, cases[:], false)
-        if valid { print("Wasm and VM: omitted slice bounds, full-length and empty slices agree from source and saved IR in local tests\n") }
+        if valid { print("Wasm and the engine: omitted slice bounds, full-length and empty slices agree from source and saved IR in local tests\n") }
     }
     return ifx valid && !test.failed then 0 else 1
 }

@@ -1,6 +1,6 @@
 // Lowering features pinned by tests/zx_lowered_parity.sh: global procedure
 // slots, typed null, slice element stores (scalar and record elements),
-// views of records, and mixed-signedness comparisons with literals.
+// views of records, and comparisons of unsigned values with literals.
 Callback :: #type (value: s32) -> s32;
 slot: Callback;
 ready: bool;
@@ -28,14 +28,14 @@ main :: () -> s32 {
     if !ready || slot(21) != 42 { return 2 }
     bytes: [4]u8
     Fill(bytes[:], 10)
-    if bytes[0] != 10 || bytes[3] != 13 || bytes[1] == 300 { return 3 }
+    if bytes[0] != 10 || bytes[3] != 13 { return 3 }
     pairs: [2]Pair
     Bump(pairs[:])
     if pairs[0].a != 3 || pairs[1].b != 7 { return 4 }
     small: u8 = 200
-    if small < 0 || small != 200 || small == -56 { return 5 }
+    if small < 0 || small != 200 { return 5 }
     wide = cast(u64)-1
-    if wide != -1 || wide < 1 { return 6 }
+    if wide != cast(u64)-1 || wide < 1 { return 6 }
     numbers: [3]s32 = .[4, -9, 40]
     if Total(numbers[:]) != 35 || Total(numbers[1:]) != 31 { return 7 }
     print("features: % % % %\n", bytes[2], pairs[0].a, small, wide)

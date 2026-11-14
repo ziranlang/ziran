@@ -141,7 +141,7 @@ FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c 
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
     cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c cmd/zir/zir_services.c
-PORTABLE := cmd/zir/zir_bundle.c cmd/zir/zir_bundle_assets.c
+PORTABLE := cmd/zir/zir_link.c cmd/zir/zir_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
@@ -157,7 +157,7 @@ obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # bootstrap compiler opens no bundle and has none.
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
-    compiler_exec_serial compiler_exec_link compiler_exec
+    compiler_exec_serial compiler_exec_link compiler_exec compiler_opt
 # The Wasm lowering of revision-28 ZX (cmd/zir-wasm/zx_wasm_lower.c) reads
 # the program through the same engine and joins the same object.
 HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir-wasm/zx_wasm_lower.c
@@ -173,8 +173,8 @@ HOST_EXEC_OBJECT := $(BUILD_DIR)/obj/host_exec.o
 $(HOST_EXEC_OBJECT): $(call obj,$(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS)
 	$(CC) -r -nostdlib -o $@ $^ && $(OBJCOPY) --localize-hidden $@
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(HOST_EXEC_OBJECT) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
-    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o \
-    $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c cmd/zir-wasm/zir_wasm_lower.c)
+    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o \
+    $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c)
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
 # The expression parser, cmd/compiler_parse.zi.
@@ -193,8 +193,8 @@ LEAN ?= lean
 # contains it. Every ordinary run executes the complete retained suite.
 CHECK_JOBS ?=
 CHECK_FILTER ?=
-all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zi2wasm $(BUILD_DIR)/libziran.a
-	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zx-vm
+all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zi2asm $(BUILD_DIR)/libziran.a
+	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zx-vm $(BIN_DIR)/zi2wasm
 
 proof-model: $(PROOF_KERNEL_OBJECT)
 	mkdir -p $(BUILD_DIR)/proofs
@@ -207,7 +207,7 @@ USER_BIN ?= $(HOME)/.local/bin
 USER_SHARE ?= $(HOME)/.local/share/ziran/bootstrap
 install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
-	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zi2wasm; do \
+	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zi2asm; do \
 		temporary=$$(mktemp "$(USER_SHARE)/build/bin/.$$tool.XXXXXX"); \
 		trap 'rm -f "$$temporary"' EXIT; \
 		cp "$(BIN_DIR)/$$tool" "$$temporary"; chmod 755 "$$temporary"; \
@@ -216,7 +216,7 @@ install-user: all
 	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include $(USER_SHARE)/templates
 	cp -r std include templates $(USER_SHARE)/
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
-	$(RM) $(USER_SHARE)/build/bin/zi2py $(USER_SHARE)/build/bin/zi2zib $(USER_SHARE)/build/bin/zi2cpp $(USER_SHARE)/build/bin/zi2rust $(USER_SHARE)/build/bin/zi2zx-vm
+	$(RM) $(USER_SHARE)/build/bin/zi2py $(USER_SHARE)/build/bin/zi2zib $(USER_SHARE)/build/bin/zi2cpp $(USER_SHARE)/build/bin/zi2rust $(USER_SHARE)/build/bin/zi2zx-vm $(USER_SHARE)/build/bin/zi2wasm
 	@# Another tool's launcher, such as a build queue wrapper, stays in place.
 	@set -e; for tool in ziran zi2zx; do \
 		launcher="exec \"$(USER_SHARE)/build/bin/$$tool\" \"\$$@\""; \
@@ -311,7 +311,7 @@ $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
 
-$(call obj,$(PORTABLE)): $(BUNDLE_READY)
+$(call obj,$(PORTABLE) cmd/zir-zx/main.c): $(BUNDLE_READY)
 $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
@@ -328,7 +328,6 @@ PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c 
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
     _function.c _link.c _program.c _simd.c _text.c)
 EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _gpu.c _range.c _simd.c _simd_go.c)
-VM_PARTS := $(addprefix cmd/zir/zir_vm,.c _verify.c _eval.c _run.c _simd.c)
 
 # COFF does not retain ELF hidden visibility, but objcopy can localize the
 # same declarations explicitly after the group's objects have been merged.
@@ -339,7 +338,6 @@ $(COFF_PRIVATE_SYMBOLS)/%.txt: cmd/zir/zir_%_internal.h scripts/private-symbols.
 $(BUILD_DIR)/obj/parse.o: $(COFF_PRIVATE_SYMBOLS)/parse.txt
 $(BUILD_DIR)/obj/check.o: $(COFF_PRIVATE_SYMBOLS)/check.txt
 $(BUILD_DIR)/obj/emit.o: $(COFF_PRIVATE_SYMBOLS)/emit.txt
-$(BUILD_DIR)/obj/vm.o: $(COFF_PRIVATE_SYMBOLS)/vm.txt
 endif
 
 # wasm objcopy cannot localize hidden symbols. Browser builds give each
@@ -358,8 +356,6 @@ $(call obj,$(CHECK_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/check.h
 $(call obj,$(CHECK_PARTS)): $(WASM_PRIVATE_HEADERS)/check.h
 $(call obj,$(EMIT_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/emit.h
 $(call obj,$(EMIT_PARTS)): $(WASM_PRIVATE_HEADERS)/emit.h
-$(call obj,$(VM_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/vm.h
-$(call obj,$(VM_PARTS)): $(WASM_PRIVATE_HEADERS)/vm.h
 endif
 
 $(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS))
@@ -369,9 +365,6 @@ $(BUILD_DIR)/obj/check.o: $(call obj,$(CHECK_PARTS))
 	$(merge)
 
 $(BUILD_DIR)/obj/emit.o: $(call obj,$(EMIT_PARTS))
-	$(merge)
-
-$(BUILD_DIR)/obj/vm.o: $(call obj,$(VM_PARTS))
 	$(merge)
 
 -include $(shell find $(BUILD_DIR)/obj -name '*.d' 2>/dev/null)
@@ -489,9 +482,6 @@ $(BIN_DIR)/zi2zx: $(call obj,cmd/zir-zx/main.c cmd/zir-asm/zx_exec_run.c cmd/zir
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 	chmod 755 $@
 
-$(BIN_DIR)/zi2wasm: $(call obj,cmd/zir-wasm/main.c cmd/zir-wasm/zir_wasm_lower.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
-
 ifneq ($(BOOTSTRAP),1)
 BOOTSTRAP_BIN := $(BUILD_DIR)/bootstrap/bin/zi2c
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
@@ -576,7 +566,7 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 	    -o $(PROOF_C) cmd/compiler_proof.zi
 	touch $@
 
-$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi \
+$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_ir.zi \
     cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
@@ -639,8 +629,7 @@ update-bootstrap: $(BIN_DIR)/zi2c
 
 endif
 
-$(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) \
-    $(BUILD_DIR)/obj/vm.o | $(BIN_DIR)
+$(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 
 $(BIN_DIR)/host-capability-test: tests/host_capability_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
@@ -652,20 +641,12 @@ $(BIN_DIR)/record-host-test: tests/record_host_test.c $(BUILD_DIR)/libziran.a | 
 $(BIN_DIR)/record-fields-by-name-test: tests/record_fields_by_name_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_fields_by_name_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
-$(BIN_DIR)/zx-wasm-engine-test: tests/zx_wasm_engine_test.c $(BUILD_DIR)/libziran-vm.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
-	    tests/zx_wasm_engine_test.c $(BUILD_DIR)/libziran-vm.a $(RUNTIME_LIBS)
-
 $(BIN_DIR)/array-host-test: tests/host_array_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_array_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/startup-graph-test: tests/startup_graph_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
 		tests/startup_graph_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
-
-$(BIN_DIR)/vm-vec-scope-test: tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
-		tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/process_host_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
@@ -683,18 +664,10 @@ $(BIN_DIR)/check-runner: $(CHECK_RUNNER_SOURCES) $(wildcard std/*.zi) $(BIN_DIR)
 	    -o $(CHECK_RUNNER_C) tests/run_check.zi
 	$(NICE) $(CC) $(CFLAGS) $(SANITIZE_FLAGS) -I$(CHECK_RUNNER_C) -o $@ $(CHECK_RUNNER_C)/*.c -lm
 
-check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/vm-vec-scope-test $(BIN_DIR)/zx-wasm-engine-test
+check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/startup-graph-test
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zx-wasm-engine-test
 	$(BIN_DIR)/check-runner --bin-dir $(BIN_DIR) $(if $(CHECK_JOBS),--jobs $(CHECK_JOBS)) \
 	    $(if $(CHECK_FILTER),--filter $(call check_quote,$(CHECK_FILTER)))
-
-.PHONY: check-bundle-step-limit
-check-bundle-step-limit: $(BIN_DIR)/ziran $(BUILD_DIR)/libziran-vm.a $(BUILD_DIR)/libziran.a
-	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS \
-	    ZIRAN_VM_LIB="$(abspath $(BUILD_DIR)/libziran-vm.a)" \
-	    ZIRAN_LIB="$(abspath $(BUILD_DIR)/libziran.a)" \
-	    sh tests/bundle_step_limit.sh "$(abspath $(BIN_DIR)/ziran)"
 
 zx-wasm-test: all
 	env -u DISPLAY -u WAYLAND_DISPLAY tests/zx_wasm.sh $(BIN_DIR)/ziran
@@ -734,6 +707,4 @@ gzip-test: $(BIN_DIR)/ziran $(BIN_DIR)/zi2c
 clean:
 	rm -rf $(BUILD_DIR)
 
-# The native ZX engine adds itself to libziran.a on hosts TinyCC targets.
-include native-zx.mk
 include assembly.mk

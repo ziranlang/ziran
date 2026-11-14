@@ -329,7 +329,7 @@ Run :: () -> s32 {
             "--module-path", module_path, "-o", saved, source]
         unused NativeRun(*test, save[:])
         expected := "lowered serial: deterministic owned roundtrip and hostile-input local tests passed\n"
-        vm_expected := CheckConcat(expected, "0\n")
+        bundle_expected := CheckConcat(expected, "0\n")
         forms: [2]string = .["source", "saved"]
         for form: forms {
             input := ifx form == "source" then source else CheckPath(saved, "lowered_serial_cases.zir")
@@ -338,8 +338,8 @@ Run :: () -> s32 {
             bundle_command := string.[test.ziran, "bundle", "--root", root, "--module-path",
                 module_path, "--entry", "lowered_serial_cases:Run", "-o", bundle, input]
             unused NativeRun(*test, bundle_command[:])
-            vm := string.[test.ziran, "run", "--vm", bundle]
-            if !NativeExpect(*test, vm[:], vm_expected) { return 1 }
+            bundle_run := string.[test.ziran, "run", bundle]
+            if !NativeExpect(*test, bundle_run[:], bundle_expected) { return 1 }
             c_output := CheckPath(test.work, CheckConcat(form, "-c"))
             c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
                 "lowered_serial_cases:Run", "--root", root, "--module-path", module_path,

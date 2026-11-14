@@ -458,9 +458,12 @@ passing; `wasm_enums` and `global_owned_storage` were fixed after that run.
   every old value alive).
 - A reachable C or Go foreign import and a union with a non-scalar member are refused with the
   semantic bundle writer's words.
-- Found outside lowering: the native x86-64 encoder traps on an array field of an address-taken
-  local record (`block: Block; p := *block; block.bytes[3]`, also `[8]u8`), so records stay
-  values and only fixed arrays move to frame slots. The interpreter fails `calling` when a
+- Done later the same day: the native x86-64 encoder trapped on an array field of an
+  address-taken local record (`block: Block; p := *block; block.bytes[3]`). A frame allocation's
+  tokens now name every address inside it, as a global's do (`X64AllocationNodes`, runs of
+  nodes, `X64AllocationFieldDispatch`), so records over 4096 bytes move to frame slots too. The
+  interpreter's `calling` failure on a zero-sized result is fixed as well. Earlier findings: the
+  interpreter failed `calling` when a
   function returns a zero-sized value (`[0]s32`, `generic_procedure`). Out-of-bounds and
   runaway-recursion failures on revision 28 print `problem=pointer` and `problem=value-limit`,
   and an unmatched case `problem=unreachable`, where `simd`, `portable_limits` and `match` grep
@@ -491,12 +494,21 @@ Done, 2026-11-14 (Wasm specialist):
   without `BOOTSTRAP=1` (a bootstrap build has no engine and opens no revision-28 file), and
   compares it with the engine.
 
-Not done: semantic bundles still use the ZIR-based `zir_wasm_lower`, and `zi2wasm` (used by
-`ziran build --target=wasm`, the site targets, the playground and benchmarks) still exists; both
-go with the semantic route. With `ZIRAN_BUNDLE_EXEC=1`, `zx_linked_web` and `zx_web_lifecycle`
-stop at `zi2zx native-c`, which writes no linked C for a revision-28 bundle; `wasm_enums` stops
-at LIR lowering of a global used in an identifier expression; and state export/import of a
-revision-28 Wasm instance is not mapped from its `zxstate` table yet.
+Done, 2026-11-14 (switch-over): `zi2wasm` and `zir_wasm_lower` are deleted. `ziran build
+--target=wasm`, the site generator, the playground text and the benchmarks use `zi2asm --emit
+wasm` (which gained `--define`, the web target and output directories). The bundle Wasm tier
+runs revision-28 bundles only; a Wasm instance's globals are exported and imported as host
+images through the interface section's `global` lines (`ExecHostsStateValue`/`Image`,
+`ZxWasmGlobalImage`/`Store`), replacing the `zxstate` section. `zx_web_lifecycle` runs the Wasm
+tier only in Chromium (state migration, components, every rollback); `zx_linked_web` and
+`zx_wasm_engine_test.c` are gone, their checks folded into `zx_wasm.sh`. The browser playground
+builds revision-28 ZX in the page (`ZxExecBuild` compiled into its runtime, the optimizer in
+`libziran`'s engine) and runs it on the engine; `tests/playground_runtime.cjs` passes on it.
+
+Not done: the published site target matrix (`site/generated/targets`) holds semantic `.zx`
+files and `zi2wasm` modules measured on Alpha, the moto e6 phone and headless Chromium; it must
+be regenerated there with the updated `scripts/site_targets.py` before `tests/site_targets.sh`
+passes again.
 
 Owner, 2026-11-13: "i'm ondireng if zx and native basicalyl use the same piplen if we just
 unife it under native and show zx as a step in teh pielpn while ofcuesr being able to do zx

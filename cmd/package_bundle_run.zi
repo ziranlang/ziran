@@ -8,7 +8,7 @@ using Vectors :: #import "vec"
 // Packages install providers; bundles cannot name an executable. A .host
 // registration contains one absolute path. --check must validate without
 // running application globals or opening a display.
-TryDirectory :: (directory: string, bundle: string, portable: bool,
+TryDirectory :: (directory: string, bundle: string,
     names: []string, values: []string) -> s32 {
     cursor := OpenDirectory(directory)
     if !cursor.valid { return -2 }
@@ -48,14 +48,10 @@ TryDirectory :: (directory: string, bundle: string, portable: bool,
         probe: [3]string = .{executable, "--check", bundle}
         output: [4096]u8
         if RunProcess(probe[:], "", names, values, output[:]) != 0 { continue }
-        run: [3]string
-        run[0] = executable
-        count: s32 = 1
-        if portable { run[count] = "--vm"; count += 1 }
-        run[count] = bundle; count += 1
+        run: [2]string = .{executable, bundle}
         // Preserve an admitted provider's result. Retrying could execute
         // an application's side effects twice.
-        provider_result = PkgRun(run[0:count], "", names, values)
+        provider_result = PkgRun(run[:], "", names, values)
         break
     }
     VecFree(files)
@@ -63,7 +59,7 @@ TryDirectory :: (directory: string, bundle: string, portable: bool,
 }
 
 TryDirectories :: (paths: string, suffix: string, bundle: string,
-    portable: bool, names: []string, values: []string) -> s32 {
+    names: []string, values: []string) -> s32 {
     start: s64 = 0
     while start < paths.count {
         end := start
@@ -71,7 +67,7 @@ TryDirectories :: (paths: string, suffix: string, bundle: string,
         // Empty and relative search entries never select the launch cwd.
         if end > start && paths[start] == #char "/" {
             code := TryDirectory(PkgJoin(paths[start:end], suffix), bundle,
-                portable, names, values)
+                names, values)
             if code != -2 { return code }
         }
         start = end + 1
@@ -83,10 +79,8 @@ TryDirectories :: (paths: string, suffix: string, bundle: string,
 PkgRunBundle :: (child: []string, arguments: []string,
     names: []string, values: []string) -> s32 {
     bundle: string
-    portable := false
     for argument: arguments {
         if PkgEndsWith(argument, ".zx") { bundle = argument }
-        if argument == "--vm" { portable = true }
     }
     if bundle == "" { return PkgRun(child, "", names, values) }
     delegated := PkgStrings(child.count + 1)
@@ -100,7 +94,7 @@ PkgRunBundle :: (child: []string, arguments: []string,
     if bundle == "" { return PkgFail("cannot find the bundle") }
     paths := PkgGetenv("ZIRAN_HOST_PATH")
     if paths != "" {
-        code = TryDirectories(paths, "", bundle, portable, names, values)
+        code = TryDirectories(paths, "", bundle, names, values)
     } else {
         data := PkgGetenv("XDG_DATA_HOME")
         if data == "" {
@@ -110,12 +104,12 @@ PkgRunBundle :: (child: []string, arguments: []string,
         code = -2
         if data.count > 0 && data[0] == #char "/" {
             code = TryDirectory(PkgJoin(data, "/ziran/hosts"), bundle,
-                portable, names, values)
+                names, values)
         }
         if code == -2 {
             paths = PkgGetenv("XDG_DATA_DIRS")
             if paths == "" { paths = "/usr/local/share:/usr/share" }
-            code = TryDirectories(paths, "/ziran/hosts", bundle, portable, names, values)
+            code = TryDirectories(paths, "/ziran/hosts", bundle, names, values)
         }
     }
     if code != -2 { return code }

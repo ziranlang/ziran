@@ -1,12 +1,14 @@
 # check-cost: 420
 set -eu
-# Build the lifecycle fixtures from source through checked IR and .zx, then
-# execute the production WebAssembly and linked hosts in a private Chromium.
+# Bundle the lifecycle fixtures from source as revision-28 .zx, then run the
+# production WebAssembly host, libziran built by emcc with the instruction
+# engine, in a private Chromium: every instance runs on the bundle Wasm tier.
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 build=$(CDPATH= cd -- "$(dirname -- "$ziran")/.." && pwd)
-zi2zx=$build/bin/zi2zx
 work=$build/tests/zx-web-lifecycle
+# The library build is kept between runs and rebuilt incrementally.
+library=$build/tests/zx-web-lifecycle-lib
 rm -rf "$work"
 mkdir -p "$work/fixtures"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
@@ -29,14 +31,7 @@ else
     echo "$message; skipping"
     exit 0
 fi
-if ! "$zi2zx" 2>&1 | grep -q native-c; then
-    message="zx-web-lifecycle: $zi2zx has no native-C engine"
-    test "$require" != 1
-    echo "$message; skipping"
-    exit 0
-fi
 emar=$(dirname "$emcc")/emar
-emnm=$(dirname "$emcc")/emnm
 
 write_component() {
     directory=$1; version=$2; extra_state=$3; open_body=$4
@@ -125,38 +120,17 @@ for name in old new wrong init unrelated; do
 done
 test "$("$ziran" run "$work/fixtures/unrelated.zx")" = 101
 
-make -C "$repo" -j2 BOOTSTRAP=1 BUILD_DIR="$work/vm-lib" \
+make -C "$repo" -j2 BUILD_DIR="$library" \
     CC="$emcc" AR="$emar" OBJCOPY=true CFLAGS='-O2' SANITIZE_FLAGS= \
     FRAMEFLAGS='-Wframe-larger-than=16384' \
-    WASM_PRIVATE_HEADERS="$work/vm-private" \
-    "$work/vm-lib/libziran-vm.a" > "$work/vm-lib.log" 2>&1 || {
-        tail -20 "$work/vm-lib.log"
+    WASM_PRIVATE_HEADERS="$library/private" \
+    "$library/libziran.a" > "$work/lib.log" 2>&1 || {
+        tail -20 "$work/lib.log"
         exit 1
     }
-"$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" \
-    -I"$repo/bootstrap/compiler_ir" "$repo/tests/zx_web_lifecycle_host.c" \
-    "$work/vm-lib/libziran-vm.a" -o "$work/wasm.js" \
+"$emcc" -O2 -std=gnu99 -I"$repo/include" "$repo/tests/zx_web_lifecycle_host.c" \
+    "$library/libziran.a" -o "$work/wasm.js" \
     -s MODULARIZE=1 -s EXPORT_NAME=ZxWebLifecycleWasm -s ENVIRONMENT=web \
-    -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=0 -s STACK_SIZE=1048576 \
-    --preload-file "$work/fixtures@/fixtures"
-
-"$zi2zx" native-c -o "$work/linked-programs" "$work/fixtures/old.zx" > /dev/null
-python3 "$repo/scripts/linked-zx.py" "$work/linked-programs" \
-    --output "$work/linked-objects" --cc "$emcc" --nm "$emnm" \
-    --cflags=-O2 > "$work/linked-objects.txt" 2> /dev/null
-make -C "$repo" -j2 BOOTSTRAP=1 BUILD_DIR="$work/linked-lib" \
-    CC="$emcc" AR="$emar" OBJCOPY=true CFLAGS='-O2' SANITIZE_FLAGS= \
-    FRAMEFLAGS='-Wframe-larger-than=16384' \
-    WASM_PRIVATE_HEADERS="$work/linked-private" \
-    "$work/linked-lib/libziran.a" > "$work/linked-lib.log" 2>&1 || {
-        tail -20 "$work/linked-lib.log"
-        exit 1
-    }
-# shellcheck disable=SC2046
-"$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" \
-    "$repo/tests/zx_web_lifecycle_host.c" $(cat "$work/linked-objects.txt") \
-    "$work/linked-lib/libziran.a" -o "$work/linked.js" \
-    -s MODULARIZE=1 -s EXPORT_NAME=ZxWebLifecycleLinked -s ENVIRONMENT=web \
     -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=0 -s STACK_SIZE=1048576 \
     --preload-file "$work/fixtures@/fixtures"
 

@@ -22,19 +22,11 @@ Answer :: () -> s32 {
     return 42
 }
 ZI
-"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" string-storage
-"$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" \
-    "$work/empty_builder.zi" "$work/string_storage.zi"
-${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
-    "$repo/tests/vm_string_storage_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
-    -lm -pthread -o "$work/vm-test"
+"$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" "$work/empty_builder.zi"
 for form in source saved; do
     root=$work
     extension=zi
     if [ "$form" = saved ]; then root=$work/ir; extension=zir; fi
-    "$ziran" bundle --root "$root" --module-path "$repo/std" --entry string_storage:Answer \
-        -o "$work/$form.zx" "$root/string_storage.$extension"
-    "$work/vm-test" "$work/$form.zx"
     output=$work/$form-c
     "$ziran" build --target=c --entry empty_builder:Answer --root "$root" \
         --module-path "$repo/std" -o "$output" "$root/empty_builder.$extension"

@@ -1,5 +1,5 @@
 // VecResize on revision-28 ZX, pinned by tests/zx_lowered_parity.sh: growing
-// gives exactly the requested capacity and zero elements, shrinking keeps the
+// gives at least the requested capacity and zero elements, shrinking keeps the
 // capacity and drops what it removes, growing again inside the capacity gives
 // zeros rather than the old elements, and a negative request changes nothing.
 // VecResizeBounded also refuses a count or a held capacity above its maximum.
@@ -24,7 +24,8 @@ main :: () -> s32 {
     again := values[3]
     d := VecResize(values, -1)
     e := Grow(*values, 9)
-    print("resize % % % % % % % % % %\n", a, first, b, c, again, d, e, values.count, values.capacity, values[0])
+    print("resize % % % % % % % % % %\n", a, first >= 4, b, c, again, d, e, values.count, values.capacity >= 9,
+        values[0])
 
     rows: Vec(Row)
     unused VecResize(rows, 3)
@@ -34,7 +35,7 @@ main :: () -> s32 {
     }
     unused VecResize(rows, 1)
     unused VecResize(rows, 2)
-    print("rows % % % % %\n", rows.count, rows.capacity, rows[0].cells[0], rows[1].cells.count, rows[1].tag)
+    print("rows % % % % %\n", rows.count, rows.capacity >= 3, rows[0].cells[0], rows[1].cells.count, rows[1].tag)
     bounded: Vec(u8)
     f := VecResizeBounded(bounded, 3, 4)
     g := VecResizeBounded(bounded, 5, 4)

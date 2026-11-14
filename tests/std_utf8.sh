@@ -7,7 +7,7 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/utf8.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
+export TMPDIR="$work"
 
 "$ziran" check --root tests/spec --module-path std tests/spec/std_utf8.zi
 "$ziran" ir --root tests/spec --module-path std -o "$work/ir" \
@@ -21,8 +21,6 @@ export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
 cmp "$work/source.zx" "$work/saved.zx"
 test "$("$ziran" run "$work/source.zx")" = 42
 test "$("$ziran" run "$work/saved.zx")" = 42
-test "$("$(dirname -- "$ziran")/zi2zx" run --vm "$work/source.zx")" = 42
-test "$("$(dirname -- "$ziran")/zi2zx" run --vm "$work/saved.zx")" = 42
 
 for form in source saved; do
     if test "$form" = source; then

@@ -79,7 +79,6 @@ CheckArguments :: (name: string, bin: string, tests: string) -> Vec(string) {
     if name == "portable_host_records.sh" { extra = "record-host-test" }
     if name == "record_fields_by_name.sh" { extra = "record-fields-by-name-test" }
     if name == "process.sh" { extra = "process-host-test" }
-    if name == "vm_vec_scope.sh" { extra = "vm-vec-scope-test" }
     if extra != "" { VecPush(result, CheckPath(bin, extra)) }
     return result
 }

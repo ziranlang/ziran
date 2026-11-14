@@ -51,11 +51,9 @@ C
     "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" "$out"/*.c -o "$out/program"
     "$out/program"
 done
-# Exercise the native engine's explicit startup calls and per-instance guards
-# as well as the C constructors tested above.
-export ZIRAN_NATIVE_CACHE="$work/cache"
+# The engine runs module initializers in the same order as the C
+# constructors tested above.
 test "$("$ziran" run --root "$work" --entry app:Answer "$work/app.zi")" = 42
-test "$("$ziran" run --vm --root "$work" --entry app:Answer "$work/app.zi")" = 42
 
 # An actual startup cycle must still abort rather than recurse indefinitely
 # or silently skip an initializer. Run only this test's disposable process.

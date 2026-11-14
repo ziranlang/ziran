@@ -1,6 +1,6 @@
 #include "zir.h"
 #include "zir_serial.h"
-#include "zir_bundle.h"
+#include "zir_link.h"
 #include "zir_diagnostic.h"
 
 #include <stdio.h>
@@ -279,15 +279,19 @@ main(int argc, char **argv)
     }
     if(first == argc) {
         Diagnostic((ZirSourceSpan){0}, "command.arguments",
-                   "usage: ziran inspect [--hex] [--diagnostics=text|json] file.zir|file.zx ...");
+                   "usage: ziran inspect [--hex] [--diagnostics=text|json] file.zir ...");
         return 2;
     }
     for(int i = first; i < argc; i++) {
         const char *path = argv[i];
         size_t length = strlen(path);
-        int bundle = length > 3 && !strcmp(path + length - 3, ".zx");
-        if(!PathIsIR(path) && !bundle) {
-            Diagnostic(Span(path, 0, 0), "zir.input", "expected .zir or .zx file: %s", path);
+        if(length > 3 && !strcmp(path + length - 3, ".zx")) {
+            Diagnostic(Span(path, 0, 0), "zir.input",
+                       "a .zx file holds instructions; list them with zi2asm --input zx --emit lir");
+            return 2;
+        }
+        if(!PathIsIR(path)) {
+            Diagnostic(Span(path, 0, 0), "zir.input", "expected a .zir file: %s", path);
             return 2;
         }
         FILE *file = fopen(path, "rb");
@@ -295,15 +299,8 @@ main(int argc, char **argv)
             Diagnostic(Span(path, 0, 0), "zir.input", "cannot open %s: %s", path, strerror(errno));
             return 1;
         }
-        char entry_module[ZIR_NAME_MAX] = {0}, entry_function[ZIR_NAME_MAX] = {0};
-        ZxLawTable laws = {0};
-        ZxAssets assets = {0};
-        ZirProgram *program = bundle ? BundleRead(file, path, entry_module, sizeof(entry_module),
-                                                  entry_function, sizeof(entry_function), &laws, &assets)
-                                     : ProgramRead(file, path);
+        ZirProgram *program = ProgramRead(file, path);
         if(program == NULL) {
-            ZxLawTableFree(&laws);
-            ZxAssetsFree(&assets);
             fclose(file);
             return 1;
         }
@@ -316,18 +313,10 @@ main(int argc, char **argv)
                 return 1;
             }
         } else {
-            if(bundle) {
-                printf("bundle entry %s:%s\n", entry_module, entry_function);
-                printf("  laws %d waivers %d assets %zu\n", laws.law_count, laws.waiver_count, assets.count);
-                for(size_t a = 0; a < assets.count; a++)
-                    printf("  asset %s bytes=%u\n", assets.items[a].name, assets.items[a].size);
-            }
             for(int m = 0; m < program->module_count; m++)
                 show_module(&program->modules[m]);
         }
         ProgramFree(program);
-        ZxLawTableFree(&laws);
-        ZxAssetsFree(&assets);
         fclose(file);
     }
     return ferror(stdout) ? 1 : 0;

@@ -1,4 +1,4 @@
-/* Run the actual zi2wasm artifact, isolated from the page. */
+/* Run the actual wasm artifact, isolated from the page. */
 importScripts('target-abi.js');
 self.onmessage = async function (event) {
   try {

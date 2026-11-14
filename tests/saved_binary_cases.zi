@@ -91,10 +91,16 @@ SavedBinaryFlow :: (test: *NativeTest, input: string, output: string, typed: boo
     return !test.failed && NativeWrite(test, CheckPath(test.work, output), changed)
 }
 
+// A truncated bundle, one of another revision, and one whose program bytes
+// were edited after it was written.
 SavedBinaryBundleErrors :: (test: *NativeTest) -> bool {
     data := NativeRead(test, CheckPath(test.work, "app.zx"))
-    if !NativeAssert(test, data.count >= 17 && data[:8] == "ZX\x00\x00\x1a\x00\x00\x00", "unexpected bundle version before corruption") { return false }
-    return NativeWrite(test, CheckPath(test.work, "bad-bundle.zx"), data[:17]) && NativeWrite(test, CheckPath(test.work, "old-bundle.zx"), BinaryReplaceAt(test, data, 4, 1, "\x13"))
+    if !NativeAssert(test, data.count >= 17 && data[:8] == "ZX\x00\x00\x1c\x00\x00\x00", "unexpected bundle version before corruption") { return false }
+    at := TextFind(data, "Answer")
+    if !NativeAssert(test, at >= 0, "the bundle does not name its entry") { return false }
+    return NativeWrite(test, CheckPath(test.work, "bad-bundle.zx"), data[:17]) &&
+        NativeWrite(test, CheckPath(test.work, "old-bundle.zx"), BinaryReplaceAt(test, data, 4, 1, "\x13")) &&
+        NativeWrite(test, CheckPath(test.work, "edited-bundle.zx"), BinaryReplaceAt(test, data, at, 1, "B"))
 }
 
 SavedBinaryIrErrors :: (test: *NativeTest) -> bool {

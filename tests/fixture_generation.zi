@@ -202,15 +202,6 @@ GenerateLawIntegers :: (test: *NativeTest) -> bool {
     return NativeWrite(test, CheckPath(test.work, "false.zi"), "NoGreater :: (values: [2]s64) -> bool { return values[0] <= values[1] }\n#law WideFalse custom NoGreater(s64.[9007199254740993,9007199254740992]);\n#program_export\nAnswer :: () -> s32 { return 0 }\n")
 }
 
-GenerateLiteralCache :: (test: *NativeTest) -> bool {
-    cases: Vec(u8)
-    for index: 0..599 {
-        parts := string.["        case ", CheckNumber(index), "; return \"value-", CheckNumber(index), "\\0中文\"\n"]
-        BuilderAppend(cases, TextJoin(parts[:], ""))
-    }
-    return NativeWrite(test, CheckPath(test.work, "vm_literal_cache_test.zi"), TextReplace(GenerateFixture(test, "vm_literal_cache.zi.in"), "@CASES@", TextTrimEnd(BuilderFinish(cases))))
-}
-
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "fixture-generation-")
@@ -231,7 +222,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     else if mode == "proof-negatives" { valid = GenerateProofNegatives(*test) }
     else if mode == "proof-budget" { valid = GenerateProofBudget(*test) }
     else if mode == "law-integers" { valid = GenerateLawIntegers(*test) }
-    else if mode == "vm-literals" { valid = GenerateLiteralCache(*test) }
     else if mode == "assembly-capture-limit" {
         parameters: Vec(string); operands: Vec(string)
         for index: 0..16 { VecPush(parameters, CheckConcat("arg", CheckConcat(CheckNumber(index), ":s64"))); VecPush(operands, CheckConcat("r:arg", CheckNumber(index))) }
@@ -251,7 +241,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         for line: lines { BuilderAppend(source, ifx line.count >= 2 then line[2:] else ""); BuilderAppend(source, "\n") }
         valid = NativeWrite(*test, CheckPath(test.work, "main.zi"), BuilderFinish(source))
     }
-    else if mode == "string-storage" { valid = NativeWrite(*test, CheckPath(test.work, "string_storage.zi"), TextReplace(GenerateFixture(*test, "string_storage.zi.in"), "@PADDING@", GenerateRepeat("x", 1024))) }
     else if mode == "vm-metadata" {
         original := NativeRead(*test, CheckPath(test.work, "first.zi"))
         generated := CheckConcat("Wide :: () -> s32 {\n total: s32\n", CheckConcat(GenerateRepeat(" total += One(1)\n", 4101), " return total\n}\n"))

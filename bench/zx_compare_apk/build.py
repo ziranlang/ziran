@@ -39,7 +39,7 @@ def main():
         run(["make",*(["-B"] if force else []),"-j2","BOOTSTRAP=1","BUILD_DIR="+runtime,"CC="+str(tools/"armv7a-linux-androideabi28-clang"),"AR="+str(tools/"llvm-ar"),"OBJCOPY="+str(tools/"llvm-objcopy"),"CFLAGS=-O2 -fPIC -ffunction-sections -fdata-sections",runtime+"/libziran.a"])
         stamp.write_text(json.dumps({"sha256":sha(archive),"flags":"-O2 -fPIC -ffunction-sections -fdata-sections"}))
         flags=['-DCMAKE_TOOLCHAIN_FILE='+str(ndk/'build/cmake/android.toolchain.cmake'),'-DANDROID_ABI=armeabi-v7a','-DANDROID_PLATFORM=android-28']
-    if not a.android:run(["make","-j2","build/libziran.a","build/bin/ziran","build/bin/zi2wasm"])
+    if not a.android:run(["make","-j2","build/libziran.a","build/bin/ziran","build/bin/zi2asm"])
     cc=tools/"armv7a-linux-androideabi28-clang" if a.android else "cc"
     archive=ROOT/("build/android-host/armeabi-v7a/libziran.a" if a.android else "build/libziran.a")
     run([sys.executable,ROOT/"bench/zx_compare.py","prepare","--cc",cc,"--library",archive,"--out",out])
@@ -59,7 +59,7 @@ def main():
     data["tinycc_version"]="0.9.28rc (vendored)"
     data["native_source_identity"]=(library.parent/".zx-native-identity").read_text().strip()
     data["runtime_compile_flags"]=(library.parent/".compiler-flags").read_text()[:3000]
-    data["tools"]={name:sha(ROOT/"build/bin"/name) for name in ("ziran","zi2wasm")}
+    data["tools"]={name:sha(ROOT/"build/bin"/name) for name in ("ziran","zi2asm")}
     if a.android:data["apk_sha256"]=sha(out/"zx-compare.apk")
     (out/'embedded-prepare.json').write_text(json.dumps(data,indent=2)+'\n')
 def package(run,out,obj):

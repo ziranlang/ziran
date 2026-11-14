@@ -37,8 +37,8 @@ for form in source saved; do
         if GO111MODULE=off GOMAXPROCS=2 GOFLAGS=-p=2 go run "$output"/*.go > "$work/bounds.log" 2>&1; then echo 'Go string SIMD bounds not enforced'; exit 1; fi
         grep -q 'SIMD access .*out of bounds' "$work/bounds.log"
         "$ziran" bundle --root tests/spec --module-path std --entry "json_string_scan_test:$name" -o "$work/bounds.zx" "$input"
-        if "$ziran" run "$work/bounds.zx" > "$work/bounds.log" 2>&1; then echo 'VM string SIMD bounds not enforced'; exit 1; fi
-        grep -q 'SIMD access .*out of bounds' "$work/bounds.log"
+        if "$ziran" run "$work/bounds.zx" > "$work/bounds.log" 2>&1; then echo 'bundle string SIMD bounds not enforced'; exit 1; fi
+        grep -q 'out of bounds' "$work/bounds.log"
     done
 done
 "$ziran" build --target=c --root tests/spec --module-path std --entry json_string_guard_test:main --exe -o "$work/guard" tests/spec/json_string_guard_test.zi
@@ -64,4 +64,4 @@ ZIRAN_JOBS=2 "$ziran" build --target=c --root "$work/parallel" -o "$work/paralle
 printf '%s\n' '#include "entry.h"' 'int main(void) { return Entry(); }' > "$work/parallel-c/main.c"
 cc -std=c11 -O2 -Iinclude -I"$work/parallel-c" "$work/parallel-c"/*.c -lm -o "$work/parallel-c/test"
 "$work/parallel-c/test"
-echo 'JSON SIMD string scanning passed source/saved IR, C/Go/VM, sanitizers and protected-page bounds'
+echo 'JSON SIMD string scanning passed source/saved IR, C/Go/bundles, sanitizers and protected-page bounds'

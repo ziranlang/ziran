@@ -2,7 +2,7 @@
 # Native vectors (u8xN .. f64xN): one 128-bit block in base code, Go, the
 # VM and non-AVX2 clones, and two blocks in AVX2 clones and -mavx2 builds.
 # A loop stepping by Simd.Lanes(T) prints the same hash on every width,
-# compiler, forced tier, Go, bundles and the portable VM, from source and
+# compiler, forced tier, Go and bundles, from source and
 # saved IR, while Simd.Blocks(u8xN) reports the width each build picked.
 # Checking keeps native vectors plain values that never cross code built
 # for another width.
@@ -131,22 +131,6 @@ ZI
 } > "$work/app.zi"
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
-vm_lib=${ZIRAN_VM_LIB:-$repo/build/libziran-vm.a}
-if test -f "$vm_lib"; then
-    cat > "$work/vm-run.c" <<'C'
-#include "ziran_host.h"
-int main(int argc, char **argv) {
-    Bundle *bundle = argc == 2 ? BundleOpen(argv[1]) : 0;
-    long long result = 0;
-    int has_result = 0;
-    int ok = bundle != 0 && BundleRun(bundle, 0, 0, &result, &has_result);
-    BundleClose(bundle);
-    return ok ? 0 : 1;
-}
-C
-    "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$work/vm-run.c" "$vm_lib" -lm -pthread \
-        -o "$work/vm-run"
-fi
 clang=
 for candidate in clang clang-21 clang-20 clang-19 clang-18; do
     if command -v "$candidate" >/dev/null 2>&1; then clang=$candidate; break; fi
@@ -243,10 +227,7 @@ C
         agree "Go $input" "$(cd "$work/go-$input" && GO111MODULE=off go run ./*.go)" "1 1"
     fi
     "$ziran" bundle --root "$root" --entry app:main -o "$work/$input.zx" "$module"
-    agree "zx $input" "$(ZIRAN_NATIVE_CACHE="$work/cache" "$ziran" run "$work/$input.zx")" ""
-    if test -x "$work/vm-run"; then
-        agree "VM $input" "$("$work/vm-run" "$work/$input.zx")" "1 1"
-    fi
+    agree "zx $input" "$("$ziran" run "$work/$input.zx")" ""
 done
 
 reject() {
@@ -274,4 +255,4 @@ Outside :: (v: s16xN) #foreign libc;' 'a #foreign procedure cannot take or retur
 reject 'Rows :: (rows: []s16xN) {}' 'cannot be part of an array, record, pointer, slice'
 reject 'Size :: () -> s64 { return size_of(u8xN) }' 'requires a known sized type: u8xN'
 reject 'Count :: () -> s64 { return Simd.Lanes(s16xN, 2) }' 'takes one vector type'
-echo "simd_native: every width, tier, Go, bundles and the portable VM agree ($expected)"
+echo "simd_native: every width, tier, Go and bundles agree ($expected)"

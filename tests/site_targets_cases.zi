@@ -36,7 +36,7 @@ SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
                 continue
             }
             artifact := CheckPath(site, CheckField(*document, JsonElement(*document, files, 0), "path")); command: Vec(string)
-            if target == "zx" { VecPush(command, CheckPath(PathParent(test.ziran), "zi2zx")); VecPush(command, "run"); VecPush(command, "--vm"); VecPush(command, artifact) }
+            if target == "zx" { VecPush(command, CheckPath(PathParent(test.ziran), "zi2zx")); VecPush(command, "run"); VecPush(command, artifact) }
             else { VecPush(command, "node"); VecPush(command, CheckPath(test.repo, "scripts/site_target_wasm.cjs")); VecPush(command, artifact); if CheckField(*document, example, "stdout") != "" { VecPush(command, "--output") } }
             expected := CheckField(*document, example, "expected")
             if !libraries && CheckField(*document, example, "stdout") != "" { expected = CheckField(*document, example, "stdout") }

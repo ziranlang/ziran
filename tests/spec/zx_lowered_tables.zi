@@ -1,8 +1,9 @@
 // Long array literals and large locals, pinned by tests/zx_lowered_parity.sh.
 // A literal of 64 or more numeric literals is read-only data decoded by one
-// loop, and a fixed-array local or parameter of more than 4096 bytes lives in
-// a frame slot, so a loop over it does not copy it on every iteration.
-Grid :: struct { cells: [48]s64; total: s64 }
+// loop, and a fixed-array or record local or parameter of more than 4096
+// bytes lives in a frame slot, so a loop over it does not copy it on every
+// iteration.
+Grid :: struct { cells: [600]s64; total: s64 }
 
 table: [64]s32 = .[
     -31000, -30000, -29000, -28000, -27000, -26000, -25000, -24000, -23000, -22000, -21000, -20000, -19000, -18000, -17000, -16000,
@@ -24,7 +25,7 @@ Total :: (cells: [600]s64) -> s64 {
 }
 
 Fill :: (grid: Grid) -> Grid {
-    for i: 0..47 {
+    for i: 0..599 {
         grid.cells[i] = cast(s64)i * 3
         grid.total += grid.cells[i]
     }
@@ -67,7 +68,7 @@ main :: () -> s32 {
     grid: Grid
     grid = Fill(grid)
     big: [600]s64
-    for i: 0..599 { big[i] = grid.cells[i % 48] + cast(s64)i }
+    for i: 0..599 { big[i] = grid.cells[i] + cast(s64)i }
     print("tables % % % % % % % %\n", Sum16(words), narrow, wide, real, table[0], table[63], grid.total,
         Total(big))
     return cast(s32)(grid.cells[47] - 99)

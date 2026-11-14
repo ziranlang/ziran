@@ -5,7 +5,7 @@
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Portable Unicode text</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/UNICODE.md">docs/UNICODE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
 <div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#unicode-version-and-regeneration">Unicode version and regeneration</a><a href="#local-tests">Local tests</a></aside><div class="article-body">
 <section class="prose"><p>Import <code>U :: #import "std/unicode";</code>. The checked Ziran implementation and
-its generated tables run on native C, Go and the portable VM. There are no
+its generated tables run on native C, Go and the portable engine. There are no
 GLib, ICU, locale, Python or platform Unicode dependencies.</p>
 <p>Public procedures:</p>
 <pre><code class="language-zi">CaseFold :: (text: string) -&gt; string
@@ -146,8 +146,8 @@ normalization outputs byte for byte. Normal tests need no network access.</p>
 <pre><code class="language-sh">build-queue -- sh tests/std_unicode.sh build/bin/ziran
 build-queue -- sh tests/unicode_data.sh build/bin/ziran
 </code></pre>
-<p>The Unicode suite executes source and saved IR on native C, Go, the portable
-VM (<code>zi2zx run --vm</code>) and the native bundle runner, comparing source/saved bundles.
+<p>The Unicode suite executes source and saved IR on native C, Go and bundles
+(<code>ziran run</code>), comparing source/saved bundles.
 It covers every changed fold/lower/title mapping and every word, space, decimal
 and printability range's endpoints (8,323 generated assertions), plus contextual
 sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,

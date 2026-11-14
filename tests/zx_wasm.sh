@@ -1,9 +1,8 @@
 #!/bin/sh
 # check-cost: 120
 set -eu
-# The wasm execution tier must agree with the native tier and the portable
-# VM on the scalar fixture, and reject out-of-subset programs with a
-# diagnostic instead of guessing. Node or the native Wasmtime CLI runs the
+# Wasm modules from verified revision-28 ZX (zi2asm --emit wasm) must agree
+# with the instruction engine. Node or the native Wasmtime CLI runs the
 # emitted modules; ZIRAN_WASM_ENGINE=wasmtime selects Wasmtime for every check.
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -48,19 +47,18 @@ run_engine() {
     fi
 }
 
-zi2wasm=$(dirname -- "$ziran")/zi2wasm
-zi2zx_vm=$(dirname -- "$ziran")/zi2zx
-test -x "$zi2wasm" || {
-    echo "zx-wasm-test: $zi2wasm is not built; run make first"
+zi2asm=$(dirname -- "$ziran")/zi2asm
+test -x "$zi2asm" || {
+    echo "zx-wasm-test: $zi2asm is not built; run make first"
     exit 1
 }
 
-"$zi2wasm" --root "$repo/tests/spec" --entry "$entry" \
+"$zi2asm" --root "$repo/tests/spec" --entry "$entry" --emit wasm \
     -o "$work/zx_wasm_test.wasm" "$source"
 
 run_wasm="$work/run_wasm.js"
 cat >"$run_wasm" <<'EOF'
-// Instantiates one zi2wasm module, wires the budget global and the
+// Instantiates one wasm module, wires the budget global and the
 // overrun import, and prints zx_entry's i64 result.
 const fs = require('fs');
 const file = process.argv[2];
@@ -92,9 +90,9 @@ main :: () {
     print("a\0b\n")
 }
 ZI
-"$zi2wasm" --root "$work" --entry print:main -o "$work/print.wasm" "$work/print.zi"
+"$zi2asm" --root "$work" --entry print:main --emit wasm -o "$work/print.wasm" "$work/print.zi"
 "$ziran" bundle --root "$work" --entry print:main -o "$work/print.zx" "$work/print.zi"
-"$ziran" run --vm "$work/print.zx" > "$work/print-vm.txt"
+"$ziran" run "$work/print.zx" > "$work/print-vm.txt"
 "$nodebin" - "$work/print.wasm" > "$work/print-wasm.txt" <<'JS'
 const fs = require('fs');
 let memory;
@@ -119,7 +117,6 @@ cmp "$work/print-vm.txt" "$work/print-wasm.txt"
 # canonical bits for scalars of any arity and void results, host images for
 # strings, records and slices, result images the module keeps, and changed
 # slice elements copied back. The same ZX gives the same module bytes.
-zi2asm=$(dirname -- "$ziran")/zi2asm
 cat >"$work/typed.zi" <<'ZI'
 host_api :: #system_library "host_api";
 Item :: struct {
@@ -266,11 +263,11 @@ test "$heap" = "99000
 }
 test "$("$zi2asm" --run --heap-report --input zx "$work/heap.zx" 2>/dev/null)" = 99000
 
-# The bundle Wasm tier runs the same revision-28 bundle in a WebAssembly
-# host: libziran built by emcc with the instruction engine, whose web
-# provider lowers it through zx_wasm_lower and translates its host images
-# to VmHostValue bindings. The Wasm instance and the engine instance must
-# agree. Skipped without emcc.
+# The bundle Wasm tier in a WebAssembly host: libziran built by emcc with
+# the instruction engine, whose web provider lowers each revision-28 bundle
+# through zx_wasm_lower and translates its host calls and module state to
+# VmHostValue bindings. The Wasm instances and engine instances must agree.
+# Skipped without emcc.
 emcc=${ZIRAN_WASM_EMCC:-}
 if ! command -v "$emcc" >/dev/null 2>&1 && test -x "$HOME/emsdk/upstream/emscripten/emcc"; then
     emcc=$HOME/emsdk/upstream/emscripten/emcc
@@ -282,10 +279,29 @@ if command -v "$emcc" >/dev/null 2>&1; then
             tail -20 "$work/lib.log"
             exit 1
         }
+    # A computed initializer, state that grows each run, a string global and
+    # a host capability.
+    cat >"$work/state.zi" <<'ZI'
+host_api :: #system_library "host_api";
+AddHost :: (value: s64) -> s64 #foreign host_api;
+Seed :: () -> s64 { return 3 + 4 }
+base: s64 = Seed();
+runs: s64 = 40;
+table: [4]s64;
+title: string = "old";
+Main :: () -> s64 {
+    runs += 1
+    table[runs % 4] += runs
+    return AddHost(runs * 100 + base + table[1] + cast(s64)title.count)
+}
+ZI
+    "$zi2asm" --root "$work" --entry state:Main --emit zx -o "$work/state.zx" "$work/state.zi"
     cat >"$work/tier.c" <<'C'
 #include "ziran_host.h"
+#include "zir_zx_wasm_platform.h"
 #include <emscripten.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 static char text[64], title[32];
 static VmHostField fields[3];
@@ -317,47 +333,109 @@ static int call(void *context, const char *module, const char *function,
         result->kind = VM_HOST_VOID;
     } else if(!strcmp(function, "Count")) {
         result->kind = VM_HOST_INTEGER; result->integer = 7;
+    } else if(!strcmp(function, "AddHost")) {
+        result->kind = VM_HOST_INTEGER; result->integer = args[0].integer + 1000;
     } else return 0;
     return 1;
 }
-int main(int argc, char **argv)
+static long long run(BundleInstance *instance)
+{
+    long long value = -1;
+    int has = 0;
+    return instance != NULL && BundleInstanceRun(instance, &value, &has) && has ? value : -1;
+}
+static unsigned long reject(void *context, const unsigned char *bytes, size_t size)
+{
+    (void)context; (void)bytes; (void)size;
+    return 0;
+}
+/* Runs typed.zx, then state.zx: two instances side by side with their own
+ * globals, then a third that takes the first one's state, changed. */
+static void scenario(const char *engine, Bundle *typed, Bundle *state)
 {
     static const char *names[] = {"Greet", "Weigh", "Fill", "Flag", "Note", "Count"};
     HostBinding bindings[6];
     for(int at = 0; at < 6; at++) bindings[at] = (HostBinding){.module = "typed", .function = names[at], .call = call};
-    Bundle *bundle = argc == 2 ? BundleOpen(argv[1]) : NULL;
-    if(bundle == NULL) return 3;
-    for(int engine = 0; engine < 2; engine++) {
-        BundleInstance *instance = engine ? BundleInstantiatePortable(bundle, bindings, 6)
-                                          : BundleInstantiate(bundle, bindings, 6);
-        long long value = -1;
-        int has = 0;
-        if(engine == 0)
-            printf("wasm instances %d\n", EM_ASM_INT({ return globalThis.zxWasmTier ? globalThis.zxWasmTier.instances.size : -1; }));
-        int ran = instance != NULL && BundleInstanceRun(instance, &value, &has);
-        printf("%s %d %d %lld\n", engine ? "engine" : "wasm", ran, has, value);
-        fflush(stdout);
-        BundleInstanceClose(instance);
-    }
-    BundleClose(bundle);
+    BundleInstance *instance = BundleInstantiate(typed, bindings, 6);
+    long long value = run(instance);
+    printf("%s typed %lld\n", engine, value);
+    fflush(stdout);
+    BundleInstanceClose(instance);
+    HostBinding add = {.module = "state", .function = "AddHost", .call = call};
+    BundleInstance *first = BundleInstantiate(state, &add, 1), *beside = BundleInstantiate(state, &add, 1);
+    long long a = run(first), b = run(first), c = run(beside);
+    BundleState *saved = NULL;
+    int exported = BundleInstanceExportState(first, &saved);
+    size_t runs = 0, named = 0;
+    int ok = exported && BundleStateFind(saved, "state", "runs", &runs) && BundleStateFind(saved, "state", "title", &named);
+    BundleStateValue *count = ok ? BundleStateValueRef(saved, runs) : NULL;
+    BundleStateValue *label = ok ? BundleStateValueRef(saved, named) : NULL;
+    if(count != NULL && label != NULL && label->value.kind == VM_HOST_STRING) {
+        count->value.integer = 100;
+        count->value.bits = 100;
+        unsigned char *copied = malloc(5);
+        memcpy(copied, "newer", 5);
+        free((void *)label->value.data);
+        label->value.data = copied;
+        label->value.length = 5;
+    } else ok = 0;
+    BundleInstance *moved = BundleInstantiate(state, &add, 1);
+    long long d = ok && BundleInstanceImportState(moved, saved) ? run(moved) : -1;
+    printf("%s state %lld %lld %lld %lld\n", engine, a, b, c, d);
+    fflush(stdout);
+    BundleStateClose(saved);
+    BundleInstanceClose(moved);
+    BundleInstanceClose(beside);
+    BundleInstanceClose(first);
+}
+int main(int argc, char **argv)
+{
+    Bundle *typed = argc == 3 ? BundleOpen(argv[1]) : NULL;
+    Bundle *state = argc == 3 ? BundleOpen(argv[2]) : NULL;
+    if(typed == NULL || state == NULL) return 3;
+    const ZxWasmPlatform *active = ZxWasmPlatformActive();
+    if(active == NULL) return 4;
+    ZxWasmPlatform provider = *active;
+    scenario("wasm", typed, state);
+    printf("wasm modules %d\n", EM_ASM_INT({ return globalThis.zxWasmTier.modules.size; }));
+    /* A module the provider rejects is an error; no other engine runs it. */
+    ZxWasmPlatform rejecting = provider;
+    rejecting.instantiate = reject;
+    ZxWasmSetPlatform(&rejecting);
+    HostBinding add = {.module = "state", .function = "AddHost", .call = call};
+    BundleInstance *refused = BundleInstantiate(state, &add, 1);
+    printf("rejected %d\n", refused == NULL);
+    BundleInstanceClose(refused);
+    /* Without a provider the instruction engine runs the same bundles. */
+    ZxWasmSetPlatform(NULL);
+    scenario("engine", typed, state);
+    BundleClose(typed);
+    BundleClose(state);
     return 0;
 }
 C
-    "$emcc" -O2 -std=gnu99 -I"$repo/include" "$work/tier.c" "$work/lib/libziran.a" -o "$work/tier.js" \
-        -s ENVIRONMENT=node -s NODERAWFS=1 -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=1
-    tier=$("$nodebin" "$work/tier.js" "$work/typed.zx")
-    expected_tier='wasm instances 1
-note -5 200 -300
-hi zx x2 box! false
-wasm 1 1 78
-note -5 200 -300
-hi zx x2 box! false
-engine 1 1 78'
-    test "$tier" = "$expected_tier" || {
-        echo "zx-wasm-test: the bundle Wasm tier and the engine gave '$tier'"
+    "$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" "$work/tier.c" "$work/lib/libziran.a" \
+        -o "$work/tier.js" -s ENVIRONMENT=node -s NODERAWFS=1 -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=1
+    tier=$("$nodebin" "$work/tier.js" "$work/typed.zx" "$work/state.zx" 2> "$work/tier.err") || {
+        cat "$work/tier.err"
         exit 1
     }
-    echo 'zx-wasm-test: a revision-28 bundle ran on the bundle Wasm tier with typed host calls'
+    expected_tier='note -5 200 -300
+hi zx x2 box! false
+wasm typed 78
+wasm state 5151 5251 5151 11254
+wasm modules 2
+rejected 1
+note -5 200 -300
+hi zx x2 box! false
+engine typed 78
+engine state 5151 5251 5151 11254'
+    test "$tier" = "$expected_tier" || {
+        echo "zx-wasm-test: the bundle Wasm tier and the engine gave '$tier'"
+        cat "$work/tier.err"
+        exit 1
+    }
+    echo 'zx-wasm-test: revision-28 bundles ran on the bundle Wasm tier: typed host calls, independent instances and moved state'
 else
     echo 'zx-wasm-test: no emcc; skipping the bundle Wasm tier'
 fi
@@ -396,7 +474,7 @@ Answer :: () -> s64 {
     return ifx way == Direction.Up then 1 else 2
 }
 EOF
-"$zi2wasm" --root "$work" --entry enums:Answer \
+"$zi2asm" --root "$work" --entry enums:Answer --emit wasm \
     -o "$work/enums.wasm" "$work/enums.zi"
 test "$(run_engine scalar "$work/enums.wasm" 1000000)" = 2
 
@@ -419,7 +497,7 @@ Answer :: () -> s64 {
     return -1
 }
 EOF
-"$zi2wasm" --root "$work" --entry text:Answer \
+"$zi2asm" --root "$work" --entry text:Answer --emit wasm \
     -o "$work/text.wasm" "$work/text.zi"
 text=$(run_engine scalar "$work/text.wasm" 1000000)
 "$ziran" bundle --root "$work" --entry text:Answer \
@@ -447,7 +525,7 @@ Answer :: () -> s64 {
     return total
 }
 EOF
-"$zi2wasm" --root "$work" --entry records:Answer \
+"$zi2asm" --root "$work" --entry records:Answer --emit wasm \
     -o "$work/records.wasm" "$work/records.zi"
 records=$(run_engine scalar "$work/records.wasm" 1000000)
 "$ziran" bundle --root "$work" --entry records:Answer \
@@ -461,7 +539,6 @@ esac
 "$ziran" bundle --root "$repo/tests/spec" --entry "$entry" \
     -o "$work/zx_wasm_test.zx" "$source"
 test "$("$ziran" run "$work/zx_wasm_test.zx")" = "$expected"
-test "$("$zi2zx_vm" run --vm "$work/zx_wasm_test.zx")" = "$expected"
 
 # An engine rejects a whole module that holds SIMD instructions it lacks, so
 # wasm32+simd128 variants enter generated C only when the build enables SIMD.
@@ -628,11 +705,11 @@ SimdPath :: () -> s32 #asm("wasm32+simd128", "i32.const 2\n\tlocal.set %[out]", 
 #program_export
 Answer :: () -> s64 { return 40 + cast(s64)SimdPath() }
 EOF
-"$zi2wasm" --root "$work" --entry simd_path:Answer \
+"$zi2asm" --root "$work" --entry simd_path:Answer --emit wasm \
     -o "$work/simd_path.wasm" "$work/simd_path.zi"
 test "$(run_engine scalar "$work/simd_path.wasm" 1000000)" = 40
 "$ziran" bundle --root "$work" --entry simd_path:Answer \
     -o "$work/simd_path.zx" "$work/simd_path.zi"
 test "$("$ziran" run "$work/simd_path.zx")" = 40
 
-echo 'The wasm execution tier agrees with the native tier and the portable VM, and traps on spent budgets'
+echo 'Wasm modules from revision-28 ZX agree with the instruction engine and trap on spent budgets'

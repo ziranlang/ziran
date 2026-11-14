@@ -1,38 +1,11 @@
-// The portable .zx container. A bundle is "ZX\0\0", a version word, the entry
-// module and procedure, the host capabilities its linked code calls, the law
-// and waiver tables, the length-prefixed portable IR and the asset section.
-// Words are little-endian u32; every string is a length word and its bytes,
-// never NUL. Callers measure and stream the IR and own all storage; decoded
-// strings borrow the bundle bytes.
+// The portable .zx container: revision-28 executable ZX
+// (ASSEMBLY/zx-executable-format.md). Words are little-endian; callers own
+// all storage, and decoded views borrow the bundle bytes.
 
-Capability :: struct { module: string; function: string }
-Law :: struct {
-    module: string; name: string; kind: string; status: string; detail: string
-    method: string; domain: string; cases: u64; counterexample: string; waived: bool
-}
-Waiver :: struct { module: string; name: string; reason: string }
 Asset :: struct { name: string; data: string }
-// Everything before the IR. Version 27 marks a thin add-on that composes
-// declarations into a module its library already provides; readers before
-// 27 cannot do that, so writers use it only for such add-ons.
-Header :: struct {
-    partial: bool; entry_module: string; entry_function: string
-    capabilities: []Capability; laws: []Law; waivers: []Waiver; program: s64
-}
-// What a reader rejects. The last three name the table that differs from
-// the program a bundle links.
-Problem :: enum s32 { None; Invalid; Version; Capabilities; CapabilityList; LawTable; WaiverTable }
-// A decoded bundle. The IR is bytes[program:program_end]; the counts are
-// those of the bundle, and a table is filled when its storage holds it.
-Layout :: struct {
-    problem: Problem; partial: bool; entry_module: string; entry_function: string
-    capabilities: s64; laws: s64; waivers: s64; assets: s64; program: s64; program_end: s64
-}
 
-// Revision 28 is the opt-in instruction container. It deliberately has a
-// separate API from versions 26/27 so a caller cannot accidentally interpret
-// semantic .zir bytes as executable LIR. The executable decoder only frames
-// sections; compiler_exec_link owns LIR decoding, verification and storage.
+// The decoder only frames sections; compiler_exec_link owns LIR decoding,
+// verification and storage.
 ExecutableProblem :: enum s32 {
     None; Invalid; Magic; Legacy; Version; Header; Feature; Flags; Section
     RequiredSection; Duplicate; Alignment; Overlap; Truncated; Trailing
@@ -75,14 +48,11 @@ ExecutableLayout :: struct {
 
 #scope_file
 Signature :: 0x585a;        // "ZX\0\0" as a little-endian word
-Plain :: 26;
-Partial :: 27;
-ProgramLimit :: 268435456;  // bytes of portable IR
+// Revisions 26 and 27 held semantic IR; they are refused by name.
+SemanticFirst :: 26;
+SemanticLast :: 27;
+ProgramLimit :: 268435456;  // bytes of the instruction payload
 CapabilityLimit :: 4096;
-TableLimit :: 262144;       // laws, and separately waivers
-NameLimit :: 128;           // names and law details hold 1 to 127 bytes
-WordLimit :: 16;            // law kinds, statuses and methods
-TextLimit :: 4096;          // law domains and counterexamples, may be empty
 SizeLimit :: 4294967296;    // asset names and data
 
 ExecutableVersion :: 28
@@ -174,85 +144,6 @@ Field :: (codec: *Codec, text: string, empty: bool, limit: s64) -> string {
     return field
 }
 
-LawFields :: (codec: *Codec, law: Law) -> Law {
-    result: Law
-    result.module = Field(codec, law.module, false, NameLimit)
-    result.name = Field(codec, law.name, false, NameLimit)
-    result.kind = Field(codec, law.kind, false, WordLimit)
-    result.status = Field(codec, law.status, false, WordLimit)
-    result.detail = Field(codec, law.detail, false, NameLimit)
-    result.method = Field(codec, law.method, false, WordLimit)
-    result.domain = Field(codec, law.domain, true, TextLimit)
-    low := Word(codec, cast(u32)(law.cases & 0xffffffff))
-    high := Word(codec, cast(u32)(law.cases >> 32))
-    result.cases = cast(u64)low | (cast(u64)high << 32)
-    result.counterexample = Field(codec, law.counterexample, true, TextLimit)
-    waived: u32 = 0
-    if law.waived { waived = 1 }
-    waived = Word(codec, waived)
-    if waived > 1 { Fail(codec, false) }
-    result.waived = waived == 1
-    return result
-}
-// Everything before the IR. A writer walks HEADER's tables; a reader fills
-// the records their storage holds and counts them all.
-Head :: (codec: *Codec, header: Header) -> Layout {
-    layout: Layout
-    if Word(codec, Signature) != Signature { Fail(codec, false) }
-    version: u32 = Plain
-    if header.partial { version = Partial }
-    version = Word(codec, version)
-    if codec.valid && (version < Plain || version > Partial) {
-        Fail(codec, false)
-        layout.problem = .Version
-        return layout
-    }
-    layout.partial = version == Partial
-    layout.entry_module = Field(codec, header.entry_module, false, NameLimit)
-    layout.entry_function = Field(codec, header.entry_function, false, NameLimit)
-    layout.capabilities = Count(codec, header.capabilities.count)
-    if codec.valid && layout.capabilities > CapabilityLimit {
-        Fail(codec, false)
-        layout.problem = .Capabilities
-        return layout
-    }
-    index: s64 = 0
-    while codec.valid && index < layout.capabilities {
-        capability: Capability
-        if index < header.capabilities.count { capability = header.capabilities[index] }
-        read := Capability.{Field(codec, capability.module, false, NameLimit),
-            Field(codec, capability.function, false, NameLimit)}
-        if codec.reading && index < header.capabilities.count { header.capabilities[index] = read }
-        index += 1
-    }
-    layout.laws = Count(codec, header.laws.count)
-    if layout.laws > TableLimit { Fail(codec, false) }
-    index = 0
-    while codec.valid && index < layout.laws {
-        law: Law
-        if index < header.laws.count { law = header.laws[index] }
-        read := LawFields(codec, law)
-        if codec.reading && index < header.laws.count { header.laws[index] = read }
-        index += 1
-    }
-    layout.waivers = Count(codec, header.waivers.count)
-    if layout.waivers > TableLimit { Fail(codec, false) }
-    index = 0
-    while codec.valid && index < layout.waivers {
-        waiver: Waiver
-        if index < header.waivers.count { waiver = header.waivers[index] }
-        read := Waiver.{Field(codec, waiver.module, false, NameLimit),
-            Field(codec, waiver.name, false, NameLimit), Field(codec, waiver.reason, false, NameLimit)}
-        if codec.reading && index < header.waivers.count { header.waivers[index] = read }
-        index += 1
-    }
-    length := Count(codec, header.program)
-    if length == 0 || length > ProgramLimit { Fail(codec, false) }
-    layout.program = codec.at
-    layout.program_end = codec.at + length
-    if !codec.valid { layout.problem = .Invalid }
-    return layout
-}
 // Assets are sorted, unique and the last bytes of the bundle.
 Assets :: (codec: *Codec, assets: []Asset) -> s64 {
     count := Count(codec, assets.count)
@@ -465,7 +356,7 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
     layout.found_version = version
     if cursor.problem != .None { layout.problem = cursor.problem; return layout }
     if magic != Signature { layout.problem = .Magic; return layout }
-    if version == Plain || version == Partial { layout.problem = .Legacy; return layout }
+    if version == SemanticFirst || version == SemanticLast { layout.problem = .Legacy; return layout }
     if version != ExecutableVersion { layout.problem = .Version; return layout }
     header_size := ExecutableTakeU32(*cursor)
     directory_entry_size := ExecutableTakeU32(*cursor)
@@ -599,12 +490,12 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
     if !asset_codec.valid || layout.assets != manifest_assets { layout.problem = .Assets; return layout }
     return layout
 }
-// The header or, without HEAD, the asset section: its size, or -1 when a
-// field breaks the format.
-Encode :: (output: []u8, header: Header, assets: []Asset, head: bool) -> s64 {
+// The asset section's size, or -1 when a field breaks the format. It is
+// written only when OUTPUT holds all of its bytes.
+EncodeAssets :: (output: []u8, assets: []Asset) -> s64 {
     for pass: 0..1 {
         codec := Codec.{"", output, 0, false, pass == 1, true, false}
-        if head { Head(*codec, header) } else { Assets(*codec, assets) }
+        unused Assets(*codec, assets)
         if !codec.valid { return -1 }
         if codec.at > output.count || pass == 1 { return codec.at }
     }
@@ -628,81 +519,7 @@ AssetName :: (name: string) -> bool {
     return true
 }
 
-// Each encoder writes only when OUTPUT holds all of its bytes.
-EncodeHeader :: (output: []u8, header: Header) -> s64 {
-    assets: []Asset
-    return Encode(output, header, assets, true)
-}
-EncodeAssets :: (output: []u8, assets: []Asset) -> s64 {
-    header: Header
-    return Encode(output, header, assets, false)
-}
-
-// Decodes a whole bundle, IR bounds and assets included, without
-// interpreting the IR.
-Decode :: (bytes: string, capabilities: []Capability, laws: []Law, waivers: []Waiver,
-    assets: []Asset) -> Layout {
-    output: []u8
-    codec := Codec.{bytes, output, 0, true, false, true, false}
-    layout := Head(*codec, .{false, "", "", capabilities, laws, waivers, 0})
-    if layout.problem != .None { return layout }
-    if layout.program_end > bytes.count {
-        layout.problem = .Invalid
-        return layout
-    }
-    codec.at = layout.program_end
-    layout.assets = Assets(*codec, assets)
-    if !codec.valid { layout.problem = .Invalid }
-    return layout
-}
-
-// The offset just past the IR: compiled code depends on those bytes alone,
-// not on the assets after them. 0 when BYTES end inside the header, so the
-// caller should supply more of the bundle; -1 when the header is malformed.
-ProgramEnd :: (bytes: string) -> s64 {
-    output: []u8
-    codec := Codec.{bytes, output, 0, true, false, true, false}
-    header: Header
-    layout := Head(*codec, header)
-    if codec.valid { return layout.program_end }
-    if codec.ended { return 0 }
-    return -1
-}
-
-// The first table of FOUND that differs from EXPECTED, as a reader checks a
-// bundle against the program it links.
-Differs :: (expected: Header, found: Header) -> Problem {
-    if expected.capabilities.count != found.capabilities.count { return .CapabilityList }
-    for row, index: expected.capabilities {
-        other := found.capabilities[index]
-        if row.module != other.module || row.function != other.function { return .CapabilityList }
-    }
-    if expected.laws.count != found.laws.count { return .LawTable }
-    for row, index: expected.laws {
-        other := found.laws[index]
-        if row.module != other.module || row.name != other.name || row.kind != other.kind ||
-            row.status != other.status || row.detail != other.detail || row.method != other.method ||
-            row.domain != other.domain || row.cases != other.cases ||
-            row.counterexample != other.counterexample || row.waived != other.waived { return .LawTable }
-    }
-    if expected.waivers.count != found.waivers.count { return .WaiverTable }
-    for row, index: expected.waivers {
-        other := found.waivers[index]
-        if row.module != other.module || row.name != other.name || row.reason != other.reason { return .WaiverTable }
-    }
-    return .None
-}
-
-Message :: (problem: Problem) -> string {
-    if problem == .Version { return "unsupported ZX version" }
-    if problem == .Capabilities { return "bundle has too many host capabilities" }
-    if problem == .CapabilityList { return "bundle capability list differs from linked IR" }
-    if problem == .LawTable { return "bundle law table differs from checked IR" }
-    if problem == .WaiverTable { return "bundle waiver table differs from checked IR" }
-    return "invalid or truncated bundle"
-}
-
-// Encodes the incompatible executable revision. The empty output measures;
+// Encodes an executable. The empty output measures;
 // a short output is never modified. Required sections are canonical and
 // ascending, every payload is 8-byte aligned, and optional attachments follow
 // the two reserved debug/source kinds in ascending kind order.

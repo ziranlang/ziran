@@ -2703,16 +2703,6 @@ section(Buf *module, unsigned id, Buf *content)
     content->count = 0;
 }
 
-static void
-state_type_name(Lower *lower, int32_t type, char *text, size_t size)
-{
-    const LirType *value = type_at(lower, type);
-    if(value->kind == LirTypeKind_Bool) snprintf(text, size, "bool");
-    else if(value->kind == LirTypeKind_Integer) snprintf(text, size, "%c%d", value->is_signed ? 's' : 'u', value->bits);
-    else if(value->kind == LirTypeKind_Float) snprintf(text, size, "float%d", value->bits);
-    else snprintf(text, size, "lir.%s", kind_name(value->kind));
-}
-
 static int
 scan_program(Lower *lower)
 {
@@ -2880,6 +2870,11 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     if(!classify_externals(&lower) || !scan_program(&lower) || !layout_globals(&lower))
         goto done;
     if(lower.uses_capability && lower.uses_images) lower.uses_heap = 1;
+    /* Imported state places the elements of a global's views with
+     * zx_reserve. */
+    for(int64_t index = 0; index < lower.global_count; index++)
+        if(lower.globals[index].writable && (host_shape(&lower, lower.globals[index].type) & SHAPE_VIEWS))
+            lower.uses_heap = 1;
     if(lower.uses_heap) {
         lower.free_table = data_reserve(&lower, 4 * ZXW_CLASSES);
         if(lower.failed) goto done;
@@ -3084,28 +3079,6 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         buf_raw(&content, lower.data.data, used);
         section(&module, 11, &content);
     }
-    /* zxstate: writable globals for portable state migration. */
-    {
-        int64_t count = 0;
-        for(int64_t index = 0; index < lower.global_count; index++)
-            if(lower.globals[index].writable) count++;
-        buf_name(&content, "zxstate", 7);
-        buf_uleb(&content, (uint64_t)count);
-        for(int64_t index = 0; index < lower.global_count; index++) {
-            const LirGlobal *global = &lower.globals[index];
-            if(!global->writable) continue;
-            String owner = global->module >= 0 && global->module < lower.module_count ?
-                lower.modules[global->module] : (String){"", 0};
-            char type[64];
-            state_type_name(&lower, global->type, type, sizeof(type));
-            buf_name(&content, owner.data, owner.length);
-            buf_name(&content, global->name.data, global->name.length);
-            buf_name(&content, type, strlen(type));
-            buf_uleb(&content, lower.global_address[index] - ZXW_DATA_BASE);
-            buf_uleb(&content, (uint64_t)type_size(&lower, global->type));
-        }
-        section(&module, 0, &content);
-    }
     /* zxhost: each capability's identity, by capability index. */
     if(lower.capability_count > 0) {
         buf_name(&content, "zxhost", 6);
@@ -3122,10 +3095,25 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         DiagnosticOutOfMemory();
         goto done;
     }
+    uint32_t *addresses = calloc(globals, sizeof(*addresses));
+    uint32_t *sizes = calloc(globals, sizeof(*sizes));
+    if(addresses == NULL || sizes == NULL) {
+        DiagnosticOutOfMemory();
+        free(addresses);
+        free(sizes);
+        goto done;
+    }
+    for(int64_t index = 0; index < lower.global_count; index++) {
+        addresses[index] = lower.global_address[index];
+        sizes[index] = (uint32_t)type_size(&lower, lower.globals[index].type);
+    }
     image->bytes = module.data;
     image->size = module.count;
     image->capabilities = lower.capabilities;
     image->capability_count = lower.capability_count;
+    image->global_addresses = addresses;
+    image->global_sizes = sizes;
+    image->global_count = (size_t)lower.global_count;
     image->returns = type_at(&lower, lower.functions[program->entry].result)->kind != LirTypeKind_Void;
     module.data = NULL;
     lower.capabilities = NULL;
@@ -3168,8 +3156,221 @@ ZxWasmImageFree(ZxWasmImage *image)
         free(image->capabilities[index].parameters);
     }
     free(image->capabilities);
+    free(image->global_addresses);
+    free(image->global_sizes);
     free(image->bytes);
     memset(image, 0, sizeof(*image));
+}
+
+/* ------------------------------------------------------------ module state */
+
+/* Type questions for state images, without lowering a module. */
+typedef struct StateImage {
+    Lower lower;
+    const ZxWasmMemory *memory;
+    Buf image;
+} StateImage;
+
+static int
+state_open(StateImage *state, const LirProgram *program, const ZxWasmMemory *memory)
+{
+    memset(state, 0, sizeof(*state));
+    state->memory = memory;
+    Lower *lower = &state->lower;
+    lower->program = program;
+    lower->types = program->types.data;
+    lower->type_count = program->types.length;
+    size_t types = (size_t)(lower->type_count ? lower->type_count : 1);
+    lower->sizes = malloc(types * sizeof(*lower->sizes));
+    lower->shapes = calloc(types, 1);
+    if(lower->sizes == NULL || lower->shapes == NULL)
+        return 0;
+    for(size_t index = 0; index < types; index++)
+        lower->sizes[index] = -1;
+    return 1;
+}
+
+static void
+state_close(StateImage *state)
+{
+    free(state->lower.sizes);
+    free(state->lower.shapes);
+    buf_free(&state->image);
+}
+
+static uint64_t
+state_read(const unsigned char *bytes)
+{
+    uint64_t value = 0;
+    for(int at = 0; at < 8; at++) value |= (uint64_t)bytes[at] << (8 * at);
+    return value;
+}
+
+static void
+state_write(unsigned char *bytes, uint64_t value)
+{
+    for(int at = 0; at < 8; at++) bytes[at] = (unsigned char)(value >> (8 * at));
+}
+
+/* Turns each view of the `type` value at image[at], whose words are still
+ * an instance's pointer and count, into an image offset and count,
+ * appending the elements read from memory. */
+static int
+state_encode(StateImage *state, int32_t type, size_t at, int depth)
+{
+    Lower *lower = &state->lower;
+    if(depth > 64 || !(host_shape(lower, type) & SHAPE_VIEWS))
+        return depth <= 64;
+    const LirType *value = type_at(lower, type);
+    int32_t element = view_element(lower, type);
+    if(element >= 0) {
+        uint64_t pointer = state_read(state->image.data + at), count = state_read(state->image.data + at + 8);
+        int64_t width = type_size(lower, element);
+        if(count == 0) {
+            state_write(state->image.data + at, 0);
+            return 1;
+        }
+        if(width <= 0 || pointer > UINT32_MAX || count > (uint64_t)ZXW_BLOCK_LIMIT / (uint64_t)width)
+            return 0;
+        size_t bytes = (size_t)(count * (uint64_t)width), start = state->image.count;
+        buf_reserve(&state->image, bytes);
+        if(state->image.failed || !state->memory->read(state->memory->context, (size_t)pointer,
+                                                       state->image.data + start, bytes))
+            return 0;
+        state->image.count += bytes;
+        state_write(state->image.data + at, start);
+        if(host_shape(lower, element) & SHAPE_VIEWS)
+            for(uint64_t index = 0; index < count; index++)
+                if(!state_encode(state, element, start + (size_t)index * (size_t)width, depth + 1))
+                    return 0;
+        return 1;
+    }
+    if(value->kind == LirTypeKind_Array) {
+        int64_t width = type_size(lower, value->element);
+        for(int64_t index = 0; index < value->count; index++)
+            if(!state_encode(state, value->element, at + (size_t)(index * width), depth + 1))
+                return 0;
+        return 1;
+    }
+    const int32_t *fields = value->fields.data;
+    size_t offset = 0;
+    for(int64_t index = 0; index < value->fields.length; index++) {
+        if(!state_encode(state, fields[index], at + offset, depth + 1))
+            return 0;
+        offset += (size_t)type_size(lower, fields[index]);
+    }
+    return 1;
+}
+
+/* Places the views of the `type` value at image[at] in fresh storage,
+ * elements first, so each view's words become a pointer and count. */
+static int
+state_place(StateImage *state, int32_t type, size_t at, int depth)
+{
+    Lower *lower = &state->lower;
+    unsigned shape = host_shape(lower, type);
+    if(depth > 64 || !(shape & (SHAPE_VIEWS | SHAPE_BOOLS)))
+        return depth <= 64;
+    const LirType *value = type_at(lower, type);
+    unsigned char *bytes = state->image.data;
+    size_t size = state->image.count;
+    if(value->kind == LirTypeKind_Bool)
+        return bytes[at] <= 1;
+    int32_t element = view_element(lower, type);
+    if(element >= 0) {
+        uint64_t start = state_read(bytes + at), count = state_read(bytes + at + 8);
+        int64_t width = type_size(lower, element);
+        if(count == 0)
+            return start == 0;
+        if(width <= 0 || start > size || count > (size - start) / (uint64_t)width)
+            return 0;
+        for(uint64_t index = 0; index < count; index++)
+            if(!state_place(state, element, (size_t)start + (size_t)index * (size_t)width, depth + 1))
+                return 0;
+        size_t length = (size_t)count * (size_t)width;
+        size_t address = state->memory->reserve(state->memory->context, length);
+        if(address == 0 || !state->memory->write(state->memory->context, address,
+                                                 state->image.data + start, length))
+            return 0;
+        state_write(state->image.data + at, address);
+        return 1;
+    }
+    if(value->kind == LirTypeKind_Array) {
+        int64_t width = type_size(lower, value->element);
+        for(int64_t index = 0; index < value->count; index++)
+            if(!state_place(state, value->element, at + (size_t)(index * width), depth + 1))
+                return 0;
+        return 1;
+    }
+    const int32_t *fields = value->fields.data;
+    size_t offset = 0;
+    for(int64_t index = 0; index < value->fields.length; index++) {
+        if(!state_place(state, fields[index], at + offset, depth + 1))
+            return 0;
+        offset += (size_t)type_size(lower, fields[index]);
+    }
+    return 1;
+}
+
+static const LirGlobal *
+state_global(const LirProgram *program, int32_t global, const ZxWasmImage *module)
+{
+    if(program == NULL || module == NULL || global < 0 || global >= program->globals.length ||
+       (size_t)global >= module->global_count)
+        return NULL;
+    return &((const LirGlobal *)program->globals.data)[global];
+}
+
+int
+ZxWasmGlobalImage(const struct LirProgram *program, int32_t global, const ZxWasmImage *module,
+                  const ZxWasmMemory *memory, unsigned char **image, size_t *size)
+{
+    const LirGlobal *declared = state_global(program, global, module);
+    StateImage state;
+    int ok = 0;
+    *image = NULL;
+    *size = 0;
+    if(declared == NULL || !state_open(&state, program, memory))
+        goto done;
+    size_t width = module->global_sizes[global];
+    if(!(host_shape(&state.lower, declared->type) & SHAPE_VALID))
+        goto done;
+    buf_reserve(&state.image, width ? width : 1);
+    if(state.image.failed || !memory->read(memory->context, module->global_addresses[global],
+                                           state.image.data, width))
+        goto done;
+    state.image.count = width;
+    if(!state_encode(&state, declared->type, 0, 0))
+        goto done;
+    *image = state.image.data;
+    *size = state.image.count;
+    state.image.data = NULL;
+    ok = 1;
+done:
+    state_close(&state);
+    return ok;
+}
+
+int
+ZxWasmGlobalStore(const struct LirProgram *program, int32_t global, const ZxWasmImage *module,
+                  const ZxWasmMemory *memory, const unsigned char *image, size_t size)
+{
+    const LirGlobal *declared = state_global(program, global, module);
+    StateImage state;
+    int ok = 0;
+    if(declared == NULL || !state_open(&state, program, memory))
+        goto done;
+    size_t width = module->global_sizes[global];
+    if(size < width || !(host_shape(&state.lower, declared->type) & SHAPE_VALID))
+        goto done;
+    buf_raw(&state.image, image, size);
+    if(state.image.failed || !state_place(&state, declared->type, 0, 0) ||
+       !memory->write(memory->context, module->global_addresses[global], state.image.data, width))
+        goto done;
+    ok = 1;
+done:
+    state_close(&state);
+    return ok;
 }
 
 int
@@ -3243,6 +3444,24 @@ void
 ZxWasmImageFree(ZxWasmImage *image)
 {
     if(image != NULL) memset(image, 0, sizeof(*image));
+}
+
+int
+ZxWasmGlobalImage(const struct LirProgram *program, int32_t global, const ZxWasmImage *module,
+                  const ZxWasmMemory *memory, unsigned char **image, size_t *size)
+{
+    (void)program; (void)global; (void)module; (void)memory;
+    *image = NULL;
+    *size = 0;
+    return 0;
+}
+
+int
+ZxWasmGlobalStore(const struct LirProgram *program, int32_t global, const ZxWasmImage *module,
+                  const ZxWasmMemory *memory, const unsigned char *image, size_t size)
+{
+    (void)program; (void)global; (void)module; (void)memory; (void)image; (void)size;
+    return 0;
 }
 
 #endif

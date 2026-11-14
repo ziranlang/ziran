@@ -6,7 +6,7 @@
 #include "zir_diagnostic.h"
 #include "zir_command.h"
 #include "zir_load.h"
-#include "zir_bundle.h"
+#include "zir_link.h"
 
 #include <stdio.h>
 #include <ctype.h>

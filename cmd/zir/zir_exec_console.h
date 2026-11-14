@@ -30,4 +30,7 @@ int ZxPlatformService(const LirProgram *program, int64_t function);
  * Other host capabilities stay unbound. */
 LirExecProblem ZxBindConsole(LirExecInstance *instance, const LirProgram *program);
 
+/* What a failed run's problem means to the program's reader, or NULL. */
+const char *ZxExecProblemText(LirExecProblem problem);
+
 #endif

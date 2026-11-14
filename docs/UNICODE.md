@@ -1,7 +1,7 @@
 # Portable Unicode text
 
 Import `U :: #import "std/unicode";`. The checked Ziran implementation and
-its generated tables run on native C, Go and the portable VM. There are no
+its generated tables run on native C, Go and the portable engine. There are no
 GLib, ICU, locale, Python or platform Unicode dependencies.
 
 Public procedures:
@@ -180,8 +180,8 @@ build-queue -- sh tests/std_unicode.sh build/bin/ziran
 build-queue -- sh tests/unicode_data.sh build/bin/ziran
 ```
 
-The Unicode suite executes source and saved IR on native C, Go, the portable
-VM (`zi2zx run --vm`) and the native bundle runner, comparing source/saved bundles.
+The Unicode suite executes source and saved IR on native C, Go and bundles
+(`ziran run`), comparing source/saved bundles.
 It covers every changed fold/lower/title mapping and every word, space, decimal
 and printability range's endpoints (8,323 generated assertions), plus contextual
 sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,

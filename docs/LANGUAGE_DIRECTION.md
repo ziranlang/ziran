@@ -135,14 +135,14 @@ at the same precision.
 5. **Backend duties.** A backend that cannot execute a legal `#parallel`
    region concurrently must still produce the same result serially and
    report the downgrade through a capability flag, never through a changed
-   value. The portable VM executes regions serially with the same effect
+   value. The portable engine executes regions serially with the same effect
    checking; native targets may use threads; a GPU target must reject
    `external`-class calls and pointer arguments before offloading.
 
 Parallel execution is a target requirement. Effect classes and the
 `#parallel for` acceptance rules above are implemented and checked on every
 target. Native C executes forward regions on pthreads with
-iteration-local workers and read-only captures; the portable VM and Go run
+iteration-local workers and read-only captures; the portable engine and Go run
 regions serially with a reported downgrade, which the backend-duties clause
 permits. `#parallel_gpu for` regions enforce the GPU clause — pointer
 storage and pointer-bearing arguments are rejected before offload — and, on

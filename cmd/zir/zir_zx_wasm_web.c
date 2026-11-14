@@ -3,11 +3,11 @@
  *
  * Compiled only by Emscripten builds of libziran: the provider reaches the
  * browser's WebAssembly engine through EM_JS, installs itself when the
- * module loads (unless ZIRAN_WASM_TIER=0), and memoizes compiled modules
- * per page session keyed by the module image, so reopening a bundle pays
- * instantiation but not compilation again. Hosts need no code changes:
- * rebuilding the wasm bundle runtime activates the tier, and bundles
- * outside its subset fail with the selected engine's diagnostic.
+ * module loads (unless ZIRAN_WASM_TIER=0, which leaves bundles to the
+ * instruction engine), and memoizes compiled modules per page session
+ * keyed by the module image, so reopening a bundle pays instantiation but
+ * not compilation again. Bundles outside the Wasm lowering fail with its
+ * wasm.gap diagnostic.
  *
  * The JavaScript side only moves bytes: a revision-28 module's (zx, host)
  * import hands the call record's address to ZxWasmHostCall, which reads
@@ -47,7 +47,7 @@ EM_JS(unsigned long, zx_wasm_web_instantiate,
             zx: {
                 overrun: () => { throw new Error('zx budget spent'); },
                 host_i64: (index, value) => {
-                    return _zx_wasm_provider_host(host, Number(index), value);
+                    return _zx_wasm_provider_print(host, index >>> 0, value);
                 },
                 host: (index, record) => {
                     return _zx_wasm_provider_call(host, index >>> 0, record >>> 0);
@@ -116,28 +116,13 @@ EM_JS(size_t, zx_wasm_web_allocate_state,
     const entry = globalThis.zxWasmTier.instances.get(handle);
     if(entry === undefined)
         return 0;
-    if(entry.instance.exports.zx_reserve !== undefined) {
-        try {
-            return entry.instance.exports.zx_reserve(Number(size)) >>> 0;
-        } catch(error) {
-            return 0;
-        }
-    }
-    const memory = entry.instance.exports.memory;
-    const arena = entry.instance.exports.zx_state_arena;
-    if(arena === undefined)
+    if(entry.instance.exports.zx_reserve === undefined)
         return 0;
-    const start = (Number(arena.value) + 7) & ~7;
-    const end = start + Number(size);
-    if(end > 0x7fffffff)
+    try {
+        return entry.instance.exports.zx_reserve(Number(size)) >>> 0;
+    } catch(error) {
         return 0;
-    if(end > memory.buffer.byteLength) {
-        const pages = Math.ceil((end - memory.buffer.byteLength) / 65536);
-        if(memory.grow(pages) === -1)
-            return 0;
     }
-    arena.value = end;
-    return start;
 });
 
 EM_JS(int, zx_wasm_web_initialize, (unsigned long handle), {
@@ -175,18 +160,15 @@ EM_JS(int, zx_wasm_web_enabled, (void), {
 });
 
 EM_JS(void, zx_wasm_web_host_failed, (void), {
-    throw new Error('zx host capability failed');
+    throw new Error('zx platform output failed');
 });
 
 EMSCRIPTEN_KEEPALIVE long long
-zx_wasm_provider_host(void *host, int index, long long argument)
+zx_wasm_provider_print(void *host, unsigned service, long long argument)
 {
-    long long result = 0;
-    if(!ZxWasmHostCallI64(host, (size_t)index, argument, &result)) {
+    if(!ZxWasmHostPrint(host, service, argument))
         zx_wasm_web_host_failed();
-        return 0;
-    }
-    return result;
+    return 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int
@@ -259,13 +241,15 @@ web_release(void *context, unsigned long handle)
     zx_wasm_web_release(handle);
 }
 
-/* Called from the engine's load-time constructor: a rebuilt web runtime
- * activates the tier without any host change; hosts that prefer the
- * plain VM set ZIRAN_WASM_TIER=0. */
+/* Called from the load-time constructor: a rebuilt web runtime activates
+ * the tier without any host change; ZIRAN_WASM_TIER=0 leaves bundles to
+ * the instruction engine. */
 void
 ZxWasmInstallBundledPlatform(void)
 {
-    if(!zx_wasm_web_enabled())
+    /* The provider's JavaScript speaks wasm32 addresses; a 64-bit runtime
+     * such as the playground's leaves bundles to the instruction engine. */
+    if(sizeof(void *) != 4 || !zx_wasm_web_enabled())
         return;
     ZxWasmPlatform platform = {0};
     platform.instantiate = web_instantiate;
@@ -282,8 +266,8 @@ ZxWasmInstallBundledPlatform(void)
 
 #else
 
-/* Native and non-Emscripten builds keep the provider seam empty; their
- * configured engine runs bundles there. */
+/* Native and non-Emscripten builds keep the provider seam empty; the
+ * instruction engine runs bundles there. */
 typedef int zx_wasm_web_unused;
 
 #endif

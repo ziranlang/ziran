@@ -7,8 +7,8 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGE
 mkdir -p build/tests
 work=$(mktemp -d "$repo/build/tests/image-resize-fallible.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
-run_vm() {
+export TMPDIR="$work"
+run_zero() {
     result=$("$@") || { printf '%s\n' "$result"; return 1; }
     test "$result" = 0 || { printf '%s\n' "$result"; return 1; }
 }
@@ -24,8 +24,7 @@ for form in source saved; do
         set -- --root "$work/ir" --module-path "$work/ir"
     fi
     "$ziran" bundle "$@" --entry "$fixture:NativeMain" -o "$work/$form.zx" "$input"
-    run_vm "$ziran" run "$work/$form.zx"
-    run_vm "$(dirname "$ziran")/zi2zx" run --vm "$work/$form.zx"
+    run_zero "$ziran" run "$work/$form.zx"
     "$ziran" build "$@" --target=c --exe --entry "$fixture:NativeMain" -o "$work/$form-c" "$input"
     "$work/$form-c/$fixture"
     "$ziran" build "$@" --target=go --pkg main --exe --entry "$fixture:NativeMain" -o "$work/$form-go" "$input"
@@ -41,4 +40,4 @@ for sanitizer in plain address; do
         -Wl,--wrap=realloc -Wl,--wrap=free -lm -o "$work/alloc-$sanitizer"
     ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "$work/alloc-$sanitizer"
 done
-echo 'Fallible bicubic: independent pixel goldens, immutable input, reuse, overflow and every native allocation fault passed on source/saved C/Go/VM + ASan/UBSan/LSan'
+echo 'Fallible bicubic: independent pixel goldens, immutable input, reuse, overflow and every native allocation fault passed on source/saved C/Go/bundles + ASan/UBSan/LSan'

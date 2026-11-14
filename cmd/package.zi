@@ -230,7 +230,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         }
         if target == "--target=c" { executable = "zi2c" }
         else if target == "--target=go" { executable = "zi2go" }
-        else if target == "--target=wasm" { executable = "zi2wasm" }
+        else if target == "--target=wasm" { executable = "zi2asm" }
         else { return PkgFail("build needs --target=c|go|wasm") }
     }
     if executable.count == 0 { return PkgFail("unknown Ziran command") }
@@ -298,7 +298,13 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if check { child[count] = "--check-only"; count += 1 }
     // `ziran build -o DIR` owns DIR: generated files from an earlier build
     // that this one does not write are removed so they cannot be linked.
-    if build && executable != "zi2wasm" {
+    // A wasm32 module is the one lowering of verified ZX, one file.
+    if build && executable == "zi2asm" {
+        child[count] = "--emit"
+        count += 1
+        child[count] = "wasm"
+        count += 1
+    } else if build {
         child[count] = "--prune-stale"
         count += 1
     }
@@ -674,7 +680,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran bundle --entry module:function [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n"
     }
     if command == "run" {
-        return "usage: ziran run [--vm] FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
+        return "usage: ziran run FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
     }
     if command == "fmt" { return "usage: ziran fmt [--check] FILE.zi ...\n" }
     if command == "inspect" { return "usage: ziran inspect [--hex] FILE.zir|FILE.zx\n" }

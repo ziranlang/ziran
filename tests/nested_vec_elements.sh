@@ -270,10 +270,7 @@ Check :: () -> s32 {
     return groups[0].parts[0]
 }
 ZI
-if "$(dirname "$ziran")/zi2wasm" --root "$work" --module-path "$repo/std" \
-    --entry wasm:Check -o "$work/wasm.wasm" "$work/wasm.zi" \
-    2> "$work/wasm.err"; then
-    echo 'wasm accepted Vec storage' >&2
-    exit 1
-fi
-grep -q 'outside the wasm execution subset' "$work/wasm.err"
+# Wasm keeps nested vectors on its heap like the other routes.
+"$(dirname "$ziran")/zi2asm" --root "$work" --module-path "$repo/std" \
+    --entry wasm:Check --emit wasm -o "$work/wasm.wasm" "$work/wasm.zi"
+test "$(node "$repo/scripts/site_target_wasm.cjs" "$work/wasm.wasm")" = 1

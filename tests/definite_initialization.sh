@@ -12,7 +12,6 @@
 set -eu
 
 ziran=${1:?pass the ziran command}
-run_vm="$(dirname "$ziran")/zi2zx"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -216,16 +215,15 @@ for input in source saved; do
     done
     "$ziran" bundle --root "$root" --entry app:main -o "$work/$input.zx" "$module"
     "$ziran" run "$work/$input.zx" > "$work/zx-$input.out"
-    "$run_vm" run --vm "$work/$input.zx" > "$work/vm-$input.out"
 done
 "$ziran" build --target=go --pkg main --exe --entry app:main --root "$work" -o "$work/go" "$work/app.zi"
 GO111MODULE=off go build -o "$work/go/app" "$work/go"/*.go
 "$work/go/app" > "$work/go.out"
-for target in c-source c-saved go zx-source zx-saved vm-source vm-saved; do
+for target in c-source c-saved go zx-source zx-saved; do
     if ! cmp -s "$work/expected" "$work/$target.out"; then
         echo "zero-filled locals read differently on $target:" >&2
         diff "$work/expected" "$work/$target.out" >&2 || true
         exit 1
     fi
 done
-echo "definite_initialization: stored-first locals skip the fill; C, Go, native and the VM agree"
+echo "definite_initialization: stored-first locals skip the fill; C, Go, native and bundles agree"

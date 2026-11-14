@@ -7,9 +7,8 @@
 set -eu
 
 ziran=$1
-# Run-time pointer and storage checks belong to the portable VM; native
-# code does not make them.
-run_vm="$(dirname "$ziran")/zi2zx"
+# Run-time pointer and storage checks belong to the instruction engine;
+# native code does not make them.
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -68,7 +67,7 @@ run_fails() {
     name=$1
     cat > "$work/$name.zi"
     "$ziran" bundle --root "$work" --entry "$name:main" -o "$work/$name.zx" "$work/$name.zi"
-    if "$run_vm" run --vm "$work/$name.zx" > "$work/$name.out" 2>&1; then
+    if "$ziran" run "$work/$name.zx" > "$work/$name.out" 2>&1; then
         echo "$name: ran" >&2
         exit 1
     fi

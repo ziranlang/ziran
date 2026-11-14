@@ -7,8 +7,8 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/unicode-normalization.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
-run_vm() {
+export TMPDIR="$work"
+run_zero() {
     result=$("$@") || { printf '%s\n' "$result"; return 1; }
     test "$result" = 0 || { printf '%s\n' "$result"; return 1; }
 }
@@ -35,11 +35,9 @@ for form in source saved; do
         fi
     done
 done
-# The source and saved bundles are the same bytes, so one run of each engine
-# covers both; the VM is the slowest part of this check under the sanitizers.
+# The source and saved bundles are the same bytes, so one run covers both.
 cmp "$work/source.zx" "$work/saved.zx"
-run_vm "$ziran" run "$work/source.zx"
-run_vm "$(dirname -- "$ziran")/zi2zx" run --vm "$work/source.zx"
+run_zero "$ziran" run "$work/source.zx"
 if test -n "${ZIRAN_UNICODE_UCD:-}"; then
     "$ziran" build --root scripts --module-path std --target=c --exe --entry unicode_normalization_data:main \
         -o "$work/generator" scripts/unicode_normalization_data.zi

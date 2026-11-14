@@ -2,8 +2,8 @@
 # std/simd: lane semantics with known answers, and one fingerprint of every
 # operation shape that each build agrees on (GCC and Clang native vectors,
 # SSE4.1 and AVX2 instructions, the lane-array fallback that TinyCC and older
-# compilers use, sanitizers, Go's lane loops, bundles on the native engine and
-# the portable VM's reference lanes, wasm32 with and without SIMD128, and
+# compilers use, sanitizers, Go's lane loops, bundles on the instruction
+# engine's lane-by-lane code, wasm32 with and without SIMD128, and
 # AArch64 and ARMv7 from the Android NDK), from source and from saved IR.
 # Checking rejects mismatched vectors, out-of-range constants and operators on
 # vectors.
@@ -282,24 +282,6 @@ ZI
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 expected=
-# Bundles also run on the portable VM library, which evaluates every lane
-# with the scalar reference.
-vm_lib=${ZIRAN_VM_LIB:-$repo/build/libziran-vm.a}
-if test -f "$vm_lib"; then
-    cat > "$work/vm-run.c" <<'C'
-#include "ziran_host.h"
-int main(int argc, char **argv) {
-    Bundle *bundle = argc == 2 ? BundleOpen(argv[1]) : 0;
-    long long result = 0;
-    int has_result = 0;
-    int ok = bundle != 0 && BundleRun(bundle, 0, 0, &result, &has_result);
-    BundleClose(bundle);
-    return ok ? 0 : 1;
-}
-C
-    "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$work/vm-run.c" "$vm_lib" -lm -pthread \
-        -o "$work/vm-run"
-fi
 clang=
 for candidate in clang clang-21 clang-20 clang-19 clang-18; do
     if command -v "$candidate" >/dev/null 2>&1; then clang=$candidate; break; fi
@@ -356,15 +338,10 @@ for input in source saved; do
             test -z "$(gofmt -l "$work/go-$input/ziran_simd.go")"
         fi
     fi
-    # A bundle runs on the host's native engine where it has one (TinyCC
-    # compiles the portable C helpers), otherwise on the portable VM.
+    # A bundle runs on the portable instruction engine.
     "$ziran" bundle --root "$root" --entry app:main -o "$work/$input.zx" "$module"
-    result=$(ZIRAN_NATIVE_CACHE="$work/cache" "$ziran" run "$work/$input.zx")
+    result=$("$ziran" run "$work/$input.zx")
     test "$result" = "$expected" || { echo "zx $input: $result, expected $expected" >&2; exit 1; }
-    if test -x "$work/vm-run"; then
-        result=$("$work/vm-run" "$work/$input.zx")
-        test "$result" = "$expected" || { echo "VM $input: $result, expected $expected" >&2; exit 1; }
-    fi
 done
 
 if "${CC:-cc}" -fsanitize=address,undefined -x c -o "$work/probe" - <<'C' 2>/dev/null; then
@@ -519,23 +496,15 @@ if command -v go >/dev/null 2>&1; then
     grep -q "out of bounds" "$work/outside-go.err"
 fi
 "$ziran" bundle --root "$work" --entry outside:main -o "$work/outside.zx" "$work/outside.zi"
-if ZIRAN_NATIVE_CACHE="$work/cache" "$ziran" run "$work/outside.zx" 2> "$work/outside-zx.err"; then
+if "$ziran" run "$work/outside.zx" 2> "$work/outside-zx.err"; then
     echo "an out-of-bounds SIMD load ran in a bundle" >&2
     exit 1
 fi
 grep -q "out of bounds" "$work/outside-zx.err"
-if test -x "$work/vm-run"; then
-    if "$work/vm-run" "$work/outside.zx" 2> "$work/outside-vm.err"; then
-        echo "an out-of-bounds SIMD load ran on the portable VM" >&2
-        exit 1
-    fi
-    grep -q "out of bounds" "$work/outside-vm.err"
-fi
 
 # Vectors are values wherever they are kept: record fields, nested records,
 # arrays and slices of vectors, pointers, globals, parameters and results.
-# The portable VM holds a 128-bit vector inline in its value and a 256-bit
-# one as an array of lanes; copies never share lanes.
+# A vector is an array of its lanes in a bundle; copies never share lanes.
 cat > "$work/values.zi" <<'ZI'
 Simd :: #import "simd"
 Lanes :: struct { tag: s32; v: s32x4; wide: s16x16; f: f32x4 }
@@ -593,11 +562,7 @@ if command -v go >/dev/null 2>&1; then
     test "$(cd "$work/values-go" && GO111MODULE=off go run ./*.go)" = "$values_expected"
 fi
 "$ziran" bundle --root "$work" --entry values:main -o "$work/values.zx" "$work/values.zi"
-test "$(ZIRAN_NATIVE_CACHE="$work/cache" "$ziran" run "$work/values.zx")" = "$values_expected"
-if test -x "$work/vm-run"; then
-    test "$("$work/vm-run" "$work/values.zx")" = "$values_expected" ||
-        { echo "vector values on the portable VM: wrong result" >&2; exit 1; }
-fi
+test "$("$ziran" run "$work/values.zx")" = "$values_expected"
 
 # A program's own names never meet the helpers' macro temporaries (TinyCC's
 # inline operations, the 256-bit split calls): values spelled __zi_* are
@@ -625,7 +590,7 @@ for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR"; do
     test "$("$work/names/app")" = "21 27 4 3" || { echo "names $flags: wrong result" >&2; exit 1; }
 done
 "$ziran" bundle --root "$work" --entry names:main -o "$work/names.zx" "$work/names.zi"
-test "$(ZIRAN_NATIVE_CACHE="$work/cache" "$ziran" run "$work/names.zx")" = "21 27 4 3"
+test "$("$ziran" run "$work/names.zx")" = "21 27 4 3"
 
 # Loads and gathers read a constant table in place, as index reads do,
 # instead of copying it into a local array at every call.
@@ -717,4 +682,4 @@ reject 'b := a == a' 'vectors use std/simd operations'
 reject 'b := Simd.Frob(a)' 'unresolved function: Simd.Frob'
 reject 'b := Simd.Shuffle(a, 0, 1, 2, 3, 4, 5, 6, 8)' 'constant lane indices'
 reject 'b := Simd.Narrow(u8x16, a)' 'Simd.Narrow takes'
-echo "simd: C, Go, bundle and portable VM lanes agree ($expected)"
+echo "simd: C, Go and bundle lanes agree ($expected)"

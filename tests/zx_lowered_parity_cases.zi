@@ -1,9 +1,10 @@
-// Revision-28 executable ZX parity. Each program runs through the semantic
-// bundle route (zi2zx bundle, then the portable VM) and through the one
-// pipeline (zi2asm --emit zx, then the verified-instruction interpreter, and
-// zi2zx run of the same file).
-// Standard output must be identical, and the semantic result line must be
-// the interpreter's exit status. Programs expected to trap must trap on both.
+// Revision-28 executable ZX parity. Each program lowers to revision-28 ZX
+// (zi2asm --emit zx) and runs on the verified-instruction interpreter, and
+// the C target runs it as an independent reference.
+// Standard output must be identical and the interpreter's exit status must
+// be the C program's. Programs expected to trap must trap on both. A bundle
+// of the same source (zi2zx bundle, then zi2zx run) prints the interpreter's
+// output and then the entry's result line.
 // Native ELF output must run with the same status or stop at a named
 // assembly.gap diagnostic. The wasm32 module from the same ZX must be
 // reproducible and print the same output.
@@ -24,57 +25,53 @@ ParityAdd :: (cases: *Vec(ParityCase), root: string, entry: string, file: string
 
 ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string, wasm_modules: *s64) {
     if test.failed { return }
-    semantic := CheckPath(test.work, CheckConcat(label, ".semantic.zx"))
+    bundled := CheckPath(test.work, CheckConcat(label, ".bundle.zx"))
     lowered := CheckPath(test.work, CheckConcat(label, ".lowered.zx"))
     elf := CheckPath(test.work, CheckConcat(label, ".elf"))
     zi2zx := CheckPath(tools, "zi2zx")
     zi2asm := CheckPath(tools, "zi2asm")
     std := CheckPath(test.repo, "std")
-    bundle := string.[zi2zx, "bundle", "--root", item.root, "--module-path", std,
-        "--entry", item.entry, "-o", semantic, item.file]
-    unused NativeRun(test, bundle[:])
     lower := string.[zi2asm, "--root", item.root, "-I", std, "--entry", item.entry,
         "--emit", "zx", "-o", lowered, item.file]
     unused NativeRun(test, lower[:])
     if test.failed { return }
-    vm := string.[zi2zx, "run", "--vm", semantic]
+    c_run := string.[test.ziran, "run", "--target=c", "--root", item.root, "--module-path", std,
+        "--entry", item.entry, item.file]
     interpreter := string.[zi2asm, "--run", "--heap-report", "--work", "4000000000", "--fuel", "4000000000",
         "--frames", "100000", "--input", "zx", lowered]
-    reference := NativeInvoke(test, vm[:])
+    reference := NativeInvoke(test, c_run[:])
     actual := NativeInvoke(test, interpreter[:])
     if item.traps {
         unused NativeAssert(test, reference.code != 0 && actual.code == 125,
             CheckConcat(item.entry, ": an expected trap did not trap on both routes"))
         return
     }
-    if !NativeAssert(test, reference.code == 0, CheckConcat(item.entry, ": semantic route failed")) { return }
-    expected := reference.output
-    status: s64
-    if actual.output != expected {
-        // The semantic runner prints a returned value on its own last line;
-        // the interpreter returns it as the process status.
-        end := cast(s64)expected.count - 1
-        start := end
-        while start > 0 && expected[start - 1] != cast(u8)10 { start -= 1 }
-        value, valid := TextInteger(expected[start:end])
-        if !valid || expected[0:start] != actual.output {
-            unused NativeAssert(test, false, CheckConcat(item.entry, CheckConcat(": interpreter output differs: ",
-                actual.output[0:ifx actual.output.count > 400 then 400 else actual.output.count])))
-            return
-        }
-        status = (value % 256 + 256) % 256
-    }
-    if !NativeAssert(test, cast(s64)actual.code == status,
-        CheckConcat(item.entry, CheckConcat(": interpreter status ", CheckNumber(actual.code)))) { return }
+    if !NativeAssert(test, actual.output == reference.output,
+        CheckConcat(item.entry, CheckConcat(": interpreter output differs from C: ",
+            actual.output[0:ifx actual.output.count > 400 then 400 else actual.output.count]))) { return }
+    if !NativeAssert(test, actual.code == reference.code,
+        CheckConcat(item.entry, CheckConcat(": interpreter status ", CheckConcat(CheckNumber(actual.code),
+            CheckConcat(", C status ", CheckNumber(reference.code)))))) { return }
     // Drops and moves free every heap block before the entry returns.
     if !NativeAssert(test, TextContains(actual.error, "heap: 0 live blocks"),
         CheckConcat(item.entry, CheckConcat(": heap blocks were still live: ", actual.error))) { return }
-    // zi2zx run reads the revision-28 file too, and prints just what it
-    // prints for the semantic bundle, result line included.
-    command := string.[zi2zx, "run", lowered]
+    // A bundle runs the same program and prints the entry's result on its
+    // own last line, where the interpreter returns it as the process status.
+    bundle := string.[zi2zx, "bundle", "--root", item.root, "--module-path", std,
+        "--entry", item.entry, "-o", bundled, item.file]
+    unused NativeRun(test, bundle[:])
+    if test.failed { return }
+    command := string.[zi2zx, "run", bundled]
     reread := NativeInvoke(test, command[:])
-    if !NativeAssert(test, reread.code == 0 && reread.output == expected,
-        CheckConcat(item.entry, ": zi2zx run of the revision-28 file differs from the semantic bundle")) { return }
+    printed := reread.output
+    agrees := reread.code == 0 && printed.count >= actual.output.count &&
+        printed[0:actual.output.count] == actual.output
+    if agrees {
+        result := printed[actual.output.count:printed.count]
+        value, valid := TextInteger(result[0:ifx result.count > 0 then result.count - 1 else 0])
+        agrees = result == "" && actual.code == 0 || valid && (value % 256 + 256) % 256 == cast(s64)actual.code
+    }
+    if !NativeAssert(test, agrees, CheckConcat(item.entry, ": zi2zx run of the bundle differs from the interpreter")) { return }
     // The same ZX lowers to one wasm32 module, byte for byte, which prints
     // what the interpreter prints.
     wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
@@ -161,7 +158,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         ParityRun(*test, tools, cases[index], CheckConcat("case-", CheckNumber(index)), *wasm_modules)
     }
     if test.failed { return 1 }
-    print("revision-28 ZX parity: % programs match the semantic route on the interpreter; native runs or names its gap; % ran as wasm32 modules\n",
+    print("revision-28 ZX parity: % programs match the C target on the interpreter and as bundles; native runs or names its gap; % ran as wasm32 modules\n",
         cases.count, wasm_modules)
     return 0
 }

@@ -119,6 +119,27 @@ ZxBindConsole(LirExecInstance *instance, const LirProgram *program)
     return LirExecProblem_None;
 }
 
+const char *
+ZxExecProblemText(LirExecProblem problem)
+{
+    switch(problem) {
+    case LirExecProblem_Pointer: return "an index or address is out of bounds or no longer valid";
+    case LirExecProblem_Unreachable: return "unreachable code executed";
+    case LirExecProblem_FrameLimit: return "nested calls filled the stack";
+    case LirExecProblem_DivideByZero: return "integer division by zero";
+    case LirExecProblem_InvalidShift: return "shift count out of range";
+    case LirExecProblem_InvalidConversion: return "conversion out of range";
+    case LirExecProblem_Trap: return "the program trapped";
+    case LirExecProblem_Host: return "a host call failed";
+    case LirExecProblem_FuelLimit: return "the step limit ran out";
+    case LirExecProblem_ValueLimit:
+    case LirExecProblem_AddressLimit:
+    case LirExecProblem_ValueBytes:
+    case LirExecProblem_Allocation: return "the program ran out of value storage";
+    default: return NULL;
+    }
+}
+
 /* ---- Opened files ------------------------------------------------------- */
 
 enum { NODE_SCALAR, NODE_STRING, NODE_POINTER, NODE_SLICE, NODE_ARRAY, NODE_RECORD };
@@ -1111,10 +1132,11 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
             instance->limit);
     else {
         String problem = compiler_exec_LirExecProblemName(ran->problem);
+        const char *text = ZxExecProblemText(ran->problem);
         Diagnostic((ZirSourceSpan){0}, "zx.runtime",
-            "portable execution failed in %s: problem=%.*s function=%d block=%d instruction=%d",
-            initialize ? "global initialization" : bundle->entry_function, (int)problem.length, problem.data,
-            ran->function, ran->block, ran->instruction);
+            "portable execution failed in %s: %s (problem=%.*s function=%d block=%d instruction=%d)",
+            initialize ? "global initialization" : bundle->entry_function, text != NULL ? text : "failed",
+            (int)problem.length, problem.data, ran->function, ran->block, ran->instruction);
     }
     return 0;
 }
@@ -1139,7 +1161,9 @@ ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, 
     LirExecLimits limits = compiler_exec_LirExecDefaultLimits();
     limits.work = INT64_MAX;
     limits.fuel = INT64_MAX;
-    limits.frames = 1000000;
+    /* Deep recursion works; a runaway one stops at this depth, before it
+     * fills the instance's value storage. */
+    limits.frames = 65536;
     unsigned identity = ++identities;
     if(identity == 0) identity = ++identities;
     LirExecResult opened = compiler_exec_LirExecInstanceOpen((LirExecPlan *)&bundle->plan, limits, identity, &instance->instance);
@@ -1259,6 +1283,56 @@ ExecInstanceStateStore(ExecInstance *instance, const VmHostValue *const *values)
     return ok;
 }
 
+/* ---- Module state for other engines --------------------------------------
+ * The Wasm tier keeps globals in its own memory; it gives and takes them as
+ * host images, and these name and translate them by the interface section. */
+
+size_t ExecBundleStateCount(const ExecBundle *bundle) { return bundle->global_count; }
+
+int
+ExecBundleStateAt(const ExecBundle *bundle, size_t index, const char **module, const char **name,
+                  const char **type, int32_t *global)
+{
+    if(index >= bundle->global_count) return 0;
+    const ExecGlobal *entry = &bundle->globals[index];
+    *module = entry->module;
+    *name = entry->name;
+    *type = bundle->nodes[entry->node].spelling;
+    *global = entry->index;
+    return 1;
+}
+
+int
+ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, size_t size, VmHostValue *value)
+{
+    const ExecBundle *bundle = hosts->bundle;
+    if(index >= bundle->global_count || size > INT64_MAX) return 0;
+    const ExecGlobal *global = &bundle->globals[index];
+    memset(value, 0, sizeof(*value));
+    exec_arena_free(hosts);
+    int32_t type = ((const LirGlobal *)bundle->program.globals.data)[global->index].type;
+    return exec_from_image(hosts, global->node, type, image, (int64_t)size, 0, value, 0);
+}
+
+int
+ExecHostsStateImage(ExecHosts *hosts, size_t index, const VmHostValue *value, const unsigned char **image,
+                    size_t *size)
+{
+    const ExecBundle *bundle = hosts->bundle;
+    if(index >= bundle->global_count || value == NULL) return 0;
+    const ExecGlobal *global = &bundle->globals[index];
+    int32_t type = ((const LirGlobal *)bundle->program.globals.data)[global->index].type;
+    ExecImage *back = &hosts->back;
+    back->length = 0;
+    back->base = 0;
+    back->given = NULL;
+    if(exec_image_grow(back, exec_size(bundle, type)) < 0 ||
+       !exec_to_image(hosts, back, global->node, type, value, 0, 0)) return 0;
+    *image = back->bytes;
+    *size = back->length;
+    return 1;
+}
+
 void
 ExecInstanceClose(ExecInstance *instance)
 {
@@ -1316,6 +1390,25 @@ int ExecHostsCall(ExecHosts *hosts, size_t host, ExecHostArgument *arguments, si
     return 0;
 }
 void ExecHostsMatchFieldsByName(ExecHosts *hosts, int enabled) { (void)hosts; (void)enabled; }
+size_t ExecBundleStateCount(const ExecBundle *bundle) { (void)bundle; return 0; }
+int ExecBundleStateAt(const ExecBundle *bundle, size_t index, const char **module, const char **name,
+                      const char **type, int32_t *global)
+{
+    (void)bundle; (void)index; (void)module; (void)name; (void)type; (void)global;
+    return 0;
+}
+int ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, size_t size, VmHostValue *value)
+{
+    (void)hosts; (void)index; (void)image; (void)size; (void)value;
+    return 0;
+}
+int ExecHostsStateImage(ExecHosts *hosts, size_t index, const VmHostValue *value, const unsigned char **image,
+                        size_t *size)
+{
+    (void)hosts; (void)index; (void)value; (void)image; (void)size;
+    return 0;
+}
+
 void ExecHostsClose(ExecHosts *hosts) { (void)hosts; }
 ExecInstance *ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps)
 {

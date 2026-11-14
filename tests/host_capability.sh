@@ -90,8 +90,8 @@ if "$ziran" run "$work/tampered.zx" 2> "$work/tampered.err"; then
     echo 'tampered capability list unexpectedly ran' >&2
     exit 1
 fi
-# Revision 28 rejects the changed program by its identity.
-grep -Eq 'bundle capability list differs from linked IR|executable ZX rejected' "$work/tampered.err"
+# The changed program fails its identity check.
+grep -Fq 'executable ZX rejected' "$work/tampered.err"
 cat > "$work/unsupported.zi" <<'EOF'
 host_api :: #system_library "host_api";
 MakeHandleHost :: () -> *s32 #foreign host_api;
@@ -101,10 +101,7 @@ Answer :: () -> s32 {
     return handle.*
 }
 EOF
-if "$ziran" bundle --root "$work" --entry unsupported:Answer \
-    -o "$work/unsupported.zx" "$work/unsupported.zi" \
-    2> "$work/unsupported.err"; then
-    echo 'pointer dereference unexpectedly bundled' >&2
-    exit 1
-fi
-grep -Fq 'outside the portable subset' "$work/unsupported.err"
+"$ziran" bundle --root "$work" --entry unsupported:Answer \
+    -o "$work/unsupported.zx" "$work/unsupported.zi"
+"$host_test" "$work/unsupported.zx" dereference 2> "$work/unsupported.err"
+grep -Fq 'problem=pointer' "$work/unsupported.err"

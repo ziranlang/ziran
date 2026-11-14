@@ -1,6 +1,4 @@
 #include "ziran_host.h"
-#include "zir_bundle.h"
-#include "zir_vm.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -45,22 +43,6 @@ int main(int argc, char **argv)
     }
     BundleClose(embedded);
     BundleClose(bundle);
-    rewind(input);
-    char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZxLawTable laws = {0};
-    ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
-                                    entry, sizeof(entry), &laws, NULL);
     fclose(input);
-    assert(program != NULL);
-    long long result = 0;
-    int present = -1;
-    assert(VmRun(program, module, entry, &result, &present));
-    check(result, present, expected, has_result);
-    assert(VmRunWithHost(program, module, entry, NULL, NULL, &result, &present));
-    check(result, present, expected, has_result);
-    assert(VmRunBounded(program, module, entry, NULL, NULL, 1000, &result, &present));
-    check(result, present, expected, has_result);
-    ZxLawTableFree(&laws);
-    ProgramFree(program);
     return 0;
 }

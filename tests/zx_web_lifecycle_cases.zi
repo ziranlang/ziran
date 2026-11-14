@@ -11,21 +11,20 @@
 #import "std/timer_linux"
 using Vectors :: #import "std/vec"
 
-LifecyclePage :: (test: *NativeTest, mode: string) -> bool {
+LifecyclePage :: (test: *NativeTest) -> bool {
     page := NativeRead(test, CheckPath(test.repo, "tests/fixtures/zx_web_lifecycle/page.html.in"))
     arguments: JsonDocument; arguments.root = JsonNewArray(*arguments)
-    JsonAppend(*arguments, arguments.root, JsonNewStringCopy(*arguments, mode))
     fixtures := string.["old", "new", "wrong", "init", "unrelated"]
     for name: fixtures { JsonAppend(*arguments, arguments.root, JsonNewStringCopy(*arguments, CheckConcat("/fixtures/", CheckConcat(name, ".zx")))) }
-    page = TextDetach(TextReplace(page, "{{FILE}}", mode))
-    page = TextDetach(TextReplace(page, "{{EXPORT}}", ifx mode == "wasm" then "ZxWebLifecycleWasm" else "ZxWebLifecycleLinked"))
+    page = TextDetach(TextReplace(page, "{{FILE}}", "wasm"))
+    page = TextDetach(TextReplace(page, "{{EXPORT}}", "ZxWebLifecycleWasm"))
     page = TextDetach(TextReplace(page, "{{ARGUMENTS}}", JsonWrite(*arguments, arguments.root, JsonCompactStyle())))
-    return NativeWrite(test, CheckPath(test.work, CheckConcat(mode, ".html")), page)
+    return NativeWrite(test, CheckPath(test.work, "wasm.html"), page)
 }
 
-LifecycleCheck :: (test: *NativeTest, browser: *NativeBrowser, base: string, mode: string) -> bool {
+LifecycleCheck :: (test: *NativeTest, browser: *NativeBrowser, base: string) -> bool {
     params: JsonDocument; params.root = JsonNewObject(*params)
-    CheckPut(*params, params.root, "url", CheckConcat(base, CheckConcat(mode, ".html")))
+    CheckPut(*params, params.root, "url", CheckConcat(base, "wasm.html"))
     reply: JsonDocument
     if !BrowserCommand(test, browser, "Page.navigate", *params, *reply) { return NativeAssert(test, false, "could not navigate private lifecycle page") }
     status := BrowserUntil(test, browser, "globalThis.lifecycleDone", *reply)
@@ -36,8 +35,10 @@ LifecycleCheck :: (test: *NativeTest, browser: *NativeBrowser, base: string, mod
     reported: Vec(string)
     for index: cast(s32)0..JsonCount(*reply, lines) - 1 {
         line := TextDetach(JsonString(*reply, JsonElement(*reply, lines, index)))
-        print("%: %\n", mode, line)
-        if !NativeAssert(test, !TextHasPrefix(line, "FAIL") && !TextHasPrefix(line, "stderr:") && !TextHasPrefix(line, "load error:"), "browser host emitted failure diagnostics") { return false }
+        print("wasm: %\n", line)
+        // The initialization-failure rollback reports its spent step limit.
+        expected_error := TextHasPrefix(line, "stderr: ziran: wasm execution failed: stopped after ")
+        if !NativeAssert(test, !TextHasPrefix(line, "FAIL") && (expected_error || !TextHasPrefix(line, "stderr:")) && !TextHasPrefix(line, "load error:"), "browser host emitted failure diagnostics") { return false }
         VecPush(reported, line)
     }
     required := string.["identity-entry-abi", "instance-state-migration", "component-independent-state", "typed-abi-replacement-rejected", "replacement-state-continuity", "stale-reference-rejected", "migration-failure-rollback", "verification-failure-rollback", "initialization-failure-rollback", "unrelated-component-live"]
@@ -46,15 +47,10 @@ LifecycleCheck :: (test: *NativeTest, browser: *NativeBrowser, base: string, mod
         found := false; for line: reported { if line == expected { found = true } }
         if !NativeAssert(test, found, CheckConcat("missing browser lifecycle result: ", name)) { return false }
     }
-    independent := ifx mode == "wasm" then "wasm-provider-independent" else "linked-independent"
-    extra := string.[CheckConcat("PASS ", independent), CheckConcat("PASS browser-lifecycle ", mode)]
+    extra := string.["PASS wasm-provider-independent", "PASS browser-lifecycle wasm", "PASS wasm-engine-active"]
     for expected: extra {
         found := false; for line: reported { if line == expected { found = true } }
         if !NativeAssert(test, found, CheckConcat("missing browser lifecycle result: ", expected)) { return false }
-    }
-    if mode == "wasm" {
-        found := false; for line: reported { if line == "PASS wasm-engine-active" { found = true } }
-        if !NativeAssert(test, found, "Wasm fixture used the wrong execution engine") { return false }
     }
     for message: browser.errors { print("browser exception: %\n", message) }
     return NativeAssert(test, browser.errors.count == 0, "unhandled browser exception")
@@ -69,7 +65,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     chromium := ifx argc > 3 then TextFromCString(argv[3]) else "chromium"
-    if !LifecyclePage(*test, "wasm") || !LifecyclePage(*test, "linked") { return 1 }
+    if !LifecyclePage(*test) { return 1 }
     port_file := CheckPath(test.work, "native-server-port")
     unused RemoveFile(port_file)
     serve := string.[TextFromCString(argv[0]), "--server", "static", test.work, port_file]
@@ -89,8 +85,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     base := CheckConcat("http://127.0.0.1:", CheckConcat(port, "/"))
     browser: NativeBrowser
     defer BrowserClose(*browser)
-    if !BrowserStart(*test, *browser, chromium) || !LifecycleCheck(*test, *browser, base, "wasm") || !LifecycleCheck(*test, *browser, base, "linked") { return 1 }
+    if !BrowserStart(*test, *browser, chromium) || !LifecycleCheck(*test, *browser, base) { return 1 }
     if test.failed { return 1 }
-    print("Private Chromium ZX lifecycle passed: independent engines/state, atomic migration, stale/ABI rejection and rollback\n")
+    print("Private Chromium ZX lifecycle passed on the bundle Wasm tier: independent instances and state, atomic migration, stale/ABI rejection and rollback\n")
     return 0
 }

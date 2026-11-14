@@ -8,7 +8,7 @@ Run one portable executable program across the maintained platform matrix while 
 
 ## Existing integration points
 
-- [Current wasm lowering](../cmd/zir-wasm/zir_wasm_lower.c) and [wasm bundle integration](../cmd/zir/zir_zx_wasm.c).
+- [Wasm lowering of verified ZX](../cmd/zir-wasm/zx_wasm_lower.c) and [wasm bundle integration](../cmd/zir/zir_zx_wasm.c).
 - [Browser execution integration](../cmd/zir/zir_zx_wasm_web.c).
 - [Target diagnostics](../tests/target_diagnostics.sh), [ARM/CPU feature tests](../tests/assembly_features.sh), and [wasm tests](../tests/zx_wasm.sh).
 - [Platform and runtime coverage documentation](../docs/IMPLEMENTATION_STATUS.md).

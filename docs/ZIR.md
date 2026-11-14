@@ -33,7 +33,7 @@ each function's checked portable body and local block bodies. Block metadata
 binds named scalar/pointer locals or parameters, and checking validates every
 binding in its lexical scope. Concrete generic instances retain these variants
 and validate their operand types and portable bodies. C and Go may select a matching variant;
-other targets and the portable VM execute the checked body. The variants are
+other targets and the portable engine execute the checked body. The variants are
 explicit native metadata, never recovered from diagnostic statement text.
 Only annotated blocks carry the optional metadata payload; ordinary statements
 retain their previous encoding size.
@@ -101,7 +101,7 @@ references and cycles, and the checked serialization must match the saved bytes.
 Every build uses strict checking, including native builds from source.
 Checking is unconditional; `--strict` and `--no-strict` are rejected.
 Call argument expressions retain source order and store their source name and
-checked parameter index. Native emitters and the portable VM evaluate in source
+checked parameter index. Native emitters and the portable engine evaluate in source
 order, then pass values in parameter order. Procedure declarations retain their
 default expressions; omitted arguments are materialized as checked call
 expressions before serialization. Concrete defaults use checked procedures in

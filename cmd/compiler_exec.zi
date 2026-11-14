@@ -1420,7 +1420,12 @@ ExecFinishFrame :: (instance: *LirExecInstance, frame_index: s64, instruction: *
         }
         if !ExecCopyValue(instance, frame_index, instruction.operands[0],
             caller, frame.return_value) { return false }
-    } else if frame.return_value != LirNoId { return ExecFail(instance, .Calling) }
+    } else if frame.return_value != LirNoId {
+        // A zero-sized result, such as [0]s32, has no bytes to copy; only a
+        // void procedure cannot fill the caller's result.
+        if instance.plan.program.types[result_type].kind == .Void { return ExecFail(instance, .Calling) }
+        ExecMarkValue(instance, caller, frame.return_value)
+    }
     ExecPopFrame(instance)
     return true
 }

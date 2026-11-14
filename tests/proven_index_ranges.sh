@@ -6,12 +6,11 @@
 # such as line := row * 16 and at := line + offset, or a counter declared
 # without a value. Every index the
 # proof cannot cover keeps its check and still aborts on C, Go, native and
-# the portable VM from source and saved IR.
+# the instruction engine from source and saved IR.
 set -eu
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-run_vm="$(dirname "$ziran")/zi2zx"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -198,13 +197,11 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    test "$("$run_vm" run --vm "$work/$input.zx")" = 42
     for name in $faults; do
         "$ziran" bundle --root "$root" --entry "app:Run$name" \
             -o "$work/fault.zx" "$module"
-        if timeout 60 "$run_vm" run --vm "$work/fault.zx" > /dev/null 2>&1 ||
-           timeout 60 "$ziran" run "$work/fault.zx" > /dev/null 2>&1; then
-            echo "$name read outside its array on the VM or native" >&2
+        if timeout 60 "$ziran" run "$work/fault.zx" > /dev/null 2>&1; then
+            echo "$name read outside its array in a bundle" >&2
             exit 1
         fi
     done

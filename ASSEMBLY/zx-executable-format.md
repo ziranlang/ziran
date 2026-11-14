@@ -1,10 +1,10 @@
 # ZX executable instruction container — revision 28
 
-This is the implemented, opt-in ASSEMBLY step-05 foundation. The format owner
-is `cmd/compiler_bundle.zi`; `cmd/compiler_exec_link.zi` binds it to the
-deterministic LIR codec and verifier (current payload schema 4). `zi2asm --emit zx` produces it,
-and `zi2asm --input zx` reads, inspects, re-emits or runs it. Default `ziran`
-and `zi2zx` selection remains on versions 26/27 until the full cutover.
+This is the one `.zx` format. The format owner is `cmd/compiler_bundle.zi`;
+`cmd/compiler_exec_link.zi` binds it to the deterministic LIR codec and
+verifier (current payload schema 4). `zi2zx bundle` and `zi2asm --emit zx`
+write it; `ziran run`, the embedding API (`include/ziran_host.h`) and
+`zi2asm --input zx` read, inspect, re-emit or run it.
 
 ## Integers, limits and ordering
 
@@ -41,9 +41,8 @@ Required feature bit 0 retains the manifest contract name `portable-lir-schema-3
 the internal payload independently carries and verifies current LIR schema 4.
 A reader rejects any missing
 or additional required feature. Optional bits are non-executable hints and may
-be ignored. Versions 26 and 27 produce the explicit diagnostic “legacy ZX
-version contains semantic IR; rebuild with zi2asm --emit zx”. Other revisions
-are unsupported. The reader never sends their payload to the `.zir` parser.
+be ignored. Any other revision is unsupported, and the reader never sends a
+payload to the `.zir` parser.
 
 ## Directory record (32 bytes)
 
@@ -204,26 +203,16 @@ features or sections, flags, ordering, alignment, overlap, truncation, trailing
 bytes, manifest fields, assets, content identity, LIR codec/verifier rejection,
 entry mismatch, capability, variant, external and symbol failures.
 
-## Deliberate remaining step-05 gaps
+## Remaining gaps
 
-This foundation is complete for one already-linked LIR program in the currently
-verified portable subset. It does not claim the full step-05 exit gate yet:
-
-- separate revision-28 library/add-on containers do not yet have import/export
-  symbol tables, structural cross-container type identities, relocation tables,
-  callback roots, dead stripping or partial-module composition;
-- the existing versions 26/27 library and partial composition APIs remain usable
-  and unchanged, but cannot be mixed into revision 28;
-- host-call ABI/capability tables are not implemented, so any reachable
-  `host.call` and any nonzero manifest capability count reject before execution;
-- native target/CPU/OS/ABI variant metadata and template verification are not
+- One file is one linked program: there are no library or add-on containers,
+  cross-container symbol tables or partial-module composition.
+- Native target/CPU/OS/ABI variant metadata and template verification are not
   implemented; a required variant rejects, and no arbitrary machine blob is
-  accepted;
-- debug/source attachment codecs, optimization remarks, law witnesses and proof
+  accepted.
+- Debug/source attachment codecs, optimization remarks, law witnesses and proof
   revalidation are not implemented; optional bytes remain non-executable and
-  proof status remains unverified;
-- default `ziran`/`zi2zx`, package, provider, cache and installed-runtime cutover
-  waits for the later full-plan integration gates.
+  proof status remains unverified. Laws are checked from source.
 
 The retained focused tests cover deterministic source/saved output, stripped
 portable execution, owned input lifetime, legacy and feature rejection, unknown

@@ -86,7 +86,6 @@ C
             without_feature) test ! -e "$out/feature.c"; test ! -e "$out/heavy.c" ;;
         esac
         test "$("$ziran" run --root "$root" --entry "$program:Answer" "$file")" = "$expected"
-        test "$("$ziran" run --vm --root "$root" --entry "$program:Answer" "$file")" = "$expected"
     done
     # Go runs the same initializer from its package initialization.
     go_out="$work/$program-go"

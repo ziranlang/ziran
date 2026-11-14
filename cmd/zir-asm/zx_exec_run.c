@@ -4,6 +4,8 @@
 #include "compiler_opt.h"
 #include "compiler_lowered_verify.h"
 #include "zir_diagnostic.h"
+#include "zir_scalar.h"
+#include "zir_text.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -38,9 +40,10 @@ ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_repor
     if(result.problem != LirExecProblem_None) {
         fflush(stdout);
         String problem = compiler_exec_LirExecProblemName(result.problem);
+        const char *text = ZxExecProblemText(result.problem);
         Diagnostic((ZirSourceSpan){0}, "assembly.execute",
-            "instruction execution failed: problem=%.*s function=%d block=%d instruction=%d origin=%d trap=%llu work_remaining=%lld fuel_remaining=%lld",
-            (int)problem.length, problem.data, result.function, result.block, result.instruction, result.origin,
+            "instruction execution failed: %s (problem=%.*s function=%d block=%d instruction=%d origin=%d trap=%llu work_remaining=%lld fuel_remaining=%lld)",
+            text != NULL ? text : "failed", (int)problem.length, problem.data, result.function, result.block, result.instruction, result.origin,
             (unsigned long long)result.trap, (long long)result.work_remaining, (long long)result.fuel_remaining);
         status = failed;
     } else if(heap_report)
@@ -51,12 +54,42 @@ ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_repor
     return status;
 }
 
+/* A bundle's entry: a zero-argument Ziran function returning an integer,
+ * bool, an enum or nothing. */
+static int
+portable_entry(const ZirProgram *program, const char *module, const char *function)
+{
+    const ZirModule *owner = NULL;
+    const ZirFunction *entry = NULL;
+    for(int m = 0; m < program->module_count && entry == NULL; m++) {
+        if(strcmp(program->modules[m].name, module) != 0) continue;
+        for(int f = 0; f < program->modules[m].function_count && entry == NULL; f++)
+            if(strcmp(program->modules[m].functions[f].name, function) == 0) {
+                owner = &program->modules[m];
+                entry = &owner->functions[f];
+            }
+    }
+    if(entry == NULL || entry->is_extern) return 0;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(entry));
+    if(parameters == NULL || parameters->count != 0) return 0;
+    const char *result = entry->return_type[0] ? entry->return_type : "void";
+    const ZirType *enumeration = FindType(owner, result, NULL);
+    if(enumeration != NULL && enumeration->is_enum)
+        result = enumeration->enum_backing[0] ? enumeration->enum_backing : "s64";
+    return ScalarWidth(result) != 0 || !strcmp(result, "bool") || !strcmp(result, "void");
+}
+
 unsigned char *
 ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets, size_t *size)
 {
     unsigned char *bytes = NULL;
     *size = 0;
     LirOptOwner optimized = {0};
+    if(!portable_entry(program, module, function)) {
+        Diagnostic(Span("<bundle>", 1, 1), "zx.entry",
+                   "entry must be one unique zero-argument integer, bool, or void Ziran function");
+        return NULL;
+    }
     AssemblyProgram *lowered = AssemblyLower(program, module, function);
     if(lowered == NULL) return NULL;
     const LirProgram *view = AssemblyView(lowered);

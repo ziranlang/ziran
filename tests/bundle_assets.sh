@@ -49,13 +49,6 @@ test "$("$ziran" run "$work/source.zx")" = 42
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -Wno-main -I"$repo/include" -I"$work/c" "$work/c"/*.c \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -lpthread -o "$work/read"
 "$work/read" "$work/source.zx"
-# The revision-28 writer (selected by the switch until it is the default)
-# stores the same assets, and the embedding API reads them back.
-ZIRAN_BUNDLE_EXEC=1 "$ziran" bundle --root "$work" --entry main:Answer --asset-dir "assets=$work/assets" \
-    -o "$work/executable.zx" "$work/main.zi"
-test "$(head -c 5 "$work/executable.zx" | od -An -tx1 | tr -d ' \n')" = 5a5800001c
-test "$("$ziran" run "$work/executable.zx")" = 42
-"$work/read" "$work/executable.zx"
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/bundle_assertions.zi" -- "$ziran" "$work" assets
 for case in traversal absolute backslash nul truncated oversized unsorted; do
     if "$work/read" "$work/$case.zx" >/dev/null 2>&1; then

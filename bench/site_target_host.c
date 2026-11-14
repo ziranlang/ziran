@@ -25,7 +25,8 @@ static BundleInstance *instance;
 static int open_program(const char *path) {
     bundle = BundleOpen(path);
     if(!bundle) return 0;
-    instance = BundleInstantiatePortable(bundle, NULL, 0);
+    /* No Wasm provider is installed here, so the instruction engine runs it. */
+    instance = BundleInstantiate(bundle, NULL, 0);
     return instance != NULL;
 }
 static int64_t invoke(void) {

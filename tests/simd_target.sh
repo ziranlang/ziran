@@ -3,7 +3,7 @@
 # SSE4.1, AVX2) behind a dispatcher that picks the best one this CPU runs,
 # and ZIRAN_SIMD_TIER=1..4 forces a lower one. A clone calls its tier's copy
 # of each #inline procedure of the module that uses std/simd. Every forced tier, every
-# fixed-ISA build, sanitizers, Go, bundles and the portable VM print the same
+# fixed-ISA build, sanitizers, Go and bundles print the same
 # lanes, from source and from saved IR. Checking keeps 256-bit vectors from
 # crossing a #target procedure's calls by value, where AVX2 code passes them
 # differently.
@@ -117,22 +117,6 @@ main :: () {
 ZI
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
-vm_lib=${ZIRAN_VM_LIB:-$repo/build/libziran-vm.a}
-if test -f "$vm_lib"; then
-    cat > "$work/vm-run.c" <<'C'
-#include "ziran_host.h"
-int main(int argc, char **argv) {
-    Bundle *bundle = argc == 2 ? BundleOpen(argv[1]) : 0;
-    long long result = 0;
-    int has_result = 0;
-    int ok = bundle != 0 && BundleRun(bundle, 0, 0, &result, &has_result);
-    BundleClose(bundle);
-    return ok ? 0 : 1;
-}
-C
-    "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$work/vm-run.c" "$vm_lib" -lm -pthread \
-        -o "$work/vm-run"
-fi
 clang=
 for candidate in clang clang-21 clang-20 clang-19 clang-18; do
     if command -v "$candidate" >/dev/null 2>&1; then clang=$candidate; break; fi
@@ -238,10 +222,7 @@ C
         agree "Go $input" "$(cd "$work/go-$input" && GO111MODULE=off go run ./*.go)"
     fi
     "$ziran" bundle --root "$root" --entry app:main -o "$work/$input.zx" "$module"
-    agree "zx $input" "$(ZIRAN_NATIVE_CACHE="$work/cache" "$ziran" run "$work/$input.zx")"
-    if test -x "$work/vm-run"; then
-        agree "VM $input" "$("$work/vm-run" "$work/$input.zx")"
-    fi
+    agree "zx $input" "$("$ziran" run "$work/$input.zx")"
 done
 case "$expected" in *" 44 7 10 -5 19") ;; *) echo "unexpected lanes: $expected" >&2; exit 1 ;; esac
 
@@ -264,4 +245,4 @@ reject 'Twice :: (v: s64) -> s64 #target #target { return v * 2 }' 'duplicate #t
 reject 'Twice :: (v: s64) -> s64 #target avx2 { return v * 2 }' '#target does not take arguments'
 reject 'libc :: #system_library "libc";
 labs :: (v: s64) -> s64 #target #foreign libc;' '#target needs a procedure body'
-echo "simd_target: every tier, Go, bundles and the portable VM agree ($expected)"
+echo "simd_target: every tier, Go and bundles agree ($expected)"

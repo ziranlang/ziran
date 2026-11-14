@@ -56,7 +56,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         bundle_command := string.[test.ziran, "bundle", "--root", input_root,
             "--entry", CheckConcat(module, ":Answer"), "-o", bundle, input]
         unused NativeRun(*test, bundle_command[:])
-        vm := string.[test.ziran, "run", "--vm", bundle]
+        vm := string.[test.ziran, "run", bundle]
         if test.failed || !NativeExpect(*test, vm[:], "42\n") { return 1 }
         c_output := CheckPath(test.work, CheckConcat(form, "-c"))
         c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
@@ -75,13 +75,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
         right_bundle_command := string.[test.ziran, "bundle", "--root", input_root,
             "--entry", CheckConcat(module, ":BoundsRight"), "-o", right_bundle, input]
         unused NativeRun(*test, right_bundle_command[:])
-        right_vm := string.[test.ziran, "run", "--vm", right_bundle]
+        right_vm := string.[test.ziran, "run", right_bundle]
         if test.failed || !VmRightObserved(*test, right_vm[:], CheckConcat(form, " VM right side")) { return 1 }
         failure_bundle := CheckPath(test.work, CheckConcat(form, "-failure.zx"))
         failure_bundle_command := string.[test.ziran, "bundle", "--root", input_root,
             "--entry", CheckConcat(module, ":BoundsFailure"), "-o", failure_bundle, input]
         unused NativeRun(*test, failure_bundle_command[:])
-        failure_vm := string.[test.ziran, "run", "--vm", failure_bundle]
+        failure_vm := string.[test.ziran, "run", failure_bundle]
         if test.failed || !VmFailureBeforeRight(*test, failure_vm[:], CheckConcat(form, " VM")) { return 1 }
         failure_c := CheckPath(test.work, CheckConcat(form, "-failure-c"))
         failure_c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",

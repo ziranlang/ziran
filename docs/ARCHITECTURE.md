@@ -59,11 +59,11 @@ Go can also become binaries, but those are generated-code routes through their
 own compilers and linkers; they are not native-backend fallback paths.
 
 This is implemented in the experimental `zi2asm` route: source-native output
-also serializes and reads ZX first. Default semantic `ziran`/`zi2zx` bundles
-remain separate until cutover. `zi2asm --emit wasm` lowers the same verified
+also serializes and reads ZX first, the same `.zx` that `ziran bundle` writes
+and `ziran run` executes. `zi2asm --emit wasm` lowers the same verified
 revision-28 payload to a wasm32 module (`cmd/zir-wasm/zx_wasm_lower.c`), so one
-`.zx` gives one `.wasm`; `zi2wasm` and `zir_zx_wasm` still lower semantic
-`ZirProgram` through `zir_wasm_lower` until LIR lowering covers their programs.
+`.zx` gives one `.wasm`; `ziran build --target=wasm` and the bundle Wasm tier
+(`cmd/zir/zir_zx_wasm.c`) use that lowering too.
 Native source maps currently lose source origins at
 the stripped ZX boundary, while source LIR inspection retains them.
 

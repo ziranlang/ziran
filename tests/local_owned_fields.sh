@@ -94,7 +94,6 @@ C
     ASAN_OPTIONS=detect_leaks=0 "$work/asan-$kind"
     "$ziran" bundle --entry fields:Run --root "$root" --module-path "$repo" -o "$work/$kind.zx" "$module"
     test "$("$zi2zx" run "$work/$kind.zx")" = 170
-    test "$("$zi2zx" run --vm "$work/$kind.zx")" = 170
 done
 cmp "$work/source-c/fields.c" "$work/saved-c/fields.c"
 

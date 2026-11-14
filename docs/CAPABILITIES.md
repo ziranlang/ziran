@@ -34,7 +34,7 @@ meaning. New language work lands on the primary targets first.
 
 `source_and_saved_ir` reports that the target accepts checked source and saved
 `.zir` inputs. `parallel_execution` is `threads` for C forward CPU regions
-and `serial` for Go and the portable VM.
+and `serial` for Go and the portable engine.
 It does not promise a parallel result reduction. `gpu_execution` is `cpu_fallback` for every target: there is no
 device backend. `text_view_mutable_bytes` reports the current observable
 divergence when backing bytes are mutated after making a view: native C
@@ -65,7 +65,7 @@ pointer parameters.
 `text_view_opaque_pointer_check` reports rejection of `TextView` through opaque
 local pointers with unproven backing lifetimes.
 `heap_allocation` reports zero-initialized `New(T)` and `free(pointer)`.
-C, Go, and the portable VM are checked from source and saved IR by
+C, Go, and the portable engine are checked from source and saved IR by
 `tests/heap_new.sh`.
 Native pointers retain their native lifetime rules; this flag does not promise
 automatic ownership or runtime checking of arbitrary pointer aliases.

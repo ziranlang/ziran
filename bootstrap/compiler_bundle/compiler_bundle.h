@@ -13,28 +13,16 @@ extern "C" {
 #define Signature 0x585a
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-#define Plain 26
+#define SemanticFirst 26
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-#define Partial 27
+#define SemanticLast 27
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ProgramLimit 268435456
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define CapabilityLimit 4096
-#endif
-#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-#define TableLimit 262144
-#endif
-#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-#define NameLimit 128
-#endif
-#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-#define WordLimit 16
-#endif
-#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
-#define TextLimit 4096
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define SizeLimit 4294967296
@@ -99,13 +87,7 @@ extern "C" {
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ExecutableIdentitySize 32
 #endif
-typedef struct Capability Capability;
-typedef struct Law Law;
-typedef struct Waiver Waiver;
 typedef struct Asset Asset;
-typedef struct Header Header;
-typedef int32_t Problem;
-typedef struct Layout Layout;
 typedef int32_t ExecutableProblem;
 typedef struct ExecutableAttachment ExecutableAttachment;
 typedef struct ExecutableHeader ExecutableHeader;
@@ -121,66 +103,9 @@ typedef struct ExecutableWriter ExecutableWriter;
 typedef struct ExecutableCursor ExecutableCursor;
 #endif
 
-struct Capability {
-    String module;
-    String function;
-};
-
-struct Law {
-    String module;
-    String name;
-    String kind;
-    String status;
-    String detail;
-    String method;
-    String domain;
-    uint64_t cases;
-    String counterexample;
-    bool waived;
-};
-
-struct Waiver {
-    String module;
-    String name;
-    String reason;
-};
-
 struct Asset {
     String name;
     String data;
-};
-
-struct Header {
-    bool partial;
-    String entry_module;
-    String entry_function;
-    Slice capabilities;
-    Slice laws;
-    Slice waivers;
-    int64_t program;
-};
-
-enum {
-    Problem_None = 0,
-    Problem_Invalid = 1,
-    Problem_Version = 2,
-    Problem_Capabilities = 3,
-    Problem_CapabilityList = 4,
-    Problem_LawTable = 5,
-    Problem_WaiverTable = 6,
-};
-
-struct Layout {
-    Problem problem;
-    bool partial;
-    String entry_module;
-    String entry_function;
-    int64_t capabilities;
-    int64_t laws;
-    int64_t waivers;
-    int64_t assets;
-    int64_t program;
-    int64_t program_end;
 };
 
 enum {
@@ -281,12 +206,6 @@ struct ExecutableCursor {
 };
 #endif
 bool compiler_bundle_AssetName(String name);
-int64_t compiler_bundle_EncodeHeader(Slice output, Header header);
-int64_t compiler_bundle_EncodeAssets(Slice output, Slice assets);
-Layout compiler_bundle_Decode(String bytes, Slice capabilities, Slice laws, Slice waivers, Slice assets);
-int64_t compiler_bundle_ProgramEnd(String bytes);
-Problem compiler_bundle_Differs(Header expected, Header found);
-String compiler_bundle_Message(Problem problem);
 ExecutableResult compiler_bundle_ExecutableEncode(Slice output, ExecutableHeader header);
 ExecutableLayout compiler_bundle_ExecutableDecode(String bytes, Slice assets);
 uint32_t compiler_bundle_ExecutableVersionNumber(void);

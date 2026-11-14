@@ -64,7 +64,7 @@ for input in source saved; do
     fi
     "$ziran" bundle --root "$root" --entry results:Answer -o "$work/$input.zx" "$module"
     for threads in 1 4; do
-        test "$(ZIRAN_NATIVE_CACHE=0 ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/$input.zx")" = 88016
+        test "$(ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/$input.zx")" = 88016
     done
     "$ziran" build --target=c --entry results:Answer --root "$root" -o "$work/c-$input" "$module"
     cat > "$work/c-$input/main.c" <<'C'

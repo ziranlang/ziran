@@ -50,7 +50,7 @@ def prepare(a):
         result=invoke(cmd,build=True)
         commands[-1]={'argv':commands[-1], 'elapsed_ms':(time.monotonic()-started)*1000, 'stderr':result.stderr[-2000:]}
     build([tools/'ziran','bundle','--root',ROOT/'bench','--entry','zx_compare:Answer','-o',out/'fixture.zx', ROOT/'bench/zx_compare.zi'])
-    build([tools/'zi2wasm','--root',ROOT/'bench','--entry','zx_compare:Answer','-o',out/'fixture.wasm',ROOT/'bench/zx_compare.zi'])
+    build([tools/'zi2asm','--root',ROOT/'bench','--entry','zx_compare:Answer','--emit','wasm','-o',out/'fixture.wasm',ROOT/'bench/zx_compare.zi'])
     for version,delta in (('old',1),('new',2)):
         directory=out/version; directory.mkdir(exist_ok=True)
         source=directory/'component.zi'

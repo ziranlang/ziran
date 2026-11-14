@@ -1465,8 +1465,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
             "--root", full_root, "--module-path", CheckPath(test.repo, "cmd"),
             "-o", full_bundle, full_input]
         unused NativeRun(*test, full_bundle_command[:])
-        full_vm := string.[test.ziran, "run", "--vm", full_bundle]
-        if !NativeExpect(*test, full_vm[:], "42\n") { return 1 }
+        full_run := string.[test.ziran, "run", full_bundle]
+        if !NativeExpect(*test, full_run[:], "42\n") { return 1 }
     }
     full_input := CheckPath(full_saved, "lowered_exec_cases.zir")
     full_c := CheckPath(test.work, "full-saved-c")
@@ -1502,8 +1502,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
         bundle_command := string.[test.ziran, "bundle", "--entry", "portable_exec:Run",
             "--root", root, "--module-path", CheckPath(test.repo, "cmd"), "-o", bundle, input]
         unused NativeRun(*test, bundle_command[:])
-        vm := string.[test.ziran, "run", "--vm", bundle]
-        if !NativeExpect(*test, vm[:], "42\n") { return 1 }
+        bundle_run := string.[test.ziran, "run", bundle]
+        if !NativeExpect(*test, bundle_run[:], "42\n") { return 1 }
         c_output := CheckPath(test.work, CheckConcat(form, "-c"))
         c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
             "portable_exec:Run", "--root", root, "--module-path", CheckPath(test.repo, "cmd"),
@@ -1523,6 +1523,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if !NativeExpect(*test, go_run[:], "42\n") { return 1 }
     }
     if test.failed { return 1 }
-    print("lowered exec: verified engine and source/saved C, Go and VM local tests passed\n")
+    print("lowered exec: verified engine and source/saved C, Go and bundle local tests passed\n")
     return 0
 }

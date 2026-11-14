@@ -62,11 +62,13 @@ for kind in goal step cycle index evidence; do
         echo "tampered $kind certificate was accepted" >&2; exit 1
     fi
 done
-"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- --replace-first "$work/source.zx" "$work/forged.zx" kernel forged
+# Laws are checked from source; a bundle carries no evidence to forge, and an
+# edited byte fails its identity check.
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- --replace-first "$work/source.zx" "$work/forged.zx" Answer Bnswer
 if "$ziran" run "$work/forged.zx" > /dev/null 2> "$work/forged.err"; then
-    echo 'forged bundle law evidence was accepted' >&2; exit 1
+    echo 'an edited bundle was accepted' >&2; exit 1
 fi
-rg -q 'law table differs' "$work/forged.err"
+rg -q 'executable ZX rejected' "$work/forged.err"
 
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" proof-negatives
 for source in "$work"/bad_*.zi; do

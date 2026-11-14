@@ -148,7 +148,7 @@ try {
   await evaluate(`(() => { const target = document.querySelector('.target-select'); target.value = 'go'; target.dispatchEvent(new Event('change')); })()`);
   assert.match(await evaluate(`document.querySelector('.target-command').textContent`), /--target=go/);
   assert.equal(await evaluate(`document.querySelector('.native-visual .is-selected').dataset.target`), 'go');
-  for (const [target, command] of [['zx', 'zi2zx bundle'], ['wasm', 'zi2wasm'], ['zir', 'ziran ir']]) {
+  for (const [target, command] of [['zx', 'zi2zx bundle'], ['wasm', '--target=wasm'], ['zir', 'ziran ir']]) {
     await evaluate(`(() => { const target = document.querySelector('.target-select'); target.value = ${JSON.stringify(target)}; target.dispatchEvent(new Event('change')); })()`);
     assert.ok((await evaluate(`document.querySelector('.target-command').textContent`)).includes(command));
   }

@@ -15,7 +15,6 @@ for state in source saved; do
     root="$work/source"
     if test "$state" = saved; then input="$work/ir/safe_inference.zir"; root="$work/ir"; fi
     "$ziran" bundle --root "$root" --entry safe_inference:main -o "$work/$state.zx" "$input"
-    test "$("$(dirname "$ziran")/zi2zx" run --vm "$work/$state.zx")" = 42
     test "$("$ziran" run "$work/$state.zx")" = 42
     for target in c go; do
         out="$work/$state-$target"

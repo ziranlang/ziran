@@ -30,8 +30,7 @@ native ZX loading and the wider integration work below remain open.
 `zi2asm` source-native output serializes and reads the same ZX image as
 `--input zx --emit elf`; neither route lowers source-side LIR directly. The
 current stripped payload has no source origins, so source debug maps remain a
-gap. Default semantic bundles and `zir_zx_wasm`'s semantic-ZIR lowering have
-not cut over to this shared instruction route.
+gap. Bundles and the bundle Wasm tier use this shared instruction route.
 
 For literal-only hello, direct instruction selection emits no stack frame or
 spill slots, uses short constants, and writes the literal from read-only data.

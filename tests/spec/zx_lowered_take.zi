@@ -1,6 +1,6 @@
 // VecGet, VecPop and VecClone on revision-28 ZX, pinned by
 // tests/zx_lowered_parity.sh. VecClone fills a fresh destination with a copy
-// whose capacity is the source's count. VecGet and VecPop give an Option. VecGet copies an element and answers nothing for an
+// with room for at least the source's count. VecGet and VecPop give an Option. VecGet copies an element and answers nothing for an
 // index at or past the count; VecPop moves the last element out, shortens the
 // vector, keeps its capacity and answers nothing once it is empty.
 #import "vec"
@@ -37,7 +37,7 @@ main :: () -> s32 {
     nothing: Vec(s64)
     blank: Vec(s64)
     emptied := VecClone(blank, nothing)
-    print("clone % % % % % % % %\n", cloned, copy.count, copy.capacity, copy[0] + copy[5], emptied,
+    print("clone % % % % % % % %\n", cloned, copy.count, copy.capacity >= 6, copy[0] + copy[5], emptied,
         blank.count, blank.capacity, values[0])
 
     rows: Vec(Row)

@@ -52,10 +52,10 @@ struct VmHostField {
  * types. Argument fields are borrowed for the call. A scalar, string, or record slice
  * argument has kind VM_HOST_SLICE, length elements, and a mutable elements array.
  * Modify elements in place and keep the elements pointer and length intact;
- * the VM validates and copies every element back after the call. Returned
+ * the engine validates and copies every element back after the call. Returned
  * fields, collection elements and string bytes are copied after the callback
  * returns, before the next host call. Keep them valid until that next call;
- * a later call may reuse their storage. Strings copied into the VM retain
+ * a later call may reuse their storage. Strings copied into the instance retain
  * their bytes while reachable, including across BundleInstanceRun calls.
  * Fixed arrays have kind VM_HOST_ARRAY and exactly their declared length.
  * Their elements may be inspected during the call; mutations to argument
@@ -63,7 +63,7 @@ struct VmHostField {
  * A returned zero-length slice may have a null elements pointer. Longer
  * slices need elements for their declared length; oversized lengths fail.
  * A declared pointer type crosses as kind VM_HOST_POINTER with the raw address
- * in `pointer`; the VM treats it as an opaque handle and never dereferences
+ * in `pointer`; the engine treats it as an opaque handle and never dereferences
  * it, so the host owns the storage behind it. */
 typedef int (*VmHostCall)(void *context, const char *module,
                           const char *function, const VmHostValue *args,
@@ -99,24 +99,15 @@ typedef struct BundleCapabilityAbi {
     int reads_arguments;
 } BundleCapabilityAbi;
 
-/* Open and validate a portable bundle: revision-28 executable ZX, or a
- * version 26 or 27 semantic bundle. Close releases all names. */
+/* Open, verify and plan a revision-28 executable ZX file. Close releases all
+ * names. */
 Bundle *BundleOpen(const char *path);
-/* Select portable execution for subsequent bundle opens and instances. */
-void BundleUsePortableVm(int enabled);
 /* Validate an embedded/downloaded bundle without an application pathname.
- * Input bytes are borrowed only during this call; the opened bundle owns IR. */
+ * Input bytes are borrowed only during this call. */
 Bundle *BundleOpenBytes(const unsigned char *data, size_t size);
-/* Dependencies must already be verified by the publisher-aware host.
- * Libraries are retained until this bundle closes. Code/assets are shared;
- * every instance owns its globals. Missing/conflicting imports are rejected. */
-Bundle *BundleOpenWithLibraries(const char *path,
-                               Bundle *const *libraries, size_t count);
-Bundle *BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
-                                    Bundle *const *libraries, size_t count);
 void BundleClose(Bundle *bundle);
-/* Required capability names are borrowed until BundleClose. Enumeration covers
- * the final linked code, including retained libraries, and is cached on open. */
+/* Required capability names, in program order, are borrowed until
+ * BundleClose. */
 size_t BundleCapabilityCount(const Bundle *bundle);
 const char *BundleCapabilityModule(const Bundle *bundle, size_t index);
 const char *BundleCapabilityFunction(const Bundle *bundle, size_t index);
@@ -130,7 +121,6 @@ void BundleCodeIdentity(const Bundle *bundle, unsigned char identity[32]);
 /* Embedded files have canonical relative paths and immutable bytes. Names and
  * data are borrowed until BundleClose; an invalid index returns NULL/zero. */
 size_t BundleAssetCount(const Bundle *bundle);
-size_t BundleOwnAssetCount(const Bundle *bundle);
 const char *BundleAssetName(const Bundle *bundle, size_t index);
 const unsigned char *BundleAssetData(const Bundle *bundle, size_t index);
 size_t BundleAssetSize(const Bundle *bundle, size_t index);
@@ -140,17 +130,6 @@ size_t BundleAssetSize(const Bundle *bundle, size_t index);
  * For u64, cast result to uint64_t to recover all 64 unsigned bits. */
 int BundleRun(const Bundle *bundle, const HostBinding *bindings,
               size_t binding_count, long long *result, int *has_result);
-
-/* Law closure recorded at bundle time. Status strings are "proved",
- * "disproved", or "unknown"; a consumer can refuse bundles whose laws were
- * not all proved at save time. */
-size_t BundleLawCount(const Bundle *bundle);
-const char *BundleLawModule(const Bundle *bundle, size_t index);
-const char *BundleLawName(const Bundle *bundle, size_t index);
-const char *BundleLawStatus(const Bundle *bundle, size_t index);
-size_t BundleLawWaiverCount(const Bundle *bundle);
-const char *BundleLawWaiverName(const Bundle *bundle, size_t index);
-const char *BundleLawWaiverReason(const Bundle *bundle, size_t index);
 
 /* An instance preserves module globals across runs of the bundle entry.
  * The bundle's immutable code is verified once when opened; instantiation
@@ -163,22 +142,15 @@ const char *BundleLawWaiverReason(const Bundle *bundle, size_t index);
 BundleInstance *BundleInstantiate(const Bundle *bundle,
                                    const HostBinding *bindings,
                                    size_t binding_count);
-/* Explicit portable execution with a positive, cumulative statement budget.
- * The budget covers global initialization and all subsequent entry runs.
- * Initialization failure returns NULL; this never selects a compiled engine. */
+/* A positive, cumulative step budget covering global initialization and all
+ * subsequent entry runs. Initialization failure returns NULL. */
 BundleInstance *BundleInstantiateLimited(const Bundle *bundle,
                                          const HostBinding *bindings,
                                          size_t binding_count, int max_steps);
-/* Always initialize and run the verified portable IR, even where compiled
- * engines are available. This is the execution tier used by component swap. */
-BundleInstance *BundleInstantiatePortable(const Bundle *bundle,
-                                          const HostBinding *bindings,
-                                          size_t binding_count);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);
-/* Bound each subsequent run to max_steps units of work, so a runaway bundle
- * stops with an error: statements in the portable VM, function calls and
- * loop iterations in natively compiled code. Zero is unbounded. */
+/* Bound each subsequent run to max_steps steps (function calls and loop
+ * iterations), so a runaway bundle stops with an error. Zero is unbounded. */
 void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps);
 /* Let records the host returns to this instance omit fields the bundle
  * declares (they take zero values) or carry fields it does not (ignored),

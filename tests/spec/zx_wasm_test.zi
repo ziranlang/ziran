@@ -3,7 +3,7 @@
 // recursion, compound assignment, break and continue, else-if chains,
 // logical operators, a conditional expression, and records and fixed
 // arrays with value copies, literals, member and index places.
-// The native tier, the portable VM, and zi2wasm must agree on the result.
+// The instruction engine and the wasm module must agree on the result.
 
 Fib :: (n: s32) -> s64 {
     if n < 2 { return cast(s64)n }

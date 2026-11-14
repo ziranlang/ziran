@@ -20,6 +20,7 @@ int ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_r
 /* Lowers the linked program's entry, optimizes it and writes revision-28
  * executable ZX with its host interface section: what zi2asm --emit zx
  * writes. `assets` is a slice of compiler_bundle Asset values in name order.
+ * The entry must take no arguments and return an integer, bool or nothing.
  * Returns malloc'd bytes, or NULL after a diagnostic. */
 struct ZirProgram;
 unsigned char *ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets,

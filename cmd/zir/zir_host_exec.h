@@ -69,6 +69,17 @@ ExecHosts *ExecHostsOpen(const ExecBundle *bundle, ExecFindBinding find, void *c
 int ExecHostsCall(ExecHosts *hosts, size_t host, ExecHostArgument *arguments, size_t count,
                   ExecHostArgument *result);
 void ExecHostsMatchFieldsByName(ExecHosts *hosts, int enabled);
+/* Module globals the interface section names, for an engine that keeps them
+ * itself: `global` is the LIR global. A global crosses as its host image;
+ * ExecHostsStateValue's value and ExecHostsStateImage's bytes are borrowed
+ * until the next call on `hosts`. */
+size_t ExecBundleStateCount(const ExecBundle *bundle);
+int ExecBundleStateAt(const ExecBundle *bundle, size_t index, const char **module, const char **name,
+                      const char **type, int32_t *global);
+int ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, size_t size,
+                        VmHostValue *value);
+int ExecHostsStateImage(ExecHosts *hosts, size_t index, const VmHostValue *value,
+                        const unsigned char **image, size_t *size);
 void ExecHostsClose(ExecHosts *hosts);
 
 /* An instance with its globals initialized, or NULL when a capability is
@@ -92,5 +103,8 @@ int ExecInstanceStateAt(ExecInstance *instance, size_t index, const char **modul
  * when one is rejected. */
 int ExecInstanceStateStore(ExecInstance *instance, const VmHostValue *const *values);
 void ExecInstanceClose(ExecInstance *instance);
+
+/* A bundle's entry return type as written, for printing its result. */
+const char *BundleEntryReturnType(const Bundle *bundle);
 
 #endif

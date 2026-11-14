@@ -7,6 +7,19 @@
 
 static int storage = 7;
 
+/* The one capability of a program that reads through the handle it gets. */
+static int
+make_handle(void *context, const char *module, const char *function,
+            const VmHostValue *args, int arg_count, VmHostValue *result)
+{
+    (void)module; (void)function; (void)args;
+    (*(int *)context)++;
+    if(arg_count != 0) return 0;
+    result->kind = VM_HOST_POINTER;
+    result->pointer = &storage;
+    return 1;
+}
+
 static int
 host_call(void *context, const char *module, const char *function,
           const VmHostValue *args, int arg_count, VmHostValue *result)
@@ -95,7 +108,18 @@ main(int argc, char **argv)
     };
     HostBinding bindings[7];
     int bound[7] = {0};
-    assert(argc == 2);
+    assert(argc == 2 || (argc == 3 && strcmp(argv[2], "dereference") == 0));
+    if(argc == 3) {
+        /* A host's pointer is an opaque handle: reading through it fails
+         * when the program runs. */
+        Bundle *opaque = BundleOpen(argv[1]);
+        assert(opaque != NULL && BundleCapabilityCount(opaque) == 1);
+        HostBinding make = {BundleCapabilityModule(opaque, 0), BundleCapabilityFunction(opaque, 0),
+                            make_handle, &calls};
+        assert(!BundleRun(opaque, &make, 1, &result, &has_result) && calls == 1);
+        BundleClose(opaque);
+        return 0;
+    }
     FILE *input = fopen(argv[1], "rb");
     assert(input != NULL && fseek(input, 0, SEEK_END) == 0);
     long size = ftell(input);

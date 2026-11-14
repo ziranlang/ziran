@@ -12,9 +12,7 @@ reconstruct source statements during execution.
 
 ## Existing integration points
 
-- [Current VM interface](../cmd/zir/zir_vm.h), [execution](../cmd/zir/zir_vm_run.c), and [expression evaluator](../cmd/zir/zir_vm_eval.c).
-- [Current host-value adapters](../cmd/zir/zir_zx_host.c) and [host integration](../cmd/zir/zir_host.c).
-- [Current SIMD execution](../cmd/zir/zir_vm_simd.c).
+- [Host-value translation](../cmd/zir/zir_host_exec.c) and [the embedding API](../cmd/zir/zir_host.c).
 - [Portable execution contract](../docs/ZX.md).
 
 Implemented module: `cmd/compiler_exec.zi`. Its immutable storage plan now keeps

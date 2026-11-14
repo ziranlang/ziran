@@ -2,12 +2,12 @@
 
 This is the target contract for owned `Vec[T]` and a string builder. A scoped
 `Vec(T)` subset now supports default initialization (including locals in the
-portable VM), checked indexing, fallible `VecPush`, `VecClear`, `VecFree`,
+portable engine), checked indexing, fallible `VecPush`, `VecClear`, `VecFree`,
 `VecSwap`, `VecPop` and `VecGet` results carried as `Option(T)` records, a
 `Vec(u8)` string builder through `BuilderAppend` and `BuilderFinish`, an
 explicit `VecClone(dest, src)` with a recoverable failure result, and
 `VecSlice(values, low, high)` borrowed views, in C99,
-Go, and the portable VM. A vector can live in a local, global, record
+Go, and the portable engine. A vector can live in a local, global, record
 field, or fixed-array element reached from a record. Direct vector bindings,
 whole aggregates containing vectors, vector-bearing record-literal fields, and
 plain record-member paths rooted at a local aggregate have move checks on
@@ -16,11 +16,11 @@ its runtime may terminate on physical allocation failure; this is not yet the
 full recoverable failure contract below. `VecPop` and `VecGet` require the
 `Option` record template from `std/option.zi` to be visible in the using module.
 
-**Current safety limits:** C99, Go, and the portable VM drop direct owned
+**Current safety limits:** C99, Go, and the portable engine drop direct owned
 `Vec` locals and parameters at block close, return, break, and continue. They
 also recursively drop vectors reachable through record fields and fixed arrays.
 A direct move clears its source before the next drop; an aggregate move clears
-every reachable vector field in native targets, while the portable VM clones at
+every reachable vector field in native targets, while the portable engine clones at
 the destination boundary and relies on the checker to make the source
 unreachable. Moving a plain record-member path clears only that field in native
 targets and invalidates only the corresponding VM storage slot. An aggregate
@@ -149,7 +149,7 @@ push anywhere may move a global's elements, such a view also lives no longer
 than its block: returning it or storing it in a global or an outer binding
 is rejected. `VecClone(dest, src)` requires a fresh or moved-from destination
 and returns `false` on allocation failure without changing the source.
-Native output and the portable VM agree on the observable value of
+Native output and the portable engine agree on the observable value of
 every moved binding: the source is unreachable after the move.
 
 ## Recoverable errors

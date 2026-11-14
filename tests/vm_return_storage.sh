@@ -2,8 +2,6 @@
 # Fresh aggregate transfer retains value isolation, active views and borrow guards.
 set -eu
 ziran=${1:?pass the ziran command}
-# These check the portable VM itself, which runs where native code cannot.
-run_vm="$(dirname "$ziran")/zi2zx"
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -15,10 +13,7 @@ for form in source saved; do
     root=$repo/tests/spec; input=$source
     if test "$form" = saved; then root=$work/ir; input=$root/$module.zir; fi
     "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zx" "$input"
-    for run in 1 2; do
-        test "$(ZIRAN_VM_PROFILE="$work/$form-$run.jsonl" "$run_vm" run --vm "$work/$form.zx")" = 42
-        "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- vm-returns "$work/$form-$run.jsonl"
-    done
+    test "$("$ziran" run "$work/$form.zx")" = 42
     output=$work/$form-c
     "$ziran" build --target=c --root "$root" -o "$output" "$input"
     compiler=${CC:-cc}; extension=c; header=h; standard=c11

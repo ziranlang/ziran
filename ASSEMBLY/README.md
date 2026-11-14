@@ -2,12 +2,13 @@
 
 ## Status: experimental backend, not the completed upgrade
 
-The ten-step plan is **not finished**. There is now an opt-in `zi2asm` tool
-that lowers checked source or saved `.zir` to verified, typed SSA and
-directly encodes a Linux x86-64 ELF executable. The existing C, Go, wasm and
-ZX paths are unchanged. `zi2asm --emit zx` also writes an opt-in
-[revision-28 executable container](zx-executable-format.md), but the default
-`.zx` selection has **not** been replaced by the new instruction format.
+The ten-step plan is **not finished**. `zi2asm` lowers checked source or
+saved `.zir` to verified, typed SSA and directly encodes a Linux x86-64 ELF
+executable. Every `.zx` is the [revision-28 executable
+container](zx-executable-format.md) of those verified instructions: `zi2zx
+bundle` and `zi2asm --emit zx` write it, and `ziran run` and the embedding API
+run it on the portable instruction engine. The C, Go and wasm source-output
+routes are separate.
 Delivery order and the plan review are in [milestones](milestones.md).
 The [gap policy](gap-policy.md) is normative: unsupported direct-target work
 fails with a stable diagnostic and remains visible in the completion matrix;
@@ -149,12 +150,9 @@ assembler, C compiler, or system linker to produce this executable.
   Source ELF output serializes and reads that same ZX boundary first, so a ZX
   image gives byte-identical native output through either entry route. No
   standalone `.lirb`, `--emit exec` or `--input exec` route remains. The internal
-  instruction codec is only a ZX payload; default `ziran`/`zi2zx` container
-  cutover is still pending.
-- `--run` executes the same verified instructions in a bounded portable engine,
-  with independent fuel, work and frame limits. Its explicit frames and parallel
-  block transfers also handle the currently lowered records and fixed arrays.
-  This is an opt-in reference path, not a completed ZX runtime replacement.
+  instruction codec is only a ZX payload.
+- `--run` executes the same verified instructions in the bounded portable
+  engine that runs every bundle, with independent fuel, work and frame limits.
 - Recoverable errors for unsupported constructs and atomic file replacement;
   rejected programs do not overwrite an existing output.
 - ZX production always transforms a separately owned copy of verified instructions
@@ -277,8 +275,8 @@ The remaining M2 integration,
 relocatable objects and a general linker, other architectures and OS ABIs,
 source/unwind information, profiler/JIT mapping and final cutover remain M2–M6.
 
-Unsupported constructs fail explicitly; there is no silent fallback to C, Go,
-TinyCC or another engine inside the portable/native assembly route. The C and
+Unsupported constructs fail explicitly; there is no silent fallback to C, Go
+or another engine inside the portable/native assembly route. The C and
 Go backends remain separate source-output routes that can compile platform
 binaries when explicitly selected. Mixed signedness comparisons require explicit
 casts. The bounded revision-28 ZX reader validates container identities, the
@@ -329,9 +327,7 @@ report must include matched before/after ZX startup, throughput, memory and
 artifact sizes, raw samples, excluded samples and any regressions; no speedup
 is claimed until those measurements exist. The report processor keeps absolute
 medians, favorable factors and candidate metric percentage changes distinct;
-missing or noncomparable cells remain visible. The codec, verifier and execution
-oracle tests explicitly select `--vm`; automatic/native ZX execution is not
-evidence that the portable VM ran.
+missing or noncomparable cells remain visible.
 
 ## Ten-step completion plan
 

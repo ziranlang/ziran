@@ -22,22 +22,15 @@ Work :: () -> s32 {
 value: s32 = Work();
 main :: () -> s32 { return value + Work() }
 EOF
-zi2asm=$(dirname -- "$ziran")/zi2asm
 "$ziran" bundle --root "$work" --entry loop:main -o "$work/loop.zx" "$work/loop.zi"
 "$ziran" bundle --root "$work" --entry finite:main -o "$work/finite.zx" "$work/finite.zi"
-# Revision-28 executable ZX initializes its globals at instantiation too.
-"$zi2asm" --root "$work" --entry loop:main --emit zx -o "$work/loop-executable.zx" "$work/loop.zi"
-"$zi2asm" --root "$work" --entry finite:main --emit zx -o "$work/finite-executable.zx" "$work/finite.zi"
-for library in "${ZIRAN_VM_LIB:-$repo/build/libziran-vm.a}" "${ZIRAN_LIB:-$repo/build/libziran.a}"; do
-    "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" \
-        "$repo/tests/bundle_step_limit_test.c" "$library" $runtime_libs -o "$work/host"
-    timeout 20 "$work/host" "$work/loop.zx" "$work/finite.zx"
-    timeout 20 "$work/host" "$work/loop-executable.zx" "$work/finite-executable.zx"
-done
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" \
+    "$repo/tests/bundle_step_limit_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" $runtime_libs -o "$work/host"
+timeout 20 "$work/host" "$work/loop.zx" "$work/finite.zx"
 
 # A component is a positive-budget instance whose bundle is replaced with its
 # state carried over: typed ABI, state export, migration and import, rollback
-# on failure and generationed handles, on revision-28 executable ZX.
+# on failure and generationed handles.
 write_component() {
     directory=$1; version=$2; extra_state=$3; open_body=$4
     mkdir -p "$directory"
@@ -126,7 +119,7 @@ ZI
 for name in old new wrong init mismatch resource unrelated; do
     module=component; source=$work/$name/component.zi
     if test "$name" = unrelated; then module=other; source=$work/$name/other.zi; fi
-    "$zi2asm" --root "$work/$name" --entry "$module:Next" --emit zx -o "$work/$name.zx" "$source"
+    "$ziran" bundle --root "$work/$name" --entry "$module:Next" -o "$work/$name.zx" "$source"
 done
 "$work/component" "$work/old.zx" "$work/new.zx" "$work/wrong.zx" "$work/init.zx" \
     "$work/mismatch.zx" "$work/resource.zx" "$work/unrelated.zx"

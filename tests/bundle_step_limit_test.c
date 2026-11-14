@@ -3,9 +3,6 @@
 #include <assert.h>
 #include <stdio.h>
 
-/* Internal engine selector used only to compare the ordinary VM run budget. */
-extern void BundleUsePortableVm(int enabled);
-
 static int tick(void *context, const char *module, const char *function,
                 const VmHostValue *args, int count, VmHostValue *result)
 {
@@ -52,8 +49,7 @@ int main(int argc, char **argv)
     assert(!BundleInstanceRun(instance, &result, &has_result));
     BundleInstanceClose(instance);
 
-    /* The ordinary API keeps its existing per-entry limit behavior. */
-    BundleUsePortableVm(1);
+    /* An ordinary instance's limit bounds each run on its own. */
     instance = BundleInstantiate(finite, &binding, 1);
     assert(instance != NULL);
     BundleInstanceLimitSteps(instance, minimum + 16);
@@ -61,7 +57,6 @@ int main(int argc, char **argv)
     assert(has_result && result == 14);
     assert(BundleInstanceRun(instance, &result, &has_result));
     BundleInstanceClose(instance);
-    BundleUsePortableVm(0);
 
     instance = BundleInstantiateLimited(finite, &binding, 1, 10000);
     assert(instance != NULL);

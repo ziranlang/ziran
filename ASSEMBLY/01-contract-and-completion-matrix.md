@@ -48,9 +48,8 @@ Assembly listings are views of the instruction stream used for encoding, not a r
 ## Current repository boundaries
 
 - [The shared IR schema](../cmd/compiler_ir.zi) represents typed statements, expression graphs, declarations, source spans, laws, and proofs.
-- [The current ZX codec](../cmd/compiler_bundle.zi) packages portable IR and metadata; [the bundle implementation](../cmd/zir/zir_bundle.c) connects it to checking and linking.
-- [The native bundle lowering](../cmd/zir/zir_zx_native_lower.c) generates C; [the native engine](../cmd/zir/zir_zx_native.c) uses TinyCC.
-- [The existing native build rules](../native-zx.mk) and [architecture contract](../docs/ARCHITECTURE.md) must change only after replacement paths are verified.
+- [The ZX container](../cmd/compiler_bundle.zi) packages verified instructions, assets and the host interface; [the embedding API](../cmd/zir/zir_host.c) runs them on [the portable instruction engine](../cmd/compiler_exec.zi).
+- [The architecture contract](../docs/ARCHITECTURE.md) changes only after replacement paths are verified.
 - Current working-tree changes belong to their existing tasks. Record a baseline and coordinate overlapping files before implementation; never absorb unrelated changes into this feature.
 
 ## Required decisions and deliverables

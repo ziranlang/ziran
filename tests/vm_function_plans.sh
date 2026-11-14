@@ -2,10 +2,8 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-library=${ZIRAN_LIB:-"$(dirname "$ziran")/../libziran.a"}
-build=$(CDPATH= cd -- "$(dirname -- "$library")" && pwd)
-work=$build/tests/vm-function-plans
-mkdir -p "$work"
+work=$(mktemp -d "$repo/build/tests/function-plans-XXXXXX")
+trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 source=$work/vm_function_plans_test.zi
 cp "$repo/tests/spec/vm_function_plans_test.zi" "$source"
@@ -24,17 +22,13 @@ cp "$repo/tests/spec/vm_function_plans_test.zi" "$source"
     echo '}'
 } >> "$source"
 "$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" "$source"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
-    "$repo/tests/vm_function_plans_test.c" "$repo/cmd/zir/zir_vm.c" \
-    "$repo/cmd/zir/zir_vm_verify.c" "$repo/cmd/zir/zir_vm_simd.c" \
-    "$library" -lm -pthread -o "$work/test"
 for form in source saved; do
     input=$source
     root=$work
     if test "$form" = saved; then input=$work/ir/vm_function_plans_test.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --module-path "$repo/std" --entry vm_function_plans_test:Answer \
         -o "$work/$form.zx" "$input"
-    "$work/test" "$work/$form.zx"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     for target in c go; do
         output=$work/$target-$form
         "$ziran" build --target="$target" --root "$root" --module-path "$repo/std" -o "$output" "$input"

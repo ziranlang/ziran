@@ -76,7 +76,6 @@ CheckEnvironment :: (options: CheckOptions, self: string) -> Vec(string) {
     VecPush(environment, "HARMONY_DESKTOP_RECOVERY=0")
     VecPush(environment, "YUE_DESKTOP_RECOVERY=0")
     VecPush(environment, CheckConcat("ZIRAN_LIB=", CheckPath(PathParent(options.bin), "libziran.a")))
-    VecPush(environment, CheckConcat("ZIRAN_VM_LIB=", CheckPath(PathParent(options.bin), "libziran-vm.a")))
     go := EnvironmentText("ZIRAN_TEST_GO_REAL")
     if go == "" { go = CheckExecutable("go") }
     if go != "" {

@@ -65,7 +65,7 @@ cat >> "$directory/app.zi" <<'ZI'
 #assert Compiler.HostOS != OS
 #assert Compiler.HostCPU != CPU
 ZI
-"$tool_dir/zi2wasm" --root "$directory" --entry app:Answer \
+"$tool_dir/zi2asm" --root "$directory" --entry app:Answer --emit wasm \
     -o "$directory/app.wasm" "$directory/app.zi"
 test -s "$directory/app.wasm"
 

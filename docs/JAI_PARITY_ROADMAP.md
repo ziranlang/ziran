@@ -254,7 +254,7 @@ aliases are rejected. The test also checks `size_of`, `.count`, null `.data`,
 and index failures from source and saved IR on C, Go, and `.zx`.
 The native C output uses
 GNU-compatible zero-array extensions, which compile under the strict C99
-mode used by the test. The portable VM allocates an array descriptor with
+mode used by the test. The portable engine allocates an array descriptor with
 zero elements. No fake element contributes to layout or storage.
 
 `tests/host_slices.sh` covers a zero-length slice borrowed from a zero-capacity
@@ -301,7 +301,7 @@ effects, and general metaprogramming remain open.
 `#caller_location` defaults now capture the call site in compile-time
 `#run`, `#assert`, and local or imported `#if` calls, including nested calls and
 explicit overrides. `tests/caller_location.sh` checks those through source
-and saved IR on the portable VM and C and Go targets. Integer
+and saved IR on the portable engine and C and Go targets. Integer
 conditions now send procedure calls through the typed evaluator, and the old
 integer-only procedure interpreter has been removed. The integer expression
 parser remains for `#if` predicates and capability probes such as `defined`.
@@ -363,10 +363,10 @@ Go rejects startup calls that need a host binding before `init` runs.
 Host calls support scalar, string, plain-record, pointer, and fixed-array
 arguments and returns, including zero and nested arrays with checked shapes.
 Synchronous scalar, string, and plain-record slice arguments and returns work
-from source and saved IR on native C, Go, and `.zx`; the VM rejects
+from source and saved IR on native C, Go, and `.zx`; the engine rejects
 malformed host results. Procedure slots remain open. Implement each boundary as
-a versioned checked contract in `cmd/zir/zir_bundle.c`, `cmd/zir/zir_vm.c`, and
-`include/ziran_host.h`. Retain preflight verification so a bundle cannot reach
+a versioned checked contract in the host interface section,
+`cmd/zir/zir_host_exec.c` and `include/ziran_host.h`. Retain preflight verification so a bundle cannot reach
 an unsupported operation at runtime. Test ownership and repeated instance
 runs, not only one-shot calls.
 

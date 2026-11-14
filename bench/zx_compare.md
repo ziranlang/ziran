@@ -21,7 +21,7 @@ crosscheck.
 
 The shared native adapter runs the real portable VM, raw BundleInstantiate TinyCC
 native tier, handwritten optimized C control and WAMR 2.4.5 AOT-only runtime.
-WAMR executes the unmodified zi2wasm output after host-side target-specific AOT
+WAMR executes the unmodified `zi2asm --emit wasm` output after host-side target-specific AOT
 compilation. Its C API supplies the original mutable budget global and host ABI;
 no imports or checks were stripped. Interpreter and JIT are disabled. This is an
 embedded engine experiment, not a production native Wasm provider.

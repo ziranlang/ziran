@@ -1,5 +1,5 @@
 #include "zir.h"
-#include "zir_bundle.h"
+#include "zir_link.h"
 #include "zir_check.h"
 #include "zir_parse.h"
 #include "zir_serial.h"
@@ -41,12 +41,11 @@ linked_function_growth(void)
     assert(program != NULL);
     ZirProgram *set[] = {program};
     assert(CheckPrograms(set, 1));
-    for(int native = 0; native < 2; native++) {
+    {
         for(int f = 0; f < 2; f++) {
             ZirFunction *original = &program->modules[0].functions[f];
             int exprs = original->expr_count, stmts = original->stmt_count;
-            ZirProgram *linked = native ? NativeLink(program, "growth", original->name) :
-                                         BundleLink(program, "growth", original->name);
+            ZirProgram *linked = NativeLink(program, "growth", original->name);
             assert(linked != NULL);
             ZirFunction *copy = &module_named(linked, "growth")->functions[0];
             int copied_exprs = copy->expr_count, copied_stmts = copy->stmt_count;
@@ -127,7 +126,7 @@ main(void)
     }
     ZirProgram *merged_ptr = &merged;
     assert(LinkImports(&merged_ptr, 1));
-    linked = BundleLink(&merged, "application", "Answer");
+    linked = NativeLink(&merged, "application", "Answer");
     assert(linked != NULL);
     shape_module = module_named(linked, "shapes");
     operation_module = module_named(linked, "operations");

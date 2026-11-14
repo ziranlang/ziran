@@ -11,7 +11,7 @@
 #include "compiler_opt.h"
 #include "compiler_target.h"
 #include "zir_command.h"
-#include "zir_bundle.h"
+#include "zir_link.h"
 #include "zir_serial.h"
 #include "zir_sha256.h"
 #include "zir_text.h"
@@ -26,7 +26,7 @@
 static int
 assembly_usage(void)
 {
-    fputs("usage: zi2asm --root DIR --entry MODULE:FUNCTION [-I DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [--target ARCH-OS] [--opt] [--machine] [--emit lir|map|zx|elf|wasm|opt-report] -o FILE INPUT...\n"
+    fputs("usage: zi2asm --root DIR --entry MODULE:FUNCTION [-I DIR] [--define NAME] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [--target ARCH-OS] [--opt] [--machine] [--emit lir|map|zx|elf|wasm|opt-report] -o FILE INPUT...\n"
           "       zi2asm --input zx [--target ARCH-OS] [--machine] [--emit lir|map|zx|elf|wasm] -o FILE INPUT\n"
           "       zi2asm --run [--opt] [--fuel N] [--work N] [--frames N] [--heap-report] INPUT...\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
@@ -607,6 +607,8 @@ main(int argc, char **argv)
     int module_path_count = 0;
     const char *bindings[64];
     int binding_count = 0;
+    const char *defines[65];
+    int define_count = 0;
     if(module_paths == NULL) return 1;
     SetDiagnosticFormatFromArguments(argc, argv);
     CommandLowerPriority();
@@ -619,6 +621,7 @@ main(int argc, char **argv)
         COMMAND_TEXT("--fuel", fuel),
         COMMAND_TEXT("--work", work), COMMAND_TEXT("--frames", frames),
         COMMAND_LIST("--bind", bindings, binding_count, 64, NULL),
+        COMMAND_LIST("--define", defines, define_count, 64, valid_define),
         COMMAND_TEXT("--function-id", function_id), COMMAND_TEXT("--block-id", block_id),
         COMMAND_TEXT("--address-begin", address_begin), COMMAND_TEXT("--address-end", address_end),
         COMMAND_LIST("--module-path", module_paths, module_path_count, argc, NULL),
@@ -644,7 +647,7 @@ main(int argc, char **argv)
        (strcmp(input_kind, "source") && !serialized) ||
        (!serialized && (root == NULL || entry == NULL || !split_entry(entry, module, function))) ||
        (serialized && (argc - input != 1 || root != NULL || entry != NULL ||
-        module_path_count != 0 || binding_count != 0)) ||
+        module_path_count != 0 || binding_count != 0 || define_count != 0)) ||
        (machine && (run || strcmp(emit, "elf"))) ||
        (!strcmp(emit, "opt-report") && (!optimize || serialized)) ||
        (!strcmp(emit, "wasm") && (target != NULL || optimize)) ||
@@ -689,8 +692,11 @@ main(int argc, char **argv)
         }
         view = &decoded;
     } else {
-        if(!ProgramsLoad(&sources, root, module_paths, module_path_count,
-                         (const char *const *)(argv + input), argc - input) ||
+        /* A wasm32 module targets the web, so compile-time conditions on the
+         * target, OS and CPU select its branches. */
+        if(wasm) CompilerConfigureTarget(ZIR_TARGET_WASM, ZIR_OS_WEB, ZIR_CPU_WASM32);
+        if(!ProgramsLoadWithDefines(&sources, root, module_paths, module_path_count, defines, define_count,
+                                    (const char *const *)(argv + input), argc - input) ||
            !CheckCanonicalPrograms(sources.programs, sources.count, (const char *const *)sources.paths) ||
            !CommandMergePrograms(&sources, &merged)) goto done;
         ZirProgram *programs[] = {&merged};
@@ -885,6 +891,20 @@ main(int argc, char **argv)
     if(!strcmp(output, "-")) {
         Diagnostic((ZirSourceSpan){0}, "assembly.output", "ELF output requires a file path");
         goto done;
+    }
+    /* The output's directory is made as needed. */
+    {
+        char parent[ZIR_PATH_MAX];
+        size_t length = strlen(output);
+        if(length < sizeof(parent)) {
+            memcpy(parent, output, length + 1);
+            for(char *at = parent + 1; *at; at++) {
+                if(*at != '/') continue;
+                *at = 0;
+                mkdir(parent, 0755);
+                *at = '/';
+            }
+        }
     }
     stream = GeneratedOutputOpen(output, temporary, sizeof(temporary));
     if(stream == NULL) {

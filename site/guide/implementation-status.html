@@ -21,9 +21,8 @@ removed redundant scripts; those fixtures remain in Git history. Run
 <li>
 <p><code>std/simd</code> vector types and operations run with identical bits in native
   C (GCC and Clang vectors with SSE2, SSSE3, SSE4.1, AVX2 and NEON
-  intrinsics, or the lane loops TinyCC and other compilers use), Go lane
-  loops, bundles on the native engine and the portable VM, from source and
-  saved IR. <code>#target</code> procedures get SSSE3, SSE4.1 and AVX2 clones in C
+  intrinsics, or lane loops where a compiler has neither), Go lane loops and
+  bundles, from source and saved IR. <code>#target</code> procedures get SSSE3, SSE4.1 and AVX2 clones in C
   behind a dispatcher that reads CPUID (and the OS's YMM state) once;
   <code>ZIRAN_SIMD_TIER</code> forces a lower tier, and <code>tests/simd_target.sh</code> checks
   each forced clone under gdb where it can. Checking rejects 256-bit vectors
@@ -153,15 +152,10 @@ removed redundant scripts; those fixtures remain in Git history. Run
   package checks. This does not establish general Go/C performance parity.</p>
 </li>
 <li>
-<p>Portable bundle writing omits native assembly templates while retaining the
-  checked bodies and full native <code>.zir</code> data. It measures the payload and writes
-  directly to files or pipes without a temporary payload file.
-  <code>tests/zx_portable_write.sh</code> checks graph immutability, binary assets,
-  certificates, persistent state, append streams and write failures;
-  <code>tests/bundle_libraries.sh</code> covers shared and included code.
-  <code>bench/zx_metadata.py</code> compares bundle size, packing and fresh-host loading
-  with a preserved compiler, including a reader/writer crossover and ordinary
-  bundles without assembly. Its large comment annotations are a stress case.</p>
+<p>A <code>.zx</code> bundle is revision-28 executable ZX: the verified, optimized
+  instructions the entry reaches, its assets and its host interface section,
+  lowered from each procedure's portable body (see <a href="zx.html">ZX</a>). The embedding
+  API and <code>ziran run</code> execute it on the portable instruction engine.</p>
 </li>
 <li>
 <p>C translates assembly operand aliases to positional references, including
@@ -403,19 +397,14 @@ removed redundant scripts; those fixtures remain in Git history. Run
 <td>C</td>
 </tr>
 <tr>
-<td>Bundles</td>
-<td><code>zir_bundle.c</code> 2986, <code>zir_bundle_assets.c</code> 103</td>
-<td>Boundary for the <code>.zx</code> format and its table checks; IR linking, pruning, law evaluation and capability discovery are C</td>
-</tr>
-<tr>
-<td>VM</td>
-<td><code>zir_vm_eval.c</code> 3697, <code>zir_vm_run.c</code> 2079, <code>zir_vm_verify.c</code> 1442, <code>zir_vm.c</code> 1352, <code>zir_vm_simd.c</code> 667</td>
-<td>C</td>
+<td>Linking</td>
+<td><code>zir_link.c</code> 2182, <code>zir_assets.c</code> 120</td>
+<td>Entry pruning for C and Go, host providers and asset collection are C; the <code>.zx</code> format and the engine are Ziran (<code>compiler_bundle.zi</code>, <code>compiler_exec.zi</code>)</td>
 </tr>
 <tr>
 <td>Bundle hosts</td>
-<td><code>zir_host.c</code> 844, <code>zir_zx_host.c</code> 783, <code>zir_zx_native_run.c</code> 896, <code>zir_zx_native_lower.c</code> 721, <code>zir_zx_native.c</code> 506, <code>zir_zx_wasm.c</code> 149, <code>zir_zx_wasm_web.c</code> 136</td>
-<td>C platform glue</td>
+<td><code>zir_host.c</code>, <code>zir_host_exec.c</code>, <code>zir_zx_wasm.c</code>, <code>zir_zx_wasm_web.c</code></td>
+<td>C platform glue over the generated engine</td>
 </tr>
 </tbody>
 </table></div>
@@ -1105,8 +1094,8 @@ removed redundant scripts; those fixtures remain in Git history. Run
   1-, 2-, 4-, and 8-byte sizes and alignments on C and Go, plus
   independent union value copies across all four targets. Unions with string,
   record, array, or pointer fields remain C-only.</li>
-<li><code>zi2zx bundle --root DIR --entry module:function -o FILE</code> builds an
-  experimental version 26 <code>.zx</code> from source or saved IR. <code>zi2zx run FILE</code>
+<li><code>zi2zx bundle --root DIR --entry module:function -o FILE</code> builds a
+  <code>.zx</code> from source or saved IR. <code>zi2zx run FILE</code>
   loads and executes the validated scalar, plain record, enum, and fixed-array
   subset with no host bindings. Graphical programs use an embedding host;
   Kryon's reusable desktop player supplies its rendering and input capabilities.
@@ -1711,9 +1700,8 @@ removed redundant scripts; those fixtures remain in Git history. Run
   prints one JSON result object per obligation, <code>disproved</code> and unwaived
   <code>unknown</code> results fail the build, <code>#law_waive NAME "reason";</code> waives an
   <code>unknown</code>, and the tables serialize per module in <code>.zir</code> (byte-identical
-  from source and saved IR) and as the linked closure in <code>.zx</code>, where
-  <code>BundleLaw*</code> accessors expose them and laws keep the types, procedures,
-  and externs they name. Effect laws compare the derived class
+  from source and saved IR); laws keep the types, procedures, and externs
+  they name. Effect laws compare the derived class
   (<code>#law Name effect Proc == pure;</code> against pure, observing, mutating, or
   external), bounds laws compare a fixed-array bound (<code>Type == N</code>, <code>&gt;= N</code>,
   <code>&lt;= N</code> over compile-time values), and the <code>size</code> kind compares a type's

@@ -129,16 +129,10 @@ inputs. Local <code>#asm</code> blocks are not
 checked this way. <code>tests/spec/asm_dct8.zi</code> is a complete kernel: AV1's 8x8
 inverse DCT with SSSE3, AArch64 and ARMv7 NEON variants, about ten times
 faster than its portable body.</p>
-<p>TinyCC compiles <code>x86_64</code> variants whose features are among <code>sse2</code>, <code>ssse3</code>,
-<code>sse4.1</code>, <code>sse4.2</code> and <code>popcnt</code>, whose constraints are general registers,
-memory or immediates, and whose clobbers are general or <code>xmm0</code>-<code>xmm15</code>
-registers; it detects the features with <code>cpuid</code>. It skips other variants.
-<code>ziran run FILE.zi</code> compiles the program with TinyCC and runs these
-variants. A <code>.zx</code> bundle keeps them, but a bundle file, wherever it came
-from, and the portable VM always run the portable body, so a downloaded
-bundle cannot run instructions of its own; run
-<code>sh tests/zx_native_asm.sh build/bin/ziran</code>. Under <code>ziran run</code> the DCT
-kernel above takes 28 ns a block against 1.8 µs for its portable body.</p>
+<p>A <code>.zx</code> bundle is lowered from each procedure's portable body, so a bundle
+holds no machine code and a downloaded bundle cannot run instructions of its
+own; <code>ziran run FILE.zi</code> runs the portable bodies too. Native builds of the
+source keep every variant. Run <code>sh tests/zx_native_asm.sh build/bin/ziran</code>.</p>
 <p>Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,
 and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
@@ -307,7 +301,7 @@ Warnings do not fail the check (<code>"severity":"warning"</code> in JSON).
 <code>ziran check|ir|api|inspect|build|bundle|run|fmt</code> remains a convenience dispatcher
 for the same tools. <a href="https://github.com/ziranlang/ziran/blob/master/bench/README.md">Cross-target benchmarks</a> measure the
 compiler, downstream toolchains, and validated runtime cases separately.</p>
-<p>Portable bundles run with <code>ziran run app.zx</code> (or <code>--vm app.zx</code>). Graphical
+<p>Portable bundles run with <code>ziran run app.zx</code>. Graphical
 bundles use installed package-provided platform hosts through the same command;
 see <a href="zx.html#running-bundles">runtime providers</a>.</p>
 <h3 id="output-routes">Output routes</h3>
@@ -325,8 +319,7 @@ portable output; <code>--emit lir</code> remains a text inspection view. The sta
 mandatory before ZX; <code>--opt</code> only selects the optimized source LIR view or its
 source-only <code>--emit opt-report</code>. ZX input is not reoptimized. Native map source
 origins remain a gap because the required ZX payload is stripped.
-Default <code>ziran</code>/<code>zi2zx</code> semantic bundles and semantic-ZIR Wasm lowering are not
-yet cut over to revision-28 instructions; see <a href="zx.html">ZX status</a>.</p>
+<code>ziran bundle</code> writes the same ZX; see <a href="zx.html">ZX</a>.</p>
 <p>The C and Go targets are separate generated-code exporters. With <code>--exe</code>, their
 downstream C or Go toolchains also produce platform binaries. These outputs are
 not called native by the direct-backend documentation and do not satisfy or
@@ -558,15 +551,10 @@ compile-time directives, and saves those results in <code>.zir</code>. Loading t
 later does not reevaluate compile-time branches for the consuming backend.
 Select an explicit target while creating IR when a native-platform result is
 intended.</p>
-<p>For a portable library, <code>ziran bundle --entry module:function --retain
-other:entry</code> also keeps the named function and its dependencies. Repeat
-<code>--retain</code> for additional entry points consumed by thin <code>--library</code> bundles;
-unrelated functions remain outside the payload. Every retained entry must
-exist in the checked input graph. Thin bundles retain new declarations even
-when their module already occurs in a pruned library. Matching declarations
-are supplied by that library, and conflicting declarations reject linking.
-Rebuild hosts, libraries and add-ons together for ZX version 27; see
-<a href="zx.html#shared-libraries-and-partial-modules">partial module composition</a>.
+<p><code>ziran bundle --entry module:function --retain other:entry</code> also keeps the
+named function and its dependencies. Repeat <code>--retain</code> for further entry
+points; unrelated functions remain outside the payload. Every retained entry
+must exist in the checked input graph.
 Saved <code>.zir</code> files are binary. <code>ziran inspect path/to/module.zir</code> shows their
 declarations, statements, and checked expression links as readable text;
 <code>ziran inspect --hex path/to/module.zir</code> shows bytes and offsets.
@@ -578,7 +566,8 @@ for builtin string output: the i64 argument packs byte length in its upper
 32 bits and memory offset in its lower 32 bits; the callback writes those bytes
 and returns zero. Other reserved indices format signed integers (<code>UINT32_MAX - 1</code>),
 unsigned integers (<code>- 2</code>), float64 bits (<code>- 3</code>), float32 bits (<code>- 4</code>), and booleans
-(<code>- 5</code>). Scalar formatted print arguments use these callbacks. Slices support
+(<code>- 5</code>). Scalar formatted print arguments use these callbacks. Host capabilities
+cross through the typed <code>zx.host</code> import that <a href="zx.html">ZX</a> describes. Slices support
 omitted bounds (<code>values[:]</code>, <code>values[:end]</code>, <code>values[start:]</code>) and empty views
 at the end of their storage. Both inspection views read the saved file and
 leave it unchanged.</p>
@@ -757,7 +746,7 @@ Describe :: (message: Message) -&gt; string #go_method &quot;Error&quot; {
 <p>On an ordinary method procedure, <code>#go_results</code> flattens a nonempty concrete
 result record into native Go multiple results in field order. Its fields must
 be named without <code>using</code> or owned vectors. Ordinary Ziran calls still receive
-that record. C and the portable VM keep the same ordinary procedure body;
+that record. C and the portable engine keep the same ordinary procedure body;
 method adapters are Go ABI metadata. Both attributes survive saved IR. Go
 executable entry selection retains methods of reachable receiver records for
 native interface dispatch.</p>
@@ -1238,7 +1227,7 @@ and ASCII space, excluding other separators, controls, format characters,
 private-use and unassigned values under Unicode 17.0.
 <code>SplitWhitespace(text: string) -&gt; Vec(string)</code> collapses those whitespace runs
 and omits empty fields, like <code>str.split()</code> without a separator. Its pieces
-borrow the input. All operations run unchanged on C, Go and the portable VM,
+borrow the input. All operations run unchanged on C, Go and the portable engine,
 without a host Unicode library. See <a href="unicode.html">Unicode</a> for exact semantics,
 the native table generator and conformance tests.</p>
 <p><code>NFCInto(text: string, output: *Vec(u8)) -&gt; bool</code> and <code>LowerInto</code> use reusable
@@ -1300,7 +1289,7 @@ storage explicitly. Full pushes and empty pops are rejected without unwinding
 the queue; partial byte pops report the number removed.</p>
 <h3 id="toml-manifests">TOML manifests</h3>
 <p><code>std/toml_document.zi</code> parses TOML 1.0 directly in Ziran on C, Go and the
-portable VM. It shares its parser with the package manifest reader. Quoted
+portable engine. It shares its parser with the package manifest reader. Quoted
 keys and strings (including escapes, literal and multiline strings), dotted
 keys, tables, inline tables, arrays and arrays of tables retain their meaning.
 Duplicate definitions, malformed values, invalid UTF-8 and trailing input
@@ -1527,7 +1516,7 @@ decoding with the C compiler's over a million random patterns.
 <code>COS :: s32.[4096, 4095, 4091]</code> or <code>#run s32.[...]</code>, of any length and over
 as many lines as it needs. Reading <code>COS[i]</code> reads one table the module shares
 (a file-scope <code>static const</code> in C, a package <code>var</code> in Go, built once in the
-portable VM) instead of copying the array; copying it into a variable, as in
+portable engine) instead of copying the array; copying it into a variable, as in
 <code>local: [3]s32 = COS</code>, still makes an independent copy, which Go takes
 straight from the shared <code>var</code>, as it does when passing the table by
 value. Indexes are
@@ -1547,7 +1536,7 @@ leaves the table unchanged.</p>
 bits and set bits; <code>bswap(x)</code> reverses the bytes. Each takes one <code>u8</code>, <code>u16</code>,
 <code>u32</code> or <code>u64</code> and returns that type, and the counts give the width for zero
 (<code>clz(cast(u32) 0) == 32</code>). Native C uses the compiler's <code>__builtin_*</code> with a
-portable fallback, Go uses <code>math/bits</code>, and the portable VM computes the same
+portable fallback, Go uses <code>math/bits</code>, and the portable engine computes the same
 results. A procedure of your own with one of these names is called instead.
 Run <code>sh tests/bit_builtins.sh build/bin/ziran</code>.</p>
 <h3 id="simd-vectors">SIMD vectors</h3>
@@ -1560,7 +1549,7 @@ values, used through these operations rather than <code>+</code> or <code>==</co
 operation gives the same bits on every target. Native C uses SSE2 on x86-64,
 or SSSE3, SSE4.1 and AVX2 when the build enables them, NEON on AArch64 and
 ARMv7, and WebAssembly SIMD128 when a wasm32 build passes <code>-msimd128</code>. Go,
-bundles, the portable VM and TinyCC compute lane by lane.</p>
+and bundles compute lane by lane.</p>
 <p><code>Simd.Load(u8x16, text, at)</code> and <code>Simd.LoadLow(u8x16, text, at)</code> also
 read immutable strings directly, including embedded NUL bytes. They check the
 entire access against the string length without allocating a byte slice. Other
@@ -1590,7 +1579,7 @@ names.</p>
 <p>Native vectors (<code>u8xN</code>, <code>s8xN</code>, <code>u16xN</code>, <code>s16xN</code>, <code>u32xN</code>, <code>s32xN</code>,
 <code>u64xN</code>, <code>s64xN</code>, <code>f32xN</code> and <code>f64xN</code>) are as wide as the code running
 them handles well: two 128-bit blocks in a <code>#target</code> procedure's AVX2 copy
-and in builds that enable AVX2, one elsewhere, Go and the VM included.
+and in builds that enable AVX2, one elsewhere, Go and bundles included.
 <code>Simd.Lanes(T)</code> and <code>Simd.Blocks(T)</code> give the count, which is a constant
 for fixed vectors, so a loop steps by it:</p>
 <pre><code class="language-jai">Brighten :: (row: []u8) #target {

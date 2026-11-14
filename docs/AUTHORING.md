@@ -10,7 +10,7 @@ Canonical `.zi` is the only authoring source. The checked tools around it are:
    ([checked source edits](SEMANTIC_EDIT.md)).
 4. Optional transport: `ziran compact`/`expand --map` (an exact round trip,
    see the [compact transport](TRANSPORT_VIEW.md)).
-5. Verify: `check`, `ir`, `bundle`, `run`, `zi2zx run --vm`, and native C/Go
+5. Verify: `check`, `ir`, `bundle`, `run`, and native C/Go
    runs where the task asks for portable parity.
 
 The lean suite checks these production commands directly:
@@ -57,7 +57,7 @@ test pruning. The frozen L-01 corpus (`tests/llm_authoring/tasks.json`, version
   failing sources must produce identical diagnostics, whose offsets map
   through the transport.
 - **Execution:** the restored final bytes go through the L-01 checker, law,
-  saved-IR, bundle, `zi2zx run --vm` and native parity pipeline.
+  saved-IR, bundle, `ziran run` and native parity pipeline.
 
 The observation phase runs twice in fresh directories and must give identical
 results.

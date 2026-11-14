@@ -1,12 +1,12 @@
 /* Browser clients supply ordinary source files and module search roots in
- * Emscripten's filesystem. This is the zi2zx pipeline, without UI policy. */
+ * Emscripten's filesystem. This is the zi2zx bundle pipeline, without UI
+ * policy: the program becomes revision-28 executable ZX. */
 #include "zir.h"
-#include "zir_bundle.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_load.h"
 #include "zir_serial.h"
-#include "zir_vm.h"
+#include "zx_exec_run.h"
 
 #include <limits.h>
 #include <stdint.h>
@@ -40,7 +40,9 @@ BuildBundle(const char *root, const char *search, const char *inputs,
             const char *output)
 {
     ProgramSet set = {0};
-    ZirProgram merged = {0}, *linked = NULL;
+    ZirProgram merged = {0};
+    unsigned char *bytes = NULL;
+    size_t size = 0;
     const char **module_paths = NULL, **input_paths = NULL;
     char *search_copy = NULL, *input_copy = NULL;
     FILE *file = NULL;
@@ -70,15 +72,15 @@ BuildBundle(const char *root, const char *search, const char *inputs,
             merged.modules[at++] = set.programs[p]->modules[m];
     ZirProgram *program = &merged;
     if(!LinkImports(&program, 1)) goto done;
-    linked = BundleLink(&merged, entry_module, entry_function);
-    if(linked == NULL || !VmVerify(linked, entry_module, entry_function)) goto done;
+    bytes = ZxExecBuild(&merged, entry_module, entry_function, (Slice){0}, &size);
+    if(bytes == NULL) goto done;
     file = fopen(output, "wb");
-    if(file == NULL || !BundleWrite(file, linked, entry_module, entry_function, NULL)) goto done;
+    if(file == NULL || fwrite(bytes, 1, size, file) != size) goto done;
     status = 0;
 done:
     if(file != NULL && fclose(file) != 0) status = 1;
     if(status != 0) remove(output);
-    ProgramFree(linked);
+    free(bytes);
     free(merged.modules);
     ProgramsFree(&set);
     free(module_paths);

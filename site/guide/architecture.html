@@ -68,11 +68,11 @@ path, not a description of support on every target. Generated C and generated
 Go can also become binaries, but those are generated-code routes through their
 own compilers and linkers; they are not native-backend fallback paths.</p>
 <p>This is implemented in the experimental <code>zi2asm</code> route: source-native output
-also serializes and reads ZX first. Default semantic <code>ziran</code>/<code>zi2zx</code> bundles
-remain separate until cutover. <code>zi2asm --emit wasm</code> lowers the same verified
+also serializes and reads ZX first, the same <code>.zx</code> that <code>ziran bundle</code> writes
+and <code>ziran run</code> executes. <code>zi2asm --emit wasm</code> lowers the same verified
 revision-28 payload to a wasm32 module (<code>cmd/zir-wasm/zx_wasm_lower.c</code>), so one
-<code>.zx</code> gives one <code>.wasm</code>; <code>zi2wasm</code> and <code>zir_zx_wasm</code> still lower semantic
-<code>ZirProgram</code> through <code>zir_wasm_lower</code> until LIR lowering covers their programs.
+<code>.zx</code> gives one <code>.wasm</code>; <code>ziran build --target=wasm</code> and the bundle Wasm tier
+(<code>cmd/zir/zir_zx_wasm.c</code>) use that lowering too.
 Native source maps currently lose source origins at
 the stripped ZX boundary, while source LIR inspection retains them.</p>
 <p>The first implemented direct console veneer is the opt-in Linux x86-64 static

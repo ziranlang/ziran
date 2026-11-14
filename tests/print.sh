@@ -79,12 +79,10 @@ for input in "$work/greet.zi" "$work/ir/greet.zir"; do
         -o "$work/$suffix.zx" "$input"
     "$ziran" run "$work/$suffix.zx" > "$work/$suffix.zx.out"
     printf '0\n' | cat "$work/expected" - | cmp - "$work/$suffix.zx.out"
-    "$ziran" run --vm "$work/$suffix.zx" > "$work/$suffix.vm.out"
-    printf '0\n' | cat "$work/expected" - | cmp - "$work/$suffix.vm.out"
-    # The VM writes explicit byte lengths, including embedded NULs.
+    # The engine writes explicit byte lengths, including embedded NULs.
     "$ziran" bundle --root "$work" --entry greet:Binary \
         -o "$work/$suffix-binary.zx" "$input"
-    "$ziran" run --vm "$work/$suffix-binary.zx" > "$work/$suffix-binary.out"
+    "$ziran" run "$work/$suffix-binary.zx" > "$work/$suffix-binary.out"
     cmp "$work/expected-binary" "$work/$suffix-binary.out"
     native_root=$work
     if test "$suffix" = saved; then native_root=$work/ir; fi
@@ -202,8 +200,8 @@ test "$native_closed_status" -eq 125
 
 "$ziran" bundle --root "$work" --entry native_print:NativePrint \
     -o "$work/native.zx" "$work/native_print.zi"
-"$ziran" run --vm "$work/native.zx" > "$work/native.vm.out"
-printf '0\n' | cat "$work/native.expected" - | cmp - "$work/native.vm.out"
+"$ziran" run "$work/native.zx" > "$work/native.zx.out"
+printf '0\n' | cat "$work/native.expected" - | cmp - "$work/native.zx.out"
 "$ziran" build --target=c --root "$work" -o "$work/native-c" "$work/native_print.zi"
 cat > "$work/native-c/main.c" <<'EOF'
 #include "native_print.h"

@@ -45,7 +45,7 @@ ZI
 
 "$ziran" bundle --root "$work" --entry captures:Answer -o "$work/captures.zx" "$work/captures.zi"
 for threads in 1 4; do
-    test "$(ZIRAN_NATIVE_CACHE=0 ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/captures.zx")" = 42
+    test "$(ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/captures.zx")" = 42
 done
 "$ziran" build --target=c --entry captures:Answer --root "$work" -o "$work/c" "$work/captures.zi"
 cat > "$work/c/main.c" <<'C'

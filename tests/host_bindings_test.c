@@ -131,18 +131,9 @@ static void concurrent_bindings(Bundle *bundle, long long expected)
 int main(int argc, char **argv)
 {
     if(argc == 2) { single_binding(argv[1]); return 0; }
-    assert(argc >= 3 && argc <= 5);
+    assert(argc == 3);
     long long expected = strtoll(argv[2], NULL, 10);
-    Bundle *bundle;
-    if(argc >= 4) {
-        Bundle *leaf = argc == 5 ? BundleOpen(argv[4]) : NULL;
-        if(argc == 5) assert(leaf != NULL);
-        Bundle *library = leaf != NULL ? BundleOpenWithLibraries(argv[3], &leaf, 1) : BundleOpen(argv[3]);
-        BundleClose(leaf);
-        assert(library != NULL && BundleCapabilityCount(library) == PER_MODULE);
-        bundle = BundleOpenWithLibraries(argv[1], &library, 1);
-        BundleClose(library); /* Borrowed capability names follow retained code. */
-    } else bundle = BundleOpen(argv[1]);
+    Bundle *bundle = BundleOpen(argv[1]);
     assert(bundle != NULL);
     size_t count = BundleCapabilityCount(bundle);
     assert(count == 2 * PER_MODULE);
@@ -217,6 +208,6 @@ int main(int argc, char **argv)
     concurrent_bindings(bundle, expected);
 #endif
     BundleClose(bundle);
-    puts("Host capability identity, validation, copied storage and library lifetimes passed");
+    puts("Host capability identity, validation and copied storage passed");
     return 0;
 }

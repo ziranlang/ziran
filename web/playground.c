@@ -1,10 +1,10 @@
 #include "zir.h"
-#include "zir_bundle.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_load.h"
 #include "zir_serial.h"
-#include "zir_vm.h"
+#include "zx_exec_run.h"
+#include "ziran_host.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +19,8 @@ EM_JS(void, report_stage, (const char *stage), {
 static void report_stage(const char *stage) { (void)stage; }
 #endif
 
-/* The website uses the same module loader, checker, linker, and VM as zi2zx.
+/* The website uses the same module loader, checker, lowering and engine as
+ * zi2zx: the source becomes revision-28 ZX, which the embedding API runs.
  * The worker supplies one source file and embedded standard modules; no host
  * capabilities are installed. */
 int RunSource(void)
@@ -28,7 +29,10 @@ int RunSource(void)
     const char *module_paths[] = {"/std"};
     ProgramSet set = {0};
     ZirProgram merged = {0};
-    ZirProgram *linked = NULL;
+    unsigned char *bytes = NULL;
+    size_t size = 0;
+    Bundle *bundle = NULL;
+    BundleInstance *instance = NULL;
     const char *entry = NULL;
     int unsigned_result = 0;
     long long value;
@@ -76,15 +80,15 @@ int RunSource(void)
         goto done;
     }
     report_stage("build");
-    linked = BundleLink(&merged, "playground", entry);
-    if(linked == NULL || !VmVerify(linked, "playground", entry))
+    bytes = ZxExecBuild(&merged, "playground", entry, (Slice){0}, &size);
+    if(bytes == NULL || (bundle = BundleOpenBytes(bytes, size)) == NULL)
         goto done;
     report_stage("run");
     status = 2;
     /* The page runs in the reader's browser tab: a bound keeps a runaway
      * loop from hanging it. */
-    if(!VmRunBounded(linked, "playground", entry, NULL, NULL, 1000000,
-                     &value, &has_result))
+    instance = BundleInstantiateLimited(bundle, NULL, 0, 1000000);
+    if(instance == NULL || !BundleInstanceRun(instance, &value, &has_result))
         goto done;
     if(has_result) {
         if(unsigned_result)
@@ -95,7 +99,9 @@ int RunSource(void)
     status = 0;
 done:
     fflush(NULL);
-    ProgramFree(linked);
+    BundleInstanceClose(instance);
+    BundleClose(bundle);
+    free(bytes);
     free(merged.modules);
     ProgramsFree(&set);
     return status;

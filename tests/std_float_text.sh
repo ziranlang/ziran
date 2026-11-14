@@ -7,7 +7,7 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/float-text.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
+export TMPDIR="$work"
 # Reuse the normal Go cache; the fixture itself stays in this repository.
 go run "$repo/tests/float_text_oracle.go" > "$work/float_text_cases.zi"
 run_bundle() {
@@ -40,9 +40,7 @@ for form in source saved; do
     done
     echo "float text: $form C/Go passed"
 done
-# The source and saved bundles are the same bytes, so one run of each engine
-# covers both; the VM is the slowest part of this check under the sanitizers.
+# The source and saved bundles are the same bytes, so one run covers both.
 cmp "$work/source.zx" "$work/saved.zx"
 run_bundle "$ziran" run "$work/source.zx"
-run_bundle "$(dirname -- "$ziran")/zi2zx" run --vm "$work/source.zx"
-echo 'float text and JSON: edge, every binade boundary, seeded random and long decimal parity passed on C/Go/VM from source and saved IR'
+echo 'float text and JSON: edge, every binade boundary, seeded random and long decimal parity passed on C/Go/bundles from source and saved IR'

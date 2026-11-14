@@ -10,7 +10,7 @@
 #include "zir_command.h"
 #include "zir_serial.h"
 #include "zir_load.h"
-#include "zir_bundle.h"
+#include "zir_link.h"
 #include "zir_c_lower.h"
 #include "zir_c_build.h"
 

@@ -87,7 +87,7 @@ PlaygroundTests :: (test: *NativeTest, self: string) -> bool {
     compiler := CheckPath(test.work, "wasm-cc"); headers := CheckPath(test.work, "headers")
     if !NativeWrite(test, compiler, "#!/bin/sh\nprintf 'wasm64-unknown-emscripten\\n'\n") || !NativeAssert(test, SetPathMode(compiler, 448), "make memory64 compiler fixture executable") { return false }
     NativeUnset(test, "MAKEFLAGS")
-    header_args := string.[real_make, "-C", test.repo, CheckConcat("CC=", compiler), CheckConcat("BUILD_DIR=", headers), CheckPath(headers, "wasm-private/check.h"), CheckPath(headers, "wasm-private/vm.h")]
+    header_args := string.[real_make, "-C", test.repo, CheckConcat("CC=", compiler), CheckConcat("BUILD_DIR=", headers), CheckPath(headers, "wasm-private/check.h")]
     unused NativeRun(test, header_args[:]); text := NativeRead(test, CheckPath(headers, "wasm-private/check.h")); header_lines := TextLines(text); private_name := false
     keywords := string.["char", "void", "int", "const"]
     for line: header_lines {

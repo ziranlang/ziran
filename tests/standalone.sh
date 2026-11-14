@@ -661,8 +661,6 @@ GO111MODULE=off go run "$work/changed-text-go/flow.go" \
 "$ziran" bundle --root "$work" --entry flow:Answer \
     -o "$work/changed-text.zx" "$work/changed-text.zir"
 test "$("$ziran" run "$work/changed-text.zx")" = 42
-"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" flow-text flow.zx changed-embedded-text.zx
-test "$("$ziran" run "$work/changed-embedded-text.zx")" = 42
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" flow-typed flow-ir/flow.zir inconsistent-flow.zir
 for target in c go; do
     if test "$target" = go; then
@@ -684,15 +682,18 @@ GO111MODULE=off go run "$work/inconsistent-go/flow.go" \
 "$ziran" bundle --root "$work" --entry flow:Answer \
     -o "$work/inconsistent-flow.zx" "$work/inconsistent-flow.zir"
 test "$("$ziran" run "$work/inconsistent-flow.zx")" = 43
-"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" flow-typed flow.zx inconsistent-embedded.zx
-test "$("$ziran" run "$work/inconsistent-embedded.zx")" = 43
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" bundle-errors
 expect_rejection 'truncated bundle unexpectedly ran' "$work/bad-bundle.err" \
     "$ziran" run "$work/bad-bundle.zx"
-grep -Fq 'invalid or truncated bundle' "$work/bad-bundle.err"
+grep -Fq 'executable ZX rejected' "$work/bad-bundle.err"
 expect_rejection 'unsupported bundle version unexpectedly ran' "$work/old-bundle.err" \
     "$ziran" run "$work/old-bundle.zx"
-grep -Fq 'unsupported ZX version' "$work/old-bundle.err"
+grep -Fq 'unsupported executable ZX version' "$work/old-bundle.err"
+# A bundle holds no source text to re-read: an edited program byte fails
+# its identity check.
+expect_rejection 'edited bundle unexpectedly ran' "$work/edited-bundle.err" \
+    "$ziran" run "$work/edited-bundle.zx"
+grep -Fq 'executable ZX rejected' "$work/edited-bundle.err"
 cat > "$work/unsupported_bundle.zi" <<'EOF'
 #program_export
 Answer :: () -> s32 {

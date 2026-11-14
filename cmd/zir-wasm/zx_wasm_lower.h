@@ -24,8 +24,8 @@
  *            zx_initialize () -> (), which zx_entry calls first and a host
  *            may call to initialize an instance when it opens; with a heap
  *            zx_reserve (i32 bytes) -> i32 address (0 when memory runs out)
- *   custom   zxstate: writable globals; zxhost: each capability's module,
- *            function and parameter count, by capability index
+ *   custom   zxhost: each capability's module, function and parameter
+ *            count, by capability index
  *
  * host(capability, record) mirrors the interpreter's typed host call. The
  * record holds one 16-byte entry per argument and then one for the result.
@@ -72,9 +72,22 @@ typedef struct ZxWasmImage {
     size_t size;
     ZxWasmCapability *capabilities;
     size_t capability_count;
+    /* Where each LIR global lives in the instance's memory, and its size. */
+    uint32_t *global_addresses;
+    uint32_t *global_sizes;
+    size_t global_count;
     /* Whether the entry returns a value. */
     int returns;
 } ZxWasmImage;
+
+/* An instance's memory, for module state: read and write bytes, and
+ * reserve zero-filled storage (zx_reserve), giving 0 when it cannot. */
+typedef struct ZxWasmMemory {
+    void *context;
+    int (*read)(void *context, size_t address, void *destination, size_t size);
+    int (*write)(void *context, size_t address, const void *source, size_t size);
+    size_t (*reserve)(void *context, size_t size);
+} ZxWasmMemory;
 
 #if defined(__GNUC__) || defined(__clang__)
 #define ZX_WASM_API __attribute__((visibility("default")))
@@ -92,5 +105,14 @@ ZX_WASM_API int ZxWasmLowerExecutable(const unsigned char *zx, size_t size,
 ZX_WASM_API int ZxWasmLowerProgram(const struct LirProgram *program,
                                    ZxWasmImage *image);
 ZX_WASM_API void ZxWasmImageFree(ZxWasmImage *image);
+/* The host image of LIR global `global` of an instance: its bytes, then
+ * the elements of each view inside it, read from memory. The caller frees
+ * *image. */
+ZX_WASM_API int ZxWasmGlobalImage(const struct LirProgram *program, int32_t global, const ZxWasmImage *module,
+                                  const ZxWasmMemory *memory, unsigned char **image, size_t *size);
+/* Stores a host image as LIR global `global`; each view's elements go to
+ * storage from memory->reserve. */
+ZX_WASM_API int ZxWasmGlobalStore(const struct LirProgram *program, int32_t global, const ZxWasmImage *module,
+                                  const ZxWasmMemory *memory, const unsigned char *image, size_t size);
 
 #endif

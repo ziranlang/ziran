@@ -7,7 +7,7 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/unicode.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
+export TMPDIR="$work"
 for fixture in std_unicode unicode_conformance; do
 "$ziran" check --root tests/spec --module-path std "tests/spec/$fixture.zi"
 "$ziran" ir --root tests/spec --module-path std -o "$work/$fixture/ir" "tests/spec/$fixture.zi"
@@ -21,7 +21,6 @@ for form in source saved; do
     fi
     "$ziran" bundle "$@" --entry "$fixture:NativeMain" -o "$work/$fixture-$form.zx" "$input"
     test "$("$ziran" run "$work/$fixture-$form.zx")" = 0
-    test "$("$(dirname -- "$ziran")/zi2zx" run --vm "$work/$fixture-$form.zx")" = 0
     for target in c go; do
         output="$work/$fixture/$form-$target"
         if test "$target" = go; then

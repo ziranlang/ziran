@@ -6,7 +6,7 @@
 //     sum := Simd.Add(Simd.Load(s16x8, row, 0), Simd.Splat(s16x8, 1))
 //
 // Every operation gives the same bits on every target: C uses SSE2..AVX2,
-// NEON or WebAssembly SIMD128 where they match, and Go, the VM and other
+// NEON or WebAssembly SIMD128 where they match, and Go, the engine and other
 // C compilers compute lane by lane. Integer lanes wrap unless the operation
 // saturates. Operations that move data between lanes, such as Shuffle,
 // ByteShuffle, AlignBytes, Narrow and InterleaveLow, work on each 128-bit

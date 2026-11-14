@@ -1,5 +1,5 @@
 // ASCII-only case folding keeps the result identical across native targets
-// and the portable runner. UTF-8 bytes outside ASCII compare unchanged.
+// and the engine. UTF-8 bytes outside ASCII compare unchanged.
 #program_export
 LowerASCII :: (value: u8) -> u8 {
     if value >= cast(u8)65 && value <= cast(u8)90 {

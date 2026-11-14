@@ -1,5 +1,5 @@
-// A hash map from keys to values that runs the same on every target and the
-// portable runner. Keys are strings or integers. The table doubles when half
+// A hash map from keys to values that runs the same on every target and in
+// the engine. Keys are strings or integers. The table doubles when half
 // its slots are in use, and HashMapFree releases it.
 //
 //     ages: HashMap(string, s32)

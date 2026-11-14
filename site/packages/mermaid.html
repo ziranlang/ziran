@@ -41,7 +41,7 @@ lines use owned overflow storage; ordinary labels stay inline. Supported
 families have additional grammar limits matching the original renderer.
 The implementation has no Xcoder dependency, foreign calls, or platform-specific
 standard module imports. Xcoder's native Rust adapter consumes <code>RenderGrid</code>.</p>
-<p>Run <code>build-queue -- make test</code> for C, Go, and portable VM tests. Local toolchain
+<p>Run <code>build-queue -- make test</code> for C, Go, and engine tests. Local toolchain
 overrides belong in the ignored <code>ziran.local.toml</code>; the committed lock pins the
 published toolchain. Xcoder's adapter tests run the original Rust renderer's
 suite and snapshots against this package, plus digests of generated

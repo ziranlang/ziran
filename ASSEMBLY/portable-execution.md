@@ -1,8 +1,8 @@
 # Portable lowered execution
 
-Status: implemented as an isolated lowered-IR engine. This is not the `.zx`
-cutover, does not replace the existing bundle evaluator, and makes no whole-plan
-completion or performance claim.
+Status: implemented. This engine is the portable instruction engine:
+`libziran` embeds it, and `ziran run` and the embedding API execute
+revision-28 `.zx` containers on it.
 
 ## Public API
 
@@ -127,7 +127,8 @@ pointer provenance, reuse and repeated close, all runtime limits, structured
 origins, repeated failure, and verifier rejection.
 
 The test driver also runs a hand-built executor oracle from source and
-entry-pruned saved IR through generated C, generated Go, and the portable VM.
+entry-pruned saved IR through generated C, generated Go, and bundles on the
+engine.
 
 ## Exact current boundary
 
@@ -150,8 +151,9 @@ typed heap blocks, but does not yet provide arbitrary byte memory,
 host callbacks, native-width or SIMD values,
 capability values, state serialization or
 migration, thread-safe concurrent use of one instance, or parallel/SIMD
-dispatch. Serialization, CLI selection, `.zx` integration, source lowering,
-x64 comparison, and cutover remain separate integration work.
+dispatch. The executable `.zx` reader, `ziran run`, and the embedding API
+route bundles through this engine; the Wasm tier and native ELF output are
+separate `zi2asm` lowering routes.
 
 ## Local verification
 
@@ -165,7 +167,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- \
 The focused test reports:
 
 ```text
-lowered exec: verified engine and source/saved C, Go and VM local tests passed
+lowered exec: verified engine and source/saved C, Go and bundle local tests passed
 ```
 
 Performance comparison is intentionally absent here. The required before/after

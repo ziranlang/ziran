@@ -24,8 +24,8 @@ removed redundant scripts; those fixtures remain in Git history. Run
   each forced clone under gdb where it can. Checking rejects 256-bit vectors
   by value at a `#target` procedure's boundary and in its calls. C built for
   wasm32 with `-msimd128` uses SIMD128 instructions and gives the same lanes
-  under wasmtime as a build without them; bundles on a WebAssembly host run
-  SIMD through the portable VM. ARMv7 builds with NEON, with VFP only and
+  under wasmtime as a build without them; bundles run std/simd programs
+  lane by lane on the engine. ARMv7 builds with NEON, with VFP only and
   with scalar lanes give the same results on an ARMv7 phone; AArch64 builds
   hold NEON instructions but run only under a `QEMU_AARCH64` here.
 
@@ -328,7 +328,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   Generated methods call the canonical checked procedure and optionally
   flatten its result record with `#go_results`. Source and saved IR retain
   value/pointer receivers, native error and panic identity, and ordinary calls
-  on C and the portable VM. `tests/go_method_exports.sh` checks native
+  on C and in engine-run bundles. `tests/go_method_exports.sh` checks native
   interface dispatch, mutation, failure paths and rejected method metadata.
 
 - Typed Go `bind` bindings capture leading procedure arguments and return a
@@ -600,21 +600,19 @@ removed redundant scripts; those fixtures remain in Git history. Run
 - An index read of a constant number or boolean array (`TABLE :: s32.[...]`
   or `#run s32.[...]`, any length) reads one shared read-only table: a
   file-scope `static const` in C, a package `var` in Go and a value the
-  portable VM builds once and keeps. Go also declares a copy or passes the
-  table by value from that `var`. `tests/constant_tables.sh` checks C, Go,
-  native and portable bundles from source and saved IR, value copies, bounds
-  and that the read copies nothing. A function may read one table in any
+  engine builds once and keeps. Go also declares a copy or passes the
+  table by value from that `var`. `tests/simd.sh` checks that a SIMD load
+  or gather reads the table in place instead of copying it. A function may
+  read one table in any
   number of loops, beside widening casts and `.count`: binding a table grows
   the expression graph when checking has used the room reserved for it.
   Nested arrays are tables too: rows are written `[3]s32.[s32.[...], ...]`,
   `#run` evaluates `g[a][b] = v` into one, and `GRID[i][j]` indexes the
-  table in place in C, Go and the portable VM, with no copied row;
-  `tests/nested_constant_tables.sh` checks them on every target from source
-  and saved IR.
+  table in place in C, Go and the engine, with no copied row.
 - `clz`, `ctz`, `popcount` and `bswap` take one `u8`/`u16`/`u32`/`u64` and
   return that type, with the width as the count for zero. C emits
   `__builtin_*` helpers (with a portable fallback), Go `math/bits`, and the
-  portable runner computes them directly; `tests/bit_builtins.sh` compares
+  engine computes them directly; `tests/bit_builtins.sh` compares
   them from source and saved IR.
 - `New(T)` allocates a zeroed `T` and returns `*T`; `free(p)` releases it and
   ignores null. C uses `calloc`/`free`, Go uses `new` and its
@@ -1246,7 +1244,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   including embedded nulls. The verifier and interpreter cover literals,
   equality, read-only byte indexing and ranges, `.count`, parameters, returns,
   and record fields. `text[low:high]` returns a borrowed byte range as a
-  `string`; bounds are checked in the portable VM and generated C and Go. Callers must choose UTF-8 codepoint boundaries when slicing text.
+  `string`; bounds are checked in the engine and generated C and Go. Callers must choose UTF-8 codepoint boundaries when slicing text.
   `TextView([]u8)` borrows a byte slice as text in native C; Go and
   the bundle runner copy it into managed storage. The bounded
   `std/text_buffer.zi` helper reads a NUL-terminated buffer through this
@@ -1371,9 +1369,9 @@ removed redundant scripts; those fixtures remain in Git history. Run
 - Portable execution borrows read-only record and array parameters and
   reclaims temporary values after ordinary function calls while retaining
   copied results. A repeated nested call over a 4,096-record array checks
-  value isolation without exhausting the VM's allocation limit. Replaced
-  record and array storage is reclaimed after a value copy; the portable VM
-  currently allows up to 1 GiB each of tracked record and array allocations
+  value isolation without exhausting the engine's allocation limit. Replaced
+  record and array storage is reclaimed after a value copy; the engine
+  currently allows up to 256 MiB of tracked record and array value bytes
   so large checked parsers such as Kryon's KSS parser can execute.
 - Small records whose fixed-width primitive fields occupy at most sixteen
   bytes use the existing VM value payload. Arrays of these records store
@@ -1583,10 +1581,10 @@ removed redundant scripts; those fixtures remain in Git history. Run
   contiguous index chunks that reaches captured fixed arrays through a
   pointer and other captures by value, the thread count is the processor
   count unless `ZIRAN_PAR_THREADS` chooses 1-64, and files containing
-  workers compile with `-pthread`. Natively run bundles use the engine's
-  worker pool. Reverse regions, the
-  portable VM, and Go run serially with an emitted downgrade marker, as the
-  backend-duties clause permits; region-leaving `return`/`break`/`continue`
+  workers compile with `-pthread`. Bundles run on the engine and execute
+  regions serially. Reverse regions and Go run serially, and generated Go
+  emits a downgrade marker, as the backend-duties clause permits;
+  region-leaving `return`/`break`/`continue`
   are rejected so no schedule can skip iterations. `#parallel_gpu for`
   regions validate before offload per the GPU clause: pointer storage,
   pointer-bearing call arguments, and allocator-backed Vec mutation are
@@ -1599,8 +1597,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   records, signed or variable division and foreign calls keep the CPU worker
   path with an emitted marker. A failed bounds check, a used up loop budget or a
   refused shader discards device results and reruns the region on the CPU. The
-  ZX engine, the portable VM and Go do not offload. `tests/gpu_offload.sh`
-  compares every device with the CPU.
+  ZX engine and Go do not offload.
 - `ziran explain` exposes a stable registry for every diagnostic code currently
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is
@@ -1610,9 +1607,9 @@ removed redundant scripts; those fixtures remain in Git history. Run
 - Whole local aggregates, fresh aggregate call results, vector-bearing
   record-literal fields, and plain record-member `Vec` paths rooted at local
   aggregates can move through declaration, assignment, argument passing, and
-  return. C, Go, and the portable VM recursively drop vectors reached
+  return. C, Go, and the engine recursively drop vectors reached
   through record fields and fixed arrays; a member move clears only the native
-  source field and invalidates only the corresponding VM slot.
+  source field and invalidates only the corresponding engine slot.
   `tests/aggregate_vec_safety.sh` checks direct and nested member paths,
   sibling-field usability, branch returns, use-after-move, global-source,
   indexed/pointer limits, overwrite rejection, allocator balance,

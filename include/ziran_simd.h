@@ -2,7 +2,7 @@
  * ziran_simd.h - Ziran's fixed-width SIMD vectors in generated C.
  *
  * Every operation has one exact definition: zi_ref below computes it lane by
- * lane on bit patterns, and the portable VM runs that same code. GCC and
+ * lane on bit patterns, and the engine runs that same code. GCC and
  * Clang builds use native vectors with SSE2..AVX2, NEON or WebAssembly
  * SIMD128 instructions that give identical bits; other compilers, such as
  * TinyCC, and ZIRAN_SIMD_SCALAR builds keep lane arrays and run plain C over

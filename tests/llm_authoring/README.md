@@ -5,8 +5,9 @@ private holdout. All product source and replacement artifacts are `.zi` files.
 No model, remote service, tokenizer package or download is used. Go execution
 uses the installed toolchain with `GOPROXY=off`, `GOSUMDB=off` and
 `GOTOOLCHAIN=local`. C and Go toolchains must already be installed.
-The toolchain must provide `zi2zx`, whose `run --vm` is the explicit portable
-interpreter, beside `ziran`; a missing runner is an infrastructure error.
+The toolchain must provide `zi2zx`, which writes the executable `.zx` file,
+beside `ziran`, whose `run` executes it on the instruction engine; a missing
+runner is an infrastructure error.
 
 From the repository root:
 
@@ -60,10 +61,8 @@ rejection and portable replacement, disproved-law repair and exact byte edits.
 Initial and solution programs run through the actual `ziran check` with the
 recorded target expectations. Successful programs also run through `.zi` to
 `.zir`, saved-IR checking, source/saved `.zx` byte equality, ordinary bundle
-execution through `ziran run`, and explicit source/saved execution through
-`zi2zx run --vm`. Ordinary bundle execution can select the native tier; the
-`source_vm` and `saved_vm` results specifically exercise the portable
-interpreter. Tasks marked `portable_parity` execute their solutions on native C
+execution through `ziran run` on the instruction engine. Tasks marked
+`portable_parity` execute their solutions on native C
 and Go as well. Native C uses `ziran run`; Go uses the existing generated
 executable-package path and `go run .`, because `ziran run --target=go` is not a
 current CLI operation. These are fixture-specific results, not general backend

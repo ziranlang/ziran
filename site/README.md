@@ -35,7 +35,7 @@ The platform selector uses real desktop, USB Android and private Chromium measur
 Warm execution excludes startup, loading and offline compilation; every output is
 verified before timing. Formatted output remains timed, using a native null sink or
 browser byte callback. The C, Go, ZX and Wasm runtimes are named for each platform.
-ZX explicitly runs the portable VM; Android Wasm uses WAMR AOT. Emission excludes downstream native builds;
+ZX runs on the instruction engine; Android Wasm uses WAMR AOT. Emission excludes downstream native builds;
 size counts emitted files rather than executables. The site labels these limits.
 `--check` verifies source and artifact hashes without changing or remeasuring
 the snapshot. It intentionally preserves the measurement's original provenance.

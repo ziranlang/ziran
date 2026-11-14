@@ -166,7 +166,7 @@ The retained Ziran fixture performs before/after portable-engine execution,
 including loops and block parameters, aggregates, function values, divide and
 shift traps, exact Fuel consumption, limits, invalid input, repeated builds,
 failed builds, and repeated free. Its launcher runs source and saved IR through
-generated C, generated Go, and explicit portable VM execution:
+generated C, generated Go, and bundle execution on the engine:
 
 ```sh
 env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- \

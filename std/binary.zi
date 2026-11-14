@@ -1,5 +1,5 @@
 // Little-endian numbers in byte text, such as file or asset contents, read
-// the same way on every native target and in the portable VM. Floats are
+// the same way on every native target and in the engine. Floats are
 // decoded from their IEEE 754 bits with exact arithmetic, so no target
 // reinterprets memory. An offset that does not leave room for the field
 // reads as zero.

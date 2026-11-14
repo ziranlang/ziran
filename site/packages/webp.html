@@ -19,8 +19,8 @@ link. <code>webp/authored_lossless</code> retains the VP8L entry points and opti
 trace. The <a href="https://github.com/ziranlang/webp/blob/HEAD/docs/API.md">API contract</a> records ownership and capability limits.</p>
 <p><code>webp/riff</code> is an allocation-free authored RIFF parser with explicit length,
 padding, image header, animation frame rectangle/count and metadata limits.
-It is independently executed from source and saved IR in C, Go and the direct
-portable VM. Header validation and pixel decoding have separate tests.</p>
+It is independently executed from source and saved IR in C, Go and the
+engine. Header validation and pixel decoding have separate tests.</p>
 <p><code>LibwebpCapabilities</code> truthfully reports caller-owned output, one execution lane
 and first-frame compatibility. Synchronous native calls cannot enforce an
 internal scratch-memory allocation ceiling or stop mid-call; those capabilities

@@ -44,7 +44,7 @@ must not be moved or resized while a program view is live, and input to a new
 read must not alias the owner's preceding storage.
 
 These rules use ordinary Ziran slices and owned vectors, so they apply to C,
-Go, and portable VM output without a host-only allocator or garbage-collected
+Go, and engine reads without a host-only allocator or garbage-collected
 lifetime exception.
 
 ## Integer and sequence encodings

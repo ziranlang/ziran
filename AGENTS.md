@@ -10,7 +10,7 @@ do not import a UI library.
   ordinary library in `../kryon`, imported by applications that need it.
 - Add a capability here only when it is useful to non-graphical programs as a
   language or standard-library feature. Keep the source, checked `.zir`,
-  native targets, and portable VM behavior aligned.
+  native targets, and instruction-engine behavior aligned.
 - Use the current Ziran syntax directly. Do not add legacy Kryon/KIR/KRB
   compatibility paths.
 - Do not preserve old source spellings, command flags, binary formats, or

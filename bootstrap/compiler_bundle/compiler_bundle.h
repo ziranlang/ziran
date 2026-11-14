@@ -82,6 +82,9 @@ extern "C" {
 #define ExecutableSectionSource 0x80000002
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionInterface 0x80000003
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ExecutableAttachmentMinimum 0x80000100
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
@@ -221,6 +224,7 @@ struct ExecutableHeader {
     String content_identity;
     String debug;
     String source;
+    String interface;
     Slice attachments;
 };
 
@@ -245,6 +249,7 @@ struct ExecutableLayout {
     String content_identity;
     String debug;
     String source;
+    String interface;
 };
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 

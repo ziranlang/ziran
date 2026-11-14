@@ -28,6 +28,8 @@ ZxExecOwner :: struct {
     entry: s32
     assets: s64
     optional_sections: s64
+    // The host interface section's text, copied; empty when absent.
+    interface: Vec(u8)
 }
 
 #scope_file
@@ -513,7 +515,9 @@ Result :: (problem: ZxExecProblem) -> ZxExecResult {
 
 // Writes a deterministic stripped executable. Debug/source records and opaque
 // proof metadata are not copied into the required instruction section.
-ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8) -> ZxExecResult {
+// `interface` is the optional host interface section: names an embedder
+// sees, not read by the engine.
+ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, interface: string = "") -> ZxExecResult {
     limits := IR.LirDefaultLimits()
     budget := BudgetBegin(limits)
     diagnostic := Verify.LirVerify(program, limits)
@@ -569,7 +573,7 @@ ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8) -> Zx
     no_attachments: []Bundle.ExecutableAttachment
     header := Bundle.ExecutableHeader.{entry = program.entry, capabilities = capabilities, program = TextView(encoded[:]), assets = assets,
         program_identity = TextView(program_identity[:]), assets_identity = TextView(assets_identity[:]),
-        content_identity = TextView(content_identity[:]), attachments = no_attachments}
+        content_identity = TextView(content_identity[:]), interface = interface, attachments = no_attachments}
     measured_bundle := Bundle.ExecutableEncode(empty, header)
     if measured_bundle.problem != .None {
         VecFree(encoded)
@@ -613,6 +617,7 @@ ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8) -> Zx
 ZxExecReadFree :: (owner: *ZxExecOwner) {
     if owner == null { return }
     Serial.LirReadFree(*owner.read)
+    VecFree(owner.interface)
     owner.valid = false
     owner.entry = LirNoId
     owner.assets = 0
@@ -697,6 +702,12 @@ ZxExecRead :: (owner: *ZxExecOwner, input: string, limits: LirLimits) -> ZxExecR
         ZxExecReadFree(owner)
         return Result(.CapabilityCount)
     }
+    if !BudgetStorage(*budget, layout.interface.count, 1) ||
+        !VecResizeBounded(owner.interface, layout.interface.count, layout.interface.count) {
+        ZxExecReadFree(owner)
+        return Result(.Allocation)
+    }
+    for at: cast(s64)0..layout.interface.count - 1 { owner.interface[at] = layout.interface[at] }
     owner.valid = true
     owner.entry = layout.entry
     owner.assets = layout.assets

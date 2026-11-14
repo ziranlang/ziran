@@ -91,7 +91,9 @@ optional feature bits are recorded but do not affect execution.</p>
 and a zero reserved word. Kinds are strictly increasing and unique. Required
 manifest, program and asset sections are kinds 1, 2 and 3. Kind 4 is reserved
 for native variants. Optional debug and source attachments are <code>0x80000001</code> and
-<code>0x80000002</code>; producer-defined optional attachments begin at <code>0x80000100</code>.
+<code>0x80000002</code>, and the optional host interface section, which names what an
+embedder sees of each host capability, is <code>0x80000003</code>; producer-defined
+optional attachments begin at <code>0x80000100</code>.
 Required sections have flag bit 0. Unknown optional sections are skipped;
 unknown required sections reject. Offsets use canonical zero padding and are
 currently 8-byte aligned. The reader rejects arithmetic overflow, invalid

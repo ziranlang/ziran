@@ -49,6 +49,9 @@ ExecutableHeader :: struct {
     content_identity: string
     debug: string
     source: string
+    // Names of the host interface: the type spellings and record fields an
+    // embedder sees. Optional; the program runs without it.
+    interface: string
     attachments: []ExecutableAttachment
 }
 ExecutableResult :: struct { problem: ExecutableProblem; size: s64; offset: s64 }
@@ -67,6 +70,7 @@ ExecutableLayout :: struct {
     content_identity: string
     debug: string
     source: string
+    interface: string
 }
 
 #scope_file
@@ -95,6 +99,7 @@ ExecutableSectionAssets :: 3
 ExecutableSectionVariants :: 4
 ExecutableSectionDebug :: 0x80000001
 ExecutableSectionSource :: 0x80000002
+ExecutableSectionInterface :: 0x80000003
 ExecutableAttachmentMinimum :: 0x80000100
 ExecutableSectionRequired :: 1
 ExecutableManifestSchema :: 1
@@ -313,6 +318,7 @@ ExecutableSectionCount :: (header: ExecutableHeader) -> s64 {
     count: s64 = 3
     if header.debug.count != 0 { count += 1 }
     if header.source.count != 0 { count += 1 }
+    if header.interface.count != 0 { count += 1 }
     if header.attachments.count > ExecutableSectionLimit - count { return -1 }
     return count + header.attachments.count
 }
@@ -330,6 +336,10 @@ ExecutableSectionSize :: (header: ExecutableHeader, index: s64, asset_size: s64)
         if index == 0 { return header.source.count }
         index -= 1
     }
+    if header.interface.count != 0 {
+        if index == 0 { return header.interface.count }
+        index -= 1
+    }
     return header.attachments[index].data.count
 }
 
@@ -344,6 +354,10 @@ ExecutableSectionKind :: (header: ExecutableHeader, index: s64) -> u32 {
     }
     if header.source.count != 0 {
         if index == 0 { return ExecutableSectionSource }
+        index -= 1
+    }
+    if header.interface.count != 0 {
+        if index == 0 { return ExecutableSectionInterface }
         index -= 1
     }
     return header.attachments[index].kind
@@ -382,6 +396,10 @@ ExecutablePayload :: (writer: *ExecutableWriter, header: ExecutableHeader, index
         if index == 0 { ExecutableRaw(writer, header.source); return }
         index -= 1
     }
+    if header.interface.count != 0 {
+        if index == 0 { ExecutableRaw(writer, header.interface); return }
+        index -= 1
+    }
     ExecutableRaw(writer, header.attachments[index].data)
 }
 
@@ -395,7 +413,7 @@ ExecutableValidateHeader :: (header: ExecutableHeader) -> ExecutableProblem {
         header.content_identity.count != ExecutableIdentitySize { return .Identity }
     count := ExecutableSectionCount(header)
     if count < 3 || count > ExecutableSectionLimit { return .Limit }
-    previous: u32 = ExecutableSectionSource
+    previous: u32 = ExecutableSectionInterface
     for attachment: header.attachments {
         if !ExecutableValidAttachment(attachment, previous) { return .Section }
         previous = attachment.kind
@@ -538,6 +556,9 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
         } else if kind == ExecutableSectionSource {
             if required { layout.problem = .RequiredSection; return layout }
             layout.source = section; layout.optional_sections += 1
+        } else if kind == ExecutableSectionInterface {
+            if required { layout.problem = .RequiredSection; return layout }
+            layout.interface = section; layout.optional_sections += 1
         } else {
             if required { layout.problem = .RequiredSection; return layout }
             layout.optional_sections += 1

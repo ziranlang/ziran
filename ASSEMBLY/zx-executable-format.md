@@ -66,11 +66,32 @@ Implemented kinds are:
 | 4 | not accepted as required | reserved native variants |
 | `0x80000001` | no | opaque debug attachment |
 | `0x80000002` | no | opaque source attachment |
+| `0x80000003` | no | host interface: the names an embedder sees (below) |
 | `0x80000100` and above | no | producer extension attachments |
 
 An unknown optional section is bounded and skipped. An unknown required section
 rejects before LIR decoding. A required kind-4 section rejects as an unsupported
 native variant; arbitrary machine bytes are never selected or executed.
+
+## Host interface (kind `0x80000003`, optional)
+
+The instruction payload is structural: a record is its field types, a string
+is `{data, count}`. An embedder's host values carry names, so `zi2asm --emit
+zx` writes them here, as UTF-8 text of tab-separated lines. Type nodes come
+first, each naming only earlier nodes:
+
+    node ID scalar|string|pointer SPELLING
+    node ID slice|array SPELLING CHILD
+    node ID record SPELLING NAME CHILD NAME CHILD ...
+
+then one line per host capability, by LIR function index, with its result
+node (`-1` for void) and parameter nodes:
+
+    host FUNCTION RESULT PARAMETER ...
+
+A spelling is the type as declared at that position, which a host sees as the
+value's type name. The engine never reads this section, and a file without it
+runs the same.
 
 ## Manifest (kind 1, exactly 128 bytes)
 

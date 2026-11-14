@@ -89,12 +89,14 @@ assembler, C compiler, or system linker to produce this executable.
   stale, wrong-type, forged, and exhausted-generation tokens trap with status 125.
 - `#foreign host_api` calls lower to bodiless `Host` functions and explicit
   `host.call` instructions from source and saved IR. A host value is a bool,
-  integer, float, opaque `*void` handle, or a record, fixed array or view
-  (`string`, `[]T`) of host values, nested at most 64 deep. Other pointers,
-  procedure values and types that reach themselves through a view are
-  rejected. The revision-28 container records the recomputed capability
+  integer, float, pointer, which crosses as an opaque handle, or a record,
+  fixed array or view (`string`, `[]T`) of host values, nested at most 64
+  deep. Procedure values and types that reach themselves through a view are
+  rejected. The platform services are the named functions of the
+  `ziran.platform` module; a function of that name elsewhere is an ordinary
+  host capability. The revision-28 container records the recomputed capability
   count. Embedders use `LirExecBindHost` for the scalar ABI or
-  `LirExecBindHostTyped` for the typed ABI. Typed scalars and handles cross in
+  `LirExecBindHostTyped` for the typed ABI. Typed scalars and pointers cross in
   `bits`. Every other value crosses in `bytes` as one host image: the value's
   own bytes, then the elements of each view inside it. In the image a view's
   two words are the byte offset of its first element from the start of the

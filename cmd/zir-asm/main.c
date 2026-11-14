@@ -234,7 +234,7 @@ assembly_machine_gap(const LirProgram *program)
     const LirFunction *functions = program->functions.data;
     for(int64_t index = 0; index < program->functions.length; index++) {
         if(!functions[index].external) continue;
-        int service = ZxPlatformService(functions[index].name);
+        int service = ZxPlatformService(program, index);
         if(assembly_float_service(service))
             Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-float-format",
                 "assembly.gap.machine-float-format: machine ELF has no native float print formatter; no alternate engine was selected");
@@ -302,7 +302,7 @@ assembly_machine_gap(const LirProgram *program)
                 }
                 if(current.op == LirOp_HostCall) {
                     int service = current.symbol >= 0 && current.symbol < program->functions.length ?
-                        ZxPlatformService(functions[current.symbol].name) : ZX_SERVICE_NONE;
+                        ZxPlatformService(program, current.symbol) : ZX_SERVICE_NONE;
                     if(assembly_float_service(service))
                         Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-float-format",
                             "assembly.gap.machine-float-format: machine ELF has no native float print formatter; no alternate engine was selected");
@@ -731,7 +731,10 @@ main(int argc, char **argv)
     int executable = !strcmp(emit, "elf");
     int64_t size = 0;
     if(!serialized && canonical) {
-        ZxExecResult measured = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){0});
+        size_t interface_length = 0;
+        const char *interface = AssemblyHostInterface(lowered, &interface_length);
+        String interface_text = {interface ? interface : "", interface_length};
+        ZxExecResult measured = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){0}, interface_text);
         if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
             String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
             Diagnostic((ZirSourceSpan){0}, "assembly.container",
@@ -742,7 +745,8 @@ main(int argc, char **argv)
         zx_size = measured.size;
         zx_bytes = malloc((size_t)zx_size);
         if(zx_bytes == NULL) { DiagnosticOutOfMemory(); goto done; }
-        ZxExecResult encoded = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){zx_bytes, zx_size});
+        ZxExecResult encoded = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){zx_bytes, zx_size},
+            interface_text);
         if(encoded.problem != ZxExecProblem_None || encoded.size != zx_size) {
             String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);
             Diagnostic((ZirSourceSpan){0}, "assembly.container",
@@ -805,7 +809,7 @@ main(int argc, char **argv)
         const LirFunction *functions = view->functions.data;
         for(int64_t index = 0; index < view->functions.length; index++) {
             if(!functions[index].external) continue;
-            int service = ZxPlatformService(functions[index].name);
+            int service = ZxPlatformService(view, index);
             if(assembly_float_service(service)) {
                 Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-float-format",
                     "assembly.gap.native-float-format: selected target linux-x86_64-elf has no native float print formatter; no alternate engine was selected");

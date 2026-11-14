@@ -724,9 +724,9 @@ LirHostView :: (program: LirProgram, type: s32) -> bool {
 // been verified. Zero means the type cannot cross a typed host boundary.
 // Otherwise the low seven bits hold the nesting depth and LirHostShapeViews
 // says whether a view lies inside. Host shapes are bools, integers, floats,
-// opaque `*void` handles, and records, fixed arrays and views of host
-// shapes. Other pointers and procedure values are not shapes, and neither is
-// a type that reaches itself through a view or nests past LirHostShapeDepth.
+// pointers, which cross as opaque handles, and records, fixed arrays and
+// views of host shapes. Procedure values are not shapes, and neither is a
+// type that reaches itself through a view or nests past LirHostShapeDepth.
 // Returns false only when memory runs out.
 LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
     count := program.types.count
@@ -760,7 +760,10 @@ LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
             type := program.types[id]
             shape := type.kind == .Bool || type.kind == .Integer || type.kind == .Float ||
                 type.kind == .Record || type.kind == .Array
-            if type.kind == .Pointer { shape = program.types[type.element].kind == .Void }
+            // A pointer crosses as an opaque handle: the host never reads
+            // through it, and a pointer a host returns is only ever compared
+            // and handed back.
+            if type.kind == .Pointer { shape = true }
             views := LirHostView(program, id)
             height: s64 = 1
             for index: cast(s64)0..children - 1 {

@@ -4,6 +4,8 @@
 
 - Document module initializers in the usage guide and lock their behavior with a test: a module-level variable whose initializer calls a procedure runs once before the entry on the C, Go and portable targets, importing a module is what includes it, and a module can register a procedure with another module that never imports it. A program without the import carries neither the module nor what only it reaches.
 
+- Revision-28 ZX gains an optional host interface section (kind `0x80000003`): the type spellings and record field names of every host capability's parameters and result, which the structural instruction payload does not keep and an embedder's host values carry. Any pointer now crosses a host boundary as an opaque handle, as on the semantic route, and a platform service is recognised only in the `ziran.platform` module by the native encoder and the runner.
+
 - `ziran run` and `zi2zx run` run a revision-28 `.zx` file on the portable instruction engine and print what they print for a semantic bundle, the entry's result line included. A file whose header names another revision still goes to the bundle reader. `zi2asm --run` and `zi2zx run` share one runner (`cmd/zir-asm/zx_exec_run.c`).
 
 - Every program the semantic bundle route runs in `tests/spec` and `examples` now lowers to revision-28 ZX. A procedure or block with `#asm` variants lowers from its ordinary body. A record of the same shape under another name, such as the record a procedure returns several results in, converts field by field. The instructions of one expression share one source origin, and the default verification and optimization work limit is a billion, so a program of several hundred thousand instructions lowers, optimizes and writes.

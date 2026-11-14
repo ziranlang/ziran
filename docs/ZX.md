@@ -103,7 +103,9 @@ Each 32-byte directory record contains kind, flags, offset, length, alignment
 and a zero reserved word. Kinds are strictly increasing and unique. Required
 manifest, program and asset sections are kinds 1, 2 and 3. Kind 4 is reserved
 for native variants. Optional debug and source attachments are `0x80000001` and
-`0x80000002`; producer-defined optional attachments begin at `0x80000100`.
+`0x80000002`, and the optional host interface section, which names what an
+embedder sees of each host capability, is `0x80000003`; producer-defined
+optional attachments begin at `0x80000100`.
 Required sections have flag bit 0. Unknown optional sections are skipped;
 unknown required sections reject. Offsets use canonical zero padding and are
 currently 8-byte aligned. The reader rejects arithmetic overflow, invalid

@@ -1916,8 +1916,7 @@ ExecHostScalarType :: (type: LirType) -> bool {
 }
 
 ExecHostHandleType :: (program: LirProgram, type: s32) -> bool {
-    value := program.types[type]
-    return value.kind == .Pointer && program.types[value.element].kind == .Void
+    return program.types[type].kind == .Pointer
 }
 
 // Scalars and opaque handles cross a typed host boundary in `bits`; every

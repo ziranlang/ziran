@@ -21,8 +21,9 @@ enum {
     ZX_SERVICE_PRINT_FLOAT64
 };
 
-/* The platform console service a host function name stands for. */
-int ZxPlatformService(String name);
+/* The platform console service a host function of the program stands for:
+ * one of the ZX_SERVICE_ names in the ziran.platform module, else none. */
+int ZxPlatformService(const LirProgram *program, int64_t function);
 
 /* Limits for a command-line run, which like a native build continues until
  * the entry returns: no work or fuel budget, deep recursion. */

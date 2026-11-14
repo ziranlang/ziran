@@ -588,7 +588,7 @@ X64StaticLiteral :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout
                 if type.is_signed && (value.bits & (cast(u64)1 << cast(u64)(type.bits - 1))) != 0 { value.bits |= ~mask }
             }
         } else if op == .HostCall {
-            if X64PlatformService(program.functions[instruction.symbol]) != X64ServicePrintBytes { return false }
+            if X64PlatformService(program, program.functions[instruction.symbol]) != X64ServicePrintBytes { return false }
             fd := values[instruction.operands[0]]
             pointer := values[instruction.operands[1]]
             count := values[instruction.operands[2]]
@@ -847,7 +847,7 @@ X64PrintBool :: (writer: *X64Writer) {
 
 X64HostCall :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
     function: s64, fn: LirFunction, instruction: LirInstruction) {
-    service := X64PlatformService(program.functions[instruction.symbol])
+    service := X64PlatformService(program, program.functions[instruction.symbol])
     if service == X64ServicePrintBytes {
         X64PrintBytes(writer, program, layout, function, fn, instruction)
         return
@@ -1470,7 +1470,11 @@ X64Float :: (type: LirType) -> bool {
     return type.kind == .Float && (type.bits == 32 || type.bits == 64)
 }
 
-X64PlatformService :: (function: LirFunction) -> s32 {
+// A platform service is named by its function and lives in ziran.platform;
+// a function of that name in any other module is an ordinary host capability.
+X64PlatformService :: (program: LirProgram, function: LirFunction) -> s32 {
+    if function.module < 0 || function.module >= program.modules.count ||
+        program.modules[function.module] != "ziran.platform" { return X64ServiceNone }
     if function.name == "ziran.platform.write_all" { return X64ServicePrintBytes }
     if function.name == "ziran.print.signed" { return X64ServicePrintSigned }
     if function.name == "ziran.print.unsigned" { return X64ServicePrintUnsigned }
@@ -1486,7 +1490,7 @@ X64PlatformServiceSignature :: (program: LirProgram, function: LirFunction) -> b
         program.modules[function.module] != "ziran.platform" ||
         function.result < 0 || function.result >= program.types.count ||
         program.types[function.result].kind != .Void { return false }
-    service := X64PlatformService(function)
+    service := X64PlatformService(program, function)
     if service == X64ServiceNone { return false }
     wanted := ifx service == X64ServicePrintBytes then cast(s64)3 else cast(s64)1
     if function.parameters.count != wanted { return false }

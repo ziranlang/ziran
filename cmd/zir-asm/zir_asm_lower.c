@@ -120,6 +120,9 @@ struct AssemblyProgram {
     int64_t work;
     int failed;
     int string_type;
+    /* The host interface text, built on first request. */
+    char *interface;
+    size_t interface_length;
 };
 
 static int
@@ -3934,7 +3937,157 @@ AssemblyFree(AssemblyProgram *program)
         free(allocation);
         allocation = next;
     }
+    free(program->interface);
     free(program);
+}
+
+/* The host interface: what an embedder sees of each host capability, which
+ * the instruction payload does not keep. One line per type node, then one per
+ * host function, fields separated by tabs:
+ *
+ *   node ID CLASS SPELLING [...]   CLASS is scalar, string, pointer,
+ *                                  slice CHILD, array CHILD, or
+ *                                  record NAME CHILD NAME CHILD ...
+ *   host FUNCTION RESULT PARAMETER...
+ *
+ * SPELLING is the type as declared at that position, which a host sees as a
+ * value's type name. FUNCTION is the LIR function index, RESULT -1 for void. */
+typedef struct InterfaceText {
+    char *data;
+    size_t length, capacity;
+    int failed;
+} InterfaceText;
+
+typedef struct InterfaceNode {
+    const ZirModule *module;
+    const char *spelling;
+    int id;
+} InterfaceNode;
+
+static void
+interface_put(InterfaceText *text, const char *part)
+{
+    size_t length = strlen(part);
+    if(text->failed) return;
+    if(text->length + length + 1 > text->capacity) {
+        size_t capacity = text->capacity ? text->capacity : 256;
+        while(capacity < text->length + length + 1) capacity *= 2;
+        char *grown = realloc(text->data, capacity);
+        if(grown == NULL) { text->failed = 1; return; }
+        text->data = grown;
+        text->capacity = capacity;
+    }
+    memcpy(text->data + text->length, part, length + 1);
+    text->length += length;
+}
+
+static int
+interface_node(AssemblyProgram *program, InterfaceText *text, AssemblyVector *nodes,
+               const ZirModule *module, const char *spelling, int depth)
+{
+    if(depth > 64 || text->failed) { text->failed = 1; return -1; }
+    InterfaceNode *known = nodes->data;
+    for(int index = 0; index < nodes->count; index++)
+        if(known[index].module == module && !strcmp(known[index].spelling, spelling)) return known[index].id;
+    /* Children first, so every line names only nodes before it. */
+    char element[ZIR_NAME_MAX];
+    int count = 0, child = -1;
+    const char *class = "scalar";
+    ZirVector vector;
+    const ZirModule *owner = module;
+    const ZirType *record = NULL;
+    if(VectorType(spelling, &vector)) {
+        class = "array";
+        child = interface_node(program, text, nodes, module, vector.lane, depth + 1);
+    } else if(ArrayElementType(spelling, element, sizeof(element), &count)) {
+        class = "array";
+        child = interface_node(program, text, nodes, module, element, depth + 1);
+    } else if(SliceElementType(spelling, element, sizeof(element))) {
+        class = "slice";
+        child = interface_node(program, text, nodes, module, element, depth + 1);
+    } else if(!strcmp(spelling, "string")) class = "string";
+    else if(spelling[0] == '*') class = "pointer";
+    else if(!ScalarWidth(spelling) && strcmp(spelling, "bool") && strcmp(spelling, "float32") &&
+            strcmp(spelling, "float64") && (record = FindType(module, spelling, &owner)) != NULL &&
+            !record->is_enum && !record->is_union) class = "record";
+    else record = NULL;
+    AssemblyVector fields = {.width = sizeof(int)};
+    if(record != NULL) {
+        size_t cursor = 0;
+        ZirTypeField field;
+        int status;
+        while((status = TypeNextField(record, &cursor, &field)) == 1 && !text->failed) {
+            int node = interface_node(program, text, nodes, owner, field.type, depth + 1);
+            assembly_push(program, &fields, &node);
+        }
+        if(status < 0) text->failed = 1;
+    }
+    if(text->failed || program->failed) { text->failed = 1; return -1; }
+    int id = nodes->count;
+    char number[32];
+    snprintf(number, sizeof(number), "node\t%d\t", id);
+    interface_put(text, number);
+    interface_put(text, class);
+    interface_put(text, "\t");
+    interface_put(text, spelling);
+    if(child >= 0) {
+        snprintf(number, sizeof(number), "\t%d", child);
+        interface_put(text, number);
+    }
+    if(record != NULL) {
+        size_t cursor = 0;
+        ZirTypeField field;
+        for(int index = 0; index < fields.count && TypeNextField(record, &cursor, &field) == 1; index++) {
+            interface_put(text, "\t");
+            interface_put(text, field.name);
+            snprintf(number, sizeof(number), "\t%d", ((int *)fields.data)[index]);
+            interface_put(text, number);
+        }
+    }
+    interface_put(text, "\n");
+    InterfaceNode node = {module, assembly_text(program, spelling), id};
+    if(!assembly_push(program, nodes, &node)) text->failed = 1;
+    return id;
+}
+
+const char *
+AssemblyHostInterface(AssemblyProgram *program, size_t *length)
+{
+    *length = 0;
+    if(program == NULL || program->failed) return NULL;
+    if(program->interface != NULL) { *length = program->interface_length; return program->interface; }
+    InterfaceText text = {0};
+    AssemblyVector nodes = {.width = sizeof(InterfaceNode)};
+    AssemblyFunction **functions = program->functions.data;
+    InterfaceText hosts = {0};
+    for(int index = 0; index < program->functions.count && !text.failed; index++) {
+        AssemblyFunction *function = functions[index];
+        if(!function->result.external || function->source == NULL ||
+           !function->source->is_extern || function->source->extern_kind != ZIR_EXTERN_HOST) continue;
+        const ZirFunction *source = function->source;
+        int result = source->return_type[0] && strcmp(source->return_type, "void") ?
+            interface_node(program, &text, &nodes, function->module, source->return_type, 0) : -1;
+        char number[48];
+        snprintf(number, sizeof(number), "host\t%d\t%d", index, result);
+        interface_put(&hosts, number);
+        const ZirParameters *parameters = ParametersOf(FunctionArgs(source));
+        for(int at = 0; at < parameters->count && !text.failed; at++) {
+            int node = interface_node(program, &text, &nodes, function->module, parameters->items[at].value_type, 0);
+            snprintf(number, sizeof(number), "\t%d", node);
+            interface_put(&hosts, number);
+        }
+        interface_put(&hosts, "\n");
+    }
+    if(hosts.data != NULL) interface_put(&text, hosts.data);
+    free(hosts.data);
+    if(text.failed || hosts.failed || program->failed) {
+        free(text.data);
+        return NULL;
+    }
+    program->interface = text.data;
+    program->interface_length = text.length;
+    *length = text.length;
+    return text.data;
 }
 
 static void

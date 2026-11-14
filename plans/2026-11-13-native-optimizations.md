@@ -329,7 +329,15 @@ only switch once each of these reads revision 28, so the cutover goes in stages,
    the semantic runner's output. `tests/zx_lowered_parity.sh` checks it for all 68 programs.
 2. The embedding API (`BundleOpen`, `BundleCapability*`, `BundleRun`, `BundleInstantiate`,
    `BundleInstanceRun`) opens revision 28, translating `VmHostValue` arguments and results to and
-   from host images, with mutable slice copy-back.
+   from host images, with mutable slice copy-back. Steps:
+   a. Done: any pointer crosses as an opaque handle; platform services require `ziran.platform`.
+   b. Done: the optional host interface section names each capability's types and record fields
+      (`AssemblyHostInterface`; format in `ASSEMBLY/zx-executable-format.md`).
+   c. The runtime library links the instruction engine: a bootstrap module for
+      `compiler_exec`, `compiler_exec_link`, `compiler_exec_serial`, `compiler_lowered_verify`
+      and `compiler_lowered_ir`, regenerated with `make update-bootstrap`.
+   d. `cmd/zir/zir_host.c` opens revision 28 as one more instance kind and translates host
+      values with the interface section.
 3. `zi2zx bundle` and `ziran run FILE.zi` write and run revision 28. Each semantic-only feature
    then gets its revision-28 form or goes: assets, laws, state export, components, libraries,
    linked native code, the browser player.

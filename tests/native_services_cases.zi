@@ -140,11 +140,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "write_all rejects a non-pointer byte parameter") { return 2 }
     functions[1].parameters = good_parameters[:]
     functions[1].module = 0
-    if !Check(Encode(functions[:], modules[:], types[:]) == .Unsupported,
+    // Outside ziran.platform it is an ordinary host capability, which the
+    // native encoder has no veneer for.
+    if !Check(Encode(functions[:], modules[:], types[:]) == .Calling,
         "write_all rejects a non-platform module") { return 3 }
     functions[1].module = 1
     functions[1].name = "ziran.platform.unknown"
-    if !Check(Encode(functions[:], modules[:], types[:]) == .Unsupported,
+    if !Check(Encode(functions[:], modules[:], types[:]) == .Calling,
         "unknown target service is not accepted") { return 4 }
     functions[1].name = "ziran.platform.write_all"
     functions[1].calling = .Portable
@@ -152,7 +154,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "write_all rejects a non-host calling convention") { return 5 }
     functions[1].calling = .Host
     functions[1].result = 1
-    if !Check(Encode(functions[:], modules[:], types[:]) == .Unsupported,
+    if !Check(Encode(functions[:], modules[:], types[:]) == .Calling,
         "write_all rejects a non-void result") { return 6 }
     return 0
 }

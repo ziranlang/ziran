@@ -1208,7 +1208,7 @@ TypedHostShapes :: () -> bool {
         .{.kind = .Record, .fields = row_fields[:]}, .{.kind = .Pointer, .element = 4},
         .{.kind = .Record, .fields = strings_fields[:]}, .{.kind = .Pointer, .element = 0},
         .{.kind = .Array, .element = 4, .count = 2}, .{.kind = .Pointer, .element = 10},
-        .{.kind = .Pointer, .element = 5}, .{.kind = .Record, .fields = raw_fields[:]}]
+        .{.kind = .Function, .result = 0}, .{.kind = .Record, .fields = raw_fields[:]}]
     modules: [1]string = .["host-shapes"]
     empty: [0]s32
     constants: [2]LirConstant = .[.{.type = 2, .bits = 2}, .{.type = 2, .bits = 0}]
@@ -1275,7 +1275,7 @@ TypedHostShapes :: () -> bool {
     LirExecInstanceClose(*instance)
     LirExecPlanFree(*plan)
 
-    // A pointer to anything but void is not a host value, alone or in a record.
+    // A procedure value is not a host value, alone or in a record.
     raw: [1]s32 = .[12]
     raw_functions: [1]LirFunction = .[
         .{.module = 0, .name = "Raw", .parameters = raw[:], .result = 0,

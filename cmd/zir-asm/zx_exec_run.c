@@ -15,8 +15,14 @@ zx_text_equal(String text, const char *expected)
 }
 
 int
-ZxPlatformService(String name)
+ZxPlatformService(const LirProgram *program, int64_t function)
 {
+    if(function < 0 || function >= program->functions.length) return ZX_SERVICE_NONE;
+    const LirFunction *declared = &((const LirFunction *)program->functions.data)[function];
+    if(declared->module < 0 || declared->module >= program->modules.length ||
+       !zx_text_equal(((const String *)program->modules.data)[declared->module], "ziran.platform"))
+        return ZX_SERVICE_NONE;
+    String name = declared->name;
     if(zx_text_equal(name, "ziran.platform.write_all")) return ZX_SERVICE_PRINT_BYTES;
     if(zx_text_equal(name, "ziran.print.signed")) return ZX_SERVICE_PRINT_SIGNED;
     if(zx_text_equal(name, "ziran.print.unsigned")) return ZX_SERVICE_PRINT_UNSIGNED;
@@ -58,7 +64,8 @@ zx_run_print(void *closure, void *context, int32_t function, Slice arguments, ui
     *result = 0;
     if(function < 0 || function >= program->functions.length || arguments.length != 1) return false;
     char text[64];
-    int service = ZxPlatformService(functions[function].name);
+    (void)functions;
+    int service = ZxPlatformService(program, function);
     if(service == ZX_SERVICE_PRINT_SIGNED)
         snprintf(text, sizeof(text), "%lld", (long long)values[0]);
     else if(service == ZX_SERVICE_PRINT_UNSIGNED)
@@ -86,7 +93,7 @@ zx_run_bind(LirExecInstance *instance, const LirProgram *program)
     const LirFunction *functions = program->functions.data;
     for(int64_t index = 0; index < program->functions.length; index++) {
         if(!functions[index].external) continue;
-        int service = ZxPlatformService(functions[index].name);
+        int service = ZxPlatformService(program, index);
         LirExecProblem bound = LirExecProblem_None;
         if(service == ZX_SERVICE_PRINT_BYTES)
             bound = compiler_exec_LirExecBindPlatformWrite(instance, (int32_t)index,

@@ -257,9 +257,11 @@ HostCapabilities :: () -> s32 {
     functions[1].blocks = blocks[:]
     if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Function { return Fail(54) }
     functions[1].blocks = blocks[0:0]
+    // A pointer crosses as an opaque handle, so the declaration is valid; the
+    // call that passes it an integer is not.
     pointer_parameters: [1]s32 = .{2}
     functions[1].parameters = pointer_parameters[:]
-    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Unsupported { return Fail(55) }
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Calling { return Fail(55) }
     functions[1].parameters = parameters[:]
     functions[1].calling = .C
     if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Unsupported { return Fail(56) }

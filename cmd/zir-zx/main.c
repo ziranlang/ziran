@@ -1,4 +1,5 @@
 #include "zx_exec_run.h"
+#include "compiler_bundle.h"
 #include "zir.h"
 #include "zir_bundle.h"
 #include "zir_check.h"
@@ -202,7 +203,15 @@ bundle_to(int argc, char **argv, FILE *into, int *local)
     /* Experiment: ZIRAN_BUNDLE_EXEC=1 writes revision-28 executable ZX. */
     if(getenv("ZIRAN_BUNDLE_EXEC") != NULL && library_count == 0 && host_module_count == 0) {
         size_t size = 0;
-        unsigned char *bytes = ZxExecBuild(&merged, entry_module, entry_function, &size);
+        /* The assets as the writer takes them, borrowing their bytes. */
+        Asset *views = calloc(assets.count + 1, sizeof(*views));
+        if(views == NULL) goto done;
+        for(size_t i = 0; i < assets.count; i++)
+            views[i] = (Asset){{assets.items[i].name, strlen(assets.items[i].name)},
+                               {(const char *)assets.items[i].data, assets.items[i].size}};
+        unsigned char *bytes = ZxExecBuild(&merged, entry_module, entry_function,
+                                           (Slice){views, (int64_t)assets.count}, &size);
+        free(views);
         if(bytes == NULL) goto done;
         FILE *target = into != NULL ? into : fopen(output, "wb");
         int written = target != NULL && fwrite(bytes, 1, size, target) == size;
@@ -320,16 +329,13 @@ is_source(const char *path)
 }
 
 /* Source runs as a bundle built here in memory. It is the only kind whose
- * #asm variants may run natively; a bundle file never is. A revision-28
- * bundle runs on the instruction engine at once, and *status is its exit
- * status; otherwise the bundle is returned. */
+ * #asm variants may run natively; a bundle file never is. */
 static Bundle *
-open_source(int argc, char **argv, int *ran, int *status)
+open_source(int argc, char **argv)
 {
     FILE *memory = tmpfile();
     int local = 0;
     Bundle *bundle = NULL;
-    *ran = 0;
     if(memory == NULL) {
         Diagnostic(Span("<command>", 1, 1), "zx.output", "cannot create a temporary bundle");
         return NULL;
@@ -338,10 +344,8 @@ open_source(int argc, char **argv, int *ran, int *status)
         long size = ftell(memory);
         unsigned char *data = size > 0 ? malloc((size_t)size) : NULL;
         rewind(memory);
-        if(data != NULL && fread(data, 1, (size_t)size, memory) == (size_t)size) {
-            if(ZxExecRunBytes(data, (size_t)size, ZxExecCommandLimits(), 1, status) != 0) *ran = 1;
-            else bundle = BundleOpenBytes(data, (size_t)size);
-        }
+        if(data != NULL && fread(data, 1, (size_t)size, memory) == (size_t)size)
+            bundle = BundleOpenBytes(data, (size_t)size);
         free(data);
     }
     fclose(memory);
@@ -379,31 +383,8 @@ run_command(int argc, char **argv)
         usage();
         return 1;
     }
-    /* A revision-28 executable runs on the portable instruction engine; an
-     * older semantic bundle opens below. */
-    if(!source) {
-        FILE *input = fopen(argv[0], "rb");
-        unsigned char *bytes = NULL;
-        long size = -1;
-        if(input != NULL && fseek(input, 0, SEEK_END) == 0 && (size = ftell(input)) >= 0 &&
-           fseek(input, 0, SEEK_SET) == 0 && (bytes = malloc(size ? (size_t)size : 1)) != NULL &&
-           fread(bytes, 1, (size_t)size, input) == (size_t)size) {
-            int status = 1;
-            int executable = ZxExecRunBytes(bytes, (size_t)size, ZxExecCommandLimits(), 1, &status);
-            free(bytes);
-            fclose(input);
-            if(executable > 0) return status;
-            if(executable < 0) return 1;
-        } else {
-            free(bytes);
-            if(input != NULL) fclose(input);
-        }
-    }
     RunJob job = {0};
-    int ran = 0, status = 1;
-    job.bundle = source ? open_source(argc, argv, &ran, &status) : BundleOpen(argv[0]);
-    if(ran)
-        return status;
+    job.bundle = source ? open_source(argc, argv) : BundleOpen(argv[0]);
     if(job.bundle == NULL)
         return 1;
     /* Discover the platform provider before running application code. */
@@ -427,7 +408,7 @@ run_command(int argc, char **argv)
     if(!ran_on_thread)
         run_job(&job);
     if(job.ok && job.has_result) {
-        if(BundleEntry(job.bundle)->return_type[0] == 'u')
+        if(BundleEntryReturnType(job.bundle)[0] == 'u')
             printf("%llu\n", (unsigned long long)job.result);
         else
             printf("%lld\n", job.result);

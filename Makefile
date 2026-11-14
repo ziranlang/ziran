@@ -158,16 +158,19 @@ obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
     compiler_exec_serial compiler_exec_link compiler_exec
+# The Wasm lowering of revision-28 ZX (cmd/zir-wasm/zx_wasm_lower.c) reads
+# the program through the same engine and joins the same object.
+HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir-wasm/zx_wasm_lower.c
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=
-$(call obj,cmd/zir/zir_host_exec.c): CFLAGS += -DZIRAN_NO_ENGINE
+$(call obj,$(HOST_EXEC_SOURCES)): CFLAGS += -DZIRAN_NO_ENGINE
 else
 ENGINE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/engine/%.o,$(ENGINE_MODULES))
-$(call obj,cmd/zir/zir_host_exec.c): CFLAGS += -iquote $(ENGINE_C)
-$(call obj,cmd/zir/zir_host_exec.c): $(ENGINE_C)/.generated
+$(call obj,$(HOST_EXEC_SOURCES)): CFLAGS += -iquote $(ENGINE_C)
+$(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_C)/.generated
 endif
 HOST_EXEC_OBJECT := $(BUILD_DIR)/obj/host_exec.o
-$(HOST_EXEC_OBJECT): $(call obj,cmd/zir/zir_host_exec.c) $(ENGINE_OBJECTS)
+$(HOST_EXEC_OBJECT): $(call obj,$(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS)
 	$(CC) -r -nostdlib -o $@ $^ && $(OBJCOPY) --localize-hidden $@
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(HOST_EXEC_OBJECT) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o \

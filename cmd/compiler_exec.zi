@@ -25,7 +25,11 @@ LirExecValue :: struct { type: s32; bits: u64; bytes: s64 }
 // Arguments and the result use the canonical bits of their LIR scalar types:
 // zero-extended integers, 0/1 bools and IEEE float32/float64 patterns.
 LirExecHostCall :: #type (context: *void, function: s32, arguments: []u64, result: *u64) -> bool;
-LirExecArgument :: struct { type: s32; bits: u64; bytes: []u8 }
+// A host may change the elements of an argument bound as a mutable view
+// (LirExecHostMutableView): it sets `changed` and puts the argument's new
+// image in `bytes`, with the same element count. After the call the engine
+// copies those elements back into the view's storage.
+LirExecArgument :: struct { type: s32; bits: u64; bytes: []u8; changed: bool }
 LirExecTypedHostCall :: #type (context: *void, function: s32,
     arguments: []LirExecArgument, result: *LirExecArgument) -> bool;
 // The platform byte-output service `(descriptor: u64, data: *u8, count: u64)`,
@@ -39,6 +43,8 @@ LirExecHostBinding :: struct {
     typed: LirExecTypedHostCall
     write: LirExecPlatformWrite
     context: *void
+    // Bit p: parameter p is a mutable view.
+    views: u64
 }
 
 LirExecResult :: struct {
@@ -1938,6 +1944,16 @@ ExecHostSignature :: (plan: *LirExecPlan, function: s32, typed: bool) -> bool {
     return ExecHostScalarType(program.types[fn.result])
 }
 
+// Where decoded host bytes go: a frame's storage, the instance-owned bytes
+// or the globals.
+ExecStore :: enum u8 { Frame; Owned; Globals }
+
+ExecStoreBits :: (instance: *LirExecInstance, store: ExecStore, at: s64, count: s64, bits: u64) {
+    if store == .Owned { ExecWriteBits(instance.owned[:], at, count, bits) }
+    else if store == .Globals { ExecWriteBits(instance.globals[:], at, count, bits) }
+    else { ExecWriteBits(instance.storage[:], at, count, bits) }
+}
+
 ExecHostAvailable :: (instance: *LirExecInstance) -> s64 {
     return instance.limits.value_bytes - instance.globals.count - instance.storage.count -
         instance.words.count * 8 - instance.result_bytes.count - instance.owned.count
@@ -1968,7 +1984,8 @@ ExecHostEncode :: (instance: *LirExecInstance, type: s32, source: []u8, from: s6
         count := ExecReadBits(source, from + 8, 8)
         if !ExecSpend(instance, 1) { return false }
         if count == 0 {
-            ExecWriteBits(instance.host_bytes[:], to, 16, 0)
+            ExecWriteBits(instance.host_bytes[:], to, 8, 0)
+            ExecWriteBits(instance.host_bytes[:], to + 8, 8, 0)
             return true
         }
         element := program.types[value.fields[0]].element
@@ -2025,8 +2042,9 @@ ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
     available := ExecHostAvailable(instance)
     if available < 0 { return ExecFail(instance, .ValueBytes) }
     unused VecResize(instance.host_bytes, 0)
-    if !VecResizeBounded(instance.typed_arguments, count, count) ||
-        !VecResizeBounded(instance.host_arguments, count, count) { return ExecFail(instance, .Allocation) }
+    // Earlier calls may have left more room than this one needs.
+    if !VecResize(instance.typed_arguments, count) ||
+        !VecResize(instance.host_arguments, count) { return ExecFail(instance, .Allocation) }
     for index: cast(s64)0..count - 1 {
         operand := instruction.operands[index]
         type := instance.plan.value_types[instance.current_value_base + operand]
@@ -2050,20 +2068,19 @@ ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
     }
     for index: cast(s64)0..count - 1 {
         if ExecHostBitsType(program, instance.typed_arguments[index].type) { continue }
-        length := cast(s64)instance.typed_arguments[index].bits
+        start := cast(s64)instance.host_arguments[index]
+        end := start + cast(s64)instance.typed_arguments[index].bits
         instance.typed_arguments[index].bits = 0
-        instance.typed_arguments[index].bytes = VecSlice(instance.host_bytes,
-            cast(s64)instance.host_arguments[index], length)
+        instance.typed_arguments[index].bytes = VecSlice(instance.host_bytes, start, end)
     }
     return true
 }
 
-// Reads the `type` value at `image[from]` of a host image into the frame
-// storage at `to`, or into the instance-owned bytes when `owned`. Each view's
-// elements become read-only instance-owned storage that stays valid for
-// globals and later calls.
+// Reads the `type` value at `image[from]` of a host image into `store` at
+// `to`. Each view's elements become read-only instance-owned storage that
+// stays valid for globals and later calls.
 ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64,
-    owned: bool, to: s64) -> bool {
+    store: ExecStore, to: s64) -> bool {
     plan := instance.plan
     program := plan.program
     value := program.types[type]
@@ -2074,14 +2091,14 @@ ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64
         width := plan.type_sizes[value.element]
         for index: cast(s64)0..value.count - 1 {
             if !ExecHostDecode(instance, value.element, image, from + index * width,
-                owned, to + index * width) { return false }
+                store, to + index * width) { return false }
         }
         return true
     }
     if value.kind == .Record && !LirHostView(program, type) {
         offset: s64
         for field: value.fields {
-            if !ExecHostDecode(instance, field, image, from + offset, owned, to + offset) { return false }
+            if !ExecHostDecode(instance, field, image, from + offset, store, to + offset) { return false }
             offset += plan.type_sizes[field]
         }
         return true
@@ -2089,8 +2106,7 @@ ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64
     if value.kind != .Record {
         bits := ExecReadBits(image, from, size)
         if value.kind == .Bool && bits > cast(u64)1 { return ExecFail(instance, .Host) }
-        if owned { ExecWriteBits(instance.owned[:], to, size, bits) }
-        else { ExecWriteBits(instance.storage[:], to, size, bits) }
+        ExecStoreBits(instance, store, to, size, bits)
         return true
     }
     start := ExecReadBits(image, from, 8)
@@ -2119,17 +2135,12 @@ ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64
         } else {
             for index: cast(s64)0..cast(s64)count - 1 {
                 if !ExecHostDecode(instance, element, image, cast(s64)start + index * width,
-                    true, base + index * width) { return false }
+                    .Owned, base + index * width) { return false }
             }
         }
     }
-    if owned {
-        ExecWriteBits(instance.owned[:], to, 8, token)
-        ExecWriteBits(instance.owned[:], to + 8, 8, count)
-    } else {
-        ExecWriteBits(instance.storage[:], to, 8, token)
-        ExecWriteBits(instance.storage[:], to + 8, 8, count)
-    }
+    ExecStoreBits(instance, store, to, 8, token)
+    ExecStoreBits(instance, store, to + 8, 8, count)
     return true
 }
 
@@ -2153,7 +2164,7 @@ ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
     destination := ExecFrameValueOffset(instance, frame_index, instruction.result)
     owned_count := instance.owned.count
     heap_tail := instance.heap_tail
-    if !ExecHostDecode(instance, expected, result.bytes, 0, false, destination) {
+    if !ExecHostDecode(instance, expected, result.bytes, 0, .Frame, destination) {
         // A rejected image leaves no storage behind; the addresses made for
         // it name bytes that are gone, so they are never valid.
         instance.heap_tail = heap_tail
@@ -2161,6 +2172,108 @@ ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
         return false
     }
     ExecMarkValue(instance, frame_index, instruction.result)
+    return true
+}
+
+ExecHostViewParameter :: (host: LirExecHostBinding, index: s64) -> bool {
+    return index < 64 && ((host.views >> cast(u64)index) & cast(u64)1) != cast(u64)0
+}
+
+// Where the elements of the view argument `index` lie: their store and byte
+// range. Returns the view's address, or -1 when it is empty. Encoding the
+// argument checked the address.
+ExecViewSpan :: (instance: *LirExecInstance, frame_index: s64, instruction: *LirInstruction,
+    index: s64, store: *ExecStore, start: *s64, end: *s64) -> s32 {
+    program := instance.plan.program
+    source := ExecFrameValueOffset(instance, frame_index, instruction.operands[index])
+    count := cast(s64)ExecReadBits(instance.storage[:], source + 8, 8)
+    found := ExecFindAddress(instance, ExecReadBits(instance.storage[:], source, 8))
+    if count == 0 || found < 0 { return -1 }
+    view := program.types[instance.typed_arguments[index].type]
+    width := instance.plan.type_sizes[program.types[view.fields[0]].element]
+    entry := instance.addresses[found]
+    <<store = .Frame
+    if entry.owned { <<store = .Owned } else if entry.frame < 0 { <<store = .Globals }
+    <<start = ExecAddressOffset(instance, found)
+    <<end = <<start + count * width
+    return found
+}
+
+// Two mutable view arguments of one call may not share elements: the host
+// would see one change through the other and one copy-back would be lost.
+ExecHostViewsApart :: (instance: *LirExecInstance, frame_index: s64,
+    instruction: *LirInstruction, host: LirExecHostBinding) -> bool {
+    count := instruction.operands.count
+    if host.views == cast(u64)0 { return true }
+    for left: cast(s64)0..count - 1 {
+        left_store: ExecStore
+        left_start: s64
+        left_end: s64
+        if !ExecHostViewParameter(host, left) ||
+            ExecViewSpan(instance, frame_index, instruction, left, *left_store, *left_start, *left_end) < 0 { continue }
+        for right: left + 1..count - 1 {
+            right_store: ExecStore
+            right_start: s64
+            right_end: s64
+            if !ExecHostViewParameter(host, right) ||
+                ExecViewSpan(instance, frame_index, instruction, right, *right_store, *right_start, *right_end) < 0 { continue }
+            if left_store == right_store && left_start < right_end && right_start < left_end {
+                return ExecFail(instance, .Host)
+            }
+        }
+    }
+    return instance.failure.problem == .None
+}
+
+// Copies the elements of each mutable view argument the host changed back
+// into the view's storage. An element whose own image bytes are the ones
+// the host was given is left as it is, so an unchanged string in it takes
+// no new bytes and read-only storage passes when nothing in it changed.
+ExecTypedHostCopyBack :: (instance: *LirExecInstance, frame_index: s64,
+    instruction: *LirInstruction, host: LirExecHostBinding) -> bool {
+    plan := instance.plan
+    program := plan.program
+    for index: cast(s64)0..instruction.operands.count - 1 {
+        argument := instance.typed_arguments[index]
+        if !argument.changed { continue }
+        if !ExecHostViewParameter(host, index) { return ExecFail(instance, .Host) }
+        source := ExecFrameValueOffset(instance, frame_index, instruction.operands[index])
+        count := ExecReadBits(instance.storage[:], source + 8, 8)
+        image := argument.bytes
+        if image.count < 16 || ExecReadBits(image, 8, 8) != count { return ExecFail(instance, .Host) }
+        if count == 0 { continue }
+        store: ExecStore
+        at: s64
+        end: s64
+        found := ExecViewSpan(instance, frame_index, instruction, index, *store, *at, *end)
+        if found < 0 { return ExecFail(instance, .Host) }
+        writable := instance.addresses[found].writable
+        element := program.types[program.types[argument.type].fields[0]].element
+        width := plan.type_sizes[element]
+        start := ExecReadBits(image, 0, 8)
+        if start > cast(u64)image.count ||
+            count > cast(u64)((image.count - cast(s64)start) / width) { return ExecFail(instance, .Host) }
+        // The elements of the image the host was given.
+        given := cast(s64)instance.host_arguments[index]
+        given += cast(s64)ExecReadBits(instance.host_bytes[:], given, 8)
+        kind := program.types[element].kind
+        if kind == .Integer || kind == .Float {
+            bytes := cast(s64)count * width
+            if ExecBytesMatchAcross(image, cast(s64)start, instance.host_bytes[:], given, bytes) { continue }
+            if !writable { return ExecFail(instance, .Pointer) }
+            if !ExecSpend(instance, ExecCopyCost(bytes)) { return false }
+            for byte: cast(s64)0..bytes - 1 {
+                ExecStoreBits(instance, store, at + byte, 1, cast(u64)image[cast(s64)start + byte])
+            }
+            continue
+        }
+        for item: cast(s64)0..cast(s64)count - 1 {
+            from := cast(s64)start + item * width
+            if ExecBytesMatchAcross(image, from, instance.host_bytes[:], given + item * width, width) { continue }
+            if !writable { return ExecFail(instance, .Pointer) }
+            if !ExecHostDecode(instance, element, image, from, store, at + item * width) { return false }
+        }
+    }
     return true
 }
 
@@ -2222,10 +2335,12 @@ ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: *Lir
     host := instance.hosts[binding]
     if host.write != null { return ExecPlatformWriteCall(instance, frame_index, instruction, host) }
     if host.typed != null {
-        if !ExecTypedHostArguments(instance, frame_index, instruction) { return false }
+        if !ExecTypedHostArguments(instance, frame_index, instruction) ||
+            !ExecHostViewsApart(instance, frame_index, instruction, host) { return false }
         result := LirExecArgument.{.type = LirNoId}
         if !host.typed(host.context, instruction.symbol,
             VecSlice(instance.typed_arguments, 0, count), *result) ||
+            !ExecTypedHostCopyBack(instance, frame_index, instruction, host) ||
             !ExecTypedHostResult(instance, frame_index, instruction, result) {
             if instance.failure.problem == .None { return ExecFail(instance, .Host) }
             return false
@@ -2233,7 +2348,7 @@ ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: *Lir
         instance.frames[frame_index].instruction += 1
         return true
     }
-    if !VecResizeBounded(instance.host_arguments, count, count) { return ExecFail(instance, .Allocation) }
+    if !VecResize(instance.host_arguments, count) { return ExecFail(instance, .Allocation) }
     for at: cast(s64)0..count - 1 {
         instance.host_arguments[at] = ExecSlotBits(instance, instruction.operands[at])
         if instance.failure.problem != .None { return false }
@@ -2321,7 +2436,9 @@ ExecRunFunction :: (instance: *LirExecInstance, function: s32, arguments: []LirE
     if instance.running { return ExecResult(.Busy) }
     if instance.initializer_failed { return instance.initializer_failure }
     program := instance.plan.program
-    if function < 0 || function >= program.functions.count || program.functions[function].external {
+    // LirNoId runs only the initializers that have not run yet.
+    if function != LirNoId && (function < 0 || function >= program.functions.count ||
+        program.functions[function].external) {
         return ExecResult(.Calling)
     }
     for index: cast(s32)0..cast(s32)program.functions.count - 1 {
@@ -2347,7 +2464,7 @@ ExecRunFunction :: (instance: *LirExecInstance, function: s32, arguments: []LirE
             instance.initializer_failure = instance.failure
         }
     }
-    if instance.failure.problem == .None && !ExecRunRoot(instance, function, arguments) {
+    if instance.failure.problem == .None && function != LirNoId && !ExecRunRoot(instance, function, arguments) {
         // ExecRunRoot records the stable failure location in the instance.
     }
     if instance.failure.problem != .None {
@@ -2366,6 +2483,17 @@ ExecRunFunction :: (instance: *LirExecInstance, function: s32, arguments: []LirE
     result.work_remaining = instance.work_remaining
     result.fuel_remaining = instance.fuel_remaining
     return result
+}
+
+ExecGlobalAccess :: (instance: *LirExecInstance, global: s32) -> LirExecProblem {
+    if instance == null || !instance.ready || instance.plan == null || !instance.initialized { return .NotReady }
+    if instance.running { return .Busy }
+    program := instance.plan.program
+    if global < 0 || global >= program.globals.count { return .Calling }
+    if instance.plan.host_shapes[program.globals[global].type] == 0 { return .Type }
+    instance.failure = ExecResult(.None)
+    instance.work_remaining = instance.limits.work
+    return .None
 }
 
 #scope_export
@@ -2529,6 +2657,52 @@ LirExecCall :: (instance: *LirExecInstance, function: s32, arguments: []LirExecA
     return ExecRunFunction(instance, function, arguments)
 }
 
+// Runs the global initializers now, as the first run would. Every later
+// run returns their failure.
+LirExecInitialize :: (instance: *LirExecInstance) -> LirExecResult {
+    no_arguments: [0]LirExecArgument
+    return ExecRunFunction(instance, LirNoId, no_arguments[:])
+}
+
+// Puts the host image of global `global` in the instance's host bytes
+// between runs, as a host call would be given it. They hold it until the
+// next call into the instance.
+LirExecGlobalImage :: (instance: *LirExecInstance, global: s32) -> LirExecProblem {
+    problem := ExecGlobalAccess(instance, global)
+    if problem != .None { return problem }
+    plan := instance.plan
+    type := plan.program.globals[global].type
+    size := plan.type_sizes[type]
+    available := ExecHostAvailable(instance)
+    unused VecResize(instance.host_bytes, 0)
+    if size > available { return .ValueBytes }
+    if !VecResizeBounded(instance.host_bytes, size, available) { return .Allocation }
+    if !ExecHostEncode(instance, type, instance.globals[:], plan.global_offsets[global], 0, 0, available) {
+        return instance.failure.problem
+    }
+    return .None
+}
+
+// Gives global `global` the value of a host image of its type between runs.
+// View elements become read-only instance-owned storage; a rejected image
+// leaves none behind.
+LirExecGlobalStore :: (instance: *LirExecInstance, global: s32, image: []u8) -> LirExecProblem {
+    problem := ExecGlobalAccess(instance, global)
+    if problem != .None { return problem }
+    plan := instance.plan
+    type := plan.program.globals[global].type
+    if !plan.program.globals[global].writable { return .Pointer }
+    if plan.host_shapes[type] < LirHostShapeViews && image.count != plan.type_sizes[type] { return .Host }
+    owned_count := instance.owned.count
+    heap_tail := instance.heap_tail
+    if !ExecHostDecode(instance, type, image, 0, .Globals, plan.global_offsets[global]) {
+        instance.heap_tail = heap_tail
+        unused VecResize(instance.owned, owned_count)
+        return instance.failure.problem
+    }
+    return .None
+}
+
 LirExecResultCopy :: (instance: *LirExecInstance, output: []u8) -> bool {
     if instance == null || !instance.ready || instance.result_value.type == LirNoId ||
         output.count < instance.result_bytes.count { return false }
@@ -2558,6 +2732,21 @@ LirExecBindHostTyped :: (instance: *LirExecInstance, function: s32,
     if !VecPush(instance.hosts, LirExecHostBinding.{function = function, typed = call, context = context}) {
         return .Allocation
     }
+    return .None
+}
+
+// Binds parameter `parameter` of typed host function `function` as a
+// mutable view (see LirExecArgument). The first 64 parameters can be.
+LirExecHostMutableView :: (instance: *LirExecInstance, function: s32, parameter: s32) -> LirExecProblem {
+    if instance == null || !instance.ready || instance.plan == null { return .NotReady }
+    if instance.running { return .Busy }
+    binding := ExecHostBinding(instance, function)
+    if binding < 0 || instance.hosts[binding].typed == null { return .Calling }
+    program := instance.plan.program
+    parameters := program.functions[function].parameters
+    if parameter < 0 || parameter >= 64 || cast(s64)parameter >= parameters.count ||
+        !LirHostView(program, parameters[parameter]) { return .Calling }
+    instance.hosts[binding].views |= cast(u64)1 << cast(u64)parameter
     return .None
 }
 

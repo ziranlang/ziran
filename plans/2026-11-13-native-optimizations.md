@@ -361,6 +361,23 @@ only switch once each of these reads revision 28, so the cutover goes in stages,
 4. Delete the semantic writer and VM (`cmd/zir/zir_bundle*.c`, `zir_vm*.c`) and the ZIR-based
    Wasm lowering (`cmd/zir-wasm/zir_wasm_lower.c`, `zi2wasm`).
 
+Work split, 2026-11-14 (owner: "keep going until it is 100% complet you may use otehr agents
+usb tatks if it helps"). Three Claude specialists, disjoint files, none commits; the
+coordinator integrates, verifies with `ZIRAN_BUNDLE_EXEC=1 make check` and the default suite,
+and commits:
+- `claude-ziran-zx-lowering-coverage`: `cmd/zir-asm/zir_asm_lower.c` (except the host
+  interface generator): `using` promotion, remaining `Simd` operations and float lanes,
+  `simd_target` fallbacks, the verifier rejections, array literals in read-only data, the
+  compiler's own test programs.
+- `claude-ziran-zx-embedding-api`: `cmd/zir/zir_host_exec.c`, `zir_host.c`, the host interface
+  generator, host slice copy-back in `cmd/compiler_exec.zi`: step limits during initialization,
+  state export/import, components, capability signatures, assets, remaining host-value details.
+- `claude-ziran-zx-wasm-host-abi`: `cmd/zir-wasm/zx_wasm_lower.c`, `cmd/zir/zir_zx_wasm*.c`:
+  typed host ABI, linear-memory heap, browser bridge, bundle Wasm tier on revision 28.
+Then the coordinator flips the default (bundle writes revision 28, `ZIRAN_BUNDLE_EXEC` goes),
+deletes the semantic writer, VM, ZIR Wasm lowering and the VM-internal tests, and decides
+bundle libraries (runtime `--library` linking) versus build-time linking.
+
 Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut over:
 
 1. Host calls: copy a host's changes to a mutable slice argument back into the caller's slice
@@ -377,8 +394,14 @@ Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut 
    Wasm tier with "host capability ... is outside the wasm s64 -> s64 execution subset"
    (reported by the Kryon task, 2026-11-14). Host values beyond `s64 -> s64` on Wasm belong to
    the revision-28 Wasm lowering that replaces that tier.
-6. Array literals with many elements still lower to one constant per element
-   (`unicode_conformance` exhausts the lowering budget); they belong in read-only data.
+6. Done, 2026-11-14: an array literal of 64 or more numeric literals is read-only data, one
+   byte-array global that a loop decodes into a frame slot, and a fixed-array local or
+   parameter over 4096 bytes lives in a frame slot instead of being passed to every block (each
+   pass copied it, so a loop over a table was quadratic). `large_array_literals` (260,000
+   elements) lowers and runs. Still open: the verifier and the executable format accept only
+   byte-array constants, so a table of wider elements is decoded byte by byte at run time; a
+   constant of any scalar array type would let it be loaded once. That touches the verifier,
+   the executable reader and writer and both native encoders.
 
 7. Done, 2026-11-14: `ziran check` reported Kryon's direction pad laws as unknown. The law
    evaluator compared a returned record's type by spelling, so a procedure declared
@@ -391,28 +414,73 @@ coed". Each change deletes what it replaces. The cutover deletes the semantic bu
 VM (`cmd/zir/zir_bundle*.c`, `zir_vm*.c`: about 12,800 lines) and the ZIR-based Wasm lowering
 (`cmd/zir-wasm/zir_wasm_lower.c`: 3,400 lines); item 4 of the table at the top then leaves one
 native encoder instead of two. Neither can go earlier: `zi2wasm` and the bundle Wasm tier
-(`cmd/zir/zir_zx_wasm.c`) still call the old Wasm lowering, and its tests use SIMD, which
-revision 28 does not lower yet. `cmd/compiler_serial.zi` (1,147 lines) is built, imported and
+(`cmd/zir/zir_zx_wasm.c`) still call the old Wasm lowering. Revision 28 lowers every `Simd`
+operation since 2026-11-14, so its SIMD tests can move to it. `cmd/compiler_serial.zi` (1,147 lines) is built, imported and
 tested by nothing; it mirrors the C ZIR codec and reads like the next module of the self-hosted
 compiler, so it is left for the owner to decide.
 
-Not yet lowered: `VecResizeBounded`, `VecClone` and `VecGet` of elements that own storage, the other `Simd` operations and float lanes, map types, unions with record members,
-initializers that call procedures, indirect calls through fields.
+Not yet lowered: `VecClone` and `VecGet` of elements that own storage, map types, unions with
+record members, initializers that call procedures, indirect calls through fields.
+
+Lowering coverage, 2026-11-14 (`claude-ziran-zx-lowering-coverage`), all in
+`cmd/zir-asm/zir_asm_lower.c`. With `ZIRAN_BUNDLE_EXEC=1` the suite went from 219 to 242 of 280
+passing; `wasm_enums` and `global_owned_storage` were fixed after that run.
+- `using`: the checker writes a promoted member as the dotted path of its `using` fields;
+  `assembly_field_path` walks it for reads, addresses (also through a pointer) and stores.
+- `Simd`: `assembly_simd` lowers the whole `zi_ref` table lane by lane, integer and float lanes,
+  with branch-free masks for choices; shifts past the width and float-to-integer conversion are
+  guarded because the engine traps where `zi_ref` saturates. Memory operations read slices,
+  strings, fixed arrays and pointers; a pointer lane is reached as the last element of a view
+  one past it, which the engine checks against the pointer's storage. Native vectors are one
+  block, and `#target` procedures lower from their body.
+- Generic records applied in several modules (`__type_<hash>` copies with one body) are one
+  lowered type; `VecResizeBounded`; module-qualified constants and enum members named through
+  their type in global initializers; `x: *T = null`; read-only array literals and large arrays
+  in frame slots (item 6 above).
+- Owned globals: a move out of a global or a member of one empties it, and assigning one drops
+  what it held after the new value is made (`global_owned_storage` gave 738 for 333 and kept
+  every old value alive).
+- A reachable C or Go foreign import and a union with a non-scalar member are refused with the
+  semantic bundle writer's words.
+- Found outside lowering: the native x86-64 encoder traps on an array field of an address-taken
+  local record (`block: Block; p := *block; block.bytes[3]`, also `[8]u8`), so records stay
+  values and only fixed arrays move to frame slots. The interpreter fails `calling` when a
+  function returns a zero-sized value (`[0]s32`, `generic_procedure`). Out-of-bounds and
+  runaway-recursion failures on revision 28 print `problem=pointer` and `problem=value-limit`,
+  and an unmatched case `problem=unreachable`, where `simd`, `portable_limits` and `match` grep
+  for "out of bounds", "nested calls filled the stack" and "unreachable code executed".
+  `zx_native_asm` expects the bundle to carry `#asm` machine code, a semantic-only feature.
 
 ### Wasm from revision-28 ZX
 
 Landed as `zi2asm --emit wasm` (`cmd/zir-wasm/zx_wasm_lower.c`): the verified ZX payload lowers
-to one wasm32 module. Source and saved-ZX input give identical bytes; hello is 287 bytes.
+to one wasm32 module. Source and saved-ZX input give identical bytes; hello is 262 bytes.
 `tests/zx_lowered_parity.sh` emits each program twice, compares the bytes, runs the module in
-node and compares its output with the interpreter: 36 of its 37 programs run as wasm, one names a
-`wasm.gap`.
+node and compares its output with the interpreter. Every program that runs to its end must run
+as wasm: 69 of its 70 (one traps).
 
-Not done: `zi2wasm` and the bundle Wasm tier (`zir_zx_wasm`) still use the ZIR-based
-`zir_wasm_lower`. A first attempt replaced it in one step and broke `zx_wasm`, `wasm_enums`,
-`zx_web_lifecycle`, `zx_linked_web` and the Windows runtime build: their programs use global
-initializers and literals that LIR lowering rejects, and the change pulled the LIR compiler into
-`libziran`. That replacement (kept in `backup/takeover-2026-11-13/wasm/tracked.patch`) waits for
-lowering coverage; then `zir_wasm_lower` is removed.
+Done, 2026-11-14 (Wasm specialist):
+- Typed host ABI, the interpreter's: one `(zx, host) (capability, record) -> ok` import; a
+  16-byte record entry per argument and one for the result; scalars and pointer handles as
+  canonical bits, other shapes as host images built and checked by per-type helpers in the
+  module; result images placed with the exported `zx_reserve` and kept by the module; changed
+  `[]T` elements copied back; the host sees each slice's element address to reject aliasing.
+  `zxhost` names the capabilities. Print services keep `host_i64`, so published site modules run.
+- A heap for `resize`: power-of-two blocks with a 16-byte header, free lists by size, the top
+  block grows in place and gives its bytes back; memory that cannot grow gives null.
+- `zx_initialize` runs module initializers when an instance opens.
+- The bundle Wasm tier opens revision-28 bundles (`ZxWasmOpenExec`, routed by `zir_host.c`); the
+  web provider moves bytes and `ExecHosts` (`zir_host_exec.c`) translates images to the page's
+  `VmHostValue` bindings. `tests/zx_wasm.sh` runs a typed bundle on it under node, built by emcc
+  without `BOOTSTRAP=1` (a bootstrap build has no engine and opens no revision-28 file), and
+  compares it with the engine.
+
+Not done: semantic bundles still use the ZIR-based `zir_wasm_lower`, and `zi2wasm` (used by
+`ziran build --target=wasm`, the site targets, the playground and benchmarks) still exists; both
+go with the semantic route. With `ZIRAN_BUNDLE_EXEC=1`, `zx_linked_web` and `zx_web_lifecycle`
+stop at `zi2zx native-c`, which writes no linked C for a revision-28 bundle; `wasm_enums` stops
+at LIR lowering of a global used in an identifier expression; and state export/import of a
+revision-28 Wasm instance is not mapped from its `zxstate` table yet.
 
 Owner, 2026-11-13: "i'm ondireng if zx and native basicalyl use the same piplen if we just
 unife it under native and show zx as a step in teh pielpn while ofcuesr being able to do zx

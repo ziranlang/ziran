@@ -29,11 +29,8 @@ $(call obj,cmd/zir-asm/main.c cmd/zir-asm/zir_asm_lower.c cmd/zir-asm/zx_exec_ru
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -I$(ASSEMBLY_C) -Icmd/zir-asm -Icmd/zir-wasm -c -o $@ $<
 
-# Wasm is one more lowering of verified revision-28 ZX (zi2asm --emit wasm).
-$(call obj,cmd/zir-wasm/zx_wasm_lower.c): $(BUILD_DIR)/obj/%.o: %.c $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags $(IR_READY)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -I$(ASSEMBLY_C) -Icmd/zir-wasm -c -o $@ $<
-
-$(BIN_DIR)/zi2asm: $(call obj,cmd/zir-asm/main.c cmd/zir-asm/zir_asm_lower.c cmd/zir-asm/zx_exec_run.c cmd/zir-wasm/zx_wasm_lower.c) \
+# Wasm is one more lowering of verified revision-28 ZX (zi2asm --emit wasm);
+# zi2asm takes it from libziran, where the bundle Wasm tier uses it too.
+$(BIN_DIR)/zi2asm: $(call obj,cmd/zir-asm/main.c cmd/zir-asm/zir_asm_lower.c cmd/zir-asm/zx_exec_run.c) \
     $(BUILD_DIR)/obj/assembly-core.o $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)

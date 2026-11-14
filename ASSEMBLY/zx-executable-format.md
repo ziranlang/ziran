@@ -85,13 +85,25 @@ first, each naming only earlier nodes:
     node ID record SPELLING NAME CHILD NAME CHILD ...
 
 then one line per host capability, by LIR function index, with its result
-node (`-1` for void) and parameter nodes:
+node (`-1` for void) and parameter nodes, and one with its declaration as
+written (variadic and reads-arguments flags, the declaration line, its
+parameters and its return type):
 
     host FUNCTION RESULT PARAMETER ...
+    abi FUNCTION VARIADIC READS SIGNATURE ARGUMENTS RETURN
+
+then one line per module global, by LIR global index, with its type node,
+and the entry's parameters and return type as written:
+
+    global GLOBAL NODE
+    entry ARGUMENTS RETURN
 
 A spelling is the type as declared at that position, which a host sees as the
-value's type name. The engine never reads this section, and a file without it
-runs the same.
+value's type name. Declaration text has its tabs and line ends as spaces. The
+embedding API (`include/ziran_host.h`) uses these lines to translate host
+values, copy a host's changes to `[]T` arguments back, export and import
+module globals as state, and compare two files' capability ABIs. The engine
+never reads this section, and a file without it runs the same.
 
 ## Manifest (kind 1, exactly 128 bytes)
 
@@ -172,8 +184,9 @@ colon and NUL-containing names reject. Data is arbitrary binary, including NUL.
 The section must be consumed exactly.
 
 The raw framing API returns asset views borrowing the file. The owned executable
-API validates and hashes them during the read; its current execution surface
-reports the asset count but does not yet expose a persistent asset table.
+API validates and hashes them during the read; the embedding API copies them
+when it opens the file and exposes them through `BundleAsset*`. `zi2zx bundle
+--asset-dir` stores them.
 
 ## APIs and failure behavior
 
@@ -209,8 +222,6 @@ verified portable subset. It does not claim the full step-05 exit gate yet:
 - debug/source attachment codecs, optimization remarks, law witnesses and proof
   revalidation are not implemented; optional bytes remain non-executable and
   proof status remains unverified;
-- assets are validated and identified but are not yet plumbed into the portable
-  instruction engine's host API;
 - default `ziran`/`zi2zx`, package, provider, cache and installed-runtime cutover
   waits for the later full-plan integration gates.
 

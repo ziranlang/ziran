@@ -90,7 +90,8 @@ if "$ziran" run "$work/tampered.zx" 2> "$work/tampered.err"; then
     echo 'tampered capability list unexpectedly ran' >&2
     exit 1
 fi
-grep -Fq 'bundle capability list differs from linked IR' "$work/tampered.err"
+# Revision 28 rejects the changed program by its identity.
+grep -Eq 'bundle capability list differs from linked IR|executable ZX rejected' "$work/tampered.err"
 cat > "$work/unsupported.zi" <<'EOF'
 host_api :: #system_library "host_api";
 MakeHandleHost :: () -> *s32 #foreign host_api;

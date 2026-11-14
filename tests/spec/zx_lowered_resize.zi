@@ -2,6 +2,7 @@
 // gives exactly the requested capacity and zero elements, shrinking keeps the
 // capacity and drops what it removes, growing again inside the capacity gives
 // zeros rather than the old elements, and a negative request changes nothing.
+// VecResizeBounded also refuses a count or a held capacity above its maximum.
 #import "vec"
 
 Row :: struct {
@@ -34,5 +35,13 @@ main :: () -> s32 {
     unused VecResize(rows, 1)
     unused VecResize(rows, 2)
     print("rows % % % % %\n", rows.count, rows.capacity, rows[0].cells[0], rows[1].cells.count, rows[1].tag)
+    bounded: Vec(u8)
+    f := VecResizeBounded(bounded, 3, 4)
+    g := VecResizeBounded(bounded, 5, 4)
+    h := VecResizeBounded(bounded, 2, 2)
+    i := VecResizeBounded(bounded, 1, -1)
+    j := VecResizeBounded(bounded, 4, 4)
+    print("bounded % % % % % % %\n", f, g, h, i, j, bounded.count, bounded.capacity)
+    VecFree(bounded)
     return cast(s32)(values.count + rows.count)
 }

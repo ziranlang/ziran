@@ -478,18 +478,21 @@ BundleClose(Bundle *bundle)
 size_t
 BundleAssetCount(const Bundle *bundle)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleAssetCount(bundle->exec);
     return bundle != NULL ? bundle->assets.count : 0;
 }
 
 size_t
 BundleOwnAssetCount(const Bundle *bundle)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleAssetCount(bundle->exec);
     return bundle != NULL ? bundle->own_asset_count : 0;
 }
 
 const char *
 BundleAssetName(const Bundle *bundle, size_t index)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleAssetName(bundle->exec, index);
     return bundle != NULL && index < bundle->assets.count ?
         bundle->assets.items[index].name : NULL;
 }
@@ -497,6 +500,7 @@ BundleAssetName(const Bundle *bundle, size_t index)
 const unsigned char *
 BundleAssetData(const Bundle *bundle, size_t index)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleAssetData(bundle->exec, index);
     return bundle != NULL && index < bundle->assets.count ?
         bundle->assets.items[index].data : NULL;
 }
@@ -504,6 +508,7 @@ BundleAssetData(const Bundle *bundle, size_t index)
 size_t
 BundleAssetSize(const Bundle *bundle, size_t index)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleAssetSize(bundle->exec, index);
     return bundle != NULL && index < bundle->assets.count ?
         bundle->assets.items[index].size : 0;
 }
@@ -553,6 +558,8 @@ int
 BundleCapabilityAbiAt(const Bundle *bundle, size_t index,
                       BundleCapabilityAbi *abi)
 {
+    if(bundle != NULL && abi != NULL && bundle->exec != NULL)
+        return ExecBundleCapabilityAbi(bundle->exec, index, abi);
     const ZirImport *declaration = bundle != NULL && abi != NULL ?
         capability_declaration(bundle, index) : NULL;
     if(declaration == NULL)
@@ -584,7 +591,7 @@ same_capability_abi(const Bundle *bundle, size_t index,
     BundleCapabilityAbi left, right;
     if(!BundleCapabilityAbiAt(bundle, index, &left))
         return 0;
-    for(size_t i = 0; i < candidate->capability_count; i++) {
+    for(size_t i = 0; i < BundleCapabilityCount(candidate); i++) {
         if(!BundleCapabilityAbiAt(candidate, i, &right))
             return 0;
         if(strcmp(left.module, right.module) == 0 &&
@@ -599,20 +606,38 @@ same_capability_abi(const Bundle *bundle, size_t index,
     return 0;
 }
 
+static const char *
+entry_arguments(const Bundle *bundle)
+{
+    return bundle->exec != NULL ? ExecBundleEntryArguments(bundle->exec) : bundle->entry->args_text;
+}
+
+static const char *
+entry_return_type(const Bundle *bundle)
+{
+    return bundle->exec != NULL ? ExecBundleEntryReturnType(bundle->exec) : bundle->entry->return_type;
+}
+
+const char *
+BundleEntryReturnType(const Bundle *bundle)
+{
+    const char *type = bundle != NULL ? entry_return_type(bundle) : NULL;
+    return type != NULL ? type : "";
+}
+
 int
 BundleAbiCompatible(const Bundle *left, const Bundle *right)
 {
-    /* Revision-28 executables carry no declared capability signatures yet. */
-    if(left == NULL || right == NULL || left->exec != NULL || right->exec != NULL ||
+    if(left == NULL || right == NULL ||
        !same_optional_text(BundleEntryModuleName(left), BundleEntryModuleName(right)) ||
        !same_optional_text(BundleEntryFunctionName(left), BundleEntryFunctionName(right)) ||
-       !same_optional_text(left->entry->args_text, right->entry->args_text) ||
-       !same_optional_text(left->entry->return_type, right->entry->return_type))
+       !same_optional_text(entry_arguments(left), entry_arguments(right)) ||
+       !same_optional_text(entry_return_type(left), entry_return_type(right)))
         return 0;
-    for(size_t i = 0; i < left->capability_count; i++)
+    for(size_t i = 0; i < BundleCapabilityCount(left); i++)
         if(!same_capability_abi(left, i, right))
             return 0;
-    for(size_t i = 0; i < right->capability_count; i++)
+    for(size_t i = 0; i < BundleCapabilityCount(right); i++)
         if(!same_capability_abi(right, i, left))
             return 0;
     return 1;
@@ -754,9 +779,17 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
         BundleInstanceClose(instance);
         return NULL;
     }
-    /* A revision-28 executable has one engine; a step limit is its fuel. */
+    /* A revision-28 executable runs on the host's installed wasm provider,
+     * or else on the instruction engine; a step limit is its fuel. */
     if(bundle->exec != NULL) {
-        (void)portable_only;
+        if(!portable_only && ZxWasmPlatformActive() != NULL) {
+            instance->wasm = ZxWasmOpenExec(bundle->exec, exec_find_binding, &instance->set, max_steps);
+            if(instance->wasm == NULL) {
+                BundleInstanceClose(instance);
+                return NULL;
+            }
+            return instance;
+        }
         instance->exec = ExecInstanceOpen(bundle->exec, exec_find_binding, &instance->set, max_steps);
         if(instance->exec == NULL) {
             BundleInstanceClose(instance);
@@ -1554,7 +1587,45 @@ BundleInstanceExportState(BundleInstance *instance, BundleState **state)
         return 0;
     *state = NULL;
     if(instance != NULL && instance->exec != NULL) {
-        Diagnostic(Span("<host>", 1, 1), "zx.state", "a revision-28 instance has no exported state yet");
+        size_t count = ExecInstanceStateCount(instance->exec);
+        BundleState *exported = calloc(1, sizeof(*exported));
+        if(exported == NULL)
+            return 0;
+        exported->values = calloc(count ? count : 1, sizeof(*exported->values));
+        if(exported->values == NULL) {
+            free(exported);
+            return 0;
+        }
+        StateBudget budget = {0};
+        for(size_t i = 0; i < count; i++) {
+            const char *module = "", *name = "", *type = "";
+            VmHostValue borrowed = {0};
+            if(!ExecInstanceStateAt(instance->exec, i, &module, &name, &type, &borrowed) ||
+               !state_type_portable(type) || !state_value_portable(&borrowed, 0)) {
+                Diagnostic(Span("<host>", 1, 1), "zx.state",
+                           "component state %s:%s is not owned portable state", module, name);
+                state_close(exported);
+                return 0;
+            }
+            BundleStateValue value = {.module = module, .name = name, .type = type};
+            if(!clone_state_value(&borrowed, &value.value, 0, &budget)) {
+                Diagnostic(Span("<host>", 1, 1), "zx.state",
+                           "component state %s:%s exceeds portable state limits", module, name);
+                state_close(exported);
+                return 0;
+            }
+            if(!clone_state_metadata(&value, &budget)) {
+                state_close(exported);
+                return 0;
+            }
+            exported->values[exported->count++] = value;
+        }
+        exported->bytes = budget.used;
+        *state = exported;
+        return 1;
+    }
+    if(instance != NULL && instance->wasm != NULL && ZxWasmProgram(instance->wasm) == NULL) {
+        Diagnostic(Span("<host>", 1, 1), "zx.state", "a revision-28 wasm instance exports no state");
         return 0;
     }
     if(instance != NULL && instance->wasm != NULL) {
@@ -1672,8 +1743,38 @@ fail:
 int
 BundleInstanceImportState(BundleInstance *instance, const BundleState *state)
 {
-    if(instance != NULL && instance->exec != NULL) {
-        Diagnostic(Span("<host>", 1, 1), "zx.state", "a revision-28 instance has no imported state yet");
+    if(instance != NULL && instance->exec != NULL && state != NULL) {
+        size_t count = ExecInstanceStateCount(instance->exec);
+        const VmHostValue **values = calloc(count ? count : 1, sizeof(*values));
+        if(values == NULL)
+            return 0;
+        for(size_t i = 0; i < state->count; i++) {
+            const BundleStateValue *value = &state->values[i];
+            const char *module, *name, *type = NULL;
+            size_t slot = count;
+            for(size_t g = 0; g < count && slot == count; g++)
+                if(ExecInstanceStateAt(instance->exec, g, &module, &name, &type, NULL) &&
+                   strcmp(module, value->module) == 0 && strcmp(name, value->name) == 0)
+                    slot = g;
+            if(slot == count || strcmp(type, value->type) != 0 || !state_type_portable(type) ||
+               !state_value_portable(&value->value, 0)) {
+                Diagnostic(Span("<host>", 1, 1), "zx.state",
+                           slot == count ? "component state %s:%s is absent from the replacement" :
+                           "component state %s:%s is incompatible with the replacement",
+                           value->module, value->name);
+                free(values);
+                return 0;
+            }
+            values[slot] = &value->value;
+        }
+        int stored = ExecInstanceStateStore(instance->exec, values);
+        free(values);
+        if(!stored)
+            Diagnostic(Span("<host>", 1, 1), "zx.state", "component state is incompatible with the replacement");
+        return stored;
+    }
+    if(instance != NULL && instance->wasm != NULL && ZxWasmProgram(instance->wasm) == NULL) {
+        Diagnostic(Span("<host>", 1, 1), "zx.state", "a revision-28 wasm instance imports no state");
         return 0;
     }
     if(instance != NULL && instance->wasm != NULL && state != NULL) {
@@ -1894,6 +1995,9 @@ component_release(BundleComponent *component)
 static size_t
 component_live_value_bytes(const BundleComponent *component)
 {
+    if(component != NULL && !component->closed && component->instance != NULL &&
+       component->instance->exec != NULL)
+        return ExecInstanceLiveBytes(component->instance->exec);
     if(component == NULL || component->closed || component->instance == NULL ||
        component->instance->vm == NULL)
         return 0;

@@ -1,7 +1,14 @@
 // Global initializers on revision-28 ZX, pinned by tests/zx_lowered_parity.sh:
 // record, nested record, string, float and fixed-array literals are stored
-// by private initializers before any other code runs.
+// by private initializers before any other code runs. An enum member named
+// through its type initializes a global. A move out of an owned global
+// empties it, and assigning an owned global drops what it held, so the run
+// ends with no live heap block.
+#import "vec"
 Point :: struct { x: s32; y: s32 }
+Mode :: enum u8 { Off; On :: 7; }
+Bag :: struct { items: Text; valid: bool }
+Shelf :: struct { bag: Bag; counts: Vec(s32) }
 Frame :: struct { corner: Point; width: s64; height: s64 }
 
 origin: Point = .{.x = 40, .y = 2};
@@ -11,6 +18,33 @@ scale: float64 = 2.5;
 steps: [4]s32 = .[3, 5, 8, 13];
 live: bool;
 counter: s64 = 40;
+mode: Mode = Mode.On;
+bag: Bag;
+shelf: Shelf;
+
+Make :: (text: string) -> Bag { return Bag.{.items = TextCopy(text), .valid = true} }
+Width :: (text: string) -> s64 { return text.count }
+Take :: () -> Bag { return bag }
+
+Fill :: (rounds: s64) -> s64 {
+    total: s64
+    for round: 1..rounds {
+        bag = Make("abc")
+        bag.items = TextCopy("de")
+        shelf.bag = bag
+        total += Width(shelf.bag.items) + Width(bag.items)
+        counts: Vec(s32)
+        VecPush(counts, 1)
+        shelf.counts = counts
+        moved := shelf
+        total += moved.counts.count + Width(shelf.bag.items)
+        shelf = moved
+    }
+    bag = Make("fgh")
+    last := Take()
+    kept := Shelf.{.bag = shelf.bag, .counts = shelf.counts}
+    return total * 100 + Width(last.items) * 10 + Width(bag.items) + Width(kept.bag.items) + Width(shelf.bag.items)
+}
 
 Area :: () -> s64 { return frame.width * frame.height }
 
@@ -19,6 +53,7 @@ main :: () -> s32 {
     for step: steps { total += step }
     frame.corner.x += 1
     if live { return 1 }
-    print("% % % % % %\n", title, Area(), cast(s64)(scale * 4.0), total, frame.corner.x + frame.corner.y, origin.x + origin.y)
+    print("% % % % % % % %\n", title, Area(), cast(s64)(scale * 4.0), total, frame.corner.x + frame.corner.y,
+        origin.x + origin.y, cast(u8)mode, Fill(5))
     return cast(s32)counter + origin.y
 }

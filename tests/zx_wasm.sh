@@ -1,4 +1,5 @@
 #!/bin/sh
+# check-cost: 120
 set -eu
 # The wasm execution tier must agree with the native tier and the portable
 # VM on the scalar fixture, and reject out-of-subset programs with a
@@ -113,6 +114,253 @@ WebAssembly.instantiate(fs.readFileSync(process.argv[2]), imports).then(({instan
 }).catch(error => { console.error(error); process.exitCode = 1; });
 JS
 cmp "$work/print-vm.txt" "$work/print-wasm.txt"
+
+# Revision-28 ZX lowers to wasm with the interpreter's typed host ABI:
+# canonical bits for scalars of any arity and void results, host images for
+# strings, records and slices, result images the module keeps, and changed
+# slice elements copied back. The same ZX gives the same module bytes.
+zi2asm=$(dirname -- "$ziran")/zi2asm
+cat >"$work/typed.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Item :: struct {
+    title: string
+    weight: s32
+    on: bool
+}
+Greet :: (name: string, times: s32) -> string #foreign host_api;
+Weigh :: (item: Item) -> Item #foreign host_api;
+Fill :: (values: []u8) #foreign host_api;
+Flag :: (value: bool, scale: float64) -> u16 #foreign host_api;
+Note :: (a: s64, b: u8, c: s16) #foreign host_api;
+Count :: () -> s64 #foreign host_api;
+main :: () -> s32 {
+    text := Greet("zx", 2)
+    item := Weigh(Item.{title = "box", weight = 3, on = true})
+    buffer: [4]u8
+    Fill(buffer[1:3])
+    Note(-5, 200, -300)
+    print("% % %\n", text, item.title, item.on)
+    return cast(s32)Flag(item.on, 2.5) + item.weight + cast(s32)buffer[2] + cast(s32)buffer[3] + cast(s32)Count()
+}
+ZI
+"$zi2asm" --root "$work" -I "$repo/std" --entry typed:main --emit zx -o "$work/typed.zx" "$work/typed.zi"
+"$zi2asm" --input zx --emit wasm -o "$work/typed.wasm" "$work/typed.zx"
+"$zi2asm" --input zx --emit wasm -o "$work/typed-again.wasm" "$work/typed.zx"
+cmp "$work/typed.wasm" "$work/typed-again.wasm"
+cat >"$work/typed.js" <<'JS'
+// A JavaScript host for typed.zi, reading and writing host images.
+const fs = require('fs');
+const bytes = fs.readFileSync(process.argv[2]);
+const section = new Uint8Array(WebAssembly.Module.customSections(new WebAssembly.Module(bytes), 'zxhost')[0]);
+let at = 0;
+const uleb = () => { let value = 0, shift = 0, byte; do { byte = section[at++]; value |= (byte & 127) << shift; shift += 7; } while (byte & 128); return value; };
+const name = () => { const size = uleb(); const text = Buffer.from(section.slice(at, at + size)).toString(); at += size; return text; };
+const capabilities = [];
+for (let count = uleb(); count > 0; count--) capabilities.push({module: name(), name: name(), count: uleb()});
+let wasm, notes = [];
+const view = () => new DataView(wasm.memory.buffer);
+const elements = (image) => { const v = view(); return new Uint8Array(wasm.memory.buffer, image + Number(v.getBigUint64(image, true)), Number(v.getBigUint64(image + 8, true))); };
+const place = (record, image) => {
+    const address = wasm.zx_reserve(image.length);
+    if (address === 0) throw Error('zx_reserve failed');
+    new Uint8Array(wasm.memory.buffer, address, image.length).set(image);
+    view().setUint32(record, address, true); view().setUint32(record + 8, image.length, true);
+};
+const text = (value, prefix) => {
+    const bytes = Buffer.from(value), image = new Uint8Array(prefix + bytes.length), v = new DataView(image.buffer);
+    if (bytes.length) v.setBigUint64(0, BigInt(prefix), true);
+    v.setBigUint64(8, BigInt(bytes.length), true); image.set(bytes, prefix);
+    return image;
+};
+const calls = {
+    Greet(record) {
+        const image = view().getUint32(record, true), times = view().getInt32(record + 16, true);
+        place(record + 32, text(('hi ' + Buffer.from(elements(image)).toString() + ' ').repeat(times).trim(), 16));
+    },
+    Weigh(record) {
+        const image = view().getUint32(record, true), v = view();
+        const result = text(Buffer.from(elements(image)).toString() + '!', 21), out = new DataView(result.buffer);
+        out.setInt32(16, v.getInt32(image + 16, true) * 10, true); out.setUint8(20, v.getUint8(image + 20) ? 0 : 1);
+        place(record + 16, result);
+    },
+    Fill(record) {
+        const values = elements(view().getUint32(record, true));
+        for (let index = 0; index < values.length; index++) values[index] = 40 + index;
+        view().setUint32(record + 12, 1, true);
+    },
+    Flag(record) {
+        const v = view();
+        v.setBigUint64(record + 32, BigInt(Math.round(Number(v.getBigUint64(record, true)) * v.getFloat64(record + 16, true) * 100)), true);
+    },
+    Note(record) {
+        const v = view();
+        notes.push(BigInt.asIntN(64, v.getBigUint64(record, true)), v.getBigUint64(record + 16, true), v.getBigUint64(record + 32, true));
+    },
+    Count(record) { view().setBigUint64(record, 7n, true); },
+};
+WebAssembly.instantiate(bytes, {zx: {
+    budget: new WebAssembly.Global({value: 'i64', mutable: true}, 100000000n),
+    overrun() { throw Error('budget spent'); },
+    host_i64(index, value) {
+        if ((index >>> 0) === 0xfffffffa) process.stdout.write(value ? 'true' : 'false');
+        else if ((index >>> 0) !== 0xffffffff) throw Error('unexpected print service');
+        else process.stdout.write(Buffer.from(wasm.memory.buffer, Number(value & 0xffffffffn), Number(value >> 32n)));
+        return 0n;
+    },
+    host(index, record) { calls[capabilities[index].name](record); return 1; },
+}}).then(({instance}) => {
+    wasm = instance.exports;
+    const result = wasm.zx_entry();
+    console.log(capabilities.map(c => c.name + '/' + c.count).join(' '), notes.join(' '), result.toString());
+}).catch(error => { console.error(error); process.exitCode = 1; });
+JS
+typed=$("$nodebin" "$work/typed.js" "$work/typed.wasm")
+expected_typed='hi zx hi zx box! false
+Greet/2 Weigh/1 Fill/1 Note/3 Flag/2 Count/0 -5 200 65236 78'
+test "$typed" = "$expected_typed" || {
+    echo "zx-wasm-test: typed host calls gave '$typed'"
+    exit 1
+}
+
+# The heap reuses freed blocks: a loop that grows and frees a vector a
+# thousand times leaves memory at its starting size.
+cat >"$work/heap.zi" <<'ZI'
+#import "vec"
+main :: () -> s32 {
+    total: s64
+    for round: 0..999 {
+        values: Vec(s64)
+        for index: 0..99 { VecPush(values, cast(s64)index) }
+        total += values[99]
+        VecFree(values)
+    }
+    print("%\n", total)
+    return 0
+}
+ZI
+"$zi2asm" --root "$work" -I "$repo/std" --entry heap:main --emit zx -o "$work/heap.zx" "$work/heap.zi"
+"$zi2asm" --input zx --emit wasm -o "$work/heap.wasm" "$work/heap.zx"
+heap=$("$nodebin" - "$work/heap.wasm" <<'JS'
+const fs = require('fs');
+let memory;
+WebAssembly.instantiate(fs.readFileSync(process.argv[2]), {zx: {
+    budget: new WebAssembly.Global({value: 'i64', mutable: true}, 100000000n),
+    overrun() { throw Error('budget spent'); },
+    host_i64(index, value) {
+        if ((index >>> 0) === 0xfffffffe) process.stdout.write(BigInt.asIntN(64, value).toString());
+        else process.stdout.write(Buffer.from(memory.buffer, Number(value & 0xffffffffn), Number(value >> 32n)));
+        return 0n;
+    },
+}}).then(({instance}) => {
+    memory = instance.exports.memory;
+    const pages = memory.buffer.byteLength;
+    instance.exports.zx_entry();
+    console.log(memory.buffer.byteLength - pages);
+}).catch(error => { console.error(error); process.exitCode = 1; });
+JS
+)
+test "$heap" = "99000
+0" || {
+    echo "zx-wasm-test: heap run gave '$heap'"
+    exit 1
+}
+test "$("$zi2asm" --run --heap-report --input zx "$work/heap.zx" 2>/dev/null)" = 99000
+
+# The bundle Wasm tier runs the same revision-28 bundle in a WebAssembly
+# host: libziran built by emcc with the instruction engine, whose web
+# provider lowers it through zx_wasm_lower and translates its host images
+# to VmHostValue bindings. The Wasm instance and the engine instance must
+# agree. Skipped without emcc.
+emcc=${ZIRAN_WASM_EMCC:-}
+if ! command -v "$emcc" >/dev/null 2>&1 && test -x "$HOME/emsdk/upstream/emscripten/emcc"; then
+    emcc=$HOME/emsdk/upstream/emscripten/emcc
+fi
+if command -v "$emcc" >/dev/null 2>&1; then
+    make -C "$repo" -j2 BUILD_DIR="$work/lib" CC="$emcc" AR="$(dirname -- "$emcc")/emar" \
+        OBJCOPY=true CFLAGS='-O2' SANITIZE_FLAGS= FRAMEFLAGS='-Wframe-larger-than=16384' \
+        WASM_PRIVATE_HEADERS="$work/private" "$work/lib/libziran.a" > "$work/lib.log" 2>&1 || {
+            tail -20 "$work/lib.log"
+            exit 1
+        }
+    cat >"$work/tier.c" <<'C'
+#include "ziran_host.h"
+#include <emscripten.h>
+#include <stdio.h>
+#include <string.h>
+static char text[64], title[32];
+static VmHostField fields[3];
+static int call(void *context, const char *module, const char *function,
+                const VmHostValue *args, int count, VmHostValue *result)
+{
+    (void)context; (void)module; (void)count;
+    if(!strcmp(function, "Greet")) {
+        snprintf(text, sizeof(text), "hi %.*s x%lld", (int)args[0].length, (const char *)args[0].data,
+                 (long long)args[1].integer);
+        result->kind = VM_HOST_STRING; result->data = (const unsigned char *)text; result->length = strlen(text);
+    } else if(!strcmp(function, "Weigh")) {
+        const VmHostField *in = args[0].fields;
+        snprintf(title, sizeof(title), "%.*s!", (int)in[0].value.length, (const char *)in[0].value.data);
+        fields[0] = (VmHostField){"title", {.kind = VM_HOST_STRING, .type = "string",
+            .data = (const unsigned char *)title, .length = strlen(title)}};
+        fields[1] = (VmHostField){"weight", {.kind = VM_HOST_INTEGER, .type = "s32", .integer = in[1].value.integer * 10}};
+        fields[2] = (VmHostField){"on", {.kind = VM_HOST_INTEGER, .type = "bool", .integer = !in[2].value.integer}};
+        result->kind = VM_HOST_RECORD; result->fields = fields; result->field_count = 3;
+    } else if(!strcmp(function, "Fill")) {
+        for(size_t at = 0; at < args[0].length; at++)
+            args[0].elements[at].bits = (uint64_t)(args[0].elements[at].integer = 40 + (int64_t)at);
+        result->kind = VM_HOST_VOID;
+    } else if(!strcmp(function, "Flag")) {
+        result->kind = VM_HOST_UNSIGNED; result->bits = (uint64_t)(args[0].integer * args[1].real * 100 + 0.5);
+    } else if(!strcmp(function, "Note")) {
+        printf("note %lld %llu %lld\n", (long long)args[0].integer, (unsigned long long)args[1].bits,
+               (long long)args[2].integer);
+        result->kind = VM_HOST_VOID;
+    } else if(!strcmp(function, "Count")) {
+        result->kind = VM_HOST_INTEGER; result->integer = 7;
+    } else return 0;
+    return 1;
+}
+int main(int argc, char **argv)
+{
+    static const char *names[] = {"Greet", "Weigh", "Fill", "Flag", "Note", "Count"};
+    HostBinding bindings[6];
+    for(int at = 0; at < 6; at++) bindings[at] = (HostBinding){.module = "typed", .function = names[at], .call = call};
+    Bundle *bundle = argc == 2 ? BundleOpen(argv[1]) : NULL;
+    if(bundle == NULL) return 3;
+    for(int engine = 0; engine < 2; engine++) {
+        BundleInstance *instance = engine ? BundleInstantiatePortable(bundle, bindings, 6)
+                                          : BundleInstantiate(bundle, bindings, 6);
+        long long value = -1;
+        int has = 0;
+        if(engine == 0)
+            printf("wasm instances %d\n", EM_ASM_INT({ return globalThis.zxWasmTier ? globalThis.zxWasmTier.instances.size : -1; }));
+        int ran = instance != NULL && BundleInstanceRun(instance, &value, &has);
+        printf("%s %d %d %lld\n", engine ? "engine" : "wasm", ran, has, value);
+        fflush(stdout);
+        BundleInstanceClose(instance);
+    }
+    BundleClose(bundle);
+    return 0;
+}
+C
+    "$emcc" -O2 -std=gnu99 -I"$repo/include" "$work/tier.c" "$work/lib/libziran.a" -o "$work/tier.js" \
+        -s ENVIRONMENT=node -s NODERAWFS=1 -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=1
+    tier=$("$nodebin" "$work/tier.js" "$work/typed.zx")
+    expected_tier='wasm instances 1
+note -5 200 -300
+hi zx x2 box! false
+wasm 1 1 78
+note -5 200 -300
+hi zx x2 box! false
+engine 1 1 78'
+    test "$tier" = "$expected_tier" || {
+        echo "zx-wasm-test: the bundle Wasm tier and the engine gave '$tier'"
+        exit 1
+    }
+    echo 'zx-wasm-test: a revision-28 bundle ran on the bundle Wasm tier with typed host calls'
+else
+    echo 'zx-wasm-test: no emcc; skipping the bundle Wasm tier'
+fi
 
 # The budget guard must stop a run that exceeds its step count.
 cat >"$work/spend_budget.js" <<'EOF'

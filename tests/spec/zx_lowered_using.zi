@@ -1,0 +1,35 @@
+// Fields promoted by `using`, pinned by tests/zx_lowered_parity.sh: reads,
+// stores and compound assignment through a value, a pointer and a `using`
+// binding reach the field through each record on its path.
+Point :: struct { x: s64; y: s64 }
+Middle :: struct { using point: Point; extra: s64 }
+Outer :: struct { using middle: Middle; tag: s64 }
+
+Shift :: (outer: *Outer) {
+    outer.x += 5
+    outer.y = outer.extra + outer.x
+}
+Sum :: (outer: Outer) -> s64 {
+    outer.tag *= 2
+    return outer.x + outer.y + outer.tag
+}
+Local :: (seed: s64) -> s64 {
+    using p: Point
+    x = seed
+    y = x * 3
+    return x + y
+}
+
+main :: () -> s32 {
+    outer := Outer.{.middle = Middle.{.point = Point.{.x = 1, .y = 2}, .extra = 10}, .tag = 4}
+    Shift(*outer)
+    if outer.x != 6 || outer.y != 16 || outer.middle.point.y != 16 { return 1 }
+    outer.extra -= 3
+    outer.point.x += 1
+    if outer.extra != 7 || outer.x != 7 { return 2 }
+    total := Sum(outer)
+    if total != 31 || outer.tag != 4 { return 3 }
+    if Local(5) != 20 { return 4 }
+    print("using: % % % % %\n", outer.x, outer.y, outer.extra, outer.tag, total)
+    return 42
+}

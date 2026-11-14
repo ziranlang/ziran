@@ -9,20 +9,10 @@
 #include <stdio.h>
 #include <string.h>
 
-LirExecLimits
-ZxExecCommandLimits(void)
-{
-    LirExecLimits limits = compiler_exec_LirExecDefaultLimits();
-    limits.work = INT64_MAX;
-    limits.fuel = INT64_MAX;
-    limits.frames = 1000000;
-    return limits;
-}
-
 int
-ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_report, int print_result)
+ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_report)
 {
-    int failed = print_result ? 1 : 125;
+    int failed = 125;
     if(program->entry < 0 || program->entry >= program->functions.length) {
         Diagnostic((ZirSourceSpan){0}, "assembly.execute", "instruction input has no entry procedure");
         return failed;
@@ -53,58 +43,16 @@ ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_repor
             (int)problem.length, problem.data, result.function, result.block, result.instruction, result.origin,
             (unsigned long long)result.trap, (long long)result.work_remaining, (long long)result.fuel_remaining);
         status = failed;
-    } else {
-        if(print_result && result_type.kind != LirTypeKind_Void) {
-            /* The value as the entry's type holds it, as zi2zx run prints. */
-            uint64_t bits = result.value.bits;
-            int width = result_type.kind == LirTypeKind_Bool ? 1 : result_type.bits;
-            if(result_type.kind == LirTypeKind_Integer && !result_type.is_signed)
-                printf("%llu\n", (unsigned long long)bits);
-            else {
-                if(width < 64 && (bits >> (width - 1)) & 1) bits |= ~((UINT64_C(1) << width) - 1);
-                printf("%lld\n", (long long)bits);
-            }
-            status = 0;
-        }
-        if(heap_report)
-            fprintf(stderr, "heap: %lld live blocks\n", (long long)compiler_exec_LirExecHeapLive(&instance));
-    }
+    } else if(heap_report)
+        fprintf(stderr, "heap: %lld live blocks\n", (long long)compiler_exec_LirExecHeapLive(&instance));
     fflush(stdout);
     compiler_exec_LirExecInstanceClose(&instance);
     compiler_exec_LirExecPlanFree(&plan);
     return status;
 }
 
-int
-ZxExecRunBytes(const unsigned char *bytes, size_t size, LirExecLimits limits, int print_result, int *status)
-{
-    /* Only a file whose header names revision 28 is read here; any other
-     * file, a short or foreign one included, goes to the bundle reader, which
-     * names what is wrong with it. */
-    if(size < 8 || memcmp(bytes, "ZX\0\0", 4) ||
-       (bytes[4] | bytes[5] << 8 | bytes[6] << 16 | (uint32_t)bytes[7] << 24) !=
-           compiler_bundle_ExecutableVersionNumber()) return 0;
-    ZxExecOwner owner = {0};
-    ZxExecResult read = compiler_exec_link_ZxExecRead(&owner, (String){(const char *)bytes, size},
-        compiler_lowered_ir_LirDefaultLimits());
-    if(read.problem != ZxExecProblem_None) {
-        String problem = compiler_exec_link_ZxExecProblemName(read.problem);
-        String container = compiler_bundle_ExecutableMessage(read.container);
-        Diagnostic((ZirSourceSpan){0}, "assembly.container",
-            "executable ZX rejected: problem=%.*s container=%.*s codec=%d offset=%lld verifier=%d",
-            (int)problem.length, problem.data, (int)container.length, container.data,
-            read.codec, (long long)read.offset, read.diagnostic.problem);
-        compiler_exec_link_ZxExecReadFree(&owner);
-        return -1;
-    }
-    LirProgram program = compiler_exec_link_ZxExecReadProgram(&owner);
-    *status = ZxExecRunProgram(&program, limits, 0, print_result);
-    compiler_exec_link_ZxExecReadFree(&owner);
-    return 1;
-}
-
 unsigned char *
-ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, size_t *size)
+ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets, size_t *size)
 {
     unsigned char *bytes = NULL;
     *size = 0;
@@ -134,7 +82,7 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     size_t interface_length = 0;
     const char *interface = AssemblyHostInterface(lowered, &interface_length);
     String interface_text = {interface ? interface : "", interface_length};
-    ZxExecResult measured = compiler_exec_link_ZxExecWrite(optimized_program, (Slice){0}, (Slice){0}, interface_text);
+    ZxExecResult measured = compiler_exec_link_ZxExecWrite(optimized_program, assets, (Slice){0}, interface_text);
     if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
         String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
         Diagnostic((ZirSourceSpan){0}, "assembly.container",
@@ -144,7 +92,7 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     }
     bytes = malloc((size_t)measured.size);
     if(bytes == NULL) goto done;
-    ZxExecResult encoded = compiler_exec_link_ZxExecWrite(optimized_program, (Slice){0},
+    ZxExecResult encoded = compiler_exec_link_ZxExecWrite(optimized_program, assets,
         (Slice){bytes, measured.size}, interface_text);
     if(encoded.problem != ZxExecProblem_None || encoded.size != measured.size) {
         String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);

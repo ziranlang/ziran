@@ -56,6 +56,10 @@ ZI
 cmp "$work/source.zx" "$work/saved.zx"
 "$host_test" "$work/source.zx"
 "$host_test" "$work/saved.zx"
+# The same host, unchanged, runs it as revision-28 executable ZX.
+"$(dirname -- "$ziran")/zi2asm" --root "$work" --entry arrays:Answer --emit zx \
+    -o "$work/executable.zx" "$work/arrays.zi"
+"$host_test" "$work/executable.zx"
 
 for input in source saved; do
     if test "$input" = source; then

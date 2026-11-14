@@ -107,6 +107,8 @@ int BundleCheckTrusted(ZirProgram **program, int own_module_count, const ZxLawTa
 typedef struct Bundle Bundle;
 const ZirProgram *BundleProgram(const Bundle *bundle);
 const ZirFunction *BundleEntry(const Bundle *bundle);
+/* The entry's return type as written. */
+const char *BundleEntryReturnType(const Bundle *bundle);
 /* Instances opened after this run on the portable VM when ENABLED, even
  * where compiled code is available (`zi2zx run --vm`). */
 void BundleUsePortableVm(int enabled);

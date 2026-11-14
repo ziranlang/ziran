@@ -63,3 +63,7 @@ C
     done
 done
 cmp "$work/source.zx" "$work/saved.zx"
+# The same host, unchanged, runs it as revision-28 executable ZX.
+"$(dirname -- "$ziran")/zi2asm" --root "$repo/tests/spec" --entry vm_value_payloads_test:Answer --emit zx \
+    -o "$work/executable.zx" "$source"
+"$work/vm-test" "$work/executable.zx"

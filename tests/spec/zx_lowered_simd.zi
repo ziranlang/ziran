@@ -1,8 +1,54 @@
 // Vector operations on revision-28 ZX, pinned by tests/zx_lowered_parity.sh.
 // A vector is lowered as an array of its lanes and each operation lane by
 // lane: arithmetic wraps in the lane, a comparison gives a lane of all ones
-// or zero and follows the lane's signedness.
+// or zero and follows the lane's signedness. Edges follow zi_ref: shifts past
+// the width give zero or the sign, float conversion saturates and takes NaN
+// to zero, a byte index of 16 or more gives zero.
 Simd :: #import "simd"
+
+Edges :: (raw: *s16, table: []s32) -> s64 {
+    f := Simd.Make(f32x4, 1.5, -2.25, 3000000000.0, -0.5)
+    g := Simd.Splat(f32x4, 2.0)
+    sum := Simd.Add(f, g)
+    least := Simd.Min(f, g)
+    most := Simd.Max(f, g)
+    flipped := Simd.Neg(Simd.Abs(f))
+    above := Simd.Greater(f, g)
+    whole := Simd.Convert(s32x4, f)
+    nan := Simd.Div(Simd.Zero(f32x4), Simd.Zero(f32x4))
+    lost := Simd.Convert(s32x4, nan)
+    back := Simd.Convert(f64x2, Simd.Make(s64x2, -3, 7))
+    signed := Simd.Make(s8x16, -128, -1, 0, 1, 127, 100, -100, 5, 6, 7, 8, 9, 10, 11, 12, 13)
+    far := Simd.ShiftRight(signed, 9)
+    none := Simd.ShiftLeft(signed, -1)
+    round := Simd.ShiftRightRound(signed, 2)
+    saturated := Simd.AddSat(signed, Simd.Splat(s8x16, 100))
+    narrow := Simd.Narrow(u8x16, Simd.Make(s16x8, -5, 300, 255, 0, 1, 2, 3, 4), Simd.Zero(s16x8))
+    words := Simd.Reinterpret(u16x8, Simd.Make(u8x16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16))
+    bytes := Simd.Reinterpret(u8x16, Simd.Make(u32x4, 0x01020304, 5, 6, 7))
+    picks := Simd.Make(u8x16, 15, 16, 200, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+    shuffled := Simd.ByteShuffle(Simd.Reinterpret(u8x16, signed), picks)
+    chosen := Simd.Select(Simd.Make(u32x4, 0, 0xffffffff, 0, 0xffffffff), f, g)
+    widened := Simd.WidenHigh(signed)
+    shifted := Simd.ShiftBytesRight(signed, 3)
+    best := Simd.ReduceMaxIndex(Simd.Make(s16x8, 3, 9, -4, 9, 0, 1, 2, 8))
+    pointer := Simd.Load(s16x8, raw, 1)
+    Simd.Store(raw, 0, Simd.Splat(s16x8, 7))
+    gathered := Simd.Gather(table, Simd.Make(s32x4, 3, 0, 2, 1))
+    fixed: [6]s32 = .[10, 20, 30, 40, 50, 60]
+    from_array := Simd.Load(s32x4, fixed, 2)
+    print("float % % % % % % %\n", Simd.Lane(sum, 1), Simd.Lane(least, 2), Simd.Lane(most, 3),
+        Simd.Lane(flipped, 0), Simd.Lane(above, 2), Simd.Lane(chosen, 1), Simd.Lane(chosen, 0))
+    print("convert % % % % % %\n", Simd.Lane(whole, 0), Simd.Lane(whole, 1), Simd.Lane(whole, 2),
+        Simd.Lane(whole, 3), Simd.Lane(lost, 0), Simd.Lane(back, 0))
+    print("shift % % % % % % %\n", Simd.Lane(far, 0), Simd.Lane(far, 4), Simd.Lane(none, 1),
+        Simd.Lane(round, 1), Simd.Lane(round, 5), Simd.Lane(saturated, 4), Simd.Lane(saturated, 0))
+    print("shape % % % % % % % % %\n", Simd.Lane(narrow, 0), Simd.Lane(narrow, 1), Simd.Lane(words, 0),
+        Simd.Lane(bytes, 1), Simd.Lane(shuffled, 0), Simd.Lane(shuffled, 1), Simd.Lane(widened, 0),
+        Simd.Lane(shifted, 0), best)
+    print("memory % % % %\n", Simd.Lane(pointer, 0), Simd.Lane(gathered, 0), Simd.Lane(from_array, 3), raw.*)
+    return Simd.ReduceAdd(Simd.Make(s64x2, 40, 2))
+}
 
 main :: () -> s32 {
     bytes: [16]u8 = .[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
@@ -22,5 +68,8 @@ main :: () -> s32 {
         Simd.Lane(product, 15), Simd.Lane(masked, 7), Simd.Lane(mixed, 5), Simd.Lane(greater, 7),
         Simd.Lane(greater, 8), Simd.Lane(changed, 5), Simd.Lane(below, 0), Simd.Lane(below, 2),
         Simd.Lane(low, 7), Simd.Lane(low, 8))
+    values: [10]s16 = .[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    table: [4]s32 = .[100, 200, 300, 400]
+    if Edges(*values[1], table[:]) != 42 { return 0 }
     return cast(s32)Simd.Lane(product, 9)
 }

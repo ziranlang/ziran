@@ -99,7 +99,8 @@ typedef struct BundleCapabilityAbi {
     int reads_arguments;
 } BundleCapabilityAbi;
 
-/* Open and validate a version 26 portable bundle. Close releases all names. */
+/* Open and validate a portable bundle: revision-28 executable ZX, or a
+ * version 26 or 27 semantic bundle. Close releases all names. */
 Bundle *BundleOpen(const char *path);
 /* Select portable execution for subsequent bundle opens and instances. */
 void BundleUsePortableVm(int enabled);

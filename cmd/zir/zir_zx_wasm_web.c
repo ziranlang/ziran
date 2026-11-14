@@ -8,6 +8,12 @@
  * instantiation but not compilation again. Hosts need no code changes:
  * rebuilding the wasm bundle runtime activates the tier, and bundles
  * outside its subset fail with the selected engine's diagnostic.
+ *
+ * The JavaScript side only moves bytes: a revision-28 module's (zx, host)
+ * import hands the call record's address to ZxWasmHostCall, which reads
+ * the host images from the instance's memory, translates them to the
+ * page's VmHostValue bindings (ExecHosts) and writes the result back,
+ * placing result images with the module's zx_reserve.
  */
 #include "zir_zx_wasm_platform.h"
 #include "zir_zx_wasm.h"
@@ -42,6 +48,9 @@ EM_JS(unsigned long, zx_wasm_web_instantiate,
                 overrun: () => { throw new Error('zx budget spent'); },
                 host_i64: (index, value) => {
                     return _zx_wasm_provider_host(host, Number(index), value);
+                },
+                host: (index, record) => {
+                    return _zx_wasm_provider_call(host, index >>> 0, record >>> 0);
                 },
                 budget: budget,
             },
@@ -107,8 +116,17 @@ EM_JS(size_t, zx_wasm_web_allocate_state,
     const entry = globalThis.zxWasmTier.instances.get(handle);
     if(entry === undefined)
         return 0;
+    if(entry.instance.exports.zx_reserve !== undefined) {
+        try {
+            return entry.instance.exports.zx_reserve(Number(size)) >>> 0;
+        } catch(error) {
+            return 0;
+        }
+    }
     const memory = entry.instance.exports.memory;
     const arena = entry.instance.exports.zx_state_arena;
+    if(arena === undefined)
+        return 0;
     const start = (Number(arena.value) + 7) & ~7;
     const end = start + Number(size);
     if(end > 0x7fffffff)
@@ -120,6 +138,28 @@ EM_JS(size_t, zx_wasm_web_allocate_state,
     }
     arena.value = end;
     return start;
+});
+
+EM_JS(int, zx_wasm_web_initialize, (unsigned long handle), {
+    const entry = globalThis.zxWasmTier.instances.get(handle);
+    if(entry === undefined)
+        return 1;
+    try {
+        if(entry.instance.exports.zx_initialize !== undefined)
+            entry.instance.exports.zx_initialize();
+        return 0;
+    } catch(error) {
+        console.error('zx wasm tier: ' + error);
+        return 1;
+    }
+});
+
+EM_JS(int, zx_wasm_web_budget_left, (unsigned long handle, long long *budget), {
+    const entry = globalThis.zxWasmTier.instances.get(handle);
+    if(entry === undefined)
+        return 1;
+    setValue(budget, entry.budget.value, 'i64');
+    return 0;
 });
 
 EM_JS(void, zx_wasm_web_release, (unsigned long handle), {
@@ -147,6 +187,12 @@ zx_wasm_provider_host(void *host, int index, long long argument)
         return 0;
     }
     return result;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+zx_wasm_provider_call(void *host, unsigned index, unsigned record)
+{
+    return ZxWasmHostCall(host, index, record);
 }
 
 static unsigned long
@@ -192,6 +238,20 @@ web_allocate_state(void *context, unsigned long handle, size_t size)
     return zx_wasm_web_allocate_state(handle, size);
 }
 
+static int
+web_initialize(void *context, unsigned long handle)
+{
+    (void)context;
+    return zx_wasm_web_initialize(handle);
+}
+
+static int
+web_budget_left(void *context, unsigned long handle, long long *budget)
+{
+    (void)context;
+    return zx_wasm_web_budget_left(handle, budget);
+}
+
 static void
 web_release(void *context, unsigned long handle)
 {
@@ -214,6 +274,8 @@ ZxWasmInstallBundledPlatform(void)
     platform.read = web_read;
     platform.write = web_write;
     platform.allocate_state = web_allocate_state;
+    platform.initialize = web_initialize;
+    platform.budget_left = web_budget_left;
     platform.release = web_release;
     ZxWasmSetPlatform(&platform);
 }

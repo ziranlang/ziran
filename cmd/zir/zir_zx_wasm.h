@@ -3,15 +3,26 @@
 
 #include "zir.h"
 #include "ziran_host.h"
+#include "zir_host_exec.h"
 
-/* A bundle instance running as WebAssembly: the verified program lowered
- * to a wasm32 module by cmd/zir-wasm/zir_wasm_lower.c and instantiated
- * through the installed provider (zir_zx_wasm_platform.h). The current
- * tier lowers the scalar subset and typed s64 -> s64 host capabilities.
- * Other constructs and provider rejection fail the selected engine; the
- * caller never starts a different engine. */
+#include <stdint.h>
+
+/* A bundle instance running as WebAssembly, instantiated through the
+ * installed provider (zir_zx_wasm_platform.h). A revision-28 bundle lowers
+ * through cmd/zir-wasm/zx_wasm_lower.c, with typed host calls translated
+ * by the embedding API's rules (ExecHosts); a semantic bundle lowers
+ * through cmd/zir-wasm/zir_wasm_lower.c, whose tier carries scalars and
+ * s64 -> s64 host capabilities. Lowering and provider rejection fail the
+ * selected engine; the caller never starts a different engine. */
 typedef struct ZxWasm ZxWasm;
 struct Capability;
+
+/* Lower, instantiate and initialize one instance of a revision-28 bundle,
+ * every capability bound through `find`. max_steps > 0 bounds
+ * initialization and all runs together, as on the instruction engine.
+ * NULL after a diagnostic. */
+ZxWasm *ZxWasmOpenExec(const ExecBundle *bundle, ExecFindBinding find, void *context,
+                       long long max_steps);
 
 /* Lower and instantiate one independently owned instance. Each host
  * capability is dispatched through its exact bundle identity and typed ABI.
@@ -44,5 +55,9 @@ void ZxWasmClose(ZxWasm *wasm);
 #define ZX_WASM_PRINT_BOOL (UINT32_MAX - 5)
 int ZxWasmHostCallI64(void *bridge, size_t index, int64_t argument,
                       int64_t *result);
+/* The (zx, host) import of a revision-28 module: capability `index` with
+ * the call record at `record` in the instance's memory (zx_wasm_lower.h).
+ * Returns 1, or 0 when the call fails and the module traps. */
+int ZxWasmHostCall(void *bridge, uint32_t index, uint32_t record);
 
 #endif

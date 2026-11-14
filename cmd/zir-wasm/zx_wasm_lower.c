@@ -9,9 +9,17 @@
  * Blocks become nested wasm blocks; a function with a backward edge or a
  * non-zero entry adds one dispatch loop with a br_table. Every iteration is
  * in program index order, so equal inputs give byte-identical modules.
+ *
+ * Memory: static data, a fixed stack, then the heap. Heap blocks have a
+ * 16-byte header (capacity, state, element count) and power-of-two
+ * capacities from 16 bytes; a freed block joins the free list of its
+ * capacity, and the block that ends the heap gives its bytes back.
  */
 #include "zx_wasm_lower.h"
 #include "zir_diagnostic.h"
+
+#ifndef ZIRAN_NO_ENGINE
+
 #include "zir_zx_wasm.h"
 #include "compiler_lowered_ir.h"
 #include "compiler_lowered_verify.h"
@@ -27,17 +35,33 @@ enum {
     W_I32 = 0x7f, W_I64 = 0x7e, W_F32 = 0x7d, W_F64 = 0x7c,
     ZXW_DATA_BASE = 1024,
     ZXW_STACK_SIZE = 1 << 20,
-    ZXW_IMAGE_LIMIT = 1 << 28
+    ZXW_IMAGE_LIMIT = 1 << 28,
+    /* The largest heap block and host image. */
+    ZXW_BLOCK_LIMIT = 1 << 30,
+    /* Free lists by capacity 16 << class; a block is at most 1 GiB. */
+    ZXW_CLASSES = 27
 };
 
-/* Global indices: the imported budget, then the state arena cursor, the
- * stack pointer, the initializer flag and the stack limit. */
-enum { G_BUDGET, G_ARENA, G_SP, G_INIT, G_LIMIT };
+/* Global indices: the imported budget, the stack pointer, the initializer
+ * flag and the stack limit (which is also the heap base); with a heap the
+ * heap top; with host images the image base, cursor and length. */
+enum { G_BUDGET, G_SP, G_INIT, G_LIMIT, G_TOP, G_BASE, G_CURSOR, G_LENGTH };
+
+/* Heap block states. */
+enum { BLOCK_FREE, BLOCK_PROGRAM, BLOCK_HOST };
 
 enum {
     HOST_NONE, HOST_WRITE, HOST_SIGNED, HOST_UNSIGNED, HOST_BOOL,
     HOST_FLOAT32, HOST_FLOAT64, HOST_CAPABILITY
 };
+
+/* Host shape flags of a type, computed once. */
+enum {
+    SHAPE_VALID = 1, SHAPE_VIEWS = 2, SHAPE_BOOLS = 4,
+    SHAPE_BUSY = 0x40, SHAPE_DONE = 0x80
+};
+/* Image helpers a type needs: measure and encode, or decode. */
+enum { NEED_ENCODE = 1, NEED_DECODE = 2 };
 
 typedef struct Buf {
     unsigned char *data;
@@ -157,12 +181,28 @@ typedef struct Lower {
     size_t sig_capacity;
     ZxWasmCapability *capabilities;
     size_t capability_count;
-    int uses_host;
+    unsigned char *shapes;
+    unsigned char *needs;
+    uint32_t *measure_function;
+    uint32_t *encode_function;
+    uint32_t *decode_function;
+    int uses_print;
+    int uses_capability;
+    int uses_images;
+    int uses_heap;
     int uses_bytes_equal;
     int uses_table;
     uint32_t imports;
+    uint32_t print_import;
+    uint32_t host_import;
+    uint32_t free_table;
+    uint32_t alloc_function;
+    uint32_t free_function;
+    uint32_t resize_function;
+    uint32_t reserve_function;
     uint32_t bytes_equal_function;
     uint32_t stub_function;
+    uint32_t initialize_function;
     uint32_t entry_function;
     int failed;
 } Lower;
@@ -397,9 +437,167 @@ text_copy(String text)
     return copy;
 }
 
+/* A view is the record {data: *T, count: s64} of a non-void element, as
+ * LirHostView defines it: string, []T. Gives the element type or -1. */
+static int32_t
+view_element(Lower *lower, int32_t type)
+{
+    const LirType *value = type_at(lower, type);
+    if(value->kind != LirTypeKind_Record || value->fields.length != 2)
+        return -1;
+    const int32_t *fields = value->fields.data;
+    const LirType *pointer = type_at(lower, fields[0]);
+    const LirType *count = type_at(lower, fields[1]);
+    if(pointer->kind != LirTypeKind_Pointer || !type_valid(lower, pointer->element) ||
+       type_at(lower, pointer->element)->kind == LirTypeKind_Void ||
+       count->kind != LirTypeKind_Integer || count->bits != 64 || !count->is_signed)
+        return -1;
+    return pointer->element;
+}
+
+/* Host shape flags, by the rules of LirHostShapes: scalars, pointers as
+ * handles, and records, arrays and views of host shapes. A type that
+ * reaches itself or nests past 64 levels is not a shape. */
+static unsigned
+host_shape_at(Lower *lower, int32_t type, int depth)
+{
+    if(!type_valid(lower, type) || depth > 64)
+        return 0;
+    unsigned char *shape = &lower->shapes[type];
+    if(*shape & SHAPE_DONE)
+        return *shape & 7;
+    if(*shape & SHAPE_BUSY)
+        return 0;
+    *shape |= SHAPE_BUSY;
+    const LirType *value = &lower->types[type];
+    unsigned flags = 0;
+    int32_t element = view_element(lower, type);
+    if(value->kind == LirTypeKind_Bool)
+        flags = SHAPE_VALID | SHAPE_BOOLS;
+    else if(value->kind == LirTypeKind_Integer || value->kind == LirTypeKind_Float ||
+            value->kind == LirTypeKind_Pointer)
+        flags = SHAPE_VALID;
+    else if(element >= 0) {
+        unsigned inner = host_shape_at(lower, element, depth + 1);
+        if(inner & SHAPE_VALID)
+            flags = SHAPE_VALID | SHAPE_VIEWS | (inner & SHAPE_BOOLS);
+    } else if(value->kind == LirTypeKind_Array) {
+        flags = host_shape_at(lower, value->element, depth + 1);
+    } else if(value->kind == LirTypeKind_Record) {
+        const int32_t *fields = value->fields.data;
+        flags = SHAPE_VALID;
+        for(int64_t index = 0; index < value->fields.length; index++) {
+            unsigned field = host_shape_at(lower, fields[index], depth + 1);
+            if(!(field & SHAPE_VALID)) { flags = 0; break; }
+            flags |= field;
+        }
+    }
+    *shape = (unsigned char)(SHAPE_DONE | flags);
+    return flags;
+}
+
+static unsigned
+host_shape(Lower *lower, int32_t type)
+{
+    return host_shape_at(lower, type, 0);
+}
+
+/* Scalars and pointers cross as bits; other shapes cross as images. */
+static int
+host_bits(Lower *lower, int32_t type)
+{
+    LirTypeKind kind = type_at(lower, type)->kind;
+    return kind == LirTypeKind_Bool || kind == LirTypeKind_Integer ||
+           kind == LirTypeKind_Float || kind == LirTypeKind_Pointer;
+}
+
+/* Marks the image helpers a type and everything inside it needs. */
+static void
+mark_needs(Lower *lower, int32_t type, unsigned need)
+{
+    unsigned shape = host_shape(lower, type);
+    if(need == NEED_ENCODE && !(shape & SHAPE_VIEWS)) return;
+    if(need == NEED_DECODE && !(shape & (SHAPE_VIEWS | SHAPE_BOOLS))) return;
+    if(lower->needs[type] & need) return;
+    lower->needs[type] |= (unsigned char)need;
+    const LirType *value = type_at(lower, type);
+    int32_t element = view_element(lower, type);
+    if(element >= 0)
+        mark_needs(lower, element, need);
+    else if(value->kind == LirTypeKind_Array)
+        mark_needs(lower, value->element, need);
+    else if(value->kind == LirTypeKind_Record) {
+        const int32_t *fields = value->fields.data;
+        for(int64_t index = 0; index < value->fields.length; index++)
+            mark_needs(lower, fields[index], need);
+    }
+}
+
+/* How one capability value crosses, or 0 after a gap. */
+static int
+capability_value(Lower *lower, const LirFunction *function, int32_t type, int result, ZxWasmValue *value)
+{
+    memset(value, 0, sizeof(*value));
+    value->type = type;
+    if(result && type_at(lower, type)->kind == LirTypeKind_Void) {
+        value->kind = ZX_WASM_VOID;
+        return 1;
+    }
+    if(!(host_shape(lower, type) & SHAPE_VALID) || !type_lowered(lower, type))
+        return WasmGap(lower, "wasm.gap.host-capability-abi",
+                   "host capability %.*s has a %s %s that cannot cross a typed host boundary",
+                   (int)function->name.length, function->name.data,
+                   kind_name(type_at(lower, type)->kind), result ? "result" : "parameter");
+    value->kind = host_bits(lower, type) ? ZX_WASM_BITS : ZX_WASM_IMAGE;
+    int32_t element = view_element(lower, type);
+    if(element >= 0 && !(host_shape(lower, element) & SHAPE_VIEWS) && type_size(lower, element) > 0)
+        value->element_size = (size_t)type_size(lower, element);
+    if(value->kind == ZX_WASM_IMAGE) {
+        lower->uses_images = 1;
+        mark_needs(lower, type, result ? NEED_DECODE : NEED_ENCODE);
+    }
+    return 1;
+}
+
+static int
+add_capability(Lower *lower, int64_t index)
+{
+    const LirFunction *function = &lower->functions[index];
+    size_t capacity = lower->capability_count + 1;
+    ZxWasmCapability *capabilities = realloc(lower->capabilities, capacity * sizeof(*capabilities));
+    if(capabilities == NULL) {
+        lower->failed = 1;
+        DiagnosticOutOfMemory();
+        return 0;
+    }
+    lower->capabilities = capabilities;
+    String module = function->module >= 0 && function->module < lower->module_count ?
+        lower->modules[function->module] : (String){"", 0};
+    ZxWasmCapability *capability = &capabilities[lower->capability_count++];
+    memset(capability, 0, sizeof(*capability));
+    capability->symbol = (int32_t)index;
+    capability->parameter_count = (size_t)function->parameters.length;
+    capability->module = text_copy(module);
+    capability->function = text_copy(function->name);
+    capability->parameters = calloc(capability->parameter_count + 1, sizeof(*capability->parameters));
+    if(capability->module == NULL || capability->function == NULL || capability->parameters == NULL) {
+        lower->failed = 1;
+        DiagnosticOutOfMemory();
+        return 0;
+    }
+    const int32_t *parameters = function->parameters.data;
+    for(size_t at = 0; at < capability->parameter_count; at++)
+        if(!capability_value(lower, function, parameters[at], 0, &capability->parameters[at]))
+            return 0;
+    if(!capability_value(lower, function, function->result, 1, &capability->result))
+        return 0;
+    lower->host_index[index] = (uint32_t)(lower->capability_count - 1);
+    return 1;
+}
+
 /* Classify every external procedure once: platform output services map to
  * the reserved print indices, every other host procedure is a declared
- * capability with its own index. */
+ * capability with its own index and typed signature. */
 static int
 classify_externals(Lower *lower)
 {
@@ -428,6 +626,12 @@ classify_externals(Lower *lower)
                        (int)name.length, name.data);
         else
             kind = HOST_CAPABILITY;
+        lower->host_kind[index] = kind;
+        if(kind == HOST_CAPABILITY) {
+            if(!add_capability(lower, index))
+                return 0;
+            continue;
+        }
         int valid = 1;
         if(kind == HOST_WRITE)
             valid = count == 3 && type_at(lower, parameters[0])->kind == LirTypeKind_Integer &&
@@ -440,41 +644,10 @@ classify_externals(Lower *lower)
         else if(kind == HOST_FLOAT32 || kind == HOST_FLOAT64)
             valid = count == 1 && first->kind == LirTypeKind_Float &&
                 first->bits == (kind == HOST_FLOAT32 ? 32 : 64);
-        if(kind != HOST_CAPABILITY && (!valid || type_at(lower, function->result)->kind != LirTypeKind_Void))
+        if(!valid || type_at(lower, function->result)->kind != LirTypeKind_Void)
             return WasmGap(lower, "wasm.gap.platform-service-abi",
                        "platform service %.*s has an unexpected LIR signature",
                        (int)name.length, name.data);
-        if(kind == HOST_CAPABILITY) {
-            const LirType *result = type_at(lower, function->result);
-            if(count != 1 || first->kind != LirTypeKind_Integer || first->bits != 64 ||
-               !first->is_signed || result->kind != LirTypeKind_Integer ||
-               result->bits != 64 || !result->is_signed)
-                return WasmGap(lower, "wasm.gap.host-capability-abi",
-                           "host capability %.*s is not s64 -> s64; the wasm32 host bridge carries typed s64 -> s64 calls only",
-                           (int)name.length, name.data);
-            size_t capacity = lower->capability_count + 1;
-            ZxWasmCapability *capabilities = realloc(lower->capabilities, capacity * sizeof(*capabilities));
-            if(capabilities == NULL) {
-                lower->failed = 1;
-                DiagnosticOutOfMemory();
-                return 0;
-            }
-            lower->capabilities = capabilities;
-            String module = function->module >= 0 && function->module < lower->module_count ?
-                lower->modules[function->module] : (String){"", 0};
-            ZxWasmCapability *capability = &capabilities[lower->capability_count];
-            capability->module = text_copy(module);
-            capability->function = text_copy(name);
-            if(capability->module == NULL || capability->function == NULL) {
-                free(capability->module);
-                free(capability->function);
-                lower->failed = 1;
-                DiagnosticOutOfMemory();
-                return 0;
-            }
-            lower->host_index[index] = (uint32_t)lower->capability_count++;
-        }
-        lower->host_kind[index] = kind;
     }
     return 1;
 }
@@ -559,6 +732,8 @@ typedef struct Fn {
     int64_t *alloca_slot;
     int64_t frame;
     int64_t scratch;
+    /* Frame offset of the host call record. */
+    int64_t host_area;
     uint32_t fp;
     uint32_t pc;
     uint32_t result_address;
@@ -617,6 +792,12 @@ static void memarg(Fn *fn, unsigned code, uint32_t offset) { buf_byte(&fn->code,
 static void memory_copy(Fn *fn) { buf_byte(&fn->code, 0xfc); buf_uleb(&fn->code, 10); buf_byte(&fn->code, 0); buf_byte(&fn->code, 0); }
 static void memory_fill(Fn *fn) { buf_byte(&fn->code, 0xfc); buf_uleb(&fn->code, 11); buf_byte(&fn->code, 0); }
 static void trap_if(Fn *fn) { op(fn, 0x04); op(fn, 0x40); op(fn, 0x00); op(fn, 0x0b); }
+static void if_begin(Fn *fn) { op(fn, 0x04); op(fn, 0x40); }
+static void block_begin(Fn *fn) { op(fn, 0x02); op(fn, 0x40); }
+static void loop_begin(Fn *fn) { op(fn, 0x03); op(fn, 0x40); }
+static void end(Fn *fn) { op(fn, 0x0b); }
+static void call(Fn *fn, uint32_t function) { op_u(fn, 0x10, function); }
+static void return_zero(Fn *fn) { i32_const(fn, 0); op(fn, 0x0f); }
 
 static int
 value_valid(Fn *fn, int32_t value)
@@ -1528,6 +1709,189 @@ lower_call(Fn *fn, const LirInstruction *instruction)
     }
 }
 
+/* Pushes the header address of the heap block whose payload is the i32
+ * local `address`. */
+static void
+block_header(Fn *fn, uint32_t address)
+{
+    local_get(fn, address); i32_const(fn, 16); op(fn, 0x6b);
+}
+
+/* Traps unless `address` (an i32 local) is the payload of a heap block in
+ * `state`. */
+static void
+check_block(Fn *fn, uint32_t address, unsigned state)
+{
+    local_get(fn, address); global_get(fn, G_LIMIT); i32_const(fn, 16); op(fn, 0x6a); op(fn, 0x49);
+    local_get(fn, address); global_get(fn, G_TOP); op(fn, 0x4f); op(fn, 0x72);
+    local_get(fn, address); i32_const(fn, 15); op(fn, 0x71); op(fn, 0x72);
+    trap_if(fn);
+    block_header(fn, address); memarg(fn, 0x28, 4); i32_const(fn, (int32_t)state); op(fn, 0x47);
+    trap_if(fn);
+}
+
+/* Pushes a bits value as its canonical u64: zero-extended integers, 0/1
+ * bools, IEEE patterns and pointer handles. */
+static void
+push_bits(Fn *fn, int32_t value)
+{
+    const LirType *type = value_lir(fn, value);
+    unsigned wasm = value_wasm(fn, value);
+    get(fn, value);
+    if(type->kind == LirTypeKind_Float && wasm == W_F32) { op(fn, 0xbc); op(fn, 0xad); }
+    else if(type->kind == LirTypeKind_Float) op(fn, 0xbd);
+    else if(wasm == W_I32) op(fn, 0xad);
+}
+
+/* A typed host capability call; see the module ABI in zx_wasm_lower.h. */
+static void
+lower_capability_call(Fn *fn, const LirInstruction *instruction)
+{
+    Lower *lower = fn->lower;
+    const ZxWasmCapability *capability = &lower->capabilities[lower->host_index[instruction->symbol]];
+    const int32_t *operands = instruction->operands.data;
+    uint32_t count = (uint32_t)capability->parameter_count;
+    int64_t base = fn->host_area;
+    uint32_t total = fn_temp(fn, W_I64, 0);
+    if(base < 0 || !offset_fits(fn, base + 16 * (int64_t)count + 16))
+        return;
+    for(uint32_t index = 0; index < count && !lower->failed; index++) {
+        const ZxWasmValue *value = &capability->parameters[index];
+        uint32_t at = (uint32_t)base + 16 * index;
+        if(value->kind == ZX_WASM_BITS) {
+            local_get(fn, fn->fp); push_bits(fn, operands[index]); memarg(fn, 0x37, at);
+            local_get(fn, fn->fp); i64_const(fn, 0); memarg(fn, 0x37, at + 8);
+            continue;
+        }
+        /* An image in a heap block of its own: the value's bytes, then the
+         * elements of its views. */
+        int64_t size = type_size(lower, value->type);
+        int views = (host_shape(lower, value->type) & SHAPE_VIEWS) != 0;
+        uint32_t block = fn_temp(fn, W_I32, 2 + index);
+        Addr source = addr_of_slot(fn, operands[index]);
+        i64_const(fn, size);
+        if(views) { push_full(fn, source); call(fn, lower->measure_function[value->type]); op(fn, 0x7c); }
+        local_set(fn, total);
+        local_get(fn, total); i64_const(fn, ZXW_BLOCK_LIMIT); op(fn, 0x56); trap_if(fn);
+        local_get(fn, total); op(fn, 0xa7); i32_const(fn, BLOCK_PROGRAM); call(fn, lower->alloc_function);
+        local_set(fn, block);
+        local_get(fn, block); op(fn, 0x45); trap_if(fn);
+        if(size > 0) {
+            local_get(fn, block); push_full(fn, source); i32_const(fn, (int32_t)size); memory_copy(fn);
+        }
+        if(views) {
+            local_get(fn, block); global_set(fn, G_BASE);
+            local_get(fn, block); i32_const(fn, (int32_t)size); op(fn, 0x6a); global_set(fn, G_CURSOR);
+            push_full(fn, source); local_get(fn, block); call(fn, lower->encode_function[value->type]);
+        }
+        local_get(fn, fn->fp); local_get(fn, block); memarg(fn, 0x36, at);
+        local_get(fn, fn->fp);
+        if(view_element(lower, value->type) >= 0) { push_base(fn, source); memarg(fn, 0x29, (uint32_t)source.offset); op(fn, 0xa7); }
+        else i32_const(fn, 0);
+        memarg(fn, 0x36, at + 4);
+        local_get(fn, fn->fp); local_get(fn, total); op(fn, 0xa7); memarg(fn, 0x36, at + 8);
+        local_get(fn, fn->fp); i32_const(fn, 0); memarg(fn, 0x36, at + 12);
+    }
+    uint32_t result = (uint32_t)base + 16 * count;
+    local_get(fn, fn->fp); i64_const(fn, 0); memarg(fn, 0x37, result);
+    local_get(fn, fn->fp); i64_const(fn, 0); memarg(fn, 0x37, result + 8);
+    i32_const(fn, (int32_t)lower->host_index[instruction->symbol]);
+    local_get(fn, fn->fp); i32_const(fn, (int32_t)base); op(fn, 0x6a);
+    call(fn, lower->host_import);
+    op(fn, 0x45); trap_if(fn);
+    /* A host that changed a []T argument's elements gives them back in
+     * place; the module copies them into the slice. Nothing else may
+     * change. */
+    for(uint32_t index = 0; index < count && !lower->failed; index++) {
+        const ZxWasmValue *value = &capability->parameters[index];
+        if(value->kind != ZX_WASM_IMAGE)
+            continue;
+        uint32_t at = (uint32_t)base + 16 * index;
+        uint32_t block = fn_temp(fn, W_I32, 2 + index);
+        int64_t width = (int64_t)value->element_size;
+        local_get(fn, fn->fp); memarg(fn, 0x28, at + 12);
+        if(width <= 0) {
+            trap_if(fn);
+        } else {
+            Addr slice = addr_of_slot(fn, operands[index]);
+            if_begin(fn);
+            /* The same element count, inside the image. */
+            local_get(fn, block); memarg(fn, 0x29, 8);
+            push_base(fn, slice); memarg(fn, 0x29, (uint32_t)slice.offset + 8);
+            op(fn, 0x52); trap_if(fn);
+            local_get(fn, block); memarg(fn, 0x29, 0);
+            push_base(fn, slice); memarg(fn, 0x29, (uint32_t)slice.offset + 8);
+            i64_const(fn, width); op(fn, 0x7e); op(fn, 0x7c);
+            local_get(fn, fn->fp); memarg(fn, 0x35, at + 8);
+            op(fn, 0x56); trap_if(fn);
+            push_base(fn, slice); memarg(fn, 0x29, (uint32_t)slice.offset); op(fn, 0xa7);
+            local_get(fn, block); local_get(fn, block); memarg(fn, 0x29, 0); op(fn, 0xa7); op(fn, 0x6a);
+            push_base(fn, slice); memarg(fn, 0x29, (uint32_t)slice.offset + 8);
+            i64_const(fn, width); op(fn, 0x7e); op(fn, 0xa7);
+            memory_copy(fn);
+            end(fn);
+        }
+        local_get(fn, block); call(fn, lower->free_function);
+    }
+    const ZxWasmValue *returned = &capability->result;
+    if(returned->kind == ZX_WASM_VOID) {
+        local_get(fn, fn->fp); memarg(fn, 0x28, result + 8); trap_if(fn);
+        return;
+    }
+    if(returned->kind == ZX_WASM_BITS) {
+        const LirType *type = type_at(lower, returned->type);
+        local_get(fn, fn->fp); memarg(fn, 0x29, result); local_set(fn, total);
+        if(type->kind == LirTypeKind_Integer && type->bits < 64) {
+            local_get(fn, total); i64_const(fn, (int64_t)~integer_mask(type->bits)); op(fn, 0x83);
+            op(fn, 0x50); op(fn, 0x45); trap_if(fn);
+        } else if(type->kind == LirTypeKind_Bool) {
+            local_get(fn, total); i64_const(fn, 1); op(fn, 0x56); trap_if(fn);
+        } else if(type->kind == LirTypeKind_Pointer || (type->kind == LirTypeKind_Float && type->bits == 32)) {
+            local_get(fn, total); i64_const(fn, 0xffffffffLL); op(fn, 0x56); trap_if(fn);
+        }
+        if(instruction->result == LirNoId)
+            return;
+        unsigned wasm = valtype(lower, returned->type);
+        local_get(fn, total);
+        if(wasm == W_I32) op(fn, 0xa7);
+        else if(wasm == W_F32) { op(fn, 0xa7); op(fn, 0xbe); }
+        else if(wasm == W_F64) op(fn, 0xbf);
+        set(fn, instruction->result);
+        return;
+    }
+    /* An image result: the host placed it in a block from zx_reserve. Its
+     * views become pointers into the block, which the module then keeps;
+     * a value without views is copied out and the block freed. */
+    int64_t size = type_size(lower, returned->type);
+    unsigned shape = host_shape(lower, returned->type);
+    uint32_t address = fn_temp(fn, W_I32, 0), length = fn_temp(fn, W_I32, 1);
+    local_get(fn, fn->fp); memarg(fn, 0x29, result); local_set(fn, total);
+    local_get(fn, total); i64_const(fn, 0xffffffffLL); op(fn, 0x56); trap_if(fn);
+    local_get(fn, total); op(fn, 0xa7); local_set(fn, address);
+    local_get(fn, fn->fp); memarg(fn, 0x28, result + 8); local_set(fn, length);
+    local_get(fn, length); i32_const(fn, (int32_t)size); op(fn, (shape & SHAPE_VIEWS) ? 0x49 : 0x47); trap_if(fn);
+    local_get(fn, address);
+    if_begin(fn);
+    check_block(fn, address, BLOCK_HOST);
+    block_header(fn, address); memarg(fn, 0x28, 0); local_get(fn, length); op(fn, 0x49); trap_if(fn);
+    op(fn, 0x05);
+    local_get(fn, length); trap_if(fn);
+    end(fn);
+    if(shape & (SHAPE_VIEWS | SHAPE_BOOLS)) {
+        local_get(fn, address); global_set(fn, G_BASE);
+        local_get(fn, length); global_set(fn, G_LENGTH);
+        local_get(fn, address); call(fn, lower->decode_function[returned->type]);
+    }
+    if(size > 0 && instruction->result != LirNoId) {
+        push_full(fn, addr_of_slot(fn, instruction->result)); local_get(fn, address);
+        i32_const(fn, (int32_t)size); memory_copy(fn);
+    }
+    if(!(shape & SHAPE_VIEWS)) {
+        local_get(fn, address);
+        if_begin(fn); local_get(fn, address); call(fn, lower->free_function); end(fn);
+    }
+}
+
 static void
 lower_host_call(Fn *fn, const LirInstruction *instruction)
 {
@@ -1583,16 +1947,36 @@ lower_host_call(Fn *fn, const LirInstruction *instruction)
         get(fn, operands[0]); op(fn, 0xbd);
         break;
     case HOST_CAPABILITY:
-        i32_const(fn, (int32_t)lower->host_index[instruction->symbol]);
-        get(fn, operands[0]);
-        break;
+        lower_capability_call(fn, instruction);
+        return;
     default:
         WasmGap(lower, "wasm.gap.host", "unclassified host procedure %.*s", (int)callee->name.length, callee->name.data);
         return;
     }
-    op_u(fn, 0x10, 1);
-    if(kind == HOST_CAPABILITY && instruction->result != LirNoId) set(fn, instruction->result);
-    else op(fn, 0x1a);
+    call(fn, lower->print_import);
+    op(fn, 0x1a);
+}
+
+/* resize(pointer, old_count, new_count) -> pointer through the heap. */
+static void
+lower_resize(Fn *fn, const LirInstruction *instruction)
+{
+    if(!operand_count(fn, instruction, 3, 3))
+        return;
+    const int32_t *operands = instruction->operands.data;
+    const LirType *pointer = value_lir(fn, instruction->result);
+    int64_t size = pointer->kind == LirTypeKind_Pointer ? type_size(fn->lower, pointer->element) : -1;
+    if(size < 0 || size > ZXW_BLOCK_LIMIT || value_lir(fn, operands[1])->kind != LirTypeKind_Integer ||
+       value_lir(fn, operands[2])->kind != LirTypeKind_Integer) {
+        WasmGap(fn->lower, "wasm.gap.resize", "resize of an unbounded or non-pointer value");
+        return;
+    }
+    get(fn, operands[0]);
+    get_i64(fn, operands[1], 0);
+    get_i64(fn, operands[2], 0);
+    i32_const(fn, (int32_t)size);
+    call(fn, fn->lower->resize_function);
+    set(fn, instruction->result);
 }
 
 static void
@@ -1663,6 +2047,7 @@ lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int6
     case LirOp_BytesEqual: lower_bytes_equal(fn, instruction); return;
     case LirOp_Call: case LirOp_CallIndirect: lower_call(fn, instruction); return;
     case LirOp_HostCall: lower_host_call(fn, instruction); return;
+    case LirOp_Resize: lower_resize(fn, instruction); return;
     case LirOp_Fuel: lower_fuel(fn, instruction->immediate); return;
     case LirOp_Trap: case LirOp_Unreachable: op(fn, 0x00); return;
     case LirOp_Jump:
@@ -1704,6 +2089,40 @@ lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int6
             (int)compiler_lowered_ir_LirOpName(instruction->op).length,
             compiler_lowered_ir_LirOpName(instruction->op).data);
     }
+}
+
+/* Writes one function body: run-length locals after the parameters, then
+ * the code, which already ends. */
+static int
+fn_body(Fn *fn, Buf *output)
+{
+    Buf body = {0};
+    uint32_t runs = 0;
+    for(uint32_t local = fn->param_count; local < fn->local_count; ) {
+        uint32_t next = local;
+        while(next < fn->local_count && fn->locals[next] == fn->locals[local]) next++;
+        runs++;
+        local = next;
+    }
+    buf_uleb(&body, runs);
+    for(uint32_t local = fn->param_count; local < fn->local_count; ) {
+        uint32_t next = local;
+        while(next < fn->local_count && fn->locals[next] == fn->locals[local]) next++;
+        buf_uleb(&body, next - local);
+        buf_byte(&body, fn->locals[local]);
+        local = next;
+    }
+    buf_raw(&body, fn->code.data, fn->code.count);
+    buf_uleb(output, body.count);
+    buf_raw(output, body.data, body.count);
+    int failed = body.failed || fn->code.failed;
+    buf_free(&body);
+    if(failed) {
+        DiagnosticOutOfMemory();
+        fn->lower->failed = 1;
+        return 0;
+    }
+    return 1;
 }
 
 /* Lays out locals and frame slots, then emits one function body. */
@@ -1762,6 +2181,7 @@ lower_function(Lower *lower, int64_t index, Buf *output)
         }
     }
     int64_t at = 0;
+    int64_t host_area = 0;
     for(int64_t block = 0; block < fn.block_count; block++) {
         const LirInstruction *instructions = instructions_of(&blocks[block]);
         int64_t scratch = 0;
@@ -1780,6 +2200,11 @@ lower_function(Lower *lower, int64_t index, Buf *output)
                 fn.alloca_slot[at] = fn.frame;
                 fn.frame += size;
             }
+            if(instruction->op == LirOp_HostCall && instruction->symbol >= 0 &&
+               instruction->symbol < lower->function_count &&
+               lower->host_kind[instruction->symbol] == HOST_CAPABILITY &&
+               16 * (instruction->operands.length + 1) > host_area)
+                host_area = 16 * (instruction->operands.length + 1);
             const LirEdge *edges = instruction->edges.data;
             for(int64_t edge = 0; edge < instruction->edges.length; edge++)
                 if(edges[edge].block <= block || function->entry != 0)
@@ -1791,6 +2216,12 @@ lower_function(Lower *lower, int64_t index, Buf *output)
         int64_t scratch = fn.scratch;
         fn.scratch = fn.frame;
         fn.frame += scratch;
+    }
+    fn.host_area = -1;
+    if(host_area > 0) {
+        fn.frame = (fn.frame + 7) & ~(int64_t)7;
+        fn.host_area = fn.frame;
+        fn.frame += host_area;
     }
     fn.frame = (fn.frame + 15) & ~(int64_t)15;
     if(fn.frame > ZXW_STACK_SIZE / 2) {
@@ -1866,30 +2297,7 @@ lower_function(Lower *lower, int64_t index, Buf *output)
     op(&fn, 0x0b);
     if(lower->failed) goto done;
     if(fn.code.failed) { DiagnosticOutOfMemory(); lower->failed = 1; goto done; }
-    {
-        Buf body = {0};
-        uint32_t runs = 0;
-        for(uint32_t local = fn.param_count; local < fn.local_count; ) {
-            uint32_t next = local;
-            while(next < fn.local_count && fn.locals[next] == fn.locals[local]) next++;
-            runs++;
-            local = next;
-        }
-        buf_uleb(&body, runs);
-        for(uint32_t local = fn.param_count; local < fn.local_count; ) {
-            uint32_t next = local;
-            while(next < fn.local_count && fn.locals[next] == fn.locals[local]) next++;
-            buf_uleb(&body, next - local);
-            buf_byte(&body, fn.locals[local]);
-            local = next;
-        }
-        buf_raw(&body, fn.code.data, fn.code.count);
-        buf_uleb(output, body.count);
-        buf_raw(output, body.data, body.count);
-        int failed = body.failed;
-        buf_free(&body);
-        if(failed) { DiagnosticOutOfMemory(); lower->failed = 1; goto done; }
-    }
+    if(!fn_body(&fn, output)) goto done;
     ok = 1;
 done:
     buf_free(&fn.code);
@@ -1898,6 +2306,389 @@ done:
     free(fn.value_slot);
     free(fn.alloca_slot);
     return ok && !lower->failed;
+}
+
+/* ------------------------------------------------------- heap and images */
+
+static void
+helper_start(Fn *fn, Lower *lower, const unsigned char *parameters, uint32_t count)
+{
+    memset(fn, 0, sizeof(*fn));
+    fn->lower = lower;
+    for(uint32_t at = 0; at < count; at++)
+        fn_local(fn, parameters[at]);
+    fn->param_count = count;
+}
+
+static void
+helper_finish(Fn *fn, Buf *output)
+{
+    end(fn);
+    fn_body(fn, output);
+    buf_free(&fn->code);
+    free(fn->locals);
+}
+
+static void
+memory_size_bytes(Fn *fn)
+{
+    op(fn, 0x3f); buf_byte(&fn->code, 0); i32_const(fn, 16); op(fn, 0x74);
+}
+
+/* Grows memory to hold `end` (an i32 local) bytes, or returns 0 from the
+ * helper when it cannot. */
+static void
+emit_room(Fn *fn, uint32_t end_local)
+{
+    local_get(fn, end_local); memory_size_bytes(fn); op(fn, 0x4b);
+    if_begin(fn);
+    local_get(fn, end_local); memory_size_bytes(fn); op(fn, 0x6b);
+    i32_const(fn, 65535); op(fn, 0x6a); i32_const(fn, 16); op(fn, 0x76);
+    op(fn, 0x40); buf_byte(&fn->code, 0);
+    i32_const(fn, -1); op(fn, 0x46);
+    if_begin(fn); return_zero(fn); end(fn);
+    end(fn);
+}
+
+/* Pushes 28 - clz(bytes - 1): the class of a block over 16 bytes. */
+static void
+size_class(Fn *fn, uint32_t bytes)
+{
+    i32_const(fn, 28); local_get(fn, bytes); i32_const(fn, 1); op(fn, 0x6b); op(fn, 0x67); op(fn, 0x6b);
+}
+
+/* alloc(bytes, state) -> payload: a zero-filled block from the free list
+ * of its class or from the heap top; 0 when memory cannot grow. */
+static void
+emit_alloc(Lower *lower, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32, W_I32};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 2);
+    uint32_t class = fn_local(&fn, W_I32), payload = fn_local(&fn, W_I32);
+    uint32_t header = fn_local(&fn, W_I32), limit = fn_local(&fn, W_I32);
+    uint32_t table = lower->free_table;
+    i32_const(&fn, 0);
+    size_class(&fn, 0);
+    local_get(&fn, 0); i32_const(&fn, 16); op(&fn, 0x4d);
+    op(&fn, 0x1b);
+    local_set(&fn, class);
+    local_get(&fn, class); i32_const(&fn, 2); op(&fn, 0x74); memarg(&fn, 0x28, table);
+    op_u(&fn, 0x22, payload);
+    op(&fn, 0x04); op(&fn, 0x40);
+    local_get(&fn, class); i32_const(&fn, 2); op(&fn, 0x74);
+    local_get(&fn, payload); memarg(&fn, 0x28, 0);
+    memarg(&fn, 0x36, table);
+    local_get(&fn, payload); i32_const(&fn, 16); op(&fn, 0x6b); local_set(&fn, header);
+    op(&fn, 0x05);
+    global_get(&fn, G_TOP); op_u(&fn, 0x22, header);
+    i32_const(&fn, 16); op(&fn, 0x6a);
+    i32_const(&fn, 16); local_get(&fn, class); op(&fn, 0x74); op(&fn, 0x6a);
+    op_u(&fn, 0x22, limit);
+    i32_const(&fn, INT32_MIN); op(&fn, 0x4b);
+    if_begin(&fn); return_zero(&fn); end(&fn);
+    emit_room(&fn, limit);
+    local_get(&fn, limit); global_set(&fn, G_TOP);
+    local_get(&fn, header); i32_const(&fn, 16); local_get(&fn, class); op(&fn, 0x74); memarg(&fn, 0x36, 0);
+    local_get(&fn, header); i32_const(&fn, 16); op(&fn, 0x6a); local_set(&fn, payload);
+    end(&fn);
+    local_get(&fn, header); local_get(&fn, 1); memarg(&fn, 0x36, 4);
+    local_get(&fn, header); i64_const(&fn, 0); memarg(&fn, 0x37, 8);
+    local_get(&fn, payload); i32_const(&fn, 0); local_get(&fn, 0); memory_fill(&fn);
+    local_get(&fn, payload);
+    helper_finish(&fn, output);
+}
+
+/* free(payload): the block that ends the heap gives its bytes back; any
+ * other joins the free list of its class. */
+static void
+emit_free(Lower *lower, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 1);
+    uint32_t header = fn_local(&fn, W_I32), capacity = fn_local(&fn, W_I32);
+    uint32_t table = lower->free_table;
+    local_get(&fn, 0); i32_const(&fn, 16); op(&fn, 0x6b); op_u(&fn, 0x22, header);
+    memarg(&fn, 0x28, 0); local_set(&fn, capacity);
+    local_get(&fn, header); i32_const(&fn, BLOCK_FREE); memarg(&fn, 0x36, 4);
+    local_get(&fn, 0); local_get(&fn, capacity); op(&fn, 0x6a); global_get(&fn, G_TOP); op(&fn, 0x46);
+    if_begin(&fn); local_get(&fn, header); global_set(&fn, G_TOP); op(&fn, 0x0f); end(&fn);
+    local_get(&fn, 0);
+    local_get(&fn, capacity); op(&fn, 0x68); i32_const(&fn, 4); op(&fn, 0x6b); i32_const(&fn, 2); op(&fn, 0x74);
+    memarg(&fn, 0x28, table);
+    memarg(&fn, 0x36, 0);
+    local_get(&fn, capacity); op(&fn, 0x68); i32_const(&fn, 4); op(&fn, 0x6b); i32_const(&fn, 2); op(&fn, 0x74);
+    local_get(&fn, 0);
+    memarg(&fn, 0x36, table);
+    helper_finish(&fn, output);
+}
+
+/* resize(pointer, old_count, new_count, element_size) -> pointer, the
+ * interpreter's rules: null with count 0 allocates, count 0 frees, the
+ * first min(old, new) elements stay and the rest is zero, and a request
+ * memory cannot hold gives null with the old block intact. Only a live
+ * program block's own pointer with its exact count may be resized. */
+static void
+emit_resize(Lower *lower, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32, W_I64, W_I64, W_I32};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 4);
+    uint32_t header = fn_local(&fn, W_I32), capacity = fn_local(&fn, W_I32);
+    uint32_t bytes = fn_local(&fn, W_I32), kept = fn_local(&fn, W_I32);
+    uint32_t moved = fn_local(&fn, W_I32), limit = fn_local(&fn, W_I32);
+    local_get(&fn, 0);
+    op(&fn, 0x04); op(&fn, 0x40);
+    check_block(&fn, 0, BLOCK_PROGRAM);
+    block_header(&fn, 0); local_set(&fn, header);
+    local_get(&fn, header); memarg(&fn, 0x29, 8); local_get(&fn, 1); op(&fn, 0x52); trap_if(&fn);
+    op(&fn, 0x05);
+    local_get(&fn, 1); i64_const(&fn, 0); op(&fn, 0x52); trap_if(&fn);
+    end(&fn);
+    local_get(&fn, 2); op(&fn, 0x50);
+    if_begin(&fn);
+    local_get(&fn, 0); if_begin(&fn); local_get(&fn, 0); call(&fn, lower->free_function); end(&fn);
+    return_zero(&fn);
+    end(&fn);
+    local_get(&fn, 3);
+    if_begin(&fn);
+    local_get(&fn, 2); i64_const(&fn, ZXW_BLOCK_LIMIT); local_get(&fn, 3); op(&fn, 0xad); op(&fn, 0x80); op(&fn, 0x56);
+    if_begin(&fn); return_zero(&fn); end(&fn);
+    end(&fn);
+    local_get(&fn, 2); local_get(&fn, 3); op(&fn, 0xad); op(&fn, 0x7e); op(&fn, 0xa7); local_set(&fn, bytes);
+    local_get(&fn, 1); local_get(&fn, 3); op(&fn, 0xad); op(&fn, 0x7e); op(&fn, 0xa7); local_set(&fn, kept);
+    local_get(&fn, 0);
+    if_begin(&fn);
+    local_get(&fn, header); memarg(&fn, 0x28, 0); local_set(&fn, capacity);
+    /* In place within its capacity. */
+    local_get(&fn, bytes); local_get(&fn, capacity); op(&fn, 0x4d);
+    if_begin(&fn);
+    local_get(&fn, bytes); local_get(&fn, kept); op(&fn, 0x4b);
+    if_begin(&fn);
+    local_get(&fn, 0); local_get(&fn, kept); op(&fn, 0x6a); i32_const(&fn, 0);
+    local_get(&fn, bytes); local_get(&fn, kept); op(&fn, 0x6b); memory_fill(&fn);
+    end(&fn);
+    local_get(&fn, header); local_get(&fn, 2); memarg(&fn, 0x37, 8);
+    local_get(&fn, 0); op(&fn, 0x0f);
+    end(&fn);
+    /* The block that ends the heap grows where it is. */
+    local_get(&fn, 0); local_get(&fn, capacity); op(&fn, 0x6a); global_get(&fn, G_TOP); op(&fn, 0x46);
+    if_begin(&fn);
+    local_get(&fn, 0); i32_const(&fn, 16); size_class(&fn, bytes); op(&fn, 0x74);
+    op_u(&fn, 0x22, capacity); op(&fn, 0x6a); op_u(&fn, 0x22, limit);
+    i32_const(&fn, INT32_MIN); op(&fn, 0x4b);
+    if_begin(&fn); return_zero(&fn); end(&fn);
+    emit_room(&fn, limit);
+    local_get(&fn, limit); global_set(&fn, G_TOP);
+    local_get(&fn, header); local_get(&fn, capacity); memarg(&fn, 0x36, 0);
+    local_get(&fn, 0); local_get(&fn, kept); op(&fn, 0x6a); i32_const(&fn, 0);
+    local_get(&fn, bytes); local_get(&fn, kept); op(&fn, 0x6b); memory_fill(&fn);
+    local_get(&fn, header); local_get(&fn, 2); memarg(&fn, 0x37, 8);
+    local_get(&fn, 0); op(&fn, 0x0f);
+    end(&fn);
+    end(&fn);
+    /* A new block, then the kept elements. */
+    local_get(&fn, bytes); i32_const(&fn, BLOCK_PROGRAM); call(&fn, lower->alloc_function);
+    op_u(&fn, 0x22, moved); op(&fn, 0x45);
+    if_begin(&fn); return_zero(&fn); end(&fn);
+    local_get(&fn, 0);
+    if_begin(&fn);
+    local_get(&fn, moved); local_get(&fn, 0); local_get(&fn, kept); memory_copy(&fn);
+    local_get(&fn, 0); call(&fn, lower->free_function);
+    end(&fn);
+    block_header(&fn, moved); local_get(&fn, 2); memarg(&fn, 0x37, 8);
+    local_get(&fn, moved);
+    helper_finish(&fn, output);
+}
+
+/* zx_reserve(bytes) -> payload of a zero-filled host block, or 0. */
+static void
+emit_reserve(Lower *lower, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 1);
+    local_get(&fn, 0); i32_const(&fn, ZXW_BLOCK_LIMIT); op(&fn, 0x4b);
+    if_begin(&fn); return_zero(&fn); end(&fn);
+    local_get(&fn, 0); i32_const(&fn, BLOCK_HOST); call(&fn, lower->alloc_function);
+    helper_finish(&fn, output);
+}
+
+/* Calls `function` (i32 address -> ...) for each of the elements at
+ * `first` (an i32 local) up to `bytes` (a local, or the constant `fixed`
+ * when `bytes` is UINT32_MAX), `width` apart. `second`, when not
+ * UINT32_MAX, is a parallel destination; `sum`, when not UINT32_MAX, is an
+ * i64 local that adds each result. */
+static void
+each_element(Fn *fn, uint32_t first, uint32_t second, uint32_t bytes, int64_t fixed,
+             int64_t width, uint32_t function, uint32_t sum)
+{
+    uint32_t index = fn_local(fn, W_I32);
+    if(width <= 0)
+        return;
+    i32_const(fn, 0); local_set(fn, index);
+    block_begin(fn); loop_begin(fn);
+    local_get(fn, index);
+    if(bytes == UINT32_MAX) i32_const(fn, (int32_t)fixed);
+    else local_get(fn, bytes);
+    op(fn, 0x4f); op_u(fn, 0x0d, 1);
+    if(sum != UINT32_MAX) local_get(fn, sum);
+    local_get(fn, first); local_get(fn, index); op(fn, 0x6a);
+    if(second != UINT32_MAX) { local_get(fn, second); local_get(fn, index); op(fn, 0x6a); }
+    call(fn, function);
+    if(sum != UINT32_MAX) { op(fn, 0x7c); local_set(fn, sum); }
+    local_get(fn, index); i32_const(fn, (int32_t)width); op(fn, 0x6a); local_set(fn, index);
+    op_u(fn, 0x0c, 0);
+    end(fn); end(fn);
+}
+
+/* measure(source) -> i64: the bytes the view elements inside a value add
+ * to its host image. */
+static void
+emit_measure(Lower *lower, int32_t type, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 1);
+    const LirType *value = type_at(lower, type);
+    int32_t element = view_element(lower, type);
+    uint32_t total = fn_local(&fn, W_I64);
+    i64_const(&fn, 0); local_set(&fn, total);
+    if(element >= 0) {
+        int64_t width = type_size(lower, element);
+        uint32_t count = fn_local(&fn, W_I64), data = fn_local(&fn, W_I32), bytes = fn_local(&fn, W_I32);
+        local_get(&fn, 0); memarg(&fn, 0x29, 8); op_u(&fn, 0x22, count); op(&fn, 0x50);
+        if_begin(&fn); i64_const(&fn, 0); op(&fn, 0x0f); end(&fn);
+        local_get(&fn, count); i64_const(&fn, width); op(&fn, 0x7e); local_set(&fn, total);
+        if(lower->needs[element] & NEED_ENCODE) {
+            local_get(&fn, 0); memarg(&fn, 0x29, 0); op(&fn, 0xa7); local_set(&fn, data);
+            local_get(&fn, count); i64_const(&fn, width); op(&fn, 0x7e); op(&fn, 0xa7); local_set(&fn, bytes);
+            each_element(&fn, data, UINT32_MAX, bytes, 0, width, lower->measure_function[element], total);
+        }
+    } else if(value->kind == LirTypeKind_Array) {
+        int64_t width = type_size(lower, value->element);
+        each_element(&fn, 0, UINT32_MAX, UINT32_MAX, width * value->count, width,
+                     lower->measure_function[value->element], total);
+    } else {
+        const int32_t *fields = value->fields.data;
+        int64_t offset = 0;
+        for(int64_t index = 0; index < value->fields.length; index++) {
+            if(lower->needs[fields[index]] & NEED_ENCODE) {
+                local_get(&fn, total);
+                local_get(&fn, 0); i32_const(&fn, (int32_t)offset); op(&fn, 0x6a);
+                call(&fn, lower->measure_function[fields[index]]);
+                op(&fn, 0x7c); local_set(&fn, total);
+            }
+            offset += type_size(lower, fields[index]);
+        }
+    }
+    local_get(&fn, total);
+    helper_finish(&fn, output);
+}
+
+/* encode(source, destination): the destination holds a copy of the
+ * value's bytes; each view inside it becomes the offset and count of its
+ * elements, appended at the image cursor. */
+static void
+emit_encode(Lower *lower, int32_t type, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32, W_I32};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 2);
+    const LirType *value = type_at(lower, type);
+    int32_t element = view_element(lower, type);
+    if(element >= 0) {
+        int64_t width = type_size(lower, element);
+        uint32_t count = fn_local(&fn, W_I64), at = fn_local(&fn, W_I32);
+        uint32_t bytes = fn_local(&fn, W_I32), data = fn_local(&fn, W_I32);
+        local_get(&fn, 0); memarg(&fn, 0x29, 8); op_u(&fn, 0x22, count); op(&fn, 0x50);
+        if_begin(&fn);
+        local_get(&fn, 1); i64_const(&fn, 0); memarg(&fn, 0x37, 0);
+        local_get(&fn, 1); i64_const(&fn, 0); memarg(&fn, 0x37, 8);
+        op(&fn, 0x0f);
+        end(&fn);
+        local_get(&fn, 0); memarg(&fn, 0x29, 0); op(&fn, 0xa7); local_set(&fn, data);
+        local_get(&fn, count); i64_const(&fn, width); op(&fn, 0x7e); op(&fn, 0xa7); local_set(&fn, bytes);
+        global_get(&fn, G_CURSOR); op_u(&fn, 0x22, at); local_get(&fn, bytes); op(&fn, 0x6a); global_set(&fn, G_CURSOR);
+        local_get(&fn, 1); local_get(&fn, at); global_get(&fn, G_BASE); op(&fn, 0x6b); op(&fn, 0xad); memarg(&fn, 0x37, 0);
+        local_get(&fn, 1); local_get(&fn, count); memarg(&fn, 0x37, 8);
+        local_get(&fn, at); local_get(&fn, data); local_get(&fn, bytes); memory_copy(&fn);
+        if(lower->needs[element] & NEED_ENCODE)
+            each_element(&fn, data, at, bytes, 0, width, lower->encode_function[element], UINT32_MAX);
+    } else if(value->kind == LirTypeKind_Array) {
+        int64_t width = type_size(lower, value->element);
+        each_element(&fn, 0, 1, UINT32_MAX, width * value->count, width,
+                     lower->encode_function[value->element], UINT32_MAX);
+    } else {
+        const int32_t *fields = value->fields.data;
+        int64_t offset = 0;
+        for(int64_t index = 0; index < value->fields.length; index++) {
+            if(lower->needs[fields[index]] & NEED_ENCODE) {
+                local_get(&fn, 0); i32_const(&fn, (int32_t)offset); op(&fn, 0x6a);
+                local_get(&fn, 1); i32_const(&fn, (int32_t)offset); op(&fn, 0x6a);
+                call(&fn, lower->encode_function[fields[index]]);
+            }
+            offset += type_size(lower, fields[index]);
+        }
+    }
+    helper_finish(&fn, output);
+}
+
+/* decode(at): checks a value inside the host image at G_BASE and turns
+ * each view's offset into a pointer into the image. */
+static void
+emit_decode(Lower *lower, int32_t type, Buf *output)
+{
+    static const unsigned char parameters[] = {W_I32};
+    Fn fn;
+    helper_start(&fn, lower, parameters, 1);
+    const LirType *value = type_at(lower, type);
+    int32_t element = view_element(lower, type);
+    if(value->kind == LirTypeKind_Bool) {
+        local_get(&fn, 0); memarg(&fn, 0x2d, 0); i32_const(&fn, 1); op(&fn, 0x4b); trap_if(&fn);
+    } else if(element >= 0) {
+        int64_t width = type_size(lower, element);
+        uint32_t start = fn_local(&fn, W_I64), count = fn_local(&fn, W_I64);
+        uint32_t data = fn_local(&fn, W_I32), bytes = fn_local(&fn, W_I32);
+        local_get(&fn, 0); memarg(&fn, 0x29, 0); local_set(&fn, start);
+        local_get(&fn, 0); memarg(&fn, 0x29, 8); op_u(&fn, 0x22, count); op(&fn, 0x50);
+        if_begin(&fn);
+        local_get(&fn, start); i64_const(&fn, 0); op(&fn, 0x52); trap_if(&fn);
+        op(&fn, 0x0f);
+        end(&fn);
+        if(width <= 0) {
+            op(&fn, 0x00);
+        } else {
+            local_get(&fn, start); global_get(&fn, G_LENGTH); op(&fn, 0xad); op(&fn, 0x56); trap_if(&fn);
+            local_get(&fn, count);
+            global_get(&fn, G_LENGTH); op(&fn, 0xad); local_get(&fn, start); op(&fn, 0x7d);
+            i64_const(&fn, width); op(&fn, 0x80);
+            op(&fn, 0x56); trap_if(&fn);
+            local_get(&fn, 0);
+            global_get(&fn, G_BASE); local_get(&fn, start); op(&fn, 0xa7); op(&fn, 0x6a);
+            op_u(&fn, 0x22, data); op(&fn, 0xad); memarg(&fn, 0x37, 0);
+            if(lower->needs[element] & NEED_DECODE) {
+                local_get(&fn, count); i64_const(&fn, width); op(&fn, 0x7e); op(&fn, 0xa7); local_set(&fn, bytes);
+                each_element(&fn, data, UINT32_MAX, bytes, 0, width, lower->decode_function[element], UINT32_MAX);
+            }
+        }
+    } else if(value->kind == LirTypeKind_Array) {
+        int64_t width = type_size(lower, value->element);
+        each_element(&fn, 0, UINT32_MAX, UINT32_MAX, width * value->count, width,
+                     lower->decode_function[value->element], UINT32_MAX);
+    } else {
+        const int32_t *fields = value->fields.data;
+        int64_t offset = 0;
+        for(int64_t index = 0; index < value->fields.length; index++) {
+            if(lower->needs[fields[index]] & NEED_DECODE) {
+                local_get(&fn, 0); i32_const(&fn, (int32_t)offset); op(&fn, 0x6a);
+                call(&fn, lower->decode_function[fields[index]]);
+            }
+            offset += type_size(lower, fields[index]);
+        }
+    }
+    helper_finish(&fn, output);
 }
 
 /* --------------------------------------------------------------- module */
@@ -1931,11 +2722,17 @@ scan_program(Lower *lower)
         for(int64_t block = 0; block < function->blocks.length; block++) {
             const LirInstruction *instructions = blocks[block].instructions.data;
             for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
-                LirOp code = instructions[item].op;
-                if(code == LirOp_HostCall) lower->uses_host = 1;
+                const LirInstruction *instruction = &instructions[item];
+                LirOp code = instruction->op;
+                int32_t symbol = instruction->symbol;
+                if(code == LirOp_HostCall && symbol >= 0 && symbol < lower->function_count) {
+                    if(lower->host_kind[symbol] == HOST_CAPABILITY) lower->uses_capability = 1;
+                    else if(lower->host_kind[symbol] != HOST_NONE) lower->uses_print = 1;
+                }
                 if(code == LirOp_BytesEqual) lower->uses_bytes_equal = 1;
                 if(code == LirOp_FunctionAddress || code == LirOp_CallIndirect) lower->uses_table = 1;
-                if(code == LirOp_Copy || code == LirOp_Zero || code == LirOp_Invalid || code > LirOp_Unreachable)
+                if(code == LirOp_Resize) lower->uses_heap = 1;
+                if(code == LirOp_Copy || code == LirOp_Zero || code == LirOp_Invalid || code > LirOp_Resize)
                     return WasmGap(lower, "wasm.gap.instruction", "LIR %.*s instructions are not lowered to wasm32",
                                (int)compiler_lowered_ir_LirOpName(code).length, compiler_lowered_ir_LirOpName(code).data);
             }
@@ -1973,6 +2770,39 @@ emit_bytes_equal(Lower *lower, Buf *output)
     buf_free(&fn.code);
 }
 
+/* zx_initialize () -> (): runs the module initializers once. zx_entry
+ * calls it; a host may call it first, so an instance is initialized when
+ * it opens. */
+static int
+emit_initialize(Lower *lower, Buf *output, uint32_t stack_base)
+{
+    const LirProgram *program = lower->program;
+    const int32_t *initializers = program->initializers.data;
+    Fn fn = {0};
+    fn.lower = lower;
+    global_get(&fn, G_INIT);
+    if_begin(&fn); op(&fn, 0x0f); end(&fn);
+    i32_const(&fn, (int32_t)stack_base); global_set(&fn, G_SP);
+    for(int64_t index = 0; index < program->initializers.length; index++) {
+        int32_t initializer = initializers[index];
+        if(initializer < 0 || initializer >= lower->function_count || lower->functions[initializer].external ||
+           lower->functions[initializer].parameters.length != 0 ||
+           type_at(lower, lower->functions[initializer].result)->kind != LirTypeKind_Void) {
+            buf_free(&fn.code);
+            return WasmGap(lower, "wasm.gap.initializer", "module initializer @%d is not a () -> void procedure", initializer);
+        }
+        call(&fn, lower->wasm_function[initializer]);
+    }
+    i32_const(&fn, 1); global_set(&fn, G_INIT);
+    end(&fn);
+    buf_uleb(output, fn.code.count + 1);
+    buf_uleb(output, 0);
+    buf_raw(output, fn.code.data, fn.code.count);
+    int failed = fn.code.failed;
+    buf_free(&fn.code);
+    return failed ? 0 : 1;
+}
+
 static int
 emit_entry(Lower *lower, Buf *output, uint32_t stack_base)
 {
@@ -1988,23 +2818,8 @@ emit_entry(Lower *lower, Buf *output, uint32_t stack_base)
     Fn fn = {0};
     fn.lower = lower;
     i32_const(&fn, (int32_t)stack_base); global_set(&fn, G_SP);
-    const int32_t *initializers = program->initializers.data;
-    if(program->initializers.length > 0) {
-        global_get(&fn, G_INIT); op(&fn, 0x45);
-        op(&fn, 0x04); op(&fn, 0x40);
-        for(int64_t index = 0; index < program->initializers.length; index++) {
-            int32_t initializer = initializers[index];
-            if(initializer < 0 || initializer >= lower->function_count || lower->functions[initializer].external ||
-               lower->functions[initializer].parameters.length != 0 ||
-               type_at(lower, lower->functions[initializer].result)->kind != LirTypeKind_Void) {
-                buf_free(&fn.code);
-                return WasmGap(lower, "wasm.gap.initializer", "module initializer @%d is not a () -> void procedure", initializer);
-            }
-            op_u(&fn, 0x10, lower->wasm_function[initializer]);
-        }
-        i32_const(&fn, 1); global_set(&fn, G_INIT);
-        op(&fn, 0x0b);
-    }
+    if(program->initializers.length > 0)
+        call(&fn, lower->initialize_function);
     op_u(&fn, 0x10, lower->wasm_function[program->entry]);
     if(result->kind == LirTypeKind_Void) i64_const(&fn, 0);
     else if(result->kind == LirTypeKind_Bool) op(&fn, 0xad);
@@ -2047,34 +2862,70 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     lower.host_kind = calloc(functions, 1);
     lower.host_index = calloc(functions, sizeof(*lower.host_index));
     lower.wasm_function = calloc(functions, sizeof(*lower.wasm_function));
+    lower.shapes = calloc(types, 1);
+    lower.needs = calloc(types, 1);
+    lower.measure_function = calloc(types, sizeof(*lower.measure_function));
+    lower.encode_function = calloc(types, sizeof(*lower.encode_function));
+    lower.decode_function = calloc(types, sizeof(*lower.decode_function));
+    uint32_t *function_types = calloc(functions, sizeof(*function_types));
     if(lower.sizes == NULL || lower.global_address == NULL || lower.host_kind == NULL ||
-       lower.host_index == NULL || lower.wasm_function == NULL) {
+       lower.host_index == NULL || lower.wasm_function == NULL || lower.shapes == NULL ||
+       lower.needs == NULL || lower.measure_function == NULL || lower.encode_function == NULL ||
+       lower.decode_function == NULL || function_types == NULL) {
         DiagnosticOutOfMemory();
         goto done;
     }
     for(size_t index = 0; index < types; index++)
         lower.sizes[index] = -1;
-    if(!scan_program(&lower) || !classify_externals(&lower) || !layout_globals(&lower))
+    if(!classify_externals(&lower) || !scan_program(&lower) || !layout_globals(&lower))
         goto done;
+    if(lower.uses_capability && lower.uses_images) lower.uses_heap = 1;
+    if(lower.uses_heap) {
+        lower.free_table = data_reserve(&lower, 4 * ZXW_CLASSES);
+        if(lower.failed) goto done;
+    }
 
     /* Function index space: imports, LIR procedures, helpers, zx_entry. */
-    lower.imports = lower.uses_host ? 2 : 1;
-    uint32_t next = lower.imports;
+    uint32_t next = 1;
+    if(lower.uses_print) lower.print_import = next++;
+    if(lower.uses_capability) lower.host_import = next++;
+    lower.imports = next;
     for(int64_t index = 0; index < lower.function_count; index++)
         if(!lower.functions[index].external)
             lower.wasm_function[index] = next++;
     if(lower.uses_bytes_equal) lower.bytes_equal_function = next++;
     if(lower.uses_table) lower.stub_function = next++;
+    if(lower.uses_heap) {
+        lower.alloc_function = next++;
+        lower.free_function = next++;
+        lower.resize_function = next++;
+        lower.reserve_function = next++;
+    }
+    for(int64_t type = 0; type < lower.type_count; type++) {
+        if(lower.needs[type] & NEED_ENCODE) {
+            lower.measure_function[type] = next++;
+            lower.encode_function[type] = next++;
+        }
+        if(lower.needs[type] & NEED_DECODE) lower.decode_function[type] = next++;
+    }
+    int initializes = program->initializers.length > 0;
+    if(initializes) lower.initialize_function = next++;
     lower.entry_function = next++;
 
     Sig unit = {{0}, 0, 0};
-    Sig host = {{W_I32, W_I64}, 2, W_I64};
+    Sig print = {{W_I32, W_I64}, 2, W_I64};
+    Sig host = {{W_I32, W_I32}, 2, W_I32};
     Sig entry = {{0}, 0, W_I64};
     Sig bytes = {{W_I32, W_I64, W_I32, W_I64}, 4, W_I32};
+    Sig alloc = {{W_I32, W_I32}, 2, W_I32};
+    Sig address = {{W_I32}, 1, 0};
+    Sig resize = {{W_I32, W_I64, W_I64, W_I32}, 4, W_I32};
+    Sig reserve = {{W_I32}, 1, W_I32};
+    Sig measure = {{W_I32}, 1, W_I64};
+    Sig encode = {{W_I32, W_I32}, 2, 0};
     uint32_t unit_type = signature_index(&lower, &unit);
-    uint32_t host_type = lower.uses_host ? signature_index(&lower, &host) : 0;
-    uint32_t *function_types = calloc(functions, sizeof(*function_types));
-    if(function_types == NULL) { DiagnosticOutOfMemory(); goto done; }
+    uint32_t print_type = lower.uses_print ? signature_index(&lower, &print) : 0;
+    uint32_t host_type = lower.uses_capability ? signature_index(&lower, &host) : 0;
     for(int64_t index = 0; index < lower.function_count && !lower.failed; index++) {
         const LirFunction *function = &lower.functions[index];
         if(function->external) continue;
@@ -2083,24 +2934,54 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
             function_types[index] = signature_index(&lower, &sig);
     }
     uint32_t bytes_type = lower.uses_bytes_equal ? signature_index(&lower, &bytes) : 0;
+    uint32_t alloc_type = 0, address_type = 0, resize_type = 0, reserve_type = 0;
+    uint32_t measure_type = 0, encode_type = 0;
+    if(lower.uses_heap) {
+        alloc_type = signature_index(&lower, &alloc);
+        address_type = signature_index(&lower, &address);
+        resize_type = signature_index(&lower, &resize);
+        reserve_type = signature_index(&lower, &reserve);
+    }
+    if(lower.uses_images) {
+        measure_type = signature_index(&lower, &measure);
+        encode_type = signature_index(&lower, &encode);
+        address_type = signature_index(&lower, &address);
+    }
     uint32_t entry_type = signature_index(&lower, &entry);
 
-    /* Code first: constant blobs extend the data region while lowering. */
+    /* Code first: constant blobs extend the data region while lowering;
+     * the helpers that follow need the heap base, known only after. */
     uint32_t defined = next - lower.imports;
     buf_uleb(&code, defined);
     for(int64_t index = 0; index < lower.function_count && !lower.failed; index++)
         if(!lower.functions[index].external && !lower_function(&lower, index, &code))
             break;
-    if(lower.failed) { free(function_types); goto done; }
+    if(lower.failed) goto done;
     if(lower.uses_bytes_equal) emit_bytes_equal(&lower, &code);
     if(lower.uses_table) { buf_uleb(&code, 3); buf_uleb(&code, 0); buf_byte(&code, 0x00); buf_byte(&code, 0x0b); }
     size_t data_end = ZXW_DATA_BASE + lower.data.count;
     uint32_t stack_base = (uint32_t)((data_end + 15) & ~(size_t)15);
     uint32_t stack_limit = stack_base + ZXW_STACK_SIZE;
-    uint32_t arena = stack_limit;
-    if(!emit_entry(&lower, &code, stack_base)) { free(function_types); goto done; }
+    if(lower.uses_heap) {
+        emit_alloc(&lower, &code);
+        emit_free(&lower, &code);
+        emit_resize(&lower, &code);
+        emit_reserve(&lower, &code);
+    }
+    for(int64_t type = 0; type < lower.type_count && !lower.failed; type++) {
+        if(lower.needs[type] & NEED_ENCODE) {
+            emit_measure(&lower, (int32_t)type, &code);
+            emit_encode(&lower, (int32_t)type, &code);
+        }
+        if(lower.needs[type] & NEED_DECODE) emit_decode(&lower, (int32_t)type, &code);
+    }
+    if(lower.failed || (initializes && !emit_initialize(&lower, &code, stack_base)) ||
+       !emit_entry(&lower, &code, stack_base)) goto done;
 
-    buf_raw(&module, "\0asm\1\0\0\0", 8);
+    /* An array, not a string literal: a literal that starts with NUL can
+     * be merged with an empty string when objects are linked together. */
+    static const unsigned char magic[8] = {0, 'a', 's', 'm', 1, 0, 0, 0};
+    buf_raw(&module, magic, sizeof(magic));
     /* Type section. */
     buf_uleb(&content, lower.sig_count);
     for(size_t index = 0; index < lower.sig_count; index++) {
@@ -2113,11 +2994,15 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     }
     section(&module, 1, &content);
     /* Import section. */
-    buf_uleb(&content, lower.uses_host ? 3 : 2);
+    buf_uleb(&content, lower.imports + 1);
     buf_name(&content, "zx", 2); buf_name(&content, "overrun", 7);
     buf_byte(&content, 0x00); buf_uleb(&content, unit_type);
-    if(lower.uses_host) {
+    if(lower.uses_print) {
         buf_name(&content, "zx", 2); buf_name(&content, "host_i64", 8);
+        buf_byte(&content, 0x00); buf_uleb(&content, print_type);
+    }
+    if(lower.uses_capability) {
+        buf_name(&content, "zx", 2); buf_name(&content, "host", 4);
         buf_byte(&content, 0x00); buf_uleb(&content, host_type);
     }
     buf_name(&content, "zx", 2); buf_name(&content, "budget", 6);
@@ -2129,9 +3014,22 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         if(!lower.functions[index].external) buf_uleb(&content, function_types[index]);
     if(lower.uses_bytes_equal) buf_uleb(&content, bytes_type);
     if(lower.uses_table) buf_uleb(&content, unit_type);
+    if(lower.uses_heap) {
+        buf_uleb(&content, alloc_type);
+        buf_uleb(&content, address_type);
+        buf_uleb(&content, resize_type);
+        buf_uleb(&content, reserve_type);
+    }
+    for(int64_t type = 0; type < lower.type_count; type++) {
+        if(lower.needs[type] & NEED_ENCODE) {
+            buf_uleb(&content, measure_type);
+            buf_uleb(&content, encode_type);
+        }
+        if(lower.needs[type] & NEED_DECODE) buf_uleb(&content, address_type);
+    }
+    if(initializes) buf_uleb(&content, unit_type);
     buf_uleb(&content, entry_type);
     section(&module, 3, &content);
-    free(function_types);
     /* Table: slot 0 and external procedures trap; slot n + 1 is LIR @n. */
     if(lower.uses_table) {
         buf_uleb(&content, 1); buf_byte(&content, 0x70); buf_byte(&content, 0x01);
@@ -2139,22 +3037,32 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         buf_uleb(&content, (uint64_t)lower.function_count + 1);
         section(&module, 4, &content);
     }
-    /* Memory: data, a fixed stack, then the growable state arena. */
+    /* Memory: data, a fixed stack, then the growable heap. */
     buf_uleb(&content, 1); buf_byte(&content, 0x00);
-    buf_uleb(&content, (arena + 65535u) / 65536u);
+    buf_uleb(&content, (stack_limit + 65535u) / 65536u);
     section(&module, 5, &content);
-    /* Globals: arena cursor, stack pointer, initializer flag, stack limit. */
-    buf_uleb(&content, 4);
-    buf_byte(&content, W_I32); buf_byte(&content, 0x01); buf_byte(&content, 0x41); buf_sleb(&content, (int32_t)arena); buf_byte(&content, 0x0b);
-    buf_byte(&content, W_I32); buf_byte(&content, 0x01); buf_byte(&content, 0x41); buf_sleb(&content, (int32_t)stack_base); buf_byte(&content, 0x0b);
-    buf_byte(&content, W_I32); buf_byte(&content, 0x01); buf_byte(&content, 0x41); buf_sleb(&content, 0); buf_byte(&content, 0x0b);
-    buf_byte(&content, W_I32); buf_byte(&content, 0x00); buf_byte(&content, 0x41); buf_sleb(&content, (int32_t)stack_limit); buf_byte(&content, 0x0b);
+    /* Globals: stack pointer, initializer flag, stack limit, then the heap
+     * top and the image base, cursor and length. */
+    {
+        unsigned count = lower.uses_images ? 7 : lower.uses_heap ? 4 : 3;
+        int32_t initial[] = {(int32_t)stack_base, 0, (int32_t)stack_limit, (int32_t)stack_limit, 0, 0, 0};
+        buf_uleb(&content, count);
+        for(unsigned index = 0; index < count; index++) {
+            buf_byte(&content, W_I32); buf_byte(&content, index == 2 ? 0x00 : 0x01);
+            buf_byte(&content, 0x41); buf_sleb(&content, initial[index]); buf_byte(&content, 0x0b);
+        }
+    }
     section(&module, 6, &content);
     /* Exports. */
-    buf_uleb(&content, 3);
+    buf_uleb(&content, 2 + (lower.uses_heap ? 1 : 0) + (initializes ? 1 : 0));
     buf_name(&content, "zx_entry", 8); buf_byte(&content, 0x00); buf_uleb(&content, lower.entry_function);
     buf_name(&content, "memory", 6); buf_byte(&content, 0x02); buf_uleb(&content, 0);
-    buf_name(&content, "zx_state_arena", 14); buf_byte(&content, 0x03); buf_uleb(&content, G_ARENA);
+    if(initializes) {
+        buf_name(&content, "zx_initialize", 13); buf_byte(&content, 0x00); buf_uleb(&content, lower.initialize_function);
+    }
+    if(lower.uses_heap) {
+        buf_name(&content, "zx_reserve", 10); buf_byte(&content, 0x00); buf_uleb(&content, lower.reserve_function);
+    }
     section(&module, 7, &content);
     if(lower.uses_table) {
         buf_uleb(&content, 1); buf_uleb(&content, 0);
@@ -2198,6 +3106,18 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
         }
         section(&module, 0, &content);
     }
+    /* zxhost: each capability's identity, by capability index. */
+    if(lower.capability_count > 0) {
+        buf_name(&content, "zxhost", 6);
+        buf_uleb(&content, lower.capability_count);
+        for(size_t index = 0; index < lower.capability_count; index++) {
+            const ZxWasmCapability *capability = &lower.capabilities[index];
+            buf_name(&content, capability->module, strlen(capability->module));
+            buf_name(&content, capability->function, strlen(capability->function));
+            buf_uleb(&content, capability->parameter_count);
+        }
+        section(&module, 0, &content);
+    }
     if(module.failed || content.failed || code.failed) {
         DiagnosticOutOfMemory();
         goto done;
@@ -2206,6 +3126,7 @@ lower_module(const LirProgram *program, ZxWasmImage *image)
     image->size = module.count;
     image->capabilities = lower.capabilities;
     image->capability_count = lower.capability_count;
+    image->returns = type_at(&lower, lower.functions[program->entry].result)->kind != LirTypeKind_Void;
     module.data = NULL;
     lower.capabilities = NULL;
     lower.capability_count = 0;
@@ -2214,8 +3135,15 @@ done:
     for(size_t index = 0; index < lower.capability_count; index++) {
         free(lower.capabilities[index].module);
         free(lower.capabilities[index].function);
+        free(lower.capabilities[index].parameters);
     }
     free(lower.capabilities);
+    free(function_types);
+    free(lower.shapes);
+    free(lower.needs);
+    free(lower.measure_function);
+    free(lower.encode_function);
+    free(lower.decode_function);
     free(lower.sizes);
     free(lower.global_address);
     free(lower.host_kind);
@@ -2237,10 +3165,20 @@ ZxWasmImageFree(ZxWasmImage *image)
     for(size_t index = 0; index < image->capability_count; index++) {
         free(image->capabilities[index].module);
         free(image->capabilities[index].function);
+        free(image->capabilities[index].parameters);
     }
     free(image->capabilities);
     free(image->bytes);
     memset(image, 0, sizeof(*image));
+}
+
+int
+ZxWasmLowerProgram(const struct LirProgram *program, ZxWasmImage *image)
+{
+    if(image == NULL)
+        return 0;
+    memset(image, 0, sizeof(*image));
+    return program != NULL && lower_module(program, image);
 }
 
 int
@@ -2279,3 +3217,32 @@ ZxWasmLowerExecutable(const unsigned char *zx, size_t size, ZxWasmImage *image)
     compiler_exec_link_ZxExecReadFree(&owner);
     return ok;
 }
+
+#else
+
+#include <string.h>
+
+/* Bootstrap builds have no engine to read executable ZX. */
+int
+ZxWasmLowerExecutable(const unsigned char *zx, size_t size, ZxWasmImage *image)
+{
+    (void)zx;
+    (void)size;
+    if(image != NULL) memset(image, 0, sizeof(*image));
+    Diagnostic((ZirSourceSpan){0}, "wasm.container", "this build has no instruction engine");
+    return 0;
+}
+
+int
+ZxWasmLowerProgram(const struct LirProgram *program, ZxWasmImage *image)
+{
+    return ZxWasmLowerExecutable((const unsigned char *)program, 0, image);
+}
+
+void
+ZxWasmImageFree(ZxWasmImage *image)
+{
+    if(image != NULL) memset(image, 0, sizeof(*image));
+}
+
+#endif

@@ -767,7 +767,7 @@ main(int argc, char **argv)
         decoded = compiler_exec_link_ZxExecReadProgram(&zx_owner);
         view = &decoded;
     }
-    if(run) { status = ZxExecRunProgram(view, execution_limits, heap_report, 0); goto done; }
+    if(run) { status = ZxExecRunProgram(view, execution_limits, heap_report); goto done; }
     if(!strcmp(emit, "zx")) {
         /* Preserve all declared assets and optional sections when rewriting. */
         bytes = zx_bytes;

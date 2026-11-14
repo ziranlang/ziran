@@ -134,6 +134,29 @@ assembly_fail(AssemblyProgram *program, ZirSourceSpan span, const char *message)
     return -1;
 }
 
+/* A call to a C or Go foreign import: the portable format runs neither,
+ * and it says so with the semantic bundle writer's words, at the import. */
+static void
+assembly_foreign_call(AssemblyProgram *program, const char *name)
+{
+    const char *bare = strrchr(name, '.');
+    bare = bare ? bare + 1 : name;
+    for(int index = 0; index < program->source->module_count && !program->failed; index++) {
+        const ZirModule *module = &program->source->modules[index];
+        for(int at = 0; at < module->import_count; at++) {
+            const ZirImport *import = &module->imports[at];
+            if(import->kind != ZIR_IMPORT_EXTERN || import->extern_kind == ZIR_EXTERN_HOST ||
+               strcmp(import->name, bare)) continue;
+            if(import->extern_kind == ZIR_EXTERN_C)
+                Diagnostic(import->span, "check.foreign",
+                    "C foreign imports require a native target or a checked host binding: %s", import->name);
+            else Diagnostic(import->span, "check.foreign", "Go foreign imports require the Go target: %s", import->name);
+            program->failed = 1;
+            return;
+        }
+    }
+}
+
 static int
 assembly_spend(AssemblyProgram *program, ZirSourceSpan span)
 {
@@ -331,6 +354,17 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
     if(record)
         for(int index = 0; index < program->type_names.count; index++)
             if(names[index].record == record) return names[index].identity;
+    /* Each module that applies a generic record gets its own copy of the
+     * instance, named by the record and its arguments; copies with one name
+     * and one body are one type. */
+    if(record && record->is_synthetic_application)
+        for(int index = 0; index < program->type_names.count; index++) {
+            const ZirType *known = names[index].record;
+            if(known == NULL || !known->is_synthetic_application || strcmp(known->name, record->name) ||
+               strcmp(known->body, record->body)) continue;
+            AssemblyType alias = {module, assembly_text(program, name), record, names[index].identity};
+            return assembly_push(program, &program->type_names, &alias) ? alias.identity : -1;
+        }
     if(record && record->is_union) {
         /* A union of integers and floats is one unsigned integer as wide as
          * its widest member. A member is read and written by reinterpreting
@@ -344,7 +378,7 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
             if(program->failed) return -1;
             LirType shape = *assembly_type_at(program, member);
             if(shape.kind != LirTypeKind_Integer && shape.kind != LirTypeKind_Float)
-                return assembly_fail(program, span, "this union has a member that is not an integer or a float");
+                return assembly_fail(program, span, "portable unions support scalar fields only");
             if(shape.bits > width) width = shape.bits;
         }
         if(status < 0 || !width) return assembly_fail(program, span, "invalid checked union members");
@@ -391,9 +425,9 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
     ZirVector vector;
     if(VectorType(name, &vector)) {
         /* A vector is a fixed array of its lanes; each operation on it is
-         * lowered lane by lane, so the portable engine needs no vector type. */
-        if(vector.is_native)
-            return assembly_fail(program, span, "a native-width vector has no portable lowered representation");
+         * lowered lane by lane, so the portable engine needs no vector type.
+         * A native vector, such as s16xN, is one 128-bit block here, as in
+         * the portable VM. */
         int lane = assembly_type_in(program, module, vector.lane, span, depth + 1);
         if(program->failed) return -1;
         int identity = -1;
@@ -790,6 +824,7 @@ assembly_binding(AssemblyFunction *function, const char *name)
 }
 
 static int assembly_function(AssemblyProgram *, const ZirModule *, const ZirFunction *);
+static int assembly_unsigned_of(int bits);
 static int assembly_host_function(AssemblyProgram *, const ZirModule *, const char *, ZirSourceSpan);
 static int assembly_expression(AssemblyProgram *, AssemblyFunction *, int, int);
 static int assembly_address(AssemblyProgram *, AssemblyFunction *, int, int);
@@ -929,12 +964,54 @@ assembly_promote_binding(AssemblyProgram *program, AssemblyFunction *function,
     return address;
 }
 
+static int64_t assembly_layout_size(AssemblyProgram *, int, int64_t *, int);
+
+/* A fixed-array local or parameter larger than this many bytes lives in a
+ * frame slot, like one whose address is taken. A value would be passed to
+ * every block it is live in, and each pass copies it: a loop over a large
+ * table would copy the whole table on every iteration. A smaller array stays
+ * a value, which the optimizer can take apart. */
+#define ASSEMBLY_VALUE_BYTES 4096
+
+static int
+assembly_kept_in_storage(AssemblyProgram *program, int identity)
+{
+    if(program->failed || identity <= 0 || assembly_owned(program, identity, 0) ||
+       assembly_type_at(program, identity)->kind != LirTypeKind_Array) return 0;
+    int64_t alignment = 1;
+    return assembly_layout_size(program, identity, &alignment, 0) > ASSEMBLY_VALUE_BYTES;
+}
+
 /* The zero value of a long fixed array is read from a frame slot that the
  * procedure allocates on entry and never writes. Building it from one
  * constant per element would cost an instruction per element: 65,536 of them
  * for a `[65536]u8` buffer. A frame slot rather than a global, because the
  * native encoder lists every element of a global. */
 #define ASSEMBLY_ZERO_ARRAY_INLINE 256
+
+/* A frame slot of type `identity`, allocated first in the entry block, after
+ * its fuel charge, so it dominates every use; the block's effects are
+ * numbered again. */
+static int
+assembly_entry_slot(AssemblyProgram *program, AssemblyFunction *function, int identity, ZirSourceSpan span)
+{
+    int pointer_type = assembly_pointer_type(program, identity, span);
+    if(program->failed) return -1;
+    int address = assembly_value(program, function, pointer_type);
+    LirInstruction allocate = {.op = LirOp_Allocate, .result = address, .symbol = -1,
+        .origin = assembly_origin(program, span)};
+    AssemblyBlock *entry = assembly_block_at(function, function->result.entry);
+    if(program->failed || !assembly_push(program, &entry->instructions, &allocate)) return -1;
+    LirInstruction *instructions = entry->instructions.data;
+    int count = entry->instructions.count;
+    int at = count > 1 && instructions[0].op == LirOp_Fuel ? 1 : 0;
+    memmove(&instructions[at + 1], &instructions[at], (size_t)(count - 1 - at) * sizeof(*instructions));
+    instructions[at] = allocate;
+    entry->effect = 0;
+    for(int index = 0; index < count; index++)
+        if(compiler_lowered_ir_LirEffectful(instructions[index].op)) instructions[index].effect = ++entry->effect;
+    return address;
+}
 
 static int
 assembly_zero_slot(AssemblyProgram *program, AssemblyFunction *function, int identity, ZirSourceSpan span)
@@ -946,25 +1023,9 @@ assembly_zero_slot(AssemblyProgram *program, AssemblyFunction *function, int ide
     for(int index = 0; index < function->zero_slots.count && address < 0; index++)
         if(slots[index].type == identity) address = slots[index].address;
     if(address < 0) {
-        int pointer_type = assembly_pointer_type(program, identity, span);
-        if(program->failed) return -1;
-        address = assembly_value(program, function, pointer_type);
-        LirInstruction allocate = {.op = LirOp_Allocate, .result = address, .symbol = -1,
-            .origin = assembly_origin(program, span)};
-        AssemblyBlock *entry = assembly_block_at(function, function->result.entry);
-        if(program->failed || !assembly_push(program, &entry->instructions, &allocate)) return -1;
-        /* The slot is allocated first, after the block's fuel charge, so it
-         * dominates every use; the block's effects are numbered again. */
-        LirInstruction *instructions = entry->instructions.data;
-        int count = entry->instructions.count;
-        int at = count > 1 && instructions[0].op == LirOp_Fuel ? 1 : 0;
-        memmove(&instructions[at + 1], &instructions[at], (size_t)(count - 1 - at) * sizeof(*instructions));
-        instructions[at] = allocate;
-        entry->effect = 0;
-        for(int index = 0; index < count; index++)
-            if(compiler_lowered_ir_LirEffectful(instructions[index].op)) instructions[index].effect = ++entry->effect;
+        address = assembly_entry_slot(program, function, identity, span);
         AssemblyZeroSlot slot = {identity, address};
-        if(!assembly_push(program, &function->zero_slots, &slot)) return -1;
+        if(address < 0 || !assembly_push(program, &function->zero_slots, &slot)) return -1;
     }
     return assembly_emit(program, function, LirOp_Load, identity, &address, 1, -1, span);
 }
@@ -1002,20 +1063,6 @@ assembly_record(AssemblyProgram *program, int identity)
     return NULL;
 }
 
-/* The module that declares a lowered record type. */
-static const ZirModule *
-assembly_record_owner(AssemblyProgram *program, int identity)
-{
-    AssemblyType *names = program->type_names.data;
-    for(int index = 0; index < program->type_names.count; index++) {
-        if(names[index].identity != identity || names[index].record == NULL) continue;
-        const ZirModule *owner = names[index].module;
-        if(FindType(names[index].module, names[index].name, &owner) == names[index].record) return owner;
-        return names[index].module;
-    }
-    return NULL;
-}
-
 static int
 assembly_field(AssemblyProgram *program, int identity, const char *name, ZirSourceSpan span)
 {
@@ -1041,6 +1088,50 @@ assembly_member_type(AssemblyProgram *program, int identity, int member)
         return ((int *)type.fields.data)[member];
     if(type.kind == LirTypeKind_Array && member >= 0 && member < type.count) return type.element;
     return -1;
+}
+
+/* A field promoted by `using` reaches its record through each `using` field.
+ * The checker writes such a member as the dotted path of those fields. */
+enum { ASSEMBLY_FIELD_PATH_MAX = 32 };
+
+/* The ordinal and type of each field along `name`, starting at record type
+ * `identity`. Returns the number of hops, or -1. */
+static int
+assembly_field_path(AssemblyProgram *program, int identity, const char *name, ZirSourceSpan span,
+                    int *fields, int *types)
+{
+    char path[ZIR_NAME_MAX];
+    if(strlen(name) >= sizeof(path)) return assembly_fail(program, span, "record member path is too long");
+    memcpy(path, name, strlen(name) + 1);
+    int count = 0;
+    for(char *hop = path; hop != NULL;) {
+        char *dot = strchr(hop, '.');
+        if(dot) *dot = '\0';
+        if(count == ASSEMBLY_FIELD_PATH_MAX) return assembly_fail(program, span, "record member path is too long");
+        fields[count] = assembly_field(program, identity, hop, span);
+        if(program->failed) return -1;
+        types[count] = assembly_member_type(program, identity, fields[count]);
+        if(types[count] < 0) return assembly_fail(program, span, "invalid lowered aggregate member");
+        identity = types[count++];
+        hop = dot ? dot + 1 : NULL;
+    }
+    return count;
+}
+
+/* The address of member path `name` behind `address`, a record pointer. */
+static int
+assembly_field_address(AssemblyProgram *program, AssemblyFunction *function, int address,
+                       const char *name, ZirSourceSpan span)
+{
+    LirType pointer = *assembly_type_at(program, ((int *)function->values.data)[address]);
+    if(pointer.kind != LirTypeKind_Pointer)
+        return assembly_fail(program, span, "record address requires a pointer");
+    int fields[ASSEMBLY_FIELD_PATH_MAX], types[ASSEMBLY_FIELD_PATH_MAX];
+    int count = assembly_field_path(program, pointer.element, name, span, fields, types);
+    for(int hop = 0; hop < count && !program->failed; hop++)
+        address = assembly_indexed(program, function, LirOp_FieldAddress,
+            assembly_pointer_type(program, types[hop], span), &address, 1, (uint64_t)fields[hop], span);
+    return program->failed ? -1 : address;
 }
 
 static int
@@ -1156,9 +1247,51 @@ assembly_string(AssemblyProgram *program, AssemblyFunction *function, const ZirE
     return assembly_emit(program, function, LirOp_Aggregate, record, fields, 2, -1, span);
 }
 
+/* A named constant, which a parsed global initializer leaves by name, as
+ * `NAME` or `Module.NAME`: its compile-time value,
+ * typed by the member or global it sets. Returns -2 when `name` is not one. */
+static int
+assembly_define(AssemblyProgram *program, AssemblyFunction *function, const char *name, int type, int root,
+                ZirSourceSpan span)
+{
+    const ZirDefine *definition = NULL;
+    const ZirModule *definition_owner = NULL;
+    int64_t constant_value = 0;
+    if(ResolveDefine(function->module, name, &definition, &definition_owner, NULL) != 1 || definition == NULL ||
+       !EvaluateCompileExpression(definition_owner, definition->value, span, 0, &constant_value)) return -2;
+    int typed = type;
+    LirTypeKind own = assembly_type_at(program, type)->kind;
+    if(own != LirTypeKind_Integer && own != LirTypeKind_Bool && function->literal_at == root + 1)
+        typed = function->literal_type;
+    LirTypeKind kind = assembly_type_at(program, typed)->kind;
+    if(kind != LirTypeKind_Integer && kind != LirTypeKind_Bool) return -2;
+    return assembly_constant(program, function, typed, (uint64_t)constant_value, span);
+}
+
 static int
 assembly_member(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int depth)
 {
+    if(expression->kind == ZIR_EXPR_MEMBER && expression->left >= 0 && expression->left < function->source->expr_count &&
+       function->source->exprs[expression->left].kind == ZIR_EXPR_IDENT &&
+       !function->source->exprs[expression->left].is_global_value &&
+       assembly_binding(function, function->source->exprs[expression->left].name) < 0) {
+        /* A parsed global initializer names an enum member through its type,
+         * `Mode.High`, or a constant through a module alias, `Values.LIMIT`. */
+        const char *left = function->source->exprs[expression->left].name;
+        const ZirModule *enum_owner = function->module;
+        const ZirType *named = FindType(function->module, left, &enum_owner);
+        int64_t member_bits;
+        if(named && named->is_enum && EnumMemberValue(named, expression->name, &member_bits))
+            return assembly_constant(program, function, assembly_type(program, function, left, expression->span),
+                (uint64_t)member_bits, expression->span);
+        char qualified[ZIR_NAME_MAX];
+        int length = snprintf(qualified, sizeof(qualified), "%s.%s", left, expression->name);
+        int root = (int)(expression - function->source->exprs);
+        int constant = length > 0 && (size_t)length < sizeof(qualified) ?
+            assembly_define(program, function, qualified,
+                assembly_type(program, function, expression->type, expression->span), root, expression->span) : -2;
+        if(constant != -2) return constant;
+    }
     if(expression->kind == ZIR_EXPR_MEMBER) {
         const ZirModule *owner = function->module;
         const ZirType *record = FindType(function->module, expression->type, &owner);
@@ -1230,30 +1363,12 @@ assembly_member(AssemblyProgram *program, AssemblyFunction *function, const ZirE
         int result_type = assembly_type(program, function, expression->type, expression->span);
         return assembly_constant(program, function, result_type, (uint64_t)type.count, expression->span);
     } else {
-        /* A field promoted by `using` is read hop by hop along its path. */
-        const ZirType *record = assembly_record(program, identity);
-        const ZirModule *record_owner = assembly_record_owner(program, identity);
-        char path[ZIR_NAME_MAX], promoted[ZIR_NAME_MAX];
-        ZirTypeField direct;
-        if(record != NULL && record_owner != NULL && TypeFindField(record, expression->name, &direct) != 1 &&
-           ResolveRecordField(record_owner, record, expression->name, path, sizeof(path),
-                              promoted, sizeof(promoted)) == 1 && strchr(path, '.') != NULL) {
-            int current = value, current_type = identity;
-            for(char *hop = path; hop != NULL && !program->failed;) {
-                char *dot = strchr(hop, '.');
-                if(dot) *dot = 0;
-                int field = assembly_field(program, current_type, hop, expression->span);
-                int field_type = field >= 0 ? assembly_member_type(program, current_type, field) : -1;
-                if(program->failed || field_type < 0)
-                    return assembly_fail(program, expression->span, "invalid lowered aggregate member");
-                current = assembly_indexed(program, function, LirOp_Extract, field_type, &current, 1,
-                    (uint64_t)field, expression->span);
-                current_type = field_type;
-                hop = dot ? dot + 1 : NULL;
-            }
-            return current;
-        }
-        member = assembly_field(program, identity, expression->name, expression->span);
+        int fields[ASSEMBLY_FIELD_PATH_MAX], types[ASSEMBLY_FIELD_PATH_MAX];
+        int count = assembly_field_path(program, identity, expression->name, expression->span, fields, types);
+        for(int hop = 0; hop < count && !program->failed; hop++)
+            value = assembly_indexed(program, function, LirOp_Extract, types[hop], &value, 1,
+                (uint64_t)fields[hop], expression->span);
+        return program->failed ? -1 : value;
     }
     if(program->failed) return -1;
     int result_type = assembly_member_type(program, identity, member);
@@ -1311,15 +1426,7 @@ assembly_address(AssemblyProgram *program, AssemblyFunction *function, int index
     if(expression->kind == ZIR_EXPR_POINTER_MEMBER) {
         int address = assembly_expression(program, function, expression->left, depth + 1);
         if(program->failed) return -1;
-        LirType type = *assembly_type_at(program, ((int *)function->values.data)[address]);
-        if(type.kind != LirTypeKind_Pointer)
-            return assembly_fail(program, expression->span, "pointer member requires a pointer");
-        int field = assembly_field(program, type.element, expression->name, expression->span);
-        if(program->failed) return -1;
-        int member = assembly_member_type(program, type.element, field);
-        if(member < 0) return assembly_fail(program, expression->span, "pointer member is outside its record's shape");
-        return assembly_indexed(program, function, LirOp_FieldAddress,
-            assembly_pointer_type(program, member, expression->span), &address, 1, (uint64_t)field, expression->span);
+        return assembly_field_address(program, function, address, expression->name, expression->span);
     }
     if(expression->kind == ZIR_EXPR_INDEX && expression->left >= 0 &&
        expression->left < function->source->expr_count &&
@@ -1362,25 +1469,219 @@ assembly_address(AssemblyProgram *program, AssemblyFunction *function, int index
     if(expression->kind == ZIR_EXPR_MEMBER) {
         int address = assembly_address(program, function, expression->left, depth + 1);
         if(program->failed) return -1;
-        int pointer = ((int *)function->values.data)[address];
-        LirType type = *assembly_type_at(program, pointer);
-        if(type.kind != LirTypeKind_Pointer)
-            return assembly_fail(program, expression->span, "record address requires a pointer");
-        int field = assembly_field(program, type.element, expression->name, expression->span);
-        if(program->failed) return -1;
-        int member = assembly_member_type(program, type.element, field);
-        if(member < 0) return assembly_fail(program, expression->span, "record address is outside its declared shape");
-        int result_type = assembly_pointer_type(program, member, expression->span);
-        return assembly_indexed(program, function, LirOp_FieldAddress, result_type, &address, 1,
-            (uint64_t)field, expression->span);
+        return assembly_field_address(program, function, address, expression->name, expression->span);
     }
     return assembly_fail(program, expression->span, "only globals, dereferenced pointers and their fields or fixed-array elements have lowered addresses yet");
+}
+
+static uint64_t
+assembly_float_bits(double value, int bits)
+{
+    uint64_t representation = 0;
+    if(bits == 32) {
+        float narrowed = (float)value;
+        uint32_t word;
+        memcpy(&word, &narrowed, sizeof(word));
+        representation = word;
+    } else memcpy(&representation, &value, sizeof(representation));
+    return representation;
+}
+
+/* The bits of numeric literal `expression` as a constant of `type`. A folded
+ * constant such as a negative enum member carries its sign in the text: the
+ * magnitude is read, then negated in two's complement, or becomes the nearest
+ * float when `type` is a float. Returns 0 when it is not a numeric literal. */
+static int
+assembly_literal_bits(AssemblyProgram *program, const ZirExpr *expression, int type, uint64_t *out)
+{
+    LirType shape = *assembly_type_at(program, type);
+    if(expression->kind == ZIR_EXPR_INT) {
+        unsigned long long bits = 0;
+        const char *digits = expression->text;
+        int negative = digits[0] == '-';
+        if(negative || digits[0] == '+') digits++;
+        if(!ZirIntegerLiteral(digits, &bits))
+            return assembly_fail(program, expression->span, "invalid checked integer literal") >= 0;
+        if(shape.kind == LirTypeKind_Float) *out = assembly_float_bits(negative ? -(double)bits : (double)bits, shape.bits);
+        else *out = negative ? 0 - (uint64_t)bits : (uint64_t)bits;
+        return 1;
+    }
+    if(expression->kind == ZIR_EXPR_FLOAT) {
+        char *end = NULL;
+        double value = ParseDecimal(expression->text, &end);
+        if(end == expression->text || *end || shape.kind != LirTypeKind_Float)
+            return assembly_fail(program, expression->span, "invalid checked floating-point literal") >= 0;
+        *out = assembly_float_bits(value, shape.bits);
+        return 1;
+    }
+    return 0;
+}
+
+/* The type a numeric literal (or a signed one, `unary`) lowers to when it
+ * initializes a member of type `member`, as assembly_expression_value types
+ * it; `cache` keeps the last spelling looked up. */
+static int
+assembly_literal_type(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression,
+                      int member, int unary, const char **cache, int *cached)
+{
+    if(*cache == NULL || strcmp(*cache, expression->type)) {
+        *cached = assembly_type(program, function, expression->type, expression->span);
+        *cache = expression->type;
+    }
+    if(program->failed) return -1;
+    LirTypeKind own = assembly_type_at(program, *cached)->kind;
+    if(unary) return own != LirTypeKind_Float && own != LirTypeKind_Integer ? member : *cached;
+    if(own != LirTypeKind_Float && (expression->kind == ZIR_EXPR_FLOAT ||
+       (own != LirTypeKind_Integer && own != LirTypeKind_Bool))) return member;
+    return *cached;
+}
+
+/* Whether a literal lowered as `type` and converted to `element` has the
+ * bits it would have as an `element` constant: the same type, two integer
+ * types, where conversion truncates, or a float64 narrowed to float32, which
+ * rounds the parsed value once either way. */
+static int
+assembly_literal_fits(AssemblyProgram *program, int type, int element)
+{
+    if(type == element) return 1;
+    if(type < 0) return 0;
+    LirType from = *assembly_type_at(program, type), to = *assembly_type_at(program, element);
+    return (from.kind == LirTypeKind_Integer && to.kind == LirTypeKind_Integer) ||
+        (from.kind == LirTypeKind_Float && to.kind == LirTypeKind_Float && from.bits == 64 && to.bits == 32);
+}
+
+/* The constant bits of array element `root` when it is a numeric literal,
+ * possibly signed, that lowers to the same bits as a constant of `element`. */
+static int
+assembly_element_bits(AssemblyProgram *program, AssemblyFunction *function, int root, int element,
+                      const char **cache, int *cached, uint64_t *out)
+{
+    if(root < 0 || root >= function->source->expr_count) return 0;
+    const ZirExpr *expression = &function->source->exprs[root];
+    int negate = 0;
+    if(expression->kind == ZIR_EXPR_UNARY && (!strcmp(expression->op, "-") || !strcmp(expression->op, "+"))) {
+        if(!assembly_literal_fits(program,
+               assembly_literal_type(program, function, expression, element, 1, cache, cached), element) ||
+           expression->right < 0 || expression->right >= function->source->expr_count) return 0;
+        negate = expression->op[0] == '-';
+        expression = &function->source->exprs[expression->right];
+    }
+    if((expression->kind != ZIR_EXPR_INT && expression->kind != ZIR_EXPR_FLOAT) ||
+       !assembly_literal_fits(program,
+           assembly_literal_type(program, function, expression, element, 0, cache, cached), element) ||
+       !assembly_literal_bits(program, expression, element, out)) return 0;
+    LirType shape = *assembly_type_at(program, element);
+    if(negate) *out = shape.kind == LirTypeKind_Float ? *out ^ (UINT64_C(1) << (shape.bits - 1)) : 0 - *out;
+    if(shape.bits < 64) *out &= (UINT64_C(1) << shape.bits) - 1;
+    return 1;
+}
+
+/* Array literals at least this long whose elements are all numeric literals
+ * are read-only data. */
+#define ASSEMBLY_CONSTANT_ARRAY_MINIMUM 64
+
+/* A long array literal of numeric literals is read-only data: the elements'
+ * little-endian bytes are one read-only byte-array global, loaded once, and a
+ * loop takes each element's bytes out of that value into a frame slot. A
+ * table of any length then lowers to a fixed amount of code rather than an
+ * instruction per element, and derives no address inside the global. A byte
+ * array is the data itself. Returns -2 when the literal is not one. */
+static int
+assembly_constant_array(AssemblyProgram *program, AssemblyFunction *function,
+                        const ZirExpr *expression, int identity)
+{
+    ZirSourceSpan span = expression->span;
+    if(program->failed || function->current < 0) return -2;
+    LirType array = *assembly_type_at(program, identity);
+    if(array.kind != LirTypeKind_Array || array.count < ASSEMBLY_CONSTANT_ARRAY_MINIMUM) return -2;
+    int element = array.element;
+    LirType shape = *assembly_type_at(program, element);
+    if(shape.kind != LirTypeKind_Integer && shape.kind != LirTypeKind_Float) return -2;
+    int width = shape.bits / 8;
+    if(array.count > INT32_MAX / width) return -2;
+    unsigned char *bytes = assembly_allocate(program, (size_t)array.count * (size_t)width, 1);
+    if(bytes == NULL) return -1;
+    memset(bytes, 0, (size_t)array.count * (size_t)width);
+    const char *cache = NULL;
+    int cached = -1;
+    int64_t ordinal = 0;
+    for(int child = expression->first_child; child >= 0; ordinal++) {
+        if(child >= function->source->expr_count || ordinal >= array.count || !assembly_spend(program, span)) return -2;
+        const ZirExpr *initializer = &function->source->exprs[child];
+        uint64_t bits = 0;
+        if(initializer->kind != ZIR_EXPR_FIELD_INIT || initializer->name[0] ||
+           !assembly_element_bits(program, function, initializer->right, element, &cache, &cached, &bits))
+            return program->failed ? -1 : -2;
+        for(int at = 0; at < width; at++) bytes[ordinal * width + at] = (unsigned char)(bits >> (8 * at));
+        child = initializer->next_sibling;
+    }
+    int global = assembly_string_global(program, function->module, bytes, (size_t)array.count * (size_t)width, span);
+    if(global < 0) return -1;
+    int data_type = ((AssemblyGlobal *)program->globals.data)[global].result.type;
+    int address = assembly_emit(program, function, LirOp_GlobalAddress,
+        assembly_pointer_type(program, data_type, span), NULL, 0, global, span);
+    int data = assembly_emit(program, function, LirOp_Load, data_type, &address, 1, -1, span);
+    if(width == 1 && !shape.is_signed && data_type == identity) return data;
+    int slot = assembly_entry_slot(program, function, identity, span);
+    int element_pointer = assembly_pointer_type(program, element, span);
+    int bits_type = assembly_unsigned_of(shape.bits);
+    int base = function->bindings.count;
+    AssemblyBinding cursor = {"", 8, assembly_constant(program, function, 8, 0, span), -1};
+    assembly_push(program, &function->bindings, &cursor);
+    int live = base + 1;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    int header = assembly_block(program, function, before, live);
+    int body = assembly_block(program, function, before, live);
+    int exit = assembly_block(program, function, before, live);
+    if(program->failed || before == NULL || slot < 0) return -1;
+    assembly_jump(program, function, header, live, span);
+    assembly_enter(function, header, before, live);
+    assembly_emit(program, function, LirOp_Fuel, 0, NULL, 0, -1, span);
+    int more_operands[] = {((AssemblyBinding *)function->bindings.data)[base].value,
+        assembly_constant(program, function, 8, (uint64_t)array.count, span)};
+    int more = assembly_emit(program, function, LirOp_Less, 1, more_operands, 2, -1, span);
+    assembly_branch(program, function, more, body, exit, live, span);
+    assembly_enter(function, body, before, live);
+    int at = ((AssemblyBinding *)function->bindings.data)[base].value;
+    int first_operands[] = {at, assembly_constant(program, function, 8, (uint64_t)width, span)};
+    int first = assembly_emit(program, function, LirOp_Multiply, 8, first_operands, 2, -1, span);
+    int value = -1;
+    for(int part = 0; part < width; part++) {
+        int index_operands[] = {first, assembly_constant(program, function, 8, (uint64_t)part, span)};
+        int index = part ? assembly_emit(program, function, LirOp_Add, 8, index_operands, 2, -1, span) : first;
+        int byte_operands[] = {data, index};
+        int piece = assembly_convert(program, function,
+            assembly_indexed(program, function, LirOp_Extract, 3, byte_operands, 2, 0, span), bits_type, span);
+        if(part) {
+            int shift_operands[] = {piece, assembly_constant(program, function, 8, (uint64_t)(8 * part), span)};
+            piece = assembly_emit(program, function, LirOp_ShiftLeft, bits_type, shift_operands, 2, -1, span);
+            int merge_operands[] = {value, piece};
+            piece = assembly_emit(program, function, LirOp_BitOr, bits_type, merge_operands, 2, -1, span);
+        }
+        value = piece;
+    }
+    value = shape.kind == LirTypeKind_Float ?
+        assembly_emit(program, function, LirOp_Bitcast, element, &value, 1, -1, span) :
+        assembly_convert(program, function, value, element, span);
+    int slot_operands[] = {slot, at};
+    int target = assembly_emit(program, function, LirOp_ElementAddress, element_pointer, slot_operands, 2, -1, span);
+    int store_operands[] = {target, value};
+    assembly_emit(program, function, LirOp_Store, 0, store_operands, 2, -1, span);
+    int next_operands[] = {at, assembly_constant(program, function, 8, 1, span)};
+    ((AssemblyBinding *)function->bindings.data)[base].value =
+        assembly_emit(program, function, LirOp_Add, 8, next_operands, 2, -1, span);
+    assembly_jump(program, function, header, live, span);
+    assembly_enter(function, exit, before, live);
+    function->bindings.count = base;
+    return assembly_emit(program, function, LirOp_Load, identity, &slot, 1, -1, span);
 }
 
 static int
 assembly_compound(AssemblyProgram *program, AssemblyFunction *function,
                   const ZirExpr *expression, int identity, int depth)
 {
+    int constant = assembly_constant_array(program, function, expression, identity);
+    if(constant != -2) return constant;
     int value = assembly_zero(program, function, identity, expression->span, depth + 1);
     if(program->failed) return -1;
     LirType type = *assembly_type_at(program, identity);
@@ -1866,8 +2167,8 @@ assembly_drop_bindings(AssemblyProgram *program, AssemblyFunction *function, int
     }
 }
 
-/* Empty the source of a move. Only a local, or a member path rooted at
- * one, can be moved from; the checker rejects every other source. */
+/* Empty the source of a move. Only a local or a global, or a member path
+ * rooted at one, can be moved from; the checker rejects every other source. */
 static void
 assembly_move_out(AssemblyProgram *program, AssemblyFunction *function, int root, int identity,
                   ZirSourceSpan span)
@@ -1878,7 +2179,7 @@ assembly_move_out(AssemblyProgram *program, AssemblyFunction *function, int root
         at = function->source->exprs[at].left;
     if(at < 0 || at >= function->source->expr_count) return;
     const ZirExpr *base = &function->source->exprs[at];
-    if(base->kind != ZIR_EXPR_IDENT || base->is_global_value || assembly_binding(function, base->name) < 0)
+    if(base->kind != ZIR_EXPR_IDENT || (!base->is_global_value && assembly_binding(function, base->name) < 0))
         return;
     AssemblyVecPlace place = {-1, NULL};
     if(assembly_addressable(program, function, root, 0))
@@ -2252,7 +2553,9 @@ assembly_vec_reset(AssemblyProgram *program, AssemblyFunction *function, int dat
  * when it grows; a negative request or a refused allocation gives false and
  * leaves the vector as it was. VecResize(values, count) reserves the same
  * way and then sets the count: elements it removes are dropped, and elements
- * it adds are zero. */
+ * it adds are zero. VecResizeBounded(values, count, maximum) is VecResize
+ * that also fails, unchanged, when the maximum is negative or the count or
+ * the capacity it already has is above it. */
 static int
 assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression,
                           int resize, int depth)
@@ -2270,6 +2573,10 @@ assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, 
     int pointer = assembly_pointer_type(program, element, span);
     int requested = assembly_convert(program, function,
         assembly_expression(program, function, second, depth + 1), 8, span);
+    int third = function->source->exprs[second].next_sibling;
+    int bounded = resize && third >= 0 && third < function->source->expr_count;
+    int maximum = bounded ? assembly_convert(program, function,
+        assembly_expression(program, function, third, depth + 1), 8, span) : -1;
     AssemblyVecPlace place;
     int current = assembly_vec_read(program, function, first, identity, &place, span);
     if(program->failed) return -1;
@@ -2290,6 +2597,19 @@ assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, 
     if(program->failed) return -1;
     int negative_operands[] = {requested, zero};
     int negative = assembly_emit(program, function, LirOp_Less, 1, negative_operands, 2, -1, span);
+    if(bounded) {
+        /* Each failed rule is one bit; any bit rejects. */
+        int rules[][2] = {{maximum, zero}, {maximum, requested}, {maximum, capacity}};
+        int any = assembly_convert(program, function, negative, 3, span);
+        for(int rule = 0; rule < 3; rule++) {
+            int broken = assembly_convert(program, function,
+                assembly_emit(program, function, LirOp_Less, 1, rules[rule], 2, -1, span), 3, span);
+            int operands[] = {any, broken};
+            any = assembly_emit(program, function, LirOp_BitOr, 3, operands, 2, -1, span);
+        }
+        int operands[] = {any, assembly_constant(program, function, 3, 0, span)};
+        negative = assembly_emit(program, function, LirOp_NotEqual, 1, operands, 2, -1, span);
+    }
     assembly_branch(program, function, negative, rejected, valid, live, span);
 
     assembly_enter(function, rejected, before, live);
@@ -2359,8 +2679,6 @@ assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, 
  * ctz(x) as popcount((x & -x) - 1) in the argument's width, clz as the width
  * less the popcount of x with every bit below its highest set, bswap as byte
  * moves. Zero gives the width for clz and ctz. */
-static int assembly_unsigned_of(int bits);
-
 static int
 assembly_bit_op(AssemblyProgram *program, AssemblyFunction *function, LirOp op, int left, int right, ZirSourceSpan span)
 {
@@ -2807,17 +3125,367 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
     return value;
 }
 
-/* A vector operation (`Simd.Add(a, b)`, checked as zi_simd_add) on vectors
- * lowered as arrays of lanes. Each lane is taken out, operated on with the
- * scalar instruction, and the lanes are gathered again. A comparison gives a
- * lane of all ones or zero, and a load reads through the checked view, so a
- * load past the end fails as an index past the end does. */
+/* Vector operations (`Simd.Add(a, b)`, checked as zi_simd_add) on vectors
+ * lowered as arrays of lanes. Each lane is taken out, operated on with
+ * scalar instructions that give zi_ref's result (include/ziran_simd.h), and
+ * the lanes are gathered again. The lane code has no branches: a choice
+ * between two lanes is made with a mask of all ones or zero. */
+typedef struct AssemblySimd {
+    AssemblyProgram *program;
+    AssemblyFunction *function;
+    ZirSourceSpan span;
+} AssemblySimd;
+
+/* One vector operand: its value, lane kind (ZI_K_*) and lanes. */
+typedef struct AssemblyLanes {
+    int value;
+    int kind;
+    int count;
+    int lanes[32];
+} AssemblyLanes;
+
+static int
+simd_type(const AssemblySimd *s, int value)
+{
+    return value < 0 || s->program->failed ? -1 : ((int *)s->function->values.data)[value];
+}
+
+static int
+simd_one(const AssemblySimd *s, LirOp op, int type, int value)
+{
+    if(value < 0) return -1;
+    return assembly_emit(s->program, s->function, op, type, &value, 1, -1, s->span);
+}
+
+static int
+simd_two(const AssemblySimd *s, LirOp op, int type, int left, int right)
+{
+    if(left < 0 || right < 0) return -1;
+    int operands[] = {left, right};
+    return assembly_emit(s->program, s->function, op, type, operands, 2, -1, s->span);
+}
+
+static int
+simd_k(const AssemblySimd *s, int type, uint64_t bits)
+{
+    return assembly_constant(s->program, s->function, type, bits, s->span);
+}
+
+static int
+simd_cast(const AssemblySimd *s, int value, int type)
+{
+    return assembly_convert(s->program, s->function, value, type, s->span);
+}
+
+/* The lowered scalar type of lane kind `kind`. */
+static int
+simd_lane_type(const AssemblySimd *s, int kind)
+{
+    if(zi_kfloat(kind))
+        return assembly_type_in(s->program, s->function->module, kind == ZI_K_F32 ? "float32" : "float64", s->span, 0);
+    return 2 + kind / 2 * 2 + !zi_ksigned(kind);
+}
+
+/* The lane kind of lowered scalar type `type`, or -1. */
+static int
+simd_kind(const AssemblySimd *s, int type)
+{
+    if(type < 0) return -1;
+    LirType lane = *assembly_type_at(s->program, type);
+    if(lane.kind == LirTypeKind_Float) return lane.bits == 32 ? ZI_K_F32 : ZI_K_F64;
+    if(lane.kind != LirTypeKind_Integer) return -1;
+    return (lane.bits == 8 ? 0 : lane.bits == 16 ? 2 : lane.bits == 32 ? 4 : 6) + (lane.is_signed ? 1 : 0);
+}
+
+static int
+simd_unsigned(int kind)
+{
+    return assembly_unsigned_of(zi_kbits(kind));
+}
+
+/* A lane's bits as an unsigned integer of its width, and back. */
+static int
+simd_bits(const AssemblySimd *s, int value, int kind)
+{
+    return zi_kfloat(kind) ? simd_one(s, LirOp_Bitcast, simd_unsigned(kind), value) :
+        simd_cast(s, value, simd_unsigned(kind));
+}
+
+static int
+simd_unbits(const AssemblySimd *s, int bits, int kind)
+{
+    int type = simd_lane_type(s, kind);
+    return zi_kfloat(kind) ? simd_one(s, LirOp_Bitcast, type, bits) : simd_cast(s, bits, type);
+}
+
+/* `condition ? yes : no` for two lanes of one type. */
+static int
+simd_pick(const AssemblySimd *s, int condition, int yes, int no)
+{
+    int kind = simd_kind(s, simd_type(s, yes));
+    if(kind < 0 || condition < 0 || no < 0) return -1;
+    int bits = simd_unsigned(kind);
+    int mask = simd_one(s, LirOp_Negate, bits, simd_cast(s, condition, bits));
+    int x = simd_bits(s, yes, kind), y = simd_bits(s, no, kind);
+    int mixed = simd_two(s, LirOp_BitAnd, bits, simd_two(s, LirOp_BitXor, bits, x, y), mask);
+    return simd_unbits(s, simd_two(s, LirOp_BitXor, bits, y, mixed), kind);
+}
+
+/* A compare result as a lane of all ones or zero of type `type`. */
+static int
+simd_mask(const AssemblySimd *s, int condition, int type)
+{
+    return simd_one(s, LirOp_Negate, type, simd_cast(s, condition, type));
+}
+
+/* A float constant of lane kind `kind`. */
+static int
+simd_real(const AssemblySimd *s, int kind, double value)
+{
+    uint64_t bits = zi_fput(value, kind);
+    return simd_k(s, simd_lane_type(s, kind), bits);
+}
+
+/* A shift count, read as unsigned 64 bits, is inside the lane when it is
+ * below the width; outside, the shift gives zero or, shifting a signed lane
+ * right, its sign (zi_shl1, zi_shr1). `safe` is a count the shift accepts. */
+static void
+simd_shift_count(const AssemblySimd *s, int count, int right, int kind, int *inside, int *safe)
+{
+    int fill = right && zi_ksigned(kind);
+    *inside = simd_two(s, LirOp_Less, 1, count, simd_k(s, 9, (uint64_t)zi_kbits(kind)));
+    *safe = simd_pick(s, *inside, count, simd_k(s, 9, fill ? (uint64_t)zi_kbits(kind) - 1 : 0));
+}
+
+static int
+simd_shift(const AssemblySimd *s, int value, int right, int kind, int inside, int safe)
+{
+    int type = simd_lane_type(s, kind);
+    int shifted = simd_two(s, right ? LirOp_ShiftRight : LirOp_ShiftLeft, type, value, safe);
+    return right && zi_ksigned(kind) ? shifted : simd_pick(s, inside, shifted, simd_k(s, type, 0));
+}
+
+static int
+simd_shift_by(const AssemblySimd *s, int value, int right, int kind, int count)
+{
+    int inside, safe;
+    simd_shift_count(s, count, right, kind, &inside, &safe);
+    return simd_shift(s, value, right, kind, inside, safe);
+}
+
+/* `value`, a lane wider than kind `kind`, clamped to that kind's range and
+ * narrowed (zi_clamp, zi_clampu). */
+static int
+simd_clamp(const AssemblySimd *s, int value, int kind)
+{
+    int type = simd_type(s, value);
+    if(type < 0) return -1;
+    int wide_signed = assembly_type_at(s->program, type)->is_signed;
+    uint64_t high = zi_ksigned(kind) ? zi_kmask(kind) >> 1 : zi_kmask(kind);
+    int limit = simd_k(s, type, high);
+    value = simd_pick(s, simd_two(s, LirOp_Greater, 1, value, limit), limit, value);
+    if(wide_signed) {
+        int low = simd_k(s, type, zi_ksigned(kind) ? ~high : 0);
+        value = simd_pick(s, simd_two(s, LirOp_Less, 1, value, low), low, value);
+    }
+    return simd_cast(s, value, simd_lane_type(s, kind));
+}
+
+/* zi_float_to_int: NaN is zero, a value past either limit is that limit,
+ * and the rest truncate toward zero. Only a value strictly inside is
+ * converted, since a conversion out of range fails. */
+static int
+simd_float_to_int(const AssemblySimd *s, int value, int from, int to)
+{
+    int type = simd_lane_type(s, to);
+    int wide = zi_kbits(to) == 64;
+    double limit = zi_ksigned(to) ? (wide ? 9223372036854775808.0 : 2147483648.0) :
+        (wide ? 18446744073709551616.0 : 4294967296.0);
+    double low = zi_ksigned(to) ? -limit : 0.0;
+    int zero = simd_real(s, from, 0.0), top = simd_real(s, from, limit), bottom = simd_real(s, from, low);
+    int inside = simd_pick(s, simd_two(s, LirOp_Less, 1, value, top), value, zero);
+    inside = simd_pick(s, simd_two(s, LirOp_Greater, 1, inside, bottom), inside, zero);
+    int result = simd_cast(s, inside, type);
+    uint64_t high = zi_ksigned(to) ? zi_kmask(to) >> 1 : zi_kmask(to);
+    result = simd_pick(s, simd_two(s, LirOp_GreaterEqual, 1, value, top), simd_k(s, type, high), result);
+    if(zi_ksigned(to))
+        result = simd_pick(s, simd_two(s, LirOp_LessEqual, 1, value, bottom), simd_k(s, type, ~high), result);
+    return result;
+}
+
+/* Unsigned parts of `from` bits regrouped into parts of `to` bits, low
+ * part first, as little-endian memory holds them. */
+static int
+simd_regroup(const AssemblySimd *s, const int *parts, int count, int from, int to, int *out)
+{
+    int total = count * from / to;
+    int from_type = assembly_unsigned_of(from), to_type = assembly_unsigned_of(to);
+    if(from >= to) {
+        int ratio = from / to;
+        for(int part = 0; part < count; part++)
+            for(int piece = 0; piece < ratio; piece++)
+                out[part * ratio + piece] = simd_cast(s, piece ? simd_two(s, LirOp_ShiftRight, from_type,
+                    parts[part], simd_k(s, 9, (uint64_t)(piece * to))) : parts[part], to_type);
+        return total;
+    }
+    int ratio = to / from;
+    for(int part = 0; part < total; part++) {
+        int value = -1;
+        for(int piece = 0; piece < ratio; piece++) {
+            int widened = simd_cast(s, parts[part * ratio + piece], to_type);
+            if(piece) widened = simd_two(s, LirOp_ShiftLeft, to_type, widened, simd_k(s, 9, (uint64_t)(piece * from)));
+            value = piece ? simd_two(s, LirOp_BitOr, to_type, value, widened) : widened;
+        }
+        out[part] = value;
+    }
+    return total;
+}
+
+/* The lanes of a vector as unsigned parts of `bits` bits. */
+static int
+simd_parts(const AssemblySimd *s, const AssemblyLanes *vector, int bits, int *out)
+{
+    int lanes[32];
+    for(int lane = 0; lane < vector->count; lane++) lanes[lane] = simd_bits(s, vector->lanes[lane], vector->kind);
+    return simd_regroup(s, lanes, vector->count, zi_kbits(vector->kind), bits, out);
+}
+
+/* `count` unsigned parts of `bits` bits as `lanes` lanes of kind `kind`. */
+static void
+simd_from_parts(const AssemblySimd *s, const int *parts, int count, int bits, int kind, int *lanes)
+{
+    int grouped[32];
+    int total = simd_regroup(s, parts, count, bits, zi_kbits(kind), grouped);
+    for(int lane = 0; lane < total; lane++) lanes[lane] = simd_unbits(s, grouped[lane], kind);
+}
+
+/* The value of a constant operand: it must lower to a constant. */
+static int
+simd_constant(const AssemblySimd *s, int value, int64_t *out)
+{
+    if(value < 0 || s->function->current < 0) return 0;
+    AssemblyBlock *block = assembly_block_at(s->function, s->function->current);
+    if(block->instructions.count == 0) return 0;
+    LirInstruction last = ((LirInstruction *)block->instructions.data)[block->instructions.count - 1];
+    if(last.result != value || last.op != LirOp_Constant) return 0;
+    LirConstant constant = ((LirConstant *)s->program->constants.data)[last.symbol];
+    LirType type = *assembly_type_at(s->program, constant.type);
+    uint64_t bits = constant.bits;
+    if(type.is_signed && type.bits < 64 && (bits >> (type.bits - 1)) & 1) bits |= ~((UINT64_C(1) << type.bits) - 1);
+    *out = (int64_t)bits;
+    return 1;
+}
+
+/* A vector operand; its lanes are taken out unless `lanes` is zero. */
+static int
+simd_vector(const AssemblySimd *s, int value, AssemblyLanes *vector, int lanes)
+{
+    int type = simd_type(s, value);
+    if(type < 0) return 0;
+    LirType shape = *assembly_type_at(s->program, type);
+    if(shape.kind != LirTypeKind_Array || shape.count > 32 || simd_kind(s, shape.element) < 0) return 0;
+    vector->value = value;
+    vector->kind = simd_kind(s, shape.element);
+    vector->count = (int)shape.count;
+    for(int lane = 0; lanes && lane < vector->count; lane++)
+        vector->lanes[lane] = assembly_indexed(s->program, s->function, LirOp_Extract, shape.element,
+            &value, 1, (uint64_t)lane, s->span);
+    return !s->program->failed;
+}
+
+/* The checked data pointer and count of a string or slice memory operand.
+ * A pointer has no count of its own: `length` is then -1, and each lane is
+ * reached as the last element of a view one past it, which the engine
+ * checks against the storage the pointer reaches, as the portable VM does. */
+static int
+simd_view(const AssemblySimd *s, int view, int lane_type, int *data, int *length)
+{
+    int type = simd_type(s, view);
+    if(type < 0) return 0;
+    LirType pointer = *assembly_type_at(s->program, type);
+    if(pointer.kind == LirTypeKind_Pointer && pointer.element == lane_type) {
+        *data = view;
+        *length = -1;
+        return 1;
+    }
+    if(assembly_view_element(s->program, type) != lane_type) return 0;
+    *data = assembly_indexed(s->program, s->function, LirOp_Extract,
+        assembly_pointer_type(s->program, lane_type, s->span), &view, 1, 0, s->span);
+    *length = assembly_indexed(s->program, s->function, LirOp_Extract, 8, &view, 1, 1, s->span);
+    return 1;
+}
+
+/* Load, LoadLow, Store, StoreLow and Gather. Every address is formed, and
+ * checked against the view, before any lane is read or written, so an access
+ * past the end fails before it changes memory. A fixed array is read through
+ * a checked dynamic index. */
+static int
+assembly_simd_memory(const AssemblySimd *s, const SimdOp *op, const int *roots, int count, int type, int depth)
+{
+    AssemblyProgram *program = s->program;
+    AssemblyFunction *function = s->function;
+    int store = op->shape == SIMD_STORE, gather = op->shape == SIMD_GATHER;
+    if(count != (store ? 3 : 2)) return assembly_fail(program, s->span, "invalid checked vector memory operation");
+    int memory = assembly_expression(program, function, roots[0], depth + 1);
+    int at = gather ? -1 : simd_cast(s, assembly_expression(program, function, roots[1], depth + 1), 8);
+    AssemblyLanes vector = {0};
+    if(store || gather) {
+        int value = assembly_expression(program, function, roots[store ? 2 : 1], depth + 1);
+        if(program->failed) return -1;
+        if(!simd_vector(s, value, &vector, 1))
+            return assembly_fail(program, s->span, "a vector memory operation needs a lowered vector");
+    }
+    if(program->failed) return -1;
+    int vector_type = store ? simd_type(s, vector.value) : type;
+    LirType shape = *assembly_type_at(program, vector_type);
+    if(shape.kind != LirTypeKind_Array) return assembly_fail(program, s->span, "a vector memory operation needs a lowered vector");
+    int lanes = (int)shape.count, lane_type = shape.element;
+    int low = op->id == ZI_OP_LOAD_LOW || op->id == ZI_OP_STORE_LOW;
+    int reach = low ? 64 / zi_kbits(simd_kind(s, lane_type)) : lanes;
+    int indices[32];
+    for(int lane = 0; lane < reach; lane++)
+        indices[lane] = gather ? simd_cast(s, vector.lanes[lane], 8) : lane == 0 ? at :
+            simd_two(s, LirOp_Add, 8, at, simd_k(s, 8, (uint64_t)lane));
+    int values[32];
+    LirType held = *assembly_type_at(program, simd_type(s, memory));
+    if(held.kind == LirTypeKind_Array && !store) {
+        if(held.element != lane_type) return assembly_fail(program, s->span, "a vector load needs memory of the lane type");
+        for(int lane = 0; lane < reach; lane++) {
+            int operands[] = {memory, indices[lane]};
+            values[lane] = assembly_indexed(program, function, LirOp_Extract, lane_type, operands, 2, 0, s->span);
+        }
+    } else {
+        int data, length;
+        if(!simd_view(s, memory, lane_type, &data, &length))
+            return assembly_fail(program, s->span, "a vector memory operation needs a slice, string, array or pointer of the lane type");
+        int pointer = assembly_pointer_type(program, lane_type, s->span);
+        int addresses[32];
+        for(int lane = 0; lane < reach; lane++) {
+            int operands[] = {data, indices[lane], length >= 0 ? length :
+                simd_two(s, LirOp_Add, 8, indices[lane], simd_k(s, 8, 1))};
+            addresses[lane] = assembly_emit(program, function, LirOp_ElementAddress, pointer, operands, 3, -1, s->span);
+        }
+        if(store) {
+            for(int lane = 0; lane < reach; lane++) {
+                int operands[] = {addresses[lane], vector.lanes[lane]};
+                assembly_emit(program, function, LirOp_Store, 0, operands, 2, -1, s->span);
+            }
+            return -1;
+        }
+        for(int lane = 0; lane < reach; lane++)
+            values[lane] = simd_one(s, LirOp_Load, lane_type, addresses[lane]);
+    }
+    for(int lane = reach; lane < lanes; lane++) values[lane] = simd_k(s, lane_type, 0);
+    if(program->failed) return -1;
+    return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, s->span);
+}
+
 static int
 assembly_simd(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int type, int depth)
 {
-    ZirSourceSpan span = expression->span;
+    AssemblySimd context = {program, function, expression->span}, *s = &context;
     const SimdOp *op = SimdOpChecked(expression->name);
-    if(op == NULL) return assembly_fail(program, span, "unknown vector operation");
+    if(op == NULL) return assembly_fail(program, s->span, "unknown vector operation");
     int roots[33], count = 0;
     int child = expression->first_child;
     /* Checked ZIR names the result type in the call's own type; a type
@@ -2827,110 +3495,335 @@ assembly_simd(AssemblyProgram *program, AssemblyFunction *function, const ZirExp
        function->source->exprs[child].kind == ZIR_EXPR_IDENT &&
        VectorType(function->source->exprs[child].name, &named))
         child = function->source->exprs[child].next_sibling;
-    for(; child >= 0 && child < function->source->expr_count && count < 33;
-        child = function->source->exprs[child].next_sibling) roots[count++] = child;
-    LirType result = *assembly_type_at(program, type);
-    int lanes = result.kind == LirTypeKind_Array ? (int)result.count : 0;
-    int lane_type = lanes ? result.element : 0;
-    int values[32];
-    if(lanes > 32) return assembly_fail(program, span, "vector has more lanes than the portable lowering handles");
-    int id = op->id;
-    if(id == ZI_OP_ZERO && lanes) return assembly_zero(program, function, type, span, 0);
-    if((id == ZI_OP_SPLAT && count == 1 && lanes) || (id == ZI_OP_MAKE && count == lanes && lanes)) {
-        for(int lane = 0; lane < lanes && !program->failed; lane++)
-            values[lane] = lane && id == ZI_OP_SPLAT ? values[0] : assembly_convert(program, function,
-                assembly_expression(program, function, roots[id == ZI_OP_SPLAT ? 0 : lane], depth + 1), lane_type, span);
-        return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, span);
+    for(; child >= 0 && child < function->source->expr_count; child = function->source->exprs[child].next_sibling) {
+        if(count == 33) return assembly_fail(program, s->span, "too many vector operands");
+        roots[count++] = child;
     }
-    if((id == ZI_OP_LOAD || id == ZI_OP_LOAD_LOW) && count == 2 && lanes) {
-        int view = assembly_expression(program, function, roots[0], depth + 1);
-        int at = assembly_convert(program, function,
-            assembly_expression(program, function, roots[1], depth + 1), 8, span);
+    if(op->shape == SIMD_LOAD || op->shape == SIMD_STORE || op->shape == SIMD_GATHER)
+        return assembly_simd_memory(s, op, roots, count, type, depth);
+    /* Operands in order: vectors, constants and scalar lane values. */
+    AssemblyLanes vectors[3];
+    int scalars[33], vector_count = 0, scalar_count = 0;
+    int64_t k[33];
+    for(int index = 0; index < count; index++) {
+        int value = assembly_expression(program, function, roots[index], depth + 1);
         if(program->failed) return -1;
-        if(assembly_view_element(program, ((int *)function->values.data)[view]) != lane_type)
-            return assembly_fail(program, span, "a vector load needs a slice or string of the lane type");
-        int pointer = assembly_pointer_type(program, lane_type, span);
-        int data = assembly_indexed(program, function, LirOp_Extract, pointer, &view, 1, 0, span);
-        int length = assembly_indexed(program, function, LirOp_Extract, 8, &view, 1, 1, span);
-        int bits = assembly_type_at(program, lane_type)->bits;
-        int reach = id == ZI_OP_LOAD_LOW && bits ? 64 / bits : lanes;
-        for(int lane = 0; lane < lanes && !program->failed; lane++) {
-            if(lane >= reach) { values[lane] = assembly_zero(program, function, lane_type, span, 0); continue; }
-            int index = at;
-            if(lane) {
-                int next_operands[] = {at, assembly_constant(program, function, 8, (uint64_t)lane, span)};
-                index = assembly_emit(program, function, LirOp_Add, 8, next_operands, 2, -1, span);
-            }
-            int slot_operands[] = {data, index, length};
-            int slot = assembly_emit(program, function, LirOp_ElementAddress, pointer, slot_operands, 3, -1, span);
-            values[lane] = assembly_emit(program, function, LirOp_Load, lane_type, &slot, 1, -1, span);
-        }
-        return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, span);
+        if(vector_count < 3 && simd_vector(s, value, &vectors[vector_count],
+            op->id != ZI_OP_LANE && op->id != ZI_OP_WITH_LANE)) { vector_count++; continue; }
+        if(!simd_constant(s, value, &k[scalar_count])) k[scalar_count] = INT64_MIN;
+        scalars[scalar_count++] = value;
     }
-    if(count < 1) return assembly_fail(program, span, "this vector operation is not lowered yet");
-    int first = assembly_expression(program, function, roots[0], depth + 1);
     if(program->failed) return -1;
-    int first_type = ((int *)function->values.data)[first];
-    LirType source = *assembly_type_at(program, first_type);
-    if(source.kind != LirTypeKind_Array || source.count > 32)
-        return assembly_fail(program, span, "this vector operation is not lowered yet");
-    int width = (int)source.count;
-    int part = source.element;
-    LirTypeKind part_kind = assembly_type_at(program, part)->kind;
-    if((id == ZI_OP_LANE || id == ZI_OP_WITH_LANE) && count >= 2) {
-        const ZirExpr *selected = &function->source->exprs[roots[1]];
-        unsigned long long lane = 0;
-        if(selected->kind != ZIR_EXPR_INT || !ZirIntegerLiteral(selected->text, &lane) || lane >= (unsigned)width)
-            return assembly_fail(program, span, "a vector lane is chosen by an integer literal inside the vector");
+    if(op->shape == SIMD_COUNT) {
+        /* A native vector here is one block: Lanes is its lanes, Blocks 1. */
+        if(scalar_count == 1) return simd_cast(s, scalars[0], type);
+        return simd_k(s, type, 1);
+    }
+    LirType result = *assembly_type_at(program, type);
+    int rn = result.kind == LirTypeKind_Array ? (int)result.count : 1;
+    int rt = result.kind == LirTypeKind_Array ? result.element : type;
+    int r = simd_kind(s, rt);
+    int out[32];
+    int id = op->id;
+    if(rn > 32) return assembly_fail(program, s->span, "vector has more lanes than the portable lowering handles");
+    if(id == ZI_OP_ZERO || id == ZI_OP_SPLAT || id == ZI_OP_MAKE) {
+        if(id != ZI_OP_ZERO && scalar_count != (id == ZI_OP_SPLAT ? 1 : rn))
+            return assembly_fail(program, s->span, "invalid checked vector construction");
+        for(int lane = 0; lane < rn; lane++)
+            out[lane] = id == ZI_OP_ZERO ? simd_k(s, rt, 0) : lane && id == ZI_OP_SPLAT ? out[0] :
+                simd_cast(s, scalars[id == ZI_OP_SPLAT ? 0 : lane], rt);
+        return assembly_emit(program, function, LirOp_Aggregate, type, out, rn, -1, s->span);
+    }
+    if(vector_count < 1) return assembly_fail(program, s->span, "this vector operation needs a vector operand");
+    AssemblyLanes *a = &vectors[0], *b = vector_count > 1 ? &vectors[1] : NULL, *c = vector_count > 2 ? &vectors[2] : NULL;
+    int ak = a->kind, an = a->count, at = simd_lane_type(s, ak);
+    int blocks = an * zi_kbits(ak) / 8 > 16 ? 2 : 1, per = an / blocks, rper = rn / blocks;
+    int needs_b = op->shape == SIMD_BINARY || op->shape == SIMD_COMPARE || op->shape == SIMD_SHIFT_LANES ||
+        op->shape == SIMD_ALIGN || op->shape == SIMD_NARROW || op->shape == SIMD_MUL_WIDE || op->shape == SIMD_MADD ||
+        op->shape == SIMD_MADD_SAT || op->shape == SIMD_SAD || op->shape == SIMD_BYTE_SHUFFLE ||
+        op->shape == SIMD_COMBINE || op->shape == SIMD_SELECT;
+    if((needs_b && b == NULL) || (op->shape == SIMD_SELECT && c == NULL))
+        return assembly_fail(program, s->span, "invalid checked vector operands");
+    int literal = scalar_count > 0 && k[0] != INT64_MIN;
+    switch(id) {
+    case ZI_OP_LANE:
+    case ZI_OP_WITH_LANE:
+        if(!literal || k[0] < 0 || k[0] >= an || (id == ZI_OP_WITH_LANE && scalar_count != 2))
+            return assembly_fail(program, s->span, "a vector lane is chosen by a constant inside the vector");
         if(id == ZI_OP_LANE)
-            return assembly_convert(program, function,
-                assembly_indexed(program, function, LirOp_Extract, part, &first, 1, (int)lane, span), type, span);
-        if(count != 3) return assembly_fail(program, span, "WithLane takes a vector, a lane and a value");
-        int operands[] = {first, assembly_convert(program, function,
-            assembly_expression(program, function, roots[2], depth + 1), part, span)};
-        return assembly_indexed(program, function, LirOp_Insert, first_type, operands, 2, (int)lane, span);
-    }
-    if(part_kind != LirTypeKind_Integer)
-        return assembly_fail(program, span, "this vector operation is not lowered for float lanes yet");
-    if(id == ZI_OP_ALL_ZERO && count == 1) {
-        int any = assembly_indexed(program, function, LirOp_Extract, part, &first, 1, 0, span);
-        for(int lane = 1; lane < width; lane++) {
-            int operands[] = {any, assembly_indexed(program, function, LirOp_Extract, part, &first, 1, lane, span)};
-            any = assembly_emit(program, function, LirOp_BitOr, part, operands, 2, -1, span);
+            return simd_cast(s, assembly_indexed(program, function, LirOp_Extract, at, &a->value, 1,
+                (uint64_t)k[0], s->span), type);
+        {
+            int operands[] = {a->value, simd_cast(s, scalars[1], at)};
+            return assembly_indexed(program, function, LirOp_Insert, simd_type(s, a->value), operands, 2,
+                (uint64_t)k[0], s->span);
         }
-        int operands[] = {any, assembly_constant(program, function, part, 0, span)};
-        return assembly_emit(program, function, LirOp_Equal, 1, operands, 2, -1, span);
+    case ZI_OP_ALL_ZERO: {
+        int any = simd_bits(s, a->lanes[0], ak);
+        for(int lane = 1; lane < an; lane++)
+            any = simd_two(s, LirOp_BitOr, simd_unsigned(ak), any, simd_bits(s, a->lanes[lane], ak));
+        return simd_two(s, LirOp_Equal, 1, any, simd_k(s, simd_unsigned(ak), 0));
     }
-    if(id == ZI_OP_NOT && count == 1 && lanes == width) {
-        for(int lane = 0; lane < width; lane++) {
-            int value = assembly_indexed(program, function, LirOp_Extract, part, &first, 1, lane, span);
-            values[lane] = assembly_emit(program, function, LirOp_BitNot, part, &value, 1, -1, span);
+    case ZI_OP_REDUCE_ADD: {
+        int sum = a->lanes[0];
+        for(int lane = 1; lane < an; lane++) sum = simd_two(s, LirOp_Add, at, sum, a->lanes[lane]);
+        return simd_cast(s, sum, type);
+    }
+    case ZI_OP_REDUCE_MIN: case ZI_OP_REDUCE_MAX: case ZI_OP_REDUCE_MAX_INDEX: {
+        /* The first lane of the extreme value wins. */
+        int best = a->lanes[0], index = simd_k(s, 8, 0);
+        for(int lane = 1; lane < an; lane++) {
+            int better = simd_two(s, id == ZI_OP_REDUCE_MIN ? LirOp_Less : LirOp_Greater, 1, a->lanes[lane], best);
+            best = simd_pick(s, better, a->lanes[lane], best);
+            if(id == ZI_OP_REDUCE_MAX_INDEX) index = simd_pick(s, better, simd_k(s, 8, (uint64_t)lane), index);
         }
-        return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, span);
+        return simd_cast(s, id == ZI_OP_REDUCE_MAX_INDEX ? index : best, type);
     }
-    LirOp scalar = id == ZI_OP_ADD ? LirOp_Add : id == ZI_OP_SUB ? LirOp_Subtract : id == ZI_OP_MUL ? LirOp_Multiply :
-        id == ZI_OP_AND ? LirOp_BitAnd : id == ZI_OP_OR ? LirOp_BitOr : id == ZI_OP_XOR ? LirOp_BitXor :
-        id == ZI_OP_EQ ? LirOp_Equal : id == ZI_OP_LT || id == ZI_OP_GT ? LirOp_Less : LirOp_Invalid;
-    if(scalar == LirOp_Invalid || count != 2 || lanes != width)
-        return assembly_fail(program, span, "this vector operation is not lowered yet");
-    int second = assembly_expression(program, function, roots[1], depth + 1);
+    default:
+        break;
+    }
+    if(result.kind != LirTypeKind_Array || r < 0)
+        return assembly_fail(program, s->span, "invalid checked vector result");
+    switch(id) {
+    case ZI_OP_ADD: case ZI_OP_SUB: case ZI_OP_MUL: case ZI_OP_DIV: {
+        LirOp scalar = id == ZI_OP_ADD ? LirOp_Add : id == ZI_OP_SUB ? LirOp_Subtract :
+            id == ZI_OP_MUL ? LirOp_Multiply : LirOp_Divide;
+        for(int lane = 0; lane < an; lane++) out[lane] = simd_two(s, scalar, at, a->lanes[lane], b->lanes[lane]);
+        break;
+    }
+    case ZI_OP_ADD_SAT: case ZI_OP_SUB_SAT:
+        for(int lane = 0; lane < an; lane++)
+            out[lane] = simd_clamp(s, simd_two(s, id == ZI_OP_ADD_SAT ? LirOp_Add : LirOp_Subtract, 6,
+                simd_cast(s, a->lanes[lane], 6), simd_cast(s, b->lanes[lane], 6)), ak);
+        break;
+    case ZI_OP_MIN: case ZI_OP_MAX:
+        /* Min is a < b ? a : b and Max a > b ? a : b, so floats take b
+         * when either is NaN. */
+        for(int lane = 0; lane < an; lane++)
+            out[lane] = simd_pick(s, simd_two(s, id == ZI_OP_MIN ? LirOp_Less : LirOp_Greater, 1,
+                a->lanes[lane], b->lanes[lane]), a->lanes[lane], b->lanes[lane]);
+        break;
+    case ZI_OP_AVG:
+        for(int lane = 0; lane < an; lane++) {
+            int sum = simd_two(s, LirOp_Add, 7, simd_cast(s, a->lanes[lane], 7), simd_cast(s, b->lanes[lane], 7));
+            sum = simd_two(s, LirOp_Add, 7, sum, simd_k(s, 7, 1));
+            out[lane] = simd_cast(s, simd_two(s, LirOp_ShiftRight, 7, sum, simd_k(s, 7, 1)), at);
+        }
+        break;
+    case ZI_OP_MUL_HIGH: case ZI_OP_MUL_HIGH_ROUND: {
+        /* The 32-bit product of two 16-bit lanes cannot overflow. */
+        int wide = zi_ksigned(ak) ? 6 : 7;
+        for(int lane = 0; lane < an; lane++) {
+            int product = simd_two(s, LirOp_Multiply, wide, simd_cast(s, a->lanes[lane], wide),
+                simd_cast(s, b->lanes[lane], wide));
+            if(id == ZI_OP_MUL_HIGH_ROUND) product = simd_two(s, LirOp_Add, wide, product, simd_k(s, wide, 0x4000));
+            out[lane] = simd_cast(s, simd_two(s, LirOp_ShiftRight, wide, product,
+                simd_k(s, 7, id == ZI_OP_MUL_HIGH ? 16 : 15)), at);
+        }
+        break;
+    }
+    case ZI_OP_AND: case ZI_OP_OR: case ZI_OP_XOR: case ZI_OP_AND_NOT:
+        for(int lane = 0; lane < an; lane++) {
+            int right = id == ZI_OP_AND_NOT ? simd_one(s, LirOp_BitNot, at, b->lanes[lane]) : b->lanes[lane];
+            out[lane] = simd_two(s, id == ZI_OP_OR ? LirOp_BitOr : id == ZI_OP_XOR ? LirOp_BitXor : LirOp_BitAnd,
+                at, a->lanes[lane], right);
+        }
+        break;
+    case ZI_OP_NOT:
+        for(int lane = 0; lane < an; lane++) out[lane] = simd_one(s, LirOp_BitNot, at, a->lanes[lane]);
+        break;
+    case ZI_OP_ABS:
+        for(int lane = 0; lane < an; lane++) {
+            if(zi_kfloat(ak)) {
+                int bits = simd_two(s, LirOp_BitAnd, simd_unsigned(ak), simd_bits(s, a->lanes[lane], ak),
+                    simd_k(s, simd_unsigned(ak), zi_kmask(ak) >> 1));
+                out[lane] = simd_unbits(s, bits, ak);
+            } else
+                out[lane] = simd_pick(s, simd_two(s, LirOp_Less, 1, a->lanes[lane], simd_k(s, at, 0)),
+                    simd_two(s, LirOp_Subtract, at, simd_k(s, at, 0), a->lanes[lane]), a->lanes[lane]);
+        }
+        break;
+    case ZI_OP_NEG:
+        /* Float negation flips the sign bit; an integer lane wraps. */
+        for(int lane = 0; lane < an; lane++)
+            out[lane] = zi_kfloat(ak) ? simd_one(s, LirOp_Negate, at, a->lanes[lane]) :
+                simd_two(s, LirOp_Subtract, at, simd_k(s, at, 0), a->lanes[lane]);
+        break;
+    case ZI_OP_SIGN:
+        for(int lane = 0; lane < an; lane++) {
+            int zero = simd_k(s, at, 0);
+            int kept = simd_pick(s, simd_two(s, LirOp_Equal, 1, b->lanes[lane], zero), zero, a->lanes[lane]);
+            out[lane] = simd_pick(s, simd_two(s, LirOp_Less, 1, b->lanes[lane], zero),
+                simd_two(s, LirOp_Subtract, at, zero, a->lanes[lane]), kept);
+        }
+        break;
+    case ZI_OP_ABS_DIFF:
+        for(int lane = 0; lane < an; lane++) {
+            int below = simd_two(s, LirOp_Less, 1, a->lanes[lane], b->lanes[lane]);
+            out[lane] = simd_cast(s, simd_pick(s, below, simd_two(s, LirOp_Subtract, at, b->lanes[lane], a->lanes[lane]),
+                simd_two(s, LirOp_Subtract, at, a->lanes[lane], b->lanes[lane])), rt);
+        }
+        break;
+    case ZI_OP_EQ: case ZI_OP_LT: case ZI_OP_GT:
+        for(int lane = 0; lane < an; lane++)
+            out[lane] = simd_mask(s, simd_two(s, id == ZI_OP_EQ ? LirOp_Equal : id == ZI_OP_LT ? LirOp_Less : LirOp_Greater,
+                1, a->lanes[lane], b->lanes[lane]), rt);
+        break;
+    case ZI_OP_SELECT:
+        /* The first vector is the mask. */
+        for(int lane = 0; lane < rn; lane++) {
+            int unsigned_type = simd_unsigned(b->kind);
+            int mask = simd_bits(s, a->lanes[lane], ak);
+            int yes = simd_bits(s, b->lanes[lane], b->kind), no = simd_bits(s, c->lanes[lane], c->kind);
+            int mixed = simd_two(s, LirOp_BitAnd, unsigned_type, simd_two(s, LirOp_BitXor, unsigned_type, yes, no), mask);
+            out[lane] = simd_unbits(s, simd_two(s, LirOp_BitXor, unsigned_type, no, mixed), b->kind);
+        }
+        break;
+    case ZI_OP_SHL: case ZI_OP_SHR: case ZI_OP_SHR_ROUND: {
+        if(scalar_count != 1) return assembly_fail(program, s->span, "a vector shift takes one count");
+        int right = id != ZI_OP_SHL;
+        int count64 = simd_cast(s, scalars[0], 9), inside, safe;
+        simd_shift_count(s, count64, right, ak, &inside, &safe);
+        int inside_less = -1, safe_less = -1, none = -1;
+        if(id == ZI_OP_SHR_ROUND) {
+            /* (v + 2^(n-1)) >> n without an intermediate overflow. */
+            simd_shift_count(s, simd_two(s, LirOp_Subtract, 9, count64, simd_k(s, 9, 1)), 1, ak, &inside_less, &safe_less);
+            none = simd_two(s, LirOp_Equal, 1, count64, simd_k(s, 9, 0));
+        }
+        for(int lane = 0; lane < an; lane++) {
+            out[lane] = simd_shift(s, a->lanes[lane], right, ak, inside, safe);
+            if(id != ZI_OP_SHR_ROUND) continue;
+            int half = simd_two(s, LirOp_BitAnd, at, simd_shift(s, a->lanes[lane], 1, ak, inside_less, safe_less),
+                simd_k(s, at, 1));
+            out[lane] = simd_pick(s, none, a->lanes[lane], simd_two(s, LirOp_Add, at, out[lane], half));
+        }
+        break;
+    }
+    case ZI_OP_SHL_LANES: case ZI_OP_SHR_LANES:
+        for(int lane = 0; lane < an; lane++)
+            out[lane] = simd_shift_by(s, a->lanes[lane], id == ZI_OP_SHR_LANES, ak,
+                simd_cast(s, simd_bits(s, b->lanes[lane], ak), 9));
+        break;
+    case ZI_OP_SHL_BYTES: case ZI_OP_SHR_BYTES: case ZI_OP_ALIGN_BYTES: {
+        /* AlignBytes(high, low, n) shifts the 32 bytes low:high right by
+         * n in each 128-bit block, as x86 alignr does. */
+        int shift = scalar_count == 1 && literal ? (int)k[0] : -1;
+        if(shift < 0 || shift > 16) return assembly_fail(program, s->span, "a byte shift takes a constant count from 0 to 16");
+        int x[32], y[32], z[32];
+        int bytes = simd_parts(s, id == ZI_OP_ALIGN_BYTES ? b : a, 8, x);
+        if(id == ZI_OP_ALIGN_BYTES) simd_parts(s, a, 8, y);
+        for(int at_byte = 0; at_byte < bytes; at_byte++) {
+            int base = at_byte & ~15;
+            int from = (at_byte & 15) + (id == ZI_OP_SHL_BYTES ? -shift : shift);
+            z[at_byte] = from >= 0 && from < 16 ? x[base + from] :
+                id == ZI_OP_ALIGN_BYTES && from >= 16 && from < 32 ? y[base + from - 16] : simd_k(s, 3, 0);
+        }
+        simd_from_parts(s, z, bytes, 8, ak, out);
+        break;
+    }
+    case ZI_OP_WIDEN_LOW: case ZI_OP_WIDEN_HIGH:
+        for(int block = 0; block < blocks; block++)
+            for(int lane = 0; lane < rper; lane++)
+                out[block * rper + lane] = simd_cast(s,
+                    a->lanes[block * per + lane + (id == ZI_OP_WIDEN_HIGH ? per / 2 : 0)], rt);
+        break;
+    case ZI_OP_WIDEN:
+        for(int lane = 0; lane < rn; lane++) out[lane] = simd_cast(s, a->lanes[lane], rt);
+        break;
+    case ZI_OP_NARROW:
+        for(int block = 0; block < blocks; block++)
+            for(int lane = 0; lane < per; lane++)
+                for(int half = 0; half < 2; half++)
+                    out[block * rper + half * per + lane] = simd_clamp(s,
+                        (half ? b : a)->lanes[block * per + lane], r);
+        break;
+    case ZI_OP_MUL_WIDE_LOW: case ZI_OP_MUL_WIDE_HIGH:
+        for(int block = 0; block < blocks; block++)
+            for(int lane = 0; lane < rper; lane++) {
+                int from = block * per + lane + (id == ZI_OP_MUL_WIDE_HIGH ? per / 2 : 0);
+                out[block * rper + lane] = simd_two(s, LirOp_Multiply, rt, simd_cast(s, a->lanes[from], rt),
+                    simd_cast(s, b->lanes[from], rt));
+            }
+        break;
+    case ZI_OP_MADD: case ZI_OP_MADD_SAT: case ZI_OP_ADD_PAIRS: {
+        /* Pairs of lanes multiplied (or not) and added in 32 bits; the sums
+         * of MulAddPairsSat are clamped to s16. */
+        int wide = id == ZI_OP_ADD_PAIRS ? rt : 6;
+        for(int lane = 0; lane < rn; lane++) {
+            int terms[2];
+            for(int pair = 0; pair < 2; pair++) {
+                int left = simd_cast(s, a->lanes[2 * lane + pair], wide);
+                terms[pair] = id == ZI_OP_ADD_PAIRS ? left :
+                    simd_two(s, LirOp_Multiply, wide, left, simd_cast(s, b->lanes[2 * lane + pair], wide));
+            }
+            int sum = simd_two(s, LirOp_Add, wide, terms[0], terms[1]);
+            out[lane] = id == ZI_OP_MADD_SAT ? simd_clamp(s, sum, r) : simd_cast(s, sum, rt);
+        }
+        break;
+    }
+    case ZI_OP_SAD:
+        for(int lane = 0; lane < rn; lane++) {
+            int sum = simd_k(s, rt, 0);
+            for(int part = 0; part < 8; part++) {
+                int x = a->lanes[8 * lane + part], y = b->lanes[8 * lane + part];
+                int difference = simd_pick(s, simd_two(s, LirOp_Greater, 1, x, y),
+                    simd_two(s, LirOp_Subtract, at, x, y), simd_two(s, LirOp_Subtract, at, y, x));
+                sum = simd_two(s, LirOp_Add, rt, sum, simd_cast(s, difference, rt));
+            }
+            out[lane] = sum;
+        }
+        break;
+    case ZI_OP_BYTE_SHUFFLE:
+        /* An index of 16 or more gives zero; the rest pick a byte of their
+         * own block through a checked dynamic index. */
+        for(int lane = 0; lane < rn; lane++) {
+            int index = simd_cast(s, b->lanes[lane], 8);
+            int inside = simd_two(s, LirOp_Less, 1, index, simd_k(s, 8, 16));
+            int picked = simd_two(s, LirOp_Add, 8, simd_pick(s, inside, index, simd_k(s, 8, 0)),
+                simd_k(s, 8, (uint64_t)(lane & ~15)));
+            int operands[] = {a->value, picked};
+            int byte = assembly_indexed(program, function, LirOp_Extract, at, operands, 2, 0, s->span);
+            out[lane] = simd_pick(s, inside, byte, simd_k(s, at, 0));
+        }
+        break;
+    case ZI_OP_SHUFFLE:
+        if(scalar_count != per) return assembly_fail(program, s->span, "a shuffle takes one constant index for each lane of a block");
+        for(int lane = 0; lane < per; lane++)
+            if(k[lane] < 0 || k[lane] >= per)
+                return assembly_fail(program, s->span, "a shuffle takes constant lane indices within one block");
+        for(int block = 0; block < blocks; block++)
+            for(int lane = 0; lane < per; lane++) out[block * per + lane] = a->lanes[block * per + k[lane]];
+        break;
+    case ZI_OP_REINTERPRET: {
+        int parts[32];
+        int bits = zi_kbits(ak) < zi_kbits(r) ? zi_kbits(ak) : zi_kbits(r);
+        int total = simd_parts(s, a, bits, parts);
+        simd_from_parts(s, parts, total, bits, r, out);
+        break;
+    }
+    case ZI_OP_CONVERT:
+        for(int lane = 0; lane < an; lane++)
+            out[lane] = zi_kfloat(ak) ? simd_float_to_int(s, a->lanes[lane], ak, r) : simd_cast(s, a->lanes[lane], rt);
+        break;
+    case ZI_OP_LOW: case ZI_OP_HIGH:
+        for(int lane = 0; lane < rn; lane++) out[lane] = a->lanes[lane + (id == ZI_OP_HIGH ? rn : 0)];
+        break;
+    case ZI_OP_COMBINE:
+        for(int lane = 0; lane < an; lane++) { out[lane] = a->lanes[lane]; out[an + lane] = b->lanes[lane]; }
+        break;
+    case ZI_OP_INTERLEAVE_LOW: case ZI_OP_INTERLEAVE_HIGH:
+        for(int block = 0; block < blocks; block++)
+            for(int lane = 0; lane < per / 2; lane++) {
+                int from = block * per + lane + (id == ZI_OP_INTERLEAVE_HIGH ? per / 2 : 0);
+                out[block * per + 2 * lane] = a->lanes[from];
+                out[block * per + 2 * lane + 1] = b->lanes[from];
+            }
+        break;
+    default:
+        return assembly_fail(program, s->span, "this vector operation is not lowered yet");
+    }
     if(program->failed) return -1;
-    if(((int *)function->values.data)[second] != first_type)
-        return assembly_fail(program, span, "a vector operation needs two vectors of one type");
-    int compare = id == ZI_OP_EQ || id == ZI_OP_LT || id == ZI_OP_GT;
-    for(int lane = 0; lane < width; lane++) {
-        int left = assembly_indexed(program, function, LirOp_Extract, part, &first, 1, lane, span);
-        int right = assembly_indexed(program, function, LirOp_Extract, part, &second, 1, lane, span);
-        int operands[] = {id == ZI_OP_GT ? right : left, id == ZI_OP_GT ? left : right};
-        int value = assembly_emit(program, function, scalar, compare ? 1 : part, operands, 2, -1, span);
-        if(compare) {
-            /* True is every bit of the lane: zero minus one. */
-            int one = assembly_convert(program, function, value, lane_type, span);
-            value = assembly_emit(program, function, LirOp_Negate, lane_type, &one, 1, -1, span);
-        }
-        values[lane] = value;
-    }
-    return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, span);
+    return assembly_emit(program, function, LirOp_Aggregate, type, out, rn, -1, s->span);
 }
 
 /* size_of(T) is the C layout size, as the C target gives it: each scalar is
@@ -3073,38 +3966,9 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
            (own != LirTypeKind_Integer && own != LirTypeKind_Bool)))
             type = function->literal_type;
     }
-    if(expression->kind == ZIR_EXPR_INT) {
-        /* A folded constant such as a negative enum member carries its sign
-         * in the text: the magnitude is read, then negated in two's complement. */
-        unsigned long long bits = 0;
-        const char *digits = expression->text;
-        int negative = digits[0] == '-';
-        if(negative || digits[0] == '+') digits++;
-        if(!ZirIntegerLiteral(digits, &bits))
-            return assembly_fail(program, expression->span, "invalid checked integer literal");
-        if(assembly_type_at(program, type)->kind == LirTypeKind_Float) {
-            double converted = negative ? -(double)bits : (double)bits;
-            if(assembly_type_at(program, type)->bits == 32) {
-                float narrowed = (float)converted;
-                uint32_t representation;
-                memcpy(&representation, &narrowed, sizeof(representation));
-                bits = representation;
-            } else memcpy(&bits, &converted, sizeof(bits));
-        } else if(negative) bits = 0 - bits;
-        return assembly_constant(program, function, type, bits, expression->span);
-    }
-    if(expression->kind == ZIR_EXPR_FLOAT) {
-        char *end = NULL;
-        double value = ParseDecimal(expression->text, &end);
-        if(end == expression->text || *end || assembly_type_at(program, type)->kind != LirTypeKind_Float)
-            return assembly_fail(program, expression->span, "invalid checked floating-point literal");
+    if(expression->kind == ZIR_EXPR_INT || expression->kind == ZIR_EXPR_FLOAT) {
         uint64_t bits = 0;
-        if(assembly_type_at(program, type)->bits == 32) {
-            float narrowed = (float)value;
-            uint32_t representation;
-            memcpy(&representation, &narrowed, sizeof(representation));
-            bits = representation;
-        } else memcpy(&bits, &value, sizeof(bits));
+        if(!assembly_literal_bits(program, expression, type, &bits)) return -1;
         return assembly_constant(program, function, type, bits, expression->span);
     }
     if(expression->kind == ZIR_EXPR_COMPOUND)
@@ -3151,22 +4015,8 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             return assembly_emit(program, function, LirOp_Load, local->type, &local->value, 1, -1,
                 expression->span);
         }
-        /* A named constant, which a parsed global initializer leaves by name:
-         * its compile-time value, typed by the member or global it sets. */
-        const ZirDefine *definition = NULL;
-        const ZirModule *definition_owner = NULL;
-        int64_t constant_value = 0;
-        if(ResolveDefine(function->module, expression->name, &definition, &definition_owner, NULL) == 1 &&
-           definition != NULL &&
-           EvaluateCompileExpression(definition_owner, definition->value, expression->span, 0, &constant_value)) {
-            int typed = type;
-            LirTypeKind own = assembly_type_at(program, type)->kind;
-            if(own != LirTypeKind_Integer && own != LirTypeKind_Bool && function->literal_at == root + 1)
-                typed = function->literal_type;
-            if(assembly_type_at(program, typed)->kind == LirTypeKind_Integer ||
-               assembly_type_at(program, typed)->kind == LirTypeKind_Bool)
-                return assembly_constant(program, function, typed, (uint64_t)constant_value, expression->span);
-        }
+        int named = assembly_define(program, function, expression->name, type, root, expression->span);
+        if(named != -2) return named;
         return assembly_fail(program, expression->span, "only local scalar bindings are lowered in identifier expressions");
     }
     if(expression->kind == ZIR_EXPR_CAST) {
@@ -3293,9 +4143,10 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             return assembly_vec_call(program, function, expression, depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSlice"))
             return assembly_vec_slice(program, function, expression, depth + 1);
-        if(!indirect && (!strcmp(expression->name, "VecReserve") || !strcmp(expression->name, "VecResize")))
+        if(!indirect && (!strcmp(expression->name, "VecReserve") || !strcmp(expression->name, "VecResize") ||
+           !strcmp(expression->name, "VecResizeBounded")))
             return assembly_vec_reserve_call(program, function, expression,
-                !strcmp(expression->name, "VecResize"), depth + 1);
+                strcmp(expression->name, "VecReserve") != 0, depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSwap"))
             return assembly_vec_swap(program, function, expression);
         if(!indirect && !strncmp(expression->name, "zi_simd_", 8))
@@ -3334,6 +4185,7 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             else if(!strcmp(expression->name, "zi_free")) return assembly_free(program, function, expression, depth + 1);
             else symbol = assembly_host_function(program, function->module, expression->name, expression->span);
             if(program->failed) return -1;
+            if(symbol < 0) assembly_foreign_call(program, expression->name);
             if(symbol < 0) return assembly_fail(program, expression->span, "call is not a direct concrete Ziran procedure");
             AssemblyFunction *target = ((AssemblyFunction **)program->functions.data)[symbol];
             parameters = target->result.parameters;
@@ -3413,8 +4265,23 @@ assembly_capture_local(AssemblyProgram *program, AssemblyFunction *function, int
     if(parent == NULL) return NULL;
     int member = -1, selected = -1, member_type = -1;
     if(destination->kind == ZIR_EXPR_MEMBER) {
-        member = assembly_field(program, parent->type, destination->name, destination->span);
-        if(!program->failed) member_type = assembly_member_type(program, parent->type, member);
+        /* Each hop of a promoted path is its own place, so a store inserts
+         * back into every enclosing record. */
+        int fields[ASSEMBLY_FIELD_PATH_MAX], types[ASSEMBLY_FIELD_PATH_MAX];
+        int count = assembly_field_path(program, parent->type, destination->name, destination->span,
+            fields, types);
+        for(int hop = 0; hop + 1 < count && !program->failed; hop++) {
+            int current = assembly_indexed(program, function, LirOp_Extract, types[hop],
+                &parent->value, 1, (uint64_t)fields[hop], destination->span);
+            AssemblyLocalPlace *place = assembly_allocate(program, 1, sizeof(*place));
+            if(place == NULL) return NULL;
+            *place = (AssemblyLocalPlace){.type = types[hop], .value = current,
+                .member = fields[hop], .index = -1, .parent = parent};
+            parent = place;
+        }
+        if(program->failed) return NULL;
+        member = fields[count - 1];
+        member_type = types[count - 1];
     }
     else {
         LirType type = *assembly_type_at(program, parent->type);
@@ -3677,12 +4544,13 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
         if(statement->kind == ZIR_STMT_DECL) {
             int type = assembly_type(program, function, statement->type, statement->span);
 
-            int value = statement->expr_root >= 0 ? assembly_expression(program, function, statement->expr_root, 0) :
+            int value = statement->expr_root >= 0 ? assembly_expression_for(program, function, statement->expr_root, type, 0) :
                 assembly_zero(program, function, type, statement->span, 0);
             value = assembly_convert(program, function, value, type, statement->span);
             AssemblyBinding binding = {assembly_text(program, statement->name), type, value, -1};
             assembly_push(program, &function->bindings, &binding);
-            if(index < function->addressed_count && function->addressed[index])
+            if((index < function->addressed_count && function->addressed[index]) ||
+               assembly_kept_in_storage(program, type))
                 assembly_promote_binding(program, function, function->bindings.count - 1,
                     statement->span);
         } else if(statement->kind == ZIR_STMT_ASSIGN) {
@@ -3748,7 +4616,23 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
                 value = assembly_emit(program, function, op, identity, operands, 2, -1, statement->span);
             }
             if(address >= 0) {
-                int operands[2] = {address, assembly_convert(program, function, value, identity, statement->span)};
+                value = assembly_convert(program, function, value, identity, statement->span);
+                /* An owned global, or a member of one, can be assigned while it
+                 * holds storage; the old value is dropped once the new one is
+                 * made, as the other targets do. The checker requires a local
+                 * to be empty first. */
+                int base = place;
+                while(base >= 0 && base < function->source->expr_count &&
+                      (function->source->exprs[base].kind == ZIR_EXPR_MEMBER ||
+                       function->source->exprs[base].kind == ZIR_EXPR_INDEX))
+                    base = function->source->exprs[base].left;
+                if(!strcmp(statement->assignment_op, "=") && assembly_owned(program, identity, 0) &&
+                   base >= 0 && base < function->source->expr_count &&
+                   function->source->exprs[base].kind == ZIR_EXPR_IDENT && function->source->exprs[base].is_global_value)
+                    assembly_drop_value(program, function,
+                        assembly_emit(program, function, LirOp_Load, identity, &address, 1, -1, statement->span),
+                        identity, statement->span, 0);
+                int operands[2] = {address, value};
                 assembly_emit(program, function, LirOp_Store, 0, operands, 2, -1, statement->span);
             } else assembly_store_captured(program, function, destination, value, statement->span);
         } else if(statement->kind == ZIR_STMT_EXPR || statement->kind == ZIR_STMT_UNUSED) {
@@ -3835,10 +4719,10 @@ assembly_function(AssemblyProgram *program, const ZirModule *module, const ZirFu
     /* A host_api declaration becomes a bodiless capability signature; its
      * callers lower ordinary arguments into an explicit host.call. */
     int host = source->is_extern && source->extern_kind == ZIR_EXTERN_HOST;
-    /* A procedure with `#asm` variants is lowered from its ordinary body,
-     * the fallback every target without that instruction set runs. */
-    if((!host && (!source->checked || source->is_extern)) || source->is_template || source->simd_target)
-        return assembly_fail(program, source->span, "direct lowering requires a concrete checked function without non-host foreign services or native variants");
+    /* A procedure with `#asm` variants or `#target` tiers is lowered from its
+     * ordinary body, the code every target without those tiers runs. */
+    if((!host && (!source->checked || source->is_extern)) || source->is_template)
+        return assembly_fail(program, source->span, "direct lowering requires a concrete checked function without non-host foreign services");
     AssemblyFunction *function = assembly_allocate(program, 1, sizeof(*function));
     if(function == NULL) return -1;
     function->module = module;
@@ -4013,7 +4897,8 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
         for(int parameter = 0; parameter < count && !program->failed; parameter++) {
             AssemblyBinding *binding = &((AssemblyBinding *)builder->bindings.data)[parameter];
             int source_binding = builder->source->stmt_count + parameter;
-            if(source_binding < builder->addressed_count && builder->addressed[source_binding])
+            if((source_binding < builder->addressed_count && builder->addressed[source_binding]) ||
+               assembly_kept_in_storage(program, binding->type))
                 assembly_promote_binding(program, builder, parameter, builder->source->span);
         }
         if(builder->initializes) {
@@ -4093,17 +4978,22 @@ AssemblyFree(AssemblyProgram *program)
     free(program);
 }
 
-/* The host interface: what an embedder sees of each host capability, which
- * the instruction payload does not keep. One line per type node, then one per
- * host function, fields separated by tabs:
+/* The host interface: what an embedder sees of each host capability and
+ * module global, which the instruction payload does not keep. One line per
+ * type node, then the rest, fields separated by tabs:
  *
  *   node ID CLASS SPELLING [...]   CLASS is scalar, string, pointer,
  *                                  slice CHILD, array CHILD, or
  *                                  record NAME CHILD NAME CHILD ...
  *   host FUNCTION RESULT PARAMETER...
+ *   abi FUNCTION VARIADIC READS SIGNATURE ARGUMENTS RETURN
+ *   global GLOBAL NODE
+ *   entry ARGUMENTS RETURN
  *
  * SPELLING is the type as declared at that position, which a host sees as a
- * value's type name. FUNCTION is the LIR function index, RESULT -1 for void. */
+ * value's type name. FUNCTION is the LIR function index, RESULT -1 for void,
+ * GLOBAL the LIR global index. An abi line gives a host declaration's text
+ * and the entry line the entry's, with tabs and line ends as spaces. */
 typedef struct InterfaceText {
     char *data;
     size_t length, capacity;
@@ -4131,6 +5021,18 @@ interface_put(InterfaceText *text, const char *part)
     }
     memcpy(text->data + text->length, part, length + 1);
     text->length += length;
+}
+
+/* A tab, then declared text with its tabs and line ends as spaces. */
+static void
+interface_field(InterfaceText *text, const char *part)
+{
+    char piece[2] = {0, 0};
+    interface_put(text, "\t");
+    for(const char *at = part; *at != '\0' && !text->failed; at++) {
+        piece[0] = *at == '\t' || *at == '\n' || *at == '\r' ? ' ' : *at;
+        interface_put(text, piece);
+    }
 }
 
 static int
@@ -4228,6 +5130,34 @@ AssemblyHostInterface(AssemblyProgram *program, size_t *length)
             snprintf(number, sizeof(number), "\t%d", node);
             interface_put(&hosts, number);
         }
+        interface_put(&hosts, "\n");
+        /* The declaration as written, which two builds must share to be
+         * swapped for each other. */
+        const ZirModule *module = function->module;
+        const ZirImport *declared = NULL;
+        for(int at = 0; at < module->import_count && declared == NULL; at++)
+            if(!strcmp(module->imports[at].name, source->name)) declared = &module->imports[at];
+        snprintf(number, sizeof(number), "abi\t%d\t%d\t%d", index,
+                 declared != NULL && declared->is_varargs, declared != NULL && declared->reads_arguments);
+        interface_put(&hosts, number);
+        interface_field(&hosts, declared != NULL ? declared->signature : "");
+        interface_field(&hosts, declared != NULL ? declared->args : FunctionArgs(source));
+        interface_field(&hosts, declared != NULL ? declared->return_type : source->return_type);
+        interface_put(&hosts, "\n");
+    }
+    /* Module globals; string bytes have no declaration. */
+    AssemblyGlobal *globals = program->globals.data;
+    for(int index = 0; index < program->globals.count && !text.failed; index++) {
+        if(globals[index].source == NULL) continue;
+        int node = interface_node(program, &text, &nodes, globals[index].module, globals[index].source->type, 0);
+        char number[48];
+        snprintf(number, sizeof(number), "global\t%d\t%d\n", index, node);
+        interface_put(&hosts, number);
+    }
+    if(program->functions.count > 0 && functions[0]->source != NULL) {
+        interface_put(&hosts, "entry");
+        interface_field(&hosts, FunctionArgs(functions[0]->source));
+        interface_field(&hosts, functions[0]->source->return_type);
         interface_put(&hosts, "\n");
     }
     if(hosts.data != NULL) interface_put(&text, hosts.data);

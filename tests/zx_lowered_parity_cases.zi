@@ -6,7 +6,7 @@
 // the interpreter's exit status. Programs expected to trap must trap on both.
 // Native ELF output must run with the same status or stop at a named
 // assembly.gap diagnostic. The wasm32 module from the same ZX must be
-// reproducible and print the same output, or stop at a named wasm.gap.
+// reproducible and print the same output.
 // The interpreter must end every program with no live heap block.
 #import "native_test"
 #import "check_support"
@@ -75,28 +75,25 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     reread := NativeInvoke(test, command[:])
     if !NativeAssert(test, reread.code == 0 && reread.output == expected,
         CheckConcat(item.entry, ": zi2zx run of the revision-28 file differs from the semantic bundle")) { return }
-    // The same ZX lowers to one wasm32 module, byte for byte, or stops at a
-    // named wasm.gap; the module prints what the interpreter prints.
+    // The same ZX lowers to one wasm32 module, byte for byte, which prints
+    // what the interpreter prints.
     wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
     again := CheckPath(test.work, CheckConcat(label, ".again.wasm"))
     emit := string.[zi2asm, "--input", "zx", "--emit", "wasm", "-o", wasm, lowered]
     emitted := NativeInvoke(test, emit[:])
-    if emitted.code != 0 {
-        if !NativeAssert(test, TextContains(emitted.error, "wasm.gap."),
-            CheckConcat(item.entry, CheckConcat(": wasm output failed without a named gap: ", emitted.error))) { return }
-    } else {
-        repeat := string.[zi2asm, "--input", "zx", "--emit", "wasm", "-o", again, lowered]
-        unused NativeRun(test, repeat[:])
-        same := string.["cmp", "-s", wasm, again]
-        node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm, "--output"]
-        compared := NativeInvoke(test, same[:])
-        module_run := NativeInvoke(test, node[:])
-        if !NativeAssert(test, compared.code == 0,
-            CheckConcat(item.entry, ": one ZX gave two different wasm modules")) { return }
-        if !NativeAssert(test, module_run.code == 0 && module_run.output == actual.output,
-            CheckConcat(item.entry, ": wasm output differs from the interpreter")) { return }
-        wasm_modules.* += 1
-    }
+    if !NativeAssert(test, emitted.code == 0,
+        CheckConcat(item.entry, CheckConcat(": wasm output failed: ", emitted.error))) { return }
+    repeat := string.[zi2asm, "--input", "zx", "--emit", "wasm", "-o", again, lowered]
+    unused NativeRun(test, repeat[:])
+    same := string.["cmp", "-s", wasm, again]
+    node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm, "--output"]
+    compared := NativeInvoke(test, same[:])
+    module_run := NativeInvoke(test, node[:])
+    if !NativeAssert(test, compared.code == 0,
+        CheckConcat(item.entry, ": one ZX gave two different wasm modules")) { return }
+    if !NativeAssert(test, module_run.code == 0 && module_run.output == actual.output,
+        CheckConcat(item.entry, ": wasm output differs from the interpreter")) { return }
+    wasm_modules.* += 1
     native := string.[zi2asm, "--input", "zx", "-o", elf, lowered]
     encoded := NativeInvoke(test, native[:])
     if encoded.code != 0 {
@@ -151,6 +148,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     ParityAdd(*cases, spec_root, "zx_lowered_addresses:main", CheckPath(spec_root, "zx_lowered_addresses.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_cases:main", CheckPath(spec_root, "zx_lowered_cases.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_simd:main", CheckPath(spec_root, "zx_lowered_simd.zi"))
+    ParityAdd(*cases, spec_root, "zx_lowered_using:main", CheckPath(spec_root, "zx_lowered_using.zi"))
+    ParityAdd(*cases, spec_root, "zx_lowered_tables:main", CheckPath(spec_root, "zx_lowered_tables.zi"))
     for entry: spec {
         at: s64
         while entry[at] != cast(u8)58 { at += 1 }
@@ -161,9 +160,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     for index: cast(s64)0..cases.count - 1 {
         ParityRun(*test, tools, cases[index], CheckConcat("case-", CheckNumber(index)), *wasm_modules)
     }
-    // Every example lowers to wasm; a lowering that names a gap for all of
-    // them would otherwise pass unnoticed.
-    unused NativeAssert(*test, wasm_modules >= examples.count, "fewer wasm modules ran than there are examples")
     if test.failed { return 1 }
     print("revision-28 ZX parity: % programs match the semantic route on the interpreter; native runs or names its gap; % ran as wasm32 modules\n",
         cases.count, wasm_modules)

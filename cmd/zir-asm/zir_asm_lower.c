@@ -223,6 +223,14 @@ assembly_origin(AssemblyProgram *program, ZirSourceSpan span)
         .column = column,
         .end_line = end_line, .end_column = end_column,
         .begin = -1, .end = -1, .parent = -1};
+    /* The instructions of one expression share its span: they share one
+     * origin instead of each making a copy. */
+    if(program->origins.count) {
+        LirOrigin *last = &((LirOrigin *)program->origins.data)[program->origins.count - 1];
+        if(last->file == file && last->line == line && last->column == column &&
+           last->end_line == end_line && last->end_column == end_column)
+            return program->origins.count - 1;
+    }
     int index = program->origins.count;
     return assembly_push(program, &program->origins, &origin) ? index : -1;
 }
@@ -743,12 +751,29 @@ assembly_global_address(AssemblyProgram *program, AssemblyFunction *function,
     return assembly_emit(program, function, LirOp_GlobalAddress, pointer_type, NULL, 0, symbol, span);
 }
 
+static int assembly_indexed(AssemblyProgram *, AssemblyFunction *, LirOp, int, const int *, int, uint64_t, ZirSourceSpan);
+
 static int
 assembly_convert(AssemblyProgram *program, AssemblyFunction *function, int value, int type, ZirSourceSpan span)
 {
     if(value < 0 || type < 0 || program->failed) return -1;
     int actual = ((int *)function->values.data)[value];
     if(actual == type) return value;
+    /* Two records of the same shape are one value under two names: the
+     * record a procedure returns several results in is declared once by the
+     * module that returns it and once by the module that receives it. The
+     * value is rebuilt field by field under the wanted type. */
+    LirType from = *assembly_type_at(program, actual), to = *assembly_type_at(program, type);
+    if(from.kind == LirTypeKind_Record && to.kind == LirTypeKind_Record &&
+       from.fields.length == to.fields.length && to.fields.length <= 64) {
+        int fields[64];
+        for(int index = 0; index < to.fields.length && !program->failed; index++)
+            fields[index] = assembly_convert(program, function,
+                assembly_indexed(program, function, LirOp_Extract, ((int *)from.fields.data)[index],
+                    &value, 1, index, span),
+                ((int *)to.fields.data)[index], span);
+        return assembly_emit(program, function, LirOp_Aggregate, type, fields, (int)to.fields.length, -1, span);
+    }
     return assembly_emit(program, function, LirOp_Convert, type, &value, 1, -1, span);
 }
 
@@ -3492,8 +3517,10 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
     for(int index = begin; index < end && !program->failed && function->current >= 0; index++) {
         const ZirStmt *statement = &function->source->stmts[index];
         if(!assembly_spend(program, statement->span)) return;
-        if(statement->is_parallel || statement->is_gpu || StatementHasAssembly(statement)) {
-            assembly_fail(program, statement->span, "parallel, GPU and assembly variants are not lowered yet");
+        /* An `#asm` block is lowered from its ordinary body, like a
+         * procedure with `#asm` variants. */
+        if(statement->is_parallel || statement->is_gpu) {
+            assembly_fail(program, statement->span, "parallel and GPU statements are not lowered yet");
             break;
         }
         if(statement->kind == ZIR_STMT_DECL) {
@@ -3653,8 +3680,9 @@ assembly_function(AssemblyProgram *program, const ZirModule *module, const ZirFu
     /* A host_api declaration becomes a bodiless capability signature; its
      * callers lower ordinary arguments into an explicit host.call. */
     int host = source->is_extern && source->extern_kind == ZIR_EXTERN_HOST;
-    if((!host && (!source->checked || source->is_extern)) || source->is_template ||
-       source->simd_target || (source->assembly_text && *source->assembly_text))
+    /* A procedure with `#asm` variants is lowered from its ordinary body,
+     * the fallback every target without that instruction set runs. */
+    if((!host && (!source->checked || source->is_extern)) || source->is_template || source->simd_target)
         return assembly_fail(program, source->span, "direct lowering requires a concrete checked function without non-host foreign services or native variants");
     AssemblyFunction *function = assembly_allocate(program, 1, sizeof(*function));
     if(function == NULL) return -1;

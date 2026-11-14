@@ -297,20 +297,26 @@ route's result. `json_array_reuse_test` ends with 230 live heap blocks: its stri
 failed when a rebuild made its table smaller (`VecResizeBounded` refuses a bound below the
 current capacity); it now only grows. `tests/zx_lowered_parity.sh` pins 66 programs.
 
+Fifteenth batch, 2026-11-14: the last three spec programs. `unicode_conformance` is 646,000
+instructions, most of them the cleanup of the owned strings each check makes. It ran the lowering
+out of its 256 MB and then the optimizer out of its work: the instructions of one expression now
+share one origin, and `LirDefaultLimits().work` is 1,000,000,000 instead of 16,000,000. Its
+revision-28 file is 36.8 MB against 4.2 MB for the semantic bundle, so it is not pinned; dropping
+an owned value through a shared procedure instead of inline code is the fix for that size.
+A procedure or block with `#asm` variants lowers from its ordinary body
+(`native_assembly_test`), and a record of the same shape under another name converts field by
+field (`generic_assembly_test`: the record a generic procedure returns two results in).
+`tests/zx_lowered_parity.sh` pins 68 programs.
+
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 82 | 79 |
+| `tests/spec` entries | 82 | 82 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
-No program is rejected by the verifier any more. The 3 spec programs left:
-
-| Count | Needs | Programs |
-|-------|-------|----------|
-| 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
-| 1 | long array literals in read-only data: lowering allocation budget | `unicode_conformance` |
+Every program the semantic route runs now lowers, and no program is rejected by the verifier.
 
 Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut over:
 

@@ -118,7 +118,10 @@ LirLimits :: struct {
 }
 
 LirDefaultLimits :: () -> LirLimits {
-    return .{.work = 16000000, .types = 65536, .functions = 65536,
+    // Work is counted per instruction, operand and edge visited, several
+    // times over by the verifier and each optimizer round; a billion admits
+    // a program at the instruction limit.
+    return .{.work = 1000000000, .types = 65536, .functions = 65536,
         .blocks = 262144, .values = 1048576, .instructions = 1048576, .bytes = 268435456}
 }
 

@@ -1,0 +1,23 @@
+// Fields read and written through a pointer on revision-28 ZX, pinned by
+// tests/zx_lowered_parity.sh.
+Activity :: struct { quiet: s32; total: s64 }
+
+Observe :: (activity: *Activity, active: bool) -> bool {
+    if active {
+        activity.quiet = 0
+        return false
+    }
+    if activity.quiet < 2 { activity.quiet += 1 }
+    activity.total += activity.quiet
+    return activity.quiet >= 2
+}
+
+main :: () -> s32 {
+    state: Activity
+    state.quiet = 1
+    first := Observe(*state, false)
+    second := Observe(*state, false)
+    third := Observe(*state, true)
+    print("% % % % %\n", first, second, third, state.quiet, state.total)
+    return cast(s32)state.total
+}

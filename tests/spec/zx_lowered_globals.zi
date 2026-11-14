@@ -1,0 +1,24 @@
+// Global initializers on revision-28 ZX, pinned by tests/zx_lowered_parity.sh:
+// record, nested record, string, float and fixed-array literals are stored
+// by private initializers before any other code runs.
+Point :: struct { x: s32; y: s32 }
+Frame :: struct { corner: Point; width: s64; height: s64 }
+
+origin: Point = .{.x = 40, .y = 2};
+frame: Frame = .{.corner = .{.x = 3, .y = 4}, .width = 480, .height = 320};
+title: string = "gallery";
+scale: float64 = 2.5;
+steps: [4]s32 = .[3, 5, 8, 13];
+live: bool;
+counter: s64 = 40;
+
+Area :: () -> s64 { return frame.width * frame.height }
+
+main :: () -> s32 {
+    total: s32
+    for step: steps { total += step }
+    frame.corner.x += 1
+    if live { return 1 }
+    print("% % % % % %\n", title, Area(), cast(s64)(scale * 4.0), total, frame.corner.x + frame.corner.y, origin.x + origin.y)
+    return cast(s32)counter + origin.y
+}

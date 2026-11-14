@@ -1,0 +1,21 @@
+// VecSwap on revision-28 ZX, pinned by tests/zx_lowered_parity.sh: two
+// locals, and two fields of one fixed-array element.
+#import "vec"
+
+Pair :: struct { committed: Vec(s64); submitted: Vec(s64) }
+
+main :: () -> s32 {
+    left: Vec(s64)
+    right: Vec(s64)
+    VecPush(left, 1)
+    VecPush(right, 2)
+    VecPush(right, 3)
+    VecSwap(left, right)
+    pairs: [2]Pair
+    VecPush(pairs[1].submitted, 7)
+    VecPush(pairs[1].submitted, 8)
+    VecPush(pairs[1].committed, 9)
+    VecSwap(pairs[1].committed, pairs[1].submitted)
+    print("swap % % % % % %\n", left.count, left[1], right.count, right[0], pairs[1].committed.count, pairs[1].submitted[0])
+    return cast(s32)(left.count + pairs[1].committed[1])
+}

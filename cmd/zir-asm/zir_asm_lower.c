@@ -78,6 +78,14 @@ typedef struct AssemblyFunction {
     int addressed_count;
     int current;
     AssemblyLoop *loop;
+    /* A constant global initializer: one more than the global it stores
+     * into, and the root of its parsed initializer expression. */
+    int initializes;
+    int initializer_root;
+    /* One more than the expression whose untyped numeric literal takes
+     * `literal_type`: a member or global the literal initializes. */
+    int literal_at;
+    int literal_type;
 } AssemblyFunction;
 
 struct AssemblyProgram {
@@ -91,6 +99,11 @@ struct AssemblyProgram {
     AssemblyVector origins;
     AssemblyVector functions;
     AssemblyVector initializers;
+    /* Initializers of constant aggregate, float and string globals. They
+     * run before every module startup procedure. */
+    AssemblyVector constant_initializers;
+    /* Parsed initializer expressions, freed with the program. */
+    AssemblyVector probes;
     AssemblyVector types;
     AssemblyVector type_names;
     size_t bytes;
@@ -563,6 +576,37 @@ assembly_constant(AssemblyProgram *program, AssemblyFunction *function, int type
 }
 
 static int
+assembly_constant_initializer(AssemblyProgram *program, const ZirModule *owner, const ZirGlobal *source, int symbol)
+{
+    ZirFunction *probe = assembly_allocate(program, 1, sizeof(*probe));
+    AssemblyFunction *function = assembly_allocate(program, 1, sizeof(*function));
+    if(probe == NULL || function == NULL) return 0;
+    int root = ParseExprTyped(probe, owner, source->init, source->span, source->type);
+    if(!assembly_push(program, &program->probes, &probe)) return 0;
+    if(root < 0)
+        return assembly_fail(program, source->span, "global initializer is not a lowered constant expression") >= 0;
+    probe->span = source->span;
+    function->module = owner;
+    function->source = probe;
+    function->blocks.width = sizeof(AssemblyBlock);
+    function->values.width = sizeof(int);
+    function->bindings.width = sizeof(AssemblyBinding);
+    function->current = -1;
+    function->initializes = symbol + 1;
+    function->initializer_root = root;
+    function->result.module = assembly_name(program, &program->modules, owner->name);
+    size_t length = strlen(source->name) + sizeof(".initializer");
+    char *name = assembly_allocate(program, length, 1);
+    if(name == NULL) return 0;
+    snprintf(name, length, "%s.initializer", source->name);
+    function->result.name = (String){name, strlen(name)};
+    function->result.origin = assembly_origin(program, source->span);
+    int identity = program->functions.count;
+    return assembly_push(program, &program->functions, &function) &&
+        assembly_push(program, &program->constant_initializers, &identity);
+}
+
+static int
 assembly_global_address(AssemblyProgram *program, AssemblyFunction *function,
                         const char *name, ZirSourceSpan span)
 {
@@ -583,24 +627,28 @@ assembly_global_address(AssemblyProgram *program, AssemblyFunction *function,
         int type = assembly_type_in(program, owner, source->type, source->span, 0);
         if(program->failed) return -1;
         int constant = -1;
+        int parsed = 0;
         if(source->init && *source->init) {
             LirType value_type = *assembly_type_at(program, type);
-            if(value_type.kind != LirTypeKind_Integer && value_type.kind != LirTypeKind_Bool)
-                return assembly_fail(program, source->span, "only zero defaults and integer/bool constant global initializers are lowered yet");
             unsigned long long literal = 0;
             int negative = 0;
             int64_t evaluated = 0;
-            uint64_t bits;
-            if(ZirSignedIntegerLiteral(source->init, &literal, &negative))
-                bits = (uint64_t)literal;
-            else if(EvaluateCompileExpression(owner, source->init, source->span, 0, &evaluated))
-                bits = (uint64_t)evaluated;
-            else return assembly_fail(program, source->span, "runtime global initialization is not lowered yet");
-            if(value_type.bits > 0 && value_type.bits < 64)
-                bits &= (UINT64_C(1) << value_type.bits) - 1;
-            LirConstant initial = {.type = type, .bits = bits};
-            constant = program->constants.count;
-            if(!assembly_push(program, &program->constants, &initial)) return -1;
+            uint64_t bits = 0;
+            int folded = 0;
+            if(value_type.kind == LirTypeKind_Integer || value_type.kind == LirTypeKind_Bool) {
+                if(ZirSignedIntegerLiteral(source->init, &literal, &negative)) { bits = (uint64_t)literal; folded = 1; }
+                else if(EvaluateCompileExpression(owner, source->init, source->span, 0, &evaluated)) {
+                    bits = (uint64_t)evaluated;
+                    folded = 1;
+                }
+            }
+            if(folded) {
+                if(value_type.bits > 0 && value_type.bits < 64)
+                    bits &= (UINT64_C(1) << value_type.bits) - 1;
+                LirConstant initial = {.type = type, .bits = bits};
+                constant = program->constants.count;
+                if(!assembly_push(program, &program->constants, &initial)) return -1;
+            } else parsed = 1;
         }
         const char *copied_name = assembly_text(program, source->name);
         if(program->failed) return -1;
@@ -610,6 +658,9 @@ assembly_global_address(AssemblyProgram *program, AssemblyFunction *function,
                 .constant = constant, .writable = 1}};
         symbol = program->globals.count;
         if(!assembly_push(program, &program->globals, &global)) return -1;
+        /* A record, array, float or string initializer is parsed as the
+         * checked expression it is and stored by a private initializer. */
+        if(parsed && !assembly_constant_initializer(program, owner, source, symbol)) return -1;
     }
     int element = ((AssemblyGlobal *)program->globals.data)[symbol].result.type;
     int pointer_type = assembly_pointer_type(program, element, span);
@@ -1038,6 +1089,8 @@ assembly_addressable(AssemblyProgram *program, AssemblyFunction *function, int i
         return binding >= 0 && ((AssemblyBinding *)function->bindings.data)[binding].storage_type >= 0;
     }
     if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) return 1;
+    /* `pointer.field` reaches the field through the pointer's own address. */
+    if(expression->kind == ZIR_EXPR_POINTER_MEMBER) return 1;
     if(expression->kind == ZIR_EXPR_INDEX) {
         const char *base = function->source->exprs[expression->left].type;
         /* A borrowed view's elements live behind its checked data pointer,
@@ -1070,6 +1123,19 @@ assembly_address(AssemblyProgram *program, AssemblyFunction *function, int index
     }
     if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*"))
         return assembly_expression(program, function, expression->right, depth + 1);
+    if(expression->kind == ZIR_EXPR_POINTER_MEMBER) {
+        int address = assembly_expression(program, function, expression->left, depth + 1);
+        if(program->failed) return -1;
+        LirType type = *assembly_type_at(program, ((int *)function->values.data)[address]);
+        if(type.kind != LirTypeKind_Pointer)
+            return assembly_fail(program, expression->span, "pointer member requires a pointer");
+        int field = assembly_field(program, type.element, expression->name, expression->span);
+        if(program->failed) return -1;
+        int member = assembly_member_type(program, type.element, field);
+        if(member < 0) return assembly_fail(program, expression->span, "pointer member is outside its record's shape");
+        return assembly_indexed(program, function, LirOp_FieldAddress,
+            assembly_pointer_type(program, member, expression->span), &address, 1, (uint64_t)field, expression->span);
+    }
     if(expression->kind == ZIR_EXPR_INDEX && expression->left >= 0 &&
        expression->left < function->source->expr_count &&
        (!strcmp(function->source->exprs[expression->left].type, "string") ||
@@ -1144,7 +1210,18 @@ assembly_compound(AssemblyProgram *program, AssemblyFunction *function,
         if(program->failed) return -1;
         int member_type = assembly_member_type(program, identity, member);
         if(member_type < 0) return assembly_fail(program, initializer->span, "aggregate initializer is outside its declared shape");
-        int initialized = assembly_expression(program, function, initializer->right, depth + 1);
+        /* A nested literal takes its member's type; a parsed global
+         * initializer does not spell it on the inner literal. */
+        int nested = initializer->right >= 0 && initializer->right < function->source->expr_count &&
+            function->source->exprs[initializer->right].kind == ZIR_EXPR_COMPOUND;
+        int outer_at = function->literal_at, outer_type = function->literal_type;
+        function->literal_at = initializer->right + 1;
+        function->literal_type = member_type;
+        int initialized = nested ?
+            assembly_compound(program, function, &function->source->exprs[initializer->right], member_type, depth + 1) :
+            assembly_expression(program, function, initializer->right, depth + 1);
+        function->literal_at = outer_at;
+        function->literal_type = outer_type;
         initialized = assembly_convert(program, function, initialized, member_type, initializer->span);
         int operands[2] = {value, initialized};
         value = assembly_indexed(program, function, LirOp_Insert, identity, operands, 2, (uint64_t)member, initializer->span);
@@ -1894,6 +1971,33 @@ assembly_builder_finish(AssemblyProgram *program, AssemblyFunction *function, co
     return assembly_emit(program, function, LirOp_Aggregate, string, fields, 2, -1, span);
 }
 
+/* VecSwap(left, right): the two places exchange their vectors; no element
+ * moves and nothing is allocated. */
+static int
+assembly_vec_swap(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression)
+{
+    ZirSourceSpan span = expression->span;
+    int first = expression->first_child;
+    int second = first >= 0 && first < function->source->expr_count ?
+        function->source->exprs[first].next_sibling : -1;
+    if(second < 0 || second >= function->source->expr_count)
+        return assembly_fail(program, span, "VecSwap requires two vector places");
+    int identity = assembly_type(program, function, function->source->exprs[first].type, span);
+    int other = assembly_type(program, function, function->source->exprs[second].type, span);
+    if(program->failed) return -1;
+    if(assembly_vec_element(program, identity) < 0 || other != identity)
+        return assembly_fail(program, span, "VecSwap requires two vectors of one element type");
+    AssemblyVecPlace left_place, right_place;
+    int left = assembly_vec_read(program, function, first, identity, &left_place, span);
+    assembly_vec_write(program, function, &left_place,
+        assembly_vec_read(program, function, second, identity, &right_place, span), span);
+    /* The right place is captured again: writing the left one may have
+     * rebuilt an aggregate both places live in. */
+    assembly_vec_read(program, function, second, identity, &right_place, span);
+    assembly_vec_write(program, function, &right_place, left, span);
+    return -1;
+}
+
 /* VecSlice(values, low, high): a borrowed view of the vector's elements,
  * bounds-checked against its count like any slice of a slice. */
 static int
@@ -2092,6 +2196,15 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
         return assembly_emit(program, function, LirOp_FunctionAddress, type, NULL, 0, symbol, expression->span);
     }
     if(expression->kind == ZIR_EXPR_STRING) return assembly_string(program, function, expression);
+    /* A parsed global initializer leaves its numeric literals untyped; each
+     * takes the type of the member or global it initializes. */
+    if(function->literal_at == root + 1 &&
+       (expression->kind == ZIR_EXPR_INT || expression->kind == ZIR_EXPR_FLOAT)) {
+        LirTypeKind own = assembly_type_at(program, type)->kind;
+        if(own != LirTypeKind_Float && (expression->kind == ZIR_EXPR_FLOAT ||
+           (own != LirTypeKind_Integer && own != LirTypeKind_Bool)))
+            type = function->literal_type;
+    }
     if(expression->kind == ZIR_EXPR_INT) {
         unsigned long long bits = 0;
         if(!ZirIntegerLiteral(expression->text, &bits))
@@ -2127,6 +2240,11 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
         return assembly_lower_slice(program, function, expression, type, depth + 1);
     if(expression->kind == ZIR_EXPR_INDEX && assembly_addressable(program, function, root, depth + 1)) {
         int address = assembly_address(program, function, root, depth + 1);
+        return assembly_emit(program, function, LirOp_Load, type, &address, 1, -1, expression->span);
+    }
+    if(expression->kind == ZIR_EXPR_POINTER_MEMBER) {
+        int address = assembly_address(program, function, root, depth + 1);
+        if(program->failed) return -1;
         return assembly_emit(program, function, LirOp_Load, type, &address, 1, -1, expression->span);
     }
     if(expression->kind == ZIR_EXPR_MEMBER || expression->kind == ZIR_EXPR_INDEX)
@@ -2270,6 +2388,8 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             return assembly_vec_call(program, function, expression, depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSlice"))
             return assembly_vec_slice(program, function, expression, depth + 1);
+        if(!indirect && !strcmp(expression->name, "VecSwap"))
+            return assembly_vec_swap(program, function, expression);
         if(!indirect && !strcmp(expression->name, "BuilderAppend"))
             return assembly_builder_append(program, function, expression, depth + 1);
         if(!indirect && !strcmp(expression->name, "BuilderFinish"))
@@ -2755,6 +2875,8 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
     program->origins.width = sizeof(LirOrigin);
     program->functions.width = sizeof(AssemblyFunction *);
     program->initializers.width = sizeof(int);
+    program->constant_initializers.width = sizeof(int);
+    program->probes.width = sizeof(ZirFunction *);
     program->types.width = sizeof(LirType);
     program->type_names.width = sizeof(AssemblyType);
     LirType void_type = {.kind = LirTypeKind_Void};
@@ -2799,6 +2921,19 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
             if(source_binding < builder->addressed_count && builder->addressed[source_binding])
                 assembly_promote_binding(program, builder, parameter, builder->source->span);
         }
+        if(builder->initializes) {
+            int symbol = builder->initializes - 1;
+            int type = ((AssemblyGlobal *)program->globals.data)[symbol].result.type;
+            const ZirExpr *root = &builder->source->exprs[builder->initializer_root];
+            builder->literal_at = builder->initializer_root + 1;
+            builder->literal_type = type;
+            int value = assembly_convert(program, builder, root->kind == ZIR_EXPR_COMPOUND ?
+                assembly_compound(program, builder, root, type, 0) :
+                assembly_expression(program, builder, builder->initializer_root, 0), type, builder->source->span);
+            int operands[] = {assembly_emit(program, builder, LirOp_GlobalAddress,
+                assembly_pointer_type(program, type, builder->source->span), NULL, 0, symbol, builder->source->span), value};
+            assembly_emit(program, builder, LirOp_Store, 0, operands, 2, -1, builder->source->span);
+        }
         assembly_sequence(program, builder, 0, builder->source->stmt_count, 0);
         if(builder->current >= 0 && !program->failed) {
             if(builder->result.result) assembly_fail(program, builder->source->span, "scalar procedure falls through without a return");
@@ -2818,6 +2953,13 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
     }
     LirFunction *functions = assembly_allocate(program, (size_t)program->functions.count, sizeof(*functions));
     LirGlobal *globals = assembly_allocate(program, (size_t)program->globals.count, sizeof(*globals));
+    /* Constant initializers run first, so module startup code and other
+     * initializers read initialized globals. */
+    AssemblyVector initializers = {.width = sizeof(int)};
+    for(int index = 0; index < program->constant_initializers.count; index++)
+        assembly_push(program, &initializers, &((int *)program->constant_initializers.data)[index]);
+    for(int index = 0; index < program->initializers.count; index++)
+        assembly_push(program, &initializers, &((int *)program->initializers.data)[index]);
     if(!program->failed) {
         for(int index = 0; index < program->functions.count; index++)
             functions[index] = ((AssemblyFunction **)program->functions.data)[index]->result;
@@ -2828,7 +2970,7 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
             .constants = assembly_slice(program->constants), .globals = {globals, program->globals.count},
             .functions = {functions, program->functions.count},
             .origins = assembly_slice(program->origins),
-            .initializers = assembly_slice(program->initializers), .entry = 0};
+            .initializers = assembly_slice(initializers), .entry = 0};
     }
     if(program->failed) { AssemblyFree(program); return NULL; }
     return program;
@@ -2844,6 +2986,8 @@ void
 AssemblyFree(AssemblyProgram *program)
 {
     if(program == NULL) return;
+    for(int index = 0; index < program->probes.count; index++)
+        free(((ZirFunction **)program->probes.data)[index]->exprs);
     AssemblyAllocation *allocation = program->allocations;
     while(allocation) {
         AssemblyAllocation *next = allocation->next;

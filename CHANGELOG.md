@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Revision-28 lowering adds fields read and written through a pointer, `VecSwap`, and record, string, float and fixed-array global initializers, which private initializer procedures store before module startup code runs. Native output names `assembly.gap.native-pointer-field` instead of trapping at run time on a record field reached through a pointer argument. 48 of the 75 `tests/spec` entries the semantic route runs now lower.
+
 - Revision-28 lowering adds byte builders and owned `Text`: `BuilderAppend` reserves with the C runtime's policy before copying, `BuilderFinish` hands the bytes on, and `TextView` borrows a `Text` or `Vec(u8)` in place. Every module's spelling of `Vec(T)` is one LIR type. 39 of the 72 `tests/spec` entries the semantic route runs now lower.
 
 - Revision-28 lowering handles owned values beyond a single vector local: moves follow the checker's move flag and leave the source empty, records and fixed arrays may hold vectors, vectors may hold vectors, and vectors travel as parameters and results. Drops recurse through fields and elements, and a fresh owned result nobody keeps is dropped at once. `zi2asm --run --heap-report` prints the heap blocks still live after the run; the parity test requires none. 34 of the 71 `tests/spec` entries the semantic route runs now lower.

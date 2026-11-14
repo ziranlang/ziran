@@ -215,8 +215,18 @@ spellings of `Vec(u8)` are one LIR type. The checker turns `line := BuilderFinis
 owned `Text` built by `vec.TextFromBuilder`, so its bytes are dropped with `line`.
 `tests/spec/zx_lowered_text.zi` covers these. Inventory: 39 of 72 spec entries lower.
 
-Not yet lowered: `VecPop`/`VecGet` (Option), `VecSwap`, `VecClone`, `VecReserve`, `VecResize`,
-SIMD and map types, computed global initializers, wide literals, indirect calls through fields. The interpreter's address table never reuses entries, so a long-running program that
+Fourth batch, same day: fields read and written through a pointer (`pointer.field`, ZIR's
+`pointer_member`); `VecSwap`; record, nested record, string, float and fixed-array global
+initializers, each parsed as the checked expression it is and stored by a private
+`<name>.initializer` procedure that runs before module startup code. Native output names
+`assembly.gap.native-pointer-field` for a record field reached through a pointer argument, which
+the stack-slot encoder would otherwise turn into a run-time trap.
+Inventory: 48 of 75 spec entries lower. All 89 built Kryon examples now get past types, pointer
+fields, `VecSwap` and global initializers and stop at `paint_queue.zi:210`, `VecReserve` on a
+dereferenced `*Vec(T)`.
+
+Not yet lowered: `VecReserve`, `VecResize`, `VecPop`/`VecGet` (Option), `VecClone`, SIMD and map
+types, initializers that call procedures, wide literals, indirect calls through fields. The interpreter's address table never reuses entries, so a long-running program that
 indexes many distinct elements reaches the `addresses` limit; that needs structured address
 tokens before the bundle cutover.
 

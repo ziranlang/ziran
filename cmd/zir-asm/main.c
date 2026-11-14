@@ -179,6 +179,64 @@ assembly_machine_source_gap(const ZirProgram *program)
     return 0;
 }
 
+/* Whether a pointer value can be traced to something other than one of this
+ * procedure's arguments. The native encoders resolve record fields through
+ * the procedure's own allocations, globals and pointers loaded from them; a
+ * field reached through a pointer argument names another procedure's frame
+ * and would trap at run time, so it is named as a gap. Block parameters are
+ * followed to every incoming edge; `seen` breaks loops. */
+static int
+assembly_local_root(const LirFunction *function, int32_t value, unsigned char *seen, int depth)
+{
+    if(depth > 256 || value < 0 || value >= function->values.length) return 0;
+    if(seen[value]) return 1;
+    seen[value] = 1;
+    const LirBlock *blocks = function->blocks.data;
+    for(int64_t block = 0; block < function->blocks.length; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t at = 0; at < blocks[block].instructions.length; at++) {
+            if(instructions[at].result != value) continue;
+            if((instructions[at].op == LirOp_FieldAddress || instructions[at].op == LirOp_ElementAddress) &&
+               instructions[at].operands.length > 0)
+                return assembly_local_root(function, ((const int32_t *)instructions[at].operands.data)[0],
+                    seen, depth + 1);
+            return 1;
+        }
+    }
+    for(int64_t block = 0; block < function->blocks.length; block++) {
+        const int32_t *parameters = blocks[block].parameters.data;
+        for(int64_t position = 0; position < blocks[block].parameters.length; position++) {
+            if(parameters[position] != value) continue;
+            /* The entry block's parameters are the procedure's arguments. */
+            if(block == function->entry) return 0;
+            for(int64_t from = 0; from < function->blocks.length; from++) {
+                int64_t count = blocks[from].instructions.length;
+                if(count == 0) continue;
+                const LirInstruction *last = &((const LirInstruction *)blocks[from].instructions.data)[count - 1];
+                const LirEdge *edges = last->edges.data;
+                for(int64_t edge = 0; edge < last->edges.length; edge++) {
+                    if(edges[edge].block != block || position >= edges[edge].arguments.length) continue;
+                    if(!assembly_local_root(function, ((const int32_t *)edges[edge].arguments.data)[position],
+                        seen, depth + 1)) return 0;
+                }
+            }
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int
+assembly_pointer_field(const LirFunction *function, LirInstruction instruction)
+{
+    if(instruction.op != LirOp_FieldAddress || instruction.operands.length != 1) return 0;
+    unsigned char *seen = calloc((size_t)function->values.length + 1, 1);
+    if(seen == NULL) return 1;
+    int local = assembly_local_root(function, ((const int32_t *)instruction.operands.data)[0], seen, 0);
+    free(seen);
+    return !local;
+}
+
 /* A checked view element address (data, index, count[, high]) whose element
  * is a record, fixed array or procedure value. Portable execution supports
  * it; the native encoders address only scalar view elements. */
@@ -258,6 +316,11 @@ assembly_machine_gap(const LirProgram *program)
                 if(assembly_aggregate_view(program, &functions[function], current)) {
                     Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-aggregate-view",
                         "assembly.gap.native-aggregate-view: machine ELF does not implement checked views of records, arrays or procedure values; no alternate engine was selected");
+                    return 1;
+                }
+                if(assembly_pointer_field(&functions[function], current)) {
+                    Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-pointer-field",
+                        "assembly.gap.native-pointer-field: machine ELF does not implement record fields reached through a pointer parameter; no alternate engine was selected");
                     return 1;
                 }
                 if(current.op == LirOp_ElementAddress && current.operands.length == 4) {
@@ -905,6 +968,11 @@ main(int argc, char **argv)
                     if(assembly_aggregate_view(view, &functions[function], instructions[instruction])) {
                         Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-aggregate-view",
                             "assembly.gap.native-aggregate-view: selected target linux-x86_64-elf does not implement checked views of records, arrays or procedure values; no alternate engine was selected");
+                        goto done;
+                    }
+                    if(assembly_pointer_field(&functions[function], instructions[instruction])) {
+                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-pointer-field",
+                            "assembly.gap.native-pointer-field: selected target linux-x86_64-elf does not implement record fields reached through a pointer parameter; no alternate engine was selected");
                         goto done;
                     }
                 }

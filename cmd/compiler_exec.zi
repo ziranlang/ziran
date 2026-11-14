@@ -127,6 +127,11 @@ LirExecInstance :: struct {
     identity: u32
     globals: Vec(u8)
     addresses: Vec(LirExecAddress)
+    // Open-addressed index of `addresses` by the fields that make two
+    // addresses the same one: each slot is zero or one more than an entry.
+    // `address_indexed` counts the entries it already holds.
+    address_slots: Vec(s32)
+    address_indexed: s64
     storage: Vec(u8)
     words: Vec(u64)
     validity: Vec(u8)
@@ -786,6 +791,80 @@ ExecFindAddress :: (instance: *LirExecInstance, token: u64) -> s32 {
     return cast(s32)index
 }
 
+ExecAddressHash :: (address: LirExecAddress) -> u64 {
+    hash := cast(u64)address.offset * cast(u64)0x9E3779B97F4A7C15
+    hash = (hash ^ cast(u64)address.extent) * cast(u64)0xC2B2AE3D27D4EB4F
+    hash = (hash ^ cast(u64)(address.frame + 1)) * cast(u64)0x9E3779B97F4A7C15
+    hash = (hash ^ address.generation) * cast(u64)0xC2B2AE3D27D4EB4F
+    hash = (hash ^ cast(u64)(address.global + 1)) * cast(u64)0x9E3779B97F4A7C15
+    hash = (hash ^ cast(u64)address.type) * cast(u64)0xC2B2AE3D27D4EB4F
+    if address.owned { hash = ~hash }
+    return hash ^ (hash >> cast(u64)29)
+}
+
+// Two addresses are one when they name the same bytes as the same type.
+ExecAddressSame :: (left: LirExecAddress, right: LirExecAddress) -> bool {
+    return left.frame == right.frame && left.generation == right.generation &&
+        left.global == right.global && left.offset == right.offset && left.extent == right.extent &&
+        left.type == right.type && left.owned == right.owned
+}
+
+// The slot holding an entry equal to `address`, or the empty slot it belongs in.
+ExecAddressSlot :: (instance: *LirExecInstance, address: LirExecAddress) -> s64 {
+    mask := instance.address_slots.count - 1
+    slot := cast(s64)(ExecAddressHash(address) & cast(u64)mask)
+    entry := instance.address_slots[slot]
+    while entry != 0 && !ExecAddressSame(instance.addresses[entry - 1], address) {
+        slot = (slot + 1) & mask
+        entry = instance.address_slots[slot]
+    }
+    return slot
+}
+
+ExecAddressesForget :: (instance: *LirExecInstance) {
+    for index: cast(s64)0..instance.address_slots.count - 1 { instance.address_slots[index] = 0 }
+    instance.address_indexed = 0
+}
+
+// Brings the index up to date with the table, which is appended to in many
+// places, keeping it at most half full. The first of two equal entries wins.
+ExecAddressIndex :: (instance: *LirExecInstance) -> bool {
+    count := instance.addresses.count
+    if (count + 1) * 2 > instance.address_slots.count {
+        capacity: s64 = 64
+        while capacity < (count + 1) * 4 { capacity *= 2 }
+        if !VecResizeBounded(instance.address_slots, capacity, capacity) { return false }
+        ExecAddressesForget(instance)
+    }
+    for index: instance.address_indexed..count - 1 {
+        slot := ExecAddressSlot(instance, instance.addresses[index])
+        if instance.address_slots[slot] == 0 { instance.address_slots[slot] = cast(s32)(index + 1) }
+    }
+    instance.address_indexed = count
+    return true
+}
+
+// The token of the table entry equal to `address`, added when it is new.
+// Deriving the same address again gives the same token, so pointers compare
+// equal exactly when they name the same bytes as the same type.
+ExecInternAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> u64 {
+    if !ExecSpend(instance, 1) { return 0 }
+    if !ExecAddressIndex(instance) { unused ExecFail(instance, .Allocation); return 0 }
+    slot := ExecAddressSlot(instance, address)
+    found := instance.address_slots[slot]
+    if found != 0 { return instance.addresses[found - 1].token }
+    if instance.addresses.count >= instance.limits.addresses || instance.addresses.count >= 4294967294 {
+        unused ExecFail(instance, .AddressLimit); return 0
+    }
+    index := instance.addresses.count
+    added := address
+    added.token = ExecAddressToken(instance.identity, index)
+    if !VecPush(instance.addresses, added) { unused ExecFail(instance, .Allocation); return 0 }
+    instance.address_slots[slot] = cast(s32)(index + 1)
+    instance.address_indexed = index + 1
+    return added.token
+}
+
 ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, target_type: s32) -> u64 {
     base := instance.addresses[parent]
     member_offset: s64
@@ -810,24 +889,9 @@ ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, targe
     } else if base.heap != 0 {
         child_generation = base.generation
     }
-    for index: cast(s64)0..instance.addresses.count - 1 {
-        if !ExecSpend(instance, 1) { return 0 }
-        address := instance.addresses[index]
-        if address.frame == child_frame && address.generation == child_generation &&
-            address.global == child_global &&
-            address.offset == offset && address.extent == extent && address.type == target_type &&
-            address.owned == base.owned { return address.token }
-    }
-    if instance.addresses.count >= instance.limits.addresses || instance.addresses.count >= 4294967294 {
-        unused ExecFail(instance, .AddressLimit); return 0
-    }
-    index := instance.addresses.count
-    address := LirExecAddress.{.token = ExecAddressToken(instance.identity, index),
-        .global = child_global, .frame = child_frame,
+    return ExecInternAddress(instance, .{.global = child_global, .frame = child_frame,
         .generation = child_generation, .offset = offset, .extent = extent, .type = target_type,
-        .owned = base.owned, .writable = base.writable, .heap = base.heap}
-    if !VecPush(instance.addresses, address) { unused ExecFail(instance, .Allocation); return 0 }
-    return address.token
+        .owned = base.owned, .writable = base.writable, .heap = base.heap})
 }
 
 ExecElementAddress :: (instance: *LirExecInstance, parent: s32, index: u64,
@@ -843,22 +907,9 @@ ExecElementAddress :: (instance: *LirExecInstance, parent: s32, index: u64,
     member_offset := cast(s64)index * size
     offset := base.offset + member_offset
     extent := base.extent - member_offset
-    for address: instance.addresses {
-        if !ExecSpend(instance, 1) { return 0 }
-        if address.frame == base.frame && address.generation == base.generation &&
-            address.global == base.global && address.offset == offset && address.owned == base.owned &&
-            address.extent == extent && address.type == target_type { return address.token }
-    }
-    if instance.addresses.count >= instance.limits.addresses || instance.addresses.count >= 4294967294 {
-        unused ExecFail(instance, .AddressLimit); return 0
-    }
-    address_index := instance.addresses.count
-    address := LirExecAddress.{.token = ExecAddressToken(instance.identity, address_index),
-        .global = base.global, .frame = base.frame, .generation = base.generation,
-        .offset = offset, .extent = extent, .type = target_type,
-        .owned = base.owned, .writable = base.writable, .heap = base.heap}
-    if !VecPush(instance.addresses, address) { unused ExecFail(instance, .Allocation); return 0 }
-    return address.token
+    return ExecInternAddress(instance, .{.global = base.global, .frame = base.frame,
+        .generation = base.generation, .offset = offset, .extent = extent, .type = target_type,
+        .owned = base.owned, .writable = base.writable, .heap = base.heap})
 }
 
 ExecSliceAddress :: (instance: *LirExecInstance, parent: s32, low: u64,
@@ -2067,6 +2118,7 @@ ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
         // A rejected image leaves no storage or addresses behind.
         unused VecResize(instance.owned, owned_count)
         unused VecResize(instance.addresses, address_count)
+        ExecAddressesForget(instance)
         return false
     }
     ExecMarkValue(instance, frame_index, instruction.result)
@@ -2316,6 +2368,8 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     if instance == null { return }
     VecFree(instance.globals)
     VecFree(instance.addresses)
+    VecFree(instance.address_slots)
+    instance.address_indexed = 0
     VecFree(instance.storage)
     VecFree(instance.words)
     VecFree(instance.validity)

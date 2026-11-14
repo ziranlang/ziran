@@ -245,24 +245,29 @@ Sixth batch, 2026-11-14: `New(T)` is `resize(null, 0, 1)` and `free(pointer)` is
 1, 0)` behind a null check (checked ZIR names them `zi_new` and `zi_free`); `size_of(T)` is a
 constant with the C layout size; a folded constant keeps its sign (`ToneDark :: -3`); a bare
 `null`, which checked ZIR leaves untyped, takes the pointer type it is passed, assigned or
-returned as. `tests/zx_lowered_parity.sh` pins 51 programs.
+returned as.
+
+Seventh batch, 2026-11-14: `VecResize` reuses the `VecReserve` lowering, then drops the elements
+it removes and stores zero over the ones it adds (`tests/spec/zx_lowered_resize.zi`).
+`image_resize_fallible` then lowered but spent its whole 4,000,000,000 work budget: every derived
+address was found by scanning the interpreter's address table. The table now has a hash index
+(`ExecInternAddress` in `cmd/compiler_exec.zi`) and the program runs in well under a second.
+`tests/zx_lowered_parity.sh` pins 53 programs.
 
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 77 | 60 |
+| `tests/spec` entries | 78 | 62 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
-No program is rejected by the verifier any more. First rejection of the 17 spec programs left:
+No program is rejected by the verifier any more. First rejection of the 16 spec programs left:
 
 | Count | Needs | Programs |
 |-------|-------|----------|
-| 6 | SIMD vector types (`u8x16`, `Simd.Splat`, `Simd.Load`) | `json_array_reuse_test` (2 entries), `json_scan_test` (2), `json_string_value_test`, `json_string_scan_test` |
+| 8 | SIMD vector types (`u8x16`, `Simd.Splat`, `Simd.Load`) | `json_array_reuse_test` (2 entries), `json_scan_test` (2), `json_string_value_test`, `json_string_scan_test`, `json_document_lifetime_test`, `std_float_text` |
 | 3 | unions | `vm_inline_records_test`, `vm_scalar_plans_test`, `vm_storage_reads_test` |
-| 2 | the call at `json_document.zi:103` | `json_document_lifetime_test`, `std_float_text` |
-| 1 | `VecResize` | `image_resize_fallible` |
 | 1 | `VecGet`/`VecPop` (Option) | `vm_packed_arrays_test` |
 | 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
 | 1 | a long statement list (`unicode_normalization_cases.zi`): statement nesting budget | `unicode_normalization_test` |
@@ -274,8 +279,10 @@ Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut 
    (the semantic route does); pointer arguments such as `seed: *s32`.
 2. Host-returned storage is never reclaimed. A frame loop that asks a host for a string every
    frame grows the instance until its byte limit. It needs a release rule.
-3. The interpreter's address table never reuses entries, so a long-running program that indexes
-   many distinct elements reaches the `addresses` limit; that needs structured address tokens.
+3. The interpreter's address table is indexed now but still never gives entries back: every
+   distinct element address is an entry, and an address into a frame is a new entry on every
+   call. A long-running program reaches the `addresses` limit. Addresses that are only loaded
+   from or stored to need no entry at all, and a returning frame can give its entries back.
 4. The embedding API (`BundleOpen`, `BundleRun`, `HostValue` in `ziran_host.h`) and Kryon's
    bundle player speak the semantic VM's host values; they need a bridge to host images.
 5. The browser player: Kryon's `zx-services-test` and `zx-hosted-test` stop in the ZIR-based
@@ -295,7 +302,7 @@ VM (`cmd/zir/zir_bundle*.c`, `zir_vm*.c`: about 12,800 lines) and the ZIR-based 
 (`cmd/zir-wasm/zir_wasm_lower.c`: 3,400 lines); item 4 of the table at the top then leaves one
 native encoder instead of two.
 
-Not yet lowered: `VecResize`, `VecPop`/`VecGet` (Option), `VecClone`, SIMD, union and map types,
+Not yet lowered: `VecResizeBounded`, `VecPop`/`VecGet` (Option), `VecClone`, SIMD, union and map types,
 initializers that call procedures, indirect calls through fields.
 
 ### Wasm from revision-28 ZX

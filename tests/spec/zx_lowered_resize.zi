@@ -1,0 +1,38 @@
+// VecResize on revision-28 ZX, pinned by tests/zx_lowered_parity.sh: growing
+// gives exactly the requested capacity and zero elements, shrinking keeps the
+// capacity and drops what it removes, growing again inside the capacity gives
+// zeros rather than the old elements, and a negative request changes nothing.
+#import "vec"
+
+Row :: struct {
+    cells: Vec(s64)
+    tag: s32
+}
+
+Grow :: (values: *Vec(s64), count: s64) -> bool {
+    return VecResize(values.*, count)
+}
+
+main :: () -> s32 {
+    values: Vec(s64)
+    a := VecResize(values, 4)
+    first := values.capacity
+    values[0] = 11; values[3] = 44
+    b := VecResize(values, 2)
+    c := VecResize(values, 4)
+    again := values[3]
+    d := VecResize(values, -1)
+    e := Grow(*values, 9)
+    print("resize % % % % % % % % % %\n", a, first, b, c, again, d, e, values.count, values.capacity, values[0])
+
+    rows: Vec(Row)
+    unused VecResize(rows, 3)
+    for index: 0..2 {
+        VecPush(rows[index].cells, cast(s64)index + 1)
+        rows[index].tag = cast(s32)index
+    }
+    unused VecResize(rows, 1)
+    unused VecResize(rows, 2)
+    print("rows % % % % %\n", rows.count, rows.capacity, rows[0].cells[0], rows[1].cells.count, rows[1].tag)
+    return cast(s32)(values.count + rows.count)
+}

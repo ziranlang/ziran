@@ -2088,12 +2088,55 @@ assembly_free(AssemblyProgram *program, AssemblyFunction *function, const ZirExp
     return -1;
 }
 
+/* Store the zero value over elements [from, to) of a vector's block, dropping
+ * each one first when `drop`. `bound` is the block's capacity. */
+static void
+assembly_vec_reset(AssemblyProgram *program, AssemblyFunction *function, int data, int from, int to,
+                   int bound, int element, int drop, ZirSourceSpan span)
+{
+    if(program->failed || function->current < 0) return;
+    int pointer = assembly_pointer_type(program, element, span);
+    int base = function->bindings.count;
+    AssemblyBinding cursor = {"", 8, from, -1};
+    assembly_push(program, &function->bindings, &cursor);
+    int live = base + 1;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    int header = assembly_block(program, function, before, live);
+    int body = assembly_block(program, function, before, live);
+    int exit = assembly_block(program, function, before, live);
+    if(program->failed || before == NULL) return;
+    assembly_jump(program, function, header, live, span);
+    assembly_enter(function, header, before, live);
+    assembly_emit(program, function, LirOp_Fuel, 0, NULL, 0, -1, span);
+    int more_operands[] = {((AssemblyBinding *)function->bindings.data)[base].value, to};
+    int more = assembly_emit(program, function, LirOp_Less, 1, more_operands, 2, -1, span);
+    assembly_branch(program, function, more, body, exit, live, span);
+    assembly_enter(function, body, before, live);
+    int at = ((AssemblyBinding *)function->bindings.data)[base].value;
+    int slot_operands[] = {data, at, bound};
+    int slot = assembly_emit(program, function, LirOp_ElementAddress, pointer, slot_operands, 3, -1, span);
+    if(drop)
+        assembly_drop_value(program, function,
+            assembly_emit(program, function, LirOp_Load, element, &slot, 1, -1, span), element, span, 0);
+    int store_operands[] = {slot, assembly_zero(program, function, element, span, 0)};
+    assembly_emit(program, function, LirOp_Store, 0, store_operands, 2, -1, span);
+    int next_operands[] = {at, assembly_constant(program, function, 8, 1, span)};
+    ((AssemblyBinding *)function->bindings.data)[base].value =
+        assembly_emit(program, function, LirOp_Add, 8, next_operands, 2, -1, span);
+    assembly_jump(program, function, header, live, span);
+    assembly_enter(function, exit, before, live);
+    function->bindings.count = base;
+}
+
 /* VecReserve(values, capacity): room for at least that many elements, with
  * the count unchanged. The portable VM gives exactly the requested capacity
  * when it grows; a negative request or a refused allocation gives false and
- * leaves the vector as it was. */
+ * leaves the vector as it was. VecResize(values, count) reserves the same
+ * way and then sets the count: elements it removes are dropped, and elements
+ * it adds are zero. */
 static int
-assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int depth)
+assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression,
+                          int resize, int depth)
 {
     ZirSourceSpan span = expression->span;
     int first = expression->first_child;
@@ -2161,6 +2204,30 @@ assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, 
 
     if(program->failed) return -1;
     assembly_enter(function, done, answered, live + 1);
+    if(resize) {
+        int all = live + 1;
+        AssemblyBinding *settled = assembly_snapshot(program, function, all);
+        int sizing = assembly_block(program, function, settled, all);
+        int finished = assembly_block(program, function, settled, all);
+        if(program->failed || settled == NULL) return -1;
+        assembly_branch(program, function, assembly_carried(function, live), sizing, finished, all, span);
+
+        assembly_enter(function, sizing, settled, all);
+        int vector = assembly_carried(function, carried);
+        int block = assembly_indexed(program, function, LirOp_Extract, pointer, &vector, 1, 0, span);
+        int count = assembly_indexed(program, function, LirOp_Extract, 8, &vector, 1, 1, span);
+        int room = assembly_indexed(program, function, LirOp_Extract, 8, &vector, 1, 2, span);
+        if(assembly_owned(program, element, 0))
+            assembly_vec_reset(program, function, block, requested, count, room, element, 1, span);
+        assembly_vec_reset(program, function, block, count, requested, room, element, 0, span);
+        int count_operands[] = {assembly_carried(function, carried), requested};
+        ((AssemblyBinding *)function->bindings.data)[carried].value =
+            assembly_indexed(program, function, LirOp_Insert, identity, count_operands, 2, 1, span);
+        assembly_jump(program, function, finished, all, span);
+
+        if(program->failed) return -1;
+        assembly_enter(function, finished, settled, all);
+    }
     int final = assembly_carried(function, carried);
     int answer = assembly_carried(function, live);
     function->bindings.count = carried;
@@ -2650,8 +2717,9 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             return assembly_vec_call(program, function, expression, depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSlice"))
             return assembly_vec_slice(program, function, expression, depth + 1);
-        if(!indirect && !strcmp(expression->name, "VecReserve"))
-            return assembly_vec_reserve_call(program, function, expression, depth + 1);
+        if(!indirect && (!strcmp(expression->name, "VecReserve") || !strcmp(expression->name, "VecResize")))
+            return assembly_vec_reserve_call(program, function, expression,
+                !strcmp(expression->name, "VecResize"), depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSwap"))
             return assembly_vec_swap(program, function, expression);
         if(!indirect && !strcmp(expression->name, "BuilderAppend"))

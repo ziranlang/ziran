@@ -318,6 +318,24 @@ Inventory, 2026-11-14:
 
 Every program the semantic route runs now lowers, and no program is rejected by the verifier.
 
+### Cutover to one ZX format (in progress, 2026-11-14)
+
+Who reads semantic bundles today: 191 of the 394 test files, 22 C embedding tests
+(`tests/*_test.c` through `include/ziran_host.h`), and Kryon's whole backend (`bundle_app.zi`,
+`app_player.zi`, `hosted_app.zi`, the Android hosts, through `std/bundle_host`). The writer can
+only switch once each of these reads revision 28, so the cutover goes in stages, each green:
+
+1. Done: `ziran run`/`zi2zx run FILE.zx` run a revision-28 file on the instruction engine with
+   the semantic runner's output. `tests/zx_lowered_parity.sh` checks it for all 68 programs.
+2. The embedding API (`BundleOpen`, `BundleCapability*`, `BundleRun`, `BundleInstantiate`,
+   `BundleInstanceRun`) opens revision 28, translating `VmHostValue` arguments and results to and
+   from host images, with mutable slice copy-back.
+3. `zi2zx bundle` and `ziran run FILE.zi` write and run revision 28. Each semantic-only feature
+   then gets its revision-28 form or goes: assets, laws, state export, components, libraries,
+   linked native code, the browser player.
+4. Delete the semantic writer and VM (`cmd/zir/zir_bundle*.c`, `zir_vm*.c`) and the ZIR-based
+   Wasm lowering (`cmd/zir-wasm/zir_wasm_lower.c`, `zi2wasm`).
+
 Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut over:
 
 1. Host calls: copy a host's changes to a mutable slice argument back into the caller's slice

@@ -1,3 +1,4 @@
+#include "zx_exec_run.h"
 #include "zir.h"
 #include "zir_bundle.h"
 #include "zir_check.h"
@@ -356,6 +357,26 @@ run_command(int argc, char **argv)
     if(!source && argc != 1) {
         usage();
         return 1;
+    }
+    /* A revision-28 executable runs on the portable instruction engine; an
+     * older semantic bundle opens below. */
+    if(!source) {
+        FILE *input = fopen(argv[0], "rb");
+        unsigned char *bytes = NULL;
+        long size = -1;
+        if(input != NULL && fseek(input, 0, SEEK_END) == 0 && (size = ftell(input)) >= 0 &&
+           fseek(input, 0, SEEK_SET) == 0 && (bytes = malloc(size ? (size_t)size : 1)) != NULL &&
+           fread(bytes, 1, (size_t)size, input) == (size_t)size) {
+            int status = 1;
+            int executable = ZxExecRunBytes(bytes, (size_t)size, ZxExecCommandLimits(), 1, &status);
+            free(bytes);
+            fclose(input);
+            if(executable > 0) return status;
+            if(executable < 0) return 1;
+        } else {
+            free(bytes);
+            if(input != NULL) fclose(input);
+        }
     }
     RunJob job = {0};
     job.bundle = source ? open_source(argc, argv) : BundleOpen(argv[0]);

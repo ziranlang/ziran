@@ -1,4 +1,5 @@
 #include "zir_asm_lower.h"
+#include "zx_exec_run.h"
 #include "zx_wasm_lower.h"
 #include "zir_check.h"
 #include "compiler_lowered_verify.h"
@@ -111,40 +112,11 @@ assembly_parallel_function(const LirProgram *program, int symbol)
            assembly_text_contains(function.name, "Parallel");
 }
 
-enum {
-    ASSEMBLY_SERVICE_NONE,
-    ASSEMBLY_SERVICE_PRINT_BYTES,
-    ASSEMBLY_SERVICE_PRINT_SIGNED,
-    ASSEMBLY_SERVICE_PRINT_UNSIGNED,
-    ASSEMBLY_SERVICE_PRINT_BOOL,
-    ASSEMBLY_SERVICE_PRINT_FLOAT32,
-    ASSEMBLY_SERVICE_PRINT_FLOAT64
-};
-
-static int
-assembly_text_equal(String text, const char *expected)
-{
-    size_t length = strlen(expected);
-    return text.length == length && !memcmp(text.data, expected, length);
-}
-
-static int
-assembly_platform_service(String name)
-{
-    if(assembly_text_equal(name, "ziran.platform.write_all")) return ASSEMBLY_SERVICE_PRINT_BYTES;
-    if(assembly_text_equal(name, "ziran.print.signed")) return ASSEMBLY_SERVICE_PRINT_SIGNED;
-    if(assembly_text_equal(name, "ziran.print.unsigned")) return ASSEMBLY_SERVICE_PRINT_UNSIGNED;
-    if(assembly_text_equal(name, "ziran.print.bool")) return ASSEMBLY_SERVICE_PRINT_BOOL;
-    if(assembly_text_equal(name, "ziran.print.float32")) return ASSEMBLY_SERVICE_PRINT_FLOAT32;
-    if(assembly_text_equal(name, "ziran.print.float64")) return ASSEMBLY_SERVICE_PRINT_FLOAT64;
-    return ASSEMBLY_SERVICE_NONE;
-}
-
 static int
 assembly_float_service(int service)
 {
-    return service == ASSEMBLY_SERVICE_PRINT_FLOAT32 ||
-           service == ASSEMBLY_SERVICE_PRINT_FLOAT64;
+    return service == ZX_SERVICE_PRINT_FLOAT32 ||
+           service == ZX_SERVICE_PRINT_FLOAT64;
 }
 
 static int
@@ -262,11 +234,11 @@ assembly_machine_gap(const LirProgram *program)
     const LirFunction *functions = program->functions.data;
     for(int64_t index = 0; index < program->functions.length; index++) {
         if(!functions[index].external) continue;
-        int service = assembly_platform_service(functions[index].name);
+        int service = ZxPlatformService(functions[index].name);
         if(assembly_float_service(service))
             Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-float-format",
                 "assembly.gap.machine-float-format: machine ELF has no native float print formatter; no alternate engine was selected");
-        else if(service != ASSEMBLY_SERVICE_NONE)
+        else if(service != ZX_SERVICE_NONE)
             Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-platform-service-unavailable",
                 "assembly.gap.machine-platform-service-unavailable: machine ELF does not implement platform service %.*s; no alternate engine was selected",
                 (int)functions[index].name.length, functions[index].name.data);
@@ -330,11 +302,11 @@ assembly_machine_gap(const LirProgram *program)
                 }
                 if(current.op == LirOp_HostCall) {
                     int service = current.symbol >= 0 && current.symbol < program->functions.length ?
-                        assembly_platform_service(functions[current.symbol].name) : ASSEMBLY_SERVICE_NONE;
+                        ZxPlatformService(functions[current.symbol].name) : ZX_SERVICE_NONE;
                     if(assembly_float_service(service))
                         Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-float-format",
                             "assembly.gap.machine-float-format: machine ELF has no native float print formatter; no alternate engine was selected");
-                    else if(service != ASSEMBLY_SERVICE_NONE)
+                    else if(service != ZX_SERVICE_NONE)
                         Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-platform-service-unavailable",
                             "assembly.gap.machine-platform-service-unavailable: machine ELF does not implement platform service %.*s; no alternate engine was selected",
                             (int)functions[current.symbol].name.length, functions[current.symbol].name.data);
@@ -350,109 +322,6 @@ assembly_machine_gap(const LirProgram *program)
         }
     }
     return 0;
-}
-
-/* Portable console services for the reference runner. Output uses the same
- * spelling as the checked language's print on every other route. */
-static bool
-assembly_run_write(void *closure, void *context, uint64_t descriptor, Slice bytes)
-{
-    (void)closure;
-    (void)context;
-    FILE *stream = descriptor == 2 ? stderr : descriptor == 1 ? stdout : NULL;
-    if(stream == NULL) return false;
-    return bytes.length == 0 || fwrite(bytes.data, 1, (size_t)bytes.length, stream) == (size_t)bytes.length;
-}
-
-static bool
-assembly_run_print(void *closure, void *context, int32_t function, Slice arguments, uint64_t *result)
-{
-    (void)closure;
-    const LirProgram *program = context;
-    const LirFunction *functions = program->functions.data;
-    const uint64_t *values = arguments.data;
-    *result = 0;
-    if(function < 0 || function >= program->functions.length || arguments.length != 1) return false;
-    char text[64];
-    int service = assembly_platform_service(functions[function].name);
-    if(service == ASSEMBLY_SERVICE_PRINT_SIGNED)
-        snprintf(text, sizeof(text), "%lld", (long long)values[0]);
-    else if(service == ASSEMBLY_SERVICE_PRINT_UNSIGNED)
-        snprintf(text, sizeof(text), "%llu", (unsigned long long)values[0]);
-    else if(service == ASSEMBLY_SERVICE_PRINT_BOOL)
-        snprintf(text, sizeof(text), "%s", values[0] ? "true" : "false");
-    else if(service == ASSEMBLY_SERVICE_PRINT_FLOAT32) {
-        uint32_t bits = (uint32_t)values[0];
-        float value;
-        memcpy(&value, &bits, sizeof(value));
-        FormatPrintFloat(value, 1, text, sizeof(text));
-    } else if(service == ASSEMBLY_SERVICE_PRINT_FLOAT64) {
-        double value;
-        memcpy(&value, &values[0], sizeof(value));
-        FormatPrintFloat(value, 0, text, sizeof(text));
-    } else return false;
-    return fputs(text, stdout) >= 0;
-}
-
-/* Bind every declared platform console service; other host capabilities stay
- * unbound, so calling one fails as a named host problem. */
-static LirExecProblem
-assembly_run_bind(LirExecInstance *instance, const LirProgram *program)
-{
-    const LirFunction *functions = program->functions.data;
-    for(int64_t index = 0; index < program->functions.length; index++) {
-        if(!functions[index].external) continue;
-        int service = assembly_platform_service(functions[index].name);
-        LirExecProblem bound = LirExecProblem_None;
-        if(service == ASSEMBLY_SERVICE_PRINT_BYTES)
-            bound = compiler_exec_LirExecBindPlatformWrite(instance, (int32_t)index,
-                (LirExecPlatformWrite){NULL, assembly_run_write}, NULL);
-        else if(service != ASSEMBLY_SERVICE_NONE)
-            bound = compiler_exec_LirExecBindHost(instance, (int32_t)index,
-                (LirExecHostCall){NULL, assembly_run_print}, (void *)program);
-        if(bound != LirExecProblem_None) return bound;
-    }
-    return LirExecProblem_None;
-}
-
-static int
-assembly_run(const LirProgram *program, LirExecLimits limits, int heap_report)
-{
-    if(program->entry < 0 || program->entry >= program->functions.length) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.execute", "instruction input has no entry procedure");
-        return 1;
-    }
-    LirFunction entry = ((LirFunction *)program->functions.data)[program->entry];
-    LirType result_type = ((LirType *)program->types.data)[entry.result];
-    if(entry.parameters.length != 0 || (result_type.kind != LirTypeKind_Integer &&
-       result_type.kind != LirTypeKind_Bool && result_type.kind != LirTypeKind_Void)) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.execute", "command entry must have no parameters and return void, bool or an integer");
-        return 1;
-    }
-    LirExecPlan plan = {0};
-    LirExecInstance instance = {0};
-    LirExecResult result = compiler_exec_LirExecPlanBuild(*program, compiler_lowered_ir_LirDefaultLimits(), &plan);
-    if(result.problem == LirExecProblem_None)
-        result = compiler_exec_LirExecInstanceOpen(&plan, limits, 1, &instance);
-    if(result.problem == LirExecProblem_None) {
-        LirExecProblem bound = assembly_run_bind(&instance, &plan.program);
-        if(bound != LirExecProblem_None) result.problem = bound;
-    }
-    if(result.problem == LirExecProblem_None) result = compiler_exec_LirExecRun(&instance);
-    fflush(stdout);
-    int status = result_type.kind == LirTypeKind_Void ? 0 : (int)(result.value.bits & 255);
-    if(result.problem != LirExecProblem_None) {
-        String problem = compiler_exec_LirExecProblemName(result.problem);
-        Diagnostic((ZirSourceSpan){0}, "assembly.execute",
-            "instruction execution failed: problem=%.*s function=%d block=%d instruction=%d origin=%d trap=%llu work_remaining=%lld fuel_remaining=%lld",
-            (int)problem.length, problem.data, result.function, result.block, result.instruction, result.origin,
-            (unsigned long long)result.trap, (long long)result.work_remaining, (long long)result.fuel_remaining);
-        status = 125;
-    } else if(heap_report)
-        fprintf(stderr, "heap: %lld live blocks\n", (long long)compiler_exec_LirExecHeapLive(&instance));
-    compiler_exec_LirExecInstanceClose(&instance);
-    compiler_exec_LirExecPlanFree(&plan);
-    return status;
 }
 
 static unsigned char *
@@ -894,7 +763,7 @@ main(int argc, char **argv)
         decoded = compiler_exec_link_ZxExecReadProgram(&zx_owner);
         view = &decoded;
     }
-    if(run) { status = assembly_run(view, execution_limits, heap_report); goto done; }
+    if(run) { status = ZxExecRunProgram(view, execution_limits, heap_report, 0); goto done; }
     if(!strcmp(emit, "zx")) {
         /* Preserve all declared assets and optional sections when rewriting. */
         bytes = zx_bytes;
@@ -936,13 +805,13 @@ main(int argc, char **argv)
         const LirFunction *functions = view->functions.data;
         for(int64_t index = 0; index < view->functions.length; index++) {
             if(!functions[index].external) continue;
-            int service = assembly_platform_service(functions[index].name);
+            int service = ZxPlatformService(functions[index].name);
             if(assembly_float_service(service)) {
                 Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-float-format",
                     "assembly.gap.native-float-format: selected target linux-x86_64-elf has no native float print formatter; no alternate engine was selected");
                 goto done;
             }
-            if(service == ASSEMBLY_SERVICE_NONE) {
+            if(service == ZX_SERVICE_NONE) {
                 Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-platform-service-unavailable",
                     "assembly.gap.native-platform-service-unavailable: selected target linux-x86_64-elf does not implement platform service %.*s; no alternate engine was selected",
                     (int)functions[index].name.length, functions[index].name.data);

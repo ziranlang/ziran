@@ -1,6 +1,7 @@
 // Revision-28 executable ZX parity. Each program runs through the semantic
 // bundle route (zi2zx bundle, then the portable VM) and through the one
-// pipeline (zi2asm --emit zx, then the verified-instruction interpreter).
+// pipeline (zi2asm --emit zx, then the verified-instruction interpreter, and
+// zi2zx run of the same file).
 // Standard output must be identical, and the semantic result line must be
 // the interpreter's exit status. Programs expected to trap must trap on both.
 // Native ELF output must run with the same status or stop at a named
@@ -68,6 +69,12 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     // Drops and moves free every heap block before the entry returns.
     if !NativeAssert(test, TextContains(actual.error, "heap: 0 live blocks"),
         CheckConcat(item.entry, CheckConcat(": heap blocks were still live: ", actual.error))) { return }
+    // zi2zx run reads the revision-28 file too, and prints just what it
+    // prints for the semantic bundle, result line included.
+    command := string.[zi2zx, "run", lowered]
+    reread := NativeInvoke(test, command[:])
+    if !NativeAssert(test, reread.code == 0 && reread.output == expected,
+        CheckConcat(item.entry, ": zi2zx run of the revision-28 file differs from the semantic bundle")) { return }
     // The same ZX lowers to one wasm32 module, byte for byte, or stops at a
     // named wasm.gap; the module prints what the interpreter prints.
     wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))

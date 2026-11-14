@@ -766,7 +766,8 @@ exec_image_grow(ExecImage *image, int64_t count)
         image->capacity = capacity;
     }
     int64_t at = (int64_t)image->length;
-    memset(image->bytes + at, 0, (size_t)count);
+    /* An empty image asked for no bytes still has no storage. */
+    if(count > 0) memset(image->bytes + at, 0, (size_t)count);
     image->length = needed;
     return at;
 }

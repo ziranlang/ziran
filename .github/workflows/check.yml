@@ -24,7 +24,11 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
+      # tests/zstd_go_cases.zi builds against this module with GOPROXY=off,
+      # and the module itself requires Go 1.25.
+      - name: Fetch the Go Zstandard module for the offline Go checks
+        run: cd "$RUNNER_TEMP" && go mod download github.com/klauspost/compress@v1.20.3
       - name: Install ripgrep, MinGW, Vorbis, ARMv7 and Wasm tools, and the private display for the test scripts
         timeout-minutes: 5
         run: sh scripts/ci_packages.sh ccache ripgrep zip unzip gcc-mingw-w64-x86-64 xvfb xauth ffmpeg libvorbis-dev python3-markdown gcc-arm-linux-gnueabihf libc6-dev-armhf-cross qemu-user clang-18 lld-18
@@ -76,7 +80,11 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
+      # tests/zstd_go_cases.zi builds against this module with GOPROXY=off,
+      # and the module itself requires Go 1.25.
+      - name: Fetch the Go Zstandard module for the offline Go checks
+        run: cd "$RUNNER_TEMP" && go mod download github.com/klauspost/compress@v1.20.3
       - name: Install ripgrep and Vorbis for the test scripts
         timeout-minutes: 5
         run: sh scripts/ci_packages.sh ccache ripgrep zip unzip ffmpeg libvorbis-dev python3-markdown
@@ -127,7 +135,7 @@ jobs:
           path: package
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
       - name: Build the current toolchain
         run: make
       - name: Build the package's locked native library

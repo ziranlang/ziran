@@ -1,5 +1,8 @@
 CC ?= cc
 AR ?= ar
+# Plain `make` builds the toolchain. Rules for single objects come earlier
+# in this file than `all`, so the goal is named rather than left to order.
+.DEFAULT_GOAL := all
 TARGET_MACHINE := $(shell $(CC) -dumpmachine 2>/dev/null)
 DARWIN_TARGET := $(findstring darwin,$(TARGET_MACHINE))
 # Merged groups localize their shared helpers. Apple's ld -r already turns

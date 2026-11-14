@@ -148,31 +148,28 @@ LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # The portable instruction engine (cmd/compiler_runtime.zi), behind the
-# embedding API in cmd/zir/zir_host_exec.c. The engine's modules compile with
-# hidden symbols and merge with that API into one object whose only globals
-# are the API and what it needs from outside, so the engine's own copies of
-# the standard modules stay private: a program that compiles the same
-# standard modules itself (math, vec, ...) still links them only once. Its
+# embedding API in cmd/zir/zir_host_exec.c. Every name the engine's modules
+# define gets the ziran_engine_ prefix (ENGINE_NAMES, force-included in them
+# and in the API), so a program with its own copies of the same standard
+# modules (math, vec, ...) links beside it on ELF, COFF and wasm alike. Its
 # headers are found with -iquote only: the set has its own math.h. The
 # bootstrap compiler opens no bundle and has none.
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
     compiler_exec_serial compiler_exec_link compiler_exec compiler_opt
 # The Wasm lowering of revision-28 ZX (cmd/zir-wasm/zx_wasm_lower.c) reads
-# the program through the same engine and joins the same object.
+# the program through the same engine, under the same names.
 HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir-wasm/zx_wasm_lower.c
+ENGINE_NAMES := $(ENGINE_C)/engine_names.h
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=
 $(call obj,$(HOST_EXEC_SOURCES)): CFLAGS += -DZIRAN_NO_ENGINE
 else
 ENGINE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/engine/%.o,$(ENGINE_MODULES))
-$(call obj,$(HOST_EXEC_SOURCES)): CFLAGS += -iquote $(ENGINE_C)
-$(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_C)/.generated
+$(call obj,$(HOST_EXEC_SOURCES)): CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)
+$(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_NAMES)
 endif
-HOST_EXEC_OBJECT := $(BUILD_DIR)/obj/host_exec.o
-$(HOST_EXEC_OBJECT): $(call obj,$(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS)
-	$(CC) -r -nostdlib -o $@ $^ && $(OBJCOPY) --localize-hidden $@
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(HOST_EXEC_OBJECT) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o \
     $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c)
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
@@ -573,9 +570,13 @@ $(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/co
 	    -o $(ENGINE_C) cmd/compiler_runtime.zi
 	touch $@
 
-$(BUILD_DIR)/obj/engine/%.o: $(ENGINE_C)/.generated $(BUILD_DIR)/.compiler-flags
+$(ENGINE_NAMES): $(ENGINE_C)/.generated scripts/engine-names.sh
+	sh scripts/engine-names.sh $(ENGINE_C) $(ENGINE_MODULES) > $@
+
+$(BUILD_DIR)/obj/engine/%.o: $(ENGINE_NAMES) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
-	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -fvisibility=hidden -iquote $(ENGINE_C) -c -o $@ $(ENGINE_C)/$*.c
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -fvisibility=hidden -iquote $(ENGINE_C) -include $(ENGINE_NAMES) \
+	    -DZIRAN_ENGINE_SOURCE_$* -c -o $@ $(ENGINE_C)/$*.c
 
 
 $(BUNDLE_C)/.generated: cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)

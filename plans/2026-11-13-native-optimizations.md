@@ -334,10 +334,13 @@ only switch once each of these reads revision 28, so the cutover goes in stages,
    b. Done: the optional host interface section names each capability's types and record fields
       (`AssemblyHostInterface`; format in `ASSEMBLY/zx-executable-format.md`).
    c. Done: `libziran` links the instruction engine (`cmd/compiler_runtime.zi`), generated
-      by the bootstrap compiler like the other modules, one archive member per module so an app
-      that compiles the same standard modules links none twice; its headers are found with
-      `-iquote` because the set has its own `math.h`. Bootstrap builds open no bundle and
-      compile a stub (`ZIRAN_NO_ENGINE`), so no generated copy is checked in.
+      by the bootstrap compiler like the other modules; its headers are found with `-iquote`
+      because the set has its own `math.h`. Bootstrap builds open no bundle and compile a stub
+      (`ZIRAN_NO_ENGINE`), so no generated copy is checked in. Every name the engine defines
+      carries the `ziran_engine_` prefix (`scripts/engine-names.sh`, force-included), so an app
+      with its own copies of the standard modules links beside it on ELF, COFF and wasm; wasm
+      objcopy cannot localize symbols, and Kryon's browser player failed to link on `Sin`,
+      `Cos`, ... until this replaced the ELF-only `objcopy --localize-hidden` merge.
    d. Done: `cmd/zir/zir_host.c` opens revision 28 as one more instance kind through
       `cmd/zir/zir_host_exec.c`, which translates host values with the interface section by
       the semantic VM's rules. `tests/portable_host_records.sh` runs the unchanged

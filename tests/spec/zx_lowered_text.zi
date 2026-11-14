@@ -1,0 +1,33 @@
+// Byte builders and owned Text on revision-28 ZX, pinned by
+// tests/zx_lowered_parity.sh: BuilderAppend with the C runtime's reserve
+// policy, BuilderFinish kept as a Text, TextView and TextCopy.
+#import "vec"
+
+Join :: (parts: []string) -> Text {
+    out: Text
+    for part: parts {
+        if out.bytes.count != 0 { BuilderAppend(out.bytes, ", ") }
+        BuilderAppend(out.bytes, part)
+    }
+    return out
+}
+
+Length :: (text: string) -> s64 { return text.count }
+
+main :: () -> s32 {
+    builder: Vec(u8)
+    if !BuilderAppend(builder, "") || builder.capacity != 0 { return 1 }
+    BuilderAppend(builder, "hello")
+    BuilderAppend(builder, ", ")
+    BuilderAppend(builder, "portable world of text")
+    capacity := builder.capacity
+    line := BuilderFinish(builder)
+    words: [3]string = .["one", "two", "three"]
+    joined: Text = Join(words[:])
+    view := TextView(joined)
+    copy: Text = TextCopy("copied")
+    empty: Vec(u8)
+    nothing := BuilderFinish(empty)
+    print("% | % | % | % % %\n", line, view, TextView(copy), capacity, Length(view), nothing.count)
+    return cast(s32)line.count
+}

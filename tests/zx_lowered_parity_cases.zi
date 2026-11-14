@@ -126,6 +126,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     ParityAdd(*cases, spec_root, "zx_lowered_features:main", CheckPath(spec_root, "zx_lowered_features.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_vec:main", CheckPath(spec_root, "zx_lowered_vec.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_owned:main", CheckPath(spec_root, "zx_lowered_owned.zi"))
+    ParityAdd(*cases, spec_root, "zx_lowered_text:main", CheckPath(spec_root, "zx_lowered_text.zi"))
     for entry: spec {
         at: s64
         while entry[at] != cast(u8)58 { at += 1 }

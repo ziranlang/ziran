@@ -344,6 +344,26 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
             !record->is_map && !record->is_extern && !record->foreign_target[0])
         type.kind = LirTypeKind_Record;
     else return assembly_fail(program, span, "this type has no portable lowered representation yet");
+    if(record && record->is_owned_vec) {
+        /* Vectors are structural like views: every specialization of Vec(T),
+         * whichever module spelled it, is one {data: *T, count, capacity}. */
+        size_t cursor = 0;
+        ZirTypeField data_field;
+        if(TypeNextField(record, &cursor, &data_field) != 1)
+            return assembly_fail(program, span, "owned vector has an unexpected record shape");
+        int data = assembly_type_in(program, owner, data_field.type, span, depth + 1);
+        if(program->failed) return -1;
+        names = program->type_names.data;
+        for(int index = 0; index < program->type_names.count; index++) {
+            if(names[index].record == NULL || !names[index].record->is_owned_vec) continue;
+            LirType known = *assembly_type_at(program, names[index].identity);
+            if(known.kind == LirTypeKind_Record && known.fields.length == 3 &&
+               ((int *)known.fields.data)[0] == data) {
+                AssemblyType alias = {module, assembly_text(program, name), record, names[index].identity};
+                return assembly_push(program, &program->type_names, &alias) ? alias.identity : -1;
+            }
+        }
+    }
     int identity = program->types.count;
     AssemblyType binding = {module, assembly_text(program, name), record, identity};
     if(!assembly_push(program, &program->types, &type) ||
@@ -1351,7 +1371,15 @@ assembly_text_view(AssemblyProgram *program, AssemblyFunction *function,
     if(program->failed) return -1;
     int identity = ((int *)function->values.data)[source];
     LirType type = *assembly_type_at(program, identity);
-    if(type.kind != LirTypeKind_Record || type.fields.length != 2)
+    /* Text is the record {bytes: Vec(u8)}; its view is the vector's data
+     * pointer and count. */
+    if(type.kind == LirTypeKind_Record && type.fields.length == 1 &&
+       assembly_vec_element(program, ((int *)type.fields.data)[0]) == 3) {
+        identity = ((int *)type.fields.data)[0];
+        source = assembly_indexed(program, function, LirOp_Extract, identity, &source, 1, 0, expression->span);
+        type = *assembly_type_at(program, identity);
+    }
+    if(type.kind != LirTypeKind_Record || (type.fields.length != 2 && assembly_vec_element(program, identity) != 3))
         return assembly_fail(program, expression->span, "TextView source has no lowered slice representation");
     int *fields = type.fields.data;
     LirType pointer = *assembly_type_at(program, fields[0]);
@@ -1595,6 +1623,275 @@ assembly_move_out(AssemblyProgram *program, AssemblyFunction *function, int root
         place.address = assembly_address(program, function, root, 0);
     else place.local = assembly_capture_local(program, function, root, 0);
     assembly_vec_write(program, function, &place, assembly_zero(program, function, identity, span, 0), span);
+}
+
+/* An unnamed binding carries a value through block parameters. */
+static int
+assembly_carry(AssemblyProgram *program, AssemblyFunction *function, int type, int value)
+{
+    AssemblyBinding binding = {"", type, value, -1};
+    int index = function->bindings.count;
+    return assembly_push(program, &function->bindings, &binding) ? index : -1;
+}
+
+static int
+assembly_carried(AssemblyFunction *function, int index)
+{
+    return ((AssemblyBinding *)function->bindings.data)[index].value;
+}
+
+/* A block template of the first `count` bindings plus one unnamed value. */
+static AssemblyBinding *
+assembly_template(AssemblyProgram *program, const AssemblyBinding *before, int count, int type)
+{
+    AssemblyBinding *template = assembly_allocate(program, (size_t)count + 1, sizeof(*template));
+    if(template == NULL) return NULL;
+    if(count) memcpy(template, before, (size_t)count * sizeof(*template));
+    template[count] = (AssemblyBinding){"", type, -1, -1};
+    return template;
+}
+
+/* Give the vector carried in binding `carried` room for `needed` elements,
+ * with the C runtime's policy: capacity 0 starts at 8 and doubles until it
+ * fits. Returns a bool value; on false the vector is unchanged. `carried`
+ * must be the newest binding. */
+static int
+assembly_vec_reserve(AssemblyProgram *program, AssemblyFunction *function, int carried, int needed,
+                     int identity, ZirSourceSpan span)
+{
+    int element = assembly_vec_element(program, identity);
+    if(program->failed || function->current < 0 || element < 0) return -1;
+    int pointer = assembly_pointer_type(program, element, span);
+    int live = function->bindings.count;
+    int vector = assembly_carried(function, carried);
+    int data = assembly_indexed(program, function, LirOp_Extract, pointer, &vector, 1, 0, span);
+    int capacity = assembly_indexed(program, function, LirOp_Extract, 8, &vector, 1, 2, span);
+    int zero = assembly_constant(program, function, 8, 0, span);
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    AssemblyBinding *answered = assembly_template(program, before, live, 1);
+    AssemblyBinding *sized = assembly_template(program, before, live, 8);
+    if(program->failed || before == NULL || answered == NULL || sized == NULL) return -1;
+    int fits = assembly_block(program, function, before, live);
+    int grow = assembly_block(program, function, before, live);
+    int header = assembly_block(program, function, sized, live + 1);
+    int doubled = assembly_block(program, function, sized, live + 1);
+    int resize = assembly_block(program, function, sized, live + 1);
+    int granted = assembly_block(program, function, before, live);
+    int refused = assembly_block(program, function, before, live);
+    int done = assembly_block(program, function, answered, live + 1);
+    if(program->failed) return -1;
+    int enough_operands[] = {needed, capacity};
+    int enough = assembly_emit(program, function, LirOp_LessEqual, 1, enough_operands, 2, -1, span);
+    assembly_branch(program, function, enough, fits, grow, live, span);
+
+    assembly_enter(function, fits, before, live);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, grow, before, live);
+    int empty_operands[] = {capacity, zero};
+    int empty = assembly_emit(program, function, LirOp_Equal, 1, empty_operands, 2, -1, span);
+    int initial_operands[] = {assembly_emit(program, function, LirOp_Convert, 8, &empty, 1, -1, span),
+        assembly_constant(program, function, 8, 8, span)};
+    int start_operands[] = {capacity,
+        assembly_emit(program, function, LirOp_Multiply, 8, initial_operands, 2, -1, span)};
+    assembly_carry(program, function, 8, assembly_emit(program, function, LirOp_Add, 8, start_operands, 2, -1, span));
+    assembly_jump(program, function, header, live + 1, span);
+
+    assembly_enter(function, header, sized, live + 1);
+    assembly_emit(program, function, LirOp_Fuel, 0, NULL, 0, -1, span);
+    int small_operands[] = {assembly_carried(function, live), needed};
+    int small = assembly_emit(program, function, LirOp_Less, 1, small_operands, 2, -1, span);
+    assembly_branch(program, function, small, doubled, resize, live + 1, span);
+
+    assembly_enter(function, doubled, sized, live + 1);
+    int twice_operands[] = {assembly_carried(function, live), assembly_carried(function, live)};
+    ((AssemblyBinding *)function->bindings.data)[live].value =
+        assembly_emit(program, function, LirOp_Add, 8, twice_operands, 2, -1, span);
+    assembly_jump(program, function, header, live + 1, span);
+
+    assembly_enter(function, resize, sized, live + 1);
+    int next = assembly_carried(function, live);
+    int resize_operands[] = {data, capacity, next};
+    int moved = assembly_emit(program, function, LirOp_Resize, pointer, resize_operands, 3, -1, span);
+    int failed_operands[] = {moved, assembly_emit(program, function, LirOp_Null, pointer, NULL, 0, -1, span)};
+    int failed = assembly_emit(program, function, LirOp_Equal, 1, failed_operands, 2, -1, span);
+    assembly_branch(program, function, failed, refused, granted, live, span);
+
+    assembly_enter(function, granted, before, live);
+    int data_operands[] = {assembly_carried(function, carried), moved};
+    int with_data = assembly_indexed(program, function, LirOp_Insert, identity, data_operands, 2, 0, span);
+    int capacity_operands[] = {with_data, next};
+    ((AssemblyBinding *)function->bindings.data)[carried].value =
+        assembly_indexed(program, function, LirOp_Insert, identity, capacity_operands, 2, 2, span);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, refused, before, live);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 0, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    if(program->failed) return -1;
+    assembly_enter(function, done, answered, live + 1);
+    int answer = assembly_carried(function, live);
+    function->bindings.count = live;
+    return answer;
+}
+
+/* BuilderAppend(builder, text): an empty text succeeds without allocating;
+ * otherwise room is reserved first, so a refused reserve appends nothing. */
+static int
+assembly_builder_append(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int depth)
+{
+    ZirSourceSpan span = expression->span;
+    int first = expression->first_child;
+    int second = first >= 0 && first < function->source->expr_count ?
+        function->source->exprs[first].next_sibling : -1;
+    if(second < 0 || second >= function->source->expr_count)
+        return assembly_fail(program, span, "BuilderAppend requires a builder and text");
+    int identity = assembly_type(program, function, function->source->exprs[first].type, span);
+    int string = assembly_string_type(program, span);
+    if(program->failed) return -1;
+    if(assembly_vec_element(program, identity) != 3)
+        return assembly_fail(program, span, "BuilderAppend requires a Vec(u8) builder");
+    int pointer = assembly_pointer_type(program, 3, span);
+    int text = assembly_convert(program, function,
+        assembly_expression(program, function, second, depth + 1), string, span);
+    AssemblyVecPlace place;
+    int current = assembly_vec_read(program, function, first, identity, &place, span);
+    if(program->failed) return -1;
+    int bytes = assembly_indexed(program, function, LirOp_Extract, pointer, &text, 1, 0, span);
+    int length = assembly_indexed(program, function, LirOp_Extract, 8, &text, 1, 1, span);
+    int used = assembly_indexed(program, function, LirOp_Extract, 8, &current, 1, 1, span);
+    int zero = assembly_constant(program, function, 8, 0, span);
+    int carried = assembly_carry(program, function, identity, current);
+    int live = function->bindings.count;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    AssemblyBinding *answered = assembly_template(program, before, live, 1);
+    AssemblyBinding *counted = assembly_template(program, before, live, 8);
+    if(program->failed || before == NULL || answered == NULL || counted == NULL) return -1;
+    int nothing = assembly_block(program, function, before, live);
+    int work = assembly_block(program, function, before, live);
+    int room = assembly_block(program, function, before, live);
+    int refused = assembly_block(program, function, before, live);
+    int header = assembly_block(program, function, counted, live + 1);
+    int body = assembly_block(program, function, counted, live + 1);
+    int copied = assembly_block(program, function, counted, live + 1);
+    int done = assembly_block(program, function, answered, live + 1);
+    if(program->failed) return -1;
+    int empty_operands[] = {length, zero};
+    int empty = assembly_emit(program, function, LirOp_Equal, 1, empty_operands, 2, -1, span);
+    assembly_branch(program, function, empty, nothing, work, live, span);
+
+    assembly_enter(function, nothing, before, live);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, work, before, live);
+    int needed_operands[] = {used, length};
+    int needed = assembly_emit(program, function, LirOp_Add, 8, needed_operands, 2, -1, span);
+    int reserved = assembly_vec_reserve(program, function, carried, needed, identity, span);
+    assembly_branch(program, function, reserved, room, refused, live, span);
+
+    assembly_enter(function, refused, before, live);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 0, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, room, before, live);
+    int grown = assembly_carried(function, carried);
+    int target = assembly_indexed(program, function, LirOp_Extract, pointer, &grown, 1, 0, span);
+    assembly_carry(program, function, 8, zero);
+    assembly_jump(program, function, header, live + 1, span);
+
+    assembly_enter(function, header, counted, live + 1);
+    assembly_emit(program, function, LirOp_Fuel, 0, NULL, 0, -1, span);
+    int more_operands[] = {assembly_carried(function, live), length};
+    int more = assembly_emit(program, function, LirOp_Less, 1, more_operands, 2, -1, span);
+    assembly_branch(program, function, more, body, copied, live + 1, span);
+
+    assembly_enter(function, body, counted, live + 1);
+    int at = assembly_carried(function, live);
+    int from_operands[] = {bytes, at, length};
+    int from = assembly_emit(program, function, LirOp_ElementAddress, pointer, from_operands, 3, -1, span);
+    int byte = assembly_emit(program, function, LirOp_Load, 3, &from, 1, -1, span);
+    int offset_operands[] = {used, at};
+    int to_operands[] = {target, assembly_emit(program, function, LirOp_Add, 8, offset_operands, 2, -1, span), needed};
+    int to = assembly_emit(program, function, LirOp_ElementAddress, pointer, to_operands, 3, -1, span);
+    int store_operands[] = {to, byte};
+    assembly_emit(program, function, LirOp_Store, 0, store_operands, 2, -1, span);
+    int next_operands[] = {at, assembly_constant(program, function, 8, 1, span)};
+    ((AssemblyBinding *)function->bindings.data)[live].value =
+        assembly_emit(program, function, LirOp_Add, 8, next_operands, 2, -1, span);
+    assembly_jump(program, function, header, live + 1, span);
+
+    assembly_enter(function, copied, counted, live + 1);
+    function->bindings.count = live;
+    int count_operands[] = {assembly_carried(function, carried), needed};
+    ((AssemblyBinding *)function->bindings.data)[carried].value =
+        assembly_indexed(program, function, LirOp_Insert, identity, count_operands, 2, 1, span);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    if(program->failed) return -1;
+    assembly_enter(function, done, answered, live + 1);
+    int final = assembly_carried(function, carried);
+    int answer = assembly_carried(function, live);
+    function->bindings.count = carried;
+    assembly_vec_write(program, function, &place, final, span);
+    return answer;
+}
+
+/* BuilderFinish(builder): the string keeps the builder's bytes, and the
+ * builder is left empty without freeing them. An empty builder frees its
+ * reserved block and gives the empty string. */
+static int
+assembly_builder_finish(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression)
+{
+    ZirSourceSpan span = expression->span;
+    int first = expression->first_child;
+    if(first < 0 || first >= function->source->expr_count)
+        return assembly_fail(program, span, "BuilderFinish requires a builder");
+    int identity = assembly_type(program, function, function->source->exprs[first].type, span);
+    int string = assembly_string_type(program, span);
+    if(program->failed) return -1;
+    if(assembly_vec_element(program, identity) != 3)
+        return assembly_fail(program, span, "BuilderFinish requires a Vec(u8) builder");
+    int pointer = assembly_pointer_type(program, 3, span);
+    AssemblyVecPlace place;
+    int current = assembly_vec_read(program, function, first, identity, &place, span);
+    if(program->failed) return -1;
+    int data = assembly_indexed(program, function, LirOp_Extract, pointer, &current, 1, 0, span);
+    int count = assembly_indexed(program, function, LirOp_Extract, 8, &current, 1, 1, span);
+    int capacity = assembly_indexed(program, function, LirOp_Extract, 8, &current, 1, 2, span);
+    int zero = assembly_constant(program, function, 8, 0, span);
+    int live = function->bindings.count;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    AssemblyBinding *answered = assembly_template(program, before, live, pointer);
+    if(program->failed || (live && before == NULL) || answered == NULL) return -1;
+    int unused = assembly_block(program, function, before, live);
+    int kept = assembly_block(program, function, before, live);
+    int done = assembly_block(program, function, answered, live + 1);
+    if(program->failed) return -1;
+    int empty_operands[] = {count, zero};
+    int empty = assembly_emit(program, function, LirOp_Equal, 1, empty_operands, 2, -1, span);
+    assembly_branch(program, function, empty, unused, kept, live, span);
+
+    assembly_enter(function, unused, before, live);
+    int release_operands[] = {data, capacity, zero};
+    assembly_carry(program, function, pointer,
+        assembly_emit(program, function, LirOp_Resize, pointer, release_operands, 3, -1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, kept, before, live);
+    assembly_carry(program, function, pointer, data);
+    assembly_jump(program, function, done, live + 1, span);
+
+    if(program->failed) return -1;
+    assembly_enter(function, done, answered, live + 1);
+    int fields[] = {assembly_carried(function, live), count};
+    function->bindings.count = live;
+    assembly_vec_write(program, function, &place, assembly_zero(program, function, identity, span, 0), span);
+    return assembly_emit(program, function, LirOp_Aggregate, string, fields, 2, -1, span);
 }
 
 /* VecSlice(values, low, high): a borrowed view of the vector's elements,
@@ -1973,6 +2270,10 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             return assembly_vec_call(program, function, expression, depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSlice"))
             return assembly_vec_slice(program, function, expression, depth + 1);
+        if(!indirect && !strcmp(expression->name, "BuilderAppend"))
+            return assembly_builder_append(program, function, expression, depth + 1);
+        if(!indirect && !strcmp(expression->name, "BuilderFinish"))
+            return assembly_builder_finish(program, function, expression);
         int symbol = -1;
         int receiver = -1;
         int result;

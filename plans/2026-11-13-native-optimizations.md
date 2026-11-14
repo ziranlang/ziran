@@ -208,9 +208,15 @@ dropped at once. `zi2asm --run --heap-report` prints the heap blocks still live,
 test requires none for every program. `tests/spec/zx_lowered_owned.zi` covers these.
 Inventory: 34 of 71 spec entries lower.
 
-Not yet lowered, each a named compile error: `TextView` of a `Text`, the builders
-(`BuilderAppend`, `BuilderPrint`, `BuilderFinish`), `VecPop`/`VecGet` (Option), `VecSwap`,
-`VecClone`, `VecReserve`, `VecResize`. The interpreter's address table never reuses entries, so a long-running program that
+Third slice, same day: `BuilderAppend` (an empty text allocates nothing; otherwise room is reserved
+first with the C runtime's doubling, so a refused reserve appends nothing), `BuilderFinish`,
+`TextView` of a `Text` or `Vec(u8)`, and vector types interned by element type so two modules'
+spellings of `Vec(u8)` are one LIR type. The checker turns `line := BuilderFinish(builder)` into an
+owned `Text` built by `vec.TextFromBuilder`, so its bytes are dropped with `line`.
+`tests/spec/zx_lowered_text.zi` covers these. Inventory: 39 of 72 spec entries lower.
+
+Not yet lowered: `VecPop`/`VecGet` (Option), `VecSwap`, `VecClone`, `VecReserve`, `VecResize`,
+SIMD and map types, computed global initializers, wide literals, indirect calls through fields. The interpreter's address table never reuses entries, so a long-running program that
 indexes many distinct elements reaches the `addresses` limit; that needs structured address
 tokens before the bundle cutover.
 

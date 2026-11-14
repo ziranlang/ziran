@@ -267,21 +267,28 @@ Tenth batch, 2026-11-14: unions of integers and floats lower to one unsigned int
 the widest member; `overlay.member` reads the low bytes reinterpreted and `overlay.member = x`
 replaces them, keeping the bytes above. `tests/zx_lowered_parity.sh` pins 57 programs.
 
+Eleventh batch, 2026-11-14: an `if` with its `else if` links is lowered as one chain with one join
+block, so `unicode_normalization_cases.zi` (a 1,500-case list) lowers. Running it showed two more
+interpreter costs. Freeing a heap block scanned every block ever allocated; blocks now link to the
+block below them and freed storage is given back down that chain (`ExecHeapTrim`), and a block
+keeps its record when it grows in place. The program then stops at the `addresses` limit of
+1,048,576 after about 30 million fuel: see item 3 below.
+
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 79 | 67 |
+| `tests/spec` entries | 79 | 68 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
-No program is rejected by the verifier any more. First rejection of the 12 spec programs left:
+No program is rejected by the verifier any more. `unicode_normalization_test` lowers but does not
+finish on the interpreter (item 3). First rejection of the 11 spec programs left:
 
 | Count | Needs | Programs |
 |-------|-------|----------|
 | 8 | SIMD vector types (`u8x16`, `Simd.Splat`, `Simd.Load`) | `json_array_reuse_test` (2 entries), `json_scan_test` (2), `json_string_value_test`, `json_string_scan_test`, `json_document_lifetime_test`, `std_float_text` |
 | 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
-| 1 | a long statement list (`unicode_normalization_cases.zi`): statement nesting budget | `unicode_normalization_test` |
 | 1 | long array literals in read-only data: lowering allocation budget | `unicode_conformance` |
 
 Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut over:
@@ -291,9 +298,15 @@ Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut 
 2. Host-returned storage is never reclaimed. A frame loop that asks a host for a string every
    frame grows the instance until its byte limit. It needs a release rule.
 3. The interpreter's address table is indexed now but still never gives entries back: every
-   distinct element address is an entry, and an address into a frame is a new entry on every
-   call. A long-running program reaches the `addresses` limit. Addresses that are only loaded
-   from or stored to need no entry at all, and a returning frame can give its entries back.
+   `allocate` is an entry on every call, every heap block is an entry on every resize, and every
+   distinct element address is an entry. `unicode_normalization_test` reaches the limit of
+   1,048,576 after about 30 million fuel, and a UI frame loop would too. The fix has two parts.
+   A returning frame gives back the entries made for its own storage, and a freed or resized
+   heap block gives back its entries; a reused entry needs a token that no older token of that
+   slot equals, so the token carries a per-slot version. Addresses that are only loaded from or
+   stored to in the block that makes them need no entry at all. The same program also spends
+   about 125 work units per fuel unit, which points at whole-table loads for indexed reads of
+   global arrays; measure before changing it.
 4. The embedding API (`BundleOpen`, `BundleRun`, `HostValue` in `ziran_host.h`) and Kryon's
    bundle player speak the semantic VM's host values; they need a bridge to host images.
 5. The browser player: Kryon's `zx-services-test` and `zx-hosted-test` stop in the ZIR-based

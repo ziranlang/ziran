@@ -3147,46 +3147,52 @@ assembly_if(AssemblyProgram *program, AssemblyFunction *function, int index, int
         assembly_fail(program, function->source->span, "branch nesting budget exhausted");
         return end;
     }
-    const ZirStmt *statement = &function->source->stmts[index];
-    int close = assembly_close(program, function->source, index, end);
+    /* An `if` with its `else if` links and `else` is walked as one chain, so
+     * a case list of any length nests no deeper than a single `if`. Every
+     * arm that falls through meets the others in one join block. */
+    typedef struct { int block; AssemblyBinding *bindings; } Arm;
+    ZirSourceSpan span = function->source->stmts[index].span;
     int count = function->bindings.count;
     AssemblyBinding *before = assembly_snapshot(program, function, count);
-    int condition = assembly_expression(program, function, statement->expr_root, 0);
-    int yes = assembly_block(program, function, before, count);
-    int no = assembly_block(program, function, before, count);
-    if(program->failed) return end;
-    assembly_branch(program, function, condition, yes, no, count, statement->span);
-    assembly_enter(function, yes, before, count);
-    assembly_sequence(program, function, index + 1, close, depth + 1);
-    int yes_end = function->current;
-    AssemblyBinding *yes_bindings = assembly_snapshot(program, function, count);
-    if(program->failed) return end;
-    assembly_enter(function, no, before, count);
-    int next = close + 1;
-    if(next < end && function->source->stmts[next].is_else) {
-        if(function->source->stmts[next].expr_root >= 0)
-            next = assembly_if(program, function, next, end, depth + 1);
-        else {
-            int otherwise_close = assembly_close(program, function->source, next, end);
-            assembly_sequence(program, function, next + 1, otherwise_close, depth + 1);
-            next = otherwise_close + 1;
+    AssemblyVector arms = {.width = sizeof(Arm)};
+    int next = index;
+    for(;;) {
+        const ZirStmt *statement = &function->source->stmts[next];
+        int close = assembly_close(program, function->source, next, end);
+        int conditional = next == index || statement->expr_root >= 0;
+        int no = -1;
+        if(conditional) {
+            int condition = assembly_expression(program, function, statement->expr_root, 0);
+            int yes = assembly_block(program, function, before, count);
+            no = assembly_block(program, function, before, count);
+            if(program->failed) return end;
+            assembly_branch(program, function, condition, yes, no, count, statement->span);
+            assembly_enter(function, yes, before, count);
+        }
+        assembly_sequence(program, function, next + 1, close, depth + 1);
+        Arm arm = {function->current, assembly_snapshot(program, function, count)};
+        if(program->failed || !assembly_push(program, &arms, &arm)) return end;
+        next = close + 1;
+        if(!conditional) break;
+        assembly_enter(function, no, before, count);
+        if(next >= end || !function->source->stmts[next].is_else) {
+            /* No `else`: the untaken edge falls through as it stands. */
+            Arm rest = {function->current, assembly_snapshot(program, function, count)};
+            if(program->failed || !assembly_push(program, &arms, &rest)) return end;
+            break;
         }
     }
-    int no_end = function->current;
-    AssemblyBinding *no_bindings = assembly_snapshot(program, function, count);
-    if(program->failed) return end;
-    if(yes_end < 0 && no_end < 0) { function->current = -1; return next; }
+    Arm *reached = arms.data;
+    int live = 0;
+    for(int arm = 0; arm < arms.count; arm++) if(reached[arm].block >= 0) live++;
+    if(!live) { function->current = -1; return next; }
     int join = assembly_block(program, function, before, count);
     if(program->failed) return end;
-    if(yes_end >= 0) {
-        function->current = yes_end;
-        if(count) memcpy(function->bindings.data, yes_bindings, (size_t)count * sizeof(*before));
-        assembly_jump(program, function, join, count, statement->span);
-    }
-    if(no_end >= 0) {
-        function->current = no_end;
-        if(count) memcpy(function->bindings.data, no_bindings, (size_t)count * sizeof(*before));
-        assembly_jump(program, function, join, count, statement->span);
+    for(int arm = 0; arm < arms.count; arm++) {
+        if(reached[arm].block < 0) continue;
+        function->current = reached[arm].block;
+        if(count) memcpy(function->bindings.data, reached[arm].bindings, (size_t)count * sizeof(*before));
+        assembly_jump(program, function, join, count, span);
     }
     assembly_enter(function, join, before, count);
     return next;

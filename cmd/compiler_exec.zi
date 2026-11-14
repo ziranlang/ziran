@@ -106,6 +106,9 @@ LirExecHeapBlock :: struct {
     count: u64
     generation: u64
     live: bool
+    // One more than the block that ended the owned bytes when this one was
+    // put after it; 0 for none. Freed storage is given back down this chain.
+    below: s64
 }
 
 LirExecFrame :: struct {
@@ -144,6 +147,10 @@ LirExecInstance :: struct {
     host_bytes: Vec(u8)
     owned: Vec(u8)
     heap_blocks: Vec(LirExecHeapBlock)
+    // One more than the block that ends the owned bytes; 0 when host bytes do.
+    heap_tail: s64
+    // Records of freed blocks whose bytes were given back, for reuse.
+    heap_free: Vec(s64)
     heap_epoch: u64
     live_values: s64
     frame_epoch: u64
@@ -1477,18 +1484,16 @@ ExecAllocate :: (instance: *LirExecInstance, frame_index: s64,
 
 // Give back the owned bytes of dead heap blocks that end the owned region.
 ExecHeapTrim :: (instance: *LirExecInstance) -> bool {
-    trimmed := true
-    while trimmed {
-        trimmed = false
-        for index: cast(s64)0..instance.heap_blocks.count - 1 {
-            if !ExecSpend(instance, 1) { return false }
-            block := instance.heap_blocks[index]
-            if block.live || block.size == 0 || block.offset + block.size != instance.owned.count { continue }
-            unused VecResize(instance.owned, block.offset)
-            instance.heap_blocks[index].size = 0
-            trimmed = true
-            break
-        }
+    while instance.heap_tail != 0 {
+        if !ExecSpend(instance, 1) { return false }
+        index := instance.heap_tail - 1
+        block := instance.heap_blocks[index]
+        if block.live { return true }
+        if block.offset + block.size != instance.owned.count { instance.heap_tail = 0; return true }
+        unused VecResize(instance.owned, block.offset)
+        instance.heap_blocks[index].size = 0
+        instance.heap_tail = block.below
+        if !VecPush(instance.heap_free, index) { return ExecFail(instance, .Allocation) }
     }
     return true
 }
@@ -1557,19 +1562,31 @@ ExecResize :: (instance: *LirExecInstance, instruction: *LirInstruction, result_
         for index: cast(s64)0..kept - 1 { instance.owned[base + index] = instance.owned[source + index] }
     }
     for index: kept..bytes - 1 { instance.owned[base + index] = 0 }
+    // The block keeps its record when it grows or shrinks where it is;
+    // otherwise it takes a freed record or a new one, above the old tail.
+    record := previous
+    below := instance.heap_tail
+    if previous >= 0 && base == instance.heap_blocks[previous].offset {
+        below = instance.heap_blocks[previous].below
+    } else {
+        if previous >= 0 { instance.heap_blocks[previous].live = false }
+        if instance.heap_free.count > 0 {
+            record = instance.heap_free[instance.heap_free.count - 1]
+            unused VecResize(instance.heap_free, instance.heap_free.count - 1)
+        } else {
+            record = instance.heap_blocks.count
+            if !VecPush(instance.heap_blocks, LirExecHeapBlock.{}) { return ExecFail(instance, .Allocation) }
+        }
+    }
     instance.heap_epoch += 1
     block := LirExecHeapBlock.{.offset = base, .size = bytes, .count = new_count,
-        .generation = instance.heap_epoch, .live = true}
-    if !VecPush(instance.heap_blocks, block) { return ExecFail(instance, .Allocation) }
-    if previous >= 0 {
-        instance.heap_blocks[previous].live = false
-        if base == instance.heap_blocks[previous].offset { instance.heap_blocks[previous].size = 0 }
-        else if !ExecHeapTrim(instance) { return false }
-    }
+        .generation = instance.heap_epoch, .live = true, .below = below}
+    instance.heap_blocks[record] = block
+    instance.heap_tail = record + 1
     index := instance.addresses.count
     address := LirExecAddress.{.token = ExecAddressToken(instance.identity, index),
         .global = -1, .frame = -1, .generation = block.generation, .offset = base, .extent = bytes,
-        .type = element, .owned = true, .writable = true, .heap = instance.heap_blocks.count}
+        .type = element, .owned = true, .writable = true, .heap = record + 1}
     if !VecPush(instance.addresses, address) { return ExecFail(instance, .Allocation) }
     ExecWriteSlotBits(instance, instruction.result, address.token)
     return true
@@ -2007,6 +2024,7 @@ ExecHostDecode :: (instance: *LirExecInstance, type: s32, image: []u8, from: s64
         if bytes > ExecHostAvailable(instance) { return ExecFail(instance, .ValueBytes) }
         base := instance.owned.count
         if !VecResizeBounded(instance.owned, base + bytes, base + bytes) { return ExecFail(instance, .Allocation) }
+        instance.heap_tail = 0
         if instance.addresses.count >= instance.limits.addresses ||
             instance.addresses.count >= 4294967294 { return ExecFail(instance, .AddressLimit) }
         address := LirExecAddress.{.token = ExecAddressToken(instance.identity, instance.addresses.count),
@@ -2055,8 +2073,10 @@ ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
     destination := ExecFrameValueOffset(instance, frame_index, instruction.result)
     owned_count := instance.owned.count
     address_count := instance.addresses.count
+    heap_tail := instance.heap_tail
     if !ExecHostDecode(instance, expected, result.bytes, 0, false, destination) {
         // A rejected image leaves no storage or addresses behind.
+        instance.heap_tail = heap_tail
         unused VecResize(instance.owned, owned_count)
         unused VecResize(instance.addresses, address_count)
         ExecAddressesForget(instance)
@@ -2322,6 +2342,8 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     VecFree(instance.host_bytes)
     VecFree(instance.owned)
     VecFree(instance.heap_blocks)
+    VecFree(instance.heap_free)
+    instance.heap_tail = 0
     instance.heap_epoch = 0
     instance.plan = null
     instance.limits = .{}

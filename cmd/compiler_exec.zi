@@ -696,18 +696,6 @@ ExecCopyStorage :: (instance: *LirExecInstance, source: s64, destination: s64, c
     return true
 }
 
-ExecCopyGlobalToStorage :: (instance: *LirExecInstance, source: s64, destination: s64, count: s64) -> bool {
-    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
-    for index: cast(s64)0..count - 1 { instance.storage[destination + index] = instance.globals[source + index] }
-    return true
-}
-
-ExecCopyStorageToGlobal :: (instance: *LirExecInstance, source: s64, destination: s64, count: s64) -> bool {
-    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
-    for index: cast(s64)0..count - 1 { instance.globals[destination + index] = instance.storage[source + index] }
-    return true
-}
-
 ExecCopyValueToStorage :: (instance: *LirExecInstance, frame_index: s64,
     source: s32, destination: s64) -> bool {
     if !ExecValueValid(instance, frame_index, source) { return false }
@@ -1391,53 +1379,6 @@ ExecAddressOffset :: (instance: *LirExecInstance, address_index: s64) -> s64 {
     if address.owned { return address.offset }
     if address.frame < 0 { return address.offset }
     return instance.frames[address.frame].base + address.offset
-}
-
-ExecCopyAddressToStorage :: (instance: *LirExecInstance, address_index: s64,
-    destination: s64, count: s64) -> bool {
-    if count < 0 || count > instance.addresses[address_index].extent { return ExecFail(instance, .Pointer) }
-    source := ExecAddressOffset(instance, address_index)
-    if instance.failure.problem != .None || source < 0 { return false }
-    address := instance.addresses[address_index]
-    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
-    if address.owned {
-        for index: cast(s64)0..count - 1 {
-            instance.storage[destination + index] = instance.owned[source + index]
-        }
-    } else if address.frame < 0 {
-        for index: cast(s64)0..count - 1 {
-            instance.storage[destination + index] = instance.globals[source + index]
-        }
-    } else {
-        for index: cast(s64)0..count - 1 {
-            instance.storage[destination + index] = instance.storage[source + index]
-        }
-    }
-    return true
-}
-
-ExecCopyStorageToAddress :: (instance: *LirExecInstance, source: s64,
-    address_index: s64, count: s64) -> bool {
-    if count < 0 || count > instance.addresses[address_index].extent { return ExecFail(instance, .Pointer) }
-    destination := ExecAddressOffset(instance, address_index)
-    if instance.failure.problem != .None || destination < 0 { return false }
-    address := instance.addresses[address_index]
-    if !address.writable { return ExecFail(instance, .Pointer) }
-    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
-    if address.owned {
-        for index: cast(s64)0..count - 1 {
-            instance.owned[destination + index] = instance.storage[source + index]
-        }
-    } else if address.frame < 0 {
-        for index: cast(s64)0..count - 1 {
-            instance.globals[destination + index] = instance.storage[source + index]
-        }
-    } else {
-        for index: cast(s64)0..count - 1 {
-            instance.storage[destination + index] = instance.storage[source + index]
-        }
-    }
-    return true
 }
 
 ExecCopyAddressToValue :: (instance: *LirExecInstance, address_index: s64,

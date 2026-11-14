@@ -233,8 +233,6 @@ TakeU64 :: (cursor: *Cursor) -> u64 {
     return value
 }
 
-TakeS64 :: (cursor: *Cursor) -> s64 { return cast(s64)TakeU64(cursor) }
-
 Layout :: struct { core_begin: s64; core_end: s64; debug_begin: s64; debug_end: s64; debug: bool }
 
 ReadLayout :: (input: string) -> (layout: Layout, result: LirCodecResult) {

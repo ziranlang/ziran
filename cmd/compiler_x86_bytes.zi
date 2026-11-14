@@ -147,10 +147,6 @@ X86Move :: (writer: *X86Writer, destination: s32, source: s32) {
     X86Encode(writer, 0, true, 137, 1, source, X86Direct(destination))
 }
 
-X86Move32 :: (writer: *X86Writer, destination: s32, source: s32) {
-    X86Encode(writer, 0, false, 137, 1, source, X86Direct(destination))
-}
-
 X86Add :: 1
 X86Or :: 9
 X86And :: 33

@@ -4,6 +4,8 @@
 
 - Document module initializers in the usage guide and lock their behavior with a test: a module-level variable whose initializer calls a procedure runs once before the entry on the C, Go and portable targets, importing a module is what includes it, and a module can register a procedure with another module that never imports it. A program without the import carries neither the module nor what only it reaches.
 
+- Revision-28 lowering adds `VecClone`, which fills a fresh destination with a copy whose capacity is the source's count. Seven procedures nothing called are removed from the portable interpreter, the executable reader and the native encoder.
+
 - Revision-28 lowering adds `VecGet` and `VecPop`, which answer an `Option`: `VecGet` copies an element and gives nothing at or past the count, `VecPop` moves the last element out and shortens the vector.
 
 - `ziran check` evaluates a law that reads a field of a record returned through another spelling of its type. A procedure declared `-> Pad.Hold` that forwards a `Hold` made in the imported module, or that returns an untyped `.{...}` literal, was "outside the compile-time evaluator"; the returned record is now matched by its declared type and the literal takes the return type.

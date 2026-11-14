@@ -257,21 +257,26 @@ Eighth batch, 2026-11-14: `VecGet` and `VecPop` build their `Option` (`has_value
 a negative `VecGet` index fails the run as it does on the portable VM
 (`tests/spec/zx_lowered_take.zi`). `tests/zx_lowered_parity.sh` pins 54 programs.
 
+Ninth batch, 2026-11-14: `VecClone` for elements that own no storage (the checker only allows a
+fresh destination), sharing the element loop with `VecResize`. Dead code audit of the assembly
+sources: the C files have no unused functions; seven Ziran procedures nothing called are removed
+(`ExecCopyGlobalToStorage`, `ExecCopyStorageToGlobal`, `ExecCopyAddressToStorage`,
+`ExecCopyStorageToAddress`, `TakeS64`, `ValueClass`, `X86Move32`).
+
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 79 | 63 |
+| `tests/spec` entries | 79 | 64 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
-No program is rejected by the verifier any more. First rejection of the 16 spec programs left:
+No program is rejected by the verifier any more. First rejection of the 15 spec programs left:
 
 | Count | Needs | Programs |
 |-------|-------|----------|
 | 8 | SIMD vector types (`u8x16`, `Simd.Splat`, `Simd.Load`) | `json_array_reuse_test` (2 entries), `json_scan_test` (2), `json_string_value_test`, `json_string_scan_test`, `json_document_lifetime_test`, `std_float_text` |
 | 3 | unions | `vm_inline_records_test`, `vm_scalar_plans_test`, `vm_storage_reads_test` |
-| 1 | `VecClone` | `vm_packed_arrays_test` |
 | 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
 | 1 | a long statement list (`unicode_normalization_cases.zi`): statement nesting budget | `unicode_normalization_test` |
 | 1 | long array literals in read-only data: lowering allocation budget | `unicode_conformance` |
@@ -305,9 +310,13 @@ Owner, 2026-11-14: "make sure you also remove any legacy code so we are not to o
 coed". Each change deletes what it replaces. The cutover deletes the semantic bundle writer and
 VM (`cmd/zir/zir_bundle*.c`, `zir_vm*.c`: about 12,800 lines) and the ZIR-based Wasm lowering
 (`cmd/zir-wasm/zir_wasm_lower.c`: 3,400 lines); item 4 of the table at the top then leaves one
-native encoder instead of two.
+native encoder instead of two. Neither can go earlier: `zi2wasm` and the bundle Wasm tier
+(`cmd/zir/zir_zx_wasm.c`) still call the old Wasm lowering, and its tests use SIMD, which
+revision 28 does not lower yet. `cmd/compiler_serial.zi` (1,147 lines) is built, imported and
+tested by nothing; it mirrors the C ZIR codec and reads like the next module of the self-hosted
+compiler, so it is left for the owner to decide.
 
-Not yet lowered: `VecResizeBounded`, `VecClone`, `VecGet` of elements that own storage, SIMD, union and map types,
+Not yet lowered: `VecResizeBounded`, `VecClone` and `VecGet` of elements that own storage, SIMD, union and map types,
 initializers that call procedures, indirect calls through fields.
 
 ### Wasm from revision-28 ZX

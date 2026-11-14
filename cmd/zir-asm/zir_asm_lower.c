@@ -2088,11 +2088,12 @@ assembly_free(AssemblyProgram *program, AssemblyFunction *function, const ZirExp
     return -1;
 }
 
-/* Store the zero value over elements [from, to) of a vector's block, dropping
- * each one first when `drop`. `bound` is the block's capacity. */
+/* Store over elements [from, to) of a vector's block, dropping each one
+ * first when `drop`: the element at the same index of the block `source`, or
+ * the zero value when `source` is negative. `bound` is the block's capacity. */
 static void
 assembly_vec_reset(AssemblyProgram *program, AssemblyFunction *function, int data, int from, int to,
-                   int bound, int element, int drop, ZirSourceSpan span)
+                   int bound, int element, int drop, int source, ZirSourceSpan span)
 {
     if(program->failed || function->current < 0) return;
     int pointer = assembly_pointer_type(program, element, span);
@@ -2118,7 +2119,13 @@ assembly_vec_reset(AssemblyProgram *program, AssemblyFunction *function, int dat
     if(drop)
         assembly_drop_value(program, function,
             assembly_emit(program, function, LirOp_Load, element, &slot, 1, -1, span), element, span, 0);
-    int store_operands[] = {slot, assembly_zero(program, function, element, span, 0)};
+    int stored;
+    if(source >= 0) {
+        int from_operands[] = {source, at, bound};
+        int from_slot = assembly_emit(program, function, LirOp_ElementAddress, pointer, from_operands, 3, -1, span);
+        stored = assembly_emit(program, function, LirOp_Load, element, &from_slot, 1, -1, span);
+    } else stored = assembly_zero(program, function, element, span, 0);
+    int store_operands[] = {slot, stored};
     assembly_emit(program, function, LirOp_Store, 0, store_operands, 2, -1, span);
     int next_operands[] = {at, assembly_constant(program, function, 8, 1, span)};
     ((AssemblyBinding *)function->bindings.data)[base].value =
@@ -2218,8 +2225,8 @@ assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, 
         int count = assembly_indexed(program, function, LirOp_Extract, 8, &vector, 1, 1, span);
         int room = assembly_indexed(program, function, LirOp_Extract, 8, &vector, 1, 2, span);
         if(assembly_owned(program, element, 0))
-            assembly_vec_reset(program, function, block, requested, count, room, element, 1, span);
-        assembly_vec_reset(program, function, block, count, requested, room, element, 0, span);
+            assembly_vec_reset(program, function, block, requested, count, room, element, 1, -1, span);
+        assembly_vec_reset(program, function, block, count, requested, room, element, 0, -1, span);
         int count_operands[] = {assembly_carried(function, carried), requested};
         ((AssemblyBinding *)function->bindings.data)[carried].value =
             assembly_indexed(program, function, LirOp_Insert, identity, count_operands, 2, 1, span);
@@ -2228,6 +2235,92 @@ assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, 
         if(program->failed) return -1;
         assembly_enter(function, finished, settled, all);
     }
+    int final = assembly_carried(function, carried);
+    int answer = assembly_carried(function, live);
+    function->bindings.count = carried;
+    assembly_vec_write(program, function, &place, final, span);
+    return answer;
+}
+
+/* VecClone(destination, source): the destination becomes a copy of the
+ * source's elements with exactly that many as its capacity, and what it held
+ * is dropped. When the copy cannot be allocated the answer is false and the
+ * destination is unchanged. */
+static int
+assembly_vec_clone(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int depth)
+{
+    ZirSourceSpan span = expression->span;
+    int first = expression->first_child;
+    int second = first >= 0 && first < function->source->expr_count ?
+        function->source->exprs[first].next_sibling : -1;
+    if(second < 0 || second >= function->source->expr_count)
+        return assembly_fail(program, span, "VecClone requires a destination and a source vector");
+    int identity = assembly_type(program, function, function->source->exprs[first].type, span);
+    int element = assembly_vec_element(program, identity);
+    if(program->failed) return -1;
+    if(element < 0) return assembly_fail(program, span, "VecClone requires an owned vector");
+    if(assembly_owned(program, element, 0))
+        return assembly_fail(program, span, "VecClone of elements that own storage is not lowered yet");
+    int pointer = assembly_pointer_type(program, element, span);
+    int source = assembly_convert(program, function,
+        assembly_expression(program, function, second, depth + 1), identity, span);
+    AssemblyVecPlace place;
+    int current = assembly_vec_read(program, function, first, identity, &place, span);
+    if(program->failed) return -1;
+    int from = assembly_indexed(program, function, LirOp_Extract, pointer, &source, 1, 0, span);
+    int count = assembly_indexed(program, function, LirOp_Extract, 8, &source, 1, 1, span);
+    int zero = assembly_constant(program, function, 8, 0, span);
+    int empty = assembly_emit(program, function, LirOp_Null, pointer, NULL, 0, -1, span);
+    int carried = assembly_carry(program, function, identity, current);
+    int live = function->bindings.count;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    AssemblyBinding *copied = assembly_template(program, before, live, pointer);
+    AssemblyBinding *answered = assembly_template(program, before, live, 1);
+    if(program->failed || before == NULL || copied == NULL || answered == NULL) return -1;
+    int allocate = assembly_block(program, function, before, live);
+    int nothing = assembly_block(program, function, before, live);
+    int copy = assembly_block(program, function, before, live);
+    int rejected = assembly_block(program, function, before, live);
+    int publish = assembly_block(program, function, copied, live + 1);
+    int done = assembly_block(program, function, answered, live + 1);
+    if(program->failed) return -1;
+    int some_operands[] = {zero, count};
+    int some = assembly_emit(program, function, LirOp_Less, 1, some_operands, 2, -1, span);
+    assembly_branch(program, function, some, allocate, nothing, live, span);
+
+    assembly_enter(function, nothing, before, live);
+    assembly_carry(program, function, pointer, empty);
+    assembly_jump(program, function, publish, live + 1, span);
+
+    assembly_enter(function, allocate, before, live);
+    int resize_operands[] = {empty, zero, count};
+    int block = assembly_emit(program, function, LirOp_Resize, pointer, resize_operands, 3, -1, span);
+    int failed_operands[] = {block, empty};
+    int failed = assembly_emit(program, function, LirOp_Equal, 1, failed_operands, 2, -1, span);
+    assembly_branch(program, function, failed, rejected, copy, live, span);
+
+    assembly_enter(function, rejected, before, live);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 0, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, copy, before, live);
+    assembly_vec_reset(program, function, block, zero, count, count, element, 0, from, span);
+    assembly_carry(program, function, pointer, block);
+    assembly_jump(program, function, publish, live + 1, span);
+
+    if(program->failed) return -1;
+    assembly_enter(function, publish, copied, live + 1);
+    int data = assembly_carried(function, live);
+    function->bindings.count = live;
+    assembly_drop_value(program, function, assembly_carried(function, carried), identity, span, 0);
+    int fields[] = {data, count, count};
+    ((AssemblyBinding *)function->bindings.data)[carried].value =
+        assembly_emit(program, function, LirOp_Aggregate, identity, fields, 3, -1, span);
+    assembly_carry(program, function, 1, assembly_constant(program, function, 1, 1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    if(program->failed) return -1;
+    assembly_enter(function, done, answered, live + 1);
     int final = assembly_carried(function, carried);
     int answer = assembly_carried(function, live);
     function->bindings.count = carried;
@@ -2801,6 +2894,8 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
                 !strcmp(expression->name, "VecResize"), depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSwap"))
             return assembly_vec_swap(program, function, expression);
+        if(!indirect && !strcmp(expression->name, "VecClone"))
+            return assembly_vec_clone(program, function, expression, depth + 1);
         if(!indirect && (!strcmp(expression->name, "VecGet") || !strcmp(expression->name, "VecPop")))
             return assembly_vec_take(program, function, expression, type,
                 !strcmp(expression->name, "VecGet"), depth + 1);

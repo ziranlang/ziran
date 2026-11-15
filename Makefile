@@ -585,7 +585,7 @@ $(NATIVE_NAMES_C)/.generated: cmd/compiler_native_names.zi cmd/compiler_ir.zi cm
 	    -o $(NATIVE_NAMES_C) cmd/compiler_native_names.zi
 	touch $@
 
-$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c) \
+$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c cmd/zi2c/zir_c_prune.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 	chmod 755 $@
@@ -609,7 +609,7 @@ ifneq ($(BOOTSTRAP),1)
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/vec.zi \
-    cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c cmd/zi2c/zir_c_prune.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
     cmd/compiler_native_names.zi \
     bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \

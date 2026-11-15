@@ -199,7 +199,7 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
     if(workers > MAX_EMIT_WORKERS) workers = MAX_EMIT_WORKERS;
     if(workers < 2 || DiagnosticJsonEnabled()) {
         for(int i = 0; i < count; i++)
-            if(!c_lower(progs[i], root, out_dir, syms, symbol_count, 0)) return 0;
+            if(!c_lower(progs[i], root, out_dir, syms, symbol_count, NULL)) return 0;
         return finish_simd_helpers(out_dir);
     }
     int recorded = 0;
@@ -220,7 +220,7 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
             for(int w = 0; w < started; w++) close(reports[w]);
             int lowered = 1;
             for(int i = started; lowered && i < count; i += workers)
-                lowered = c_lower(progs[i], root, out_dir, syms, symbol_count, 0);
+                lowered = c_lower(progs[i], root, out_dir, syms, symbol_count, NULL);
             for(int k = recorded; lowered && k < compiler_runtime_emit_GeneratedPathCount(); k++) {
                 const char *path = (const char *)compiler_runtime_emit_GeneratedPath(k);
                 lowered = write_all(pipes[1], path, strlen(path)) &&
@@ -419,23 +419,33 @@ main(int argc, char **argv)
             if(!c_build_syms(&view, &syms[i]))
                 goto done;
         }
-        if(!c_lower(linked, root, out_dir, syms, linked->module_count, 1))
+        const ZirModule *entry_owner = NULL;
+        const ZirFunction *entry_fn = NULL;
+        for(i = 0; i < linked->module_count && entry_fn == NULL; i++) {
+            if(strcmp(linked->modules[i].name, entry_module)) continue;
+            for(int f = 0; f < linked->modules[i].function_count; f++)
+                if(!strcmp(linked->modules[i].functions[f].name, entry_function)) {
+                    entry_owner = &linked->modules[i];
+                    entry_fn = &linked->modules[i].functions[f];
+                    break;
+                }
+        }
+        /* A program with its own C main is closed: only its generated files
+         * include its headers, so they keep just what those files use. A
+         * library keeps its whole interface for the C code that hosts it. */
+        int closed = exe;
+        for(i = 0; !closed && i < linked->module_count; i++)
+            for(int f = 0; !closed && f < linked->modules[i].function_count; f++)
+                closed = !linked->modules[i].functions[f].is_template &&
+                         NativeProgramMain(&linked->modules[i],
+                                           &linked->modules[i].functions[f]);
+        if(!c_lower(linked, root, out_dir, syms, linked->module_count,
+                    closed ? entry_fn : NULL))
             goto done;
         char wrapper[ZIR_PATH_MAX];
         snprintf(wrapper, sizeof(wrapper), "%s/ziran_exe_main.c", out_dir);
         remove(wrapper);
         if(exe) {
-            const ZirModule *entry_owner = NULL;
-            const ZirFunction *entry_fn = NULL;
-            for(i = 0; i < linked->module_count && entry_fn == NULL; i++) {
-                if(strcmp(linked->modules[i].name, entry_module)) continue;
-                for(int f = 0; f < linked->modules[i].function_count; f++)
-                    if(!strcmp(linked->modules[i].functions[f].name, entry_function)) {
-                        entry_owner = &linked->modules[i];
-                        entry_fn = &linked->modules[i].functions[f];
-                        break;
-                    }
-            }
             if(entry_fn == NULL) {
                 DiagnosticTarget((ZirSourceSpan){0}, "zir_c.entry", "c", "entry.signature",
                                  "--exe cannot find %s", entry);

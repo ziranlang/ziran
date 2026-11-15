@@ -359,6 +359,15 @@ including that module's header, so the header leaves out its copies.
 <code>-DZIRAN_NO_HEADER_INLINE</code> leaves out every module's copies, so all calls
 reach the external definitions; a test that interposes procedures at link
 time, as with <code>ld --wrap</code>, builds with it.</p>
+<p>A closed program, one linked with <code>--entry</code> that builds with <code>--exe</code> or has
+its own C <code>main</code>, carries only the code it uses. Its generated files are the
+only ones that include its headers, so each header declares just the types,
+procedures, constants, variables and foreign bindings that another generated
+file names. The module's own <code>.c</code> keeps whatever only it reads, a header copy
+stays only for a procedure another module calls, and a module whose header
+would declare nothing has no header. A library build, without <code>--exe</code> or a
+C <code>main</code>, keeps each header's whole public interface for the C code that
+hosts it.</p>
 <p><code>#inline</code> after a procedure's result asks generated C to always inline it:
 <code>Mix :: (value: s64) -&gt; s64 #inline { ... }</code>. GCC and Clang get
 <code>always_inline</code>, a public procedure's header copy is kept whatever its

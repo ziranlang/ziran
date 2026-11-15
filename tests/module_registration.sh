@@ -142,4 +142,52 @@ if "$ziran" build --target=go --pkg main --exe --root "$work" --entry host_start
     exit 1
 fi
 grep -Fq 'Go global startup cannot call a host before binding' "$work/host-startup.err"
+# A closed program's files carry only what the program uses. A module it
+# imports but never reaches has no files, and a header declares only what
+# another file names: shapes keeps Pair and Sum, which only it reads, and the
+# inline copy of Sum, which no other module calls, in no header.
+cat > "$work/shapes.zi" <<'ZI'
+Point :: struct { x: s32; y: s32; }
+Pair :: struct { a: s32; b: s32; }
+Sum :: (pair: Pair) -> s32 { return pair.a + pair.b }
+Total :: (point: Point) -> s32 #cold {
+    pair: Pair
+    pair.a = point.x
+    pair.b = point.y
+    return Sum(pair)
+}
+Twice :: (value: s32) -> s32 { return value * 2 }
+ZI
+cat > "$work/idle.zi" <<'ZI'
+Idle :: () -> s32 { return 7 }
+ZI
+cat > "$work/closed.zi" <<'ZI'
+Shapes :: #import "shapes";
+#import "idle"
+
+main :: () -> s32 {
+    point: Shapes.Point
+    point.x = 20
+    point.y = 22
+    print("%\n", Shapes.Total(point))
+    return 0
+}
+ZI
+out="$work/closed-c"
+"$ziran" build --target=c --exe --root "$work" --entry closed:main -o "$out" "$work/closed.zi"
+test "$("$out/closed")" = 42
+test ! -e "$out/idle.c"
+test ! -e "$out/idle.h"
+grep -q 'struct Point' "$out/shapes.h"
+grep -q 'shapes_Total' "$out/shapes.h"
+if grep -Eq 'Pair|shapes_Sum|shapes_Twice|ziran_inline' "$out/shapes.h"; then
+    echo 'shapes.h declares what only shapes.c uses' >&2
+    exit 1
+fi
+grep -q 'struct Pair' "$out/shapes.c"
+grep -q 'shapes_Sum' "$out/shapes.c"
+if grep -q 'shapes_Twice' "$out/shapes.c"; then
+    echo 'shapes.c defines a procedure the program never reaches' >&2
+    exit 1
+fi
 echo 'An imported module registers itself from its initializer; unimported modules are absent'

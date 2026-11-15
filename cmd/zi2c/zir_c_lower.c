@@ -3,6 +3,7 @@
  * Source input is checked .zi or saved .zir.
  */
 #include "zir_c_lower.h"
+#include "zir_c_prune.h"
 #include "zir_simd.h"
 #include "zir.h"
 #include "zir_scratch.h"
@@ -185,6 +186,11 @@ c_enum_member(const ZirModule *m, const ZirType *type, const char *member,
 static const ZirProgram *lowering_program;
 /* The SIMD helpers its generated files name, for its ziran_simd_ops.h. */
 static ZirSimdUses *lowering_simd;
+/* A closed program's marked texts, one per module, and its entry, which
+ * the executable wrapper calls. Headers and sources wait here until pruning
+ * knows what each header must declare; see zir_c_prune.h. */
+static ZirCPruneModule *lowering_prune;
+static const ZirFunction *lowering_entry;
 
 /* A host capability bound to an exported Ziran provider calls the
  * provider's C function, under whatever name collisions gave it. */
@@ -1263,6 +1269,42 @@ COMPILER_SCRATCH_VOID(static, emit_extern_prototype,
     EmitExternPrototypeBuffers, POOLED, free,
     emit_extern_prototype_with_buffers(c, m, imp, buffers))
 
+/* The C names emit_extern_prototype declares for IMP, space-separated. */
+static void
+extern_prototype_names(const ZirModule *m, const ZirImport *imp, char *names,
+                       size_t size)
+{
+    char symbol[LOWER_NAME_MAX];
+    char local[LOWER_NAME_MAX];
+    if(c_extern_symbol(imp, symbol, sizeof(symbol))) {
+        NativeCForeignName(m, imp, local, sizeof(local));
+        snprintf(names, size, "%s zir_foreign_%s", local, local);
+    } else if(bound_provider_c_name(imp, local, sizeof(local)))
+        snprintf(names, size, "%s", local);
+    else
+        snprintf(names, size, "%s", imp->name);
+}
+
+/* Opens one header declaration. A closed program marks it as a chunk
+ * for pruning to place; otherwise a HIDDEN declaration, which only the
+ * module's own source reads, goes behind the header's _PRIVATE guard. */
+static void
+header_declaration_open(FILE *h, int kind, const char *names, int hidden,
+                        const char *guard)
+{
+    if(lowering_prune != NULL)
+        PruneMark(h, kind, names);
+    else if(hidden)
+        fprintf(h, "#ifdef %s_PRIVATE\n", guard);
+}
+
+static void
+header_declaration_close(FILE *h, int hidden)
+{
+    if(lowering_prune == NULL && hidden)
+        fputs("#endif\n", h);
+}
+
 
 static int
 rewrite_global_scalar(const ZirModule *module, const char *source,
@@ -1927,8 +1969,6 @@ typedef struct LowerModuleBuffers {
     char guard[600];
     char hpath[1024];
     char cpath[1024];
-    char htemp[1100];
-    char ctemp[1100];
     char value[LOWER_GLOBAL_MAX];
     char raw[LOWER_TEXT_MAX];
     char member[LOWER_TEXT_MAX];
@@ -1942,7 +1982,7 @@ typedef struct LowerModuleBuffers {
 } LowerModuleBuffers;
 
 static int lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
-             int restab_count, const char *out_dir, int linked);
+             int restab_count, const char *out_dir);
 
 /* #inline and #cold attributes; other compilers see plain declarations. */
 static void
@@ -2041,9 +2081,14 @@ emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
         if(inline_text_ok(text, &names, fn->inlining == ZIR_INLINE_ALWAYS)) {
             const char *result = cret[0] ? cret : "void";
             const char *force = fn->inlining == ZIR_INLINE_ALWAYS ? "ZIRAN_ALWAYS_INLINE " : "";
+            /* Pruning keeps a copy only while another module calls it. */
+            if(lowering_prune != NULL)
+                PruneMark(declaration_file, PRUNE_INLINE, cname);
             fprintf(declaration_file, "static inline %s%s %s_ziran_inline(%s);\n"
                     "#define %s(...) %s_ziran_inline(__VA_ARGS__)\n",
                     force, result, cname, buffers->cargs, cname, cname);
+            if(lowering_prune != NULL)
+                PruneMark(body_file, PRUNE_INLINE_BODY, cname);
             fprintf(body_file, "\nstatic inline %s%s\n%s_ziran_inline(%s)\n{\n%s}\n",
                     force, result, cname, buffers->cargs, text);
             count++;
@@ -2055,24 +2100,16 @@ emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
     if(declaration_file == NULL) return 0;
     inline_stream_close(&declarations, &declaration_text);
     inline_stream_close(&bodies, &body_text);
-    if(count) {
-        size_t size = strlen(RUNTIME_INCLUDES_MARK) + strlen(NUMBER_HELPERS_MARK) +
-                      strlen(declaration_text) + strlen(body_text) + 1;
-        char *section = malloc(size);
-        if(section == NULL) { perror("malloc"); exit(1); }
-        snprintf(section, size, "%s%s%s%s", RUNTIME_INCLUDES_MARK, NUMBER_HELPERS_MARK,
-                 declaration_text, body_text);
-        /* ZIRAN_NO_HEADER_INLINE keeps every call on the external symbol,
-         * so link-time interposition such as ld --wrap still sees it. */
-        fprintf(h, "\n/* Small procedures other modules inline; %s.c defines them. */\n"
-                   "#if !defined(__cplusplus) && !defined(%s_SOURCE) && "
-                   "!defined(ZIRAN_NO_HEADER_INLINE)\n",
-                buffers->stem, buffers->guard);
-        if(ModuleUsesVecOperations(m))
-            fputs("#include \"zir_vec.h\"\n", h);
-        if(EmitNativeHelpers(h, section, lowering_simd) != 0) { perror("inline header"); exit(1); }
-        fputs("#endif\n", h);
-        free(section);
+    /* A closed program writes the section once pruning has chosen
+     * the copies it keeps. */
+    if(count && lowering_prune != NULL) {
+        fputs(declaration_text, h);
+        fputs(body_text, h);
+    } else if(count && HeaderInlineSection(h, buffers->stem, buffers->guard,
+                                           ModuleUsesVecOperations(m), declaration_text,
+                                           body_text, lowering_simd) != 0) {
+        perror("inline header");
+        exit(1);
     }
     free(declaration_text);
     free(body_text);
@@ -2130,9 +2167,58 @@ header_fields(FILE *h, const ZirModule *m, const ZirType *ty,
     }
 }
 
+/* A copy of TEXT the caller frees. */
+static char *
+owned_text(const char *text)
+{
+    size_t size = strlen(text) + 1;
+    char *copy = AllocateOrExit(size);
+    memcpy(copy, text, size);
+    return copy;
+}
+
+/* Writes one generated file of M with its runtime includes and helpers
+ * resolved, then the runtime headers it includes. A SPLIT source also gets
+ * the tier units that compile its clones. */
+static int
+write_module_file(const ZirModule *m, const char *out_dir, const char *path,
+                  const char *text, int source, int split)
+{
+    const char *what = source ? "source" : "header";
+    char temp[1100];
+    FILE *file = GeneratedOutputOpen(path, temp, sizeof(temp));
+    if(file == NULL) {
+        Diagnostic(m->span, "zir_c.global", "cannot create C %s output: %s", what, path);
+        return 0;
+    }
+    int failed = EmitNativeHelpers(file, text, lowering_simd);
+    if(fclose(file) != 0) failed = -1;
+    if(failed != 0) {
+        remove(temp);
+        Diagnostic(m->span, "zir_c.global", "cannot finish C %s output: %s", what, path);
+        return 0;
+    }
+    if(GeneratedOutputReplace(temp, path) != 0) {
+        Diagnostic(m->span, "zir_c.global", "cannot replace C %s output: %s", what, path);
+        return 0;
+    }
+    if(!compiler_runtime_emit_EmitRuntimeHeaders(StringView(out_dir, strlen(out_dir)),
+                                                 StringView(path, strlen(path)), lowering_simd)) {
+        Diagnostic(m->span, "zir_c.global", "cannot write runtime headers beside %s", path);
+        return 0;
+    }
+    for(size_t t = 0; split && t < sizeof(simd_tiers) / sizeof(simd_tiers[0]); t++)
+        if(!write_tier_unit(m, path, simd_tiers[t].name, simd_tiers[t].tier)) {
+            Diagnostic(m->span, "zir_c.global", "cannot write the %s unit beside %s",
+                       simd_tiers[t].name, path);
+            return 0;
+        }
+    return 1;
+}
+
 static int
 lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
-             int restab_count, const char *out_dir, int linked, LowerModuleBuffers *buffers)
+             int restab_count, const char *out_dir, LowerModuleBuffers *buffers)
 {
     FILE *h;
     FILE *c;
@@ -2160,15 +2246,28 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     fprintf(h, "/* Generated by zi2c from %s. */\n", m->source_path);
     fprintf(h, "#ifndef %s\n#define %s\n\n", buffers->guard, buffers->guard);
     fputs(RUNTIME_INCLUDES_MARK, h);
+    /* Pruning keeps each helper in whichever file names it. */
+    int pruned = lowering_prune != NULL;
+    if(pruned)
+        PruneMark(h, PRUNE_HELPER, "ZIRAN_ALWAYS_INLINE ZIRAN_COLD");
     emit_inlining_attributes(h, m);
-    if(ModuleUsesSlices(m))
+    if(ModuleUsesSlices(m)) {
+        if(pruned)
+            PruneMark(h, PRUNE_HELPER, "Slice SliceIndex SliceRange SliceRangeAt");
         fputs("#include \"zir_slice.h\"\n", h);
+    }
     /* Declarations need only the vector types; bodies include the
      * operations where they call them. */
-    if(ModuleHeaderUsesVectors(m))
+    if(ModuleHeaderUsesVectors(m)) {
+        if(pruned)
+            PruneMark(h, PRUNE_HELPER, NULL);
         fputs("#include \"ziran_simd_types.h\"\n", h);
+    }
     const ZirCHeaderUses *uses = header_table.nodes[header_node(m)].uses;
-    for(i = 0; i < uses->count; i++) {
+    /* A pruned header includes just the module headers its kept text names. */
+    if(pruned)
+        PruneMark(h, PRUNE_MODULES, NULL);
+    for(i = 0; !pruned && i < uses->count; i++) {
         int use = uses->items[i].use;
         char stem[ZIR_PATH_MAX];
         stem_from_source(uses->items[i].module->source_path, stem, sizeof(stem));
@@ -2178,6 +2277,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     }
     /* C modules can be embedded by C++ hosts; their exported symbols must
      * retain C linkage when the generated header is included by C++. */
+    if(pruned)
+        PruneMark(h, PRUNE_FRAME, NULL);
     fputs("\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n", h);
     /* Compile-time constants first: headers reference them in
      * array bounds and extern declarations, and other modules use them
@@ -2190,7 +2291,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         if(!one_string_literal(d->value) && DefineIsAggregate(m, d))
             continue;
         TargetDefineName(m, ZIR_C, d->name, name, sizeof(name));
-        if(!d->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+        header_declaration_open(h, PRUNE_DECLARATION, name, !d->is_public, buffers->guard);
         if(one_string_literal(d->value)) {
             /* A string constant takes the C spelling string expressions
              * use: ASCII, with no ?? that strict C would read as a trigraph. */
@@ -2203,7 +2304,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             EmitStringLiteral(&expr, ZIR_C, literal, capacity);
             fprintf(h, "#define %s %s\n", name, literal);
             free(literal);
-            if(!d->is_public) fputs("#endif\n", h);
+            header_declaration_close(h, !d->is_public);
             continue;
         }
         if(!rewrite_body2(m, NULL, 0, d->value, buffers->value, sizeof(buffers->value)))
@@ -2214,7 +2315,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         if(!c_integer_spellings(buffers->value, sizeof(buffers->value)))
             c_rewrite_overflow(m->source_path, d->span.line);
         fprintf(h, "#define %s %s\n", name, buffers->value);
-        if(!d->is_public) fputs("#endif\n", h);
+        header_declaration_close(h, !d->is_public);
     }
     unsigned char *visible = header_visible_types(m);
     /* Stored procedure values may appear in record fields and in #c_call
@@ -2226,7 +2327,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         NativeTypeName(m, ty, native, sizeof(native));
         if(!ty->is_extern && !ty->is_record_template &&
            !ty->is_procedure_type && !ty->is_enum) {
-            if(!visible[i]) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+            header_declaration_open(h, PRUNE_DECLARATION, native, !visible[i], buffers->guard);
             /* One checked type application can occur in several module
              * headers. C99 requires its typedef to be declared only once. */
             if(ty->is_synthetic_application)
@@ -2237,7 +2338,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             if(ty->is_abi_incomplete)
                 fprintf(h, "#pragma ziran abi_incomplete %s\n", native);
             if(ty->is_synthetic_application) fputs("#endif\n", h);
-            if(!visible[i]) fputs("#endif\n", h);
+            header_declaration_close(h, !visible[i]);
         }
         if(ty->is_enum) {
             const char *backing = enum_storage_type(ty->enum_backing);
@@ -2245,6 +2346,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 Diagnostic(ty->span, "zir_c.enum", "invalid enum backing type");
                 exit(1);
             }
+            header_declaration_open(h, PRUNE_DECLARATION, native, 0, buffers->guard);
             fprintf(h, "typedef %s %s;\n", backing, native);
         }
     }
@@ -2252,9 +2354,11 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         const ZirType *slot = &m->types[i];
         if(!slot->is_procedure_type)
             continue;
-        if(!visible[i]) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+        char slot_name[LOWER_NAME_MAX * 2];
+        resolve_slot_type((void *)m, slot->name, slot_name, sizeof(slot_name));
+        header_declaration_open(h, PRUNE_DECLARATION, slot_name, !visible[i], buffers->guard);
         EmitSlotType(h, slot, ZIR_C, resolve_slot_type, (void *)m);
-        if(!visible[i]) fputs("#endif\n", h);
+        header_declaration_close(h, !visible[i]);
     }
     for(i = 0; i < m->type_count; i++) {
         const ZirType *ty = &m->types[i];
@@ -2264,7 +2368,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             continue;
         if(ty->is_procedure_type)
             continue;
-        if(!visible[i]) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+        /* An enum's members name its chunk; they follow as name marks. */
+        header_declaration_open(h, PRUNE_DECLARATION, ty->is_enum ? NULL : native,
+                                !visible[i], buffers->guard);
         if(ty->is_enum) {
             const char *backing = enum_storage_type(ty->enum_backing);
             if(backing == NULL) {
@@ -2300,6 +2406,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                             if(!c_enum_member(m, ty, buffers->member, buffers->mapped,
                                               sizeof(buffers->mapped)))
                                 c_rewrite_overflow(m->source_path, ty->span.line);
+                            if(pruned)
+                                PruneMark(h, PRUNE_NAME, buffers->mapped);
                             fprintf(h, "    %s%s,\n", buffers->mapped,
                                     buffers->raw + member_length);
                         }
@@ -2308,7 +2416,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 }
             }
             fprintf(h, "};\n");
-            if(!visible[i]) fputs("#endif\n", h);
+            header_declaration_close(h, !visible[i]);
             continue;
         }
         if(ty->is_synthetic_application)
@@ -2321,7 +2429,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         header_fields(h, m, ty, buffers, "    ", 0);
         fprintf(h, "};\n");
         if(ty->is_synthetic_application) fputs("#endif\n", h);
-        if(!visible[i]) fputs("#endif\n", h);
+        header_declaration_close(h, !visible[i]);
     }
     free(visible);
     /* Public file-scope variables have external linkage: declare extern in the header,
@@ -2345,6 +2453,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 snprintf(suffix, sizeof(suffix), "%s", tmps);
             }
         }
+        header_declaration_open(h, PRUNE_DECLARATION, name, 0, buffers->guard);
         fprintf(h, "%sextern %s %s%s;\n",
                 TypeHasZeroArray(m, g->type) ? "__extension__ " : "",
                 buffers->base, name, suffix);
@@ -2355,6 +2464,11 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         if(imp->kind != ZIR_IMPORT_EXTERN || !imp->is_public ||
            imp->signature[0] == '\0')
             continue;
+        if(pruned) {
+            char names[LOWER_NAME_MAX * 3];
+            extern_prototype_names(m, imp, names, sizeof(names));
+            PruneMark(h, PRUNE_DECLARATION, names);
+        }
         emit_extern_prototype(h, m, imp);
     }
     for(i = 0; i < m->function_count; i++) {
@@ -2373,6 +2487,15 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             symbol = fn->export_symbol[0] ? fn->export_symbol : fn->name;
             if(!strcmp(cname, symbol)) symbol = NULL;
         }
+        if(pruned) {
+            /* Code outside the program calls its main, its entry and its
+             * exports through this header. */
+            char names[LOWER_NAME_MAX * 2 + 2];
+            snprintf(names, sizeof(names), "%s%s%s", cname, symbol ? " " : "",
+                     symbol ? symbol : "");
+            PruneMark(h, NativeProgramMain(m, fn) || fn->exported || fn == lowering_entry ?
+                      PRUNE_ROOT : PRUNE_DECLARATION, names);
+        }
         if(symbol != NULL)
             EmitSymbolDeclaration(h, cret[0] ? cret : "void", cname,
                                   buffers->cargs, symbol);
@@ -2383,6 +2506,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             EmitNativeMainDeclaration(h);
     }
     int inlines = emit_header_inlines(h, m, restab, restab_count, buffers);
+    if(pruned)
+        PruneMark(h, PRUNE_END, NULL);
     fprintf(h, "\n#ifdef __cplusplus\n}\n#endif\n\n#endif /* %s */\n", buffers->guard);
     int header_error = ferror(h);
     if(TextStreamClose(&header_stream) != 0) header_error = 1;
@@ -2391,30 +2516,17 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         Diagnostic(m->span, "zir_c.global", "cannot finish C header output: %s", buffers->hpath);
         return 0;
     }
-    h = GeneratedOutputOpen(buffers->hpath, buffers->htemp, sizeof(buffers->htemp));
-    if(h == NULL) {
+    ZirCPruneModule *prune = pruned ? &lowering_prune[m - lowering_program->modules] : NULL;
+    if(prune != NULL) {
+        prune->stem = owned_text(buffers->stem);
+        prune->guard = owned_text(buffers->guard);
+        prune->vector_operations = ModuleUsesVecOperations(m);
+        prune->header = header_text;
+    } else {
+        int written = write_module_file(m, out_dir, buffers->hpath, header_text, 0, 0);
         free(header_text);
-        Diagnostic(m->span, "zir_c.global", "cannot create C header output: %s", buffers->hpath);
-        return 0;
-    }
-    header_error = EmitNativeHelpers(h, header_text, lowering_simd);
-    free(header_text);
-    if(fclose(h) != 0) header_error = -1;
-    if(header_error != 0) {
-        remove(buffers->htemp);
-        Diagnostic(m->span, "zir_c.global", "cannot finish C header output: %s", buffers->hpath);
-        return 0;
-    }
-    if(GeneratedOutputReplace(buffers->htemp, buffers->hpath) != 0) {
-        Diagnostic(m->span, "zir_c.global",
-                   "cannot replace C header output: %s", buffers->hpath);
-        return 0;
-    }
-    if(!compiler_runtime_emit_EmitRuntimeHeaders(StringView(out_dir, strlen(out_dir)),
-                                                 StringView(buffers->hpath, strlen(buffers->hpath)), lowering_simd)) {
-        Diagnostic(m->span, "zir_c.global",
-                   "cannot write runtime headers beside %s", buffers->hpath);
-        return 0;
+        if(!written)
+            return 0;
     }
     /* Type-only modules have a header but no translation unit to compile. */
     if(m->function_count == 0 && m->global_count == 0 &&
@@ -2433,14 +2545,20 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     fprintf(c, "/* Generated by zi2c from %s. */\n", m->source_path);
     /* The module's own source keeps the one definition of each inline copy,
      * even when a system header includes this module's header first. */
-    if(inlines)
+    if(inlines && pruned)
+        fputs(PRUNE_SOURCE_MARK, c);
+    else if(inlines)
         fprintf(c, "#define %s_SOURCE 1\n", buffers->guard);
     /* Runtime declarations precede public macros such as FILE. */
     fputs(RUNTIME_INCLUDES_MARK, c);
     if(ModuleUsesVecOperations(m))
         fputs("#include \"zir_vec.h\"\n", c);
-    /* The module's own source sees its header's private declarations. */
-    if(header_has_private(m))
+    /* The module's own source sees its header's private declarations. A
+     * pruned source instead takes the headers it names and the
+     * declarations only it reads. */
+    if(pruned)
+        fputs(PRUNE_INCLUDES_MARK, c);
+    else if(header_has_private(m))
         fprintf(c, "#define %s_PRIVATE 1\n#include \"%s.h\"\n#undef %s_PRIVATE\n",
                 buffers->guard, buffers->stem, buffers->guard);
     else
@@ -2449,7 +2567,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     fputs(CONSTANT_TABLES_MARK, c);
     EmitConstantTablesBegin(buffers->guard, ZIR_C);
     /* Private-scope imports include here (implementation-only). */
-    for(i = 0; i < m->import_count; i++) {
+    for(i = 0; !pruned && i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];
         if(imp->required || (imp->kind != ZIR_IMPORT_OPEN &&
                              imp->kind != ZIR_IMPORT_MODULE))
@@ -2466,7 +2584,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             continue;
         emit_extern_prototype(c, m, imp);
     }
-    emit_inlining_attributes(c, m);
+    /* A pruned source takes the attribute macros from its header chunk. */
+    if(!pruned)
+        emit_inlining_attributes(c, m);
     for(i = 0; i < m->function_count && !targets; i++)
         if(m->functions[i].simd_target && !m->functions[i].is_template &&
            !m->functions[i].is_extern) {
@@ -2725,40 +2845,18 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         free(source_text);
         source_text = joined;
     }
-    c = GeneratedOutputOpen(buffers->cpath, buffers->ctemp, sizeof(buffers->ctemp));
-    int finished = c ? EmitNativeHelpers(c, source_text, lowering_simd) : -1;
+    if(prune != NULL) {
+        prune->source = source_text;
+        return 1;
+    }
+    int written = write_module_file(m, out_dir, buffers->cpath, source_text, 1, split);
     free(source_text);
-    if(c && fclose(c) != 0) finished = -1;
-    if(finished != 0) {
-        remove(buffers->ctemp);
-        Diagnostic(m->span, "zir_c.global",
-                   "cannot finish C source output: %s", buffers->cpath);
-        return 0;
-    }
-    if(GeneratedOutputReplace(buffers->ctemp, buffers->cpath) != 0) {
-        Diagnostic(m->span, "zir_c.global",
-                   "cannot replace C source output: %s", buffers->cpath);
-        return 0;
-    }
-    if(!compiler_runtime_emit_EmitRuntimeHeaders(StringView(out_dir, strlen(out_dir)),
-                                                 StringView(buffers->cpath, strlen(buffers->cpath)), lowering_simd)) {
-        Diagnostic(m->span, "zir_c.global",
-                   "cannot write runtime headers beside %s", buffers->cpath);
-        return 0;
-    }
-    for(size_t t = 0; split && t < sizeof(simd_tiers) / sizeof(simd_tiers[0]); t++)
-        if(!write_tier_unit(m, buffers->cpath, simd_tiers[t].name, simd_tiers[t].tier)) {
-            Diagnostic(m->span, "zir_c.global",
-                       "cannot write the %s unit beside %s", simd_tiers[t].name,
-                       buffers->cpath);
-            return 0;
-        }
-    return 1;
+    return written;
 }
 
 static int
 lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
-             int restab_count, const char *out_dir, int linked)
+             int restab_count, const char *out_dir)
 {
     static const char scratch_key;
     static _Thread_local CompilerScratchCache scratch_cache;
@@ -2767,16 +2865,120 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
     LowerModuleBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     uint64_t profile_started = ProfileStart();
-    int returned = lower_module_with_buffers(m, restab, restab_count, out_dir, linked, buffers);
+    int returned = lower_module_with_buffers(m, restab, restab_count, out_dir, buffers);
     ProfileEnd("emit.c", profile_started);
     if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
 
+/* Where module M sits in PROGRAM, or -1 for a module outside it. */
+static int
+program_module_index(const ZirProgram *program, const ZirModule *m)
+{
+    if(m == NULL || m < program->modules || m >= program->modules + program->module_count)
+        return -1;
+    return (int)(m - program->modules);
+}
+
+/* The modules whose headers a file could read before pruning, in include
+ * order: STARTS, then the public includes of each header in turn. */
+static int *
+include_scope(const ZirProgram *program, const ZirModule *self,
+              const ZirModule *const *starts, int start_count, int *count)
+{
+    int total = program->module_count;
+    int *scope = AllocateOrExit((size_t)(total > 0 ? total : 1) * sizeof(*scope));
+    unsigned char *seen = AllocateOrExit((size_t)(total > 0 ? total : 1));
+    memset(seen, 0, (size_t)(total > 0 ? total : 1));
+    int length = 0;
+    int index = program_module_index(program, self);
+    if(index >= 0)
+        seen[index] = 1;
+    for(int i = 0; i < start_count; i++) {
+        index = program_module_index(program, starts[i]);
+        if(index >= 0 && !seen[index]) {
+            seen[index] = 1;
+            scope[length++] = index;
+        }
+    }
+    for(int head = 0; head < length; head++) {
+        const ZirCHeaderUses *uses =
+            header_table.nodes[header_node(&program->modules[scope[head]])].uses;
+        for(int i = 0; i < uses->count; i++) {
+            index = program_module_index(program, uses->items[i].module);
+            if(uses->items[i].use == 1 && index >= 0 && !seen[index]) {
+                seen[index] = 1;
+                scope[length++] = index;
+            }
+        }
+    }
+    free(seen);
+    *count = length;
+    return scope;
+}
+
+/* Records what each header and source of M could read before pruning: the
+ * header its public includes, and the source every include the module
+ * header and its own private imports gave it. */
+static void
+prune_scopes(const ZirProgram *program, const ZirModule *m, ZirCPruneModule *prune)
+{
+    const ZirCHeaderUses *uses = header_table.nodes[header_node(m)].uses;
+    int capacity = uses->count + m->import_count;
+    const ZirModule **starts = AllocateOrExit((size_t)(capacity > 0 ? capacity : 1) *
+                                              sizeof(*starts));
+    int count = 0;
+    for(int i = 0; i < uses->count; i++)
+        if(uses->items[i].use == 1)
+            starts[count++] = uses->items[i].module;
+    prune->header_scope = include_scope(program, m, starts, count,
+                                        &prune->header_scope_count);
+    count = 0;
+    for(int i = 0; i < uses->count; i++)
+        starts[count++] = uses->items[i].module;
+    for(int i = 0; i < m->import_count; i++)
+        if(m->imports[i].kind == ZIR_IMPORT_OPEN || m->imports[i].kind == ZIR_IMPORT_MODULE)
+            starts[count++] = m->imports[i].resolved_module;
+    prune->source_scope = include_scope(program, m, starts, count,
+                                        &prune->source_scope_count);
+    free(starts);
+}
+
+/* Prunes a closed program's lowered texts and writes its files. */
+static int
+write_pruned_program(const ZirProgram *program, const char *out_dir)
+{
+    int count = program->module_count;
+    for(int i = 0; i < count; i++)
+        prune_scopes(program, &program->modules[i], &lowering_prune[i]);
+    if(!PruneProgram(lowering_prune, count, lowering_simd)) {
+        Diagnostic(program->modules[0].span, "zir_c.global",
+                   "cannot prune the C output in %s", out_dir);
+        return 0;
+    }
+    for(int i = 0; i < count; i++) {
+        const ZirModule *m = &program->modules[i];
+        const ZirCPruneModule *prune = &lowering_prune[i];
+        char path[1100];
+        if(prune->final_header != NULL) {
+            snprintf(path, sizeof(path), "%s/%s.h", out_dir, prune->stem);
+            if(!write_module_file(m, out_dir, path, prune->final_header, 0, 0))
+                return 0;
+        }
+        if(prune->final_source != NULL) {
+            snprintf(path, sizeof(path), "%s/%s.c", out_dir, prune->stem);
+            if(!write_module_file(m, out_dir, path, prune->final_source, 1,
+                                  module_splits_tiers(m)))
+                return 0;
+        }
+    }
+    return 1;
+}
+
 int
 c_lower_in_context(const ZirProgram *program, const char *root, const char *out_dir,
-        const ZirCModuleSyms *restab, int restab_count, int linked)
+        const ZirCModuleSyms *restab, int restab_count, const ZirFunction *entry)
 {
     int i;
 
@@ -2794,12 +2996,28 @@ c_lower_in_context(const ZirProgram *program, const char *root, const char *out_
     ZirSimdUses simd = {0};
     lowering_program = program;
     lowering_simd = &simd;
+    /* A closed program's files wait for pruning. */
+    if(entry != NULL) {
+        size_t size = (size_t)(program->module_count > 0 ? program->module_count : 1) *
+                      sizeof(*lowering_prune);
+        lowering_prune = AllocateOrExit(size);
+        memset(lowering_prune, 0, size);
+        lowering_entry = entry;
+    }
     header_table_open(restab, restab_count);
     int lowered = 1;
     for(i = 0; lowered && i < program->module_count; i++)
-        lowered = lower_module(&program->modules[i], restab, restab_count,
-                               out_dir, linked);
+        lowered = lower_module(&program->modules[i], restab, restab_count, out_dir);
+    if(lowered && lowering_prune != NULL)
+        lowered = write_pruned_program(program, out_dir);
     header_table_close();
+    if(lowering_prune != NULL) {
+        for(i = 0; i < program->module_count; i++)
+            PruneModuleFree(&lowering_prune[i]);
+        free(lowering_prune);
+    }
+    lowering_prune = NULL;
+    lowering_entry = NULL;
     lowering_program = NULL;
     lowering_simd = NULL;
     /* Every file is out, so the program's helpers are known. */
@@ -2881,10 +3099,10 @@ c_free_syms(ZirCModuleSyms *syms, int count)
     }
 }
 
-int c_lower(const ZirProgram *program, const char *root, const char *out_dir, const ZirCModuleSyms *restab, int restab_count, int linked)
+int c_lower(const ZirProgram *program, const char *root, const char *out_dir, const ZirCModuleSyms *restab, int restab_count, const ZirFunction *entry)
 {
     CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
-    int result = c_lower_in_context(program, root, out_dir, restab, restab_count, linked);
+    int result = c_lower_in_context(program, root, out_dir, restab, restab_count, entry);
     CompilerContextSelect(previous);
     return result;
 }

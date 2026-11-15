@@ -407,6 +407,16 @@ including that module's header, so the header leaves out its copies.
 reach the external definitions; a test that interposes procedures at link
 time, as with `ld --wrap`, builds with it.
 
+A closed program, one linked with `--entry` that builds with `--exe` or has
+its own C `main`, carries only the code it uses. Its generated files are the
+only ones that include its headers, so each header declares just the types,
+procedures, constants, variables and foreign bindings that another generated
+file names. The module's own `.c` keeps whatever only it reads, a header copy
+stays only for a procedure another module calls, and a module whose header
+would declare nothing has no header. A library build, without `--exe` or a
+C `main`, keeps each header's whole public interface for the C code that
+hosts it.
+
 `#inline` after a procedure's result asks generated C to always inline it:
 `Mix :: (value: s64) -> s64 #inline { ... }`. GCC and Clang get
 `always_inline`, a public procedure's header copy is kept whatever its

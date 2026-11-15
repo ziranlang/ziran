@@ -138,7 +138,11 @@ output, and AArch64 encodes machine code but has no AOT ELF writer. The revision
 boundary are implemented. On Omega on 2026-11-15, with native as the
 linux-x86_64 default, a clean clone of master passes `make check-bootstrap` and
 265/266 of the full `make check`. The one failure is `zstd_go`, which needs
-Go 1.25 (Omega has 1.24.4). The earlier physical-Alpha 275/276 and 274-check
+Go 1.25 (Omega has 1.24.4). Native code does not re-check a pointer's element
+type: the load-time verifier makes a wrong-type access unrepresentable, and
+`tests/verified_loading_cases.zi` shows a retyped load refused by the reader,
+`zi2zx run` and `zx2native` before any native code (M3 step 2, closed). With
+that, M3 is complete apart from interim comparison 2. The earlier physical-Alpha 275/276 and 274-check
 results remain historical, not the current full-suite claim. M0's Alpha
 physical-host baseline and M1's interim comparisons exist; see the
 [baseline](../bench/zx_compare.md#interim-comparison-1-new-portable-engine-2026-11-12)

@@ -100,6 +100,12 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
         VecPush(result, CheckPath(bin, name))
         return result
     }
+    if name == "verified_loading_cases.zi" {
+        command := string.[CheckPath(bin, "ziran"), "run", "--target=c", "--root", tests,
+            "--module-path", CheckPath(repo, "cmd"), CheckPath(tests, name), "--", CheckPath(bin, "ziran")]
+        for argument: command { VecPush(result, argument) }
+        return result
+    }
     if name == "artifact_consumer_cases.zi" || name == "native_disk_cache_cases.zi" {
         VecPush(result, CheckPath(bin, "ziran"))
         VecPush(result, "run")
@@ -160,6 +166,9 @@ DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) 
     }
     if TextContains("native_disk_cache_cases.zi", filter) {
         VecPush(checks, CheckCase.{.name = "native_disk_cache_cases.zi"})
+    }
+    if TextContains("verified_loading_cases.zi", filter) {
+        VecPush(checks, CheckCase.{.name = "verified_loading_cases.zi"})
     }
     if TextContains("temp_arena_cases.zi", filter) {
         VecPush(checks, CheckCase.{.name = "temp_arena_cases.zi", .cost = 2})

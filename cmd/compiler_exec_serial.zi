@@ -765,6 +765,13 @@ OwnedProgram :: (owner: *LirReadOwner) -> LirProgram {
 LirWrite :: (program: LirProgram, output: []u8) -> LirCodecResult {
     diagnostic := LirVerify(program, LirDefaultLimits())
     if diagnostic.problem != .None { return .{problem = .Verify, diagnostic = diagnostic} }
+    return LirWriteUnverified(program, output)
+}
+
+// Encodes PROGRAM without verifying it. Every reader verifies what it
+// decodes, so this writes nothing an untrusted producer could not; tests use
+// it to show that readers, not writers, keep unverified programs out.
+LirWriteUnverified :: (program: LirProgram, output: []u8) -> LirCodecResult {
     core: Writer
     WriteCore(*core, program)
     if core.problem != .None { return .{problem = core.problem} }

@@ -248,6 +248,10 @@ text, result := ReadEntireFileCapped("notes.txt", 1048576)
 
 - Engine-side check elision (portable interpreter in `cmd/compiler_exec.zi`)
   is unmeasured and out of scope here; it can reuse the same LIR fact later.
+  The first candidate is the engine's per-access pointer element-type check:
+  M3 step 2 closed it for native code as discharged by the load-time
+  verifier (`tests/verified_loading_cases.zi`), so the engine re-checks a
+  fact verified programs already guarantee. Keep it until this step decides.
 - AArch64 gets the same resolve elision only after the native lane's stage 5
   lands its encoding (per the checked-pointers plan).
 - Whether read-only global bytes should also skip per-access writability

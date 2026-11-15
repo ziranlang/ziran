@@ -99,7 +99,25 @@ benchmarks, docs and harness work.
 - Done: the focused check passes with the trap case native; the printed line is
   truthful. This also closes M2's last exit item.
 
-### Step 2 - Pointer element-type check in native (engine-parity leftover)
+### Step 2 - Pointer element-type check in native (engine-parity leftover) — closed 2026-11-15 by the verifier
+
+Decision: no runtime check. Native code compiles only programs that the
+reader verified, and the verifier makes a load, store or derived address
+through a pointer of the wrong element type unrepresentable. `Convert` and
+`Bitcast` take only numeric (and bool/integer) types, so LIR has no pointer
+casts. `FieldAddress`, `ElementAddress`, views, `Load`, `Store` and platform
+pointers are typed against the pointee. There are no unions, a stale token
+fails its slot version, and host-returned views get slots typed by their
+declared result. A source `cast(*T)` is rejected before any ZX is written.
+`tests/verified_loading_cases.zi` checks this. A source-built bundle whose
+load is retyped to another integer width, then encoded and framed without
+verification as any producer could, is refused by the reader, by
+`zi2zx run` and by `zx2native`, with a verifier diagnostic and before any
+native code exists. The same test shows that a source pointer cast never
+reaches ZX. The engine's own runtime element-type check stays for now; it is
+a candidate for trust-tier elision (`plans/2026-11-15-trust-tiers.md`,
+step 1). The original plan follows for the record.
+
 
 - Owner: Claude/Codex. Size: L.
 - Behavior: native loads/stores/BytesEqual through a pointer token verify the

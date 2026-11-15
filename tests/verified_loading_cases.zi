@@ -1,0 +1,104 @@
+// Native code trusts a pointer's static element type because the loader
+// verifies every program it reads. A well-framed ZX whose load reads a
+// pointer as the wrong type is refused by the reader, by `zi2zx run` and by
+// zx2native before any native code exists, and a source pointer cast never
+// reaches ZX.
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Bundle :: #import "compiler_bundle"
+using Link :: #import "compiler_exec_link"
+using Lir :: #import "compiler_lowered_ir"
+using Serial :: #import "compiler_exec_serial"
+using Verify :: #import "compiler_lowered_verify"
+using Vectors :: #import "std/vec"
+
+// GOOD, from source, loads a global through a pointer. The returned path
+// holds the same program with that load's value retyped to another integer
+// width, encoded and framed without verification as any producer could.
+Retyped :: (test: *NativeTest, good: string, path: string) -> bool {
+    bytes := NativeRead(test, good)
+    owner: Link.ZxExecOwner
+    defer Link.ZxExecReadFree(*owner)
+    read := Link.ZxExecRead(*owner, bytes, Lir.LirDefaultLimits())
+    if !NativeAssert(test, read.problem == .None, "read the source-built bundle") { return false }
+    program := Link.ZxExecReadProgram(*owner)
+    changed := false
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if changed || instruction.op != .Load || instruction.result < 0 { continue }
+                current := function.values[instruction.result]
+                if program.types[current].kind != .Integer { continue }
+                for candidate: cast(s32)0..cast(s32)program.types.count - 1 {
+                    type := program.types[candidate]
+                    if changed || type.kind != .Integer || type.bits == program.types[current].bits { continue }
+                    function.values[instruction.result] = candidate
+                    changed = true
+                }
+            }
+        }
+    }
+    if !NativeAssert(test, changed, "the source program has an integer load with another integer type to swap in") { return false }
+    if !NativeAssert(test, Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .None,
+        "the verifier accepted a load read as the wrong type") { return false }
+    empty: []u8
+    measured := Serial.LirWriteUnverified(program, empty)
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !NativeAssert(test, measured.problem == .None && VecResize(encoded, measured.size) &&
+        Serial.LirWriteUnverified(program, encoded[:]).problem == .None, "encode the retyped program") { return false }
+    sized := Link.ZxExecFrame(TextView(encoded[:]), program.entry, empty)
+    bundle: Vec(u8)
+    defer VecFree(bundle)
+    if !NativeAssert(test, sized.problem == .None && VecResize(bundle, sized.size) &&
+        Link.ZxExecFrame(TextView(encoded[:]), program.entry, bundle[:]).problem == .None, "frame the retyped program") { return false }
+    again: Link.ZxExecOwner
+    reread := Link.ZxExecRead(*again, TextView(bundle[:]), Lir.LirDefaultLimits())
+    Link.ZxExecReadFree(*again)
+    if !NativeAssert(test, reread.problem != .None && reread.codec == .Verify || reread.problem == .Verify,
+        CheckConcat("the reader did not refuse the retyped load as unverified: problem ", CheckNumber(cast(s64)reread.problem))) { return false }
+    return NativeWrite(test, path, TextView(bundle[:]))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "verified-loading-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    tools := PathParent(test.ziran)
+    source_good := CheckPath(test.work, "loading.zi")
+    if !NativeWrite(*test, source_good, "slot: s64 = 7;\nsmall: s32 = 0;\n#program_export\nmain :: () -> s64 {\n    pointer := *slot\n    return <<pointer + cast(s64)small\n}\n") { return 1 }
+    good := CheckPath(test.work, "good.zx")
+    bad := CheckPath(test.work, "bad.zx")
+    build_good := string.[CheckPath(tools, "zi2zx"), "--root", test.work, "--entry", "loading:main", "-o", good, source_good]
+    unused NativeRun(*test, build_good[:])
+    if test.failed || !Retyped(*test, good, bad) { return 1 }
+
+    run_good := string.[CheckPath(tools, "zi2zx"), "run", good]
+    ran := NativeInvoke(*test, run_good[:])
+    if !NativeAssert(*test, ran.code == 0 && TextContains(ran.output, "7"), "the well-typed program did not run natively") { return 1 }
+    run_bad := string.[CheckPath(tools, "zi2zx"), "run", bad]
+    refused := NativeInvoke(*test, run_bad[:])
+    if !NativeAssert(*test, refused.code != 0 && TextContains(refused.error, "verif") &&
+        !TextContains(refused.error, "native execution failed"),
+        CheckConcat("zi2zx run did not refuse the unverifiable load before native code: ", refused.error)) { return 1 }
+    elf := CheckPath(test.work, "bad.elf")
+    native_bad := string.[CheckPath(tools, "zx2native"), "-o", elf, bad]
+    rejected := NativeInvoke(*test, native_bad[:])
+    if !NativeAssert(*test, rejected.code != 0 && TextContains(rejected.error, "verif") && !PathExists(elf),
+        CheckConcat("zx2native did not refuse the unverifiable load: ", rejected.error)) { return 1 }
+
+    // A pointer cast has no lowered form, so no ZX can carry one.
+    source := CheckPath(test.work, "cast.zi")
+    if !NativeWrite(*test, source, "#program_export\nmain :: () -> s32 {\n    value: s32 = 258\n    bytes := cast(*u8)*value\n    return cast(s32)<<bytes\n}\n") { return 1 }
+    cast_bundle := string.[CheckPath(tools, "zi2zx"), "--root", test.work, "--entry", "cast:main",
+        "-o", CheckPath(test.work, "cast.zx"), source]
+    casted := NativeInvoke(*test, cast_bundle[:])
+    if !NativeAssert(*test, casted.code != 0 && !PathExists(CheckPath(test.work, "cast.zx")),
+        "a pointer cast reached ZX") { return 1 }
+    print("verified loading: a wrong-type load is refused by the reader, zi2zx run and zx2native before native code, and pointer casts never reach ZX\n")
+    return 0
+}

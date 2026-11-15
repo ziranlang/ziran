@@ -28,7 +28,8 @@ REPO = Path(__file__).resolve().parents[1]
 SITE = REPO / 'site'
 OUTPUT = SITE / 'generated' / 'targets'
 WORK = REPO / 'build' / 'site-targets'
-TARGETS = {'c': 'C', 'go': 'Go', 'zx': 'ZX', 'wasm': 'WebAssembly', 'zir': 'Checked IR'}
+TARGETS = {'c': 'C', 'go': 'Go', 'zx': 'ZX', 'native': 'Native ELF',
+           'wasm': 'WebAssembly', 'zir': 'Checked IR'}
 
 
 def sha(path):
@@ -76,7 +77,8 @@ def store(source, destination):
 
 
 def capture_files(directory, name, target):
-    extensions = {'c': {'.c', '.h'}, 'go': {'.go'}, 'zir': {'.zir'}, 'zx': {'.zx'}, 'wasm': {'.wasm'}}
+    extensions = {'c': {'.c', '.h'}, 'go': {'.go'}, 'zir': {'.zir'}, 'zx': {'.zx'},
+                  'native': {'.native'}, 'wasm': {'.wasm'}}
     return [store(path, Path(name) / target / path.relative_to(directory))
             for path in sorted(directory.rglob('*'), key=lambda path: (path.stem != name, path.suffix, path.as_posix()))
             if path.suffix in extensions[target] and not path.name.startswith('matrix_host.')]
@@ -105,19 +107,21 @@ def build(bin_dir, samples, render_page=True):
         for target in TARGETS:
             directory = WORK / name / target
             directory.mkdir(parents=True, exist_ok=True)
-            tool = bin_dir / ('zi2zx' if target == 'wasm' else 'zi2' + target)
-            options = [] if target in ('zx', 'zir') else ['--no-main']
+            tool = bin_dir / ('zi2zx' if target in ('native', 'wasm') else 'zi2' + target)
+            options = [] if target in ('zx', 'native', 'zir') else ['--no-main']
             if target == 'wasm':
                 options = ['--target', 'wasm']
             if target == 'go':
                 options += ['--pkg', 'main']
-            output = directory / (f'{name}.{target}' if target in ('zx', 'wasm') else '')
+            output = directory / (f'{name}.{target}' if target in ('zx', 'native', 'wasm') else '')
             verified = directory / f'{name}.zx'
-            lower_output = verified if target == 'wasm' else output
+            lower_output = verified if target in ('native', 'wasm') else output
             lower = [tool, *options, *inputs, '-o', lower_output, source.relative_to(REPO)]
             commands = [lower]
             if target == 'wasm':
                 commands.append([bin_dir / 'zx2wasm', '-o', output, verified])
+            elif target == 'native':
+                commands.append([bin_dir / 'zx2native', '-o', output, verified])
             elapsed = 0.0
             result = None
             for command in commands:
@@ -180,14 +184,24 @@ def build(bin_dir, samples, render_page=True):
                 runner = [directory / 'program']
             elif target == 'zx':
                 runner = [bin_dir / 'zi2zx', 'run', output]
+            elif target == 'native':
+                runner = [output]
             else:
                 runner = ['node', REPO / 'scripts/site_target_wasm.cjs', output, *(['--output'] if row['stdout'] else [])]
             cell['run_command'] = command_text(runner)
             if target in ('c', 'go'):
                 cell['build_command'] = command_text(compile_command)
             cell['run_samples_ms'] = []
-            observed = execute(runner, env=environment, cwd=run_cwd)[0].stdout.strip()
-            if observed != (row['stdout'].strip() if row['stdout'] else str(expected)):
+            result, _ = execute(runner, env=environment, cwd=run_cwd, allow_failure=target == 'native')
+            observed = result.stdout.strip()
+            wanted = row['stdout'].strip() if row['stdout'] else str(expected)
+            if target == 'native':
+                native_output = row['stdout'].strip()
+                if observed != native_output or result.returncode != expected % 256:
+                    raise RuntimeError(f'{name}/native: output {observed!r}, status {result.returncode}; '
+                                       f'expected {native_output!r}, status {expected % 256}')
+                observed = wanted
+            elif observed != wanted:
                 raise RuntimeError(f'{name}/{target}: {observed!r} != oracle {expected}')
             cell['result'] = observed
             runs.append((name, target, runner, run_cwd, row['stdout'].strip() if row['stdout'] else str(expected), cell))
@@ -196,15 +210,20 @@ def build(bin_dir, samples, render_page=True):
     for _ in range(samples):
         randomizer.shuffle(runs)
         for name, target, runner, cwd, expected, cell in runs:
-            result, elapsed = execute(runner, env=environment, cwd=cwd)
-            if result.stdout.strip() != str(expected):
+            result, elapsed = execute(runner, env=environment, cwd=cwd, allow_failure=target == 'native')
+            if target == 'native':
+                example = next(row for row in rows if row['id'] == name)
+                valid = result.stdout.strip() == example['stdout'].strip() and result.returncode == int(example['expected']) % 256
+            else:
+                valid = result.stdout.strip() == str(expected)
+            if not valid:
                 raise RuntimeError(f'{name}/{target}: measured result differs from oracle')
             cell['run_samples_ms'].append(elapsed)
     for _, _, _, _, _, cell in runs:
         cell['run_statistics'] = summarize_samples(cell['run_samples_ms'])
         cell['run_ms'] = cell['run_statistics']['median_ms']
     tools = {name: {'sha256': sha(bin_dir / name)}
-             for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm', 'zi2zir', 'zi-inspect')}
+             for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2native', 'zx2wasm', 'zi2zir', 'zi-inspect')}
     versions = {name: execute(command)[0].stdout.splitlines()[0]
                 for name, command in {'cc': ['cc', '--version'], 'go': ['go', 'version'], 'node': ['node', '--version']}.items()}
     platforms, platform_harnesses = carried_platforms(rows)
@@ -215,7 +234,7 @@ def build(bin_dir, samples, render_page=True):
             'source_inputs': {path: sha(REPO / path) for path in [*[item[2] for item in fixtures()], 'std/text.zi']},
             'harnesses': {path: sha(REPO / path) for path in ['scripts/site_targets.py', 'scripts/benchmark_samples.py', 'scripts/site_target_wasm.cjs', 'site/target-abi.js']},
             'methodology': 'Median whole-process wall time after one discarded warmup; shuffled execution order; symmetric 1.5×IQR outliers excluded, raw samples retained. '
-                           'C: cc -O2; Go: go build; ZX: the instruction engine (zi2zx run); WebAssembly: zi2zx then zx2wasm, run by Node including engine startup, compilation and instantiation. '
+                           'C: cc -O2; Go: go build; ZX: the instruction engine (zi2zx run); Native: zi2zx then zx2native; WebAssembly: zi2zx then zx2wasm, run by Node including engine startup, compilation and instantiation. '
                            'Emission includes loading, checking, linking and writing output; it excludes downstream C/Go builds. '
                            'Output size is emitted files, including C headers, rather than linked executables. '
                            'Shared host, warm filesystem caches, no CPU isolation. Small examples emphasize startup; these are not language rankings.',

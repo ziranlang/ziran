@@ -2524,34 +2524,34 @@
       }
     }
   },
-  "generated_at": "2026-11-15T17:36:35.334963+00:00",
-  "revision": "9436b8a7f5de08e11a1010539de92b203ae84b47",
+  "generated_at": "2026-11-15T18:31:55.159858+00:00",
+  "revision": "0ecdc8560197592d1992e9eed92b4223bd0ff3a4",
   "compiler_dirty": true,
   "platform": "Linux x86_64",
   "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
-  "samples": 3,
+  "samples": 5,
   "warmups": 1,
   "tools": {
     "zi2c": {
-      "sha256": "5b1de31e5b53dac9e5c962ba6e2eb1a13b8c7eb61ab2f7d1b4b5022380734a0b"
+      "sha256": "34a38e60f7e9cc0ace775e10f8e26b9486b81ec32729db07a6de6c67470fcc4e"
     },
     "zi2go": {
-      "sha256": "a94153ad44790bee63126ff1584b232f31e7fc8013221fb86123f29051495564"
+      "sha256": "3651ca349bc16ad5e75db0319ea5d58481f480d97e2f4ee5a81bbe04a147df35"
     },
     "zi2zx": {
-      "sha256": "1cff25c35e2946e4b415a30580c8285b39cb201424a518cd919ea39b49c8b71d"
+      "sha256": "9a276d1ac5d4558a38e2a56d994dd63916c3b0733cf6fc6c301d53af1a24d7c3"
     },
     "zx2native": {
-      "sha256": "6171e62a78dee8a862d20e7b1c4b95b796bf9e1a41984b3f3914127117a9cfba"
+      "sha256": "33e246750d0369e2f10661431405dc36e72cc723479f2a9da7556225cfc5de45"
     },
     "zx2wasm": {
-      "sha256": "05e7ab96e87990043da17f7aef7a4546e5867937df693e7924e6bb4d97e60105"
+      "sha256": "062a61fd1efd6ea02614a040ea8a19fc18604846a4cb973cc3f1915c54391da4"
     },
     "zi2zir": {
-      "sha256": "ce98fd5ccb37fdd6f5774e6a5b74b5f9a08305ca8e6ac32e0cb0c8d7cf63ff38"
+      "sha256": "03438b97283fa1c70af5f09653ae020fbb2737e5f2c89ead3b52fb68b07ce83a"
     },
     "zi-inspect": {
-      "sha256": "5e1e88a76f08caaf7ad65ba9118d064ab09384b31d48768be268a653793fabc4"
+      "sha256": "ac4f0dcca60577d9b0aa80b08ad9c04dd8856d31821de4a34b6eed27761d9d19"
     }
   },
   "versions": {
@@ -2599,46 +2599,55 @@
             }
           ],
           "emission_samples_ms": [
-            1.593308,
-            1.392967,
-            1.558098
+            1.437578,
+            1.261856,
+            1.118906,
+            2.10354,
+            1.016316
           ],
           "status": "ok",
           "bytes": 1293,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.32527675,
-            "upper_ms": 1.7259587499999998,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.593308,
-              1.392967,
-              1.558098
+            "lower_ms": 0.6408979999999999,
+            "upper_ms": 1.9155860000000002,
+            "excluded_indices": [
+              3
             ],
-            "median_ms": 1.558098
+            "included_samples_ms": [
+              1.437578,
+              1.261856,
+              1.118906,
+              1.016316
+            ],
+            "median_ms": 1.190381
           },
-          "emission_ms": 1.558098,
+          "emission_ms": 1.190381,
           "run_command": "build/site-targets/score/c/program",
           "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/score/c build/site-targets/score/c/matrix_host.c build/site-targets/score/c/score.c -lm -o build/site-targets/score/c/program",
           "run_samples_ms": [
-            0.527143,
-            0.516303,
-            0.862034
+            1.039996,
+            2.360762,
+            1.289066,
+            0.980055,
+            3.365787
           ],
           "result": "42",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.26242474999999976,
-            "upper_ms": 0.9538867500000002,
+            "lower_ms": -0.9411529999999999,
+            "upper_ms": 4.341911,
             "excluded_indices": [],
             "included_samples_ms": [
-              0.527143,
-              0.516303,
-              0.862034
+              1.039996,
+              2.360762,
+              1.289066,
+              0.980055,
+              3.365787
             ],
-            "median_ms": 0.527143
+            "median_ms": 1.289066
           },
-          "run_ms": 0.527143,
+          "run_ms": 1.289066,
           "web": {
             "script": "generated/targets/web/score-c.js",
             "files": [
@@ -2665,46 +2674,56 @@
             }
           ],
           "emission_samples_ms": [
-            1.134096,
-            1.700969,
-            1.617338
+            1.312916,
+            1.271947,
+            1.648118,
+            1.141056,
+            1.136966
           ],
           "status": "ok",
           "bytes": 287,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.9505622499999997,
-            "upper_ms": 2.0843082500000003,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.134096,
-              1.700969,
-              1.617338
+            "lower_ms": 0.8832660000000002,
+            "upper_ms": 1.570706,
+            "excluded_indices": [
+              2
             ],
-            "median_ms": 1.617338
+            "included_samples_ms": [
+              1.312916,
+              1.271947,
+              1.141056,
+              1.136966
+            ],
+            "median_ms": 1.2065015
           },
-          "emission_ms": 1.617338,
+          "emission_ms": 1.2065015,
           "run_command": "build/site-targets/score/go/program",
           "build_command": "go build -p=2 -o build/site-targets/score/go/program build/site-targets/score/go/matrix_host.go build/site-targets/score/go/score.go",
           "run_samples_ms": [
-            0.871355,
-            1.000565,
-            0.950595
+            4.956675,
+            5.791599,
+            2.087651,
+            5.401807,
+            4.314942
           ],
           "result": "42",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.8140675000000002,
-            "upper_ms": 1.0724874999999998,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.871355,
-              1.000565,
-              0.950595
+            "lower_ms": 2.684644500000001,
+            "upper_ms": 7.032104499999999,
+            "excluded_indices": [
+              2
             ],
-            "median_ms": 0.950595
+            "included_samples_ms": [
+              4.956675,
+              5.791599,
+              5.401807,
+              4.314942
+            ],
+            "median_ms": 5.179240999999999
           },
-          "run_ms": 0.950595,
+          "run_ms": 5.179240999999999,
           "web": {
             "path": "generated/targets/web/score-go.wasm",
             "runtime": "generated/targets/web/wasm_exec.js",
@@ -2742,25 +2761,30 @@
             }
           ],
           "emission_samples_ms": [
-            1.149056,
-            1.251586,
-            1.193856
+            1.324927,
+            1.257586,
+            1.178476,
+            1.051735,
+            1.795589
           ],
           "status": "ok",
           "bytes": 1395,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.0945585000000002,
-            "upper_ms": 1.2996184999999998,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.149056,
-              1.251586,
-              1.193856
+            "lower_ms": 0.9587995000000002,
+            "upper_ms": 1.5446034999999998,
+            "excluded_indices": [
+              4
             ],
-            "median_ms": 1.193856
+            "included_samples_ms": [
+              1.324927,
+              1.257586,
+              1.178476,
+              1.051735
+            ],
+            "median_ms": 1.218031
           },
-          "emission_ms": 1.193856,
+          "emission_ms": 1.218031,
           "inspection": {
             "path": "generated/targets/score/zx/score.zx.txt",
             "bytes": 1653,
@@ -2768,24 +2792,29 @@
           },
           "run_command": "build/bin/zi2zx run build/site-targets/score/zx/score.zx",
           "run_samples_ms": [
-            0.929705,
-            1.077806,
-            1.505918
+            2.598963,
+            7.419977,
+            3.599869,
+            2.788694,
+            2.544393
           ],
           "result": "42",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.57159575,
-            "upper_ms": 1.7240217500000001,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.929705,
-              1.077806,
-              1.505918
+            "lower_ms": 1.0976039999999998,
+            "upper_ms": 5.101228,
+            "excluded_indices": [
+              1
             ],
-            "median_ms": 1.077806
+            "included_samples_ms": [
+              2.598963,
+              3.599869,
+              2.788694,
+              2.544393
+            ],
+            "median_ms": 2.6938285
           },
-          "run_ms": 1.077806,
+          "run_ms": 2.6938285,
           "web": {
             "script": "generated/targets/web/zx-runtime.js",
             "files": [
@@ -2812,45 +2841,55 @@
             }
           ],
           "emission_samples_ms": [
-            1.95537,
-            1.557038,
-            1.703609
+            3.636089,
+            2.5335729999999996,
+            2.319802,
+            2.2966509999999998,
+            2.1233310000000003
           ],
           "status": "ok",
           "bytes": 8320,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.3315744999999994,
-            "upper_ms": 2.1282385,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.95537,
-              1.557038,
-              1.703609
+            "lower_ms": 1.941268,
+            "upper_ms": 2.8889559999999994,
+            "excluded_indices": [
+              0
             ],
-            "median_ms": 1.703609
+            "included_samples_ms": [
+              2.5335729999999996,
+              2.319802,
+              2.2966509999999998,
+              2.1233310000000003
+            ],
+            "median_ms": 2.3082265
           },
-          "emission_ms": 1.703609,
+          "emission_ms": 2.3082265,
           "run_command": "build/site-targets/score/native/score.native",
           "run_samples_ms": [
-            0.225181,
-            0.411822,
-            0.189671
+            1.409487,
+            0.445402,
+            1.87413,
+            1.841209,
+            1.87463
           ],
           "result": "42",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.04081275000000001,
-            "upper_ms": 0.48511475,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.225181,
-              0.411822,
-              0.189671
+            "lower_ms": 0.7125224999999997,
+            "upper_ms": 2.5710945,
+            "excluded_indices": [
+              1
             ],
-            "median_ms": 0.225181
+            "included_samples_ms": [
+              1.409487,
+              1.87413,
+              1.841209,
+              1.87463
+            ],
+            "median_ms": 1.8576695
           },
-          "run_ms": 0.225181
+          "run_ms": 1.8576695
         },
         "wasm": {
           "command": "build/bin/zi2zx --target wasm --root examples --module-path std --entry score:Answer -o build/site-targets/score/wasm/score.zx examples/score.zi && build/bin/zx2wasm -o build/site-targets/score/wasm/score.wasm build/site-targets/score/wasm/score.zx",
@@ -2862,53 +2901,62 @@
             }
           ],
           "emission_samples_ms": [
-            1.507188,
-            1.500547,
-            2.364922
+            1.850859,
+            1.6005790000000002,
+            2.401192,
+            2.07848,
+            1.677229
           ],
           "status": "ok",
           "bytes": 321,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.8555862500000002,
-            "upper_ms": 2.58433625,
+            "lower_ms": 1.0753525000000004,
+            "upper_ms": 2.6803564999999994,
             "excluded_indices": [],
             "included_samples_ms": [
-              1.507188,
-              1.500547,
-              2.364922
+              1.850859,
+              1.6005790000000002,
+              2.401192,
+              2.07848,
+              1.677229
             ],
-            "median_ms": 1.507188
+            "median_ms": 1.850859
           },
-          "emission_ms": 1.507188,
+          "emission_ms": 1.850859,
           "run_command": "node scripts/site_target_wasm.cjs build/site-targets/score/wasm/score.wasm",
           "run_samples_ms": [
-            23.294089,
-            21.452289,
-            19.452329
+            52.012564,
+            58.366417,
+            54.400687,
+            42.033164,
+            54.244846
           ],
           "result": "42",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 17.570988999999997,
-            "upper_ms": 25.254509,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              23.294089,
-              21.452289,
-              19.452329
+            "lower_ms": 48.4303795,
+            "upper_ms": 57.9828715,
+            "excluded_indices": [
+              1,
+              3
             ],
-            "median_ms": 21.452289
+            "included_samples_ms": [
+              52.012564,
+              54.400687,
+              54.244846
+            ],
+            "median_ms": 54.244846
           },
-          "run_ms": 21.452289
+          "run_ms": 54.244846
         },
         "zir": {
           "command": "build/bin/zi2zir --root examples --module-path std --entry score:Answer -o build/site-targets/score/zir examples/score.zi",
           "files": [
             {
               "path": "generated/targets/score/zir/score.zir",
-              "bytes": 611,
-              "sha256": "53a5d5bfdfede4acf56eaa5b13246c10c8738f3b35bbf6255b8dc41a5bd50714",
+              "bytes": 612,
+              "sha256": "5ef3f35a1da349815964c19bf01c7fca6f57472f92c9636dbdbaf0ef2b6c7adc",
               "inspection": {
                 "path": "generated/targets/score/zir/score.zir.txt",
                 "bytes": 930,
@@ -2917,25 +2965,29 @@
             }
           ],
           "emission_samples_ms": [
-            1.162636,
-            1.138345,
-            1.043946
+            1.653389,
+            1.346877,
+            1.517777,
+            1.311277,
+            1.165996
           ],
           "status": "ok",
-          "bytes": 611,
+          "bytes": 612,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.0021280000000001,
-            "upper_ms": 1.239508,
+            "lower_ms": 1.0015270000000003,
+            "upper_ms": 1.827527,
             "excluded_indices": [],
             "included_samples_ms": [
-              1.162636,
-              1.138345,
-              1.043946
+              1.653389,
+              1.346877,
+              1.517777,
+              1.311277,
+              1.165996
             ],
-            "median_ms": 1.138345
+            "median_ms": 1.346877
           },
-          "emission_ms": 1.138345,
+          "emission_ms": 1.346877,
           "inspection": {
             "path": "generated/targets/score/zir/score.zir.txt",
             "bytes": 930,
@@ -2988,46 +3040,55 @@
             }
           ],
           "emission_samples_ms": [
-            2.609533,
-            2.262652,
-            2.09482
+            1.561088,
+            1.764269,
+            1.623908,
+            1.491547,
+            1.710089
           ],
           "status": "ok",
           "bytes": 4029,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.7927012499999995,
-            "upper_ms": 2.8221272500000003,
+            "lower_ms": 1.3375865,
+            "upper_ms": 1.9335904999999998,
             "excluded_indices": [],
             "included_samples_ms": [
-              2.609533,
-              2.262652,
-              2.09482
+              1.561088,
+              1.764269,
+              1.623908,
+              1.491547,
+              1.710089
             ],
-            "median_ms": 2.262652
+            "median_ms": 1.623908
           },
-          "emission_ms": 2.262652,
+          "emission_ms": 1.623908,
           "run_command": "build/site-targets/text_demo/c/program",
           "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/text_demo/c build/site-targets/text_demo/c/matrix_host.c build/site-targets/text_demo/c/text.c build/site-targets/text_demo/c/text_demo.c -lm -o build/site-targets/text_demo/c/program",
           "run_samples_ms": [
-            0.484022,
-            1.069626,
-            0.566623
+            2.836035,
+            1.442598,
+            2.02368,
+            9.76528,
+            0.700833
           ],
           "result": "1",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.08611950000000018,
-            "upper_ms": 1.2573274999999997,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.484022,
-              1.069626,
-              0.566623
+            "lower_ms": -0.6475574999999998,
+            "upper_ms": 4.9261905,
+            "excluded_indices": [
+              3
             ],
-            "median_ms": 0.566623
+            "included_samples_ms": [
+              2.836035,
+              1.442598,
+              2.02368,
+              0.700833
+            ],
+            "median_ms": 1.733139
           },
-          "run_ms": 0.566623,
+          "run_ms": 1.733139,
           "web": {
             "script": "generated/targets/web/text_demo-c.js",
             "files": [
@@ -3059,46 +3120,55 @@
             }
           ],
           "emission_samples_ms": [
-            1.562048,
-            1.828779,
-            1.598709
+            1.839529,
+            2.093961,
+            1.92782,
+            1.625438,
+            1.493978
           ],
           "status": "ok",
           "bytes": 1283,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.3803302500000005,
-            "upper_ms": 1.9137922499999998,
+            "lower_ms": 1.1718649999999997,
+            "upper_ms": 2.381393,
             "excluded_indices": [],
             "included_samples_ms": [
-              1.562048,
-              1.828779,
-              1.598709
+              1.839529,
+              2.093961,
+              1.92782,
+              1.625438,
+              1.493978
             ],
-            "median_ms": 1.598709
+            "median_ms": 1.839529
           },
-          "emission_ms": 1.598709,
+          "emission_ms": 1.839529,
           "run_command": "build/site-targets/text_demo/go/program",
           "build_command": "go build -p=2 -o build/site-targets/text_demo/go/program build/site-targets/text_demo/go/matrix_host.go build/site-targets/text_demo/go/text.go build/site-targets/text_demo/go/text_demo.go",
           "run_samples_ms": [
-            0.847984,
-            0.985095,
-            0.958175
+            3.96436,
+            7.078806,
+            30.480815,
+            3.89775,
+            3.143376
           ],
           "result": "1",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.80024625,
-            "upper_ms": 1.07446825,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.847984,
-              0.985095,
-              0.958175
+            "lower_ms": -0.8738340000000009,
+            "upper_ms": 11.85039,
+            "excluded_indices": [
+              2
             ],
-            "median_ms": 0.958175
+            "included_samples_ms": [
+              3.96436,
+              7.078806,
+              3.89775,
+              3.143376
+            ],
+            "median_ms": 3.9310549999999997
           },
-          "run_ms": 0.958175,
+          "run_ms": 3.9310549999999997,
           "web": {
             "path": "generated/targets/web/text_demo-go.wasm",
             "runtime": "generated/targets/web/wasm_exec.js",
@@ -3136,25 +3206,29 @@
             }
           ],
           "emission_samples_ms": [
-            2.414022,
-            2.318402,
-            2.294622
+            1.772189,
+            1.87387,
+            1.776569,
+            1.623748,
+            1.682939
           ],
           "status": "ok",
           "bytes": 4179,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 2.216961999999999,
-            "upper_ms": 2.4557620000000004,
+            "lower_ms": 1.5424939999999998,
+            "upper_ms": 1.9170140000000002,
             "excluded_indices": [],
             "included_samples_ms": [
-              2.414022,
-              2.318402,
-              2.294622
+              1.772189,
+              1.87387,
+              1.776569,
+              1.623748,
+              1.682939
             ],
-            "median_ms": 2.318402
+            "median_ms": 1.772189
           },
-          "emission_ms": 2.318402,
+          "emission_ms": 1.772189,
           "inspection": {
             "path": "generated/targets/text_demo/zx/text_demo.zx.txt",
             "bytes": 6243,
@@ -3162,24 +3236,29 @@
           },
           "run_command": "build/bin/zi2zx run build/site-targets/text_demo/zx/text_demo.zx",
           "run_samples_ms": [
-            1.467137,
-            1.519047,
-            0.849434
+            3.714589,
+            18.537605,
+            1.474137,
+            2.438812,
+            3.095596
           ],
           "result": "1",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.6560757499999998,
-            "upper_ms": 1.9953017499999999,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.467137,
-              1.519047,
-              0.849434
+            "lower_ms": 0.5251464999999997,
+            "upper_ms": 5.628254500000001,
+            "excluded_indices": [
+              1
             ],
-            "median_ms": 1.467137
+            "included_samples_ms": [
+              3.714589,
+              1.474137,
+              2.438812,
+              3.095596
+            ],
+            "median_ms": 2.767204
           },
-          "run_ms": 1.467137,
+          "run_ms": 2.767204,
           "web": {
             "script": "generated/targets/web/zx-runtime.js",
             "files": [
@@ -3206,45 +3285,55 @@
             }
           ],
           "emission_samples_ms": [
-            2.822054,
-            2.969595,
-            2.867915
+            3.126626,
+            3.6484889999999996,
+            3.300147,
+            3.199926,
+            3.1985159999999997
           ],
           "status": "ok",
           "bytes": 8384,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 2.7343287499999995,
-            "upper_ms": 3.0294107500000003,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              2.822054,
-              2.969595,
-              2.867915
+            "lower_ms": 3.0460694999999993,
+            "upper_ms": 3.4525935000000003,
+            "excluded_indices": [
+              1
             ],
-            "median_ms": 2.867915
+            "included_samples_ms": [
+              3.126626,
+              3.300147,
+              3.199926,
+              3.1985159999999997
+            ],
+            "median_ms": 3.1992209999999996
           },
-          "emission_ms": 2.867915,
+          "emission_ms": 3.1992209999999996,
           "run_command": "build/site-targets/text_demo/native/text_demo.native",
           "run_samples_ms": [
-            0.326132,
-            0.242932,
-            0.281022
+            1.161186,
+            2.433512,
+            10.252412,
+            0.788044,
+            3.88191
           ],
           "result": "1",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.19957700000000006,
-            "upper_ms": 0.36597699999999994,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.326132,
-              0.242932,
-              0.281022
+            "lower_ms": -2.9198999999999993,
+            "upper_ms": 7.962995999999999,
+            "excluded_indices": [
+              2
             ],
-            "median_ms": 0.281022
+            "included_samples_ms": [
+              1.161186,
+              2.433512,
+              0.788044,
+              3.88191
+            ],
+            "median_ms": 1.797349
           },
-          "run_ms": 0.281022
+          "run_ms": 1.797349
         },
         "wasm": {
           "command": "build/bin/zi2zx --target wasm --root examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/wasm/text_demo.zx examples/text_demo.zi && build/bin/zx2wasm -o build/site-targets/text_demo/wasm/text_demo.wasm build/site-targets/text_demo/wasm/text_demo.zx",
@@ -3256,53 +3345,61 @@
             }
           ],
           "emission_samples_ms": [
-            2.670484,
-            2.2412710000000002,
-            2.809274
+            2.321042,
+            2.224541,
+            2.593243,
+            2.274572,
+            2.424082
           ],
           "status": "ok",
           "bytes": 753,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 2.02987525,
-            "upper_ms": 3.16588125,
+            "lower_ms": 2.050307,
+            "upper_ms": 2.6483469999999993,
             "excluded_indices": [],
             "included_samples_ms": [
-              2.670484,
-              2.2412710000000002,
-              2.809274
+              2.321042,
+              2.224541,
+              2.593243,
+              2.274572,
+              2.424082
             ],
-            "median_ms": 2.670484
+            "median_ms": 2.321042
           },
-          "emission_ms": 2.670484,
+          "emission_ms": 2.321042,
           "run_command": "node scripts/site_target_wasm.cjs build/site-targets/text_demo/wasm/text_demo.wasm",
           "run_samples_ms": [
-            23.54508,
-            21.217688,
-            20.946466
+            53.258352,
+            39.054459,
+            48.319246,
+            42.944069,
+            45.545761
           ],
           "result": "1",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 19.1331165,
-            "upper_ms": 24.330344499999995,
+            "lower_ms": 34.8813035,
+            "upper_ms": 56.382011500000004,
             "excluded_indices": [],
             "included_samples_ms": [
-              23.54508,
-              21.217688,
-              20.946466
+              53.258352,
+              39.054459,
+              48.319246,
+              42.944069,
+              45.545761
             ],
-            "median_ms": 21.217688
+            "median_ms": 45.545761
           },
-          "run_ms": 21.217688
+          "run_ms": 45.545761
         },
         "zir": {
           "command": "build/bin/zi2zir --root examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/zir examples/text_demo.zi",
           "files": [
             {
               "path": "generated/targets/text_demo/zir/text_demo.zir",
-              "bytes": 441,
-              "sha256": "a5fc082536043c362027052c722d59bdfe20dd17735e61ce11b2bc26c6d864dd",
+              "bytes": 442,
+              "sha256": "a15087cfd974ce43362c2702e09864fa0a16c6326c4b32ee653a17afbf036352",
               "inspection": {
                 "path": "generated/targets/text_demo/zir/text_demo.zir.txt",
                 "bytes": 554,
@@ -3311,8 +3408,8 @@
             },
             {
               "path": "generated/targets/text_demo/zir/text.zir",
-              "bytes": 1676,
-              "sha256": "d8b26799dd7cab174337c4d1f9444a6f895e72fc02e13ea7ff56d53fb6b074f7",
+              "bytes": 1677,
+              "sha256": "4ad6506477dcf6052fa8c217a5fae9a43747d7d72814b84f1358ce31bd88130a",
               "inspection": {
                 "path": "generated/targets/text_demo/zir/text.zir.txt",
                 "bytes": 2620,
@@ -3321,25 +3418,29 @@
             }
           ],
           "emission_samples_ms": [
-            2.576173,
-            1.82802,
-            1.859589
+            2.107271,
+            2.100991,
+            1.870149,
+            2.278232,
+            1.815769
           ],
           "status": "ok",
-          "bytes": 2117,
+          "bytes": 2119,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.2826897500000005,
-            "upper_ms": 2.778995749999999,
+            "lower_ms": 1.5144660000000003,
+            "upper_ms": 2.462954,
             "excluded_indices": [],
             "included_samples_ms": [
-              2.576173,
-              1.82802,
-              1.859589
+              2.107271,
+              2.100991,
+              1.870149,
+              2.278232,
+              1.815769
             ],
-            "median_ms": 1.859589
+            "median_ms": 2.100991
           },
-          "emission_ms": 1.859589,
+          "emission_ms": 2.100991,
           "inspection": {
             "path": "generated/targets/text_demo/zir/text_demo.zir.txt",
             "bytes": 554,
@@ -3377,46 +3478,55 @@
             }
           ],
           "emission_samples_ms": [
-            2.04831,
-            2.00183,
-            1.566928
+            1.588248,
+            1.93169,
+            1.98879,
+            1.464828,
+            1.480607
           ],
           "status": "ok",
           "bytes": 4665,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.4233425,
-            "upper_ms": 2.3861065,
+            "lower_ms": 0.8039825000000002,
+            "upper_ms": 2.6083144999999996,
             "excluded_indices": [],
             "included_samples_ms": [
-              2.04831,
-              2.00183,
-              1.566928
+              1.588248,
+              1.93169,
+              1.98879,
+              1.464828,
+              1.480607
             ],
-            "median_ms": 2.00183
+            "median_ms": 1.588248
           },
-          "emission_ms": 2.00183,
+          "emission_ms": 1.588248,
           "run_command": "build/site-targets/arrays/c/program",
           "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/arrays/c build/site-targets/arrays/c/arrays.c build/site-targets/arrays/c/matrix_host.c -lm -o build/site-targets/arrays/c/program",
           "run_samples_ms": [
-            0.493233,
-            0.573043,
-            0.583893
+            2.899565,
+            2.579473,
+            1.646239,
+            4.452063,
+            2.152831
           ],
           "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.46514300000000003,
-            "upper_ms": 0.646463,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.493233,
-              0.573043,
-              0.583893
+            "lower_ms": 1.03273,
+            "upper_ms": 4.019666,
+            "excluded_indices": [
+              3
             ],
-            "median_ms": 0.573043
+            "included_samples_ms": [
+              2.899565,
+              2.579473,
+              1.646239,
+              2.152831
+            ],
+            "median_ms": 2.366152
           },
-          "run_ms": 0.573043,
+          "run_ms": 2.366152,
           "web": {
             "script": "generated/targets/web/arrays-c.js",
             "files": [
@@ -3443,46 +3553,55 @@
             }
           ],
           "emission_samples_ms": [
-            1.811729,
-            2.109121,
-            1.89152
+            1.899069,
+            2.757574,
+            2.617234,
+            2.09284,
+            3.988481
           ],
           "status": "ok",
           "bytes": 746,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.6285805,
-            "upper_ms": 2.2233644999999997,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.811729,
-              2.109121,
-              1.89152
+            "lower_ms": 1.0957389999999996,
+            "upper_ms": 3.754675,
+            "excluded_indices": [
+              4
             ],
-            "median_ms": 1.89152
+            "included_samples_ms": [
+              1.899069,
+              2.757574,
+              2.617234,
+              2.09284
+            ],
+            "median_ms": 2.355037
           },
-          "emission_ms": 1.89152,
+          "emission_ms": 2.355037,
           "run_command": "build/site-targets/arrays/go/program",
           "build_command": "go build -p=2 -o build/site-targets/arrays/go/program build/site-targets/arrays/go/arrays.go build/site-targets/arrays/go/matrix_host.go",
           "run_samples_ms": [
-            1.000455,
-            0.819994,
-            0.883844
+            4.925875,
+            3.530208,
+            6.255212,
+            2.297662,
+            4.359492
           ],
           "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.7165732499999999,
-            "upper_ms": 1.07749525,
+            "lower_ms": 1.4367075000000007,
+            "upper_ms": 7.019375499999999,
             "excluded_indices": [],
             "included_samples_ms": [
-              1.000455,
-              0.819994,
-              0.883844
+              4.925875,
+              3.530208,
+              6.255212,
+              2.297662,
+              4.359492
             ],
-            "median_ms": 0.883844
+            "median_ms": 4.359492
           },
-          "run_ms": 0.883844,
+          "run_ms": 4.359492,
           "web": {
             "path": "generated/targets/web/arrays-go.wasm",
             "runtime": "generated/targets/web/wasm_exec.js",
@@ -3520,25 +3639,29 @@
             }
           ],
           "emission_samples_ms": [
-            2.158361,
-            2.575213,
-            2.521883
+            4.463783,
+            2.491243,
+            3.548088,
+            3.111906,
+            4.02487
           ],
           "status": "ok",
           "bytes": 8572,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 2.0274829999999997,
-            "upper_ms": 2.8611870000000006,
+            "lower_ms": 1.7424599999999997,
+            "upper_ms": 5.394316,
             "excluded_indices": [],
             "included_samples_ms": [
-              2.158361,
-              2.575213,
-              2.521883
+              4.463783,
+              2.491243,
+              3.548088,
+              3.111906,
+              4.02487
             ],
-            "median_ms": 2.521883
+            "median_ms": 3.548088
           },
-          "emission_ms": 2.521883,
+          "emission_ms": 3.548088,
           "inspection": {
             "path": "generated/targets/arrays/zx/arrays.zx.txt",
             "bytes": 15279,
@@ -3546,24 +3669,28 @@
           },
           "run_command": "build/bin/zi2zx run build/site-targets/arrays/zx/arrays.zx",
           "run_samples_ms": [
-            1.510897,
-            1.361257,
-            1.923339
+            2.448442,
+            2.465393,
+            3.423917,
+            3.553408,
+            1.826189
           ],
           "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.0145155000000003,
-            "upper_ms": 2.1386795,
+            "lower_ms": 0.9852295000000002,
+            "upper_ms": 4.8871294999999995,
             "excluded_indices": [],
             "included_samples_ms": [
-              1.510897,
-              1.361257,
-              1.923339
+              2.448442,
+              2.465393,
+              3.423917,
+              3.553408,
+              1.826189
             ],
-            "median_ms": 1.510897
+            "median_ms": 2.465393
           },
-          "run_ms": 1.510897,
+          "run_ms": 2.465393,
           "web": {
             "script": "generated/targets/web/zx-runtime.js",
             "files": [
@@ -3590,45 +3717,53 @@
             }
           ],
           "emission_samples_ms": [
-            3.85346,
-            3.350337,
-            4.553773
+            8.122631,
+            5.712699,
+            4.992936,
+            7.0476350000000005,
+            7.204827
           ],
           "status": "ok",
           "bytes": 12704,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 2.6993215,
-            "upper_ms": 5.1061935,
+            "lower_ms": 3.4745069999999996,
+            "upper_ms": 9.443019,
             "excluded_indices": [],
             "included_samples_ms": [
-              3.85346,
-              3.350337,
-              4.553773
+              8.122631,
+              5.712699,
+              4.992936,
+              7.0476350000000005,
+              7.204827
             ],
-            "median_ms": 3.85346
+            "median_ms": 7.0476350000000005
           },
-          "emission_ms": 3.85346,
+          "emission_ms": 7.0476350000000005,
           "run_command": "build/site-targets/arrays/native/arrays.native",
           "run_samples_ms": [
-            0.362202,
-            0.245451,
-            0.383202
+            3.401627,
+            0.291742,
+            2.507953,
+            0.509593,
+            4.520783
           ],
           "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.20051325000000003,
-            "upper_ms": 0.47601524999999995,
+            "lower_ms": -3.8284580000000004,
+            "upper_ms": 7.739678,
             "excluded_indices": [],
             "included_samples_ms": [
-              0.362202,
-              0.245451,
-              0.383202
+              3.401627,
+              0.291742,
+              2.507953,
+              0.509593,
+              4.520783
             ],
-            "median_ms": 0.362202
+            "median_ms": 2.507953
           },
-          "run_ms": 0.362202
+          "run_ms": 2.507953
         },
         "wasm": {
           "command": "build/bin/zi2zx --target wasm --root examples --module-path std --entry arrays:main -o build/site-targets/arrays/wasm/arrays.zx examples/arrays.zi && build/bin/zx2wasm -o build/site-targets/arrays/wasm/arrays.wasm build/site-targets/arrays/wasm/arrays.zx",
@@ -3640,53 +3775,61 @@
             }
           ],
           "emission_samples_ms": [
-            3.615198,
-            2.519383,
-            4.02623
+            7.257907,
+            6.7603349999999995,
+            4.699274,
+            3.667108,
+            4.9549959999999995
           ],
           "status": "ok",
           "bytes": 1885,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.9371552500000002,
-            "upper_ms": 4.950849249999999,
+            "lower_ms": 1.6076825000000006,
+            "upper_ms": 9.8519265,
             "excluded_indices": [],
             "included_samples_ms": [
-              3.615198,
-              2.519383,
-              4.02623
+              7.257907,
+              6.7603349999999995,
+              4.699274,
+              3.667108,
+              4.9549959999999995
             ],
-            "median_ms": 3.615198
+            "median_ms": 4.9549959999999995
           },
-          "emission_ms": 3.615198,
+          "emission_ms": 4.9549959999999995,
           "run_command": "node scripts/site_target_wasm.cjs build/site-targets/arrays/wasm/arrays.wasm --output",
           "run_samples_ms": [
-            21.71524,
-            20.912217,
-            19.50783
+            45.22576,
+            60.199877,
+            61.704084,
+            44.595587,
+            36.000993
           ],
           "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 18.554465999999998,
-            "upper_ms": 22.969286000000004,
+            "lower_ms": 21.189152000000004,
+            "upper_ms": 83.606312,
             "excluded_indices": [],
             "included_samples_ms": [
-              21.71524,
-              20.912217,
-              19.50783
+              45.22576,
+              60.199877,
+              61.704084,
+              44.595587,
+              36.000993
             ],
-            "median_ms": 20.912217
+            "median_ms": 45.22576
           },
-          "run_ms": 20.912217
+          "run_ms": 45.22576
         },
         "zir": {
           "command": "build/bin/zi2zir --root examples --module-path std --entry arrays:main -o build/site-targets/arrays/zir examples/arrays.zi",
           "files": [
             {
               "path": "generated/targets/arrays/zir/arrays.zir",
-              "bytes": 2544,
-              "sha256": "39637a64db3012f82e7d768e8a0d21a2df29e06eb21a5f718e6769f52657d054",
+              "bytes": 2545,
+              "sha256": "7d5ebb134896705a6ce8f490270e94d5e128cdc41c46cd9e7b3ea96c3e4c776f",
               "inspection": {
                 "path": "generated/targets/arrays/zir/arrays.zir.txt",
                 "bytes": 4147,
@@ -3695,25 +3838,30 @@
             }
           ],
           "emission_samples_ms": [
-            1.839059,
-            1.730669,
-            1.703519
+            2.418163,
+            2.551413,
+            2.534073,
+            3.562658,
+            1.9531
           ],
           "status": "ok",
-          "bytes": 2544,
+          "bytes": 2545,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.6154389999999998,
-            "upper_ms": 1.8865190000000003,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.839059,
-              1.730669,
-              1.703519
+            "lower_ms": 2.2182879999999994,
+            "upper_ms": 2.7512880000000006,
+            "excluded_indices": [
+              3,
+              4
             ],
-            "median_ms": 1.730669
+            "included_samples_ms": [
+              2.418163,
+              2.551413,
+              2.534073
+            ],
+            "median_ms": 2.534073
           },
-          "emission_ms": 1.730669,
+          "emission_ms": 2.534073,
           "inspection": {
             "path": "generated/targets/arrays/zir/arrays.zir.txt",
             "bytes": 4147,
@@ -3746,46 +3894,55 @@
             }
           ],
           "emission_samples_ms": [
-            1.793189,
-            1.641199,
-            2.405212
+            2.958255,
+            2.592873,
+            3.277387,
+            4.586753,
+            2.980886
           ],
           "status": "ok",
           "bytes": 3110,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.14418425,
-            "upper_ms": 2.6722102500000005,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.793189,
-              1.641199,
-              2.405212
+            "lower_ms": 2.479557,
+            "upper_ms": 3.7560850000000006,
+            "excluded_indices": [
+              3
             ],
-            "median_ms": 1.793189
+            "included_samples_ms": [
+              2.958255,
+              2.592873,
+              3.277387,
+              2.980886
+            ],
+            "median_ms": 2.9695704999999997
           },
-          "emission_ms": 1.793189,
+          "emission_ms": 2.9695704999999997,
           "run_command": "build/site-targets/enums/c/program",
           "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/enums/c build/site-targets/enums/c/enums.c build/site-targets/enums/c/matrix_host.c -lm -o build/site-targets/enums/c/program",
           "run_samples_ms": [
-            0.606273,
-            0.502692,
-            0.470252
+            3.428227,
+            5.600159,
+            6.532283,
+            2.743634,
+            2.429552
           ],
           "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.38445625000000005,
-            "upper_ms": 0.65649825,
+            "lower_ms": -1.5411534999999992,
+            "upper_ms": 9.884946499999998,
             "excluded_indices": [],
             "included_samples_ms": [
-              0.606273,
-              0.502692,
-              0.470252
+              3.428227,
+              5.600159,
+              6.532283,
+              2.743634,
+              2.429552
             ],
-            "median_ms": 0.502692
+            "median_ms": 3.428227
           },
-          "run_ms": 0.502692,
+          "run_ms": 3.428227,
           "web": {
             "script": "generated/targets/web/enums-c.js",
             "files": [
@@ -3812,46 +3969,55 @@
             }
           ],
           "emission_samples_ms": [
-            1.601798,
-            1.478538,
-            2.162431
+            8.026061,
+            3.683329,
+            2.416322,
+            4.433073,
+            4.01782
           ],
           "status": "ok",
           "bytes": 563,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.0272482499999998,
-            "upper_ms": 2.39503425,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.601798,
-              1.478538,
-              2.162431
+            "lower_ms": 2.558713,
+            "upper_ms": 5.557689000000001,
+            "excluded_indices": [
+              0,
+              2
             ],
-            "median_ms": 1.601798
+            "included_samples_ms": [
+              3.683329,
+              4.433073,
+              4.01782
+            ],
+            "median_ms": 4.01782
           },
-          "emission_ms": 1.601798,
+          "emission_ms": 4.01782,
           "run_command": "build/site-targets/enums/go/program",
           "build_command": "go build -p=2 -o build/site-targets/enums/go/program build/site-targets/enums/go/enums.go build/site-targets/enums/go/matrix_host.go",
           "run_samples_ms": [
-            0.739674,
-            0.941084,
-            1.193596
+            4.336922,
+            8.637654,
+            11.844581,
+            3.675039,
+            3.85005
           ],
           "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.4999374999999997,
-            "upper_ms": 1.4077815000000005,
+            "lower_ms": -3.331356,
+            "upper_ms": 15.81906,
             "excluded_indices": [],
             "included_samples_ms": [
-              0.739674,
-              0.941084,
-              1.193596
+              4.336922,
+              8.637654,
+              11.844581,
+              3.675039,
+              3.85005
             ],
-            "median_ms": 0.941084
+            "median_ms": 4.336922
           },
-          "run_ms": 0.941084,
+          "run_ms": 4.336922,
           "web": {
             "path": "generated/targets/web/enums-go.wasm",
             "runtime": "generated/targets/web/wasm_exec.js",
@@ -3889,25 +4055,29 @@
             }
           ],
           "emission_samples_ms": [
-            1.898829,
-            2.492423,
-            2.129821
+            2.601503,
+            2.860975,
+            2.368952,
+            2.847914,
+            2.397702
           ],
           "status": "ok",
           "bytes": 4060,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.5691295000000007,
-            "upper_ms": 2.7563174999999998,
+            "lower_ms": 1.7223840000000008,
+            "upper_ms": 3.5232319999999993,
             "excluded_indices": [],
             "included_samples_ms": [
-              1.898829,
-              2.492423,
-              2.129821
+              2.601503,
+              2.860975,
+              2.368952,
+              2.847914,
+              2.397702
             ],
-            "median_ms": 2.129821
+            "median_ms": 2.601503
           },
-          "emission_ms": 2.129821,
+          "emission_ms": 2.601503,
           "inspection": {
             "path": "generated/targets/enums/zx/enums.zx.txt",
             "bytes": 6750,
@@ -3915,24 +4085,29 @@
           },
           "run_command": "build/bin/zi2zx run build/site-targets/enums/zx/enums.zx",
           "run_samples_ms": [
-            1.096655,
-            1.502488,
-            0.997695
+            3.237236,
+            2.669284,
+            2.987975,
+            2.099421,
+            2.784794
           ],
           "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.6685802500000001,
-            "upper_ms": 1.6781662499999999,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.096655,
-              1.502488,
-              0.997695
+            "lower_ms": 2.1912475000000002,
+            "upper_ms": 3.4660114999999996,
+            "excluded_indices": [
+              3
             ],
-            "median_ms": 1.096655
+            "included_samples_ms": [
+              3.237236,
+              2.669284,
+              2.987975,
+              2.784794
+            ],
+            "median_ms": 2.8863845
           },
-          "run_ms": 1.096655,
+          "run_ms": 2.8863845,
           "web": {
             "script": "generated/targets/web/zx-runtime.js",
             "files": [
@@ -3959,45 +4134,53 @@
             }
           ],
           "emission_samples_ms": [
-            3.1621259999999998,
-            2.708443,
-            2.671904
+            7.100496,
+            7.006956000000001,
+            6.740133999999999,
+            3.7788390000000005,
+            4.978526
           ],
           "status": "ok",
           "bytes": 8448,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 2.3225070000000008,
-            "upper_ms": 3.3029509999999993,
+            "lower_ms": 1.935880999999998,
+            "upper_ms": 10.049601000000003,
             "excluded_indices": [],
             "included_samples_ms": [
-              3.1621259999999998,
-              2.708443,
-              2.671904
+              7.100496,
+              7.006956000000001,
+              6.740133999999999,
+              3.7788390000000005,
+              4.978526
             ],
-            "median_ms": 2.708443
+            "median_ms": 6.740133999999999
           },
-          "emission_ms": 2.708443,
+          "emission_ms": 6.740133999999999,
           "run_command": "build/site-targets/enums/native/enums.native",
           "run_samples_ms": [
-            0.535592,
-            0.351252,
-            0.197361
+            4.010981,
+            3.754819,
+            4.681874,
+            1.304227,
+            1.824849
           ],
           "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.020633250000000047,
-            "upper_ms": 0.6970952499999999,
+            "lower_ms": -1.4543490000000001,
+            "upper_ms": 7.290179,
             "excluded_indices": [],
             "included_samples_ms": [
-              0.535592,
-              0.351252,
-              0.197361
+              4.010981,
+              3.754819,
+              4.681874,
+              1.304227,
+              1.824849
             ],
-            "median_ms": 0.351252
+            "median_ms": 3.754819
           },
-          "run_ms": 0.351252
+          "run_ms": 3.754819
         },
         "wasm": {
           "command": "build/bin/zi2zx --target wasm --root examples --module-path std --entry enums:main -o build/site-targets/enums/wasm/enums.zx examples/enums.zi && build/bin/zx2wasm -o build/site-targets/enums/wasm/enums.wasm build/site-targets/enums/wasm/enums.zx",
@@ -4009,53 +4192,62 @@
             }
           ],
           "emission_samples_ms": [
-            3.398317,
-            2.554633,
-            2.539853
+            6.075531,
+            5.783699,
+            5.243057,
+            4.283812,
+            3.2421860000000002
           ],
           "status": "ok",
           "bytes": 881,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.9033950000000002,
-            "upper_ms": 3.6203229999999995,
+            "lower_ms": 2.0339815,
+            "upper_ms": 8.0335295,
             "excluded_indices": [],
             "included_samples_ms": [
-              3.398317,
-              2.554633,
-              2.539853
+              6.075531,
+              5.783699,
+              5.243057,
+              4.283812,
+              3.2421860000000002
             ],
-            "median_ms": 2.554633
+            "median_ms": 5.243057
           },
-          "emission_ms": 2.554633,
+          "emission_ms": 5.243057,
           "run_command": "node scripts/site_target_wasm.cjs build/site-targets/enums/wasm/enums.wasm --output",
           "run_samples_ms": [
-            18.946257,
-            21.203428,
-            19.6981
+            48.857128,
+            48.289316,
+            55.673363,
+            41.977744,
+            49.656353
           ],
           "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 17.62930025,
-            "upper_ms": 22.14364225,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              18.946257,
-              21.203428,
-              19.6981
+            "lower_ms": 46.2387605,
+            "upper_ms": 51.70690850000001,
+            "excluded_indices": [
+              2,
+              3
             ],
-            "median_ms": 19.6981
+            "included_samples_ms": [
+              48.857128,
+              48.289316,
+              49.656353
+            ],
+            "median_ms": 48.857128
           },
-          "run_ms": 19.6981
+          "run_ms": 48.857128
         },
         "zir": {
           "command": "build/bin/zi2zir --root examples --module-path std --entry enums:main -o build/site-targets/enums/zir examples/enums.zi",
           "files": [
             {
               "path": "generated/targets/enums/zir/enums.zir",
-              "bytes": 1513,
-              "sha256": "c9890b2566227256ad452372c55f23222c9eaefa483ad3f7512658b96a9356e0",
+              "bytes": 1514,
+              "sha256": "29c87ec7f1c44bf4d7d9866ab0c40b83a87b270c11769897450c117e97c7ba0a",
               "inspection": {
                 "path": "generated/targets/enums/zir/enums.zir.txt",
                 "bytes": 2142,
@@ -4064,25 +4256,30 @@
             }
           ],
           "emission_samples_ms": [
-            1.801459,
-            1.341527,
-            1.053935
+            4.832874,
+            2.356762,
+            2.319832,
+            2.587473,
+            2.964745
           ],
           "status": "ok",
-          "bytes": 1513,
+          "bytes": 1514,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.6370880000000005,
-            "upper_ms": 2.132135999999999,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.801459,
-              1.341527,
-              1.053935
+            "lower_ms": 1.4447874999999992,
+            "upper_ms": 3.876719500000001,
+            "excluded_indices": [
+              0
             ],
-            "median_ms": 1.341527
+            "included_samples_ms": [
+              2.356762,
+              2.319832,
+              2.587473,
+              2.964745
+            ],
+            "median_ms": 2.4721175
           },
-          "emission_ms": 1.341527,
+          "emission_ms": 2.4721175,
           "inspection": {
             "path": "generated/targets/enums/zir/enums.zir.txt",
             "bytes": 2142,
@@ -4120,46 +4317,55 @@
             }
           ],
           "emission_samples_ms": [
-            1.487558,
-            1.406137,
-            1.688379
+            2.962595,
+            2.481543,
+            3.862559,
+            2.302002,
+            2.661674
           ],
           "status": "ok",
           "bytes": 1833,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.235166,
-            "upper_ms": 1.7996500000000002,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.487558,
-              1.406137,
-              1.688379
+            "lower_ms": 1.7599649999999998,
+            "upper_ms": 3.684173,
+            "excluded_indices": [
+              2
             ],
-            "median_ms": 1.487558
+            "included_samples_ms": [
+              2.962595,
+              2.481543,
+              2.302002,
+              2.661674
+            ],
+            "median_ms": 2.5716085
           },
-          "emission_ms": 1.487558,
+          "emission_ms": 2.5716085,
           "run_command": "build/site-targets/loops/c/program",
           "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/loops/c build/site-targets/loops/c/loops.c build/site-targets/loops/c/matrix_host.c -lm -o build/site-targets/loops/c/program",
           "run_samples_ms": [
-            0.407742,
-            0.561203,
-            1.305807
+            2.130151,
+            1.224926,
+            1.99594,
+            1.152876,
+            2.276982
           ],
           "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": -0.18907625000000017,
-            "upper_ms": 1.6070537500000002,
+            "lower_ms": -0.1329115000000003,
+            "upper_ms": 3.4879885,
             "excluded_indices": [],
             "included_samples_ms": [
-              0.407742,
-              0.561203,
-              1.305807
+              2.130151,
+              1.224926,
+              1.99594,
+              1.152876,
+              2.276982
             ],
-            "median_ms": 0.561203
+            "median_ms": 1.99594
           },
-          "run_ms": 0.561203,
+          "run_ms": 1.99594,
           "web": {
             "script": "generated/targets/web/loops-c.js",
             "files": [
@@ -4186,46 +4392,56 @@
             }
           ],
           "emission_samples_ms": [
-            1.695739,
-            1.574168,
-            1.602268
+            3.625279,
+            5.122716,
+            3.832349,
+            3.85785,
+            3.097986
           ],
           "status": "ok",
           "bytes": 667,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.4970397499999997,
-            "upper_ms": 1.7401817500000003,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.695739,
-              1.574168,
-              1.602268
+            "lower_ms": 3.2764225,
+            "upper_ms": 4.2067065,
+            "excluded_indices": [
+              1,
+              4
             ],
-            "median_ms": 1.602268
+            "included_samples_ms": [
+              3.625279,
+              3.832349,
+              3.85785
+            ],
+            "median_ms": 3.832349
           },
-          "emission_ms": 1.602268,
+          "emission_ms": 3.832349,
           "run_command": "build/site-targets/loops/go/program",
           "build_command": "go build -p=2 -o build/site-targets/loops/go/program build/site-targets/loops/go/loops.go build/site-targets/loops/go/matrix_host.go",
           "run_samples_ms": [
-            0.919005,
-            0.842734,
-            0.672784
+            5.337387,
+            3.631569,
+            10.927996,
+            5.047766,
+            5.069035
           ],
           "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.5730932500000002,
-            "upper_ms": 1.06553525,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.919005,
-              0.842734,
-              0.672784
+            "lower_ms": 4.613334500000001,
+            "upper_ms": 5.771818499999998,
+            "excluded_indices": [
+              1,
+              2
             ],
-            "median_ms": 0.842734
+            "included_samples_ms": [
+              5.337387,
+              5.047766,
+              5.069035
+            ],
+            "median_ms": 5.069035
           },
-          "run_ms": 0.842734,
+          "run_ms": 5.069035,
           "web": {
             "path": "generated/targets/web/loops-go.wasm",
             "runtime": "generated/targets/web/wasm_exec.js",
@@ -4263,25 +4479,29 @@
             }
           ],
           "emission_samples_ms": [
-            2.628964,
-            2.139181,
-            2.365832
+            2.870094,
+            2.754804,
+            3.632939,
+            3.552488,
+            2.805424
           ],
           "status": "ok",
           "bytes": 8340,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.88516925,
-            "upper_ms": 2.86473525,
+            "lower_ms": 1.684828,
+            "upper_ms": 4.673083999999999,
             "excluded_indices": [],
             "included_samples_ms": [
-              2.628964,
-              2.139181,
-              2.365832
+              2.870094,
+              2.754804,
+              3.632939,
+              3.552488,
+              2.805424
             ],
-            "median_ms": 2.365832
+            "median_ms": 2.870094
           },
-          "emission_ms": 2.365832,
+          "emission_ms": 2.870094,
           "inspection": {
             "path": "generated/targets/loops/zx/loops.zx.txt",
             "bytes": 14334,
@@ -4289,24 +4509,28 @@
           },
           "run_command": "build/bin/zi2zx run build/site-targets/loops/zx/loops.zx",
           "run_samples_ms": [
-            1.84428,
-            1.762509,
-            1.404717
+            6.817134,
+            4.04181,
+            3.820039,
+            4.264842,
+            7.133087
           ],
           "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 1.2539407500000004,
-            "upper_ms": 2.13306675,
+            "lower_ms": -0.12117600000000017,
+            "upper_ms": 10.98012,
             "excluded_indices": [],
             "included_samples_ms": [
-              1.84428,
-              1.762509,
-              1.404717
+              6.817134,
+              4.04181,
+              3.820039,
+              4.264842,
+              7.133087
             ],
-            "median_ms": 1.762509
+            "median_ms": 4.264842
           },
-          "run_ms": 1.762509,
+          "run_ms": 4.264842,
           "web": {
             "script": "generated/targets/web/zx-runtime.js",
             "files": [
@@ -4333,45 +4557,55 @@
             }
           ],
           "emission_samples_ms": [
-            4.306051,
-            3.675129,
-            4.117921
+            9.593969,
+            9.681899,
+            13.889361000000001,
+            9.039156,
+            9.032616
           ],
           "status": "ok",
           "bytes": 12672,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 3.423333500000001,
-            "upper_ms": 4.685177499999999,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              4.306051,
-              3.675129,
-              4.117921
+            "lower_ms": 8.075041500000001,
+            "upper_ms": 10.646013499999999,
+            "excluded_indices": [
+              2
             ],
-            "median_ms": 4.117921
+            "included_samples_ms": [
+              9.593969,
+              9.681899,
+              9.039156,
+              9.032616
+            ],
+            "median_ms": 9.3165625
           },
-          "emission_ms": 4.117921,
+          "emission_ms": 9.3165625,
           "run_command": "build/site-targets/loops/native/loops.native",
           "run_samples_ms": [
-            0.325691,
-            0.294541,
-            0.322872
+            5.315978,
+            0.615523,
+            1.217786,
+            0.770434,
+            0.584503
           ],
           "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.285344,
-            "upper_ms": 0.347644,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              0.325691,
-              0.294541,
-              0.322872
+            "lower_ms": -0.28787149999999995,
+            "upper_ms": 2.1211805,
+            "excluded_indices": [
+              0
             ],
-            "median_ms": 0.322872
+            "included_samples_ms": [
+              0.615523,
+              1.217786,
+              0.770434,
+              0.584503
+            ],
+            "median_ms": 0.6929784999999999
           },
-          "run_ms": 0.322872
+          "run_ms": 0.6929784999999999
         },
         "wasm": {
           "command": "build/bin/zi2zx --target wasm --root examples --module-path std --entry loops:main -o build/site-targets/loops/wasm/loops.zx examples/loops.zi && build/bin/zx2wasm -o build/site-targets/loops/wasm/loops.wasm build/site-targets/loops/wasm/loops.zx",
@@ -4383,53 +4617,61 @@
             }
           ],
           "emission_samples_ms": [
-            3.449287,
-            3.426927,
-            3.162406
+            7.056775999999999,
+            9.814689999999999,
+            5.712669,
+            9.575119,
+            7.050856
           ],
           "status": "ok",
           "bytes": 1653,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 3.07950575,
-            "upper_ms": 3.6532677500000004,
+            "lower_ms": 3.2644614999999977,
+            "upper_ms": 13.361513500000003,
             "excluded_indices": [],
             "included_samples_ms": [
-              3.449287,
-              3.426927,
-              3.162406
+              7.056775999999999,
+              9.814689999999999,
+              5.712669,
+              9.575119,
+              7.050856
             ],
-            "median_ms": 3.426927
+            "median_ms": 7.056775999999999
           },
-          "emission_ms": 3.426927,
+          "emission_ms": 7.056775999999999,
           "run_command": "node scripts/site_target_wasm.cjs build/site-targets/loops/wasm/loops.wasm --output",
           "run_samples_ms": [
-            22.721406,
-            21.890131,
-            21.63073
+            63.792065,
+            48.161395,
+            57.873385,
+            49.08705,
+            34.312414
           ],
           "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
           "run_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 20.942423499999997,
-            "upper_ms": 23.1237755,
+            "lower_ms": 33.59341,
+            "upper_ms": 72.44137,
             "excluded_indices": [],
             "included_samples_ms": [
-              22.721406,
-              21.890131,
-              21.63073
+              63.792065,
+              48.161395,
+              57.873385,
+              49.08705,
+              34.312414
             ],
-            "median_ms": 21.890131
+            "median_ms": 49.08705
           },
-          "run_ms": 21.890131
+          "run_ms": 49.08705
         },
         "zir": {
           "command": "build/bin/zi2zir --root examples --module-path std --entry loops:main -o build/site-targets/loops/zir examples/loops.zi",
           "files": [
             {
               "path": "generated/targets/loops/zir/loops.zir",
-              "bytes": 2425,
-              "sha256": "c9f6b1ca4a74a6231d9e56c945990905024225d76168ba25c8f949340e632c3b",
+              "bytes": 2426,
+              "sha256": "80d4190fa5278b8e6e49195a4ab7727f1a109f4133fad16c01889afade57416f",
               "inspection": {
                 "path": "generated/targets/loops/zir/loops.zir.txt",
                 "bytes": 3867,
@@ -4438,25 +4680,30 @@
             }
           ],
           "emission_samples_ms": [
-            1.429608,
-            1.206856,
-            1.042965
+            4.636004,
+            4.701624,
+            2.939875,
+            4.426053,
+            4.305902
           ],
           "status": "ok",
-          "bytes": 2425,
+          "bytes": 2426,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-            "lower_ms": 0.8349282499999997,
-            "upper_ms": 1.6082142500000003,
-            "excluded_indices": [],
-            "included_samples_ms": [
-              1.429608,
-              1.206856,
-              1.042965
+            "lower_ms": 3.8107489999999995,
+            "upper_ms": 5.131157,
+            "excluded_indices": [
+              2
             ],
-            "median_ms": 1.206856
+            "included_samples_ms": [
+              4.636004,
+              4.701624,
+              4.426053,
+              4.305902
+            ],
+            "median_ms": 4.5310285
           },
-          "emission_ms": 1.206856,
+          "emission_ms": 4.5310285,
           "inspection": {
             "path": "generated/targets/loops/zir/loops.zir.txt",
             "bytes": 3867,

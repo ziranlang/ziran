@@ -15,11 +15,23 @@ CaptureRead :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read
 CapturePointer :: struct { value: *u8 }
 CaptureArgument :: struct { bytes: [4096]u8 }
 
+CaptureFailure :: enum {
+    None
+    InvalidArguments
+    InvalidUrl
+    PipeError
+    ForkError
+    ReadError
+    WaitError
+    TooLarge
+}
+
 CaptureResult :: struct {
     code: s32
     length: s32
     error: bool
     truncated: bool
+    problem: CaptureFailure
 }
 
 #program_export
@@ -29,6 +41,7 @@ CaptureOutput :: (arguments: []string, output: []u8) -> CaptureResult {
     if arguments.count == 0 || arguments.count > 16 || output.count == 0 ||
         output.count > 2147483647 {
         result.error = true
+        result.problem = .InvalidArguments
         return result
     }
     bytes: [16]CaptureArgument
@@ -37,6 +50,7 @@ CaptureOutput :: (arguments: []string, output: []u8) -> CaptureResult {
     while index < cast(s32)arguments.count {
         if !CopyCString(arguments[index], bytes[index].bytes[:]) {
             result.error = true
+            result.problem = .InvalidArguments
             return result
         }
         pointers[index].value = *bytes[index].bytes[0]
@@ -46,6 +60,7 @@ CaptureOutput :: (arguments: []string, output: []u8) -> CaptureResult {
     fds: [2]s32
     if CapturePipe(*fds[0]) != 0 {
         result.error = true
+        result.problem = .PipeError
         return result
     }
     pid: s32 = CaptureFork()
@@ -53,6 +68,7 @@ CaptureOutput :: (arguments: []string, output: []u8) -> CaptureResult {
         CaptureClose(fds[0])
         CaptureClose(fds[1])
         result.error = true
+        result.problem = .ForkError
         return result
     }
     if pid == 0 {
@@ -68,6 +84,7 @@ CaptureOutput :: (arguments: []string, output: []u8) -> CaptureResult {
             cast(usize)(cast(s32)output.count - result.length))
         if count < 0 {
             result.error = true
+            result.problem = .ReadError
             break
         }
         if count == 0 { break }
@@ -75,15 +92,42 @@ CaptureOutput :: (arguments: []string, output: []u8) -> CaptureResult {
     }
     if result.length == cast(s32)output.count {
         result.truncated = true
+        result.problem = .TooLarge
     }
     CaptureClose(fds[0])
     status: s32 = 0
     if CaptureWait(pid, *status, 0) != pid {
         result.error = true
+        result.problem = .WaitError
     } else if (status & 127) != 0 {
         result.code = 128 + (status & 127)
     } else {
         result.code = (status >> 8) & 255
+    }
+    return result
+}
+
+// Capture no more than MAXIMUM bytes. OUTPUT must leave one extra byte so the
+// boundary can distinguish an exact-length body from a longer one.
+#program_export
+CaptureOutputCapped :: (arguments: []string, output: []u8,
+    maximum: s64) -> CaptureResult {
+    if maximum < 0 || maximum >= output.count {
+        result: CaptureResult
+        result.code = 127
+        result.error = true
+        result.problem = .InvalidArguments
+        return result
+    }
+    result := CaptureOutput(arguments, output[0:maximum + 1])
+    if result.truncated || result.length > maximum {
+        result.length = 0
+        result.error = true
+        result.truncated = true
+        result.problem = .TooLarge
+        output[0] = cast(u8)0
+    } else {
+        output[result.length] = cast(u8)0
     }
     return result
 }

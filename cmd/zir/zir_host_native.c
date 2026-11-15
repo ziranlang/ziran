@@ -663,6 +663,21 @@ native_disk_key(const unsigned char digest[32], uint64_t cpu, NativeCacheDigest 
 
 /* A verified entry for KEY, or NULL. A file that does not decode under its
  * key and digest, or whose image does not fit this bundle, is removed. */
+static const char *
+native_cache_reject_counter(NativeCacheFailure failure)
+{
+    switch(failure) {
+    case NativeCacheFailure_TooLarge: return "native_cache_disk_reject_too_large";
+    case NativeCacheFailure_Truncated: return "native_cache_disk_reject_truncated";
+    case NativeCacheFailure_WrongFormat: return "native_cache_disk_reject_wrong_format";
+    case NativeCacheFailure_WrongKey: return "native_cache_disk_reject_wrong_key";
+    case NativeCacheFailure_WrongLength: return "native_cache_disk_reject_wrong_length";
+    case NativeCacheFailure_WrongDigest: return "native_cache_disk_reject_wrong_digest";
+    case NativeCacheFailure_WrongStructure: return "native_cache_disk_reject_wrong_structure";
+    default: return NULL;
+    }
+}
+
 static NativeBundleCode *
 native_disk_load(const ExecBundle *bundle, const NativeCacheDigest *key)
 {
@@ -689,8 +704,10 @@ native_disk_load(const ExecBundle *bundle, const NativeCacheDigest *key)
     close(file);
     NativeBundleCode *code = bytes != NULL ? calloc(1, sizeof(*code)) : NULL;
     char problem[512];
+    NativeCacheFailure cache_failure = NativeCacheFailure_None;
     int ok = code != NULL &&
-        compiler_native_cache_NativeCacheDecode((Slice){bytes, (int64_t)length}, *key, &code->cached);
+        (cache_failure = compiler_native_cache_NativeCacheDecodeChecked(
+            (Slice){bytes, (int64_t)length}, *key, &code->cached)) == NativeCacheFailure_None;
     free(bytes);
     if(ok) {
         code->image = code->cached.image.image;
@@ -704,7 +721,12 @@ native_disk_load(const ExecBundle *bundle, const NativeCacheDigest *key)
     }
     if(!ok) {
         if(code != NULL) native_free_code(code);
-        if(bytes != NULL || length > 0) { unlink(path); ProfileCount("native_cache_disk_reject"); }
+        if(bytes != NULL || length > 0) {
+            const char *counter = native_cache_reject_counter(cache_failure);
+            unlink(path);
+            ProfileCount("native_cache_disk_reject");
+            if(counter != NULL) ProfileCount(counter);
+        }
         return NULL;
     }
     ProfileCount("native_cache_disk_hit");

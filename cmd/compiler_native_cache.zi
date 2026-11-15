@@ -30,6 +30,19 @@ NativeCacheOwner :: struct {
     has_result: bool
 }
 
+// A disk entry is never merely "bad": callers can distinguish framing,
+// identity, digest and decoded-image failures before recompiling it.
+NativeCacheFailure :: enum {
+    None
+    TooLarge
+    Truncated
+    WrongFormat
+    WrongKey
+    WrongLength
+    WrongDigest
+    WrongStructure
+}
+
 NativeCacheHash :: struct { state: [128]u8 }
 
 HashBegin :: () -> NativeCacheHash { hash: NativeCacheHash; ShaBegin(cast(*void)*hash); return hash }
@@ -177,28 +190,48 @@ TakeOffsets :: (reader: *Reader, output: *Vectors.Vec(s64)) -> bool {
     return !reader.failed
 }
 
-// Decodes BYTES, which must be framed under KEY, into OWNER. False leaves
-// OWNER freed; the loader then compiles as if there were no entry.
-NativeCacheDecode :: (bytes: []u8, key: NativeCacheDigest, owner: *NativeCacheOwner) -> bool {
+// Decodes BYTES, which must be framed under KEY, into OWNER. A failure leaves
+// OWNER freed and names why the entry was refused before the loader recompiles.
+NativeCacheDecodeChecked :: (bytes: []u8, key: NativeCacheDigest,
+    owner: *NativeCacheOwner) -> NativeCacheFailure {
     NativeCacheFree(owner)
     format := NativeCacheFormat
     header := cast(s64)format.count + NativeCacheDigestBytes + 8 + NativeCacheDigestBytes
-    if bytes.count < header || bytes.count > NativeCacheMaximum { return false }
-    for index: cast(s64)0..format.count - 1 { if bytes[index] != format[index] { return false } }
+    if bytes.count > NativeCacheMaximum { return .TooLarge }
+    if bytes.count < header { return .Truncated }
+    for index: cast(s64)0..format.count - 1 {
+        if bytes[index] != format[index] { return .WrongFormat }
+    }
     at := cast(s64)format.count
-    for index: 0..NativeCacheDigestBytes - 1 { if bytes[at + index] != key.bytes[index] { return false } }
+    for index: 0..NativeCacheDigestBytes - 1 {
+        if bytes[at + index] != key.bytes[index] { return .WrongKey }
+    }
     at += NativeCacheDigestBytes
     length_reader := Reader.{bytes = bytes, at = at}
     length := TakeWord(*length_reader)
     at += 8
-    if length != cast(u64)(bytes.count - header) { return false }
+    if length > cast(u64)(NativeCacheMaximum - header) { return .TooLarge }
+    actual_length := cast(u64)(bytes.count - header)
+    if length > actual_length { return .Truncated }
+    if length < actual_length { return .WrongLength }
     payload := bytes[header:bytes.count]
     hash := HashBegin()
     HashAdd(*hash, payload)
     actual := HashEnd(*hash)
-    for index: 0..NativeCacheDigestBytes - 1 { if bytes[at + index] != actual.bytes[index] { return false } }
-    if !DecodePayload(payload, owner) { NativeCacheFree(owner); return false }
-    return true
+    for index: 0..NativeCacheDigestBytes - 1 {
+        if bytes[at + index] != actual.bytes[index] { return .WrongDigest }
+    }
+    if !DecodePayload(payload, owner) {
+        NativeCacheFree(owner)
+        return .WrongStructure
+    }
+    return .None
+}
+
+// Compatibility wrapper for the C host while it only needs hit or miss. The
+// checked entry point above remains the diagnostic contract and test surface.
+NativeCacheDecode :: (bytes: []u8, key: NativeCacheDigest, owner: *NativeCacheOwner) -> bool {
+    return NativeCacheDecodeChecked(bytes, key, owner) == .None
 }
 
 DecodePayload :: (payload: []u8, owner: *NativeCacheOwner) -> bool {

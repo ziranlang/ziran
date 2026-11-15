@@ -109,7 +109,7 @@ main(int argc, char **argv)
 
     request.url = url(address, sizeof address, argv[1], "/slow");
     result = SendCurlWithin(request, buffer, 500);
-    assert(result.code == 28 && result.length == 0);
+    assert(result.code == 28 && result.length == 0 && result.problem == CurlFailure_TransportError);
     result = SendCurlWithin(request, buffer, 10000);
     assert(result.code == 0 && result.status == 200);
     assert(result.length == 5 && strcmp(output, "ready") == 0);
@@ -159,27 +159,27 @@ main(int argc, char **argv)
     request.url = url(address, sizeof address, argv[1], "/large");
     buffer.length = 8;
     result = SendCurl(request, buffer);
-    assert(result.code != 0 && result.truncated);
+    assert(result.code != 0 && result.truncated && result.problem == CurlFailure_TooLarge);
     assert(result.length == 0 && output[0] == 0);
 
     request.url = url(address, sizeof address, argv[1], "/gzip-large");
     result = SendCurl(request, buffer);
-    assert(result.code != 0 && result.truncated);
+    assert(result.code != 0 && result.truncated && result.problem == CurlFailure_TooLarge);
     assert(result.length == 0 && output[0] == 0);
 
     request.url = url(address, sizeof address, argv[1], "/ok");
     request.token = StringLiteral("bad\r\nX-Injected: yes");
     result = SendCurl(request, buffer);
-    assert(result.code == -1 && result.status == 0);
+    assert(result.code == -1 && result.status == 0 && result.problem == CurlFailure_ConfigureError);
     assert(output[0] == 0);
     request.token = StringLiteral("");
     request.method = StringLiteral("GET\r\nBAD");
     result = SendCurl(request, buffer);
-    assert(result.code == -1 && result.status == 0);
+    assert(result.code == -1 && result.status == 0 && result.problem == CurlFailure_InvalidMethod);
     request.method = StringLiteral("GET");
     request.url = StringLiteral("file:///etc/passwd");
     result = SendCurl(request, buffer);
-    assert(result.code == -1 && result.status == 0);
+    assert(result.code == -1 && result.status == 0 && result.problem == CurlFailure_InvalidUrl);
     puts("Ziran curl HTTP request and bounded response passed");
     return 0;
 }

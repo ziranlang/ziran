@@ -2,14 +2,74 @@
 #ifndef ZIRAN_ENVIRONMENT_LINUX_H
 #define ZIRAN_ENVIRONMENT_LINUX_H
 
+#include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
 #include "c_string.h"
 #include "byte_text_linux.h"
 #include "number_text.h"
+#include "result.h"
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+typedef int64_t EnvironmentFailure;
+typedef int64_t ArgumentFailure;
+#ifndef ZIRAN_CONCRETE_FORWARD___type_6c5c09809af9b2be
+#define ZIRAN_CONCRETE_FORWARD___type_6c5c09809af9b2be
+typedef struct __type_6c5c09809af9b2be __type_6c5c09809af9b2be;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_2327be0556361c2c
+#define ZIRAN_CONCRETE_FORWARD___type_2327be0556361c2c
+typedef struct __type_2327be0556361c2c __type_2327be0556361c2c;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_4289a23f77d76d0a
+#define ZIRAN_CONCRETE_FORWARD___type_4289a23f77d76d0a
+typedef struct __type_4289a23f77d76d0a __type_4289a23f77d76d0a;
+#endif
+
+enum {
+    EnvironmentFailure_None = 0,
+    EnvironmentFailure_InvalidName = 1,
+    EnvironmentFailure_Unset = 2,
+    EnvironmentFailure_Empty = 3,
+    EnvironmentFailure_TooLong = 4,
+    EnvironmentFailure_NotNumber = 5,
+    EnvironmentFailure_OutOfRange = 6,
+};
+
+enum {
+    ArgumentFailure_None = 0,
+    ArgumentFailure_InvalidIndex = 1,
+    ArgumentFailure_NullArgument = 2,
+    ArgumentFailure_TooLong = 3,
+};
+#ifndef ZIRAN_CONCRETE___type_6c5c09809af9b2be
+#define ZIRAN_CONCRETE___type_6c5c09809af9b2be
+
+struct __type_6c5c09809af9b2be {
+    bool is_ok;
+    String value;
+    EnvironmentFailure error;
+};
+#endif
+#ifndef ZIRAN_CONCRETE___type_2327be0556361c2c
+#define ZIRAN_CONCRETE___type_2327be0556361c2c
+
+struct __type_2327be0556361c2c {
+    bool is_ok;
+    int64_t value;
+    EnvironmentFailure error;
+};
+#endif
+#ifndef ZIRAN_CONCRETE___type_4289a23f77d76d0a
+#define ZIRAN_CONCRETE___type_4289a23f77d76d0a
+
+struct __type_4289a23f77d76d0a {
+    bool is_ok;
+    String value;
+    ArgumentFailure error;
+};
 #endif
 #ifndef ZIR_FOREIGN_zir_f_65e9ad6d46228d2f_EnvironmentValueRaw_40be1ae7
 #define ZIR_FOREIGN_zir_f_65e9ad6d46228d2f_EnvironmentValueRaw_40be1ae7
@@ -24,6 +84,10 @@ zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(uint8_t* name)
     return zir_foreign_zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(name);
 }
 #endif
+__type_6c5c09809af9b2be environment_linux_BoundedHostText(uint8_t* value, Slice output);
+__type_6c5c09809af9b2be EnvironmentRead(String name, Slice output);
+__type_2327be0556361c2c EnvironmentRange(String name, int64_t minimum, int64_t maximum, Slice input);
+__type_4289a23f77d76d0a ArgumentRead(int32_t argc, uint8_t** argv, int32_t index, Slice output);
 String environment_linux_EnvironmentText(String name);
 int64_t environment_linux_EnvironmentNumber(String name, int64_t fallback);
 

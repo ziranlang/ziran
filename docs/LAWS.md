@@ -145,6 +145,43 @@ authorize a proof. Canonical checking rejects divergent saved fields. The
 bundle loader also compares its outer evidence and waiver tables against
 the checked embedded IR. Earlier artifact versions are rejected.
 
+Trust changes how much input validation a boundary needs; it never changes
+memory safety. Checked-pointer slot, version, lifetime, extent, and
+writability rules apply at every tier. A compiler may omit a runtime check
+only when a verifier-visible fact proves every one of those obligations.
+Anything unknown keeps the check.
+
+| Tier | Boundary rule |
+| --- | --- |
+| 0, compiler-proved | Internal IR may consume a proved fact only after its verifier accepts the complete obligation. A backend optimization is not evidence by itself. |
+| 1, process-controlled | Environment and argv values are copied into bounded caller storage and parsed through `EnvironmentFailure` or `ArgumentFailure`. Missing, empty, oversized, malformed, and out-of-range input are distinct results; compatibility readers do not authorize compiler decisions. |
+| 2, semi-trusted local | Self-built `.zx`, local files, and caches are still editable. Loaders check framing, structure, identity, size, and digest before reuse. A cache hit may skip only hash-proven redundant compilation, never verification or a memory-safety check. Any cache refusal is named, removed, and recompiled. |
+| 3, untrusted | Downloaded or host-supplied bytes are capped before allocation, checked for valid framing and identity, decoded, and reverified. No short read, malformed field, invalid URL, host error, or oversized body becomes zero, empty text, truncated success, or another fallback value. |
+
+## Boundary diagnostic inventory
+
+Compiler diagnostic codes are stable identities and are listed by
+`ziran explain`. Typed library results are stable program-visible names. The
+message text may improve without changing either identity.
+
+| Boundary | Named outcome | Refusal contract |
+| --- | --- | --- |
+| Bundle path/open | `zx.input` | A missing or unreadable executable bundle never reaches decoding. |
+| ZX framing, revision, digest, and canonical sections | `zx.container`; `ZxExecProblem` and its nested container/codec result | Truncated, wrong-revision, edited, or noncanonical bytes are refused before execution. |
+| Decoded LIR | `ZxExecProblem.Codec`, `.Verify`, `.Identity`, `.Entry`, `.Capability`, `.Limit` | Decoding is bounded, content identities are recomputed, and `LirVerify` must succeed. |
+| Native disk cache | `NativeCacheFailure.TooLarge`, `.Truncated`, `.WrongFormat`, `.WrongKey`, `.WrongLength`, `.WrongDigest`, `.WrongStructure` | The entry is removed and compilation runs; profile counters use the matching `native_cache_disk_reject_*` name. |
+| Host capability/state/runtime | `zx.capability`, `zx.state`, `zx.runtime` | Missing bindings, incompatible state, and runtime traps are explicit terminal outcomes; there is no backend fallback. |
+| Environment and argv | `EnvironmentFailure`; `ArgumentFailure` | Values are bounded and copied before use; validation failures stay distinct. |
+| Binary fields | `BinaryReadFailure.NegativeOffset`, `.Misaligned`, `.ShortField` | A field is returned only when its complete aligned bytes exist. |
+| Files | `FileReadFailure.InvalidLimit`, `.InvalidPath`, `.NotFound`, `.TooLarge`, `.ReadError` | A capped read either returns the whole file or a named failure, never a prefix. |
+| HTTP and host bytes | `HttpInputFailure`, `CaptureFailure`, `CurlFailure` | URLs, limits, transport/host errors, and oversized bodies are validated and named before bytes are accepted. |
+
+`tests/trust_boundary_cases.zi` pins the explainable compiler codes and typed
+std names. `tests/native_disk_cache_cases.zi` corrupts every cache framing
+layer and proves the named refusal is followed by recompilation and a reusable
+replacement. `tests/std_environment_cases.zi` and `tests/std_input_cases.zi`
+cover every new Tier-1 and Tier-3 failure result with negative cases.
+
 The built-in C checker has no runtime Lean or solver dependency.
 [`proofs/Scalar.lean`](../proofs/Scalar.lean) models fixed-width semantics and
 proves the algebra, order, case, lemma-use, and rewrite rules sound. Its

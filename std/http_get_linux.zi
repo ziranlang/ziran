@@ -1,11 +1,34 @@
 #import "process_capture_linux"
 
+HttpsUrl :: (url: string) -> bool {
+    prefix := "https://"
+    if url.count <= prefix.count || url.count >= 2048 || url[:prefix.count] != prefix { return false }
+    for byte: url {
+        if byte == cast(u8)0 || byte < cast(u8)32 || byte == cast(u8)127 { return false }
+    }
+    return true
+}
+
 // Native HTTPS GET. curl owns TLS and redirects; the caller owns storage.
 #program_export
 GetHttps :: (url: string, output: []u8) -> CaptureResult {
+    maximum := output.count - 1
+    return GetHttpsCapped(url, maximum, output)
+}
+
+// Native HTTPS GET with an explicit body limit. A body over the limit is
+// refused as TooLarge and never returned as a truncated success.
+#program_export
+GetHttpsCapped :: (url: string, maximum: s64, output: []u8) -> CaptureResult {
+    if !HttpsUrl(url) {
+        result: CaptureResult
+        result.error = true
+        result.problem = .InvalidUrl
+        return result
+    }
     arguments: [8]string = .{
         "curl", "-fsSL", "--compressed", "--max-time", "20",
         "-A", "Ziran/1.0", url
     }
-    return CaptureOutput(arguments[:], output)
+    return CaptureOutputCapped(arguments[:], output, maximum)
 }

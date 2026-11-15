@@ -65,7 +65,8 @@ PlanChecks :: (checks: []CheckCase) -> Vec(s64) {
 
 // Ziran case files that drive the compiler named by their first argument.
 CheckCompilerCase :: (name: string) -> bool {
-    return name == "module_parameters_cases.zi" || name == "insert_source_cases.zi"
+    return name == "module_parameters_cases.zi" || name == "insert_source_cases.zi" ||
+        name == "std_environment_cases.zi" || name == "std_input_cases.zi"
 }
 
 CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
@@ -106,7 +107,8 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
         for argument: command { VecPush(result, argument) }
         return result
     }
-    if name == "artifact_consumer_cases.zi" || name == "native_disk_cache_cases.zi" {
+    if name == "artifact_consumer_cases.zi" || name == "native_disk_cache_cases.zi" ||
+        name == "trust_boundary_cases.zi" {
         VecPush(result, CheckPath(bin, "ziran"))
         VecPush(result, "run")
         VecPush(result, "--target=c")
@@ -147,7 +149,8 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
 DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) {
     checks: Vec(CheckCase)
     tests := CheckPath(repo, "tests")
-    compiler_cases := string.["module_parameters_cases.zi", "insert_source_cases.zi"]
+    compiler_cases := string.["module_parameters_cases.zi", "insert_source_cases.zi",
+        "std_environment_cases.zi", "std_input_cases.zi"]
     for name: compiler_cases {
         if TextContains(name, filter) { VecPush(checks, CheckCase.{.name = name, .cost = 2}) }
     }
@@ -166,6 +169,9 @@ DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) 
     }
     if TextContains("native_disk_cache_cases.zi", filter) {
         VecPush(checks, CheckCase.{.name = "native_disk_cache_cases.zi"})
+    }
+    if TextContains("trust_boundary_cases.zi", filter) {
+        VecPush(checks, CheckCase.{.name = "trust_boundary_cases.zi"})
     }
     if TextContains("verified_loading_cases.zi", filter) {
         VecPush(checks, CheckCase.{.name = "verified_loading_cases.zi"})

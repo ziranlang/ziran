@@ -16,6 +16,118 @@
 
 using Platform :: #import "file_linux"
 using Vectors :: #import "vec"
+#import "result"
+
+FileReadFailure :: enum {
+    None
+    InvalidLimit
+    InvalidPath
+    NotFound
+    TooLarge
+    ReadError
+}
+
+FilePathText :: (text: string) -> bool {
+    at: s64 = 0
+    while at < text.count {
+        first := text[at]
+        if first < cast(u8)128 { at += 1; continue }
+        count: s64 = 0
+        codepoint: u32 = 0
+        minimum: u32 = 0
+        if first >= cast(u8)194 && first <= cast(u8)223 {
+            count = 1; codepoint = cast(u32)(first & cast(u8)31); minimum = cast(u32)128
+        } else if first >= cast(u8)224 && first <= cast(u8)239 {
+            count = 2; codepoint = cast(u32)(first & cast(u8)15); minimum = cast(u32)2048
+        } else if first >= cast(u8)240 && first <= cast(u8)244 {
+            count = 3; codepoint = cast(u32)(first & cast(u8)7); minimum = cast(u32)65536
+        } else { return false }
+        if at + count >= text.count { return false }
+        index: s64 = 1
+        while index <= count {
+            part := text[at + index]
+            if part < cast(u8)128 || part > cast(u8)191 { return false }
+            codepoint = (codepoint << cast(u32)6) | cast(u32)(part & cast(u8)63)
+            index += 1
+        }
+        if codepoint < minimum || codepoint > cast(u32)1114111 ||
+            codepoint >= cast(u32)55296 && codepoint <= cast(u32)57343 { return false }
+        at += count + 1
+    }
+    return true
+}
+
+// Read at most MAXIMUM bytes. The file is refused rather than truncated, and
+// each failure is named. The successful text is owned as for ReadEntireFile.
+#program_export
+ReadEntireFileCapped :: (path: string, maximum: s64) -> Result(string, FileReadFailure) {
+    result: Result(string, FileReadFailure)
+    if maximum < 0 { result.error = .InvalidLimit; return result }
+    invalid_path := path.count == 0 || path.count >= 4096 || !FilePathText(path)
+    for byte: path { if byte == cast(u8)0 { invalid_path = true } }
+    if invalid_path {
+        result.error = .InvalidPath
+        return result
+    }
+    file := OpenRead(path)
+    if !file.valid {
+        result.error = ifx PathExists(path) then FileReadFailure.ReadError else FileReadFailure.NotFound
+        return result
+    }
+    bytes: Vec(u8)
+    chunk: [4096]u8
+    offset: s64 = 0
+    while true {
+        allowed := maximum - offset
+        count := ReadAt(file, chunk[0:ifx allowed < 4096 then allowed + 1 else 4096], offset)
+        if count < 0 {
+            CloseFile(file)
+            VecFree(bytes)
+            result.error = .ReadError
+            return result
+        }
+        if count == 0 { break }
+        if count > allowed {
+            CloseFile(file)
+            VecFree(bytes)
+            result.error = .TooLarge
+            return result
+        }
+        i: s64 = 0
+        while i < count { VecPush(bytes, chunk[i]); i += 1 }
+        offset += count
+    }
+    if !CloseFile(file) {
+        VecFree(bytes)
+        result.error = .ReadError
+        return result
+    }
+    result.is_ok = true
+    result.value = BuilderFinish(bytes)
+    return result
+}
+
+// Append a capped file to caller-owned BYTES. A failure restores its original
+// count, so partial input is never mistaken for a complete file.
+#program_export
+ReadFileIntoCapped :: (path: string, maximum: s64,
+    bytes: *Vec(u8)) -> Result(s64, FileReadFailure) {
+    result: Result(s64, FileReadFailure)
+    if bytes == null { result.error = .ReadError; return result }
+    read := ReadEntireFileCapped(path, maximum)
+    if !read.is_ok { result.error = read.error; return result }
+    start := (<<bytes).count
+    for byte: read.value {
+        if !VecPush(<<bytes, byte) {
+            unused VecResize(<<bytes, start)
+            result.error = .ReadError
+            return result
+        }
+    }
+    result.is_ok = true
+    result.value = cast(s64)read.value.count
+    return result
+}
 
 // The whole file's bytes as text, and whether it could be read.
 ReadEntireFile :: (path: string) -> (text: string, ok: bool) {

@@ -1,0 +1,99 @@
+// Tier-3 byte boundaries refuse malformed, misaligned and oversized input
+// with named results. No failure is converted into empty or zero data.
+#import "native_test"
+#import "check_support"
+#import "std/binary"
+#import "std/file"
+#import "std/http_get_linux"
+#import "std/net_http"
+#import "std/process_capture_linux"
+using Vectors :: #import "std/vec"
+
+BinaryCases :: () -> bool {
+    bytes: [8]u8 = .{1, 2, 3, 4, 5, 6, 7, 8}
+    text := TextView(bytes[:])
+    negative := TryReadU16LE(text, -1)
+    misaligned := TryReadU32LE(text, 2)
+    short := TryReadF32LE(text, 8)
+    good := TryReadU32LE(text, 4)
+    return !negative.is_ok && negative.error == .NegativeOffset &&
+        !misaligned.is_ok && misaligned.error == .Misaligned &&
+        !short.is_ok && short.error == .ShortField &&
+        good.is_ok && good.value == cast(u32)134678021
+}
+
+FileCases :: (test: *NativeTest) -> bool {
+    path := CheckPath(test.work, "bounded.bin")
+    if !NativeWrite(test, path, "12345") { return false }
+    negative := ReadEntireFileCapped(path, -1)
+    empty_path := ReadEntireFileCapped("", 8)
+    malformed_bytes: [1]u8 = .{255}
+    malformed_path := ReadEntireFileCapped(TextView(malformed_bytes[:]), 8)
+    missing := ReadEntireFileCapped(CheckPath(test.work, "missing"), 8)
+    large := ReadEntireFileCapped(path, 4)
+    directory := ReadEntireFileCapped(test.work, 8)
+    good := ReadEntireFileCapped(path, 5)
+    into: Vec(u8)
+    defer VecFree(into)
+    append := ReadFileIntoCapped(path, 5, *into)
+    return !negative.is_ok && negative.error == .InvalidLimit &&
+        !empty_path.is_ok && empty_path.error == .InvalidPath &&
+        !malformed_path.is_ok && malformed_path.error == .InvalidPath &&
+        !missing.is_ok && missing.error == .NotFound &&
+        !large.is_ok && large.error == .TooLarge &&
+        !directory.is_ok && directory.error == .ReadError &&
+        good.is_ok && good.value == "12345" && append.is_ok &&
+        append.value == 5 && TextView(into[:]) == "12345"
+}
+
+HttpCases :: () -> bool {
+    request: HttpRequest = .{.method = "GET", .url = "https://example.invalid/"}
+    bad_limit := ValidateHttpRequest(request, -1)
+    request.url = "file:///etc/passwd"
+    bad_url := ValidateHttpRequest(request, 8)
+    malformed_bytes: [9]u8 = .{104, 116, 116, 112, 115, 58, 47, 47, 255}
+    request.url = TextView(malformed_bytes[:])
+    bad_utf8 := ValidateHttpRequest(request, 8)
+    failed: HttpResponse = .{.error = "host refused"}
+    host := ValidateHostResponse(failed, 8)
+    oversized: HttpResponse = .{.body = "12345"}
+    large := ValidateHostResponse(oversized, 4)
+    good := ValidateHostResponse(oversized, 5)
+    return !bad_limit.is_ok && bad_limit.error == .InvalidLimit &&
+        !bad_url.is_ok && bad_url.error == .InvalidUrl &&
+        !bad_utf8.is_ok && bad_utf8.error == .InvalidUrl &&
+        !host.is_ok && host.error == .HostError &&
+        !large.is_ok && large.error == .TooLarge &&
+        good.is_ok && good.value.body == "12345"
+}
+
+CaptureCases :: () -> bool {
+    output: [16]u8
+    none: [0]string
+    invalid := CaptureOutputCapped(none[:], output[:], 8)
+    bad_limit := CaptureOutputCapped(none[:], output[:], 16)
+    bad_url := GetHttpsCapped("file:///etc/passwd", 8, output[:])
+    arguments := string.["/usr/bin/printf", "abcdef"]
+    large := CaptureOutputCapped(arguments[:], output[:], 3)
+    arguments[1] = "abc"
+    good := CaptureOutputCapped(arguments[:], output[:], 3)
+    return invalid.error && invalid.problem == .InvalidArguments &&
+        bad_limit.error && bad_limit.problem == .InvalidArguments &&
+        bad_url.error && bad_url.problem == .InvalidUrl &&
+        large.error && large.truncated && large.problem == .TooLarge &&
+        !good.error && !good.truncated && good.length == 3 &&
+        TextView(output[0:3]) == "abc"
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "std-input-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, BinaryCases(), "binary input failures were not named") ||
+        !NativeAssert(*test, FileCases(*test), "file input failures were not named") ||
+        !NativeAssert(*test, HttpCases(), "HTTP input failures were not named") ||
+        !NativeAssert(*test, CaptureCases(), "host-byte input failures were not named") { return 1 }
+    print("Tier-3 std boundaries: binary, file, HTTP and host-byte failures are named and capped\n")
+    return 0
+}

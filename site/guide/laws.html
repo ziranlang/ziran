@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Laws and scalar proofs: the Ziran guide, rendered from docs/LAWS.md."><title>Laws and scalar proofs · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/laws"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Laws and scalar proofs</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/LAWS.md">docs/LAWS.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#write-an-obligation-and-certificate">Write an obligation and certificate</a><a href="#certificate-steps">Certificate steps</a><a href="#results-budgets-and-waivers">Results, budgets, and waivers</a><a href="#saved-artifacts-and-trust">Saved artifacts and trust</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#write-an-obligation-and-certificate">Write an obligation and certificate</a><a href="#certificate-steps">Certificate steps</a><a href="#results-budgets-and-waivers">Results, budgets, and waivers</a><a href="#saved-artifacts-and-trust">Saved artifacts and trust</a><a href="#boundary-diagnostic-inventory">Boundary diagnostic inventory</a></aside><div class="article-body">
 <section class="prose"><p><code>ziran check</code> checks every law reachable through the input modules. A failed
 law blocks native output and portable bundles. Pick the kind that states the
 guarantee you need:</p>
@@ -174,6 +174,102 @@ recheck certificates; saved status, type annotations, and evidence cannot
 authorize a proof. Canonical checking rejects divergent saved fields. The
 bundle loader also compares its outer evidence and waiver tables against
 the checked embedded IR. Earlier artifact versions are rejected.</p>
+<p>Trust changes how much input validation a boundary needs; it never changes
+memory safety. Checked-pointer slot, version, lifetime, extent, and
+writability rules apply at every tier. A compiler may omit a runtime check
+only when a verifier-visible fact proves every one of those obligations.
+Anything unknown keeps the check.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Boundary rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0, compiler-proved</td>
+<td>Internal IR may consume a proved fact only after its verifier accepts the complete obligation. A backend optimization is not evidence by itself.</td>
+</tr>
+<tr>
+<td>1, process-controlled</td>
+<td>Environment and argv values are copied into bounded caller storage and parsed through <code>EnvironmentFailure</code> or <code>ArgumentFailure</code>. Missing, empty, oversized, malformed, and out-of-range input are distinct results; compatibility readers do not authorize compiler decisions.</td>
+</tr>
+<tr>
+<td>2, semi-trusted local</td>
+<td>Self-built <code>.zx</code>, local files, and caches are still editable. Loaders check framing, structure, identity, size, and digest before reuse. A cache hit may skip only hash-proven redundant compilation, never verification or a memory-safety check. Any cache refusal is named, removed, and recompiled.</td>
+</tr>
+<tr>
+<td>3, untrusted</td>
+<td>Downloaded or host-supplied bytes are capped before allocation, checked for valid framing and identity, decoded, and reverified. No short read, malformed field, invalid URL, host error, or oversized body becomes zero, empty text, truncated success, or another fallback value.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="boundary-diagnostic-inventory">Boundary diagnostic inventory</h2>
+<p>Compiler diagnostic codes are stable identities and are listed by
+<code>ziran explain</code>. Typed library results are stable program-visible names. The
+message text may improve without changing either identity.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Boundary</th>
+<th>Named outcome</th>
+<th>Refusal contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bundle path/open</td>
+<td><code>zx.input</code></td>
+<td>A missing or unreadable executable bundle never reaches decoding.</td>
+</tr>
+<tr>
+<td>ZX framing, revision, digest, and canonical sections</td>
+<td><code>zx.container</code>; <code>ZxExecProblem</code> and its nested container/codec result</td>
+<td>Truncated, wrong-revision, edited, or noncanonical bytes are refused before execution.</td>
+</tr>
+<tr>
+<td>Decoded LIR</td>
+<td><code>ZxExecProblem.Codec</code>, <code>.Verify</code>, <code>.Identity</code>, <code>.Entry</code>, <code>.Capability</code>, <code>.Limit</code></td>
+<td>Decoding is bounded, content identities are recomputed, and <code>LirVerify</code> must succeed.</td>
+</tr>
+<tr>
+<td>Native disk cache</td>
+<td><code>NativeCacheFailure.TooLarge</code>, <code>.Truncated</code>, <code>.WrongFormat</code>, <code>.WrongKey</code>, <code>.WrongLength</code>, <code>.WrongDigest</code>, <code>.WrongStructure</code></td>
+<td>The entry is removed and compilation runs; profile counters use the matching <code>native_cache_disk_reject_*</code> name.</td>
+</tr>
+<tr>
+<td>Host capability/state/runtime</td>
+<td><code>zx.capability</code>, <code>zx.state</code>, <code>zx.runtime</code></td>
+<td>Missing bindings, incompatible state, and runtime traps are explicit terminal outcomes; there is no backend fallback.</td>
+</tr>
+<tr>
+<td>Environment and argv</td>
+<td><code>EnvironmentFailure</code>; <code>ArgumentFailure</code></td>
+<td>Values are bounded and copied before use; validation failures stay distinct.</td>
+</tr>
+<tr>
+<td>Binary fields</td>
+<td><code>BinaryReadFailure.NegativeOffset</code>, <code>.Misaligned</code>, <code>.ShortField</code></td>
+<td>A field is returned only when its complete aligned bytes exist.</td>
+</tr>
+<tr>
+<td>Files</td>
+<td><code>FileReadFailure.InvalidLimit</code>, <code>.InvalidPath</code>, <code>.NotFound</code>, <code>.TooLarge</code>, <code>.ReadError</code></td>
+<td>A capped read either returns the whole file or a named failure, never a prefix.</td>
+</tr>
+<tr>
+<td>HTTP and host bytes</td>
+<td><code>HttpInputFailure</code>, <code>CaptureFailure</code>, <code>CurlFailure</code></td>
+<td>URLs, limits, transport/host errors, and oversized bodies are validated and named before bytes are accepted.</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>tests/trust_boundary_cases.zi</code> pins the explainable compiler codes and typed
+std names. <code>tests/native_disk_cache_cases.zi</code> corrupts every cache framing
+layer and proves the named refusal is followed by recompilation and a reusable
+replacement. <code>tests/std_environment_cases.zi</code> and <code>tests/std_input_cases.zi</code>
+cover every new Tier-1 and Tier-3 failure result with negative cases.</p>
 <p>The built-in C checker has no runtime Lean or solver dependency.
 <a href="https://github.com/ziranlang/ziran/blob/master/proofs/Scalar.lean"><code>proofs/Scalar.lean</code></a> models fixed-width semantics and
 proves the algebra, order, case, lemma-use, and rewrite rules sound. Its

@@ -1,0 +1,62 @@
+// The public names at artifact and host boundaries are part of the trust
+// contract: compiler diagnostics are explainable, and std failures are typed.
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Binary :: #import "std/binary"
+using Capture :: #import "std/process_capture_linux"
+using Curl :: #import "std/net_http_curl_linux"
+using Env :: #import "std/environment_linux"
+using File :: #import "std/file"
+using Http :: #import "std/net_http"
+
+TypedNames :: () -> bool {
+    environment: Env.EnvironmentFailure = .InvalidName
+    argument: Env.ArgumentFailure = .InvalidIndex
+    binary: Binary.BinaryReadFailure = .ShortField
+    file: File.FileReadFailure = .TooLarge
+    http: Http.HttpInputFailure = .HostError
+    capture: Capture.CaptureFailure = .ReadError
+    curl: Curl.CurlFailure = .TransportError
+    return environment != .None && argument != .None && binary != .None &&
+        file != .None && http != .None && capture != .None && curl != .None
+}
+
+Explained :: (test: *NativeTest, code: string) -> bool {
+    command := string.[test.ziran, "explain", code]
+    result := NativeInvoke(test, command[:])
+    return NativeAssert(test, result.code == 0 &&
+        TextContains(result.output, CheckConcat("code: ", code)),
+        CheckConcat("diagnostic is not in ziran explain: ", code))
+}
+
+ArtifactNames :: (test: *NativeTest) -> bool {
+    missing := string.[test.ziran, "run", "--diagnostics=json",
+        CheckPath(test.work, "missing.zx")]
+    missing_result := NativeInvoke(test, missing[:])
+    if !NativeAssert(test, missing_result.code != 0 &&
+        TextContains(missing_result.error, "\"code\":\"zx.input\""),
+        "a missing bundle did not name zx.input") { return false }
+    malformed := CheckPath(test.work, "malformed.zx")
+    if !NativeWrite(test, malformed, "not a ZX container") { return false }
+    output := CheckPath(test.work, "must-not-exist.lir")
+    command := string.[CheckPath(PathParent(test.ziran), "zi2zx"),
+        "--diagnostics=json", "--emit", "lir", "-o", output, malformed]
+    result := NativeInvoke(test, command[:])
+    return NativeAssert(test, result.code != 0 && !PathExists(output) &&
+        TextContains(result.error, "\"code\":\"zx.container\""),
+        "a malformed bundle did not name zx.container")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "trust-boundary-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    codes := string.["zx.input", "zx.container", "zx.capability", "zx.state", "zx.runtime"]
+    if !TypedNames() || !ArtifactNames(*test) { return 1 }
+    for code: codes { if !Explained(*test, code) { return 1 } }
+    print("trust boundary inventory: artifact diagnostics are explainable and std input failures remain typed\n")
+    return 0
+}

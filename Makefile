@@ -141,7 +141,8 @@ ifeq ($(BOOTSTRAP),1)
 RUNTIME_EMIT_C := bootstrap/compiler_runtime_emit
 RUNTIME_EMIT_READY := $(RUNTIME_EMIT_C)/compiler_runtime_emit.c $(RUNTIME_EMIT_C)/compiler_runtime_emit.h \
     $(RUNTIME_EMIT_C)/file.c $(RUNTIME_EMIT_C)/file.h $(RUNTIME_EMIT_C)/file_linux.c $(RUNTIME_EMIT_C)/file_linux.h \
-    $(RUNTIME_EMIT_C)/c_string.c $(RUNTIME_EMIT_C)/c_string.h $(RUNTIME_EMIT_C)/vec.c $(RUNTIME_EMIT_C)/vec.h
+    $(RUNTIME_EMIT_C)/c_string.c $(RUNTIME_EMIT_C)/c_string.h $(RUNTIME_EMIT_C)/result.h \
+    $(RUNTIME_EMIT_C)/vec.c $(RUNTIME_EMIT_C)/vec.h
 else
 RUNTIME_EMIT_C := $(BUILD_DIR)/runtime-emit
 RUNTIME_EMIT_READY := $(RUNTIME_EMIT_C)/.generated
@@ -560,7 +561,7 @@ $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS) forc
 	    else mv -f "$$temporary" "$@"; fi
 
 $(RUNTIME_EMIT_C)/.generated: cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi \
-    std/c_string.zi std/vec.zi $(BOOTSTRAP_BIN)
+    std/c_string.zi std/result.zi std/vec.zi $(BOOTSTRAP_BIN)
 	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
 	    -o $(RUNTIME_EMIT_C) cmd/compiler_runtime_emit.zi
 	touch $@
@@ -608,7 +609,7 @@ $(BIN_DIR)/zx2wasm: $(call obj,cmd/zx2wasm/main.c) $(BUILD_DIR)/libziran.a | $(B
 ifneq ($(BOOTSTRAP),1)
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
-    $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/vec.zi \
+    $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
     cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c cmd/zi2c/zir_c_prune.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
     cmd/compiler_native_names.zi \
@@ -634,7 +635,7 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_runtime_emit/compiler_runtime_emit.h bootstrap/compiler_runtime_emit/file.c \
     bootstrap/compiler_runtime_emit/file.h bootstrap/compiler_runtime_emit/file_linux.c \
     bootstrap/compiler_runtime_emit/file_linux.h bootstrap/compiler_runtime_emit/c_string.c \
-    bootstrap/compiler_runtime_emit/c_string.h bootstrap/compiler_runtime_emit/vec.c \
+    bootstrap/compiler_runtime_emit/c_string.h bootstrap/compiler_runtime_emit/result.h bootstrap/compiler_runtime_emit/vec.c \
     bootstrap/compiler_runtime_emit/vec.h Makefile \
     bootstrap/compiler_native_names/compiler_native_names.c \
     bootstrap/compiler_native_names/compiler_native_names.h \
@@ -764,7 +765,7 @@ update-bootstrap: $(BIN_DIR)/zi2c
 	        proof_kernel|proof|link) files="$$files vec.h";; \
 	        runtime_emit) files="compiler_runtime_emit.c compiler_runtime_emit.h \
 	            file.c file.h file_linux.c file_linux.h \
-	            c_string.c c_string.h vec.c vec.h";; \
+	            c_string.c c_string.h result.h vec.c vec.h";; \
 	        backend_process) files="compiler_backend_process.c compiler_backend_process.h \
 	            byte_text_linux.c byte_text_linux.h environment.h environment_linux.c environment_linux.h \
 	            file_tree_linux.c file_tree_linux.h number_text.c number_text.h \

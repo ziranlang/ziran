@@ -2,10 +2,166 @@
 #define ZIRAN_ENVIRONMENT_LINUX_H_SOURCE 1
 #include <stdbool.h>
 #include "zir_string_types.h"
+#include "zir_bounds.h"
 #include "environment_linux.h"
 #include "c_string.h"
 #include "byte_text_linux.h"
 #include "number_text.h"
+#include "result.h"
+
+__type_6c5c09809af9b2be
+environment_linux_BoundedHostText(uint8_t* value, Slice output)
+{
+    __type_6c5c09809af9b2be result = {0};
+    if (value == ((void *)0)) {
+        EnvironmentFailure* value_0 = &(result.error);
+        (*value_0) = EnvironmentFailure_Unset;
+        return result;
+    }
+    int64_t index = 0LL;
+    while (index < (int64_t)(output).length && value[index] != 0) {
+        uint8_t* value_1 = &(((uint8_t *)output.data)[index]);
+        (*value_1) = value[index];
+        index = (int64_t)((uint64_t)index + UINT64_C(1));
+    }
+    if (index == (int64_t)(output).length && value[index] != 0) {
+        EnvironmentFailure* value_2 = &(result.error);
+        (*value_2) = EnvironmentFailure_TooLong;
+        return result;
+    }
+    bool* value_3 = &(result.is_ok);
+    (*value_3) = true;
+    String* value_4 = &(result.value);
+    Slice value_5 = output;
+    (*value_4) = TextFromBytes(SliceRange(value_5, (int64_t)0LL, (int64_t)index, sizeof(uint8_t)));
+    return result;
+}
+
+__type_6c5c09809af9b2be
+EnvironmentRead(String name, Slice output)
+{
+    __type_6c5c09809af9b2be result = {0};
+    uint8_t buffer[256] = {0};
+    bool value_0 = (int64_t)(name).length == 0LL;
+    if (!value_0) {
+        Slice value_1 = {buffer, 256};
+        bool value_2 = CopyCString(name, value_1);
+        value_0 = !value_2;
+    }
+    if (value_0) {
+        EnvironmentFailure* value_3 = &(result.error);
+        (*value_3) = EnvironmentFailure_InvalidName;
+        return result;
+    }
+    result = environment_linux_BoundedHostText(zir_f_65e9ad6d46228d2f_EnvironmentValueRaw(&(buffer[0])), output);
+    if (result.is_ok && (int64_t)(result.value).length == 0LL) {
+        bool* value_4 = &(result.is_ok);
+        (*value_4) = false;
+        EnvironmentFailure* value_5 = &(result.error);
+        (*value_5) = EnvironmentFailure_Empty;
+    }
+    return result;
+}
+
+__type_2327be0556361c2c
+EnvironmentRange(String name, int64_t minimum, int64_t maximum, Slice input)
+{
+    __type_2327be0556361c2c result = {0};
+    if (minimum > maximum) {
+        EnvironmentFailure* value_0 = &(result.error);
+        (*value_0) = EnvironmentFailure_OutOfRange;
+        return result;
+    }
+    __type_6c5c09809af9b2be text = EnvironmentRead(name, input);
+    if (!text.is_ok) {
+        EnvironmentFailure* value_1 = &(result.error);
+        (*value_1) = (EnvironmentFailure)(text.error);
+        return result;
+    }
+    int64_t at = 0LL;
+    bool negative = (uint8_t)ZIRAN_INDEX(text.value.data, text.value.length, 0) == 45;
+    if (negative) {
+        at = 1LL;
+    }
+    if (at == (int64_t)(text.value).length) {
+        EnvironmentFailure* value_2 = &(result.error);
+        (*value_2) = EnvironmentFailure_NotNumber;
+        return result;
+    }
+    uint64_t magnitude = 0ULL;
+    uint64_t value_3 = 0;
+    if (negative) {
+        value_3 = 9223372036854775808ULL;
+    } else {
+        value_3 = 9223372036854775807ULL;
+    }
+    uint64_t limit = value_3;
+    while (at < (int64_t)(text.value).length) {
+        uint8_t byte = (uint8_t)ZIRAN_INDEX(text.value.data, text.value.length, at);
+        if (byte < 48 || byte > 57) {
+            EnvironmentFailure* value_4 = &(result.error);
+            (*value_4) = EnvironmentFailure_NotNumber;
+            return result;
+        }
+        uint64_t digit = (uint64_t)(((uint8_t)((uint32_t)byte - 48u)));
+        uint64_t value_5 = ((uint64_t)((uint64_t)limit - (uint64_t)digit)) / 10ULL;
+        if (magnitude > value_5) {
+            EnvironmentFailure* value_6 = &(result.error);
+            (*value_6) = EnvironmentFailure_OutOfRange;
+            return result;
+        }
+        magnitude = (uint64_t)(((uint64_t)magnitude * UINT64_C(10)) + (uint64_t)digit);
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+    }
+    int64_t value = (int64_t)(magnitude);
+    if (negative) {
+        value = (int64_t)(UINT64_C(0) - (uint64_t)value);
+    }
+    if (value < minimum || value > maximum) {
+        EnvironmentFailure* value_7 = &(result.error);
+        (*value_7) = EnvironmentFailure_OutOfRange;
+        return result;
+    }
+    bool* value_8 = &(result.is_ok);
+    (*value_8) = true;
+    int64_t* value_9 = &(result.value);
+    (*value_9) = value;
+    return result;
+}
+
+__type_4289a23f77d76d0a
+ArgumentRead(int32_t argc, uint8_t** argv, int32_t index, Slice output)
+{
+    __type_4289a23f77d76d0a result = {0};
+    if (argv == ((void *)0) || index < 0 || index >= argc) {
+        ArgumentFailure* value_0 = &(result.error);
+        (*value_0) = ArgumentFailure_InvalidIndex;
+        return result;
+    }
+    uint8_t* value = argv[index];
+    if (value == ((void *)0)) {
+        ArgumentFailure* value_1 = &(result.error);
+        (*value_1) = ArgumentFailure_NullArgument;
+        return result;
+    }
+    int64_t at = 0LL;
+    while (at < (int64_t)(output).length && value[at] != 0) {
+        uint8_t* value_2 = &(((uint8_t *)output.data)[at]);
+        (*value_2) = value[at];
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+    }
+    if (at == (int64_t)(output).length && value[at] != 0) {
+        ArgumentFailure* value_3 = &(result.error);
+        (*value_3) = ArgumentFailure_TooLong;
+        return result;
+    }
+    bool* value_4 = &(result.is_ok);
+    (*value_4) = true;
+    String* value_5 = &(result.value);
+    Slice value_6 = output;
+    (*value_5) = TextFromBytes(SliceRange(value_6, (int64_t)0LL, (int64_t)at, sizeof(uint8_t)));
+    return result;
+}
 
 String
 environment_linux_EnvironmentText(String name)

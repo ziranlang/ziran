@@ -1,4 +1,5 @@
 host_api :: #system_library "host_api";
+#import "result"
 // Network transport is an explicit host capability. The host adds a Bearer
 // Authorization header when token is nonempty. It must not log that token.
 // The request and response records have the same meaning in native targets
@@ -24,9 +25,94 @@ HttpResponse :: struct {
     error: string
 }
 
+HttpInputFailure :: enum {
+    None
+    InvalidLimit
+    InvalidUrl
+    HostError
+    TooLarge
+}
+
+HttpTextValid :: (text: string) -> bool {
+    at: s64 = 0
+    while at < text.count {
+        first := text[at]
+        if first < cast(u8)128 { at += 1; continue }
+        count: s64 = 0
+        codepoint: u32 = 0
+        minimum: u32 = 0
+        if first >= cast(u8)194 && first <= cast(u8)223 {
+            count = 1; codepoint = cast(u32)(first & cast(u8)31); minimum = cast(u32)128
+        } else if first >= cast(u8)224 && first <= cast(u8)239 {
+            count = 2; codepoint = cast(u32)(first & cast(u8)15); minimum = cast(u32)2048
+        } else if first >= cast(u8)240 && first <= cast(u8)244 {
+            count = 3; codepoint = cast(u32)(first & cast(u8)7); minimum = cast(u32)65536
+        } else { return false }
+        if at + count >= text.count { return false }
+        index: s64 = 1
+        while index <= count {
+            part := text[at + index]
+            if part < cast(u8)128 || part > cast(u8)191 { return false }
+            codepoint = (codepoint << cast(u32)6) | cast(u32)(part & cast(u8)63)
+            index += 1
+        }
+        if codepoint < minimum || codepoint > cast(u32)1114111 ||
+            codepoint >= cast(u32)55296 && codepoint <= cast(u32)57343 { return false }
+        at += count + 1
+    }
+    return true
+}
+
 SendHost :: (request: HttpRequest) -> HttpResponse #foreign host_api;
 
 #program_export
 Send :: (request: HttpRequest) -> HttpResponse {
     return SendHost(request)
+}
+
+#program_export
+HttpUrlValid :: (url: string) -> bool {
+    http := "http://"
+    https := "https://"
+    prefix := http
+    if url.count >= https.count && url[:https.count] == https { prefix = https }
+    else if url.count < http.count || url[:http.count] != http { return false }
+    if url.count == prefix.count || url.count >= 2048 || !HttpTextValid(url) { return false }
+    for byte: url {
+        if byte == cast(u8)0 || byte < cast(u8)32 || byte == cast(u8)127 { return false }
+    }
+    return true
+}
+
+#program_export
+ValidateHttpRequest :: (request: HttpRequest,
+    maximum_body: s64) -> Result(HttpRequest, HttpInputFailure) {
+    result: Result(HttpRequest, HttpInputFailure)
+    if maximum_body < 0 { result.error = .InvalidLimit; return result }
+    if !HttpUrlValid(request.url) { result.error = .InvalidUrl; return result }
+    result.is_ok = true
+    result.value = request
+    return result
+}
+
+#program_export
+ValidateHostResponse :: (response: HttpResponse,
+    maximum_body: s64) -> Result(HttpResponse, HttpInputFailure) {
+    result: Result(HttpResponse, HttpInputFailure)
+    if maximum_body < 0 { result.error = .InvalidLimit; return result }
+    if response.error != "" { result.error = .HostError; return result }
+    if response.body.count > maximum_body { result.error = .TooLarge; return result }
+    result.is_ok = true
+    result.value = response
+    return result
+}
+
+// The host result is accepted only after URL validation and the caller's cap.
+#program_export
+SendCapped :: (request: HttpRequest,
+    maximum_body: s64) -> Result(HttpResponse, HttpInputFailure) {
+    result: Result(HttpResponse, HttpInputFailure)
+    valid := ValidateHttpRequest(request, maximum_body)
+    if !valid.is_ok { result.error = valid.error; return result }
+    return ValidateHostResponse(SendHost(request), maximum_body)
 }

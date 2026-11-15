@@ -35,15 +35,63 @@ OnlyEntry :: (directory: string) -> string {
     return TextDetach(TextCopy(entries[0]))
 }
 
-// The file with one payload byte flipped, or cut to half its length.
-Damaged :: (test: *NativeTest, path: string, truncate: bool) -> bool {
+HexValue :: (byte: u8) -> s32 {
+    if byte >= cast(u8)48 && byte <= cast(u8)57 { return cast(s32)(byte - cast(u8)48) }
+    if byte >= cast(u8)97 && byte <= cast(u8)102 { return cast(s32)(byte - cast(u8)97) + 10 }
+    return -1
+}
+
+DamageCounter :: (damage: string) -> string {
+    if damage == "edited" || damage == "wrong-digest" { return "native_cache_disk_reject_wrong_digest" }
+    if damage == "too-large" { return "native_cache_disk_reject_too_large" }
+    if damage == "truncated" { return "native_cache_disk_reject_truncated" }
+    if damage == "wrong-format" { return "native_cache_disk_reject_wrong_format" }
+    if damage == "wrong-key" { return "native_cache_disk_reject_wrong_key" }
+    if damage == "wrong-length" { return "native_cache_disk_reject_wrong_length" }
+    return "native_cache_disk_reject_wrong_structure"
+}
+
+// Damage one independently checked framing layer. Before putting the bytes
+// back on disk, assert that the decoder names the precise refusal.
+Damaged :: (test: *NativeTest, path: string, damage: string) -> bool {
     text := NativeRead(test, path)
     if test.failed || text.count < 200 { return false }
     bytes: Vec(u8)
     defer VecFree(bytes)
-    limit := ifx truncate then text.count / 2 else text.count
-    for index: cast(s64)0..limit - 1 { VecPush(bytes, text[index]) }
-    if !truncate { bytes[bytes.count - 1] = bytes[bytes.count - 1] ^ cast(u8)1 }
+    for byte: text { VecPush(bytes, byte) }
+    format := cast(s64)"ziran native image 1\n".count
+    digest_bytes: s64 = 32
+    length := format + digest_bytes
+    digest := length + 8
+    header := digest + digest_bytes
+    if damage == "truncated" {
+        unused VecResize(bytes, bytes.count / 2)
+    } else if damage == "too-large" {
+        for index: 0..7 { bytes[length + index] = cast(u8)255 }
+    } else if damage == "wrong-format" {
+        bytes[0] = bytes[0] ^ cast(u8)1
+    } else if damage == "wrong-key" {
+        bytes[format] = bytes[format] ^ cast(u8)1
+    } else if damage == "wrong-length" {
+        VecPush(bytes, cast(u8)0)
+    } else if damage == "wrong-digest" {
+        bytes[digest] = bytes[digest] ^ cast(u8)1
+    } else if damage == "wrong-structure" {
+        bytes[header] = bytes[header] ^ cast(u8)1
+        payload := CheckPath(test.work, "damaged-cache-payload")
+        if !NativeWrite(test, payload, TextView(bytes[header:bytes.count])) { return false }
+        sum := CheckHash(payload)
+        unused RemoveFile(payload)
+        if sum.count != 64 { return false }
+        for index: cast(s64)0..31 {
+            high := HexValue(sum[index * 2])
+            low := HexValue(sum[index * 2 + 1])
+            if high < 0 || low < 0 { return false }
+            bytes[digest + index] = cast(u8)(high * 16 + low)
+        }
+    } else {
+        bytes[bytes.count - 1] = bytes[bytes.count - 1] ^ cast(u8)1
+    }
     return NativeWrite(test, path, TextView(bytes[:]))
 }
 
@@ -79,12 +127,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, beside.output == engine.output && Counted(beside, "native_cache_disk_hit") && OnlyEntry(cache) == entry,
         "an abandoned temporary file was taken for an entry") { return 1 }
 
-    damages := string.["flipped", "truncated"]
-    for damage, index: damages {
-        if !Damaged(*test, entry, index == 1) { return 1 }
+    damages := string.["edited", "truncated", "too-large", "wrong-format", "wrong-key",
+        "wrong-length", "wrong-digest", "wrong-structure"]
+    for damage: damages {
+        if !Damaged(*test, entry, damage) { return 1 }
         refused := DiskRunWith(*test, tool, bundle, cache, damage)
         if !NativeAssert(*test, refused.code == 0 && refused.output == engine.output &&
-            Counted(refused, "native_cache_disk_reject") && Counted(refused, "native_cache_disk_store"),
+            Counted(refused, "native_cache_disk_reject") && Counted(refused, DamageCounter(damage)) &&
+            Counted(refused, "native_cache_disk_store"),
             CheckConcat("a damaged entry was used or not replaced: ", damage)) { return 1 }
         again := DiskRunWith(*test, tool, bundle, cache, CheckConcat(damage, "-again"))
         if !NativeAssert(*test, again.output == engine.output && Counted(again, "native_cache_disk_hit"),
@@ -126,6 +176,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     NativeUnset(*test, "ZIRAN_NATIVE_CACHE")
     if !NativeAssert(*test, OnlyEntry(shared) != "", "racing runs left other than one entry") { return 1 }
-    print("native disk cache: cold store, warm hit, abandoned writer, flipped and truncated entries refused and replaced, off switch, trap sites and racing writers match the engine\n")
+    print("native disk cache: cold store, warm hit, abandoned writer, edited, truncated, oversized, wrong-format, wrong-key, wrong-length, wrong-digest and wrong-structure entries named, refused and replaced; off switch, trap sites and racing writers match the engine\n")
     return 0
 }

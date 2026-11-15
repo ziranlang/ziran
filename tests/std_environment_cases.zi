@@ -1,0 +1,85 @@
+#import "std/c_string"
+#import "std/environment"
+
+libc :: #system_library "libc";
+SetEnvironment :: (name: *u8, value: *u8, overwrite: s32) -> s32 #foreign libc "setenv";
+UnsetEnvironment :: (name: *u8) -> s32 #foreign libc "unsetenv";
+
+SetValue :: (name: string, value: string) -> bool {
+    name_bytes: [256]u8
+    value_bytes: [512]u8
+    return CopyCString(name, name_bytes[:]) && CopyCString(value, value_bytes[:]) &&
+        SetEnvironment(*name_bytes[0], *value_bytes[0], 1) == 0
+}
+
+UnsetValue :: (name: string) -> bool {
+    bytes: [256]u8
+    return CopyCString(name, bytes[:]) && UnsetEnvironment(*bytes[0]) == 0
+}
+
+#program_export
+main :: () -> s32 {
+    name := "ZIRAN_TRUST_TIER_ENVIRONMENT_CASE"
+    input: [32]u8
+    if !UnsetValue(name) { return 1 }
+    {
+        missing := EnvironmentRead(name, input[:])
+        if missing.is_ok || missing.error != .Unset { return 2 }
+    }
+    if !SetValue(name, "") { return 3 }
+    {
+        empty := EnvironmentRead(name, input[:])
+        if empty.is_ok || empty.error != .Empty { return 4 }
+    }
+    {
+        invalid := EnvironmentRead("bad\0name", input[:])
+        if invalid.is_ok || invalid.error != .InvalidName { return 5 }
+    }
+    if !SetValue(name, "123456") { return 6 }
+    short: [3]u8
+    long := EnvironmentRead(name, short[:])
+    if long.is_ok || long.error != .TooLong { return 7 }
+    if !SetValue(name, "12x") { return 8 }
+    {
+        malformed := EnvironmentRange(name, 1, 64, input[:])
+        if malformed.is_ok || malformed.error != .NotNumber { return 9 }
+    }
+    if !SetValue(name, "9223372036854775808") { return 10 }
+    {
+        overflow := EnvironmentRange(name, -9223372036854775807, 9223372036854775807, input[:])
+        if overflow.is_ok || overflow.error != .OutOfRange { return 11 }
+    }
+    if !SetValue(name, "65") { return 12 }
+    {
+        outside := EnvironmentRange(name, 1, 64, input[:])
+        if outside.is_ok || outside.error != .OutOfRange { return 13 }
+    }
+    if !SetValue(name, "42") { return 14 }
+    {
+        number := EnvironmentRange(name, 1, 64, input[:])
+        if !number.is_ok || number.value != 42 || number.error != .None { return 15 }
+    }
+
+    first_bytes: [8]u8
+    if !CopyCString("tool", first_bytes[:]) { return 16 }
+    arguments: [2]*u8 = .[*first_bytes[0], null]
+    argument_output: [8]u8
+    {
+        argument := ArgumentRead(1, *arguments[0], 0, argument_output[:])
+        if !argument.is_ok || argument.value != "tool" { return 17 }
+    }
+    {
+        bad_index := ArgumentRead(1, *arguments[0], 1, argument_output[:])
+        if bad_index.is_ok || bad_index.error != .InvalidIndex { return 18 }
+    }
+    {
+        null_argument := ArgumentRead(2, *arguments[0], 1, argument_output[:])
+        if null_argument.is_ok || null_argument.error != .NullArgument { return 19 }
+    }
+    tiny: [2]u8
+    oversized := ArgumentRead(1, *arguments[0], 0, tiny[:])
+    if oversized.is_ok || oversized.error != .TooLong { return 20 }
+    unused UnsetValue(name)
+    print("typed environment and argv validation: named failures and bounded success passed\n")
+    return 0
+}

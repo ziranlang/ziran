@@ -221,11 +221,23 @@ HeaderName :: (value: string) -> bool {
     return true
 }
 
+CurlFailure :: enum {
+    None
+    InvalidLimit
+    InvalidUrl
+    InvalidMethod
+    Unavailable
+    ConfigureError
+    TransportError
+    TooLarge
+}
+
 CurlResult :: struct {
     status: s32
     length: s64
     code: s32
     truncated: bool
+    problem: CurlFailure
 }
 
 CurlOutput :: struct {
@@ -374,21 +386,26 @@ SendCurlDirectWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) ->
 SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, direct: bool) -> CurlResult {
     result: CurlResult
     result.code = -1
-    if output.count == 0 { return result }
+    if output.count == 0 { result.problem = .InvalidLimit; return result }
     output[0] = cast(u8)0
     url: [2048]u8
     method: [32]u8
-    if request.url.count >= url.count ||
-    request.method.count >= method.count ||
+    if request.url.count >= url.count || !HttpUrlValid(request.url) ||
     !(StartsWith(request.url, "http://") ||
         StartsWith(request.url, "https://")) ||
-    !MethodToken(request.method) ||
-    !CopyCString(request.url, url[:]) ||
-    !CopyCString(request.method, method[:]) { return result }
-    if !CurlReady() { return result }
+    !CopyCString(request.url, url[:]) {
+        result.problem = .InvalidUrl
+        return result
+    }
+    if request.method.count >= method.count || !MethodToken(request.method) ||
+        !CopyCString(request.method, method[:]) {
+        result.problem = .InvalidMethod
+        return result
+    }
+    if !CurlReady() { result.problem = .Unavailable; return result }
     lease := AcquireCurl(request.url, direct)
     handle := lease.handle
-    if handle == null { return result }
+    if handle == null { result.problem = .Unavailable; return result }
 
     context: CurlOutput
     context.data = *output[0]
@@ -474,6 +491,9 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
     }
     result.length = context.length
     result.truncated = context.truncated
+    if !configured { result.problem = .ConfigureError }
+    else if context.truncated { result.problem = .TooLarge }
+    else if result.code != 0 { result.problem = .TransportError }
     ReleaseCurl(lease)
     if headers != null { curl_slist_free_all(headers) }
     return result

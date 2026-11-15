@@ -2,9 +2,135 @@
 #import "c_string"
 #import "byte_text_linux"
 #import "number_text"
+#import "result"
 
 environment_libc :: #system_library "libc";
 EnvironmentValueRaw :: (name: *u8) -> *u8 #foreign environment_libc "getenv";
+
+// Named validation failures for process-controlled text. These are input
+// failures, not memory-safety modes: every successful value is first copied
+// into caller-owned bounded storage.
+EnvironmentFailure :: enum {
+    None
+    InvalidName
+    Unset
+    Empty
+    TooLong
+    NotNumber
+    OutOfRange
+}
+
+ArgumentFailure :: enum {
+    None
+    InvalidIndex
+    NullArgument
+    TooLong
+}
+
+// Copy a NUL-terminated host value without first creating an unbounded string
+// view. The returned string contains at most output.count bytes and borrows
+// OUTPUT.
+BoundedHostText :: (value: *u8, output: []u8) -> Result(string, EnvironmentFailure) {
+    result: Result(string, EnvironmentFailure)
+    if value == null { result.error = .Unset; return result }
+    index: s64 = 0
+    while index < cast(s64)output.count && value[index] != cast(u8)0 {
+        output[index] = value[index]
+        index += 1
+    }
+    if index == cast(s64)output.count && value[index] != cast(u8)0 {
+        result.error = .TooLong
+        return result
+    }
+    result.is_ok = true
+    result.value = TextFromBytes(output[0:index])
+    return result
+}
+
+// Read NAME into caller-owned bounded storage. Unset and empty are distinct
+// outcomes, and embedded NUL or overlong names are rejected before getenv.
+#program_export
+EnvironmentRead :: (name: string, output: []u8) -> Result(string, EnvironmentFailure) {
+    result: Result(string, EnvironmentFailure)
+    buffer: [256]u8
+    if name.count == 0 || !CopyCString(name, buffer[:]) {
+        result.error = .InvalidName
+        return result
+    }
+    result = BoundedHostText(EnvironmentValueRaw(*buffer[0]), output)
+    if result.is_ok && result.value.count == 0 {
+        result.is_ok = false
+        result.error = .Empty
+    }
+    return result
+}
+
+// A complete base-ten s64 in the inclusive range. Leading signs other than
+// one '-' and trailing bytes are named NotNumber; arithmetic overflow and a
+// value outside the requested range are named OutOfRange.
+#program_export
+EnvironmentRange :: (name: string, minimum: s64, maximum: s64,
+    input: []u8) -> Result(s64, EnvironmentFailure) {
+    result: Result(s64, EnvironmentFailure)
+    if minimum > maximum { result.error = .OutOfRange; return result }
+    text := EnvironmentRead(name, input)
+    if !text.is_ok { result.error = text.error; return result }
+    at: s64 = 0
+    negative := text.value[0] == cast(u8)45
+    if negative { at = 1 }
+    if at == cast(s64)text.value.count { result.error = .NotNumber; return result }
+    magnitude: u64 = 0
+    limit: u64 = ifx negative then cast(u64)9223372036854775808 else cast(u64)9223372036854775807
+    while at < cast(s64)text.value.count {
+        byte := text.value[at]
+        if byte < cast(u8)48 || byte > cast(u8)57 {
+            result.error = .NotNumber
+            return result
+        }
+        digit := cast(u64)(byte - cast(u8)48)
+        if magnitude > (limit - digit) / cast(u64)10 {
+            result.error = .OutOfRange
+            return result
+        }
+        magnitude = magnitude * cast(u64)10 + digit
+        at += 1
+    }
+    value: s64 = cast(s64)magnitude
+    if negative { value = cast(s64)0 - value }
+    if value < minimum || value > maximum {
+        result.error = .OutOfRange
+        return result
+    }
+    result.is_ok = true
+    result.value = value
+    return result
+}
+
+// Copy one argv entry into caller-owned bounded storage. This validates the
+// count, vector and slot before reading the C string.
+#program_export
+ArgumentRead :: (argc: s32, argv: **u8, index: s32,
+    output: []u8) -> Result(string, ArgumentFailure) {
+    result: Result(string, ArgumentFailure)
+    if argv == null || index < 0 || index >= argc {
+        result.error = .InvalidIndex
+        return result
+    }
+    value := argv[index]
+    if value == null { result.error = .NullArgument; return result }
+    at: s64 = 0
+    while at < cast(s64)output.count && value[at] != cast(u8)0 {
+        output[at] = value[at]
+        at += 1
+    }
+    if at == cast(s64)output.count && value[at] != cast(u8)0 {
+        result.error = .TooLong
+        return result
+    }
+    result.is_ok = true
+    result.value = TextFromBytes(output[0:at])
+    return result
+}
 
 // The value of `name`, or "" when it is unset. The view borrows the
 // environment and lasts until the variable changes.

@@ -207,7 +207,8 @@ def build(bin_dir, samples, render_page=True):
              for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm', 'zi2zir', 'zi-inspect')}
     versions = {name: execute(command)[0].stdout.splitlines()[0]
                 for name, command in {'cc': ['cc', '--version'], 'go': ['go', 'version'], 'node': ['node', '--version']}.items()}
-    data = {'schema_version': 2, 'platforms': {}, 'generated_at': datetime.now(timezone.utc).isoformat(),
+    platforms, platform_harnesses = carried_platforms(rows)
+    data = {'schema_version': 2, 'platforms': platforms, 'generated_at': datetime.now(timezone.utc).isoformat(),
             'revision': git('rev-parse', 'HEAD'), 'compiler_dirty': bool(git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
             'platform': platform.system() + ' ' + platform.machine(), 'cpu': cpu_name(),
             'samples': samples, 'warmups': 1, 'tools': tools, 'versions': versions,
@@ -219,10 +220,31 @@ def build(bin_dir, samples, render_page=True):
                            'Output size is emitted files, including C headers, rather than linked executables. '
                            'Shared host, warm filesystem caches, no CPU isolation. Small examples emphasize startup; these are not language rankings.',
             'examples': rows}
+    if platform_harnesses:
+        data['platform_harnesses'] = platform_harnesses
     (OUTPUT / 'matrix.json').write_text(json.dumps(data, indent=2) + '\n')
     if render_page:
         (SITE / 'targets.html').write_text(render(data))
     print(f'Target matrix: {len(rows)} examples; {len(runs)} verified execution cells; {samples} samples each')
+
+
+def carried_platforms(rows):
+    """Keep the published platform snapshots and the web artifacts they ran.
+
+    Only site_target_platforms.py measures a platform and replaces its
+    snapshot; rebuilding the outputs here must not drop the others.
+    """
+    try:
+        previous = json.loads((OUTPUT / 'matrix.json').read_text())
+    except (OSError, ValueError):
+        return {}, {}
+    targets = {example['id']: example['targets'] for example in previous.get('examples', [])}
+    for row in rows:
+        for target, cell in row['targets'].items():
+            web = targets.get(row['id'], {}).get(target, {}).get('web')
+            if web:
+                cell['web'] = web
+    return previous.get('platforms', {}), previous.get('platform_harnesses', {})
 
 
 def cpu_name():

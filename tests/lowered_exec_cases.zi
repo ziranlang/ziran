@@ -28,12 +28,60 @@ Types :: (types: []LirType, fields: []s32, parameters: []s32) {
     types[14] = .{.kind = .Function, .parameters = parameters, .result = 4}
 }
 
+SameResult :: (left: LirExecResult, right: LirExecResult) -> bool {
+    return left.problem == right.problem && left.function == right.function &&
+        left.block == right.block && left.instruction == right.instruction &&
+        left.origin == right.origin && left.trap == right.trap &&
+        left.work_remaining == right.work_remaining && left.fuel_remaining == right.fuel_remaining &&
+        left.value.type == right.value.type && left.value.bits == right.value.bits &&
+        left.value.bytes == right.value.bytes
+}
+
+RunOnce :: (plan: *LirExecPlan, limits: LirExecLimits, identity: u32, reference: bool) -> LirExecResult {
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(plan, limits, identity, *instance)
+    if opened.problem != .None { return opened }
+    if reference { return LirExecRunReference(*instance) }
+    return LirExecRun(*instance)
+}
+
+// The compact code charges and stops exactly where the reference
+// implementation does: at every work and fuel limit up to what the run
+// uses (sampled for long runs), both give the same result, failure
+// location and remaining budgets.
+SameAsReference :: (plan: *LirExecPlan, limits: LirExecLimits, identity: u32) -> bool {
+    full := RunOnce(plan, limits, identity, false)
+    if !SameResult(full, RunOnce(plan, limits, identity, true)) {
+        print("compact code and reference differ at the given limits\n")
+        return false
+    }
+    budgets: [2]s64 = .[limits.work - full.work_remaining, limits.fuel - full.fuel_remaining]
+    for kind: 0..1 {
+        used := budgets[kind]
+        if used < 0 || used > 100000000 { continue }
+        step := used / 700 + 1
+        at: s64 = 0
+        while at <= used + 1 {
+            bounded := limits
+            if kind == 0 { bounded.work = at } else { bounded.fuel = at }
+            if !SameResult(RunOnce(plan, bounded, identity, false), RunOnce(plan, bounded, identity, true)) {
+                print("compact code and reference differ at % limit %\n", ifx kind == 0 then "work" else "fuel", at)
+                return false
+            }
+            if at < used - 1 && at + step > used - 1 { at = used - 1 } else { at += step }
+        }
+    }
+    return true
+}
+
 Execute :: (program: LirProgram, limits: LirExecLimits = LirExecDefaultLimits(),
     identity: u32 = 1) -> LirExecResult {
     plan: LirExecPlan
     defer LirExecPlanFree(*plan)
     built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
     if built.problem != .None { return built }
+    if !SameAsReference(*plan, limits, identity) { return .{.problem = .Unsupported, .function = -2} }
     instance: LirExecInstance
     defer LirExecInstanceClose(*instance)
     opened := LirExecInstanceOpen(*plan, limits, identity, *instance)

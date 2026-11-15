@@ -67,7 +67,118 @@ LirExecFunctionPlan :: struct {
     word_count: s64
     scratch_offset: s64
     scratch_bytes: s64
+    // The constant words a new frame starts with (LirExecConstantWord).
+    constants: s64
+    constant_count: s64
 }
+
+// The run loop's compact code (ExecPlanCode). Each verified instruction the
+// loop runs itself is translated once into one LirExecCode: a handler
+// specialized by operation and width, with its operands' frame words and
+// storage offsets resolved ahead. Constants, null, function addresses and
+// fuel have no code: a new frame starts with their words written, and their
+// work and fuel are charged with their segment's. A Slow instruction runs
+// through ExecStep, the reference implementation.
+LirExecHandler :: enum s32 {
+    Slow; GlobalAddress
+    Add; Subtract; Multiply; BitAnd; BitOr; BitXor
+    DivideUnsigned; DivideSigned; RemainderUnsigned; RemainderSigned
+    ShiftLeft; ShiftRightUnsigned; ShiftRightSigned
+    Negate; BitNot; FloatNegate
+    FloatAdd32; FloatSubtract32; FloatMultiply32; FloatDivide32
+    FloatAdd64; FloatSubtract64; FloatMultiply64; FloatDivide64
+    Equal; NotEqual; Less; LessEqual; Greater; GreaterEqual
+    SignedLess; SignedLessEqual; SignedGreater; SignedGreaterEqual
+    FloatCompare32; FloatCompare64
+    ConvertInteger; ConvertBoolInteger; ConvertIntegerBool; ConvertIntegerFloat
+    ConvertFloatFloat; ConvertFloatInteger; Bitcast
+    ExtractWord; ExtractBytes; ExtractWordIndexed; ExtractBytesIndexed
+    InsertWord; InsertBytes; InsertWordIndexed; InsertBytesIndexed
+    Aggregate; Load; Store; FieldAddress; ElementIndex; ElementView
+    Jump; Branch
+    // A compare whose only use is the Branch right after it: one dispatch.
+    BranchEqual; BranchNotEqual; BranchLess; BranchLessEqual; BranchGreater; BranchGreaterEqual
+    BranchSignedLess; BranchSignedLessEqual; BranchSignedGreater; BranchSignedGreaterEqual
+    // Calls and returns between frames of the program (ExecFastCall,
+    // ExecFastReturn). Each ends its segment and charges its own work.
+    Call; Return
+    // An address derivation whose only use is the Load or Store right after
+    // it: the two run as one, with no table entry for the address.
+    LoadField; LoadIndex; LoadView; StoreField; StoreIndex; StoreView
+    // Two Extracts of words in a row, and an Add before the block's Jump.
+    ExtractWordPair; AddJump
+}
+
+LirExecCode :: struct {
+    handler: LirExecHandler
+    // Load, Extract: 1 for a bool result. Address derivations: 1 for a
+    // transient one. Integer conversions: 1 for a signed source or result.
+    flag: s32
+    // Frame words, relative to the frame's first word.
+    result: s32
+    a: s32
+    b: s32
+    c: s32
+    // The type a pointer operand must name (Load, Store, derivations), or
+    // a derivation's target type in `target`.
+    type: s32
+    target: s32
+    // Where the instruction came from, for the reference path.
+    block: s32
+    index: s32
+    // The edge plans of a terminator.
+    edge: s32
+    // A Call's result value, which the callee's frame fills.
+    result_value: s32
+    // A fused Store's value word, or -1 with the value's bytes at `w`.
+    value: s32
+    // 1 when a FieldAddress whose only use is this derivation's base runs
+    // first, inside it: the type it checks, and the field's offset and size.
+    prefix: s32
+    prefix_type: s32
+    prefix_offset: s64
+    prefix_size: s64
+    // Byte sizes, bit widths and frame storage offsets (relative to the
+    // frame's storage), as each handler uses them.
+    size: s64
+    x: s64
+    y: s64
+    z: s64
+    w: s64
+    // The plan instruction that starts this instruction's block.
+    base: s64
+    // Result masks, sign bits of index operands and other constants.
+    immediate: u64
+    extra: u64
+    sign_b: u64
+    sign_c: u64
+    // This instruction's own work, and the work and fuel from it to the end
+    // of its segment, given back when the reference path takes over here.
+    cost: s64
+    rest_work: s64
+    rest_fuel: s64
+}
+
+// One value an edge or an Aggregate copies: a frame word, or bytes of frame
+// storage. `scratch` is where a two-phase edge parks it.
+LirExecMove :: struct { word: bool; from: s64; to: s64; size: s64; scratch: s64 }
+
+LirExecEdgePlan :: struct {
+    moves: s64
+    count: s64
+    // The arguments cannot overwrite each other: copy them in order.
+    direct: bool
+    // Two copies of each argument, as ExecEdge charges them.
+    work: s64
+    target_block: s32
+    target_base: s64
+    // The code, work and fuel of the target block's first segment.
+    target_code: s64
+    target_work: s64
+    target_fuel: s64
+}
+
+LirExecConstantWord :: struct { word: s64; bits: u64 }
 
 LirExecPlan :: struct {
     program: LirProgram
@@ -89,6 +200,18 @@ LirExecPlan :: struct {
     transient: Vec(u8)
     global_offsets: Vec(s64)
     global_bytes: s64
+    code: Vec(LirExecCode)
+    moves: Vec(LirExecMove)
+    edge_plans: Vec(LirExecEdgePlan)
+    constant_words: Vec(LirExecConstantWord)
+    // Per plan instruction: the code of the segment that starts there, or
+    // -1 where none starts, and the work and fuel it charges on entry. A
+    // segment is a block's run of instructions up to the next Slow one.
+    segment_code: Vec(s64)
+    segment_work: Vec(s64)
+    segment_fuel: Vec(s64)
+    // 2^k for k from -1074 to 1023, for float operands.
+    powers: Vec(float64)
     ready: bool
 }
 
@@ -137,7 +260,6 @@ LirExecFrame :: struct {
     base: s64
     word_base: s64
     value_base: s64
-    valid_base: s64
     instruction_base: s64
     generation: u64
     // One more than the newest address entry made for this frame's storage.
@@ -164,7 +286,6 @@ LirExecInstance :: struct {
     transient_next: s64
     storage: Vec(u8)
     words: Vec(u64)
-    validity: Vec(u8)
     frames: Vec(LirExecFrame)
     result_bytes: Vec(u8)
     result_value: LirExecValue
@@ -190,7 +311,6 @@ LirExecInstance :: struct {
     frame_epoch: u64
     current_value_base: s64
     current_word_base: s64
-    current_valid_base: s64
     work_remaining: s64
     fuel_remaining: s64
     failure: LirExecResult
@@ -199,6 +319,8 @@ LirExecInstance :: struct {
     initializer_failed: bool
     ready: bool
     running: bool
+    // Run every instruction through ExecStep (LirExecRunReference).
+    reference: bool
 }
 
 #scope_file
@@ -241,6 +363,25 @@ ExecWriteBits :: (bytes: []u8, at: s64, count: s64, value: u64) {
     }
 }
 
+// A finite positive value as `value` in [1, 2) times 2^exponent, in exact
+// steps by powers of two.
+ExecNormalize :: (input: float64, exponent: *s32) -> float64 #inline {
+    value := input
+    power: s32
+    step: float64 = 18446744073709551616.0
+    back: float64 = 5.42101086242752217003726400434970855712890625e-20
+    while value >= step { value *= back; power += 64 }
+    while value < 1.0 { value *= step; power -= 64 }
+    if value >= 4294967296.0 { value *= 2.3283064365386962890625e-10; power += 32 }
+    if value >= 65536.0 { value *= 0.0000152587890625; power += 16 }
+    if value >= 256.0 { value *= 0.00390625; power += 8 }
+    if value >= 16.0 { value *= 0.0625; power += 4 }
+    if value >= 4.0 { value *= 0.25; power += 2 }
+    if value >= 2.0 { value *= 0.5; power += 1 }
+    <<exponent = power
+    return value
+}
+
 ExecFloat64Bits :: (input: float64) -> u64 {
     negative := input < 0.0 || input == 0.0 && 1.0 / input < 0.0
     value := ifx negative then 0.0 - input else input
@@ -249,16 +390,7 @@ ExecFloat64Bits :: (input: float64) -> u64 {
     if value == 0.0 { return sign }
     if !Finite64(value) { return sign | cast(u64)0x7ff0000000000000 }
     exponent: s32
-    step: float64 = 18446744073709551616.0
-    back: float64 = 5.42101086242752217003726400434970855712890625e-20
-    while value >= step { value *= back; exponent += 64 }
-    while value < 1.0 { value *= step; exponent -= 64 }
-    if value >= 4294967296.0 { value *= 2.3283064365386962890625e-10; exponent += 32 }
-    if value >= 65536.0 { value *= 0.0000152587890625; exponent += 16 }
-    if value >= 256.0 { value *= 0.00390625; exponent += 8 }
-    if value >= 16.0 { value *= 0.0625; exponent += 4 }
-    if value >= 4.0 { value *= 0.25; exponent += 2 }
-    if value >= 2.0 { value *= 0.5; exponent += 1 }
+    value = ExecNormalize(value, *exponent)
     if exponent >= -1022 {
         fraction := cast(u64)((value - 1.0) * 4503599627370496.0)
         return sign | (cast(u64)(exponent + 1023) << cast(u64)52) | fraction
@@ -276,8 +408,7 @@ ExecFloat32Bits :: (input: float32) -> u64 {
     if value == 0.0 { return sign }
     if !Finite64(value) { return sign | cast(u64)0x7f800000 }
     exponent: s32
-    while value >= 2.0 { value *= 0.5; exponent += 1 }
-    while value < 1.0 { value *= 2.0; exponent -= 1 }
+    value = ExecNormalize(value, *exponent)
     if exponent >= -126 {
         fraction := cast(u64)((value - 1.0) * 8388608.0)
         return sign | (cast(u64)(exponent + 127) << cast(u64)23) | fraction
@@ -286,9 +417,43 @@ ExecFloat32Bits :: (input: float32) -> u64 {
     return sign | fraction
 }
 
-ExecFloat :: (type: LirType, bits: u64) -> float64 {
-    if type.bits == 32 { return Float32FromBits(cast(u32)bits) }
-    return Float64FromBits(bits)
+// The value of IEEE bits, exactly as Float32FromBits and Float64FromBits
+// give it, scaled by the plan's table of powers of two instead of loops.
+ExecBitsFloat :: (plan: *LirExecPlan, input: u64, single: bool) -> float64 #inline {
+    exponent: s64
+    mantissa: u64
+    negative: bool
+    value: float64
+    if single {
+        bits := input & cast(u64)4294967295
+        exponent = cast(s64)((bits >> cast(u64)23) & cast(u64)255)
+        mantissa = bits & cast(u64)8388607
+        negative = (bits & cast(u64)2147483648) != cast(u64)0
+        if exponent == 255 {
+            value = ifx mantissa == 0 then Infinity() else NotANumber()
+        } else if exponent == 0 {
+            value = cast(float64)mantissa * plan.powers[925]
+        } else {
+            value = cast(float64)(mantissa + cast(u64)8388608) * plan.powers[exponent + 924]
+        }
+    } else {
+        exponent = cast(s64)((input >> cast(u64)52) & cast(u64)2047)
+        mantissa = input & cast(u64)4503599627370495
+        negative = (input >> cast(u64)63) != cast(u64)0
+        if exponent == 2047 {
+            value = ifx mantissa == 0 then Infinity() else NotANumber()
+        } else if exponent == 0 {
+            value = cast(float64)mantissa * plan.powers[0]
+        } else {
+            value = cast(float64)(mantissa + cast(u64)4503599627370496) * plan.powers[exponent - 1]
+        }
+    }
+    if negative { return -value }
+    return value
+}
+
+ExecFloat :: (plan: *LirExecPlan, type: LirType, bits: u64) -> float64 #inline {
+    return ExecBitsFloat(plan, bits, type.bits == 32)
 }
 
 ExecTypeChildren :: (type: LirType) -> s64 {
@@ -618,6 +783,665 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
     return .None
 }
 
+// ---- Compact code --------------------------------------------------------
+
+ExecPlanCodeKind :: enum s32 {
+    // Runs through ExecStep; it ends the segment before it.
+    Slow
+    // Has a LirExecCode the run loop executes.
+    Fast
+    // A word that holds one value from the frame's start (constant words).
+    Constant
+    // Charged with its segment but runs no code: fuel, and a compare that
+    // the Branch after it carries out.
+    Folded
+}
+
+ExecPlanWord :: (plan: *LirExecPlan, base: s64, value: s32) -> s32 {
+    return cast(s32)plan.value_words[base + value]
+}
+
+ExecPlanMask :: (plan: *LirExecPlan, base: s64, value: s32) -> u64 {
+    if plan.value_canonical[base + value] == 2 { return plan.value_masks[base + value] }
+    return ~cast(u64)0
+}
+
+// The sign bit an index operand must not have (ExecIndexBits), or 0.
+ExecPlanSign :: (program: LirProgram, plan: *LirExecPlan, base: s64, value: s32) -> u64 {
+    type := program.types[plan.value_types[base + value]]
+    if type.kind != .Integer || !type.is_signed { return 0 }
+    return cast(u64)1 << cast(u64)(type.bits - 1)
+}
+
+// ExecMember at plan time: the member's offset and the work ExecMember
+// charges for it.
+ExecPlanMember :: (program: LirProgram, plan: *LirExecPlan, type_id: s32, member: u64,
+    offset: *s64, cost: *s64) -> bool {
+    type := program.types[type_id]
+    if type.kind == .Array {
+        if member >= cast(u64)type.count { return false }
+        <<offset = cast(s64)member * plan.type_sizes[type.element]
+        <<cost = 0
+        return true
+    }
+    if type.kind != .Record || member >= cast(u64)type.fields.count { return false }
+    result: s64
+    for index: cast(s64)0..cast(s64)member - 1 { result += plan.type_sizes[type.fields[index]] }
+    <<offset = result
+    <<cost = cast(s64)member
+    return true
+}
+
+ExecPlanBinary :: (op: LirOp, type: LirType) -> LirExecHandler {
+    if type.kind == .Float {
+        if type.bits == 32 {
+            if op == .Add { return .FloatAdd32 }
+            if op == .Subtract { return .FloatSubtract32 }
+            if op == .Multiply { return .FloatMultiply32 }
+            if op == .Divide { return .FloatDivide32 }
+        } else if type.bits == 64 {
+            if op == .Add { return .FloatAdd64 }
+            if op == .Subtract { return .FloatSubtract64 }
+            if op == .Multiply { return .FloatMultiply64 }
+            if op == .Divide { return .FloatDivide64 }
+        }
+        return .Slow
+    }
+    if type.kind != .Integer { return .Slow }
+    if op == .Add { return .Add }
+    if op == .Subtract { return .Subtract }
+    if op == .Multiply { return .Multiply }
+    if op == .BitAnd { return .BitAnd }
+    if op == .BitOr { return .BitOr }
+    if op == .BitXor { return .BitXor }
+    if op == .Divide { return ifx type.is_signed then .DivideSigned else .DivideUnsigned }
+    if op == .Remainder { return ifx type.is_signed then .RemainderSigned else .RemainderUnsigned }
+    if op == .ShiftLeft { return .ShiftLeft }
+    if op == .ShiftRight { return ifx type.is_signed then .ShiftRightSigned else .ShiftRightUnsigned }
+    return .Slow
+}
+
+ExecPlanCompare :: (op: LirOp, type: LirType) -> LirExecHandler {
+    if type.kind == .Float { return ifx type.bits == 32 then .FloatCompare32 else .FloatCompare64 }
+    if op == .Equal { return .Equal }
+    if op == .NotEqual { return .NotEqual }
+    if type.kind == .Integer && type.is_signed {
+        if op == .Less { return .SignedLess }
+        if op == .LessEqual { return .SignedLessEqual }
+        if op == .Greater { return .SignedGreater }
+        return .SignedGreaterEqual
+    }
+    if op == .Less { return .Less }
+    if op == .LessEqual { return .LessEqual }
+    if op == .Greater { return .Greater }
+    return .GreaterEqual
+}
+
+// A handler that derives an address from operand 0, alone or with its use.
+ExecPlanDerivation :: (handler: LirExecHandler) -> bool {
+    return handler == .FieldAddress || handler == .ElementIndex || handler == .ElementView ||
+        handler == .LoadField || handler == .LoadIndex || handler == .LoadView ||
+        handler == .StoreField || handler == .StoreIndex || handler == .StoreView
+}
+
+// The handler of a derivation and the Load or Store after it, or Slow.
+ExecPlanFusedMemory :: (derivation: LirExecHandler, memory: LirExecHandler) -> LirExecHandler {
+    if memory == .Load {
+        if derivation == .FieldAddress { return .LoadField }
+        if derivation == .ElementIndex { return .LoadIndex }
+        if derivation == .ElementView { return .LoadView }
+    } else if memory == .Store {
+        if derivation == .FieldAddress { return .StoreField }
+        if derivation == .ElementIndex { return .StoreIndex }
+        if derivation == .ElementView { return .StoreView }
+    }
+    return .Slow
+}
+
+// The Branch handler that also does compare `handler`, or Slow.
+ExecPlanFused :: (handler: LirExecHandler) -> LirExecHandler {
+    if handler == .Equal { return .BranchEqual }
+    if handler == .NotEqual { return .BranchNotEqual }
+    if handler == .Less { return .BranchLess }
+    if handler == .LessEqual { return .BranchLessEqual }
+    if handler == .Greater { return .BranchGreater }
+    if handler == .GreaterEqual { return .BranchGreaterEqual }
+    if handler == .SignedLess { return .BranchSignedLess }
+    if handler == .SignedLessEqual { return .BranchSignedLessEqual }
+    if handler == .SignedGreater { return .BranchSignedGreater }
+    if handler == .SignedGreaterEqual { return .BranchSignedGreaterEqual }
+    return .Slow
+}
+
+// Translates one instruction. `work` and `fuel` are what ExecStep charges
+// for it, apart from the copies of a terminator's edge (ExecPlanEdges).
+ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
+    instruction: LirInstruction, transient: bool, out: *LirExecCode, work: *s64,
+    fuel: *s64, bits: *u64) -> ExecPlanCodeKind {
+    op := instruction.op
+    count := instruction.operands.count
+    <<work = 1
+    <<fuel = 0
+    out.handler = .Slow
+    out.result = -1
+    out.a = -1
+    out.b = -1
+    out.c = -1
+    out.flag = 0
+    out.edge = -1
+    out.result_value = instruction.result
+    out.value = -1
+    out.prefix = 0
+    if instruction.result != LirNoId { out.result = ExecPlanWord(plan, base, instruction.result) }
+    if count > 0 { out.a = ExecPlanWord(plan, base, instruction.operands[0]) }
+    if count > 1 { out.b = ExecPlanWord(plan, base, instruction.operands[1]) }
+    if count > 2 { out.c = ExecPlanWord(plan, base, instruction.operands[2]) }
+    if op == .Constant || op == .Null || op == .FunctionAddress {
+        if out.result < 0 { return .Slow }
+        value: u64
+        if op == .Constant { value = program.constants[instruction.symbol].bits }
+        if op == .FunctionAddress { value = cast(u64)(instruction.symbol + 1) }
+        canonical := plan.value_canonical[base + instruction.result]
+        if canonical == 1 { value = cast(u64)(value != 0) }
+        else if canonical == 2 { value &= plan.value_masks[base + instruction.result] }
+        <<bits = value
+        return .Constant
+    }
+    if op == .Fuel {
+        <<fuel = cast(s64)instruction.immediate
+        return .Folded
+    }
+    if op == .GlobalAddress {
+        if out.result < 0 { return .Slow }
+        out.handler = .GlobalAddress
+        out.x = instruction.symbol
+        return .Fast
+    }
+    if op == .Jump {
+        out.handler = .Jump
+        return .Fast
+    }
+    if op == .Branch {
+        if out.a < 0 { return .Slow }
+        out.handler = .Branch
+        return .Fast
+    }
+    code := cast(s32)op
+    if op == .Negate || op == .BitNot {
+        if out.result < 0 || out.a < 0 { return .Slow }
+        type := program.types[plan.value_types[base + instruction.operands[0]]]
+        if type.kind == .Integer {
+            out.handler = ifx op == .Negate then .Negate else .BitNot
+            out.immediate = ExecPlanMask(plan, base, instruction.result)
+        } else if type.kind == .Float && op == .Negate {
+            out.handler = .FloatNegate
+            out.immediate = ifx type.bits == 32 then cast(u64)0x80000000 else cast(u64)0x8000000000000000
+        } else { return .Slow }
+        return .Fast
+    }
+    if code >= cast(s32)LirOp.Add && code <= cast(s32)LirOp.Remainder ||
+        code >= cast(s32)LirOp.BitAnd && code <= cast(s32)LirOp.ShiftRight {
+        if count != 2 || out.result < 0 || out.a < 0 || out.b < 0 { return .Slow }
+        type := program.types[plan.value_types[base + instruction.operands[0]]]
+        out.handler = ExecPlanBinary(op, type)
+        if out.handler == .Slow { return .Slow }
+        out.size = type.bits
+        out.immediate = ExecPlanMask(plan, base, instruction.result)
+        return .Fast
+    }
+    if code >= cast(s32)LirOp.Equal && code <= cast(s32)LirOp.GreaterEqual {
+        if count != 2 || out.result < 0 || out.a < 0 || out.b < 0 { return .Slow }
+        type := program.types[plan.value_types[base + instruction.operands[0]]]
+        out.handler = ExecPlanCompare(op, type)
+        out.size = type.bits
+        out.extra = cast(u64)code
+        return .Fast
+    }
+    if op == .Convert || op == .Bitcast {
+        if count != 1 || out.result < 0 || out.a < 0 { return .Slow }
+        source := program.types[plan.value_types[base + instruction.operands[0]]]
+        destination := program.types[plan.value_types[base + instruction.result]]
+        out.size = source.bits
+        out.y = destination.bits
+        out.immediate = ExecPlanMask(plan, base, instruction.result)
+        if op == .Bitcast {
+            if destination.kind == .Bool { return .Slow }
+            out.handler = .Bitcast
+            return .Fast
+        }
+        if source.kind == .Bool && destination.kind == .Integer { out.handler = .ConvertBoolInteger }
+        else if source.kind == .Integer && destination.kind == .Bool {
+            out.handler = .ConvertIntegerBool
+            out.extra = ExecMask(source.bits)
+        } else if source.kind == .Integer && destination.kind == .Integer {
+            out.handler = .ConvertInteger
+            out.extra = ExecMask(source.bits)
+            out.flag = cast(s32)source.is_signed
+        } else if source.kind == .Integer && destination.kind == .Float {
+            out.handler = .ConvertIntegerFloat
+            out.extra = ExecMask(source.bits)
+            out.flag = cast(s32)source.is_signed
+        } else if source.kind == .Float && destination.kind == .Float {
+            out.handler = .ConvertFloatFloat
+        } else if source.kind == .Float && destination.kind == .Integer {
+            out.handler = .ConvertFloatInteger
+            out.flag = cast(s32)destination.is_signed
+        } else { return .Slow }
+        return .Fast
+    }
+    if op == .Extract || op == .Insert {
+        expected := ifx op == .Extract then 1 else 2
+        aggregate := instruction.operands[0]
+        aggregate_type := plan.value_types[base + aggregate]
+        aggregate_at := plan.value_offsets[base + aggregate]
+        if plan.value_words[base + aggregate] >= 0 || aggregate_at < 0 { return .Slow }
+        indexed := count == expected + 1
+        member_offset: s64
+        member_cost: s64
+        if indexed {
+            type := program.types[aggregate_type]
+            if type.kind != .Array { return .Slow }
+            index := instruction.operands[expected]
+            if plan.value_words[base + index] < 0 { return .Slow }
+            out.extra = cast(u64)type.count
+            out.sign_c = ExecPlanSign(program, plan, base, index)
+            out.c = ExecPlanWord(plan, base, index)
+        } else if count != expected ||
+            !ExecPlanMember(program, plan, aggregate_type, instruction.immediate, *member_offset, *member_cost) {
+            return .Slow
+        }
+        out.x = aggregate_at
+        if op == .Extract {
+            result := instruction.result
+            size := plan.value_sizes[base + result]
+            out.size = size
+            <<work = 1 + member_cost + ExecCopyCost(size)
+            if out.result >= 0 {
+                out.handler = ifx indexed then .ExtractWordIndexed else .ExtractWord
+                out.flag = cast(s32)(plan.value_canonical[base + result] == 1)
+                out.immediate = ExecPlanMask(plan, base, result)
+            } else {
+                out.handler = ifx indexed then .ExtractBytesIndexed else .ExtractBytes
+                out.y = plan.value_offsets[base + result]
+            }
+            if !indexed { out.x += member_offset }
+            return .Fast
+        }
+        if out.result >= 0 { return .Slow }
+        replacement := instruction.operands[1]
+        out.y = plan.value_offsets[base + instruction.result]
+        out.size = plan.value_sizes[base + aggregate]
+        out.z = plan.value_sizes[base + replacement]
+        if !indexed { out.immediate = cast(u64)member_offset }
+        <<work = 1 + member_cost + ExecCopyCost(out.size) + ExecCopyCost(out.z)
+        if out.b >= 0 {
+            out.handler = ifx indexed then .InsertWordIndexed else .InsertWord
+        } else {
+            out.handler = ifx indexed then .InsertBytesIndexed else .InsertBytes
+            out.w = plan.value_offsets[base + replacement]
+        }
+        return .Fast
+    }
+    if op == .Aggregate {
+        if out.result >= 0 { return .Slow }
+        destination := plan.value_offsets[base + instruction.result]
+        out.x = plan.moves.count
+        out.y = count
+        at: s64
+        cost: s64 = 1
+        for operand: instruction.operands {
+            size := plan.value_sizes[base + operand]
+            word := plan.value_words[base + operand]
+            from := ifx word >= 0 then word else plan.value_offsets[base + operand]
+            if !VecPush(plan.moves, LirExecMove.{.word = word >= 0, .from = from,
+                .to = destination + at, .size = size}) { return .Slow }
+            cost += ExecCopyCost(size)
+            at += size
+        }
+        <<work = cost
+        out.handler = .Aggregate
+        return .Fast
+    }
+    if op == .Load || op == .Store {
+        if out.a < 0 { return .Slow }
+        value := ifx op == .Load then instruction.result else instruction.operands[1]
+        if value == LirNoId { return .Slow }
+        size := plan.value_sizes[base + value]
+        out.size = size
+        out.type = plan.value_types[base + value]
+        <<work = 1 + ExecCopyCost(size)
+        word := plan.value_words[base + value]
+        if word < 0 { out.x = plan.value_offsets[base + value] }
+        if op == .Load {
+            out.handler = .Load
+            out.flag = cast(s32)(plan.value_canonical[base + value] == 1)
+            out.immediate = ExecPlanMask(plan, base, value)
+        } else { out.handler = .Store }
+        return .Fast
+    }
+    if op == .FieldAddress || op == .ElementAddress {
+        if out.result < 0 || out.a < 0 || count > 3 { return .Slow }
+        expected := program.types[plan.value_types[base + instruction.operands[0]]].element
+        target := program.types[plan.value_types[base + instruction.result]].element
+        out.type = expected
+        out.target = target
+        out.size = plan.type_sizes[target]
+        out.flag = cast(s32)transient
+        if op == .FieldAddress {
+            member_offset: s64
+            member_cost: s64
+            if !ExecPlanMember(program, plan, expected, instruction.immediate, *member_offset, *member_cost) ||
+                program.types[expected].kind != .Record { return .Slow }
+            out.handler = .FieldAddress
+            out.x = member_offset
+            <<work = 2 + member_cost
+            return .Fast
+        }
+        if out.b < 0 { return .Slow }
+        out.sign_b = ExecPlanSign(program, plan, base, instruction.operands[1])
+        if count == 2 {
+            parent := program.types[expected]
+            if parent.kind != .Array { return .Slow }
+            out.handler = .ElementIndex
+            out.extra = cast(u64)parent.count
+        } else {
+            if out.c < 0 { return .Slow }
+            out.sign_c = ExecPlanSign(program, plan, base, instruction.operands[2])
+            out.handler = .ElementView
+        }
+        <<work = 2
+        return .Fast
+    }
+    if op == .Call {
+        // The callee's entry parameters take the arguments in order.
+        target := program.functions[instruction.symbol]
+        if target.external || target.parameters.count != count { return .Slow }
+        target_plan := plan.functions[instruction.symbol]
+        entry := target.blocks[target.entry]
+        out.x = plan.moves.count
+        out.y = count
+        cost: s64 = 1
+        for index: cast(s64)0..count - 1 {
+            source := instruction.operands[index]
+            destination := entry.parameters[index]
+            size := plan.value_sizes[base + source]
+            source_word := plan.value_words[base + source]
+            destination_word := plan.value_words[target_plan.value_base + destination]
+            if (source_word >= 0) != (destination_word >= 0) { return .Slow }
+            word := source_word >= 0
+            if !VecPush(plan.moves, LirExecMove.{.word = word, .size = size,
+                .from = ifx word then source_word else plan.value_offsets[base + source],
+                .to = ifx word then destination_word else plan.value_offsets[target_plan.value_base + destination]}) {
+                return .Slow
+            }
+            cost += ExecCopyCost(size)
+        }
+        out.handler = .Call
+        out.target = instruction.symbol
+        <<work = cost
+        return .Slow
+    }
+    if op == .Return {
+        out.handler = .Return
+        if count == 1 {
+            value := instruction.operands[0]
+            out.size = plan.value_sizes[base + value]
+            if plan.value_words[base + value] < 0 { out.x = plan.value_offsets[base + value] }
+        }
+        return .Slow
+    }
+    return .Slow
+}
+
+// The edge plans of one block's instructions, from plan edge `edge_at`.
+ExecPlanEdges :: (plan: *LirExecPlan, function: LirFunction, function_plan: LirExecFunctionPlan,
+    block: LirBlock, edge_at: s64) -> bool {
+    base := function_plan.value_base
+    at := edge_at
+    for instruction: block.instructions {
+        for edge: instruction.edges {
+            target := function.blocks[edge.block]
+            target_base := plan.block_instruction_bases[function_plan.block_base + edge.block]
+            direct := plan.edge_direct[at] != 0
+            first := plan.moves.count
+            work: s64
+            scratch: s64
+            if edge.arguments.count != target.parameters.count { return false }
+            for index: cast(s64)0..target.parameters.count - 1 {
+                source := edge.arguments[index]
+                destination := target.parameters[index]
+                size := plan.value_sizes[base + source]
+                work += 2 * ExecCopyCost(size)
+                if direct && ExecPlanValuesSameLocation(plan, base, source, destination) { continue }
+                source_word := plan.value_words[base + source]
+                destination_word := plan.value_words[base + destination]
+                if (source_word >= 0) != (destination_word >= 0) { return false }
+                word := source_word >= 0
+                move := LirExecMove.{.word = word, .size = size,
+                    .from = ifx word then source_word else plan.value_offsets[base + source],
+                    .to = ifx word then destination_word else plan.value_offsets[base + destination],
+                    .scratch = function_plan.scratch_offset + scratch}
+                scratch += size
+                if !VecPush(plan.moves, move) { return false }
+            }
+            plan.edge_plans[at] = .{.moves = first, .count = plan.moves.count - first,
+                .direct = direct, .work = work, .target_block = edge.block,
+                .target_base = target_base, .target_code = plan.segment_code[target_base],
+                .target_work = plan.segment_work[target_base], .target_fuel = plan.segment_fuel[target_base]}
+            at += 1
+        }
+    }
+    return true
+}
+
+// Translates every function into the plan's compact code (LirExecCode).
+ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
+    total := plan.instructions.count
+    if !VecResizeBounded(plan.powers, 2098, 2098) ||
+        !VecResizeBounded(plan.segment_code, total, total) ||
+        !VecResizeBounded(plan.segment_work, total, total) ||
+        !VecResizeBounded(plan.segment_fuel, total, total) ||
+        !VecResizeBounded(plan.edge_plans, plan.edge_direct.count, plan.edge_direct.count) ||
+        !VecReserve(plan.code, total) { return .Allocation }
+    plan.powers[0] = ScaleByPowerOfTwo(1.0, -1074)
+    for index: cast(s64)1..2097 { plan.powers[index] = plan.powers[index - 1] * 2.0 }
+    for index: cast(s64)0..total - 1 { plan.segment_code[index] = -1 }
+    // Neither total may come near the limits of the work and fuel counters.
+    ceiling: s64 = 4611686018427387904
+    kinds: Vec(ExecPlanCodeKind)
+    works: Vec(s64)
+    fuels: Vec(s64)
+    codes: Vec(LirExecCode)
+    entries: Vec(s64)
+    uses: Vec(s64)
+    defer VecFree(uses)
+    defer VecFree(kinds)
+    defer VecFree(works)
+    defer VecFree(fuels)
+    defer VecFree(codes)
+    defer VecFree(entries)
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        function_plan := plan.functions[function_index]
+        base := function_plan.value_base
+        plan.functions[function_index].constants = plan.constant_words.count
+        if !VecResize(uses, function.values.count) { return .Allocation }
+        for value: cast(s64)0..function.values.count - 1 { uses[value] = 0 }
+        for block: function.blocks {
+            for instruction: block.instructions {
+                for operand: instruction.operands { uses[operand] += 1 }
+                for edge: instruction.edges { for argument: edge.arguments { uses[argument] += 1 } }
+            }
+        }
+        for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
+            block := function.blocks[block_index]
+            first := plan.block_instruction_bases[function_plan.block_base + block_index]
+            count := block.instructions.count
+            if !VecResize(kinds, count) || !VecResize(works, count) || !VecResize(fuels, count) ||
+                !VecResize(codes, count) || !VecResize(entries, count) { return .Allocation }
+            edges := plan.block_edge_bases[function_plan.block_base + block_index]
+            for index: cast(s64)0..count - 1 {
+                bits: u64
+                kind := ExecPlanInstruction(program, plan, base, block.instructions[index],
+                    plan.transient[first + index] != 0, *codes[index], *works[index], *fuels[index], *bits)
+                codes[index].block = block_index
+                codes[index].index = cast(s32)index
+                codes[index].base = first
+                codes[index].cost = works[index]
+                if block.instructions[index].edges.count != 0 { codes[index].edge = cast(s32)edges }
+                edges += block.instructions[index].edges.count
+                if kind == .Constant {
+                    if !VecPush(plan.constant_words, LirExecConstantWord.{.word = cast(s64)codes[index].result,
+                        .bits = bits}) { return .Allocation }
+                }
+                kinds[index] = kind
+            }
+            // A derivation used only by the Load or Store right after it runs
+            // inside that instruction's code.
+            for index: cast(s64)0..count - 2 {
+                if kinds[index] != .Fast || kinds[index + 1] != .Fast { continue }
+                fused := ExecPlanFusedMemory(codes[index].handler, codes[index + 1].handler)
+                derived := block.instructions[index].result
+                user := block.instructions[index + 1]
+                if fused == .Slow || codes[index].flag == 0 || derived == LirNoId ||
+                    user.operands[0] != derived || uses[derived] != 1 { continue }
+                memory := codes[index + 1]
+                codes[index].handler = fused
+                codes[index].result = memory.result
+                codes[index].value = memory.b
+                codes[index].w = memory.x
+                codes[index].immediate = memory.immediate
+                codes[index].flag = memory.flag
+                kinds[index + 1] = .Folded
+            }
+            // A FieldAddress used only as the base of the derivation right
+            // after it runs inside that derivation's code.
+            for index: cast(s64)0..count - 2 {
+                if kinds[index] != .Fast || codes[index].handler != .FieldAddress || codes[index].flag == 0 ||
+                    kinds[index + 1] != .Fast || codes[index + 1].prefix != 0 { continue }
+                next := codes[index + 1].handler
+                if !ExecPlanDerivation(next) { continue }
+                derived := block.instructions[index].result
+                if derived == LirNoId || block.instructions[index + 1].operands[0] != derived ||
+                    uses[derived] != 1 { continue }
+                field := codes[index]
+                fused := codes[index + 1]
+                fused.prefix = 1
+                fused.prefix_type = field.type
+                fused.prefix_offset = field.x
+                fused.prefix_size = field.size
+                fused.a = field.a
+                fused.block = field.block
+                fused.index = field.index
+                fused.cost = field.cost + fused.cost
+                codes[index] = fused
+                kinds[index + 1] = .Folded
+            }
+            // Two word Extracts in a row run as one.
+            index: s64
+            while index + 1 < count {
+                if kinds[index] == .Fast && kinds[index + 1] == .Fast &&
+                    codes[index].handler == .ExtractWord && codes[index + 1].handler == .ExtractWord {
+                    second := codes[index + 1]
+                    codes[index].handler = .ExtractWordPair
+                    codes[index].b = second.result
+                    codes[index].y = second.x
+                    codes[index].z = second.size
+                    codes[index].c = second.flag
+                    codes[index].extra = second.immediate
+                    kinds[index + 1] = .Folded
+                    index += 2
+                } else { index += 1 }
+            }
+            // An Add right before the block's Jump runs inside it.
+            if count >= 2 && codes[count - 1].handler == .Jump && kinds[count - 2] == .Fast &&
+                codes[count - 2].handler == .Add {
+                add := codes[count - 2]
+                codes[count - 1].handler = .AddJump
+                codes[count - 1].result = add.result
+                codes[count - 1].a = add.a
+                codes[count - 1].b = add.b
+                codes[count - 1].immediate = add.immediate
+                kinds[count - 2] = .Folded
+            }
+            // A compare right before the Branch on its result runs inside it.
+            if count >= 2 && codes[count - 1].handler == .Branch && kinds[count - 2] == .Fast {
+                compare := block.instructions[count - 2]
+                fused := ExecPlanFused(codes[count - 2].handler)
+                if fused != .Slow && compare.result != LirNoId &&
+                    block.instructions[count - 1].operands[0] == compare.result {
+                    codes[count - 1].handler = fused
+                    codes[count - 1].result = codes[count - 2].result
+                    codes[count - 1].a = codes[count - 2].a
+                    codes[count - 1].b = codes[count - 2].b
+                    codes[count - 1].size = codes[count - 2].size
+                    kinds[count - 2] = .Folded
+                }
+            }
+            // Keep each segment's totals far from overflow.
+            running_work: s64
+            running_fuel: s64
+            for index: cast(s64)0..count - 1 {
+                if kinds[index] != .Slow &&
+                    (works[index] > ceiling - running_work || fuels[index] > ceiling - running_fuel) {
+                    kinds[index] = .Slow
+                    codes[index].handler = .Slow
+                }
+                if kinds[index] == .Slow { running_work = 0; running_fuel = 0 }
+                else { running_work += works[index]; running_fuel += fuels[index] }
+            }
+            for index: cast(s64)0..count - 1 {
+                entries[index] = -1
+                if kinds[index] == .Fast || kinds[index] == .Slow {
+                    entries[index] = plan.code.count
+                    if !VecPush(plan.code, codes[index]) { return .Allocation }
+                }
+            }
+            at: s64
+            while at < count {
+                if kinds[at] == .Slow {
+                    plan.segment_code[first + at] = entries[at]
+                    plan.segment_work[first + at] = 0
+                    plan.segment_fuel[first + at] = 0
+                    at += 1
+                    continue
+                }
+                end := at
+                work: s64
+                fuel: s64
+                while end < count && kinds[end] != .Slow {
+                    work += works[end]
+                    fuel += fuels[end]
+                    end += 1
+                }
+                next := at
+                while next < count && entries[next] < 0 { next += 1 }
+                if next >= count { return .InvalidProgram }
+                plan.segment_code[first + at] = entries[next]
+                plan.segment_work[first + at] = work
+                plan.segment_fuel[first + at] = fuel
+                for index: at..end - 1 {
+                    if entries[index] >= 0 {
+                        plan.code[entries[index]].rest_work = work
+                        plan.code[entries[index]].rest_fuel = fuel
+                    }
+                    work -= works[index]
+                    fuel -= fuels[index]
+                }
+                at = end
+            }
+        }
+        plan.functions[function_index].constant_count =
+            plan.constant_words.count - plan.functions[function_index].constants
+        for block_index: cast(s64)0..function.blocks.count - 1 {
+            block_at := function_plan.block_base + block_index
+            if !ExecPlanEdges(plan, function, plan.functions[function_index], function.blocks[block_index],
+                plan.block_edge_bases[block_at]) { return .InvalidProgram }
+        }
+    }
+    return .None
+}
+
 ExecInstructionOrigin :: (instance: *LirExecInstance, frame: LirExecFrame) -> s32 {
     function := instance.plan.program.functions[frame.function]
     if frame.block < 0 || frame.block >= function.blocks.count { return function.origin }
@@ -688,22 +1512,11 @@ ExecValueType :: (instance: *LirExecInstance, value: s32) -> LirType #inline {
         instance.plan.value_types[instance.current_value_base + value]]
 }
 
-ExecValueValid :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> bool {
-    frame := instance.frames[frame_index]
-    if instance.validity[frame.valid_base + value] == 0 { return ExecFail(instance, .Type) }
-    return true
-}
-
-ExecMarkValue :: (instance: *LirExecInstance, frame_index: s64, value: s32) {
-    frame := instance.frames[frame_index]
-    instance.validity[frame.valid_base + value] = 1
-}
-
+// Values are read without a definedness check: the verifier proves every
+// use is dominated by its definition and has the operand type it needs.
+// Values from outside the plan (arguments, host results, global images)
+// are checked where they come in.
 ExecSlotBits :: (instance: *LirExecInstance, value: s32) -> u64 #inline {
-    if instance.validity[instance.current_valid_base + value] == 0 {
-        unused ExecFail(instance, .Type)
-        return 0
-    }
     word := instance.plan.value_words[instance.current_value_base + value]
     if word < 0 {
         unused ExecFail(instance, .Type)
@@ -730,7 +1543,6 @@ ExecWriteSlotBits :: (instance: *LirExecInstance, value: s32, bits: u64) #inline
     if canonical == 1 { bits = cast(u64)(bits != 0) }
     else if canonical == 2 { bits &= instance.plan.value_masks[at] }
     instance.words[instance.current_word_base + word] = bits
-    instance.validity[instance.current_valid_base + value] = 1
 }
 
 ExecCopyStorage :: (instance: *LirExecInstance, source: s64, destination: s64, count: s64) -> bool {
@@ -742,7 +1554,6 @@ ExecCopyStorage :: (instance: *LirExecInstance, source: s64, destination: s64, c
 
 ExecCopyValueToStorage :: (instance: *LirExecInstance, frame_index: s64,
     source: s32, destination: s64) -> bool {
-    if !ExecValueValid(instance, frame_index, source) { return false }
     size := ExecValueSize(instance, frame_index, source)
     if ExecValueIsWord(instance, frame_index, source) {
         if !ExecSpend(instance, ExecCopyCost(size)) { return false }
@@ -765,13 +1576,11 @@ ExecCopyStorageToValue :: (instance: *LirExecInstance, source: s64,
     }
     if !ExecCopyStorage(instance, source,
         ExecFrameValueOffset(instance, frame_index, destination), size) { return false }
-    ExecMarkValue(instance, frame_index, destination)
     return true
 }
 
 ExecCopyValue :: (instance: *LirExecInstance, source_frame: s64, source: s32,
     destination_frame: s64, destination: s32) -> bool {
-    if !ExecValueValid(instance, source_frame, source) { return false }
     size := ExecValueSize(instance, source_frame, source)
     source_word := ExecValueIsWord(instance, source_frame, source)
     if source_word != ExecValueIsWord(instance, destination_frame, destination) {
@@ -783,7 +1592,6 @@ ExecCopyValue :: (instance: *LirExecInstance, source_frame: s64, source: s32,
             instance.words[ExecFrameValueWord(instance, source_frame, source)]
     } else if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, source_frame, source),
         ExecFrameValueOffset(instance, destination_frame, destination), size) { return false }
-    ExecMarkValue(instance, destination_frame, destination)
     return true
 }
 
@@ -1186,7 +1994,6 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
     plan := instance.plan.functions[function_id]
     base := instance.storage.count
     word_base := instance.words.count
-    valid_base := instance.validity.count
     if !ExecResizeStorage(instance, base + plan.frame_bytes) {
         if caller < 0 { ExecInitialLocation(instance, function_id) }
         return false
@@ -1195,15 +2002,10 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
         if caller < 0 { ExecInitialLocation(instance, function_id) }
         return false
     }
-    if !VecResizeBounded(instance.validity, valid_base + function.values.count, instance.limits.values) {
-        unused ExecFail(instance, .Allocation)
-        if caller < 0 { ExecInitialLocation(instance, function_id) }
-        return false
-    }
     instance.frame_epoch += 1
     frame := LirExecFrame.{.function = function_id, .block = function.entry,
         .return_value = return_value, .base = base, .word_base = word_base,
-        .value_base = plan.value_base, .valid_base = valid_base,
+        .value_base = plan.value_base,
         .instruction_base = instance.plan.block_instruction_bases[plan.block_base + function.entry],
         .generation = instance.frame_epoch}
     if !VecPush(instance.frames, frame) {
@@ -1213,9 +2015,14 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
     }
     instance.current_value_base = frame.value_base
     instance.current_word_base = frame.word_base
-    instance.current_valid_base = frame.valid_base
     instance.live_values += function.values.count
     frame_index := instance.frames.count - 1
+    // The words of constants, null and function addresses hold their values
+    // from the start: those instructions have no code (ExecPlanCode).
+    for at: plan.constants..plan.constants + plan.constant_count - 1 {
+        constant := instance.plan.constant_words[at]
+        instance.words[word_base + constant.word] = constant.bits
+    }
     entry := function.blocks[function.entry]
     for index: cast(s64)0..function.parameters.count - 1 {
         destination := entry.parameters[index]
@@ -1233,7 +2040,6 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
                 destination_at := ExecFrameValueOffset(instance, frame_index, destination)
                 if argument.bytes.count != size || !ExecSpend(instance, ExecCopyCost(size)) { return false }
                 for byte: cast(s64)0..size - 1 { instance.storage[destination_at + byte] = argument.bytes[byte] }
-                ExecMarkValue(instance, frame_index, destination)
             } else {
                 if argument.bytes.count != 0 { return ExecFail(instance, .Type) }
                 ExecWriteSlotBits(instance, destination, argument.bits)
@@ -1251,17 +2057,14 @@ ExecPopFrame :: (instance: *LirExecInstance) {
     instance.live_values -= function.values.count
     unused VecResize(instance.storage, frame.base)
     unused VecResize(instance.words, frame.word_base)
-    unused VecResize(instance.validity, frame.valid_base)
     unused VecPop(instance.frames)
     if instance.frames.count == 0 {
         instance.current_value_base = 0
         instance.current_word_base = 0
-        instance.current_valid_base = 0
     } else {
         current := instance.frames[instance.frames.count - 1]
         instance.current_value_base = current.value_base
         instance.current_word_base = current.word_base
-        instance.current_valid_base = current.valid_base
     }
 }
 
@@ -1291,10 +2094,8 @@ ExecEdge :: (instance: *LirExecInstance, frame_index: s64,
             // Preserve the canonical two-copy work charge even though the
             // proven-safe implementation moves the value only once.
             if ExecValuesSameLocation(instance, frame_index, source, destination) {
-                if !ExecValueValid(instance, frame_index, source) ||
-                    !ExecSpend(instance, ExecCopyCost(size)) ||
+                if !ExecSpend(instance, ExecCopyCost(size)) ||
                     !ExecSpend(instance, ExecCopyCost(size)) { return false }
-                ExecMarkValue(instance, frame_index, destination)
             } else if !ExecSpend(instance, ExecCopyCost(size)) ||
                 !ExecCopyValue(instance, frame_index, source, frame_index, destination) { return false }
         }
@@ -1371,8 +2172,8 @@ ExecIntegerBinary :: (instance: *LirExecInstance, frame_index: s64,
 
 ExecFloatBinary :: (instance: *LirExecInstance, frame_index: s64,
     instruction: *LirInstruction, type: LirType) -> bool {
-    left := ExecFloat(type, ExecSlotBits(instance, instruction.operands[0]))
-    right := ExecFloat(type, ExecSlotBits(instance, instruction.operands[1]))
+    left := ExecFloat(instance.plan, type, ExecSlotBits(instance, instruction.operands[0]))
+    right := ExecFloat(instance.plan, type, ExecSlotBits(instance, instruction.operands[1]))
     if instance.failure.problem != .None { return false }
     bits: u64
     if type.bits == 32 {
@@ -1405,8 +2206,8 @@ ExecCompare :: (instance: *LirExecInstance, frame_index: s64,
     if instance.failure.problem != .None { return false }
     answer: bool
     if type.kind == .Float {
-        a := ExecFloat(type, left)
-        b := ExecFloat(type, right)
+        a := ExecFloat(instance.plan, type, left)
+        b := ExecFloat(instance.plan, type, right)
         if instruction.op == .Equal { answer = a == b }
         if instruction.op == .NotEqual { answer = a != b }
         if instruction.op == .Less { answer = a < b }
@@ -1460,10 +2261,10 @@ ExecConvert :: (instance: *LirExecInstance, frame_index: s64, instruction: *LirI
             result = ExecFloat64Bits(value)
         }
     } else if source.kind == .Float && destination.kind == .Float {
-        value := ExecFloat(source, bits)
+        value := ExecFloat(instance.plan, source, bits)
         result = ifx destination.bits == 32 then ExecFloat32Bits(cast(float32)value) else ExecFloat64Bits(value)
     } else if source.kind == .Float && destination.kind == .Integer {
-        value := ExecFloat(source, bits)
+        value := ExecFloat(instance.plan, source, bits)
         if !Finite64(value) { return ExecFail(instance, .InvalidConversion) }
         if destination.is_signed {
             bound := ScaleByPowerOfTwo(1.0, destination.bits - 1)
@@ -1487,7 +2288,6 @@ ExecAggregate :: (instance: *LirExecInstance, frame_index: s64, instruction: *Li
         if !ExecCopyValueToStorage(instance, frame_index, operand, destination + at) { return false }
         at += size
     }
-    ExecMarkValue(instance, frame_index, instruction.result)
     return true
 }
 
@@ -1495,7 +2295,6 @@ ExecExtractInsert :: (instance: *LirExecInstance, frame_index: s64, instruction:
     frame := instance.frames[frame_index]
     function := instance.plan.program.functions[frame.function]
     aggregate := instruction.operands[0]
-    if !ExecValueValid(instance, frame_index, aggregate) { return false }
     aggregate_type := function.values[aggregate]
     offset: s64
     member_type: s32
@@ -1516,7 +2315,6 @@ ExecExtractInsert :: (instance: *LirExecInstance, frame_index: s64, instruction:
         if !ExecCopyValueToStorage(instance, frame_index, replacement,
             ExecFrameValueOffset(instance, frame_index, instruction.result) + offset) { return false }
     }
-    ExecMarkValue(instance, frame_index, instruction.result)
     return true
 }
 
@@ -1534,7 +2332,7 @@ ExecFinishFrame :: (instance: *LirExecInstance, frame_index: s64, instruction: *
         bits: u64
         if result_size != 0 {
             source := instruction.operands[0]
-            if !ExecValueValid(instance, frame_index, source) || !ExecSpend(instance, ExecCopyCost(result_size)) { return false }
+            if !ExecSpend(instance, ExecCopyCost(result_size)) { return false }
             type := instance.plan.program.types[result_type]
             if type.kind == .Record || type.kind == .Array {
                 source_at := ExecFrameValueOffset(instance, frame_index, source)
@@ -1552,16 +2350,13 @@ ExecFinishFrame :: (instance: *LirExecInstance, frame_index: s64, instruction: *
     }
     caller := frame_index - 1
     if result_size != 0 {
-        if frame.return_value == LirNoId || !ExecValueValid(instance, frame_index, instruction.operands[0]) {
-            return ExecFail(instance, .Calling)
-        }
+        if frame.return_value == LirNoId { return ExecFail(instance, .Calling) }
         if !ExecCopyValue(instance, frame_index, instruction.operands[0],
             caller, frame.return_value) { return false }
     } else if frame.return_value != LirNoId {
         // A zero-sized result, such as [0]s32, has no bytes to copy; only a
         // void procedure cannot fill the caller's result.
         if instance.plan.program.types[result_type].kind == .Void { return ExecFail(instance, .Calling) }
-        ExecMarkValue(instance, caller, frame.return_value)
     }
     ExecPopFrame(instance)
     return true
@@ -1647,13 +2442,11 @@ ExecCopyAddressToValue :: (instance: *LirExecInstance, address_index: s64,
             instance.storage[destination_at + index] = instance.storage[source + index]
         }
     }
-    ExecMarkValue(instance, frame_index, destination)
     return true
 }
 
 ExecCopyValueToAddress :: (instance: *LirExecInstance, frame_index: s64,
     source: s32, address_index: s64) -> bool {
-    if !ExecValueValid(instance, frame_index, source) { return false }
     destination := ExecAddressOffset(instance, address_index)
     if instance.failure.problem != .None || destination < 0 { return false }
     address := instance.addresses[address_index]
@@ -1699,8 +2492,7 @@ ExecAllocate :: (instance: *LirExecInstance, frame_index: s64,
     address := instance.addresses[index]
     if instruction.operands.count != 0 {
         value := instruction.operands[0]
-        if !ExecValueValid(instance, frame_index, value) ||
-            instance.plan.value_types[instance.current_value_base + value] != pointee {
+        if instance.plan.value_types[instance.current_value_base + value] != pointee {
             return ExecFail(instance, .Type)
         }
         if !ExecCopyValueToStorage(instance, frame_index, value, base) { return false }
@@ -2007,9 +2799,8 @@ ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
         return ExecCopyAddressToValue(instance, address_index, frame_index, instruction.result)
     }
     value := instruction.operands[1]
-    if !ExecValueValid(instance, frame_index, value) ||
-        instance.plan.value_types[instance.current_value_base + value] !=
-            instance.addresses[address_index].type {
+    if instance.plan.value_types[instance.current_value_base + value] !=
+        instance.addresses[address_index].type {
         return ExecFail(instance, .Type)
     }
     // Read-only globals hold string literal bytes; no address can write them.
@@ -2328,7 +3119,6 @@ ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
             value.bits = ExecSlotBits(instance, operand)
             if instance.failure.problem != .None { return false }
         } else {
-            if !ExecValueValid(instance, frame_index, operand) { return false }
             size := instance.plan.type_sizes[type]
             at := instance.host_bytes.count
             if size > available - at { return ExecFail(instance, .ValueBytes) }
@@ -2438,7 +3228,6 @@ ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
         ExecHostRollback(instance, epoch)
         return false
     }
-    ExecMarkValue(instance, frame_index, instruction.result)
     return true
 }
 
@@ -2675,16 +3464,831 @@ ExecStep :: (instance: *LirExecInstance) -> bool {
     return ExecValueInstruction(instance, frame_index, instruction)
 }
 
+// ---- The run loop --------------------------------------------------------
+//
+// The loop runs a frame's compact code. A segment's work and fuel are
+// charged when it is entered; when they do not fit, or anything unusual
+// happens (a failure, a call, a host value, a new table entry it cannot
+// make), the loop gives back the work and fuel of the instructions it has
+// not run, puts the frame at the instruction it stopped on, and lets
+// ExecStep run from there to the next segment. A run therefore charges
+// and fails exactly where ExecStep alone would.
+
+ExecSetPosition :: (instance: *LirExecInstance, frame_index: s64, block: s32, index: s32, base: s64) #inline {
+    instance.frames[frame_index].block = block
+    instance.frames[frame_index].instruction = index
+    instance.frames[frame_index].instruction_base = base
+}
+
+// Runs instructions through ExecStep, at least one, until the top frame
+// stands at the start of a segment.
+ExecRunSlow :: (instance: *LirExecInstance) -> bool {
+    while true {
+        if !ExecStep(instance) || instance.failure.problem != .None { return false }
+        if instance.frames.count == 0 { return true }
+        frame := *instance.frames[instance.frames.count - 1]
+        if instance.plan.segment_code[frame.instruction_base + frame.instruction] >= 0 { return true }
+    }
+    return true
+}
+
+// The table entry `token` names, or -1 (ExecFindAddress).
+ExecFastFind :: (instance: *LirExecInstance, token: u64) -> s64 #inline {
+    low := token & cast(u64)1048575
+    if low == 0 { return -1 }
+    index := cast(s64)low - 1
+    if index >= instance.addresses.count || instance.addresses[index].token != token { return -1 }
+    return index
+}
+
+// Where a valid address's bytes start in its store, or -1 (ExecAddressOffset).
+ExecFastLocate :: (instance: *LirExecInstance, address: *LirExecAddress) -> s64 #inline {
+    if address.owned {
+        if address.heap != 0 {
+            block := *instance.heap_blocks[address.heap - 1]
+            if !block.live || block.generation != address.generation { return -1 }
+        }
+        if address.offset < 0 || address.extent < 0 || address.offset > instance.owned.count ||
+            address.extent > instance.owned.count - address.offset { return -1 }
+        return address.offset
+    }
+    if address.frame < 0 { return address.offset }
+    if address.frame >= instance.frames.count ||
+        instance.frames[address.frame].generation != address.generation { return -1 }
+    return instance.frames[address.frame].base + address.offset
+}
+
+ExecGetBits :: (bytes: []u8, at: s64, size: s64) -> u64 #inline {
+    if size == 8 {
+        b := bytes[at:at + 8]
+        return cast(u64)b[0] | (cast(u64)b[1] << cast(u64)8) | (cast(u64)b[2] << cast(u64)16) |
+            (cast(u64)b[3] << cast(u64)24) | (cast(u64)b[4] << cast(u64)32) | (cast(u64)b[5] << cast(u64)40) |
+            (cast(u64)b[6] << cast(u64)48) | (cast(u64)b[7] << cast(u64)56)
+    }
+    if size == 4 {
+        b := bytes[at:at + 4]
+        return cast(u64)b[0] | (cast(u64)b[1] << cast(u64)8) | (cast(u64)b[2] << cast(u64)16) |
+            (cast(u64)b[3] << cast(u64)24)
+    }
+    if size == 1 { return cast(u64)bytes[at] }
+    return ExecReadBits(bytes, at, size)
+}
+
+ExecPutBits :: (bytes: []u8, at: s64, size: s64, value: u64) #inline {
+    if size == 8 {
+        b := bytes[at:at + 8]
+        b[0] = cast(u8)value
+        b[1] = cast(u8)(value >> cast(u64)8)
+        b[2] = cast(u8)(value >> cast(u64)16)
+        b[3] = cast(u8)(value >> cast(u64)24)
+        b[4] = cast(u8)(value >> cast(u64)32)
+        b[5] = cast(u8)(value >> cast(u64)40)
+        b[6] = cast(u8)(value >> cast(u64)48)
+        b[7] = cast(u8)(value >> cast(u64)56)
+        return
+    }
+    if size == 1 { bytes[at] = cast(u8)value; return }
+    ExecWriteBits(bytes, at, size, value)
+}
+
+ExecCopyBytes :: (bytes: []u8, from: s64, to: s64, count: s64) #inline {
+    if from == to { return }
+    for index: cast(s64)0..count - 1 { bytes[to + index] = bytes[from + index] }
+}
+
+// A derivation's token, made as ExecDeriveToken would without its work
+// charge (the segment paid it): a transient one takes the next of its
+// entries. 0 hands the instruction to ExecStep;
+// ExecFailedToken: failed, with the failure recorded.
+ExecFailedToken :: () -> u64 #inline { return ~cast(u64)0 }
+
+ExecFastDerive :: (instance: *LirExecInstance, words: []u64, frame_index: s64, code: *LirExecCode,
+    word_base: s64, view: bool, indexed: bool) -> u64 #inline {
+    derived: LirExecAddress
+    if !ExecFastAddress(instance, words, code, word_base, view, indexed, *derived) { return 0 }
+    if code.flag != 0 {
+        if instance.transient_count == 0 { return 0 }
+        index := instance.transient_base + instance.transient_next
+        instance.transient_next = (instance.transient_next + 1) % ExecTransientSlots
+        entry := *instance.addresses[index]
+        version := (entry.version + 1) & cast(u64)268435455
+        <<entry = derived
+        entry.version = version
+        entry.token = ExecAddressToken(instance.identity, index, version)
+        entry.next = 0
+        return entry.token
+    }
+    token: u64
+    made := ExecFastIntern(instance, frame_index, code, *derived, *token)
+    if made < 0 { return ExecFailedToken() }
+    if made == 0 { return 0 }
+    return token
+}
+
+ExecFastIntern :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCode,
+    pointer: *LirExecAddress, token: *u64) -> s32 {
+    address := <<pointer
+    found := ExecAddressLookup(instance, address)
+    if found >= 0 {
+        <<token = instance.addresses[found].token
+        return 1
+    }
+    if instance.address_free.count == 0 && (instance.addresses.count >= instance.limits.addresses ||
+        instance.addresses.count >= ExecAddressSlots) { return 0 }
+    // ExecNewAddress records its own failures: stand where ExecStep would.
+    rest_work := code.rest_work - code.cost
+    instance.work_remaining += rest_work
+    instance.fuel_remaining += code.rest_fuel
+    ExecSetPosition(instance, frame_index, code.block, code.index, code.base)
+    index := ExecNewAddress(instance, address)
+    if index < 0 { return -1 }
+    instance.work_remaining -= rest_work
+    instance.fuel_remaining -= code.rest_fuel
+    <<token = instance.addresses[index].token
+    return 1
+}
+
+// Takes edge `edge`. The next code to run, ExecHandOver when the run goes
+// on at a segment the outer loop enters, or ExecBail when the edge's
+// copies do not fit and the terminator goes to ExecStep.
+ExecFastEdge :: (instance: *LirExecInstance, words: []u64, storage: []u8, frame_index: s64,
+    edge: s64, word_base: s64, storage_base: s64) -> s64 #inline {
+    plan := instance.plan
+    target := *plan.edge_plans[edge]
+    if target.work > instance.work_remaining { return ExecBail }
+    instance.work_remaining -= target.work
+    if target.direct {
+        for at: target.moves..target.moves + target.count - 1 {
+            move := *plan.moves[at]
+            if move.word { words[word_base + move.to] = words[word_base + move.from] }
+            else { ExecCopyBytes(storage, storage_base + move.from, storage_base + move.to, move.size) }
+        }
+    } else {
+        for at: target.moves..target.moves + target.count - 1 {
+            move := *plan.moves[at]
+            if move.word {
+                ExecWriteBits(storage, storage_base + move.scratch, move.size, words[word_base + move.from])
+            } else { ExecCopyBytes(storage, storage_base + move.from, storage_base + move.scratch, move.size) }
+        }
+        for at: target.moves..target.moves + target.count - 1 {
+            move := *plan.moves[at]
+            if move.word {
+                words[word_base + move.to] = ExecReadBits(storage, storage_base + move.scratch, move.size)
+            } else { ExecCopyBytes(storage, storage_base + move.scratch, storage_base + move.to, move.size) }
+        }
+    }
+    if target.target_work > instance.work_remaining || target.target_fuel > instance.fuel_remaining {
+        ExecSetPosition(instance, frame_index, target.target_block, 0, target.target_base)
+        return ExecHandOver
+    }
+    instance.work_remaining -= target.target_work
+    instance.fuel_remaining -= target.target_fuel
+    return target.target_code
+}
+
+// Statuses of the run loop, beside the index of code to hand to ExecStep.
+ExecFailed :: -1
+ExecHandOver :: -2
+ExecBail :: -3
+
+// The bits of a word a Load or Extract reads: bools as 0 or 1, integers masked.
+ExecFastCanonical :: (code: *LirExecCode, bits: u64) -> u64 #inline {
+    if code.flag != 0 { return cast(u64)(bits != 0) }
+    return bits & code.immediate
+}
+
+// Load and Store through a pointer word; false hands the instruction over.
+ExecFastMemory :: (instance: *LirExecInstance, words: []u64, storage: []u8, owned: []u8, globals: []u8,
+    code: *LirExecCode, word_base: s64, storage_base: s64, store: bool) -> bool #inline {
+    index := ExecFastFind(instance, words[word_base + code.a])
+    if index < 0 { return false }
+    address := *instance.addresses[index]
+    if address.type != code.type || code.size > address.extent || store && !address.writable { return false }
+    at := ExecFastLocate(instance, address)
+    if at < 0 { return false }
+    size := code.size
+    if !store {
+        if code.result >= 0 {
+            bits: u64
+            if address.owned { bits = ExecGetBits(owned, at, size) }
+            else if address.frame < 0 { bits = ExecGetBits(globals, at, size) }
+            else { bits = ExecGetBits(storage, at, size) }
+            words[word_base + code.result] = ExecFastCanonical(code, bits)
+            return true
+        }
+        to := storage_base + code.x
+        if address.owned { for byte: cast(s64)0..size - 1 { storage[to + byte] = owned[at + byte] } }
+        else if address.frame < 0 { for byte: cast(s64)0..size - 1 { storage[to + byte] = globals[at + byte] } }
+        else { ExecCopyBytes(storage, at, to, size) }
+        return true
+    }
+    if code.b >= 0 {
+        bits := words[word_base + code.b]
+        if address.owned { ExecPutBits(owned, at, size, bits) }
+        else if address.frame < 0 { ExecPutBits(globals, at, size, bits) }
+        else { ExecPutBits(storage, at, size, bits) }
+        return true
+    }
+    from := storage_base + code.x
+    if address.owned { for byte: cast(s64)0..size - 1 { owned[at + byte] = storage[from + byte] } }
+    else if address.frame < 0 { for byte: cast(s64)0..size - 1 { globals[at + byte] = storage[from + byte] } }
+    else { for byte: cast(s64)0..size - 1 { storage[at + byte] = storage[from + byte] } }
+    return true
+}
+
+// The address a FieldAddress, ElementIndex or ElementView derives, as
+// ExecFieldAddress and ExecElementAddress make it; false hands it over.
+ExecFastAddress :: (instance: *LirExecInstance, words: []u64, code: *LirExecCode, word_base: s64,
+    view: bool, indexed: bool, derived: *LirExecAddress) -> bool #inline {
+    index := ExecFastFind(instance, words[word_base + code.a])
+    if index < 0 { return false }
+    base := *instance.addresses[index]
+    // A FieldAddress first: its address, a transient one, is this one's base.
+    field: LirExecAddress
+    if code.prefix != 0 {
+        if instance.transient_count == 0 || base.type != code.prefix_type { return false }
+        frame: s64 = -1
+        generation: u64
+        global := base.global
+        if base.frame >= 0 {
+            if base.frame >= instance.frames.count ||
+                instance.frames[base.frame].generation != base.generation { return false }
+            frame = base.frame
+            generation = base.generation
+            global = -1
+        } else if base.heap != 0 { generation = base.generation }
+        field = .{.global = global, .frame = frame, .generation = generation,
+            .offset = base.offset + code.prefix_offset, .extent = code.prefix_size, .type = code.type,
+            .owned = base.owned, .writable = base.writable, .heap = base.heap}
+        base = *field
+    }
+    if base.type != code.type { return false }
+    if view {
+        element := words[word_base + code.b]
+        count := words[word_base + code.c]
+        if (element & code.sign_b) != 0 || (count & code.sign_c) != 0 || element >= count ||
+            count > cast(u64)9223372036854775807 ||
+            code.size != 0 && count > cast(u64)(base.extent / code.size) { return false }
+        offset := cast(s64)element * code.size
+        <<derived = .{.global = base.global, .frame = base.frame, .generation = base.generation,
+            .offset = base.offset + offset, .extent = base.extent - offset, .type = code.target,
+            .owned = base.owned, .writable = base.writable, .heap = base.heap}
+        return true
+    }
+    offset := code.x
+    extent := code.size
+    if indexed {
+        member := words[word_base + code.b]
+        if (member & code.sign_b) != 0 || member >= code.extra { return false }
+        offset = cast(s64)member * code.size
+        extent = base.extent - offset
+        if extent < code.size { return false }
+    }
+    frame: s64 = -1
+    generation: u64
+    global := base.global
+    if base.frame >= 0 {
+        if base.frame >= instance.frames.count ||
+            instance.frames[base.frame].generation != base.generation { return false }
+        frame = base.frame
+        generation = base.generation
+        global = -1
+    } else if base.heap != 0 { generation = base.generation }
+    <<derived = .{.global = global, .frame = frame, .generation = generation,
+        .offset = base.offset + offset, .extent = extent, .type = code.target,
+        .owned = base.owned, .writable = base.writable, .heap = base.heap}
+    return true
+}
+
+// A derivation and the Load or Store that uses it, as one: the address is
+// derived as ExecFastAddress derives it and used where it lies, with the
+// checks ExecAddressValid and ExecCopyAddressToValue make. false hands the
+// derivation, and so the pair, to ExecStep.
+ExecFastFusedMemory :: (instance: *LirExecInstance, words: []u64, storage: []u8, owned: []u8, globals: []u8,
+    code: *LirExecCode, word_base: s64, storage_base: s64, view: bool, indexed: bool, store: bool) -> bool #inline {
+    // The derivation is a transient one; its entries are made by ExecStep
+    // the first time, and with them any address-limit failure.
+    if instance.transient_count == 0 { return false }
+    address: LirExecAddress
+    if !ExecFastAddress(instance, words, code, word_base, view, indexed, *address) { return false }
+    size := code.size
+    if size > address.extent || store && !address.writable { return false }
+    at := ExecFastLocate(instance, *address)
+    if at < 0 { return false }
+    if !store {
+        if code.result >= 0 {
+            bits: u64
+            if address.owned { bits = ExecGetBits(owned, at, size) }
+            else if address.frame < 0 { bits = ExecGetBits(globals, at, size) }
+            else { bits = ExecGetBits(storage, at, size) }
+            words[word_base + code.result] = ExecFastCanonical(code, bits)
+            return true
+        }
+        to := storage_base + code.w
+        if address.owned { for byte: cast(s64)0..size - 1 { storage[to + byte] = owned[at + byte] } }
+        else if address.frame < 0 { for byte: cast(s64)0..size - 1 { storage[to + byte] = globals[at + byte] } }
+        else { ExecCopyBytes(storage, at, to, size) }
+        return true
+    }
+    if code.value >= 0 {
+        bits := words[word_base + code.value]
+        if address.owned { ExecPutBits(owned, at, size, bits) }
+        else if address.frame < 0 { ExecPutBits(globals, at, size, bits) }
+        else { ExecPutBits(storage, at, size, bits) }
+        return true
+    }
+    from := storage_base + code.w
+    if address.owned { for byte: cast(s64)0..size - 1 { owned[at + byte] = storage[from + byte] } }
+    else if address.frame < 0 { for byte: cast(s64)0..size - 1 { globals[at + byte] = storage[from + byte] } }
+    else { for byte: cast(s64)0..size - 1 { storage[at + byte] = storage[from + byte] } }
+    return true
+}
+
+// Insert into a copy of the aggregate; false hands the instruction over.
+ExecFastInsert :: (words: []u64, storage: []u8, code: *LirExecCode, word_base: s64,
+    storage_base: s64, indexed: bool, word: bool) -> bool #inline {
+    offset := cast(s64)code.immediate
+    if indexed {
+        member := words[word_base + code.c]
+        if (member & code.sign_c) != 0 || member >= code.extra { return false }
+        offset = cast(s64)member * code.z
+    }
+    ExecCopyBytes(storage, storage_base + code.x, storage_base + code.y, code.size)
+    if word { ExecPutBits(storage, storage_base + code.y + offset, code.z, words[word_base + code.b]) }
+    else { ExecCopyBytes(storage, storage_base + code.w, storage_base + code.y + offset, code.z) }
+    return true
+}
+
+ExecFastFloat64 :: (plan: *LirExecPlan, handler: LirExecHandler, left: u64, right: u64) -> u64 #inline {
+    a := ExecBitsFloat(plan, left, false)
+    b := ExecBitsFloat(plan, right, false)
+    value: float64
+    if handler == .FloatAdd64 { value = a + b }
+    else if handler == .FloatSubtract64 { value = a - b }
+    else if handler == .FloatMultiply64 { value = a * b }
+    else { value = a / b }
+    return ExecFloat64Bits(value)
+}
+
+ExecFastFloat32 :: (plan: *LirExecPlan, handler: LirExecHandler, left: u64, right: u64) -> u64 #inline {
+    a := cast(float32)ExecBitsFloat(plan, left, true)
+    b := cast(float32)ExecBitsFloat(plan, right, true)
+    value: float32
+    if handler == .FloatAdd32 { value = a + b }
+    else if handler == .FloatSubtract32 { value = a - b }
+    else if handler == .FloatMultiply32 { value = a * b }
+    else { value = a / b }
+    return ExecFloat32Bits(value)
+}
+
+ExecFastFloatCompare :: (plan: *LirExecPlan, code: *LirExecCode, left: u64, right: u64, single: bool) -> u64 #inline {
+    a := ExecBitsFloat(plan, left, single)
+    b := ExecBitsFloat(plan, right, single)
+    op := cast(LirOp)cast(s32)code.extra
+    answer: bool
+    if op == .Equal { answer = a == b }
+    else if op == .NotEqual { answer = a != b }
+    else if op == .Less { answer = a < b }
+    else if op == .LessEqual { answer = a <= b }
+    else if op == .Greater { answer = a > b }
+    else { answer = a >= b }
+    return cast(u64)answer
+}
+
+// Divide and Remainder; false (a zero divisor) hands the instruction over.
+ExecFastDivide :: (code: *LirExecCode, left: u64, right: u64, signed: bool, remainder: bool, result: *u64) -> bool #inline {
+    if right == 0 { return false }
+    if !signed {
+        <<result = ifx remainder then left % right else left / right
+        return true
+    }
+    bits := cast(s32)code.size
+    signed_right := ExecSigned(right, bits)
+    minimum := cast(u64)1 << cast(u64)(bits - 1)
+    if left == minimum && signed_right == -1 { <<result = ifx remainder then cast(u64)0 else minimum }
+    else if remainder { <<result = cast(u64)(ExecSigned(left, bits) % signed_right) & code.immediate }
+    else { <<result = cast(u64)(ExecSigned(left, bits) / signed_right) & code.immediate }
+    return true
+}
+
+// Shifts; false (a count of the width or more) hands the instruction over.
+ExecFastShift :: (code: *LirExecCode, left: u64, count: u64, right: bool, signed: bool, result: *u64) -> bool #inline {
+    if count >= cast(u64)code.size { return false }
+    if !right { <<result = (left << count) & code.immediate; return true }
+    value := left >> count
+    if signed && count != 0 && (left & (cast(u64)1 << cast(u64)(code.size - 1))) != 0 {
+        value |= code.immediate ^ (code.immediate >> count)
+    }
+    <<result = value
+    return true
+}
+
+ExecFastFloatInteger :: (plan: *LirExecPlan, code: *LirExecCode, bits: u64, result: *u64) -> bool #inline {
+    value := ExecBitsFloat(plan, bits, code.size == 32)
+    if !Finite64(value) { return false }
+    if code.flag != 0 {
+        bound := plan.powers[1073 + code.y]
+        if value < 0.0 - bound || value >= bound { return false }
+        <<result = cast(u64)cast(s64)value & code.immediate
+        return true
+    }
+    bound := plan.powers[1074 + code.y]
+    if value < 0.0 || value >= bound { return false }
+    <<result = cast(u64)value & code.immediate
+    return true
+}
+
+ExecFastIntegerFloat :: (code: *LirExecCode, bits: u64) -> u64 #inline {
+    source := cast(s32)code.size
+    if code.y == 32 {
+        value := ifx code.flag != 0 then cast(float32)ExecSigned(bits, source) else cast(float32)(bits & code.extra)
+        return ExecFloat32Bits(value)
+    }
+    value := ifx code.flag != 0 then cast(float64)ExecSigned(bits, source) else cast(float64)(bits & code.extra)
+    return ExecFloat64Bits(value)
+}
+
+ExecFastConvertInteger :: (code: *LirExecCode, bits: u64) -> u64 #inline {
+    value := bits & code.extra
+    if code.flag != 0 && code.size < 64 && (value & (cast(u64)1 << cast(u64)(code.size - 1))) != 0 { value |= ~code.extra }
+    return value & code.immediate
+}
+
+// Runs the top frame's code from `start`. Returns the code to hand to
+// ExecStep (a Slow instruction, or one this loop gives back), ExecHandOver
+// when the frame stands at a segment the outer loop enters, or ExecFailed.
+// It reaches the frame's words and storage through views: nothing it calls
+// resizes them, and whatever would goes through ExecStep after it returns.
+ExecRunCode :: (instance: *LirExecInstance, frame_index: s64, start: s64) -> s64 {
+    plan := instance.plan
+    wb := instance.frames[frame_index].word_base
+    sb := instance.frames[frame_index].base
+    words := instance.words[:]
+    storage := instance.storage[:]
+    owned := instance.owned[:]
+    globals := instance.globals[:]
+    pc := start
+    while true {
+        c := *plan.code[pc]
+        h := c.handler
+        next := pc + 1
+        if h == .Add {
+            words[wb + c.result] = (words[wb + c.a] + words[wb + c.b]) & c.immediate
+        } else if h == .Subtract {
+            words[wb + c.result] = (words[wb + c.a] - words[wb + c.b]) & c.immediate
+        } else if h == .Multiply {
+            words[wb + c.result] = (words[wb + c.a] * words[wb + c.b]) & c.immediate
+        } else if h == .BitAnd {
+            words[wb + c.result] = words[wb + c.a] & words[wb + c.b]
+        } else if h == .BitOr {
+            words[wb + c.result] = words[wb + c.a] | words[wb + c.b]
+        } else if h == .BitXor {
+            words[wb + c.result] = words[wb + c.a] ^ words[wb + c.b]
+        } else if h == .Equal {
+            words[wb + c.result] = cast(u64)(words[wb + c.a] == words[wb + c.b])
+        } else if h == .NotEqual {
+            words[wb + c.result] = cast(u64)(words[wb + c.a] != words[wb + c.b])
+        } else if h == .Less {
+            words[wb + c.result] = cast(u64)(words[wb + c.a] < words[wb + c.b])
+        } else if h == .LessEqual {
+            words[wb + c.result] = cast(u64)(words[wb + c.a] <= words[wb + c.b])
+        } else if h == .Greater {
+            words[wb + c.result] = cast(u64)(words[wb + c.a] > words[wb + c.b])
+        } else if h == .GreaterEqual {
+            words[wb + c.result] = cast(u64)(words[wb + c.a] >= words[wb + c.b])
+        } else if h == .SignedLess {
+            words[wb + c.result] = cast(u64)(ExecSigned(words[wb + c.a], cast(s32)c.size) <
+                ExecSigned(words[wb + c.b], cast(s32)c.size))
+        } else if h == .SignedLessEqual {
+            words[wb + c.result] = cast(u64)(ExecSigned(words[wb + c.a], cast(s32)c.size) <=
+                ExecSigned(words[wb + c.b], cast(s32)c.size))
+        } else if h == .SignedGreater {
+            words[wb + c.result] = cast(u64)(ExecSigned(words[wb + c.a], cast(s32)c.size) >
+                ExecSigned(words[wb + c.b], cast(s32)c.size))
+        } else if h == .SignedGreaterEqual {
+            words[wb + c.result] = cast(u64)(ExecSigned(words[wb + c.a], cast(s32)c.size) >=
+                ExecSigned(words[wb + c.b], cast(s32)c.size))
+        } else if h == .Jump {
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge, wb, sb)
+        } else if h == .Branch {
+            next = ExecFastEdge(instance, words, storage, frame_index,
+                c.edge + cast(s64)(words[wb + c.a] == 0), wb, sb)
+        } else if h == .BranchEqual {
+            condition := words[wb + c.a] == words[wb + c.b]
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchNotEqual {
+            condition := words[wb + c.a] != words[wb + c.b]
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchLess {
+            condition := words[wb + c.a] < words[wb + c.b]
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchLessEqual {
+            condition := words[wb + c.a] <= words[wb + c.b]
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchGreater {
+            condition := words[wb + c.a] > words[wb + c.b]
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchGreaterEqual {
+            condition := words[wb + c.a] >= words[wb + c.b]
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchSignedLess {
+            condition := ExecSigned(words[wb + c.a], cast(s32)c.size) < ExecSigned(words[wb + c.b], cast(s32)c.size)
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchSignedLessEqual {
+            condition := ExecSigned(words[wb + c.a], cast(s32)c.size) <= ExecSigned(words[wb + c.b], cast(s32)c.size)
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchSignedGreater {
+            condition := ExecSigned(words[wb + c.a], cast(s32)c.size) > ExecSigned(words[wb + c.b], cast(s32)c.size)
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .BranchSignedGreaterEqual {
+            condition := ExecSigned(words[wb + c.a], cast(s32)c.size) >= ExecSigned(words[wb + c.b], cast(s32)c.size)
+            words[wb + c.result] = cast(u64)condition
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge + cast(s64)!condition, wb, sb)
+        } else if h == .ExtractWord {
+            words[wb + c.result] = ExecFastCanonical(c, ExecGetBits(storage, sb + c.x, c.size))
+        } else if h == .ExtractBytes {
+            ExecCopyBytes(storage, sb + c.x, sb + c.y, c.size)
+        } else if h == .ExtractWordPair {
+            words[wb + c.result] = ExecFastCanonical(c, ExecGetBits(storage, sb + c.x, c.size))
+            bits := ExecGetBits(storage, sb + c.y, c.z)
+            if c.c != 0 { bits = cast(u64)(bits != 0) } else { bits &= c.extra }
+            words[wb + c.b] = bits
+        } else if h == .AddJump {
+            words[wb + c.result] = (words[wb + c.a] + words[wb + c.b]) & c.immediate
+            next = ExecFastEdge(instance, words, storage, frame_index, c.edge, wb, sb)
+        } else if h == .ExtractWordIndexed {
+            member := words[wb + c.c]
+            if (member & c.sign_c) != 0 || member >= c.extra { return pc }
+            words[wb + c.result] = ExecFastCanonical(c, ExecGetBits(storage, sb + c.x + cast(s64)member * c.size, c.size))
+        } else if h == .ExtractBytesIndexed {
+            member := words[wb + c.c]
+            if (member & c.sign_c) != 0 || member >= c.extra { return pc }
+            ExecCopyBytes(storage, sb + c.x + cast(s64)member * c.size, sb + c.y, c.size)
+        } else if h == .InsertWord {
+            if !ExecFastInsert(words, storage, c, wb, sb, false, true) { return pc }
+        } else if h == .InsertBytes {
+            if !ExecFastInsert(words, storage, c, wb, sb, false, false) { return pc }
+        } else if h == .InsertWordIndexed {
+            if !ExecFastInsert(words, storage, c, wb, sb, true, true) { return pc }
+        } else if h == .InsertBytesIndexed {
+            if !ExecFastInsert(words, storage, c, wb, sb, true, false) { return pc }
+        } else if h == .Load {
+            if !ExecFastMemory(instance, words, storage, owned, globals, c, wb, sb, false) { return pc }
+        } else if h == .Store {
+            if !ExecFastMemory(instance, words, storage, owned, globals, c, wb, sb, true) { return pc }
+        } else if h == .LoadField {
+            if !ExecFastFusedMemory(instance, words, storage, owned, globals, c, wb, sb, false, false, false) { return pc }
+        } else if h == .LoadIndex {
+            if !ExecFastFusedMemory(instance, words, storage, owned, globals, c, wb, sb, false, true, false) { return pc }
+        } else if h == .LoadView {
+            if !ExecFastFusedMemory(instance, words, storage, owned, globals, c, wb, sb, true, false, false) { return pc }
+        } else if h == .StoreField {
+            if !ExecFastFusedMemory(instance, words, storage, owned, globals, c, wb, sb, false, false, true) { return pc }
+        } else if h == .StoreIndex {
+            if !ExecFastFusedMemory(instance, words, storage, owned, globals, c, wb, sb, false, true, true) { return pc }
+        } else if h == .StoreView {
+            if !ExecFastFusedMemory(instance, words, storage, owned, globals, c, wb, sb, true, false, true) { return pc }
+        } else if h == .FieldAddress {
+            token := ExecFastDerive(instance, words, frame_index, c, wb, false, false)
+            if token == 0 { return pc }
+            if token == ExecFailedToken() { return ExecFailed }
+            words[wb + c.result] = token
+        } else if h == .ElementIndex {
+            token := ExecFastDerive(instance, words, frame_index, c, wb, false, true)
+            if token == 0 { return pc }
+            if token == ExecFailedToken() { return ExecFailed }
+            words[wb + c.result] = token
+        } else if h == .ElementView {
+            token := ExecFastDerive(instance, words, frame_index, c, wb, true, false)
+            if token == 0 { return pc }
+            if token == ExecFailedToken() { return ExecFailed }
+            words[wb + c.result] = token
+        } else if h == .Negate {
+            words[wb + c.result] = (cast(u64)0 - words[wb + c.a]) & c.immediate
+        } else if h == .BitNot {
+            words[wb + c.result] = ~words[wb + c.a] & c.immediate
+        } else if h == .FloatNegate {
+            words[wb + c.result] = words[wb + c.a] ^ c.immediate
+        } else if h == .ConvertInteger {
+            words[wb + c.result] = ExecFastConvertInteger(c, words[wb + c.a])
+        } else if h == .ConvertBoolInteger {
+            words[wb + c.result] = cast(u64)(words[wb + c.a] != 0) & c.immediate
+        } else if h == .ConvertIntegerBool {
+            words[wb + c.result] = cast(u64)((words[wb + c.a] & c.extra) != 0)
+        } else if h == .Bitcast {
+            words[wb + c.result] = words[wb + c.a] & c.immediate
+        } else if h == .FloatAdd64 {
+            words[wb + c.result] = ExecFastFloat64(plan, .FloatAdd64, words[wb + c.a], words[wb + c.b])
+        } else if h == .FloatSubtract64 {
+            words[wb + c.result] = ExecFastFloat64(plan, .FloatSubtract64, words[wb + c.a], words[wb + c.b])
+        } else if h == .FloatMultiply64 {
+            words[wb + c.result] = ExecFastFloat64(plan, .FloatMultiply64, words[wb + c.a], words[wb + c.b])
+        } else if h == .FloatDivide64 {
+            words[wb + c.result] = ExecFastFloat64(plan, .FloatDivide64, words[wb + c.a], words[wb + c.b])
+        } else if h == .FloatAdd32 {
+            words[wb + c.result] = ExecFastFloat32(plan, .FloatAdd32, words[wb + c.a], words[wb + c.b])
+        } else if h == .FloatSubtract32 {
+            words[wb + c.result] = ExecFastFloat32(plan, .FloatSubtract32, words[wb + c.a], words[wb + c.b])
+        } else if h == .FloatMultiply32 {
+            words[wb + c.result] = ExecFastFloat32(plan, .FloatMultiply32, words[wb + c.a], words[wb + c.b])
+        } else if h == .FloatDivide32 {
+            words[wb + c.result] = ExecFastFloat32(plan, .FloatDivide32, words[wb + c.a], words[wb + c.b])
+        } else if h == .FloatCompare32 {
+            words[wb + c.result] = ExecFastFloatCompare(plan, c, words[wb + c.a], words[wb + c.b], true)
+        } else if h == .FloatCompare64 {
+            words[wb + c.result] = ExecFastFloatCompare(plan, c, words[wb + c.a], words[wb + c.b], false)
+        } else if h == .ConvertIntegerFloat {
+            words[wb + c.result] = ExecFastIntegerFloat(c, words[wb + c.a])
+        } else if h == .ConvertFloatFloat {
+            value := ExecBitsFloat(plan, words[wb + c.a], c.size == 32)
+            words[wb + c.result] = ifx c.y == 32 then ExecFloat32Bits(cast(float32)value) else ExecFloat64Bits(value)
+        } else if h == .ConvertFloatInteger {
+            result: u64
+            if !ExecFastFloatInteger(plan, c, words[wb + c.a], *result) { return pc }
+            words[wb + c.result] = result
+        } else if h == .DivideUnsigned {
+            result: u64
+            if !ExecFastDivide(c, words[wb + c.a], words[wb + c.b], false, false, *result) { return pc }
+            words[wb + c.result] = result
+        } else if h == .RemainderUnsigned {
+            result: u64
+            if !ExecFastDivide(c, words[wb + c.a], words[wb + c.b], false, true, *result) { return pc }
+            words[wb + c.result] = result
+        } else if h == .DivideSigned {
+            result: u64
+            if !ExecFastDivide(c, words[wb + c.a], words[wb + c.b], true, false, *result) { return pc }
+            words[wb + c.result] = result
+        } else if h == .RemainderSigned {
+            result: u64
+            if !ExecFastDivide(c, words[wb + c.a], words[wb + c.b], true, true, *result) { return pc }
+            words[wb + c.result] = result
+        } else if h == .ShiftLeft {
+            result: u64
+            if !ExecFastShift(c, words[wb + c.a], words[wb + c.b], false, false, *result) { return pc }
+            words[wb + c.result] = result
+        } else if h == .ShiftRightUnsigned {
+            result: u64
+            if !ExecFastShift(c, words[wb + c.a], words[wb + c.b], true, false, *result) { return pc }
+            words[wb + c.result] = result
+        } else if h == .ShiftRightSigned {
+            result: u64
+            if !ExecFastShift(c, words[wb + c.a], words[wb + c.b], true, true, *result) { return pc }
+            words[wb + c.result] = result
+        } else if h == .Aggregate {
+            for at: c.x..c.x + c.y - 1 {
+                move := *plan.moves[at]
+                if move.word { ExecPutBits(storage, sb + move.to, move.size, words[wb + move.from]) }
+                else { ExecCopyBytes(storage, sb + move.from, sb + move.to, move.size) }
+            }
+        } else if h == .GlobalAddress {
+            words[wb + c.result] = instance.addresses[c.x].token
+        } else { return pc }
+        if next < 0 {
+            if next == ExecBail { return pc }
+            return next
+        }
+        pc = next
+    }
+    return ExecFailed
+}
+
+// A Call between program frames, as ExecCallInstruction and ExecPushFrame
+// make it, when nothing about it can fail. false: ExecStep makes it.
+ExecFastCall :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCode) -> bool {
+    plan := instance.plan
+    target := code.target
+    function := *plan.program.functions[target]
+    target_plan := *plan.functions[target]
+    if code.cost > instance.work_remaining || instance.frames.count >= instance.limits.frames ||
+        function.values.count > instance.limits.values - instance.live_values { return false }
+    // The same bounded growth as ExecResizeStorage and ExecResizeWords; a
+    // refusal leaves both as they were for ExecStep to report.
+    base := instance.storage.count
+    word_base := instance.words.count
+    outside := instance.limits.value_bytes - instance.globals.count - instance.result_bytes.count -
+        instance.owned.count
+    storage_room := outside - word_base * 8
+    if storage_room < 0 || target_plan.frame_bytes > storage_room - base ||
+        !VecResizeBounded(instance.storage, base + target_plan.frame_bytes, storage_room) { return false }
+    word_room := outside - instance.storage.count
+    if word_room < 0 || word_base + target_plan.word_count > word_room / 8 ||
+        !VecResizeBounded(instance.words, word_base + target_plan.word_count, word_room / 8) {
+        unused VecResize(instance.storage, base)
+        return false
+    }
+    caller := *instance.frames[frame_index]
+    caller_words := caller.word_base
+    caller_storage := caller.base
+    instance.frame_epoch += 1
+    frame := LirExecFrame.{.function = target, .block = function.entry, .return_value = code.result_value,
+        .base = base, .word_base = word_base, .value_base = target_plan.value_base,
+        .instruction_base = plan.block_instruction_bases[target_plan.block_base + function.entry],
+        .generation = instance.frame_epoch}
+    if !VecPush(instance.frames, frame) {
+        unused VecResize(instance.words, word_base)
+        unused VecResize(instance.storage, base)
+        instance.frame_epoch -= 1
+        return false
+    }
+    instance.work_remaining -= code.cost
+    instance.current_value_base = frame.value_base
+    instance.current_word_base = word_base
+    instance.live_values += function.values.count
+    for at: target_plan.constants..target_plan.constants + target_plan.constant_count - 1 {
+        constant := *plan.constant_words[at]
+        instance.words[word_base + constant.word] = constant.bits
+    }
+    for at: code.x..code.x + code.y - 1 {
+        move := *plan.moves[at]
+        if move.word { instance.words[word_base + move.to] = instance.words[caller_words + move.from] }
+        else {
+            for byte: cast(s64)0..move.size - 1 {
+                instance.storage[base + move.to + byte] = instance.storage[caller_storage + move.from + byte]
+            }
+        }
+    }
+    ExecSetPosition(instance, frame_index, code.block, code.index + 1, code.base)
+    return true
+}
+
+// A Return to a calling program frame, as ExecFinishFrame makes it, when it
+// cannot fail. false: ExecStep makes it.
+ExecFastReturn :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCode) -> bool {
+    if frame_index == 0 { return false }
+    frame := *instance.frames[frame_index]
+    caller := *instance.frames[frame_index - 1]
+    cost: s64 = 1
+    if code.size != 0 {
+        if frame.return_value == LirNoId { return false }
+        cost += ExecCopyCost(code.size)
+    } else if frame.return_value != LirNoId { return false }
+    if cost > instance.work_remaining { return false }
+    plan := instance.plan
+    if code.size != 0 {
+        destination := caller.value_base + frame.return_value
+        if code.a >= 0 {
+            instance.words[caller.word_base + plan.value_words[destination]] = instance.words[frame.word_base + code.a]
+        } else {
+            to := caller.base + plan.value_offsets[destination]
+            from := frame.base + code.x
+            for byte: cast(s64)0..code.size - 1 { instance.storage[to + byte] = instance.storage[from + byte] }
+        }
+    }
+    instance.work_remaining -= cost
+    ExecPopFrame(instance)
+    return true
+}
+
+// Runs the instance's frames to the end of the root call.
+ExecRunFast :: (instance: *LirExecInstance) -> bool {
+    plan := instance.plan
+    while instance.frames.count != 0 {
+        frame_index := instance.frames.count - 1
+        position := instance.frames[frame_index].instruction_base + instance.frames[frame_index].instruction
+        pc := plan.segment_code[position]
+        work := plan.segment_work[position]
+        fuel := plan.segment_fuel[position]
+        if pc < 0 || work > instance.work_remaining || fuel > instance.fuel_remaining {
+            if !ExecRunSlow(instance) { return false }
+            continue
+        }
+        instance.work_remaining -= work
+        instance.fuel_remaining -= fuel
+        stopped := ExecRunCode(instance, frame_index, pc)
+        if stopped == ExecFailed { return false }
+        if stopped >= 0 {
+            code := *plan.code[stopped]
+            if code.handler == .Call && ExecFastCall(instance, frame_index, code) ||
+                code.handler == .Return && ExecFastReturn(instance, frame_index, code) { continue }
+            // The rest of the segment from here goes to ExecStep: give back
+            // what it was charged and stand on the instruction.
+            instance.work_remaining += code.rest_work
+            instance.fuel_remaining += code.rest_fuel
+            ExecSetPosition(instance, frame_index, code.block, code.index, code.base)
+            if !ExecRunSlow(instance) { return false }
+        }
+    }
+    return instance.failure.problem == .None
+}
+
 ExecResetRun :: (instance: *LirExecInstance) -> bool {
     // Frames a failed run left behind give their addresses back too.
     for frame: instance.frames { ExecReleaseAddresses(instance, frame.addresses) }
     if !VecResize(instance.frames, 0) || !VecResize(instance.storage, 0) ||
         !VecResize(instance.words, 0) ||
-        !VecResize(instance.validity, 0) || !VecResize(instance.result_bytes, 0) { return false }
+        !VecResize(instance.result_bytes, 0) { return false }
     instance.live_values = 0
     instance.current_value_base = 0
     instance.current_word_base = 0
-    instance.current_valid_base = 0
     instance.result_value = .{.type = LirNoId}
     instance.failure = ExecResult(.None)
     instance.work_remaining = instance.limits.work
@@ -2695,6 +4299,7 @@ ExecResetRun :: (instance: *LirExecInstance) -> bool {
 ExecRunRoot :: (instance: *LirExecInstance, function: s32, arguments: []LirExecArgument) -> bool {
     no_operands: [0]s32
     if !ExecPushFrame(instance, function, -1, no_operands[:], LirNoId, arguments) { return false }
+    if !instance.reference { return ExecRunFast(instance) }
     while instance.frames.count != 0 && instance.failure.problem == .None {
         if !ExecStep(instance) { break }
     }
@@ -2745,7 +4350,6 @@ ExecRunFunction :: (instance: *LirExecInstance, function: s32, arguments: []LirE
         unused VecResize(instance.frames, 0)
         unused VecResize(instance.storage, 0)
         unused VecResize(instance.words, 0)
-        unused VecResize(instance.validity, 0)
         instance.live_values = 0
         return result
     }
@@ -2801,6 +4405,14 @@ LirExecPlanFree :: (plan: *LirExecPlan) {
     VecFree(plan.instructions)
     VecFree(plan.transient)
     VecFree(plan.global_offsets)
+    VecFree(plan.code)
+    VecFree(plan.moves)
+    VecFree(plan.edge_plans)
+    VecFree(plan.constant_words)
+    VecFree(plan.segment_code)
+    VecFree(plan.segment_work)
+    VecFree(plan.segment_fuel)
+    VecFree(plan.powers)
     plan.program = .{}
     plan.global_bytes = 0
     plan.ready = false
@@ -2815,7 +4427,6 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     instance.address_used = 0
     VecFree(instance.storage)
     VecFree(instance.words)
-    VecFree(instance.validity)
     VecFree(instance.frames)
     VecFree(instance.result_bytes)
     VecFree(instance.hosts)
@@ -2837,7 +4448,6 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     instance.live_values = 0
     instance.current_value_base = 0
     instance.current_word_base = 0
-    instance.current_valid_base = 0
     instance.work_remaining = 0
     instance.fuel_remaining = 0
     instance.failure = ExecResult(.None)
@@ -2865,6 +4475,7 @@ LirExecPlanBuild :: (program: LirProgram, verify_limits: LirLimits, output: *Lir
     problem := ExecPlanLayouts(program, output, verify_limits.bytes)
     if problem == .None && !LirHostShapes(program, *output.host_shapes) { problem = .Allocation }
     if problem == .None { problem = ExecPlanFunctions(program, output, verify_limits.bytes) }
+    if problem == .None { problem = ExecPlanCode(program, output) }
     if problem != .None {
         result := ExecResult(problem)
         LirExecPlanFree(output)
@@ -2927,6 +4538,20 @@ LirExecRun :: (instance: *LirExecInstance) -> LirExecResult {
     }
     no_arguments: [0]LirExecArgument
     return ExecRunFunction(instance, instance.plan.program.entry, no_arguments[:])
+}
+
+// LirExecRun with every instruction run by the reference implementation,
+// one at a time, instead of the compact code. Both give the same result,
+// failure location and remaining work and fuel; tests compare them.
+LirExecRunReference :: (instance: *LirExecInstance) -> LirExecResult {
+    if instance == null || !instance.ready || instance.plan.program.entry == LirNoId {
+        return ExecResult(.NotReady)
+    }
+    no_arguments: [0]LirExecArgument
+    instance.reference = true
+    result := ExecRunFunction(instance, instance.plan.program.entry, no_arguments[:])
+    instance.reference = false
+    return result
 }
 
 LirExecCall :: (instance: *LirExecInstance, function: s32, arguments: []LirExecArgument) -> LirExecResult {

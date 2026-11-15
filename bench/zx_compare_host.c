@@ -6,6 +6,8 @@
 #include <time.h>
 #ifndef CONTROL
 #include "ziran_host.h"
+static const char *backend_names[] = {"None", "Engine", "Wasm",
+    "NativeX86_64", "NativeAArch64", "NativeArmV7"};
 static int64_t inputs[3];
 static int input(void *ctx, const char *mod, const char *fn,
                  const HostValue *args, int n, HostValue *out) {
@@ -29,13 +31,23 @@ int main(int argc, char **argv) {
     if(seed < 0 || seed > 1000000000 || rounds < 1 || rounds > 100000 || kind < 0 || kind > 1 || batches < 1 || batches > 10000) return 2;
     double start = ms(), loaded = start, opened = start;
 #ifndef CONTROL
+    /* Explicit backend selection: "engine" (legacy "vm") requests the
+     * portable engine and "native" the machine-code backend. Auto is never
+     * used, so a cohort cannot silently change backends. */
+    BundleInstanceOptions options; options.max_steps = 0;
+    if(!strcmp(argv[1], "native")) options.backend = BUNDLE_BACKEND_NATIVE;
+    else if(!strcmp(argv[1], "engine") || !strcmp(argv[1], "vm"))
+        options.backend = BUNDLE_BACKEND_ENGINE;
+    else return 2;
     Bundle *bundle = BundleOpen(argv[2]); if(!bundle) return 3;
     loaded = ms();
     HostBinding binding = {"zx_compare", "Input", input, NULL};
     inputs[0] = seed; inputs[1] = rounds; inputs[2] = kind;
-    BundleInstance *instance = !strcmp(argv[1], "vm") ?
-        BundleInstantiatePortable(bundle, &binding, 1) : BundleInstantiate(bundle, &binding, 1);
+    BundleInstance *instance = BundleInstantiateWithOptions(bundle, &binding, 1,
+        &options);
     if(!instance) return 4; opened = ms();
+    const char *backend = backend_names[BundleInstanceBackend(instance)];
+    const char *native_problem = BundleNativeProblem(bundle);
 #endif
     long long checksum = 0; double first = 0, warm_ms = 0, measured = 0; int warmup_count = 0;
     for(int j = -1; j < batches; j++) {
@@ -63,7 +75,12 @@ int main(int argc, char **argv) {
     double end = ms();
     fprintf(stderr, "benchmark warmup_count=%d warmup_ms=%.6f\n", warmup_count, warm_ms);
     if(checksum != expected) { fprintf(stderr, "checksum %lld != %lld\n", checksum, expected); return 6; }
-    printf("{\"load_ms\":%.9f,\"instantiate_ms\":%.9f,\"first_ms\":%.9f,\"warm_ms\":%.9f,\"checksum\":%lld,\"batches\":%d}\n", loaded-start, opened-loaded, first, end-measured, checksum, batches);
+    printf("{\"load_ms\":%.9f,\"instantiate_ms\":%.9f,\"first_ms\":%.9f,\"warm_ms\":%.9f,\"checksum\":%lld,\"batches\":%d,\"backend\":\"%s\",\"native_ok\":%s}\n", loaded-start, opened-loaded, first, end-measured, checksum, batches,
+#ifndef CONTROL
+        backend, native_problem[0] == 0 ? "true" : "false");
+#else
+        "none", "true");
+#endif
 #ifndef CONTROL
     BundleInstanceClose(instance); BundleClose(bundle);
 #endif

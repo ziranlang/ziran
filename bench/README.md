@@ -72,6 +72,31 @@ Direct AOT is never relabeled as that engine. The exact plan schema, phase
 units, invocation, and remaining gates are in
 [`../ASSEMBLY/performance-report.md`](../ASSEMBLY/performance-report.md).
 
+## ZX runtime comparison 2 driver
+
+`zx_compare.zi` measures the portable engine, cold native ZX, warm native ZX,
+the `zx2native` AOT ELF control and the C control over identical workloads in
+one receipt. Every trial verifies the oracle checksum, the reported backend
+and, for native cohorts, the native evidence flag. The receipt records the
+machine, virtualization and load averages before and after the run, hashes of
+the driver, helper, control and library sources, the fixture artifact hashes,
+and the copied M0 TinyCC summary:
+
+```sh
+build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY \
+  build/bin/ziran run --target=c --root bench --module-path . \
+  bench/zx_compare.zi -- --engine --native-cold --native-warm --aot \
+  --c-control --m0-receipts bench/results --samples 9
+```
+
+Every prepare step (fixture `zi2zx`, the `zx-host` helper build, the C control
+build, the per-kind AOT source generation and builds) runs through the queue
+and is recorded with its command line, exit code and wall time. The receipt is
+written atomically after every trial, and the integrity block re-hashes every
+input before the driver reports success. Without `--out`, the receipt is
+`bench/results/zx-compare-<host>-<date>.json`. `--alpha` additionally enforces
+the Alpha physical-host attestation gate for receipts that claim it.
+
 ## Fresh compiler rebuild
 
 ```sh

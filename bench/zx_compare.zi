@@ -1,4 +1,19 @@
 // Runtime inputs use the common s64 -> s64 host ABI.
+#import "benchmark_statistics"
+#import "std/byte_text_linux"
+#import "std/date_time_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/sort"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
 host_api :: #system_library "host_api";
 Input :: (key: s64) -> s64 #foreign host_api;
 Cell :: struct { x: s64; width: s64; selected: bool; }
@@ -38,3 +53,812 @@ Answer :: () -> s64 {
     }
     return total
 }
+
+// ========================== Comparison 2 driver ==========================
+// M3 step 5: one synchronized comparison-2 run records, with explicit
+// backend selection, the portable engine, cold native ZX (first compile in
+// the process), warm native ZX (post-warmup in-process code-cache hits),
+// the zx2native AOT ELF control, the C control, and the retained M0
+// old-VM/TinyCC receipts consumed read-only. The fixture above is the
+// unchanged measured program; this driver lives in the same file so fixture,
+// harness and oracle share one revision. Oracle values are recomputed below
+// from the same math and verified against every helper checksum and AOT
+// output before a sample is recorded.
+//
+// Invocation from the repository root, through the build queue:
+//   build-queue -- build/bin/ziran run --root bench bench/zx_compare.zi -- \
+//       --engine --native-cold --native-warm --aot --c-control \
+//       --m0-receipts bench/results --out bench/results/<receipt>.json
+// Optional: --samples 9 --rounds 4096 --batches 16 --seed 123456
+//           --host NAME --commit SHA --work DIR --alpha --prepared
+//
+// Protocol: each helper process performs one cold phase (open, instantiate,
+// first entry run) and, after a 500 ms in-process warmup, `batches` measured
+// entry runs; per-entry milliseconds divide by `batches`. The AOT ELF control
+// measures one whole Answer computation per process, startup included, at the
+// fixed base seed. Cohorts run interleaved, one sample each per (trial,
+// kind), in a fixed order. Outliers use the shared symmetric 1.5xIQR fences
+// from benchmark_statistics; raw samples and excluded indices are retained.
+// Machine identity (/etc/machine-id), CPU model and features
+// (/proc/cpuinfo), the cpufreq governor, load averages and virtualization
+// are recorded before and after the loop. --alpha additionally requires
+// Alpha's physical-host attestation and fails the run otherwise.
+
+#scope_file
+Concat :: (left: string, right: string) -> string {
+    parts: [2]string = .[left, right]
+    return TextJoin(parts[:], "")
+}
+
+Number :: (value: s64) -> string {
+    bytes: [64]u8
+    return TextDetach(TextCopy(FormatInteger(value, bytes[:])))
+}
+
+Real :: (value: float64) -> string {
+    return TextDetach(Float64Repr(value))
+}
+
+OutputText :: (run: *ProcessRun) -> string {
+    return TextFromBytes(run.output[:])
+}
+
+Capture :: (arguments: []string, repo: string) -> (ok: bool, output: string) {
+    options: ProcessOptions = .{.arguments = arguments, .directory = repo,
+        .capture_output = true}
+    run: ProcessRun
+    if !RunProcess(options, *run) { return false, "" }
+    text := TextDetach(TextCopy(TextFromBytes(run.output[:])))
+    return run.code == 0, text
+}
+
+// sha256 of a file, or "" when it cannot be hashed.
+Hash :: (path: string, repo: string) -> string {
+    command: [2]string = .["sha256sum", path]
+    ok, output := Capture(command[:], repo)
+    return ifx ok && output.count >= 64 then output[:64] else ""
+}
+
+// Display variables are removed from every child environment.
+BuildEnvironment :: () -> Vec(string) {
+    environment: Vec(string)
+    VecPush(environment, "DISPLAY")
+    VecPush(environment, "WAYLAND_DISPLAY")
+    VecPush(environment, "XAUTHORITY")
+    VecPush(environment, "DBUS_SESSION_BUS_ADDRESS")
+    VecPush(environment, "SESSION_MANAGER")
+    return environment
+}
+
+// Runs one child, prepending build-queue when the caller asks for it and the
+// driver itself was not started inside a queue slot.
+RunCommand :: (arguments: []string, repo: string, error_path: string,
+    cache_dir: string, queued: bool) -> (ok: bool, code: s32, output: string) {
+    actual: Vec(string)
+    if queued && EnvironmentText("BUILD_QUEUE_JOBS") == "" {
+        VecPush(actual, "build-queue")
+        VecPush(actual, "--")
+    }
+    for argument: arguments { VecPush(actual, argument) }
+    environment := BuildEnvironment()
+    if cache_dir != "" {
+        VecPush(environment, "ZIRAN_NATIVE_TIMING=1")
+        VecPush(environment, Concat("ZIRAN_NATIVE_CACHE=", cache_dir))
+    }
+    options: ProcessOptions = .{.arguments = actual[:], .directory = repo,
+        .environment = environment[:], .capture_output = true,
+        .error_path = error_path}
+    run: ProcessRun
+    if !RunProcess(options, *run) { return false, -1, "" }
+    text := TextDetach(TextCopy(TextFromBytes(run.output[:])))
+    return true, run.code, text
+}
+
+// The comparison oracle: the fixture's Answer with explicit parameters.
+Oracle :: (seed: s64, rounds: s64, kind: s64) -> s64 {
+    total: s64 = 0
+    if kind == 0 {
+        i: s64 = 0
+        while i < rounds { seed = Mix(seed, i); total += seed; i += 1 }
+    } else {
+        cells: [32]Cell
+        title: string = "layout"
+        if (seed & 1) == 1 { title = "event" }
+        j: s32 = 0
+        while j < 32 {
+            cells[j] = Cell.{x = seed & 255, width = cast(s64)j + 3, selected = false}
+            j += 1
+        }
+        i: s64 = 0
+        while i < rounds {
+            index := cast(s32)(i & 31)
+            cell := cells[index]
+            cell.x = (Mix(cell.x + seed, i) + cell.width) & 65535
+            cell.width = (cell.width + cast(s64)title.count + (i & 7)) & 255
+            cell.selected = (cell.x & 1) == 1
+            if cell.selected { total += cell.x } else { total += cell.width }
+            cells[index] = cell
+            i += 1
+        }
+    }
+    return total
+}
+
+// One helper invocation sums one Answer per batch with seed + j.
+SumBatches :: (seed: s64, rounds: s64, kind: s64, batches: s64) -> s64 {
+    total: s64 = 0
+    for j: 0..batches - 1 { total += Oracle(seed + j, rounds, kind) }
+    return total
+}
+
+HelperRow :: struct {
+    load_ms: float64
+    instantiate_ms: float64
+    first_ms: float64
+    warm_ms: float64
+    checksum: s64
+    batches: s64
+    backend: string
+    native_ok: bool
+}
+
+HelperNumber :: (document: *JsonDocument, object: s32, key: string) -> (value: float64, error: string) {
+    text := TextDetach(JsonNumberText(document, JsonMember(document, object, key)))
+    value, ok := ParseFloat64(text)
+    if !ok { return 0.0, Concat("cannot parse ", key) }
+    return value, ""
+}
+
+ParseHelper :: (text: string, row: *HelperRow) -> string {
+    lines := TextLines(text)
+    json_text := ""
+    index: s64 = cast(s64)lines.count - 1
+    while index >= 0 {
+        if TextHasPrefix(lines[index], "{") { json_text = lines[index]; break }
+        index -= 1
+    }
+    if json_text == "" { return "no JSON row in helper output" }
+    document: JsonDocument
+    if !JsonRead(*document, json_text) {
+        return Concat("cannot parse helper JSON: ", document.error)
+    }
+    row.backend = TextDetach(JsonString(*document,
+        JsonMember(*document, document.root, "backend")))
+    row.native_ok = JsonKindOf(*document,
+        JsonMember(*document, document.root, "native_ok")) == .True
+    checksum, checksum_ok := JsonInteger(*document,
+        JsonMember(*document, document.root, "checksum"))
+    helper_batches, batches_ok := JsonInteger(*document,
+        JsonMember(*document, document.root, "batches"))
+    if !checksum_ok || !batches_ok { return "helper row misses integers" }
+    row.checksum = checksum
+    row.batches = helper_batches
+    load_value, load_error := HelperNumber(*document, document.root, "load_ms")
+    if load_error != "" { return load_error }
+    row.load_ms = load_value
+    instantiate_value, instantiate_error := HelperNumber(*document, document.root, "instantiate_ms")
+    if instantiate_error != "" { return instantiate_error }
+    row.instantiate_ms = instantiate_value
+    first_value, first_error := HelperNumber(*document, document.root, "first_ms")
+    if first_error != "" { return first_error }
+    row.first_ms = first_value
+    warm_value, warm_error := HelperNumber(*document, document.root, "warm_ms")
+    if warm_error != "" { return warm_error }
+    row.warm_ms = warm_value
+    return ""
+}
+
+// The self-contained AOT fixture source with the parameters baked in.
+AotSource :: (seed: s64, rounds: s64, kind: s64) -> string {
+    parts: Vec(string)
+    VecPush(parts, "// Generated by the bench/zx_compare.zi comparison-2 driver; do not edit.\n")
+    VecPush(parts, "Mix :: (x: s64, i: s64) -> s64 {\n")
+    VecPush(parts, "    if (i & 1) == 0 { return (x * 1664525 + 1013904223) & 2147483647 }\n")
+    VecPush(parts, "    return (x * 1103515245 + 12345) & 2147483647\n}\n")
+    VecPush(parts, "Cell :: struct { x: s64; width: s64; selected: bool; }\n")
+    VecPush(parts, "Total :: (seed: s64, rounds: s64, kind: s64) -> s64 {\n")
+    VecPush(parts, "    total: s64 = 0\n    if kind == 0 {\n        i: s64 = 0\n")
+    VecPush(parts, "        while i < rounds { seed = Mix(seed, i); total += seed; i += 1 }\n")
+    VecPush(parts, "    } else {\n        cells: [32]Cell\n        title: string = \"layout\"\n")
+    VecPush(parts, "        if (seed & 1) == 1 { title = \"event\" }\n        j: s32 = 0\n")
+    VecPush(parts, "        while j < 32 {\n")
+    VecPush(parts, "            cells[j] = Cell.{x = seed & 255, width = cast(s64)j + 3, selected = false}\n")
+    VecPush(parts, "            j += 1\n        }\n        i: s64 = 0\n        while i < rounds {\n")
+    VecPush(parts, "            index := cast(s32)(i & 31)\n            cell := cells[index]\n")
+    VecPush(parts, "            cell.x = (Mix(cell.x + seed, i) + cell.width) & 65535\n")
+    VecPush(parts, "            cell.width = (cell.width + cast(s64)title.count + (i & 7)) & 255\n")
+    VecPush(parts, "            cell.selected = (cell.x & 1) == 1\n")
+    VecPush(parts, "            if cell.selected { total += cell.x } else { total += cell.width }\n")
+    VecPush(parts, "            cells[index] = cell\n            i += 1\n        }\n    }\n    return total\n}\n")
+    VecPush(parts, "main :: () {\n    print(\"%\\n\", Total(")
+    VecPush(parts, Number(seed))
+    VecPush(parts, ", ")
+    VecPush(parts, Number(rounds))
+    VecPush(parts, ", ")
+    VecPush(parts, Number(kind))
+    VecPush(parts, "))\n}\n")
+    return TextDetach(TextJoin(parts, ""))
+}
+
+Two :: (value: s32) -> string {
+    bytes: [8]u8
+    text := FormatInteger(cast(s64)value, bytes[:])
+    if value < 10 { return Concat("0", TextDetach(TextCopy(text))) }
+    return TextDetach(TextCopy(text))
+}
+
+UtcStamp :: () -> string {
+    reading := UtcAt(UnixNow())
+    if !reading.valid { return "unknown" }
+    parts: Vec(string)
+    VecPush(parts, Number(cast(s64)reading.year))
+    VecPush(parts, "-")
+    VecPush(parts, Two(reading.month))
+    VecPush(parts, "-")
+    VecPush(parts, Two(reading.day))
+    VecPush(parts, "T")
+    VecPush(parts, Two(reading.hour))
+    VecPush(parts, ":")
+    VecPush(parts, Two(reading.minute))
+    VecPush(parts, ":")
+    VecPush(parts, Two(reading.second))
+    VecPush(parts, "Z")
+    return TextDetach(TextJoin(parts, ""))
+}
+
+Put :: (document: *JsonDocument, object: s32, key: string, value: string) {
+    JsonSet(document, object, key, JsonNewStringCopy(document, value))
+}
+
+SaveReceipt :: (document: *JsonDocument, root: s32, out: string) -> bool {
+    return WriteEntireFile(out, JsonWrite(document, root, JsonPythonStyle(2)))
+}
+
+// One prepare command, recorded and queue-wrapped; fails the run loudly.
+PrepareStep :: (document: *JsonDocument, commands: s32, arguments: []string,
+    repo: string, work: string) -> bool {
+    started := MonotonicNanoseconds()
+    ok, code, output := RunCommand(arguments, repo, JoinPath(work, "prepare-error.txt"), "", true)
+    elapsed := cast(float64)(MonotonicNanoseconds() - started) / 1000000.0
+    record := JsonNewObject(document)
+    argv := JsonNewArray(document)
+    for argument: arguments { JsonAppend(document, argv, JsonNewStringCopy(document, argument)) }
+    JsonSet(document, record, "argv", argv)
+    JsonSet(document, record, "elapsed_ms", JsonNewNumber(document, Real(elapsed)))
+    JsonSet(document, record, "code", JsonNewInteger(document, cast(s64)code))
+    JsonAppend(document, commands, record)
+    if !ok || code != 0 {
+        text, found := ReadEntireFile(JoinPath(work, "prepare-error.txt"))
+        if found { print("%\n", TextTrimEnd(text)) }
+        print("prepare failed (%): %\n", code, TextTrimEnd(output))
+        return false
+    }
+    return true
+}
+
+// Median and dispersion for one cohort and kind; prints the medians.
+AddSummary :: (document: *JsonDocument, summary: s32, name: string,
+    samples: []Vec(float64)) -> bool {
+    for kind: 0..1 {
+        values: Vec(float64)
+        for at: 0..samples[kind].count - 1 { VecPush(values, samples[kind][at]) }
+        if values.count == 0 { continue }
+        statistics := BenchmarkAnalyze(values[:])
+        if !statistics.valid { return false }
+        entry := JsonNewObject(document)
+        Put(document, entry, "cohort", name)
+        JsonSet(document, entry, "kind", JsonNewInteger(document, kind))
+        JsonSet(document, entry, "n", JsonNewInteger(document, cast(s64)statistics.included.count))
+        raw := JsonNewArray(document)
+        for value: values { JsonAppend(document, raw, JsonNewNumber(document, Real(value))) }
+        JsonSet(document, entry, "raw", raw)
+        excluded := JsonNewArray(document)
+        for sample_index: statistics.excluded {
+            JsonAppend(document, excluded, JsonNewInteger(document, sample_index))
+        }
+        JsonSet(document, entry, "excluded_indices", excluded)
+        JsonSet(document, entry, "median_ms", JsonNewNumber(document, Real(statistics.median)))
+        kept: Vec(float64)
+        for value: statistics.included { VecPush(kept, value) }
+        Sort(kept[:])
+        rank := (95 * kept.count + 99) / 100
+        JsonSet(document, entry, "p95_ms", JsonNewNumber(document, Real(kept[rank - 1])))
+        JsonAppend(document, summary, entry)
+        print("% kind %: median % ms, n %\n", name, kind, Real(statistics.median), statistics.included.count)
+    }
+    return true
+}
+
+LoadAverages :: () -> (ok: bool, one: float64, five: float64, fifteen: float64) {
+    text, found := ReadEntireFile("/proc/loadavg")
+    if !found { return false, 0.0, 0.0, 0.0 }
+    pieces := TextSplit(TextTrim(text), " ")
+    if pieces.count < 3 { return false, 0.0, 0.0, 0.0 }
+    one, one_ok := ParseFloat64(pieces[0])
+    five, five_ok := ParseFloat64(pieces[1])
+    fifteen, fifteen_ok := ParseFloat64(pieces[2])
+    if !one_ok || !five_ok || !fifteen_ok { return false, 0.0, 0.0, 0.0 }
+    return true, one, five, fifteen
+}
+
+ReadTrimmed :: (path: string, fallback: string) -> string {
+    text, found := ReadEntireFile(path)
+    return ifx found then TextTrim(text) else fallback
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    repo := PathParent(PathParent(EnvironmentText("ZIRAN_SCRIPT_FILE")))
+    if repo == "" { repo = ResolvePath(".") }
+
+    engine_cohort := false
+    cold_cohort := false
+    warm_cohort := false
+    aot_cohort := false
+    c_cohort := false
+    alpha_gate := false
+    prepared := false
+    m0_receipts := ""
+    out := JoinPath(repo, "bench/results")
+    work := JoinPath(repo, "build/benchmarks/zx-compare-native")
+    host := ""
+    commit := ""
+    samples: s64 = 9
+    rounds: s64 = 4096
+    batches: s64 = 16
+    seed: s64 = 123456
+
+    index: s32 = 1
+    while index < argc {
+        option := TextFromCString(argv[index])
+        if option == "--help" {
+            print("zx_compare.zi [--engine] [--native-cold] [--native-warm] [--aot] [--c-control]\n")
+            print("  [--m0-receipts DIR] [--out PATH] [--work DIR] [--host NAME] [--commit SHA]\n")
+            print("  [--samples N] [--rounds N] [--batches N] [--seed N] [--alpha] [--prepared]\n")
+            return 0
+        }
+        if option == "--engine" { engine_cohort = true; index += 1; continue }
+        if option == "--native-cold" { cold_cohort = true; index += 1; continue }
+        if option == "--native-warm" { warm_cohort = true; index += 1; continue }
+        if option == "--aot" { aot_cohort = true; index += 1; continue }
+        if option == "--c-control" { c_cohort = true; index += 1; continue }
+        if option == "--alpha" { alpha_gate = true; index += 1; continue }
+        if option == "--prepared" { prepared = true; index += 1; continue }
+        if index + 1 >= argc { print("% needs a value\n", option); return 2 }
+        value := TextFromCString(argv[index + 1])
+        if option == "--m0-receipts" { m0_receipts = value }
+        else if option == "--out" { out = value }
+        else if option == "--work" { work = value }
+        else if option == "--host" { host = value }
+        else if option == "--commit" { commit = value }
+        else {
+            parsed, valid := TextInteger(value)
+            if !valid { print("invalid % value\n", option); return 2 }
+            if option == "--samples" { samples = parsed }
+            else if option == "--rounds" { rounds = parsed }
+            else if option == "--batches" { batches = parsed }
+            else if option == "--seed" { seed = parsed }
+            else { print("unknown option: %\n", option); return 2 }
+        }
+        index += 2
+    }
+    if !engine_cohort && !cold_cohort && !warm_cohort && !aot_cohort && !c_cohort {
+        print("select at least one cohort\n")
+        return 2
+    }
+    if samples < 3 { print("samples must be at least 3\n"); return 2 }
+    if rounds < 1 || rounds > 100000 || batches < 1 || batches > 10000 || seed < 0 || seed > 1000000000 {
+        print("workload is outside the helper's bounds\n")
+        return 2
+    }
+
+    if host == "" { host = ReadTrimmed("/proc/sys/kernel/hostname", "unknown") }
+    if commit == "" {
+        revision: [3]string = .["git", "rev-parse", "HEAD"]
+        ok, code, output := RunCommand(revision[:], repo, "", "", false)
+        commit = ifx ok && code == 0 then TextTrim(output) else "unknown"
+    }
+    machine_id := ReadTrimmed("/etc/machine-id", "unavailable")
+    uname: [2]string = .["uname", "-sr"]
+    uname_ok, uname_output := Capture(uname[:], repo)
+    platform := ifx uname_ok then TextTrim(uname_output) else "unavailable"
+    cpu := ReadTrimmed("/proc/cpuinfo", "unavailable")
+    governor := ReadTrimmed("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "unavailable")
+    virt_command: [1]string = .["systemd-detect-virt"]
+    virt_ok_run, virt_code, virt_output := RunCommand(virt_command[:], repo, "", "", false)
+    virtualization := ifx virt_ok_run && TextTrim(virt_output) != "" then TextTrim(virt_output) else ifx virt_code == 127 then "unavailable" else "none"
+
+    scoped := EnvironmentText("HARMONY_ALPHA_GIT_SCOPED")
+    virt_env := EnvironmentText("HARMONY_ALPHA_HOST_VIRTUALIZATION")
+    hostname_ok := host == "alpha"
+    machine_ok := machine_id == "56391af3c57a496aba7e9f1f24cce732"
+    scoped_ok := scoped == "1"
+    virtualization_ok := virt_env == "none" && (virtualization == "none" || virtualization == "container-other")
+    if alpha_gate && !(hostname_ok && machine_ok && scoped_ok && virtualization_ok) {
+        print("alpha attestation failed: hostname %, machine id %, scoped git %, virtualization %\n",
+            ifx hostname_ok then "ok" else "mismatch",
+            ifx machine_ok then "ok" else "mismatch",
+            ifx scoped_ok then "ok" else "missing",
+            ifx virtualization_ok then "ok" else "mismatch")
+        return 2
+    }
+
+    stamp := UtcStamp()
+    if out == JoinPath(repo, "bench/results") {
+        out = JoinPath(out, Concat("zx-compare-", Concat(host, Concat("-", Concat(stamp[:10], ".json")))))
+    }
+    queue_jobs := EnvironmentText("BUILD_QUEUE_JOBS")
+
+    fixture := JoinPath(work, "fixture.zx")
+    zx_host := JoinPath(work, "zx-host")
+    control_binary := JoinPath(work, "control")
+    aot_elves: [2]string
+    aot_elves[0] = JoinPath(work, "zx_compare_aot0-elf")
+    aot_elves[1] = JoinPath(work, "zx_compare_aot1-elf")
+    cache_dir := JoinPath(work, "cache")
+    bench_source := JoinPath(repo, "bench/zx_compare.zi")
+    host_source := JoinPath(repo, "bench/zx_compare_host.c")
+    control_source := JoinPath(repo, "bench/zx_compare_control.c")
+    library := JoinPath(repo, "build/libziran.a")
+    helper_error_path := JoinPath(work, "helper-error.txt")
+
+    document: JsonDocument
+    root := JsonNewObject(*document)
+    Put(*document, root, "schema", "2")
+    Put(*document, root, "benchmark", "zx-compare-2")
+    Put(*document, root, "target", host)
+    Put(*document, root, "commit", commit)
+    Put(*document, root, "started_utc", stamp)
+    requested := JsonNewArray(*document)
+    if engine_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "engine")) }
+    if cold_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "native-cold")) }
+    if warm_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "native-warm")) }
+    if aot_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "aot")) }
+    if c_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "c")) }
+    JsonSet(*document, root, "cohorts_requested", requested)
+    protocol := JsonNewObject(*document)
+    Put(*document, protocol, "fixture", "bench/zx_compare.zi Answer with the host_api Input bound to seed, rounds and kind; kind 1 mixes a 32-cell struct workload")
+    JsonSet(*document, protocol, "rounds", JsonNewInteger(*document, rounds))
+    JsonSet(*document, protocol, "batches", JsonNewInteger(*document, batches))
+    JsonSet(*document, protocol, "samples", JsonNewInteger(*document, samples))
+    JsonSet(*document, protocol, "seed_base", JsonNewInteger(*document, seed))
+    JsonSet(*document, protocol, "trial_stride", JsonNewInteger(*document, 100))
+    Put(*document, protocol, "warmup", "the helper warms at least 500 ms before its measured batches")
+    Put(*document, protocol, "engine", "per-entry ms = warm batch wall / batches; checksum verified for every measured batch")
+    Put(*document, protocol, "native_cold", "one fresh helper process per sample; cold ms = load + instantiate + first entry")
+    Put(*document, protocol, "native_warm", "per-entry ms = warm batch wall / batches from the same fresh process")
+    Put(*document, protocol, "aot", "whole-process wall of the zx2native ELF, startup included, base seed only")
+    Put(*document, protocol, "c", "the helper rebuilt with -DCONTROL calls the C Bench oracle in-process; backend none")
+    Put(*document, protocol, "order", "fixed interleaving per trial and kind: engine, native, c, aot")
+    Put(*document, protocol, "outliers", "symmetric 1.5 x IQR excluded; raw samples retained")
+    JsonSet(*document, root, "protocol", protocol)
+    machine := JsonNewObject(*document)
+    Put(*document, machine, "hostname", host)
+    Put(*document, machine, "machine_id", machine_id)
+    Put(*document, machine, "platform", platform)
+    Put(*document, machine, "cpu", cpu)
+    Put(*document, machine, "governor", governor)
+    Put(*document, machine, "virtualization", virtualization)
+    attestation := JsonNewObject(*document)
+    Put(*document, attestation, "harmony_alpha_git_scoped", scoped)
+    Put(*document, attestation, "harmony_alpha_host_virtualization", virt_env)
+    JsonSet(*document, attestation, "hostname_ok", JsonNewBool(*document, hostname_ok))
+    JsonSet(*document, attestation, "machine_id_ok", JsonNewBool(*document, machine_ok))
+    JsonSet(*document, attestation, "scoped_ok", JsonNewBool(*document, scoped_ok))
+    JsonSet(*document, attestation, "virtualization_ok", JsonNewBool(*document, virtualization_ok))
+    JsonSet(*document, machine, "attestation", attestation)
+    JsonSet(*document, root, "machine", machine)
+    before_load_ok, before_one, before_five, before_fifteen := LoadAverages()
+    before := JsonNewObject(*document)
+    JsonSet(*document, before, "unix", JsonNewInteger(*document, UnixNow()))
+    before_load := JsonNewArray(*document)
+    JsonAppend(*document, before_load, JsonNewNumber(*document, Real(before_one)))
+    JsonAppend(*document, before_load, JsonNewNumber(*document, Real(before_five)))
+    JsonAppend(*document, before_load, JsonNewNumber(*document, Real(before_fifteen)))
+    JsonSet(*document, before, "load", before_load)
+    Put(*document, before, "governor", governor)
+    JsonSet(*document, root, "before", before)
+
+    version_arguments: [2]string
+    version_arguments[0] = "cc"
+    version_arguments[1] = "--version"
+    version_ok, version_output := Capture(version_arguments[:], repo)
+    compiler := "unknown"
+    if version_ok {
+        version_lines := TextLines(version_output)
+        if version_lines.count > 0 { compiler = TextDetach(TextCopy(TextTrim(version_lines[0]))) }
+    }
+    prepared_bench_hash := Hash(bench_source, repo)
+    prepared_host_hash := Hash(host_source, repo)
+    prepared_control_hash := Hash(control_source, repo)
+    prepared_library_hash := Hash(library, repo)
+    prepared_node := JsonNewObject(*document)
+    Put(*document, prepared_node, "queue_jobs", queue_jobs)
+    commands := JsonNewArray(*document)
+    JsonSet(*document, prepared_node, "commands", commands)
+    Put(*document, prepared_node, "compiler", compiler)
+    Put(*document, prepared_node, "source_revision", commit)
+    Put(*document, prepared_node, "library_sha256", prepared_library_hash)
+    prepared_sources := JsonNewObject(*document)
+    Put(*document, prepared_sources, "bench/zx_compare.zi", prepared_bench_hash)
+    Put(*document, prepared_sources, "bench/zx_compare_host.c", prepared_host_hash)
+    Put(*document, prepared_sources, "bench/zx_compare_control.c", prepared_control_hash)
+    JsonSet(*document, prepared_node, "sources", prepared_sources)
+    JsonSet(*document, root, "prepared", prepared_node)
+
+    if !prepared {
+        if !CreateDirectories(work) { print("cannot create work directory %\n", work); return 1 }
+        if !CreateDirectories(cache_dir) { print("cannot create cache directory %\n", cache_dir); return 1 }
+        fixture_arguments: [8]string
+        fixture_arguments[0] = "build/bin/zi2zx"
+        fixture_arguments[1] = "--root"
+        fixture_arguments[2] = Concat(repo, "/bench")
+        fixture_arguments[3] = "--entry"
+        fixture_arguments[4] = "zx_compare:Answer"
+        fixture_arguments[5] = "-o"
+        fixture_arguments[6] = fixture
+        fixture_arguments[7] = "bench/zx_compare.zi"
+        if !PrepareStep(*document, commands, fixture_arguments[:], repo, work) { return 1 }
+        helper_arguments: [11]string
+        helper_arguments[0] = "cc"
+        helper_arguments[1] = "-O3"
+        helper_arguments[2] = "-std=c11"
+        helper_arguments[3] = "-Iinclude"
+        helper_arguments[4] = "bench/zx_compare_host.c"
+        helper_arguments[5] = "build/libziran.a"
+        helper_arguments[6] = "-lm"
+        helper_arguments[7] = "-pthread"
+        helper_arguments[8] = "-ldl"
+        helper_arguments[9] = "-o"
+        helper_arguments[10] = zx_host
+        if !PrepareStep(*document, commands, helper_arguments[:], repo, work) { return 1 }
+        control_arguments: [12]string
+        control_arguments[0] = "cc"
+        control_arguments[1] = "-O3"
+        control_arguments[2] = "-std=c11"
+        control_arguments[3] = "-DCONTROL"
+        control_arguments[4] = "-Iinclude"
+        control_arguments[5] = "bench/zx_compare_host.c"
+        control_arguments[6] = "bench/zx_compare_control.c"
+        control_arguments[7] = "-lm"
+        control_arguments[8] = "-pthread"
+        control_arguments[9] = "-ldl"
+        control_arguments[10] = "-o"
+        control_arguments[11] = control_binary
+        if !PrepareStep(*document, commands, control_arguments[:], repo, work) { return 1 }
+        for kind: 0..1 {
+            aot_source_path := JoinPath(work, Concat("zx_compare_aot", Concat(Number(kind), ".zi")))
+            aot_zx := JoinPath(work, Concat("zx_compare_aot", Concat(Number(kind), ".zx")))
+            if !WriteEntireFile(aot_source_path, AotSource(seed, rounds, kind)) {
+                print("cannot write %\n", aot_source_path); return 1
+            }
+            aot_lower_arguments: [8]string
+            aot_lower_arguments[0] = "build/bin/zi2zx"
+            aot_lower_arguments[1] = "--root"
+            aot_lower_arguments[2] = work
+            aot_lower_arguments[3] = "--entry"
+            aot_lower_arguments[4] = Concat("zx_compare_aot", Concat(Number(kind), ":main"))
+            aot_lower_arguments[5] = "-o"
+            aot_lower_arguments[6] = aot_zx
+            aot_lower_arguments[7] = aot_source_path
+            if !PrepareStep(*document, commands, aot_lower_arguments[:], repo, work) { return 1 }
+            aot_native_arguments: [5]string
+            aot_native_arguments[0] = "build/bin/zx2native"
+            aot_native_arguments[1] = "-o"
+            aot_native_arguments[2] = aot_elves[kind]
+            aot_native_arguments[3] = aot_zx
+            if !PrepareStep(*document, commands, aot_native_arguments[:4], repo, work) { return 1 }
+        }
+    }
+
+    artifacts := JsonNewObject(*document)
+    Put(*document, artifacts, "fixture", Hash(fixture, repo))
+    Put(*document, artifacts, "zx_host", Hash(zx_host, repo))
+    Put(*document, artifacts, "control", Hash(control_binary, repo))
+    Put(*document, artifacts, "aot_elf_0", Hash(aot_elves[0], repo))
+    Put(*document, artifacts, "aot_elf_1", Hash(aot_elves[1], repo))
+    JsonSet(*document, root, "artifacts", artifacts)
+
+    if m0_receipts != "" {
+        m0_path := JoinPath(m0_receipts, "zx-compare-alpha-physical-2026-11-12.json")
+        m0_text, m0_found := ReadEntireFile(m0_path)
+        if !m0_found { print("m0 receipt missing: %\n", m0_path); return 1 }
+        m0: JsonDocument
+        if !JsonRead(*m0, m0_text) { print("cannot read m0 receipt: %\n", m0.error); return 1 }
+        m0_node := JsonNewObject(*document)
+        Put(*document, m0_node, "receipt", m0_path)
+        Put(*document, m0_node, "sha256", Hash(m0_path, repo))
+        Put(*document, m0_node, "note", "vm and native summary entries copied verbatim from the M0 TinyCC receipt")
+        m0_summary := JsonNewArray(*document)
+        m0_source_summary := JsonMember(*m0, m0.root, "summary")
+        m0_count := JsonCount(*m0, m0_source_summary)
+        m0_index: s32 = 0
+        while m0_index < m0_count {
+            entry := JsonElement(*m0, m0_source_summary, m0_index)
+            variant := TextDetach(JsonString(*m0, JsonMember(*m0, entry, "variant")))
+            if variant == "vm" || variant == "native" {
+                JsonAppend(*document, m0_summary, JsonCopy(*document, *m0, entry))
+            }
+            m0_index += 1
+        }
+        JsonSet(*document, m0_node, "summary", m0_summary)
+        JsonSet(*document, root, "m0", m0_node)
+    }
+
+    samples_node := JsonNewArray(*document)
+    JsonSet(*document, root, "samples", samples_node)
+    engine_samples: [2]Vec(float64)
+    cold_samples: [2]Vec(float64)
+    warm_samples: [2]Vec(float64)
+    aot_samples: [2]Vec(float64)
+    c_samples: [2]Vec(float64)
+    if !SaveReceipt(*document, root, out) { print("cannot write %\n", out); return 1 }
+    trial: s64 = 0
+    while trial < samples {
+        trial_seed := seed + trial * 100
+        for kind: 0..1 {
+            expected := SumBatches(trial_seed, rounds, kind, batches)
+            run_arguments: [8]string
+            run_arguments[2] = fixture
+            run_arguments[3] = Number(trial_seed)
+            run_arguments[4] = Number(rounds)
+            run_arguments[5] = Number(kind)
+            run_arguments[6] = Number(batches)
+            run_arguments[7] = Number(expected)
+            if engine_cohort {
+                run_arguments[0] = zx_host
+                run_arguments[1] = "engine"
+                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, cache_dir, true)
+                if !helper_ok || helper_code != 0 {
+                    print("engine helper failed (%): %\n", helper_code, TextTrimEnd(helper_output)); return 1
+                }
+                row: HelperRow
+                row_error := ParseHelper(helper_output, *row)
+                if row_error != "" { print("%\n", row_error); return 1 }
+                if row.checksum != expected || row.backend != "Engine" {
+                    print("engine evidence mismatch: checksum % backend %\n", row.checksum, row.backend); return 1
+                }
+                per_entry := row.warm_ms / cast(float64)row.batches
+                VecPush(engine_samples[kind], per_entry)
+                row_node := JsonNewObject(*document)
+                JsonSet(*document, row_node, "trial", JsonNewInteger(*document, trial))
+                JsonSet(*document, row_node, "kind", JsonNewInteger(*document, kind))
+                Put(*document, row_node, "cohort", "engine")
+                JsonSet(*document, row_node, "per_entry_ms", JsonNewNumber(*document, Real(per_entry)))
+                JsonSet(*document, row_node, "load_ms", JsonNewNumber(*document, Real(row.load_ms)))
+                JsonSet(*document, row_node, "instantiate_ms", JsonNewNumber(*document, Real(row.instantiate_ms)))
+                JsonSet(*document, row_node, "first_ms", JsonNewNumber(*document, Real(row.first_ms)))
+                JsonSet(*document, row_node, "warm_ms", JsonNewNumber(*document, Real(row.warm_ms)))
+                JsonSet(*document, row_node, "batches", JsonNewInteger(*document, row.batches))
+                JsonSet(*document, row_node, "checksum", JsonNewInteger(*document, row.checksum))
+                Put(*document, row_node, "backend", row.backend)
+                JsonAppend(*document, samples_node, row_node)
+            }
+            if cold_cohort || warm_cohort {
+                run_arguments[0] = zx_host
+                run_arguments[1] = "native"
+                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, cache_dir, true)
+                if !helper_ok || helper_code != 0 {
+                    print("native helper failed (%): %\n", helper_code, TextTrimEnd(helper_output)); return 1
+                }
+                row: HelperRow
+                row_error := ParseHelper(helper_output, *row)
+                if row_error != "" { print("%\n", row_error); return 1 }
+                if row.checksum != expected || row.backend != "NativeX86_64" || !row.native_ok {
+                    print("native evidence mismatch: checksum % backend % native_ok %\n", row.checksum, row.backend, row.native_ok); return 1
+                }
+                per_entry := row.warm_ms / cast(float64)row.batches
+                cold_ms := row.load_ms + row.instantiate_ms + row.first_ms
+                if cold_cohort { VecPush(cold_samples[kind], cold_ms) }
+                if warm_cohort { VecPush(warm_samples[kind], per_entry) }
+                row_node := JsonNewObject(*document)
+                JsonSet(*document, row_node, "trial", JsonNewInteger(*document, trial))
+                JsonSet(*document, row_node, "kind", JsonNewInteger(*document, kind))
+                Put(*document, row_node, "cohort", "native")
+                JsonSet(*document, row_node, "cold_ms", JsonNewNumber(*document, Real(cold_ms)))
+                JsonSet(*document, row_node, "per_entry_ms", JsonNewNumber(*document, Real(per_entry)))
+                JsonSet(*document, row_node, "load_ms", JsonNewNumber(*document, Real(row.load_ms)))
+                JsonSet(*document, row_node, "instantiate_ms", JsonNewNumber(*document, Real(row.instantiate_ms)))
+                JsonSet(*document, row_node, "first_ms", JsonNewNumber(*document, Real(row.first_ms)))
+                JsonSet(*document, row_node, "warm_ms", JsonNewNumber(*document, Real(row.warm_ms)))
+                JsonSet(*document, row_node, "batches", JsonNewInteger(*document, row.batches))
+                JsonSet(*document, row_node, "checksum", JsonNewInteger(*document, row.checksum))
+                Put(*document, row_node, "backend", row.backend)
+                JsonAppend(*document, samples_node, row_node)
+            }
+            if c_cohort {
+                run_arguments[0] = control_binary
+                run_arguments[1] = "engine"
+                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, "", true)
+                if !helper_ok || helper_code != 0 {
+                    print("c control failed (%): %\n", helper_code, TextTrimEnd(helper_output)); return 1
+                }
+                row: HelperRow
+                row_error := ParseHelper(helper_output, *row)
+                if row_error != "" { print("%\n", row_error); return 1 }
+                if row.checksum != expected {
+                    print("c control checksum mismatch: %\n", row.checksum); return 1
+                }
+                per_entry := row.warm_ms / cast(float64)row.batches
+                VecPush(c_samples[kind], per_entry)
+                row_node := JsonNewObject(*document)
+                JsonSet(*document, row_node, "trial", JsonNewInteger(*document, trial))
+                JsonSet(*document, row_node, "kind", JsonNewInteger(*document, kind))
+                Put(*document, row_node, "cohort", "c")
+                JsonSet(*document, row_node, "per_entry_ms", JsonNewNumber(*document, Real(per_entry)))
+                JsonSet(*document, row_node, "batches", JsonNewInteger(*document, row.batches))
+                JsonSet(*document, row_node, "checksum", JsonNewInteger(*document, row.checksum))
+                JsonAppend(*document, samples_node, row_node)
+            }
+            if aot_cohort {
+                aot_arguments: [1]string
+                aot_arguments[0] = aot_elves[kind]
+                started := MonotonicNanoseconds()
+                aot_ok, aot_code, aot_output := RunCommand(aot_arguments[:], repo, helper_error_path, "", true)
+                wall_ms := cast(float64)(MonotonicNanoseconds() - started) / 1000000.0
+                expected_output := Number(Oracle(seed, rounds, kind))
+                if !aot_ok || aot_code != 0 || TextTrim(aot_output) != expected_output {
+                    print("aot elf failed (%): %\n", aot_code, TextTrimEnd(aot_output)); return 1
+                }
+                VecPush(aot_samples[kind], wall_ms)
+                row_node := JsonNewObject(*document)
+                JsonSet(*document, row_node, "trial", JsonNewInteger(*document, trial))
+                JsonSet(*document, row_node, "kind", JsonNewInteger(*document, kind))
+                Put(*document, row_node, "cohort", "aot")
+                JsonSet(*document, row_node, "wall_ms", JsonNewNumber(*document, Real(wall_ms)))
+                JsonAppend(*document, samples_node, row_node)
+            }
+        }
+        if !SaveReceipt(*document, root, out) { print("cannot write %\n", out); return 1 }
+        trial += 1
+    }
+
+    summary := JsonNewArray(*document)
+    if engine_cohort {
+        if !AddSummary(*document, summary, "engine", engine_samples[:]) { return 1 }
+    }
+    if cold_cohort {
+        if !AddSummary(*document, summary, "native-cold", cold_samples[:]) { return 1 }
+    }
+    if warm_cohort {
+        if !AddSummary(*document, summary, "native-warm", warm_samples[:]) { return 1 }
+    }
+    if c_cohort {
+        if !AddSummary(*document, summary, "c", c_samples[:]) { return 1 }
+    }
+    if aot_cohort {
+        if !AddSummary(*document, summary, "aot", aot_samples[:]) { return 1 }
+    }
+    JsonSet(*document, root, "summary", summary)
+    after_load_ok, after_one, after_five, after_fifteen := LoadAverages()
+    after := JsonNewObject(*document)
+    after_load := JsonNewArray(*document)
+    JsonAppend(*document, after_load, JsonNewNumber(*document, Real(after_one)))
+    JsonAppend(*document, after_load, JsonNewNumber(*document, Real(after_five)))
+    JsonAppend(*document, after_load, JsonNewNumber(*document, Real(after_fifteen)))
+    JsonSet(*document, after, "load", after_load)
+    Put(*document, after, "governor", governor)
+    JsonSet(*document, root, "after", after)
+
+    verified := Hash(bench_source, repo) == prepared_bench_hash
+    verified = verified && Hash(host_source, repo) == prepared_host_hash
+    verified = verified && Hash(control_source, repo) == prepared_control_hash
+    verified = verified && Hash(library, repo) == prepared_library_hash
+    verified = verified && Hash(fixture, repo) == TextDetach(JsonString(*document, JsonMember(*document, artifacts, "fixture")))
+    verified = verified && before_load_ok && after_load_ok
+    integrity := JsonNewObject(*document)
+    integrity_sources := JsonNewObject(*document)
+    Put(*document, integrity_sources, "bench/zx_compare.zi", Hash(bench_source, repo))
+    Put(*document, integrity_sources, "bench/zx_compare_host.c", Hash(host_source, repo))
+    Put(*document, integrity_sources, "bench/zx_compare_control.c", Hash(control_source, repo))
+    JsonSet(*document, integrity, "sources", integrity_sources)
+    Put(*document, integrity, "library_sha256", Hash(library, repo))
+    JsonSet(*document, integrity, "verified", JsonNewBool(*document, verified))
+    JsonSet(*document, root, "integrity", integrity)
+    JsonSet(*document, root, "measurement_loop_finished", JsonNewBool(*document, true))
+    saved := SaveReceipt(*document, root, out)
+    print("receipt: %\n", out)
+    return ifx verified && saved then 0 else 1
+}
+

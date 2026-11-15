@@ -406,3 +406,25 @@ control. The C control (0.004596 / 0.006251 ms) is close to the M0 receipt's C
 control on the same host (0.0048 / 0.0066 ms). This closes M3's interim
 comparison item; it is not parity with TinyCC, and native code-quality work
 continues in later milestones.
+
+### Omega cohort at pushed master (2026-11-15)
+
+The same driver and flags also ran on Omega, in a clean clone of pushed
+`699eb20c` with its own build, writing
+`results/zx-compare-omega-native-2026-11-15.json` (SHA-256
+`24305d24c47b50312dd7a8f50bc11a16ba2cad2e59fcf45c17d7e2694b4d8806`). Omega is
+an AMD Ryzen 9 9950X (machine ID `f4fdf763de024f88b69641dcaa99e52b`,
+virtualization `none`, governor `powersave`), and it was busy: load average
+17.67 / 12.27 / 11.93 before and 15.96 / 12.42 / 12.00 after on 32 threads,
+with I/O pressure above 70% while the run queued. All 72 samples passed the
+same oracle, backend, IQR and M0 byte-identity checks as the Alpha receipt.
+Omega is not the measurement host and its numbers are not comparable with the
+Alpha M0 TinyCC rows; they show the cohorts' order on a second machine.
+
+| Workload (Omega) | Portable engine | Native ZX cold | Native ZX warm | C control | AOT ELF (whole process) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Scalar | 0.186089 / 0.187527 | 0.334988 / 0.479878 | 0.023957 / 0.026260 | 0.003780 / 0.003813 | 0.526038 / 0.555308 |
+| Structured | 0.403903 / 0.453665 | 0.388488 / 0.455708 | 0.019796 / 0.020402 | 0.004354 / 0.004364 | 0.559788 / 0.657307 |
+
+On Omega warm native ZX is 7.8× faster than the engine on scalar work and
+20.4× on structured work, and 6.3× / 4.5× slower than the C control.

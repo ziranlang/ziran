@@ -53,6 +53,7 @@
   <url><loc>https://ziran-lang.org/std/calendar</loc></url>
   <url><loc>https://ziran-lang.org/std/channel_go</loc></url>
   <url><loc>https://ziran-lang.org/std/constant_time</loc></url>
+  <url><loc>https://ziran-lang.org/std/context</loc></url>
   <url><loc>https://ziran-lang.org/std/context_go</loc></url>
   <url><loc>https://ziran-lang.org/std/date_parse</loc></url>
   <url><loc>https://ziran-lang.org/std/date_time</loc></url>
@@ -122,6 +123,7 @@
   <url><loc>https://ziran-lang.org/std/stdio_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/string_range</loc></url>
   <url><loc>https://ziran-lang.org/std/sync_go</loc></url>
+  <url><loc>https://ziran-lang.org/std/temp</loc></url>
   <url><loc>https://ziran-lang.org/std/text</loc></url>
   <url><loc>https://ziran-lang.org/std/text_buffer</loc></url>
   <url><loc>https://ziran-lang.org/std/text_go</loc></url>

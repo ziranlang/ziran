@@ -1,0 +1,1222 @@
+{
+  "schema": "2",
+  "benchmark": "zx-compare-2",
+  "target": "omega",
+  "commit": "699eb20c699c3c3be2dd833bb4ff8f85fc29b06e",
+  "started_utc": "2026-11-15T23:21:39Z",
+  "cohorts_requested": [
+    "engine",
+    "native-cold",
+    "native-warm",
+    "aot",
+    "c"
+  ],
+  "protocol": {
+    "fixture": "bench/zx_compare.zi Answer with the host_api Input bound to seed, rounds and kind; kind 1 mixes a 32-cell struct workload",
+    "rounds": 4096,
+    "batches": 16,
+    "samples": 9,
+    "seed_base": 123456,
+    "trial_stride": 100,
+    "warmup": "the helper warms at least 500 ms before its measured batches",
+    "engine": "per-entry ms = warm batch wall / batches; checksum verified for every measured batch",
+    "native_cold": "one fresh helper process per sample; cold ms = load + instantiate + first entry",
+    "native_warm": "per-entry ms = warm batch wall / batches from the same fresh process",
+    "aot": "whole-process wall of the zx2native ELF, startup included, base seed only",
+    "c": "the helper rebuilt with -DCONTROL calls the C Bench oracle in-process; backend none",
+    "order": "fixed interleaving per trial and kind: engine, native, c, aot",
+    "outliers": "symmetric 1.5 x IQR excluded; raw samples retained"
+  },
+  "machine": {
+    "hostname": "omega",
+    "machine_id": "f4fdf763de024f88b69641dcaa99e52b",
+    "platform": "Linux 7.2.12+deb13-amd64",
+    "cpu": "processor\t: 0\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5379.436\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 0\ncpu cores\t: 16\napicid\t\t: 0\ninitial apicid\t: 0\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 1\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5390.371\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 1\ncpu cores\t: 16\napicid\t\t: 2\ninitial apicid\t: 2\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 2\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5387.101\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 2\ncpu cores\t: 16\napicid\t\t: 4\ninitial apicid\t: 4\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 3\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 2884.770\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 3\ncpu cores\t: 16\napicid\t\t: 6\ninitial apicid\t: 6\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 4\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5375.569\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 4\ncpu cores\t: 16\napicid\t\t: 8\ninitial apicid\t: 8\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 5\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 3156.593\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 5\ncpu cores\t: 16\napicid\t\t: 10\ninitial apicid\t: 10\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 6\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5381.992\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 6\ncpu cores\t: 16\napicid\t\t: 12\ninitial apicid\t: 12\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 7\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5389.768\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 7\ncpu cores\t: 16\napicid\t\t: 14\ninitial apicid\t: 14\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 8\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5120.379\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 8\ncpu cores\t: 16\napicid\t\t: 16\ninitial apicid\t: 16\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 9\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5108.551\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 9\ncpu cores\t: 16\napicid\t\t: 18\ninitial apicid\t: 18\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 10\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5093.266\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 10\ncpu cores\t: 16\napicid\t\t: 20\ninitial apicid\t: 20\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 11\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 3460.308\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 11\ncpu cores\t: 16\napicid\t\t: 22\ninitial apicid\t: 22\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 12\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5105.215\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 12\ncpu cores\t: 16\napicid\t\t: 24\ninitial apicid\t: 24\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 13\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5121.543\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 13\ncpu cores\t: 16\napicid\t\t: 26\ninitial apicid\t: 26\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 14\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5106.976\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 14\ncpu cores\t: 16\napicid\t\t: 28\ninitial apicid\t: 28\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 15\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5124.175\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 15\ncpu cores\t: 16\napicid\t\t: 30\ninitial apicid\t: 30\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 16\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5393.237\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 0\ncpu cores\t: 16\napicid\t\t: 1\ninitial apicid\t: 1\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 17\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5390.188\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 1\ncpu cores\t: 16\napicid\t\t: 3\ninitial apicid\t: 3\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 18\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5389.765\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 2\ncpu cores\t: 16\napicid\t\t: 5\ninitial apicid\t: 5\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 19\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 3742.576\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 3\ncpu cores\t: 16\napicid\t\t: 7\ninitial apicid\t: 7\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 20\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5393.916\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 4\ncpu cores\t: 16\napicid\t\t: 9\ninitial apicid\t: 9\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 21\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 3879.352\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 5\ncpu cores\t: 16\napicid\t\t: 11\ninitial apicid\t: 11\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 22\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5393.809\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 6\ncpu cores\t: 16\napicid\t\t: 13\ninitial apicid\t: 13\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 23\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5390.031\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 7\ncpu cores\t: 16\napicid\t\t: 15\ninitial apicid\t: 15\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 24\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5102.194\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 8\ncpu cores\t: 16\napicid\t\t: 17\ninitial apicid\t: 17\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 25\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5097.946\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 9\ncpu cores\t: 16\napicid\t\t: 19\ninitial apicid\t: 19\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 26\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5125.627\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 10\ncpu cores\t: 16\napicid\t\t: 21\ninitial apicid\t: 21\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 27\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 3364.449\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 11\ncpu cores\t: 16\napicid\t\t: 23\ninitial apicid\t: 23\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 28\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5121.487\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 12\ncpu cores\t: 16\napicid\t\t: 25\ninitial apicid\t: 25\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 29\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5099.738\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 13\ncpu cores\t: 16\napicid\t\t: 27\ninitial apicid\t: 27\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 30\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5118.582\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 14\ncpu cores\t: 16\napicid\t\t: 29\ninitial apicid\t: 29\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]\n\nprocessor\t: 31\nvendor_id\t: AuthenticAMD\ncpu family\t: 26\nmodel\t\t: 68\nmodel name\t: AMD Ryzen 9 9950X 16-Core Processor\nstepping\t: 0\nmicrocode\t: 0xb404023\ncpu MHz\t\t: 5090.457\ncache size\t: 1024 KB\nphysical id\t: 0\nsiblings\t: 32\ncore id\t\t: 15\ncpu cores\t: 16\napicid\t\t: 31\ninitial apicid\t: 31\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 16\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx_vnni avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid bus_lock_detect movdiri movdir64b overflow_recov succor smca fsrm avx512_vp2intersect flush_l1d amd_lbr_pmc_freeze\nbugs\t\t: sysret_ss_attrs spectre_v1 spectre_v2 spec_store_bypass srso spectre_v2_user vmscape\nbogomips\t: 8600.02\nTLB size\t: 192 4K pages\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 48 bits physical, 48 bits virtual\npower management: ts ttp tm hwpstate cpb eff_freq_ro [13] [14]",
+    "governor": "powersave",
+    "virtualization": "none",
+    "attestation": {
+      "harmony_alpha_git_scoped": "",
+      "harmony_alpha_host_virtualization": "",
+      "hostname_ok": false,
+      "machine_id_ok": false,
+      "scoped_ok": false,
+      "virtualization_ok": false
+    }
+  },
+  "before": {
+    "unix": 1794784899,
+    "load": [
+      17.67,
+      12.27,
+      11.93
+    ],
+    "governor": "powersave"
+  },
+  "prepared": {
+    "queue_jobs": "1",
+    "commands": [
+      {
+        "argv": [
+          "build/bin/zi2zx",
+          "--root",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/bench",
+          "--entry",
+          "zx_compare:Answer",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/fixture.zx",
+          "bench/zx_compare.zi"
+        ],
+        "elapsed_ms": 60.613654,
+        "code": 0
+      },
+      {
+        "argv": [
+          "cc",
+          "-O3",
+          "-std=c11",
+          "-Iinclude",
+          "bench/zx_compare_host.c",
+          "build/libziran.a",
+          "-lm",
+          "-pthread",
+          "-ldl",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx-host"
+        ],
+        "elapsed_ms": 45.51529,
+        "code": 0
+      },
+      {
+        "argv": [
+          "cc",
+          "-O3",
+          "-std=c11",
+          "-DCONTROL",
+          "-Iinclude",
+          "bench/zx_compare_host.c",
+          "bench/zx_compare_control.c",
+          "-lm",
+          "-pthread",
+          "-ldl",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/control"
+        ],
+        "elapsed_ms": 47.070043,
+        "code": 0
+      },
+      {
+        "argv": [
+          "build/bin/zi2zx",
+          "--root",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native",
+          "--entry",
+          "zx_compare_aot0:main",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx_compare_aot0.zx",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx_compare_aot0.zi"
+        ],
+        "elapsed_ms": 2.736798,
+        "code": 0
+      },
+      {
+        "argv": [
+          "build/bin/zx2native",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx_compare_aot0-elf",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx_compare_aot0.zx"
+        ],
+        "elapsed_ms": 1.574443,
+        "code": 0
+      },
+      {
+        "argv": [
+          "build/bin/zi2zx",
+          "--root",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native",
+          "--entry",
+          "zx_compare_aot1:main",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx_compare_aot1.zx",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx_compare_aot1.zi"
+        ],
+        "elapsed_ms": 2.725538,
+        "code": 0
+      },
+      {
+        "argv": [
+          "build/bin/zx2native",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx_compare_aot1-elf",
+          "/mnt/storage/Projects/ziranlang/ziran/work/m3c/build/benchmarks/zx-compare-native/zx_compare_aot1.zx"
+        ],
+        "elapsed_ms": 1.596143,
+        "code": 0
+      }
+    ],
+    "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+    "source_revision": "699eb20c699c3c3be2dd833bb4ff8f85fc29b06e",
+    "library_sha256": "fae3dc940d18e2f7fcbe1c85cd2a986c08f1d808bc0c7db42c19eb701f12c8b4",
+    "sources": {
+      "bench/zx_compare.zi": "1f1fb938e8a550bb5526c68eb137281cd30171db377ce87c039ea8d60f16a01b",
+      "bench/zx_compare_host.c": "f84f78091a53f5601b332338ae3657b397cb9d8ce0ac88db4d4b6626d634887c",
+      "bench/zx_compare_control.c": "9ae6232cbeb511a0178f712421028d2652dd2346a40b4fcda3bac6b54a5be689"
+    }
+  },
+  "artifacts": {
+    "fixture": "244e926262f08e004ebe4b1b5f3fcaf4e8ebc16010f54923e9022f49db1dea6d",
+    "zx_host": "b89fd6a32937f13f6def64cc921b0d2ed236c9e731582e43aa0e4d238e72ea2b",
+    "control": "73a9dd06ed27ae6b3b22a52ed05f7e6939381be9e4609930c0bea2d59e8c3a30",
+    "aot_elf_0": "48d6c58b8d45a4753db64b9714d22056c81b5385295ded68404a8c4cbff9beda",
+    "aot_elf_1": "20b14ad377a0651891fdd8575f5d057a942997fd21e82c81b67d79ff1df1f3c5"
+  },
+  "m0": {
+    "receipt": "bench/results/zx-compare-alpha-physical-2026-11-12.json",
+    "sha256": "25a4b044e8b90e9784df6065424d399da2eee82bb1ac0bbaa22906e66d796349",
+    "note": "vm and native summary entries copied verbatim from the M0 TinyCC receipt",
+    "summary": [
+      {
+        "kind": 0,
+        "variant": "vm",
+        "n": 7,
+        "raw": [
+          2.3135580623125,
+          2.3151201249375,
+          2.328761750125,
+          2.3154251249375,
+          2.300098124875,
+          2.3182913125625,
+          2.322748687375,
+          2.323511812625,
+          2.3829193750625
+        ],
+        "excluded_indices": [
+          4,
+          8
+        ],
+        "median_ms": 2.3182913125625,
+        "p95_ms": 2.328761750125
+      },
+      {
+        "kind": 0,
+        "variant": "native",
+        "n": 9,
+        "raw": [
+          0.0171590000625,
+          0.0170970624375,
+          0.0171106250625,
+          0.0171155000625,
+          0.0170288125625,
+          0.0171497499375,
+          0.0170809999375,
+          0.0171024999375,
+          0.0171805625
+        ],
+        "excluded_indices": [],
+        "median_ms": 0.0171106250625,
+        "p95_ms": 0.0171805625
+      },
+      {
+        "kind": 1,
+        "variant": "vm",
+        "n": 9,
+        "raw": [
+          8.3950041875,
+          8.3522531250625,
+          8.349344,
+          8.4575499375625,
+          8.6062970000625,
+          8.5812945624375,
+          8.5909364375,
+          8.3613506250625,
+          8.6203795000625
+        ],
+        "excluded_indices": [],
+        "median_ms": 8.4575499375625,
+        "p95_ms": 8.6203795000625
+      },
+      {
+        "kind": 1,
+        "variant": "native",
+        "n": 8,
+        "raw": [
+          0.0431850625,
+          0.042602249875,
+          0.0424963124375,
+          0.0428277500625,
+          0.0426195000625,
+          0.0454648749375,
+          0.0424104375,
+          0.043461562625,
+          0.042868500125
+        ],
+        "excluded_indices": [
+          5
+        ],
+        "median_ms": 0.042723625062500006,
+        "p95_ms": 0.043461562625
+      }
+    ]
+  },
+  "samples": [
+    {
+      "trial": 0,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1927098125625,
+      "load_ms": 0.214980001,
+      "instantiate_ms": 0.004140001,
+      "first_ms": 0.219139,
+      "warm_ms": 3.083357001,
+      "batches": 16,
+      "checksum": 70677396455424,
+      "backend": "Engine"
+    },
+    {
+      "trial": 0,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.479877998,
+      "per_entry_ms": 0.0257230000625,
+      "load_ms": 0.249599,
+      "instantiate_ms": 0.187488999,
+      "first_ms": 0.042789999,
+      "warm_ms": 0.411568001,
+      "batches": 16,
+      "checksum": 70677396455424,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 0,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.00378,
+      "batches": 16,
+      "checksum": 70677396455424
+    },
+    {
+      "trial": 0,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.524368
+    },
+    {
+      "trial": 0,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.453664875,
+      "load_ms": 0.240579,
+      "instantiate_ms": 0.0063,
+      "first_ms": 0.497097999,
+      "warm_ms": 7.258638,
+      "batches": 16,
+      "checksum": 1080084480,
+      "backend": "Engine"
+    },
+    {
+      "trial": 0,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.388488,
+      "per_entry_ms": 0.0196224374375,
+      "load_ms": 0.214729,
+      "instantiate_ms": 0.12875,
+      "first_ms": 0.045009,
+      "warm_ms": 0.313958999,
+      "batches": 16,
+      "checksum": 1080084480,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 0,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0042743750625,
+      "batches": 16,
+      "checksum": 1080084480
+    },
+    {
+      "trial": 0,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.464668
+    },
+    {
+      "trial": 1,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1927585,
+      "load_ms": 0.214818999,
+      "instantiate_ms": 0.00499,
+      "first_ms": 0.193179,
+      "warm_ms": 3.084136,
+      "batches": 16,
+      "checksum": 70497009664000,
+      "backend": "Engine"
+    },
+    {
+      "trial": 1,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.330309,
+      "per_entry_ms": 0.017862375,
+      "load_ms": 0.235879,
+      "instantiate_ms": 0.04524,
+      "first_ms": 0.04919,
+      "warm_ms": 0.285798,
+      "batches": 16,
+      "checksum": 70497009664000,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 1,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.003745,
+      "batches": 16,
+      "checksum": 70497009664000
+    },
+    {
+      "trial": 1,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.498798
+    },
+    {
+      "trial": 1,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.4017832500625,
+      "load_ms": 0.220539,
+      "instantiate_ms": 0.00488,
+      "first_ms": 0.484557999,
+      "warm_ms": 6.428532001,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "Engine"
+    },
+    {
+      "trial": 1,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.404188,
+      "per_entry_ms": 0.0197280000625,
+      "load_ms": 0.223338999,
+      "instantiate_ms": 0.134729,
+      "first_ms": 0.046120001,
+      "warm_ms": 0.315648001,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 1,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0043481249375,
+      "batches": 16,
+      "checksum": 1076021248
+    },
+    {
+      "trial": 1,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.594307
+    },
+    {
+      "trial": 2,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1865304374375,
+      "load_ms": 0.232609,
+      "instantiate_ms": 0.00508,
+      "first_ms": 0.200468998,
+      "warm_ms": 2.984486999,
+      "batches": 16,
+      "checksum": 70235018493952,
+      "backend": "Engine"
+    },
+    {
+      "trial": 2,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.304988999,
+      "per_entry_ms": 0.0215811875,
+      "load_ms": 0.219989,
+      "instantiate_ms": 0.046709999,
+      "first_ms": 0.03829,
+      "warm_ms": 0.345299,
+      "batches": 16,
+      "checksum": 70235018493952,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 2,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0037143125625,
+      "batches": 16,
+      "checksum": 70235018493952
+    },
+    {
+      "trial": 2,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.534228
+    },
+    {
+      "trial": 2,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.446196125,
+      "load_ms": 0.217949001,
+      "instantiate_ms": 0.004989998,
+      "first_ms": 0.433227999,
+      "warm_ms": 7.139138,
+      "batches": 16,
+      "checksum": 1077856256,
+      "backend": "Engine"
+    },
+    {
+      "trial": 2,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.303178999,
+      "per_entry_ms": 0.019264875,
+      "load_ms": 0.214309001,
+      "instantiate_ms": 0.042709999,
+      "first_ms": 0.046159999,
+      "warm_ms": 0.308238,
+      "batches": 16,
+      "checksum": 1077856256,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 2,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0044730624375,
+      "batches": 16,
+      "checksum": 1077856256
+    },
+    {
+      "trial": 2,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.503918
+    },
+    {
+      "trial": 3,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1860885625,
+      "load_ms": 0.239319,
+      "instantiate_ms": 0.00484,
+      "first_ms": 0.222849,
+      "warm_ms": 2.977417,
+      "batches": 16,
+      "checksum": 70329509609472,
+      "backend": "Engine"
+    },
+    {
+      "trial": 3,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.334987998,
+      "per_entry_ms": 0.0262604999375,
+      "load_ms": 0.229258999,
+      "instantiate_ms": 0.058048999,
+      "first_ms": 0.04768,
+      "warm_ms": 0.420167999,
+      "batches": 16,
+      "checksum": 70329509609472,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 3,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0038061875625,
+      "batches": 16,
+      "checksum": 70329509609472
+    },
+    {
+      "trial": 3,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.555308
+    },
+    {
+      "trial": 3,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.3956276874375,
+      "load_ms": 0.249429001,
+      "instantiate_ms": 0.00488,
+      "first_ms": 0.407488,
+      "warm_ms": 6.330042999,
+      "batches": 16,
+      "checksum": 1077069824,
+      "backend": "Engine"
+    },
+    {
+      "trial": 3,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.45570799900000003,
+      "per_entry_ms": 0.0202405625,
+      "load_ms": 0.251249,
+      "instantiate_ms": 0.149838999,
+      "first_ms": 0.05462,
+      "warm_ms": 0.323849,
+      "batches": 16,
+      "checksum": 1077069824,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 3,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0043643749375,
+      "batches": 16,
+      "checksum": 1077069824
+    },
+    {
+      "trial": 3,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.797696
+    },
+    {
+      "trial": 4,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1850229375,
+      "load_ms": 0.231728999,
+      "instantiate_ms": 0.00708,
+      "first_ms": 0.196229,
+      "warm_ms": 2.960367,
+      "batches": 16,
+      "checksum": 70310184091648,
+      "backend": "Engine"
+    },
+    {
+      "trial": 4,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.396707999,
+      "per_entry_ms": 0.023957375,
+      "load_ms": 0.235408999,
+      "instantiate_ms": 0.120889001,
+      "first_ms": 0.040409999,
+      "warm_ms": 0.383318,
+      "batches": 16,
+      "checksum": 70310184091648,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 4,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.003790000125,
+      "batches": 16,
+      "checksum": 70310184091648
+    },
+    {
+      "trial": 4,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.636677
+    },
+    {
+      "trial": 4,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.3992745,
+      "load_ms": 0.231979001,
+      "instantiate_ms": 0.00519,
+      "first_ms": 0.427838001,
+      "warm_ms": 6.388392,
+      "batches": 16,
+      "checksum": 1079560192,
+      "backend": "Engine"
+    },
+    {
+      "trial": 4,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.329778,
+      "per_entry_ms": 0.0201323750625,
+      "load_ms": 0.237478999,
+      "instantiate_ms": 0.047870001,
+      "first_ms": 0.044429,
+      "warm_ms": 0.322118001,
+      "batches": 16,
+      "checksum": 1079560192,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 4,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0042962500625,
+      "batches": 16,
+      "checksum": 1079560192
+    },
+    {
+      "trial": 4,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.538467
+    },
+    {
+      "trial": 5,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1875266875,
+      "load_ms": 0.226559,
+      "instantiate_ms": 0.004830001,
+      "first_ms": 0.195398999,
+      "warm_ms": 3.000427,
+      "batches": 16,
+      "checksum": 70372462952448,
+      "backend": "Engine"
+    },
+    {
+      "trial": 5,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.306658,
+      "per_entry_ms": 0.0122055625625,
+      "load_ms": 0.222219002,
+      "instantiate_ms": 0.046638999,
+      "first_ms": 0.037799999,
+      "warm_ms": 0.195289001,
+      "batches": 16,
+      "checksum": 70372462952448,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 5,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.003743125,
+      "batches": 16,
+      "checksum": 70372462952448
+    },
+    {
+      "trial": 5,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.307549
+    },
+    {
+      "trial": 5,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.4272800000625,
+      "load_ms": 0.294469001,
+      "instantiate_ms": 0.004919,
+      "first_ms": 0.461818,
+      "warm_ms": 6.836480001,
+      "batches": 16,
+      "checksum": 1080084480,
+      "backend": "Engine"
+    },
+    {
+      "trial": 5,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.428838001,
+      "per_entry_ms": 0.020053625,
+      "load_ms": 0.235739,
+      "instantiate_ms": 0.147849001,
+      "first_ms": 0.04525,
+      "warm_ms": 0.320858,
+      "batches": 16,
+      "checksum": 1080084480,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 5,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0043425,
+      "batches": 16,
+      "checksum": 1080084480
+    },
+    {
+      "trial": 5,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.589257
+    },
+    {
+      "trial": 6,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1850791875,
+      "load_ms": 0.229979001,
+      "instantiate_ms": 0.005349999,
+      "first_ms": 0.209299,
+      "warm_ms": 2.961267,
+      "batches": 16,
+      "checksum": 70286565441536,
+      "backend": "Engine"
+    },
+    {
+      "trial": 6,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.35230900100000007,
+      "per_entry_ms": 0.0260449375625,
+      "load_ms": 0.252479,
+      "instantiate_ms": 0.05137,
+      "first_ms": 0.048460001,
+      "warm_ms": 0.416719001,
+      "batches": 16,
+      "checksum": 70286565441536,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 6,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0038131249375,
+      "batches": 16,
+      "checksum": 70286565441536
+    },
+    {
+      "trial": 6,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.526038
+    },
+    {
+      "trial": 6,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.403903187625,
+      "load_ms": 0.229838999,
+      "instantiate_ms": 0.004620001,
+      "first_ms": 0.410799,
+      "warm_ms": 6.462451002,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "Engine"
+    },
+    {
+      "trial": 6,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.42339799899999997,
+      "per_entry_ms": 0.020402375,
+      "load_ms": 0.331679,
+      "instantiate_ms": 0.04556,
+      "first_ms": 0.046158999,
+      "warm_ms": 0.326438,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 6,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.00436375,
+      "batches": 16,
+      "checksum": 1076021248
+    },
+    {
+      "trial": 6,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.563658
+    },
+    {
+      "trial": 7,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1856648124375,
+      "load_ms": 0.234438999,
+      "instantiate_ms": 0.004550001,
+      "first_ms": 0.210128998,
+      "warm_ms": 2.970636999,
+      "batches": 16,
+      "checksum": 70428301197312,
+      "backend": "Engine"
+    },
+    {
+      "trial": 7,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.406598,
+      "per_entry_ms": 0.0189699374375,
+      "load_ms": 0.225729,
+      "instantiate_ms": 0.140010001,
+      "first_ms": 0.040858999,
+      "warm_ms": 0.303518999,
+      "batches": 16,
+      "checksum": 70428301197312,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 7,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0037275,
+      "batches": 16,
+      "checksum": 70428301197312
+    },
+    {
+      "trial": 7,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.546257
+    },
+    {
+      "trial": 7,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.3995688750625,
+      "load_ms": 0.218178999,
+      "instantiate_ms": 0.00467,
+      "first_ms": 0.403398,
+      "warm_ms": 6.393102001,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "Engine"
+    },
+    {
+      "trial": 7,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.290459,
+      "per_entry_ms": 0.0195430625625,
+      "load_ms": 0.207799001,
+      "instantiate_ms": 0.041299999,
+      "first_ms": 0.04136,
+      "warm_ms": 0.312689001,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 7,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0043374374375,
+      "batches": 16,
+      "checksum": 1076021248
+    },
+    {
+      "trial": 7,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.555918
+    },
+    {
+      "trial": 8,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.1872354375625,
+      "load_ms": 0.225319,
+      "instantiate_ms": 0.00498,
+      "first_ms": 0.197269,
+      "warm_ms": 2.995767001,
+      "batches": 16,
+      "checksum": 70522792312832,
+      "backend": "Engine"
+    },
+    {
+      "trial": 8,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.309939,
+      "per_entry_ms": 0.0242243125,
+      "load_ms": 0.226198999,
+      "instantiate_ms": 0.045370001,
+      "first_ms": 0.03837,
+      "warm_ms": 0.387589,
+      "batches": 16,
+      "checksum": 70522792312832,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 8,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.003806875,
+      "batches": 16,
+      "checksum": 70522792312832
+    },
+    {
+      "trial": 8,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.482988
+    },
+    {
+      "trial": 8,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 0.4065813125625,
+      "load_ms": 0.283869,
+      "instantiate_ms": 0.00592,
+      "first_ms": 0.421309,
+      "warm_ms": 6.505301001,
+      "batches": 16,
+      "checksum": 1079887872,
+      "backend": "Engine"
+    },
+    {
+      "trial": 8,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.33140799899999995,
+      "per_entry_ms": 0.0197955,
+      "load_ms": 0.217879001,
+      "instantiate_ms": 0.06718,
+      "first_ms": 0.046348998,
+      "warm_ms": 0.316728,
+      "batches": 16,
+      "checksum": 1079887872,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 8,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.004359375,
+      "batches": 16,
+      "checksum": 1079887872
+    },
+    {
+      "trial": 8,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.657307
+    }
+  ],
+  "summary": [
+    {
+      "cohort": "engine",
+      "kind": 0,
+      "n": 7,
+      "raw": [
+        0.1927098125625,
+        0.1927585,
+        0.1865304374375,
+        0.1860885625,
+        0.1850229375,
+        0.1875266875,
+        0.1850791875,
+        0.1856648124375,
+        0.1872354375625
+      ],
+      "excluded_indices": [
+        0,
+        1
+      ],
+      "median_ms": 0.1860885625,
+      "p95_ms": 0.1875266875
+    },
+    {
+      "cohort": "engine",
+      "kind": 1,
+      "n": 9,
+      "raw": [
+        0.453664875,
+        0.4017832500625,
+        0.446196125,
+        0.3956276874375,
+        0.3992745,
+        0.4272800000625,
+        0.403903187625,
+        0.3995688750625,
+        0.4065813125625
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.403903187625,
+      "p95_ms": 0.453664875
+    },
+    {
+      "cohort": "native-cold",
+      "kind": 0,
+      "n": 9,
+      "raw": [
+        0.479877998,
+        0.330309,
+        0.304988999,
+        0.334987998,
+        0.396707999,
+        0.306658,
+        0.35230900100000007,
+        0.406598,
+        0.309939
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.334987998,
+      "p95_ms": 0.479877998
+    },
+    {
+      "cohort": "native-cold",
+      "kind": 1,
+      "n": 9,
+      "raw": [
+        0.388488,
+        0.404188,
+        0.303178999,
+        0.45570799900000003,
+        0.329778,
+        0.428838001,
+        0.42339799899999997,
+        0.290459,
+        0.33140799899999995
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.388488,
+      "p95_ms": 0.45570799900000003
+    },
+    {
+      "cohort": "native-warm",
+      "kind": 0,
+      "n": 9,
+      "raw": [
+        0.0257230000625,
+        0.017862375,
+        0.0215811875,
+        0.0262604999375,
+        0.023957375,
+        0.0122055625625,
+        0.0260449375625,
+        0.0189699374375,
+        0.0242243125
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.023957375,
+      "p95_ms": 0.0262604999375
+    },
+    {
+      "cohort": "native-warm",
+      "kind": 1,
+      "n": 9,
+      "raw": [
+        0.0196224374375,
+        0.0197280000625,
+        0.019264875,
+        0.0202405625,
+        0.0201323750625,
+        0.020053625,
+        0.020402375,
+        0.0195430625625,
+        0.0197955
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.0197955,
+      "p95_ms": 0.020402375
+    },
+    {
+      "cohort": "c",
+      "kind": 0,
+      "n": 9,
+      "raw": [
+        0.00378,
+        0.003745,
+        0.0037143125625,
+        0.0038061875625,
+        0.003790000125,
+        0.003743125,
+        0.0038131249375,
+        0.0037275,
+        0.003806875
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.00378,
+      "p95_ms": 0.0038131249375
+    },
+    {
+      "cohort": "c",
+      "kind": 1,
+      "n": 6,
+      "raw": [
+        0.0042743750625,
+        0.0043481249375,
+        0.0044730624375,
+        0.0043643749375,
+        0.0042962500625,
+        0.0043425,
+        0.00436375,
+        0.0043374374375,
+        0.004359375
+      ],
+      "excluded_indices": [
+        0,
+        2,
+        4
+      ],
+      "median_ms": 0.00435374996875,
+      "p95_ms": 0.0043643749375
+    },
+    {
+      "cohort": "aot",
+      "kind": 0,
+      "n": 7,
+      "raw": [
+        0.524368,
+        0.498798,
+        0.534228,
+        0.555308,
+        0.636677,
+        0.307549,
+        0.526038,
+        0.546257,
+        0.482988
+      ],
+      "excluded_indices": [
+        4,
+        5
+      ],
+      "median_ms": 0.526038,
+      "p95_ms": 0.555308
+    },
+    {
+      "cohort": "aot",
+      "kind": 1,
+      "n": 8,
+      "raw": [
+        0.464668,
+        0.594307,
+        0.503918,
+        0.797696,
+        0.538467,
+        0.589257,
+        0.563658,
+        0.555918,
+        0.657307
+      ],
+      "excluded_indices": [
+        3
+      ],
+      "median_ms": 0.559788,
+      "p95_ms": 0.657307
+    }
+  ],
+  "after": {
+    "load": [
+      15.96,
+      12.42,
+      12.0
+    ],
+    "governor": "powersave"
+  },
+  "integrity": {
+    "sources": {
+      "bench/zx_compare.zi": "1f1fb938e8a550bb5526c68eb137281cd30171db377ce87c039ea8d60f16a01b",
+      "bench/zx_compare_host.c": "f84f78091a53f5601b332338ae3657b397cb9d8ce0ac88db4d4b6626d634887c",
+      "bench/zx_compare_control.c": "9ae6232cbeb511a0178f712421028d2652dd2346a40b4fcda3bac6b54a5be689"
+    },
+    "library_sha256": "fae3dc940d18e2f7fcbe1c85cd2a986c08f1d808bc0c7db42c19eb701f12c8b4",
+    "verified": true
+  },
+  "measurement_loop_finished": true
+}

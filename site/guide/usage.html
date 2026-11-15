@@ -1173,6 +1173,71 @@ backing allocation in addition to already-live old capacity, then reconcile
 against actual capacity after success. Default staging for managed elements
 and runtime object overhead require separate accounting. Ordinary Go fatal
 physical OOM remains outside recoverable allocation failures.</p>
+<h3 id="scoped-temporary-storage">Scoped temporary storage</h3>
+<p><code>std/temp</code> provides one explicit temporary byte arena for a frame, request, or
+other bounded scope. <code>TempSlice(*arena, count)</code> and <code>TempText(*arena, value)</code>
+append initialized scratch, <code>TempMark(*arena)</code> records the current boundary,
+and <code>TempReset(*arena, mark)</code> releases everything after it. Finish with
+<code>TempEnd(*arena)</code>, normally through <code>defer</code>:</p>
+<pre><code class="language-zi">#import &quot;std/temp&quot;
+
+Frame :: () -&gt; s32 {
+    arena := TempBegin()
+    defer TempEnd(*arena)
+    mark := TempMark(*arena)
+    label_ok := false
+    {
+        label := TempText(*arena, &quot;row&quot;)
+        label_ok = label == &quot;row&quot;
+    }
+    if !label_ok { return 1 }
+    cells_ok := false
+    {
+        cells := TempSlice(*arena, 64)
+        cells_ok = cells.count == 64
+    }
+    if !cells_ok { return 1 }
+    if !TempReset(*arena, mark) { return 2 }
+    return 0
+}
+</code></pre>
+<p>Slices and text are borrowed views and cannot remain live across a reset under
+the normal Vec borrow rules. Raw checked pointers are generation-bound too:
+reset-to-mark replaces and releases the old allocation, so a pointer retained
+after its view ends traps if used on the engine or native backend instead of
+silently naming reused scratch. A negative size, arithmetic overflow,
+allocation failure, null arena, or mark outside the current initialized range
+fails without changing the arena. A zero-size request returns an empty view.
+The module is ordinary checked Ziran and has the same API on C, Go, Wasm,
+portable ZX engine, and native execution.</p>
+<h3 id="explicit-scoped-context">Explicit scoped context</h3>
+<p><code>std/context</code> defines a portable <code>Context</code> record with a capture-free logger,
+scope tag, and owned <code>Temp</code> allocator. Libraries accept <code>*Context</code> explicitly;
+there is no hidden parameter or process-global current context:</p>
+<pre><code class="language-zi">#import &quot;std/context&quot;
+#import &quot;std/temp&quot;
+
+Log :: (tag: string, message: string) { print(&quot;%: %\n&quot;, tag, message) }
+
+Serve :: (context: *Context, request: string) -&gt; s32 {
+    defer ContextLog(context, &quot;done&quot;)
+    ContextLog(context, &quot;start&quot;)
+    return request.count
+}
+
+Run :: () -&gt; s32 {
+    context := Context.{.logger = Log, .tag = &quot;http&quot;, .allocator = TempBegin()}
+    defer ContextEnd(*context)
+    return Serve(*context, &quot;GET /&quot;)
+}
+</code></pre>
+<p><code>ContextLog</code> does nothing when either the context or its logger is null.
+Platform-specific loggers remain in their platform modules; <code>std/context</code>
+itself is ordinary checked Ziran on C, Go, Wasm, portable ZX engine, and
+native execution. The allocator uses the <code>std/temp</code> API through
+<code>context.allocator</code>. Because the context owns that allocator, moving the
+record while one of its temporary views is live is rejected by the normal
+owned-value rules. <code>ContextEnd(*context)</code> releases its temporary storage.</p>
 <h3 id="building-text">Building text</h3>
 <p><code>std/format.zi</code> builds text on an owned <code>Vec(u8)</code> builder. <code>Append(*builder,
 value)</code> adds a string, integer, bool, or float, and

@@ -267,11 +267,7 @@ def render(data):
 def format_time(value):
     if value is None:
         return '—'
-    if value < .001:
-        return f'{value * 1000000:.1f} ns'
-    if value < 1:
-        return f'{value * 1000:.2f} µs'
-    return f'{value:.2f} ms'
+    return f'{value * 1000000:.1f} ns'
 
 
 def check():

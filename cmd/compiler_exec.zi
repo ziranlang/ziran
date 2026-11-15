@@ -107,6 +107,7 @@ LirExecHandler :: enum s32 {
     LoadField; LoadIndex; LoadView; StoreField; StoreIndex; StoreView
     // Two Extracts of words in a row, and an Add before the block's Jump.
     ExtractWordPair; AddJump
+    HostWrite
 }
 
 LirExecCode :: struct {
@@ -1387,6 +1388,16 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
             if plan.value_words[base + value] < 0 { out.x = plan.value_offsets[base + value] }
         }
         return .Slow
+    }
+    if op == .HostCall {
+        if count != 3 || !ExecPlatformWriteSignature(program, instruction.symbol) { return .Slow }
+        if out.a < 0 || out.b < 0 || out.c < 0 { return .Slow }
+        target := program.functions[instruction.symbol]
+        out.handler = .HostWrite
+        out.target = instruction.symbol
+        out.type = program.types[target.parameters[1]].element
+        <<work = 1 + count
+        return .Fast
     }
     return .Slow
 }
@@ -4361,6 +4372,34 @@ ExecRunCode :: (instance: *LirExecInstance, frame_index: s64, start: s64) -> s64
             }
         } else if h == .GlobalAddress {
             words[wb + c.result] = instance.addresses[c.x].token
+        } else if h == .HostWrite {
+            host_binding := ExecHostBinding(instance, c.target)
+            if host_binding < 0 { return pc }
+            write_count := words[wb + c.c]
+            if write_count > cast(u64)9223372036854775807 { return pc }
+            write_size := cast(s64)write_count
+            no_bytes: [0]u8
+            write_bytes: []u8 = no_bytes[:]
+            write_copy: s64 = 0
+            if write_size != 0 {
+                write_index := ExecFastFind(instance, words[wb + c.b])
+                if write_index < 0 { return pc }
+                write_address := *instance.addresses[write_index]
+                if write_address.type != c.type || write_address.extent < write_size { return pc }
+                write_at := ExecFastLocate(instance, write_address)
+                if write_at < 0 { return pc }
+                if write_address.owned { write_bytes = instance.owned[write_at:write_at + write_size] }
+                else if write_address.frame < 0 { write_bytes = instance.globals[write_at:write_at + write_size] }
+                else { write_bytes = instance.storage[write_at:write_at + write_size] }
+                write_copy = ExecCopyCost(write_size)
+                if write_copy > instance.work_remaining { return pc }
+            }
+            write_host := instance.hosts[host_binding]
+            instance.work_remaining -= write_copy
+            if !write_host.write(write_host.context, words[wb + c.a], write_bytes) {
+                unused ExecFail(instance, .Host)
+                return ExecFailed
+            }
         } else { return pc }
         if next < 0 {
             if next == ExecBail { return pc }

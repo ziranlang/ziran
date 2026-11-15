@@ -254,7 +254,7 @@ force-compiler-flags:
 # zir.h includes the IR records generated from cmd/compiler_ir.zi.
 $(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY)
 	@mkdir -p $(dir $@)
-	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
+	$(NICE) $(CC) $(CFLAGS) $($@_CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(call obj,cmd/zir/zir_token.c): $(SCANNER_READY)
 $(call obj,cmd/zir/zir.c): $(TYPE_READY)

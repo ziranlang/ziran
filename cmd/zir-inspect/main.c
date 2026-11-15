@@ -175,6 +175,19 @@ show_module(const ZirModule *module)
         printf("  import %s %s", kind, item->name);
         if(item->target[0]) printf(" -> %s", item->target);
         if(item->extern_symbol[0]) printf(" symbol %s", item->extern_symbol);
+        if(item->parameters != NULL && item->parameters[0]) {
+            fputs(" parameters ", stdout);
+            quoted(item->parameters);
+        }
+        location(&item->span);
+        putchar('\n');
+    }
+    for(int i = 0; i < module->parameter_count; i++) {
+        const ZirModuleParameter *item = &module->parameters[i];
+        printf("  parameter %s: %s = ", item->name, item->type);
+        quoted(item->value);
+        fputs(" default ", stdout);
+        quoted(item->default_value);
         location(&item->span);
         putchar('\n');
     }

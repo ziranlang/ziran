@@ -4,7 +4,7 @@
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Ziran intermediate representation (`.zir`)</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/ZIR.md">docs/ZIR.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
 <div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#experimental-version-52">Experimental version 52</a></aside><div class="article-body">
-<section class="prose"><p>This is the target contract. An experimental binary version 64 now exists for
+<section class="prose"><p>This is the target contract. An experimental binary version 65 now exists for
 the tested C/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 <a href="implementation-status.html">Implementation status</a>.</p>
 <p><code>.zir</code> is a versioned, checked, serializable module representation. ZIR is always written after type checking, so there is no unchecked ZIR and it is simply called ZIR. It is the
@@ -99,11 +99,16 @@ order, then pass values in parameter order. Procedure declarations retain their
 default expressions; omitted arguments are materialized as checked call
 expressions before serialization. Concrete defaults use checked procedures in
 the declaring module so their names keep that module's scope.
+Each module keeps its <code>#module_parameters</code> with their declared types,
+defaults and bound values. Each module import keeps its parameter list in
+canonical <code>NAME=value</code> form, with integers in decimal. Loading checks every
+import against the bound module, as for source, and rejects a bound value that
+differs from the module's constant of the same name.
 Runtime-dependent global initializers lower to private checked startup
 functions. Their startup flag is serialized and validated; the linker retains
 them with reachable modules and their call dependencies.
 For checked functions, statement text is source metadata; the expression graph
-and explicit branch flags and loop target IDs determine behavior. Version 64
+and explicit branch flags and loop target IDs determine behavior. Version 65
 saves each statement's text once. An expression whose text appears in a
 statement of the same function saves only that statement's distance from the
 last one referenced, the text's length, and a change in the byte bias between

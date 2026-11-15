@@ -451,7 +451,67 @@ Answer :: () -> s32 {
     if !BuilderPieces() { return 9 }
     if !GoMethods() { return 10 }
     if !ProcedureTypeParameters() { return 11 }
+    if !ModuleParameterGrammar() { return 12 }
     return 42
+}
+
+ModuleParameterGrammar :: () -> bool {
+    imported := ImportDeclaration("Fonts :: #import \"fonts\"(STB = false, CACHE = 0x10);", 128, 1024)
+    if imported.error != .None || !imported.parameterized || imported.name != "Fonts" ||
+    imported.target != "fonts" || imported.parameters != "STB = false, CACHE = 0x10" { return false }
+    imported = ImportDeclaration("#import \"fonts\" (LABEL = \"a, b\")", 128, 1024)
+    if imported.error != .None || imported.parameters != "LABEL = \"a, b\"" { return false }
+    if ImportDeclaration("SOURCE :: \"Fonts :: #import \\\"fonts\\\"(A = 1);\";", 128, 1024).present ||
+    ImportDeclaration("#import \"fonts\";", 128, 1024).parameterized ||
+    ImportDeclaration("#import \"fonts\"();", 128, 1024).error != .ImportParameterList ||
+    ImportDeclaration("#import \"fonts\"(A = 1", 128, 1024).error != .ImportParameterList ||
+    ImportDeclaration("#import \"fonts\"(A = 1) extra;", 128, 1024).error != .ImportParameterList ||
+    ImportDeclaration("#import \"fonts\"(A = 1,);", 128, 1024).error != .ImportParameterList ||
+    ImportDeclaration("#import \"fonts\"(A);", 128, 1024).error != .ImportParameterList ||
+    ImportDeclaration("#import \"fonts\"(1A = 1);", 128, 1024).error != .ParameterName ||
+    ImportDeclaration("#import \"fonts\"(A = B);", 128, 1024).error != .ParameterValue ||
+    ImportDeclaration("#import \"fonts\"(A = null);", 128, 1024).error != .ParameterValue ||
+    ImportDeclaration("#import \"fonts\"(A = 1, A = 2);", 128, 1024).error != .ParameterDuplicate ||
+    ImportDeclaration("#import, file \"fonts.zi\"(A = 1);", 128, 1024).error != .ImportParameterMode ||
+    ImportDeclaration("#import, dir \"fonts\" (A = 1);", 128, 1024).error != .ImportParameterMode { return false }
+    entry := NextParameter("A := true, B: u8 = 255, C := \"x\"", 0, true, 128)
+    if entry.error != .None || entry.name != "A" || entry.type != "bool" || entry.value != "true" { return false }
+    entry = NextParameter("A := true, B: u8 = 255, C := \"x\"", entry.next, true, 128)
+    if entry.error != .None || entry.name != "B" || entry.type != "u8" || entry.value != "255" { return false }
+    entry = NextParameter("A := true, B: u8 = 255, C := \"x\"", entry.next, true, 128)
+    if entry.error != .None || entry.type != "string" || entry.next != -1 { return false }
+    if NextParameter("A := -2.5e3", 0, true, 128).type != "float64" ||
+    NextParameter("A := 7", 0, true, 128).type != "s64" ||
+    NextParameter("A: u8", 0, true, 128).error != .ParameterDefault ||
+    NextParameter("A", 0, true, 128).error != .ParameterDefault ||
+    NextParameter("A: Thing = 1", 0, true, 128).error != .ParameterType ||
+    NextParameter("A: u8 = 256", 0, true, 128).error != .ParameterFit ||
+    NextParameter("A: bool = 1", 0, true, 128).error != .ParameterFit ||
+    NextParameter("A := B", 0, true, 128).error != .ParameterValue ||
+    ParameterListError("A := 1, A := 2", true, 128) != .ParameterDuplicate { return false }
+    fits := string.["s8", "-128", "s8", "127", "u8", "255", "u64", "18446744073709551615",
+        "s64", "-9223372036854775808", "float32", "2", "string", "\"\\\"\"", "u8", "-0"]
+    for index: 0..fits.count / 2 - 1 { if !ParameterFits(fits[index * 2], fits[index * 2 + 1]) { return false } }
+    misfits := string.["s8", "-129", "s8", "128", "u8", "-1", "s64", "9223372036854775808",
+        "bool", "0", "string", "x", "u32", "1.5", "s32", "\"1\""]
+    for index: 0..misfits.count / 2 - 1 { if ParameterFits(misfits[index * 2], misfits[index * 2 + 1]) { return false } }
+    canonical: [32]u8
+    count := ParameterCanonical("0x1_0", canonical[:])
+    if TextView(canonical[0:count]) != "16" { return false }
+    count = ParameterCanonical("-0", canonical[:])
+    if TextView(canonical[0:count]) != "0" { return false }
+    count = ParameterCanonical("\"x\"", canonical[:])
+    if TextView(canonical[0:count]) != "\"x\"" || ParameterCanonical("\"x\"", canonical[0:2]) != -1 { return false }
+    directive := ModuleParametersPrefix("#!/usr/bin/env ziran\n// lead\n/* a /* nested */\n */\n#module_parameters(\n  A := 1,\n  B := false\n);\nRest :: 1\n", 128)
+    if !directive.present || directive.error != .None || directive.line != 5 ||
+    directive.list != "\n  A := 1,\n  B := false\n" { return false }
+    if ModuleParametersPrefix("Rest :: 1\n#module_parameters(A := 1)\n", 128).present ||
+    ModuleParametersPrefix("#module_parametersX(A := 1)\n", 128).present ||
+    ModuleParametersPrefix("#module_parameters A := 1\n", 128).error != .ParameterListSyntax ||
+    ModuleParametersPrefix("#module_parameters() \n", 128).error != .ParameterListSyntax ||
+    ModuleParametersPrefix("#module_parameters(A := 1) Rest :: 1\n", 128).error != .ParameterListSyntax ||
+    ModuleParametersPrefix("#module_parameters(A := 1); // note\n", 128).error != .None { return false }
+    return true
 }
 
 GoMethods :: () -> bool {

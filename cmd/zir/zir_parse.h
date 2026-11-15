@@ -26,6 +26,28 @@ ZirProgram *parse_file_with_imports_defined(const char *path, const char *root,
                                             void *context,
                                             const char *const *defines,
                                             int define_count);
+/* As parse_file_with_imports_defined for the module that the import SITE
+ * loads: SITE's parameter list binds the module's #module_parameters and
+ * locates their diagnostics. A NULL SITE binds every default. */
+ZirProgram *parse_module_with_imports(const char *path, const char *root,
+                                      ZirCompileImportResolver resolver,
+                                      void *context,
+                                      const char *const *defines,
+                                      int define_count,
+                                      const ZirImport *site);
+/* Bind MODULE's #module_parameters for an import whose parameter list is
+ * PARAMETERS (an import's kept list, "" for none): VALUES[i] receives the
+ * kept literal parameter i takes, its default unless the list names it.
+ * Returns 0 when the list names a parameter MODULE does not declare or a
+ * value that does not fit its type, reporting module.parameter_unknown or
+ * module.parameter_type at SITE when REPORT is set. */
+int ModuleParametersBind(const ZirModule *module, const char *parameters,
+                         ZirSourceSpan site, const char **values, int report);
+/* Whether saved MODULE keeps the source rules for parameters: each declared
+ * once with a permitted type, a default and bound value that fit it, and the
+ * bound value in its constant table; import lists are canonical checked
+ * lists on quoted module imports only. */
+int SavedParametersValid(const ZirModule *module);
 
 /* Parse immutable embedded text with the same frontend and source spans. */
 ZirProgram *parse_source_text(const char *path, const char *source);

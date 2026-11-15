@@ -253,6 +253,10 @@ void ModuleAddStatic(ZirModule *module, const char *name, const char *type,
                         const char *init, ZirSourceSpan span);
 ZirDefine *ModuleAddDefine(ZirModule *module, const char *name,
                               const char *value, ZirSourceSpan span);
+/* A `#module_parameters` entry whose bound value starts as its default. */
+ZirModuleParameter *ModuleAddParameter(ZirModule *module, const char *name,
+                                 const char *type, const char *default_value,
+                                 ZirSourceSpan span);
 int ModuleAddLaw(ZirModule *module, const char *name, const char *kind,
                  const char *payload, ZirSourceSpan span);
 int ModuleAddLawWaiver(ZirModule *module, const char *name,

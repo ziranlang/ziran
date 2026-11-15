@@ -514,6 +514,44 @@ COMPILER_SCRATCH_VOID(, add_default_helpers,
     AddDefaultHelpersBuffers, RECOVERABLE, free,
     add_default_helpers_with_buffers(program, module, source_path, root, resolver, resolver_context, buffers))
 
+/* VALUE as parameter bindings compare it, kept: integers in decimal. */
+static const char *
+kept_parameter_value(String value)
+{
+    size_t capacity = (size_t)value.length + 24;
+    char *text = AllocateOrExit(capacity);
+    int64_t count = compiler_declaration_ParameterCanonical(value,
+        (Slice){text, (int64_t)capacity});
+    if(count < 0 || (size_t)count >= capacity)
+        die("module parameter value exceeds its buffer");
+    text[count] = '\0';
+    const char *kept = KeepText(text);
+    free(text);
+    return kept;
+}
+
+/* LIST, an import's checked parameter list, as NAME=value entries joined by
+ * commas, each value as bindings compare it; kept. */
+static const char *
+canonical_parameters(String list)
+{
+    SourceBuffer text = {0};
+    for(int64_t at = 0; at >= 0;) {
+        ParameterEntry entry = compiler_declaration_NextParameter(list, at,
+            false, ZIR_NAME_MAX);
+        at = entry.next;
+        if(text.length > 0) source_append(&text, ',');
+        for(int64_t i = 0; i < entry.name.length; i++)
+            source_append(&text, entry.name.data[i]);
+        source_append(&text, '=');
+        for(const char *byte = kept_parameter_value(entry.value); *byte; byte++)
+            source_append(&text, *byte);
+    }
+    const char *kept = KeepText(text.text != NULL ? text.text : "");
+    free(text.text);
+    return kept;
+}
+
 int
 parse_import_line(ZirModule *module, const char *path, int line_no,
                   const char *line, int scope_public)
@@ -542,8 +580,190 @@ parse_import_line(ZirModule *module, const char *path, int line_no,
     if(imported != NULL) {
         imported->is_public = scope_public;
         imported->is_using = declaration.using_import;
+        if(declaration.parameterized)
+            imported->parameters = canonical_parameters(declaration.parameters);
     }
     return 1;
+}
+
+/* Module parameters: Ziran owns their grammar and literal rules; this
+ * boundary keeps the bound values in the IR and reports at import sites. */
+static int
+parameter_named(const ZirModule *module, String name)
+{
+    for(int i = 0; i < module->parameter_count; i++)
+        if(StringEqual(name, declaration_text(module->parameters[i].name)))
+            return i;
+    return -1;
+}
+
+/* The declared names of MODULE's parameters for a diagnostic, kept. */
+static const char *
+parameter_names(const ZirModule *module)
+{
+    SourceBuffer text = {0};
+    for(int i = 0; i < module->parameter_count; i++) {
+        if(i > 0) { source_append(&text, ','); source_append(&text, ' '); }
+        for(const char *at = module->parameters[i].name; *at; at++)
+            source_append(&text, *at);
+    }
+    const char *kept = KeepText(text.text != NULL ? text.text : "");
+    free(text.text);
+    return kept;
+}
+
+int
+ModuleParametersBind(const ZirModule *module, const char *parameters,
+                     ZirSourceSpan site, const char **values, int report)
+{
+    for(int i = 0; i < module->parameter_count; i++)
+        values[i] = module->parameters[i].default_value;
+    String list = declaration_text(parameters);
+    for(int64_t at = list.length > 0 ? 0 : -1; at >= 0;) {
+        ParameterEntry entry = compiler_declaration_NextParameter(list, at,
+            false, ZIR_NAME_MAX);
+        at = entry.next;
+        int index = entry.error == DeclarationError_None ?
+                    parameter_named(module, entry.name) : -1;
+        if(index < 0) {
+            if(report && module->parameter_count == 0)
+                Diagnostic(site, "module.parameter_unknown",
+                           "module %s has no parameter %.*s; it declares no #module_parameters",
+                           module->name, (int)entry.name.length, entry.name.data);
+            else if(report)
+                Diagnostic(site, "module.parameter_unknown",
+                           "module %s has no parameter %.*s; its parameters are %s",
+                           module->name, (int)entry.name.length, entry.name.data,
+                           parameter_names(module));
+            return 0;
+        }
+        const ZirModuleParameter *declared = &module->parameters[index];
+        if(!compiler_declaration_ParameterFits(declaration_text(declared->type),
+                                               entry.value)) {
+            if(report)
+                Diagnostic(site, "module.parameter_type",
+                           "module parameter %s of %s is %s; %.*s does not fit it",
+                           declared->name, module->name, declared->type,
+                           (int)entry.value.length, entry.value.data);
+            return 0;
+        }
+        values[index] = kept_parameter_value(entry.value);
+    }
+    return 1;
+}
+
+static int
+canonical_value(String value)
+{
+    if(compiler_declaration_ParameterLiteralType(value).length == 0) return 0;
+    const char *kept = kept_parameter_value(value);
+    return StringEqual(value, declaration_text(kept));
+}
+
+int
+SavedParametersValid(const ZirModule *module)
+{
+    for(int i = 0; i < module->parameter_count; i++) {
+        const ZirModuleParameter *parameter = &module->parameters[i];
+        String type = declaration_text(parameter->type);
+        String default_value = declaration_text(parameter->default_value);
+        String value = declaration_text(parameter->value);
+        if(!is_identifier_text(parameter->name) ||
+           !compiler_declaration_ParameterTypeName(type) ||
+           !canonical_value(default_value) || !canonical_value(value) ||
+           !compiler_declaration_ParameterFits(type, default_value) ||
+           !compiler_declaration_ParameterFits(type, value))
+            return 0;
+        for(int j = 0; j < i; j++)
+            if(!strcmp(module->parameters[j].name, parameter->name)) return 0;
+        int defined = 0;
+        for(int d = 0; d < module->define_count; d++)
+            if(!strcmp(module->defines[d].name, parameter->name)) {
+                if(defined || strcmp(module->defines[d].value, parameter->value))
+                    return 0;
+                defined = 1;
+            }
+        /* Entry linking may prune an unused constant, never change it. */
+        if(defined && is_identifier_text(parameter->value)) return 0;
+    }
+    for(int i = 0; i < module->import_count; i++) {
+        const ZirImport *import = &module->imports[i];
+        String list = declaration_text(import->parameters);
+        if(list.length == 0) continue;
+        if((import->kind != ZIR_IMPORT_OPEN && import->kind != ZIR_IMPORT_MODULE) ||
+           import->signature[0] != '\0' ||
+           compiler_declaration_ParameterListError(list, false, ZIR_NAME_MAX) !=
+               DeclarationError_None ||
+           strcmp(canonical_parameters(list), import->parameters))
+            return 0;
+    }
+    return 1;
+}
+
+int
+apply_module_parameters(ZirModule *module, const char *source, const char *rel,
+                        const ZirImport *site, ZirConsts *consts)
+{
+    ModuleParameterDirective directive =
+        compiler_declaration_ModuleParametersPrefix(declaration_text(source),
+                                                    ZIR_NAME_MAX);
+    ZirSourceSpan span = Span(rel, directive.present ? (int)directive.line : 1, 1);
+    check_declaration_error(directive.error, span);
+    for(int64_t at = directive.present ? 0 : -1; at >= 0;) {
+        ParameterEntry entry = compiler_declaration_NextParameter(directive.list,
+            at, true, ZIR_NAME_MAX);
+        at = entry.next;
+        check_declaration_error(entry.error, span);
+        char name[ZIR_NAME_MAX], type[ZIR_NAME_MAX];
+        copy_declaration_part(name, sizeof(name), entry.name, 0);
+        copy_declaration_part(type, sizeof(type), entry.type, 0);
+        if(ModuleAddParameter(module, name, type, kept_parameter_value(entry.value),
+                              span) == NULL)
+            die("out of memory declaring module parameters");
+    }
+    const char *parameters = site != NULL && site->parameters != NULL ?
+                             site->parameters : "";
+    if(module->parameter_count == 0 && parameters[0] == '\0')
+        return 0;
+    const char **values = AllocateOrExit(
+        (size_t)(module->parameter_count + 1) * sizeof(*values));
+    if(!ModuleParametersBind(module, parameters, site != NULL ? site->span : span,
+                             values, 1)) {
+        free(values);
+        parse_stop();
+    }
+    for(int i = 0; i < module->parameter_count; i++) {
+        ZirModuleParameter *parameter = &module->parameters[i];
+        parameter->value = values[i];
+        for(int c = 0; c < consts->count; c++)
+            if(!strcmp(consts->items[c].name, parameter->name))
+                die_at(span, "module parameter %s is also a --define name",
+                       parameter->name);
+        if(consts->count == consts->capacity) {
+            int capacity = consts->capacity > 0 ? consts->capacity * 2 : 16;
+            ZirConst *items = realloc(consts->items, (size_t)capacity * sizeof(*items));
+            if(items == NULL) die("out of memory binding module parameters");
+            consts->items = items;
+            consts->capacity = capacity;
+        }
+        ZirConst *constant = &consts->items[consts->count++];
+        memset(constant, 0, sizeof(*constant));
+        copy_text(constant->name, sizeof(constant->name), parameter->name);
+        constant->expr = parameter->value;
+        copy_text(constant->path, sizeof(constant->path), rel);
+        constant->is_public = 1;
+        constant->source_line = span.line;
+        /* As for `NAME :: value`: true and false select code at compile
+         * time and stay out of the define table. */
+        if(!is_identifier_text(parameter->value)) {
+            ZirDefine *define = ModuleAddDefine(module, parameter->name,
+                                                parameter->value, span);
+            if(define == NULL) die("out of memory binding module parameters");
+            define->is_public = 1;
+        }
+    }
+    free(values);
+    return directive.present ? (int)directive.line : 0;
 }
 
 int

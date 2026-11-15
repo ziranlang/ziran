@@ -81,9 +81,12 @@ ZirImport :: struct {
     go_defer: s32  // a standalone call schedules its Go foreign target at function exit
     go_variadic: s32  // expand the final slice parameter into native Go variadic arguments
     // `#reads`: the foreign procedure only reads its string and byte
-    // arguments during the call. Format 59 reserved this slot as zero.
+    // arguments during the call.
     reads_arguments: s32
-    reserved_1: s32  // format 59 slot, always zero; drop it at the next format bump
+    // `#import "module"(NAME = value, ...)`: the import's parameter list as
+    // NAME=value entries joined by commas, integers in decimal; KeepText, and
+    // NULL or "" for none.
+    parameters: *u8 #c "const char *"
     required: s32
     is_using: s32  // `using Alias :: #import` re-exports public names
     span: ZirSourceSpan
@@ -208,6 +211,17 @@ ZirDefine :: struct {
     is_file_private: s32
     requires_open_enum: s32  // unresolved source alias, cleared by checking
     native_name_collision: s32  // in-memory: another constant maps to this native name
+    span: ZirSourceSpan
+}
+
+// One `#module_parameters` entry: the parameter's declared type and default,
+// and the value the program's imports bound it to. The module sees the bound
+// value as an ordinary `NAME :: value` constant.
+ZirModuleParameter :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    type: [ZIR_NAME_MAX]u8 #c "char"  // bool, string, an integer or a float type
+    default_value: *u8 #c "const char *"  // literal; KeepText
+    value: *u8 #c "const char *"  // literal bound for this program; KeepText
     span: ZirSourceSpan
 }
 
@@ -367,6 +381,9 @@ ZirModule :: struct {
     functions: *ZirFunction
     function_count: s32
     function_cap: s32
+    parameters: *ZirModuleParameter  // `#module_parameters`, in declaration order
+    parameter_count: s32
+    parameter_cap: s32
     // Bundle composition provenance; derived from payload/library
     // boundaries, never serialized. Library executable bodies follow the
     // owned prefix.

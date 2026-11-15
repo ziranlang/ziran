@@ -33,6 +33,9 @@ typedef struct LoadContext {
     const char *active[32];
     int active_count;
     ZirPackageMap *packages;
+    /* The import being loaded; its parameter list binds the loaded module's
+     * #module_parameters. */
+    const ZirImport *site;
 } LoadContext;
 
 #ifndef ZIRAN_STD_DIR
@@ -303,9 +306,9 @@ add_program_named(LoadContext *context, const char *path, const char *root,
     program = lexical == NULL ? NULL :
         lexical_length > 3 &&
         strcmp(lexical + lexical_length - 3, ".zi") == 0 ?
-        parse_file_with_imports_defined(lexical, root, early_resolve_imports,
-                                        context, context->defines,
-                                        context->define_count) :
+        parse_module_with_imports(lexical, root, early_resolve_imports,
+                                  context, context->defines,
+                                  context->define_count, context->site) :
         ProgramLoad(lexical, root);
     context->active_count--;
     free(lexical);
@@ -1025,11 +1028,128 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
     return 0;
 }
 
-COMPILER_SCRATCH_RETURN(static, int, load_import,
+COMPILER_SCRATCH_RETURN(static, int, load_import_scratch,
     (LoadContext *context, const char *owner_source,
             const char *owner_root, ZirImport *import),
     LoadImportBuffers, RECOVERABLE, free,
     load_import_with_buffers(context, owner_source, owner_root, import, buffers))
+
+static int
+load_import(LoadContext *context, const char *owner_source,
+            const char *owner_root, ZirImport *import)
+{
+    const ZirImport *previous = context->site;
+    context->site = import;
+    int loaded = load_import_scratch(context, owner_source, owner_root, import);
+    context->site = previous;
+    return loaded;
+}
+
+/* The module IMPORT of a module in PROGRAM names once the graph is loaded:
+ * a loaded identity, or a source path's stem. */
+static const ZirModule *
+loaded_import_target(const ProgramSet *set, const ZirProgram *program,
+                     const ZirImport *import)
+{
+    for(int p = -1; p < set->count; p++) {
+        const ZirProgram *candidates = p < 0 ? program : set->programs[p];
+        for(int m = 0; m < candidates->module_count; m++) {
+            const ZirModule *candidate = &candidates->modules[m];
+            char stem[ZIR_PATH_MAX];
+            snprintf(stem, sizeof(stem), "%s", candidate->source_path);
+            size_t length = strlen(stem);
+            if(length > 3 && strcmp(stem + length - 3, ".zi") == 0)
+                stem[length - 3] = '\0';
+            if(strcmp(import->target, candidate->name) == 0 ||
+               strcmp(import->target, stem) == 0)
+                return candidate;
+        }
+    }
+    return NULL;
+}
+
+static int
+same_parameters(const ZirModule *module, const char *const *values)
+{
+    for(int i = 0; i < module->parameter_count; i++)
+        if(strcmp(values[i], module->parameters[i].value) != 0)
+            return 0;
+    return 1;
+}
+
+/* One program binds each module's #module_parameters once: every import of
+ * the module must name declared parameters with fitting values, and give
+ * the same values the module was parsed or saved with. */
+static int
+check_module_parameters(const ProgramSet *set)
+{
+    int ok = 1, total = 0, parameterized = 0;
+    for(int p = 0; p < set->count; p++)
+        for(int m = 0; m < set->programs[p]->module_count; m++) {
+            const ZirModule *module = &set->programs[p]->modules[m];
+            total++;
+            parameterized |= module->parameter_count > 0;
+            for(int i = 0; i < module->import_count; i++)
+                parameterized |= module->imports[i].parameters != NULL &&
+                                 module->imports[i].parameters[0] != '\0';
+        }
+    if(!parameterized) return 1;
+    /* For each bound module, an import that agrees with its binding. */
+    const ZirModule **bound = AllocateOrExit((size_t)(total + 1) * sizeof(*bound));
+    const ZirImport **agreeing = AllocateOrExit((size_t)(total + 1) * sizeof(*agreeing));
+    int bound_count = 0;
+    for(int pass = 0; ok && pass < 2; pass++)
+        for(int p = 0; ok && p < set->count; p++)
+            for(int m = 0; ok && m < set->programs[p]->module_count; m++) {
+                const ZirModule *module = &set->programs[p]->modules[m];
+                for(int i = 0; ok && i < module->import_count; i++) {
+                    const ZirImport *import = &module->imports[i];
+                    if(import->kind != ZIR_IMPORT_OPEN &&
+                       import->kind != ZIR_IMPORT_MODULE) continue;
+                    const ZirModule *target = loaded_import_target(set,
+                        set->programs[p], import);
+                    const char *parameters = import->parameters != NULL ?
+                                             import->parameters : "";
+                    if(target == NULL ||
+                       (target->parameter_count == 0 && parameters[0] == '\0'))
+                        continue;
+                    const char **values = AllocateOrExit(
+                        (size_t)(target->parameter_count + 1) * sizeof(*values));
+                    int known = ModuleParametersBind(target, parameters,
+                                                     import->span, values, pass == 1);
+                    int origin = 0;
+                    while(origin < bound_count && bound[origin] != target) origin++;
+                    if(pass == 0 && known && same_parameters(target, values) &&
+                       origin == bound_count) {
+                        bound[bound_count] = target;
+                        agreeing[bound_count++] = import;
+                    } else if(pass == 1 && !known) {
+                        ok = 0;
+                    } else if(pass == 1 && !same_parameters(target, values)) {
+                        int k = 0;
+                        while(strcmp(values[k], target->parameters[k].value) == 0) k++;
+                        const ZirModuleParameter *parameter = &target->parameters[k];
+                        if(origin < bound_count)
+                            Diagnostic(import->span, "module.parameter_conflict",
+                                       "this import binds %s = %s of module %s, but the import at %s:%d binds %s = %s; one program binds a module's parameters once",
+                                       parameter->name, values[k], target->name,
+                                       SpanPath(agreeing[origin]->span),
+                                       agreeing[origin]->span.line,
+                                       parameter->name, parameter->value);
+                        else
+                            Diagnostic(import->span, "module.parameter_conflict",
+                                       "this import binds %s = %s of module %s, but the program already loaded it with %s = %s; one program binds a module's parameters once",
+                                       parameter->name, values[k], target->name,
+                                       parameter->name, parameter->value);
+                        ok = 0;
+                    }
+                    free(values);
+                }
+            }
+    free(bound);
+    free(agreeing);
+    return ok;
+}
 
 static ZirModule *
 early_target(LoadContext *context, ZirProgram *current,
@@ -1268,6 +1388,8 @@ ProgramsLoadWithDefines_in_context(ProgramSet *set, const char *root,
                     goto done;
             }
         }
+    if(!check_module_parameters(set))
+        goto done;
     ok = 1;
 done:
     for(int i = 0; i < module_path_count; i++) {

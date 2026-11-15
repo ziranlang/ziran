@@ -715,6 +715,60 @@ An exported procedure that nothing calls is left out in the same way.
 A startup cycle between initializers aborts the program at startup; no
 initializer is skipped or run twice.
 
+### Module parameters
+
+A module can declare compile-time parameters as its first declaration, and a
+program chooses their values where it imports the module. Each parameter is an
+ordinary `NAME :: value` constant of the module, so `#if`, `#ifx`, `#run`,
+array lengths and other constants see the chosen value. Code that an `#if`
+leaves out never reaches C, Go, ZX, Wasm or native code:
+
+```zi
+// fonts.zi
+#module_parameters(STB := false, CACHE: s32 = 8, LABEL := "plain")
+#if STB {
+Raster :: (code: s32) -> s32 { return code + 1000 }
+}
+Glyph :: (code: s32) -> s32 {
+    #if STB {
+        return Raster(code)
+    }
+    return code + CACHE
+}
+Table: [CACHE]s32;
+
+// app.zi
+Fonts :: #import "fonts"(STB = false, CACHE = 4);
+```
+
+Only comments and blank lines may come before `#module_parameters`, and it
+belongs in the module's entry file (`module.zi` for a directory module). Each
+parameter is `NAME := literal`, which takes its type from the literal (`bool`,
+`string`, `s64` for an integer, `float64` for a float), or `NAME: Type =
+literal`, with `bool`, `string`, an integer type or a float type. Every
+parameter needs a default. A quoted module import names parameters as
+`(NAME = literal, ...)`; values are integer, float or string literals, `true`
+or `false`. `#import, file`, `#import, dir` and `#import, string` take no
+parameters.
+
+One program binds each module's parameters once. Every import of a module
+has to give every parameter the same value, with omitted parameters taking
+their defaults, so `#import "fonts"` and `#import "fonts"(STB = true)` cannot
+meet in one program. Integer values compare by number: `CACHE = 0x4` and
+`CACHE = 4` agree. Different programs that share the module can choose
+differently. These named diagnostics reject an import:
+
+- `module.parameter_unknown`: the module does not declare that name.
+- `module.parameter_type`: the value does not fit the declared type,
+  including an integer outside its range.
+- `module.parameter_conflict`: another import of the same module gives it a
+  different value.
+
+Saved `.zir` keeps each import's list and each module's declared types,
+defaults and bound values. A saved import that disagrees with the module it
+loads is rejected the same way. The checks are the same for source and saved
+IR, so no backend needs to know about parameters.
+
 ## Foreign functions
 
 Ordinary `#import` accepts a module identifier. C headers are no longer

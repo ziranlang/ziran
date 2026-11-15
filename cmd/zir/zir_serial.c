@@ -211,7 +211,7 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 64u
+#define ZIR_FORMAT_VERSION 65u
 /* Memory a reader may spend on one program's records and on the text its
  * strings stand for. Writers charge the same, so every program written can
  * be read back; this budget, not a count or length cap, bounds saved IR. */
@@ -232,7 +232,7 @@ static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, go_defer),
     INTEGER_FIELD(ZirImport, go_variadic),
     INTEGER_FIELD(ZirImport, reads_arguments),
-    INTEGER_FIELD(ZirImport, reserved_1),
+    TEXT_FIELD(ZirImport, parameters),
     INTEGER_FIELD(ZirImport, is_using),
     INTEGER_FIELD(ZirImport, required),
     SPAN_FIELD(ZirImport, span)
@@ -300,6 +300,11 @@ static const Field define_fields[] = {
     STRING_FIELD(ZirDefine, name), TEXT_FIELD(ZirDefine, value),
     INTEGER_FIELD(ZirDefine, is_public),
     INTEGER_FIELD(ZirDefine, is_file_private), SPAN_FIELD(ZirDefine, span)
+};
+static const Field parameter_fields[] = {
+    STRING_FIELD(ZirModuleParameter, name), STRING_FIELD(ZirModuleParameter, type),
+    TEXT_FIELD(ZirModuleParameter, default_value), TEXT_FIELD(ZirModuleParameter, value),
+    SPAN_FIELD(ZirModuleParameter, span)
 };
 static const Field assert_fields[] = {
     STRING_FIELD(ZirAssert, condition), STRING_FIELD(ZirAssert, message),
@@ -1428,6 +1433,7 @@ write_module(Writer *out, const ZirModule *module)
                     law_waiver_fields) ||
        !WRITE_ARRAY(out, module, types, type_count, type_fields) ||
        !WRITE_ARRAY(out, module, imports, import_count, import_fields) ||
+       !WRITE_ARRAY(out, module, parameters, parameter_count, parameter_fields) ||
        module->function_count < 0 ||
        !writer_charge(out, (size_t)module->function_count, sizeof(ZirFunction)) ||
        !write_u32(out, (uint32_t)module->function_count))
@@ -1457,6 +1463,7 @@ read_module(Reader *reader, ZirModule *module)
                law_waiver_fields);
     READ_ARRAY(reader, module, types, type_count, type_fields);
     READ_ARRAY(reader, module, imports, import_count, import_fields);
+    READ_ARRAY(reader, module, parameters, parameter_count, parameter_fields);
     if(!read_u32(reader, &count))
         return 0;
     if(count > INT32_MAX || count > reader->budget / sizeof(ZirFunction)) {
@@ -1479,6 +1486,7 @@ read_module(Reader *reader, ZirModule *module)
     module->assert_cap = module->assert_count;
     module->type_cap = module->type_count;
     module->import_cap = module->import_count;
+    module->parameter_cap = module->parameter_count;
     return 1;
 }
 
@@ -1519,7 +1527,6 @@ validate_program(const ZirProgram *program)
                (module->imports[i].reads_arguments != 0 &&
                 (module->imports[i].reads_arguments != 1 ||
                  module->imports[i].kind != ZIR_IMPORT_EXTERN)) ||
-               module->imports[i].reserved_1 != 0 ||
                (module->imports[i].go_defer &&
                 (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
                  module->imports[i].extern_kind != ZIR_EXTERN_GO ||
@@ -1550,6 +1557,8 @@ validate_program(const ZirProgram *program)
                (module->imports[i].is_file_private &&
                 module->imports[i].is_public))
                 return 0;
+        if(!SavedParametersValid(module))
+            return 0;
         for(int g = 0; g < module->global_count; g++)
             if((module->globals[g].is_file_private != 0 &&
                 module->globals[g].is_file_private != 1) ||

@@ -26,6 +26,7 @@ typedef struct ZirFunction ZirFunction;
 typedef struct ZirExprWalk ZirExprWalk;
 typedef struct ZirGlobal ZirGlobal;
 typedef struct ZirDefine ZirDefine;
+typedef struct ZirModuleParameter ZirModuleParameter;
 typedef struct ZirAssert ZirAssert;
 typedef struct ZirUsing ZirUsing;
 typedef struct ZirLawEvidence ZirLawEvidence;
@@ -126,7 +127,7 @@ struct ZirImport {
     int32_t go_defer;
     int32_t go_variadic;
     int32_t reads_arguments;
-    int32_t reserved_1;
+    const char * parameters;
     int32_t required;
     int32_t is_using;
     ZirSourceSpan span;
@@ -250,6 +251,14 @@ struct ZirDefine {
     int32_t is_file_private;
     int32_t requires_open_enum;
     int32_t native_name_collision;
+    ZirSourceSpan span;
+};
+
+struct ZirModuleParameter {
+    char name[128];
+    char type[128];
+    const char * default_value;
+    const char * value;
     ZirSourceSpan span;
 };
 
@@ -400,6 +409,9 @@ struct ZirModule {
     ZirFunction* functions;
     int32_t function_count;
     int32_t function_cap;
+    ZirModuleParameter* parameters;
+    int32_t parameter_count;
+    int32_t parameter_cap;
     const struct ZirModule * bundle_library;
     int32_t bundle_own_functions;
     int32_t bundle_own_laws;

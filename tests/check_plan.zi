@@ -63,9 +63,20 @@ PlanChecks :: (checks: []CheckCase) -> Vec(s64) {
     return selected
 }
 
+// Ziran case files that drive the compiler named by their first argument.
+CheckCompilerCase :: (name: string) -> bool {
+    return name == "module_parameters_cases.zi"
+}
+
 CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
     result: Vec(string)
     tests := CheckPath(repo, "tests")
+    if CheckCompilerCase(name) {
+        command := string.[CheckPath(bin, "ziran"), "run", "--target=c", "--root", tests,
+            CheckPath(tests, name), "--", CheckPath(bin, "ziran")]
+        for argument: command { VecPush(result, argument) }
+        return result
+    }
     if name == "native_backend_policy" || name == "x86_encoder" || name == "aarch64_encoder" {
         VecPush(result, CheckPath(bin, "ziran"))
         VecPush(result, "run")
@@ -119,6 +130,10 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
 DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) {
     checks: Vec(CheckCase)
     tests := CheckPath(repo, "tests")
+    compiler_cases := string.["module_parameters_cases.zi"]
+    for name: compiler_cases {
+        if TextContains(name, filter) { VecPush(checks, CheckCase.{.name = name, .cost = 2}) }
+    }
     if TextContains("native_backend_policy", filter) {
         VecPush(checks, CheckCase.{.name = "native_backend_policy"})
     }

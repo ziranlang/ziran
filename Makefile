@@ -150,7 +150,10 @@ ifneq ($(BOOTSTRAP),1)
 $(RUNTIME_EMIT_C)/%.c: $(RUNTIME_EMIT_C)/.generated
 	@test -f $@
 endif
-override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(PROOF_C) -I$(BUNDLE_C) -I$(IR_C) -I$(LAW_C) -I$(SERVICES_C) -I$(LINK_C)
+# A generated module directory keeps copies of the headers it imports, so
+# each module's own directory comes before every directory that imports it:
+# a stale copy of compiler_ir.h in compiler-proof must never shadow IR_C.
+override CFLAGS += -I$(IR_C) -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(PROOF_C) -I$(BUNDLE_C) -I$(LAW_C) -I$(SERVICES_C) -I$(LINK_C)
 override CFLAGS += -I$(RUNTIME_EMIT_C)
 ifeq ($(BOOTSTRAP),1)
 BACKEND_CACHE_C := bootstrap/compiler_backend_cache

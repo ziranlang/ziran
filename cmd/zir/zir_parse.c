@@ -44,6 +44,13 @@ die(const char *fmt, ...)
 }
 
 void
+parse_stop(void)
+{
+    if(ZirParseRecovery) longjmp(ZirParseRecovery->jump, 1);
+    exit(1);
+}
+
+void
 die_at(ZirSourceSpan span, const char *fmt, ...)
 {
     va_list args;

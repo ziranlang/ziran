@@ -625,6 +625,54 @@ importing it, and the module a caller imports to use the part registers it.
 An exported procedure that nothing calls is left out in the same way.
 A startup cycle between initializers aborts the program at startup; no
 initializer is skipped or run twice.</p>
+<h3 id="module-parameters">Module parameters</h3>
+<p>A module can declare compile-time parameters as its first declaration, and a
+program chooses their values where it imports the module. Each parameter is an
+ordinary <code>NAME :: value</code> constant of the module, so <code>#if</code>, <code>#ifx</code>, <code>#run</code>,
+array lengths and other constants see the chosen value. Code that an <code>#if</code>
+leaves out never reaches C, Go, ZX, Wasm or native code:</p>
+<pre><code class="language-zi">// fonts.zi
+#module_parameters(STB := false, CACHE: s32 = 8, LABEL := &quot;plain&quot;)
+#if STB {
+Raster :: (code: s32) -&gt; s32 { return code + 1000 }
+}
+Glyph :: (code: s32) -&gt; s32 {
+    #if STB {
+        return Raster(code)
+    }
+    return code + CACHE
+}
+Table: [CACHE]s32;
+
+// app.zi
+Fonts :: #import &quot;fonts&quot;(STB = false, CACHE = 4);
+</code></pre>
+<p>Only comments and blank lines may come before <code>#module_parameters</code>, and it
+belongs in the module's entry file (<code>module.zi</code> for a directory module). Each
+parameter is <code>NAME := literal</code>, which takes its type from the literal (<code>bool</code>,
+<code>string</code>, <code>s64</code> for an integer, <code>float64</code> for a float), or <code>NAME: Type =
+literal</code>, with <code>bool</code>, <code>string</code>, an integer type or a float type. Every
+parameter needs a default. A quoted module import names parameters as
+<code>(NAME = literal, ...)</code>; values are integer, float or string literals, <code>true</code>
+or <code>false</code>. <code>#import, file</code>, <code>#import, dir</code> and <code>#import, string</code> take no
+parameters.</p>
+<p>One program binds each module's parameters once. Every import of a module
+has to give every parameter the same value, with omitted parameters taking
+their defaults, so <code>#import "fonts"</code> and <code>#import "fonts"(STB = true)</code> cannot
+meet in one program. Integer values compare by number: <code>CACHE = 0x4</code> and
+<code>CACHE = 4</code> agree. Different programs that share the module can choose
+differently. These named diagnostics reject an import:</p>
+<ul>
+<li><code>module.parameter_unknown</code>: the module does not declare that name.</li>
+<li><code>module.parameter_type</code>: the value does not fit the declared type,
+  including an integer outside its range.</li>
+<li><code>module.parameter_conflict</code>: another import of the same module gives it a
+  different value.</li>
+</ul>
+<p>Saved <code>.zir</code> keeps each import's list and each module's declared types,
+defaults and bound values. A saved import that disagrees with the module it
+loads is rejected the same way. The checks are the same for source and saved
+IR, so no backend needs to know about parameters.</p>
 <h2 id="foreign-functions">Foreign functions</h2>
 <p>Ordinary <code>#import</code> accepts a module identifier. C headers are no longer
 imported as source modules; foreign procedures use <code>#system_library</code> and

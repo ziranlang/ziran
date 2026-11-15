@@ -1,0 +1,185 @@
+// Module parameters: an import chooses a module's compile-time features, so
+// code the choice leaves out never reaches C, Go, ZX, Wasm or native code.
+// One program binds each module's parameters once; saved IR keeps the
+// binding and rejects edits that disagree with it.
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/path"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+PARAMETER_FONTS :: #string ZI
+// Glyph lookup with an optional rasterizer.
+#module_parameters(STB := false, CACHE: s32 = 8, LABEL := "plain")
+#if STB {
+Extra :: () -> s32 { return 1000 }
+}
+Glyph :: (code: s32) -> s32 {
+    #if STB {
+        return code + Extra()
+    }
+    return code + CACHE
+}
+Label :: () -> string { return LABEL }
+Table: [CACHE]s32;
+Size :: () -> s32 { return cast(s32)Table.count }
+ZI
+
+// helper spells the same binding differently; both imports agree.
+PARAMETER_HELPER :: #string ZI
+Fonts :: #import "fonts"(CACHE = 0x4, LABEL = "ab", STB = false);
+Size :: () -> s32 { return Fonts.Size() }
+ZI
+
+PARAMETER_APP :: #string ZI
+Fonts :: #import "fonts"(STB = false, CACHE = 4, LABEL = "ab");
+Helper :: #import "helper";
+main :: () -> s32 {
+    print("fonts % % %\n", Fonts.Glyph(30), Fonts.Size() + Helper.Size(), Fonts.Label())
+    return 0
+}
+ZI
+
+PARAMETER_RASTER :: #string ZI
+Fonts :: #import "fonts"(STB = true);
+main :: () -> s32 {
+    print("fonts % % %\n", Fonts.Glyph(30), Fonts.Size(), Fonts.Label())
+    return 0
+}
+ZI
+
+ParameterGoRun :: (directory: string) -> Vec(string) {
+    command: Vec(string)
+    VecPush(command, "go")
+    VecPush(command, "run")
+    files := NativeFiles(directory, ".go")
+    for file: files { VecPush(command, file) }
+    return command
+}
+
+// PROGRAM gives EXPECTED on C, Go, the instruction engine, native code from
+// ZX and Wasm, from INPUT (source or saved IR under ROOT).
+ParameterTargets :: (test: *NativeTest, program: string, input: string, root: string,
+    label: string, expected: string) -> bool {
+    entry := CheckConcat(program, ":main")
+    c_output := CheckPath(test.work, CheckConcat(label, "-c"))
+    c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", entry,
+        "--root", root, "-o", c_output, input]
+    unused NativeRun(test, c_build[:])
+    c_run := string.[CheckPath(c_output, program)]
+    if test.failed || !NativeExpect(test, c_run[:], expected) { return false }
+
+    go_output := CheckPath(test.work, CheckConcat(label, "-go"))
+    go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main", "--entry", entry,
+        "--root", root, "-o", go_output, input]
+    unused NativeRun(test, go_build[:])
+    go_run := ParameterGoRun(go_output)
+    if test.failed || !NativeExpect(test, go_run[:], expected) { return false }
+
+    bundle := CheckPath(test.work, CheckConcat(label, ".zx"))
+    bundle_build := string.[test.ziran, "bundle", "--entry", entry, "--root", root, "-o", bundle, input]
+    unused NativeRun(test, bundle_build[:])
+    tools := PathParent(test.ziran)
+    engine := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "engine", bundle]
+    native := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "native", bundle]
+    bundle_expected := CheckConcat(expected, "0\n")
+    if test.failed || !NativeExpect(test, engine[:], bundle_expected) ||
+        !NativeExpect(test, native[:], bundle_expected) { return false }
+
+    wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
+    wasm_build := string.[CheckPath(tools, "zx2wasm"), "-o", wasm, bundle]
+    unused NativeRun(test, wasm_build[:])
+    wasm_run := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm, "--output"]
+    return !test.failed && NativeExpect(test, wasm_run[:], expected)
+}
+
+ParameterProgram :: (test: *NativeTest, root: string, program: string, expected: string) -> bool {
+    source := CheckPath(root, CheckConcat(program, ".zi"))
+    saved_root := CheckPath(test.work, CheckConcat(program, "-ir"))
+    save := string.[test.ziran, "ir", "--root", root, "-o", saved_root, source]
+    unused NativeRun(test, save[:])
+    saved := CheckPath(saved_root, CheckConcat(program, ".zir"))
+    return !test.failed && ParameterTargets(test, program, source, root, CheckConcat(program, "-source"), expected) &&
+        ParameterTargets(test, program, saved, saved_root, CheckConcat(program, "-saved"), expected)
+}
+
+// Checking SOURCE beside the shared modules fails with DIAGNOSTIC.
+ParameterReject :: (test: *NativeTest, root: string, name: string, source: string, diagnostic: string) -> bool {
+    path := CheckPath(root, CheckConcat(name, ".zi"))
+    if !NativeWrite(test, path, source) { return false }
+    command := string.[test.ziran, "check", "--diagnostics=json", "--root", root, path]
+    return NativeReject(test, command[:], diagnostic)
+}
+
+ParameterRejections :: (test: *NativeTest, root: string) -> bool {
+    answer := "\n#program_export\nAnswer :: () -> s32 { return 0 }\n"
+    if !NativeWrite(test, CheckPath(root, "plain.zi"), "Value :: () -> s32 { return 1 }\n") ||
+        !NativeWrite(test, CheckPath(root, "defaults.zi"), "Fonts :: #import \"fonts\";\nSize :: () -> s32 { return Fonts.Size() }\n") { return false }
+    cases := string.[
+        "unknown", "Fonts :: #import \"fonts\"(STBB = true);", "\"code\":\"module.parameter_unknown\"",
+        "undeclared", "Plain :: #import \"plain\"(STB = true);", "it declares no #module_parameters",
+        "type", "Fonts :: #import \"fonts\"(CACHE = \"x\");", "\"code\":\"module.parameter_type\"",
+        "range", "Fonts :: #import \"fonts\"(CACHE = 3000000000);", "3000000000 does not fit it",
+        "conflict", "Fonts :: #import \"fonts\"(CACHE = 4);\nDefaults :: #import \"defaults\";", "\"code\":\"module.parameter_conflict\"",
+        "inactive", "Fonts :: #import \"fonts\"(STB = false);\nUse :: () -> s32 { return Fonts.Extra() }", "unresolved function: Fonts.Extra",
+        "duplicate", "Fonts :: #import \"fonts\"(STB = true, STB = false);", "names the same parameter twice",
+        "literal", "Fonts :: #import \"fonts\"(STB = Plain);", "must be a literal",
+        "file", "Fonts :: #import, file \"fonts.zi\"(STB = true);", "need a quoted module import",
+        "late", "Value :: 1;\n#module_parameters(LATE := 1);", "must be the first declaration",
+        "redeclared", "#module_parameters(LIMIT := 1);\nLIMIT :: 2;", "LIMIT is a module parameter",
+        "default", "#module_parameters(SMALL: u8 = 300);", "does not fit its declared type",
+        "required", "#module_parameters(SMALL: u8);", "needs a default value",
+    ]
+    for index: 0..cases.count / 3 - 1 {
+        if !ParameterReject(test, root, CheckConcat("reject_", cases[index * 3]),
+            CheckConcat(cases[index * 3 + 1], answer), cases[index * 3 + 2]) { return false }
+    }
+    return true
+}
+
+// Saved IR keeps each import's list and each module's binding; an edited list
+// conflicts with the saved binding, and an invalid one is not checked IR.
+ParameterSavedEdits :: (test: *NativeTest) -> bool {
+    saved_root := CheckPath(test.work, "parameter_app-ir")
+    app := CheckPath(saved_root, "parameter_app.zir")
+    original := NativeRead(test, app)
+    list := "STB=false,CACHE=4,LABEL=\"ab\""
+    if !NativeAssert(test, TextFind(original, list) >= 0, "saved import keeps its canonical parameter list") { return false }
+    inspect := string.[test.ziran, "inspect", CheckPath(saved_root, "fonts.zir")]
+    listing := NativeRun(test, inspect[:])
+    if !NativeAssert(test, TextContains(listing.output, "parameter CACHE: s32 = \"4\" default \"8\"") &&
+        TextContains(listing.output, "parameter STB: bool = \"false\" default \"false\""), "saved module keeps its binding") { return false }
+    edits := string.[
+        "STB=false,CACHE=5,LABEL=\"ab\"", "\"code\":\"module.parameter_conflict\"",
+        "STB=false,CACHX=4,LABEL=\"ab\"", "\"code\":\"module.parameter_unknown\"",
+        "STB=false,CACHE=4,LABEL=\"a\"b", "\"code\":\"zir.",
+    ]
+    for index: 0..edits.count / 2 - 1 {
+        if !NativeWrite(test, app, TextDetach(TextReplace(original, list, edits[index * 2]))) { return false }
+        command := string.[test.ziran, "check", "--diagnostics=json", "--root", saved_root, app]
+        if !NativeReject(test, command[:], edits[index * 2 + 1]) { return false }
+    }
+    return NativeWrite(test, app, original)
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "module-parameters-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off")
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
+    root := CheckPath(test.work, "source")
+    if !NativeWrite(*test, CheckPath(root, "fonts.zi"), PARAMETER_FONTS) ||
+        !NativeWrite(*test, CheckPath(root, "helper.zi"), PARAMETER_HELPER) ||
+        !NativeWrite(*test, CheckPath(root, "parameter_app.zi"), PARAMETER_APP) ||
+        !NativeWrite(*test, CheckPath(root, "parameter_raster.zi"), PARAMETER_RASTER) ||
+        !ParameterProgram(*test, root, "parameter_app", "fonts 34 8 ab\n") ||
+        !ParameterProgram(*test, root, "parameter_raster", "fonts 1030 8 plain\n") ||
+        !ParameterSavedEdits(*test) || !ParameterRejections(*test, root) { return 1 }
+    print("module parameters: source/saved C, Go, engine, native and Wasm agree; named rejections passed\n")
+    return 0
+}

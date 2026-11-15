@@ -34,7 +34,7 @@ data-scope enum `using`, and data-scope promotion from module-local record and
 scalar-union globals in procedure bodies, including public globals from open
 and named imports. It supports typed array literals, including empty arrays, typed and
 inferred record literals, named and default arguments, direct polymorphic
-calls, scopes, `#load`, several `#import` forms, bounded pure `#run`, and
+calls, scopes, `#load`, several `#import` forms, module parameters, bounded pure `#run`, and
 `.zir` graphs. The compiler rejects many inherited spellings,
 including `#enum`, `variant`, postfix `?`, `#global`, `#export`, `#private`,
 `#extern`, C pointer suffixes, C conditional expressions, and old Kryon file
@@ -185,6 +185,21 @@ every coercion site through a checked call rewrite shared by all targets. In par
 conversions, so a text substitution in a backend is insufficient. Model
 namespace import and conversion metadata explicitly, resolve it in the
 checker, and serialize the checked result.
+
+Module parameters follow Jai's `#module_parameters`: a module's leading
+`#module_parameters(NAME := literal, NAME: Type = literal)` declares
+compile-time constants, and `#import "Module"(NAME = literal)` chooses their
+values, so `#if` keeps unselected code out of every backend. Unlike Jai, one
+program binds a module's parameters once: imports that disagree fail with
+`module.parameter_conflict` instead of compiling a second copy of the module.
+Unknown names and values that do not fit fail with `module.parameter_unknown`
+and `module.parameter_type`. Grammar and literal rules live in
+`cmd/compiler_declaration.zi`. The binding is checked IR state:
+`ZirModule.parameters` and `ZirImport.parameters`, saved in `.zir` version 65.
+That keeps it portable to the Ziran checker. `tests/module_parameters_cases.zi`
+covers source and saved IR on C, Go, the engine, native code and Wasm. Open:
+per-import module instances (Jai's separate copies), which need
+instance-qualified module identities in every emitter.
 
 Acceptance: importing through a re-export preserves public/private scopes;
 `#as` conversions work for values and pointers where legal; all targets agree

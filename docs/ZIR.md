@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 64 now exists for
+This is the target contract. An experimental binary version 65 now exists for
 the tested C/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -106,11 +106,16 @@ order, then pass values in parameter order. Procedure declarations retain their
 default expressions; omitted arguments are materialized as checked call
 expressions before serialization. Concrete defaults use checked procedures in
 the declaring module so their names keep that module's scope.
+Each module keeps its `#module_parameters` with their declared types,
+defaults and bound values. Each module import keeps its parameter list in
+canonical `NAME=value` form, with integers in decimal. Loading checks every
+import against the bound module, as for source, and rejects a bound value that
+differs from the module's constant of the same name.
 Runtime-dependent global initializers lower to private checked startup
 functions. Their startup flag is serialized and validated; the linker retains
 them with reachable modules and their call dependencies.
 For checked functions, statement text is source metadata; the expression graph
-and explicit branch flags and loop target IDs determine behavior. Version 64
+and explicit branch flags and loop target IDs determine behavior. Version 65
 saves each statement's text once. An expression whose text appears in a
 statement of the same function saves only that statement's distance from the
 last one referenced, the text's length, and a change in the byte bias between

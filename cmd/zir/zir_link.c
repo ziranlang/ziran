@@ -291,6 +291,7 @@ copy_program(const ZirProgram *source)
         to->laws = NULL; to->law_count = to->law_cap = 0;
         to->law_waivers = NULL; to->law_waiver_count = to->law_waiver_cap = 0;
         to->proofs = NULL; to->proof_count = to->proof_cap = 0;
+        to->parameters = NULL; to->parameter_count = to->parameter_cap = 0;
         if(!copy_laws(to, from)) goto failed;
 #define COPY_DECLARATIONS(member, count, capacity) do { \
         if(from->count > 0) { \
@@ -306,6 +307,7 @@ copy_program(const ZirProgram *source)
         COPY_DECLARATIONS(asserts, assert_count, assert_cap);
         COPY_DECLARATIONS(types, type_count, type_cap);
         COPY_DECLARATIONS(imports, import_count, import_cap);
+        COPY_DECLARATIONS(parameters, parameter_count, parameter_cap);
 #undef COPY_DECLARATIONS
         if(from->function_count > 0) {
             to->functions = calloc((size_t)from->function_count,
@@ -2005,6 +2007,17 @@ resolve_reachability:
         target->laws = NULL; target->law_count = target->law_cap = 0;
         target->law_waivers = NULL; target->law_waiver_count = target->law_waiver_cap = 0;
         target->proofs = NULL; target->proof_count = target->proof_cap = 0;
+        target->parameters = NULL;
+        target->parameter_count = target->parameter_cap = 0;
+        if(source->parameter_count > 0) {
+            target->parameters = malloc((size_t)source->parameter_count *
+                                        sizeof(*target->parameters));
+            if(target->parameters == NULL)
+                goto failed;
+            memcpy(target->parameters, source->parameters,
+                   (size_t)source->parameter_count * sizeof(*target->parameters));
+            target->parameter_count = target->parameter_cap = source->parameter_count;
+        }
         if(!copy_laws(target, source)) goto failed;
         /* Statement text is reparsed when a bundle is loaded. Keep constants
          * so symbolic array declarations retain their checked meaning. */

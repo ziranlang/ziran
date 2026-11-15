@@ -149,12 +149,13 @@ plain_number_array(const char *text)
 
 static ZirProgram *parse_source(const char *path, const char *root, const char *source,
              ZirCompileImportResolver resolver, void *resolver_context,
-             const char *const *defines, int define_count);
+             const char *const *defines, int define_count, const ZirImport *site);
 
 static ZirProgram *
 parse_source_with_buffers(const char *path, const char *root, const char *source,
              ZirCompileImportResolver resolver, void *resolver_context,
-             const char *const *defines, int define_count, ParseSourceBuffers *buffers)
+             const char *const *defines, int define_count, const ZirImport *site,
+             ParseSourceBuffers *buffers)
 {
     ZirProgram *program;
     CompileParseContext compile_context = {0};
@@ -229,6 +230,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int foreign_library_file_private[32] = {0};
     int foreign_library_count = 0;
     int load_depth = 0;
+    int module_parameters_line = 0;
+    int module_parameters_seen = 0;
     char *canonical = CanonicalPath(path);
     char *owned_source = NULL;
     if(canonical == NULL)
@@ -282,6 +285,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                   canonical_root != NULL ? canonical_root : root);
         free(canonical_root);
     }
+    module_parameters_line = apply_module_parameters(module, source, buffers->rel,
+                                                     site, &consts);
     discover_file_scope(source, path, buffers->rel, root, &future_constants,
                         &future_usings, &future_imports, &future_types,
                         &deferred_types,
@@ -1032,7 +1037,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             ZirProgram *fragment = parse_source(buffers->synthetic_path, root,
                                                 string_source, resolver,
                                                 resolver_context,
-                                                defines, define_count);
+                                                defines, define_count, NULL);
             free(string_source);
             if(fragment == NULL) {
                 ProgramFree(program);
@@ -1073,6 +1078,13 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             if(import == NULL)
                 die("out of memory importing source string");
             import->is_file_private = scope_file;
+            continue;
+        } else if(mode == TOP && starts_word(t, "#module_parameters")) {
+            /* apply_module_parameters already bound the leading directive. */
+            if(module_parameters_line == 0 || module_parameters_seen || load_depth > 0)
+                die_at(Span(buffers->rel, line_no, 1),
+                       "#module_parameters must be the first declaration of a module's entry file");
+            module_parameters_seen = 1;
             continue;
         } else if(mode == TOP && t[0] == '#' &&
                   !starts_word(t, "#import") &&
@@ -1395,6 +1407,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             if(find_unquoted(expr, "#this", true) != NULL)
                 die_at(Span(buffers->rel, line_no, 1),
                        "#this requires a procedure or type scope");
+            for(int i = 0; cname[0] != '\0' && i < module->parameter_count; i++)
+                if(!strcmp(module->parameters[i].name, cname))
+                    die_at(Span(buffers->rel, line_no, 1),
+                           "%s is a module parameter; its value comes from #module_parameters", cname);
             if(cname[0] != '\0' && *expr != '\0') {
                 if(starts_word(expr, "#define"))
                     die_at(Span(buffers->rel, line_no, 1), "use '%s :: value'; #define is not Ziran syntax", cname);
@@ -2152,7 +2168,7 @@ names_vec_types(const ZirModule *module)
 static ZirProgram *
 parse_source(const char *path, const char *root, const char *source,
              ZirCompileImportResolver resolver, void *resolver_context,
-             const char *const *defines, int define_count)
+             const char *const *defines, int define_count, const ZirImport *site)
 {
     static const char scratch_key;
     static _Thread_local CompilerScratchCache scratch_cache;
@@ -2165,7 +2181,7 @@ parse_source(const char *path, const char *root, const char *source,
         buffers->pending_capacity = buffers->logical_capacity = 0;
     }
     uint64_t profile_started = ProfileStart();
-    ZirProgram *returned = parse_source_with_buffers(path, root, source, resolver, resolver_context, defines, define_count, buffers);
+    ZirProgram *returned = parse_source_with_buffers(path, root, source, resolver, resolver_context, defines, define_count, site, buffers);
     ProfileEnd("parse", profile_started);
     if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free_parse_source_buffers(buffers);
@@ -2200,7 +2216,8 @@ static int resolve_imports_outside_operation(void *opaque, ZirProgram *program,
 static ZirProgram *
 parse_operation(const char *path, const char *root, const char *source,
                 ZirCompileImportResolver resolver, void *context,
-                const char *const *defines, int define_count)
+                const char *const *defines, int define_count,
+                const ZirImport *site)
 {
     CompilerContext *previous = CompilerContextCurrent();
     CompilerContext *owner = previous ? previous : CompilerContextOpen();
@@ -2236,7 +2253,7 @@ parse_operation(const char *path, const char *root, const char *source,
         if(source && !DocumentRecord(path, source, strlen(source)))
             die_at(Span(path, 0, 0), "source document identity limit exceeded");
         char *lowered = source ? lower_jai_multiline_strings(source, path) : read_lowered_source(path);
-        program = parse_source(path, root, lowered, resolver ? resolve_imports_outside_operation : NULL, &imports, defines, define_count);
+        program = parse_source(path, root, lowered, resolver ? resolve_imports_outside_operation : NULL, &imports, defines, define_count, site);
         free(lowered);
     }
     ParseCacheLeave(recovery->expression_cache);
@@ -2263,7 +2280,17 @@ parse_file_with_imports_defined(const char *path, const char *root,
                                 void *context, const char *const *defines,
                                 int define_count)
 {
-    return parse_operation(path, root, NULL, resolver, context, defines, define_count);
+    return parse_operation(path, root, NULL, resolver, context, defines, define_count, NULL);
+}
+
+ZirProgram *
+parse_module_with_imports(const char *path, const char *root,
+                          ZirCompileImportResolver resolver, void *context,
+                          const char *const *defines, int define_count,
+                          const ZirImport *site)
+{
+    return parse_operation(path, root, NULL, resolver, context, defines,
+                           define_count, site);
 }
 
 ZirProgram *
@@ -2275,5 +2302,5 @@ parse_file(const char *path, const char *root)
 ZirProgram *
 parse_source_text(const char *path, const char *source)
 {
-    return parse_operation(path, ".", source, NULL, NULL, NULL, 0);
+    return parse_operation(path, ".", source, NULL, NULL, NULL, 0, NULL);
 }

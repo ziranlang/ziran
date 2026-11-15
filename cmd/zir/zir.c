@@ -1683,6 +1683,7 @@ ProgramFree(ZirProgram *program)
         free(m->imports);
         free(m->functions);
         free(m->defines);
+        free(m->parameters);
         free(m->asserts);
         free(m->usings);
         for(int l = 0; l < m->law_count; l++) {
@@ -1941,6 +1942,27 @@ ModuleAddDefine(ZirModule *module, const char *name, const char *value,
     d->is_public = 1;
     d->span = span;
     return d;
+}
+
+ZirModuleParameter *
+ModuleAddParameter(ZirModule *module, const char *name, const char *type,
+                   const char *default_value, ZirSourceSpan span)
+{
+    if(module == NULL)
+        return NULL;
+    ZirModuleParameter *parameters = realloc_array(module->parameters,
+        &module->parameter_cap, module->parameter_count, sizeof(ZirModuleParameter));
+    if(parameters == NULL)
+        return NULL;
+    module->parameters = parameters;
+    ZirModuleParameter *parameter = &module->parameters[module->parameter_count++];
+    memset(parameter, 0, sizeof(*parameter));
+    copy_text(parameter->name, sizeof(parameter->name), name);
+    copy_text(parameter->type, sizeof(parameter->type), type);
+    parameter->default_value = KeepText(default_value);
+    parameter->value = parameter->default_value;
+    parameter->span = span;
+    return parameter;
 }
 
 int

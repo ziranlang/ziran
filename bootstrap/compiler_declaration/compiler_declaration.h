@@ -3,7 +3,7 @@
 #define ZIRAN_COMPILER_DECLARATION_H
 
 #include <stdbool.h>
-#include "zir_string_types.h"
+#include "zir_string.h"
 #include "zir_slice.h"
 #include "compiler_text.h"
 #include "compiler_source.h"
@@ -18,6 +18,8 @@ typedef struct ExportDirective ExportDirective;
 typedef struct ParameterRewrite ParameterRewrite;
 typedef int32_t ImportMode;
 typedef struct ModuleImport ModuleImport;
+typedef struct ParameterEntry ParameterEntry;
+typedef struct ModuleParameterDirective ModuleParameterDirective;
 typedef struct LibraryDeclaration LibraryDeclaration;
 typedef struct MethodSymbol MethodSymbol;
 typedef struct UsingFilter UsingFilter;
@@ -101,6 +103,15 @@ enum {
     DeclarationError_ProcedureTypeName = 62,
     DeclarationError_ProcedureTypeType = 63,
     DeclarationError_ProcedureTypeDefault = 64,
+    DeclarationError_ImportParameterList = 65,
+    DeclarationError_ImportParameterMode = 66,
+    DeclarationError_ParameterListSyntax = 67,
+    DeclarationError_ParameterName = 68,
+    DeclarationError_ParameterValue = 69,
+    DeclarationError_ParameterDuplicate = 70,
+    DeclarationError_ParameterType = 71,
+    DeclarationError_ParameterDefault = 72,
+    DeclarationError_ParameterFit = 73,
 };
 
 struct GoMethodDeclaration {
@@ -140,6 +151,24 @@ struct ModuleImport {
     String target;
     String path;
     String detail;
+    bool parameterized;
+    String parameters;
+};
+
+struct ParameterEntry {
+    DeclarationError error;
+    bool present;
+    String name;
+    String type;
+    String value;
+    int64_t next;
+};
+
+struct ModuleParameterDirective {
+    DeclarationError error;
+    bool present;
+    String list;
+    int64_t line;
 };
 
 struct LibraryDeclaration {
@@ -247,6 +276,13 @@ ExportDirective compiler_declaration_ProgramExport(String source, int64_t symbol
 ParameterRewrite compiler_declaration_RewriteParameters(String source, Slice output, bool strip_defaults, bool strip_using, int64_t name_limit);
 ParameterRewrite compiler_declaration_RewriteProcedureTypeParameters(String source, Slice output, int64_t name_limit);
 ModuleImport compiler_declaration_ImportDeclaration(String source, int64_t name_limit, int64_t path_limit);
+String compiler_declaration_ParameterLiteralType(String value);
+bool compiler_declaration_ParameterTypeName(String type);
+bool compiler_declaration_ParameterFits(String type, String value);
+int64_t compiler_declaration_ParameterCanonical(String value, Slice output);
+ParameterEntry compiler_declaration_NextParameter(String list, int64_t at, bool declaration, int64_t name_limit);
+DeclarationError compiler_declaration_ParameterListError(String list, bool declaration, int64_t name_limit);
+ModuleParameterDirective compiler_declaration_ModuleParametersPrefix(String source, int64_t name_limit);
 LibraryDeclaration compiler_declaration_SystemLibrary(String source, int64_t name_limit, int64_t path_limit);
 MethodSymbol compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_t method_limit);
 ForeignDeclaration compiler_declaration_ParseForeign(String source, int64_t name_limit);
@@ -263,6 +299,36 @@ TextRewrite compiler_declaration_RewriteProcedureName(String source, String name
 TextRewrite compiler_declaration_RewriteLocalNames(String source, Slice names, Slice output);
 SymmetricRewrite compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice wrapper_output, int64_t name_limit);
 PrintRewrite compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t maximum);
+
+/* Small procedures other modules inline; compiler_declaration.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_DECLARATION_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include <stdbool.h>
+#include "zir_string.h"
+static inline DeclarationError compiler_declaration_ParameterListError_ziran_inline(String list, bool declaration, int64_t name_limit);
+#define compiler_declaration_ParameterListError(...) compiler_declaration_ParameterListError_ziran_inline(__VA_ARGS__)
+
+static inline DeclarationError
+compiler_declaration_ParameterListError_ziran_inline(String list, bool declaration, int64_t name_limit)
+{
+    int64_t at = 0LL;
+    while (at >= 0LL) {
+        ParameterEntry entry = compiler_declaration_NextParameter(list, at, declaration, name_limit);
+        if (((DeclarationError)(entry.error)) != DeclarationError_None) {
+            return (DeclarationError)(entry.error);
+        }
+        int64_t earlier = 0LL;
+        while (earlier >= 0LL && earlier < at) {
+            ParameterEntry previous = compiler_declaration_NextParameter(list, earlier, declaration, name_limit);
+            if (StringEqual(previous.name, entry.name)) {
+                return DeclarationError_ParameterDuplicate;
+            }
+            earlier = previous.next;
+        }
+        at = entry.next;
+    }
+    return DeclarationError_None;
+}
+#endif
 
 #ifdef __cplusplus
 }

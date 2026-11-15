@@ -314,6 +314,13 @@ uint64_t strip_using_parameters(char *args, size_t capacity, ZirSourceSpan span)
 int lower_procedure_name_expression(char *part, size_t capacity, const ZirFunction *function);
 void add_default_helpers(ZirProgram *program, ZirModule *module, const char *source_path, const char *root, ZirCompileImportResolver resolver, void *resolver_context);
 int parse_import_line(ZirModule *module, const char *path, int line_no, const char *line, int scope_public);
+/* Read SOURCE's leading #module_parameters into MODULE, bind them for the
+ * import SITE (NULL for an input or embedded source) and add each bound value
+ * as the constant NAME :: value. Returns the directive's line, 0 for none. */
+int apply_module_parameters(ZirModule *module, const char *source, const char *rel,
+                            const ZirImport *site, ZirConsts *consts);
+/* Leave the current parse after a diagnostic was already reported. */
+void parse_stop(void);
 int parse_foreign_library_line(const char *path, int line_no, const char *line, char names[][ZIR_NAME_MAX], char targets[][ZIR_PATH_MAX], int *count);
 int parse_foreign_line(ZirModule *module, const char *path, int line_no, const char *line, int scope_public, char names[][ZIR_NAME_MAX], char targets[][ZIR_PATH_MAX], char paths[][SOURCE_PATH_MAX], const int *file_private, int count);
 int brace_outside_literals(const char *text);

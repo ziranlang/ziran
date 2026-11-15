@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Modules take compile-time parameters: `#module_parameters(NAME := value, NAME: Type = value)` as a module's first declaration, and `#import "module"(NAME = value)` chooses the values, so `#if` keeps unchosen features out of C, Go, ZX, Wasm and native code. One program binds a module's parameters once; an unknown name, a value that does not fit and imports that disagree fail as `module.parameter_unknown`, `module.parameter_type` and `module.parameter_conflict`. Saved `.zir` is version 65 and keeps the bindings.
+- A constant whose string holds `#import`, such as module source in `#string`, is no longer read as an import.
 - Native code compiled for a bundle is cached on disk (`$XDG_CACHE_HOME/ziran/native`, or `~/.cache/ziran/native`), keyed by content, CPU features and compiler build and checked by digest before use, so later runs skip compiling; `ZIRAN_NATIVE_CACHE=DIR` moves it and `ZIRAN_NATIVE_CACHE=off` turns it off.
 - The shared LIR optimizer adds common-subexpression elimination, constant-text folding, precise scratch-slot accounting, safe dead-code and CFG cleanup, and Wasm range-based bounds-check elimination.
 - Go accepts a module initializer that stores a procedure which later calls a host, as a feature module does when it registers itself; only a host call made while an initializer runs is refused.

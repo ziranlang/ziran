@@ -4,7 +4,7 @@
 /*
  * zir_zx_wasm_platform - the WebAssembly provider seam of the wasm
  * execution tier. libziran lowers bundles to wasm32 modules in plain C
- * (cmd/zir-wasm/zx_wasm_lower.c); instantiating and calling the module
+ * (cmd/zx2wasm/zx_wasm_lower.c); instantiating and calling the module
  * needs a host runtime, so the embedding application installs one provider
  * at startup. Web hosts implement it over the browser's WebAssembly engine
  * through their bridge; without a provider every bundle runs on the

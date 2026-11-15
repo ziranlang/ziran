@@ -19,18 +19,18 @@ main :: (argc: s32, argv: **u8) -> s32 {
     runner := CheckPath(PathParent(test.ziran), "zi2zx")
     source_run := string.[test.ziran, "run", "hello.zi"]
     unused NativeExpect(*test, source_run[:], "Hello, World!\n", test.work)
-    direct_run := string.[runner, "hello.zi"]
+    direct_run := string.[runner, "run", "hello.zi"]
     unused NativeExpect(*test, direct_run[:], "Hello, World!\n", test.work)
     hello_ir := CheckPath(test.work, "hello-ir")
     save_hello := string.[test.ziran, "ir", "--root", test.work, "-o", hello_ir, hello]
     unused NativeRun(*test, save_hello[:])
-    saved_run := string.[runner, CheckPath(hello_ir, "hello.zir")]
+    saved_run := string.[runner, "run", CheckPath(hello_ir, "hello.zir")]
     unused NativeExpect(*test, saved_run[:], "Hello, World!\n")
     bundle_hello := string.[test.ziran, "bundle", "--root", test.work, "--entry", "hello:main", "-o", CheckPath(test.work, "hello.zx"), hello]
     unused NativeRun(*test, bundle_hello[:])
-    bundle_run := string.[runner, "hello.zx"]
+    bundle_run := string.[runner, "run", "hello.zx"]
     unused NativeExpect(*test, bundle_run[:], "Hello, World!\n", test.work)
-    missing := string.[runner, "missing.zi"]
+    missing := string.[runner, "run", "missing.zi"]
     if !NativeReject(*test, missing[:], "cannot open", test.work) { return 1 }
     cc := NativeCompiler()
     cxx := EnvironmentText("CXX"); if cxx == "" { cxx = "c++" }

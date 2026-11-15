@@ -15,8 +15,8 @@ WASM subset. It models fixed-width scalars, fixed arrays, checked slices, and
 owned `Vec`; it has checked GNU `#asm` alternatives, CPU guards, and cached
 dispatch in `cmd/zir/zir_asm.c`, `cmd/zir/zir_asm.h`, and
 `tests/spec/native_assembly_test.zi`. Go has more restrictive ABI0 assembly in
-`cmd/zir-go/zir_go_asm.c` and `cmd/zir-go/zir_go_amd64.c`. C compilation is
-configured in `cmd/zir-c/zir_c_build.c` and defaults to `-O2`.
+`cmd/zi2go/zir_go_asm.c` and `cmd/zi2go/zir_go_amd64.c`. C compilation is
+configured in `cmd/zi2c/zir_c_build.c` and defaults to `-O2`.
 
 No first-class packed SIMD IR/type, compiler-owned SIMD intrinsic, proved
 no-alias fact, or language-level bounds-elimination pass was found. Downstream

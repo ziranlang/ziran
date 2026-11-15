@@ -92,7 +92,7 @@ def build(compiler, samples):
     data = {'schema_version': 1, 'host': platform.node() + ' · ' + base.cpu_name(),
             'measured_at': datetime.now(timezone.utc).isoformat(), 'samples': samples,
             'compiler': {tool: base.sha(compiler / 'build/bin' / tool)
-                         for tool in ('zi2c', 'zi2go', 'zi2zx', 'zi2asm')},
+                         for tool in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm')},
             'stdlib': {str(p.relative_to(compiler)): base.sha(p) for p in sorted((compiler / 'std').glob('*.zi'))},
             'harnesses': {p: base.sha((ROOT if p == 'bench/json_text.py' else HARNESS_ROOT) / p) for p in HARNESSES},
             'versions': {name: hosts.run(command, env=env).splitlines()[0] for name, command in
@@ -114,13 +114,26 @@ def build(compiler, samples):
             if directory.exists():
                 shutil.rmtree(directory)
             directory.mkdir(parents=True, exist_ok=True)
-            command = [compiler / 'build/bin' / ('zi2asm' if target == 'wasm' else 'zi2' + target),
-                       *(['bundle'] if target == 'zx' else ['--no-main'] if target in ('c', 'go') else ['--emit', 'wasm']),
-                       *(['--pkg', 'main'] if target == 'go' else []),
-                       '--root', source.parent, '--module-path', compiler / 'std', '--entry', name + ':Answer',
-                       '-o', directory / (name + '.' + target) if target in ('zx', 'wasm') else directory, source]
+            common = ['--root', source.parent, '--module-path', compiler / 'std',
+                      '--entry', name + ':Answer']
+            if target in ('c', 'go'):
+                command = [compiler / 'build/bin' / ('zi2' + target), '--no-main',
+                           *(['--pkg', 'main'] if target == 'go' else []), *common,
+                           '-o', directory, source]
+                commands = [command]
+            elif target == 'zx':
+                command = [compiler / 'build/bin/zi2zx', *common,
+                           '-o', directory / (name + '.zx'), source]
+                commands = [command]
+            else:
+                wire = directory / (name + '.zx')
+                command = [compiler / 'build/bin/zi2zx', '--target', 'wasm', *common,
+                           '-o', wire, source]
+                commands = [command, [compiler / 'build/bin/zx2wasm',
+                                      '-o', directory / (name + '.wasm'), wire]]
             try:
-                hosts.run(command, env=env)
+                for stage in commands:
+                    hosts.run(stage, env=env)
             except RuntimeError as error:
                 if target!='wasm' or 'outside the wasm execution subset' not in str(error):
                     raise
@@ -136,7 +149,8 @@ def build(compiler, samples):
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(path, destination)
                 emitted.append(hosts.public(destination))
-            cell = {'status': 'ok', 'files': emitted, 'command': base.command_text(command)}
+            cell = {'status': 'ok', 'files': emitted,
+                    'command': '\n'.join(base.command_text(stage) for stage in commands)}
             row['targets'][target] = cell
             if target == 'c':
                 program = WORK / name / 'c-program'

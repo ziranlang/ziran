@@ -44,13 +44,14 @@ hardcoded. `final.disasm` records the same ELF identity and adjustment, while th
 manifest hashes every advertised artifact.
 
 `objdump` (normally from GNU binutils) is an explicit inspection dependency. It
-does not assemble or link the program: `zi2asm` reads verified ZX and directly
+does not assemble or link the program: `zx2native` reads verified ZX and directly
 encodes ELF. Pass `--objdump PATH` when a compatible tool has another name. Missing
 tools, unsupported source, compiler errors, identity mismatches and disassembly
 errors stop at the failing stage. A failed run does not replace the last complete
 artifact set, and there is no fallback compiler.
 
-The tasks require the existing `build/bin/zi2zir` and `build/bin/zi2asm`. If
+The tasks require the existing `build/bin/zi2zir`, `build/bin/zi2zx`, and
+`build/bin/zx2native`. If
 native compiler work makes them stale, finish that work and rebuild through the
 shared queue before inspecting:
 

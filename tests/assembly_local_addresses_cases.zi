@@ -16,20 +16,28 @@ CompileLocalAddress :: (test: *NativeTest, compiler: string, input: string,
     return RunLocalAddress(test, command[:])
 }
 
+CompileNativeAddress :: (test: *NativeTest, zi2zx: string, zx2native: string, input: string,
+    root: string, entry: string, output: string) -> bool {
+    verified := CheckConcat(output, ".zx")
+    lower := string.[zi2zx, "--root", root, "--entry", entry, "-o", verified, input]
+    if !RunLocalAddress(test, lower[:]) { return false }
+    encode := string.[zx2native, "-o", output, verified]
+    return RunLocalAddress(test, encode[:])
+}
+
 RunReference :: (test: *NativeTest, input: string, root: string) -> bool {
     command := string.[test.ziran, "run", "--target=c", "--root", root,
         "--entry", "assembly_local_addresses:Answer", input]
     return RunLocalAddress(test, command[:], 42)
 }
 
-RunFocusedFixture :: (test: *NativeTest, compiler: string, fixture: string) -> bool {
+RunFocusedFixture :: (test: *NativeTest, zi2zx: string, zx2native: string, fixture: string) -> bool {
     root := PathParent(fixture)
     entry := CheckConcat(PathStem(fixture), ":Answer")
-    portable := string.[compiler, "--run", "--root", root, "--entry", entry, fixture]
-    if !RunLocalAddress(test, portable[:], 42) { return false }
+    portable := string.[zi2zx, "run", "--root", root, "--entry", entry, fixture]
+    if !RunLocalAddress(test, portable[:]) { return false }
     output := CheckPath(test.work, CheckConcat(PathName(fixture), ".elf"))
-    compile := string.[compiler, "--root", root, "--entry", entry, "--emit", "elf", "-o", output, fixture]
-    if !RunLocalAddress(test, compile[:]) { return false }
+    if !CompileNativeAddress(test, zi2zx, zx2native, fixture, root, entry, output) { return false }
     native := string.[output]
     return RunLocalAddress(test, native[:], 42)
 }
@@ -39,8 +47,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "assembly-local-addresses-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
-    compiler := TextDetach(ResolvePath(EnvironmentText("ZIRAN_ZI2ASM")))
-    if !NativeAssert(*test, compiler != "", "cannot resolve the zi2asm executable") { return 1 }
+    compiler := TextDetach(ResolvePath(EnvironmentText("ZIRAN_ZI2ZX")))
+    native_compiler := TextDetach(ResolvePath(EnvironmentText("ZIRAN_ZX2NATIVE")))
+    if !NativeAssert(*test, compiler != "" && native_compiler != "", "cannot resolve zi2zx and zx2native") { return 1 }
     source_root := CheckPath(test.repo, "tests/spec")
     source := CheckPath(source_root, "assembly_local_addresses.zi")
     if !RunReference(*test, source, source_root) { return 1 }
@@ -66,19 +75,21 @@ main :: (argc: s32, argv: **u8) -> s32 {
         !NativeAssert(*test, TextContains(listing, "allocate") && TextContains(listing, "load") &&
             TextContains(listing, "store"), "local addresses must use checked allocation, loads and stores") { return 1 }
 
-    source_portable := string.[compiler, "--run", "--root", source_root, "--entry",
+    source_portable := string.[compiler, "run", "--root", source_root, "--entry",
         "assembly_local_addresses:Answer", source]
-    saved_portable := string.[compiler, "--run", "--root", saved_root, "--entry",
+    saved_portable := string.[compiler, "run", "--root", saved_root, "--entry",
         "assembly_local_addresses:Answer", saved]
-    wire_portable := string.[compiler, "--input", "zx", "--run", source_exec]
-    if !RunLocalAddress(*test, source_portable[:], 42) ||
-        !RunLocalAddress(*test, saved_portable[:], 42) ||
-        !RunLocalAddress(*test, wire_portable[:], 42) { return 1 }
+    wire_portable := string.[compiler, "run", source_exec]
+    if !RunLocalAddress(*test, source_portable[:]) ||
+        !RunLocalAddress(*test, saved_portable[:]) ||
+        !RunLocalAddress(*test, wire_portable[:]) { return 1 }
 
     source_elf := CheckPath(test.work, "source-elf")
     saved_elf := CheckPath(test.work, "saved-elf")
-    if !CompileLocalAddress(*test, compiler, source, source_root, "elf", source_elf) ||
-        !CompileLocalAddress(*test, compiler, saved, saved_root, "elf", saved_elf) ||
+    if !CompileNativeAddress(*test, compiler, native_compiler, source, source_root,
+        "assembly_local_addresses:Answer", source_elf) ||
+        !CompileNativeAddress(*test, compiler, native_compiler, saved, saved_root,
+            "assembly_local_addresses:Answer", saved_elf) ||
         !NativeAssert(*test, NativeRead(*test, source_elf) == NativeRead(*test, saved_elf),
             "source and saved local addresses must encode identical native output") { return 1 }
     native_source := string.[source_elf]
@@ -90,10 +101,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
     globals := CheckPath(source_root, "assembly_runtime_globals.zi")
     string_index := CheckPath(source_root, "assembly_string_index.zi")
     slices := CheckPath(source_root, "assembly_slices.zi")
-    if !RunFocusedFixture(*test, compiler, aggregate) ||
-        !RunFocusedFixture(*test, compiler, procedure) ||
-        !RunFocusedFixture(*test, compiler, globals) ||
-        !RunFocusedFixture(*test, compiler, string_index) ||
-        !RunFocusedFixture(*test, compiler, slices) { return 1 }
+    if !RunFocusedFixture(*test, compiler, native_compiler, aggregate) ||
+        !RunFocusedFixture(*test, compiler, native_compiler, procedure) ||
+        !RunFocusedFixture(*test, compiler, native_compiler, globals) ||
+        !RunFocusedFixture(*test, compiler, native_compiler, string_index) ||
+        !RunFocusedFixture(*test, compiler, native_compiler, slices) { return 1 }
     return ifx test.failed then 1 else 0
 }

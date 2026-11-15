@@ -1,4 +1,4 @@
-// Execute the zi2wasm artifact using its shared budget/output ABI.
+// Execute the zx2wasm artifact using its shared budget/output ABI.
 const fs = require('node:fs');
 const abi = require('../site/target-abi.js')(bytes => process.stdout.write(bytes));
 WebAssembly.instantiate(fs.readFileSync(process.argv[2]), abi.imports)

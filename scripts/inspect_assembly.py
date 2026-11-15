@@ -175,8 +175,9 @@ def publish() -> None:
 
 def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
     zi2zir = REPOSITORY / "build" / "bin" / "zi2zir"
-    zi2asm = REPOSITORY / "build" / "bin" / "zi2asm"
-    for tool in (zi2zir, zi2asm):
+    zi2zx = REPOSITORY / "build" / "bin" / "zi2zx"
+    zx2native = REPOSITORY / "build" / "bin" / "zx2native"
+    for tool in (zi2zir, zi2zx, zx2native):
         if not tool.is_file() or not os.access(tool, os.X_OK):
             raise InspectionError(
                 "tool check",
@@ -188,7 +189,7 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
     if objdump is None:
         raise InspectionError(
             "disassembly",
-            f"inspection dependency {objdump_name!r} was not found. zi2asm encodes "
+            f"inspection dependency {objdump_name!r} was not found. zx2native encodes "
             "the ELF itself; objdump is required only to render final disassembly.",
         )
     objdump_path = Path(objdump).resolve()
@@ -216,13 +217,11 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
 
     zx = STAGING / "lowered.zx"
     lower_command = [
-        str(zi2asm),
+        str(zi2zx),
         "--root",
         str(checked),
         "--entry",
         entry,
-        "--emit",
-        "zx",
         "-o",
         str(zx),
         str(checked_input),
@@ -232,7 +231,7 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
 
     lowered = STAGING / "lowered.lir"
     lowered_command = [
-        str(zi2asm),
+        str(zi2zx),
         "--root",
         str(checked),
         "--entry",
@@ -248,9 +247,7 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
 
     optimized = STAGING / "optimized.lir"
     optimized_command = [
-        str(zi2asm),
-        "--input",
-        "zx",
+        str(zi2zx),
         "--opt",
         "--emit",
         "lir",
@@ -263,7 +260,7 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
 
     optimization = STAGING / "optimization.json"
     optimization_command = [
-        str(zi2asm),
+        str(zi2zx),
         "--root",
         str(checked),
         "--entry",
@@ -280,10 +277,7 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
 
     final_map = STAGING / "final.map.json"
     map_command = [
-        str(zi2asm),
-        "--input",
-        "zx",
-        "--opt",
+        str(zx2native),
         "--emit",
         "map",
         "-o",
@@ -294,12 +288,7 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
 
     final_elf = STAGING / "final.elf"
     elf_command = [
-        str(zi2asm),
-        "--input",
-        "zx",
-        "--opt",
-        "--emit",
-        "elf",
+        str(zx2native),
         "-o",
         str(final_elf),
         str(zx),
@@ -325,8 +314,6 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
             "map/ELF identity",
             f"map identity does not match final ELF SHA-256 {elf_digest}",
         )
-    if map_data.get("optimization_request") == "none":
-        raise InspectionError("map/ELF identity", "final map does not identify optimized output")
     image = map_data.get("image")
     if not isinstance(image, dict):
         raise InspectionError("map/ELF identity", "map has no image object")
@@ -399,9 +386,13 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
                 "path": zi2zir.relative_to(REPOSITORY).as_posix(),
                 "sha256": digest(zi2zir),
             },
-            "zi2asm": {
-                "path": zi2asm.relative_to(REPOSITORY).as_posix(),
-                "sha256": digest(zi2asm),
+            "zi2zx": {
+                "path": zi2zx.relative_to(REPOSITORY).as_posix(),
+                "sha256": digest(zi2zx),
+            },
+            "zx2native": {
+                "path": zx2native.relative_to(REPOSITORY).as_posix(),
+                "sha256": digest(zx2native),
             },
             "objdump": {"path": str(objdump_path)},
         },

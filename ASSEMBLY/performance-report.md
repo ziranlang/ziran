@@ -96,7 +96,7 @@ Current honest selectors are:
 | Engine | Selector | Status |
 | --- | --- | --- |
 | `old-portable-vm` | `zx-vm` | Only a preserved pre-cutover `ziran` with `run --vm`; the current tree has no VM, and the M0 receipts hold its measurements. |
-| `new-portable` | `lowered-portable` | Supported with explicit `zi2asm --run`, the engine that runs every `.zx`. |
+| `new-portable` | `lowered-portable` | Supported with explicit `zi2zx run`, the engine that runs every `.zx`. |
 | `direct-aot` | `direct-aot` | Supported only by executing the exact hashed ELF artifact. It is never relabeled as native ZX. |
 | `control-c`, `control-go`, `control-wasm` | matching selector | Supported with an exact absolute command and complete hashed closure. |
 | `old-c-tinycc-native` | — | Missing: the TinyCC route is removed, and its pre-cutover CLI default never gave native-only selection proof. |

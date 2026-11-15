@@ -14,7 +14,7 @@ ZirProgram *NativeGoLink(const ZirProgram *program, const char *entry_module,
 int BindHostProvider(ZirProgram *program, const char *spec);
 int BindHostModule(ZirProgram *program, const char *spec);
 
-/* Files `zi2zx bundle --asset-dir` stores in a bundle. */
+/* Files `zi2zx --asset-dir` stores in executable ZX. */
 typedef struct ZxAsset {
     char *name;
     unsigned char *data;

@@ -155,7 +155,7 @@ Answer :: () -> s64 { return cast(s64)(Kernel(SMALL, SEED) & 9223372036854775807
     for form, root, entry in [('source', output, source), ('saved', output/'ir', output/'ir/swap.zir')]:
         directory = output / form
         repeated([binaries/'zi2c', '--root', root, '-o', directory, entry], 'compile', f'Ziran {form} emit C')
-        repeated([binaries/'zi2zx', 'bundle', '--root', root, '--entry', 'swap:Answer', '-o', output/f'{form}.zx', entry],
+        repeated([binaries/'zi2zx', '--root', root, '--entry', 'swap:Answer', '-o', output/f'{form}.zx', entry],
                  'compile', f'Ziran {form} bundle')
         host = directory/'host.c'
         host.write_text('#include "swap.h"\n#include <stdio.h>\n#include <stdlib.h>\n'

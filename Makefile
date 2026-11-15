@@ -146,7 +146,7 @@ FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c 
     cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c cmd/zir/zir_services.c
 PORTABLE := cmd/zir/zir_link.c cmd/zir/zir_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
-LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
+LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c cmd/zir/zir_native_memory.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
@@ -160,9 +160,9 @@ obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
     compiler_exec_serial compiler_exec_link compiler_exec compiler_opt
-# The Wasm lowering of revision-28 ZX (cmd/zir-wasm/zx_wasm_lower.c) reads
+# The Wasm lowering of revision-28 ZX (cmd/zx2wasm/zx_wasm_lower.c) reads
 # the program through the same engine, under the same names.
-HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir-wasm/zx_wasm_lower.c
+HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir/zir_host_native.c cmd/zx2wasm/zx_wasm_lower.c
 ENGINE_NAMES := $(ENGINE_C)/engine_names.h
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=
@@ -175,6 +175,15 @@ endif
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o \
     $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c)
+NATIVE_HOST_ENABLED := 1
+ifneq ($(findstring emcc,$(notdir $(firstword $(CC)))),)
+NATIVE_HOST_ENABLED := 0
+endif
+ifneq ($(BOOTSTRAP),1)
+ifeq ($(NATIVE_HOST_ENABLED),1)
+LIB_OBJECTS += $(BUILD_DIR)/obj/native-core.o
+endif
+endif
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
 # The expression parser, cmd/compiler_parse.zi.
@@ -193,8 +202,8 @@ LEAN ?= lean
 # contains it. Every ordinary run executes the complete retained suite.
 CHECK_JOBS ?=
 CHECK_FILTER ?=
-all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zi2asm $(BUILD_DIR)/libziran.a
-	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zx-vm $(BIN_DIR)/zi2wasm
+all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native $(BUILD_DIR)/libziran.a
+	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zx-vm $(BIN_DIR)/zi2wasm $(BIN_DIR)/zi2asm
 
 proof-model: $(PROOF_KERNEL_OBJECT)
 	mkdir -p $(BUILD_DIR)/proofs
@@ -207,7 +216,7 @@ USER_BIN ?= $(HOME)/.local/bin
 USER_SHARE ?= $(HOME)/.local/share/ziran/bootstrap
 install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
-	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zi2asm; do \
+	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zx2wasm zx2native; do \
 		temporary=$$(mktemp "$(USER_SHARE)/build/bin/.$$tool.XXXXXX"); \
 		trap 'rm -f "$$temporary"' EXIT; \
 		cp "$(BIN_DIR)/$$tool" "$$temporary"; chmod 755 "$$temporary"; \
@@ -216,7 +225,7 @@ install-user: all
 	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include $(USER_SHARE)/templates
 	cp -r std include templates $(USER_SHARE)/
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
-	$(RM) $(USER_SHARE)/build/bin/zi2py $(USER_SHARE)/build/bin/zi2zib $(USER_SHARE)/build/bin/zi2cpp $(USER_SHARE)/build/bin/zi2rust $(USER_SHARE)/build/bin/zi2zx-vm $(USER_SHARE)/build/bin/zi2wasm
+	$(RM) $(USER_SHARE)/build/bin/zi2py $(USER_SHARE)/build/bin/zi2zib $(USER_SHARE)/build/bin/zi2cpp $(USER_SHARE)/build/bin/zi2rust $(USER_SHARE)/build/bin/zi2zx-vm $(USER_SHARE)/build/bin/zi2wasm $(USER_SHARE)/build/bin/zi2asm
 	@# Another tool's launcher, such as a build queue wrapper, stays in place.
 	@set -e; for tool in ziran zi2zx; do \
 		launcher="exec \"$(USER_SHARE)/build/bin/$$tool\" \"\$$@\""; \
@@ -311,7 +320,7 @@ $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
 
-$(call obj,$(PORTABLE) cmd/zir-zx/main.c): $(BUNDLE_READY)
+$(call obj,$(PORTABLE) cmd/zi2zx/main.c): $(BUNDLE_READY)
 $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
@@ -445,7 +454,7 @@ $(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagno
 	$(BIN_DIR)/zi2c --entry edit:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(EDIT_C) cmd/edit.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(EDIT_C) -o $@ $(EDIT_C)/*.c cmd/zir/zir_edit.c $(FRONTEND_OBJECTS) -lm
 
-$(BIN_DIR)/zi2zir: $(call obj,cmd/zir-ir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
+$(BIN_DIR)/zi2zir: $(call obj,cmd/zi2zir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 	chmod 755 $@
 
@@ -468,17 +477,23 @@ $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS) forc
 	    if cmp -s "$$temporary" "$@"; then rm -f "$$temporary"; \
 	    else mv -f "$$temporary" "$@"; fi
 
-$(BIN_DIR)/zi2c: $(call obj,cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_cache.c cmd/zir-c/zir_c_lower.c) \
+$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_build.c cmd/zi2c/zir_c_cache.c cmd/zi2c/zir_c_lower.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 	chmod 755 $@
 
-$(BIN_DIR)/zi2go: $(call obj,cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c cmd/zir-go/zir_go_asm.c cmd/zir-go/zir_go_amd64.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
+$(BIN_DIR)/zi2go: $(call obj,cmd/zi2go/main.c cmd/zi2go/zir_go_lower.c cmd/zi2go/zir_go_asm.c cmd/zi2go/zir_go_amd64.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 # zi2zx runs revision-28 executable ZX on the portable instruction engine.
-$(BIN_DIR)/zi2zx: $(call obj,cmd/zir-zx/main.c cmd/zir-asm/zx_exec_run.c cmd/zir-asm/zir_asm_lower.c) $(BUILD_DIR)/obj/assembly-core.o \
+$(BIN_DIR)/zi2zx: $(call obj,cmd/zi2zx/main.c cmd/zi2zx/zx_exec_run.c cmd/zi2zx/zir_asm_lower.c) $(BUILD_DIR)/obj/assembly-core.o \
     $(BUILD_DIR)/libziran.a | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
+	chmod 755 $@
+
+# zx2wasm accepts only verified revision-28 ZX and uses the same lowerer object
+# as the embedding Wasm tier in libziran.
+$(BIN_DIR)/zx2wasm: $(call obj,cmd/zx2wasm/main.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 	chmod 755 $@
 
@@ -486,8 +501,8 @@ ifneq ($(BOOTSTRAP),1)
 BOOTSTRAP_BIN := $(BUILD_DIR)/bootstrap/bin/zi2c
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
-    $(PORTABLE) cmd/zir/zir_runtime.c cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_build.h cmd/zir-c/zir_c_cache.c cmd/zir-c/zir_c_cache.h cmd/zir-c/zir_c_lower.c \
-    cmd/zir-c/zir_c_process.h $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    $(PORTABLE) cmd/zir/zir_runtime.c cmd/zi2c/main.c cmd/zi2c/zir_c_build.c cmd/zi2c/zir_c_build.h cmd/zi2c/zir_c_cache.c cmd/zi2c/zir_c_cache.h cmd/zi2c/zir_c_lower.c \
+    cmd/zi2c/zir_c_process.h $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \
     bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h \
     bootstrap/compiler_source/compiler_source.c bootstrap/compiler_source/compiler_source.h \
@@ -658,6 +673,12 @@ $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a 
 $(BIN_DIR)/slice-host-test: tests/host_slice_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_slice_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
+$(BIN_DIR)/native-wx-test: tests/native_wx_test.c cmd/zir/zir_native_memory.h $(BUILD_DIR)/libziran.a | $(BIN_DIR)
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Icmd/zir -o $@ tests/native_wx_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
+
+$(BIN_DIR)/native-load-test: tests/native_load_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/native_load_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
+
 CHECK_RUNNER_SOURCES := tests/run_check.zi tests/check_support.zi tests/check_plan.zi \
     tests/check_go.zi tests/check_cache.zi tests/check_runner_test.zi
 CHECK_RUNNER_C := $(BUILD_DIR)/check-runner-c
@@ -668,7 +689,7 @@ $(BIN_DIR)/check-runner: $(CHECK_RUNNER_SOURCES) $(wildcard std/*.zi) $(BIN_DIR)
 	    -o $(CHECK_RUNNER_C) tests/run_check.zi
 	$(NICE) $(CC) $(CFLAGS) $(SANITIZE_FLAGS) -I$(CHECK_RUNNER_C) -o $@ $(CHECK_RUNNER_C)/*.c -lm
 
-check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test
+check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/native-wx-test $(BIN_DIR)/native-load-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/startup-graph-test
 	$(BIN_DIR)/check-runner --bin-dir $(BIN_DIR) $(if $(CHECK_JOBS),--jobs $(CHECK_JOBS)) \
 	    $(if $(CHECK_FILTER),--filter $(call check_quote,$(CHECK_FILTER)))

@@ -72,8 +72,8 @@ def main():
         bundle = directory/'values.zx'
         commands = [
             [ROOT/'build/bin/zi2zir', '--root', directory, '-o', directory/'ir', entry],
-            [ROOT/'build/bin/zi2zx', 'bundle', '--root', directory, '--entry', 'values:Answer', '-o', bundle, entry],
-            [ROOT/'build/bin/zi2zx', 'bundle', '--root', directory/'ir', '--entry', 'values:Answer',
+            [ROOT/'build/bin/zi2zx', '--root', directory, '--entry', 'values:Answer', '-o', bundle, entry],
+            [ROOT/'build/bin/zi2zx', '--root', directory/'ir', '--entry', 'values:Answer',
              '-o', directory/'saved.zx', directory/'ir/values.zir'],
         ]
         for argv in commands:

@@ -22,7 +22,7 @@ replace ZX or establish portability/performance completion.
 |---|---|---|---|---|---|---|---|---|
 | Generated C output | Working, source and saved IR | [implementation status](../docs/IMPLEMENTATION_STATUS.md), [C target](../tests/c99_target.sh) | emits C | n/a | n/a | lowers to same C backend | can compile selected C to wasm32 | Linux current host; Windows/macOS/Android toolchains have separate fixtures |
 | Generated Go output | Working, secondary tier | [capabilities](../docs/CAPABILITIES.md), [call order](../tests/call_order.sh) | n/a | emits Go | n/a | n/a | n/a | Verifiable only where a compatible Go runtime/toolchain executes it |
-| Portable instruction engine | Working; runs every `.zx` and `zi2asm --run` | [ZX contract](../docs/ZX.md), [engine](../cmd/compiler_exec.zi) | n/a | n/a | runs every bundle | n/a | separate target | Host capabilities and platform console services only |
+| Portable instruction engine | Working; runs every `.zx` through `zi2zx run` | [ZX contract](../docs/ZX.md), [engine](../cmd/compiler_exec.zi) | n/a | n/a | runs every bundle | n/a | separate target | Host capabilities and platform console services only |
 | Wasm execution tier | Working restricted subset; provider rejection is a hard `zx.wasm` error and never starts another engine | [Wasm tier](../docs/ZX.md) | emitter | n/a | explicit separate engine only | budget model shared | wasm32 | Scalars, owned strings, fixed arrays, records, typed `s64 -> s64` hosts; other constructs must fail direct-Wasm preflight |
 
 ## Portable language behavior
@@ -78,7 +78,7 @@ replace ZX or establish portability/performance completion.
 
 | Platform / target row | Current verified surface | Target-specific restriction | Unknown verification |
 |---|---|---|---|
-| Linux x86-64, C, ZX and direct ELF | Current development host; source/saved-IR C, Go, ZX, direct `zi2asm` ELF, threads, SIMD tiers, OS libraries and retained tests. | Native C parallel threads; SIMD ISA dispatch; Linux process/thread services. | A complete matrix needs fresh named toolchain/hardware evidence per future gate. |
+| Linux x86-64, C, ZX and direct ELF | Current development host; source/saved-IR C, Go, ZX, direct `zx2native` ELF, threads, SIMD tiers, OS libraries and retained tests. | Native C parallel threads; SIMD ISA dispatch; Linux process/thread services. | A complete matrix needs fresh named toolchain/hardware evidence per future gate. |
 | Linux/Android ARMv7 | Portable ZX and generated C/Go; C SIMD fixtures cover NEON, VFP-only and scalar lanes; Android API 21 streams and optional four-ABI link paths. | 32-bit ARM ABI/CPU feature restrictions; optional NDK/QEMU/phone tooling. | Specific Android OS version/device combinations and non-SIMD execution are not established by this documentation pass. |
 | Linux/Android AArch64 | Portable ZX and generated C/Go; NEON codegen and QEMU execution documented. | AArch64 hardware-capability assembly selection; Android toolchain. | Fresh physical-platform coverage beyond documented fixtures is unknown. |
 | Linux/Android other CPU | Portable ZX and generated C/Go are the supported route. | No direct native row. | New architecture execution, including RISC-V, is proposed/unknown. |
@@ -86,7 +86,7 @@ replace ZX or establish portability/performance completion.
 | Windows portable ZX | The engine has no Linux-only service assumptions. | No native tier. | Fresh Windows host evidence unknown. |
 | macOS generated C/Go and portable ZX | Darwin build definitions and package/file fixtures exist. | Darwin SHA/random system libraries and ABI differ. | No fresh macOS execution in this documentation task. |
 | Browser/WebAssembly tier | Bundles lowered to wasm32 with per-instance memory, state, budget and lifecycle, tested in headless Chromium. | Subset listed above; unsupported constructs and provider rejection are direct-Wasm gaps. | Other browsers/versions and non-Chromium Wasm hosts are unknown. |
-| Wasm32 standalone tools | `zi2asm --emit wasm` lowers verified ZX; the bundle Wasm tier runs it under an Emscripten `libziran`; optional Emscripten/wasmtime probes for SIMD and file-tree fixtures. | Requires installed Wasm CC/runtime; skipped when probes absent. | Current machine's optional tool availability is not execution evidence for target hosts. |
+| Wasm32 standalone tools | `zx2wasm` lowers verified ZX; the bundle Wasm tier runs it under an Emscripten `libziran`; optional Emscripten/wasmtime probes for SIMD and file-tree fixtures. | Requires installed Wasm CC/runtime; skipped when probes absent. | Current machine's optional tool availability is not execution evidence for target hosts. |
 | Go output on OS | Generated source follows Go runtime. | Serial parallel regions, snapshots, foreign runtime restrictions. | Exact OS/Go version combinations not covered by a fresh matrix run. |
 
 ## Retained check surface

@@ -270,7 +270,7 @@ def main():
             raise AssertionError(f'{target} generated source differs between source and saved IR')
     for kind,root,source in [('source',FIX,ZI),('saved',IR,SAVED)]:
         bundle = OUT/f'{kind}.zx'
-        repeated([BIN/'zi2zx','bundle','--root',root,'--entry','smoke:Answer','-o',bundle,source],
+        repeated([BIN/'zi2zx','--root',root,'--entry','smoke:Answer','-o',bundle,source],
                  'ziran', f'{kind} to zx')
     assert (OUT/'source.zx').read_bytes() == (OUT/'saved.zx').read_bytes()
     meta['source_saved_bundle_identical'] = True

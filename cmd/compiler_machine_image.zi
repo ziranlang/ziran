@@ -1,0 +1,205 @@
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+// Target-neutral encoded machine image. Encoders publish borrowed section and
+// offset views from MachineImageOwner; AOT writers and in-memory loaders consume
+// the same descriptor. The loader, not the encoder, owns page protection.
+MachineImageVersion :: 1
+
+MachineSectionKind :: enum s32 { Invalid; Code; Constants; Data }
+
+MachineSection :: struct {
+    bytes: []u8
+    alignment: s32
+}
+
+// Values are part of the machine-IR/image contract. Append new kinds so saved
+// diagnostics and encoder tests keep stable numeric identities.
+MachineRelocationKind :: enum s32 {
+    Invalid
+    FunctionAddress; FunctionCall; GlobalAddress; FuelCounter
+    ConstantAddress; RuntimeTrap; PlatformService; HostCapability; EntryPoint
+}
+
+// `instruction` and `operand` identify an IR reference. Allocation remaps
+// those two coordinates and preserves kind/symbol/addend. An encoder then sets
+// section/offset/width for the final image and retains instruction for a useful
+// diagnostic. Unused stage-specific coordinates remain zero/Invalid.
+MachineRelocation :: struct {
+    section: MachineSectionKind
+    offset: s64
+    width: s32
+    instruction: s32
+    operand: s32
+    kind: MachineRelocationKind
+    symbol: s32
+    addend: s64
+}
+
+MachineRuntimeABI :: enum s32 { Invalid; Revision1 }
+
+MachineImage :: struct {
+    version: s32
+    target: TargetDescription
+    runtime_abi: MachineRuntimeABI
+    code: MachineSection
+    constants: MachineSection
+    data: MachineSection
+    function_offsets: []s64
+    global_offsets: []s64
+    constant_offsets: []s64
+    initializers: []s32
+    relocations: []MachineRelocation
+    entry: s32
+    required_features: u64
+    stack_alignment: s32
+    stack_bytes: s64
+    fuel_offset: s64
+    host_symbols: s32
+    platform_symbols: s32
+    trap_symbols: s32
+}
+
+MachineImageProblem :: enum s32 {
+    None; Owner; Version; Target; RuntimeABI; Section; Alignment; Stack; Fuel
+    Function; Entry; Relocation; RelocationKind; RelocationSymbol; RelocationAddend
+}
+
+MachineImageDiagnostic :: struct {
+    problem: MachineImageProblem
+    relocation: s32
+}
+
+MachineImageOwner :: struct {
+    valid: bool
+    image: MachineImage
+    code: Vec(u8)
+    constants: Vec(u8)
+    data: Vec(u8)
+    function_offsets: Vec(s64)
+    global_offsets: Vec(s64)
+    constant_offsets: Vec(s64)
+    initializers: Vec(s32)
+    relocations: Vec(MachineRelocation)
+}
+
+#scope_file
+
+Fail :: (problem: MachineImageProblem, relocation: s32 = -1) -> MachineImageDiagnostic {
+    return .{problem = problem, relocation = relocation}
+}
+
+Aligned :: (alignment: s32) -> bool {
+    return alignment > 0 && alignment <= 4096 && (alignment & (alignment - 1)) == 0
+}
+
+FieldRange :: (section: MachineSection, offset: s64, width: s32) -> bool {
+    return (width == 1 || width == 2 || width == 4 || width == 8) &&
+        offset >= 0 && offset <= section.bytes.count && width <= section.bytes.count - offset
+}
+
+AddendFits :: (addend: s64, width: s32) -> bool {
+    if width == 8 { return true }
+    bits := width * 8
+    limit := cast(s64)1 << cast(s64)(bits - 1)
+    return addend >= -limit && addend < limit
+}
+
+KindValid :: (kind: MachineRelocationKind) -> bool {
+    return kind == .FunctionAddress || kind == .FunctionCall || kind == .GlobalAddress ||
+        kind == .FuelCounter || kind == .ConstantAddress || kind == .RuntimeTrap ||
+        kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint
+}
+
+OffsetTable :: (offsets: []s64, section: MachineSection, optional: bool) -> bool {
+    previous: s64 = -1
+    for offset: offsets {
+        if optional && offset == -1 { continue }
+        if offset < 0 || offset >= section.bytes.count || offset < previous { return false }
+        previous = offset
+    }
+    return true
+}
+
+RelocationSection :: (image: MachineImage, kind: MachineSectionKind) -> MachineSection {
+    if kind == .Code { return image.code }
+    if kind == .Constants { return image.constants }
+    if kind == .Data { return image.data }
+    return .{}
+}
+
+SymbolValid :: (image: MachineImage, relocation: MachineRelocation) -> bool {
+    symbol := relocation.symbol
+    if relocation.kind == .FunctionAddress || relocation.kind == .FunctionCall ||
+        relocation.kind == .EntryPoint {
+        return symbol >= 0 && symbol < image.function_offsets.count && image.function_offsets[symbol] >= 0
+    }
+    if relocation.kind == .GlobalAddress {
+        return symbol >= 0 && symbol < image.global_offsets.count && image.global_offsets[symbol] >= 0
+    }
+    if relocation.kind == .ConstantAddress {
+        return symbol >= 0 && symbol < image.constant_offsets.count && image.constant_offsets[symbol] >= 0
+    }
+    if relocation.kind == .FuelCounter { return symbol == 0 }
+    if relocation.kind == .RuntimeTrap { return symbol >= 0 && symbol < image.trap_symbols }
+    if relocation.kind == .PlatformService { return symbol >= 0 && symbol < image.platform_symbols }
+    if relocation.kind == .HostCapability { return symbol >= 0 && symbol < image.host_symbols }
+    return false
+}
+
+#scope_export
+
+MachineImageValidate :: (image: MachineImage) -> MachineImageDiagnostic {
+    if image.version != MachineImageVersion { return Fail(.Version) }
+    if !TargetValid(image.target) { return Fail(.Target) }
+    if image.runtime_abi != .Revision1 { return Fail(.RuntimeABI) }
+    if !Aligned(image.code.alignment) || !Aligned(image.constants.alignment) ||
+        !Aligned(image.data.alignment) { return Fail(.Alignment) }
+    if image.code.bytes.count == 0 { return Fail(.Section) }
+    if image.function_offsets.count == 0 || !OffsetTable(image.function_offsets, image.code, true) {
+        return Fail(.Function)
+    }
+    if !OffsetTable(image.global_offsets, image.data, true) ||
+        !OffsetTable(image.constant_offsets, image.constants, true) { return Fail(.Section) }
+    if image.entry < 0 || image.entry >= image.function_offsets.count ||
+        image.function_offsets[image.entry] < 0 { return Fail(.Entry) }
+    for initializer: image.initializers {
+        if initializer < 0 || initializer >= image.function_offsets.count ||
+            image.function_offsets[initializer] < 0 { return Fail(.Function) }
+    }
+    pointer_bytes := image.target.pointer_bits / 8
+    if !Aligned(image.stack_alignment) || image.stack_alignment < pointer_bytes ||
+        image.stack_bytes <= 0 || image.stack_bytes % image.stack_alignment != 0 { return Fail(.Stack) }
+    if image.fuel_offset < 0 || image.fuel_offset > image.data.bytes.count ||
+        image.fuel_offset % 8 != 0 || 8 > image.data.bytes.count - image.fuel_offset { return Fail(.Fuel) }
+    if image.host_symbols < 0 || image.platform_symbols < 0 || image.trap_symbols < 1 {
+        return Fail(.RelocationSymbol)
+    }
+    for index: cast(s64)0..image.relocations.count - 1 {
+        relocation := image.relocations[index]
+        if !KindValid(relocation.kind) { return Fail(.RelocationKind, cast(s32)index) }
+        section := RelocationSection(image, relocation.section)
+        if relocation.section == .Invalid || !FieldRange(section, relocation.offset, relocation.width) {
+            return Fail(.Relocation, cast(s32)index)
+        }
+        if !SymbolValid(image, relocation) { return Fail(.RelocationSymbol, cast(s32)index) }
+        if !AddendFits(relocation.addend, relocation.width) {
+            return Fail(.RelocationAddend, cast(s32)index)
+        }
+    }
+    return .{}
+}
+
+MachineImageFree :: (owner: *MachineImageOwner) {
+    if owner == null { return }
+    owner.valid = false
+    owner.image = .{version = MachineImageVersion, entry = -1}
+    VecFree(owner.code)
+    VecFree(owner.constants)
+    VecFree(owner.data)
+    VecFree(owner.function_offsets)
+    VecFree(owner.global_offsets)
+    VecFree(owner.constant_offsets)
+    VecFree(owner.initializers)
+    VecFree(owner.relocations)
+}

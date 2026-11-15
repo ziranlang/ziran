@@ -244,7 +244,7 @@ def main():
         subprocess.run([str(p) for p in [after/'zi2zir', '--root', fixtures, '--module-path', ROOT/'std', '-o', ir, path]],
                        cwd=ROOT, env=env, check=True)
         saved = fixtures/f'{module}-saved.zx'
-        subprocess.run([str(p) for p in [after/'zi2zx', 'bundle', '--root', ir,
+        subprocess.run([str(p) for p in [after/'zi2zx', '--root', ir,
                        '--module-path', ROOT/'std', '--entry', module+':Answer', '-o', saved, ir/f'{module}.zir']],
                        cwd=ROOT, env=env, check=True)
         if saved.read_bytes() != bundle.read_bytes():

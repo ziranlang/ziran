@@ -282,7 +282,7 @@
     var commands = {
       c: 'ziran build --target=c --root . -o out/c source.zi',
       go: 'ziran build --target=go --exe --entry source:main --pkg main --root . -o out/go source.zi',
-      zx: 'zi2zx bundle --root . --entry source:main -o out/source.zx source.zi',
+      zx: 'zi2zx --root . --entry source:main -o out/source.zx source.zi',
       wasm: 'ziran build --target=wasm --root . --entry source:Answer -o out/source.wasm source.zi',
       zir: 'ziran ir --root . -o out/ir source.zi'
     };

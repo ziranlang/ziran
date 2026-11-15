@@ -27,8 +27,9 @@ loop that handles partial progress and `EINTR`, and `exit_group` syscall 231
 rather than syscall 60. That opt-in AOT slice is implemented and executed;
 native ZX loading and the wider integration work below remain open.
 
-`zi2asm` source-native output serializes and reads the same ZX image as
-`--input zx --emit elf`; neither route lowers source-side LIR directly. The
+`ziran build FILE.zi` composes `zi2zx` and `zx2native`, so source-native output
+serializes and reads the same ZX image as direct `zx2native`; neither route
+lowers source-side LIR directly. The
 current stripped payload has no source origins, so source debug maps remain a
 gap. Bundles and the bundle Wasm tier use this shared instruction route.
 
@@ -43,7 +44,7 @@ so the static executable has no undefined symbols or misleading trap aliases.
 ## Existing integration points
 
 - [Embedding API](../include/ziran_host.h), [bundle lifecycle](../cmd/zir/zir_host.c) and the [engine bridge](../cmd/zir/zir_host_exec.c), which translates host values for the [portable instruction engine](../cmd/compiler_exec.zi). There is no native ZX loader yet.
-- [Wasm lowering](../cmd/zir-wasm/zx_wasm_lower.h) and [browser integration](../cmd/zir/zir_zx_wasm_web.c).
+- [Wasm lowering](../cmd/zx2wasm/zx_wasm_lower.h) and [browser integration](../cmd/zir/zir_zx_wasm_web.c).
 - [Package entry](../cmd/package_entry.zi), [options](../cmd/package_options.zi), [bundle run](../cmd/package_bundle_run.zi), and [capability reporting](../cmd/package_capabilities.zi).
 
 Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`, `cmd/compiler_exec_instance.zi`, and a native backend command entry integrated into the existing package driver.

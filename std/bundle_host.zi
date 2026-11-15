@@ -1,5 +1,7 @@
 // Native C ABI for embedding a portable Ziran bundle. The runtime owns the
 // bundle and instance; callers own binding contexts and borrowed result data.
+#import "byte_text_linux"
+
 #scope_export
 runtime :: #system_library "ziran";
 
@@ -42,6 +44,20 @@ HostBinding :: struct {
     function: *u8
     call: HostCall
     context: *void
+}
+
+// Auto is a platform choice, never a program-fit fallback: browsers use Wasm,
+// CPUs whose native backend has passed complete parity use Native, and all
+// other CPUs use Engine.
+BundleBackendPolicy :: enum s32 { Auto; Engine; Native }
+
+BundleExecutionBackend :: enum s32 {
+    None; Engine; Wasm; NativeX86_64; NativeAArch64; NativeArmV7
+}
+
+BundleInstanceOptions :: struct {
+    backend: BundleBackendPolicy
+    max_steps: s32
 }
 
 BundleStateValue :: struct {
@@ -87,6 +103,10 @@ RawBundleInstantiate :: (bundle: *void, bindings: *HostBinding,
     count: usize) -> *void #foreign runtime "BundleInstantiate";
 RawBundleInstantiateLimited :: (bundle: *void, bindings: *HostBinding,
     count: usize, max_steps: s32) -> *void #foreign runtime "BundleInstantiateLimited";
+RawBundleInstantiateWithOptions :: (bundle: *void, bindings: *HostBinding,
+    count: usize, options: *BundleInstanceOptions) -> *void #foreign runtime "BundleInstantiateWithOptions";
+RawBundleInstanceBackend :: (instance: *void) -> BundleExecutionBackend #foreign runtime "BundleInstanceBackend";
+RawBundleNativeProblem :: (bundle: *void) -> *u8 #foreign runtime "BundleNativeProblem";
 RawBundleInstanceRun :: (instance: *void, result: *s64,
     has_result: *s32) -> s32 #foreign runtime "BundleInstanceRun";
 RawBundleInstanceClose :: (instance: *void) #foreign runtime "BundleInstanceClose";
@@ -245,6 +265,26 @@ InstantiateBundleLimited :: (bundle: *void, bindings: *HostBinding,
         return null
     }
     return RawBundleInstantiateLimited(bundle, bindings, narrowed, max_steps)
+}
+
+#program_export
+InstantiateBundleWithOptions :: (bundle: *void, bindings: *HostBinding,
+    count: u64, options: *BundleInstanceOptions) -> *void {
+    narrowed := cast(usize)count
+    if cast(u64)narrowed != count || options == null || options.max_steps < 0 {
+        return null
+    }
+    return RawBundleInstantiateWithOptions(bundle, bindings, narrowed, options)
+}
+
+#program_export
+GetBundleInstanceBackend :: (instance: *void) -> BundleExecutionBackend {
+    return RawBundleInstanceBackend(instance)
+}
+
+#program_export
+GetBundleNativeProblem :: (bundle: *void) -> string {
+    return TextFromCString(RawBundleNativeProblem(bundle))
 }
 
 #program_export

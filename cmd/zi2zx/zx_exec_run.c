@@ -79,44 +79,80 @@ portable_entry(const ZirProgram *program, const char *module, const char *functi
     return ScalarWidth(result) != 0 || !strcmp(result, "bool") || !strcmp(result, "void");
 }
 
-unsigned char *
-ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets, size_t *size)
+int
+ZxLowerBuild(struct ZirProgram *program, const char *module, const char *function,
+             int optimize, ZxLowerOwner *owner)
 {
-    unsigned char *bytes = NULL;
-    *size = 0;
-    LirOptOwner optimized = {0};
+    memset(owner, 0, sizeof(*owner));
     if(!portable_entry(program, module, function)) {
         Diagnostic(Span("<bundle>", 1, 1), "zx.entry",
                    "entry must be one unique zero-argument integer, bool, or void Ziran function");
-        return NULL;
+        return 0;
     }
-    AssemblyProgram *lowered = AssemblyLower(program, module, function);
-    if(lowered == NULL) return NULL;
-    const LirProgram *view = AssemblyView(lowered);
+    owner->lowered = AssemblyLower(program, module, function);
+    if(owner->lowered == NULL) return 0;
+    const LirProgram *view = AssemblyView(owner->lowered);
     LirDiagnostic diagnostic = compiler_lowered_verify_LirVerify(*view, compiler_lowered_ir_LirDefaultLimits());
     if(diagnostic.problem != LirProblem_None) {
         Diagnostic((ZirSourceSpan){0}, "assembly.verify",
             "lowered IR rejected: problem=%d function=%d block=%d instruction=%d value=%d origin=%d",
             diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
             diagnostic.value, diagnostic.origin);
-        goto done;
+        ZxLowerFree(owner);
+        return 0;
     }
-    LirOptResult optimization = compiler_opt_LirOptBuild(&optimized, *view,
-        compiler_lowered_ir_LirDefaultLimits(), compiler_opt_LirOptDefaultOptions());
-    if(optimization.problem != LirOptProblem_None) {
-        LirDiagnostic rejected = optimization.diagnostic;
-        Diagnostic((ZirSourceSpan){0}, "assembly.optimize",
-            "optimization rejected: problem=%d verifier=%d function=%d block=%d instruction=%d value=%d origin=%d",
-            optimization.problem, rejected.problem, rejected.function, rejected.block,
-            rejected.instruction, rejected.value, rejected.origin);
-        goto done;
+    owner->program = *view;
+    if(optimize) {
+        owner->optimization = compiler_opt_LirOptBuild(&owner->optimized, *view,
+            compiler_lowered_ir_LirDefaultLimits(), compiler_opt_LirOptDefaultOptions());
+        if(owner->optimization.problem != LirOptProblem_None) {
+            LirDiagnostic rejected = owner->optimization.diagnostic;
+            Diagnostic((ZirSourceSpan){0}, "assembly.optimize",
+                "optimization rejected: problem=%d verifier=%d function=%d block=%d instruction=%d value=%d origin=%d",
+                owner->optimization.problem, rejected.problem, rejected.function, rejected.block,
+                rejected.instruction, rejected.value, rejected.origin);
+            ZxLowerFree(owner);
+            return 0;
+        }
+        owner->program = compiler_opt_LirOptProgram(&owner->optimized);
+        owner->has_optimization = 1;
     }
-    LirProgram optimized_program = compiler_opt_LirOptProgram(&optimized);
+    return 1;
+}
+
+const LirProgram *
+ZxLowerView(const ZxLowerOwner *owner)
+{
+    return owner->lowered == NULL ? NULL : &owner->program;
+}
+
+const LirOptResult *
+ZxLowerOptimization(const ZxLowerOwner *owner)
+{
+    return owner->has_optimization ? &owner->optimization : NULL;
+}
+
+void
+ZxLowerFree(ZxLowerOwner *owner)
+{
+    compiler_opt_LirOptFree(&owner->optimized);
+    AssemblyFree(owner->lowered);
+    memset(owner, 0, sizeof(*owner));
+}
+
+unsigned char *
+ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets, size_t *size)
+{
+    unsigned char *bytes = NULL;
+    *size = 0;
+    ZxLowerOwner lower = {0};
+    if(!ZxLowerBuild(program, module, function, 1, &lower)) return NULL;
+    const LirProgram *optimized_program = ZxLowerView(&lower);
     size_t interface_length = 0;
-    const char *interface = AssemblyHostInterface(lowered, &interface_length);
+    const char *interface = AssemblyHostInterface(lower.lowered, &interface_length);
     if(interface == NULL) goto done;
     String interface_text = {interface, interface_length};
-    ZxExecResult measured = compiler_exec_link_ZxExecWrite(optimized_program, assets, (Slice){0}, interface_text);
+    ZxExecResult measured = compiler_exec_link_ZxExecWrite(*optimized_program, assets, (Slice){0}, interface_text);
     if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
         String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
         Diagnostic((ZirSourceSpan){0}, "assembly.container",
@@ -126,7 +162,7 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     }
     bytes = malloc((size_t)measured.size);
     if(bytes == NULL) goto done;
-    ZxExecResult encoded = compiler_exec_link_ZxExecWrite(optimized_program, assets,
+    ZxExecResult encoded = compiler_exec_link_ZxExecWrite(*optimized_program, assets,
         (Slice){bytes, measured.size}, interface_text);
     if(encoded.problem != ZxExecProblem_None || encoded.size != measured.size) {
         String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);
@@ -139,7 +175,6 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     }
     *size = (size_t)measured.size;
 done:
-    compiler_opt_LirOptFree(&optimized);
-    AssemblyFree(lowered);
+    ZxLowerFree(&lower);
     return bytes;
 }

@@ -171,7 +171,7 @@ ZI
         -s ALLOW_MEMORY_GROWTH=1 -s STACK_SIZE=1048576 \
         --embed-file "$work/fixtures/old.zx@/old.zx" --embed-file "$work/fixtures/deep.zx@/deep.zx"
     node "$work/suspending.js" /old.zx /deep.zx > "$work/suspending.out" 2> "$work/suspending.err" &&
-        ZIRAN_WASM_TIER=0 node "$work/suspending.js" /old.zx /deep.zx > "$work/suspending-engine.out" 2>&1 || {
+        ZIRAN_WASM_TIER=0 node "$work/suspending.js" /old.zx /deep.zx engine > "$work/suspending-engine.out" 2>&1 || {
         cat "$work/suspending.out" "$work/suspending.err" "$work/suspending-engine.out"
         exit 1
     }

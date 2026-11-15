@@ -1,9 +1,9 @@
 // Revision-28 executable ZX parity. Each program lowers to revision-28 ZX
-// (zi2asm --emit zx) and runs on the verified-instruction interpreter, and
+// (zi2zx) and runs on the verified-instruction interpreter, and
 // the C target runs it as an independent reference.
 // Standard output must be identical and the interpreter's exit status must
 // be the C program's. Programs expected to trap must trap on both. A bundle
-// of the same source (zi2zx bundle, then zi2zx run) prints the interpreter's
+// of the same source (zi2zx, then zi2zx run) prints the interpreter's
 // output and then the entry's result line.
 // Native ELF output must run with the same status or stop at a named
 // assembly.gap diagnostic. The wasm32 module from the same ZX must be
@@ -29,16 +29,17 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     lowered := CheckPath(test.work, CheckConcat(label, ".lowered.zx"))
     elf := CheckPath(test.work, CheckConcat(label, ".elf"))
     zi2zx := CheckPath(tools, "zi2zx")
-    zi2asm := CheckPath(tools, "zi2asm")
+    zx2wasm := CheckPath(tools, "zx2wasm")
+    zx2native := CheckPath(tools, "zx2native")
     std := CheckPath(test.repo, "std")
-    lower := string.[zi2asm, "--root", item.root, "-I", std, "--entry", item.entry,
-        "--emit", "zx", "-o", lowered, item.file]
+    lower := string.[zi2zx, "--root", item.root, "-I", std, "--entry", item.entry,
+        "-o", lowered, item.file]
     unused NativeRun(test, lower[:])
     if test.failed { return }
     c_run := string.[test.ziran, "run", "--target=c", "--root", item.root, "--module-path", std,
         "--entry", item.entry, item.file]
-    interpreter := string.[zi2asm, "--run", "--heap-report", "--work", "4000000000", "--fuel", "4000000000",
-        "--frames", "100000", "--input", "zx", lowered]
+    interpreter := string.[zi2zx, "run", "--heap-report", "--work", "4000000000", "--fuel", "4000000000",
+        "--frames", "100000", lowered]
     reference := NativeInvoke(test, c_run[:])
     actual := NativeInvoke(test, interpreter[:])
     if item.traps {
@@ -57,7 +58,7 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
         CheckConcat(item.entry, CheckConcat(": heap blocks were still live: ", actual.error))) { return }
     // A bundle runs the same program and prints the entry's result on its
     // own last line, where the interpreter returns it as the process status.
-    bundle := string.[zi2zx, "bundle", "--root", item.root, "--module-path", std,
+    bundle := string.[zi2zx, "--root", item.root, "--module-path", std,
         "--entry", item.entry, "-o", bundled, item.file]
     unused NativeRun(test, bundle[:])
     if test.failed { return }
@@ -76,11 +77,11 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     // what the interpreter prints.
     wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
     again := CheckPath(test.work, CheckConcat(label, ".again.wasm"))
-    emit := string.[zi2asm, "--input", "zx", "--emit", "wasm", "-o", wasm, lowered]
+    emit := string.[zx2wasm, "-o", wasm, lowered]
     emitted := NativeInvoke(test, emit[:])
     if !NativeAssert(test, emitted.code == 0,
         CheckConcat(item.entry, CheckConcat(": wasm output failed: ", emitted.error))) { return }
-    repeat := string.[zi2asm, "--input", "zx", "--emit", "wasm", "-o", again, lowered]
+    repeat := string.[zx2wasm, "-o", again, lowered]
     unused NativeRun(test, repeat[:])
     same := string.["cmp", "-s", wasm, again]
     node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm, "--output"]
@@ -91,7 +92,7 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     if !NativeAssert(test, module_run.code == 0 && module_run.output == actual.output,
         CheckConcat(item.entry, ": wasm output differs from the interpreter")) { return }
     wasm_modules.* += 1
-    native := string.[zi2asm, "--input", "zx", "-o", elf, lowered]
+    native := string.[zx2native, "-o", elf, lowered]
     encoded := NativeInvoke(test, native[:])
     if encoded.code != 0 {
         unused NativeAssert(test, TextContains(encoded.error, "assembly.gap."),

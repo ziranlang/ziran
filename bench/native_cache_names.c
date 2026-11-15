@@ -1,6 +1,6 @@
 /* Build the same insertion workload with the current or a preserved cache
  * implementation. This is a container benchmark, not total compiler time. */
-#include "../cmd/zir-c/zir_c_cache.c"
+#include "../cmd/zi2c/zir_c_cache.c"
 #include <assert.h>
 #include <inttypes.h>
 

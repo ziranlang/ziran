@@ -2,9 +2,8 @@
 
 This is the one `.zx` format. The format owner is `cmd/compiler_bundle.zi`;
 `cmd/compiler_exec_link.zi` binds it to the deterministic LIR codec and
-verifier (current payload schema 4). `zi2zx bundle` and `zi2asm --emit zx`
-write it; `ziran run`, the embedding API (`include/ziran_host.h`) and
-`zi2asm --input zx` read, inspect, re-emit or run it.
+verifier (current payload schema 4). `zi2zx` writes it; `ziran run`, `zi2zx run`,
+the embedding API (`include/ziran_host.h`), `zx2wasm`, and `zx2native` read it.
 
 ## Integers, limits and ordering
 
@@ -75,8 +74,8 @@ native variant; arbitrary machine bytes are never selected or executed.
 ## Host interface (kind `0x80000003`, optional)
 
 The instruction payload is structural: a record is its field types, a string
-is `{data, count}`. An embedder's host values carry names, so `zi2asm --emit
-zx` writes them here, as UTF-8 text of tab-separated lines. Type nodes come
+is `{data, count}`. An embedder's host values carry names, so `zi2zx` writes
+them here, as UTF-8 text of tab-separated lines. Type nodes come
 first, each naming only earlier nodes:
 
     node ID scalar|string|pointer SPELLING
@@ -184,7 +183,7 @@ The section must be consumed exactly.
 
 The raw framing API returns asset views borrowing the file. The owned executable
 API validates and hashes them during the read; the embedding API copies them
-when it opens the file and exposes them through `BundleAsset*`. `zi2zx bundle
+when it opens the file and exposes them through `BundleAsset*`. `zi2zx
 --asset-dir` stores them.
 
 ## APIs and failure behavior
@@ -195,7 +194,7 @@ without interpreting LIR. `ZxExecWrite` produces a stripped deterministic
 container; `ZxExecRead`, `ZxExecReadProgram`, and `ZxExecReadFree` provide the
 bounded owned verified program. Empty and repeated frees are safe.
 
-`zi2asm` keeps generated-output replacement semantics: it writes a sibling
+The format-specific tools keep generated-output replacement semantics: they write a sibling
 temporary and replaces the requested path only after a complete successful
 write. `-o -` streams revision 28 to a pipe. A malformed input cannot replace a
 previous output. Diagnostics distinguish legacy/unknown versions, required

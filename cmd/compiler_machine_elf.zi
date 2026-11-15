@@ -46,10 +46,13 @@ DataLayout :: struct {
 }
 
 Layout :: struct {
+    startup_size: s64
     text_size: s64
     data_offset: s64
     file_size: s64
     trap_text: s64
+    constants_text: s64
+    constants_size: s64
     data: DataLayout
 }
 
@@ -74,9 +77,10 @@ ValidAlignment :: (alignment: s32) -> bool {
 DataMeasure :: (program: MachineProgram, layout: *DataLayout) -> MachineDiagnostic {
     at: s64 = 0
     for global: program.globals {
-        if !global.writable || global.type < 0 || global.type >= program.types.count {
+        if global.type < 0 || global.type >= program.types.count {
             result := NoDiagnostic(); result.problem = .Unsupported; return result
         }
+        if !global.writable { continue }
         type := program.types[global.type]
         if type.size <= 0 || type.size > 2147483647 || !ValidAlignment(type.alignment) {
             result := NoDiagnostic(); result.problem = .Unsupported; return result
@@ -100,12 +104,35 @@ DataMeasure :: (program: MachineProgram, layout: *DataLayout) -> MachineDiagnost
     return NoDiagnostic()
 }
 
-GlobalOffset :: (program: MachineProgram, symbol: s32, offset: *s64) -> bool {
-    if symbol < 0 || symbol >= program.globals.count { return false }
+GlobalsMeasure :: (program: MachineProgram, writable: bool, size: *s64) -> MachineDiagnostic {
     at: s64 = 0
-    for index: cast(s64)0..symbol {
+    for global: program.globals {
+        if global.type < 0 || global.type >= program.types.count {
+            result := NoDiagnostic(); result.problem = .Unsupported; return result
+        }
+        if global.writable != writable { continue }
+        type := program.types[global.type]
+        if type.size <= 0 || type.size > 2147483647 || !ValidAlignment(type.alignment) {
+            result := NoDiagnostic(); result.problem = .Unsupported; return result
+        }
+        at = Align(at, type.alignment)
+        if at > 2147483647 - type.size {
+            result := NoDiagnostic(); result.problem = .Limit; return result
+        }
+        at += type.size
+    }
+    <<size = at
+    return NoDiagnostic()
+}
+
+GlobalOffset :: (program: MachineProgram, symbol: s32, writable: bool, offset: *s64) -> bool {
+    if symbol < 0 || symbol >= program.globals.count { return false }
+    if program.globals[symbol].writable != writable { return false }
+    at: s64 = 0
+    for index: cast(s64)0..program.globals.count - 1 {
         global := program.globals[index]
         if global.type < 0 || global.type >= program.types.count { return false }
+        if global.writable != writable { continue }
         type := program.types[global.type]
         if type.size <= 0 || !ValidAlignment(type.alignment) { return false }
         at = Align(at, type.alignment)
@@ -135,10 +162,15 @@ TrapOpcode :: (opcode: MachineOpcode) -> bool {
 ExpectedRelocations :: (program: MachineProgram) -> s64 {
     count: s64 = 0
     for relocation: program.relocations {
-        if relocation.kind == .GlobalAddress || relocation.kind == .FuelCounter { count += 1 }
+        if relocation.kind == .GlobalAddress || relocation.kind == .ConstantAddress ||
+            relocation.kind == .FuelCounter { count += 1 }
     }
     for instruction: program.instructions { if TrapOpcode(instruction.opcode) { count += 1 } }
     return count
+}
+
+StartupSize :: (program: MachineProgram) -> s64 {
+    return MachineElfStartupSize + program.initializers.count * 5
 }
 
 ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout) -> MachineDiagnostic {
@@ -162,6 +194,19 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
     if result_type.kind != .Void && result_type.kind != .Bool && result_type.kind != .Integer {
         result := NoDiagnostic(); result.problem = .Unsupported; return result
     }
+    for global: program.globals {
+        if !global.writable && global.constant < 0 {
+            result := NoDiagnostic(); result.problem = .Unsupported; return result
+        }
+        if global.constant >= 0 {
+            constant := program.constants[global.constant]
+            type := program.types[global.type]
+            if (constant.bytes_count == 0 && type.size > 8) ||
+                (constant.bytes_count != 0 && constant.bytes_count != type.size) {
+                result := NoDiagnostic(); result.problem = .Unsupported; return result
+            }
+        }
+    }
     previous: s64 = 0
     for function: image.functions {
         if function.begin < previous || function.body < function.begin || function.end < function.body ||
@@ -182,8 +227,15 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
     }
     data_diagnostic := DataMeasure(program, *layout.data)
     if data_diagnostic.problem != .None { return data_diagnostic }
-    layout.trap_text = MachineElfStartupSize + image.code.count
-    layout.text_size = layout.trap_text + MachineElfTrapSize
+    constants_diagnostic := GlobalsMeasure(program, false, *layout.constants_size)
+    if constants_diagnostic.problem != .None { return constants_diagnostic }
+    layout.startup_size = StartupSize(program)
+    if layout.startup_size > 2147483647 - image.code.count {
+        result := NoDiagnostic(); result.problem = .Limit; return result
+    }
+    layout.trap_text = layout.startup_size + image.code.count
+    layout.constants_text = Align(layout.trap_text + MachineElfTrapSize, 16)
+    layout.text_size = layout.constants_text + layout.constants_size
     if layout.text_size > 2147483647 - MachineElfTextOffset {
         result := NoDiagnostic(); result.problem = .Limit; return result
     }
@@ -205,17 +257,21 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
         }
         previous = relocation.offset
         target: u64 = 0
-        if relocation.kind == .GlobalAddress {
+        if relocation.kind == .GlobalAddress || relocation.kind == .ConstantAddress {
+            readonly := relocation.kind == .ConstantAddress
             if program.instructions[relocation.instruction].opcode != .GlobalAddress {
                 result := NoDiagnostic(); result.problem = .Relocation
                 result.instruction = relocation.instruction; return result
             }
             global_offset: s64 = 0
-            if !GlobalOffset(program, relocation.symbol, *global_offset) {
+            if !GlobalOffset(program, relocation.symbol, !readonly, *global_offset) {
                 result := NoDiagnostic(); result.problem = .Relocation
                 result.instruction = relocation.instruction; return result
             }
-            target = cast(u64)(MachineElfBase + layout.data_offset + global_offset)
+            if readonly {
+                target = cast(u64)(MachineElfBase + MachineElfTextOffset +
+                    layout.constants_text + global_offset)
+            } else { target = cast(u64)(MachineElfBase + layout.data_offset + global_offset) }
         } else if relocation.kind == .FuelCounter && relocation.symbol == 0 {
             if program.instructions[relocation.instruction].opcode != .Fuel {
                 result := NoDiagnostic(); result.problem = .Relocation
@@ -232,7 +288,7 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
             result := NoDiagnostic(); result.problem = .Relocation
             result.instruction = relocation.instruction; return result
         }
-        field := cast(u64)(MachineElfBase + MachineElfTextOffset + MachineElfStartupSize + relocation.offset)
+        field := cast(u64)(MachineElfBase + MachineElfTextOffset + layout.startup_size + relocation.offset)
         displacement: s64 = 0
         if !Relative32(target, relocation.addend, field, *displacement) {
             result := NoDiagnostic(); result.problem = .Relocation
@@ -254,6 +310,23 @@ PutRelative :: (output: []u8, at: s64, target: u64, addend: s64, field: u64) -> 
     value: s64 = 0
     if !Relative32(target, addend, field, *value) { return false }
     PutLittle(output, at, cast(u64)value, 4)
+    return true
+}
+
+WriteGlobal :: (program: MachineProgram, symbol: s32, at: s64, output: []u8) -> bool {
+    global := program.globals[symbol]
+    if global.constant < 0 { return global.writable }
+    constant := program.constants[global.constant]
+    type := program.types[global.type]
+    if constant.bytes_count == 0 {
+        if type.size > 8 { return false }
+        PutLittle(output, at, constant.bits, cast(s32)type.size)
+        return true
+    }
+    if constant.bytes_count != type.size { return false }
+    for index: cast(s64)0..constant.bytes_count - 1 {
+        output[at + index] = program.data[constant.bytes_begin + index]
+    }
     return true
 }
 
@@ -288,20 +361,30 @@ Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, outpu
     PutLittle(output, ph + 40, cast(u64)layout.data.size, 8)
     PutLittle(output, ph + 48, MachineElfPage, 8)
 
-    // _start: call machine entry; move (or clear) status; SYS_exit_group.
+    // _start: call startup initializers in order, then machine entry; move (or
+    // clear) status; SYS_exit_group.
     start := cast(s64)MachineElfTextOffset
-    Put8(output, start, 0xe8)
-    entry_target := cast(u64)(MachineElfBase + MachineElfTextOffset + MachineElfStartupSize +
+    startup_at := start
+    for initializer: program.initializers {
+        Put8(output, startup_at, 0xe8)
+        initializer_target := cast(u64)(MachineElfBase + MachineElfTextOffset + layout.startup_size +
+            image.functions[initializer].begin)
+        if !PutRelative(output, startup_at + 1, initializer_target, -4,
+            cast(u64)(MachineElfBase + startup_at + 1)) { return false }
+        startup_at += 5
+    }
+    Put8(output, startup_at, 0xe8)
+    entry_target := cast(u64)(MachineElfBase + MachineElfTextOffset + layout.startup_size +
         image.functions[program.entry].begin)
-    if !PutRelative(output, start + 1, entry_target, -4,
-        cast(u64)(MachineElfBase + start + 1)) { return false }
+    if !PutRelative(output, startup_at + 1, entry_target, -4,
+        cast(u64)(MachineElfBase + startup_at + 1)) { return false }
     result_type := program.types[program.functions[program.entry].result_type]
-    if result_type.kind == .Void { Put8(output, start + 5, 0x31); Put8(output, start + 6, 0xff) }
-    else { Put8(output, start + 5, 0x89); Put8(output, start + 6, 0xc7) }
-    Put8(output, start + 7, 0xb8); PutLittle(output, start + 8, 231, 4)
-    Put8(output, start + 12, 0x0f); Put8(output, start + 13, 0x05)
+    if result_type.kind == .Void { Put8(output, startup_at + 5, 0x31); Put8(output, startup_at + 6, 0xff) }
+    else { Put8(output, startup_at + 5, 0x89); Put8(output, startup_at + 6, 0xc7) }
+    Put8(output, startup_at + 7, 0xb8); PutLittle(output, startup_at + 8, 231, 4)
+    Put8(output, startup_at + 12, 0x0f); Put8(output, startup_at + 13, 0x05)
 
-    code_at := start + MachineElfStartupSize
+    code_at := start + layout.startup_size
     for index: cast(s64)0..image.code.count - 1 { output[code_at + index] = image.code[index] }
 
     // trap_handler: store edi; exit_group(125); ud2 if the syscall unexpectedly returns.
@@ -316,10 +399,14 @@ Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, outpu
 
     for relocation: image.relocations {
         target: u64 = 0
-        if relocation.kind == .GlobalAddress {
+        if relocation.kind == .GlobalAddress || relocation.kind == .ConstantAddress {
+            readonly := relocation.kind == .ConstantAddress
             global_offset: s64 = 0
-            if !GlobalOffset(program, relocation.symbol, *global_offset) { return false }
-            target = cast(u64)(MachineElfBase + layout.data_offset + global_offset)
+            if !GlobalOffset(program, relocation.symbol, !readonly, *global_offset) { return false }
+            if readonly {
+                target = cast(u64)(MachineElfBase + MachineElfTextOffset +
+                    layout.constants_text + global_offset)
+            } else { target = cast(u64)(MachineElfBase + layout.data_offset + global_offset) }
         } else if relocation.kind == .FuelCounter {
             target = cast(u64)(MachineElfBase + layout.data_offset + layout.data.fuel)
         } else if relocation.kind == .TrapHandler {
@@ -328,6 +415,16 @@ Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, outpu
         field_at := code_at + relocation.offset
         field := cast(u64)(MachineElfBase + field_at)
         if !PutRelative(output, field_at, target, relocation.addend, field) { return false }
+    }
+    for symbol: cast(s64)0..program.globals.count - 1 {
+        global := program.globals[symbol]
+        global_offset: s64 = 0
+        if !GlobalOffset(program, cast(s32)symbol, global.writable, *global_offset) { return false }
+        global_at := layout.data_offset + global_offset
+        if !global.writable {
+            global_at = MachineElfTextOffset + layout.constants_text + global_offset
+        }
+        if !WriteGlobal(program, cast(s32)symbol, global_at, output) { return false }
     }
     PutLittle(output, layout.data_offset + layout.data.fuel, cast(u64)MachineElfInitialFuel, 8)
     return true

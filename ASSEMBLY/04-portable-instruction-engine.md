@@ -1,6 +1,6 @@
 # Step 04 — Execute the portable instruction set directly
 
-Status: in progress; the [isolated verified-LIR engine](portable-execution.md) executes the current verifier-supported subset through the opt-in `zi2asm --run` path. Full memory, host-capability, lifecycle/state and target integration remain required. Depends on [steps 02](02-lowered-ir-and-verifier.md) and [03](03-language-lowering.md). Next: [ZX container integration](05-zx-format-and-linking.md).
+Status: in progress; the [isolated verified-LIR engine](portable-execution.md) executes the current verifier-supported subset through `zi2zx run`. Full memory, host-capability, lifecycle/state and target integration remain required. Depends on [steps 02](02-lowered-ir-and-verifier.md) and [03](03-language-lowering.md). Next: [ZX container integration](05-zx-format-and-linking.md).
 
 ## Objective
 

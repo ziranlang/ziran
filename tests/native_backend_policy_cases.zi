@@ -1,0 +1,111 @@
+using Host :: #import "bundle_host"
+
+NativeProblem :: enum s32 { None; TargetUnimplemented }
+
+Platform :: enum s32 { Browser; CpuNativeComplete; CpuEngineOnly }
+
+Selection :: struct {
+    backend: Host.BundleExecutionBackend
+    problem: NativeProblem
+    initializer_runs: s32
+    engine_attempts: s32
+    wasm_attempts: s32
+    native_attempts: s32
+    native_side_effects: s32
+    success: bool
+}
+
+Check :: (condition: bool, message: string) -> bool {
+    if condition { return true }
+    print("native backend policy local test failed: %\n", message)
+    return false
+}
+
+// Contract model for the Session 1 API. Auto selects only from the platform:
+// Browser uses Wasm, a CPU with a native backend uses Native, and Engine is
+// used only where the platform has no native backend. Program preflight never
+// changes that choice. Selection and preflight both precede initialization,
+// and every failure after Native is selected remains a native failure.
+Select :: (policy: Host.BundleBackendPolicy, platform: Platform, native_preflight: bool = true,
+    native_initializer_succeeds: bool = true, native_run_succeeds: bool = true,
+    native_has_side_effect: bool = false) -> Selection {
+    selected := Host.BundleExecutionBackend.None
+    if policy == .Engine {
+        selected = .Engine
+    } else if policy == .Native {
+        if platform != .CpuNativeComplete || !native_preflight {
+            return .{problem = .TargetUnimplemented}
+        }
+        selected = .NativeX86_64
+    } else {
+        if platform == .Browser {
+            selected = .Wasm
+        } else if platform == .CpuEngineOnly {
+            selected = .Engine
+        } else {
+            if !native_preflight { return .{problem = .TargetUnimplemented} }
+            selected = .NativeX86_64
+        }
+    }
+    result := Selection.{.backend = selected}
+    result.initializer_runs = 1
+    if selected == .Engine {
+        result.engine_attempts = 1
+        result.success = true
+        return result
+    }
+    if selected == .Wasm {
+        result.wasm_attempts = 1
+        result.success = true
+        return result
+    }
+    result.native_attempts = 1
+    if native_has_side_effect { result.native_side_effects = 1 }
+    result.success = native_initializer_succeeds && native_run_succeeds
+    return result
+}
+
+main :: () -> s32 {
+    strict_engine := Select(.Engine, .CpuNativeComplete, native_has_side_effect = true)
+    if !Check(strict_engine.backend == .Engine && strict_engine.engine_attempts == 1 &&
+        strict_engine.native_attempts == 0 && strict_engine.native_side_effects == 0 &&
+        strict_engine.initializer_runs == 1, "strict Engine selected another backend") { return 1 }
+
+    strict_native := Select(.Native, .CpuNativeComplete, native_preflight = false)
+    if !Check(strict_native.backend == .None && strict_native.problem == .TargetUnimplemented &&
+        strict_native.initializer_runs == 0 && strict_native.engine_attempts == 0 &&
+        strict_native.native_attempts == 0, "strict Native did not fail during preflight") { return 1 }
+
+    auto_gap := Select(.Auto, .CpuNativeComplete, native_preflight = false)
+    if !Check(auto_gap.backend == .None && auto_gap.problem == .TargetUnimplemented &&
+        auto_gap.engine_attempts == 0 && auto_gap.wasm_attempts == 0 &&
+        auto_gap.native_attempts == 0 && auto_gap.initializer_runs == 0,
+        "Auto switched to Engine after native program preflight failed") { return 1 }
+
+    auto_engine := Select(.Auto, .CpuEngineOnly)
+    if !Check(auto_engine.backend == .Engine && auto_engine.engine_attempts == 1 &&
+        auto_engine.native_attempts == 0 && auto_engine.initializer_runs == 1,
+        "Auto did not select Engine on a CPU without a native backend") { return 1 }
+
+    auto_browser := Select(.Auto, .Browser)
+    if !Check(auto_browser.backend == .Wasm && auto_browser.wasm_attempts == 1 &&
+        auto_browser.engine_attempts == 0 && auto_browser.native_attempts == 0 &&
+        auto_browser.initializer_runs == 1,
+        "Auto did not select Wasm in a browser") { return 1 }
+
+    initializer_failure := Select(.Auto, .CpuNativeComplete, native_initializer_succeeds = false)
+    if !Check(initializer_failure.backend == .NativeX86_64 && !initializer_failure.success &&
+        initializer_failure.native_attempts == 1 && initializer_failure.engine_attempts == 0 &&
+        initializer_failure.initializer_runs == 1,
+        "native initializer failure retried in the engine") { return 1 }
+
+    side_effect_failure := Select(.Auto, .CpuNativeComplete, native_run_succeeds = false,
+        native_has_side_effect = true)
+    if !Check(side_effect_failure.backend == .NativeX86_64 && !side_effect_failure.success &&
+        side_effect_failure.native_side_effects == 1 && side_effect_failure.native_attempts == 1 &&
+        side_effect_failure.engine_attempts == 0 && side_effect_failure.initializer_runs == 1,
+        "native failure after a side effect retried in the engine") { return 1 }
+
+    print("native backend policy local tests passed\n")
+    return 0
+}

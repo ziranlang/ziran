@@ -1,6 +1,7 @@
 using ABI :: #import "compiler_abi"
 using Lir :: #import "compiler_lowered_ir"
 using Lower :: #import "compiler_machine_lower"
+using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using Verify :: #import "compiler_machine_verify"
 using Target :: #import "compiler_target"
@@ -288,6 +289,47 @@ TargetRegistry :: () -> bool {
         Target.TargetPreflightCode(.None) == "", "stable preflight diagnostic codes")
 }
 
+MachineImageContract :: (target: Target.TargetDescription) -> bool {
+    code: [16]u8
+    constants: [4]u8
+    data: [16]u8
+    functions: [1]s64 = .[0]
+    globals: [1]s64 = .[0]
+    constant_offsets: [1]s64 = .[0]
+    relocations: [1]Image.MachineRelocation = .[.{
+        section = .Code, offset = 4, width = 4, instruction = 0, operand = 0,
+        kind = .FunctionCall, symbol = 0}]
+    image := Image.MachineImage.{.version = Image.MachineImageVersion, .target = target,
+        .runtime_abi = .Revision1, .code = .{bytes = code[:], alignment = 16},
+        .constants = .{bytes = constants[:], alignment = 4},
+        .data = .{bytes = data[:], alignment = 8}, .function_offsets = functions[:],
+        .global_offsets = globals[:], .constant_offsets = constant_offsets[:],
+        .relocations = relocations[:], .entry = 0, .stack_alignment = 16,
+        .stack_bytes = 16, .fuel_offset = 8, .trap_symbols = 1}
+    if !Check(Image.MachineImageValidate(image).problem == .None,
+        "valid target-neutral machine image") { return false }
+    image.constants.alignment = 3
+    if !Check(Image.MachineImageValidate(image).problem == .Alignment,
+        "invalid image section alignment") { return false }
+    image.constants.alignment = 4
+    relocations[0].kind = cast(Image.MachineRelocationKind)99
+    if !Check(Image.MachineImageValidate(image).problem == .RelocationKind,
+        "unknown image relocation kind") { return false }
+    relocations[0].kind = .FunctionCall
+    relocations[0].symbol = 1
+    if !Check(Image.MachineImageValidate(image).problem == .RelocationSymbol,
+        "out-of-range image relocation symbol") { return false }
+    relocations[0].symbol = 0
+    relocations[0].width = 1
+    relocations[0].addend = 128
+    if !Check(Image.MachineImageValidate(image).problem == .RelocationAddend,
+        "out-of-range image relocation addend") { return false }
+    owner: Image.MachineImageOwner
+    Image.MachineImageFree(*owner)
+    Image.MachineImageFree(*owner)
+    return true
+}
+
 main :: () -> s32 {
     target := Target.TargetLinuxX64()
     if !Check(Target.TargetValid(target), "Linux x86-64 target is valid") ||
@@ -300,7 +342,7 @@ main :: () -> s32 {
         Target.TargetDescribe(.AArch64, .MacOS), Target.TargetDescribe(.Wasm32, .Browser)]
     for result: maintained { if !Check(result.problem == .None && Target.TargetValid(result.target),
         "maintained target description") { return 1 } }
-    if !TargetRegistry() { return 1 }
+    if !TargetRegistry() || !MachineImageContract(target) { return 1 }
 
     owner: Machine.MachineOwner
     limits := Machine.MachineDefaultLimits()
@@ -352,20 +394,22 @@ main :: () -> s32 {
             allocated.diagnostic.virtual)
     }
     allocate_program := Lower.MachineProgramView(*allocate_owner)
-    allocate_id := FindOpcode(allocate_program, .Allocate)
-    if !Check(allocated.problem == .None && allocate_id >= 0,
-            "dynamic allocation remains an explicit machine operation") ||
-        !Check(FindOpcode(allocate_program, .StackAddress) < 0 &&
-            allocate_program.stack_objects.count == 0,
-            "dynamic allocation is not collapsed to a static stack object") ||
+    allocate_id := FindOpcode(allocate_program, .StackAddress)
+    store_id := FindOpcode(allocate_program, .Store)
+    if !Check(allocated.problem == .None && FindOpcode(allocate_program, .Allocate) < 0,
+            "local allocation is resolved before machine encoding") ||
+        !Check(allocate_id >= 0 && store_id >= 0 && allocate_program.stack_objects.count == 1 &&
+            allocate_program.stack_objects[0].kind == .Local,
+            "local allocation owns fixed frame storage") ||
         !Check(allocate_program.instructions[allocate_id].operand_count == 2 &&
             allocate_program.operands[allocate_program.instructions[allocate_id].operand_begin].role == .Define &&
-            allocate_program.operands[allocate_program.instructions[allocate_id].operand_begin + 1].role == .Use,
-            "dynamic allocation preserves result and initializer operands") { return 1 }
+            allocate_program.operands[allocate_program.instructions[allocate_id].operand_begin + 1].kind == .StackObject &&
+            allocate_program.instructions[store_id].operand_count == 2,
+            "local allocation emits address and initializer store") { return 1 }
     allocate_result := allocate_program.instructions[allocate_id].operand_begin
     allocate_program.operands[allocate_result].role = .Use
     if !Check(Verify.MachineVerify(allocate_program, limits).problem == .Instruction,
-        "malformed dynamic allocation is rejected") { return 1 }
+        "malformed stack address is rejected") { return 1 }
     allocate_program.operands[allocate_result].role = .Define
 
     instruction_limit := limits; instruction_limit.instructions = 1
@@ -381,6 +425,46 @@ main :: () -> s32 {
     foreign_result := LowerFixture(*limited, target, limits, foreign = true)
     if !Check(foreign_result.problem == .Unsupported && foreign_result.lir_diagnostic_problem != 0,
         "external ABI lowering is not confused with internal packed ABI") { return 1 }
+
+    call_relocation: s64 = -1
+    address_relocation: s64 = -1
+    for index: cast(s64)0..program.relocations.count - 1 {
+        if program.relocations[index].kind == .FunctionCall { call_relocation = index }
+        if program.relocations[index].kind == .FunctionAddress { address_relocation = index }
+    }
+    if !Check(call_relocation >= 0 && address_relocation >= 0 && program.calls.count > 1,
+        "direct call has a stable symbol reference") { return 1 }
+    external_id := program.relocations[call_relocation].symbol
+    saved_external := program.functions[external_id]
+    saved_external_call := program.calls[1]
+    saved_external_relocation := program.relocations[call_relocation]
+    saved_address_relocation := program.relocations[address_relocation]
+    address_operand := program.relocations[address_relocation].operand
+    saved_address_operand := program.operands[address_operand]
+    if program.relocations[address_relocation].symbol == external_id {
+        program.relocations[address_relocation].symbol = program.entry
+        program.operands[address_operand].id = program.entry
+    }
+    program.functions[external_id].lir_function = -1
+    program.functions[external_id].block_count = 0
+    program.functions[external_id].virtual_count = 0
+    program.functions[external_id].stack_count = 0
+    program.functions[external_id].entry = -1
+    program.functions[external_id].calling = .Host
+    program.calls[1].calling = .Host
+    program.relocations[call_relocation].kind = .HostCapability
+    if !Check(Verify.MachineVerify(program, limits).problem == .None,
+        "typed host call reference survives as a stable symbol") { return 1 }
+    program.functions[external_id].calling = .Platform
+    program.calls[1].calling = .Platform
+    program.relocations[call_relocation].kind = .PlatformService
+    if !Check(Verify.MachineVerify(program, limits).problem == .None,
+        "platform call reference survives as a stable symbol") { return 1 }
+    program.functions[external_id] = saved_external
+    program.calls[1] = saved_external_call
+    program.relocations[call_relocation] = saved_external_relocation
+    program.relocations[address_relocation] = saved_address_relocation
+    program.operands[address_operand] = saved_address_operand
 
     bad_virtual := program.virtuals[0]
     program.virtuals[0].class = .Invalid
@@ -409,6 +493,41 @@ main :: () -> s32 {
     program.relocations[0].operand = cast(s32)program.operands.count
     if !Check(Verify.MachineVerify(program, limits).problem == .Relocation, "bad relocation") { return 1 }
     program.relocations[0].operand = saved_relocation
+    saved_kind := program.relocations[0].kind
+    program.relocations[0].kind = cast(Image.MachineRelocationKind)99
+    if !Check(Verify.MachineVerify(program, limits).problem == .Relocation,
+        "unknown relocation kind") { return 1 }
+    program.relocations[0].kind = saved_kind
+    saved_symbol := program.relocations[0].symbol
+    program.relocations[0].symbol = cast(s32)program.functions.count
+    if !Check(Verify.MachineVerify(program, limits).problem == .Relocation,
+        "out-of-range relocation symbol") { return 1 }
+    program.relocations[0].symbol = saved_symbol
+    program.relocations[0].addend = 1
+    if !Check(Verify.MachineVerify(program, limits).problem == .Relocation,
+        "out-of-range relocation addend") { return 1 }
+    program.relocations[0].addend = 0
+    saved_calling := program.calls[1].calling
+    program.calls[1].calling = .C
+    if !Check(Verify.MachineVerify(program, limits).problem == .Call,
+        "non-host external call") { return 1 }
+    program.calls[1].calling = saved_calling
+    program.types[2].native_width = true
+    if !Check(Verify.MachineVerify(program, limits).problem == .NativeWidth,
+        "native-width mismatch") { return 1 }
+    program.types[2].native_width = false
+    saved_instruction := program.instructions[set_id]
+    program.instructions[set_id].opcode = .Fuel
+    if !Check(Verify.MachineVerify(program, limits).problem == .Fuel,
+        "missing fuel facts") { return 1 }
+    program.instructions[set_id] = saved_instruction
+    saved_stack_virtual := program.virtuals[0]
+    program.virtuals[0].class = .Stack
+    program.virtuals[0].fixed_register = -1
+    program.virtuals[0].stack_object = -1
+    if !Check(Verify.MachineVerify(program, limits).problem == .Stack,
+        "missing stack facts") { return 1 }
+    program.virtuals[0] = saved_stack_virtual
 
     Lower.MachineFree(*owner)
     Lower.MachineFree(*owner)

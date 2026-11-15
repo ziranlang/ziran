@@ -2,7 +2,7 @@
 """Compare revision-28 Wasm modules with the instruction engine and generated C.
 
 For each kernel of bench/wasm_tier.zi this builds generated C (cc -O2), a
-revision-28 bundle and its wasm32 module (zi2asm --emit wasm), checks that all
+revision-28 bundle and its wasm32 module (zx2wasm), checks that all
 three give the engine's result and output, and times warm in-process calls with
 the site matrix's harnesses: bench/site_target_host.c for C and the engine,
 scripts/site_target_node.cjs for the module in Node. Medians follow the
@@ -58,8 +58,8 @@ def build(cc):
     kernels = []
     for name in KERNELS:
         bundle, module = WORK / (name + '.zx'), WORK / (name + '.wasm')
-        platforms.run([tool('ziran'), 'bundle', *common, '--entry', 'wasm_tier:' + name, '-o', bundle, SOURCE], env=env)
-        platforms.run([tool('zi2asm'), '--input', 'zx', '--emit', 'wasm', '-o', module, bundle], env=env)
+        platforms.run([tool('zi2zx'), '--target', 'wasm', *common, '--entry', 'wasm_tier:' + name, '-o', bundle, SOURCE], env=env)
+        platforms.run([tool('zx2wasm'), '-o', module, bundle], env=env)
         # The engine's own run is the oracle: its output, then its result line.
         output = subprocess.run([tool('zi2zx'), 'run', bundle], env=env, check=True, capture_output=True, text=True).stdout
         void = name == 'Printing'
@@ -110,7 +110,7 @@ def main():
             'revision': base.git('rev-parse', 'HEAD'),
             'compiler_dirty': bool(base.git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
             'loadavg_before': before, 'loadavg_after': loadavg(),
-            'runtimes': {'c': 'C · cc -O2', 'zx': 'ZX · instruction engine', 'wasm': 'WebAssembly · zi2asm --emit wasm in Node / V8'},
+            'runtimes': {'c': 'C · cc -O2', 'zx': 'ZX · instruction engine', 'wasm': 'WebAssembly · zx2wasm in Node / V8'},
             'methodology': 'Warm in-process calls timed by the site matrix harnesses; median per call after symmetric 1.5×IQR '
                            'outlier filtering, raw samples and exclusions retained. Every timed checksum and the printed output are '
                            'verified against the instruction engine. Excludes loading, process startup and compilation.',

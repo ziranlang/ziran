@@ -1,6 +1,6 @@
 # Ziran execution contract
 
-Status: decisions required by [step 01](01-contract-and-completion-matrix.md). This document is normative for the lowered portable instructions of [step 02](02-lowered-ir-and-verifier.md). The implementation is the checked tree represented by [compiler IR](../cmd/compiler_ir.zi), its [lowering](../cmd/zir-asm/zir_asm_lower.c), the [portable instruction engine](../cmd/compiler_exec.zi) that runs every `.zx`, and their retained fixtures.
+Status: decisions required by [step 01](01-contract-and-completion-matrix.md). This document is normative for the lowered portable instructions of [step 02](02-lowered-ir-and-verifier.md). The implementation is the checked tree represented by [compiler IR](../cmd/compiler_ir.zi), its [lowering](../cmd/zi2zx/zir_asm_lower.c), the [portable instruction engine](../cmd/compiler_exec.zi) that runs every `.zx`, and their retained fixtures.
 
 The direct target follows the [gap policy](gap-policy.md): target selection is a
 contract, and an unsupported operation fails rather than selecting another

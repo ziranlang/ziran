@@ -8,6 +8,7 @@
 #include "zir.h"
 #include "zir_diagnostic.h"
 #include "zir_host_exec.h"
+#include "zir_host_native.h"
 #include "zir_sha256.h"
 #include "zir_zx_wasm.h"
 #include "zir_zx_wasm_platform.h"
@@ -18,6 +19,8 @@
 
 struct Bundle {
     ExecBundle *exec;
+    NativeBundleCode *native;
+    const char *native_problem;
     size_t references;
     /* SHA-256 of the file's bytes. */
     unsigned char digest[32];
@@ -35,6 +38,7 @@ open_bundle(const unsigned char *bytes, size_t size, const char *name)
         free(bundle);
         return NULL;
     }
+    bundle->native = NativeBundleCodeOpen(bundle->exec, &bundle->native_problem);
     Sha256 hash;
     Sha256Begin(&hash);
     Sha256Add(&hash, bytes, size);
@@ -80,6 +84,7 @@ BundleClose(Bundle *bundle)
 {
     if(bundle == NULL || --bundle->references != 0)
         return;
+    NativeBundleCodeClose(bundle->native);
     ExecBundleClose(bundle->exec);
     free(bundle);
 }
@@ -216,10 +221,20 @@ typedef struct BindingSet {
 struct BundleInstance {
     BindingSet set;
     HostBinding *owned_bindings;
+    BundleExecutionBackend backend;
     /* One of these runs the bundle. */
     ExecInstance *exec;
     ZxWasm *wasm;
+    NativeInstance *native;
 };
+
+/* Auto is a platform decision, never a per-bundle probe. Native x86-64 stays
+ * strict-only until the complete-backend parity gate is met. */
+#if defined(__EMSCRIPTEN__)
+static const BundleExecutionBackend auto_platform_backend = BUNDLE_EXECUTION_WASM;
+#else
+static const BundleExecutionBackend auto_platform_backend = BUNDLE_EXECUTION_ENGINE;
+#endif
 
 static int
 compare_bindings(const void *left, const void *right)
@@ -271,11 +286,14 @@ validate_bindings(const Bundle *bundle, BindingSet *set)
 
 /* Binding names and the array are copied, sorted for lookup. */
 static BundleInstance *
-instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
-                   size_t binding_count, int max_steps)
+instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings,
+                               size_t binding_count, int max_steps,
+                               BundleBackendPolicy policy)
 {
     if(bundle == NULL || (binding_count != 0 && bindings == NULL) ||
-       binding_count > SIZE_MAX / sizeof(HostBinding))
+       binding_count > SIZE_MAX / sizeof(HostBinding) ||
+       (policy != BUNDLE_BACKEND_AUTO && policy != BUNDLE_BACKEND_ENGINE &&
+        policy != BUNDLE_BACKEND_NATIVE))
         return NULL;
     size_t bytes = binding_count * sizeof(HostBinding);
     for(size_t i = 0; i < binding_count; i++) {
@@ -318,17 +336,42 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
         BundleInstanceClose(instance);
         return NULL;
     }
-    /* A host that installs the wasm provider runs bundles on it; its
-     * rejection is an error, never a reason to start the engine. */
-    if(ZxWasmPlatformActive() != NULL)
+    /* Selection is complete before initializers run. Rejection never retries
+     * another backend, and Auto does not inspect this bundle's native result. */
+    BundleExecutionBackend selected = policy == BUNDLE_BACKEND_ENGINE ?
+        BUNDLE_EXECUTION_ENGINE : policy == BUNDLE_BACKEND_NATIVE ?
+        BUNDLE_EXECUTION_NATIVE_X86_64 : auto_platform_backend;
+    if(selected == BUNDLE_EXECUTION_WASM) {
+        if(ZxWasmPlatformActive() == NULL) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
         instance->wasm = ZxWasmOpenExec(bundle->exec, find_binding, &instance->set, max_steps);
-    else
+        instance->backend = BUNDLE_EXECUTION_WASM;
+    } else if(selected == BUNDLE_EXECUTION_NATIVE_X86_64) {
+        if(bundle->native == NULL) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+        instance->native = NativeInstanceOpen(bundle->native, max_steps);
+        instance->backend = BUNDLE_EXECUTION_NATIVE_X86_64;
+    } else {
         instance->exec = ExecInstanceOpen(bundle->exec, find_binding, &instance->set, max_steps);
-    if(instance->exec == NULL && instance->wasm == NULL) {
+        instance->backend = BUNDLE_EXECUTION_ENGINE;
+    }
+    if(instance->exec == NULL && instance->wasm == NULL && instance->native == NULL) {
         BundleInstanceClose(instance);
         return NULL;
     }
     return instance;
+}
+
+static BundleInstance *
+instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
+                   size_t binding_count, int max_steps)
+{
+    return instantiate_bundle_with_policy(bundle, bindings, binding_count,
+                                          max_steps, BUNDLE_BACKEND_AUTO);
 }
 
 BundleInstance *
@@ -344,6 +387,29 @@ BundleInstantiateLimited(const Bundle *bundle, const HostBinding *bindings,
     return max_steps > 0 ? instantiate_bundle(bundle, bindings, binding_count, max_steps) : NULL;
 }
 
+BundleInstance *
+BundleInstantiateWithOptions(const Bundle *bundle, const HostBinding *bindings,
+                             size_t binding_count, const BundleInstanceOptions *options)
+{
+    if(options == NULL || options->max_steps < 0)
+        return NULL;
+    return instantiate_bundle_with_policy(bundle, bindings, binding_count,
+                                          options->max_steps, options->backend);
+}
+
+BundleExecutionBackend
+BundleInstanceBackend(const BundleInstance *instance)
+{
+    return instance != NULL ? instance->backend : BUNDLE_EXECUTION_NONE;
+}
+
+const char *
+BundleNativeProblem(const Bundle *bundle)
+{
+    return bundle != NULL && bundle->native_problem != NULL ? bundle->native_problem :
+        "assembly.gap.target-unimplemented";
+}
+
 int
 BundleInstanceRun(BundleInstance *instance, long long *result, int *has_result)
 {
@@ -351,6 +417,8 @@ BundleInstanceRun(BundleInstance *instance, long long *result, int *has_result)
         return 0;
     if(instance->wasm != NULL)
         return ZxWasmRun(instance->wasm, result, has_result);
+    if(instance->native != NULL)
+        return NativeInstanceRun(instance->native, result, has_result);
     return ExecInstanceRun(instance->exec, result, has_result);
 }
 
@@ -361,6 +429,8 @@ BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
         return;
     if(instance->wasm != NULL)
         ZxWasmLimitSteps(instance->wasm, max_steps);
+    else if(instance->native != NULL)
+        NativeInstanceLimitSteps(instance->native, max_steps);
     else
         ExecInstanceLimitSteps(instance->exec, max_steps);
 }
@@ -372,7 +442,7 @@ BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
         return;
     if(instance->wasm != NULL)
         ZxWasmMatchFieldsByName(instance->wasm, enabled);
-    else
+    else if(instance->exec != NULL)
         ExecInstanceMatchFieldsByName(instance->exec, enabled);
 }
 
@@ -383,6 +453,7 @@ BundleInstanceClose(BundleInstance *instance)
         return;
     ExecInstanceClose(instance->exec);
     ZxWasmClose(instance->wasm);
+    NativeInstanceClose(instance->native);
     free(instance->owned_bindings);
     free(instance);
 }
@@ -630,6 +701,7 @@ clone_state_metadata(BundleStateValue *value, StateBudget *budget)
 static size_t
 state_count(BundleInstance *instance)
 {
+    if(instance->native != NULL) return 0;
     return instance->wasm != NULL ? ZxWasmStateCount(instance->wasm) :
         ExecInstanceStateCount(instance->exec);
 }
@@ -638,6 +710,7 @@ static int
 state_at(BundleInstance *instance, size_t index, const char **module, const char **name,
          const char **type, VmHostValue *value)
 {
+    if(instance->native != NULL) return 0;
     return instance->wasm != NULL ? ZxWasmStateAt(instance->wasm, index, module, name, type, value) :
         ExecInstanceStateAt(instance->exec, index, module, name, type, value);
 }
@@ -645,6 +718,7 @@ state_at(BundleInstance *instance, size_t index, const char **module, const char
 static int
 state_store(BundleInstance *instance, const VmHostValue *const *values)
 {
+    if(instance->native != NULL) return values != NULL;
     return instance->wasm != NULL ? ZxWasmStateStore(instance->wasm, values) :
         ExecInstanceStateStore(instance->exec, values);
 }

@@ -10,7 +10,7 @@ The normative byte contract is
 
 ## Running bundles
 
-Run source in one command: `ziran run hello.zi` or `zi2zx hello.zi`. Both
+Run source in one command: `ziran run hello.zi` or `zi2zx run hello.zi`. Both
 check the file, write the bundle in memory and execute its `main`; its folder
 is the default module root. `ziran run app.zx` and `zi2zx run app.zx` run a
 bundle file. Zero-argument entries returning an integer, `bool` or nothing
@@ -48,18 +48,17 @@ UI code and embedded assets; the installed provider bridges the local OS.
 
 ## Writing bundles
 
-`zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
+`zi2zx --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, lowers what the entry
 reaches to instructions, verifies and optimizes them, and writes the bundle.
-`zi2asm --emit zx` writes the same bytes, and source and saved `.zir` give the
-same file:
+Source and saved `.zir` give the same file:
 
 ```sh
-zi2asm --root src --entry app:main --emit zx -o app.zx src/app.zi
-zi2asm --input zx --emit elf -o app app.zx
-zi2asm --input zx --run app.zx
-zi2asm --input zx --emit lir -o - app.zx
-zi2asm --input zx --emit wasm -o app.wasm app.zx
+zi2zx --root src --entry app:main -o app.zx src/app.zi
+zx2native --target x86_64 --platform linux --emit elf -o app app.zx
+zi2zx run app.zx
+zi2zx --emit lir -o - app.zx
+zx2wasm -o app.wasm app.zx
 ```
 
 The required program section holds deterministic verified lowered
@@ -134,7 +133,7 @@ The pipeline is source → `.zir` → linked and verified instructions → `.zx`
 The portable instruction engine runs the instructions on any platform. A
 supported direct target lowers the same verified instructions to machine code,
 applies the target ABI and platform veneers, and writes a platform binary;
-`zi2asm --input zx --emit elf` is the Linux x86-64 row. Generated C and Go are
+`zx2native --target x86_64 --platform linux --emit elf` is the Linux x86-64 row. Generated C and Go are
 separate routes, never native fallback.
 
 The linker includes reachable code from ordinary libraries, Kryon only when
@@ -205,7 +204,7 @@ that is without `BOOTSTRAP=1`. `tests/zx_wasm.sh` runs bundles on the tier
 under node beside the engine, and `tests/zx_web_lifecycle.sh` runs source
 through `.zx` in a private headless Chromium.
 
-`zi2asm --emit wasm` lowers the same verified ZX to one wasm32 module, and
+`zx2wasm` lowers the same verified ZX to one wasm32 module, and
 `ziran build --target=wasm` runs it; source and saved-ZX input give identical
 bytes. The module imports `zx.overrun` and the mutable `zx.budget` global that
 every `fuel` instruction charges, `zx.host_i64` when the program prints and
@@ -213,7 +212,7 @@ every `fuel` instruction charges, `zx.host_i64` when the program prints and
 `zx_initialize` when it has module initializers and `zx_reserve` when it has a
 heap; a `zxhost` custom section names each capability. A form it has no code
 for stops at a named `wasm.gap.*` diagnostic. The host-call record layout is in
-`cmd/zir-wasm/zx_wasm_lower.h`.
+`cmd/zx2wasm/zx_wasm_lower.h`.
 
 ## Embedded files and application hosts
 

@@ -28,9 +28,9 @@ WasmValueRun :: (test: *NativeTest, cases: []WasmValueCase, compare_images: bool
             input := ifx form == 0 then source else CheckPath(ir, CheckConcat(name, ".zir"))
             prefix := CheckPath(test.work, CheckConcat(name, ifx form == 0 then "-source" else "-saved")); image := CheckConcat(prefix, ".wasm"); bundle := CheckConcat(prefix, ".zx")
             entry := CheckConcat(name, ":Answer")
-            wasm := string.[CheckPath(tools, "zi2asm"), "--root", root, "--entry", entry, "--emit", "wasm", "-o", image, input]
-            zx := string.[CheckPath(tools, "zi2zx"), "bundle", "--root", root, "--entry", entry, "-o", bundle, input]
-            unused WasmValueCommand(test, wasm[:]); unused WasmValueCommand(test, zx[:])
+            zx := string.[CheckPath(tools, "zi2zx"), "--root", root, "--entry", entry, "-o", bundle, input]
+            wasm := string.[CheckPath(tools, "zx2wasm"), "-o", image, bundle]
+            unused WasmValueCommand(test, zx[:]); unused WasmValueCommand(test, wasm[:])
             if test.failed { return false }
             node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), image]; vm := string.[CheckPath(tools, "zi2zx"), "run", bundle]
             actual_wasm := WasmValueCommand(test, node[:]); actual_vm := WasmValueCommand(test, vm[:])

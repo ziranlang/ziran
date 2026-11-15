@@ -65,13 +65,14 @@ cat >> "$directory/app.zi" <<'ZI'
 #assert Compiler.HostOS != OS
 #assert Compiler.HostCPU != CPU
 ZI
-"$tool_dir/zi2asm" --root "$directory" --entry app:Answer --emit wasm \
-    -o "$directory/app.wasm" "$directory/app.zi"
+"$tool_dir/zi2zx" --target wasm --root "$directory" --entry app:Answer \
+    -o "$directory/app.zx" "$directory/app.zi"
+"$tool_dir/zx2wasm" -o "$directory/app.wasm" "$directory/app.zx"
 test -s "$directory/app.wasm"
 
 directory=$work/zx
 write_case "$directory" ZX NONE NONE
-"$tool_dir/zi2zx" bundle --root "$directory" --entry app:Answer \
+"$tool_dir/zi2zx" --root "$directory" --entry app:Answer \
     -o "$directory/app.zx" "$directory/app.zi"
 test "$("$tool_dir/zi2zx" run "$directory/app.zx")" = 42
 
@@ -84,7 +85,7 @@ if rg -a -q '#if|#ifx|#run|TARGET|Compiler\.' "$portable/ir/app.zir"; then
     echo 'portable .zir retained target-dependent compile-time source' >&2
     exit 1
 fi
-"$tool_dir/zi2zx" bundle --root "$portable/ir" --entry app:Answer \
+"$tool_dir/zi2zx" --root "$portable/ir" --entry app:Answer \
     -o "$portable/saved.zx" "$portable/ir/app.zir"
 test "$("$tool_dir/zi2zx" run "$portable/saved.zx")" = 42
 

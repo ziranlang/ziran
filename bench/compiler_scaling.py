@@ -140,7 +140,7 @@ def main():
                  *sorted(native.glob('*.c')), '-lm', '-o', binary], label, 'native-compile:c')
             run([binary], label, 'run:c', oracle)
             bundle = directory / form / 'program.zx'
-            run([binaries/'zi2zx', 'bundle', '--root', root, '--entry', 'program:Answer', '-o', bundle, entry], label, 'bundle')
+            run([binaries/'zi2zx', '--root', root, '--entry', 'program:Answer', '-o', bundle, entry], label, 'bundle')
             run([binaries/'zi2zx', 'run', bundle], label, 'run:vm', oracle)
         (directory / 'fixture-hashes.json').write_text(json.dumps(
             {str(path.relative_to(directory)): digest(path) for path in source.glob('*.zi')}, indent=2) + '\n')

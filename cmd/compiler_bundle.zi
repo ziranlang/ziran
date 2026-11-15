@@ -592,7 +592,7 @@ ExecutableVersionNumber :: () -> u32 { return ExecutableVersion }
 ExecutableMessage :: (problem: ExecutableProblem) -> string {
     if problem == .None { return "none" }
     if problem == .Magic { return "not a ZX executable container" }
-    if problem == .Legacy { return "legacy ZX version contains semantic IR; rebuild with zi2asm --emit zx" }
+    if problem == .Legacy { return "legacy ZX version contains semantic IR; rebuild with zi2zx" }
     if problem == .Version { return "unsupported executable ZX version" }
     if problem == .Header { return "invalid executable ZX header" }
     if problem == .Feature { return "unsupported required executable ZX feature" }

@@ -287,7 +287,7 @@ main(int argc, char **argv)
         size_t length = strlen(path);
         if(length > 3 && !strcmp(path + length - 3, ".zx")) {
             Diagnostic(Span(path, 0, 0), "zir.input",
-                       "a .zx file holds instructions; list them with zi2asm --input zx --emit lir");
+                       "a .zx file holds instructions; list them with zi2zx --emit lir");
             return 2;
         }
         if(!PathIsIR(path)) {

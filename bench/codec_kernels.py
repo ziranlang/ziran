@@ -406,7 +406,7 @@ def main():
     if not cc or not hasattr(os, 'wait4'):
         parser.error('a C compiler and POSIX wait4 are required')
     bins = args.bin_dir.resolve()
-    required = ['ziran', 'zi2zir', 'zi2c', 'zi2go', 'zi2zx']
+    required = ['ziran', 'zi2zir', 'zi2c', 'zi2go', 'zi2zx', 'zx2wasm']
     for name in required:
         if not (bins / name).is_file():
             parser.error(f'missing compiler tool: {bins / name}; build the toolchain first')
@@ -500,7 +500,7 @@ def main():
     metadata['toolchain'] = {'cc': invoke([cc, '--version'], 'metadata', 'C compiler version')[0],
                              'cc_target': invoke([cc, '-dumpmachine'], 'metadata', 'C compiler target')[0],
                              'python': sys.version}
-    tool_files = [bins / name for name in required] + [bins / 'zi2asm', bins.parent / 'libziran.a']
+    tool_files = [bins / name for name in required] + [bins.parent / 'libziran.a']
     metadata['tools'] = {str(path): dict(sha256=digest(path), size=path.stat().st_size, mtime_ns=path.stat().st_mtime_ns)
                          for path in tool_files if path.is_file()}
     inputs = [Path(__file__), ROOT / 'bench/compiler_kernel_benchmarks.sh',
@@ -621,7 +621,7 @@ def main():
     wasm_python = importlib.util.find_spec('wasmtime') is not None
     browser = shutil.which('firefox') or shutil.which('chromium')
     wasm_engine = wasm_python or bool(browser)
-    capabilities['wasm'] = dict(generator=str(bins / 'zi2asm'), execution='available' if wasm_engine else 'unavailable',
+    capabilities['wasm'] = dict(generator=f"{bins / 'zi2zx'} | {bins / 'zx2wasm'}", execution='available' if wasm_engine else 'unavailable',
                                 runner='Python Wasmtime' if wasm_python else f'private headless {Path(browser).name}' if browser else None,
                                 reason='' if wasm_engine else 'No Python wasmtime binding, Firefox or Chromium executable; Node/npm/npx prohibited. Generated modules do not count as executed validation.')
     if wasm_python:
@@ -634,7 +634,7 @@ def main():
         for function in ['Validate', *[kind + 'Bench' for kind in KERNELS]]:
             wanted = validation if function == 'Validate' else oracle(function[:-5], 8, 37)
             bundle = out / f'{form}-{function}.zx'
-            invoke([ziran, 'bundle', '--root', root, '--entry', f'codec_kernels:{function}', '-o', bundle, entry], 'codegen', f'{form} {function} bundle')
+            invoke([bins / 'zi2zx', '--root', root, '--entry', f'codec_kernels:{function}', '-o', bundle, entry], 'codegen', f'{form} {function} bundle')
             # A bundle runs on the portable instruction engine.
             command = [bins / 'zi2zx', 'run', bundle]
             actual = invoke(command, 'correctness', f'{form} portable {function}')[0]
@@ -642,10 +642,15 @@ def main():
                 raise AssertionError(f'{form} portable {function}: {actual} != {wanted}')
             if function != 'Validate':
                 portable.append((f'{form}-portable-{function[:-5]}', command, wanted))
-            if (bins / 'zi2asm').is_file():
+            if (bins / 'zx2wasm').is_file():
                 wasm = out / f'{form}-{function}.wasm'
-                _, row, diagnostic = invoke([bins / 'zi2asm', '--root', root, '--entry', f'codec_kernels:{function}',
-                                              '--emit', 'wasm', '-o', wasm, entry], 'codegen', f'{form} {function} Wasm', allow_failure=True)
+                wasm_wire = out / f'{form}-{function}-wasm.zx'
+                _, row, diagnostic = invoke([bins / 'zi2zx', '--target', 'wasm', '--root', root,
+                                              '--entry', f'codec_kernels:{function}', '-o', wasm_wire, entry],
+                                             'codegen', f'{form} {function} Wasm ZX', allow_failure=True)
+                if not row['returncode']:
+                    _, row, diagnostic = invoke([bins / 'zx2wasm', '-o', wasm, wasm_wire],
+                                                 'codegen', f'{form} {function} Wasm', allow_failure=True)
                 if row['returncode']:
                     capabilities[f'wasm-{form}-{function}'] = {'generation': 'unsupported', 'execution': 'unavailable', 'reason': diagnostic, 'command': row}
                 else:
@@ -659,19 +664,23 @@ def main():
                         if function != 'Validate':
                             portable.append((f'{form}-wasm-{function[:-5]}', command, wanted))
             else:
-                capabilities['wasm']['reason'] = 'zi2asm tool is not built'
+                capabilities['wasm']['reason'] = 'zx2wasm tool is not built'
         bundle = out / f'{form}-layout.zx'
-        invoke([ziran, 'bundle', '--root', root, '--entry', 'codec_kernels_layout:Sizes', '-o', bundle, audit_entry], 'codegen', f'{form} logical size bundle')
+        invoke([bins / 'zi2zx', '--root', root, '--entry', 'codec_kernels_layout:Sizes', '-o', bundle, audit_entry], 'codegen', f'{form} logical size bundle')
         value = int(invoke([bins / 'zi2zx', 'run', bundle], 'audit', f'{form} portable logical sizes')[0])
         logical_fingerprint = 8 * 1000000 + 8 * 10000 + 16 * 100 + 24
         if value != logical_fingerprint:
             raise AssertionError(f'{form} portable size_of differs from TypeLayout: {value}')
         layout[f'{form}-portable-size-fingerprint'] = value
-        if (bins / 'zi2asm').is_file():
+        if (bins / 'zx2wasm').is_file():
             wasm = out / f'{form}-layout.wasm'
-            _, row, diagnostic = invoke([bins / 'zi2asm', '--root', root, '--entry',
-                                         'codec_kernels_layout:Sizes', '--emit', 'wasm', '-o', wasm, audit_entry],
-                                        'codegen', f'{form} Wasm layout audit', allow_failure=True)
+            wasm_wire = out / f'{form}-layout-wasm.zx'
+            _, row, diagnostic = invoke([bins / 'zi2zx', '--target', 'wasm', '--root', root,
+                                         '--entry', 'codec_kernels_layout:Sizes', '-o', wasm_wire, audit_entry],
+                                        'codegen', f'{form} Wasm layout ZX', allow_failure=True)
+            if not row['returncode']:
+                _, row, diagnostic = invoke([bins / 'zx2wasm', '-o', wasm, wasm_wire],
+                                             'codegen', f'{form} Wasm layout audit', allow_failure=True)
             capabilities[f'wasm-{form}-layout'] = {'generation': 'unsupported' if row['returncode'] else 'succeeded',
                                                   'execution': 'unavailable', 'reason': diagnostic, 'command': row}
             if not row['returncode'] and wasm_engine:

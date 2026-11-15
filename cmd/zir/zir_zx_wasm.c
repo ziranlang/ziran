@@ -2,7 +2,7 @@
  * zir_zx_wasm.c - revision-28 bundles executed as WebAssembly through the
  * installed provider. Mirrors the instruction engine's instance contract
  * so zir_host.c picks between engines at one seam. The module comes from
- * cmd/zir-wasm/zx_wasm_lower.c; its host calls and its globals cross as
+ * cmd/zx2wasm/zx_wasm_lower.c; its host calls and its globals cross as
  * the engine's host images, which the bridge copies between the
  * instance's memory and ExecHosts, the embedding API's translation to
  * VmHostValue trees.
@@ -10,7 +10,7 @@
 #include "zir_zx_wasm.h"
 #include "zir_diagnostic.h"
 #include "zir_text.h"
-#include "../zir-wasm/zx_wasm_lower.h"
+#include "../zx2wasm/zx_wasm_lower.h"
 #include "zir_zx_wasm_platform.h"
 
 #include <stdio.h>

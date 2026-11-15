@@ -8,7 +8,7 @@ Complete the path from allocated machine instructions to native binaries without
 
 ## Existing integration points
 
-- [Current C executable driver](../cmd/zir-c/main.c) and [build orchestration](../cmd/zir-c/zir_c_build.c) provide entry, diagnostics, cache, and failure-preservation behavior to retain.
+- [Current C executable driver](../cmd/zi2c/main.c) and [build orchestration](../cmd/zi2c/zir_c_build.c) provide entry, diagnostics, cache, and failure-preservation behavior to retain.
 - [Native entry tests](../tests/native_entry.sh) and [link-flag tests](../tests/native_link_flags_cases.zi) provide existing executable/FFI expectations.
 - [Build rules](../Makefile) and [native runtime build selection](../native-zx.mk).
 

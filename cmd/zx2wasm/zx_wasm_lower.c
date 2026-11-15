@@ -34,7 +34,7 @@
 enum {
     W_I32 = 0x7f, W_I64 = 0x7e, W_F32 = 0x7d, W_F64 = 0x7c,
     ZXW_DATA_BASE = 1024,
-    ZXW_STACK_SIZE = 1 << 20,
+    ZXW_STACK_SIZE = 8 << 20,
     ZXW_IMAGE_LIMIT = 1 << 28,
     /* The largest heap block and host image. */
     ZXW_BLOCK_LIMIT = 1 << 30,
@@ -824,8 +824,9 @@ typedef struct Fn {
     int has_budget;
     uint32_t budget;
     int64_t block_count;
-    uint32_t temp[4][3];
+    uint32_t *temp[4];
     unsigned temp_used[4];
+    unsigned temp_capacity[4];
 } Fn;
 
 static uint32_t
@@ -857,6 +858,25 @@ static uint32_t
 fn_temp(Fn *fn, unsigned type, unsigned which)
 {
     int slot = temp_slot(type);
+    if(fn->temp_capacity[slot] <= which) {
+        unsigned capacity = fn->temp_capacity[slot] ? fn->temp_capacity[slot] : 4;
+        while(capacity <= which) {
+            if(capacity > UINT32_MAX / 2) {
+                fn->lower->failed = 1;
+                DiagnosticOutOfMemory();
+                return 0;
+            }
+            capacity *= 2;
+        }
+        uint32_t *temp = realloc(fn->temp[slot], (size_t)capacity * sizeof(*temp));
+        if(temp == NULL) {
+            fn->lower->failed = 1;
+            DiagnosticOutOfMemory();
+            return 0;
+        }
+        fn->temp[slot] = temp;
+        fn->temp_capacity[slot] = capacity;
+    }
     while(fn->temp_used[slot] <= which) {
         fn->temp[slot][fn->temp_used[slot]] = fn_local(fn, type);
         fn->temp_used[slot]++;
@@ -3039,11 +3059,6 @@ lower_function(Lower *lower, int64_t index, Buf *output)
         } else if(type_at(lower, values[value])->kind != LirTypeKind_Void) {
             fn.value_local[value] = (int32_t)fn_local(&fn, valtype(lower, values[value]));
         }
-        if(fn.frame > ZXW_STACK_SIZE / 2) {
-            WasmGap(lower, "wasm.gap.frame", "procedure %.*s needs a frame over %d bytes",
-                (int)function->name.length, function->name.data, ZXW_STACK_SIZE / 2);
-            goto done;
-        }
     }
     for(int64_t value = 0; value < value_count; value++)
         if(aggregate[value] && rep[value] != value)
@@ -3093,9 +3108,10 @@ lower_function(Lower *lower, int64_t index, Buf *output)
         fn.frame += host_area;
     }
     fn.frame = (fn.frame + 15) & ~(int64_t)15;
-    if(fn.frame > ZXW_STACK_SIZE / 2) {
-        WasmGap(lower, "wasm.gap.frame", "procedure %.*s needs a frame over %d bytes",
-            (int)function->name.length, function->name.data, ZXW_STACK_SIZE / 2);
+    if(fn.frame > ZXW_STACK_SIZE) {
+        WasmGap(lower, "wasm.gap.frame", "procedure %.*s needs a %lld-byte frame; limit is %d bytes",
+            (int)function->name.length, function->name.data,
+            (long long)fn.frame, ZXW_STACK_SIZE);
         goto done;
     }
     fn.has_frame = fn.frame > 0;
@@ -3240,6 +3256,8 @@ lower_function(Lower *lower, int64_t index, Buf *output)
     ok = 1;
 done:
     buf_free(&fn.code);
+    for(size_t slot = 0; slot < 4; slot++)
+        free(fn.temp[slot]);
     free(fn.locals);
     free(fn.value_local);
     free(fn.value_slot);

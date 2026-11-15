@@ -1,6 +1,7 @@
 using ABI :: #import "compiler_abi"
 using Lir :: #import "compiler_lowered_ir"
 using LirVerifyModule :: #import "compiler_lowered_verify"
+using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using MachineVerifyModule :: #import "compiler_machine_verify"
 using Target :: #import "compiler_target"
@@ -82,6 +83,23 @@ AddGlobal :: (state: *LowerState, global: MachineGlobal) -> bool {
     if state.owner.globals.count >= state.limits.globals { return Fail(state, .Limit) }
     if !Reserve(state, 1, size_of(MachineGlobal), state.limits.globals) { return false }
     if !VecPush(state.owner.globals, global) { return Fail(state, .Allocation) }
+    return true
+}
+
+AddData :: (state: *LowerState, bytes: []u8) -> s32 {
+    if bytes.count < 0 || state.owner.data.count > 2147483647 - bytes.count ||
+        !Reserve(state, bytes.count, 1, state.limits.bytes) { return MachineNoId }
+    begin := cast(s32)state.owner.data.count
+    for byte: bytes {
+        if !VecPush(state.owner.data, byte) { Fail(state, .Allocation); return MachineNoId }
+    }
+    return begin
+}
+
+AddConstant :: (state: *LowerState, constant: MachineConstant) -> bool {
+    if state.owner.constants.count >= state.limits.constants { return Fail(state, .Limit) }
+    if !Reserve(state, 1, size_of(MachineConstant), state.limits.constants) { return false }
+    if !VecPush(state.owner.constants, constant) { return Fail(state, .Allocation) }
     return true
 }
 
@@ -188,6 +206,12 @@ SymbolOperand :: (state: *LowerState, kind: MachineOperandKind, symbol: s32) -> 
         type = MachineNoId, fixed_register = MachineNoId, tied_to = MachineNoId, value = MachineNoId})
 }
 
+StackOperand :: (state: *LowerState, object: s32) -> s32 {
+    return AddOperand(state, .{kind = .StackObject, role = .Use, class = .Stack, id = object,
+        type = state.owner.stack_objects[object].type, fixed_register = MachineNoId,
+        tied_to = MachineNoId, value = MachineNoId})
+}
+
 PhysicalOperand :: (state: *LowerState, physical: s32, role: MachineOperandRole) -> s32 {
     return AddOperand(state, .{kind = .Physical, role = role, class = .General, id = physical,
         type = MachineNoId, fixed_register = physical, tied_to = MachineNoId, value = MachineNoId})
@@ -259,7 +283,8 @@ CopyTypes :: (state: *LowerState) -> bool {
         parameters_begin := cast(s32)state.owner.type_ids.count
         for parameter: source.parameters { if !AddTypeId(state, parameter) { return false } }
         type := MachineType.{.kind = kind, .class = class, .bits = source.bits,
-            .is_signed = source.is_signed, .size = size, .alignment = Alignment(size),
+            .is_signed = source.is_signed, .native_width = source.native_width,
+            .size = size, .alignment = Alignment(size),
             .element = ifx source.kind == .Array || source.kind == .Pointer then source.element else MachineNoId,
             .count = source.count, .fields_begin = fields_begin,
             .fields_count = cast(s32)source.fields.count,
@@ -268,12 +293,30 @@ CopyTypes :: (state: *LowerState) -> bool {
             .result = ifx source.kind == .Function then source.result else MachineNoId}
         if AddType(state, type) != type_id { return false }
     }
+    for source: state.lir.constants {
+        if !Spend(state, 1) { return false }
+        begin := AddData(state, source.bytes)
+        if begin == MachineNoId || !AddConstant(state, .{type = source.type, bits = source.bits,
+            bytes_begin = begin, bytes_count = cast(s32)source.bytes.count}) { return false }
+    }
     for global: state.lir.globals {
-        if !Spend(state, 1) || !AddGlobal(state, .{type = global.type, writable = global.writable}) {
+        if !Spend(state, 1) || !AddGlobal(state, .{type = global.type,
+            constant = global.constant, writable = global.writable}) {
             return false
         }
     }
+    for initializer: state.lir.initializers {
+        if !Spend(state, 1) || !Reserve(state, 1, size_of(s32), state.limits.functions) ||
+            !VecPush(state.owner.initializers, initializer) { return Fail(state, .Allocation) }
+    }
     return true
+}
+
+FunctionCalling :: (state: *LowerState, source: LirFunction) -> MachineCalling {
+    if !source.external { return .Internal }
+    if source.module >= 0 && source.module < state.lir.modules.count &&
+        state.lir.modules[source.module] == "ziran.platform" { return .Platform }
+    return .Host
 }
 
 AddFunctionRecords :: (state: *LowerState) -> bool {
@@ -282,10 +325,11 @@ AddFunctionRecords :: (state: *LowerState) -> bool {
         source := state.lir.functions[function_id]
         offset := Text(state, source.name)
         if state.problem != .None { return false }
-        function := MachineFunction.{.lir_function = cast(s32)function_id,
+        calling := FunctionCalling(state, source)
+        function := MachineFunction.{.lir_function = ifx calling == .Internal then cast(s32)function_id else MachineNoId,
             .name_offset = offset, .name_length = cast(s32)source.name.count,
             .parameter_count = cast(s32)source.parameters.count, .result_type = source.result,
-            .calling = .Internal,
+            .calling = calling, .entry = MachineNoId,
             .origin = Origin(state, source.origin)}
         if AddFunction(state, function) != function_id { return false }
     }
@@ -512,10 +556,39 @@ LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstr
 }
 
 LowerAllocate :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
-    instruction := BeginInstruction(state, .Allocate, source.origin)
-    if VirtualOperand(state, GlobalVirtual(state, function, source.result), .Define) == MachineNoId { return false }
-    if source.operands.count == 1 &&
-        VirtualOperand(state, GlobalVirtual(state, function, source.operands[0]), .Use) == MachineNoId { return false }
+    result := GlobalVirtual(state, function, source.result)
+    pointer := state.owner.types[state.owner.virtuals[result].type]
+    if pointer.kind != .Pointer { return Fail(state, .Unsupported) }
+    object := NewStack(state, function.lir_function, .Local, pointer.element, source.origin)
+    if object == MachineNoId { return false }
+    instruction := BeginInstruction(state, .StackAddress, source.origin)
+    if VirtualOperand(state, result, .Define) == MachineNoId ||
+        StackOperand(state, object) == MachineNoId || FinishInstruction(state, instruction) == MachineNoId { return false }
+    if source.operands.count == 1 {
+        store := BeginInstruction(state, .Store, source.origin)
+        if VirtualOperand(state, result, .Use) == MachineNoId ||
+            VirtualOperand(state, GlobalVirtual(state, function, source.operands[0]), .Use) == MachineNoId ||
+            FinishInstruction(state, store) == MachineNoId { return false }
+    }
+    function.stack_count = cast(s32)state.owner.stack_objects.count - function.stack_begin
+    return true
+}
+
+LowerBytesEqual :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    if source.operands.count != 4 { return Fail(state, .Unsupported) }
+    instruction := BeginInstruction(state, .BytesEqual, source.origin)
+    result := GlobalVirtual(state, function, source.result)
+    // rep cmpsb: rdi=left, rcx=left count, rsi=right, rdx=right count;
+    // rdi/rsi/rcx are destructive and are explicit non-value clobbers.
+    fixed: [4]s32 = .[7, 1, 6, 2]
+    if VirtualOperand(state, result, .Define, 0) == MachineNoId { return false }
+    for at: cast(s64)0..3 {
+        if VirtualOperand(state, GlobalVirtual(state, function, source.operands[at]), .Use,
+            fixed[at]) == MachineNoId { return false }
+    }
+    if PhysicalOperand(state, 7, .UseDefine) == MachineNoId ||
+        PhysicalOperand(state, 6, .UseDefine) == MachineNoId ||
+        PhysicalOperand(state, 1, .UseDefine) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
@@ -526,7 +599,7 @@ RoundEight :: (value: s64) -> s64 {
 
 LowerCall :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     indirect := source.op == .CallIndirect
-    if source.op != .Call && !indirect { return Fail(state, .Unsupported) }
+    if source.op != .Call && source.op != .HostCall && !indirect { return Fail(state, .Unsupported) }
     instruction := BeginInstruction(state, ifx indirect then .CallIndirect else .CallDirect, source.origin)
     result_operand: s32 = MachineNoId
     result_class := MachineRegisterClass.Invalid
@@ -581,7 +654,9 @@ LowerCall :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
         function.stack_count = cast(s32)state.owner.stack_objects.count - function.stack_begin
     }
     instruction_id := cast(s32)state.owner.instructions.count
-    call_id := AddCall(state, .{instruction = instruction_id, calling = .Internal,
+    calling := MachineCalling.Internal
+    if !indirect { calling = state.owner.functions[source.symbol].calling }
+    call_id := AddCall(state, .{instruction = instruction_id, calling = calling,
         argument_begin = argument_begin, argument_count = cast(s32)parameter_types.count,
         result_operand = result_operand, stack_argument_bytes = stack_bytes,
         clobber_general = MachineAbiCallGeneralClobbers(state.target),
@@ -593,8 +668,11 @@ LowerCall :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
     if instruction_id == MachineNoId { return false }
     if !indirect {
         symbol_operand := argument_begin - 1
+        relocation := MachineRelocationKind.FunctionCall
+        if calling == .Host { relocation = .HostCapability }
+        if calling == .Platform { relocation = .PlatformService }
         if !AddRelocation(state, .{instruction = instruction_id, operand = symbol_operand,
-            kind = .FunctionCall, symbol = source.symbol}) { return false }
+            kind = relocation, symbol = source.symbol}) { return false }
     }
     return true
 }
@@ -640,7 +718,9 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Constant { return LowerConstant(state, function, source, .MoveImmediate) }
     if source.op == .Null { return LowerConstant(state, function, source, .MoveImmediate) }
     if source.op == .GlobalAddress {
-        return LowerAddress(state, function, source, .GlobalAddress, .Global, .GlobalAddress)
+        relocation := MachineRelocationKind.ConstantAddress
+        if state.lir.globals[source.symbol].writable { relocation = .GlobalAddress }
+        return LowerAddress(state, function, source, .GlobalAddress, .Global, relocation)
     }
     if source.op == .FunctionAddress {
         return LowerAddress(state, function, source, .FunctionAddress, .Function, .FunctionAddress)
@@ -659,9 +739,15 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Allocate { return LowerAllocate(state, function, source) }
     if source.op == .Load { return LowerMemory(state, function, source, .Load) }
     if source.op == .Store { return LowerMemory(state, function, source, .Store) }
+    if source.op == .Copy { return LowerMemory(state, function, source, .Copy) }
+    if source.op == .Zero { return LowerMemory(state, function, source, .Zero) }
     if source.op == .FieldAddress { return LowerMemory(state, function, source, .FieldAddress) }
     if source.op == .ElementAddress { return LowerMemory(state, function, source, .ElementAddress) }
-    if source.op == .Call || source.op == .CallIndirect { return LowerCall(state, function, source) }
+    if source.op == .BytesEqual { return LowerBytesEqual(state, function, source) }
+    if source.op == .Resize { return LowerMemory(state, function, source, .Resize) }
+    if source.op == .Call || source.op == .CallIndirect || source.op == .HostCall {
+        return LowerCall(state, function, source)
+    }
     if source.op == .Fuel { return LowerControl(state, function, source, .Fuel) }
     if source.op == .Trap { return LowerControl(state, function, source, .Trap) }
     if source.op == .Jump { return LowerControl(state, function, source, .Jump) }
@@ -673,8 +759,7 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
 
 LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     source := state.lir.functions[function_id]
-    // Host capability calls need the native trampoline ABI, which is not lowered yet.
-    if source.external { return Fail(state, .Unsupported) }
+    if source.external { return true }
     function := state.owner.functions[function_id]
     if !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
@@ -705,7 +790,8 @@ Finalize :: (state: *LowerState) {
     owner := state.owner
     owner.program = .{version = MachineVersion, target = state.target,
         text = owner.text[:], sources = owner.sources[:], origins = owner.origins[:],
-        types = owner.types[:], type_ids = owner.type_ids[:], globals = owner.globals[:],
+        types = owner.types[:], type_ids = owner.type_ids[:], data = owner.data[:],
+        constants = owner.constants[:], globals = owner.globals[:], initializers = owner.initializers[:],
         functions = owner.functions[:],
         blocks = owner.blocks[:], virtuals = owner.virtuals[:], instructions = owner.instructions[:],
         operands = owner.operands[:], edges = owner.edges[:], copies = owner.copies[:],
@@ -732,7 +818,10 @@ MachineFree :: (owner: *MachineOwner) {
     VecFree(owner.origins)
     VecFree(owner.types)
     VecFree(owner.type_ids)
+    VecFree(owner.data)
+    VecFree(owner.constants)
     VecFree(owner.globals)
+    VecFree(owner.initializers)
     VecFree(owner.functions)
     VecFree(owner.blocks)
     VecFree(owner.virtuals)
@@ -765,8 +854,6 @@ MachineLower :: (owner: *MachineOwner, program: LirProgram, target: TargetDescri
         return Result(state)
     }
     if limits.work < 0 || limits.bytes < 0 { state.problem = .Limit; return Result(state) }
-    // Read-only string data needs a read-only native data section first.
-    for global: program.globals { if !global.writable { state.problem = .Unsupported; return Result(state) } }
     lir_diagnostic := LirVerify(program, LirDefaultLimits())
     if lir_diagnostic.problem != .None {
         state.lir_diagnostic_problem = cast(s32)lir_diagnostic.problem

@@ -1,5 +1,6 @@
 using Lir :: #import "compiler_lowered_ir"
 using Lower :: #import "compiler_machine_lower"
+using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using Verify :: #import "compiler_machine_verify"
 using Allocated :: #import "compiler_machine_verify_allocated"
@@ -566,6 +567,25 @@ CallCases :: () -> bool {
     program.frames[1].callee_saved_general = 0
     if !Rejects(program, .Frame, "written callee-saved registers need frame homes") { return false }
     program.frames[1].callee_saved_general = saved_mask
+    call_relocation: s64 = -1
+    for index: cast(s64)0..program.relocations.count - 1 {
+        if program.relocations[index].kind == .FunctionCall { call_relocation = index }
+    }
+    if !Check(call_relocation >= 0, "allocated direct call keeps its stable relocation") { return false }
+    saved_relocation := program.relocations[call_relocation]
+    program.relocations[call_relocation].kind = cast(Image.MachineRelocationKind)99
+    if !Rejects(program, .Relocation, "allocated unknown relocation kind") { return false }
+    program.relocations[call_relocation] = saved_relocation
+    program.relocations[call_relocation].symbol = cast(s32)program.functions.count
+    if !Rejects(program, .Relocation, "allocated out-of-range relocation symbol") { return false }
+    program.relocations[call_relocation] = saved_relocation
+    program.relocations[call_relocation].addend = 1
+    if !Rejects(program, .Relocation, "allocated out-of-range relocation addend") { return false }
+    program.relocations[call_relocation] = saved_relocation
+    saved_calling := program.calls[0].calling
+    program.calls[0].calling = .C
+    if !Rejects(program, .Call, "allocated non-host external call") { return false }
+    program.calls[0].calling = saved_calling
 
     // Unsupported call clobbers and missing fuel hard-fail before allocation.
     narrow: Machine.MachineOwner
@@ -586,9 +606,9 @@ CallCases :: () -> bool {
     if !Check(missing.problem == .Fuel && missing.function == 1 && missing.instruction >= 0,
         "a call to a function without entry fuel is rejected at the call") { return false }
 
-    // A relocation addend the target cannot encode is found only by the
-    // allocated verifier. That late failure leaves the owner intact, and the
-    // same owner allocates once its input is valid again.
+    // Both verifier stages reject a relocation addend the target cannot
+    // encode. The failed allocation leaves the owner intact, and the same
+    // owner allocates once its input is valid again.
     addend_owner: Machine.MachineOwner
     defer Lower.MachineFree(*addend_owner)
     if !Lowered("call addend", CallsFixture(*addend_owner, true)) { return false }
@@ -602,12 +622,15 @@ CallCases :: () -> bool {
     addend_before := Fingerprint(addend_view)
     relocated := addend_view.relocations[relocation]
     late := RegAlloc.RegAllocAllocate(*addend_owner, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
-    if !Check(late.problem == .Relocation && late.function == 1 && late.instruction == relocated.instruction &&
+    if !Check(late.problem == .Relocation && late.instruction == relocated.instruction &&
         late.operand == relocated.operand, "a direct call relocation addend is rejected at the input call") {
         Report("call addend", late)
         return false
     }
-    if !Intact(*addend_owner, addend_before, "a late allocation failure leaves the owner's program intact") { return false }
+    kept := Lower.MachineProgramView(*addend_owner)
+    if !Check(addend_owner.valid && kept.stage == .Virtual && Fingerprint(kept) == addend_before &&
+        Verify.MachineVerify(kept, Machine.MachineDefaultLimits()).problem == .Relocation,
+        "a relocation verification failure leaves the owner's program intact") { return false }
     restored := Lower.MachineProgramView(*addend_owner)
     restored.relocations[relocation].addend = 0
     if !Allocate("call addend restored", *addend_owner) ||
@@ -688,6 +711,18 @@ ArithmeticCases :: () -> bool {
     program.instructions[fuel].flags_def = -1
     if !Rejects(program, .Fuel, "fuel check must clobber flags explicitly") { return false }
     program.instructions[fuel].flags_def = fuel_flags
+    saved_type := program.types[TypeInteger]
+    program.types[TypeInteger].native_width = true
+    program.types[TypeInteger].bits = 32
+    program.types[TypeInteger].size = 4
+    if !Rejects(program, .NativeWidth, "allocated native-width mismatch") { return false }
+    program.types[TypeInteger] = saved_type
+    saved_virtual := program.virtuals[0]
+    program.virtuals[0].class = .Stack
+    program.virtuals[0].fixed_register = -1
+    program.virtuals[0].stack_object = -1
+    if !Rejects(program, .Stack, "allocated missing stack facts") { return false }
+    program.virtuals[0] = saved_virtual
     jump := FindOpcode(program, .Jump)
     edge := program.instructions[jump].edge_begin
     program.edges[edge].copy_count = 1

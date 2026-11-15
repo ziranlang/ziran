@@ -1,12 +1,12 @@
 # Step 06 — Optimize executable IR and implement the first native backend
 
-Status: in progress; [verified scalar optimization](optimization-pipeline.md) and a [stack-slot scalar/aggregate encoder](README.md), with a [packed internal aggregate ABI](native-aggregate-abi.md). The [target-neutral machine IR](machine-ir.md) boundary, its verifier, deterministic liveness, linear-scan [register allocation](machine-ir.md#register-allocation) with splitting and spilling, a separate allocated-program verifier, and a [direct x86-64 machine-code encoder](machine-ir.md#machine-code-encoder) for verified allocated programs exist for Linux x86-64 SysV. `zi2asm --machine --emit elf` now carries that allocated image through the internal ELF writer and never invokes an external compiler, assembler, linker or alternate engine; native ZX loading is still open. Its native call ABI passes and returns general-register values only: float and vector call arguments and results and stack-passed arguments are [unsupported forms](machine-ir.md#supported-call-forms) rejected before encoding, not partially implemented. The full optimizer, the full SysV call ABI and external System V aggregate interoperability remain pending. The direct LIR encoder now receives fixes only; new native features land on the machine-IR path ([milestone](milestones.md) M2).
+Status: in progress; [verified scalar optimization](optimization-pipeline.md) and a [stack-slot scalar/aggregate encoder](README.md), with a [packed internal aggregate ABI](native-aggregate-abi.md). The [target-neutral machine IR](machine-ir.md) boundary, its verifier, deterministic liveness, linear-scan [register allocation](machine-ir.md#register-allocation) with splitting and spilling, a separate allocated-program verifier, and a [direct x86-64 machine-code encoder](machine-ir.md#machine-code-encoder) for verified allocated programs exist for Linux x86-64 SysV. `zx2native` currently retains the direct-LIR encoder while the encoder merge remains open; native ZX loading is also open. The machine path's native call ABI passes and returns general-register values only: float and vector call arguments and results and stack-passed arguments are [unsupported forms](machine-ir.md#supported-call-forms) rejected before encoding, not partially implemented. The full optimizer, the full SysV call ABI and external System V aggregate interoperability remain pending. The direct LIR encoder now receives fixes only; new native features land on the machine-IR path ([milestone](milestones.md) M2).
 
 Direct native code here means Ziran's own encoders write machine code (and, on the direct LIR path, the ELF executable) from verified IR, without generated C, an assembler, a C compiler or a system linker. The C and Go targets also produce runnable binaries, but they are separate generated-code exporters with their own toolchains; they are never a fallback for an unsupported native form ([gap policy](gap-policy.md), [distinction](machine-ir.md#direct-native-code-versus-generated-code-exporters)). Depends on stable contracts from [steps 02](02-lowered-ir-and-verifier.md)–[05](05-zx-format-and-linking.md). Next: [target coverage](07-architecture-and-platform-coverage.md).
 
 ## Objective
 
-The `zi2asm` CLI now runs verified LIR optimization before writing portable ZX.
+The `zi2zx` CLI runs verified LIR optimization before writing portable ZX.
 Both native entry routes read and verify those bytes before selecting direct
 LIR or machine-IR target lowering. `--opt` selects optimized source inspection,
 not a second optimization pass on ZX input. `--emit wasm` lowers the same
@@ -19,7 +19,7 @@ Implement a native backend shared by standalone compilation and native ZX execut
 
 - [Scalar contracts](../cmd/zir/zir_scalar.h), [range-analysis behavior](../cmd/zir/zir_emit_range.c), and [SIMD behavior](../cmd/zir/zir_simd.c).
 - [Native planning](../cmd/zir/zir_native.c).
-- [Existing Go assembly translator](../cmd/zir-go/zir_go_amd64.c) for operand/ABI lessons only; Go ABI0 and its runtime assumptions are not Ziran's native ABI.
+- [Existing Go assembly translator](../cmd/zi2go/zir_go_amd64.c) for operand/ABI lessons only; Go ABI0 and its runtime assumptions are not Ziran's native ABI.
 - [Native and SIMD tests](../tests/simd_native.sh).
 
 Implemented machine-IR modules: `cmd/compiler_machine_ir.zi`, `cmd/compiler_machine_lower.zi`, `cmd/compiler_machine_verify.zi`, `cmd/compiler_abi.zi` (the only module that names target registers), `cmd/compiler_regalloc.zi`, `cmd/compiler_machine_verify_allocated.zi`, and `cmd/compiler_x86_64.zi` with the shared byte encoders in `cmd/compiler_x86_bytes.zi`. Proposed: `cmd/compiler_opt.zi`.

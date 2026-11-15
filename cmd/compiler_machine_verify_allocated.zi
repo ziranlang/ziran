@@ -1,4 +1,5 @@
 using ABI :: #import "compiler_abi"
+using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
@@ -136,6 +137,65 @@ Optional :: (id: s32, total: s64) -> bool {
     return id == MachineNoId || id >= 0 && cast(s64)id < total
 }
 
+RelocationKindValid :: (kind: MachineRelocationKind) -> bool {
+    return kind == .FunctionAddress || kind == .FunctionCall || kind == .GlobalAddress ||
+        kind == .FuelCounter || kind == .ConstantAddress || kind == .RuntimeTrap ||
+        kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint
+}
+
+RelocationSymbolValid :: (program: MachineProgram, relocation: MachineRelocation) -> bool {
+    symbol := relocation.symbol
+    if relocation.kind == .FunctionAddress || relocation.kind == .FunctionCall ||
+        relocation.kind == .EntryPoint {
+        return symbol >= 0 && symbol < program.functions.count &&
+            program.functions[symbol].calling == .Internal
+    }
+    if relocation.kind == .GlobalAddress {
+        return symbol >= 0 && symbol < program.globals.count && program.globals[symbol].writable
+    }
+    if relocation.kind == .ConstantAddress {
+        return symbol >= 0 && symbol < program.globals.count && !program.globals[symbol].writable
+    }
+    if relocation.kind == .FuelCounter || relocation.kind == .RuntimeTrap { return symbol == 0 }
+    if relocation.kind == .HostCapability {
+        return symbol >= 0 && symbol < program.functions.count &&
+            program.functions[symbol].calling == .Host
+    }
+    if relocation.kind == .PlatformService {
+        return symbol >= 0 && symbol < program.functions.count &&
+            program.functions[symbol].calling == .Platform
+    }
+    return false
+}
+
+RelocationFormValid :: (program: MachineProgram, relocation: MachineRelocation) -> bool {
+    instruction := program.instructions[relocation.instruction]
+    operand := program.operands[relocation.operand]
+    if relocation.kind == .FunctionCall {
+        return instruction.opcode == .CallDirect && operand.kind == .Function &&
+            operand.id == relocation.symbol
+    }
+    if relocation.kind == .FunctionAddress || relocation.kind == .EntryPoint {
+        return instruction.opcode == .FunctionAddress && operand.kind == .Function &&
+            operand.id == relocation.symbol
+    }
+    if relocation.kind == .GlobalAddress || relocation.kind == .ConstantAddress {
+        return instruction.opcode == .GlobalAddress && operand.kind == .Global &&
+            operand.id == relocation.symbol
+    }
+    if relocation.kind == .FuelCounter {
+        return instruction.opcode == .Fuel && operand.kind == .Immediate
+    }
+    if relocation.kind == .RuntimeTrap {
+        return instruction.opcode == .Trap && operand.kind == .Immediate
+    }
+    if relocation.kind == .HostCapability || relocation.kind == .PlatformService {
+        return instruction.opcode == .CallDirect && operand.kind == .Function &&
+            operand.id == relocation.symbol
+    }
+    return false
+}
+
 RoundEight :: (value: s64) -> s64 {
     if value < 0 || value > 9223372036854775799 { return -1 }
     return (value + 7) & ~cast(s64)7
@@ -158,11 +218,12 @@ Location :: (program: MachineProgram, function: MachineFunction, operand: Machin
 }
 
 Counts :: (state: *State, program: MachineProgram, limits: MachineLimits) -> bool {
-    if limits.work < 0 || limits.bytes < 0 || limits.functions < 0 || limits.types < 0 || limits.blocks < 0 ||
+    if limits.work < 0 || limits.bytes < 0 || limits.functions < 0 || limits.types < 0 || limits.constants < 0 || limits.blocks < 0 ||
         limits.type_ids < 0 || limits.globals < 0 || limits.virtuals < 0 || limits.instructions < 0 ||
         limits.operands < 0 || limits.edges < 0 || limits.copies < 0 || limits.stack_objects < 0 ||
         limits.relocations < 0 || limits.calls < 0 { return Fail(state, .Limit) }
-    if program.text.count > limits.bytes || program.functions.count > limits.functions ||
+    if program.text.count > limits.bytes || program.data.count > limits.bytes ||
+        program.constants.count > limits.constants || program.functions.count > limits.functions ||
         program.types.count > limits.types || program.type_ids.count > limits.type_ids ||
         program.globals.count > limits.globals || program.blocks.count > limits.blocks ||
         program.virtuals.count > limits.virtuals || program.instructions.count > limits.instructions ||
@@ -172,12 +233,14 @@ Counts :: (state: *State, program: MachineProgram, limits: MachineLimits) -> boo
         program.spills.count > limits.instructions {
         return Fail(state, .Limit)
     }
-    total := program.text.count +
+    total := program.text.count + program.data.count +
         program.sources.count * cast(s64)size_of(MachineSource) +
         program.origins.count * cast(s64)size_of(MachineOrigin) +
         program.types.count * cast(s64)size_of(MachineType) +
         program.type_ids.count * cast(s64)size_of(s32) +
+        program.constants.count * cast(s64)size_of(MachineConstant) +
         program.globals.count * cast(s64)size_of(MachineGlobal) +
+        program.initializers.count * cast(s64)size_of(s32) +
         program.functions.count * cast(s64)size_of(MachineFunction) +
         program.blocks.count * cast(s64)size_of(MachineBlock) +
         program.virtuals.count * cast(s64)size_of(MachineVirtual) +
@@ -214,6 +277,27 @@ Metadata :: (state: *State, program: MachineProgram) -> bool {
             !Range(type.parameters_begin, type.parameters_count, program.type_ids.count) {
             return Fail(state, .Virtual)
         }
+        if type.native_width && (type.kind != .Integer || type.bits != program.target.pointer_bits ||
+            type.size != program.target.pointer_bits / 8) {
+            return Fail(state, .NativeWidth)
+        }
+    }
+    for constant: program.constants {
+        if !Spend(state, 1) || constant.type < 0 || constant.type >= program.types.count ||
+            !Range(constant.bytes_begin, constant.bytes_count, program.data.count) {
+            return Fail(state, .Operand)
+        }
+    }
+    for global: program.globals {
+        if !Spend(state, 1) || global.type < 0 || global.type >= program.types.count ||
+            !Optional(global.constant, program.constants.count) ||
+            global.constant != MachineNoId && program.constants[global.constant].type != global.type {
+            return Fail(state, .Operand)
+        }
+    }
+    for initializer: program.initializers {
+        if !Spend(state, 1) || initializer < 0 || initializer >= program.functions.count ||
+            program.functions[initializer].calling != .Internal { return Fail(state, .Function) }
     }
     return true
 }
@@ -223,15 +307,26 @@ FunctionTables :: (state: *State, program: MachineProgram) -> bool {
         if !Spend(state, 1) { return false }
         id := cast(s32)function_id
         function := program.functions[function_id]
-        if function.lir_function != id || function.name_length < 1 ||
-            !Range(function.name_offset, function.name_length, program.text.count) ||
-            !Range(function.block_begin, function.block_count, program.blocks.count) || function.block_count < 1 ||
+        if function.name_length < 1 || !Range(function.name_offset, function.name_length, program.text.count) ||
+            !Range(function.block_begin, function.block_count, program.blocks.count) ||
             !Range(function.virtual_begin, function.virtual_count, program.virtuals.count) ||
             !Range(function.stack_begin, function.stack_count, program.stack_objects.count) ||
-            function.parameter_count < 0 || function.parameter_count > function.virtual_count ||
-            function.calling != .Internal ||
-            !InFunction(function.entry, function.block_begin, function.block_count) ||
+            function.parameter_count < 0 ||
             !Optional(function.origin, program.origins.count) { return Fail(state, .Function, id) }
+        external := function.calling == .Host || function.calling == .Platform
+        if external {
+            if function.lir_function != MachineNoId || function.block_count != 0 ||
+                function.virtual_count != 0 || function.stack_count != 0 ||
+                function.entry != MachineNoId {
+                return Fail(state, .Function, id)
+            }
+            continue
+        }
+        if function.lir_function != id || function.calling != .Internal { return Fail(state, .Call, id) }
+        if function.block_count < 1 || function.parameter_count > function.virtual_count ||
+            !InFunction(function.entry, function.block_begin, function.block_count) {
+            return Fail(state, .Function, id)
+        }
         for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
             if !Spend(state, 1) { return false }
             block := program.blocks[block_id]
@@ -469,8 +564,10 @@ CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
             return Fail(state, .Call, instruction = call.instruction)
         }
         instruction := program.instructions[call.instruction]
-        if instruction.call != cast(s32)call_id || call.calling != .Internal ||
+        if instruction.call != cast(s32)call_id ||
+            (call.calling != .Internal && call.calling != .Host && call.calling != .Platform) ||
             call.indirect != (instruction.opcode == .CallIndirect) ||
+            (call.indirect && call.calling != .Internal) ||
             !Range(call.argument_begin, call.argument_count, program.operands.count) ||
             call.argument_begin < instruction.operand_begin ||
             call.argument_begin + call.argument_count > instruction.operand_begin + instruction.operand_count ||
@@ -478,6 +575,21 @@ CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
             (call.result_operand < instruction.operand_begin ||
              call.result_operand >= instruction.operand_begin + instruction.operand_count) ||
             call.stack_argument_bytes < 0 {
+            return Fail(state, .Call, instruction = call.instruction)
+        }
+        references: s32
+        for relocation: program.relocations {
+            if relocation.instruction != call.instruction { continue }
+            if !RelocationKindValid(relocation.kind) {
+                return Fail(state, .Relocation, instruction = relocation.instruction,
+                    operand = relocation.operand)
+            }
+            expected := call.calling == .Host && relocation.kind == .HostCapability ||
+                call.calling == .Platform && relocation.kind == .PlatformService ||
+                call.calling == .Internal && !call.indirect && relocation.kind == .FunctionCall
+            if expected { references += 1 }
+        }
+        if call.indirect && references != 0 || !call.indirect && references != 1 {
             return Fail(state, .Call, instruction = call.instruction)
         }
         if (call.clobber_general & general_abi) != general_abi ||
@@ -493,8 +605,7 @@ CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
         if !Spend(state, 1) { return false }
         relocation := program.relocations[relocation_id]
         if relocation.instruction < 0 || relocation.instruction >= program.instructions.count ||
-            relocation.kind == .Invalid || cast(s32)relocation.kind > cast(s32)MachineRelocationKind.FuelCounter ||
-            relocation.symbol < 0 {
+            !RelocationKindValid(relocation.kind) {
             return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
         }
         instruction := program.instructions[relocation.instruction]
@@ -503,18 +614,9 @@ CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
             return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
         }
         operand := program.operands[relocation.operand]
-        valid := false
-        if relocation.kind == .FunctionCall {
-            valid = instruction.opcode == .CallDirect && operand.kind == .Function && operand.id == relocation.symbol
-        } else if relocation.kind == .FunctionAddress {
-            valid = instruction.opcode == .FunctionAddress && operand.kind == .Function && operand.id == relocation.symbol
-        } else if relocation.kind == .GlobalAddress {
-            valid = instruction.opcode == .GlobalAddress && operand.kind == .Global && operand.id == relocation.symbol
-        } else if relocation.kind == .FuelCounter {
-            valid = instruction.opcode == .Fuel && relocation.operand == instruction.operand_begin + 1 &&
-                relocation.symbol == 0 && operand.kind == .Immediate
-        }
-        if !valid || !MachineAbiRelocationAddend(target, relocation.kind, relocation.addend) {
+        if !RelocationSymbolValid(program, relocation) || !RelocationFormValid(program, relocation) ||
+            relocation.kind == .FuelCounter && relocation.operand != instruction.operand_begin + 1 ||
+            !MachineAbiRelocationAddend(target, relocation.kind, relocation.addend) {
             return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
         }
     }
@@ -765,6 +867,7 @@ FuelPlacement :: (state: *State, program: MachineProgram, limits: MachineLimits)
     any_indirect := false
     for function_id: cast(s64)0..program.functions.count - 1 {
         function := program.functions[function_id]
+        if function.calling != .Internal { continue }
         entry := program.blocks[function.entry]
         for instruction_id: entry.instruction_begin..entry.instruction_begin + entry.instruction_count - 1 {
             opcode := program.instructions[instruction_id].opcode
@@ -797,11 +900,16 @@ FuelPlacement :: (state: *State, program: MachineProgram, limits: MachineLimits)
     }
     for function_id: cast(s64)0..program.functions.count - 1 {
         function := program.functions[function_id]
+        if function.calling != .Internal { continue }
         for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
             block := program.blocks[block_id]
             for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
                 instruction := program.instructions[instruction_id]
                 if instruction.opcode == .CallDirect {
+                    if instruction.call < 0 || instruction.call >= program.calls.count {
+                        return Fail(state, .Call, cast(s32)function_id, block_id, instruction_id)
+                    }
+                    if program.calls[instruction.call].calling != .Internal { continue }
                     callee: s32 = MachineNoId
                     for local: 0..instruction.operand_count - 1 {
                         operand := program.operands[instruction.operand_begin + local]
@@ -1103,9 +1211,13 @@ MachineVerifyAllocated :: (program: MachineProgram, limits: MachineLimits) -> Ma
     if !CallsAndRelocations(*state, program) || !CallForms(*state, program) || !Spills(*state, program, limits) ||
         !FuelPlacement(*state, program, limits) { return state.diagnostic }
     for function_id: cast(s64)0..program.functions.count - 1 {
+        if program.functions[function_id].calling != .Internal { continue }
         if !FrameLayout(*state, program, limits, cast(s32)function_id) ||
             !Values(*state, program, limits, cast(s32)function_id) { return state.diagnostic }
     }
-    if !Optional(program.entry, program.functions.count) { unused Fail(*state, .Function) }
+    if !Optional(program.entry, program.functions.count) ||
+        program.entry != MachineNoId && program.functions[program.entry].calling != .Internal {
+        unused Fail(*state, .Function)
+    }
     return state.diagnostic
 }

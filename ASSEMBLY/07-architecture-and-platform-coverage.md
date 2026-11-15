@@ -8,7 +8,7 @@ Run one portable executable program across the maintained platform matrix while 
 
 ## Existing integration points
 
-- [Wasm lowering of verified ZX](../cmd/zir-wasm/zx_wasm_lower.c) and [wasm bundle integration](../cmd/zir/zir_zx_wasm.c).
+- [Wasm lowering of verified ZX](../cmd/zx2wasm/zx_wasm_lower.c) and [wasm bundle integration](../cmd/zir/zir_zx_wasm.c).
 - [Browser execution integration](../cmd/zir/zir_zx_wasm_web.c).
 - [Target diagnostics](../tests/target_diagnostics.sh), [ARM/CPU feature tests](../tests/assembly_features.sh), and [wasm tests](../tests/zx_wasm.sh).
 - [Platform and runtime coverage documentation](../docs/IMPLEMENTATION_STATUS.md).
@@ -58,8 +58,8 @@ No general registry row is Implemented yet. Linux x86-64 machine IR,
 allocation, encoding and opt-in ELF output exist, but the native ZX loader and
 runtime cutover are open, so that row stays a Gap until its M2–M3 gate passes; a partial stage
 such as `TargetMachineLoweringSupported` never implements a row. The
-`zi2asm` prototype is a separate opt-in tool, not this registry row. Its
-`--target ARCH-OS` selector currently accepts only `x86_64-linux`; every other
+`zx2native` is a separate opt-in tool. Its `--target ARCH --platform OS`
+selector currently implements only `x86_64` with `linux`; every other
 described row fails before input/output with
 `assembly.gap.native-platform-service-unavailable` because it has no
 process-entry/`write_all`/`exit_group` veneer. Once a registry row

@@ -1,4 +1,5 @@
 using Allocated :: #import "compiler_machine_verify_allocated"
+using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
@@ -33,10 +34,12 @@ U8 :: 9
 POINTER :: 10
 FUNCTION :: 11
 F64 :: 12
+RECORD :: 13
 
 Builder :: struct {
     text: Vec(u8)
     types: Vec(MachineType)
+    type_ids: Vec(s32)
     globals: Vec(MachineGlobal)
     functions: Vec(MachineFunction)
     blocks: Vec(MachineBlock)
@@ -68,6 +71,7 @@ Check :: (condition: bool, message: string) -> bool {
 BuilderFree :: (b: *Builder) {
     VecFree(b.text)
     VecFree(b.types)
+    VecFree(b.type_ids)
     VecFree(b.globals)
     VecFree(b.functions)
     VecFree(b.blocks)
@@ -109,7 +113,12 @@ Setup :: (b: *Builder) {
     AddType(b, .Pointer, .General, 64, false, 8)
     AddType(b, .Function, .General, 64, false, 8)
     AddType(b, .Float, .Float, 64, false, 8)
-    unused VecPush(b.globals, .{type = S64, writable = true})
+    record_fields := cast(s32)b.type_ids.count
+    unused VecPush(b.type_ids, U8)
+    unused VecPush(b.type_ids, S64)
+    unused VecPush(b.types, .{kind = .Record, class = .Stack, size = 16, alignment = 8,
+        fields_begin = record_fields, fields_count = 2, element = -1, result = -1})
+    unused VecPush(b.globals, .{type = S64, constant = -1, writable = true})
 }
 
 Begin :: (b: *Builder, name: string) -> s32 {
@@ -413,6 +422,7 @@ CallTo :: (b: *Builder, callee: s32, callable: s32, callable_value: s32, result:
 
 Apply :: (b: *Builder, mode: Mode, owner: *X64.MachineX64Owner, limits: MachineLimits) -> X64.MachineX64Result {
     program := MachineProgram.{version = MachineVersion, target = b.target, text = b.text[:], types = b.types[:],
+        type_ids = b.type_ids[:],
         globals = b.globals[:], functions = b.functions[:], blocks = b.blocks[:], virtuals = b.virtuals[:],
         instructions = b.instructions[:], operands = b.operands[:], edges = b.edges[:],
         stack_objects = b.stack_objects[:], relocations = b.relocations[:], calls = b.calls[:],
@@ -945,6 +955,46 @@ Calls :: () -> bool {
         "global relocation symbol")
 }
 
+Aggregates :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b)
+    function := Begin(*b, "aggregate_padding")
+    byte := Parameter(*b, U8, RDI)
+    wide := Parameter(*b, S64, RSI)
+    aggregate := Value(*b, RECORD)
+    object := Object(*b, .Value, 16, -16, aggregate, RECORD)
+    value := b.virtuals[aggregate]
+    value.stack_object = object
+    b.virtuals[aggregate] = value
+    extracted := Value(*b, S64)
+    Enter(*b, Blocks(*b, 1))
+    build := Open(*b, .AggregateBuild)
+    unused Slot(*b, object, .Define, aggregate)
+    unused Physical(*b, RDI, .Use, byte)
+    unused Physical(*b, RSI, .Use, wide)
+    build_id := Close(*b, build)
+    extract := Open(*b, .AggregateExtract)
+    unused Physical(*b, RAX, .Define, extracted)
+    unused Slot(*b, object, .Use, aggregate)
+    unused Immediate(*b, 1)
+    extract_id := Close(*b, extract)
+    unused Return(*b, RAX, extracted)
+    End(*b, 16)
+    b.entry = function
+    limits := MachineDefaultLimits()
+    verified := Apply(*b, .Verify, null, limits).diagnostic
+    if verified.problem != .None { Report("aggregate allocated verifier", verified); return false }
+    owner: X64.MachineX64Owner
+    defer X64.MachineX64Free(*owner)
+    encoded := Apply(*b, .Encode, *owner, limits).diagnostic
+    if encoded.problem != .None { Report("aggregate encode", encoded); return false }
+    image := X64.MachineX64View(*owner)
+    return Instruction(image, build_id, "40 88 7d f0 48 89 75 f8", "record build respects field padding") &&
+        Instruction(image, extract_id, "48 8b 45 f8", "record extract uses the aligned field offset") &&
+        Check(Accounted(*b, image), "aggregate image accounting")
+}
+
 NegativeKind :: enum s32 {
     Tie; ShiftCount; DivideRegister; DivideClobber; FloatValue; CallRegister; StackArguments
     MissingRelocation; DuplicateRelocation; ReservedTrap; FuelFlags; DynamicFrame; HugeFrame; Opcode; Stage; Target
@@ -952,10 +1002,11 @@ NegativeKind :: enum s32 {
 }
 
 // Defects MachineVerifyAllocated itself rejects, so no encoder pass runs:
-// unimplemented call forms, relocation addends the target cannot hold, the
-// stage and the target.
+// missing or duplicate stable call references, unimplemented call forms,
+// relocation addends the target cannot hold, the stage and the target.
 Early :: (kind: NegativeKind) -> bool {
-    return kind == .StackArguments || kind == .FloatArgument || kind == .FloatResult ||
+    return kind == .MissingRelocation || kind == .DuplicateRelocation ||
+        kind == .StackArguments || kind == .FloatArgument || kind == .FloatResult ||
         kind == .GlobalAddendHigh || kind == .GlobalAddendLow || kind == .Stage || kind == .Target
 }
 
@@ -1091,8 +1142,8 @@ Negatives :: () -> bool {
         !Negative(*kept, .FloatResult, .Unsupported, true, "float call result") ||
         !Negative(*kept, .GlobalAddendHigh, .Relocation, true, "global address addend above i32") ||
         !Negative(*kept, .GlobalAddendLow, .Relocation, true, "global address addend below i32") ||
-        !Negative(*kept, .MissingRelocation, .Relocation, true, "direct call without relocation") ||
-        !Negative(*kept, .DuplicateRelocation, .Relocation, true, "two relocations for one call") ||
+        !Negative(*kept, .MissingRelocation, .Call, true, "direct call without relocation") ||
+        !Negative(*kept, .DuplicateRelocation, .Call, true, "two relocations for one call") ||
         !Negative(*kept, .ReservedTrap, .Unsupported, true, "reserved trap code") ||
         !Negative(*kept, .FuelFlags, .Flags, true, "condition read from fuel flags") ||
         !Negative(*kept, .DynamicFrame, .Frame, false, "dynamic frame allocation") ||
@@ -1115,7 +1166,7 @@ Negatives :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !Basics() || !Calls() || !Negatives() { return 1 }
+    if !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
     print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of unsupported call forms and addends, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

@@ -1,4 +1,4 @@
-/* zi2wasm's budget and builtin-output imports. Shared by Node and workers. */
+/* zx2wasm's budget and builtin-output imports. Shared by Node and workers. */
 (function (root) {
   function floatText(value, single) {
     if (Number.isNaN(value)) return 'nan';

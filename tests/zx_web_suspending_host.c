@@ -30,17 +30,24 @@ static long long run(BundleInstance *instance)
     return instance != NULL && BundleInstanceRun(instance, &result, &present) && present ? result : -1;
 }
 
-/* Prints each run's result, the suspensions and whether the Wasm tier ran:
- * the same with ZIRAN_WASM_TIER=0, which runs the engine, but for the
- * tier. The second bundle suspends in an initializer and in a helper
+/* Prints each run's result, the suspensions and whether the Wasm tier ran.
+ * A third command-line argument selects the engine explicitly: Auto is fixed
+ * to Wasm in browser builds and does not fall back when the provider is
+ * disabled. The second bundle suspends in an initializer and in a helper
  * called in a loop. */
 int main(int argc, char **argv)
 {
     HostBinding bindings[] = {{.module = "component", .function = "Adjust", .call = adjust}};
-    Bundle *bundle = argc == 3 ? BundleOpen(argv[1]) : NULL;
-    Bundle *deep = argc == 3 ? BundleOpen(argv[2]) : NULL;
-    BundleInstance *instance = bundle == NULL ? NULL : BundleInstantiate(bundle, bindings, 1);
-    BundleInstance *nested = deep == NULL ? NULL : BundleInstantiate(deep, bindings, 1);
+    Bundle *bundle = argc >= 3 ? BundleOpen(argv[1]) : NULL;
+    Bundle *deep = argc >= 3 ? BundleOpen(argv[2]) : NULL;
+    BundleInstanceOptions options = {
+        argc == 4 ? BUNDLE_BACKEND_ENGINE : BUNDLE_BACKEND_AUTO,
+        0
+    };
+    BundleInstance *instance = bundle == NULL ? NULL :
+        BundleInstantiateWithOptions(bundle, bindings, 1, &options);
+    BundleInstance *nested = deep == NULL ? NULL :
+        BundleInstantiateWithOptions(deep, bindings, 1, &options);
     long long first = run(instance), second = run(instance);
     long long third = run(nested), fourth = run(nested);
     printf("results %lld %lld %lld %lld suspended %d tier %d\n", first, second, third, fourth, suspended,

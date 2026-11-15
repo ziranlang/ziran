@@ -1,4 +1,5 @@
 using Lir :: #import "compiler_lowered_ir"
+using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 
@@ -112,7 +113,9 @@ MachineAbiCallRegisterClass :: (target: TargetDescription, class: MachineRegiste
 // addresses and the fuel counter carry no addend.
 MachineAbiRelocationAddend :: (target: TargetDescription, kind: MachineRelocationKind, addend: s64) -> bool {
     if !TargetMachineLoweringSupported(target) { return false }
-    if kind == .GlobalAddress { return addend >= -2147483648 && addend <= 2147483647 }
+    if kind == .GlobalAddress || kind == .ConstantAddress {
+        return addend >= -2147483648 && addend <= 2147483647
+    }
     return addend == 0
 }
 

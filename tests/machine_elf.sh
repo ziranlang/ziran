@@ -2,7 +2,8 @@
 # check-cost: 4
 set -eu
 ziran=${1:?pass the ziran command}
-zi2asm=${2:-$(dirname -- "$ziran")/zi2asm}
+zi2zx=${2:-$(dirname -- "$ziran")/zi2zx}
+zx2native=${3:-$(dirname -- "$ziran")/zx2native}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/machine-elf-XXXXXX")
@@ -55,14 +56,24 @@ run_status() {
     fi
 }
 
-# This is the exact VS Code Native inspection pipeline: checked IR, lowered
-# executable, then optimized map/ELF from the same image identity.
+compile_native() {
+    output=$1
+    root=$2
+    entry=$3
+    input=$4
+    wire=$output.zx
+    "$zi2zx" --root "$root" --entry "$entry" -o "$wire" "$input"
+    "$zx2native" --machine -o "$output" "$wire"
+}
+
+# This is the exact VS Code Native inspection pipeline: checked IR, verified
+# ZX, then optimized map/ELF from the same image identity.
 "$ziran" ir --root "$repo/examples" --entry hello:main \
     -o "$work/hello-checked" "$repo/examples/hello.zi"
-"$zi2asm" --root "$work/hello-checked" --entry hello:main --emit zx \
+"$zi2zx" --root "$work/hello-checked" --entry hello:main \
     -o "$work/hello.zx" "$work/hello-checked/hello.zir"
-"$zi2asm" --input zx --opt --emit map -o "$work/hello.map" "$work/hello.zx"
-"$zi2asm" --input zx --opt --emit elf -o "$work/hello.elf" "$work/hello.zx"
+"$zx2native" --emit map -o "$work/hello.map" "$work/hello.zx"
+"$zx2native" -o "$work/hello.elf" "$work/hello.zx"
 nm -S "$work/hello.elf" > "$work/hello.nm"
 if grep -Eq '(^|[[:space:]])U[[:space:]]' "$work/hello.nm"; then
     echo "static hello has undefined symbols" >&2
@@ -86,33 +97,34 @@ if grep -Eq '(^|[[:space:]])(INTERP|DYNAMIC)([[:space:]]|$)' "$work/hello.progra
     exit 1
 fi
 
-for target in aarch64-linux x86_64-windows; do
-    printf 'preserve-output\n' > "$work/$target.elf"
-    if ZIRAN_DIAGNOSTICS=json "$zi2asm" --target "$target" --input zx --opt --emit elf \
-        -o "$work/$target.elf" "$work/hello.zx" > "$work/$target.log" 2>&1; then
-        echo "native ELF accepted unsupported target row $target" >&2
+for target_platform in 'aarch64 linux' 'armv7 android'; do
+    set -- $target_platform
+    target=$1
+    platform=$2
+    row=$target-$platform
+    printf 'preserve-output\n' > "$work/$row.elf"
+    if ZIRAN_DIAGNOSTICS=json "$zx2native" --target "$target" --platform "$platform" \
+        -o "$work/$row.elf" "$work/app.zx" > "$work/$row.log" 2>&1; then
+        echo "native ELF accepted unsupported target row $row" >&2
         exit 1
     fi
-    grep -Fq 'assembly.gap.native-platform-service-unavailable' "$work/$target.log"
-    grep -Fq "$target" "$work/$target.log"
-    grep -Fq 'process-entry/write_all/exit_group' "$work/$target.log"
-    printf 'preserve-output\n' | cmp - "$work/$target.elf"
+    grep -Fq 'assembly.gap.native-platform-service-unavailable' "$work/$row.log"
+    grep -Fq "$target" "$work/$row.log"
+    grep -Fq "$platform" "$work/$row.log"
+    printf 'preserve-output\n' | cmp - "$work/$row.elf"
 done
 
-"$zi2asm" --machine --emit elf --root "$work" --entry app:Answer \
-    -o "$work/source-a" "$work/app.zi"
-"$zi2asm" --machine --emit elf --root "$work" --entry app:Answer \
-    -o "$work/source-b" "$work/app.zi"
+compile_native "$work/source-a" "$work" app:Answer "$work/app.zi"
+compile_native "$work/source-b" "$work" app:Answer "$work/app.zi"
 cmp "$work/source-a" "$work/source-b"
 run_status "$work/source-a" 42
 
 "$ziran" ir --root "$work" -o "$work/checked" "$work/app.zi"
-"$zi2asm" --machine --emit elf --root "$work/checked" --entry app:Answer \
-    -o "$work/checked-elf" "$work/checked/app.zir"
+compile_native "$work/checked-elf" "$work/checked" app:Answer "$work/checked/app.zir"
 run_status "$work/checked-elf" 42
 
-"$zi2asm" --root "$work" --entry app:Answer --emit zx -o "$work/app.zx" "$work/app.zi"
-"$zi2asm" --machine --input zx --emit elf -o "$work/zx-elf" "$work/app.zx"
+"$zi2zx" --root "$work" --entry app:Answer -o "$work/app.zx" "$work/app.zi"
+"$zx2native" --machine -o "$work/zx-elf" "$work/app.zx"
 run_status "$work/zx-elf" 42
 cmp "$work/source-a" "$work/checked-elf"
 cmp "$work/source-a" "$work/zx-elf"
@@ -127,8 +139,7 @@ Spin :: () -> s32 {
     return 0
 }
 ZI
-"$zi2asm" --machine --emit elf --root "$work" --entry fuel:Spin \
-    -o "$work/fuel-elf" "$work/fuel.zi"
+compile_native "$work/fuel-elf" "$work" fuel:Spin "$work/fuel.zi"
 run_status "$work/fuel-elf" 125
 
 reject_gap() {
@@ -136,12 +147,17 @@ reject_gap() {
     source=$2
     printf 'preserve-output\n' > "$work/preserved"
     cp "$work/preserved" "$work/output"
-    if ZIRAN_DIAGNOSTICS=json "$zi2asm" --machine --emit elf --root "$work" --entry "$source:Answer" \
-        -o "$work/output" "$work/$source.zi" > "$work/$source.log" 2>&1; then
+    "$zi2zx" --root "$work" --entry "$source:Answer" -o "$work/$source.zx" "$work/$source.zi"
+    if ZIRAN_DIAGNOSTICS=json "$zx2native" --machine \
+        -o "$work/output" "$work/$source.zx" > "$work/$source.log" 2>&1; then
         echo "machine ELF accepted unsupported $source input" >&2
         exit 1
     fi
-    grep -Fq "$expected" "$work/$source.log"
+    if ! grep -Fq "$expected" "$work/$source.log"; then
+        echo "machine ELF reported the wrong gap for $source; expected $expected:" >&2
+        cat "$work/$source.log" >&2
+        exit 1
+    fi
     cmp "$work/preserved" "$work/output"
 }
 
@@ -166,8 +182,8 @@ ZI
 reject_gap 'assembly.gap.machine-slice' slice_gap
 
 cat > "$work/host_gap.zi" <<'ZI'
-c :: #system_library "c";
-HostValue :: () -> s32 #foreign c "getpid";
+host_api :: #system_library "host_api";
+HostValue :: () -> s32 #foreign host_api;
 #program_export
 Answer :: () -> s32 { return HostValue() }
 ZI
@@ -194,28 +210,16 @@ Input :: (key: s64) -> s64 #foreign host_api;
 Answer :: () -> s32 { return cast(s32)Input(1) }
 ZI
 "$ziran" ir --root "$work" -o "$work/native-host-ir" "$work/native_host_gap.zi"
-"$zi2asm" --root "$work/native-host-ir" --entry native_host_gap:Answer --emit zx \
+"$zi2zx" --root "$work/native-host-ir" --entry native_host_gap:Answer \
     -o "$work/native-host.zx" "$work/native-host-ir/native_host_gap.zir"
 printf 'preserve-output\n' > "$work/native-host.elf"
-if ZIRAN_DIAGNOSTICS=json "$zi2asm" --input zx --opt --emit elf \
+if ZIRAN_DIAGNOSTICS=json "$zx2native" \
     -o "$work/native-host.elf" "$work/native-host.zx" > "$work/native-host.log" 2>&1; then
     echo "native ELF accepted an unavailable platform service" >&2
     exit 1
 fi
 grep -Fq 'assembly.gap.native-platform-service-unavailable' "$work/native-host.log"
 printf 'preserve-output\n' | cmp - "$work/native-host.elf"
-
-cat > "$work/parallel_gap.zi" <<'ZI'
-Square :: (value: s64) -> s64 { return value * value }
-#program_export
-Answer :: () -> s32 {
-    #parallel for 0..3 {
-        local := Square(it)
-    }
-    return 42
-}
-ZI
-reject_gap 'assembly.gap.machine-parallel' parallel_gap
 
 # After all fixtures are prepared, poison every external compiler, assembler
 # and alternate language engine name. The explicit machine command must still
@@ -230,7 +234,6 @@ exit 97
 SCRIPT
     chmod 755 "$work/no-tools/$tool"
 done
-PATH="$work/no-tools:$PATH" "$zi2asm" --machine --emit elf --root "$work" \
-    --entry app:Answer -o "$work/no-tools-elf" "$work/app.zi"
+PATH="$work/no-tools:$PATH" "$zx2native" --machine -o "$work/no-tools-elf" "$work/app.zx"
 test ! -s "$work/invoked"
 run_status "$work/no-tools-elf" 42

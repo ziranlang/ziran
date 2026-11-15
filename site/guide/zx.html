@@ -12,7 +12,7 @@ The normative byte contract is
 <a href="https://github.com/ziranlang/ziran/blob/master/ASSEMBLY/zx-executable-format.md">the executable format specification</a>; see
 <a href="implementation-status.html">Implementation status</a> for the remaining work.</p>
 <h2 id="running-bundles">Running bundles</h2>
-<p>Run source in one command: <code>ziran run hello.zi</code> or <code>zi2zx hello.zi</code>. Both
+<p>Run source in one command: <code>ziran run hello.zi</code> or <code>zi2zx run hello.zi</code>. Both
 check the file, write the bundle in memory and execute its <code>main</code>; its folder
 is the default module root. <code>ziran run app.zx</code> and <code>zi2zx run app.zx</code> run a
 bundle file. Zero-argument entries returning an integer, <code>bool</code> or nothing
@@ -44,16 +44,15 @@ A graphical <code>.zx</code> then runs with <code>ziran run app.zx</code> withou
 a manifest or generated native output. The portable bundle carries its linked
 UI code and embedded assets; the installed provider bridges the local OS.</p>
 <h2 id="writing-bundles">Writing bundles</h2>
-<p><code>zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...</code>
+<p><code>zi2zx --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...</code>
 loads explicit inputs and their extensionless imports, lowers what the entry
 reaches to instructions, verifies and optimizes them, and writes the bundle.
-<code>zi2asm --emit zx</code> writes the same bytes, and source and saved <code>.zir</code> give the
-same file:</p>
-<pre><code class="language-sh">zi2asm --root src --entry app:main --emit zx -o app.zx src/app.zi
-zi2asm --input zx --emit elf -o app app.zx
-zi2asm --input zx --run app.zx
-zi2asm --input zx --emit lir -o - app.zx
-zi2asm --input zx --emit wasm -o app.wasm app.zx
+Source and saved <code>.zir</code> give the same file:</p>
+<pre><code class="language-sh">zi2zx --root src --entry app:main -o app.zx src/app.zi
+zx2native --target x86_64 --platform linux --emit elf -o app app.zx
+zi2zx run app.zx
+zi2zx --emit lir -o - app.zx
+zx2wasm -o app.wasm app.zx
 </code></pre>
 <p>The required program section holds deterministic verified lowered
 instructions, stripped of source names and instruction origins. A procedure's
@@ -119,7 +118,7 @@ unreachable code executed, and the instruction where it did.</p>
 The portable instruction engine runs the instructions on any platform. A
 supported direct target lowers the same verified instructions to machine code,
 applies the target ABI and platform veneers, and writes a platform binary;
-<code>zi2asm --input zx --emit elf</code> is the Linux x86-64 row. Generated C and Go are
+<code>zx2native --target x86_64 --platform linux --emit elf</code> is the Linux x86-64 row. Generated C and Go are
 separate routes, never native fallback.</p>
 <p>The linker includes reachable code from ordinary libraries, Kryon only when
 the program imports it. A non-UI command-line program is a first-class <code>.zx</code>;
@@ -181,7 +180,7 @@ engine starts. A web build needs <code>libziran</code> built with the instructio
 that is without <code>BOOTSTRAP=1</code>. <code>tests/zx_wasm.sh</code> runs bundles on the tier
 under node beside the engine, and <code>tests/zx_web_lifecycle.sh</code> runs source
 through <code>.zx</code> in a private headless Chromium.</p>
-<p><code>zi2asm --emit wasm</code> lowers the same verified ZX to one wasm32 module, and
+<p><code>zx2wasm</code> lowers the same verified ZX to one wasm32 module, and
 <code>ziran build --target=wasm</code> runs it; source and saved-ZX input give identical
 bytes. The module imports <code>zx.overrun</code> and the mutable <code>zx.budget</code> global that
 every <code>fuel</code> instruction charges, <code>zx.host_i64</code> when the program prints and
@@ -189,7 +188,7 @@ every <code>fuel</code> instruction charges, <code>zx.host_i64</code> when the p
 <code>zx_initialize</code> when it has module initializers and <code>zx_reserve</code> when it has a
 heap; a <code>zxhost</code> custom section names each capability. A form it has no code
 for stops at a named <code>wasm.gap.*</code> diagnostic. The host-call record layout is in
-<code>cmd/zir-wasm/zx_wasm_lower.h</code>.</p>
+<code>cmd/zx2wasm/zx_wasm_lower.h</code>.</p>
 <h2 id="embedded-files-and-application-hosts">Embedded files and application hosts</h2>
 <p><code>--define NAME</code> selects the same source branches as the native compiler.
 <code>--asset-dir assets=assets</code> embeds regular files recursively under <code>assets/</code>.

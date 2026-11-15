@@ -49,13 +49,14 @@ def prepare(a):
         commands.append(list(map(str,cmd))); started=time.monotonic()
         result=invoke(cmd,build=True)
         commands[-1]={'argv':commands[-1], 'elapsed_ms':(time.monotonic()-started)*1000, 'stderr':result.stderr[-2000:]}
-    build([tools/'ziran','bundle','--root',ROOT/'bench','--entry','zx_compare:Answer','-o',out/'fixture.zx', ROOT/'bench/zx_compare.zi'])
-    build([tools/'zi2asm','--root',ROOT/'bench','--entry','zx_compare:Answer','--emit','wasm','-o',out/'fixture.wasm',ROOT/'bench/zx_compare.zi'])
+    build([tools/'zi2zx','--root',ROOT/'bench','--entry','zx_compare:Answer','-o',out/'fixture.zx', ROOT/'bench/zx_compare.zi'])
+    build([tools/'zi2zx','--target','wasm','--root',ROOT/'bench','--entry','zx_compare:Answer','-o',out/'fixture-wasm.zx',ROOT/'bench/zx_compare.zi'])
+    build([tools/'zx2wasm','-o',out/'fixture.wasm',out/'fixture-wasm.zx'])
     for version,delta in (('old',1),('new',2)):
         directory=out/version; directory.mkdir(exist_ok=True)
         source=directory/'component.zi'
         source.write_text('count: s64 = 7;\n#program_export\nNext :: () -> s64 { count += '+str(delta)+'; return count }\n')
-        build([tools/'ziran','bundle','--root',directory,'--entry','component:Next','-o',out/('component-'+version+'.zx'),source])
+        build([tools/'zi2zx','--root',directory,'--entry','component:Next','-o',out/('component-'+version+'.zx'),source])
     cc=a.cc
     links=['-lm','-pthread','-ldl']+(['-llog'] if 'android' in str(cc) else [])
     common=[cc,'-O3','-std=c11','-I'+str(ROOT/'include')]
@@ -64,7 +65,7 @@ def prepare(a):
     build([*common,ROOT/'bench/zx_compare_component.c',a.library,*links,'-o',out/'component-host'])
     # New path: the same workload as a revision-28 executable container, run by
     # the verified-LIR portable engine through the same harness contract.
-    build([tools/'zi2asm','--root',ROOT/'bench','--entry','zx_compare:Answer','--emit','zx','-o',out/'fixture-lowered.zx',ROOT/'bench/zx_compare.zi'])
+    build([tools/'zi2zx','--root',ROOT/'bench','--entry','zx_compare:Answer','-o',out/'fixture-lowered.zx',ROOT/'bench/zx_compare.zi'])
     build([*common,'-D_GNU_SOURCE','-I'+str(ROOT/'build/compiler-assembly'),ROOT/'bench/zx_lowered_host.c',
            ROOT/'build/obj/assembly-core.o',a.library,*links,'-o',out/'lowered-host'])
     metadata={'commands':commands,'compiler':invoke([cc,'--version']).stdout.splitlines()[0],

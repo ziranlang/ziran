@@ -1,6 +1,6 @@
 /* Exercise the production worker policy against this process's real CPU
  * mask. Changing this test's mask must never change its parent's mask. */
-#include "../cmd/zir-c/zir_c_build.c"
+#include "../cmd/zi2c/zir_c_build.c"
 #include <assert.h>
 
 int main(void)

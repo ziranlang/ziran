@@ -15,6 +15,14 @@
 #import "package_bundle_run"
 #import "file_linux"
 
+#if CPU == .ARM64 {
+    PkgHostNativeTarget :: "aarch64"
+} else {
+    // The current direct native registry has no 32-bit compiler-host CPU row;
+    // unsupported hosts therefore reach zx2native's explicit target gap.
+    PkgHostNativeTarget :: "x86_64"
+}
+
 // `ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] DIR`
 // describes the generated C in DIR to editors. The include directory
 // defaults to the pinned toolchain's under --project, otherwise to the one
@@ -212,6 +220,9 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     bundle: bool = command == "bundle" || command == "run"
     transport: bool = command == "compact" || command == "expand"
     build: bool = command == "build"
+    wasm_build: bool = false
+    native_build: bool = false
+    zx_build: bool = false
     if check || command == "ir" { executable = "zi2zir" }
     else if command == "api" { executable = "zi-api" }
     else if command == "inspect" { executable = "zi-inspect" }
@@ -222,16 +233,17 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         target: string = ""
         index: s32 = 0
         while index < cast(s32)arguments.count {
-            if arguments[index] == "--target=c" ||
-               arguments[index] == "--target=go" || arguments[index] == "--target=wasm" {
+            if arguments[index].count > 9 && arguments[index][0:9] == "--target=" {
                 target = arguments[index]
             }
             index += 1
         }
         if target == "--target=c" { executable = "zi2c" }
         else if target == "--target=go" { executable = "zi2go" }
-        else if target == "--target=wasm" { executable = "zi2asm" }
-        else { return PkgFail("build needs --target=c|go|wasm") }
+        else if target == "--target=wasm" { executable = "zi2zx"; wasm_build = true }
+        else if target == "--target=zx" { executable = "zi2zx"; zx_build = true }
+        else if target.count == 0 && !project { executable = "zi2zx"; native_build = true }
+        else { return PkgFail("build target must be c, go, wasm, or zx") }
     }
     if executable.count == 0 { return PkgFail("unknown Ziran command") }
     tool_directory: string = PkgLauncherDirectory(launcher)
@@ -298,17 +310,22 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if check { child[count] = "--check-only"; count += 1 }
     // `ziran build -o DIR` owns DIR: generated files from an earlier build
     // that this one does not write are removed so they cannot be linked.
-    // A wasm32 module is the one lowering of verified ZX, one file.
-    if build && executable == "zi2asm" {
-        child[count] = "--emit"
-        count += 1
-        child[count] = "wasm"
-        count += 1
-    } else if build {
+    // C and Go own output directories. Wasm is deliberately two format
+    // conversions below: source/ZIR -> verified ZX -> WebAssembly.
+    if build && !wasm_build && !native_build && !zx_build {
         child[count] = "--prune-stale"
         count += 1
     }
-    if bundle || transport { child[count] = command; count += 1 }
+    if wasm_build {
+        child[count] = "--target"
+        count += 1
+        child[count] = "wasm"
+        count += 1
+    }
+    // `zi2zx run` is a real subcommand. `ziran bundle` is the high-level
+    // spelling for zi2zx's default source/ZIR -> ZX conversion, so it does
+    // not forward a removed `bundle` subcommand.
+    if command == "run" || transport { child[count] = command; count += 1 }
     // `ziran run --project FILE.zx` runs a bundle with the pinned toolchain
     // that built it; a bundle takes no source root.
     if project && command != "run" && !transport && !PkgHasArgument(arguments, "--root") {
@@ -321,7 +338,8 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     index: s32 = 0
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
-        if !(build && (part == "--target=c" || part == "--target=go" || part == "--target=wasm")) {
+        if !(build && (part == "--target=c" || part == "--target=go" ||
+                       part == "--target=wasm" || part == "--target=zx")) {
             child[count] = part
             count += 1
             if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") {
@@ -358,6 +376,73 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if command == "run" && !has_source {
         return PkgRunBundle(child[0:count], arguments,
             names[0:environment], values[0:environment])
+    }
+    if wasm_build || native_build {
+        output: string = ""
+        output_index: s32 = -1
+        index = 0
+        while index + 1 < count {
+            if child[index] == "-o" { output = child[index + 1]; output_index = index + 1 }
+            index += 1
+        }
+        if native_build {
+            source: string = ""
+            for part: arguments {
+                if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") { source = part }
+            }
+            if source.count == 0 { return PkgFail("native build needs a source file") }
+            add_output := output.count == 0
+            add_root := !PkgHasArgument(arguments, "--root")
+            add_entry := !PkgHasArgument(arguments, "--entry")
+            if add_output { output = PkgModuleName(source) }
+            extra_options: s32 = 0
+            if add_root { extra_options += 2 }
+            if add_entry { extra_options += 2 }
+            if add_output { extra_options += 2 }
+            // zi2zx options precede its first input. Insert inferred native
+            // options there so `ziran build FILE.zi` remains a complete form.
+            insertion: s32 = count
+            index = 1
+            while index < count {
+                if PkgEndsWith(child[index], ".zi") || PkgEndsWith(child[index], ".zir") {
+                    insertion = index
+                    break
+                }
+                index += 1
+            }
+            cursor := count
+            while cursor > insertion {
+                child[cursor + extra_options - 1] = child[cursor - 1]
+                cursor -= 1
+            }
+            if output_index >= insertion { output_index += extra_options }
+            position := insertion
+            if add_root { child[position] = "--root"; child[position + 1] = ParentDirectory(source); position += 2 }
+            if add_entry { child[position] = "--entry"; child[position + 1] = PkgJoin(PkgModuleName(source), ":main"); position += 2 }
+            if add_output { child[position] = "-o"; child[position + 1] = output; output_index = position + 1 }
+            count += extra_options
+        }
+        if output.count == 0 || output == "-" {
+            if native_build { return PkgFail("native build needs -o FILE") }
+            return PkgFail("WebAssembly build needs -o FILE")
+        }
+        verified := PkgTemporarySibling(output, ".zx")
+        if verified.count == 0 { return PkgFail("cannot name temporary verified ZX output") }
+        child[output_index] = verified
+        code := PkgRun(child[0:count], "", names[0:environment], values[0:environment])
+        if code == 0 && wasm_build {
+            wasm_tool := PkgJoin3(tool_directory, "/", "zx2wasm")
+            wasm: [4]string = .[wasm_tool, "-o", output, verified]
+            code = PkgRun(wasm[:], "", names[0:environment], values[0:environment])
+        }
+        if code == 0 && native_build {
+            native_tool := PkgJoin3(tool_directory, "/", "zx2native")
+            native: [10]string = .[native_tool, "--target", PkgHostNativeTarget,
+                "--platform", "linux", "--emit", "elf", "-o", output, verified]
+            code = PkgRun(native[:], "", names[0:environment], values[0:environment])
+        }
+        unused RemoveFile(verified)
+        return code
     }
     return PkgRun(child[0:count], "", names[0:environment], values[0:environment])
 }
@@ -674,7 +759,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran ir [--root DIR] [--entry module:function] [--module-path DIR] [-o FILE.zir] [file.zi ...]\n"
     }
     if command == "build" {
-        return "usage: ziran build --target=c|go|wasm [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o DIR] [file.zi ...]; in a project: ziran build\n"
+        return "usage: ziran build [--target=c|go|wasm|zx] [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o FILE|DIR] [file.zi ...]; in a project: ziran build\n"
     }
     if command == "bundle" {
         return "usage: ziran bundle --entry module:function [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n"

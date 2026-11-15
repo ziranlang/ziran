@@ -1,7 +1,7 @@
 #!/bin/sh
 # check-cost: 120
 set -eu
-# Wasm modules from verified revision-28 ZX (zi2asm --emit wasm) must agree
+# Wasm modules lowered from verified revision-28 ZX must agree
 # with the instruction engine. Node or the native Wasmtime CLI runs the
 # emitted modules; ZIRAN_WASM_ENGINE=wasmtime selects Wasmtime for every check.
 ziran=${1:?pass the ziran command}
@@ -47,14 +47,24 @@ run_engine() {
     fi
 }
 
-zi2asm=$(dirname -- "$ziran")/zi2asm
-test -x "$zi2asm" || {
-    echo "zx-wasm-test: $zi2asm is not built; run make first"
-    exit 1
+zi2zx=$(dirname -- "$ziran")/zi2zx
+zx2wasm=$(dirname -- "$ziran")/zx2wasm
+for tool in "$zi2zx" "$zx2wasm"; do
+    test -x "$tool" || {
+        echo "zx-wasm-test: $tool is not built; run make first"
+        exit 1
+    }
+done
+
+build_wasm() {
+    output=$1
+    shift
+    wire=${output%.wasm}.zx
+    "$zi2zx" --target wasm -o "$wire" "$@"
+    "$zx2wasm" -o "$output" "$wire"
 }
 
-"$zi2asm" --root "$repo/tests/spec" --entry "$entry" --emit wasm \
-    -o "$work/zx_wasm_test.wasm" "$source"
+build_wasm "$work/zx_wasm_test.wasm" --root "$repo/tests/spec" --entry "$entry" "$source"
 
 run_wasm="$work/run_wasm.js"
 cat >"$run_wasm" <<'EOF'
@@ -90,7 +100,7 @@ main :: () {
     print("a\0b\n")
 }
 ZI
-"$zi2asm" --root "$work" --entry print:main --emit wasm -o "$work/print.wasm" "$work/print.zi"
+build_wasm "$work/print.wasm" --root "$work" --entry print:main "$work/print.zi"
 "$ziran" bundle --root "$work" --entry print:main -o "$work/print.zx" "$work/print.zi"
 "$ziran" run "$work/print.zx" > "$work/print-vm.txt"
 "$nodebin" - "$work/print.wasm" > "$work/print-wasm.txt" <<'JS'
@@ -125,6 +135,7 @@ Item :: struct {
     on: bool
 }
 Greet :: (name: string, times: s32) -> string #foreign host_api;
+Join :: (left: string, middle: string, right: string) -> string #foreign host_api;
 Weigh :: (item: Item) -> Item #foreign host_api;
 Fill :: (values: []u8) #foreign host_api;
 Flag :: (value: bool, scale: float64) -> u16 #foreign host_api;
@@ -132,17 +143,18 @@ Note :: (a: s64, b: u8, c: s16) #foreign host_api;
 Count :: () -> s64 #foreign host_api;
 main :: () -> s32 {
     text := Greet("zx", 2)
+    joined := Join("a", "b", "c")
     item := Weigh(Item.{title = "box", weight = 3, on = true})
     buffer: [4]u8
     Fill(buffer[1:3])
     Note(-5, 200, -300)
-    print("% % %\n", text, item.title, item.on)
+    print("% % % %\n", text, joined, item.title, item.on)
     return cast(s32)Flag(item.on, 2.5) + item.weight + cast(s32)buffer[2] + cast(s32)buffer[3] + cast(s32)Count()
 }
 ZI
-"$zi2asm" --root "$work" -I "$repo/std" --entry typed:main --emit zx -o "$work/typed.zx" "$work/typed.zi"
-"$zi2asm" --input zx --emit wasm -o "$work/typed.wasm" "$work/typed.zx"
-"$zi2asm" --input zx --emit wasm -o "$work/typed-again.wasm" "$work/typed.zx"
+"$zi2zx" --target wasm --root "$work" -I "$repo/std" --entry typed:main -o "$work/typed.zx" "$work/typed.zi"
+"$zx2wasm" -o "$work/typed.wasm" "$work/typed.zx"
+"$zx2wasm" -o "$work/typed-again.wasm" "$work/typed.zx"
 cmp "$work/typed.wasm" "$work/typed-again.wasm"
 cat >"$work/typed.js" <<'JS'
 // A JavaScript host for typed.zi, reading and writing host images.
@@ -173,6 +185,11 @@ const calls = {
     Greet(record) {
         const image = view().getUint32(record, true), times = view().getInt32(record + 16, true);
         place(record + 32, text(('hi ' + Buffer.from(elements(image)).toString() + ' ').repeat(times).trim(), 16));
+    },
+    Join(record) {
+        const v = view();
+        const joined = [0, 16, 32].map(offset => Buffer.from(elements(v.getUint32(record + offset, true))).toString()).join('');
+        place(record + 48, text(joined, 16));
     },
     Weigh(record) {
         const image = view().getUint32(record, true), v = view();
@@ -212,8 +229,8 @@ WebAssembly.instantiate(bytes, {zx: {
 }).catch(error => { console.error(error); process.exitCode = 1; });
 JS
 typed=$("$nodebin" "$work/typed.js" "$work/typed.wasm")
-expected_typed='hi zx hi zx box! false
-Greet/2 Weigh/1 Fill/1 Note/3 Flag/2 Count/0 -5 200 65236 78'
+expected_typed='hi zx hi zx abc box! false
+Greet/2 Join/3 Weigh/1 Fill/1 Note/3 Flag/2 Count/0 -5 200 65236 78'
 test "$typed" = "$expected_typed" || {
     echo "zx-wasm-test: typed host calls gave '$typed'"
     exit 1
@@ -235,8 +252,8 @@ main :: () -> s32 {
     return 0
 }
 ZI
-"$zi2asm" --root "$work" -I "$repo/std" --entry heap:main --emit zx -o "$work/heap.zx" "$work/heap.zi"
-"$zi2asm" --input zx --emit wasm -o "$work/heap.wasm" "$work/heap.zx"
+"$zi2zx" --target wasm --root "$work" -I "$repo/std" --entry heap:main -o "$work/heap.zx" "$work/heap.zi"
+"$zx2wasm" -o "$work/heap.wasm" "$work/heap.zx"
 heap=$("$nodebin" - "$work/heap.wasm" <<'JS'
 const fs = require('fs');
 let memory;
@@ -261,7 +278,7 @@ test "$heap" = "99000
     echo "zx-wasm-test: heap run gave '$heap'"
     exit 1
 }
-test "$("$zi2asm" --run --heap-report --input zx "$work/heap.zx" 2>/dev/null)" = 99000
+test "$("$zi2zx" run --heap-report "$work/heap.zx" 2>/dev/null)" = 99000
 
 # The bundle Wasm tier in a WebAssembly host: libziran built by emcc with
 # the instruction engine, whose web provider lowers each revision-28 bundle
@@ -295,7 +312,7 @@ Main :: () -> s64 {
     return AddHost(runs * 100 + base + table[1] + cast(s64)title.count)
 }
 ZI
-    "$zi2asm" --root "$work" --entry state:Main --emit zx -o "$work/state.zx" "$work/state.zi"
+    "$zi2zx" --root "$work" --entry state:Main -o "$work/state.zx" "$work/state.zi"
     # A record that holds itself through a slice crosses both ways; one
     # that holds itself stops at the nesting bound.
     cat >"$work/tree.zi" <<'ZI'
@@ -358,6 +375,12 @@ static int call(void *context, const char *module, const char *function,
         snprintf(text, sizeof(text), "hi %.*s x%lld", (int)args[0].length, (const char *)args[0].data,
                  (long long)args[1].integer);
         result->kind = VM_HOST_STRING; result->data = (const unsigned char *)text; result->length = strlen(text);
+    } else if(!strcmp(function, "Join")) {
+        snprintf(text, sizeof(text), "%.*s%.*s%.*s",
+                 (int)args[0].length, (const char *)args[0].data,
+                 (int)args[1].length, (const char *)args[1].data,
+                 (int)args[2].length, (const char *)args[2].data);
+        result->kind = VM_HOST_STRING; result->data = (const unsigned char *)text; result->length = strlen(text);
     } else if(!strcmp(function, "Weigh")) {
         const VmHostField *in = args[0].fields;
         snprintf(title, sizeof(title), "%.*s!", (int)in[0].value.length, (const char *)in[0].value.data);
@@ -406,18 +429,21 @@ static unsigned long reject(void *context, const unsigned char *bytes, size_t si
 /* Runs typed.zx, then state.zx: two instances side by side with their own
  * globals, then a third that takes the first one's state, changed; then a
  * tree that holds itself through a slice, and a cycle that must fail. */
-static void scenario(const char *engine, Bundle *typed, Bundle *state, Bundle *tree, Bundle *cycle)
+static void scenario(const char *engine, BundleBackendPolicy policy,
+                     Bundle *typed, Bundle *state, Bundle *tree, Bundle *cycle)
 {
-    static const char *names[] = {"Greet", "Weigh", "Fill", "Flag", "Note", "Count"};
-    HostBinding bindings[6];
-    for(int at = 0; at < 6; at++) bindings[at] = (HostBinding){.module = "typed", .function = names[at], .call = call};
-    BundleInstance *instance = BundleInstantiate(typed, bindings, 6);
+    static const char *names[] = {"Greet", "Join", "Weigh", "Fill", "Flag", "Note", "Count"};
+    HostBinding bindings[7];
+    BundleInstanceOptions options = {.backend = policy};
+    for(int at = 0; at < 7; at++) bindings[at] = (HostBinding){.module = "typed", .function = names[at], .call = call};
+    BundleInstance *instance = BundleInstantiateWithOptions(typed, bindings, 7, &options);
     long long value = run(instance);
     printf("%s typed %lld\n", engine, value);
     fflush(stdout);
     BundleInstanceClose(instance);
     HostBinding add = {.module = "state", .function = "AddHost", .call = call};
-    BundleInstance *first = BundleInstantiate(state, &add, 1), *beside = BundleInstantiate(state, &add, 1);
+    BundleInstance *first = BundleInstantiateWithOptions(state, &add, 1, &options);
+    BundleInstance *beside = BundleInstantiateWithOptions(state, &add, 1, &options);
     long long a = run(first), b = run(first), c = run(beside);
     BundleState *saved = NULL;
     int exported = BundleInstanceExportState(first, &saved);
@@ -434,7 +460,7 @@ static void scenario(const char *engine, Bundle *typed, Bundle *state, Bundle *t
         label->value.data = copied;
         label->value.length = 5;
     } else ok = 0;
-    BundleInstance *moved = BundleInstantiate(state, &add, 1);
+    BundleInstance *moved = BundleInstantiateWithOptions(state, &add, 1, &options);
     long long d = ok && BundleInstanceImportState(moved, saved) ? run(moved) : -1;
     printf("%s state %lld %lld %lld %lld\n", engine, a, b, c, d);
     fflush(stdout);
@@ -443,7 +469,8 @@ static void scenario(const char *engine, Bundle *typed, Bundle *state, Bundle *t
     BundleInstanceClose(beside);
     BundleInstanceClose(first);
     HostBinding grow = {.module = "tree", .function = "Grow", .call = call};
-    BundleInstance *grown = BundleInstantiate(tree, &grow, 1), *ring = BundleInstantiate(cycle, &grow, 1);
+    BundleInstance *grown = BundleInstantiateWithOptions(tree, &grow, 1, &options);
+    BundleInstance *ring = BundleInstantiateWithOptions(cycle, &grow, 1, &options);
     long long spent = -1;
     int has = 0, cycled = ring != NULL && BundleInstanceRun(ring, &spent, &has);
     printf("%s tree %lld cycle %s\n", engine, run(grown), cycled ? "ran" : "failed");
@@ -461,7 +488,7 @@ int main(int argc, char **argv)
     const ZxWasmPlatform *active = ZxWasmPlatformActive();
     if(active == NULL) return 4;
     ZxWasmPlatform provider = *active;
-    scenario("wasm", typed, state, tree, cycle);
+    scenario("wasm", BUNDLE_BACKEND_AUTO, typed, state, tree, cycle);
     printf("wasm modules %d\n", EM_ASM_INT({ return globalThis.zxWasmTier.modules.size; }));
     /* A module the provider rejects is an error; no other engine runs it. */
     ZxWasmPlatform rejecting = provider;
@@ -471,9 +498,9 @@ int main(int argc, char **argv)
     BundleInstance *refused = BundleInstantiate(state, &add, 1);
     printf("rejected %d\n", refused == NULL);
     BundleInstanceClose(refused);
-    /* Without a provider the instruction engine runs the same bundles. */
+    /* A missing browser provider makes Auto fail; Engine is explicit. */
     ZxWasmSetPlatform(NULL);
-    scenario("engine", typed, state, tree, cycle);
+    scenario("engine", BUNDLE_BACKEND_ENGINE, typed, state, tree, cycle);
     BundleClose(typed);
     BundleClose(state);
     BundleClose(tree);
@@ -488,14 +515,14 @@ C
         exit 1
     }
     expected_tier='note -5 200 -300
-hi zx x2 box! false
+hi zx x2 abc box! false
 wasm typed 78
 wasm state 5151 5251 5151 11254
 wasm tree 7 cycle failed
 wasm modules 4
 rejected 1
 note -5 200 -300
-hi zx x2 box! false
+hi zx x2 abc box! false
 engine typed 78
 engine state 5151 5251 5151 11254
 engine tree 7 cycle failed'
@@ -543,8 +570,7 @@ Answer :: () -> s64 {
     return ifx way == Direction.Up then 1 else 2
 }
 EOF
-"$zi2asm" --root "$work" --entry enums:Answer --emit wasm \
-    -o "$work/enums.wasm" "$work/enums.zi"
+build_wasm "$work/enums.wasm" --root "$work" --entry enums:Answer "$work/enums.zi"
 test "$(run_engine scalar "$work/enums.wasm" 1000000)" = 2
 
 # Strings and slices lower and must agree with the other tiers.
@@ -566,8 +592,7 @@ Answer :: () -> s64 {
     return -1
 }
 EOF
-"$zi2asm" --root "$work" --entry text:Answer --emit wasm \
-    -o "$work/text.wasm" "$work/text.zi"
+build_wasm "$work/text.wasm" --root "$work" --entry text:Answer "$work/text.zi"
 text=$(run_engine scalar "$work/text.wasm" 1000000)
 "$ziran" bundle --root "$work" --entry text:Answer \
     -o "$work/text.zx" "$work/text.zi"
@@ -594,8 +619,7 @@ Answer :: () -> s64 {
     return total
 }
 EOF
-"$zi2asm" --root "$work" --entry records:Answer --emit wasm \
-    -o "$work/records.wasm" "$work/records.zi"
+build_wasm "$work/records.wasm" --root "$work" --entry records:Answer "$work/records.zi"
 records=$(run_engine scalar "$work/records.wasm" 1000000)
 "$ziran" bundle --root "$work" --entry records:Answer \
     -o "$work/records.zx" "$work/records.zi"
@@ -603,6 +627,21 @@ case "$("$ziran" run "$work/records.zx")" in
     "$records") ;;
     *) echo "zx-wasm-test: records disagree between tiers"; exit 1 ;;
 esac
+
+# A valid large frame above the old 1 MiB reservation must run. The dynamic
+# prologue still traps when nested frames would cross the module stack limit.
+cat >"$work/large_frame.zi" <<'EOF'
+#program_export
+Answer :: () -> s64 {
+    first: [1048576]u8
+    second: [16384]u8
+    first[0] = 19
+    second[0] = 23
+    return cast(s64)first[0] + cast(s64)second[0]
+}
+EOF
+build_wasm "$work/large_frame.wasm" --root "$work" --entry large_frame:Answer "$work/large_frame.zi"
+test "$(run_engine scalar "$work/large_frame.wasm" 1000000)" = 42
 
 # The same fixture through the native tier and the portable VM.
 "$ziran" bundle --root "$repo/tests/spec" --entry "$entry" \
@@ -774,8 +813,7 @@ SimdPath :: () -> s32 #asm("wasm32+simd128", "i32.const 2\n\tlocal.set %[out]", 
 #program_export
 Answer :: () -> s64 { return 40 + cast(s64)SimdPath() }
 EOF
-"$zi2asm" --root "$work" --entry simd_path:Answer --emit wasm \
-    -o "$work/simd_path.wasm" "$work/simd_path.zi"
+build_wasm "$work/simd_path.wasm" --root "$work" --entry simd_path:Answer "$work/simd_path.zi"
 test "$(run_engine scalar "$work/simd_path.wasm" 1000000)" = 40
 "$ziran" bundle --root "$work" --entry simd_path:Answer \
     -o "$work/simd_path.zx" "$work/simd_path.zi"

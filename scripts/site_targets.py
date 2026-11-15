@@ -105,18 +105,28 @@ def build(bin_dir, samples, render_page=True):
         for target in TARGETS:
             directory = WORK / name / target
             directory.mkdir(parents=True, exist_ok=True)
-            tool = bin_dir / ('zi2asm' if target == 'wasm' else 'zi2' + target)
+            tool = bin_dir / ('zi2zx' if target == 'wasm' else 'zi2' + target)
             options = [] if target in ('zx', 'zir') else ['--no-main']
             if target == 'wasm':
-                options = ['--emit', 'wasm']
+                options = ['--target', 'wasm']
             if target == 'go':
                 options += ['--pkg', 'main']
-            if target == 'zx':
-                options = ['bundle']
             output = directory / (f'{name}.{target}' if target in ('zx', 'wasm') else '')
-            command = [tool, *options, *inputs, '-o', output, source.relative_to(REPO)]
-            result, _ = execute(command, env=environment, allow_failure=True)
-            cell = {'command': command_text(command), 'files': [], 'emission_samples_ms': []}
+            verified = directory / f'{name}.zx'
+            lower_output = verified if target == 'wasm' else output
+            lower = [tool, *options, *inputs, '-o', lower_output, source.relative_to(REPO)]
+            commands = [lower]
+            if target == 'wasm':
+                commands.append([bin_dir / 'zx2wasm', '-o', output, verified])
+            elapsed = 0.0
+            result = None
+            for command in commands:
+                result, duration = execute(command, env=environment, allow_failure=True)
+                elapsed += duration
+                if result.returncode:
+                    break
+            cell = {'command': ' && '.join(command_text(command) for command in commands),
+                    'files': [], 'emission_samples_ms': []}
             row['targets'][target] = cell
             if result.returncode:
                 diagnostic = result.stderr.strip() or result.stdout.strip()
@@ -126,7 +136,10 @@ def build(bin_dir, samples, render_page=True):
             cell['bytes'] = sum(file['bytes'] for file in cell['files'])
             # Discarded warmup above. Emission excludes downstream C/Go compilation.
             for _ in range(samples):
-                _, elapsed = execute(command, env=environment)
+                elapsed = 0.0
+                for command in commands:
+                    _, duration = execute(command, env=environment)
+                    elapsed += duration
                 cell['emission_samples_ms'].append(elapsed)
             cell['emission_statistics'] = summarize_samples(cell['emission_samples_ms'])
             cell['emission_ms'] = cell['emission_statistics']['median_ms']
@@ -136,7 +149,7 @@ def build(bin_dir, samples, render_page=True):
                     artifact = directory / relative
                     # Checked IR lists its declarations; executable ZX lists its instructions.
                     inspect = ([bin_dir / 'zi-inspect', artifact.relative_to(REPO)] if target == 'zir' else
-                               [bin_dir / 'zi2asm', '--input', 'zx', '--emit', 'lir', '-o', '-', artifact.relative_to(REPO)])
+                               [bin_dir / 'zi2zx', '--emit', 'lir', '-o', '-', artifact.relative_to(REPO)])
                     listing = execute(inspect, env=environment)[0].stdout
                     listing_path = artifact.with_suffix(artifact.suffix + '.txt')
                     listing_path.write_text(listing)
@@ -191,7 +204,7 @@ def build(bin_dir, samples, render_page=True):
         cell['run_statistics'] = summarize_samples(cell['run_samples_ms'])
         cell['run_ms'] = cell['run_statistics']['median_ms']
     tools = {name: {'sha256': sha(bin_dir / name)}
-             for name in ('zi2c', 'zi2go', 'zi2zx', 'zi2asm', 'zi2zir', 'zi-inspect')}
+             for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm', 'zi2zir', 'zi-inspect')}
     versions = {name: execute(command)[0].stdout.splitlines()[0]
                 for name, command in {'cc': ['cc', '--version'], 'go': ['go', 'version'], 'node': ['node', '--version']}.items()}
     data = {'schema_version': 2, 'platforms': {}, 'generated_at': datetime.now(timezone.utc).isoformat(),
@@ -201,7 +214,7 @@ def build(bin_dir, samples, render_page=True):
             'source_inputs': {path: sha(REPO / path) for path in [*[item[2] for item in fixtures()], 'std/text.zi']},
             'harnesses': {path: sha(REPO / path) for path in ['scripts/site_targets.py', 'scripts/benchmark_samples.py', 'scripts/site_target_wasm.cjs', 'site/target-abi.js']},
             'methodology': 'Median whole-process wall time after one discarded warmup; shuffled execution order; symmetric 1.5×IQR outliers excluded, raw samples retained. '
-                           'C: cc -O2; Go: go build; ZX: the instruction engine (zi2zx run); WebAssembly: zi2asm --emit wasm run by Node, including engine startup, compilation and instantiation. '
+                           'C: cc -O2; Go: go build; ZX: the instruction engine (zi2zx run); WebAssembly: zi2zx then zx2wasm, run by Node including engine startup, compilation and instantiation. '
                            'Emission includes loading, checking, linking and writing output; it excludes downstream C/Go builds. '
                            'Output size is emitted files, including C headers, rather than linked executables. '
                            'Shared host, warm filesystem caches, no CPU isolation. Small examples emphasize startup; these are not language rankings.',

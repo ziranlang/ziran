@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 /* A revision-28 bundle instance running as WebAssembly: the verified
- * program lowered by cmd/zir-wasm/zx_wasm_lower.c and instantiated through
+ * program lowered by cmd/zx2wasm/zx_wasm_lower.c and instantiated through
  * the installed provider (zir_zx_wasm_platform.h), with host calls and
  * module state translated by the embedding API's rules (ExecHosts).
  * Lowering and provider rejection fail the selected engine; the caller

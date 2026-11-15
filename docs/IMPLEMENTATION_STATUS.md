@@ -958,7 +958,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   1-, 2-, 4-, and 8-byte sizes and alignments on C and Go, plus
   independent union value copies across all four targets. Unions with string,
   record, array, or pointer fields remain C-only.
-- `zi2zx bundle --root DIR --entry module:function -o FILE` builds a
+- `zi2zx --root DIR --entry module:function -o FILE` builds a
   `.zx` from source or saved IR. `zi2zx run FILE`
   loads and executes the validated scalar, plain record, enum, and fixed-array
   subset with no host bindings. Graphical programs use an embedding host;

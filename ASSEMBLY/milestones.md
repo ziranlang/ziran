@@ -54,7 +54,7 @@ What needed to change:
    extensions unless the step-01 matrix names them as maintained rows.
 
 Recorded decision: the checked-IR-to-LIR adapter stays in C
-([`zir_asm_lower.c`](../cmd/zir-asm/zir_asm_lower.c)) because the checker's
+([`zir_asm_lower.c`](../cmd/zi2zx/zir_asm_lower.c)) because the checker's
 program records are C structures. Everything after LIR (verifier, codec,
 engine, optimizer, machine IR, encoders, container, linker) stays in Ziran.
 Step 03's proposed `compiler_lower*.zi` modules apply only if the checker
@@ -94,7 +94,7 @@ itself moves to Ziran.
 
 ## Current position
 
-The experimental `zi2asm` pipeline now optimizes verified LIR before producing
+The experimental `zi2zx` pipeline now optimizes verified LIR before producing
 ZX, and native source compilation serializes and reads those same ZX bytes.
 The standalone instruction artifact/CLI is removed; source LIR remains an
 inspection view. Direct Linux x86-64 hello has short constants, fallthrough
@@ -104,7 +104,7 @@ function extents, with inlined platform service declarations omitted rather than
 aliases. Pointer token runs lower with bounds-checked base/index arithmetic.
 These fixes do not close M2/M3: machine-IR service lowering, native fuel,
 source debug origins and broader ABI coverage remain gaps. Wasm lowers the
-same verified ZX, both for `zi2asm --emit wasm` and for the bundle Wasm tier.
+same verified ZX, both for `zx2wasm` and for the bundle Wasm tier.
 
 There is one ZX format. Every `.zx` is revision 28; the semantic bundle writer
 and reader, the portable VM with `run --vm`, `BundleUsePortableVm`,
@@ -118,8 +118,8 @@ M0 integration is in progress. M4's first slice, the explicit
 [target registry and preflight](07-architecture-and-platform-coverage.md#target-registry-and-preflight),
 lists every CPU/OS row with its gap-policy state; no row is Implemented yet,
 so every general registry selection fails preflight with
-`assembly.gap.target-unimplemented`. The separate opt-in `zi2asm` prototype
-accepts only `x86_64-linux`; other target rows fail with the stable native
+`assembly.gap.target-unimplemented`. The separate opt-in `zx2native` tool
+implements only `--target x86_64 --platform linux`; other target rows fail with the stable native
 platform-service gap before input or output. The revision-28 container, frame-local
 `Allocate`, local scalar address-taking and the pre-allocation machine-IR
 boundary are implemented. On the final synchronized physical-Alpha cohort, the
@@ -147,8 +147,8 @@ Parts of M2 are now implemented for Linux x86-64 SysV: deterministic liveness
 and linear-scan register allocation with splitting/spilling, an independent
 allocated-program verifier, 16-byte-aligned frame layout, and direct encoding
 of verified allocated machine IR into an in-memory image with relocations. The
-opt-in `zi2asm --machine --emit elf` pipeline now writes and executes that image
-without external compilation tools. This does not close M2. Completing the
+machine pipeline can write and execute that image without external compilation
+tools, but `zx2native` still selects the direct-LIR encoder. This does not close M2. Completing the
 promised call and instruction surface, removing the direct LIR encoder,
 and passing every M2 exit fixture remain required.
 

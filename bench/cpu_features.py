@@ -210,7 +210,7 @@ def main():
     for form, root, file in [('source', output, entry), ('saved', output/'ir', output/'ir/counts.zir')]:
         generated = output/form
         repeated([binaries/'zi2c', '--root', root, '-o', generated, file], f'{form} emit C')
-        repeated([binaries/'zi2zx', 'bundle', '--root', root, '--entry', 'counts:Answer',
+        repeated([binaries/'zi2zx', '--root', root, '--entry', 'counts:Answer',
                   '-o', output/f'{form}.zx', file], f'{form} bundle')
         host = generated/'host.c'
         host.write_text('#include "counts.h"\n#include <stdio.h>\n#include <stdlib.h>\n'

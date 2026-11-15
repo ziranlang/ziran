@@ -374,7 +374,7 @@ def main():
         if not equality[target]:
             raise AssertionError(f'{target} source and saved IR emission differ')
     for kind, root, source in [('source', FIX, ZI), ('saved', IR, SAVED)]:
-        repeated([BIN / 'zi2zx', 'bundle', '--root', root,
+        repeated([BIN / 'zi2zx', '--root', root,
                   '--module-path', ROOT / 'std', '--entry', 'text_scan:Answer',
                   '-o', OUT / f'{kind}.zx', source], 'ziran', f'{kind} to zx')
     if (OUT / 'source.zx').read_bytes() != (OUT / 'saved.zx').read_bytes():

@@ -271,6 +271,7 @@ Check :: () -> s32 {
 }
 ZI
 # Wasm keeps nested vectors on its heap like the other routes.
-"$(dirname "$ziran")/zi2asm" --root "$work" --module-path "$repo/std" \
-    --entry wasm:Check --emit wasm -o "$work/wasm.wasm" "$work/wasm.zi"
+"$(dirname "$ziran")/zi2zx" --target wasm --root "$work" --module-path "$repo/std" \
+    --entry wasm:Check -o "$work/wasm.zx" "$work/wasm.zi"
+"$(dirname "$ziran")/zx2wasm" -o "$work/wasm.wasm" "$work/wasm.zx"
 test "$(node "$repo/scripts/site_target_wasm.cjs" "$work/wasm.wasm")" = 1

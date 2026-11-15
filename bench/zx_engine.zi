@@ -60,13 +60,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
     arguments: Vec(string)
     for index: 1..argc - 1 { VecPush(arguments, TextFromCString(argv[index])) }
     if arguments.count < 9 || (arguments.count - 6) % 3 != 0 {
-        print("usage: zx_engine OUT HOST COMMIT LABEL SAMPLES ZI2ASM NAME ZX C_EXECUTABLE ...\n")
+        print("usage: zx_engine OUT HOST COMMIT LABEL SAMPLES ZI2ZX NAME ZX C_EXECUTABLE ...\n")
         return 2
     }
     out := arguments[0]
     samples, valid := TextInteger(arguments[4])
     if !valid || samples < 3 { print("zx_engine: SAMPLES must be at least 3\n"); return 2 }
-    zi2asm := arguments[5]
+    zi2zx := arguments[5]
     cases: Vec(EngineCase)
     at: s64 = 6
     while at < arguments.count {
@@ -83,8 +83,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     VecPush(parts, "\", \"outliers\": \"symmetric 1.5xIQR, inclusive interpolated quartiles\", \"cases\": [")
     for index: cast(s64)0..cases.count - 1 {
         item := cases[index]
-        engine_command := string.[zi2asm, "--run", "--work", "9223372036854775807", "--fuel",
-            "9223372036854775807", "--input", "zx", item.zx]
+        engine_command := string.[zi2zx, "run", "--work", "9223372036854775807", "--fuel",
+            "9223372036854775807", item.zx]
         c_command := string.[item.c]
         engine: Vec(float64)
         native: Vec(float64)

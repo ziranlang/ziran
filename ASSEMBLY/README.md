@@ -2,11 +2,11 @@
 
 ## Status: experimental backend, not the completed upgrade
 
-The ten-step plan is **not finished**. `zi2asm` lowers checked source or
-saved `.zir` to verified, typed SSA and directly encodes a Linux x86-64 ELF
+The ten-step plan is **not finished**. `zi2zx` lowers checked source or
+saved `.zir` to verified, typed SSA, and `zx2native` directly encodes a Linux x86-64 ELF
 executable. Every `.zx` is the [revision-28 executable
-container](zx-executable-format.md) of those verified instructions: `zi2zx
-bundle` and `zi2asm --emit zx` write it, and `ziran run` and the embedding API
+container](zx-executable-format.md) of those verified instructions: `zi2zx`
+writes it, and `ziran run` and the embedding API
 run it on the portable instruction engine. The C, Go and wasm source-output
 routes are separate.
 Delivery order and the plan review are in [milestones](milestones.md).
@@ -26,8 +26,8 @@ The experimental direct pipeline is:
                                                        ELF + native range map
 ```
 
-The compiler tool still uses the normal compiler bootstrap. Once built,
-`zi2asm` writes machine bytes itself: it does not generate C or launch an
+The compiler tools still use the normal compiler bootstrap. Once built,
+`zx2native` writes machine bytes itself: it does not generate C or launch an
 assembler, C compiler, or system linker to produce this executable.
 
 ## Implemented boundary
@@ -126,8 +126,8 @@ assembler, C compiler, or system linker to produce this executable.
   current LIR subset for Linux x86-64 SysV with virtual registers, fixed-register
   constraints, explicit flags, call clobbers and parallel copies. Deterministic
   allocation, an allocated-program verifier and x86-64 encoding feed the
-  internal ELF writer through `zi2asm --machine --emit elf`. Native ELF still
-  retains a separate direct-LIR prototype while M2 is open.
+  internal ELF writer. `zx2native` still selects the separate direct-LIR
+  prototype while the M2 encoder merge is open.
 - The direct Linux x86-64 console veneer emits a static ELF with its own
   `_start`, Linux `write` syscall 1 through a partial-write/`EINTR` retry loop,
   and `exit_group` syscall 231. It has no libc, CRT, `PT_INTERP` or `PT_DYNAMIC`.
@@ -173,13 +173,13 @@ From the repository root:
 
 ```sh
 env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- sh -eu <<'SH'
-make assembly JOBS=2
-build/bin/zi2asm --root tests/spec --entry assembly_scalar:Answer \
+make zx-tools JOBS=2
+build/bin/zi2zx --root tests/spec --entry assembly_scalar:Answer \
     --emit lir -o build/assembly_scalar.lir tests/spec/assembly_scalar.zi
-build/bin/zi2asm --root tests/spec --entry assembly_scalar:Answer \
-    --emit map -o build/assembly_scalar.map.json tests/spec/assembly_scalar.zi
-build/bin/zi2asm --root tests/spec --entry assembly_scalar:Answer \
-    -o build/assembly_scalar tests/spec/assembly_scalar.zi
+build/bin/zi2zx --root tests/spec --entry assembly_scalar:Answer \
+    -o build/assembly_scalar.zx tests/spec/assembly_scalar.zi
+build/bin/zx2native --emit map -o build/assembly_scalar.map.json build/assembly_scalar.zx
+build/bin/zx2native --emit elf -o build/assembly_scalar build/assembly_scalar.zx
 status=0
 build/assembly_scalar || status=$?
 test "$status" -eq 42
@@ -213,9 +213,9 @@ cheap source-only preview or a runtime performance measurement.
 Native maps support bounded output without renumbering identities:
 
 ```sh
-build/bin/zi2asm --input zx --emit map --function-id 0 --block-id 0 \
+build/bin/zx2native --emit map --function-id 0 --block-id 0 \
     -o build/assembly_scalar.block.map.json build/assembly_scalar.zx
-build/bin/zi2asm --input zx --emit map --address-begin 35 --address-end 80 \
+build/bin/zx2native --emit map --address-begin 35 --address-end 80 \
     -o build/assembly_scalar.address.map.json build/assembly_scalar.zx
 ```
 
@@ -232,15 +232,15 @@ These options bound inspection output, not compilation work: the current
 encoder still verifies and lays out the complete program.
 
 ```sh
-build/bin/zi2asm --root tests/spec --entry assembly_scalar:Answer \
-    --emit zx -o build/assembly_scalar.zx tests/spec/assembly_scalar.zi
-build/bin/zi2asm --input zx --emit lir -o - build/assembly_scalar.zx
-build/bin/zi2asm --input zx -o build/assembly_scalar build/assembly_scalar.zx
-build/bin/zi2asm --input zx --run --fuel 10000 --work 100000 \
+build/bin/zi2zx --root tests/spec --entry assembly_scalar:Answer \
+    -o build/assembly_scalar.zx tests/spec/assembly_scalar.zi
+build/bin/zi2zx --emit lir -o - build/assembly_scalar.zx
+build/bin/zx2native -o build/assembly_scalar build/assembly_scalar.zx
+build/bin/zi2zx run --fuel 10000 --work 100000 \
     build/assembly_scalar.zx
-build/bin/zi2asm --opt --input zx --emit lir -o build/assembly_scalar.optimized.lir \
+build/bin/zi2zx --opt --emit lir -o build/assembly_scalar.optimized.lir \
     build/assembly_scalar.zx
-build/bin/zi2asm --opt --root tests/spec --entry assembly_scalar:Answer \
+build/bin/zi2zx --opt --root tests/spec --entry assembly_scalar:Answer \
     --emit opt-report -o build/assembly_scalar.opt.json tests/spec/assembly_scalar.zi
 ```
 
@@ -296,8 +296,8 @@ close the full upgrade's feature or validation gates.
 - [Executable container binding](../cmd/compiler_exec_link.zi) and
   [format](zx-executable-format.md); [machine IR](../cmd/compiler_machine_ir.zi),
   [lowering](../cmd/compiler_machine_lower.zi) and [verifier](../cmd/compiler_machine_verify.zi).
-- [Checked-language adapter](../cmd/zir-asm/zir_asm_lower.c),
-  [CLI](../cmd/zir-asm/main.c), [build integration](../assembly.mk).
+- [Checked-language adapter](../cmd/zi2zx/zir_asm_lower.c),
+  [CLI](../cmd/zi2zx/main.c), [build integration](../assembly.mk).
 - [Source/saved-IR integration tests](../tests/assembly_cases.zi),
   [verifier fixtures](../tests/spec/compiler_lowered_verify_test.zi),
   [encoder fixtures](../tests/spec/compiler_lowered_x64_test.zi).

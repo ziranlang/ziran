@@ -1,4 +1,5 @@
 using ABI :: #import "compiler_abi"
+using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using MachineVerifyModule :: #import "compiler_machine_verify"
 using Allocated :: #import "compiler_machine_verify_allocated"
@@ -402,7 +403,9 @@ CheckInstruction :: (state: *Alloc, block_id: s32, instruction_id: s32) -> bool 
     }
     if instruction.call != MachineNoId {
         call := program.calls[instruction.call]
-        if call.calling != .Internal { return Fail(state, .Call, block_id, instruction_id) }
+        if call.calling != .Internal && call.calling != .Host && call.calling != .Platform {
+            return Fail(state, .Call, block_id, instruction_id)
+        }
         general := Allocated.MachineBankCallerSaved(state.target, 0)
         float := Allocated.MachineBankCallerSaved(state.target, 1)
         if (call.clobber_general & general) != general || (call.clobber_general & state.target.reserved_general) != 0 ||
@@ -1871,6 +1874,17 @@ AllocateFunction :: (state: *Alloc, function_id: s32) -> bool {
     state.function_id = function_id
     state.function = program.functions[function_id]
     function := state.function
+    // External host/platform symbols participate in call relocations but have
+    // no CFG, virtuals, frame or allocation work of their own.
+    if function.calling != .Internal {
+        if !Reserve(state, 1, size_of(MachineFrame)) ||
+            !Reserve(state, 1, size_of(MachineFunction)) { return false }
+        if !VecPush(state.out.frames, MachineFrame.{function = function_id}) {
+            return Fail(state, .Allocation)
+        }
+        if !VecPush(state.out.functions, function) { return Fail(state, .Allocation) }
+        return true
+    }
     state.block_out_begin = cast(s32)state.out.blocks.count
     state.stack_out_begin = cast(s32)state.out.stack_objects.count
     if !ResetFunction(state) { return false }
@@ -1917,14 +1931,20 @@ CopyTables :: (state: *Alloc) -> bool {
     for origin: program.origins { if !VecPush(state.out.origins, origin) { return Fail(state, .Allocation) } }
     for type: program.types { if !VecPush(state.out.types, type) { return Fail(state, .Allocation) } }
     for id: program.type_ids { if !VecPush(state.out.type_ids, id) { return Fail(state, .Allocation) } }
+    for byte: program.data { if !VecPush(state.out.data, byte) { return Fail(state, .Allocation) } }
+    for constant: program.constants { if !VecPush(state.out.constants, constant) { return Fail(state, .Allocation) } }
     for global: program.globals { if !VecPush(state.out.globals, global) { return Fail(state, .Allocation) } }
+    for initializer: program.initializers { if !VecPush(state.out.initializers, initializer) { return Fail(state, .Allocation) } }
     for value: program.virtuals { if !VecPush(state.out.virtuals, value) { return Fail(state, .Allocation) } }
     return Reserve(state, program.text.count, 1) &&
         Reserve(state, program.sources.count, size_of(MachineSource)) &&
         Reserve(state, program.origins.count, size_of(MachineOrigin)) &&
         Reserve(state, program.types.count, size_of(MachineType)) &&
         Reserve(state, program.type_ids.count, size_of(s32)) &&
+        Reserve(state, program.data.count, 1) &&
+        Reserve(state, program.constants.count, size_of(MachineConstant)) &&
         Reserve(state, program.globals.count, size_of(MachineGlobal)) &&
+        Reserve(state, program.initializers.count, size_of(s32)) &&
         Reserve(state, program.virtuals.count, size_of(MachineVirtual))
 }
 
@@ -1952,7 +1972,10 @@ Release :: (owner: *MachineOwner) {
     VecFree(owner.origins)
     VecFree(owner.types)
     VecFree(owner.type_ids)
+    VecFree(owner.data)
+    VecFree(owner.constants)
     VecFree(owner.globals)
+    VecFree(owner.initializers)
     VecFree(owner.functions)
     VecFree(owner.blocks)
     VecFree(owner.virtuals)
@@ -1970,7 +1993,8 @@ Release :: (owner: *MachineOwner) {
 Publish :: (owner: *MachineOwner, target: TargetDescription, entry: s32, scratch_general: s32, scratch_float: s32) {
     owner.program = .{version = MachineVersion, target = target,
         text = owner.text[:], sources = owner.sources[:], origins = owner.origins[:],
-        types = owner.types[:], type_ids = owner.type_ids[:], globals = owner.globals[:],
+        types = owner.types[:], type_ids = owner.type_ids[:], data = owner.data[:],
+        constants = owner.constants[:], globals = owner.globals[:], initializers = owner.initializers[:],
         functions = owner.functions[:], blocks = owner.blocks[:], virtuals = owner.virtuals[:],
         instructions = owner.instructions[:], operands = owner.operands[:], edges = owner.edges[:],
         copies = owner.copies[:], stack_objects = owner.stack_objects[:], relocations = owner.relocations[:],
@@ -1992,7 +2016,10 @@ Exchange :: (owner: *MachineOwner, built: *MachineOwner) {
     VecSwap(owner.origins, built.origins)
     VecSwap(owner.types, built.types)
     VecSwap(owner.type_ids, built.type_ids)
+    VecSwap(owner.data, built.data)
+    VecSwap(owner.constants, built.constants)
     VecSwap(owner.globals, built.globals)
+    VecSwap(owner.initializers, built.initializers)
     VecSwap(owner.functions, built.functions)
     VecSwap(owner.blocks, built.blocks)
     VecSwap(owner.virtuals, built.virtuals)

@@ -76,6 +76,26 @@ typedef struct HostBinding {
     void *context;
 } HostBinding;
 
+typedef enum BundleBackendPolicy {
+    BUNDLE_BACKEND_AUTO,
+    BUNDLE_BACKEND_ENGINE,
+    BUNDLE_BACKEND_NATIVE
+} BundleBackendPolicy;
+
+typedef enum BundleExecutionBackend {
+    BUNDLE_EXECUTION_NONE,
+    BUNDLE_EXECUTION_ENGINE,
+    BUNDLE_EXECUTION_WASM,
+    BUNDLE_EXECUTION_NATIVE_X86_64,
+    BUNDLE_EXECUTION_NATIVE_AARCH64,
+    BUNDLE_EXECUTION_NATIVE_ARMV7
+} BundleExecutionBackend;
+
+typedef struct BundleInstanceOptions {
+    BundleBackendPolicy backend;
+    int max_steps;
+} BundleInstanceOptions;
+
 typedef struct BundleStateValue {
     const char *module;
     const char *name;
@@ -147,6 +167,19 @@ BundleInstance *BundleInstantiate(const Bundle *bundle,
 BundleInstance *BundleInstantiateLimited(const Bundle *bundle,
                                          const HostBinding *bindings,
                                          size_t binding_count, int max_steps);
+/* Select one backend for the whole instance before initialization. Engine and
+ * Native are strict. Auto is fixed by the platform: Wasm in a browser, Native
+ * only after that CPU backend is declared complete, and Engine otherwise.
+ * Native x86-64 is strict-only while its parity work remains incomplete. A
+ * program-preflight, compile, relocation, initialization, trap, or host
+ * failure is never retried on another backend. */
+BundleInstance *BundleInstantiateWithOptions(
+    const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
+    const BundleInstanceOptions *options);
+BundleExecutionBackend BundleInstanceBackend(const BundleInstance *instance);
+/* Stable diagnostic code for the bundle's native preflight rejection, or an
+ * empty string when native preflight has no recorded problem. */
+const char *BundleNativeProblem(const Bundle *bundle);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);
 /* Bound each subsequent run to max_steps steps (function calls and loop

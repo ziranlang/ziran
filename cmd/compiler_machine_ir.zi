@@ -1,7 +1,8 @@
+using Image :: #import "compiler_machine_image"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 
-MachineVersion :: 2
+MachineVersion :: 4
 MachineNoId :: -1
 
 MachineRegisterClass :: enum s32 {
@@ -28,7 +29,7 @@ MachineOpcode :: enum s32 {
     FloatAdd; FloatSubtract; FloatMultiply; FloatDivide; FloatNegate
     Compare; SetCondition; Convert; Bitcast
     AggregateBuild; AggregateExtract; AggregateInsert
-    Load; Store; FieldAddress; ElementAddress
+    Load; Store; Copy; Zero; FieldAddress; ElementAddress; BytesEqual; Resize
     CallDirect; CallIndirect
     Fuel; Trap; Jump; Branch; Return; Unreachable
     // Allocator-inserted, flag-preserving transfers. Spill stores a register
@@ -40,12 +41,6 @@ MachineCondition :: enum s32 {
     None; Equal; NotEqual; Less; LessEqual; Greater; GreaterEqual
 }
 
-MachineRelocationKind :: enum s32 {
-    Invalid; FunctionAddress; FunctionCall; GlobalAddress
-    // The instance fuel counter read and decremented by a Fuel check.
-    FuelCounter
-}
-
 MachineStackKind :: enum s32 {
     Invalid; Value; Local; IncomingArgument; OutgoingArgument; Spill
     // Allocation frame storage: callee-saved register homes and the
@@ -55,7 +50,10 @@ MachineStackKind :: enum s32 {
 
 MachineSpillReason :: enum s32 { Invalid; Pressure; Call; Fixed; Parameter; Cycle }
 
-MachineCalling :: enum s32 { Invalid; Internal; C; System; Host }
+// Internal is ordinary generated code. Host and Platform are the only
+// external call contracts accepted by the native path; C/System remain named
+// so verification can reject them explicitly instead of changing backends.
+MachineCalling :: enum s32 { Invalid; Internal; C; System; Host; Platform }
 
 MachineOperand :: struct {
     kind: MachineOperandKind
@@ -147,14 +145,6 @@ MachineSpill :: struct {
     origin: s32
 }
 
-MachineRelocation :: struct {
-    instruction: s32
-    operand: s32
-    kind: MachineRelocationKind
-    symbol: s32
-    addend: s64
-}
-
 MachineCall :: struct {
     instruction: s32
     calling: MachineCalling
@@ -170,7 +160,15 @@ MachineCall :: struct {
 
 MachineGlobal :: struct {
     type: s32
+    constant: s32
     writable: bool
+}
+
+MachineConstant :: struct {
+    type: s32
+    bits: u64
+    bytes_begin: s32
+    bytes_count: s32
 }
 
 MachineBlock :: struct {
@@ -219,6 +217,7 @@ MachineType :: struct {
     class: MachineRegisterClass
     bits: s32
     is_signed: bool
+    native_width: bool
     size: s64
     alignment: s32
     element: s32
@@ -238,7 +237,10 @@ MachineProgram :: struct {
     origins: []MachineOrigin
     types: []MachineType
     type_ids: []s32
+    data: []u8
+    constants: []MachineConstant
     globals: []MachineGlobal
+    initializers: []s32
     functions: []MachineFunction
     blocks: []MachineBlock
     virtuals: []MachineVirtual
@@ -264,6 +266,7 @@ MachineLimits :: struct {
     functions: s64
     types: s64
     type_ids: s64
+    constants: s64
     globals: s64
     blocks: s64
     virtuals: s64
@@ -279,7 +282,7 @@ MachineLimits :: struct {
 MachineProblem :: enum s32 {
     None; Owner; Target; UnsupportedTarget; VerifyInput; Limit; Allocation
     Version; Source; Origin; Function; Block; Virtual; Instruction; Operand
-    Constraint; Flags; Call; Stack; Edge; Copy; Relocation; Unsupported
+    Constraint; Flags; Call; Stack; Edge; Copy; Relocation; NativeWidth; Unsupported
     // Allocation and allocated-program failures.
     Stage; Fuel; Undefined; Interference; Clobber; Tie; Frame; Pressure; Cycle; Spill
 }
@@ -313,7 +316,10 @@ MachineOwner :: struct {
     origins: Vec(MachineOrigin)
     types: Vec(MachineType)
     type_ids: Vec(s32)
+    data: Vec(u8)
+    constants: Vec(MachineConstant)
     globals: Vec(MachineGlobal)
+    initializers: Vec(s32)
     functions: Vec(MachineFunction)
     blocks: Vec(MachineBlock)
     virtuals: Vec(MachineVirtual)
@@ -332,7 +338,7 @@ MachineOwner :: struct {
 
 MachineDefaultLimits :: () -> MachineLimits {
     return .{.work = 16000000, .bytes = 268435456, .functions = 65536, .types = 65536,
-        .type_ids = 1048576, .globals = 1048576,
+        .type_ids = 1048576, .constants = 1048576, .globals = 1048576,
         .blocks = 262144, .virtuals = 1048576, .instructions = 2097152,
         .operands = 8388608, .edges = 524288, .copies = 2097152,
         .stack_objects = 1048576, .relocations = 1048576, .calls = 1048576}

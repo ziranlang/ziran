@@ -33,7 +33,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     hello := NativeRead(*test, CheckPath(test.repo, "examples/hello.zi"))
     if !NativeWrite(*test, CheckPath(test.work, "hello.zi"), hello) { return 1 }
     run := string.[test.ziran, "run", "hello.zi"]
-    direct := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "hello.zi"]
+    direct := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "run", "hello.zi"]
     unused NativeExpect(*test, run[:], "Hello, World!\n", test.work)
     unused NativeExpect(*test, direct[:], "Hello, World!\n", test.work)
     examples := NativeRead(*test, CheckPath(test.repo, "site/examples.html"))

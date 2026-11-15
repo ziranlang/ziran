@@ -316,7 +316,7 @@ for validation, alias mapping and the programmatic entry points.
 
 The compiler commands are `zi2zir` (including
 `--check-only`), `zi2c`, `zi2go`, and `zi2zx`.
-Run a program with `ziran run hello.zi` or `zi2zx hello.zi`; Ziran checks
+Run a program with `ziran run hello.zi` or `zi2zx run hello.zi`; Ziran checks
 the file and executes `main` in one step. `make install-user` installs both
 commands in `~/.local/bin`.
 `zi-fmt` formats source. `ziran guide` prints a short reference from the
@@ -344,7 +344,7 @@ see [runtime providers](ZX.md#running-bundles).
 
 ### Output routes
 
-The experimental `zi2asm` pipeline checks source into `.zir`, links and lowers
+The experimental `zi2zx` pipeline checks source into `.zir`, links and lowers
 LIR, verifies it, runs LIR optimizations, and writes portable ZX instructions.
 The portable interpreter executes those instructions directly.
 The experimental direct-native route lowers the same verified instructions to
@@ -353,7 +353,8 @@ binary; only rows with explicit implementation and execution evidence count as
 supported. It never changes to another engine after a gap.
 
 Native output from source first encodes and reads verified ZX bytes, exactly
-as `zi2asm --input zx --emit elf -o app app.zx` does. `--emit zx` is a first-class
+as `zx2native --target x86_64 --platform linux --emit elf -o app app.zx` does.
+The `zi2zx` default output is first-class
 portable output; `--emit lir` remains a text inspection view. The standalone
 `.lirb`, `--emit exec` and `--input exec` routes are removed. Optimization is
 mandatory before ZX; `--opt` only selects the optimized source LIR view or its
@@ -371,13 +372,17 @@ capability gives ZX code a typed service contract; a host binding implements
 it. A direct target's ABI veneer instead implements target-specific entry,
 calling-convention, syscall, and exit details used by direct machine code.
 
-The opt-in `zi2asm --target x86_64-linux` ELF path is the first such veneer. It
+The opt-in `zx2native --target x86_64 --platform linux --emit elf` path is the first such veneer. It
 produces a static no-libc executable with target-owned `write_all` and process
 exit. Its literal formatter supports strings/text views, bools, every fixed
 signed and unsigned integer width, and `%%`; floats and unavailable platform
 services fail with stable named diagnostics.
 
 ## Generate C and Go binaries
+
+`ziran build FILE.zi` defaults to a direct native binary named after the source
+stem, composing `zi2zx` and host-target `zx2native`. Use `--target=zx`,
+`--target=wasm`, `--target=c`, or `--target=go` to request another exact route.
 
 Use `ziran build --target=c` for C99 output. Add `--exe --entry
 module:function` to also compile it into `DIR/module`, a program that runs

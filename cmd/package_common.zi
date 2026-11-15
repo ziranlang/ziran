@@ -182,6 +182,21 @@ PkgWriteAtomic :: (path: string, content: string) -> bool {
     return valid
 }
 
+// Names a private, unpredictable sibling for a short-lived compiler stage.
+// The producer still creates the file atomically; the caller removes it after
+// the next stage, whether that stage succeeds or fails.
+PkgTemporarySibling :: (path: string, extension: string) -> string {
+    random: [16]u8
+    hex: [32]u8
+    digits := "0123456789abcdef"
+    if PkgRandomRaw(*random[0], 16) != 1 { return "" }
+    for index: 0..15 {
+        hex[index * 2] = digits[cast(s32)(random[index] >> cast(u8)4)]
+        hex[index * 2 + 1] = digits[cast(s32)(random[index] & cast(u8)15)]
+    }
+    return PkgJoin3(PkgJoin3(path, ".tmp.", TextFromBytes(hex[:])), extension, "")
+}
+
 PkgMkdirs :: (path: string) -> bool {
     if path.count == 0 || path.count > 4095 { return false }
     index: s64 = 1

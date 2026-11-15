@@ -94,7 +94,7 @@ def main():
                     emitted = output/'c'; bundle = output/'program.zx'
                     check = [binaries/'zi2zir', '--check-only', '--root', root, input_path]
                     emit = [binaries/'zi2c', '--root', root, '-o', emitted, input_path]
-                    pack = [binaries/'zi2zx', 'bundle', '--root', root, '--entry', 'program:Answer', '-o', bundle, input_path]
+                    pack = [binaries/'zi2zx', '--root', root, '--entry', 'program:Answer', '-o', bundle, input_path]
                     for phase, command in [('check', check), ('emit:c', emit), ('bundle', pack)]:
                         invoke(command); register(case, form, version, phase, command)
                     invoke([binaries/'zi2zx', 'run', bundle], expected=expected)

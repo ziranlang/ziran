@@ -1,14 +1,21 @@
 ASSEMBLY_C := $(BUILD_DIR)/compiler-assembly
-ASSEMBLY_MACHINE_SOURCES := cmd/compiler_target.zi cmd/compiler_abi.zi cmd/compiler_machine_ir.zi \
+ASSEMBLY_MACHINE_SOURCES := cmd/compiler_target.zi cmd/compiler_machine_image.zi cmd/compiler_abi.zi cmd/compiler_machine_ir.zi \
     cmd/compiler_machine_verify.zi cmd/compiler_machine_lower.zi cmd/compiler_machine_verify_allocated.zi \
     cmd/compiler_regalloc.zi cmd/compiler_x86_bytes.zi cmd/compiler_x86_64.zi \
     cmd/compiler_machine_elf.zi cmd/compiler_machine_pipeline.zi
 ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_x64.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi $(ASSEMBLY_MACHINE_SOURCES)
 
-.PHONY: assembly
-assembly: $(BIN_DIR)/zi2asm
+ifneq ($(BOOTSTRAP),1)
+ifeq ($(NATIVE_HOST_ENABLED),1)
+$(call obj,cmd/zir/zir_host_native.c): private CFLAGS += -I$(ASSEMBLY_C)
+$(call obj,cmd/zir/zir_host_native.c): $(ASSEMBLY_C)/.generated
+endif
+endif
 
-check: $(BIN_DIR)/zi2asm
+.PHONY: zx-tools
+zx-tools: $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native
+
+check: zx-tools
 
 # The generator runs whenever its sources or zi2c change, but only files
 # whose text changed are replaced, and .generated moves only then: a zi2c
@@ -30,7 +37,7 @@ $(ASSEMBLY_C)/.ran: assembly.mk $(ASSEMBLY_SOURCES) $(BIN_DIR)/zi2c
 $(ASSEMBLY_C)/.generated: $(ASSEMBLY_C)/.ran
 	@test -f $@ || touch $@
 
-$(BUILD_DIR)/obj/assembly-core.o: $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags
+$(BUILD_DIR)/obj/assembly-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(BUILD_DIR)/obj/assembly
 	@set -eu; objects=; for source in $(ASSEMBLY_C)/*.c; do \
 	    object=$(BUILD_DIR)/obj/assembly/$$(basename "$$source" .c).o; \
@@ -38,12 +45,34 @@ $(BUILD_DIR)/obj/assembly-core.o: $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compile
 	    objects="$$objects $$object"; \
 	done; $(CC) -r -nostdlib -o $@ $$objects
 
-$(call obj,cmd/zir-asm/main.c cmd/zir-asm/zir_asm_lower.c cmd/zir-asm/zx_exec_run.c cmd/zir-zx/main.c): $(BUILD_DIR)/obj/%.o: %.c $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags $(IR_READY)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -I$(ASSEMBLY_C) -Icmd/zir-asm -Icmd/zir-wasm -c -o $@ $<
+# The embedding library already carries the source compiler and the verified-ZX
+# engine, including its own compiler_bundle symbols. Keep the native machine
+# pipeline in a separate relocatable object so linking libziran cannot pull in a
+# second copy of those public symbols from assembly-core.o.
+ASSEMBLY_NATIVE_MODULES := compiler_abi compiler_machine_image \
+    compiler_machine_ir compiler_machine_verify \
+    compiler_machine_lower compiler_machine_verify_allocated compiler_regalloc \
+    compiler_target compiler_x86_bytes compiler_x86_64 compiler_machine_elf \
+    compiler_machine_pipeline
 
-# Wasm is one more lowering of verified revision-28 ZX (zi2asm --emit wasm);
-# zi2asm takes it from libziran, where the bundle Wasm tier uses it too.
-$(BIN_DIR)/zi2asm: $(call obj,cmd/zir-asm/main.c cmd/zir-asm/zir_asm_lower.c cmd/zir-asm/zx_exec_run.c) \
+$(BUILD_DIR)/obj/native-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(ENGINE_NAMES) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(BUILD_DIR)/obj/native-assembly
+	@set -eu; objects=; for module in $(ASSEMBLY_NATIVE_MODULES); do \
+	    source=$(ASSEMBLY_C)/$$module.c; \
+	    object=$(BUILD_DIR)/obj/native-assembly/$$module.o; \
+	    test -f "$$source"; \
+	    $(CC) $(CFLAGS) $(FRAMEFLAGS) -fvisibility=hidden -I$(ASSEMBLY_C) \
+	        -include $(ENGINE_NAMES) -c -o "$$object" "$$source"; \
+	    objects="$$objects $$object"; \
+	done; $(CC) -r -nostdlib -o $@ $$objects
+
+$(call obj,cmd/zx2native/main.c cmd/zi2zx/zir_asm_lower.c cmd/zi2zx/zx_exec_run.c cmd/zi2zx/main.c): $(BUILD_DIR)/obj/%.o: %.c $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags $(IR_READY)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -I$(ASSEMBLY_C) -Icmd/zi2zx -Icmd/zx2wasm -c -o $@ $<
+
+# Native output is a separate verified-ZX consumer. The source-side lowerer is
+# linked only until the remaining unreachable source helpers move to zi2zx.
+$(BIN_DIR)/zx2native: $(call obj,cmd/zx2native/main.c cmd/zi2zx/zir_asm_lower.c cmd/zi2zx/zx_exec_run.c) \
     $(BUILD_DIR)/obj/assembly-core.o $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
+	chmod 755 $@

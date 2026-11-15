@@ -1,4 +1,5 @@
 using Elf :: #import "compiler_machine_elf"
+using Image :: #import "compiler_machine_image"
 using Lir :: #import "compiler_lowered_ir"
 using Machine :: #import "compiler_machine_ir"
 using Pipeline :: #import "compiler_machine_pipeline"
@@ -36,17 +37,24 @@ Instruction :: (op: Lir.LirOp, result: s32 = -1) -> Lir.LirInstruction {
 
 BuildTarget :: (owner: *Pipeline.MachineNativeOwner, target: Target.TargetDescription,
     readonly: bool = false,
-    limits: Machine.MachineLimits = Machine.MachineDefaultLimits()) -> Machine.MachineDiagnostic {
+    limits: Machine.MachineLimits = Machine.MachineDefaultLimits(),
+    startup: bool = false) -> Machine.MachineDiagnostic {
     modules: [1]string = .["machine_elf"]
-    types: [4]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
-        .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Pointer, element = 2}]
-    constants: [1]Lir.LirConstant = .[.{type = 2, bits = 42}]
-    globals: [1]Lir.LirGlobal = .[.{module = 0, name = "state", type = 2,
-        constant = -1, writable = !readonly}]
-    values: [3]s32 = .[3, 2, 2]
+    types: [7]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Pointer, element = 2},
+        .{kind = .Integer, bits = 8}, .{kind = .Array, element = 4, count = 8},
+        .{kind = .Pointer, element = 5}]
+    readonly_bytes: [8]u8 = .[42, 0, 0, 0, 0, 0, 0, 0]
+    constants: [2]Lir.LirConstant = .[.{type = 2, bits = 42},
+        .{type = 5, bytes = readonly_bytes[:]}]
+    globals: [1]Lir.LirGlobal = .[.{module = 0, name = "state",
+        type = ifx readonly then 5 else 2, constant = ifx readonly then 1 else -1,
+        writable = !readonly}]
+    values: [3]s32 = .[ifx readonly then 6 else 3, 2, 2]
     store_operands: [2]s32 = .[0, 1]
     load_operands: [1]s32 = .[0]
     return_operands: [1]s32 = .[2]
+    readonly_return: [1]s32 = .[1]
     instructions: [6]Lir.LirInstruction
     instructions[0] = Instruction(.Fuel); instructions[0].immediate = 1; instructions[0].effect = 1
     instructions[1] = Instruction(.GlobalAddress, 0); instructions[1].symbol = 0
@@ -54,12 +62,94 @@ BuildTarget :: (owner: *Pipeline.MachineNativeOwner, target: Target.TargetDescri
     instructions[3] = Instruction(.Store); instructions[3].operands = store_operands[:]; instructions[3].effect = 2
     instructions[4] = Instruction(.Load, 2); instructions[4].operands = load_operands[:]; instructions[4].effect = 3
     instructions[5] = Instruction(.Return); instructions[5].operands = return_operands[:]
-    blocks: [1]Lir.LirBlock = .[.{instructions = instructions[:]}]
-    functions: [1]Lir.LirFunction = .[.{module = 0, name = "answer", result = 2,
-        values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    code := instructions[:]
+    function_values := values[:]
+    if readonly {
+        instructions[2] = Instruction(.Constant, 1); instructions[2].symbol = 0
+        instructions[3] = Instruction(.Return); instructions[3].operands = readonly_return[:]
+        code = instructions[0:4]
+        function_values = values[0:2]
+    }
+    blocks: [1]Lir.LirBlock = .[.{instructions = code}]
+    init_instructions: [1]Lir.LirInstruction = .[Instruction(.Return)]
+    init_blocks: [1]Lir.LirBlock = .[.{instructions = init_instructions[:]}]
+    functions: [2]Lir.LirFunction = .[.{module = 0, name = "initialize", result = 0,
+        blocks = init_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "answer", result = 2,
+        values = function_values, blocks = blocks[:], entry = 0, origin = -1}]
+    initializer_ids: [1]s32 = .[0]
+    initializers := initializer_ids[0:0]
+    if startup { initializers = initializer_ids[:] }
     program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
-        constants = constants[:], globals = globals[:], functions = functions[:], entry = 0}
+        constants = constants[:], globals = globals[:], initializers = initializers,
+        functions = functions[:], entry = 1}
     return Pipeline.MachineNativeBuild(program, target, limits, owner)
+}
+
+StartupInitializers :: () -> bool {
+    owner: Pipeline.MachineNativeOwner
+    diagnostic := BuildTarget(*owner, Target.TargetLinuxX64(), false,
+        Machine.MachineDefaultLimits(), true)
+    if !Check(diagnostic.problem == .None, "startup initializer pipeline") {
+        Pipeline.MachineNativeFree(*owner); return false
+    }
+    bytes := Pipeline.MachineNativeView(*owner)
+    empty: [0]u8
+    layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    initializer_target := cast(s64)(0x400000 + layout.text_offset + Elf.MachineElfStartupSize + 5 +
+        owner.encoded.image.functions[0].begin)
+    field := cast(s64)(0x400000 + layout.text_offset + 1)
+    result := Check(bytes[layout.text_offset] == 0xe8 &&
+        Signed32(bytes, layout.text_offset + 1) == initializer_target - 4 - field,
+        "startup calls the initializer before entry")
+    image := Pipeline.MachineCodeImageView(*owner)
+    result = result && Check(image.initializers.count == 1 && image.initializers[0] == 0,
+        "machine image retains ordered initializer identities")
+    Pipeline.MachineNativeFree(*owner)
+    return result
+}
+
+PlatformImage :: () -> bool {
+    modules: [2]string = .["machine_platform", "ziran.platform"]
+    types: [4]Lir.LirType = .[.{kind = .Void}, .{kind = .Integer, bits = 64},
+        .{kind = .Integer, bits = 8}, .{kind = .Pointer, element = 2}]
+    constants: [2]Lir.LirConstant = .[.{type = 1, bits = 1}, .{type = 1, bits = 0}]
+    values: [3]s32 = .[1, 3, 1]
+    empty: [0]s32
+    arguments: [3]s32 = .[0, 1, 2]
+    instructions: [6]Lir.LirInstruction
+    instructions[0] = Instruction(.Constant, 0); instructions[0].symbol = 0
+    instructions[1] = Instruction(.Null, 1)
+    instructions[2] = Instruction(.Constant, 2); instructions[2].symbol = 1
+    instructions[3] = Instruction(.Fuel); instructions[3].immediate = 1; instructions[3].effect = 1
+    instructions[4] = Instruction(.HostCall); instructions[4].symbol = 1
+    instructions[4].operands = arguments[:]; instructions[4].effect = 2
+    instructions[5] = Instruction(.Return)
+    blocks: [1]Lir.LirBlock = .[.{instructions = instructions[:]}]
+    parameters: [3]s32 = .[1, 3, 1]
+    functions: [2]Lir.LirFunction = .[
+        .{module = 0, name = "main", result = 0, values = values[:], blocks = blocks[:],
+            entry = 0, origin = -1},
+        .{module = 1, name = "ziran.platform.write_all", result = 0,
+            parameters = parameters[:], calling = .Host, external = true, entry = -1, origin = -1}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    owner: Pipeline.MachineNativeOwner
+    diagnostic := Pipeline.MachineCodeBuild(program, Target.TargetLinuxX64(),
+        Machine.MachineDefaultLimits(), *owner)
+    if !Check(diagnostic.problem == .None && Pipeline.MachineNativeView(*owner).count == 0,
+        "machine-code build accepts a platform service without requiring an ELF veneer") {
+        Pipeline.MachineNativeFree(*owner); return false
+    }
+    image := Pipeline.MachineCodeImageView(*owner)
+    saw_platform := false
+    for relocation: image.relocations {
+        if relocation.kind == .PlatformService && relocation.symbol == 1 { saw_platform = true }
+    }
+    result := Check(Image.MachineImageValidate(image).problem == .None && saw_platform,
+        "machine image retains the platform-service relocation")
+    Pipeline.MachineNativeFree(*owner)
+    return result
 }
 
 Build :: (owner: *Pipeline.MachineNativeOwner, readonly: bool = false) -> Machine.MachineDiagnostic {
@@ -68,6 +158,11 @@ Build :: (owner: *Pipeline.MachineNativeOwner, readonly: bool = false) -> Machin
 
 Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     bytes := Pipeline.MachineNativeView(owner)
+    machine_image := Pipeline.MachineCodeImageView(owner)
+    if !Check(Image.MachineImageValidate(machine_image).problem == .None &&
+        machine_image.code.bytes.count == owner.encoded.image.code.count &&
+        machine_image.global_offsets.count == owner.machine.program.globals.count,
+        "pipeline publishes the target-neutral machine image") { return false }
     if !Check(bytes.count > 8192, "image has headers, text and data") ||
         !Check(Little(bytes, 0, 4) == 0x464c457f, "ELF magic") ||
         !Check(bytes[4] == 2 && bytes[5] == 1 && bytes[6] == 1, "ELF64 little-endian identity") ||
@@ -116,7 +211,8 @@ Relocations :: (owner: *Pipeline.MachineNativeOwner) -> bool {
                 owner.encoded.image.code.count
             saw_trap = true
         } else { return Check(false, "unsupported relocation escaped") }
-        field_file := layout.text_offset + Elf.MachineElfStartupSize + relocation.offset
+        field_file := layout.text_offset + Elf.MachineElfStartupSize +
+            owner.machine.program.initializers.count * 5 + relocation.offset
         field_virtual := 0x400000 + field_file
         if !Check(Signed32(bytes, field_file) == target + relocation.addend - field_virtual,
             "checked PC-relative relocation value") { return false }
@@ -172,11 +268,22 @@ Preservation :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     if !Check(diagnostic.problem == .UnsupportedTarget && before_count == after.count && fingerprint == actual,
         "failed pipeline preserves prior output") { return false }
     diagnostic = Build(owner, true)
+    if !Check(diagnostic.problem == .None, "read-only initialized data is supported") { return false }
     after = Pipeline.MachineNativeView(owner)
-    actual = 1469598103934665603
-    for byte: after { actual = (actual ^ byte) * 1099511628211 }
-    return Check(diagnostic.problem == .Unsupported && fingerprint == actual,
-        "unsupported read-only data is hard and preserves output")
+    empty: [0]u8
+    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    saw_constant := false
+    for relocation: owner.encoded.image.relocations {
+        if relocation.kind == .ConstantAddress { saw_constant = true }
+    }
+    if !Check(measured.diagnostic.problem == .None && saw_constant,
+        "read-only global uses the constant relocation class") { return false }
+    machine_image := Pipeline.MachineCodeImageView(owner)
+    if !Check(machine_image.constants.bytes.count == 8 && machine_image.constants.bytes[0] == 42 &&
+        machine_image.constant_offsets[0] == 0 && machine_image.global_offsets[0] == -1,
+        "machine image carries initialized read-only bytes") { return false }
+    return Check(Build(owner).problem == .None,
+        "writable image restores after read-only preservation test")
 }
 
 Fingerprint :: (bytes: []u8) -> u64 {
@@ -226,6 +333,8 @@ main :: () -> s32 {
     if !Rejections(*owner) { Pipeline.MachineNativeFree(*owner); return 5 }
     if !Preservation(*owner) { Pipeline.MachineNativeFree(*owner); return 6 }
     if !TransactionalView(*owner) { Pipeline.MachineNativeFree(*owner); return 7 }
+    if !StartupInitializers() { Pipeline.MachineNativeFree(*owner); return 8 }
+    if !PlatformImage() { Pipeline.MachineNativeFree(*owner); return 9 }
     Pipeline.MachineNativeFree(*owner)
     return 0
 }

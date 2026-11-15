@@ -10,7 +10,7 @@ Replace embedded executable `.zir` with the lowered portable instruction program
 
 - [Container records and codec](../cmd/compiler_bundle.zi).
 - [Bundle linker](../cmd/compiler_link.zi), [bundle implementation](../cmd/zir/zir_bundle.c), and [asset handling](../cmd/zir/zir_bundle_assets.c).
-- [Bundle command](../cmd/zir-zx/main.c), [package bundle execution](../cmd/package_bundle_run.zi), and [format documentation](../docs/ZX.md).
+- [Bundle command](../cmd/zi2zx/main.c), [package bundle execution](../cmd/package_bundle_run.zi), and [format documentation](../docs/ZX.md).
 - [Law checking](../cmd/compiler_law.zi) and [proof checking](../cmd/compiler_proof.zi).
 
 Proposed modules: `cmd/compiler_exec_serial.zi`, `cmd/compiler_exec_link.zi`, and `cmd/compiler_exec_variants.zi`. Evolve the existing container owner instead of adding a competing bundle wrapper.

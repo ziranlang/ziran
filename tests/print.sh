@@ -2,7 +2,8 @@
 set -eu
 
 ziran=$1
-zi2asm=${2:-$(dirname -- "$ziran")/zi2asm}
+zi2zx=${2:-$(dirname -- "$ziran")/zi2zx}
+zx2native=${3:-$(dirname -- "$ziran")/zx2native}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/print-XXXXXX")
@@ -86,8 +87,9 @@ for input in "$work/greet.zi" "$work/ir/greet.zir"; do
     cmp "$work/expected-binary" "$work/$suffix-binary.out"
     native_root=$work
     if test "$suffix" = saved; then native_root=$work/ir; fi
-    "$zi2asm" --root "$native_root" --entry greet:Binary --emit elf \
-        -o "$work/$suffix-binary.elf" "$input"
+    "$zi2zx" --root "$native_root" --entry greet:Binary \
+        -o "$work/$suffix-binary.native.zx" "$input"
+    "$zx2native" -o "$work/$suffix-binary.elf" "$work/$suffix-binary.native.zx"
     "$work/$suffix-binary.elf" > "$work/$suffix-binary.native.out"
     cmp "$work/expected-binary" "$work/$suffix-binary.native.out"
 
@@ -184,9 +186,9 @@ string=Ziran percent=%
 EOF
 printf 'view:<ABC>\nslice:<BC> nested:<C>\nliteral-return: 18446744073709551615\n' >> "$work/native.expected"
 "$ziran" ir --root "$work" -o "$work/native-ir" "$work/native_print.zi"
-"$zi2asm" --root "$work/native-ir" --entry native_print:NativePrint --emit zx \
+"$zi2zx" --root "$work/native-ir" --entry native_print:NativePrint \
     -o "$work/native.zx" "$work/native-ir/native_print.zir"
-"$zi2asm" --input zx --opt --emit elf -o "$work/native.elf" "$work/native.zx"
+"$zx2native" -o "$work/native.elf" "$work/native.zx"
 "$work/native.elf" > "$work/native.out"
 cmp "$work/native.expected" "$work/native.out"
 "$ziran" run --target=c --root "$repo/tests" \
@@ -217,10 +219,10 @@ cat > "$work/native_float.zi" <<'EOF'
 NativeFloat :: () { print("%\n", 0.1) }
 EOF
 "$ziran" ir --root "$work" -o "$work/native-float-ir" "$work/native_float.zi"
-"$zi2asm" --root "$work/native-float-ir" --entry native_float:NativeFloat --emit zx \
+"$zi2zx" --root "$work/native-float-ir" --entry native_float:NativeFloat \
     -o "$work/native-float.zx" "$work/native-float-ir/native_float.zir"
 printf 'preserve-output\n' > "$work/native-float.elf"
-if ZIRAN_DIAGNOSTICS=json "$zi2asm" --input zx --opt --emit elf \
+if ZIRAN_DIAGNOSTICS=json "$zx2native" \
     -o "$work/native-float.elf" "$work/native-float.zx" > "$work/native-float.log" 2>&1; then
     echo "native ELF unexpectedly accepted float print formatting" >&2
     exit 1

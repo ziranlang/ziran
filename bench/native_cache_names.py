@@ -43,18 +43,18 @@ def main():
         if '-f FMT' in probe.stdout+probe.stderr and '-o FILE' in probe.stdout+probe.stderr: timer = [tool,'time']
     if not compiler or not timer: parser.error('requires cc and GNU or BusyBox time')
     ref = subprocess.check_output(['git','rev-parse','--verify',args.before_ref+'^{commit}'],cwd=ROOT,text=True).strip()
-    old = subprocess.check_output(['git','show',ref+':cmd/zir-c/zir_c_cache.c'],cwd=ROOT,text=True)
+    old = subprocess.check_output(['git','show',ref+':cmd/zi2c/zir_c_cache.c'],cwd=ROOT,text=True)
     source = (ROOT/'bench/native_cache_names.c').read_text()
-    marker = '#include "../cmd/zir-c/zir_c_cache.c"'
+    marker = '#include "../cmd/zi2c/zir_c_cache.c"'
     assert source.count(marker)==1
-    common = [compiler,'-O2','-D_GNU_SOURCE','-std=c11','-Iinclude','-Icmd/zir','-Ibootstrap/compiler_ir','-Icmd/zir-c']
+    common = [compiler,'-O2','-D_GNU_SOURCE','-std=c11','-Iinclude','-Icmd/zir','-Ibootstrap/compiler_ir','-Icmd/zi2c']
     subprocess.run([*common,'-x','c','-','-x','none','build/libziran.a','-lm','-pthread','-o',str(out/'before')],input=source.replace(marker,old),text=True,cwd=ROOT,env=env,check=True)
     subprocess.run([*common,'bench/native_cache_names.c','build/libziran.a','-lm','-pthread','-o',str(out/'current')],cwd=ROOT,env=env,check=True)
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
     meta = dict(schema=1,platform=platform.platform(),before_ref=ref,repetitions=args.repetitions,measurement_launcher=timer,
                 cpu_affinity=sorted(os.sched_getaffinity(0)) if hasattr(os,'sched_getaffinity') else None,
                 compiler_version=subprocess.check_output([compiler,'--version'],text=True),
-                before_cache_sha256=hashlib.sha256(old.encode()).hexdigest(),current_cache_sha256=sha(ROOT/'cmd/zir-c/zir_c_cache.c'),
+                before_cache_sha256=hashlib.sha256(old.encode()).hexdigest(),current_cache_sha256=sha(ROOT/'cmd/zi2c/zir_c_cache.c'),
                 benchmark_c_sha256=sha(ROOT/'bench/native_cache_names.c'),benchmark_py_sha256=sha(Path(__file__)),
                 binaries={label:sha(out/label) for label in ('before','current')},
                 caveats=['Ordered-name insertion/duplicate checking, content verification and cleanup in one native process; not whole compiler time.',

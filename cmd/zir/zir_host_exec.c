@@ -478,7 +478,7 @@ ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
         if(found == NULL || found->parameter_count != function->parameters.length ||
            (found->result < 0) != (((const LirType *)bundle->program.types.data)[function->result].kind == LirTypeKind_Void)) {
             Diagnostic(Span(name, 1, 1), "zx.input",
-                "executable ZX names no host interface for capability %s:%s; rebuild it with zi2asm --emit zx",
+                "executable ZX names no host interface for capability %s:%s; rebuild it with zi2zx",
                 host->module, host->name);
             goto failed;
         }

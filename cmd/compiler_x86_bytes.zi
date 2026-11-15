@@ -163,6 +163,11 @@ X86Multiply :: (writer: *X86Writer, destination: s32, source: s32) {
     X86Encode(writer, 0, true, 0x0faf, 2, destination, X86Direct(source))
 }
 
+X86MultiplyImmediate :: (writer: *X86Writer, destination: s32, source: s32, value: s64) {
+    X86Encode(writer, 0, true, 105, 1, destination, X86Direct(source), trailing = 4)
+    X86Signed32(writer, value)
+}
+
 // F7 group: 2 not, 3 neg, 6 div, 7 idiv.
 X86Group3 :: (writer: *X86Writer, extension: s32, register: s32) {
     X86Encode(writer, 0, true, 247, 1, extension, X86Direct(register))
@@ -176,6 +181,16 @@ X86ShiftCl :: (writer: *X86Writer, extension: s32, register: s32) {
 X86CompareByte :: (writer: *X86Writer, register: s32, value: s64) {
     X86Encode(writer, 0, true, 131, 1, 7, X86Direct(register))
     X86Little(writer, cast(u64)value, 1)
+}
+
+X86CompareImmediate :: (writer: *X86Writer, register: s32, value: s64) {
+    if X86Fits8(value) {
+        X86Encode(writer, 0, true, 131, 1, 7, X86Direct(register), trailing = 1)
+        X86Little(writer, cast(u64)value, 1)
+        return
+    }
+    X86Encode(writer, 0, true, 129, 1, 7, X86Direct(register), trailing = 4)
+    X86Signed32(writer, value)
 }
 
 // Sign-extending and zero-extending loads into a 64-bit register.

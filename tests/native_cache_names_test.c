@@ -1,4 +1,4 @@
-#include "../cmd/zir-c/zir_c_cache.c"
+#include "../cmd/zi2c/zir_c_cache.c"
 #include <assert.h>
 
 static void path_name(char *text, size_t size, int value)

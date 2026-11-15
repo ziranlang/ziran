@@ -35,7 +35,7 @@ main :: () -> s64 {
 }
 ZI
 
-"$zx" bundle --root "$work" --entry app:main -o "$work/app.zx" "$work/app.zi"
+"$zx" --root "$work" --entry app:main -o "$work/app.zx" "$work/app.zi"
 if grep -aq 'paddw' "$work/app.zx"; then
     echo 'the bundle kept the #asm variant' >&2
     exit 1

@@ -67,10 +67,10 @@ veneers, and writes the platform binary. It is an experimental, incomplete
 path, not a description of support on every target. Generated C and generated
 Go can also become binaries, but those are generated-code routes through their
 own compilers and linkers; they are not native-backend fallback paths.</p>
-<p>This is implemented in the experimental <code>zi2asm</code> route: source-native output
-also serializes and reads ZX first, the same <code>.zx</code> that <code>ziran bundle</code> writes
-and <code>ziran run</code> executes. <code>zi2asm --emit wasm</code> lowers the same verified
-revision-28 payload to a wasm32 module (<code>cmd/zir-wasm/zx_wasm_lower.c</code>), so one
+<p>This is implemented by the format-specific <code>zi2zx</code> and <code>zx2native</code> route:
+source-native output serializes and reads ZX first, the same <code>.zx</code> that
+<code>ziran bundle</code> writes and <code>ziran run</code> executes. <code>zx2wasm</code> lowers the same
+verified revision-28 payload to a wasm32 module (<code>cmd/zx2wasm/zx_wasm_lower.c</code>), so one
 <code>.zx</code> gives one <code>.wasm</code>; <code>ziran build --target=wasm</code> and the bundle Wasm tier
 (<code>cmd/zir/zir_zx_wasm.c</code>) use that lowering too.
 Native source maps currently lose source origins at

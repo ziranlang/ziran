@@ -113,8 +113,56 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
 }
 
 Compile :: (test: *NativeTest, compiler: string, source: string, entry: string, emit: string, output: string) -> bool {
+    if emit == "elf" || emit == "map" {
+        wire := CheckConcat(output, ".zx")
+        lower := string.[compiler, "--root", PathParent(source), "--entry", entry, "-o", wire, source]
+        unused NativeRun(test, lower[:])
+        if test.failed { return false }
+        native := CheckPath(PathParent(compiler), "zx2native")
+        if emit == "map" {
+            arguments := string.[native, "--emit", "map", "-o", output, wire]
+            unused NativeRun(test, arguments[:])
+        } else {
+            arguments := string.[native, "-o", output, wire]
+            unused NativeRun(test, arguments[:])
+        }
+        return !test.failed
+    }
     arguments := string.[compiler, "--root", PathParent(source), "--entry", entry, "--emit", emit, "-o", output, source]
     unused NativeRun(test, arguments[:])
+    return !test.failed
+}
+
+CompileOptimized :: (test: *NativeTest, compiler: string, source: string, entry: string, emit: string, output: string) -> bool {
+    wire_input := source.count >= 3 && source[source.count - 3:] == ".zx"
+    if emit == "elf" || emit == "map" {
+        wire := CheckConcat(output, ".zx")
+        if wire_input {
+            lower := string.[compiler, "--opt", "-o", wire, source]
+            unused NativeRun(test, lower[:])
+        } else {
+            lower := string.[compiler, "--opt", "--root", PathParent(source), "--entry", entry, "-o", wire, source]
+            unused NativeRun(test, lower[:])
+        }
+        if test.failed { return false }
+        native := CheckPath(PathParent(compiler), "zx2native")
+        if emit == "map" {
+            arguments := string.[native, "--emit", "map", "-o", output, wire]
+            unused NativeRun(test, arguments[:])
+        } else {
+            arguments := string.[native, "-o", output, wire]
+            unused NativeRun(test, arguments[:])
+        }
+        return !test.failed
+    }
+    if wire_input {
+        arguments := string.[compiler, "--opt", "--emit", emit, "-o", output, source]
+        unused NativeRun(test, arguments[:])
+    } else {
+        arguments := string.[compiler, "--opt", "--root", PathParent(source), "--entry", entry,
+            "--emit", emit, "-o", output, source]
+        unused NativeRun(test, arguments[:])
+    }
     return !test.failed
 }
 
@@ -123,31 +171,33 @@ WireExercise :: (test: *NativeTest, compiler: string, input: string, entry: stri
     wire := CheckConcat(input, ".zx")
     if !Compile(test, compiler, input, entry, "zx", wire) { return false }
     first := NativeRead(test, wire)
-    source_run := string.[compiler, "--run", "--root", PathParent(input), "--entry", entry, input]
+    source_run := string.[compiler, "run", "--fuel", "9223372036854775807", wire]
     unused NativeRun(test, source_run[:], "", expected)
-    wire_run := string.[compiler, "--run", "--input", "zx", wire]
+    wire_run := string.[compiler, "run", "--fuel", "9223372036854775807", wire]
     unused NativeRun(test, wire_run[:], "", expected)
     if test.failed { return false }
     decoded := CheckConcat(wire, ".lir")
-    decode := string.[compiler, "--input", "zx", "--emit", "lir", "-o", decoded, wire]
+    decode := string.[compiler, "--emit", "lir", "-o", decoded, wire]
     unused NativeRun(test, decode[:])
     if !NativeAssert(test, NativeRead(test, decoded) != "" &&
         !TextContains(NativeRead(test, decoded), input),
         "ZX exposes its optimized instruction listing without source dependencies") { return false }
     rewritten := CheckConcat(wire, ".again")
-    encode := string.[compiler, "--input", "zx", "--emit", "zx", "-o", rewritten, wire]
+    encode := string.[compiler, "--emit", "zx", "-o", rewritten, wire]
     unused NativeRun(test, encode[:])
     if !NativeAssert(test, NativeRead(test, rewritten) == first, "instruction wire encoding must be canonical") { return false }
     if binary != "" {
         executable := CheckConcat(wire, ".elf")
-        native := string.[compiler, "--input", "zx", "--emit", "elf", "-o", executable, wire]
+        native_tool := CheckPath(PathParent(compiler), "zx2native")
+        native := string.[native_tool, "-o", executable, wire]
         unused NativeRun(test, native[:])
         if !NativeAssert(test, NativeRead(test, executable) == NativeRead(test, binary),
             "native encoding must use the same decoded instructions") { return false }
     }
     if mapping != "" {
         mapped := CheckConcat(wire, ".map.json")
-        inspect := string.[compiler, "--input", "zx", "--emit", "map", "-o", mapped, wire]
+        native_tool := CheckPath(PathParent(compiler), "zx2native")
+        inspect := string.[native_tool, "--emit", "map", "-o", mapped, wire]
         unused NativeRun(test, inspect[:])
         if !NativeAssert(test, NativeRead(test, mapped) == NativeRead(test, mapping),
             "decoded instructions must preserve exact source-to-native maps") { return false }
@@ -163,8 +213,8 @@ WireReject :: (test: *NativeTest, compiler: string, wire_path: string) -> bool {
     output := CheckPath(test.work, "preserved.lir")
     for bytes: malformed {
         if !NativeWrite(test, input, bytes) || !NativeWrite(test, output, "preserve this output") { return false }
-        arguments := string.[compiler, "--diagnostics=json", "--input", "zx", "--emit", "lir", "-o", output, input]
-        if !NativeReject(test, arguments[:], "assembly.container") ||
+        arguments := string.[compiler, "--diagnostics=json", "--emit", "lir", "-o", output, input]
+        if !NativeReject(test, arguments[:], "zx.container") ||
             !NativeAssert(test, NativeRead(test, output) == "preserve this output", "rejected wire input must not replace outputs") { return false }
     }
     return !test.failed
@@ -172,7 +222,8 @@ WireReject :: (test: *NativeTest, compiler: string, wire_path: string) -> bool {
 
 MapSelect :: (test: *NativeTest, compiler: string, wire: string) -> bool {
     output := CheckPath(test.work, "selected.map.json")
-    arguments := string.[compiler, "--input", "zx", "--emit", "map", "-o", output, wire]
+    native := CheckPath(PathParent(compiler), "zx2native")
+    arguments := string.[native, "--emit", "map", "-o", output, wire]
     unused NativeRun(test, arguments[:])
     full: JsonDocument
     if test.failed || !NativeAssert(test, JsonRead(*full, NativeRead(test, output)), "full inspection map must parse") { return false }
@@ -276,8 +327,8 @@ MapSelect :: (test: *NativeTest, compiler: string, wire: string) -> bool {
     }
     for mode: 0..1 {
         if !NativeWrite(test, output, "preserved inspection") { return false }
-        bad_function := string.[compiler, "--diagnostics=json", "--input", "zx", "--emit", "map", "--function-id", "65536", "-o", output, wire]
-        bad_block := string.[compiler, "--diagnostics=json", "--input", "zx", "--emit", "map", "--function-id", "0", "--block-id", "2147483647", "-o", output, wire]
+        bad_function := string.[native, "--diagnostics=json", "--emit", "map", "--function-id", "65536", "-o", output, wire]
+        bad_block := string.[native, "--diagnostics=json", "--emit", "map", "--function-id", "0", "--block-id", "2147483647", "-o", output, wire]
         if mode == 0 { if !NativeReject(test, bad_function[:], "assembly.inspect") { return false } }
         else { if !NativeReject(test, bad_block[:], "assembly.inspect") { return false } }
         if !NativeAssert(test, NativeRead(test, output) == "preserved inspection", "invalid selections must preserve existing output") { return false }
@@ -298,8 +349,8 @@ MapSelect :: (test: *NativeTest, compiler: string, wire: string) -> bool {
         if test.failed || !NativeAssert(test, NativeRead(test, output) == "preserved usage output",
             "invalid selection syntax must fail before replacing output") { return false }
     }
-    run_selection := string.[compiler, "--run", "--input", "zx", "--function-id", "0", wire]
-    unused NativeRun(test, run_selection[:], "", 2)
+    run_selection := string.[compiler, "run", "--function-id", "0", wire]
+    unused NativeRun(test, run_selection[:], "", 1)
     return !test.failed
 }
 
@@ -333,14 +384,15 @@ WireInspect :: (test: *NativeTest, compiler: string, wire_path: string) -> bool 
     input := CheckPath(test.work, "inspection-name.zx")
     output := CheckPath(test.work, "inspection-name.lir")
     if !NamedImage(test, wire, input, "An\nwer") { return false }
-    inspect := string.[compiler, "--input", "zx", "--emit", "lir", "-o", output, input]
+    inspect := string.[compiler, "--emit", "lir", "-o", output, input]
     unused NativeRun(test, inspect[:])
     if test.failed || !NativeAssert(test, TextContains(NativeRead(test, output), "name=\"An\\x0awer\""),
         "instruction listings must quote control bytes in function names") { return false }
-    execute := string.[compiler, "--run", "--input", "zx", input]
+    execute := string.[compiler, "run", "--fuel", "9223372036854775807", input]
     unused NativeRun(test, execute[:], "", 42)
     mapped := CheckPath(test.work, "inspection-name.map.json")
-    mapping := string.[compiler, "--input", "zx", "--emit", "map", "-o", mapped, input]
+    native := CheckPath(PathParent(compiler), "zx2native")
+    mapping := string.[native, "--emit", "map", "-o", mapped, input]
     unused NativeRun(test, mapping[:])
     document: JsonDocument
     if !NativeAssert(test, JsonRead(*document, NativeRead(test, mapped)), "control names must retain valid JSON inspection") { return false }
@@ -357,7 +409,7 @@ WireInspect :: (test: *NativeTest, compiler: string, wire_path: string) -> bool 
     invalid_bytes: [1]u8 = .[255]
     malformed := CheckConcat(wire[:position + 2], CheckConcat(TextView(invalid_bytes[:]), wire[position + 3:]))
     if !NativeWrite(test, input, malformed) || !NativeWrite(test, mapped, "preserved map") { return false }
-    invalid := string.[compiler, "--diagnostics=json", "--input", "zx", "--emit", "map", "-o", mapped, input]
+    invalid := string.[native, "--diagnostics=json", "--emit", "map", "-o", mapped, input]
     if !NativeReject(test, invalid[:], "assembly.container") ||
         !NativeAssert(test, NativeRead(test, mapped) == "preserved map", "tampered name bytes must not bypass ZX identity validation") { return false }
     return !test.failed
@@ -464,24 +516,13 @@ OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
         for emit: emissions {
             if index == 2 && emit == "opt-report" { continue }
             output := CheckPath(test.work, CheckConcat("optimized-", CheckConcat(forms[index], CheckConcat(".", emit))))
-            arguments: Vec(string)
-            defer VecFree(arguments)
-            VecPush(arguments, compiler); VecPush(arguments, "--opt")
-            if index == 2 { VecPush(arguments, "--input"); VecPush(arguments, "zx") }
-            else {
-                VecPush(arguments, "--root"); VecPush(arguments, PathParent(inputs[index]))
-                VecPush(arguments, "--entry"); VecPush(arguments, "optimization:Answer")
-            }
-            VecPush(arguments, "--emit"); VecPush(arguments, emit)
-            VecPush(arguments, "-o"); VecPush(arguments, output); VecPush(arguments, inputs[index])
-            unused NativeRun(test, arguments[:])
-            if test.failed { return false }
+            if !CompileOptimized(test, compiler, inputs[index], "optimization:Answer", emit, output) { return false }
             baseline := CheckPath(test.work, CheckConcat("optimized-source.", emit))
             if index > 0 && !(index == 2 && emit == "lir") && !NativeAssert(test, NativeRead(test, output) == NativeRead(test, baseline),
                 "source, saved and wire optimization must produce identical inspection and output") { return false }
         }
         optimized_wire := CheckPath(test.work, CheckConcat("optimized-", CheckConcat(forms[index], ".zx")))
-        execute := string.[compiler, "--run", "--input", "zx", optimized_wire]
+        execute := string.[compiler, "run", "--fuel", "9223372036854775807", optimized_wire]
         unused NativeRun(test, execute[:], "", 42)
         if native_execution {
             executable := string.[CheckPath(test.work, CheckConcat("optimized-", CheckConcat(forms[index], ".elf")))]
@@ -513,14 +554,14 @@ OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
     if !Inspect(test, map, executable) { return false }
     stdout_report := string.[compiler, "--opt", "--root", PathParent(input), "--entry", "optimization:Answer", "--emit", "opt-report", "-o", "-", input]
     if !NativeExpect(test, stdout_report[:], report) { return false }
-    fuel_empty := string.[compiler, "--opt", "--run", "--input", "zx", "--fuel", "0", wire]
+    fuel_empty := string.[compiler, "run", "--fuel", "0", wire]
     unused NativeRun(test, fuel_empty[:], "", 125)
-    fuel_once := string.[compiler, "--opt", "--run", "--input", "zx", "--fuel", "1", wire]
+    fuel_once := string.[compiler, "run", "--fuel", "1", wire]
     unused NativeRun(test, fuel_once[:], "", 42)
     output := CheckPath(test.work, "optimization-untouched")
     if !NativeWrite(test, output, "preserved optimization output") { return false }
-    invalid := string.[compiler, "--input", "zx", "--emit", "opt-report", "-o", output, wire]
-    unused NativeRun(test, invalid[:], "", 2)
+    invalid := string.[compiler, "--emit", "opt-report", "-o", output, wire]
+    unused NativeRun(test, invalid[:], "", 1)
     if test.failed || !NativeAssert(test, NativeRead(test, output) == "preserved optimization output",
         "reporting must not silently enable optimization or overwrite output on invalid usage") { return false }
     trap_names := string.["opt_divide_trap", "opt_shift_trap", "opt_convert_trap", "opt_negative_index",
@@ -538,19 +579,20 @@ OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
         name := trap_names[index]
         if !Exercise(test, compiler, name, trap_sources[index], 125, 134) { return false }
         trap_wire := CheckPath(test.work, CheckConcat(name, ".zi.zx"))
-        trap_run := string.[compiler, "--opt", "--run", "--input", "zx", trap_wire]
+        trap_run := string.[compiler, "run", "--fuel", "9223372036854775807", trap_wire]
         unused NativeRun(test, trap_run[:], "", 125)
         if name == "opt_local_destination_order" {
-            diagnostic_run := string.[compiler, "--diagnostics=json", "--run", "--input", "zx", trap_wire]
+            diagnostic_run := string.[compiler, "run", "--diagnostics=json", "--fuel", "9223372036854775807", trap_wire]
             diagnostic := NativeRun(test, diagnostic_run[:], "", 125)
-            optimized_diagnostic_run := string.[compiler, "--opt", "--diagnostics=json", "--run", "--input", "zx", trap_wire]
+            optimized_diagnostic_run := string.[compiler, "run", "--diagnostics=json", "--fuel", "9223372036854775807", trap_wire]
             optimized_diagnostic := NativeRun(test, optimized_diagnostic_run[:], "", 125)
             if test.failed || !NativeAssert(test, TextContains(diagnostic.error, "problem=type") &&
                 TextContains(optimized_diagnostic.error, "problem=type"),
                 "local destination bounds must fail before the right-side divide in both optimization modes") { return false }
         }
         trap_elf := CheckPath(test.work, CheckConcat(name, "-optimized"))
-        trap_build := string.[compiler, "--opt", "--input", "zx", "-o", trap_elf, trap_wire]
+        native := CheckPath(PathParent(compiler), "zx2native")
+        trap_build := string.[native, "-o", trap_elf, trap_wire]
         unused NativeRun(test, trap_build[:])
         if native_execution {
             trap_execute := string.[trap_elf]
@@ -575,15 +617,17 @@ GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: st
         unused NativeRun(test, bundle_build[:])
         bundle_run := string.[test.ziran, "run", bundle]
         if test.failed || !NativeExpect(test, bundle_run[:], "42\n") { return false }
-        optimized := string.[compiler, "--opt", "--run", "--root", PathParent(inputs[index]), "--entry", entry, inputs[index]]
+        optimized_image := CheckConcat(inputs[index], ".optimized.zx")
+        if !CompileOptimized(test, compiler, inputs[index], entry, "zx", optimized_image) { return false }
+        optimized := string.[compiler, "run", "--fuel", "9223372036854775807", optimized_image]
         unused NativeRun(test, optimized[:], "", 42)
-        optimized_wire := string.[compiler, "--opt", "--run", "--input", "zx", CheckConcat(inputs[index], ".zx")]
+        optimized_wire := string.[compiler, "run", "--fuel", "9223372036854775807", CheckConcat(inputs[index], ".zx")]
         unused NativeRun(test, optimized_wire[:], "", 42)
         if test.failed { return false }
         if !native_execution { continue }
         optimized_executable := CheckPath(test.work, CheckConcat(form, "-optimized-elf"))
-        optimized_build := string.[compiler, "--opt", "--input", "zx", "-o", optimized_executable,
-            CheckConcat(inputs[index], ".zx")]
+        native := CheckPath(PathParent(compiler), "zx2native")
+        optimized_build := string.[native, "-o", optimized_executable, optimized_image]
         unused NativeRun(test, optimized_build[:])
         optimized_run := string.[optimized_executable]
         unused NativeRun(test, optimized_run[:], "", 42)
@@ -614,7 +658,7 @@ GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: st
 }
 
 RunLimits :: (test: *NativeTest, compiler: string, wire: string, flag: string, budget: string, problem: string) -> bool {
-    arguments := string.[compiler, "--diagnostics=json", "--run", "--input", "zx", flag, budget, wire]
+    arguments := string.[compiler, "run", "--diagnostics=json", flag, budget, wire]
     result := NativeRun(test, arguments[:], "", 125)
     return NativeAssert(test, TextContains(result.error, "assembly.execute") && TextContains(result.error, problem),
         "execution resource failure must identify the exact budget and instruction")
@@ -643,14 +687,16 @@ HostExercise :: (test: *NativeTest, compiler: string) -> bool {
         !NativeAssert(test, NativeRead(test, second) == first, "source and saved IR host lowering must agree") { return false }
     bundle := CheckPath(test.work, "host_calls.zx")
     if !Compile(test, compiler, input, entry, "zx", bundle) { return false }
-    run := string.[compiler, "--diagnostics=json", "--input", "zx", "--run", bundle]
+    run := string.[compiler, "run", "--diagnostics=json", "--fuel", "9223372036854775807", bundle]
     result := NativeRun(test, run[:], "", 125)
     if !NativeAssert(test, TextContains(result.error, "assembly.execute") && TextContains(result.error, "problem=host"),
         "an unbound host capability must stop the run before execution") { return false }
     native_output := CheckPath(test.work, "host_calls")
     if !NativeWrite(test, native_output, "preserved native host output") { return false }
-    native := string.[compiler, "--diagnostics=json", "--root", test.work, "--entry", entry,
-        "-o", native_output, input]
+    native_tool := CheckPath(PathParent(compiler), "zx2native")
+    native_wire := CheckPath(test.work, "host_calls-native.zx")
+    if !Compile(test, compiler, input, entry, "zx", native_wire) { return false }
+    native := string.[native_tool, "--diagnostics=json", "-o", native_output, native_wire]
     if !NativeReject(test, native[:], "assembly.gap.native-platform-service-unavailable") ||
         !NativeAssert(test, NativeRead(test, native_output) == "preserved native host output",
             "a missing native host ABI must not select another engine or replace output") { return false }
@@ -670,13 +716,14 @@ HostExercise :: (test: *NativeTest, compiler: string) -> bool {
     providers := string.[provider_input, CheckPath(bound_saved, "host_provider.zir")]
     bind := "host_bound:Input=host_provider:Provide"
     for form: 0..1 {
-        bound_run := string.[compiler, "--run", "--root", roots[form], "--entry",
-            "host_bound:Answer", "--bind", bind, consumers[form], providers[form]]
+        bound_wire := CheckPath(test.work, CheckConcat("host-bound-", CheckConcat(CheckNumber(form), ".zx")))
+        bound_build := string.[compiler, "--root", roots[form], "--entry",
+            "host_bound:Answer", "--bind", bind, "-o", bound_wire, consumers[form], providers[form]]
+        unused NativeRun(test, bound_build[:])
+        bound_run := string.[compiler, "run", "--fuel", "9223372036854775807", bound_wire]
         unused NativeRun(test, bound_run[:], "", 42)
         bound_output := CheckPath(test.work, CheckConcat("host-bound-", CheckNumber(form)))
-        bound_native := string.[compiler, "--root", roots[form], "--entry",
-            "host_bound:Answer", "--bind", bind, "-o", bound_output,
-            consumers[form], providers[form]]
+        bound_native := string.[native_tool, "-o", bound_output, bound_wire]
         unused NativeRun(test, bound_native[:])
         if native_execution {
             bound_execute := string.[bound_output]
@@ -728,20 +775,21 @@ StringExercise :: (test: *NativeTest, compiler: string) -> bool {
         !NativeAssert(test, NativeRead(test, second) == first, "source and saved IR string lowering must agree") { return false }
     bundle := CheckPath(test.work, "strings.zx")
     if !Compile(test, compiler, input, entry, "zx", bundle) { return false }
-    run := string.[compiler, "--input", "zx", "--run", bundle]
+    run := string.[compiler, "run", "--fuel", "9223372036854775807", bundle]
     unused NativeRun(test, run[:], "", 42)
     native_output := CheckPath(test.work, "strings")
     if !NativeWrite(test, native_output, "preserved native string output") { return false }
-    native := string.[compiler, "--diagnostics=json", "--root", test.work, "--entry", entry,
-        "-o", native_output, input]
+    native_tool := CheckPath(PathParent(compiler), "zx2native")
+    native := string.[native_tool, "--diagnostics=json", "-o", native_output, bundle]
     if test.failed || !NativeReject(test, native[:], "assembly.gap.native-string-compare") ||
         !NativeAssert(test, NativeRead(test, native_output) == "preserved native string output",
             "missing native string comparison must not select another engine or replace output") { return false }
     compare_input := CheckPath(test.work, "string_compare.zi")
     compare_source := "Answer :: () -> s64 { left := \"layout\"; right := \"event\"; if left == right { return 1 }; return 42 }\n"
     if !NativeWrite(test, compare_input, compare_source) { return false }
-    compare := string.[compiler, "--diagnostics=json", "--root", test.work,
-        "--entry", "string_compare:Answer", "-o", native_output, compare_input]
+    compare_wire := CheckPath(test.work, "string_compare.zx")
+    if !Compile(test, compiler, compare_input, "string_compare:Answer", "zx", compare_wire) { return false }
+    compare := string.[native_tool, "--diagnostics=json", "-o", native_output, compare_wire]
     return NativeReject(test, compare[:], "assembly.gap.native-string-compare") &&
         NativeAssert(test, NativeRead(test, native_output) == "preserved native string output",
             "missing native string comparison must not select another engine or replace output")
@@ -763,7 +811,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     host := NativeRun(*test, host_command[:])
     native_execution = TextContains(host.output, "Linux") && TextContains(host.output, "x86_64")
     if !native_execution { print("direct ELF encoding/maps only: execution requires Linux x86-64\n") }
-    compiler := CheckPath(PathParent(test.ziran), "zi2asm")
+    compiler := CheckPath(PathParent(test.ziran), "zi2zx")
     scalar := NativeRead(*test, CheckPath(test.repo, "tests/spec/assembly_scalar.zi"))
     if !Exercise(*test, compiler, "scalar", scalar, 42) { return 1 }
     if !WireReject(*test, compiler, CheckPath(test.work, "scalar.zi.zx")) { return 1 }
@@ -890,10 +938,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !GlobalExercise(*test, compiler, "runtime_initializer", runtime_initializer, "global.address") { return 1 }
     if !HostExercise(*test, compiler) || !StringExercise(*test, compiler) { return 1 }
     broken := CheckPath(test.work, "unsupported.zi")
+    broken_wire := CheckPath(test.work, "unsupported.zx")
     output := CheckPath(test.work, "untouched")
     if !NativeWrite(*test, broken, "Answer :: () -> s32 { print(\"%\\n\", 0.1); return 0 }\n") ||
         !NativeWrite(*test, output, "keep this output unchanged") { return 1 }
-    rejected := string.[compiler, "--diagnostics=json", "--root", test.work, "--entry", "unsupported:Answer", "-o", output, broken]
+    lower := string.[compiler, "--root", test.work, "--entry", "unsupported:Answer", "-o", broken_wire, broken]
+    unused NativeRun(*test, lower[:])
+    native := CheckPath(PathParent(compiler), "zx2native")
+    rejected := string.[native, "--diagnostics=json", "-o", output, broken_wire]
     if !NativeReject(*test, rejected[:], "assembly.gap.native-float-format") ||
         !NativeAssert(*test, NativeRead(*test, output) == "keep this output unchanged", "failed lowering must not overwrite outputs") { return 1 }
     return ifx test.failed then 1 else 0

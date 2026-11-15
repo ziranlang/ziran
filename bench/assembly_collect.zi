@@ -260,9 +260,8 @@ ValidSelector :: (job: *CollectJob) -> bool {
     if job.selector == "lowered-portable" {
         expected_input := ifx job.phase == "coldcompile" ||
             job.phase == "bundle-size" then job.artifact else job.input_path
-        return PathName(selection[0]) == "zi2asm" && Contains(flags, "--run") &&
-            ContainsPair(flags, "--input", "zx") &&
-            flags[flags.count - 1] == expected_input
+        return PathName(selection[0]) == "zi2zx" && flags.count == 2 && flags[0] == "run" &&
+            flags[1] == expected_input
     }
     if job.selector == "direct-aot" {
         return job.artifact != "-" && selection[0] == job.artifact

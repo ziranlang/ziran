@@ -33,8 +33,8 @@ or open. This is automatic for ordinary Ziran locals; a generated-C caller uses
 the normal `{0}` initialization.
 
 An instance owns all mutable state: global bytes, derived-address provenance,
-frame bytes, value-validity state, the explicit frame stack, the copied result,
-and resource counters. `identity` must be nonzero and unique among instances
+frame bytes and words, the explicit frame stack, the copied result, and
+resource counters. `identity` must be nonzero and unique among instances
 whose pointer values can meet. Reopening an instance reconstructs its globals
 from the program initializers.
 
@@ -44,16 +44,31 @@ instance-owned result storage.
 
 ## Execution model
 
-The engine indexes verified instructions directly. It does not load `.zir`,
-evaluate the source AST, evaluate generated C fragments, or fall back to
-another evaluator.
+The engine runs verified instructions only. It does not load `.zir`, evaluate
+the source AST, evaluate generated C fragments, or fall back to another
+evaluator. When the plan is built, each verified function is translated once
+into compact code: one entry per instruction, specialized by operation and
+width, with its operands' frame words and storage offsets resolved and each
+edge's argument copies listed. One loop runs it. Constants, null, function
+addresses and fuel need no code: a frame starts with those words written.
+Common pairs run as one entry: a compare and the branch on it, an address
+derivation and the load or store that is its only use, a field address that is
+only the base of the next derivation, two word extracts, and an add before a
+jump. Anything the compact code does not run itself (calls through function
+values, host calls, allocation, resizing, traps) and every failure goes to the
+reference implementation, which runs one verified instruction at a time;
+`LirExecRunReference` runs a whole call that way.
 
 Calls push bounded `LirExecFrame` records onto an explicit vector. Recursion
 therefore consumes the configured frame budget rather than the host language
-call stack. Each frame has packed value storage plus validity bytes. Block
-transfers first copy every edge argument to frame scratch and then publish all
-block parameters, so swaps and other parallel-transfer cycles retain their
-incoming values.
+call stack. Each frame has packed storage for records and arrays and one word
+per scalar value. Values carry no definedness state: the verifier proves every
+use is dominated by its definition and has its operand's type, and values from
+outside the plan (call arguments, host results, global images) are checked
+where they come in. Block transfers whose arguments could overwrite each other
+first copy every argument to frame scratch and then publish all block
+parameters, so swaps and other parallel-transfer cycles retain their incoming
+values; transfers proven free of overlap copy in order.
 
 Writable globals are instance-local packed byte storage. Pointer values are
 opaque tokens naming an instance identity and a checked global-derived
@@ -75,8 +90,13 @@ negation flips the IEEE sign bit, preserving signed zero and NaN payload bits.
 Fuel is consumed only by explicit `fuel` instructions, making it a stable
 semantic checkpoint independent of dispatch implementation. Work is charged
 separately for instruction dispatch, copies, and aggregate/member traversal.
-Frames, live values, derived addresses, and total value bytes have independent
-limits.
+The compact code charges the work and fuel of a run of instructions (up to the
+next one it hands over) when it enters it. When they do not fit, or anything
+in the run fails, it gives back what the instructions it has not run were
+charged and hands the run to the reference implementation from there, so a
+limit or failure stops at the same instruction, with the same remaining work
+and fuel, as charging instruction by instruction. Frames, live values, derived
+addresses, and total value bytes have independent limits.
 
 Every runtime failure reports a `LirExecProblem`. Failures at an executing
 instruction also report function, block, instruction, source origin, remaining
@@ -153,7 +173,7 @@ capability values, state serialization or
 migration, thread-safe concurrent use of one instance, or parallel/SIMD
 dispatch. The executable `.zx` reader, `ziran run`, and the embedding API
 route bundles through this engine; the Wasm tier and native ELF output are
-separate `zi2asm` lowering routes.
+separate `zx2wasm` and `zx2native` lowering routes.
 
 ## Local verification
 

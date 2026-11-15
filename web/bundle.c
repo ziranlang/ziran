@@ -1,5 +1,5 @@
 /* Browser clients supply ordinary source files and module search roots in
- * Emscripten's filesystem. This is the zi2zx bundle pipeline, without UI
+ * Emscripten's filesystem. This is the zi2zx pipeline, without UI
  * policy: the program becomes revision-28 executable ZX. */
 #include "zir.h"
 #include "zir_check.h"

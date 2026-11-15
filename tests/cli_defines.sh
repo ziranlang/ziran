@@ -57,7 +57,7 @@ int main(void) { return Answer() == $expected ? 0 : 1; }
 EOF
         "${CC:-cc}" -std=c11 -O1 -I"$output" "$output"/*.c -o "$output/test"
         "$output/test"
-        "$tool_dir/zi2zx" bundle --root "$module_root" "$@" \
+        "$tool_dir/zi2zx" --root "$module_root" "$@" \
             --entry main:Answer -o "$work/$platform-$form.zx" "$input"
         test "$("$tool_dir/zi2zx" run "$work/$platform-$form.zx")" = "$expected"
     done
@@ -71,7 +71,7 @@ if "$tool_dir/zi2zir" --check-only --root "$work" \
 fi
 
 for name in 'ANDROID-BUILD' '1ANDROID' ''; do
-    if "$tool_dir/zi2zx" bundle --root "$work" --entry main:Answer \
+    if "$tool_dir/zi2zx" --root "$work" --entry main:Answer \
         -o "$work/invalid.zx" --define "$name" "$work/main.zi" >/dev/null 2>&1; then
         echo 'Zx accepted an invalid compiler definition' >&2
         exit 1
@@ -82,7 +82,7 @@ for name in 'ANDROID-BUILD' '1ANDROID' ''; do
         exit 1
     fi
 done
-if "$tool_dir/zi2zx" bundle --root "$work" --entry main:Answer \
+if "$tool_dir/zi2zx" --root "$work" --entry main:Answer \
     -o "$work/invalid.zx" --define >/dev/null 2>&1; then
     echo 'Zx accepted --define without a name' >&2
     exit 1

@@ -5,8 +5,8 @@ boundary for the current lowered-IR subset, deterministic
 [register allocation](#register-allocation), a separate allocated-program
 verifier, and a [direct x86-64 encoder](#machine-code-encoder) that turns a
 verified allocated program into an in-memory code image with relocations.
-The encoder is not yet connected to `zi2asm`, an ELF writer or a native ZX
-loader, and none of this completes [step 06](06-optimization-and-native-backend.md)
+The encoder is not yet selected by `zx2native` or a native ZX loader, and none
+of this completes [step 06](06-optimization-and-native-backend.md)
 or milestone M2. The implemented native call ABI is general-register only;
 float and vector call arguments and results and stack-passed arguments are
 [unsupported forms](#supported-call-forms) that fail with a stable diagnostic.
@@ -228,7 +228,7 @@ the image only after verification, form checks and measuring succeed; any
 diagnostic leaves the output owner unchanged. Every instruction form the
 encoder does not implement is a hard diagnostic, never another engine.
 
-Still required: wiring the machine-IR path into `zi2asm` and an executable
+Still required: making the machine-IR path the one `zx2native` encoder and executable
 writer, the full SysV call ABI, external ABI classification, relocatable
 objects/linking, unwind/debug information, native ZX loading, the remaining
 target matrix, removal of the direct LIR encoder at the M2 exit, and
@@ -238,10 +238,10 @@ physical-Alpha performance validation.
 
 Direct native code means that Ziran's own encoders write machine code from
 verified IR, with no generated C, external assembler, C compiler or system
-linker. Two such paths exist: the direct LIR encoder behind `zi2asm`, which
+linker. Two such paths exist: the direct LIR encoder behind `zx2native`, which
 reads verified ZX instructions and writes a Linux x86-64 ELF executable, and
-this machine-IR path, which produces a verified relocatable image and feeds
-the internal ELF writer through `zi2asm --machine --emit elf`. Source and saved
+this machine-IR path, which produces a verified relocatable image but is not
+yet selected by the CLI. Source and saved
 `.zir` first go through optimized ZX serialization and verification on both
 paths. In-memory native ZX loading and runtime cutover remain milestone M3.
 

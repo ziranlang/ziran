@@ -65,6 +65,21 @@ PlanChecks :: (checks: []CheckCase) -> Vec(s64) {
 
 CheckArguments :: (name: string, bin: string, tests: string) -> Vec(string) {
     result: Vec(string)
+    if name == "native_backend_policy" || name == "x86_encoder" {
+        VecPush(result, CheckPath(bin, "ziran"))
+        VecPush(result, "run")
+        VecPush(result, "--target=c")
+        VecPush(result, "--root")
+        VecPush(result, tests)
+        if name == "x86_encoder" {
+            VecPush(result, "--module-path")
+            VecPush(result, CheckPath(tests, "../cmd"))
+            VecPush(result, CheckPath(tests, "x86_encoder_cases.zi"))
+        } else {
+            VecPush(result, CheckPath(tests, "native_backend_policy_cases.zi"))
+        }
+        return result
+    }
     if name == "bundle-link-test" {
         VecPush(result, CheckPath(bin, name))
         return result
@@ -79,6 +94,8 @@ CheckArguments :: (name: string, bin: string, tests: string) -> Vec(string) {
     if name == "portable_host_records.sh" { extra = "record-host-test" }
     if name == "record_fields_by_name.sh" { extra = "record-fields-by-name-test" }
     if name == "process.sh" { extra = "process-host-test" }
+    if name == "native_wx.sh" { extra = "native-wx-test" }
+    if name == "native_load.sh" { extra = "native-load-test" }
     if extra != "" { VecPush(result, CheckPath(bin, extra)) }
     return result
 }
@@ -86,6 +103,12 @@ CheckArguments :: (name: string, bin: string, tests: string) -> Vec(string) {
 DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) {
     checks: Vec(CheckCase)
     tests := CheckPath(repo, "tests")
+    if TextContains("native_backend_policy", filter) {
+        VecPush(checks, CheckCase.{.name = "native_backend_policy"})
+    }
+    if TextContains("x86_encoder", filter) {
+        VecPush(checks, CheckCase.{.name = "x86_encoder", .cost = 2})
+    }
     if TextContains("bundle-link-test", filter) { VecPush(checks, CheckCase.{.name = "bundle-link-test"}) }
     names: Vec(string)
     if !ListDirectory(tests, *names) { return .{} }

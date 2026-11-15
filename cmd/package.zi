@@ -13,6 +13,7 @@
 #import "package_template"
 #import "package_script"
 #import "package_bundle_run"
+#import "package_learn"
 #import "file_linux"
 
 #if CPU == .ARM64 {
@@ -440,6 +441,10 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
             native: [10]string = .[native_tool, "--target", PkgHostNativeTarget,
                 "--platform", "linux", "--emit", "elf", "-o", output, verified]
             code = PkgRun(native[:], "", names[0:environment], values[0:environment])
+            if code == 0 {
+                LearnRecord(tool_directory, verified, output, PkgHostNativeTarget,
+                    names[0:environment], values[0:environment])
+            }
         }
         unused RemoveFile(verified)
         return code
@@ -732,6 +737,7 @@ PkgUsage :: (command: string) -> string {
     if command == "features" { return "usage: ziran features [--json] [--id FEATURE_ID]\n" }
     if command == "capabilities" { return "usage: ziran capabilities [--target=c|go|zx] [--json]\n" }
     if command == "explain" { return "usage: ziran explain CODE [--json] | ziran explain --list [--json]\n" }
+    if command == "learn" { return LearnUsage() }
     if command == "api" {
         return "usage: ziran api [--json] [--diagnostics=text|json] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] --root DIR file.zi|file.zir ...\n"
     }
@@ -810,7 +816,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     PkgSetDiagnosticFormat(arguments)
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
+        PkgPrint("usage: ziran version|guide|features|capabilities|explain|learn|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
         PkgPrint("scripts: ziran FILE.zi [ARGS] | ziran run --target=c [--no-cache] FILE.zi -- ARGS\n", false)
@@ -834,6 +840,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "features" { return Features(arguments[1:]) }
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }
+    if command == "learn" { return Learn(arguments[1:]) }
     if command == "add" { return Add(launcher, arguments[1:]) }
     separator: s32 = PkgAfterSeparator(arguments)
     script_flags: []string = arguments[0:ScriptArgumentEnd(arguments)]

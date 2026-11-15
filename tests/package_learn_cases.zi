@@ -1,0 +1,89 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#scope_file
+// Machine-code records (ELF copies) across the whole corpus.
+Records :: (corpus: string) -> s64 {
+    programs := CheckPath(corpus, "programs")
+    folders: Vec(string)
+    if !ListDirectory(programs, *folders) { return 0 }
+    total: s64 = 0
+    for folder: folders {
+        files: Vec(string)
+        if !ListDirectory(CheckPath(programs, folder), *files) { continue }
+        for file: files { if TextHasSuffix(file, ".elf") { total += 1 } }
+    }
+    return total
+}
+
+Build :: (test: *NativeTest, root: string, name: string) -> bool {
+    command := string.["build", "--root", CheckPath(root, "src"), "-o", CheckPath(root, name),
+        CheckPath(root, CheckConcat("src/", CheckConcat(name, ".zi")))]
+    unused PackageCommand(test, root, command[:])
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-learn-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    root := test.work
+    if !FixtureIsolation(*test, root) { return 1 }
+    unset := string.["XDG_CONFIG_HOME", "XDG_DATA_HOME", "ZIRAN_LEARN", "ZIRAN_LEARN_DIR"]
+    for name: unset { NativeUnset(*test, name) }
+    corpus := CheckPath(root, "home/.local/share/ziran/learn")
+    if !NativeWrite(*test, CheckPath(root, "src/hello.zi"), "main :: () {\n    print(\"hello\\n\");\n}\n") ||
+        !NativeWrite(*test, CheckPath(root, "src/sum.zi"), "main :: () {\n    total: s64 = 0\n    for i: 0..9 { total += i }\n    print(\"%\\n\", total)\n}\n") ||
+        !NativeWrite(*test, CheckPath(root, "src/three.zi"), "main :: () {\n    print(\"three\\n\");\n}\n") { return 1 }
+
+    status := string.["learn", "status"]
+    if !NativeAssert(*test, TextContains(PackageCommand(*test, root, status[:]), "recording: off"), "recording is not off by default") { return 1 }
+    if !Build(*test, root, "hello") { return 1 }
+    if !NativeAssert(*test, !IsDirectory(corpus), "a build recorded while recording was off") { return 1 }
+
+    on := string.["learn", "on", "--limit-mb", "64"]
+    unused PackageCommand(*test, root, on[:])
+    if !Build(*test, root, "hello") { return 1 }
+    if !NativeAssert(*test, Records(corpus) == 1, "an enabled native build was not recorded") { return 1 }
+    programs: Vec(string)
+    if !NativeAssert(*test, ListDirectory(CheckPath(corpus, "programs"), *programs) && programs.count == 1, "missing program folder") { return 1 }
+    folder := CheckPath(CheckPath(corpus, "programs"), programs[0])
+    files: Vec(string)
+    if !NativeAssert(*test, ListDirectory(folder, *files), "cannot list the record") { return 1 }
+    map := ""
+    for file: files { if TextHasSuffix(file, ".map.json") { map = CheckPath(folder, file) } }
+    if !NativeAssert(*test, IsFile(CheckPath(folder, "program.zx")) && map != "" &&
+        TextContains(NativeRead(*test, map), "ziran-native-map"), "the record lacks its program or machine map") { return 1 }
+    lir := TextReplace(map, ".map.json", ".lir")
+    if !NativeAssert(*test, IsFile(lir) && TextHasPrefix(NativeRead(*test, lir), "lir "), "the record lacks its lowered input") { return 1 }
+
+    if !Build(*test, root, "hello") { return 1 }
+    if !NativeAssert(*test, Records(corpus) == 1, "rebuilding the same program recorded it twice") { return 1 }
+    NativeSet(*test, "ZIRAN_LEARN", "off")
+    if !Build(*test, root, "sum") { return 1 }
+    if !NativeAssert(*test, Records(corpus) == 1, "ZIRAN_LEARN=off still recorded") { return 1 }
+    NativeUnset(*test, "ZIRAN_LEARN")
+    off := string.["learn", "off"]
+    unused PackageCommand(*test, root, off[:])
+    if !Build(*test, root, "sum") { return 1 }
+    if !NativeAssert(*test, Records(corpus) == 1, "learn off still recorded") { return 1 }
+
+    unused PackageCommand(*test, root, on[:])
+    if !Build(*test, root, "sum") { return 1 }
+    if !NativeAssert(*test, Records(corpus) == 2, "a new program was not recorded after learn on") { return 1 }
+    if !NativeWrite(*test, CheckPath(corpus, "bytes"), "999999999\n") || !Build(*test, root, "three") { return 1 }
+    if !NativeAssert(*test, Records(corpus) == 2, "a full corpus still recorded") { return 1 }
+    report := PackageCommand(*test, root, status[:])
+    if !NativeAssert(*test, TextContains(report, "recording: on") && TextContains(report, "programs: 2, machine-code records: 2") &&
+        TextContains(report, "of 64 MB"), CheckConcat("unexpected status:\n", report)) { return 1 }
+    bad := string.["learn", "on", "--limit-mb", "0"]
+    unused PackageCommand(*test, root, bad[:], false)
+    if test.failed { return 1 }
+    print("Learning corpus: off by default, records each new native build once, and honors off, ZIRAN_LEARN and the size cap\n")
+    return 0
+}

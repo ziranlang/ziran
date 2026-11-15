@@ -1,0 +1,306 @@
+#import "package_common"
+#import "byte_text_linux"
+#import "file_linux"
+#import "number_text"
+
+// `ziran learn on|off|status`: an opt-in corpus of the programs this machine
+// builds to native code, kept as training data for improving Ziran's machine
+// code. Recording is off by default; while it is off a native build reads
+// one small settings file and nothing else. ZIRAN_LEARN=on|off overrides the
+// saved switch for one command or session, and ZIRAN_LEARN_DIR moves the
+// corpus.
+//
+// The corpus is content addressed, so rebuilding a program writes nothing:
+//
+//     programs/<ZX sha256>/program.zx
+//     programs/<ZX sha256>/<target>-<ELF sha256>.elf       machine code
+//     programs/<ZX sha256>/<target>-<ELF sha256>.map.json  per-instruction ranges
+//     programs/<ZX sha256>/<target>-<ELF sha256>.lir       lowered input
+//
+// A compiler that emits different machine code for the same program adds a
+// second ELF beside the first, giving before/after pairs. Benchmark receipts
+// name their artifacts by the same SHA-256 digests.
+
+#scope_file
+LEARN_USAGE :: "usage: ziran learn on [--limit-mb N] | ziran learn off | ziran learn status";
+LEARN_DEFAULT_LIMIT_MB :: 1024;
+LEARN_MAX_FILE :: 16777216;
+MEGABYTE :: 1048576;
+
+LearnSettings :: struct {
+    enabled: bool
+    limit_mb: s64
+}
+
+LearnOutcome :: enum u8 { Recorded :: 0; Present :: 1; Full :: 2; Failed :: 3; }
+
+LearnTotals :: struct {
+    programs: s64
+    records: s64
+    bytes: s64
+}
+
+LearnNumber :: (value: s64) -> string {
+    digits: [24]u8
+    return PkgJoin("", FormatInteger(value, digits[:]))
+}
+
+LearnBase :: (variable: string, fallback: string) -> string {
+    base := PkgGetenv(variable)
+    if base.count > 0 { return base }
+    home := PkgGetenv("HOME")
+    if home.count == 0 { return "" }
+    return PkgJoin(home, fallback)
+}
+
+LearnSettingsPath :: () -> string {
+    base := LearnBase("XDG_CONFIG_HOME", "/.config")
+    if base.count == 0 { return "" }
+    return PkgJoin(base, "/ziran/learn")
+}
+
+LearnDirectory :: () -> string {
+    explicit := PkgGetenv("ZIRAN_LEARN_DIR")
+    if explicit.count > 0 { return explicit }
+    base := LearnBase("XDG_DATA_HOME", "/.local/share")
+    if base.count == 0 { return "" }
+    return PkgJoin(base, "/ziran/learn")
+}
+
+// The saved switch: a line `on` enables recording and `limit_mb=N` caps the
+// corpus. A missing or unreadable file means off with the default cap.
+LearnSaved :: () -> LearnSettings {
+    settings: LearnSettings
+    settings.limit_mb = LEARN_DEFAULT_LIMIT_MB
+    path := LearnSettingsPath()
+    if path.count == 0 { return settings }
+    saved := PkgReadLimited(path, 4096)
+    if !saved.valid { return settings }
+    text := saved.text
+    at: s64 = 0
+    while at < cast(s64)text.count {
+        end := at
+        while end < cast(s64)text.count && text[end] != cast(u8)10 { end += 1 }
+        line := PkgTrim(text[at:end])
+        if line == "on" { settings.enabled = true }
+        if line.count > 9 && line[0:9] == "limit_mb=" {
+            value, count := IntegerPrefix(line[9:])
+            if count == cast(s64)line.count - 9 && value > 0 { settings.limit_mb = value }
+        }
+        at = end + 1
+    }
+    return settings
+}
+
+LearnCurrent :: () -> LearnSettings {
+    settings := LearnSaved()
+    override := PkgGetenv("ZIRAN_LEARN")
+    if override == "on" || override == "1" { settings.enabled = true }
+    if override == "off" || override == "0" { settings.enabled = false }
+    return settings
+}
+
+LearnSave :: (settings: LearnSettings) -> bool {
+    path := LearnSettingsPath()
+    if path.count == 0 { return false }
+    if !PkgMkdirs(LearnParent(path)) { return false }
+    state := "off"
+    if settings.enabled { state = "on" }
+    return PkgWriteAtomic(path, PkgJoin3(state, "\nlimit_mb=", PkgJoin(LearnNumber(settings.limit_mb), "\n")))
+}
+
+LearnParent :: (path: string) -> string {
+    end: s64 = cast(s64)path.count
+    while end > 0 && path[end - 1] != cast(u8)47 { end -= 1 }
+    if end <= 1 { return path[0:end] }
+    return path[0:end - 1]
+}
+
+LearnFileSize :: (path: string) -> s64 {
+    file := OpenRead(path)
+    if !file.valid { return 0 }
+    size := FileSize(file)
+    CloseFile(file)
+    if size < 0 { return 0 }
+    return size
+}
+
+// The running byte count lets a build check the cap without walking the
+// corpus. Concurrent builds may race on it; `status` recounts exactly.
+LearnStoredBytes :: (directory: string) -> s64 {
+    saved := PkgReadLimited(PkgJoin(directory, "/bytes"), 64)
+    if !saved.valid { return 0 }
+    value, count := IntegerPrefix(PkgTrim(saved.text))
+    if count == 0 || value < 0 { return 0 }
+    return value
+}
+
+LearnSetBytes :: (directory: string, bytes: s64) -> bool {
+    return PkgWriteAtomic(PkgJoin(directory, "/bytes"), PkgJoin(LearnNumber(bytes), "\n"))
+}
+
+LearnStore :: (tool_directory: string, program: string, elf: string, target: string,
+    settings: LearnSettings, names: []string, values: []string) -> LearnOutcome {
+    directory := LearnDirectory()
+    if directory.count == 0 { return .Failed }
+    zx := PkgReadLimited(program, LEARN_MAX_FILE)
+    if !zx.valid { return .Failed }
+    native := PkgReadLimited(elf, LEARN_MAX_FILE)
+    if !native.valid { return .Failed }
+    zx_digest := PkgDigest(zx.text)
+    elf_digest := PkgDigest(native.text)
+    if zx_digest.count == 0 || elf_digest.count == 0 { return .Failed }
+    folder := PkgJoin3(directory, "/programs/", zx_digest)
+    stem := PkgJoin3(folder, "/", PkgJoin3(target, "-", elf_digest))
+    elf_copy := PkgJoin(stem, ".elf")
+    if PathExists(elf_copy) { return .Present }
+    stored := LearnStoredBytes(directory)
+    if stored >= settings.limit_mb * MEGABYTE { return .Full }
+    if !PkgMkdirs(folder) { return .Failed }
+    added: s64 = 0
+    zx_copy := PkgJoin(folder, "/program.zx")
+    if !PathExists(zx_copy) {
+        if !PkgWriteAtomic(zx_copy, zx.text) { return .Failed }
+        added += cast(s64)zx.text.count
+    }
+    map := PkgJoin(stem, ".map.json")
+    lir := PkgJoin(stem, ".lir")
+    map_command: [10]string = .[PkgJoin3(tool_directory, "/", "zx2native"), "--target", target,
+        "--platform", "linux", "--emit", "map", "-o", map, program]
+    lir_command: [6]string = .[PkgJoin3(tool_directory, "/", "zi2zx"), "--emit", "lir", "-o", lir, program]
+    if PkgRun(map_command[:], "", names, values) != 0 || PkgRun(lir_command[:], "", names, values) != 0 {
+        unused RemoveFile(map)
+        unused RemoveFile(lir)
+        return .Failed
+    }
+    // The ELF is written last: its presence marks a complete record.
+    if !PkgWriteAtomic(elf_copy, native.text) {
+        unused RemoveFile(map)
+        unused RemoveFile(lir)
+        return .Failed
+    }
+    added += cast(s64)native.text.count + LearnFileSize(map) + LearnFileSize(lir)
+    unused LearnSetBytes(directory, LearnStoredBytes(directory) + added)
+    return .Recorded
+}
+
+LearnName :: (entry: DirectoryEntry) -> string {
+    return PkgJoin("", TextFromBytes(entry.name[0:entry.name_count]))
+}
+
+LearnDots :: (name: string) -> bool { return name == "." || name == ".." }
+
+LearnCount :: (directory: string) -> LearnTotals {
+    totals: LearnTotals
+    programs := PkgJoin(directory, "/programs")
+    cursor := OpenDirectory(programs)
+    if !cursor.valid { return totals }
+    while true {
+        entry := NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        name := LearnName(entry)
+        if LearnDots(name) { continue }
+        folder := PkgJoin3(programs, "/", name)
+        files := OpenDirectory(folder)
+        if !files.valid { continue }
+        totals.programs += 1
+        while true {
+            file := NextDirectoryEntry(*files)
+            if !file.valid { break }
+            leaf := LearnName(file)
+            if LearnDots(leaf) || LearnContains(leaf, ".tmp.") { continue }
+            if PkgEndsWith(leaf, ".elf") { totals.records += 1 }
+            totals.bytes += LearnFileSize(PkgJoin3(folder, "/", leaf))
+        }
+        unused CloseDirectory(*files)
+    }
+    unused CloseDirectory(*cursor)
+    return totals
+}
+
+LearnContains :: (value: string, part: string) -> bool {
+    if part.count > value.count { return false }
+    at: s64 = 0
+    while at + cast(s64)part.count <= cast(s64)value.count {
+        if value[at:at + cast(s64)part.count] == part { return true }
+        at += 1
+    }
+    return false
+}
+
+LearnStatus :: () -> s32 {
+    saved := LearnSaved()
+    current := LearnCurrent()
+    directory := LearnDirectory()
+    state := "off"
+    if current.enabled { state = "on" }
+    line := PkgJoin3("recording: ", state, "")
+    override := PkgGetenv("ZIRAN_LEARN")
+    if override.count > 0 && saved.enabled != current.enabled {
+        line = PkgJoin3(line, " (ZIRAN_LEARN=", PkgJoin(override, ")"))
+    }
+    PkgPrint(PkgJoin(line, "\n"), false)
+    if directory.count == 0 {
+        PkgPrint("corpus: unavailable (set HOME or ZIRAN_LEARN_DIR)\n", false)
+        return 0
+    }
+    totals := LearnCount(directory)
+    if totals.programs > 0 { unused LearnSetBytes(directory, totals.bytes) }
+    PkgPrint(PkgJoin3("corpus: ", directory, "\n"), false)
+    PkgPrint(PkgJoin3("programs: ", LearnNumber(totals.programs),
+        PkgJoin3(", machine-code records: ", LearnNumber(totals.records), "\n")), false)
+    used := PkgJoin(LearnNumber((totals.bytes + MEGABYTE - 1) / MEGABYTE), " MB")
+    if totals.bytes < MEGABYTE { used = PkgJoin(LearnNumber((totals.bytes + 1023) / 1024), " KB") }
+    size := PkgJoin3("size: ", used, PkgJoin3(" of ", LearnNumber(current.limit_mb), " MB"))
+    if totals.bytes >= current.limit_mb * MEGABYTE { size = PkgJoin(size, " (full: new builds are not recorded)") }
+    PkgPrint(PkgJoin(size, "\n"), false)
+    return 0
+}
+
+#scope_export
+LearnUsage :: () -> string { return PkgJoin(LEARN_USAGE, "\n") }
+
+Learn :: (arguments: []string) -> s32 {
+    if arguments.count == 0 { return PkgFail(LEARN_USAGE) }
+    action := arguments[0]
+    if action == "status" {
+        if arguments.count != 1 { return PkgFail(LEARN_USAGE) }
+        return LearnStatus()
+    }
+    if action != "on" && action != "off" { return PkgFail(LEARN_USAGE) }
+    settings := LearnSaved()
+    settings.enabled = action == "on"
+    index: s64 = 1
+    while index < cast(s64)arguments.count {
+        if action != "on" || arguments[index] != "--limit-mb" || index + 1 >= cast(s64)arguments.count {
+            return PkgFail(LEARN_USAGE)
+        }
+        text := arguments[index + 1]
+        value, count := IntegerPrefix(text)
+        if count != cast(s64)text.count || value <= 0 { return PkgFail("--limit-mb needs a whole number of megabytes above 0") }
+        settings.limit_mb = value
+        index += 2
+    }
+    if !LearnSave(settings) { return PkgFail("cannot save the learning switch") }
+    if !settings.enabled {
+        PkgPrint("recording off: native builds are not recorded; the corpus is kept\n", false)
+        return 0
+    }
+    directory := LearnDirectory()
+    PkgPrint(PkgJoin3("recording on: new native builds are saved to ", directory,
+        PkgJoin3(" (limit ", LearnNumber(settings.limit_mb), " MB)\n")), false)
+    return 0
+}
+
+// Saves one verified native build when recording is on. Recording never
+// changes the build's result; a failed record prints one line, and a full
+// corpus is reported by `ziran learn status` rather than on every build.
+LearnRecord :: (tool_directory: string, program: string, elf: string, target: string,
+    names: []string, values: []string) {
+    settings := LearnCurrent()
+    if !settings.enabled { return }
+    outcome := LearnStore(tool_directory, program, elf, target, settings, names, values)
+    if outcome == .Failed {
+        PkgPrint("ziran learn: this build was not recorded; run ziran learn status\n", true)
+    }
+}

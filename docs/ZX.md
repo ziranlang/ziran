@@ -38,6 +38,16 @@ against that key and its SHA-256 digest before it is used, and a damaged entry
 is removed and rebuilt. `ZIRAN_NATIVE_CACHE=DIR` uses another directory and
 `ZIRAN_NATIVE_CACHE=off` turns the cache off.
 
+`ziran learn on` keeps a corpus of the programs `ziran build FILE.zi` compiles
+to native code, as training data for improving Ziran's machine code; it is off
+by default and `ziran learn off` stops it. Each new build stores its verified
+`.zx`, ELF, `zx2native --emit map` ranges and lowered input once under
+`$XDG_DATA_HOME/ziran/learn` (or `~/.local/share/ziran/learn`), named by their
+SHA-256 digests, so a rebuild writes nothing and a compiler that emits different
+code adds a second ELF beside the first. `--limit-mb N` caps the corpus (1024 MB
+by default), `ziran learn status` shows its size, `ZIRAN_LEARN=on|off` overrides
+the switch and `ZIRAN_LEARN_DIR=DIR` moves the corpus.
+
 Use `ziran run app.zx` for both console and graphical programs. The linker
 includes the reachable code of imported modules, including a UI library.
 Platform effects such as windows and input are supplied by an installed runtime

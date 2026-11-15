@@ -2111,6 +2111,60 @@ emit_field_tag(FILE *out, const ZirTypeField *field, ZirSourceSpan span)
     }
     fputc('"', out);
 }
+/* Go binds a program's host interface after package initialization, so a
+ * module initializer must not call a host. Storing a procedure that calls one
+ * later, as a feature module does when it registers itself, is fine: only the
+ * calls an initializer makes while it runs are followed. */
+static int
+go_startup_calls_host(const ZirModule *module, const ZirFunction *start)
+{
+    enum { LIMIT = 4096 };
+    const ZirModule **owners = AllocateOrExit(LIMIT * sizeof(*owners));
+    const ZirFunction **pending = AllocateOrExit(LIMIT * sizeof(*pending));
+    int count = 0, next = 0, found = 0;
+    owners[count] = module;
+    pending[count++] = start;
+    while(next < count && !found) {
+        const ZirModule *owner = owners[next];
+        const ZirFunction *fn = pending[next++];
+        if(fn->is_extern) {
+            found = fn->extern_kind == ZIR_EXTERN_HOST;
+            continue;
+        }
+        if(!fn->uses_host)
+            continue;
+        for(int x = 0; x < fn->expr_count && !found; x++) {
+            const ZirExpr *e = &fn->exprs[x];
+            const ZirModule *callee_owner = NULL;
+            const ZirFunction *callee = NULL;
+            if(e->kind != ZIR_EXPR_CALL || e->is_function_value || e->name == NULL)
+                continue;
+            if(ResolveFunction(owner, e->name, &callee_owner, &callee) != 1) {
+                for(int i = 0; i < owner->import_count; i++)
+                    if(owner->imports[i].kind == ZIR_IMPORT_EXTERN &&
+                       owner->imports[i].extern_kind == ZIR_EXTERN_HOST &&
+                       !strcmp(owner->imports[i].name, e->name))
+                        found = 1;
+                continue;
+            }
+            int seen = 0;
+            for(int i = 0; i < count && !seen; i++)
+                seen = pending[i] == callee;
+            if(seen)
+                continue;
+            if(count == LIMIT) {
+                found = 1;  /* too deep to prove; keep the old refusal */
+                break;
+            }
+            owners[count] = callee_owner;
+            pending[count++] = callee;
+        }
+    }
+    free(owners);
+    free(pending);
+    return found;
+}
+
 /* Buffers go_lower keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct GoLowerBuffers {
@@ -2151,7 +2205,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                                    guard, sizeof(guard));
             for(int fi = 0; fi < m->function_count; fi++)
                 if(m->functions[fi].is_global_initializer &&
-                   m->functions[fi].uses_host) {
+                   go_startup_calls_host(m, &m->functions[fi])) {
                     Diagnostic(m->functions[fi].span, "zir_go.global",
                                "Go global startup cannot call a host before binding");
                     return 1;

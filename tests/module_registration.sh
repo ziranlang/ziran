@@ -98,4 +98,48 @@ C
         without_feature) test ! -e "$go_out/feature.go" ;;
     esac
 done
+# A registered procedure may call a host later: Go binds the host interface
+# before the entry, so storing the procedure during startup is accepted. A
+# host call made while an initializer runs is still refused.
+cat > "$work/host_feature.zi" <<'ZI'
+Host :: #import "host";
+host_api :: #system_library "host_api";
+HostScale :: () -> s32 #foreign host_api;
+
+Scaled :: (value: s32) -> s32 { return value * HostScale() }
+
+registered: bool = Host.Register(Scaled);
+ZI
+cat > "$work/with_host_feature.zi" <<'ZI'
+Host :: #import "host";
+#import "host_feature"
+
+main :: () -> s32 {
+    print("%\n", ifx Host.draw != null then 1 else 0)
+    return 0
+}
+ZI
+"$ziran" build --target=go --pkg main --exe --root "$work" --entry with_host_feature:main \
+    -o "$work/host-feature-go" "$work/with_host_feature.zi"
+(cd "$work/host-feature-go" && GO111MODULE=off go build -o program .)
+test "$("$work/host-feature-go/program")" = 1
+cat > "$work/host_startup.zi" <<'ZI'
+host_api :: #system_library "host_api";
+HostScale :: () -> s32 #foreign host_api;
+
+Startup :: () -> s32 { return HostScale() }
+
+scale: s32 = Startup();
+
+main :: () -> s32 {
+    print("%\n", scale)
+    return 0
+}
+ZI
+if "$ziran" build --target=go --pkg main --exe --root "$work" --entry host_startup:main \
+    -o "$work/host-startup-go" "$work/host_startup.zi" 2> "$work/host-startup.err"; then
+    echo 'Go accepted a host call made during module startup' >&2
+    exit 1
+fi
+grep -Fq 'Go global startup cannot call a host before binding' "$work/host-startup.err"
 echo 'An imported module registers itself from its initializer; unimported modules are absent'

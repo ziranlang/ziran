@@ -8,3 +8,5 @@ __pycache__/
 /site/assets/playground-runtime.js
 /site/assets/playground-runtime.wasm
 .wrangler/
+# Editor settings local to one machine (the shared tasks.json stays tracked)
+/.vscode/settings.json

@@ -1,0 +1,720 @@
+using Lir :: #import "compiler_lowered_ir"
+using Machine :: #import "compiler_machine_ir"
+using Vectors :: #import "std/vec"
+
+// Frame storage and in-place views for the aggregate (stack-class) values of
+// one LIR function, planned before machine lowering. This is the native
+// counterpart of zx2wasm's coalesce_aggregates and plan_views.
+//
+// Storage: aggregate values whose lifetimes never overlap share one frame
+// object. An insert takes its source's object when the source dies there, so
+// it changes one member in place; a block parameter takes its arguments'
+// objects, so loop-carried and branch-joined aggregates need no edge copy.
+// This is SSA coalescing over the liveness of the aggregate values alone; an
+// instruction's aggregate operands conflict with its result, except the
+// source of an insert.
+//
+// Views: an extract read only by extracts in its own block, while nothing
+// writes the storage it reads, is read in place through its address. One
+// that a single insert then changes and puts straight back where it came
+// from is changed in place, and the put-back insert emits nothing. A view
+// takes the address an earlier view of the same storage and member computed
+// where that one dominates it, so a loop body checks an index once.
+
+MachineAggregateView :: enum s32 { None; Read; Changed; PutBack }
+
+MachineAggregatePlan :: struct {
+    // Per value: the representative whose frame object it uses (itself for
+    // a scalar); its view kind; for a view, the representative of the storage
+    // it reads and the view whose address it uses (itself when it computes
+    // it). Per representative: whether a value of its class needs the object.
+    slot: Vec(s32)
+    view: Vec(MachineAggregateView)
+    root: Vec(s32)
+    address: Vec(s32)
+    storage: Vec(bool)
+    // Work spent by the last build.
+    work: s64
+    // Scratch, reused across functions.
+    index: Vec(s32)
+    parent: Vec(s32)
+    representative: Vec(s32)
+    live: Vec(u64)
+    live_in: Vec(u64)
+    live_out: Vec(u64)
+    interfere: Vec(u64)
+    members: Vec(u64)
+    home: Vec(s32)
+    read: Vec(s32)
+    update: Vec(s32)
+    other: Vec(s32)
+    uses: Vec(s32)
+    successor_begin: Vec(s32)
+    successors: Vec(s32)
+    predecessor_begin: Vec(s32)
+    predecessors: Vec(s32)
+    cursor: Vec(s32)
+    pending: Vec(s32)
+    order: Vec(s32)
+    position: Vec(s32)
+    dominator: Vec(s32)
+    block_of: Vec(s32)
+    key_parent: Vec(s32)
+    key_member: Vec(u64)
+    key_dynamic: Vec(bool)
+    chain_head: Vec(s32)
+    chain_next: Vec(s32)
+}
+
+// Read and changed views have no storage of their own; a put-back value is
+// stored in its root like any other.
+MachineAggregateViewed :: (view: MachineAggregateView) -> bool { return view == .Read || view == .Changed }
+
+#scope_file
+
+// Coalescing compares every pair of aggregate values; past these sizes each
+// value keeps its own object, which is always correct.
+MaximumAggregates :: 8192
+MaximumLiveWords :: 4194304
+
+Context :: struct {
+    plan: *MachineAggregatePlan
+    function: LirFunction
+    program: LirProgram
+    stack_size: []s64
+    budget: s64
+    bytes: s64
+    problem: MachineProblem
+    count: s64
+    width: s64
+}
+
+Fail :: (context: *Context, problem: MachineProblem) -> bool {
+    if context.problem == .None { context.problem = problem }
+    return false
+}
+
+Spend :: (context: *Context, count: s64) -> bool {
+    if count < 0 || count > context.budget - context.plan.work { return Fail(context, .Limit) }
+    context.plan.work += count
+    return true
+}
+
+Aggregate :: (context: *Context, value: s32) -> bool {
+    return value >= 0 && context.stack_size[context.function.values[value]] >= 0
+}
+
+TypeOf :: (context: *Context, value: s32) -> s32 { return context.function.values[value] }
+
+Mask :: (bit: s32) -> u64 { return cast(u64)1 << cast(u64)(bit & 63) }
+
+Word :: (bit: s32) -> s64 { return cast(s64)(bit >> 6) }
+
+// ---------------------------------------------------------------------------
+// Liveness of aggregate values, in the working row `live`
+
+Use :: (plan: *MachineAggregatePlan, value: s32) {
+    if value < 0 { return }
+    at := plan.index[value]
+    if at >= 0 { plan.live[Word(at)] = plan.live[Word(at)] | Mask(at) }
+}
+
+Kill :: (plan: *MachineAggregatePlan, value: s32) {
+    if value < 0 { return }
+    at := plan.index[value]
+    if at >= 0 { plan.live[Word(at)] = plan.live[Word(at)] & ~Mask(at) }
+}
+
+// Stores the working row as row ROW of ROWS; true when that changed it.
+Save :: (live: []u64, rows: []u64, row: s64) -> bool {
+    changed := false
+    for word: cast(s64)0..live.count - 1 {
+        if rows[row + word] != live[word] {
+            rows[row + word] = live[word]
+            changed = true
+        }
+    }
+    return changed
+}
+
+// Live sets to a fixed point. An edge's arguments are used at the end of its
+// block; a block's parameters are defined at its start.
+Liveness :: (context: *Context) -> bool {
+    plan := context.plan
+    blocks := context.function.blocks
+    width := context.width
+    changed := true
+    while changed {
+        changed = false
+        block := blocks.count - 1
+        while block >= 0 {
+            instructions := blocks[block].instructions
+            if !Spend(context, width * 2 + instructions.count) { return false }
+            for word: cast(s64)0..width - 1 { plan.live[word] = 0 }
+            for instruction: instructions {
+                for edge: instruction.edges {
+                    if !Spend(context, width) { return false }
+                    row := cast(s64)edge.block * width
+                    for word: cast(s64)0..width - 1 { plan.live[word] = plan.live[word] | plan.live_in[row + word] }
+                    for parameter: blocks[edge.block].parameters { Kill(plan, parameter) }
+                }
+            }
+            if Save(plan.live[:], plan.live_out[:], block * width) { changed = true }
+            at := instructions.count - 1
+            while at >= 0 {
+                instruction := instructions[at]
+                Kill(plan, instruction.result)
+                for operand: instruction.operands { Use(plan, operand) }
+                for edge: instruction.edges { for argument: edge.arguments { Use(plan, argument) } }
+                at -= 1
+            }
+            for parameter: blocks[block].parameters { Kill(plan, parameter) }
+            if Save(plan.live[:], plan.live_in[:], block * width) { changed = true }
+            block -= 1
+        }
+    }
+    return true
+}
+
+// ---------------------------------------------------------------------------
+// Interference and coalescing. A class's row holds the values live where one
+// of its members is defined, so two classes conflict when either row meets
+// the other's members.
+
+Conflict :: (context: *Context, defined: s32) {
+    plan := context.plan
+    row := cast(s64)defined * context.width
+    for word: cast(s64)0..context.width - 1 { plan.interfere[row + word] = plan.interfere[row + word] | plan.live[word] }
+}
+
+Pair :: (context: *Context, defined: s32, value: s32) {
+    if !Aggregate(context, value) { return }
+    plan := context.plan
+    other := plan.index[value]
+    if other == defined { return }
+    at := cast(s64)defined * context.width + Word(other)
+    plan.interfere[at] = plan.interfere[at] | Mask(other)
+}
+
+// Defines VALUES at one point: each conflicts with what is live there and
+// with the others.
+DefineTogether :: (context: *Context, values: []s32) -> bool {
+    plan := context.plan
+    if !Spend(context, values.count * (context.width + values.count)) { return false }
+    for value: values { Kill(plan, value) }
+    for value: values {
+        if !Aggregate(context, value) { continue }
+        Conflict(context, plan.index[value])
+        for other: values { Pair(context, plan.index[value], other) }
+    }
+    return true
+}
+
+Interference :: (context: *Context) -> bool {
+    plan := context.plan
+    function := context.function
+    width := context.width
+    for block_index: cast(s64)0..function.blocks.count - 1 {
+        block := function.blocks[block_index]
+        if !Spend(context, width * (block.instructions.count + 1)) { return false }
+        row := block_index * width
+        for word: cast(s64)0..width - 1 { plan.live[word] = plan.live_out[row + word] }
+        at := block.instructions.count - 1
+        while at >= 0 {
+            instruction := block.instructions[at]
+            for edge: instruction.edges { for argument: edge.arguments { Use(plan, argument) } }
+            if Aggregate(context, instruction.result) {
+                Kill(plan, instruction.result)
+                defined := plan.index[instruction.result]
+                Conflict(context, defined)
+                for operand, local: instruction.operands {
+                    // An insert updating its source in place is the one
+                    // instruction that may write the object it reads.
+                    if instruction.op != .Insert || local != 0 { Pair(context, defined, operand) }
+                }
+            }
+            for operand: instruction.operands { Use(plan, operand) }
+            at -= 1
+        }
+        // The entry block's parameters are the function's.
+        if !DefineTogether(context, block.parameters) { return false }
+    }
+    return true
+}
+
+Find :: (plan: *MachineAggregatePlan, at: s32) -> s32 {
+    while plan.parent[at] != at {
+        plan.parent[at] = plan.parent[plan.parent[at]]
+        at = plan.parent[at]
+    }
+    return at
+}
+
+Join :: (context: *Context, left: s32, right: s32) -> bool {
+    plan := context.plan
+    if !Aggregate(context, left) || !Aggregate(context, right) || TypeOf(context, left) != TypeOf(context, right) {
+        return true
+    }
+    a := Find(plan, plan.index[left])
+    b := Find(plan, plan.index[right])
+    if a == b { return true }
+    if !Spend(context, context.width) { return false }
+    row_a := cast(s64)a * context.width
+    row_b := cast(s64)b * context.width
+    for word: cast(s64)0..context.width - 1 {
+        if (plan.interfere[row_a + word] & plan.members[row_b + word]) != 0 ||
+            (plan.interfere[row_b + word] & plan.members[row_a + word]) != 0 { return true }
+    }
+    plan.parent[b] = a
+    for word: cast(s64)0..context.width - 1 {
+        plan.interfere[row_a + word] = plan.interfere[row_a + word] | plan.interfere[row_b + word]
+        plan.members[row_a + word] = plan.members[row_a + word] | plan.members[row_b + word]
+    }
+    return true
+}
+
+// In program order: updates in place first, then edges.
+Coalesce :: (context: *Context) -> bool {
+    function := context.function
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if instruction.op == .Insert && instruction.operands.count > 0 &&
+                !Join(context, instruction.result, instruction.operands[0]) { return false }
+        }
+    }
+    for block: function.blocks {
+        for instruction: block.instructions {
+            for edge: instruction.edges {
+                parameters := function.blocks[edge.block].parameters
+                for argument, at: edge.arguments {
+                    if !Join(context, parameters[at], argument) { return false }
+                }
+            }
+        }
+    }
+    return true
+}
+
+// Each class is named by its function parameter (an entry block parameter),
+// whose object is the incoming argument, or else by its smallest value.
+AssignSlots :: (context: *Context) {
+    plan := context.plan
+    function := context.function
+    for at: cast(s64)0..context.count - 1 { plan.representative[at] = MachineNoId }
+    for parameter: function.blocks[function.entry].parameters {
+        if Aggregate(context, parameter) {
+            plan.representative[Find(plan, plan.index[parameter])] = parameter
+        }
+    }
+    for value: cast(s32)0..cast(s32)function.values.count - 1 {
+        if !Aggregate(context, value) { continue }
+        class := Find(plan, plan.index[value])
+        if plan.representative[class] == MachineNoId { plan.representative[class] = value }
+        plan.slot[value] = plan.representative[class]
+    }
+}
+
+Storage :: (context: *Context) -> bool {
+    plan := context.plan
+    function := context.function
+    blocks := cast(s64)function.blocks.count
+    context.count = 0
+    for value: cast(s32)0..cast(s32)function.values.count - 1 {
+        plan.index[value] = MachineNoId
+        if Aggregate(context, value) {
+            plan.index[value] = cast(s32)context.count
+            context.count += 1
+        }
+    }
+    context.width = (context.count + 63) / 64
+    if context.count < 2 || context.count > MaximumAggregates || blocks * context.width > MaximumLiveWords {
+        return true
+    }
+    width := context.width
+    bound := context.bytes
+    if !VecResizeBounded(plan.live, width, bound) || !VecResizeBounded(plan.live_in, blocks * width, bound) ||
+        !VecResizeBounded(plan.live_out, blocks * width, bound) ||
+        !VecResizeBounded(plan.interfere, context.count * width, bound) ||
+        !VecResizeBounded(plan.members, context.count * width, bound) ||
+        !VecResizeBounded(plan.parent, context.count, bound) ||
+        !VecResizeBounded(plan.representative, context.count, bound) { return Fail(context, .Allocation) }
+    if !Spend(context, (blocks + context.count) * width * 2) { return false }
+    for at: cast(s64)0..plan.live_in.count - 1 { plan.live_in[at] = 0; plan.live_out[at] = 0 }
+    for at: cast(s64)0..plan.interfere.count - 1 { plan.interfere[at] = 0; plan.members[at] = 0 }
+    for at: cast(s32)0..cast(s32)context.count - 1 {
+        plan.parent[at] = at
+        plan.members[cast(s64)at * width + Word(at)] = Mask(at)
+    }
+    if !Liveness(context) || !Interference(context) || !Coalesce(context) { return false }
+    AssignSlots(context)
+    return true
+}
+
+// ---------------------------------------------------------------------------
+// Views
+
+// Where each value is used: uses counts operands and edge arguments; home is
+// the block of all its uses (-1 unused, -2 several blocks or an edge); read
+// the last extract from it; update the one insert that changes it (-2 for
+// more); other its last other operand use.
+Uses :: (context: *Context) -> bool {
+    plan := context.plan
+    for block, block_index: context.function.blocks {
+        if !Spend(context, block.instructions.count) { return false }
+        home := cast(s32)block_index
+        for instruction, item: block.instructions {
+            for value, at: instruction.operands {
+                plan.uses[value] += 1
+                if plan.home[value] != -1 && plan.home[value] != home { plan.home[value] = -2 }
+                else { plan.home[value] = home }
+                if instruction.op == .Extract && at == 0 { plan.read[value] = cast(s32)item }
+                else if instruction.op == .Insert && at == 0 {
+                    plan.update[value] = ifx plan.update[value] == -1 then cast(s32)item else -2
+                } else { plan.other[value] = cast(s32)item }
+            }
+            for edge: instruction.edges {
+                for argument: edge.arguments {
+                    plan.uses[argument] += 1
+                    plan.home[argument] = -2
+                }
+            }
+        }
+    }
+    return true
+}
+
+// Whether two inserts or extracts name the same member.
+SameMember :: (left: LirInstruction, left_fixed: s64, right: LirInstruction, right_fixed: s64) -> bool {
+    dynamic := left.operands.count == left_fixed + 1
+    if dynamic != (right.operands.count == right_fixed + 1) { return false }
+    if dynamic { return left.operands[left_fixed] == right.operands[right_fixed] }
+    return left.immediate == right.immediate
+}
+
+// Whether an instruction strictly between FROM and UNTIL reads SOURCE or a
+// view of ROOT.
+ReadsBetween :: (context: *Context, instructions: []LirInstruction, from: s32, until: s32,
+    source: s32, root: s32) -> bool {
+    plan := context.plan
+    for between: from + 1..until - 1 {
+        for value: instructions[between].operands {
+            if value == source || MachineAggregateViewed(plan.view[value]) && plan.root[value] == root { return true }
+        }
+    }
+    return false
+}
+
+// Whether an instruction strictly between FROM and UNTIL writes ROOT: defines
+// a value stored there, or changes a view of it.
+WritesBetween :: (context: *Context, instructions: []LirInstruction, from: s32, until: s32, root: s32) -> bool {
+    plan := context.plan
+    for between: from + 1..until - 1 {
+        value := instructions[between].result
+        if !Aggregate(context, value) { continue }
+        if !MachineAggregateViewed(plan.view[value]) && plan.slot[value] == root ||
+            plan.view[value] == .Changed && plan.root[value] == root { return true }
+    }
+    return false
+}
+
+// Plans the extract at ITEM; false only when the work budget runs out.
+PlanView :: (context: *Context, instructions: []LirInstruction, block: s32, item: s32) -> bool {
+    plan := context.plan
+    instruction := instructions[item]
+    result := instruction.result
+    // An unused extract is a view too: a dynamic one keeps only its check.
+    // An empty value has nothing to view.
+    if instruction.op != .Extract || context.stack_size[TypeOf(context, result)] <= 0 || plan.other[result] >= 0 ||
+        plan.update[result] == -2 || plan.home[result] != block && plan.home[result] != -1 { return true }
+    source := instruction.operands[0]
+    if instruction.operands.count == 2 && context.program.types[TypeOf(context, source)].kind != .Array { return true }
+    viewed := MachineAggregateViewed(plan.view[source])
+    root := ifx viewed then plan.root[source] else plan.slot[source]
+    // A changed view: its insert follows its last read, the changed value
+    // goes straight back into an insert of the source at the same member
+    // stored in place, and nothing reads the source in between.
+    changed := plan.update[result]
+    changed_value: s32 = MachineNoId
+    put: s32 = MachineNoId
+    until := plan.read[result]
+    if changed >= 0 {
+        changed_value = instructions[changed].result
+        if changed <= plan.read[result] || viewed || plan.home[changed_value] != block ||
+            plan.uses[changed_value] != 1 || plan.other[changed_value] < 0 { return true }
+        until = plan.other[changed_value]
+        putting := instructions[until]
+        put = putting.result
+        if putting.op != .Insert || putting.operands.count < 2 || putting.operands[0] != source ||
+            putting.operands[1] != changed_value || !SameMember(putting, 2, instruction, 1) ||
+            put < 0 || plan.slot[put] != root { return true }
+    }
+    if until > item && !Spend(context, cast(s64)(until - item) * 2) { return false }
+    if changed >= 0 && ReadsBetween(context, instructions, changed, until, source, root) ||
+        until > item && WritesBetween(context, instructions, item, until, root) { return true }
+    plan.view[result] = .Read
+    plan.root[result] = root
+    if changed >= 0 {
+        plan.view[changed_value] = .Changed
+        plan.root[changed_value] = root
+        plan.view[put] = .PutBack
+    }
+    return true
+}
+
+Views :: (context: *Context) -> bool {
+    if !Uses(context) { return false }
+    for block, block_index: context.function.blocks {
+        if !Spend(context, block.instructions.count) { return false }
+        for item: cast(s32)0..cast(s32)block.instructions.count - 1 {
+            if !PlanView(context, block.instructions, cast(s32)block_index, item) { return false }
+        }
+    }
+    return true
+}
+
+// ---------------------------------------------------------------------------
+// Shared view addresses: reverse postorder and immediate dominators
+
+Order :: (context: *Context) -> bool {
+    plan := context.plan
+    function := context.function
+    blocks := cast(s64)function.blocks.count
+    bound := context.bytes
+    edges: s64
+    for block: function.blocks { for instruction: block.instructions { edges += instruction.edges.count } }
+    if !Spend(context, blocks * 4 + edges * 2) { return false }
+    if !VecResizeBounded(plan.successor_begin, blocks + 1, bound) || !VecResizeBounded(plan.successors, edges, bound) ||
+        !VecResizeBounded(plan.predecessor_begin, blocks + 1, bound) ||
+        !VecResizeBounded(plan.predecessors, edges, bound) || !VecResizeBounded(plan.cursor, blocks, bound) ||
+        !VecResize(plan.pending, 0) || !VecResize(plan.order, 0) ||
+        !VecResizeBounded(plan.position, blocks, bound) || !VecResizeBounded(plan.dominator, blocks, bound) {
+        return Fail(context, .Allocation)
+    }
+    for at: cast(s64)0..blocks { plan.predecessor_begin[at] = 0 }
+    at: s32 = 0
+    for block, block_index: function.blocks {
+        plan.successor_begin[block_index] = at
+        for instruction: block.instructions {
+            for edge: instruction.edges {
+                plan.successors[at] = edge.block
+                plan.predecessor_begin[edge.block + 1] += 1
+                at += 1
+            }
+        }
+    }
+    plan.successor_begin[blocks] = at
+    for block: cast(s64)0..blocks - 1 {
+        plan.predecessor_begin[block + 1] += plan.predecessor_begin[block]
+        plan.cursor[block] = plan.predecessor_begin[block]
+        plan.position[block] = MachineNoId
+        plan.dominator[block] = MachineNoId
+    }
+    for block: cast(s32)0..cast(s32)blocks - 1 {
+        for edge: plan.successor_begin[block]..plan.successor_begin[block + 1] - 1 {
+            successor := plan.successors[edge]
+            plan.predecessors[plan.cursor[successor]] = block
+            plan.cursor[successor] += 1
+        }
+    }
+    // Iterative depth-first postorder from the entry, then reversed.
+    for block: cast(s64)0..blocks - 1 { plan.cursor[block] = plan.successor_begin[block] }
+    entry := function.entry
+    plan.position[entry] = 0
+    if !VecPush(plan.pending, entry) { return Fail(context, .Allocation) }
+    while plan.pending.count > 0 {
+        block := plan.pending[plan.pending.count - 1]
+        if plan.cursor[block] < plan.successor_begin[block + 1] {
+            successor := plan.successors[plan.cursor[block]]
+            plan.cursor[block] += 1
+            if plan.position[successor] == MachineNoId {
+                plan.position[successor] = 0
+                if !VecPush(plan.pending, successor) { return Fail(context, .Allocation) }
+            }
+        } else {
+            if !VecResize(plan.pending, plan.pending.count - 1) || !VecPush(plan.order, block) {
+                return Fail(context, .Allocation)
+            }
+        }
+    }
+    reached := plan.order.count
+    for low: cast(s64)0..reached / 2 - 1 {
+        high := reached - 1 - low
+        swap := plan.order[low]
+        plan.order[low] = plan.order[high]
+        plan.order[high] = swap
+    }
+    for index: cast(s64)0..reached - 1 { plan.position[plan.order[index]] = cast(s32)index }
+    return true
+}
+
+Intersect :: (plan: *MachineAggregatePlan, left: s32, right: s32) -> s32 {
+    while left != right {
+        while plan.position[left] > plan.position[right] { left = plan.dominator[left] }
+        while plan.position[right] > plan.position[left] { right = plan.dominator[right] }
+    }
+    return left
+}
+
+Dominators :: (context: *Context) -> bool {
+    plan := context.plan
+    entry := context.function.entry
+    plan.dominator[entry] = entry
+    changed := true
+    while changed {
+        changed = false
+        if !Spend(context, plan.order.count + plan.predecessors.count) { return false }
+        for index: cast(s64)1..plan.order.count - 1 {
+            block := plan.order[index]
+            found: s32 = MachineNoId
+            for edge: plan.predecessor_begin[block]..plan.predecessor_begin[block + 1] - 1 {
+                predecessor := plan.predecessors[edge]
+                if plan.dominator[predecessor] == MachineNoId { continue }
+                found = ifx found == MachineNoId then predecessor else Intersect(plan, found, predecessor)
+            }
+            if plan.dominator[block] != found {
+                plan.dominator[block] = found
+                changed = true
+            }
+        }
+    }
+    return true
+}
+
+Dominates :: (plan: *MachineAggregatePlan, upper: s32, lower: s32) -> bool {
+    if plan.position[upper] < 0 || plan.position[lower] < 0 { return false }
+    while plan.position[lower] > plan.position[upper] { lower = plan.dominator[lower] }
+    return lower == upper
+}
+
+// The view an extract VALUE in BLOCK shares its address with: an earlier view
+// of the same root, parent address and member whose block dominates BLOCK.
+ShareAddress :: (context: *Context, instruction: LirInstruction, block: s32) -> bool {
+    plan := context.plan
+    value := instruction.result
+    source := instruction.operands[0]
+    root := plan.root[value]
+    parent := ifx MachineAggregateViewed(plan.view[source]) then plan.address[source] else MachineNoId
+    dynamic := instruction.operands.count == 2
+    member := ifx dynamic then cast(u64)instruction.operands[1] else instruction.immediate
+    candidate := plan.chain_head[root]
+    while candidate != MachineNoId {
+        if !Spend(context, 1) { return false }
+        if plan.key_parent[candidate] == parent && plan.key_dynamic[candidate] == dynamic &&
+            plan.key_member[candidate] == member && Dominates(plan, plan.block_of[candidate], block) {
+            plan.address[value] = candidate
+            return true
+        }
+        candidate = plan.chain_next[candidate]
+    }
+    plan.block_of[value] = block
+    plan.key_parent[value] = parent
+    plan.key_dynamic[value] = dynamic
+    plan.key_member[value] = member
+    plan.chain_next[value] = plan.chain_head[root]
+    plan.chain_head[root] = value
+    return true
+}
+
+Addresses :: (context: *Context) -> bool {
+    plan := context.plan
+    function := context.function
+    count := function.values.count
+    bound := context.bytes
+    if !VecResizeBounded(plan.block_of, count, bound) || !VecResizeBounded(plan.key_parent, count, bound) ||
+        !VecResizeBounded(plan.key_member, count, bound) || !VecResizeBounded(plan.key_dynamic, count, bound) ||
+        !VecResizeBounded(plan.chain_head, count, bound) || !VecResizeBounded(plan.chain_next, count, bound) {
+        return Fail(context, .Allocation)
+    }
+    for value: cast(s64)0..count - 1 { plan.chain_head[value] = MachineNoId; plan.chain_next[value] = MachineNoId }
+    if !Order(context) || !Dominators(context) { return false }
+    for block: plan.order {
+        instructions := function.blocks[block].instructions
+        if !Spend(context, instructions.count) { return false }
+        for instruction: instructions {
+            result := instruction.result
+            if result < 0 { continue }
+            if plan.view[result] == .Read {
+                if !ShareAddress(context, instruction, block) { return false }
+            } else if plan.view[result] == .Changed {
+                plan.address[result] = plan.address[instruction.operands[0]]
+            }
+        }
+    }
+    return true
+}
+
+#scope_export
+
+// Plans FUNCTION of PROGRAM into PLAN. STACK_SIZE gives the size of each
+// stack-class type and -1 for the others; VIEWS also plans views. BUDGET bounds the work,
+// recorded in plan.work, and BYTES the element capacity of each scratch
+// vector.
+MachineAggregatePlanBuild :: (plan: *MachineAggregatePlan, program: LirProgram, function: LirFunction,
+    stack_size: []s64, views: bool, budget: s64, bytes: s64) -> MachineProblem {
+    plan.work = 0
+    context := Context.{plan = plan, function = function, program = program, stack_size = stack_size,
+        budget = budget, bytes = bytes, problem = .None}
+    count := function.values.count
+    if !VecResizeBounded(plan.slot, count, bytes) || !VecResizeBounded(plan.view, count, bytes) ||
+        !VecResizeBounded(plan.root, count, bytes) || !VecResizeBounded(plan.address, count, bytes) ||
+        !VecResizeBounded(plan.storage, count, bytes) || !VecResizeBounded(plan.index, count, bytes) ||
+        !VecResizeBounded(plan.home, count, bytes) || !VecResizeBounded(plan.read, count, bytes) ||
+        !VecResizeBounded(plan.update, count, bytes) || !VecResizeBounded(plan.other, count, bytes) ||
+        !VecResizeBounded(plan.uses, count, bytes) { return .Allocation }
+    if !Spend(*context, count) { return context.problem }
+    for value: cast(s32)0..cast(s32)count - 1 {
+        plan.slot[value] = value
+        plan.view[value] = .None
+        plan.root[value] = MachineNoId
+        plan.address[value] = value
+        plan.storage[value] = false
+        plan.home[value] = -1
+        plan.read[value] = -1
+        plan.update[value] = -1
+        plan.other[value] = -1
+        plan.uses[value] = 0
+    }
+    if !Storage(*context) || views && (!Views(*context) || !Addresses(*context)) { return context.problem }
+    for value: cast(s32)0..cast(s32)count - 1 {
+        if Aggregate(*context, value) && (plan.view[value] == .None || plan.view[value] == .PutBack) {
+            plan.storage[plan.slot[value]] = true
+        }
+    }
+    return .None
+}
+
+MachineAggregatePlanFree :: (plan: *MachineAggregatePlan) {
+    VecFree(plan.slot)
+    VecFree(plan.view)
+    VecFree(plan.root)
+    VecFree(plan.address)
+    VecFree(plan.storage)
+    VecFree(plan.index)
+    VecFree(plan.parent)
+    VecFree(plan.representative)
+    VecFree(plan.live)
+    VecFree(plan.live_in)
+    VecFree(plan.live_out)
+    VecFree(plan.interfere)
+    VecFree(plan.members)
+    VecFree(plan.home)
+    VecFree(plan.read)
+    VecFree(plan.update)
+    VecFree(plan.other)
+    VecFree(plan.uses)
+    VecFree(plan.successor_begin)
+    VecFree(plan.successors)
+    VecFree(plan.predecessor_begin)
+    VecFree(plan.predecessors)
+    VecFree(plan.cursor)
+    VecFree(plan.pending)
+    VecFree(plan.order)
+    VecFree(plan.position)
+    VecFree(plan.dominator)
+    VecFree(plan.block_of)
+    VecFree(plan.key_parent)
+    VecFree(plan.key_member)
+    VecFree(plan.key_dynamic)
+    VecFree(plan.chain_head)
+    VecFree(plan.chain_next)
+}

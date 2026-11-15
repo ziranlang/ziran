@@ -1418,13 +1418,16 @@ CollectBoundaries :: (state: *Alloc) -> bool {
     return true
 }
 
-Temporary :: (state: *Alloc, index: s64, type: s32, size: s64, alignment: s32) -> s32 {
+// Cycle temporary INDEX: a pooled 16-byte slot for a register value, or a
+// slot of an aggregate's own size, since aggregate moves copy whole objects
+// of one size.
+Temporary :: (state: *Alloc, index: s64, type: s32, size: s64, alignment: s32, aggregate: bool) -> s32 {
     while state.temps.count <= index {
         slot := OutStack(state, .{function = state.function_id, kind = .Temporary, size = 16, alignment = 16,
             type = type, origin = MachineNoId, offset = 0, value = MachineNoId})
         if slot == MachineNoId || !VecPush(state.temps, slot) { unused Fail(state, .Allocation); return MachineNoId }
     }
-    if size > 16 || alignment > 16 {
+    if aggregate || size > 16 || alignment > 16 {
         return OutStack(state, .{function = state.function_id, kind = .Temporary, size = size,
             alignment = alignment, type = type, origin = MachineNoId, offset = 0, value = MachineNoId})
     }
@@ -1564,7 +1567,7 @@ ResolveCopies :: (state: *Alloc) -> bool {
                 size = object.size
                 alignment = object.alignment
             }
-            temporary := Temporary(state, temporaries, candidate.type, size, alignment)
+            temporary := Temporary(state, temporaries, candidate.type, size, alignment, candidate.class == .Stack)
             if temporary == MachineNoId { return false }
             temporaries += 1
             if candidate.source_register >= 0 {

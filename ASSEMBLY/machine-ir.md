@@ -95,6 +95,20 @@ activation. It therefore is not represented as `StackAddress` plus one static
 stack object per instruction site. Allocation and encoding must preserve the
 pseudo until they implement that exact dynamic frame-storage behavior.
 
+Aggregate values are stack-class virtuals whose frame objects follow the plan
+of `compiler_machine_aggregate.zi`, the native counterpart of zx2wasm's
+aggregate slots. Values whose lifetimes never overlap share one object, so an
+`AggregateInsert` whose destination is its source's object changes only its
+member, and a block parameter that shares its arguments' object needs no edge
+copy. On x86-64 an extract read only by extracts in its own block is a view:
+`StackAddress` and `FieldAddress` or `ElementAddress` compute its address once,
+shared with an earlier view of the same storage and member that dominates it,
+and `AggregateExtract`/`AggregateInsert` forms whose aggregate operand is that
+pointer register read and change its members in place. A changed view put back
+where it came from emits nothing. A dynamic member's trailing immediate, like
+the optional fourth `ElementAddress` operand, is the bound the shared LIR facts
+prove its index below, or 0; a proven index is not checked.
+
 ## Linux x86-64 ABI facts
 
 Register numbers follow x86-64 encoding order. General-register argument

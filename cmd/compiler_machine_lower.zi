@@ -1,4 +1,5 @@
 using ABI :: #import "compiler_abi"
+using Aggregates :: #import "compiler_machine_aggregate"
 using Lir :: #import "compiler_lowered_ir"
 using LirVerifyModule :: #import "compiler_lowered_verify"
 using Image :: #import "compiler_machine_image"
@@ -26,6 +27,24 @@ LowerState :: struct {
     // raw-storage virtual of its `allocate`, or MachineNoId.
     proven: *LirProvenOwner
     frame_raw: *Vec(s32)
+    aggregates: *AggregateLowering
+}
+
+// The aggregate plan of the function being lowered (see
+// compiler_machine_aggregate), the virtual holding each view's address, and
+// per type its size when stack-class (else -1) and the pointer type made to it.
+AggregateLowering :: struct {
+    plan: MachineAggregatePlan
+    view_address: Vec(s32)
+    stack_size: Vec(s64)
+    pointer_to: Vec(s32)
+}
+
+AggregateLoweringFree :: (lowering: *AggregateLowering) {
+    MachineAggregatePlanFree(*lowering.plan)
+    VecFree(lowering.view_address)
+    VecFree(lowering.stack_size)
+    VecFree(lowering.pointer_to)
 }
 
 EmptyDiagnostic :: () -> MachineDiagnostic {
@@ -355,17 +374,28 @@ CreateVirtuals :: (state: *LowerState, function_id: s32) -> bool {
     function := state.owner.functions[function_id]
     function.virtual_begin = cast(s32)state.owner.virtuals.count
     function.stack_begin = cast(s32)state.owner.stack_objects.count
+    plan := *state.aggregates.plan
     for value_id: cast(s64)0..source.values.count - 1 {
         if !Spend(state, 1) { return false }
         type := source.values[value_id]
         class := state.owner.types[type].class
         stack: s32 = MachineNoId
-        if class == .Stack {
+        // A storage class's representative owns its frame object.
+        if class == .Stack && plan.slot[value_id] == cast(s32)value_id && plan.storage[value_id] {
             stack = NewStack(state, function_id, .Value, type)
             if stack == MachineNoId { return false }
         }
         if AddVirtual(state, .{class = class, type = type, fixed_register = MachineNoId,
             stack_object = stack, origin = MachineNoId}) == MachineNoId { return false }
+    }
+    // The rest of a class shares it; a class of views alone names its root's.
+    for value_id: cast(s64)0..source.values.count - 1 {
+        virtual_id := function.virtual_begin + cast(s32)value_id
+        if state.owner.virtuals[virtual_id].class != .Stack ||
+            state.owner.virtuals[virtual_id].stack_object != MachineNoId { continue }
+        owner := plan.slot[value_id]
+        if !plan.storage[owner] { owner = plan.root[value_id] }
+        state.owner.virtuals[virtual_id].stack_object = state.owner.virtuals[function.virtual_begin + owner].stack_object
     }
     if source.result != MachineNoId && state.owner.types[source.result].class == .Stack &&
         state.lir.types[source.result].kind != .Void {
@@ -707,17 +737,7 @@ LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstr
         value := ifx at == 0 && resolved != MachineNoId then resolved else GlobalVirtual(state, function, operand)
         if VirtualOperand(state, value, .Use) == MachineNoId { return false }
     }
-    dynamic_member := source.op == .Extract && source.operands.count == 2 ||
-        source.op == .Insert && source.operands.count == 3
-    if dynamic_member {
-        // R10 holds the computed member address; R11 is the byte-copy scratch.
-        if PhysicalOperand(state, MachineAbiAddressScratchRegister(state.target), .Define) == MachineNoId ||
-            PhysicalOperand(state, MachineAbiScratchRegister(state.target), .Define) == MachineNoId {
-            return false
-        }
-    }
-    if (source.op == .FieldAddress || source.op == .Extract || source.op == .Insert) &&
-        ImmediateOperand(state, source.immediate) == MachineNoId { return false }
+    if source.op == .FieldAddress && ImmediateOperand(state, source.immediate) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
@@ -954,6 +974,154 @@ LowerControl :: (state: *LowerState, function: *MachineFunction, source: LirInst
     return true
 }
 
+// ---------------------------------------------------------------------------
+// Aggregate storage and views (compiler_machine_aggregate)
+
+AggregateTypes :: (state: *LowerState) -> bool {
+    lowering := state.aggregates
+    count := state.owner.types.count
+    if !VecResizeBounded(lowering.stack_size, count, state.limits.bytes) ||
+        !VecResizeBounded(lowering.pointer_to, count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for type: cast(s64)0..count - 1 {
+        machine := state.owner.types[type]
+        lowering.stack_size[type] = ifx machine.class == .Stack then machine.size else -1
+        lowering.pointer_to[type] = MachineNoId
+    }
+    return true
+}
+
+// A pointer type to ELEMENT, made once per lowering.
+PointerTo :: (state: *LowerState, element: s32) -> s32 {
+    lowering := state.aggregates
+    if lowering.pointer_to[element] != MachineNoId { return lowering.pointer_to[element] }
+    size := cast(s64)(state.target.pointer_bits / 8)
+    empty := cast(s32)state.owner.type_ids.count
+    pointer := AddType(state, .{kind = .Pointer, class = .General, bits = state.target.pointer_bits, size = size,
+        alignment = Alignment(size), element = element, count = 0, fields_begin = empty, fields_count = 0,
+        parameters_begin = empty, parameters_count = 0, result = MachineNoId})
+    lowering.pointer_to[element] = pointer
+    return pointer
+}
+
+// A General virtual holding the frame address of a value of type ELEMENT.
+AddressVirtual :: (state: *LowerState, function: *MachineFunction, element: s32) -> s32 {
+    pointer := PointerTo(state, element)
+    if pointer == MachineNoId { return MachineNoId }
+    address := AddVirtual(state, .{class = .General, type = pointer, fixed_register = MachineNoId,
+        stack_object = MachineNoId, origin = MachineNoId})
+    function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
+    return address
+}
+
+// Each view that computes an address gets the virtual holding it; every other
+// view takes the virtual of the view whose address it shares.
+ViewAddresses :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
+    lowering := state.aggregates
+    plan := *lowering.plan
+    count := source.values.count
+    if !VecResizeBounded(lowering.view_address, count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for value: cast(s32)0..cast(s32)count - 1 {
+        lowering.view_address[value] = MachineNoId
+        if MachineAggregateViewed(plan.view[value]) && plan.address[value] == value {
+            lowering.view_address[value] = AddressVirtual(state, function, source.values[value])
+            if lowering.view_address[value] == MachineNoId { return false }
+        }
+    }
+    for value: cast(s32)0..cast(s32)count - 1 {
+        if MachineAggregateViewed(plan.view[value]) { lowering.view_address[value] = lowering.view_address[plan.address[value]] }
+    }
+    return true
+}
+
+// The bound the shared facts prove the dynamic index of SOURCE below, so
+// x86-64 code needs no check for it, or 0.
+ProvenBound :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> s64 {
+    if state.target.arch != .X86_64 { return 0 }
+    return LirProvenIndexBound(state.proven, function.lir_function, source.result)
+}
+
+// Operands after the aggregate of a member access: the member immediate, or
+// a dynamic index with the r10/r11 it may clobber and then its proven bound
+// (0 keeps the check).
+MemberOperands :: (state: *LowerState, function: *MachineFunction, source: LirInstruction, fixed: s64) -> bool {
+    if source.operands.count != fixed + 1 { return ImmediateOperand(state, source.immediate) != MachineNoId }
+    return VirtualOperand(state, GlobalVirtual(state, function, source.operands[fixed]), .Use) != MachineNoId &&
+        PhysicalOperand(state, MachineAbiAddressScratchRegister(state.target), .Define) != MachineNoId &&
+        PhysicalOperand(state, MachineAbiScratchRegister(state.target), .Define) != MachineNoId &&
+        ImmediateOperand(state, cast(u64)ProvenBound(state, function, source)) != MachineNoId
+}
+
+// An extract or insert copying through frame objects: result, aggregate
+// [, value], then the member operands.
+LowerAggregate :: (state: *LowerState, function: *MachineFunction, source: LirInstruction,
+    opcode: MachineOpcode, fixed: s64) -> bool {
+    instruction := BeginInstruction(state, opcode, source.origin)
+    if VirtualOperand(state, GlobalVirtual(state, function, source.result), .Define) == MachineNoId { return false }
+    for at: cast(s64)0..fixed - 1 {
+        if VirtualOperand(state, GlobalVirtual(state, function, source.operands[at]), .Use) == MachineNoId { return false }
+    }
+    return MemberOperands(state, function, source, fixed) && FinishInstruction(state, instruction) != MachineNoId
+}
+
+// A view that computes its address: from its source view's address, or the
+// frame address of the storage it reads, then the member it names.
+ViewAddress :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    lowering := state.aggregates
+    result := source.result
+    if lowering.plan.address[result] != result { return true }
+    aggregate := source.operands[0]
+    base: s32
+    if MachineAggregateViewed(lowering.plan.view[aggregate]) {
+        base = lowering.view_address[aggregate]
+    } else {
+        stored := state.owner.virtuals[GlobalVirtual(state, function, aggregate)]
+        base = AddressVirtual(state, function, stored.type)
+        if base == MachineNoId { return false }
+        frame := BeginInstruction(state, .StackAddress, source.origin)
+        if VirtualOperand(state, base, .Define) == MachineNoId || StackOperand(state, stored.stack_object) == MachineNoId ||
+            FinishInstruction(state, frame) == MachineNoId { return false }
+    }
+    // A proven element address carries its bound and is not checked.
+    dynamic := source.operands.count == 2
+    bound := ifx dynamic then ProvenBound(state, function, source) else 0
+    instruction := BeginInstruction(state, ifx dynamic then MachineOpcode.ElementAddress else .FieldAddress, source.origin)
+    if VirtualOperand(state, lowering.view_address[result], .Define) == MachineNoId ||
+        VirtualOperand(state, base, .Use) == MachineNoId { return false }
+    if dynamic {
+        if VirtualOperand(state, GlobalVirtual(state, function, source.operands[1]), .Use) == MachineNoId ||
+            bound > 0 && ImmediateOperand(state, cast(u64)bound) == MachineNoId { return false }
+    } else if ImmediateOperand(state, source.immediate) == MachineNoId { return false }
+    return FinishInstruction(state, instruction) != MachineNoId
+}
+
+// A view computes or shares its address; a member of a view is read in place
+// through it; any other extract copies the member out of its frame object.
+LowerExtract :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    lowering := state.aggregates
+    if lowering.plan.view[source.result] == .Read { return ViewAddress(state, function, source) }
+    aggregate := source.operands[0]
+    if !MachineAggregateViewed(lowering.plan.view[aggregate]) { return LowerAggregate(state, function, source, .AggregateExtract, 1) }
+    instruction := BeginInstruction(state, .AggregateExtract, source.origin)
+    if VirtualOperand(state, GlobalVirtual(state, function, source.result), .Define) == MachineNoId ||
+        VirtualOperand(state, lowering.view_address[aggregate], .Use) == MachineNoId ||
+        !MemberOperands(state, function, source, 1) { return false }
+    return FinishInstruction(state, instruction) != MachineNoId
+}
+
+// A changed view's insert replaces the member in place through the view's
+// address, and putting the view back emits nothing.
+LowerInsert :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    lowering := state.aggregates
+    view := lowering.plan.view[source.result]
+    if view == .PutBack { return true }
+    if view != .Changed { return LowerAggregate(state, function, source, .AggregateInsert, 2) }
+    instruction := BeginInstruction(state, .AggregateInsert, source.origin)
+    if VirtualOperand(state, lowering.view_address[source.result], .Use) == MachineNoId ||
+        VirtualOperand(state, GlobalVirtual(state, function, source.operands[1]), .Use) == MachineNoId ||
+        !MemberOperands(state, function, source, 2) { return false }
+    return FinishInstruction(state, instruction) != MachineNoId
+}
+
 LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     source: LirInstruction) -> bool {
     if !Spend(state, 1) { return false }
@@ -980,8 +1148,8 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Convert { return LowerMove(state, function, source, .Convert) }
     if source.op == .Bitcast { return LowerMove(state, function, source, .Bitcast) }
     if source.op == .Aggregate { return LowerMove(state, function, source, .AggregateBuild) }
-    if source.op == .Extract { return LowerMemory(state, function, source, .AggregateExtract) }
-    if source.op == .Insert { return LowerMemory(state, function, source, .AggregateInsert) }
+    if source.op == .Extract { return LowerExtract(state, function, source) }
+    if source.op == .Insert { return LowerInsert(state, function, source) }
     if source.op == .Allocate { return LowerAllocate(state, function, source) }
     if source.op == .Load { return LowerMemory(state, function, source, .Load) }
     if source.op == .Store { return LowerMemory(state, function, source, .Store) }
@@ -1007,8 +1175,14 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     source := state.lir.functions[function_id]
     if source.external { return true }
     function := state.owner.functions[function_id]
-    if !CreateVirtuals(state, function_id) { return false }
+    // Views read and change members in place through x86-64 address
+    // registers; other targets share storage only.
+    problem := MachineAggregatePlanBuild(*state.aggregates.plan, state.lir, source, state.aggregates.stack_size[:],
+        state.target.arch == .X86_64, state.remaining, state.limits.bytes)
+    if problem != .None { return Fail(state, problem) }
+    if !Spend(state, state.aggregates.plan.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
+    if !ViewAddresses(state, *function, source) { return false }
     // A function that allocates keeps the frame arena's top at entry and
     // the head of its pointer chain in two frame words. Each `allocate` gets
     // its raw-storage virtual up front, so a direct access in any block it
@@ -1143,7 +1317,10 @@ MachineLower :: (owner: *MachineOwner, program: LirProgram, target: TargetDescri
     frame_raw: Vec(s32)
     defer VecFree(frame_raw)
     state.frame_raw = *frame_raw
-    if !CopyMetadata(*state) || !CopyTypes(*state) || !AddFunctionRecords(*state) {
+    aggregates: AggregateLowering
+    defer AggregateLoweringFree(*aggregates)
+    state.aggregates = *aggregates
+    if !CopyMetadata(*state) || !CopyTypes(*state) || !AggregateTypes(*state) || !AddFunctionRecords(*state) {
         result := Result(state)
         MachineFree(owner)
         return result

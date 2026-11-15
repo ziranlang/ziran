@@ -344,6 +344,45 @@ facts. A Step-1 implementation limited to constant pointers will not reach the
 Vectors range by itself. Call throughput needs a new runtime-input experiment,
 not a target inferred from this folded fixture.
 
+## Status: fixes 1 and 5 for Records (2026-11-15, Omega)
+
+Implemented in `cmd/compiler_machine_aggregate.zi` (planning) and
+`cmd/compiler_machine_lower.zi`, `cmd/compiler_x86_64.zi`,
+`cmd/compiler_x86_bytes.zi`. Owner direction for fix 1: speed first, keep only
+the guardrails correctness needs, so no new verifier obligations were added.
+
+- Storage: aggregate values with non-overlapping lifetimes share one frame
+  object (the zx2wasm `coalesce_aggregates` rule), so an insert whose source
+  dies writes only its member and block parameters reuse their arguments'
+  object. Real copy cycles keep a temporary, now of the aggregate's own size.
+- Views (x86-64): an extract read only by extracts in its block is read in
+  place through an address computed by `StackAddress` and
+  `FieldAddress`/`ElementAddress`; a dominating view with the same storage
+  and member shares that address. A changed view is stored in place and its
+  put-back emits nothing. Dynamic indices use the shared LIR facts' proven
+  bound (no check) or keep one check per address.
+- Copies and zeroing of 64 bytes or more run a 16-byte `movups` loop with an
+  indexed operand; Records keeps no copy that large, Sieve's image falls from
+  94,336 to 8,320 bytes.
+
+Receipts: `bench/results/wasm-tier-omega-2026-11-15-records-before.json`
+(revision 7ac6643d, load 16.2/16.8) and `...-records-after.json` (revision
+c0efdfd5 plus this change, load 11.5/11.9), 11 samples, both on Omega with
+other lanes' uncommitted work in the tree.
+
+| Records | C µs | zx engine µs | native µs | Wasm µs | native image |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| before | 9.38 | 1858.32 | 1951.25 | 18.48 | 69,760 B |
+| after | 8.66 | 29.20 | 32.18 | 17.00 | 12,416 B |
+
+Direct repeated runs after the receipt measured native 25.4 µs (32 calls per
+process, start included) and the zx engine 28.9 µs, about 2.9× and 3.4× C.
+The update loop is now C-shaped for memory: one proven address per particle,
+then load/add/store of x and y. The rest of the gap to Wasm is scalar code
+outside fix 1: each compare becomes `cmp; setcc; movzx; test; jcc`, constants
+are moved into registers before use, jumps to the next block remain, and the
+per-iteration fuel decrement in memory stays enforced. Those belong to fix 6.
+
 ## Document verification and publication
 
 Only this document is in scope for writes. Static inspection used receipt hash

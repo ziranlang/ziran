@@ -1,0 +1,146 @@
+// Aggregate storage and views on native code (compiler_machine_aggregate):
+// values that share a frame object, members read and changed in place
+// through one address, and the copies that remain. Every read must see the
+// value as it was when read.
+
+Particle :: struct { x: s64; y: s64; dx: s64; dy: s64 }
+// Packed members of odd sizes, so copies end in 4-, 2- and 1-byte pieces.
+Cell :: struct { tag: s8; weight: s32; count: s16 }
+Grid :: struct { cells: [5]Cell; total: s64 }
+
+// The Records kernel of bench/wasm_tier.zi: 64 records changed in place by
+// member for 200 steps, with branches between the changes.
+Records :: () -> s64 {
+    particles: [64]Particle
+    for i: 0..63 { particles[i] = Particle.{x = i, y = 2 * i, dx = i % 5 + 1, dy = i % 3 + 1} }
+    for step: 0..199 {
+        for i: 0..63 {
+            particles[i].x += particles[i].dx
+            particles[i].y += particles[i].dy
+            if particles[i].x > 1000 || particles[i].x < 0 { particles[i].dx = -particles[i].dx }
+            if particles[i].y > 1000 || particles[i].y < 0 { particles[i].dy = -particles[i].dy }
+        }
+    }
+    total: s64
+    for i: 0..63 { total += particles[i].x + particles[i].y }
+    return total
+}
+
+// A whole-array snapshot keeps its values after the array changes.
+Snapshot :: () -> s64 {
+    values: [64]Particle
+    for i: 0..63 { values[i].x = i; values[i].dy = 2 * i }
+    old := values
+    values[3].x = 1000
+    values[60] = Particle.{x = -1, y = 2, dx = 3, dy = 4}
+    old_total: s64
+    for i: 0..63 { old_total += old[i].x + old[i].dy }
+    return old_total * 100 + old[3].x + old[60].x + values[3].x + values[60].dy
+}
+
+// Two arrays swapped every round: the loop's block parameters form a copy
+// cycle, and the member changed afterwards lands in only one of them.
+Rotate :: (rounds: s64) -> s64 {
+    a: [16]s64
+    b: [16]s64
+    for i: 0..15 { a[i] = i; b[i] = 100 + i }
+    for round: 0..rounds - 1 {
+        t := a
+        a = b
+        b = t
+        a[round % 16] += 1
+    }
+    return a[0] + a[15] * 3 + b[1] * 5 + b[14] * 7
+}
+
+// Two small record parameters swapped at a join: a copy cycle of records
+// smaller than a register-sized temporary.
+Vector :: struct { x: s32; y: s32 }
+Ordered :: (first: Vector, second: Vector) -> s64 {
+    from := first
+    to := second
+    if to.x < from.x {
+        from = second
+        to = first
+    }
+    return cast(s64)from.x * 100 + cast(s64)to.x * 10 + cast(s64)(to.y - from.y)
+}
+
+// Members of one element changed in place on either branch, the element
+// read again after the branches join.
+Branches :: (rounds: s64) -> s64 {
+    grid: Grid
+    for i: 0..4 {
+        grid.cells[i] = Cell.{tag = cast(s8)i, weight = cast(s32)(i * 3), count = cast(s16)(i + 1)}
+    }
+    for round: 0..rounds - 1 {
+        k := round % 5
+        if grid.cells[k].weight > 6 { grid.cells[k].weight -= 5 } else { grid.cells[k].count += 2 }
+        grid.total += cast(s64)grid.cells[k].weight + cast(s64)grid.cells[k].tag
+    }
+    sum := grid.total
+    for i: 0..4 { sum += cast(s64)grid.cells[i].weight * 10 + cast(s64)grid.cells[i].count }
+    return sum
+}
+
+// A record parameter changed in place; the caller's value is unchanged.
+Bump :: (particle: Particle, by: s64) -> Particle {
+    particle.x += by
+    particle.dy -= by
+    return particle
+}
+
+// A record carried around a loop, with a snapshot taken inside it.
+Carried :: () -> s64 {
+    p := Particle.{x = 1, y = 2, dx = 3, dy = 4}
+    first: Particle
+    for step: 0..9 {
+        if step == 3 { first = p }
+        p.x += p.dx
+        p.y += step
+    }
+    return first.x * 1000 + p.x * 10 + p.y
+}
+
+// A record taken out of a call's record result and carried to the next
+// iteration only through the loop edge.
+Moved :: struct { particle: Particle; done: bool }
+Advance :: (particle: Particle) -> Moved {
+    particle.x += particle.dx
+    return Moved.{particle = particle, done = particle.x > 20}
+}
+Walk :: () -> s64 {
+    p := Particle.{x = 1, y = 0, dx = 3, dy = 0}
+    steps: s64
+    while steps < 100 {
+        moved := Advance(p)
+        if moved.done { return steps * 100 + moved.particle.x }
+        p = moved.particle
+        steps += 1
+    }
+    return -1
+}
+
+// Scalars stored at runtime indices, each value dying at its store.
+Scatter :: (seed: s64) -> s64 {
+    slots: [32]s64
+    for i: 0..31 { slots[(i * 7 + seed) % 32] = i * i + seed }
+    total: s64
+    for i: 0..31 { total += slots[i] * (i + 1) }
+    return total
+}
+
+main :: () -> s32 {
+    print("records %\n", Records())
+    print("snapshot %\n", Snapshot())
+    print("rotate % %\n", Rotate(5), Rotate(37))
+    print("branches %\n", Branches(23))
+    print("ordered % %\n", Ordered(Vector.{5, 1}, Vector.{2, 7}), Ordered(Vector.{1, 1}, Vector.{2, 7}))
+    start := Particle.{x = 4, y = 5, dx = 6, dy = 7}
+    bumped := Bump(start, 30)
+    print("bump % % % %\n", start.x, start.dy, bumped.x, bumped.dy)
+    print("carried %\n", Carried())
+    print("scatter %\n", Scatter(3))
+    print("walk %\n", Walk())
+    return 0
+}

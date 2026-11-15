@@ -27,6 +27,12 @@ do not import a UI library.
 - Write retained test logic and test helpers in Ziran. Remove redundant tests
   and their unused helpers instead of growing another parallel test suite.
 
+- Generated output carries only the code a program actually reaches:
+  procedures, types, header declarations, runtime helpers and tables. Make
+  output smaller by removing what isn't needed, never by merging it into fewer
+  files. Owner, 2026-11-15: "i want to noly have teh code we acutelly need";
+  one C file per program was rejected.
+
 - Module roots are ordinary repeatable search folders. Keep package manifests,
   CLI forwarding, editor paths and loader storage dynamically sized; do not add
   a folder-count cap or library-specific compiler handling. Preserve resolution

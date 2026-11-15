@@ -156,7 +156,10 @@ byte-identical to `ziran features --json`.
 **Size.** 2–3 sessions. **Runtime.** Claude (parser/checker/serializers/emitters);
 Co-Z for tests and docs once the checker lands.
 
-### Step 3 — One C translation unit per program (Group A, parallel with Step 1)
+### Step 3 — DROPPED (owner, 2026-11-15) — One C translation unit per program (Group A, parallel with Step 1)
+
+**Dropped.** Owner: "no oid nto wnat evreything to become one c file i want to noly have teh code we acutelly need!!!!". Fewer files is not the goal; generating only reachable code is (see AGENTS.md). Unreached-code pruning in the C emitter is the replacement work, owned by the Kryon pay-per-import lane together with cmd/zi2c.
+
 
 **Owner-visible behavior.** `ziran build --target=c` (and `zi2c`) emits exactly
 one `stem.c` plus one `stem.h` per program instead of one file pair per

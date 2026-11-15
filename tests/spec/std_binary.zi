@@ -21,17 +21,28 @@ SelfTest :: () -> s32 {
     bytes[10] = cast(u8)254
     bytes[11] = cast(u8)255
     text := TextView(bytes[:])
-    if ReadF32LE(text, 0) != 1.0 || ReadF32LE(text, 4) != -2.5 {
+    first := TryReadF32LE(text, 0)
+    second := TryReadF32LE(text, 4)
+    if !first.is_ok || first.value != 1.0 || !second.is_ok || second.value != -2.5 {
         return 1
     }
-    if ReadU16LE(text, 8) != cast(u32)258 || ReadU32LE(text, 8) != cast(u32)4294836482 {
+    short := TryReadU16LE(text, 8)
+    word := TryReadU32LE(text, 8)
+    if !short.is_ok || short.value != cast(u32)258 ||
+        !word.is_ok || word.value != cast(u32)4294836482 {
         return 2
     }
-    if ReadS32LE(text, 4) != cast(s32)-1071644672 {
+    signed := TryReadS32LE(text, 4)
+    if !signed.is_ok || signed.value != cast(s32)-1071644672 {
         return 3
     }
-    // Fields that run past the end, or start before it, read as zero.
-    if ReadU32LE(text, 9) != cast(u32)0 || ReadF32LE(text, -1) != 0.0 || ReadU16LE(text, 11) != cast(u32)0 {
+    // Every invalid boundary is a named result, never substituted bytes.
+    misaligned := TryReadU32LE(text, 9)
+    negative := TryReadF32LE(text, -1)
+    truncated := TryReadU16LE(text, 12)
+    if misaligned.is_ok || misaligned.error != .Misaligned ||
+        negative.is_ok || negative.error != .NegativeOffset ||
+        truncated.is_ok || truncated.error != .ShortField {
         return 4
     }
     // The smallest subnormal single, the largest finite single, infinity

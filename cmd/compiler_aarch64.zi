@@ -46,10 +46,16 @@ MachineA64TrapDivideByZero :: 0xffff0002
 MachineA64TrapShift :: 0xffff0003
 MachineA64TrapFuel :: 0xffff0004
 MachineA64TrapConversion :: 0xffff0005
+MachineA64TrapStack :: 0xffff0006
+MachineA64TrapStorage :: 0xffff0007
+MachineA64TrapPointer :: 0xfffeffff
+// A calling function or one with a large frame checks the stack limit.
+MachineA64StackSlack :: 4096
 MachineA64TrapSize :: 16
 
 MachineA64RelocationKind :: enum s32 {
     Invalid; GlobalAddress; ConstantAddress; FuelCounter; TrapHandler; PlatformService; HostCapability; RuntimeResize; FunctionAddress
+    StackLimit; PointerRuntime
 }
 
 MachineA64Relocation :: struct {
@@ -757,7 +763,7 @@ SubsRegister :: (state: *State, rd: s32, rn: s32, rm: s32, selector: u64) {
 // fallthrough can never continue.
 TrapSequence :: (state: *State, code: u64) {
     if state.diagnostic.problem != .None { return }
-    Emit(state, cast(u32)0x52BFFFE0)
+    Emit(state, cast(u32)(cast(u64)0x52A00000 | (((code >> 16) & cast(u64)0xffff) << 5)))
     Emit(state, cast(u32)(cast(u64)0x72800000 | ((code & cast(u64)0xffff) << 5)))
     Relocate(state, .TrapHandler, 0, -4, state.writer.at)
     Branch(state, state.writer.at, true)
@@ -765,10 +771,10 @@ TrapSequence :: (state: *State, code: u64) {
 }
 
 // Continues past an inline trap when the raw condition CODE holds; the
-// conditional branch skips the four-word trap sequence.
+// conditional branch skips itself and the four-word trap sequence.
 TrapUnless :: (state: *State, condition: s32, code: u64) {
     if state.diagnostic.problem != .None { return }
-    BranchCondition(state, state.writer.at + MachineA64TrapSize, condition)
+    BranchCondition(state, state.writer.at + 4 + MachineA64TrapSize, condition)
     TrapSequence(state, code)
 }
 
@@ -1765,6 +1771,378 @@ BytesEqual :: (state: *State) -> bool {
     return true
 }
 
+// ---- Checked pointers ----------------------------------------------------
+// The same slot table and frame arena as x86-64 (compiler_machine_image.zi).
+// x17 holds the pointer runtime header, x16 is a short-lived temporary that
+// A64Load/A64Store may also use to rebase a far displacement, and x10 is the
+// fixed pointer scratch operand.
+
+PointerScratch :: 10
+
+// UBFM: the bit-field move behind LSR, LSL and UBFX.
+Ubfm :: (state: *State, rd: s32, rn: s32, immr: s64, imms: s64) {
+    if state.diagnostic.problem != .None { return }
+    Emit(state, cast(u32)(cast(u64)0xD3400000 | (cast(u64)immr << 16) | (cast(u64)imms << 10) |
+        (cast(u64)rn << 5) | (cast(u64)rd & 31)))
+}
+ShiftRightImmediate :: (state: *State, rd: s32, rn: s32, shift: s64) { Ubfm(state, rd, rn, shift, 63) }
+ShiftLeftImmediate :: (state: *State, rd: s32, rn: s32, shift: s64) {
+    Ubfm(state, rd, rn, (64 - shift) & 63, 63 - shift)
+}
+// The WIDTH bits of RN starting at LSB, zero-extended.
+ExtractBits :: (state: *State, rd: s32, rn: s32, lsb: s64, width: s64) {
+    Ubfm(state, rd, rn, lsb, lsb + width - 1)
+}
+OrRegister :: (state: *State, rd: s32, rn: s32, rm: s32) {
+    if state.diagnostic.problem != .None { return }
+    Emit(state, cast(u32)(cast(u64)0xAA000000 | (cast(u64)rm << 16) | (cast(u64)rn << 5) | (cast(u64)rd & 31)))
+}
+// MADD rd, rn, rm, xzr.
+MultiplyRegister :: (state: *State, rd: s32, rn: s32, rm: s32) {
+    if state.diagnostic.problem != .None { return }
+    Emit(state, cast(u32)(cast(u64)0x9B007C00 | (cast(u64)rm << 16) | (cast(u64)rn << 5) | (cast(u64)rd & 31)))
+}
+// str rt, [sp, #-16]! and ldr rt, [sp], #16.
+PushRegister :: (state: *State, rt: s32) { Emit(state, cast(u32)(cast(u64)0xF81F0FE0 | (cast(u64)rt & 31))) }
+PopRegister :: (state: *State, rt: s32) { Emit(state, cast(u32)(cast(u64)0xF84107E0 | (cast(u64)rt & 31))) }
+
+ProbeSaved :: struct { writer: Bytes.ArmWriter; relocations: s64 }
+
+// Measures a sequence without writing it or recording its relocations, so a
+// branch can skip it.
+Probe :: (state: *State) -> ProbeSaved {
+    saved := ProbeSaved.{writer = state.writer, relocations = state.relocation_count}
+    empty: []u8
+    state.writer = .{output = empty, at = saved.writer.at, limit = saved.writer.limit}
+    return saved
+}
+Unprobe :: (state: *State, saved: ProbeSaved) -> s64 {
+    length := state.writer.at - saved.writer.at
+    failed := state.writer.failed
+    state.writer = saved.writer
+    state.relocation_count = saved.relocations
+    if failed { state.writer.failed = true }
+    return length
+}
+
+// x17 = the pointer runtime header.
+PointerHeader :: (state: *State) { MaterializeRelocated(state, 17, .PointerRuntime, 0) }
+
+// ENTRY = &table[SLOT], with TEMPORARY for the table base.
+PointerEntry :: (state: *State, entry: s32, slot: s32, temporary: s32) {
+    ShiftLeftImmediate(state, entry, slot, 5)
+    A64Load(state, temporary, .{base = 17, displacement = MachinePointerHeaderTable}, 8, false)
+    AddSubRegister(state, entry, entry, temporary, false, 1)
+}
+
+// Traps with CODE unless bit BIT of the 16-bit flags at ENTRY is set.
+FlagRequired :: (state: *State, entry: s32, bit: s64, code: u64) {
+    A64Load(state, 16, .{base = entry, displacement = MachinePointerEntryFlags}, 2, false)
+    ExtractBits(state, 16, 16, bit, 1)
+    SubsImmediate(state, 16, 0, 1)
+    TrapUnless(state, 1, code)
+}
+
+// PointerResolve raw, token, width, x10, flags: checks the slot, version,
+// liveness (and writability for flag 1) and offset + width <= size, then
+// raw = base + offset. Slot 0 is a live empty entry, so null resolves only
+// for zero width.
+PointerResolve :: (state: *State) -> bool {
+    if !Count(state, 5) { return false }
+    destination := Register(state, 0, .Define)
+    token := Register(state, 1, .Use)
+    if destination == MachineNoId || token == MachineNoId { return false }
+    width := OperandAt(state, 2)
+    scratch := OperandAt(state, 3)
+    flags := OperandAt(state, 4)
+    if scratch.kind != .Physical || scratch.id != PointerScratch || scratch.role != .UseDefine ||
+        flags.kind != .Immediate || width.kind != .Immediate && width.kind != .Physical ||
+        width.kind == .Immediate && width.immediate > 2147483647 {
+        return Fail(state, .Unsupported, OperandId(state, 2))
+    }
+    PointerHeader(state)
+    ShiftRightImmediate(state, PointerScratch, token, MachinePointerSlotShift)
+    A64Load(state, 16, .{base = 17, displacement = MachinePointerHeaderCapacity}, 8, false)
+    CompareRegister(state, PointerScratch, 16, true, 1)
+    TrapUnless(state, 3, MachineA64TrapPointer)
+    PointerEntry(state, PointerScratch, PointerScratch, 16)
+    // x17 = the token's version (the header is no longer needed).
+    ExtractBits(state, 17, token, MachinePointerVersionShift, 12)
+    A64Load(state, 16, .{base = PointerScratch, displacement = MachinePointerEntryVersion}, 2, false)
+    CompareRegister(state, 17, 16, true, 1)
+    TrapUnless(state, 0, MachineA64TrapPointer)
+    FlagRequired(state, PointerScratch, 0, MachineA64TrapPointer)
+    if (flags.immediate & 1) != 0 { FlagRequired(state, PointerScratch, 1, MachineA64TrapPointer) }
+    // x17 = offset + width, at most the entry's size.
+    ExtractBits(state, 17, token, 0, 32)
+    if width.kind == .Immediate {
+        MoveImmediate(state, 16, width.immediate, 1)
+        AddSubRegister(state, 17, 17, 16, false, 1)
+    } else {
+        AddSubRegister(state, 17, 17, width.id, false, 1)
+    }
+    A64Load(state, 16, .{base = PointerScratch, displacement = MachinePointerEntrySize}, 8, false)
+    CompareRegister(state, 17, 16, true, 1)
+    TrapUnless(state, 9, MachineA64TrapPointer)
+    ExtractBits(state, 17, token, 0, 32)
+    A64Load(state, destination, .{base = PointerScratch, displacement = MachinePointerEntryBase}, 8, false)
+    AddSubRegister(state, destination, destination, 17, false, 1)
+    return true
+}
+
+// ArenaAllocate raw, size, x10: SIZE fresh bytes, 16-byte aligned, from the
+// frame arena; the storage trap past its limit.
+ArenaAllocate :: (state: *State) -> bool {
+    if !Count(state, 3) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    size := OperandAt(state, 1)
+    scratch := OperandAt(state, 2)
+    if size.kind != .Immediate || size.immediate > 2147483632 || scratch.kind != .Physical ||
+        scratch.id != PointerScratch || scratch.role != .UseDefine {
+        return Fail(state, .Unsupported, OperandId(state, 1))
+    }
+    rounded := cast(s64)((size.immediate + 15) & ~cast(u64)15)
+    if rounded == 0 { rounded = 16 }
+    PointerHeader(state)
+    A64Load(state, destination, .{base = 17, displacement = MachinePointerHeaderArenaTop}, 8, false)
+    MoveImmediate(state, 16, cast(u64)rounded, 1)
+    AddSubRegister(state, PointerScratch, destination, 16, false, 1)
+    A64Load(state, 16, .{base = 17, displacement = MachinePointerHeaderArenaLimit}, 8, false)
+    CompareRegister(state, PointerScratch, 16, true, 1)
+    TrapUnless(state, 9, MachineA64TrapStorage)
+    A64Store(state, .{base = 17, displacement = MachinePointerHeaderArenaTop}, PointerScratch, 8)
+    return true
+}
+
+// DESTINATION = the token of a new slot for the address in x15. SIZE is an
+// immediate, or the register SIZE_REGISTER when it is not MachineNoId. A
+// frame slot joins CHAIN; heap slots have none. x17 holds the header.
+CreateSlot :: (state: *State, destination: s32, size: s64, size_register: s32, flags: u64,
+    chain: A64Memory, chained: bool) {
+    // Take a slot off the free list, or the next unused one.
+    A64Load(state, PointerScratch, .{base = 17, displacement = MachinePointerHeaderFree}, 8, false)
+    saved := Probe(state)
+    FreePop(state, destination)
+    pop_length := Unprobe(state, saved)
+    // cbz x10 skips the pop and its branch over the unused-slot path.
+    CompareZeroBranch(state, PointerScratch, state.writer.at + 4 + pop_length + 4, false, 1)
+    FreePop(state, destination)
+    unused_at := state.writer.at + 4
+    saved = Probe(state)
+    UnusedSlot(state)
+    unused_length := Unprobe(state, saved)
+    Branch(state, unused_at + unused_length, false)
+    UnusedSlot(state)
+    A64Load(state, 16, .{base = 17, displacement = MachinePointerHeaderCapacity}, 8, false)
+    CompareRegister(state, PointerScratch, 16, true, 1)
+    TrapUnless(state, 3, MachineA64TrapStorage)
+    PointerEntry(state, destination, PointerScratch, 16)
+    A64Store(state, .{base = destination, displacement = MachinePointerEntryBase}, 15, 8)
+    if size_register != MachineNoId {
+        A64Store(state, .{base = destination, displacement = MachinePointerEntrySize}, size_register, 8)
+    } else {
+        MoveImmediate(state, 16, cast(u64)size, 1)
+        A64Store(state, .{base = destination, displacement = MachinePointerEntrySize}, 16, 8)
+    }
+    MoveImmediate(state, 16, flags, 0)
+    A64Store(state, .{base = destination, displacement = MachinePointerEntryFlags}, 16, 2)
+    if chained {
+        A64Load(state, 16, chain, 8, false)
+        A64Store(state, .{base = destination, displacement = MachinePointerEntryNext}, 16, 4)
+        A64Store(state, chain, PointerScratch, 8)
+    } else {
+        A64Store(state, .{base = destination, displacement = MachinePointerEntryNext}, 31, 4)
+    }
+    // token = slot << 44 | version << 32
+    A64Load(state, 16, .{base = destination, displacement = MachinePointerEntryVersion}, 2, false)
+    ShiftLeftImmediate(state, 16, 16, MachinePointerVersionShift)
+    ShiftLeftImmediate(state, destination, PointerScratch, MachinePointerSlotShift)
+    OrRegister(state, destination, destination, 16)
+}
+
+// The free-list pop: slot x10 != 0 leaves the list. ENTRY is a temporary.
+FreePop :: (state: *State, entry: s32) {
+    PointerEntry(state, entry, PointerScratch, 16)
+    A64Load(state, 16, .{base = entry, displacement = MachinePointerEntryNext}, 4, false)
+    A64Store(state, .{base = 17, displacement = MachinePointerHeaderFree}, 16, 8)
+}
+
+// x10 = the next unused slot, which moves on by one.
+UnusedSlot :: (state: *State) {
+    A64Load(state, PointerScratch, .{base = 17, displacement = MachinePointerHeaderUnused}, 8, false)
+    AddSubImmediate(state, 16, PointerScratch, 1, false, 1)
+    A64Store(state, .{base = 17, displacement = MachinePointerHeaderUnused}, 16, 8)
+}
+
+// PointerCreate token, raw, size, x10, flags, chain.
+PointerCreate :: (state: *State) -> bool {
+    if !Count(state, 6) { return false }
+    destination := Register(state, 0, .Define)
+    raw := Register(state, 1, .Use)
+    if destination == MachineNoId || raw == MachineNoId { return false }
+    size := OperandAt(state, 2)
+    scratch := OperandAt(state, 3)
+    flags := OperandAt(state, 4)
+    chain := OperandAt(state, 5)
+    if size.kind != .Immediate || size.immediate > 2147483647 || scratch.kind != .Physical ||
+        scratch.id != PointerScratch || scratch.role != .UseDefine || flags.kind != .Immediate ||
+        chain.kind != .StackObject {
+        return Fail(state, .Unsupported, OperandId(state, 2))
+    }
+    chain_memory := StackMemory(state, chain.id, OperandId(state, 5))
+    if state.diagnostic.problem != .None { return false }
+    // The address may share a register with the token.
+    MoveRegister(state, 15, raw, 1)
+    PointerHeader(state)
+    CreateSlot(state, destination, cast(s64)size.immediate, MachineNoId, flags.immediate, chain_memory, true)
+    return true
+}
+
+// Ends slot x10, whose entry address is in ENTRY: its version moves on, it
+// is no longer live, and unless its versions are used up it goes back on the
+// free list. TEMPORARY and SPARE are clobbered; x17 holds the header.
+RetireSlot :: (state: *State, entry: s32, temporary: s32, spare: s32) {
+    A64Load(state, temporary, .{base = entry, displacement = MachinePointerEntryVersion}, 2, false)
+    AddSubImmediate(state, temporary, temporary, 1, false, 1)
+    A64Store(state, .{base = entry, displacement = MachinePointerEntryVersion}, temporary, 2)
+    A64Store(state, .{base = entry, displacement = MachinePointerEntryFlags}, 31, 2)
+    MoveImmediate(state, spare, cast(u64)MachinePointerVersions, 1)
+    CompareRegister(state, temporary, spare, true, 1)
+    saved := Probe(state)
+    FreePush(state, entry, spare)
+    length := Unprobe(state, saved)
+    BranchCondition(state, state.writer.at + 4 + length, 2)
+    FreePush(state, entry, spare)
+}
+
+FreePush :: (state: *State, entry: s32, spare: s32) {
+    A64Load(state, spare, .{base = 17, displacement = MachinePointerHeaderFree}, 8, false)
+    A64Store(state, .{base = entry, displacement = MachinePointerEntryNext}, spare, 4)
+    A64Store(state, .{base = 17, displacement = MachinePointerHeaderFree}, PointerScratch, 8)
+}
+
+// Traps unless the token in x10 names a live heap block at offset 0, then
+// x10 = the block's address. x9, x13, x14 and x16 are clobbered.
+CheckHeapSlot :: (state: *State) {
+    ShiftRightImmediate(state, 16, PointerScratch, MachinePointerSlotShift)
+    A64Load(state, 13, .{base = 17, displacement = MachinePointerHeaderCapacity}, 8, false)
+    CompareRegister(state, 16, 13, true, 1)
+    TrapUnless(state, 3, MachineA64TrapPointer)
+    PointerEntry(state, 9, 16, 13)
+    ExtractBits(state, 13, PointerScratch, MachinePointerVersionShift, 12)
+    A64Load(state, 14, .{base = 9, displacement = MachinePointerEntryVersion}, 2, false)
+    CompareRegister(state, 13, 14, true, 1)
+    TrapUnless(state, 0, MachineA64TrapPointer)
+    FlagRequired(state, 9, 0, MachineA64TrapPointer)
+    FlagRequired(state, 9, 2, MachineA64TrapPointer)
+    ExtractBits(state, 13, PointerScratch, 0, 32)
+    SubsImmediate(state, 13, 0, 1)
+    TrapUnless(state, 0, MachineA64TrapPointer)
+    A64Load(state, PointerScratch, .{base = 9, displacement = MachinePointerEntryBase}, 8, false)
+}
+
+// After a successful resize (x0 the new block or null when freed, x14 its
+// byte size, x13 the old token): end the old slot and give a new block a
+// heap slot; x0 becomes its token. x9-x11, x15 and x16 are clobbered.
+ResizeSlots :: (state: *State) {
+    saved := Probe(state)
+    RetireToken(state)
+    length := Unprobe(state, saved)
+    CompareZeroBranch(state, 13, state.writer.at + 4 + length, false, 1)
+    RetireToken(state)
+    saved = Probe(state)
+    HeapSlot(state)
+    length = Unprobe(state, saved)
+    CompareZeroBranch(state, 0, state.writer.at + 4 + length, false, 1)
+    HeapSlot(state)
+}
+
+// Ends the slot of the token in x13.
+RetireToken :: (state: *State) {
+    ShiftRightImmediate(state, PointerScratch, 13, MachinePointerSlotShift)
+    PointerEntry(state, 9, PointerScratch, 16)
+    RetireSlot(state, 9, 11, 16)
+}
+
+// x0 = the token of a new heap slot for x14 bytes at x0.
+HeapSlot :: (state: *State) {
+    MoveRegister(state, 15, 0, 1)
+    empty: A64Memory
+    CreateSlot(state, 0, 0, 14, MachinePointerLive | MachinePointerWritable | MachinePointerHeap, empty, false)
+}
+
+// A function with frame storage: save the arena top and start an empty
+// chain. x10, x16 and x17 are free at entry.
+PointerFrameEnter :: (state: *State, function: MachineFunction) -> bool {
+    mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
+    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
+    if state.diagnostic.problem != .None { return false }
+    PointerHeader(state)
+    A64Load(state, PointerScratch, .{base = 17, displacement = MachinePointerHeaderArenaTop}, 8, false)
+    A64Store(state, mark, PointerScratch, 8)
+    A64Store(state, chain, 31, 8)
+    return true
+}
+
+// Before returning: give back the arena and end every slot on the chain.
+// Only x0 or v0 holds a live value here; x9-x14, x16 and x17 are free.
+PointerFrameLeave :: (state: *State, function: MachineFunction) -> bool {
+    mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
+    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
+    if state.diagnostic.problem != .None { return false }
+    PointerHeader(state)
+    A64Load(state, PointerScratch, mark, 8, false)
+    A64Store(state, .{base = 17, displacement = MachinePointerHeaderArenaTop}, PointerScratch, 8)
+    loop := state.writer.at
+    A64Load(state, PointerScratch, chain, 8, false)
+    saved := Probe(state)
+    PointerFrameStep(state, chain, loop)
+    length := Unprobe(state, saved)
+    CompareZeroBranch(state, PointerScratch, state.writer.at + 4 + length, false, 1)
+    PointerFrameStep(state, chain, loop)
+    return true
+}
+
+PointerFrameStep :: (state: *State, chain: A64Memory, loop: s64) {
+    PointerEntry(state, 9, PointerScratch, 11)
+    A64Load(state, 11, .{base = 9, displacement = MachinePointerEntryNext}, 4, false)
+    A64Store(state, chain, 11, 8)
+    RetireSlot(state, 9, 11, 12)
+    Branch(state, loop, false)
+}
+
+// Zero: clears every byte the pointer operand addresses, as an `allocate`
+// without an initial value requires.
+Zero :: (state: *State) -> bool {
+    if !Count(state, 1) { return false }
+    pointer := Register(state, 0, .Use)
+    if pointer == MachineNoId { return false }
+    type := TypeOf(state, OperandAt(state, 0))
+    if type.kind != .Pointer || type.element < 0 || type.element >= state.program.types.count {
+        return Fail(state, .Unsupported, OperandId(state, 0))
+    }
+    size := state.program.types[type.element].size
+    if size < 0 || size > 2147483647 { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    return ZeroMemory(state, .{base = pointer, displacement = 0}, size)
+}
+
+// Whether FUNCTION checks the stack limit: it calls, or its frame is large.
+MachineA64StackChecked :: (program: MachineProgram, function_id: s32) -> bool {
+    if function_id < 0 || function_id >= program.functions.count { return false }
+    function := program.functions[function_id]
+    if function.calling != .Internal { return false }
+    if function_id < program.frames.count && program.frames[function_id].size > MachineA64StackSlack { return true }
+    for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+        block := program.blocks[block_id]
+        for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+            opcode := program.instructions[instruction_id].opcode
+            if opcode == .CallDirect || opcode == .CallIndirect || opcode == .Resize { return true }
+        }
+    }
+    return false
+}
+
 // Calls the runtime resize helper with the saved x1-x8 argument bank.
 Resize :: (state: *State) -> bool {
     if !Count(state, 13) { return false }
@@ -1808,12 +2186,38 @@ Resize :: (state: *State) -> bool {
     Emit(state, 0xA9BF13E3)
     Emit(state, 0xA9BF1BE5)
     Emit(state, 0xA9BF23E7)
+    // x10 is the old block's token: unless null it must name a live heap
+    // block at offset 0, and x10 becomes the block's address. Its slot ends
+    // only once the runtime has freed or moved the block; a request that
+    // does not fit gives null and leaves the old block valid, as on the
+    // portable engine and x86-64.
+    PushRegister(state, PointerScratch)
+    PushRegister(state, 12)
+    PointerHeader(state)
+    saved := Probe(state)
+    CheckHeapSlot(state)
+    length := Unprobe(state, saved)
+    CompareZeroBranch(state, PointerScratch, state.writer.at + 4 + length, false, 1)
+    CheckHeapSlot(state)
     MoveRegister(state, 0, 10, 1)
     MoveRegister(state, 1, 11, 1)
     MoveRegister(state, 2, 12, 1)
-    MoveImmediate(state, 3, cast(u64)element.size, 0)
+    MoveImmediate(state, 3, cast(u64)element.size, 1)
     Relocate(state, .RuntimeResize, 0, -4, state.writer.at)
     Branch(state, state.writer.at, true)
+    PopRegister(state, 12)
+    PopRegister(state, 13)
+    // A failed request (null with a nonzero count) changes nothing.
+    PointerHeader(state)
+    MoveImmediate(state, 14, cast(u64)element.size, 1)
+    MultiplyRegister(state, 14, 12, 14)
+    saved = Probe(state)
+    ResizeSlots(state)
+    length = Unprobe(state, saved)
+    // x0 nonzero: skip the count test.
+    CompareZeroBranch(state, 0, state.writer.at + 8, true, 1)
+    CompareZeroBranch(state, 12, state.writer.at + 4 + length, true, 1)
+    ResizeSlots(state)
     Emit(state, 0xA8C123E7)
     Emit(state, 0xA8C11BE5)
     Emit(state, 0xA8C113E3)
@@ -2127,6 +2531,8 @@ Return :: (state: *State) -> bool {
             }
         }
     }
+    function := state.program.functions[state.function]
+    if function.pointer_chain != 0 && !PointerFrameLeave(state, function) { return false }
     if !CalleeSaves(state, true) { return false }
     size := ReservedSize(state.program.frames[state.function])
     if size < 0 { return Fail(state, .Frame) }
@@ -2180,6 +2586,10 @@ Instruction :: (state: *State) -> bool {
     else if op == .ElementAddress { ok = ElementAddress(state) }
     else if op == .BytesEqual { ok = BytesEqual(state) }
     else if op == .Resize { ok = Resize(state) }
+    else if op == .PointerResolve { ok = PointerResolve(state) }
+    else if op == .PointerCreate { ok = PointerCreate(state) }
+    else if op == .ArenaAllocate { ok = ArenaAllocate(state) }
+    else if op == .Zero { ok = Zero(state) }
     else if op == .StackAddress { ok = StackAddress(state) }
     else if op == .FunctionAddress { ok = FunctionAddress(state) }
     else if op == .GlobalAddress { ok = GlobalAddress(state) }
@@ -2218,7 +2628,16 @@ Prologue :: (state: *State) -> bool {
         AddSubImmediate(state, 31, 31, step, true, 1)
         size -= step
     }
+    if MachineA64StackChecked(state.program, state.function) {
+        // Continue while sp is at or above the instance's stack limit.
+        MaterializeRelocated(state, 17, .StackLimit, 0)
+        A64Load(state, 17, .{base = 17, displacement = 0}, 8, false)
+        AddSubImmediate(state, 16, 31, 0, false, 1)
+        CompareRegister(state, 16, 17, true, 1)
+        TrapUnless(state, 2, MachineA64TrapStack)
+    }
     if !CalleeSaves(state, false) { return false }
+    if function.pointer_chain != 0 && !PointerFrameEnter(state, function) { return false }
     result_addresses: s32
     for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
         object := state.program.stack_objects[object_id]
@@ -2328,6 +2747,8 @@ ImageRelocationKind :: (kind: MachineA64RelocationKind) -> Image.MachineRelocati
     if kind == .PlatformService { return .PlatformService }
     if kind == .HostCapability { return .HostCapability }
     if kind == .RuntimeResize { return .RuntimeResize }
+    if kind == .StackLimit { return .StackLimit }
+    if kind == .PointerRuntime { return .PointerRuntime }
     return .Invalid
 }
 
@@ -2335,7 +2756,8 @@ ImageRelocationKind :: (kind: MachineA64RelocationKind) -> Image.MachineRelocati
 // dispatch and the runtime resize call patch whole words.
 ImageRelocationWidth :: (kind: MachineA64RelocationKind) -> s32 {
     if kind == .GlobalAddress || kind == .ConstantAddress ||
-        kind == .FunctionAddress || kind == .FuelCounter { return 2 }
+        kind == .FunctionAddress || kind == .FuelCounter ||
+        kind == .StackLimit || kind == .PointerRuntime { return 2 }
     return 4
 }
 
@@ -2395,9 +2817,13 @@ BuildMachineImage :: (program: MachineProgram, output: *MachineA64Owner,
             return false
         }
     }
+    // Fuel, the last trap code, the stack limit word, then the pointer
+    // runtime header, as on x86-64.
     fuel := AlignValue(data_size, 8)
-    if fuel > limits.bytes - 16 { return false }
-    data_size = AlignValue(fuel + 12, 8)
+    if fuel > limits.bytes - 24 - MachinePointerHeaderBytes { return false }
+    stack_limit := fuel + 16
+    pointer_header := stack_limit + 8
+    data_size = pointer_header + MachinePointerHeaderBytes
     if !VecResizeBounded(owner.constants, constants_size, limits.bytes) ||
         !VecResizeBounded(owner.data, data_size, limits.bytes) { return false }
     for index: cast(s64)0..globals - 1 {
@@ -2431,7 +2857,7 @@ BuildMachineImage :: (program: MachineProgram, output: *MachineA64Owner,
         constant_offsets = owner.constant_offsets[:], initializers = owner.initializers[:],
         relocations = owner.relocations[:], entry = program.entry,
         stack_alignment = 16, stack_bytes = stack_bytes, fuel_offset = fuel,
-        stack_limit_offset = -1,
+        stack_limit_offset = stack_limit, pointer_offset = pointer_header,
         host_symbols = cast(s32)functions, platform_symbols = cast(s32)functions,
         trap_symbols = 1}
     if MachineImageValidate(owner.image).problem != .None { return false }

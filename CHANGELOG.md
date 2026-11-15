@@ -14,6 +14,7 @@
 - On Linux x86-64, `ziran run app.zx`, `zi2zx run` and the embedding API run bundles as native code with the engine's pointer checks: dangling frame pointers, use after free, double free and read-only stores trap, a native gap is a named error, and nothing falls back to the engine. `--backend engine` picks the engine.
 - Native bundles export and import module state, so hot reload and component replacement keep their state.
 - Native code checks the stack in calling functions and traps on runaway recursion, and native traps name the function and, with `zi2zx --debug`, the source line.
+- The AArch64 native encoder emits the checked-pointer forms, the frame pointer chain, slot-aware resize and the calling-function stack check, as on x86-64, so its images carry a stack limit and pointer runtime. Inline traps branch past their sequence and keep their full 32-bit code. The loader does not run AArch64 images yet.
 - `zi2zx --debug` writes source origins to the optional ZX debug attachment, and `zx2native --emit map` names source lines from it.
 - `zx2native` executables start with unbounded fuel like a bundle run; `--fuel N` sets a budget.
 - Native host calls return records, arrays and strings, and a returned string stays valid across later host calls.

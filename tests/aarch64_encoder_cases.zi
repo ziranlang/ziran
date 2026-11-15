@@ -578,6 +578,7 @@ Ids :: struct {
     shift: [3]s32
     bytes_equal: s32
     resize: s32
+    resize_function: s32
 }
 
 BuildBasics :: (b: *Builder, ids: *Ids) {
@@ -737,7 +738,7 @@ ids.bytes_equal = BytesEqualOp(b, equal, be_left, be_left_count, be_right, be_ri
     unused Return(b, X0, equal)
     End(b, 0)
 
-    unused Begin(b, "resize")
+    ids.resize_function = Begin(b, "resize")
     record := Parameter(b, RECORD_POINTER, X10); old_count := Parameter(b, S64, X11)
     new_count := Parameter(b, S64, X12)
     resized := Value(b, RECORD_POINTER)
@@ -818,7 +819,7 @@ Basics :: () -> bool {
     fuel_range := image.instructions[ids.loop_ops[1]]
     if !Instruction(image, ids.loop_ops[0], "", "fallthrough into loop") ||
         !Bytes(image.code, fuel_range.begin, fuel_range.end,
-            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 3f 06 00 f1 11 02 00 f9 82 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
+            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 3f 06 00 f1 11 02 00 f9 a2 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
             "fuel through the counter") ||
         !Instruction(image, ids.loop_ops[2], "1f 00 00 eb", "loop compare") ||
         !Instruction(image, ids.loop_ops[3], "8a 00 00 54", "inverse flags branch") ||
@@ -833,20 +834,20 @@ Basics :: () -> bool {
             "backward jump reaches the loop head") { return false }
 
     if !Instruction(image, ids.fuel_ops[0],
-            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 3f a2 0f f1 11 02 00 f9 82 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
+            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 3f a2 0f f1 11 02 00 f9 a2 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
             "fuel imm12") ||
         !Instruction(image, ids.fuel_ops[1],
-            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 0b 00 80 d2 0b 00 a0 f2 2b 00 c0 f2 31 02 0b eb 11 02 00 f9 82 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
+            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 0b 00 80 d2 0b 00 a0 f2 2b 00 c0 f2 31 02 0b eb 11 02 00 f9 a2 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
             "fuel through scratch") { return false }
 
     if !Instruction(image, ids.divide[0],
-            "ff 03 01 eb 81 00 00 54 e0 ff bf 52 40 00 80 72 00 00 00 94 00 00 20 d4 00 0c c1 9a",
+            "ff 03 01 eb a1 00 00 54 e0 ff bf 52 40 00 80 72 00 00 00 94 00 00 20 d4 00 0c c1 9a",
             "signed divide") ||
         !Instruction(image, ids.divide[1],
-            "ff 03 01 eb 81 00 00 54 e0 ff bf 52 40 00 80 72 00 00 00 94 00 00 20 d4 0f 0c c1 9a e0 81 01 9b",
+            "ff 03 01 eb a1 00 00 54 e0 ff bf 52 40 00 80 72 00 00 00 94 00 00 20 d4 0f 0c c1 9a e0 81 01 9b",
             "signed remainder") ||
         !Instruction(image, ids.unsigned_divide[0],
-            "ff 03 02 6b 81 00 00 54 e0 ff bf 52 40 00 80 72 00 00 00 94 00 00 20 d4 0f 08 c2 1a e0 81 02 1b",
+            "ff 03 02 6b a1 00 00 54 e0 ff bf 52 40 00 80 72 00 00 00 94 00 00 20 d4 0f 08 c2 1a e0 81 02 1b",
             "unsigned remainder") { return false }
     expected_shift: [3]string = .["7f 80 00 71 a3 00 00 54 e0 ff bf 52 60 00 80 72 00 00 00 94 00 00 20 d4 00 28 c3 1a",
         "7f 00 01 71 a3 00 00 54 e0 ff bf 52 60 00 80 72 00 00 00 94 00 00 20 d4 21 24 c3 9a",
@@ -858,7 +859,7 @@ Basics :: () -> bool {
             "7f 01 0d eb 41 01 00 54 eb 00 00 b4 4e 15 40 38 8f 15 40 38 df 01 0f 6b a1 00 00 54 7f 05 00 f1 f8 ff ff 17 20 00 80 52 02 00 00 14 e0 03 1f 2a",
             "bytes equal form") ||
         !Instruction(image, ids.resize,
-            "e1 0b bf a9 e3 13 bf a9 e5 1b bf a9 e7 23 bf a9 40 01 1f aa 61 01 1f aa 82 01 1f aa 03 02 80 52 00 00 00 94 e7 23 c1 a8 e5 1b c1 a8 e3 13 c1 a8 e1 0b c1 a8",
+            "e1 0b bf a9 e3 13 bf a9 e5 1b bf a9 e7 23 bf a9 ea 0f 1f f8 ec 0f 1f f8 11 00 80 d2 11 00 a0 f2 11 00 c0 f2 11 00 e0 f2 8a 05 00 b4 50 fd 6c d3 2d 0a 40 f9 1f 02 0d eb a3 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 09 ea 7b d3 2d 16 40 f9 29 01 0d 8b 4d ad 60 d3 2e 21 40 79 bf 01 0e eb a0 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 30 25 40 79 10 02 40 d3 1f 02 00 f1 a1 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 30 25 40 79 10 0a 42 d3 1f 02 00 f1 a1 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 4d 7d 40 d3 bf 01 00 f1 a0 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 2a 01 40 f9 40 01 1f aa 61 01 1f aa 82 01 1f aa 03 02 80 d2 00 00 00 94 ec 07 41 f8 ed 07 41 f8 11 00 80 d2 11 00 a0 f2 11 00 c0 f2 11 00 e0 f2 0e 02 80 d2 8e 7d 0e 9b 40 00 00 b5 0c 06 00 b5 ed 01 00 b4 aa fd 6c d3 49 e9 7b d3 30 16 40 f9 29 01 10 8b 2b 21 40 79 6b 05 00 91 2b 21 00 79 3f 25 00 79 10 00 82 d2 7f 01 10 eb 82 00 00 54 30 02 40 f9 30 15 00 b9 2a 02 00 f9 00 04 00 b4 0f 00 1f aa 2a 02 40 f9 ea 00 00 b4 40 e9 7b d3 30 16 40 f9 00 00 10 8b 10 14 40 b9 30 02 00 f9 04 00 00 14 2a 06 40 f9 50 05 00 91 30 06 00 f9 30 0a 40 f9 5f 01 10 eb a3 00 00 54 e0 ff bf 52 e0 00 80 72 00 00 00 94 00 00 20 d4 40 e9 7b d3 30 16 40 f9 00 00 10 8b 0f 00 00 f9 0e 04 00 f9 f0 00 80 52 10 24 00 79 1f 14 00 b9 10 20 40 79 10 7e 60 d3 40 4d 54 d3 00 00 10 aa e7 23 c1 a8 e5 1b c1 a8 e3 13 c1 a8 e1 0b c1 a8",
             "runtime resize form") { return false }
 
     // Relocations: every inline trap calls the handler and every fuel check
@@ -866,6 +867,8 @@ Basics :: () -> bool {
     fuel_counters: s64 = 0
     traps: s64 = 0
     resize_relocations: s64 = 0
+    stack_limits: s64 = 0
+    pointer_runtimes: s64 = 0
     for relocation: image.relocations {
         if relocation.kind == .FuelCounter {
             fuel_counters += 1
@@ -878,14 +881,30 @@ Basics :: () -> bool {
             if !Check(relocation.addend == -4 && (Words(image.code, relocation.offset) >> 26) == 0x25,
                     "trap handler bl field") { return false }
         }
+        // Stack limits and the pointer header load x17 through four
+        // MOVZ/MOVK halves; the addend names the half times two.
+        if relocation.kind == .StackLimit || relocation.kind == .PointerRuntime {
+            if relocation.kind == .StackLimit { stack_limits += 1 } else { pointer_runtimes += 1 }
+            half := ifx relocation.kind == .StackLimit then stack_limits - 1 else pointer_runtimes - 1
+            word := Words(image.code, relocation.offset)
+            opcode := cast(u32)0x794 + cast(u32)(half % 4)
+            if half % 4 == 0 { opcode = 0x694 }
+            if !Check(relocation.addend == half % 4 * 2 && (word & 0x1f) == 17 && (word >> 21) == opcode,
+                    "pointer header and stack limit halves") { return false }
+        }
         if relocation.kind == .RuntimeResize {
             resize_relocations += 1
             if !Check(relocation.addend == -4 && (Words(image.code, relocation.offset) >> 26) == 0x25,
                     "runtime resize bl field") { return false }
         }
     }
-    if !Check(fuel_counters == 12 && traps == 10 && resize_relocations == 1, "relocation counts") ||
-        !Check(image.relocations[0].kind == .TrapHandler && image.relocations[0].instruction == ids.branch2_ops[1],
+    if !Check(fuel_counters == 12 && traps == 17 && resize_relocations == 1 && stack_limits == 4 &&
+            pointer_runtimes == 8, "relocation counts") {
+        print("fuel % traps % resize % stack % pointer %\n", fuel_counters, traps, resize_relocations,
+            stack_limits, pointer_runtimes)
+        return false
+    }
+    if !Check(image.relocations[0].kind == .TrapHandler && image.relocations[0].instruction == ids.branch2_ops[1],
             "unreachable trap relocation first") ||
         !Check(image.relocations[1].offset == fuel_range.begin && image.relocations[1].addend == 0 &&
             image.relocations[4].offset == fuel_range.begin + 12 && image.relocations[4].addend == 6 &&
@@ -905,7 +924,7 @@ Basics :: () -> bool {
             if !found { return false }
         }
         if relocation.kind == .RuntimeResize && relocation.instruction == ids.resize {
-            found = Check(relocation.offset == image.instructions[ids.resize].begin + 32,
+            found = Check(relocation.offset == image.instructions[ids.resize].begin + 232,
                 "resize relocation field")
             if !found { return false }
         }
@@ -918,7 +937,17 @@ Basics :: () -> bool {
         Fingerprint(A64.MachineA64View(*second)) == Fingerprint(image), "deterministic encoding") {
         return false
     }
-    return Check(measured.code_bytes == 812 && measured.relocations == 23, "measured image totals")
+    // The resize form adds its checked-token path and the slot update, and
+    // its function's prologue checks the stack limit: 48 bytes, 4 halves
+    // and one trap.
+    resize_begin := image.functions[ids.resize_function].begin
+    if !Bytes(image.code, resize_begin, image.instructions[ids.resize].begin, "fd 7b bf a9 fd 03 00 91 11 00 80 d2 11 00 a0 f2 11 00 c0 f2 11 00 e0 f2 31 02 40 f9 f0 03 00 91 1f 02 11 eb a2 00 00 54 e0 ff bf 52 c0 00 80 72 00 00 00 94 00 00 20 d4", "resize prologue checks the stack limit") { return false }
+    if !Bytes(image.code, image.instructions[ids.resize].end, image.functions[ids.resize_function].end, "fd 7b c1 a8 c0 03 5f d6", "resize epilogue") { return false }
+    if !Check(measured.code_bytes == 1288 && measured.relocations == 42, "measured image totals") {
+        print("measured % bytes, % relocations, image % bytes\n", measured.code_bytes, measured.relocations, image.code.count)
+        return false
+    }
+    return true
 }
 
 // A record result's address passes in x8 and is computed after the
@@ -1056,32 +1085,38 @@ Calls :: () -> bool {
     if encoded.problem != .None { Report("calls encode", encoded); return false }
     image := A64.MachineA64View(*owner)
     measured := Apply(*b, .Measure, null, limits)
-    if !Check(measured.code_bytes == 224 && image.code.count == 224 && measured.relocations == 19,
+    // Only the caller calls, so only its prologue checks the stack limit:
+    // x17 = [limit]; x16 = sp; cmp; b.hs; then the stack trap.
+    if !Check(measured.code_bytes == 272 && image.code.count == 272 && measured.relocations == 24,
             "call image size") ||
         !Check(Accounted(*b, image), "call image accounting") ||
-        !Check(image.functions[caller].begin == 64 && image.functions[later].begin == 136 &&
-            image.functions[failing].begin == 200, "function offsets") ||
-        !Instruction(image, backward, "ed ff ff 97", "backward direct call") ||
+        !Check(image.functions[caller].begin == 64 && image.functions[later].begin == 184 &&
+            image.functions[failing].begin == 248, "function offsets") ||
+        !Bytes(image.code, image.functions[caller].begin + 8, image.functions[caller].begin + 56,
+            "11 00 80 d2 11 00 a0 f2 11 00 c0 f2 11 00 e0 f2 31 02 40 f9 f0 03 00 91 1f 02 11 eb a2 00 00 54 e0 ff bf 52 c0 00 80 72 00 00 00 94 00 00 20 d4",
+            "caller stack limit check") ||
+        !Instruction(image, backward, "e1 ff ff 97", "backward direct call") ||
         !Instruction(image, forward, "0d 00 00 94", "forward direct call") ||
         !Instruction(image, address, "08 00 80 d2 08 00 a0 f2 08 00 c0 f2 08 00 e0 f2",
             "function address") ||
         !Instruction(image, indirect, "00 01 3f d6", "indirect call") ||
         !Instruction(image, global, "09 00 80 d2 09 00 a0 f2 09 00 c0 f2 09 00 e0 f2",
             "relocated global address") ||
-        !Instruction(image, explicit, "e0 ff bf 52 20 01 80 72 00 00 00 94 00 00 20 d4",
+        !Instruction(image, explicit, "00 00 a0 52 20 01 80 72 00 00 00 94 00 00 20 d4",
             "explicit trap") { return false }
     call_field := Words(image.code, image.instructions[forward].begin)
     call_delta := cast(s64)(call_field & 0x3ffffff)
     if call_delta >= 0x2000000 { call_delta -= 0x4000000 }
     if !Check(image.instructions[forward].begin + call_delta * 4 == image.functions[later].begin,
             "forward call reaches callee") { return false }
-    kinds: [19]A64.MachineA64RelocationKind = .[.FuelCounter, .FuelCounter, .FuelCounter, .FuelCounter,
-        .TrapHandler, .FunctionAddress, .FunctionAddress, .FunctionAddress, .FunctionAddress,
+    kinds: [24]A64.MachineA64RelocationKind = .[.FuelCounter, .FuelCounter, .FuelCounter, .FuelCounter,
+        .TrapHandler, .StackLimit, .StackLimit, .StackLimit, .StackLimit, .TrapHandler, .FunctionAddress, .FunctionAddress, .FunctionAddress, .FunctionAddress,
         .GlobalAddress, .GlobalAddress, .GlobalAddress, .GlobalAddress,
         .FuelCounter, .FuelCounter, .FuelCounter, .FuelCounter, .TrapHandler, .TrapHandler]
-    offsets: [19]s64 = .[8, 12, 16, 20, 48, 88, 92, 96, 100, 112, 116, 120, 124, 144, 148, 152, 156, 184, 216]
-    addends: [19]s64 = .[0, 2, 4, 6, -4, 0, 2, 4, 6, 0, 2, 4, 6, 0, 2, 4, 6, -4, -4]
-    for index: 0..18 {
+    offsets: [24]s64 = .[8, 12, 16, 20, 48, 72, 76, 80, 84, 112, 136, 140, 144, 148, 160, 164, 168, 172,
+        192, 196, 200, 204, 232, 264]
+    addends: [24]s64 = .[0, 2, 4, 6, -4, 0, 2, 4, 6, -4, 0, 2, 4, 6, 0, 2, 4, 6, 0, 2, 4, 6, -4, -4]
+    for index: 0..23 {
         relocation := image.relocations[index]
         if !Check(relocation.kind == kinds[index] && relocation.offset == offsets[index] &&
             relocation.addend == addends[index], "call image relocation") {
@@ -1090,9 +1125,11 @@ Calls :: () -> bool {
             return false
         }
     }
-    return Check(image.entry == caller && image.relocations[5].symbol == 2 &&
-        image.relocations[5].instruction == address && image.relocations[9].symbol == 0 &&
-        image.relocations[9].instruction == global, "call entry and symbol relocations")
+    return Check(image.entry == caller && image.relocations[10].symbol == 2 &&
+        image.relocations[10].instruction == address && image.relocations[14].symbol == 0 &&
+        image.relocations[14].instruction == global, "call entry and symbol relocations") &&
+        Check(image.relocations[5].instruction == MachineNoId && image.relocations[9].instruction == MachineNoId,
+            "prologue relocations name no instruction")
 }
 
 NegativeKind :: enum s32 {

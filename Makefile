@@ -15,7 +15,8 @@ ZIRAN_DEFINES ?= $(if $(DARWIN_TARGET),--define __APPLE__ --define $(if $(findst
 PACKAGE_LIBS ?= $(if $(DARWIN_TARGET),,-lcrypto) -lm
 # Linux before glibc 2.34 keeps POSIX threads and the dynamic loader in
 # separate libraries. The portable runtime uses both, including through TCC.
-RUNTIME_LIBS ?= -lm $(if $(findstring linux,$(TARGET_MACHINE)),-pthread -ldl)
+# Android keeps __android_log_print, which diagnostics use, in liblog.
+RUNTIME_LIBS ?= -lm $(if $(findstring linux,$(TARGET_MACHINE)),-pthread -ldl) $(if $(findstring android,$(TARGET_MACHINE)),-llog)
 CFLAGS ?= -O2
 override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
 # Kept names and texts (KeepName, KeepText) are shared and immutable, so
@@ -49,6 +50,9 @@ BIN_DIR := $(BUILD_DIR)/bin
 # Generated seeds break the cycle between the compiler and its Ziran
 # modules. Normal tools always link freshly compiled .zi implementations.
 HOST_CC ?= cc
+# The zi2c that generates C for the package and assembly modules. A cross
+# build (CC for another target) points it at a host build's zi2c.
+GEN_ZI2C ?= $(BIN_DIR)/zi2c
 HOST_OBJCOPY ?= $(if $(findstring darwin,$(shell $(HOST_CC) -dumpmachine 2>/dev/null)),true,objcopy)
 # The seed only emits the compiler modules' C once. Optimize the final tools
 # with CFLAGS; spending optimizer time on this short-lived seed delays them.
@@ -212,7 +216,9 @@ ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_veri
     compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt
 # The Wasm lowering of revision-28 ZX (cmd/zx2wasm/zx_wasm_lower.c) reads
 # the program through the same engine, under the same names.
-HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir/zir_host_native.c cmd/zx2wasm/zx_wasm_lower.c
+# The native loader's per-architecture veneers are zir_host_native_<arch>.c.
+HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir/zir_host_native.c cmd/zir/zir_host_native_x86_64.c \
+    cmd/zir/zir_host_native_aarch64.c cmd/zx2wasm/zx_wasm_lower.c
 ENGINE_NAMES := $(ENGINE_C)/engine_names.h
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=
@@ -479,11 +485,11 @@ PACKAGE_OBJECTS = $(patsubst $(PACKAGE_C)/%.c,$(BUILD_DIR)/obj/package-c/%.o,$(w
 
 # Regenerate beside the old output and copy over only files whose text
 # changed, so a compiler edit that leaves ziran's C alone recompiles nothing.
-$(PACKAGE_C)/.generated: $(PACKAGE_SOURCES) $(BIN_DIR)/zi2c
+$(PACKAGE_C)/.generated: $(PACKAGE_SOURCES) $(GEN_ZI2C)
 	rm -rf $(PACKAGE_C).next
 	mkdir -p $(BUILD_DIR)/package-source
 	printf 'Version :: "%s";\n' '$(ZIRAN_VERSION)' > $(BUILD_DIR)/package-source/version.zi
-	$(BIN_DIR)/zi2c --no-main $(ZIRAN_DEFINES) --root cmd --module-path std \
+	$(GEN_ZI2C) --no-main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    --module-path $(BUILD_DIR)/package-source -o $(PACKAGE_C).next cmd/package_entry.zi
 	mkdir -p $(PACKAGE_C)
 	for f in $(PACKAGE_C).next/*; do \

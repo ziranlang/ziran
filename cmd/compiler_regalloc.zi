@@ -408,7 +408,11 @@ CheckInstruction :: (state: *Alloc, block_id: s32, instruction_id: s32) -> bool 
         }
         general := Allocated.MachineBankCallerSaved(state.target, 0)
         float := Allocated.MachineBankCallerSaved(state.target, 1)
-        if (call.clobber_general & general) != general || (call.clobber_general & state.target.reserved_general) != 0 ||
+        // The ABI caller-saved set may overlap reserved registers (AArch64
+        // x16/x17); only reserved registers outside it must survive a call,
+        // as the allocated verifier checks.
+        if (call.clobber_general & general) != general ||
+            (call.clobber_general & state.target.reserved_general & ~general) != 0 ||
             (call.clobber_float & float) != float {
             return Fail(state, .Clobber, block_id, instruction_id)
         }

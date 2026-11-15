@@ -228,6 +228,14 @@ struct BundleInstance {
     NativeInstance *native;
 };
 
+/* The native backend this build carries; elsewhere native code is a named
+ * gap from the loader. */
+#if defined(__aarch64__) && defined(__linux__)
+#define NATIVE_PLATFORM_BACKEND BUNDLE_EXECUTION_NATIVE_AARCH64
+#else
+#define NATIVE_PLATFORM_BACKEND BUNDLE_EXECUTION_NATIVE_X86_64
+#endif
+
 /* Auto is a platform decision, never a per-bundle probe: a web runtime that
  * installed the wasm provider runs bundles on it; linux-x86_64, which has a
  * native backend, runs native code, and a bundle native code cannot run fails
@@ -241,7 +249,7 @@ auto_platform_backend(void)
     if(ZxWasmPlatformActive() != NULL)
         return BUNDLE_EXECUTION_WASM;
 #elif defined(__x86_64__) && defined(__linux__)
-    return BUNDLE_EXECUTION_NATIVE_X86_64;
+    return NATIVE_PLATFORM_BACKEND;
 #endif
     return BUNDLE_EXECUTION_ENGINE;
 }
@@ -350,7 +358,7 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
      * another backend, and Auto does not inspect this bundle's native result. */
     BundleExecutionBackend selected = policy == BUNDLE_BACKEND_ENGINE ?
         BUNDLE_EXECUTION_ENGINE : policy == BUNDLE_BACKEND_NATIVE ?
-        BUNDLE_EXECUTION_NATIVE_X86_64 : auto_platform_backend();
+        NATIVE_PLATFORM_BACKEND : auto_platform_backend();
     if(selected == BUNDLE_EXECUTION_WASM) {
         if(ZxWasmPlatformActive() == NULL) {
             BundleInstanceClose(instance);
@@ -358,7 +366,7 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
         }
         instance->wasm = ZxWasmOpenExec(bundle->exec, find_binding, &instance->set, max_steps);
         instance->backend = BUNDLE_EXECUTION_WASM;
-    } else if(selected == BUNDLE_EXECUTION_NATIVE_X86_64) {
+    } else if(selected == NATIVE_PLATFORM_BACKEND) {
         Bundle *mutable_bundle = (Bundle *)bundle;
         const NativeBundleCode *code = NativeBundleSlotCode(&mutable_bundle->native,
                                                             bundle->exec, bundle->digest);
@@ -368,7 +376,7 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
         }
         instance->native = NativeInstanceOpen(code, bundle->exec, find_binding,
                                               &instance->set, max_steps);
-        instance->backend = BUNDLE_EXECUTION_NATIVE_X86_64;
+        instance->backend = NATIVE_PLATFORM_BACKEND;
     } else {
         instance->exec = ExecInstanceOpen(bundle->exec, find_binding, &instance->set, max_steps);
         instance->backend = BUNDLE_EXECUTION_ENGINE;

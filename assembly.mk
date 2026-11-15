@@ -26,9 +26,9 @@ check: zx-tools
 # The generator runs whenever its sources or zi2c change, but only files
 # whose text changed are replaced, and .generated moves only then: a zi2c
 # relinked for a new checkout path (a prebuilt tree) recompiles nothing.
-$(ASSEMBLY_C)/.ran: assembly.mk $(ASSEMBLY_SOURCES) $(BIN_DIR)/zi2c
+$(ASSEMBLY_C)/.ran: assembly.mk $(ASSEMBLY_SOURCES) $(GEN_ZI2C)
 	rm -rf $(BUILD_DIR)/compiler-assembly.next
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd -o $(BUILD_DIR)/compiler-assembly.next \
+	env -u DISPLAY -u WAYLAND_DISPLAY $(GEN_ZI2C) --no-main --root cmd -o $(BUILD_DIR)/compiler-assembly.next \
 	    cmd/compiler_lowered_verify.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
 	    cmd/compiler_machine_pipeline.zi cmd/compiler_native_cache.zi
 	@mkdir -p $(ASSEMBLY_C); changed=; \

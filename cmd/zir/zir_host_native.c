@@ -1,11 +1,14 @@
 /*
- * zir_host_native.c - native execution of verified ZX on linux-x86_64.
+ * zir_host_native.c - native execution of verified ZX on linux-x86_64 and
+ * linux-aarch64, Android included.
  *
  * The machine pipeline compiles the bundle's verified program once per
  * content, CPU and backend. Each instance copies that image into RW pages,
  * resolves its relocations against its own data, host veneers and trap stub,
- * then publishes code RX before anything runs; no page is ever writable and
- * executable at once. Fuel, the stack limit and traps live in the instance's
+ * then flushes the instruction cache and publishes code RX before anything
+ * runs; no page is ever writable and executable at once. This file is
+ * target-neutral; zir_host_native_arch.h names the machine-code part each
+ * architecture supplies. Fuel, the stack limit and traps live in the instance's
  * data, so instances are independent. A trap longjmps out of generated code
  * and leaves the instance terminal; nothing retries in another engine.
  */
@@ -23,10 +26,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(ZIRAN_NO_ENGINE) || !defined(__x86_64__) || !defined(__linux__)
+#if defined(ZIRAN_NO_ENGINE) || !(defined(__x86_64__) || defined(__aarch64__)) || !defined(__linux__)
 
 static const char native_unavailable[] =
-    "assembly.gap.target-unimplemented: native ZX runs only on linux-x86_64; "
+    "assembly.gap.target-unimplemented: native ZX runs only on linux-x86_64 and linux-aarch64; "
     "no alternate engine was selected";
 
 const NativeBundleCode *
@@ -74,12 +77,13 @@ void NativeInstanceClose(NativeInstance *instance) { (void)instance; }
 #include "compiler_machine_pipeline.h"
 #include "compiler_native_cache.h"
 #include "compiler_target.h"
+#include "compiler_aarch64.h"
 #include "compiler_x86_64.h"
 #include "zir_exec_console.h"
 #include "zir_profile.h"
+#include "zir_host_native_arch.h"
 #include "zir_text.h"
 
-#include <cpuid.h>
 #include <dirent.h>
 #include <elf.h>
 #include <errno.h>
@@ -92,12 +96,9 @@ void NativeInstanceClose(NativeInstance *instance) { (void)instance; }
 
 enum {
     NATIVE_HOST_STUB_SIZE = 256,
-    NATIVE_TRAP_STUB_SIZE = 32,
+    NATIVE_TRAP_STUB_SIZE = 64,
     NATIVE_RESIZE_STUB_SIZE = 384,
-    NATIVE_RESIZE_FRAME = 264,
     NATIVE_HEAP_MAGIC = 0x5a58,
-    NATIVE_CALL_STACK = 200,
-    NATIVE_CALL_STACK_ARGUMENTS = 208,
     /* Code compiled for a file nobody holds, kept for a reopen. */
     NATIVE_CACHE_IDLE = 4,
     /* Entries the disk cache keeps; the oldest go first. */
@@ -125,24 +126,6 @@ typedef struct NativeActiveCall {
     struct NativeActiveCall *previous;
     jmp_buf trap;
 } NativeActiveCall;
-
-/* This is the target-neutral input to the common typed bridge. The x86-64
- * veneer only snapshots its volatile ABI registers and stack argument base. */
-typedef struct NativeAbiFrame {
-    uint64_t general[6];
-    unsigned char floating[8][16];
-    const unsigned char *stack;
-    uint64_t floating_result;
-    /* rax at the call: the caller's destination for a record or array result. */
-    unsigned char *result_address;
-} NativeAbiFrame;
-
-/* write_host_stub stores to these offsets from its own stack frame. */
-_Static_assert(offsetof(NativeAbiFrame, floating) == 48, "frame floats");
-_Static_assert(offsetof(NativeAbiFrame, stack) == 176, "frame stack");
-_Static_assert(offsetof(NativeAbiFrame, floating_result) == 184, "frame float result");
-_Static_assert(offsetof(NativeAbiFrame, result_address) == 192, "frame result address");
-_Static_assert(sizeof(NativeAbiFrame) <= NATIVE_CALL_STACK, "frame size");
 
 /* Compiled code, shared by every bundle with the same content digest on the
  * same CPU. The backend is this build's, so it is part of every key. */
@@ -206,12 +189,6 @@ struct NativeInstance {
     unsigned char *pointer_header;
 };
 
-typedef struct StubWriter {
-    unsigned char *bytes;
-    size_t at, capacity;
-    int failed;
-} StubWriter;
-
 static pthread_mutex_t native_lock = PTHREAD_MUTEX_INITIALIZER;
 static NativeBundleCode *native_cache;
 static unsigned long long native_clock;
@@ -224,49 +201,6 @@ align_size(size_t value, size_t alignment)
     return (value + alignment - 1) / alignment * alignment;
 }
 
-static void
-stub_byte(StubWriter *writer, unsigned value)
-{
-    if(writer->at >= writer->capacity) {
-        writer->failed = 1;
-        return;
-    }
-    writer->bytes[writer->at++] = (unsigned char)value;
-}
-
-static void
-stub_u32(StubWriter *writer, uint32_t value)
-{
-    for(int at = 0; at < 4; at++) stub_byte(writer, value >> (8 * at));
-}
-
-static void
-stub_u64(StubWriter *writer, uint64_t value)
-{
-    for(int at = 0; at < 8; at++) stub_byte(writer, value >> (8 * at));
-}
-
-static void
-stub_store_general(StubWriter *writer, int reg, uint32_t offset)
-{
-    stub_byte(writer, reg >= 8 ? 0x4c : 0x48);
-    stub_byte(writer, 0x89);
-    stub_byte(writer, 0x84 | ((reg & 7) << 3));
-    stub_byte(writer, 0x24);
-    stub_u32(writer, offset);
-}
-
-static void
-stub_store_float(StubWriter *writer, int reg, uint32_t offset)
-{
-    stub_byte(writer, 0xf3);
-    stub_byte(writer, 0x0f);
-    stub_byte(writer, 0x7f);
-    stub_byte(writer, 0x84 | (reg << 3));
-    stub_byte(writer, 0x24);
-    stub_u32(writer, offset);
-}
-
 static _Noreturn void NativeTrap(NativeInstance *instance, uint32_t code, uintptr_t at);
 static uint64_t NativeHostInvoke(NativeInstance *instance, int32_t function,
                                  NativeAbiFrame *frame);
@@ -274,124 +208,17 @@ static uint64_t NativeResize(uint64_t data, uint64_t old_count, uint64_t new_cou
                              uint64_t element, NativeInstance *instance);
 static int native_call_entry(NativeInstance *instance, void *address, long long *result);
 
-/* movdqu [rsp + offset], xmm / movdqu xmm, [rsp + offset]. */
-static void
-stub_xmm(StubWriter *writer, unsigned opcode, int reg, uint32_t offset)
+/* The target this process compiles for and keys the disk cache by. */
+static TargetDescription
+native_target(void)
 {
-    stub_byte(writer, 0xf3);
-    if(reg >= 8) stub_byte(writer, 0x44);
-    stub_byte(writer, 0x0f);
-    stub_byte(writer, opcode);
-    stub_byte(writer, 0x84 | ((reg & 7) << 3));
-    stub_byte(writer, 0x24);
-    stub_u32(writer, offset);
-}
-
-/* Resize keeps every float register: the machine form clobbers only general
- * caller-saved registers, while the C allocator may use any. */
-static int
-write_resize_stub(unsigned char *bytes, size_t capacity, NativeInstance *instance)
-{
-    StubWriter out = {bytes, 0, capacity, 0};
-    stub_byte(&out, 0x48); stub_byte(&out, 0x81); stub_byte(&out, 0xec);
-    stub_u32(&out, NATIVE_RESIZE_FRAME);
-    for(int reg = 0; reg < 16; reg++) stub_xmm(&out, 0x7f, reg, (uint32_t)(reg * 16));
-    /* NativeResize(rdi, rsi, rdx, rcx, instance). */
-    stub_byte(&out, 0x49); stub_byte(&out, 0xb8);
-    stub_u64(&out, (uint64_t)(uintptr_t)instance);
-    stub_byte(&out, 0x48); stub_byte(&out, 0xb8);
-    stub_u64(&out, (uint64_t)(uintptr_t)(void *)&NativeResize);
-    stub_byte(&out, 0xff); stub_byte(&out, 0xd0);
-    for(int reg = 0; reg < 16; reg++) stub_xmm(&out, 0x6f, reg, (uint32_t)(reg * 16));
-    stub_byte(&out, 0x48); stub_byte(&out, 0x81); stub_byte(&out, 0xc4);
-    stub_u32(&out, NATIVE_RESIZE_FRAME);
-    stub_byte(&out, 0xc3);
-    return !out.failed;
-}
-
-/* One veneer per relocation keeps target code ignorant of C callback
- * addresses. All typed conversion and copy-back remains in NativeHostInvoke. */
-static int
-write_host_stub(unsigned char *bytes, size_t capacity, NativeInstance *instance,
-                int32_t function, size_t *written)
-{
-    StubWriter out = {bytes, 0, capacity, 0};
-    stub_byte(&out, 0x48); stub_byte(&out, 0x81); stub_byte(&out, 0xec);
-    stub_u32(&out, NATIVE_CALL_STACK);
-    stub_store_general(&out, 0, 192);
-    static const int general[] = {7, 6, 2, 1, 8, 9};
-    for(int at = 0; at < 6; at++)
-        stub_store_general(&out, general[at], (uint32_t)(at * 8));
-    for(int at = 0; at < 8; at++)
-        stub_store_float(&out, at, (uint32_t)(48 + at * 16));
-    /* rax = caller's first stack argument; save it in the frame. */
-    stub_byte(&out, 0x48); stub_byte(&out, 0x8d); stub_byte(&out, 0x84);
-    stub_byte(&out, 0x24); stub_u32(&out, NATIVE_CALL_STACK_ARGUMENTS);
-    stub_store_general(&out, 0, 176);
-    /* NativeHostInvoke(instance, function, &frame). */
-    stub_byte(&out, 0x48); stub_byte(&out, 0xbf);
-    stub_u64(&out, (uint64_t)(uintptr_t)instance);
-    stub_byte(&out, 0xbe); stub_u32(&out, (uint32_t)function);
-    stub_byte(&out, 0x48); stub_byte(&out, 0x8d);
-    stub_byte(&out, 0x14); stub_byte(&out, 0x24);
-    stub_byte(&out, 0x48); stub_byte(&out, 0xb8);
-    stub_u64(&out, (uint64_t)(uintptr_t)(void *)&NativeHostInvoke);
-    stub_byte(&out, 0xff); stub_byte(&out, 0xd0);
-    /* Float results are written to the frame as their canonical bits. */
-    stub_byte(&out, 0xf3); stub_byte(&out, 0x0f); stub_byte(&out, 0x7e);
-    stub_byte(&out, 0x84); stub_byte(&out, 0x24); stub_u32(&out, 184);
-    stub_byte(&out, 0x48); stub_byte(&out, 0x81); stub_byte(&out, 0xc4);
-    stub_u32(&out, NATIVE_CALL_STACK);
-    stub_byte(&out, 0xc3);
-    *written = out.at;
-    return !out.failed;
-}
-
-static int
-write_trap_stub(unsigned char *bytes, size_t capacity, NativeInstance *instance,
-                size_t *written)
-{
-    StubWriter out = {bytes, 0, capacity, 0};
-    /* NativeTrap(instance, code, return address): the generated trap put the
-     * code in rdi and called here from inside the trapping instruction. */
-    stub_byte(&out, 0x48); stub_byte(&out, 0x8b);
-    stub_byte(&out, 0x14); stub_byte(&out, 0x24);
-    stub_byte(&out, 0x48); stub_byte(&out, 0x89); stub_byte(&out, 0xfe);
-    stub_byte(&out, 0x48); stub_byte(&out, 0xbf);
-    stub_u64(&out, (uint64_t)(uintptr_t)instance);
-    stub_byte(&out, 0x48); stub_byte(&out, 0xb8);
-    stub_u64(&out, (uint64_t)(uintptr_t)(void *)&NativeTrap);
-    stub_byte(&out, 0xff); stub_byte(&out, 0xe0);
-    *written = out.at;
-    return !out.failed;
-}
-
-static int
-write_relative32(unsigned char *field, uintptr_t target, int64_t addend)
-{
-    uintptr_t source = (uintptr_t)field;
-    int64_t displacement;
-    if(target > (uintptr_t)INT64_MAX || source > (uintptr_t)INT64_MAX ||
-       addend < INT32_MIN || addend > INT32_MAX)
-        return 0;
-    if(target >= source) {
-        uint64_t difference = target - source;
-        if(difference > (uint64_t)INT64_MAX) return 0;
-        displacement = (int64_t)difference;
-    } else {
-        uint64_t difference = source - target;
-        if(difference > (uint64_t)INT64_MAX) return 0;
-        displacement = -(int64_t)difference;
-    }
-    if((addend > 0 && displacement > INT64_MAX - addend) ||
-       (addend < 0 && displacement < INT64_MIN - addend))
-        return 0;
-    displacement += addend;
-    if(displacement < INT32_MIN || displacement > INT32_MAX)
-        return 0;
-    int32_t narrowed = (int32_t)displacement;
-    memcpy(field, &narrowed, sizeof(narrowed));
-    return 1;
+#if defined(__x86_64__)
+    return compiler_target_TargetLinuxX64();
+#elif defined(__ANDROID__)
+    return compiler_target_TargetDescribe(TargetArch_AArch64, TargetOS_Android).target;
+#else
+    return compiler_target_TargetDescribe(TargetArch_AArch64, TargetOS_Linux).target;
+#endif
 }
 
 static int
@@ -406,16 +233,6 @@ capability_index(const ExecBundle *bundle, int32_t function, size_t *index)
 }
 
 /* ---- Compiling and the code cache --------------------------------------- */
-
-static uint64_t
-native_cpu(void)
-{
-    unsigned a = 0, b = 0, c = 0, d = 0;
-    uint64_t key = 0;
-    if(__get_cpuid(1, &a, &b, &c, &d)) key = ((uint64_t)c << 32) | d;
-    if(__get_cpuid_count(7, 0, &a, &b, &c, &d)) key ^= ((uint64_t)b << 7) ^ ((uint64_t)c << 39);
-    return key;
-}
 
 static const char *
 machine_problem_name(MachineProblem problem)
@@ -432,6 +249,28 @@ machine_problem_name(MachineProblem problem)
     case MachineProblem_Frame: return "frame";
     case MachineProblem_Call: return "call";
     case MachineProblem_Constraint: return "constraint";
+    case MachineProblem_Version: return "version";
+    case MachineProblem_Source: return "source";
+    case MachineProblem_Origin: return "origin";
+    case MachineProblem_Function: return "function";
+    case MachineProblem_Block: return "block";
+    case MachineProblem_Virtual: return "virtual";
+    case MachineProblem_Instruction: return "instruction";
+    case MachineProblem_Operand: return "operand";
+    case MachineProblem_Flags: return "flags";
+    case MachineProblem_Stack: return "stack";
+    case MachineProblem_Edge: return "edge";
+    case MachineProblem_Copy: return "copy";
+    case MachineProblem_NativeWidth: return "native-width";
+    case MachineProblem_Stage: return "stage";
+    case MachineProblem_Fuel: return "fuel";
+    case MachineProblem_Undefined: return "undefined";
+    case MachineProblem_Interference: return "interference";
+    case MachineProblem_Clobber: return "clobber";
+    case MachineProblem_Tie: return "tie";
+    case MachineProblem_Pressure: return "pressure";
+    case MachineProblem_Cycle: return "cycle";
+    case MachineProblem_Spill: return "spill";
     default: return "rejected";
     }
 }
@@ -500,7 +339,7 @@ native_compile(const ExecBundle *bundle, char *problem, size_t capacity)
         source = &restored;
     }
     MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineCodeBuild(
-        *source, compiler_target_TargetLinuxX64(),
+        *source, native_target(),
         compiler_machine_ir_MachineDefaultLimits(), &code->owner);
     compiler_exec_debug_ZxDebugFree(&debug);
     if(diagnostic.problem != MachineProblem_None) {
@@ -657,7 +496,7 @@ native_disk_key(const unsigned char digest[32], uint64_t cpu, NativeCacheDigest 
     }
     if(build.length == 0) return 0;
     *key = compiler_native_cache_NativeCacheKey((Slice){(void *)digest, 32},
-        compiler_target_TargetLinuxX64(), cpu, (Slice){build.id, (int64_t)build.length});
+        native_target(), cpu, (Slice){build.id, (int64_t)build.length});
     return 1;
 }
 
@@ -853,7 +692,7 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
 {
     pthread_mutex_lock(&native_lock);
     if(!slot->ready) {
-        uint64_t cpu = native_cpu();
+        uint64_t cpu = ZirNativeCpuKey();
         for(NativeBundleCode *code = native_cache; code != NULL; code = code->next)
             if(code->cpu == cpu && !memcmp(code->digest, digest, 32)) {
                 code->references++;
@@ -972,15 +811,21 @@ static void
 native_trap_site_in(const NativeInstance *instance, const MachineNativeOwner *owner,
                     char *text, size_t capacity)
 {
+#if defined(__x86_64__)
     MachineX64Image image = owner->encoded.image;
+    const MachineX64Function *extents = image.functions.data;
+    const MachineX64Range *ranges = image.instructions.data;
+#else
+    MachineA64Image image = owner->encoded_a64.image;
+    const MachineA64Function *extents = image.functions.data;
+    const MachineA64Range *ranges = image.instructions.data;
+#endif
     MachineProgram program = owner->machine.program;
     uintptr_t base = (uintptr_t)instance->arena.address;
     snprintf(text, capacity, "function=? block=?");
     if(instance->trap_pc <= base || instance->trap_pc - base > (uintptr_t)image.code.length)
         return;
     int64_t offset = (int64_t)(instance->trap_pc - base) - 1;
-    const MachineX64Function *extents = image.functions.data;
-    const MachineX64Range *ranges = image.instructions.data;
     const MachineFunction *functions = program.functions.data;
     const MachineBlock *blocks = program.blocks.data;
     const MachineInstruction *instructions = program.instructions.data;
@@ -1141,7 +986,7 @@ native_arguments(NativeInstance *instance, int32_t function,
             memcpy(&arguments[at].bits, frame->floating[floating++],
                    (size_t)width);
         } else if(shape->kind != LirTypeKind_Array &&
-                  shape->kind != LirTypeKind_Record && general < 6) {
+                  shape->kind != LirTypeKind_Record && general < NATIVE_ABI_GENERAL) {
             arguments[at].bits = native_canonical(shape, frame->general[general++]);
         } else if(shape->kind == LirTypeKind_Array ||
                   shape->kind == LirTypeKind_Record) {
@@ -1575,17 +1420,22 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
        (uint64_t)image.pointer_offset > instance->data_size - MachinePointerHeaderBytes ||
        !native_pointers_open(instance, image, base + constants_at))
         goto failed;
-    size_t trap_written;
-    if(!write_trap_stub(base + trap_at, NATIVE_TRAP_STUB_SIZE, instance,
-                        &trap_written) ||
-       !write_resize_stub(base + resize_at, NATIVE_RESIZE_STUB_SIZE, instance))
+    NativeVeneerCalls calls = {
+        .instance = instance,
+        .host = (uintptr_t)(void *)&NativeHostInvoke,
+        .trap = (uintptr_t)(void *)&NativeTrap,
+        .resize = (uintptr_t)(void *)&NativeResize,
+    };
+    NativeStub trap_stub = {base + trap_at, 0, NATIVE_TRAP_STUB_SIZE, 0};
+    NativeStub resize_stub = {base + resize_at, 0, NATIVE_RESIZE_STUB_SIZE, 0};
+    if(!ZirNativeTrapVeneer(&trap_stub, &calls) ||
+       !ZirNativeResizeVeneer(&resize_stub, &calls))
         goto failed;
     MachineRelocation *relocations = image.relocations.data;
     size_t stub_at = (size_t)image.code.bytes.length;
     for(int64_t at = 0; at < image.relocations.length; at++) {
         MachineRelocation relocation = relocations[at];
-        if(relocation.section != MachineSectionKind_Code ||
-           relocation.width != 4 || relocation.offset < 0 ||
+        if(relocation.section != MachineSectionKind_Code || relocation.offset < 0 ||
            relocation.offset > image.code.bytes.length - 4)
             goto failed;
         uintptr_t target;
@@ -1622,19 +1472,25 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
         } else if(relocation.kind == MachineRelocationKind_RuntimeResize &&
                   relocation.symbol == 0) {
             target = (uintptr_t)(base + resize_at);
+        } else if(relocation.kind == MachineRelocationKind_FunctionAddress) {
+            int32_t symbol = relocation.symbol;
+            int64_t *offsets = image.function_offsets.data;
+            if(symbol < 0 || symbol >= image.function_offsets.length ||
+               offsets[symbol] < 0 || offsets[symbol] >= image.code.bytes.length)
+                goto failed;
+            target = (uintptr_t)(base + offsets[symbol]);
         } else if(relocation.kind == MachineRelocationKind_HostCapability ||
                   relocation.kind == MachineRelocationKind_PlatformService) {
-            size_t written;
-            if(!write_host_stub(base + stub_at, NATIVE_HOST_STUB_SIZE,
-                                instance, relocation.symbol, &written))
+            NativeStub host_stub = {base + stub_at, 0, NATIVE_HOST_STUB_SIZE, 0};
+            if(!ZirNativeHostVeneer(&host_stub, &calls, relocation.symbol))
                 goto failed;
             target = (uintptr_t)(base + stub_at);
             stub_at += NATIVE_HOST_STUB_SIZE;
         } else {
             goto failed;
         }
-        if(!write_relative32(base + relocation.offset, target,
-                             relocation.addend))
+        if(!ZirNativePatch(base + relocation.offset, target, relocation.width,
+                           relocation.addend))
             goto failed;
     }
     int64_t *functions = image.function_offsets.data;

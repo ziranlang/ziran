@@ -224,13 +224,14 @@ BitsOf :: (state: *State, operand: MachineOperand) -> s32 {
     return state.program.types[TypeIdOf(state, operand)].bits
 }
 
-// The W/X selector bit for a type: 1 encodes a 64-bit operand, 0 a 32-bit
-// one. Machine IR only declares 32 and 64-bit integer register classes here;
-// smaller widths live in W registers as re-extended values.
+// The W/X selector (sf) bit for a type: 1 encodes a 64-bit operand, 0 a
+// 32-bit one. 64-bit integers, pointers and function values, which have no
+// bit width but are eight bytes, are X; smaller widths live in W registers
+// as re-extended values.
 Selector :: (state: *State, type_id: s32) -> u64 {
-    bits := state.program.types[type_id].bits
-    if bits == 64 { return 1 }
-    if bits == 32 { return 0 }
+    type := state.program.types[type_id]
+    if type.bits == 64 { return 1 }
+    if (type.kind == .Pointer || type.kind == .Function) && type.size == 8 { return 1 }
     return 0
 }
 

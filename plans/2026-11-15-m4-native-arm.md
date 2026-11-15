@@ -68,3 +68,33 @@ pass, from a private index on origin/master.
 
 No row adds an engine fallback. Anything native code cannot run on these
 targets fails preflight with a named gap, as on x86-64.
+
+## Row 1 design (AArch64 checked memory)
+
+Port these from `cmd/compiler_x86_64.zi` to `cmd/compiler_aarch64.zi`:
+`PointerHeader`, `PointerEntry`, `PointerResolve`, `ArenaAllocate`,
+`CreateSlot`/`FreePop`/`PointerCreate`, `RetireSlot`,
+`PointerFrameEnter`/`PointerFrameLeave`/`PointerFrameStep`, the slot-aware
+`Resize` (`CheckHeapSlot`, `ResizeSlots`, `RetireToken`, `HeapSlot`), the
+prologue stack-limit check (`MachineX64StackChecked`), and the image data
+layout. That layout is fuel, then the trap code at fuel+8, the stack limit at
+fuel+16 and the pointer header at fuel+24 (`MachinePointerHeaderBytes`). It
+publishes `stack_limit_offset` and `pointer_offset`.
+
+Register plan: x16 holds the header address (the role r11 has on x86), x17
+is a temporary (both reserved, never allocated), and x10 is the fixed
+`PointerScratch` operand (`MachineAbiAddressScratchRegister`). x86 `push`
+and `pop` become `str xN, [sp, #-16]!` (0xF81F0FE0|Rt) and
+`ldr xN, [sp], #16` (0xF84107E0|Rt). Shifts and fields use UBFM
+(0xD3400000 | immr<<16 | imms<<10 | Rn<<5 | Rd): `lsr #s` is immr=s,
+imms=63; `lsl #s` is immr=64-s, imms=63-s; the version field is
+`ubfx #32, #12`; the offset is `ubfx #0, #32`.
+
+Trap codes reuse the x86 numbers so the loader's messages match: Stack
+0xffff0006, Storage 0xffff0007, Pointer 0xfffeffff. Add `StackLimit` and
+`PointerRuntime` to `MachineA64RelocationKind`, published with width 2, as
+four MOVZ/MOVK halves through `MaterializeRelocated`.
+
+Row 2 (loader): every width-2 relocation writes imm16 bits 5..20 of its
+instruction, with the half taken from addend/2; width-4 relocations
+(`bl` to the host, trap and resize veneers) write imm26.

@@ -1399,6 +1399,39 @@ fails without changing the arena. A zero-size request returns an empty view.
 The module is ordinary checked Ziran and has the same API on C, Go, Wasm,
 portable ZX engine, and native execution.
 
+### Explicit scoped context
+
+`std/context` defines a portable `Context` record with a capture-free logger,
+scope tag, and owned `Temp` allocator. Libraries accept `*Context` explicitly;
+there is no hidden parameter or process-global current context:
+
+```zi
+#import "std/context"
+#import "std/temp"
+
+Log :: (tag: string, message: string) { print("%: %\n", tag, message) }
+
+Serve :: (context: *Context, request: string) -> s32 {
+    defer ContextLog(context, "done")
+    ContextLog(context, "start")
+    return request.count
+}
+
+Run :: () -> s32 {
+    context := Context.{.logger = Log, .tag = "http", .allocator = TempBegin()}
+    defer ContextEnd(*context)
+    return Serve(*context, "GET /")
+}
+```
+
+`ContextLog` does nothing when either the context or its logger is null.
+Platform-specific loggers remain in their platform modules; `std/context`
+itself is ordinary checked Ziran on C, Go, Wasm, portable ZX engine, and
+native execution. The allocator uses the `std/temp` API through
+`context.allocator`. Because the context owns that allocator, moving the
+record while one of its temporary views is live is rejected by the normal
+owned-value rules. `ContextEnd(*context)` releases its temporary storage.
+
 ### Building text
 
 `std/format.zi` builds text on an owned `Vec(u8)` builder. `Append(*builder,

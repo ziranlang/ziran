@@ -1,0 +1,9 @@
+#import "std/context"
+#import "std/temp"
+
+main :: () -> s32 {
+    context := Context.{.allocator = TempBegin()}
+    live := TempSlice(*context.allocator, 4)
+    moved := context
+    return cast(s32)live[0] + cast(s32)TempMark(*moved.allocator)
+}

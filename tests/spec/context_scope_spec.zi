@@ -1,0 +1,53 @@
+#import "std/context"
+#import "std/temp"
+
+events: [4]s32;
+event_count: s32;
+
+RecordLog :: (tag: string, message: string) {
+    code: s32
+    if tag == "outer" && message == "start" { code = 1 }
+    else if tag == "inner" && message == "start" { code = 2 }
+    else if tag == "inner" && message == "done" { code = 3 }
+    else if tag == "outer" && message == "done" { code = 4 }
+    if event_count < 4 {
+        events[event_count] = code
+        event_count += 1
+    }
+}
+
+#program_export
+main :: () -> s32 {
+    silent: Context
+    ContextLog(null, "ignored")
+    ContextLog(*silent, "ignored")
+    if event_count != 0 { return 1 }
+
+    outer := Context.{.logger = RecordLog, .tag = "outer", .allocator = TempBegin()}
+    mark := TempMark(*outer.allocator)
+    scratch_ok := false
+    {
+        scratch := TempSlice(*outer.allocator, 4)
+        scratch_ok = scratch.count == 4
+        if scratch_ok { scratch[3] = 9 }
+    }
+    if !scratch_ok || !TempReset(*outer.allocator, mark) { return 2 }
+
+    moved := outer
+    ContextLog(*moved, "start")
+    {
+        inner := Context.{.logger = RecordLog, .tag = "inner", .allocator = TempBegin()}
+        defer ContextEnd(*inner)
+        defer ContextLog(*inner, "done")
+        ContextLog(*inner, "start")
+    }
+    ContextLog(*moved, "done")
+    ContextEnd(*moved)
+
+    if event_count != 4 { return 3 }
+    for index: 0..3 {
+        if events[index] != index + 1 { return 4 }
+    }
+    print("context % % % % %\n", event_count, events[0], events[1], events[2], events[3])
+    return 0
+}

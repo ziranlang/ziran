@@ -1,0 +1,23 @@
+// Explicit portable execution context. Callers pass it like any other record;
+// there is deliberately no hidden context parameter or global state.
+#import "temp"
+
+ContextLogger :: #type (tag: string, message: string) -> void;
+
+Context :: struct {
+    logger: ContextLogger
+    tag: string
+    allocator: Temp
+}
+
+// A missing context or logger is intentionally silent, so libraries can make
+// logging optional without installing a platform-specific default.
+ContextLog :: (context: *Context, message: string) {
+    if context == null || context.logger == null { return }
+    context.logger(context.tag, message)
+}
+
+ContextEnd :: (context: *Context) {
+    if context == null { return }
+    TempEnd(*context.allocator)
+}

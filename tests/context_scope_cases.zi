@@ -1,0 +1,80 @@
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/path"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ContextGoRun :: (directory: string) -> Vec(string) {
+    command: Vec(string)
+    VecPush(command, "go")
+    VecPush(command, "run")
+    files := NativeFiles(directory, ".go")
+    for file: files { VecPush(command, file) }
+    return command
+}
+
+ContextSuccess :: (test: *NativeTest, input: string, root: string, label: string) -> bool {
+    entry := "context_scope_spec:main"
+    expected := "context 4 1 2 3 4\n"
+    c_output := CheckPath(test.work, CheckConcat(label, "-c"))
+    c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", entry,
+        "--root", root, "-o", c_output, input]
+    unused NativeRun(test, c_build[:])
+    c_run := string.[CheckPath(c_output, "context_scope_spec")]
+    if test.failed || !NativeExpect(test, c_run[:], expected) { return false }
+
+    go_output := CheckPath(test.work, CheckConcat(label, "-go"))
+    go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main", "--entry", entry,
+        "--root", root, "-o", go_output, input]
+    unused NativeRun(test, go_build[:])
+    go_run := ContextGoRun(go_output)
+    if test.failed || !NativeExpect(test, go_run[:], expected) { return false }
+
+    bundle := CheckPath(test.work, CheckConcat(label, ".zx"))
+    bundle_build := string.[test.ziran, "bundle", "--entry", entry, "--root", root, "-o", bundle, input]
+    unused NativeRun(test, bundle_build[:])
+    tools := PathParent(test.ziran)
+    engine := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "engine", bundle]
+    native := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "native", bundle]
+    bundle_expected := CheckConcat(expected, "0\n")
+    if test.failed || !NativeExpect(test, engine[:], bundle_expected) ||
+        !NativeExpect(test, native[:], bundle_expected) { return false }
+
+    wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
+    wasm_build := string.[CheckPath(tools, "zx2wasm"), "-o", wasm, bundle]
+    unused NativeRun(test, wasm_build[:])
+    wasm_run := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm, "--output"]
+    return !test.failed && NativeExpect(test, wasm_run[:], expected)
+}
+
+ContextMoveRejected :: (test: *NativeTest, source_root: string) -> bool {
+    source := CheckPath(source_root, "context_scope_move_reject.zi")
+    command := string.[test.ziran, "check", "--root", source_root, source]
+    result := NativeInvoke(test, command[:])
+    return NativeAssert(test, result.code != 0 &&
+        TextContains(result.error, "moving owned storage while its text view is live"),
+        "moving a context while its allocator view is live must be rejected")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "context-scope-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off")
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
+    source_root := CheckPath(test.repo, "tests/spec")
+    source := CheckPath(source_root, "context_scope_spec.zi")
+    saved_root := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", source_root, "-o", saved_root, source]
+    unused NativeRun(*test, save[:])
+    saved := CheckPath(saved_root, "context_scope_spec.zir")
+    if test.failed || !ContextMoveRejected(*test, source_root) ||
+        !ContextSuccess(*test, source, source_root, "source") ||
+        !ContextSuccess(*test, saved, saved_root, "saved") { return 1 }
+    print("explicit context: source/saved C, Go, Wasm, engine and native local tests passed\n")
+    return 0
+}

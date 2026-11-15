@@ -228,13 +228,20 @@ struct BundleInstance {
     NativeInstance *native;
 };
 
-/* Auto is a platform decision, never a per-bundle probe. Native x86-64 stays
- * strict-only until the complete-backend parity gate is met. */
+/* Auto is a platform decision, never a per-bundle probe: a web runtime that
+ * installed the wasm provider runs bundles on it, and every other host,
+ * including 64-bit and JSPI web runtimes such as the playground's, on the
+ * instruction engine. Native x86-64 stays strict-only until the
+ * complete-backend parity gate is met. */
+static BundleExecutionBackend
+auto_platform_backend(void)
+{
 #if defined(__EMSCRIPTEN__)
-static const BundleExecutionBackend auto_platform_backend = BUNDLE_EXECUTION_WASM;
-#else
-static const BundleExecutionBackend auto_platform_backend = BUNDLE_EXECUTION_ENGINE;
+    if(ZxWasmPlatformActive() != NULL)
+        return BUNDLE_EXECUTION_WASM;
 #endif
+    return BUNDLE_EXECUTION_ENGINE;
+}
 
 static int
 compare_bindings(const void *left, const void *right)
@@ -340,7 +347,7 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
      * another backend, and Auto does not inspect this bundle's native result. */
     BundleExecutionBackend selected = policy == BUNDLE_BACKEND_ENGINE ?
         BUNDLE_EXECUTION_ENGINE : policy == BUNDLE_BACKEND_NATIVE ?
-        BUNDLE_EXECUTION_NATIVE_X86_64 : auto_platform_backend;
+        BUNDLE_EXECUTION_NATIVE_X86_64 : auto_platform_backend();
     if(selected == BUNDLE_EXECUTION_WASM) {
         if(ZxWasmPlatformActive() == NULL) {
             BundleInstanceClose(instance);

@@ -330,6 +330,13 @@ recursion, and one work budget shared by nested calls. Continue consolidating
 expression rules, then extend file-scope initialization and add
 supported metaprogramming features with explicit effect and
 resource limits. Avoid leaving two subtly different language interpreters.
+`#insert NAME;` is the first metaprogramming slice. At file scope it splices a
+compile-time string constant (a literal, a `#string` body or `#run` of a pure
+procedure), evaluated under the `#run` rules before discovery, as checked source
+in the file's scope. Procedure bodies, `#if` blocks and nested inserts reject
+it. `tests/insert_source_cases.zi` covers source and saved IR on C, Go, the
+engine, native code and Wasm. Statement-level `#insert`, `#modify`,
+`type_info` and the compiler message loop stay open.
 
 Acceptance: supported compile-time programs produce the same typed constants
 in source and saved IR on every target; non-constant or effectful code fails

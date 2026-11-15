@@ -23,6 +23,7 @@ DeclarationError :: enum s32 {
     ProcedureTypeCount; ProcedureTypeName; ProcedureTypeType; ProcedureTypeDefault;
     ImportParameterList; ImportParameterMode; ParameterListSyntax; ParameterName;
     ParameterValue; ParameterDuplicate; ParameterType; ParameterDefault; ParameterFit;
+    InsertSyntax;
 }
 GoMethodDeclaration :: struct {
     error: DeclarationError
@@ -66,6 +67,8 @@ ParameterEntry :: struct {
 // `#module_parameters(...)` as the first declaration of a source file: LIST
 // is the text between the parentheses and LINE the directive's line.
 ModuleParameterDirective :: struct { error: DeclarationError; present: bool; list: string; line: s64 }
+// `#insert NAME;`: NAME is a constant whose compile-time string is source.
+InsertDirective :: struct { error: DeclarationError; present: bool; name: string }
 LibraryDeclaration :: struct { error: DeclarationError; present: bool; name: string; target: string }
 MethodSymbol :: struct { valid: bool; receiver: string; method: string }
 UsingFilter :: struct { error: DeclarationError; present: bool; count: s64; next: s64 }
@@ -228,6 +231,7 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .ParameterType { return "a module parameter type must be bool, string, an integer type or a float type" }
     if error == .ParameterDefault { return "a module parameter needs a default value: NAME := value or NAME: Type = value" }
     if error == .ParameterFit { return "a module parameter's default value does not fit its declared type" }
+    if error == .InsertSyntax { return "#insert needs NAME; naming a compile-time string constant" }
     if error == .LibraryQuote { return "#system_library requires a quoted library name" }
     if error == .LibraryEnd { return "#system_library declaration must end with ';'" }
     if error == .LibraryCharacter { return "#system_library name contains an invalid character" }
@@ -722,6 +726,26 @@ ParameterListError :: (list: string, declaration: bool, name_limit: s64) -> Decl
         at = entry.next
     }
     return .None
+}
+
+// `#insert NAME;` with an optional line comment after the ';'.
+InsertDeclaration :: (source: string, name_limit: s64) -> InsertDirective {
+    result: InsertDirective
+    if !Source.StartsWord(source, "#insert") { return result }
+    result.present = true
+    at := Text.SkipSpace(source, 7, true)
+    end := at
+    while end < source.count && Text.IdentifierByte(source[end]) { end += 1 }
+    result.name = source[at:end]
+    rest := source[Text.SkipSpace(source, end, true):]
+    if result.name.count >= name_limit || !Source.IdentifierText(result.name, false) ||
+    rest.count == 0 || rest[0] != #char ";" {
+        result.error = .InsertSyntax
+        return result
+    }
+    rest = Trim(rest[1:])
+    if rest.count > 0 && !(rest.count >= 2 && rest[0:2] == "//") { result.error = .InsertSyntax }
+    return result
 }
 
 // `#module_parameters(...)` when it is the first declaration of SOURCE, after

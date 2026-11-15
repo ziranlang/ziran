@@ -452,7 +452,22 @@ Answer :: () -> s32 {
     if !GoMethods() { return 10 }
     if !ProcedureTypeParameters() { return 11 }
     if !ModuleParameterGrammar() { return 12 }
+    if !InsertGrammar() { return 13 }
     return 42
+}
+
+InsertGrammar :: () -> bool {
+    insert := InsertDeclaration("#insert TABLE; // generated", 128)
+    if !insert.present || insert.error != .None || insert.name != "TABLE" { return false }
+    if InsertDeclaration("#inserted TABLE;", 128).present ||
+    InsertDeclaration("TABLE :: 1;", 128).present ||
+    InsertDeclaration("#insert TABLE", 128).error != .InsertSyntax ||
+    InsertDeclaration("#insert 1TABLE;", 128).error != .InsertSyntax ||
+    InsertDeclaration("#insert Lib.TABLE;", 128).error != .InsertSyntax ||
+    InsertDeclaration("#insert TABLE; extra", 128).error != .InsertSyntax ||
+    InsertDeclaration("#insert TABLE;", 3).error != .InsertSyntax ||
+    InsertDeclaration("#insert ;", 128).error != .InsertSyntax { return false }
+    return true
 }
 
 ModuleParameterGrammar :: () -> bool {

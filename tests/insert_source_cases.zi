@@ -1,0 +1,128 @@
+// #insert splices a compile-time string constant into the module as checked
+// source. Every backend sees ordinary declarations, the same from source and
+// from saved IR; strings known only at run time, procedure bodies and spliced
+// duplicates are rejected.
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/path"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+INSERT_APP :: #string ZI
+LEVEL :: 3;
+// A compile-time procedure writes Square and, at LEVEL 3 or more, Cube.
+BuildPowers :: (cube: bool) -> string {
+    square := "Square :: (x: s32) -> s32 { return x * x }\n"
+    if cube { return "Square :: (x: s32) -> s32 { return x * x }\nCube :: (x: s32) -> s32 { return x * Square(x) }\n" }
+    return square
+}
+POWERS :: #run BuildPowers(LEVEL > 2);
+#insert POWERS;
+HELPERS :: #string SRC
+Twice :: (x: s32) -> s32 { return x * 2 }
+#if LEVEL > 2 {
+Level :: () -> s32 { return LEVEL }
+}
+SRC
+#insert HELPERS;
+// Forward use: Cube comes from POWERS above, Twice from HELPERS.
+LATE :: #run Twice(5);
+main :: () -> s32 {
+    print("insert % % % % %\n", Square(6), Cube(LEVEL), Twice(21), Level(), LATE)
+    return 0
+}
+ZI
+
+InsertGoRun :: (directory: string) -> Vec(string) {
+    command: Vec(string)
+    VecPush(command, "go")
+    VecPush(command, "run")
+    files := NativeFiles(directory, ".go")
+    for file: files { VecPush(command, file) }
+    return command
+}
+
+// The program gives EXPECTED on C, Go, the engine, native code and Wasm.
+InsertTargets :: (test: *NativeTest, input: string, root: string, label: string, expected: string) -> bool {
+    entry := "insert_app:main"
+    c_output := CheckPath(test.work, CheckConcat(label, "-c"))
+    c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", entry,
+        "--root", root, "-o", c_output, input]
+    unused NativeRun(test, c_build[:])
+    c_run := string.[CheckPath(c_output, "insert_app")]
+    if test.failed || !NativeExpect(test, c_run[:], expected) { return false }
+
+    go_output := CheckPath(test.work, CheckConcat(label, "-go"))
+    go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main", "--entry", entry,
+        "--root", root, "-o", go_output, input]
+    unused NativeRun(test, go_build[:])
+    go_run := InsertGoRun(go_output)
+    if test.failed || !NativeExpect(test, go_run[:], expected) { return false }
+
+    bundle := CheckPath(test.work, CheckConcat(label, ".zx"))
+    bundle_build := string.[test.ziran, "bundle", "--entry", entry, "--root", root, "-o", bundle, input]
+    unused NativeRun(test, bundle_build[:])
+    tools := PathParent(test.ziran)
+    engine := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "engine", bundle]
+    native := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "native", bundle]
+    bundle_expected := CheckConcat(expected, "0\n")
+    if test.failed || !NativeExpect(test, engine[:], bundle_expected) ||
+        !NativeExpect(test, native[:], bundle_expected) { return false }
+
+    wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
+    wasm_build := string.[CheckPath(tools, "zx2wasm"), "-o", wasm, bundle]
+    unused NativeRun(test, wasm_build[:])
+    wasm_run := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm, "--output"]
+    return !test.failed && NativeExpect(test, wasm_run[:], expected)
+}
+
+InsertReject :: (test: *NativeTest, root: string, name: string, source: string, diagnostic: string) -> bool {
+    path := CheckPath(root, CheckConcat(name, ".zi"))
+    if !NativeWrite(test, path, source) { return false }
+    command := string.[test.ziran, "check", "--root", root, path]
+    return NativeReject(test, command[:], diagnostic)
+}
+
+InsertRejections :: (test: *NativeTest, root: string) -> bool {
+    answer := "\n#program_export\nAnswer :: () -> s32 { return 0 }\n"
+    cases := string.[
+        "runtime", "text: string = \"Value :: 1\";\n#insert text;", "#insert needs a compile-time string constant",
+        "number", "COUNT :: 3;\n#insert COUNT;", "#insert needs a compile-time string constant",
+        "missing", "#insert MISSING;", "#insert needs a compile-time string constant",
+        "body", "CODE :: \"Value :: 1\";\nUse :: () -> s32 {\n    #insert CODE;\n    return 0\n}", "procedure bodies cannot #insert",
+        "duplicate", "Answer2 :: () -> s32 { return 1 }\nCODE :: \"Answer2 :: () -> s32 { return 2 }\";\n#insert CODE;", "reject_duplicate.zi:3:",
+        "nested", "INNER :: \"Value :: 1\";\nOUTER :: \"#insert INNER;\";\n#insert OUTER;", "inserted source cannot #insert",
+        "conditional", "CODE :: \"Value :: 1\";\n#if true {\n#insert CODE;\n}", "#insert splices at file scope outside #if",
+        "syntax", "CODE :: \"Value :: (\";\n#insert CODE;", "reject_syntax.zi:2:",
+        "spelling", "CODE :: \"Value :: 1\";\n#insert CODE", "#insert needs NAME;",
+    ]
+    for index: 0..cases.count / 3 - 1 {
+        if !InsertReject(test, root, CheckConcat("reject_", cases[index * 3]),
+            CheckConcat(cases[index * 3 + 1], answer), cases[index * 3 + 2]) { return false }
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "insert-source-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off")
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
+    root := CheckPath(test.work, "source")
+    source := CheckPath(root, "insert_app.zi")
+    saved_root := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", root, "-o", saved_root, source]
+    expected := "insert 36 27 42 3 10\n"
+    if !NativeWrite(*test, source, INSERT_APP) { return 1 }
+    unused NativeRun(*test, save[:])
+    if test.failed || !InsertTargets(*test, source, root, "source", expected) ||
+        !InsertTargets(*test, CheckPath(saved_root, "insert_app.zir"), saved_root, "saved", expected) ||
+        !InsertRejections(*test, root) { return 1 }
+    print("insert: source/saved C, Go, engine, native and Wasm agree; rejections passed\n")
+    return 0
+}

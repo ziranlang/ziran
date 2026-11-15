@@ -809,7 +809,7 @@ void discover_file_scope(const char *source, const char *path, const char *rel,
                     ZirDeferredTypes *deferred_types,
                     ZirFunctions *future_functions,
                     ZirGlobals *future_globals,
-                    ZirDiscoveredFiles *files, int depth);
+                    ZirDiscoveredFiles *files, ZirInserts *inserts, int depth);
 
 static void
 discover_file_scope_with_buffers(const char *source, const char *path, const char *rel,
@@ -819,7 +819,8 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                     ZirDeferredTypes *deferred_types,
                     ZirFunctions *future_functions,
                     ZirGlobals *future_globals,
-                    ZirDiscoveredFiles *files, int depth, DiscoverFileScopeBuffers *buffers)
+                    ZirDiscoveredFiles *files, ZirInserts *inserts, int depth,
+                    DiscoverFileScopeBuffers *buffers)
 {
     if(depth >= 32 || !remember_discovered_file(files, path)) return;
     buffers->type_source[0] = '\0';
@@ -939,6 +940,25 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                       !strcmp(t, "#scope_export")) {
                 scope_file = 0;
                 scope_public = !strcmp(t, "#scope_export");
+            } else if(starts_word(t, "#insert")) {
+                char name[ZIR_NAME_MAX];
+                parse_insert_line(t, name, sizeof(name), Span(rel, line_no, 1));
+                if(inserts != NULL) {
+                    if(inserts->count == inserts->capacity) {
+                        int capacity = inserts->capacity > 0 ? inserts->capacity * 2 : 4;
+                        ZirInsert *items = realloc(inserts->items,
+                            (size_t)capacity * sizeof(*items));
+                        if(items == NULL)
+                            die("out of memory discovering #insert");
+                        inserts->items = items;
+                        inserts->capacity = capacity;
+                    }
+                    ZirInsert *insert = &inserts->items[inserts->count++];
+                    memset(insert, 0, sizeof(*insert));
+                    copy_text(insert->name, sizeof(insert->name), name);
+                    copy_text(insert->rel, sizeof(insert->rel), rel);
+                    insert->line = line_no;
+                }
             } else if(starts_word(t, "#load")) {
                 const char *argument = skip_ws(t + strlen("#load"));
                 const char *end = *argument == '"' ?
@@ -972,7 +992,7 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                                         future_types, deferred_types,
                                         future_functions,
                                         future_globals,
-                                        files, depth + 1);
+                                        files, inserts, depth + 1);
                                     free(loaded);
                                     free(loaded_path);
                                 }
@@ -1088,27 +1108,28 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                     size_t value_length = expr_length;
                     if(value_length > 0 && expr[value_length - 1] == ';')
                         value_length--;
-                    if((expr[0] != '#' ||
-                        starts_word(expr, "#defined")) &&
+                    /* #run constants fold when parsed; only #insert reads
+                     * them ahead, as the sources it splices. */
+                    ZirConsts *table = expr[0] != '#' || starts_word(expr, "#defined") ?
+                        future_constants :
+                        starts_word(expr, "#run") && inserts != NULL ? &inserts->runs : NULL;
+                    if(table != NULL &&
                        name_length > 0 && name_length < sizeof(name) &&
                        value_length > 0 && value_length < ZIR_TEXT_MAX) {
                         memcpy(name, t, name_length);
                         name[name_length] = '\0';
                         trim_in_place(name);
                         if(is_identifier_text(name)) {
-                            if(future_constants->count ==
-                               future_constants->capacity) {
-                                int capacity = future_constants->capacity > 0 ?
-                                    future_constants->capacity * 2 : 16;
-                                ZirConst *items = realloc(future_constants->items,
+                            if(table->count == table->capacity) {
+                                int capacity = table->capacity > 0 ? table->capacity * 2 : 16;
+                                ZirConst *items = realloc(table->items,
                                     (size_t)capacity * sizeof(*items));
                                 if(items == NULL)
                                     die("out of memory discovering constants");
-                                future_constants->items = items;
-                                future_constants->capacity = capacity;
+                                table->items = items;
+                                table->capacity = capacity;
                             }
-                            ZirConst *constant = &future_constants->items[
-                                future_constants->count++];
+                            ZirConst *constant = &table->items[table->count++];
                             memset(constant, 0, sizeof(*constant));
                             copy_text(constant->name, sizeof(constant->name),
                                       name);
@@ -1144,9 +1165,101 @@ COMPILER_SCRATCH_VOID(, discover_file_scope,
                     ZirDeferredTypes *deferred_types,
                     ZirFunctions *future_functions,
                     ZirGlobals *future_globals,
-                    ZirDiscoveredFiles *files, int depth),
+                    ZirDiscoveredFiles *files, ZirInserts *inserts, int depth),
     DiscoverFileScopeBuffers, RECOVERABLE, free,
-    discover_file_scope_with_buffers(source, path, rel, root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, depth, buffers))
+    discover_file_scope_with_buffers(source, path, rel, root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, inserts, depth, buffers))
+
+/* The constant NAME as RELATIVE sees it among the bound definitions and
+ * module parameters, then the discovered ones. */
+static const ZirConst *
+insert_constant(const ZirConsts *consts, const ZirConsts *future, const ZirConsts *runs,
+                const char *name, const char *relative)
+{
+    const ZirConsts *tables[3] = {consts, future, runs};
+    for(int t = 0; t < 3; t++)
+        for(int i = 0; i < tables[t]->count; i++) {
+            const ZirConst *constant = &tables[t]->items[i];
+            if(!strcmp(constant->name, name) &&
+               (!constant->is_file_private || !strcmp(constant->path, relative)))
+                return constant;
+        }
+    return NULL;
+}
+
+void
+evaluate_inserts(ZirInserts *inserts, ZirModule *module, const ZirConsts *consts,
+                 ZirConsts *future_constants, ZirUsings *future_usings,
+                 ZirImports *future_imports, ZirTypes *future_types,
+                 ZirDeferredTypes *deferred_types, ZirFunctions *future_functions,
+                 ZirGlobals *future_globals, ZirDiscoveredFiles *files,
+                 CompileParseContext *context, const char *path, const char *root)
+{
+    for(int i = 0; i < inserts->count; i++) {
+        ZirInsert *insert = &inserts->items[i];
+        ZirSourceSpan span = Span(insert->rel, insert->line, 1);
+        const ZirConst *constant = insert_constant(consts, future_constants,
+                                                   &inserts->runs, insert->name,
+                                                   insert->rel);
+        if(constant == NULL || constant->expr == NULL)
+            die_at(span, "#insert needs a compile-time string constant; %s is not a constant",
+                   insert->name);
+        const char *expr = constant->expr;
+        if(starts_word(expr, "#run")) expr = skip_ws(expr + strlen("#run"));
+        ZirConsts visible = visible_compile_constants(consts, future_constants);
+        ZirModule scope = visible_compile_module(module, context, &visible);
+        char *expanded = expand_compile_text(&visible, expr, insert->rel);
+        if(expanded == NULL) die("out of memory evaluating #insert");
+        CompileValue value;
+        int folded = 0;
+        /* Imports load only for what the visible scope cannot fold, as for
+         * #run, and for every size_of. */
+        for(int attempt = strstr(expanded, "size_of") != NULL; attempt < 2 && !folded; attempt++) {
+            int fuel = COMPILE_RUN_FUEL;
+            compile_value_clear(&value);
+            if(attempt == 1 && context->resolver != NULL &&
+               !context->resolver(context->resolver_context, context->program,
+                                  &scope, path, root, expanded))
+                die_at(span, "cannot resolve imports for #insert %s", insert->name);
+            folded = evaluate_typed_expression(&scope, &visible, expanded, span, 1,
+                                               &fuel, &value) &&
+                     value.kind != COMPILE_INVALID;
+        }
+        free(expanded);
+        free_visible_compile_module(&scope);
+        free(visible.items);
+        size_t length = 0;
+        unsigned char *bytes = folded && value.kind == COMPILE_STRING ?
+                               compile_string_bytes(&value, &length) : NULL;
+        if(bytes == NULL)
+            die_at(span, "#insert needs a compile-time string constant; %s is not one",
+                   insert->name);
+        if(memchr(bytes, '\0', length) != NULL)
+            die_at(span, "#insert source %s holds a NUL byte", insert->name);
+        insert->text = AllocateOrExit(length + 2);
+        memcpy(insert->text, bytes, length);
+        free(bytes);
+        /* Spliced text ends its last declaration like a file does. */
+        if(length == 0 || insert->text[length - 1] != '\n') insert->text[length++] = '\n';
+        insert->text[length] = '\0';
+        char *lowered = lower_jai_multiline_strings(insert->text, insert->rel);
+        free(insert->text);
+        insert->text = lowered;
+        char pseudo[SOURCE_PATH_MAX + 32];
+        snprintf(pseudo, sizeof(pseudo), "%s#insert%d", path, i);
+        discover_file_scope(insert->text, pseudo, insert->rel, root, future_constants,
+                            future_usings, future_imports, future_types, deferred_types,
+                            future_functions, future_globals, files, NULL, 1);
+    }
+}
+
+void
+free_inserts(ZirInserts *inserts)
+{
+    for(int i = 0; i < inserts->count; i++) free(inserts->items[i].text);
+    free(inserts->items);
+    free(inserts->runs.items);
+    *inserts = (ZirInserts){0};
+}
 /* Buffers discover_conditional_type keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct DiscoverConditionalTypeBuffers {

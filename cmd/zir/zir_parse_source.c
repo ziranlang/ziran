@@ -232,6 +232,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int load_depth = 0;
     int module_parameters_line = 0;
     int module_parameters_seen = 0;
+    /* #insert sources, evaluated after discovery; INSERTING while one is
+     * read, which keeps the insertion site's line for every line in it. */
+    ZirInserts inserts = {0};
+    int inserting = 0;
     char *canonical = CanonicalPath(path);
     char *owned_source = NULL;
     if(canonical == NULL)
@@ -291,7 +295,11 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         &future_usings, &future_imports, &future_types,
                         &deferred_types,
                         &future_functions, &future_globals,
-                        &discovered_files, 0);
+                        &discovered_files, &inserts, 0);
+    evaluate_inserts(&inserts, module, &consts, &future_constants, &future_usings,
+                     &future_imports, &future_types, &deferred_types,
+                     &future_functions, &future_globals, &discovered_files,
+                     &compile_context, path, root);
     discover_conditional_types(&deferred_types, module, &consts,
                                &compile_context, &future_types);
     for(;;) {
@@ -343,9 +351,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             scope_public = frame->scope_public;
             scope_file = frame->scope_file;
             in_block_comment = frame->in_block_comment;
+            inserting = frame->inserting;
             continue;
         }
-        if(!have_look && onelineq_count == 0)
+        if(!have_look && onelineq_count == 0 && !inserting)
             physical_line_no++;
         char *t;
         int from_lookahead = 0;
@@ -364,9 +373,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             have_look = 0;
             from_lookahead = 1;
         }
-        if(!from_queue)
+        if(!from_queue && !inserting)
             line_no++;
-        if(line_no == 1 && !from_queue && !from_lookahead &&
+        if(line_no == 1 && !from_queue && !from_lookahead && !inserting &&
            buffers->line[0] == '#' && buffers->line[1] == '!')
             continue;
         if(!from_queue && !from_lookahead)
@@ -551,7 +560,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     while(read_source_line(buffers->la, sizeof(buffers->la), &source, path, line_no) != NULL) {
                         const char *lt;
                         int cont;
-                        physical_line_no++;
+                        if(!inserting) physical_line_no++;
                         strip_block_comments(buffers->la, &in_block_comment);
                         if(contains_source_directive(buffers->la, "#else_if") ||
                            contains_source_directive(buffers->la, "#else"))
@@ -562,7 +571,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                          * normalize it only when the parser consumes it. */
                         lt = trim(buffers->la);
                         if(lt[0] == '\0' || strncmp(lt, "//", 2) == 0) {
-                            line_no++;   /* comments and blank lines still count */
+                            /* comments and blank lines still count */
+                            if(!inserting) line_no++;
                             continue;
                         }
                         cont =
@@ -594,7 +604,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                             last == '}' && starts_word(lt, "else") ? ' ' : '\n', lt,
                             Span(buffers->rel, pending_start_line,
                                  pending_start_column));
-                        line_no++;
+                        if(!inserting) line_no++;
                     }
                 }
             }
@@ -997,6 +1007,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             frame->scope_file = scope_file;
             frame->in_block_comment = in_block_comment;
             frame->conditional_depth = tframe_count;
+            frame->inserting = inserting;
+            inserting = 0;
             canonical = next_path;
             path = canonical;
             owned_source = read_lowered_source(path);
@@ -1050,6 +1062,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 free_discovered_functions(&future_functions);
                 free(future_globals.items);
                 free_discovered_files(&discovered_files);
+                free_inserts(&inserts);
                 free(canonical);
                 return NULL;
             }
@@ -1078,6 +1091,52 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             if(import == NULL)
                 die("out of memory importing source string");
             import->is_file_private = scope_file;
+            continue;
+        } else if(mode == TOP && starts_word(t, "#insert")) {
+            char name[ZIR_NAME_MAX];
+            ZirSourceSpan span = Span(buffers->rel, line_no, 1);
+            parse_insert_line(t, name, sizeof(name), span);
+            if(inserting)
+                die_at(span, "inserted source cannot #insert");
+            const ZirInsert *insert = NULL;
+            for(int i = 0; i < inserts.count && insert == NULL; i++)
+                if(inserts.items[i].line == pending_start_line &&
+                   !strcmp(inserts.items[i].rel, buffers->rel) &&
+                   !strcmp(inserts.items[i].name, name))
+                    insert = &inserts.items[i];
+            if(insert == NULL || insert->text == NULL || tframe_count > 0)
+                die_at(span, "#insert splices at file scope outside #if blocks");
+            if(load_depth >= (int)(sizeof(buffers->load_frames) / sizeof(buffers->load_frames[0])))
+                die_at(span, "#load and #insert nesting limit exceeded");
+            /* The spliced text is read like a loaded file, in this file's
+             * scope and at the insertion site. */
+            char *next_canonical = strdup(canonical);
+            char *text = strdup(insert->text);
+            if(next_canonical == NULL || text == NULL)
+                die("out of memory splicing #insert");
+            LoadFrame *frame = &buffers->load_frames[load_depth++];
+            frame->path = path;
+            frame->source = source;
+            frame->canonical = canonical;
+            frame->owned_source = owned_source;
+            copy_text(frame->rel, sizeof(frame->rel), buffers->rel);
+            copy_text(frame->lookahead, sizeof(frame->lookahead), buffers->lookahead);
+            frame->line_no = line_no;
+            frame->physical_line_no = physical_line_no;
+            frame->have_look = have_look;
+            frame->scope_public = scope_public;
+            frame->scope_file = scope_file;
+            frame->in_block_comment = in_block_comment;
+            frame->conditional_depth = tframe_count;
+            frame->inserting = inserting;
+            canonical = next_canonical;
+            owned_source = text;
+            source = owned_source;
+            line_no = pending_start_line;
+            have_look = 0;
+            buffers->lookahead[0] = '\0';
+            in_block_comment = 0;
+            inserting = 1;
             continue;
         } else if(mode == TOP && starts_word(t, "#module_parameters")) {
             /* apply_module_parameters already bound the leading directive. */
@@ -1765,6 +1824,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             } else if(body_mcount > 0 &&
                       !body_mactive[body_mcount - 1]) {
                 depth += net_block_braces(t);
+            } else if(starts_word(t, "#insert")) {
+                die_at(Span(buffers->rel, line_no, 1),
+                       "procedure bodies cannot #insert; #insert splices declarations at file scope");
             } else if(t[0] == '#' && strcmp(t, "#through") != 0 &&
                       strcmp(t, "#through;") != 0 &&
                       !starts_word(t, "#asm") &&
@@ -2056,6 +2118,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 free_discovered_functions(&future_functions);
                 free(future_globals.items);
                 free_discovered_files(&discovered_files);
+                free_inserts(&inserts);
                 free(canonical);
                 return NULL;
             }
@@ -2070,6 +2133,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 free_discovered_functions(&future_functions);
                 free(future_globals.items);
                 free_discovered_files(&discovered_files);
+                free_inserts(&inserts);
                 free(canonical);
                 return NULL;
             }
@@ -2113,6 +2177,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     free_discovered_functions(&future_functions);
     free(future_globals.items);
     free_discovered_files(&discovered_files);
+    free_inserts(&inserts);
     free(canonical);
     return program;
 }

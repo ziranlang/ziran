@@ -65,7 +65,7 @@ PlanChecks :: (checks: []CheckCase) -> Vec(s64) {
 
 // Ziran case files that drive the compiler named by their first argument.
 CheckCompilerCase :: (name: string) -> bool {
-    return name == "module_parameters_cases.zi"
+    return name == "module_parameters_cases.zi" || name == "insert_source_cases.zi"
 }
 
 CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
@@ -141,7 +141,7 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
 DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) {
     checks: Vec(CheckCase)
     tests := CheckPath(repo, "tests")
-    compiler_cases := string.["module_parameters_cases.zi"]
+    compiler_cases := string.["module_parameters_cases.zi", "insert_source_cases.zi"]
     for name: compiler_cases {
         if TextContains(name, filter) { VecPush(checks, CheckCase.{.name = name, .cost = 2}) }
     }

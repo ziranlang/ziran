@@ -769,6 +769,35 @@ defaults and bound values. A saved import that disagrees with the module it
 loads is rejected the same way. The checks are the same for source and saved
 IR, so no backend needs to know about parameters.
 
+### Generated declarations
+
+`#insert NAME;` at file scope splices the text of a compile-time string
+constant into the module where the directive stands. The text is checked like
+the rest of the file, so a compile-time procedure can write declarations that
+generics cannot express. The constant can be a string, a raw `#string` body or
+a `#run` call of a pure procedure:
+
+```zi
+LEVEL :: 3;
+BuildPowers :: (cube: bool) -> string {
+    square := "Square :: (x: s32) -> s32 { return x * x }\n"
+    if cube { return "Square :: (x: s32) -> s32 { return x * x }\nCube :: (x: s32) -> s32 { return x * Square(x) }\n" }
+    return square
+}
+POWERS :: #run BuildPowers(LEVEL > 2);
+#insert POWERS;
+```
+
+The constant is evaluated before the module's declarations are read, with the
+rules and step budget of `#run`, so declarations it adds are visible anywhere
+in the module, including to `#if` conditions and `#run` calls above the
+`#insert`. A value that is not a compile-time string, such as a global, fails.
+Inserted text shares the file's scope and `#scope_file` privacy, and its
+diagnostics name the line of the `#insert`. `#insert` stays outside procedure
+bodies and `#if` blocks, and inserted text cannot `#insert` again; choose the
+text with `#run` or `#ifx` instead. Saved IR holds only the checked
+declarations, so every backend sees them as if they had been written by hand.
+
 ## Foreign functions
 
 Ordinary `#import` accepts a module identifier. C headers are no longer

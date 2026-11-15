@@ -378,6 +378,9 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_ParameterFit) {
         return StringLiteral("a module parameter's default value does not fit its declared type");
     }
+    if (error == DeclarationError_InsertSyntax) {
+        return StringLiteral("#insert needs NAME; naming a compile-time string constant");
+    }
     if (error == DeclarationError_LibraryQuote) {
         return StringLiteral("#system_library requires a quoted library name");
     }
@@ -2100,6 +2103,56 @@ compiler_declaration_ParameterListError(String list, bool declaration, int64_t n
         at = entry.next;
     }
     return DeclarationError_None;
+}
+
+InsertDirective
+compiler_declaration_InsertDeclaration(String source, int64_t name_limit)
+{
+    InsertDirective result = {0};
+    bool value_0 = compiler_source_StartsWord(source, StringLiteral("#insert"));
+    if (!value_0) {
+        return result;
+    }
+    bool* value_1 = &(result.present);
+    (*value_1) = true;
+    int64_t at = compiler_text_SkipSpace(source, 7LL, true);
+    int64_t end = at;
+    while (end < (int64_t)(source).length && compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(source.data, source.length, end))) {
+        end = (int64_t)((uint64_t)end + UINT64_C(1));
+    }
+    String* value_2 = &(result.name);
+    (*value_2) = StringRange(source, (int64_t)at, (int64_t)end);
+    String value_3 = source;
+    int64_t value_4 = compiler_text_SkipSpace(source, end, true);
+    String rest = StringRange(value_3, (int64_t)value_4, (int64_t)value_3.length);
+    bool value_5 = (int64_t)(result.name).length >= name_limit;
+    if (!value_5) {
+        bool value_6 = compiler_source_IdentifierText(result.name, false);
+        value_5 = !value_6;
+    }
+    if (value_5 || (int64_t)(rest).length == 0LL || (uint8_t)ZIRAN_INDEX(rest.data, rest.length, 0) != 59) {
+        DeclarationError* value_7 = &(result.error);
+        (*value_7) = DeclarationError_InsertSyntax;
+        return result;
+    }
+    String value_8 = StringRange(rest, (int64_t)1LL, (int64_t)rest.length);
+    String value_9 = StringView(NULL, 0);
+    {
+        String source = value_8;
+        SourceRange range = compiler_text_TrimRange(source);
+        value_9 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+    }
+    rest = value_9;
+    bool value_11 = (int64_t)(rest).length > 0LL;
+    if (value_11) {
+        bool value_12 = (int64_t)(rest).length >= 2LL && StringEqual(StringRange(rest, (int64_t)0LL, (int64_t)2LL), StringLiteral("//"));
+        value_11 = !value_12;
+    }
+    if (value_11) {
+        DeclarationError* value_13 = &(result.error);
+        (*value_13) = DeclarationError_InsertSyntax;
+    }
+    return result;
 }
 
 ModuleParameterDirective

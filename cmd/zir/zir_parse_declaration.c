@@ -767,6 +767,18 @@ apply_module_parameters(ZirModule *module, const char *source, const char *rel,
 }
 
 int
+parse_insert_line(const char *line, char *name, size_t size, ZirSourceSpan span)
+{
+    InsertDirective directive = compiler_declaration_InsertDeclaration(
+        declaration_text(line), (int64_t)size);
+    name[0] = '\0';
+    if(!directive.present) return 0;
+    check_declaration_error(directive.error, span);
+    copy_declaration_part(name, size, directive.name, 0);
+    return 1;
+}
+
+int
 parse_foreign_library_line(const char *path, int line_no, const char *line,
                            char names[][ZIR_NAME_MAX],
                            char targets[][ZIR_PATH_MAX], int *count)

@@ -128,6 +128,22 @@ typedef struct {
     int capacity;
 } ZirDiscoveredFiles;
 
+/* A file-scope `#insert NAME;`: where it stands and, once evaluated, the
+ * source text NAME's compile-time string value splices there. */
+typedef struct {
+    char name[ZIR_NAME_MAX];
+    char rel[SOURCE_PATH_MAX];
+    int line;
+    char *text;
+} ZirInsert;
+
+typedef struct {
+    ZirInsert *items;
+    int count;
+    int capacity;
+    ZirConsts runs; /* discovered `NAME :: #run expression` constants */
+} ZirInserts;
+
 typedef struct {
     int braces;                   /* net '{' until the region's closing '}' */
     int selected;
@@ -241,6 +257,7 @@ typedef struct LoadFrame {
     int scope_file;
     int in_block_comment;
     int conditional_depth;
+    int inserting; /* the outer frame was already inserted source */
 } LoadFrame;
 
 /* Shared between the parts only: the Makefile merges the parts into one
@@ -374,7 +391,19 @@ char *read_source_line(char *line, size_t size, const char **source, const char 
 void free_deferred_types(ZirDeferredTypes *deferred);
 void free_discovered_files(ZirDiscoveredFiles *files);
 void free_discovered_functions(ZirFunctions *functions);
-void discover_file_scope(const char *source, const char *path, const char *rel, const char *root, ZirConsts *future_constants, ZirUsings *future_usings, ZirImports *future_imports, ZirTypes *future_types, ZirDeferredTypes *deferred_types, ZirFunctions *future_functions, ZirGlobals *future_globals, ZirDiscoveredFiles *files, int depth);
+void discover_file_scope(const char *source, const char *path, const char *rel, const char *root, ZirConsts *future_constants, ZirUsings *future_usings, ZirImports *future_imports, ZirTypes *future_types, ZirDeferredTypes *deferred_types, ZirFunctions *future_functions, ZirGlobals *future_globals, ZirDiscoveredFiles *files, ZirInserts *inserts, int depth);
+/* The constant `#insert NAME;` names, or "" when the line is no #insert;
+ * dies when the line misspells one. */
+int parse_insert_line(const char *line, char *name, size_t size, ZirSourceSpan span);
+/* Evaluate each discovered #insert's constant to source text, as #run would
+ * at that point, and discover the declarations it splices in. */
+void evaluate_inserts(ZirInserts *inserts, ZirModule *module, const ZirConsts *consts,
+                      ZirConsts *future_constants, ZirUsings *future_usings,
+                      ZirImports *future_imports, ZirTypes *future_types,
+                      ZirDeferredTypes *deferred_types, ZirFunctions *future_functions,
+                      ZirGlobals *future_globals, ZirDiscoveredFiles *files,
+                      CompileParseContext *context, const char *path, const char *root);
+void free_inserts(ZirInserts *inserts);
 void discover_conditional_types(const ZirDeferredTypes *deferred, ZirModule *module, const ZirConsts *constants, const CompileParseContext *context, ZirTypes *future);
 void lower_enum_values(ZirType *type);
 void parse_enum_backing(ZirType *type, const char *header);

@@ -20,6 +20,7 @@ typedef int32_t ImportMode;
 typedef struct ModuleImport ModuleImport;
 typedef struct ParameterEntry ParameterEntry;
 typedef struct ModuleParameterDirective ModuleParameterDirective;
+typedef struct InsertDirective InsertDirective;
 typedef struct LibraryDeclaration LibraryDeclaration;
 typedef struct MethodSymbol MethodSymbol;
 typedef struct UsingFilter UsingFilter;
@@ -112,6 +113,7 @@ enum {
     DeclarationError_ParameterType = 71,
     DeclarationError_ParameterDefault = 72,
     DeclarationError_ParameterFit = 73,
+    DeclarationError_InsertSyntax = 74,
 };
 
 struct GoMethodDeclaration {
@@ -169,6 +171,12 @@ struct ModuleParameterDirective {
     bool present;
     String list;
     int64_t line;
+};
+
+struct InsertDirective {
+    DeclarationError error;
+    bool present;
+    String name;
 };
 
 struct LibraryDeclaration {
@@ -282,6 +290,7 @@ bool compiler_declaration_ParameterFits(String type, String value);
 int64_t compiler_declaration_ParameterCanonical(String value, Slice output);
 ParameterEntry compiler_declaration_NextParameter(String list, int64_t at, bool declaration, int64_t name_limit);
 DeclarationError compiler_declaration_ParameterListError(String list, bool declaration, int64_t name_limit);
+InsertDirective compiler_declaration_InsertDeclaration(String source, int64_t name_limit);
 ModuleParameterDirective compiler_declaration_ModuleParametersPrefix(String source, int64_t name_limit);
 LibraryDeclaration compiler_declaration_SystemLibrary(String source, int64_t name_limit, int64_t path_limit);
 MethodSymbol compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_t method_limit);

@@ -673,6 +673,30 @@ differently. These named diagnostics reject an import:</p>
 defaults and bound values. A saved import that disagrees with the module it
 loads is rejected the same way. The checks are the same for source and saved
 IR, so no backend needs to know about parameters.</p>
+<h3 id="generated-declarations">Generated declarations</h3>
+<p><code>#insert NAME;</code> at file scope splices the text of a compile-time string
+constant into the module where the directive stands. The text is checked like
+the rest of the file, so a compile-time procedure can write declarations that
+generics cannot express. The constant can be a string, a raw <code>#string</code> body or
+a <code>#run</code> call of a pure procedure:</p>
+<pre><code class="language-zi">LEVEL :: 3;
+BuildPowers :: (cube: bool) -&gt; string {
+    square := &quot;Square :: (x: s32) -&gt; s32 { return x * x }\n&quot;
+    if cube { return &quot;Square :: (x: s32) -&gt; s32 { return x * x }\nCube :: (x: s32) -&gt; s32 { return x * Square(x) }\n&quot; }
+    return square
+}
+POWERS :: #run BuildPowers(LEVEL &gt; 2);
+#insert POWERS;
+</code></pre>
+<p>The constant is evaluated before the module's declarations are read, with the
+rules and step budget of <code>#run</code>, so declarations it adds are visible anywhere
+in the module, including to <code>#if</code> conditions and <code>#run</code> calls above the
+<code>#insert</code>. A value that is not a compile-time string, such as a global, fails.
+Inserted text shares the file's scope and <code>#scope_file</code> privacy, and its
+diagnostics name the line of the <code>#insert</code>. <code>#insert</code> stays outside procedure
+bodies and <code>#if</code> blocks, and inserted text cannot <code>#insert</code> again; choose the
+text with <code>#run</code> or <code>#ifx</code> instead. Saved IR holds only the checked
+declarations, so every backend sees them as if they had been written by hand.</p>
 <h2 id="foreign-functions">Foreign functions</h2>
 <p>Ordinary <code>#import</code> accepts a module identifier. C headers are no longer
 imported as source modules; foreign procedures use <code>#system_library</code> and

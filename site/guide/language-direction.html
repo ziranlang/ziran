@@ -420,6 +420,10 @@ directory. <code>#load "relative/file.zi";</code> adds that file's declarations 
 current module and may nest. <code>#import, string "...";</code> and a raw <code>#string</code>
 body compile embedded source as a module. The named form
 <code>Alias :: #import, string "...";</code> exposes declarations through <code>Alias.Name</code>.
+<code>#insert NAME;</code> splices a compile-time string constant into the current module
+instead, at file scope, checked like the rest of the file. A module's leading
+<code>#module_parameters(NAME := value)</code> declares constants that each
+<code>#import "module"(NAME = value)</code> binds; one program binds a module once.
 <code>#import, file</code> loads <code>.zi</code> source only. C headers are outside the Ziran
 module graph; foreign declarations use <code>#system_library</code> and <code>#foreign</code>.
 An entry source file derives its module name from its filename. The old

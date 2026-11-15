@@ -340,3 +340,69 @@ measured sources. This remains a preliminary portable-engine comparison with
 five-core final campaign or evidence for a new native ZX engine. Register
 allocation/splitting/spilling, post-allocation verification, complete machine-IR
 encoding and native ZX default integration remain M2/M3 work.
+
+## Interim comparison 2: native ZX on Linux x86-64 (2026-11-15)
+
+This is the M3 interim receipt from the [ASSEMBLY milestones](../ASSEMBLY/milestones.md),
+not the final step-10 comparison. The receipt is
+`results/zx-compare-alpha-physical-native-2026-11-15.json` (SHA-256
+`c0a61f9f411a4d7dcb83a718c8a1f345cab87ecf762e33a83df3fd3068db771b`), written by
+the `zx_compare.zi` driver (see `README.md`, "ZX runtime comparison 2 driver"):
+
+```sh
+build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY \
+  build/bin/ziran run --target=c --root bench --module-path . \
+  bench/zx_compare.zi -- --engine --native-cold --native-warm --aot \
+  --c-control --m0-receipts bench/results --samples 9 \
+  --out bench/results/zx-compare-alpha-physical-native-2026-11-15.json
+```
+
+Building and measuring ran directly on Alpha's physical host in Alpha's own
+checkout, fast-forwarded to pushed revision `31d291f3` (no clone or copy):
+hostname `alpha`, machine ID `56391af3c57a496aba7e9f1f24cce732`, Intel Core
+i7-8700, Linux 7.0.0-43-generic, governor `powersave`. Outer virtualization
+was measured as `none` before entering the build queue and is recorded in the
+attestation block; `/proc/cpuinfo` has no `hypervisor` flag. The Harmony
+scoped-git transport that set `HARMONY_ALPHA_GIT_SCOPED` no longer exists, so
+the receipt records `scoped_ok: false` and the driver's `--alpha` gate was not
+used; hostname, machine ID and virtualization checks all pass. The host was
+shared with running VMs and another lane's queued test: load average 4.34 /
+3.69 / 3.39 before and 3.83 / 3.62 / 3.37 after (12 CPUs). The receipt hashes
+the driver, helper and control sources (identical to `31d291f3`),
+`build/libziran.a` and every fixture/helper/AOT artifact, and its integrity
+block re-verified all of them after the loop.
+
+All 72 samples completed: 9 interleaved trials × 2 workloads × (engine, native
+helper, C control, AOT ELF), 4,096 rounds and 16 batches per helper run. Every
+engine, native and C checksum equals the oracle's sum over the 16 batch seeds,
+every native row reports backend `NativeX86_64` with native evidence, and both
+AOT ELFs print the oracle value; an independent Python recomputation of the
+oracle, the symmetric 1.5×IQR exclusions, medians and nearest-rank p95 agrees
+with all ten summary cells. The old VM and TinyCC rows are copied verbatim
+from the M0 receipt `results/zx-compare-alpha-physical-2026-11-12.json`
+(SHA-256 `25a4b044…6349`, checked): all four summary entries and their 36 raw
+values are byte-identical. They were not re-measured, because TinyCC and the
+old VM are removed.
+
+Per-entry median / nearest-rank p95 in milliseconds after the symmetric
+1.5×IQR rule:
+
+| Workload | M0 old VM | M0 TinyCC native ZX | Portable engine | Native ZX cold | Native ZX warm | C control |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Scalar | 2.318291 / 2.328762 | 0.017111 / 0.017181 | 0.533915 / 0.577813 | 0.571038 / 0.597398 | 0.048285 / 0.049265 | 0.004596 / 0.004809 |
+| Structured | 8.457550 / 8.620380 | 0.042724 / 0.043462 | 1.020441 / 1.076762 | 0.577248 / 0.648444 | 0.063309 / 0.065637 | 0.006251 / 0.006555 |
+
+Native cold is one fresh process's load + instantiate + first entry, including
+native compilation; warm is per entry after a 500 ms in-process warmup. The
+`zx2native` AOT ELF control is whole-process wall time with startup at the base
+seed only: 4.925177 / 5.121921 ms scalar and 4.972000 / 5.112358 ms
+structured. It is dominated by process startup and is not comparable per entry.
+
+Warm native ZX is 11.06× faster than the portable engine on scalar work and
+16.12× on structured work, and 48.0× / 133.6× faster than the M0 old VM. It is
+not yet as fast as the M0 TinyCC native tier: 2.82× slower on scalar and 1.48×
+slower on structured work, and about 10.5× / 10.1× slower than the handwritten C
+control. The C control (0.004596 / 0.006251 ms) is close to the M0 receipt's C
+control on the same host (0.0048 / 0.0066 ms). This closes M3's interim
+comparison item; it is not parity with TinyCC, and native code-quality work
+continues in later milestones.

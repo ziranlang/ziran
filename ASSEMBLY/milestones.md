@@ -156,8 +156,17 @@ linux-x86_64 default, a clean clone of master passes `make check-bootstrap` and
 Go 1.25 (Omega has 1.24.4). Native code does not re-check a pointer's element
 type: the load-time verifier makes a wrong-type access unrepresentable, and
 `tests/verified_loading_cases.zi` shows a retyped load refused by the reader,
-`zi2zx run` and `zx2native` before any native code (M3 step 2, closed). With
-that, M3 is complete apart from interim comparison 2. The earlier physical-Alpha 275/276 and 274-check
+`zi2zx run` and `zx2native` before any native code (M3 step 2, closed).
+
+M3 is done (2026-11-15). Interim comparison 2 ran on Alpha's physical host at
+`31d291f3` with all 72 samples oracle-verified and the M0 TinyCC rows
+byte-identical to their receipt:
+[`bench/results/zx-compare-alpha-physical-native-2026-11-15.json`](../bench/results/zx-compare-alpha-physical-native-2026-11-15.json),
+summarized in [Interim comparison 2](../bench/zx_compare.md#interim-comparison-2-native-zx-on-linux-x86-64-2026-11-15).
+Warm native ZX medians were 0.0483 ms scalar and 0.0633 ms structured per
+entry: 11.1× / 16.1× faster than the portable engine, 2.82× / 1.48× slower
+than the M0 TinyCC native tier (0.0171 / 0.0427 ms), and about 10× slower
+than the C control (0.0046 / 0.0063 ms). The earlier physical-Alpha 275/276 and 274-check
 results remain historical, not the current full-suite claim. M0's Alpha
 physical-host baseline and M1's interim comparisons exist; see the
 [baseline](../bench/zx_compare.md#interim-comparison-1-new-portable-engine-2026-11-12)

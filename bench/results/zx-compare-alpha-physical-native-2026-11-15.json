@@ -1,0 +1,1219 @@
+{
+  "schema": "2",
+  "benchmark": "zx-compare-2",
+  "target": "alpha",
+  "commit": "31d291f3375eb3d7703e38b2c4f4f915a877d07d",
+  "started_utc": "2026-11-15T23:12:37Z",
+  "cohorts_requested": [
+    "engine",
+    "native-cold",
+    "native-warm",
+    "aot",
+    "c"
+  ],
+  "protocol": {
+    "fixture": "bench/zx_compare.zi Answer with the host_api Input bound to seed, rounds and kind; kind 1 mixes a 32-cell struct workload",
+    "rounds": 4096,
+    "batches": 16,
+    "samples": 9,
+    "seed_base": 123456,
+    "trial_stride": 100,
+    "warmup": "the helper warms at least 500 ms before its measured batches",
+    "engine": "per-entry ms = warm batch wall / batches; checksum verified for every measured batch",
+    "native_cold": "one fresh helper process per sample; cold ms = load + instantiate + first entry",
+    "native_warm": "per-entry ms = warm batch wall / batches from the same fresh process",
+    "aot": "whole-process wall of the zx2native ELF, startup included, base seed only",
+    "c": "the helper rebuilt with -DCONTROL calls the C Bench oracle in-process; backend none",
+    "order": "fixed interleaving per trial and kind: engine, native, c, aot",
+    "outliers": "symmetric 1.5 x IQR excluded; raw samples retained"
+  },
+  "machine": {
+    "hostname": "alpha",
+    "machine_id": "56391af3c57a496aba7e9f1f24cce732",
+    "platform": "Linux 7.0.0-43-generic",
+    "cpu": "processor\t: 0\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4298.080\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 0\ncpu cores\t: 6\napicid\t\t: 0\ninitial apicid\t: 0\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 1\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 800.000\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 1\ncpu cores\t: 6\napicid\t\t: 2\ninitial apicid\t: 2\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 2\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4300.193\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 2\ncpu cores\t: 6\napicid\t\t: 4\ninitial apicid\t: 4\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 3\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4299.775\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 3\ncpu cores\t: 6\napicid\t\t: 6\ninitial apicid\t: 6\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 4\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 800.000\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 4\ncpu cores\t: 6\napicid\t\t: 8\ninitial apicid\t: 8\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 5\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4294.474\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 5\ncpu cores\t: 6\napicid\t\t: 10\ninitial apicid\t: 10\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 6\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4300.017\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 0\ncpu cores\t: 6\napicid\t\t: 1\ninitial apicid\t: 1\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 7\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4296.967\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 1\ncpu cores\t: 6\napicid\t\t: 3\ninitial apicid\t: 3\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 8\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4303.463\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 2\ncpu cores\t: 6\napicid\t\t: 5\ninitial apicid\t: 5\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 9\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4300.032\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 3\ncpu cores\t: 6\napicid\t\t: 7\ninitial apicid\t: 7\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 10\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 4300.001\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 4\ncpu cores\t: 6\napicid\t\t: 9\ninitial apicid\t: 9\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 11\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 800.000\ncache size\t: 12288 KB\nphysical id\t: 0\nsiblings\t: 12\ncore id\t\t: 5\ncpu cores\t: 6\napicid\t\t: 11\ninitial apicid\t: 11\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp vnmi md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest ple shadow_vmcs pml ept_violation_ve ept_mode_based_exec\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed gds spectre_v2_user vmscape\nbogomips\t: 6399.96\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:",
+    "governor": "powersave",
+    "virtualization": "none",
+    "attestation": {
+      "harmony_alpha_git_scoped": "",
+      "harmony_alpha_host_virtualization": "none",
+      "hostname_ok": true,
+      "machine_id_ok": true,
+      "scoped_ok": false,
+      "virtualization_ok": true
+    }
+  },
+  "before": {
+    "unix": 1794784357,
+    "load": [
+      4.34,
+      3.69,
+      3.39
+    ],
+    "governor": "powersave"
+  },
+  "prepared": {
+    "queue_jobs": "1",
+    "commands": [
+      {
+        "argv": [
+          "build/bin/zi2zx",
+          "--root",
+          "/home/wao/Projects/ziranlang/ziran/bench",
+          "--entry",
+          "zx_compare:Answer",
+          "-o",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/fixture.zx",
+          "bench/zx_compare.zi"
+        ],
+        "elapsed_ms": 125.401494,
+        "code": 0
+      },
+      {
+        "argv": [
+          "cc",
+          "-O3",
+          "-std=c11",
+          "-Iinclude",
+          "bench/zx_compare_host.c",
+          "build/libziran.a",
+          "-lm",
+          "-pthread",
+          "-ldl",
+          "-o",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx-host"
+        ],
+        "elapsed_ms": 92.811436,
+        "code": 0
+      },
+      {
+        "argv": [
+          "cc",
+          "-O3",
+          "-std=c11",
+          "-DCONTROL",
+          "-Iinclude",
+          "bench/zx_compare_host.c",
+          "bench/zx_compare_control.c",
+          "-lm",
+          "-pthread",
+          "-ldl",
+          "-o",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/control"
+        ],
+        "elapsed_ms": 84.158523,
+        "code": 0
+      },
+      {
+        "argv": [
+          "build/bin/zi2zx",
+          "--root",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native",
+          "--entry",
+          "zx_compare_aot0:main",
+          "-o",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx_compare_aot0.zx",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx_compare_aot0.zi"
+        ],
+        "elapsed_ms": 4.387874,
+        "code": 0
+      },
+      {
+        "argv": [
+          "build/bin/zx2native",
+          "-o",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx_compare_aot0-elf",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx_compare_aot0.zx"
+        ],
+        "elapsed_ms": 2.893487,
+        "code": 0
+      },
+      {
+        "argv": [
+          "build/bin/zi2zx",
+          "--root",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native",
+          "--entry",
+          "zx_compare_aot1:main",
+          "-o",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx_compare_aot1.zx",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx_compare_aot1.zi"
+        ],
+        "elapsed_ms": 4.197324,
+        "code": 0
+      },
+      {
+        "argv": [
+          "build/bin/zx2native",
+          "-o",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx_compare_aot1-elf",
+          "/home/wao/Projects/ziranlang/ziran/build/benchmarks/zx-compare-native/zx_compare_aot1.zx"
+        ],
+        "elapsed_ms": 2.80542,
+        "code": 0
+      }
+    ],
+    "compiler": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+    "source_revision": "31d291f3375eb3d7703e38b2c4f4f915a877d07d",
+    "library_sha256": "a61f9b5cfb51137f50ea05b53783e523efbc780af9933662136bf494d7148085",
+    "sources": {
+      "bench/zx_compare.zi": "1f1fb938e8a550bb5526c68eb137281cd30171db377ce87c039ea8d60f16a01b",
+      "bench/zx_compare_host.c": "f84f78091a53f5601b332338ae3657b397cb9d8ce0ac88db4d4b6626d634887c",
+      "bench/zx_compare_control.c": "9ae6232cbeb511a0178f712421028d2652dd2346a40b4fcda3bac6b54a5be689"
+    }
+  },
+  "artifacts": {
+    "fixture": "244e926262f08e004ebe4b1b5f3fcaf4e8ebc16010f54923e9022f49db1dea6d",
+    "zx_host": "b4a45b3a4c41d4792820eefdda052f14f1afb08f09bec74b02d9686803825ace",
+    "control": "b2db5c695a983dffd228a689a7d907afe38ca932508d53e4f85cc913a82471e2",
+    "aot_elf_0": "48d6c58b8d45a4753db64b9714d22056c81b5385295ded68404a8c4cbff9beda",
+    "aot_elf_1": "20b14ad377a0651891fdd8575f5d057a942997fd21e82c81b67d79ff1df1f3c5"
+  },
+  "m0": {
+    "receipt": "bench/results/zx-compare-alpha-physical-2026-11-12.json",
+    "sha256": "25a4b044e8b90e9784df6065424d399da2eee82bb1ac0bbaa22906e66d796349",
+    "note": "vm and native summary entries copied verbatim from the M0 TinyCC receipt",
+    "summary": [
+      {
+        "kind": 0,
+        "variant": "vm",
+        "n": 7,
+        "raw": [
+          2.3135580623125,
+          2.3151201249375,
+          2.328761750125,
+          2.3154251249375,
+          2.300098124875,
+          2.3182913125625,
+          2.322748687375,
+          2.323511812625,
+          2.3829193750625
+        ],
+        "excluded_indices": [
+          4,
+          8
+        ],
+        "median_ms": 2.3182913125625,
+        "p95_ms": 2.328761750125
+      },
+      {
+        "kind": 0,
+        "variant": "native",
+        "n": 9,
+        "raw": [
+          0.0171590000625,
+          0.0170970624375,
+          0.0171106250625,
+          0.0171155000625,
+          0.0170288125625,
+          0.0171497499375,
+          0.0170809999375,
+          0.0171024999375,
+          0.0171805625
+        ],
+        "excluded_indices": [],
+        "median_ms": 0.0171106250625,
+        "p95_ms": 0.0171805625
+      },
+      {
+        "kind": 1,
+        "variant": "vm",
+        "n": 9,
+        "raw": [
+          8.3950041875,
+          8.3522531250625,
+          8.349344,
+          8.4575499375625,
+          8.6062970000625,
+          8.5812945624375,
+          8.5909364375,
+          8.3613506250625,
+          8.6203795000625
+        ],
+        "excluded_indices": [],
+        "median_ms": 8.4575499375625,
+        "p95_ms": 8.6203795000625
+      },
+      {
+        "kind": 1,
+        "variant": "native",
+        "n": 8,
+        "raw": [
+          0.0431850625,
+          0.042602249875,
+          0.0424963124375,
+          0.0428277500625,
+          0.0426195000625,
+          0.0454648749375,
+          0.0424104375,
+          0.043461562625,
+          0.042868500125
+        ],
+        "excluded_indices": [
+          5
+        ],
+        "median_ms": 0.042723625062500006,
+        "p95_ms": 0.043461562625
+      }
+    ]
+  },
+  "samples": [
+    {
+      "trial": 0,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.5156609993125,
+      "load_ms": 0.409482002,
+      "instantiate_ms": 0.004308999,
+      "first_ms": 0.543170005,
+      "warm_ms": 8.250575989,
+      "batches": 16,
+      "checksum": 70677396455424,
+      "backend": "Engine"
+    },
+    {
+      "trial": 0,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.594797998,
+      "per_entry_ms": 0.0576007496875,
+      "load_ms": 0.45015201,
+      "instantiate_ms": 0.076839983,
+      "first_ms": 0.067806005,
+      "warm_ms": 0.921611995,
+      "batches": 16,
+      "checksum": 70677396455424,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 0,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0045949369375,
+      "batches": 16,
+      "checksum": 70677396455424
+    },
+    {
+      "trial": 0,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 1.581233
+    },
+    {
+      "trial": 0,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.016861625,
+      "load_ms": 0.462040007,
+      "instantiate_ms": 0.004260004,
+      "first_ms": 1.043325007,
+      "warm_ms": 16.269786,
+      "batches": 16,
+      "checksum": 1080084480,
+      "backend": "Engine"
+    },
+    {
+      "trial": 0,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.602551013,
+      "per_entry_ms": 0.058971563375,
+      "load_ms": 0.444421023,
+      "instantiate_ms": 0.078114986,
+      "first_ms": 0.080015004,
+      "warm_ms": 0.943545014,
+      "batches": 16,
+      "checksum": 1080084480,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 0,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.00655531325,
+      "batches": 16,
+      "checksum": 1080084480
+    },
+    {
+      "trial": 0,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 5.009633
+    },
+    {
+      "trial": 1,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.53757425025,
+      "load_ms": 0.411339998,
+      "instantiate_ms": 0.004396021,
+      "first_ms": 0.557491988,
+      "warm_ms": 8.601188004,
+      "batches": 16,
+      "checksum": 70497009664000,
+      "backend": "Engine"
+    },
+    {
+      "trial": 1,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.558295011,
+      "per_entry_ms": 0.048270626,
+      "load_ms": 0.408048987,
+      "instantiate_ms": 0.078601003,
+      "first_ms": 0.071645021,
+      "warm_ms": 0.772330016,
+      "batches": 16,
+      "checksum": 70497009664000,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 1,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.004594873625,
+      "batches": 16,
+      "checksum": 70497009664000
+    },
+    {
+      "trial": 1,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 4.95179
+    },
+    {
+      "trial": 1,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.0210766885625,
+      "load_ms": 0.437207997,
+      "instantiate_ms": 0.004177988,
+      "first_ms": 1.055772007,
+      "warm_ms": 16.337227017,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "Engine"
+    },
+    {
+      "trial": 1,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.648443996,
+      "per_entry_ms": 0.0589765626875,
+      "load_ms": 0.394335985,
+      "instantiate_ms": 0.075936019,
+      "first_ms": 0.178171992,
+      "warm_ms": 0.943625003,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 1,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0061246883125,
+      "batches": 16,
+      "checksum": 1076021248
+    },
+    {
+      "trial": 1,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 5.112358
+    },
+    {
+      "trial": 2,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.5686584375625,
+      "load_ms": 0.383673996,
+      "instantiate_ms": 0.004143,
+      "first_ms": 0.560391009,
+      "warm_ms": 9.098535001,
+      "batches": 16,
+      "checksum": 70235018493952,
+      "backend": "Engine"
+    },
+    {
+      "trial": 2,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.5710380070000001,
+      "per_entry_ms": 0.046963876125,
+      "load_ms": 0.404540002,
+      "instantiate_ms": 0.083815008,
+      "first_ms": 0.082682997,
+      "warm_ms": 0.751422018,
+      "batches": 16,
+      "checksum": 70235018493952,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 2,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0047045629375,
+      "batches": 16,
+      "checksum": 70235018493952
+    },
+    {
+      "trial": 2,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 4.893593
+    },
+    {
+      "trial": 2,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.0443095620625,
+      "load_ms": 0.391560018,
+      "instantiate_ms": 0.00425899,
+      "first_ms": 1.074930012,
+      "warm_ms": 16.708952993,
+      "batches": 16,
+      "checksum": 1077856256,
+      "backend": "Engine"
+    },
+    {
+      "trial": 2,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.549701005,
+      "per_entry_ms": 0.0642060004375,
+      "load_ms": 0.37718302,
+      "instantiate_ms": 0.091879994,
+      "first_ms": 0.080637991,
+      "warm_ms": 1.027296007,
+      "batches": 16,
+      "checksum": 1077856256,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 2,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.00640143825,
+      "batches": 16,
+      "checksum": 1077856256
+    },
+    {
+      "trial": 2,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 4.972
+    },
+    {
+      "trial": 3,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.5339147485625,
+      "load_ms": 0.376202017,
+      "instantiate_ms": 0.00446099,
+      "first_ms": 0.568448007,
+      "warm_ms": 8.542635977,
+      "batches": 16,
+      "checksum": 70329509609472,
+      "backend": "Engine"
+    },
+    {
+      "trial": 3,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.5940049890000001,
+      "per_entry_ms": 0.049264937625,
+      "load_ms": 0.435591012,
+      "instantiate_ms": 0.08553499,
+      "first_ms": 0.072878987,
+      "warm_ms": 0.788239002,
+      "batches": 16,
+      "checksum": 70329509609472,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 3,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.007113624375,
+      "batches": 16,
+      "checksum": 70329509609472
+    },
+    {
+      "trial": 3,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 0.398799
+    },
+    {
+      "trial": 3,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.0198046863125,
+      "load_ms": 0.392425984,
+      "instantiate_ms": 0.004421026,
+      "first_ms": 1.104252994,
+      "warm_ms": 16.316874981,
+      "batches": 16,
+      "checksum": 1077069824,
+      "backend": "Engine"
+    },
+    {
+      "trial": 3,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.59334597,
+      "per_entry_ms": 0.063837187375,
+      "load_ms": 0.436136991,
+      "instantiate_ms": 0.075919986,
+      "first_ms": 0.081288993,
+      "warm_ms": 1.021394998,
+      "batches": 16,
+      "checksum": 1077069824,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 3,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.009036688125,
+      "batches": 16,
+      "checksum": 1077069824
+    },
+    {
+      "trial": 3,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.452751
+    },
+    {
+      "trial": 4,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.577812749875,
+      "load_ms": 0.647813976,
+      "instantiate_ms": 0.006541014,
+      "first_ms": 0.670754999,
+      "warm_ms": 9.245003998,
+      "batches": 16,
+      "checksum": 70310184091648,
+      "backend": "Engine"
+    },
+    {
+      "trial": 4,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.526517003,
+      "per_entry_ms": 0.0511660613125,
+      "load_ms": 0.379355013,
+      "instantiate_ms": 0.076239973,
+      "first_ms": 0.070922017,
+      "warm_ms": 0.818656981,
+      "batches": 16,
+      "checksum": 70310184091648,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 4,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0045963749375,
+      "batches": 16,
+      "checksum": 70310184091648
+    },
+    {
+      "trial": 4,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 5.121921
+    },
+    {
+      "trial": 4,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.0016058758125,
+      "load_ms": 0.389826,
+      "instantiate_ms": 0.00503999,
+      "first_ms": 1.166493028,
+      "warm_ms": 16.025694013,
+      "batches": 16,
+      "checksum": 1079560192,
+      "backend": "Engine"
+    },
+    {
+      "trial": 4,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.545370012,
+      "per_entry_ms": 0.0656367503125,
+      "load_ms": 0.383962005,
+      "instantiate_ms": 0.078348994,
+      "first_ms": 0.083059013,
+      "warm_ms": 1.050188005,
+      "batches": 16,
+      "checksum": 1079560192,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 4,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.00612362475,
+      "batches": 16,
+      "checksum": 1079560192
+    },
+    {
+      "trial": 4,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.449025
+    },
+    {
+      "trial": 5,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.5216174368125,
+      "load_ms": 0.375517994,
+      "instantiate_ms": 0.004420996,
+      "first_ms": 0.564957976,
+      "warm_ms": 8.345878989,
+      "batches": 16,
+      "checksum": 70372462952448,
+      "backend": "Engine"
+    },
+    {
+      "trial": 5,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.597397983,
+      "per_entry_ms": 0.0482845008125,
+      "load_ms": 0.443618,
+      "instantiate_ms": 0.081212997,
+      "first_ms": 0.072566986,
+      "warm_ms": 0.772552013,
+      "batches": 16,
+      "checksum": 70372462952448,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 5,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.00480875,
+      "batches": 16,
+      "checksum": 70372462952448
+    },
+    {
+      "trial": 5,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 4.925177
+    },
+    {
+      "trial": 5,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.000797063125,
+      "load_ms": 0.412337005,
+      "instantiate_ms": 0.004307002,
+      "first_ms": 1.073156983,
+      "warm_ms": 16.01275301,
+      "batches": 16,
+      "checksum": 1080084480,
+      "backend": "Engine"
+    },
+    {
+      "trial": 5,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.598661005,
+      "per_entry_ms": 0.0619270000625,
+      "load_ms": 0.384427994,
+      "instantiate_ms": 0.111701012,
+      "first_ms": 0.102531999,
+      "warm_ms": 0.990832001,
+      "batches": 16,
+      "checksum": 1080084480,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 5,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.006255125625,
+      "batches": 16,
+      "checksum": 1080084480
+    },
+    {
+      "trial": 5,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 4.953461
+    },
+    {
+      "trial": 6,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.51978287475,
+      "load_ms": 0.430231988,
+      "instantiate_ms": 0.004480004,
+      "first_ms": 0.509094,
+      "warm_ms": 8.316525996,
+      "batches": 16,
+      "checksum": 70286565441536,
+      "backend": "Engine"
+    },
+    {
+      "trial": 6,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.540357023,
+      "per_entry_ms": 0.049071187125,
+      "load_ms": 0.387207001,
+      "instantiate_ms": 0.082718998,
+      "first_ms": 0.070431024,
+      "warm_ms": 0.785138994,
+      "batches": 16,
+      "checksum": 70286565441536,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 6,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0045953746875,
+      "batches": 16,
+      "checksum": 70286565441536
+    },
+    {
+      "trial": 6,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 5.035048
+    },
+    {
+      "trial": 6,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.031659999875,
+      "load_ms": 0.390253007,
+      "instantiate_ms": 0.003901005,
+      "first_ms": 1.061277002,
+      "warm_ms": 16.506559998,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "Engine"
+    },
+    {
+      "trial": 6,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.544305979,
+      "per_entry_ms": 0.06077950075,
+      "load_ms": 0.384169012,
+      "instantiate_ms": 0.077678978,
+      "first_ms": 0.082457989,
+      "warm_ms": 0.972472012,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 6,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.006256498375,
+      "batches": 16,
+      "checksum": 1076021248
+    },
+    {
+      "trial": 6,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 5.010035
+    },
+    {
+      "trial": 7,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.546916250125,
+      "load_ms": 0.389833987,
+      "instantiate_ms": 0.004505008,
+      "first_ms": 0.604842991,
+      "warm_ms": 8.750660002,
+      "batches": 16,
+      "checksum": 70428301197312,
+      "backend": "Engine"
+    },
+    {
+      "trial": 7,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.5651749970000001,
+      "per_entry_ms": 0.0486051235625,
+      "load_ms": 0.406591982,
+      "instantiate_ms": 0.083665013,
+      "first_ms": 0.074918002,
+      "warm_ms": 0.777681977,
+      "batches": 16,
+      "checksum": 70428301197312,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 7,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.0045953746875,
+      "batches": 16,
+      "checksum": 70428301197312
+    },
+    {
+      "trial": 7,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 1.617527
+    },
+    {
+      "trial": 7,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.1124586258125,
+      "load_ms": 0.441552997,
+      "instantiate_ms": 0.004177988,
+      "first_ms": 1.069056988,
+      "warm_ms": 17.799338013,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "Engine"
+    },
+    {
+      "trial": 7,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.577247978,
+      "per_entry_ms": 0.06330912375,
+      "load_ms": 0.407183975,
+      "instantiate_ms": 0.087104023,
+      "first_ms": 0.08295998,
+      "warm_ms": 1.01294598,
+      "batches": 16,
+      "checksum": 1076021248,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 7,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.006246062,
+      "batches": 16,
+      "checksum": 1076021248
+    },
+    {
+      "trial": 7,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 5.01278
+    },
+    {
+      "trial": 8,
+      "kind": 0,
+      "cohort": "engine",
+      "per_entry_ms": 0.520708812375,
+      "load_ms": 0.381131023,
+      "instantiate_ms": 0.004186988,
+      "first_ms": 0.557226002,
+      "warm_ms": 8.331340998,
+      "batches": 16,
+      "checksum": 70522792312832,
+      "backend": "Engine"
+    },
+    {
+      "trial": 8,
+      "kind": 0,
+      "cohort": "native",
+      "cold_ms": 0.595840007,
+      "per_entry_ms": 0.047904687,
+      "load_ms": 0.377306998,
+      "instantiate_ms": 0.148924023,
+      "first_ms": 0.069608986,
+      "warm_ms": 0.766474992,
+      "batches": 16,
+      "checksum": 70522792312832,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 8,
+      "kind": 0,
+      "cohort": "c",
+      "per_entry_ms": 0.00470781325,
+      "batches": 16,
+      "checksum": 70522792312832
+    },
+    {
+      "trial": 8,
+      "kind": 0,
+      "cohort": "aot",
+      "wall_ms": 4.956948
+    },
+    {
+      "trial": 8,
+      "kind": 1,
+      "cohort": "engine",
+      "per_entry_ms": 1.0767622496875,
+      "load_ms": 0.428112984,
+      "instantiate_ms": 0.017543018,
+      "first_ms": 1.086703002,
+      "warm_ms": 17.228195995,
+      "batches": 16,
+      "checksum": 1079887872,
+      "backend": "Engine"
+    },
+    {
+      "trial": 8,
+      "kind": 1,
+      "cohort": "native",
+      "cold_ms": 0.567057014,
+      "per_entry_ms": 0.0637268740625,
+      "load_ms": 0.402853012,
+      "instantiate_ms": 0.077796996,
+      "first_ms": 0.086407006,
+      "warm_ms": 1.019629985,
+      "batches": 16,
+      "checksum": 1079887872,
+      "backend": "NativeX86_64"
+    },
+    {
+      "trial": 8,
+      "kind": 1,
+      "cohort": "c",
+      "per_entry_ms": 0.0061218756875,
+      "batches": 16,
+      "checksum": 1079887872
+    },
+    {
+      "trial": 8,
+      "kind": 1,
+      "cohort": "aot",
+      "wall_ms": 0.444493
+    }
+  ],
+  "summary": [
+    {
+      "cohort": "engine",
+      "kind": 0,
+      "n": 9,
+      "raw": [
+        0.5156609993125,
+        0.53757425025,
+        0.5686584375625,
+        0.5339147485625,
+        0.577812749875,
+        0.5216174368125,
+        0.51978287475,
+        0.546916250125,
+        0.520708812375
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.5339147485625,
+      "p95_ms": 0.577812749875
+    },
+    {
+      "cohort": "engine",
+      "kind": 1,
+      "n": 8,
+      "raw": [
+        1.016861625,
+        1.0210766885625,
+        1.0443095620625,
+        1.0198046863125,
+        1.0016058758125,
+        1.000797063125,
+        1.031659999875,
+        1.1124586258125,
+        1.0767622496875
+      ],
+      "excluded_indices": [
+        7
+      ],
+      "median_ms": 1.0204406874375,
+      "p95_ms": 1.0767622496875
+    },
+    {
+      "cohort": "native-cold",
+      "kind": 0,
+      "n": 9,
+      "raw": [
+        0.594797998,
+        0.558295011,
+        0.5710380070000001,
+        0.5940049890000001,
+        0.526517003,
+        0.597397983,
+        0.540357023,
+        0.5651749970000001,
+        0.595840007
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.5710380070000001,
+      "p95_ms": 0.597397983
+    },
+    {
+      "cohort": "native-cold",
+      "kind": 1,
+      "n": 9,
+      "raw": [
+        0.602551013,
+        0.648443996,
+        0.549701005,
+        0.59334597,
+        0.545370012,
+        0.598661005,
+        0.544305979,
+        0.577247978,
+        0.567057014
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.577247978,
+      "p95_ms": 0.648443996
+    },
+    {
+      "cohort": "native-warm",
+      "kind": 0,
+      "n": 7,
+      "raw": [
+        0.0576007496875,
+        0.048270626,
+        0.046963876125,
+        0.049264937625,
+        0.0511660613125,
+        0.0482845008125,
+        0.049071187125,
+        0.0486051235625,
+        0.047904687
+      ],
+      "excluded_indices": [
+        0,
+        4
+      ],
+      "median_ms": 0.0482845008125,
+      "p95_ms": 0.049264937625
+    },
+    {
+      "cohort": "native-warm",
+      "kind": 1,
+      "n": 9,
+      "raw": [
+        0.058971563375,
+        0.0589765626875,
+        0.0642060004375,
+        0.063837187375,
+        0.0656367503125,
+        0.0619270000625,
+        0.06077950075,
+        0.06330912375,
+        0.0637268740625
+      ],
+      "excluded_indices": [],
+      "median_ms": 0.06330912375,
+      "p95_ms": 0.0656367503125
+    },
+    {
+      "cohort": "c",
+      "kind": 0,
+      "n": 8,
+      "raw": [
+        0.0045949369375,
+        0.004594873625,
+        0.0047045629375,
+        0.007113624375,
+        0.0045963749375,
+        0.00480875,
+        0.0045953746875,
+        0.0045953746875,
+        0.00470781325
+      ],
+      "excluded_indices": [
+        3
+      ],
+      "median_ms": 0.004595874812499999,
+      "p95_ms": 0.00480875
+    },
+    {
+      "cohort": "c",
+      "kind": 1,
+      "n": 8,
+      "raw": [
+        0.00655531325,
+        0.0061246883125,
+        0.00640143825,
+        0.009036688125,
+        0.00612362475,
+        0.006255125625,
+        0.006256498375,
+        0.006246062,
+        0.0061218756875
+      ],
+      "excluded_indices": [
+        3
+      ],
+      "median_ms": 0.0062505938125,
+      "p95_ms": 0.00655531325
+    },
+    {
+      "cohort": "aot",
+      "kind": 0,
+      "n": 9,
+      "raw": [
+        1.581233,
+        4.95179,
+        4.893593,
+        0.398799,
+        5.121921,
+        4.925177,
+        5.035048,
+        1.617527,
+        4.956948
+      ],
+      "excluded_indices": [],
+      "median_ms": 4.925177,
+      "p95_ms": 5.121921
+    },
+    {
+      "cohort": "aot",
+      "kind": 1,
+      "n": 9,
+      "raw": [
+        5.009633,
+        5.112358,
+        4.972,
+        0.452751,
+        0.449025,
+        4.953461,
+        5.010035,
+        5.01278,
+        0.444493
+      ],
+      "excluded_indices": [],
+      "median_ms": 4.972,
+      "p95_ms": 5.112358
+    }
+  ],
+  "after": {
+    "load": [
+      3.83,
+      3.62,
+      3.37
+    ],
+    "governor": "powersave"
+  },
+  "integrity": {
+    "sources": {
+      "bench/zx_compare.zi": "1f1fb938e8a550bb5526c68eb137281cd30171db377ce87c039ea8d60f16a01b",
+      "bench/zx_compare_host.c": "f84f78091a53f5601b332338ae3657b397cb9d8ce0ac88db4d4b6626d634887c",
+      "bench/zx_compare_control.c": "9ae6232cbeb511a0178f712421028d2652dd2346a40b4fcda3bac6b54a5be689"
+    },
+    "library_sha256": "a61f9b5cfb51137f50ea05b53783e523efbc780af9933662136bf494d7148085",
+    "verified": true
+  },
+  "measurement_loop_finished": true
+}

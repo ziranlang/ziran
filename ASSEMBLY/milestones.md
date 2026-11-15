@@ -135,10 +135,10 @@ so every general registry selection fails preflight with
 target rows fail with the stable native platform-service gap before input or
 output, and AArch64 encodes machine code but has no AOT ELF writer. The revision-28 container, frame-local
 `Allocate`, local scalar address-taking and the pre-allocation machine-IR
-boundary are implemented. On Omega, `make check-bootstrap` passes and the
-full `make check` passes 264/266: `zstd_go` needs Go 1.25 (Omega has 1.24.4)
-and `site_targets` waits for the bench lane to re-measure the target matrix
-with its new native column. The earlier physical-Alpha 275/276 and 274-check
+boundary are implemented. On Omega on 2026-11-15, with native as the
+linux-x86_64 default, a clean clone of master passes `make check-bootstrap` and
+265/266 of the full `make check`. The one failure is `zstd_go`, which needs
+Go 1.25 (Omega has 1.24.4). The earlier physical-Alpha 275/276 and 274-check
 results remain historical, not the current full-suite claim. M0's Alpha
 physical-host baseline and M1's interim comparisons exist; see the
 [baseline](../bench/zx_compare.md#interim-comparison-1-new-portable-engine-2026-11-12)

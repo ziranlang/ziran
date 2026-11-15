@@ -551,10 +551,10 @@ OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
     passes := JsonMember(*document, document.root, "passes")
     if !NativeAssert(test, CheckInteger(*document, document.root, "version") == 1 &&
         CheckInteger(*document, document.root, "work") > 0 &&
-        CheckInteger(*document, document.root, "scratch_bytes") > 0 && JsonCount(*document, passes) == 4 &&
+        CheckInteger(*document, document.root, "scratch_bytes") > 0 && JsonCount(*document, passes) == 5 &&
         CheckInteger(*document, after, "instructions") < CheckInteger(*document, before, "instructions"),
         "optimization report must identify measured transformation counters") { return false }
-    for index: cast(s32)0..3 {
+    for index: cast(s32)0..4 {
         pass := JsonElement(*document, passes, index)
         if !NativeAssert(test, CheckField(*document, pass, "name") != "" &&
             CheckInteger(*document, pass, "runs") > 0, "enabled optimization passes must report their runs") { return false }

@@ -51,31 +51,35 @@ its tests, `bench/wasm_tier.py`, the `cse` report lines and the range work in
 `cmd/zx2wasm/zx_wasm_lower.c`); S1 (`cmd/compiler_zir_lower.zi`, comment
 hunks in `cmd/zi2zx/zir_asm_lower.c`); and the bench lane's site snapshot.
 
-## 2. In flight
+## 2. In flight (14:40)
 
 | Work | Lane | Done when |
 | --- | --- | --- |
-| Open: the bench lane's uncommitted site snapshot (`scripts/site_targets.py` with the native column, `site/generated/targets/**`, `site/targets.html`) must be re-measured so the harness digest and `targets.html` match, then committed | unassigned (the integration parent assigns it) | `site_targets.sh` passes in the live tree |
-| Compile-time folding of std text operations, CSE and Wasm index-range elision (uncommitted) | glm-ziran-lir-optimizer-speed | text_demo zx near 40 ns; its tests pass with the committed native default |
-| S1 port of the ZIR→LIR lowering to Ziran (`cmd/compiler_zir_lower.zi`) | glm-ziran-selfhost-ports-2 | bootstrap stays green; the ported tests pass |
-| M2 close-out, then M3 follow-ups (in-memory loader, typed trampolines and caches beyond the current native default) | native compiler lane | see section 3 |
-| Go 1.25 on Omega for `zstd_go` | owner or environment | `zstd_go.sh` passes locally |
-| AArch64 calls with a record result: the encoder computes the hidden result address in x0, which may also hold an argument or an indirect target. x86-64 had the same hazard with rax: it corrupted a stack argument and crashed indirect calls, until the gate fixed it by loading the address last and pinning the target to r10. | native compiler lane | AArch64 call sequence loads the result address last; an aarch64 encoder case covers it |
+| Re-measure the site-target snapshot with the native column and commit it | glm-ziran-site-targets-native-column (Co-Z) | `site_targets.sh` passes in the live tree; pushed |
+| Compile-time folding of std text operations, CSE and Wasm index-range elision | glm-ziran-lir-optimizer-speed (Co-Z) | text_demo zx near 40 ns; full suite green; pushed |
+| S1 port of the ZIR→LIR lowering to Ziran (`cmd/compiler_zir_lower.zi`), deleting `cmd/zi2zx/zir_asm_lower.c` | glm-ziran-selfhost-ports-2 (Co-Z; moves to Claude for testing if slow) | bootstrap green; zx lowering tests pass; pushed |
+| M3 steps 2, 3, 4 and 7 (element-type check, full-suite receipt, installed tool, disk cache), plus the AArch64 record-result call fix | claude-ziran-ziran-integration-gate | `plans/2026-11-15-m3-native-cutover.md` steps done; pushed |
+| M3 steps 5–6 (comparison-2 harness and Alpha measurement) | Co-Z bench lane | comparison 2 published in `bench/zx_compare.md` |
+| Jai lessons (`plans/2026-11-15-jai-lessons.md`) | std, C-unit and language lanes | each step's tests pass; pushed |
+| Go 1.25 on Omega for `zstd_go` | environment | `zstd_go.sh` passes locally |
 
 ## 3. Not started or open, in milestone order
 
-1. **Close M2 (x86-64 machine path).** Remaining: machine-IR lowering of
-   platform services, native fuel at loop back-edges and calls, source debug
-   origins, and the full call/ABI instruction surface. Exit: every x86-64
-   fixture passes on the machine-IR path alone.
-2. **M3: native ZX on Linux x86-64.** This is the milestone that gives the
-   native speedup. The `zir_native_memory.c` W^X mapping primitive exists.
-   Still missing: the in-memory loader and relocation of encoder output, typed
-   host trampolines, stack and fuel checks, and a cache keyed by content, CPU
-   and backend. Then `ziran run app.zx` must run natively by default and fail
-   in preflight without falling back to another engine. Exit: the full suite
-   on the new default, no-fallback fixtures, and interim comparison 2. These
-   are sessions 3–5 of `2026-11-14-native-zx-players.md`.
+1. **M1 and M2 are done** (verified 2026-11-15; removed from this plan). The
+   evidence, item by item, is in `plans/2026-11-15-m3-native-cutover.md`
+   section (a). The last M2 exit gap, the expected-trap parity fixture, now
+   runs through `zx2native` too (commit "Run the trapping parity fixture
+   through native code, fix token docs").
+2. **M3: native ZX on Linux x86-64.** Already in place: the W^X loader,
+   relocation, host trampolines, stack/fuel checks, the in-process
+   content/CPU/backend cache, and the native default with no fallback. The
+   remaining steps are in `plans/2026-11-15-m3-native-cutover.md`, "Ordered M3
+   remaining work":
+   - the pointer element-type check
+   - a full-suite green receipt
+   - verification of the installed tool
+   - the comparison-2 harness and its Alpha measurement
+   - the persistent disk cache
 3. **M4, the rest after AArch64.** ARMv7/AAPCS32 with 32-bit host images,
    native ZX loading on Android, and proof of the USB Moto row (player
    sessions 7–8). Direct wasm lowering from verified ZX already exists.
@@ -98,11 +102,8 @@ hunks in `cmd/zi2zx/zir_asm_lower.c`); and the bench lane's site snapshot.
 
 ## 4. Order
 
-1. Finish the lanes in section 2, run the full gates, and commit section 1.
-2. Then M2 close-out, followed by M3, as one Claude lane (hard work that
-   overlaps the native files).
-3. Keep self-hosting S5+ on Co-Z in parallel, because its files are separate.
-4. M4 rows after M3, then M5 and M6.
-5. Refresh the stale status lines in `2026-11-14-legacy-removal.md` and in
-   `ASSEMBLY/milestones.md` "Current position" as part of the section 1
-   commit.
+1. M3 to its exit: element-type check, full-suite green receipt, installed
+   tool, comparison 2. The disk cache can come right after comparison 2.
+2. Self-hosting S1, then S5+ (the checker), which also unlocks the deferred
+   Jai items (build-as-program, `#modify`, type_info).
+3. M4 rows after M3 (ARMv7, Android, Moto), then M5 and M6.

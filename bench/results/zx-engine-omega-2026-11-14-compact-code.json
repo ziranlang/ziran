@@ -1,0 +1,715 @@
+{
+ "benchmark": "zx-engine",
+ "host": "omega 7.2.12+deb13-amd64 AMD Ryzen 9 9950X 16-Core Processor virt=none desktop-session",
+ "notes": "float-text was not measured in this set: its rounds were stopped by the session's low-memory guard during the first committed-engine run (the 'start float before 1' load entry has no end). Its committed-engine time on this host is in zx-engine-omega-2026-11-14-float-after.json.",
+ "method": "bench/zx_engine.zi rounds alternating before and after (order flipped each round), 3 samples per engine per round, each a fresh process with startup, interleaved with the C build",
+ "outliers": "symmetric 1.5xIQR, inclusive interpolated quartiles",
+ "engines": {
+  "before": {
+   "source": "e4fe9c0b:cmd/compiler_exec.zi",
+   "md5": "abde44a2b2ead98d60fb7966148cd154"
+  },
+  "after": {
+   "source": "e4fe9c0b+working-tree cmd/compiler_exec.zi",
+   "md5": "a12bf5968577dc39f61b14559cf6eda2"
+  }
+ },
+ "load_average": [
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "before",
+   "round": 1,
+   "unix_time": 1794704695,
+   "load_1_5_15": [
+    7.22,
+    9.82,
+    10.48
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "before",
+   "round": 1,
+   "unix_time": 1794704698,
+   "load_1_5_15": [
+    7.2,
+    9.77,
+    10.46
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "after",
+   "round": 1,
+   "unix_time": 1794704698,
+   "load_1_5_15": [
+    7.2,
+    9.77,
+    10.46
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "after",
+   "round": 1,
+   "unix_time": 1794704699,
+   "load_1_5_15": [
+    7.2,
+    9.77,
+    10.46
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "after",
+   "round": 2,
+   "unix_time": 1794704699,
+   "load_1_5_15": [
+    7.2,
+    9.77,
+    10.46
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "after",
+   "round": 2,
+   "unix_time": 1794704699,
+   "load_1_5_15": [
+    7.2,
+    9.77,
+    10.46
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "before",
+   "round": 2,
+   "unix_time": 1794704699,
+   "load_1_5_15": [
+    7.2,
+    9.77,
+    10.46
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "before",
+   "round": 2,
+   "unix_time": 1794704702,
+   "load_1_5_15": [
+    7.2,
+    9.77,
+    10.46
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "before",
+   "round": 3,
+   "unix_time": 1794704702,
+   "load_1_5_15": [
+    7.2,
+    9.77,
+    10.46
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "before",
+   "round": 3,
+   "unix_time": 1794704705,
+   "load_1_5_15": [
+    7.27,
+    9.74,
+    10.45
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "after",
+   "round": 3,
+   "unix_time": 1794704705,
+   "load_1_5_15": [
+    7.27,
+    9.74,
+    10.45
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "after",
+   "round": 3,
+   "unix_time": 1794704706,
+   "load_1_5_15": [
+    7.27,
+    9.74,
+    10.45
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "after",
+   "round": 4,
+   "unix_time": 1794704706,
+   "load_1_5_15": [
+    7.27,
+    9.74,
+    10.45
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "after",
+   "round": 4,
+   "unix_time": 1794704707,
+   "load_1_5_15": [
+    7.27,
+    9.74,
+    10.45
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "before",
+   "round": 4,
+   "unix_time": 1794704707,
+   "load_1_5_15": [
+    7.27,
+    9.74,
+    10.45
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "before",
+   "round": 4,
+   "unix_time": 1794704709,
+   "load_1_5_15": [
+    7.41,
+    9.73,
+    10.44
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "before",
+   "round": 5,
+   "unix_time": 1794704709,
+   "load_1_5_15": [
+    7.41,
+    9.73,
+    10.44
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "before",
+   "round": 5,
+   "unix_time": 1794704712,
+   "load_1_5_15": [
+    7.41,
+    9.73,
+    10.44
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "after",
+   "round": 5,
+   "unix_time": 1794704712,
+   "load_1_5_15": [
+    7.41,
+    9.73,
+    10.44
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "after",
+   "round": 5,
+   "unix_time": 1794704713,
+   "load_1_5_15": [
+    7.13,
+    9.63,
+    10.4
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "after",
+   "round": 6,
+   "unix_time": 1794704713,
+   "load_1_5_15": [
+    7.13,
+    9.63,
+    10.4
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "after",
+   "round": 6,
+   "unix_time": 1794704714,
+   "load_1_5_15": [
+    7.13,
+    9.63,
+    10.4
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "before",
+   "round": 6,
+   "unix_time": 1794704714,
+   "load_1_5_15": [
+    7.13,
+    9.63,
+    10.4
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "before",
+   "round": 6,
+   "unix_time": 1794704716,
+   "load_1_5_15": [
+    7.13,
+    9.63,
+    10.4
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "before",
+   "round": 7,
+   "unix_time": 1794704716,
+   "load_1_5_15": [
+    7.13,
+    9.63,
+    10.4
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "before",
+   "round": 7,
+   "unix_time": 1794704719,
+   "load_1_5_15": [
+    6.96,
+    9.56,
+    10.37
+   ]
+  },
+  {
+   "event": "start",
+   "set": "small",
+   "engine": "after",
+   "round": 7,
+   "unix_time": 1794704719,
+   "load_1_5_15": [
+    6.96,
+    9.56,
+    10.37
+   ]
+  },
+  {
+   "event": "end",
+   "set": "small",
+   "engine": "after",
+   "round": 7,
+   "unix_time": 1794704720,
+   "load_1_5_15": [
+    6.96,
+    9.56,
+    10.37
+   ]
+  },
+  {
+   "event": "start",
+   "set": "float",
+   "engine": "before",
+   "round": 1,
+   "unix_time": 1794704720,
+   "load_1_5_15": [
+    6.96,
+    9.56,
+    10.37
+   ]
+  }
+ ],
+ "cases": [
+  {
+   "name": "json",
+   "binaries": {
+    "before": "zi2zx built on this host (gcc 14.2, -O2) with HEAD cmd/compiler_exec.zi as the engine of zi2zx and of libziran",
+    "after": "the same build with the working-tree cmd/compiler_exec.zi"
+   },
+   "before": {
+    "engine": {
+     "samples_ns": [
+      662706954,
+      658526592,
+      666945675,
+      665349457,
+      666107491,
+      695270549,
+      665529157,
+      667129185,
+      663300416,
+      691303378,
+      661059235,
+      660921104,
+      660692073,
+      683592290,
+      671737359,
+      659540057,
+      654434351,
+      650608382,
+      652871253,
+      672239382,
+      653330035
+     ],
+     "excluded": [
+      5,
+      9,
+      13
+     ],
+     "median_ns": 661883094
+    },
+    "c": {
+     "samples_ns": [
+      976585,
+      955505,
+      960604,
+      1216146,
+      1005995,
+      1018825,
+      1031566,
+      1064026,
+      1051416,
+      1567978,
+      1132146,
+      1149756,
+      1586808,
+      1002835,
+      977575,
+      1021065,
+      977545,
+      1137816,
+      1011965,
+      1578478,
+      1039156
+     ],
+     "excluded": [
+      9,
+      12,
+      19
+     ],
+     "median_ns": 1019945
+    },
+    "round_of_sample": [
+     1,
+     1,
+     1,
+     2,
+     2,
+     2,
+     3,
+     3,
+     3,
+     4,
+     4,
+     4,
+     5,
+     5,
+     5,
+     6,
+     6,
+     6,
+     7,
+     7,
+     7
+    ]
+   },
+   "after": {
+    "engine": {
+     "samples_ns": [
+      173552293,
+      169900505,
+      168186597,
+      174986621,
+      169055621,
+      168579288,
+      171682073,
+      168833220,
+      175242882,
+      176805400,
+      173504833,
+      181399283,
+      170421347,
+      171725844,
+      170986021,
+      178009366,
+      170507188,
+      168541298,
+      167282862,
+      167901085,
+      169556103
+     ],
+     "excluded": [
+      11
+     ],
+     "median_ns": 170464267
+    },
+    "c": {
+     "samples_ns": [
+      1288847,
+      1161385,
+      1582058,
+      1064305,
+      1222996,
+      1253837,
+      1544468,
+      952245,
+      948234,
+      1311377,
+      1285987,
+      1219806,
+      1121456,
+      1221256,
+      1230586,
+      1278886,
+      1073286,
+      1064105,
+      1022745,
+      1084065,
+      1128856
+     ],
+     "excluded": [],
+     "median_ns": 1219806
+    },
+    "round_of_sample": [
+     1,
+     1,
+     1,
+     2,
+     2,
+     2,
+     3,
+     3,
+     3,
+     4,
+     4,
+     4,
+     5,
+     5,
+     5,
+     6,
+     6,
+     6,
+     7,
+     7,
+     7
+    ]
+   },
+   "speedup": 3.88,
+   "after_vs_c": 139.7,
+   "before_vs_c": 648.9
+  },
+  {
+   "name": "image",
+   "binaries": {
+    "before": "zi2zx built on this host (gcc 14.2, -O2) with HEAD cmd/compiler_exec.zi as the engine of zi2zx and of libziran",
+    "after": "the same build with the working-tree cmd/compiler_exec.zi"
+   },
+   "before": {
+    "engine": {
+     "samples_ns": [
+      278295236,
+      278001485,
+      276484738,
+      287990485,
+      272838678,
+      282243007,
+      281087660,
+      275962624,
+      280751859,
+      280159756,
+      287591554,
+      277325772,
+      286591679,
+      278830039,
+      286166696,
+      276522127,
+      272212336,
+      281442862,
+      275453542,
+      278152776,
+      274045944
+     ],
+     "excluded": [],
+     "median_ns": 278295236
+    },
+    "c": {
+     "samples_ns": [
+      605763,
+      1019115,
+      575393,
+      637354,
+      732803,
+      780934,
+      826565,
+      923955,
+      914915,
+      932975,
+      849434,
+      673533,
+      619973,
+      846495,
+      607553,
+      951255,
+      937135,
+      598443,
+      1131116,
+      772364,
+      690464
+     ],
+     "excluded": [],
+     "median_ns": 780934
+    },
+    "round_of_sample": [
+     1,
+     1,
+     1,
+     2,
+     2,
+     2,
+     3,
+     3,
+     3,
+     4,
+     4,
+     4,
+     5,
+     5,
+     5,
+     6,
+     6,
+     6,
+     7,
+     7,
+     7
+    ]
+   },
+   "after": {
+    "engine": {
+     "samples_ns": [
+      51349611,
+      48802708,
+      48156285,
+      48616367,
+      46825398,
+      49347041,
+      49282571,
+      47295181,
+      49071350,
+      50577858,
+      47563122,
+      52288336,
+      49749593,
+      50082345,
+      47214671,
+      47329341,
+      51861364,
+      50759599,
+      46352996,
+      46797058,
+      48266526
+     ],
+     "excluded": [],
+     "median_ns": 48802708
+    },
+    "c": {
+     "samples_ns": [
+      711424,
+      900445,
+      915684,
+      658664,
+      634653,
+      804884,
+      794934,
+      1006725,
+      761304,
+      895864,
+      673014,
+      676643,
+      757984,
+      647173,
+      648593,
+      678763,
+      937155,
+      809514,
+      1201716,
+      730514,
+      675983
+     ],
+     "excluded": [],
+     "median_ns": 757984
+    },
+    "round_of_sample": [
+     1,
+     1,
+     1,
+     2,
+     2,
+     2,
+     3,
+     3,
+     3,
+     4,
+     4,
+     4,
+     5,
+     5,
+     5,
+     6,
+     6,
+     6,
+     7,
+     7,
+     7
+    ]
+   },
+   "speedup": 5.7,
+   "after_vs_c": 64.4,
+   "before_vs_c": 356.4
+  }
+ ]
+}

@@ -10,3 +10,5 @@ __pycache__/
 .wrangler/
 # Editor settings local to one machine (the shared tasks.json stays tracked)
 /.vscode/settings.json
+# Command Code agent state
+/.commandcode/

@@ -1903,7 +1903,10 @@ Fuel :: (state: *State) -> bool {
 
 // Direct, platform, host and indirect calls. Stack arguments stage through
 // the outgoing object at sp, register arguments match the AAPCS64 banks,
-// and the hidden stack-result pointer passes in x0 for internal calls.
+// and the hidden stack-result pointer passes in x8 (the AAPCS64 indirect
+// result register, which carries no argument) for internal calls. It is
+// computed only after every argument is placed, since the allocator may
+// keep a stack argument's value in x8.
 Call :: (state: *State) -> bool {
     instruction := Current(state)
     call := state.program.calls[instruction.call]
@@ -1919,6 +1922,8 @@ Call :: (state: *State) -> bool {
             outgoing = operand.id
         }
     }
+    result_address := false
+    result_destination: A64Memory
     integer_ordinal: s32
     float_ordinal: s32
     stack_offset: s64
@@ -1930,9 +1935,9 @@ Call :: (state: *State) -> bool {
                 if call.calling != .Internal || operand.kind != .StackObject || operand.role != .Define {
                     return Fail(state, .Unsupported, id)
                 }
-                destination := StackMemory(state, operand.id, id)
+                result_destination = StackMemory(state, operand.id, id)
                 if state.diagnostic.problem != .None { return false }
-                ComputeAddress(state, 0, destination.base, destination.displacement)
+                result_address = true
             } else if operand.class == .Float {
                 result := FloatRegister(state, local, .Define)
                 if result == MachineNoId { return false }
@@ -1997,6 +2002,8 @@ Call :: (state: *State) -> bool {
     }
     if stack_offset != call.stack_argument_bytes { return Fail(state, .Frame) }
     if target == MachineNoId { return Fail(state, .Call) }
+    if indirect && result_address && state.program.operands[target].id == 8 { return Fail(state, .Constraint, target) }
+    if result_address { ComputeAddress(state, 8, result_destination.base, result_destination.displacement) }
     if indirect {
         Emit(state, cast(u32)(cast(u64)0xD63F0000 | (cast(u64)state.program.operands[target].id << 5)))
         return true
@@ -2217,7 +2224,7 @@ Prologue :: (state: *State) -> bool {
         object := state.program.stack_objects[object_id]
         if object.kind != .ResultAddress { continue }
         result_addresses += 1
-        A64Store(state, StackMemory(state, object_id, MachineNoId), 0, 8)
+        A64Store(state, StackMemory(state, object_id, MachineNoId), 8, 8)
     }
     result_class := MachineRegisterClass.Invalid
     if function.result_type >= 0 && function.result_type < state.program.types.count &&

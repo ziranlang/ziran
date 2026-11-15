@@ -921,6 +921,90 @@ Basics :: () -> bool {
     return Check(measured.code_bytes == 812 && measured.relocations == 23, "measured image totals")
 }
 
+// A record result's address passes in x8 and is computed after the
+// arguments, so an argument in x0 survives, and the callee stores x8.
+RecordCalls :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b)
+    maker := Begin(*b, "maker")
+    made_function := b.functions[maker]
+    made_function.result_type = RECORD
+    b.functions[maker] = made_function
+    unused Parameter(*b, S64, X0)
+    made := Value(*b, RECORD)
+    unused Object(*b, .ResultAddress, 8, -8, -1, 0)
+    made_slot := Object(*b, .Value, 16, -32, made, RECORD)
+    made_value := b.virtuals[made]
+    made_value.stack_object = made_slot
+    b.virtuals[made] = made_value
+    Enter(*b, Blocks(*b, 1))
+    unused Fuel(*b, 1)
+    returned := Open(*b, .Return)
+    unused Slot(*b, made_slot, .Use, made)
+    unused Close(*b, returned)
+    End(*b, 32)
+
+    caller := Begin(*b, "caller")
+    argument := Value(*b, S64)
+    got := Value(*b, RECORD)
+    got_slot := Object(*b, .Value, 16, -16, got, RECORD)
+    got_value := b.virtuals[got]
+    got_value.stack_object = got_slot
+    b.virtuals[got] = got_value
+    zero := Value(*b, S64)
+    Enter(*b, Blocks(*b, 1))
+    unused Constant(*b, X0, argument, 5)
+    instruction := Open(*b, .CallDirect)
+    instruction.call = cast(s32)b.calls.count
+    result_operand := Slot(*b, got_slot, .Define, got)
+    target := Symbol(*b, .Function, maker)
+    argument_begin := cast(s32)b.operands.count
+    unused Physical(*b, X0, .Use, argument)
+    call := Close(*b, instruction)
+    unused VecPush(b.calls, .{instruction = call, calling = .Internal, argument_begin = argument_begin,
+        argument_count = 1, result_operand = result_operand, stack_argument_bytes = 0,
+        clobber_general = 0x3ffff, clobber_float = 0xffff00ff, clobber_vector = 0xffffffff})
+    unused VecPush(b.relocations, .{instruction = call, operand = target, kind = .FunctionCall, symbol = maker})
+    unused Constant(*b, X0, zero, 0)
+    unused Return(*b, X0, zero)
+    End(*b, 16)
+    b.entry = caller
+
+    limits := MachineDefaultLimits()
+    verified := Apply(*b, .Verify, null, limits).diagnostic
+    if verified.problem != .None { Report("record calls allocated verifier", verified); return false }
+    owner: A64.MachineA64Owner
+    defer A64.MachineA64Free(*owner)
+    encoded := Apply(*b, .Encode, *owner, limits).diagnostic
+    if encoded.problem != .None { Report("record calls encode", encoded); return false }
+    image := A64.MachineA64View(*owner)
+    range := image.instructions[call]
+    if !Check(range.end - range.begin >= 8, "record call computes its result address") { return false }
+    last := Words(image.code, range.end - 4)
+    before := Words(image.code, range.end - 8)
+    writes_x0 := false
+    at := range.begin
+    while at < range.end - 4 {
+        if (Words(image.code, at) & cast(u32)31) == 0 { writes_x0 = true }
+        at += 4
+    }
+    stores_x8 := false
+    function := image.functions[maker]
+    at = function.begin
+    while at < function.end {
+        word := Words(image.code, at)
+        store := (word & cast(u32)0xffc00000) == cast(u32)0xf9000000 ||
+            (word & cast(u32)0xffe00c00) == cast(u32)0xf8000000
+        if store && (word & cast(u32)31) == 8 { stores_x8 = true }
+        at += 4
+    }
+    return Check((last & cast(u32)0xfc000000) == cast(u32)0x94000000, "record call ends in bl") &&
+        Check((before & cast(u32)31) == 8, "record call computes x8 just before bl") &&
+        Check(!writes_x0, "record call keeps its x0 argument") &&
+        Check(stores_x8, "record callee stores its x8 result address")
+}
+
 Calls :: () -> bool {
     b: Builder
     defer BuilderFree(*b)
@@ -1151,7 +1235,7 @@ Negatives :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !Basics() || !Calls() || !Negatives() { return 1 }
+    if !Basics() || !Calls() || !RecordCalls() || !Negatives() { return 1 }
     print("aarch64 encoder: exact words, three-operand forms, branch fields, fixed ABI forms, fuel, traps, relocation fields, pre-encoding rejection of invalid programs, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

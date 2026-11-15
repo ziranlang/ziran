@@ -178,13 +178,13 @@ MachineAbiPhysicalClass :: (target: TargetDescription, class: MachineRegisterCla
 // One fixed-register instruction form the target lower materializes.
 MachineAbiForm :: enum s32 { Invalid; BytesEqual; Resize }
 
-// The register an indirect call's target lives in at the call. The x86-64
-// call sequence writes rax (the hidden result pointer) and r11 (the copy
-// scratch of stack arguments) before it calls, so the target must be
-// elsewhere; r10 is caller-saved and passes no argument. AArch64 has no
-// fixed choice yet.
+// The register an indirect call's target lives in at the call. The call
+// sequence writes the hidden result pointer (rax; AArch64 x8) and the copy
+// scratch of stack arguments (r11; x15) before it calls, so the target must
+// be elsewhere: r10 and x9 are caller-saved and pass no argument.
 MachineAbiIndirectCallRegister :: (target: TargetDescription) -> s32 {
-    if !TargetMachineLoweringSupported(target) || target.arch == .AArch64 { return -1 }
+    if !TargetMachineLoweringSupported(target) { return -1 }
+    if target.arch == .AArch64 { return 9 }
     return cast(s32)X64Register.R10
 }
 

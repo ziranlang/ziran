@@ -6858,10 +6858,12 @@ HostFunction :: (program: *AssemblyProgram, module: *IR.ZirModule, asked: *u8,
     }
     signature := cast(*IR.ZirFunction)Allocate(program, 1, size_of(IR.ZirFunction))
     if signature == null { return -1 }
+    // Whole arrays: both fields are fixed text of the same size in the
+    // import and the signature.
     memcpy(cast(*void)*signature.name, cast(*void)*import.name[0],
-           size_of(*import.name))
+           cast(usize)import.name.count)
     memcpy(cast(*void)*signature.return_type, cast(*void)*import.return_type[0],
-           size_of(*import.return_type))
+           cast(usize)import.return_type.count)
     chosen := *import.name[0]
     if import.extern_symbol[0] != 0 { chosen = *import.extern_symbol[0] }
     memcpy(cast(*void)*signature.extern_symbol, cast(*void)chosen,

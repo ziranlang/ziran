@@ -72,7 +72,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
         unused NativeRun(*test, run[:])
     }
     if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "single-source.zx"), CheckPath(test.work, "single-saved.zx")), "single host bundles differ") { return 1 }
+    // A host result record whose name is longer than eight bytes, as
+    // Kryon's ReadBundleInput returns BundleInput: lowering keeps the whole
+    // name and resolves the record.
+    records := CheckPath(test.work, "records.zi")
+    if !NativeWrite(*test, records, "host_api :: #system_library \"host_api\";\nProcessStart :: struct { handle: s32; error: string }\nStartHostProcess :: (handle: s32) -> ProcessStart #foreign host_api;\n#program_export\nAnswer :: () -> s32 { started := StartHostProcess(1); return started.handle }\n") { return 1 }
+    record_bundle: [9]string = .[test.ziran, "bundle", "--root", test.work, "--entry", "records:Answer",
+        "-o", CheckPath(test.work, "records.zx"), records]
+    unused NativeRun(*test, record_bundle[:])
     if test.failed { return 1 }
-    print("128 host bindings passed in source and saved bundles\n")
+    print("128 host bindings passed in source and saved bundles; long-named host result records lower\n")
     return 0
 }

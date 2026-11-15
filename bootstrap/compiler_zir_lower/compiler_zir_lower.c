@@ -33848,8 +33848,8 @@ compiler_zir_lower_HostFunction(AssemblyProgram* program, ZirModule* module, uin
     if (signature == ((void *)0)) {
         return -1;
     }
-    zir_f_0fe5ce4064831140_memcpy((void*)(&(signature->name)), (void*)(&(import->name[0])), sizeof(void *));
-    zir_f_0fe5ce4064831140_memcpy((void*)(&(signature->return_type)), (void*)(&(import->return_type[0])), sizeof(void *));
+    zir_f_0fe5ce4064831140_memcpy((void*)(&(signature->name)), (void*)(&(import->name[0])), (size_t)(128));
+    zir_f_0fe5ce4064831140_memcpy((void*)(&(signature->return_type)), (void*)(&(import->return_type[0])), (size_t)(128));
     uint8_t* chosen = &(import->name[0]);
     if ((import->extern_symbol)[0] != 0) {
         chosen = &(import->extern_symbol[0]);

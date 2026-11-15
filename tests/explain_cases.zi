@@ -94,7 +94,7 @@ ExplainInventory :: (test: *NativeTest) -> bool {
         }
     }
     files := NativeFiles(CheckPath(test.repo, "cmd"), ".zi")
-    first_calls := string.["PkgFailCode", "Diagnostics.Emit"]; second_calls := string.["Diagnose", "Fatal", "Fail", "Report"]
+    first_calls := string.["PkgFailCode", "Diagnostics.Emit"]; second_calls := string.["Diagnose", "Fatal", "Fail", "Report", "SayTarget"]
     for path: files { text := NativeRead(test, path); ExplainCalls(text, first_calls[:], *codes, 1); ExplainCalls(text, second_calls[:], *codes, 2) }
     if test.failed { return false }
     SortText(codes[:])

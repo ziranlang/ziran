@@ -108,6 +108,9 @@ LirExecHandler :: enum s32 {
     // Two Extracts of words in a row, and an Add before the block's Jump.
     ExtractWordPair; AddJump
     HostWrite
+    // A generic host call whose arguments are frame words and whose result,
+    // if any, is a scalar word: it runs in the fast loop like HostWrite.
+    HostCall
 }
 
 LirExecCode :: struct {
@@ -291,6 +294,10 @@ LirExecInstance :: struct {
     result_bytes: Vec(u8)
     result_value: LirExecValue
     hosts: Vec(LirExecHostBinding)
+    // Memo of host binding indexes by function symbol: 0 unresolved, -1 no
+    // binding, one more than the binding index otherwise. Hosts bind before
+    // an instance runs and never change while it runs.
+    host_lookup: Vec(s32)
     host_arguments: Vec(u64)
     typed_arguments: Vec(LirExecArgument)
     host_bytes: Vec(u8)
@@ -1390,7 +1397,23 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         return .Slow
     }
     if op == .HostCall {
-        if count != 3 || !ExecPlatformWriteSignature(program, instruction.symbol) { return .Slow }
+        if count != 3 || !ExecPlatformWriteSignature(program, instruction.symbol) {
+            // A generic host call whose arguments all live in frame words and
+            // whose result, if any, is a scalar word stays in the fast loop;
+            // anything else runs on ExecStep.
+            target := program.functions[instruction.symbol]
+            if count > 3 { return .Slow }
+            if count >= 1 && out.a < 0 { return .Slow }
+            if count >= 2 && out.b < 0 { return .Slow }
+            if count >= 3 && out.c < 0 { return .Slow }
+            if out.result >= 0 && !ExecHostScalarType(program.types[target.result]) { return .Slow }
+            out.handler = .HostCall
+            out.target = instruction.symbol
+            out.type = target.result
+            out.x = count
+            <<work = 1 + count
+            return .Fast
+        }
         if out.a < 0 || out.b < 0 || out.c < 0 { return .Slow }
         target := program.functions[instruction.symbol]
         out.handler = .HostWrite
@@ -4400,6 +4423,38 @@ ExecRunCode :: (instance: *LirExecInstance, frame_index: s64, start: s64) -> s64
                 unused ExecFail(instance, .Host)
                 return ExecFailed
             }
+        } else if h == .HostCall {
+            // The planner only sends calls whose arguments are frame words;
+            // anything the host binds as a write or a typed image still runs
+            // on ExecStep.
+            if c.target >= instance.host_lookup.count {
+                if !VecResize(instance.host_lookup, cast(s64)c.target + 1) { return pc }
+            }
+            host_binding := instance.host_lookup[c.target]
+            if host_binding == 0 {
+                resolved := ExecHostBinding(instance, c.target)
+                if resolved >= 0 { host_binding = cast(s32)(resolved + 1) } else { host_binding = -1 }
+                instance.host_lookup[c.target] = host_binding
+            }
+            if host_binding <= 0 { return pc }
+            host := instance.hosts[host_binding - 1]
+            if host.write != null || host.typed != null { return pc }
+            host_arguments: [3]u64
+            if c.x >= 1 { host_arguments[0] = words[wb + c.a] }
+            if c.x >= 2 { host_arguments[1] = words[wb + c.b] }
+            if c.x >= 3 { host_arguments[2] = words[wb + c.c] }
+            host_result: u64
+            if !host.call(host.context, c.target, host_arguments[:c.x], *host_result) {
+                unused ExecFail(instance, .Host)
+                return ExecFailed
+            }
+            if c.result >= 0 {
+                if !ExecHostCanonical(plan.program.types[c.type], host_result) {
+                    unused ExecFail(instance, .Host)
+                    return ExecFailed
+                }
+                words[wb + c.result] = host_result
+            }
         } else { return pc }
         if next < 0 {
             if next == ExecBail { return pc }
@@ -4679,6 +4734,7 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     VecFree(instance.frames)
     VecFree(instance.result_bytes)
     VecFree(instance.hosts)
+    VecFree(instance.host_lookup)
     VecFree(instance.host_arguments)
     VecFree(instance.typed_arguments)
     VecFree(instance.host_bytes)

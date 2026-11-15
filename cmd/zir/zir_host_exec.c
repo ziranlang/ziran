@@ -73,33 +73,64 @@ exec_console_write(void *closure, void *context, uint64_t descriptor, Slice byte
     return bytes.length == 0 || fwrite(bytes.data, 1, (size_t)bytes.length, stream) == (size_t)bytes.length;
 }
 
+static size_t
+exec_format_unsigned(char *text, uint64_t value)
+{
+    char digits[20];
+    size_t count = 0;
+    do {
+        digits[count++] = (char)('0' + (value % 10));
+        value /= 10;
+    } while(value != 0);
+    for(size_t at = 0; at < count; at++) text[at] = digits[count - 1 - at];
+    return count;
+}
+
 static bool
 exec_console_print(void *closure, void *context, int32_t function, Slice arguments, uint64_t *result)
 {
     (void)closure;
-    const LirProgram *program = context;
+    (void)function;
     const uint64_t *values = arguments.data;
     *result = 0;
     if(arguments.length != 1) return false;
     char text[64];
-    int service = ZxPlatformService(program, function);
-    if(service == ZX_SERVICE_PRINT_SIGNED)
-        snprintf(text, sizeof(text), "%lld", (long long)values[0]);
-    else if(service == ZX_SERVICE_PRINT_UNSIGNED)
-        snprintf(text, sizeof(text), "%llu", (unsigned long long)values[0]);
-    else if(service == ZX_SERVICE_PRINT_BOOL)
-        snprintf(text, sizeof(text), "%s", values[0] ? "true" : "false");
-    else if(service == ZX_SERVICE_PRINT_FLOAT32) {
+    size_t length = 0;
+    switch((int)(intptr_t)context) {
+    case ZX_SERVICE_PRINT_SIGNED: {
+        uint64_t magnitude = (uint64_t)values[0];
+        if((int64_t)values[0] < 0) {
+            text[length++] = '-';
+            magnitude = ~magnitude + 1;
+        }
+        length += exec_format_unsigned(text + length, magnitude);
+        break;
+    }
+    case ZX_SERVICE_PRINT_UNSIGNED:
+        length = exec_format_unsigned(text, values[0]);
+        break;
+    case ZX_SERVICE_PRINT_BOOL:
+        length = (size_t)(values[0] ? 4 : 5);
+        memcpy(text, values[0] ? "true" : "false", length);
+        break;
+    case ZX_SERVICE_PRINT_FLOAT32: {
         uint32_t bits = (uint32_t)values[0];
         float value;
         memcpy(&value, &bits, sizeof(value));
         FormatPrintFloat(value, 1, text, sizeof(text));
-    } else if(service == ZX_SERVICE_PRINT_FLOAT64) {
+        length = strlen(text);
+        break;
+    }
+    case ZX_SERVICE_PRINT_FLOAT64: {
         double value;
         memcpy(&value, &values[0], sizeof(value));
         FormatPrintFloat(value, 0, text, sizeof(text));
-    } else return false;
-    return fputs(text, stdout) >= 0;
+        length = strlen(text);
+        break;
+    }
+    default: return false;
+    }
+    return fwrite(text, 1, length, stdout) == length;
 }
 
 LirExecProblem
@@ -113,7 +144,7 @@ ZxBindConsole(LirExecInstance *instance, const LirProgram *program)
                 (LirExecPlatformWrite){NULL, exec_console_write}, NULL);
         else if(service != ZX_SERVICE_NONE)
             bound = compiler_exec_LirExecBindHost(instance, (int32_t)index,
-                (LirExecHostCall){NULL, exec_console_print}, (void *)program);
+                (LirExecHostCall){NULL, exec_console_print}, (void *)(intptr_t)service);
         if(bound != LirExecProblem_None) return bound;
     }
     return LirExecProblem_None;

@@ -6,17 +6,17 @@
 // the frame slot of an `allocate` in the same function. Such a slot is live
 // whenever the value can be used: global slots are never retired, a frame
 // slot only when its function returns, and neither can be resized or freed
-// (resizing needs a heap slot). The fact gives the root's extent and
-// writability (a global's flag; frame storage is writable) and the value's
-// byte offset from the root: exact when every derivation step is static,
-// otherwise bounded by the value's own type, because a field or fixed-array
-// element always lies inside its parent and the fixed-array index is checked.
-// Parameters, loads, call results, block parameters and heap blocks have no
-// root.
+// (resizing needs a heap slot). The fact gives the root's writability (a
+// global's flag; frame storage is writable) and the value's room: the bytes
+// from it to the end of the root that every execution may reach. A field
+// moves the pointer by its offset; an element whose index is checked (or
+// proven) below a bound moves it by at most bound - 1 elements, the exact
+// index when it is a constant. Parameters, loads, call results, block
+// parameters and heap blocks have no root.
 //
-// Index facts. An `element.address` into a fixed array, or a dynamic
-// `extract` or `insert`, whose index an interval analysis proves lies inside
-// the array, so its bounds check is redundant.
+// Index facts. An `element.address` into a fixed array or a view with a
+// constant count, or a dynamic `extract` or `insert`, whose index an interval
+// analysis proves lies below its bound, so its bounds check is redundant.
 //
 // The program must already have passed LirVerify: definitions dominate their
 // uses and every address step is well typed. A backend drops a check only when
@@ -33,10 +33,9 @@ LirProvenPointer :: struct {
     root: LirProvenRoot
     // The global's index (Global) or the allocate's result value (Frame).
     symbol: s32
-    // Bytes from the root's start when every step is static, else -1.
-    offset: s64
-    // The root's bytes.
-    extent: s64
+    // The bytes from the pointer to the root's end that every execution may
+    // reach.
+    room: s64
     writable: bool
 }
 
@@ -45,9 +44,9 @@ LirProvenOwner :: struct {
     valid: bool
     value_begin: Vec(s64)
     pointers: Vec(LirProvenPointer)
-    // 1 when the instruction defining the value has its index proven inside
-    // its fixed array.
-    index: Vec(u8)
+    // For the value an indexing instruction defines, the bound its index is
+    // proven below, or 0.
+    index: Vec(s64)
 }
 
 LirProvenResult :: struct {
@@ -122,7 +121,7 @@ PointeeSize :: (program: LirProgram, type_id: s32) -> s64 {
     return TypeSize(program, program.types[type_id].element, 0)
 }
 
-Unknown :: () -> LirProvenPointer { return .{root = .Unknown, symbol = LirNoId, offset = -1} }
+Unknown :: () -> LirProvenPointer { return .{root = .Unknown, symbol = LirNoId} }
 
 // The value of an integer constant VALUE when it is defined by one, read
 // with the constant's signedness.
@@ -151,21 +150,43 @@ ConstantInteger :: (program: LirProgram, function: LirFunction, definition: []s6
     return true
 }
 
+// FACT moved by at most INDEX elements of SIZE bytes: the room left, or
+// Unknown when it could leave the root.
+Advance :: (fact: LirProvenPointer, index: s64, size: s64) -> LirProvenPointer {
+    if index < 0 || size < 0 || size > 0 && index > fact.room / size { return Unknown() }
+    result := fact
+    result.room = fact.room - index * size
+    return result
+}
+
+// The largest element index the instruction defining POSITION can reach
+// below BOUND: the constant itself, else BOUND - 1. -1 when no index is
+// valid.
+LargestIndex :: (program: LirProgram, function: LirFunction, definition: []s64, position: s32,
+    bound: s64) -> s64 {
+    if bound < 1 { return -1 }
+    index: s64
+    if ConstantInteger(program, function, definition, position, *index) {
+        // A constant at or past the bound traps at the derivation.
+        return ifx index >= 0 && index < bound then index else -1
+    }
+    return bound - 1
+}
+
 // The fact for SOURCE's result, given the fact of its first operand.
 PointerStep :: (program: LirProgram, function: LirFunction, definition: []s64,
     source: LirInstruction, base: LirProvenPointer) -> LirProvenPointer {
     if source.op == .GlobalAddress {
         if source.symbol < 0 || source.symbol >= program.globals.count { return Unknown() }
         global := program.globals[source.symbol]
-        extent := TypeSize(program, global.type, 0)
-        if extent < 0 { return Unknown() }
-        return .{root = .Global, symbol = source.symbol, offset = 0, extent = extent,
-            writable = global.writable}
+        room := TypeSize(program, global.type, 0)
+        if room < 0 { return Unknown() }
+        return .{root = .Global, symbol = source.symbol, room = room, writable = global.writable}
     }
     if source.op == .Allocate {
-        extent := PointeeSize(program, function.values[source.result])
-        if extent < 0 { return Unknown() }
-        return .{root = .Frame, symbol = source.result, offset = 0, extent = extent, writable = true}
+        room := PointeeSize(program, function.values[source.result])
+        if room < 0 { return Unknown() }
+        return .{root = .Frame, symbol = source.result, room = room, writable = true}
     }
     if base.root == .Unknown || source.operands.count < 1 { return Unknown() }
     pointer := function.values[source.operands[0]]
@@ -173,31 +194,31 @@ PointerStep :: (program: LirProgram, function: LirFunction, definition: []s64,
     target_id := program.types[pointer].element
     if target_id < 0 || target_id >= program.types.count { return Unknown() }
     target := program.types[target_id]
-    step: s64 = -1
     if source.op == .FieldAddress && source.operands.count == 1 {
         if target.kind != .Record || source.immediate >= cast(u64)target.fields.count { return Unknown() }
-        step = 0
+        offset: s64
         for at: cast(s64)0..cast(s64)source.immediate - 1 {
             part := TypeSize(program, target.fields[at], 0)
             if part < 0 { return Unknown() }
-            step += part
+            offset += part
         }
-    } else if source.op == .ElementAddress && source.operands.count == 2 {
+        return Advance(base, offset, 1)
+    }
+    if source.op != .ElementAddress || source.operands.count < 2 || source.operands.count > 4 { return Unknown() }
+    element := PointeeSize(program, function.values[source.result])
+    if element < 0 { return Unknown() }
+    bound: s64
+    if source.operands.count == 2 {
+        // A fixed array's element.
         if target.kind != .Array { return Unknown() }
-        index: s64
-        if ConstantInteger(program, function, definition, source.operands[1], *index) {
-            // A constant outside the array traps at the derivation.
-            if index < 0 || index >= target.count { return Unknown() }
-            element := TypeSize(program, target.element, 0)
-            if element < 0 { return Unknown() }
-            step = index * element
-        } else { step = -2 }
-    } else { return Unknown() }
-    result := base
-    if base.offset < 0 || step == -2 { result.offset = -1 }
-    else { result.offset = base.offset + step }
-    if result.offset > result.extent { return Unknown() }
-    return result
+        bound = target.count
+    } else if !ConstantInteger(program, function, definition, source.operands[source.operands.count - 1], *bound) {
+        // A view's element (index below count), or the start of a subview
+        // (low <= high <= count); only a constant count bounds it.
+        return Unknown()
+    }
+    if source.operands.count == 4 { return Advance(base, bound, element) }
+    return Advance(base, LargestIndex(program, function, definition, source.operands[1], bound), element)
 }
 
 // Definitions: value -> block << 32 | instruction, or -1 (a parameter).
@@ -604,10 +625,19 @@ ConditionOf :: (block: LirBlock, value: s32) -> s64 {
 }
 
 // Marks an index proven inside its fixed array at SOURCE.
-Mark :: (program: LirProgram, function: LirFunction, flow: *Flow, source: LirInstruction, index: []u8) {
+Mark :: (program: LirProgram, function: LirFunction, flow: *Flow, source: LirInstruction, index: []s64) {
     if source.result < 0 || source.result >= index.count { return }
     array_type: s32 = LirNoId
     position: s32 = LirNoId
+    if source.op == .ElementAddress && source.operands.count == 3 {
+        // A view's element: the index below every value the count can have.
+        range := WorkGet(flow, source.operands[1])
+        count := WorkGet(flow, source.operands[2])
+        if Finite(range) && Finite(count) && range.low >= 0 && range.low <= range.high && range.high < count.low {
+            index[source.result] = count.low
+        }
+        return
+    }
     if source.op == .ElementAddress && source.operands.count == 2 {
         pointer := function.values[source.operands[0]]
         if program.types[pointer].kind == .Pointer { array_type = program.types[pointer].element }
@@ -619,12 +649,12 @@ Mark :: (program: LirProgram, function: LirFunction, flow: *Flow, source: LirIns
     if array_type < 0 || array_type >= program.types.count || program.types[array_type].kind != .Array { return }
     range := WorkGet(flow, position)
     if Finite(range) && range.low >= 0 && range.low <= range.high && range.high < program.types[array_type].count {
-        index[source.result] = 1
+        index[source.result] = program.types[array_type].count
     }
 }
 
 WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow: *Flow,
-    block_index: s64, index: []u8, collect: bool) -> bool {
+    block_index: s64, index: []s64, collect: bool) -> bool {
     block := function.blocks[block_index]
     entry := block_index == function.entry
     if !Spend(state, flow.values + 1) { return false }
@@ -733,7 +763,7 @@ WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, f
 }
 
 Round :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow: *Flow,
-    index: []u8, collect: bool) -> bool {
+    index: []s64, collect: bool) -> bool {
     flow.changed = false
     for block: cast(s64)0..flow.blocks - 1 {
         if !WalkBlock(state, program, function, flow, block, index, collect) { return false }
@@ -744,7 +774,7 @@ Round :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow:
 // Proves indices for one function. A function whose intervals do not settle
 // in the round budget or within FunctionWork keeps every check.
 IndexFacts :: (state: *ProvenState, program: LirProgram, function: LirFunction,
-    flow: *Flow, index: []u8) -> bool {
+    flow: *Flow, index: []s64) -> bool {
     saved := state.remaining
     budget := ifx saved < FunctionWork then saved else FunctionWork
     state.remaining = budget
@@ -757,7 +787,7 @@ IndexFacts :: (state: *ProvenState, program: LirProgram, function: LirFunction,
 }
 
 IndexProof :: (state: *ProvenState, program: LirProgram, function: LirFunction,
-    flow: *Flow, index: []u8) -> bool {
+    flow: *Flow, index: []s64) -> bool {
     for at: cast(s64)0..index.count - 1 { index[at] = 0 }
     if !FlowInit(state, program, function, flow) { return state.problem == .None }
     stable := false
@@ -866,21 +896,23 @@ LirProvenPointerOf :: (owner: *LirProvenOwner, function: s64, value: s32) -> Lir
     return owner.pointers[at]
 }
 
-LirProvenIndex :: (owner: *LirProvenOwner, function: s64, value: s32) -> bool {
+// The bound the index of the instruction defining VALUE is proven below,
+// or 0 when its check stays.
+LirProvenIndexBound :: (owner: *LirProvenOwner, function: s64, value: s32) -> s64 {
     if owner == null || !owner.valid || function < 0 || function + 1 >= owner.value_begin.count || value < 0 {
-        return false
+        return 0
     }
     at := owner.value_begin[function] + value
-    return at < owner.value_begin[function + 1] && owner.index[at] != 0
+    if at >= owner.value_begin[function + 1] { return 0 }
+    return owner.index[at]
 }
 
-// Whether FACT, the fact of pointer value POINTER, covers an access of WIDTH
-// bytes (a write when WRITE): its root is live and the bytes lie inside it.
-LirProvenCovers :: (program: LirProgram, function: LirFunction, fact: LirProvenPointer,
-    pointer: s32, width: s64, write: bool) -> bool {
-    if fact.root == .Unknown || width < 0 || write && !fact.writable { return false }
-    if fact.offset >= 0 { return fact.offset <= fact.extent && width <= fact.extent - fact.offset }
-    if pointer < 0 || pointer >= function.values.count { return false }
-    pointee := PointeeSize(program, function.values[pointer])
-    return pointee >= 0 && width <= pointee
+LirProvenIndex :: (owner: *LirProvenOwner, function: s64, value: s32) -> bool {
+    return LirProvenIndexBound(owner, function, value) > 0
+}
+
+// Whether FACT covers an access of WIDTH bytes (a write when WRITE): its
+// root is live and the bytes lie inside it.
+LirProvenCovers :: (fact: LirProvenPointer, width: s64, write: bool) -> bool {
+    return fact.root != .Unknown && width >= 0 && width <= fact.room && (!write || fact.writable)
 }

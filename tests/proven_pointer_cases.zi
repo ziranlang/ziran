@@ -39,8 +39,9 @@ Counts :: (test: *NativeTest, path: string, counts: *Pipeline.MachineChecks) -> 
     defer Proven.LirProvenFree(*facts)
     proved := Proven.LirProvenBuild(*facts, Link.ZxExecReadProgram(*owner), Lir.LirDefaultLimits())
     if !NativeAssert(test, proved.problem == .None, CheckConcat("the shared facts failed for ", path)) { return false }
-    print("% rooted=% proven-indices=% resolves=% direct-global=% direct-frame=% index-checks=%\n", PathName(path),
-        proved.rooted, proved.indices, counts.resolves, counts.direct_global, counts.direct_frame, counts.index_checks)
+    print("% rooted=% proven-indices=% resolves=% direct-global=% direct-frame=% index-checks=% index-proven=%\n",
+        PathName(path), proved.rooted, proved.indices, counts.resolves, counts.direct_global, counts.direct_frame,
+        counts.index_checks, counts.index_proven)
     return true
 }
 
@@ -181,8 +182,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     direct := Bundle(*test, tools, test.work, "direct",
         "table: [4]s64 = .{10, 20, 30, 40};\nMark :: (value: *s64) { <<value += 1 }\n#program_export\nmain :: () -> s64 {\n    local: [8]s64\n    Mark(*local[0])\n    for i: 0..7 { local[i] += cast(s64)i * 3 }\n    total := table[2] + local[5]\n    for i: 0..3 { total += table[i] }\n    table[1] = 7\n    return total + table[1]\n}\n")
     if test.failed || !Counts(*test, direct, *counts) { return 1 }
-    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_global == 5 && counts.direct_frame == 3,
-        "global and frame array accesses are not all direct") ||
+    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_global == 5 && counts.direct_frame == 3 &&
+        counts.index_checks == 0 && counts.index_proven == 7, "global and frame array accesses are not all direct") ||
         !Runs(*test, tools, direct, "152\n") || !WasmRuns(*test, tools, direct, "152\n") ||
         !Tampered(*test, direct) { return 1 }
 
@@ -191,8 +192,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     index := Bundle(*test, tools, test.work, "index",
         "limit: s64 = 9;\nMark :: (value: *s64) { <<value += 1 }\n#program_export\nmain :: () -> s64 {\n    local: [4]s64\n    Mark(*local[0])\n    local[limit] = 1\n    return local[limit]\n}\n")
     if test.failed || !Counts(*test, index, *counts) { return 1 }
-    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_frame == 2 && counts.index_checks == 3,
-        "the runtime-index accesses are not direct behind their index checks") ||
+    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_frame == 2 && counts.index_checks == 2 &&
+        counts.index_proven == 1, "the runtime-index accesses are not direct behind their index checks") ||
         !Runs(*test, tools, index, "") || !WasmRuns(*test, tools, index, "") { return 1 }
 
     // A heap block moved by growth: the stale element pointer has no root,
@@ -211,6 +212,22 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, counts.resolves == 1 && counts.direct_frame == 1,
         "the escaped frame pointer's read is not the one resolve") ||
         !Runs(*test, tools, stale, "") { return 1 }
+
+    // A constant text read as a view: the loop's index is proven below the
+    // text's count and the bytes are read directly; a runtime index past the
+    // count reads directly behind its kept check, which traps.
+    text := Bundle(*test, tools, test.work, "text",
+        "TEXT :: \"the quick brown fox\";\n#program_export\nmain :: () -> s64 {\n    total: s64\n    for i: 0..cast(s64)TEXT.count - 1 { total += cast(s64)TEXT[i] }\n    return total\n}\n")
+    if test.failed || !Counts(*test, text, *counts) { return 1 }
+    if !NativeAssert(*test, counts.resolves == 0 && counts.direct_global == 1 && counts.index_checks == 0,
+        "the text loop's read is not direct behind a proven index") ||
+        !Runs(*test, tools, text, "1843\n") || !WasmRuns(*test, tools, text, "1843\n") { return 1 }
+    past_text := Bundle(*test, tools, test.work, "past_text",
+        "TEXT :: \"the quick brown fox\";\nlimit: s64 = 40;\n#program_export\nmain :: () -> s64 {\n    return cast(s64)TEXT[limit]\n}\n")
+    if test.failed || !Counts(*test, past_text, *counts) { return 1 }
+    if !NativeAssert(*test, counts.resolves == 0 && counts.direct_global >= 1 && counts.index_checks == 1,
+        "the read past the text is not direct behind its index check") ||
+        !Runs(*test, tools, past_text, "") || !WasmRuns(*test, tools, past_text, "") { return 1 }
 
     // Indices a loop bounds: the shared intervals prove both sieve indices
     // inside the array, so Wasm drops their checks; the same loop one step

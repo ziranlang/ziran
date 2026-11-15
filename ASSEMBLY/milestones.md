@@ -132,8 +132,12 @@ turns a load, store or zero through a rooted pointer into `PointerDirect`
 (the root's raw start plus the token's offset); `MachineVerify` rejects any
 memory access whose address is not a `PointerResolve`, fresh `ArenaAllocate`
 storage or a `PointerDirect` it re-derives to the same root, and
-`zx2wasm` reads the same index proofs. `tests/proven_pointer_cases.zi`
-prints the per-fixture counts and holds the hostile twins.
+`zx2wasm` reads the same index proofs. A fact carries the pointer's room
+(bytes to its root's end that every execution may reach), so a direct read
+of a constant text through its view is covered too, and x86-64 drops the
+index check of an element proven below its bound (`ElementAddress` with an
+immediate bound). `tests/proven_pointer_cases.zi` prints the per-fixture
+counts and holds the hostile twins.
 
 M0 integration is done (2026-11-15): the allocator fix, the AArch64
 encoder, the native default with checked pointers, the self-hosted C-backend

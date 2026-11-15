@@ -2021,13 +2021,15 @@ lower_convert(Fn *fn, const LirInstruction *instruction)
 }
 
 /* Leaves the byte offset `index * size` as i32 on the stack after checking
- * index < count; index and count are integer values or count is constant. */
+ * index < count; index and count are integer values or count is constant.
+ * An index the shared facts prove below every count it can meet needs no
+ * check. */
 static void
 checked_index(Fn *fn, int32_t index, int32_t count_value, int64_t count_constant, int64_t size)
 {
     int32_t owner = fn->instruction && fn->instruction->result >= 0 &&
         fn->instruction->result < fn->function->values.length ? fn->instruction->result : -1;
-    if(owner >= 0 && fn->proven && fn->proven[owner] && count_value < 0) {
+    if(owner >= 0 && fn->proven && fn->proven[owner]) {
         get_i64(fn, index, 0);
         if(size != 1) { i64_const(fn, size); op(fn, 0x7e); }
         op(fn, 0xa7);

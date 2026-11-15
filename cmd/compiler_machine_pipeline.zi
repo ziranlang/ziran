@@ -138,12 +138,14 @@ ValueOf :: (operand: MachineOperand) -> s32 {
 
 // Checked-access counts of a lowered program: pointer resolves left in the
 // code, accesses the verifier proved need none (by the root their base
-// starts), and fixed-array index checks.
+// starts), element index checks left, and element indices the shared facts
+// prove.
 MachineChecks :: struct {
     resolves: s64
     direct_global: s64
     direct_frame: s64
     index_checks: s64
+    index_proven: s64
 }
 
 MachineCheckCount :: (program: MachineProgram) -> MachineChecks {
@@ -160,7 +162,11 @@ MachineCheckCount :: (program: MachineProgram) -> MachineChecks {
     }
     for instruction: program.instructions {
         if instruction.opcode == .PointerResolve { counts.resolves += 1 }
-        if instruction.opcode == .ElementAddress && instruction.operand_count == 3 { counts.index_checks += 1 }
+        if instruction.opcode == .ElementAddress {
+            proven := instruction.operand_count == 4 &&
+                program.operands[instruction.operand_begin + 3].kind == .Immediate
+            if proven { counts.index_proven += 1 } else { counts.index_checks += 1 }
+        }
         if instruction.opcode != .PointerDirect || instruction.operand_count < 3 { continue }
         base := ValueOf(program.operands[instruction.operand_begin + 2])
         if base >= 0 && base < globals.count && globals[base] != 0 { counts.direct_global += 1 }

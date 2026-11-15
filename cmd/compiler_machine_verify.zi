@@ -543,8 +543,9 @@ FuelFacts :: (state: *VerifyState, program: MachineProgram) -> bool {
 // Checked memory. Every load, store and zero reaches memory through an
 // address that is checked or proven: a PointerResolve for at least its bytes
 // (writable for a write), the fresh storage of an ArenaAllocate, or a
-// PointerDirect whose token this re-derives from the root its base starts.
-// Byte comparisons read only views resolved for their own counts.
+// PointerDirect covering them. Every PointerDirect is proven where it is
+// defined: its token re-derives from the root its base starts. Byte
+// comparisons read only views resolved for their own counts.
 
 PointeeSize :: (program: MachineProgram, type_id: s32) -> s64 {
     if type_id < 0 || type_id >= program.types.count { return -1 }
@@ -597,109 +598,143 @@ Definers :: (state: *VerifyState, program: MachineProgram, limits: MachineLimits
     return true
 }
 
-// Whether a step from a pointer of type PARENT to one of type RESULT stays
-// inside the parent: a record member or fixed-array element (INDEX, or any
-// checked index when DYNAMIC) whose bytes hold the result's pointee.
-StepInside :: (program: MachineProgram, parent: s32, result: s32, index: u64, dynamic: bool) -> bool {
-    if PointeeSize(program, parent) < 0 { return false }
-    target := program.types[program.types[parent].element]
-    member: s32 = MachineNoId
-    if target.kind == .Array {
-        if target.element < 0 || target.element >= program.types.count || target.count < 0 { return false }
-        element := program.types[target.element].size
-        if element < 0 || element > 0 && target.count > target.size / element { return false }
-        if !dynamic && index >= cast(u64)target.count { return false }
-        member = target.element
-    } else if target.kind == .Record && !dynamic {
-        if index >= cast(u64)target.fields_count || target.fields_begin < 0 ||
-            cast(s64)target.fields_begin + target.fields_count > program.type_ids.count { return false }
-        member = program.type_ids[target.fields_begin + cast(s64)index]
-        if member < 0 || member >= program.types.count { return false }
-    } else { return false }
-    size := PointeeSize(program, result)
-    return size >= 0 && size <= program.types[member].size
+// The constant a MoveImmediate gives VALUE, when one does.
+ConstantOf :: (program: MachineProgram, definer: []s32, value: s32, constant: *u64) -> bool {
+    if value < 0 || value >= definer.count || definer[value] < 0 { return false }
+    source := program.instructions[definer[value]]
+    return source.opcode == .MoveImmediate && source.operand_count == 2 &&
+        VirtualAt(program, source, 0, .Define) == value && ImmediateAt(program, source, 1, constant)
 }
 
-// Whether TOKEN derives, through steps that stay inside their parents, from
+// ROOM less INDEX elements of SIZE bytes, or -1 when that leaves the root.
+Less :: (room: s64, index: s64, size: s64) -> s64 {
+    if room < 0 || index < 0 || size < 0 || size > 0 && index > room / size { return -1 }
+    return room - index * size
+}
+
+// The room after STEP, a field or element address, from a pointer with ROOM
+// bytes to its root's end, or -1. An element moves by its constant index, or
+// by at most bound - 1 elements where its index is checked (or proven) below
+// the bound: a fixed array's count, a constant count, or the proven bound.
+StepRoom :: (program: MachineProgram, definer: []s32, step: MachineInstruction, room: s64) -> s64 {
+    parent := VirtualAt(program, step, 1, .Use)
+    result := VirtualAt(program, step, 0, .Define)
+    if parent < 0 || result < 0 || PointeeSize(program, program.virtuals[parent].type) < 0 { return -1 }
+    target := program.types[program.types[program.virtuals[parent].type].element]
+    if step.opcode == .FieldAddress {
+        index: u64
+        if step.operand_count != 3 || !ImmediateAt(program, step, 2, *index) { return -1 }
+        if target.kind == .Array {
+            if index >= cast(u64)target.count || target.element < 0 || target.element >= program.types.count { return -1 }
+            return Less(room, cast(s64)index, program.types[target.element].size)
+        }
+        if target.kind != .Record || index >= cast(u64)target.fields_count || target.fields_begin < 0 ||
+            cast(s64)target.fields_begin + target.fields_count > program.type_ids.count { return -1 }
+        offset: s64
+        for at: cast(s64)0..cast(s64)index - 1 {
+            field := program.type_ids[target.fields_begin + at]
+            if field < 0 || field >= program.types.count || program.types[field].size < 0 { return -1 }
+            offset += program.types[field].size
+        }
+        return Less(room, offset, 1)
+    }
+    if step.opcode != .ElementAddress || step.operand_count < 3 || step.operand_count > 5 { return -1 }
+    element := PointeeSize(program, program.virtuals[result].type)
+    if element <= 0 { return -1 }
+    bound: u64
+    if step.operand_count == 3 {
+        if target.kind != .Array || target.count < 0 { return -1 }
+        bound = cast(u64)target.count
+    } else if step.operand_count == 4 && !ImmediateAt(program, step, 3, *bound) &&
+        !ConstantOf(program, definer, VirtualAt(program, step, 3, .Use), *bound) { return -1 }
+    if step.operand_count == 5 {
+        // A subview starts at low <= high <= count.
+        if !ConstantOf(program, definer, VirtualAt(program, step, 4, .Use), *bound) ||
+            bound > cast(u64)room { return -1 }
+        return Less(room, cast(s64)bound, element)
+    }
+    if bound < 1 || bound > cast(u64)room { return -1 }
+    largest := cast(s64)bound - 1
+    index: u64
+    if ConstantOf(program, definer, VirtualAt(program, step, 2, .Use), *index) {
+        // A constant at or past a checked bound traps at the step; only the
+        // proven form, which has no check, must hold it below its bound.
+        proven := step.operand_count == 4 && program.operands[step.operand_begin + 3].kind == .Immediate
+        if index < bound { largest = cast(s64)index }
+        else if proven { return -1 }
+    }
+    return Less(room, largest, element)
+}
+
+// The room of TOKEN when it derives, through field and element steps, from
 // the root whose raw start BASE holds: the PointerCreate on BASE's
-// ArenaAllocate, or the token of the global BASE addresses. The root holds
-// the token type's pointee, is live for the whole frame, and is writable when
-// WRITE.
-DirectRoot :: (state: *VerifyState, program: MachineProgram, definer: []s32, start: []s32,
-    token: s32, base: s32, write: bool) -> bool {
-    if base < 0 || base >= definer.count || definer[base] < 0 { return false }
+// ArenaAllocate, or the token of the global BASE addresses. That root is live
+// for the whole frame and writable when WRITE. -1 otherwise.
+DirectRoom :: (state: *VerifyState, program: MachineProgram, definer: []s32, start: []s32,
+    steps: *Vec(s32), token: s32, base: s32, write: bool) -> s64 {
+    if base < 0 || base >= definer.count || definer[base] < 0 { return -1 }
     base_instruction := program.instructions[definer[base]]
-    if VirtualAt(program, base_instruction, 0, .Define) != base { return false }
+    if VirtualAt(program, base_instruction, 0, .Define) != base || !VecResize(<<steps, 0) { return -1 }
     current := token
-    steps: s64
-    while true {
-        if !Spend(state, 1) { return false }
-        steps += 1
-        if steps > program.instructions.count || current < 0 || current >= definer.count ||
-            definer[current] < 0 { return false }
+    room: s64 = -1
+    while room < 0 {
+        if !Spend(state, 1) { return -1 }
+        if (<<steps).count > program.instructions.count || current < 0 || current >= definer.count ||
+            definer[current] < 0 { return -1 }
         at := definer[current]
         instruction := program.instructions[at]
-        if VirtualAt(program, instruction, 0, .Define) != current { return false }
-        type := program.virtuals[current].type
+        if VirtualAt(program, instruction, 0, .Define) != current { return -1 }
         if instruction.opcode == .FieldAddress || instruction.opcode == .ElementAddress {
-            if instruction.operand_count != 3 { return false }
-            parent := VirtualAt(program, instruction, 1, .Use)
-            if parent < 0 { return false }
-            index: u64
-            dynamic := instruction.opcode == .ElementAddress
-            if !dynamic && !ImmediateAt(program, instruction, 2, *index) { return false }
-            if dynamic && VirtualAt(program, instruction, 2, .Use) < 0 { return false }
-            if !StepInside(program, program.virtuals[parent].type, type, index, dynamic) { return false }
-            current = parent
+            if !VecPush(<<steps, at) { return -1 }
+            current = VirtualAt(program, instruction, 1, .Use)
             continue
         }
-        size := PointeeSize(program, type)
-        if size < 0 { return false }
         if instruction.opcode == .PointerCreate {
             // token, raw, size, scratch, flags, chain: frame storage stays
-            // live until its function returns and is never resized.
+            // live until its function returns and is never resized. BASE is
+            // that storage, an ArenaAllocate of at least those bytes earlier
+            // in the same block, so each run of it reaches the create.
             created: u64
             flags: u64
+            arena: u64
             if instruction.operand_count != 6 || VirtualAt(program, instruction, 1, .Use) != base ||
                 !ImmediateAt(program, instruction, 2, *created) || !ImmediateAt(program, instruction, 4, *flags) ||
                 (flags & cast(u64)MachinePointerHeap) != 0 || (flags & cast(u64)MachinePointerLive) == 0 ||
-                write && (flags & cast(u64)MachinePointerWritable) == 0 || cast(u64)size > created {
-                return false
-            }
-            // BASE is that storage: an ArenaAllocate of at least those bytes,
-            // earlier in the same block, so each run of it reaches the create.
-            arena: u64
-            if base_instruction.opcode != .ArenaAllocate || base_instruction.operand_count != 3 ||
-                !ImmediateAt(program, base_instruction, 1, *arena) || arena < created || definer[base] >= at {
-                return false
-            }
-            return start[at] != MachineNoId && start[definer[base]] == start[at]
-        }
-        if instruction.opcode == .MoveImmediate {
+                write && (flags & cast(u64)MachinePointerWritable) == 0 ||
+                base_instruction.opcode != .ArenaAllocate || base_instruction.operand_count != 3 ||
+                !ImmediateAt(program, base_instruction, 1, *arena) || arena < created ||
+                created > 9223372036854775807 || definer[base] >= at || start[at] == MachineNoId ||
+                start[definer[base]] != start[at] { return -1 }
+            room = cast(s64)created
+        } else if instruction.opcode == .MoveImmediate {
             // A global's token: slot 1 + G, version 0, offset 0. Globals are
             // never retired or resized.
             immediate: u64
-            if instruction.operand_count != 2 || !ImmediateAt(program, instruction, 1, *immediate) { return false }
+            if instruction.operand_count != 2 || !ImmediateAt(program, instruction, 1, *immediate) { return -1 }
             slot := cast(s64)(immediate >> cast(u64)MachinePointerSlotShift)
             global := slot - 1
-            if global < 0 || global >= program.globals.count ||
-                immediate != MachinePointerToken(slot, 0, 0) { return false }
+            if global < 0 || global >= program.globals.count || immediate != MachinePointerToken(slot, 0, 0) { return -1 }
             entry := program.globals[global]
-            if write && !entry.writable || entry.type < 0 || entry.type >= program.types.count ||
-                size > program.types[entry.type].size { return false }
             symbol := program.operands[base_instruction.operand_begin + 1]
-            return base_instruction.opcode == .GlobalAddress && base_instruction.operand_count == 2 &&
-                symbol.kind == .Global && symbol.id == cast(s32)global
-        }
-        return false
+            if write && !entry.writable || entry.type < 0 || entry.type >= program.types.count ||
+                base_instruction.opcode != .GlobalAddress || base_instruction.operand_count != 2 ||
+                symbol.kind != .Global || symbol.id != cast(s32)global { return -1 }
+            room = program.types[entry.type].size
+            if room < 0 { return -1 }
+        } else { return -1 }
     }
-    return false
+    at := (<<steps).count - 1
+    while at >= 0 && room >= 0 {
+        room = StepRoom(program, definer, program.instructions[(<<steps)[at]], room)
+        at -= 1
+    }
+    return room
 }
 
 // Whether ADDRESS, operand LOCAL of INSTRUCTION, is checked or proven for
 // WIDTH bytes.
 CheckedAddress :: (state: *VerifyState, program: MachineProgram, definer: []s32, start: []s32,
-    instruction: MachineInstruction, local: s32, width: s64, write: bool) -> bool {
+    steps: *Vec(s32), instruction: MachineInstruction, local: s32, width: s64, write: bool) -> bool {
     address := VirtualAt(program, instruction, local, .Use)
     if address < 0 || width < 0 || definer[address] < 0 { return false }
     source := program.instructions[definer[address]]
@@ -716,17 +751,30 @@ CheckedAddress :: (state: *VerifyState, program: MachineProgram, definer: []s32,
         return source.operand_count == 3 && ImmediateAt(program, source, 1, *size) && size >= cast(u64)width
     }
     if source.opcode == .PointerDirect {
+        // Proven where it is defined (DirectProven); here it must cover
+        // the access.
         covered: u64
         flags: u64
-        token := VirtualAt(program, source, 1, .Use)
-        base := VirtualAt(program, source, 2, .Use)
-        if source.operand_count != 5 || token < 0 || base < 0 ||
-            !ImmediateAt(program, source, 3, *covered) || !ImmediateAt(program, source, 4, *flags) ||
-            covered < cast(u64)width || cast(s64)covered > PointeeSize(program, program.virtuals[token].type) ||
-            write && (flags & 1) == 0 { return false }
-        return DirectRoot(state, program, definer, start, token, base, (flags & 1) != 0)
+        return source.operand_count == 5 && ImmediateAt(program, source, 3, *covered) &&
+            ImmediateAt(program, source, 4, *flags) && covered >= cast(u64)width && (!write || (flags & 1) != 0)
     }
     return false
+}
+
+// Whether DIRECT, a PointerDirect, covers the bytes and writability it
+// claims: its token derives from the root its base starts, with that much
+// room.
+DirectProven :: (state: *VerifyState, program: MachineProgram, definer: []s32, start: []s32,
+    steps: *Vec(s32), direct: MachineInstruction) -> bool {
+    covered: u64
+    flags: u64
+    token := VirtualAt(program, direct, 1, .Use)
+    base := VirtualAt(program, direct, 2, .Use)
+    if direct.operand_count != 5 || VirtualAt(program, direct, 0, .Define) < 0 || token < 0 || base < 0 ||
+        !ImmediateAt(program, direct, 3, *covered) || !ImmediateAt(program, direct, 4, *flags) ||
+        covered > 9223372036854775807 || flags > 1 { return false }
+    room := DirectRoom(state, program, definer, start, steps, token, base, flags == 1)
+    return room >= 0 && cast(s64)covered <= room
 }
 
 // A byte view at operand LOCAL, resolved for the count virtual after it.
@@ -744,6 +792,8 @@ CheckedMemory :: (state: *VerifyState, program: MachineProgram, limits: MachineL
     defer VecFree(definer)
     start: Vec(s32)
     defer VecFree(start)
+    steps: Vec(s32)
+    defer VecFree(steps)
     if !Definers(state, program, limits, *definer, *start) { return false }
     for instruction_id: cast(s32)0..cast(s32)program.instructions.count - 1 {
         if !Spend(state, 1) { return false }
@@ -754,14 +804,16 @@ CheckedMemory :: (state: *VerifyState, program: MachineProgram, limits: MachineL
             address := ifx instruction.opcode == .Load then cast(s32)1 else 0
             value := VirtualAt(program, instruction, 1 - address,
                 ifx instruction.opcode == .Load then MachineOperandRole.Define else .Use)
-            checked = value >= 0 && CheckedAddress(state, program, definer[:], start[:], instruction, address,
+            checked = value >= 0 && CheckedAddress(state, program, definer[:], start[:], *steps, instruction, address,
                 program.types[program.virtuals[value].type].size, instruction.opcode == .Store)
         } else if instruction.opcode == .Zero {
             address := VirtualAt(program, instruction, 0, .Use)
             checked = instruction.operand_count == 1 && address >= 0 && CheckedAddress(state, program, definer[:],
-                start[:], instruction, 0, PointeeSize(program, program.virtuals[address].type), true)
+                start[:], *steps, instruction, 0, PointeeSize(program, program.virtuals[address].type), true)
         } else if instruction.opcode == .BytesEqual {
             checked = ResolvedView(program, definer[:], instruction, 1) && ResolvedView(program, definer[:], instruction, 3)
+        } else if instruction.opcode == .PointerDirect {
+            checked = DirectProven(state, program, definer[:], start[:], *steps, instruction)
         }
         if state.diagnostic.problem != .None { return false }
         if !checked { return Fail(state, .Unchecked, instruction = instruction_id) }

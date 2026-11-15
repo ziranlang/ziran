@@ -621,9 +621,8 @@ LowerMove :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
 DirectBase :: (state: *LowerState, function: *MachineFunction, local: s32, width: s64,
     write: bool, origin: s32) -> s32 {
     if state.target.arch != .X86_64 { return MachineNoId }
-    lir_function := state.lir.functions[function.lir_function]
     fact := LirProvenPointerOf(state.proven, function.lir_function, local)
-    if !LirProvenCovers(state.lir, lir_function, fact, local, width, write) { return MachineNoId }
+    if !LirProvenCovers(fact, width, write) { return MachineNoId }
     if fact.root == .Frame {
         if fact.symbol < 0 || fact.symbol >= state.frame_raw.count { return MachineNoId }
         return (<<state.frame_raw)[fact.symbol]
@@ -655,6 +654,22 @@ LowerDirect :: (state: *LowerState, function: *MachineFunction, token: s32, base
         ImmediateOperand(state, ifx write then cast(u64)1 else 0) == MachineNoId ||
         FinishInstruction(state, instruction) == MachineNoId { return MachineNoId }
     return raw
+}
+
+// An element whose index the shared facts prove below a bound needs no
+// index check: ElementAddress result, base, index, bound.
+LowerElement :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    bound: s64
+    if state.target.arch == .X86_64 && source.operands.count >= 2 && source.operands.count <= 3 {
+        bound = LirProvenIndexBound(state.proven, function.lir_function, source.result)
+    }
+    if bound <= 0 { return LowerMemory(state, function, source, .ElementAddress) }
+    instruction := BeginInstruction(state, .ElementAddress, source.origin)
+    if VirtualOperand(state, GlobalVirtual(state, function, source.result), .Define) == MachineNoId ||
+        VirtualOperand(state, GlobalVirtual(state, function, source.operands[0]), .Use) == MachineNoId ||
+        VirtualOperand(state, GlobalVirtual(state, function, source.operands[1]), .Use) == MachineNoId ||
+        ImmediateOperand(state, cast(u64)bound) == MachineNoId { return false }
+    return FinishInstruction(state, instruction) != MachineNoId
 }
 
 LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstruction,
@@ -973,7 +988,7 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Copy { return LowerMemory(state, function, source, .Copy) }
     if source.op == .Zero { return LowerMemory(state, function, source, .Zero) }
     if source.op == .FieldAddress { return LowerMemory(state, function, source, .FieldAddress) }
-    if source.op == .ElementAddress { return LowerMemory(state, function, source, .ElementAddress) }
+    if source.op == .ElementAddress { return LowerElement(state, function, source) }
     if source.op == .BytesEqual { return LowerBytesEqual(state, function, source) }
     if source.op == .Resize { return LowerResize(state, function, source) }
     if source.op == .Call || source.op == .CallIndirect || source.op == .HostCall {

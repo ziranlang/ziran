@@ -28,6 +28,12 @@ three places, each for a reason:
   record through a parameter (any caller's pointer, possibly stale), and the 5
   platform-call string arguments carry a run-time count. Both keep their
   checks. The fixture prints `resolves=13 direct-frame=4`.
+- Following the owner's "make sure we oly have guardarils wher ew enede
+  tehm", native code also drops index checks the intervals prove (not only
+  Wasm), and Wasm drops proven view checks. On the bench kernels Sieve and
+  Hash have no pointer or index checks left; Records' 15 proven
+  `extract`/`insert` indices are left to the native Records lane, which owns
+  those encoders.
 
 ## Verdicts
 

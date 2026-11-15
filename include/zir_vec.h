@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
+/*@ZirVecIndex ZIRAN_VEC_INDEX*/
 static inline size_t
 ZirVecIndex(int64_t count, int64_t index)
 {
@@ -27,6 +28,7 @@ ZirVecIndex(int64_t count, int64_t index)
         (size_t)__zi_vec_index; })
 #endif
 
+/*@ZirVecReserveBounded ZirVecReserve ZirVecGrow*/
 /* Reserve room for `additional` more elements (at least one). A failed
  * reserve leaves both fields unchanged. */
 static inline void *
@@ -65,6 +67,7 @@ ZirVecReserveBounded(void *data, int64_t *capacity, int64_t count,
     return grown;
 }
 
+/*@ZirVecReserve ZirVecGrow*/
 /* Unbounded API retains its existing growth policy. */
 static inline void *
 ZirVecReserve(void *data, int64_t *capacity, int64_t count,
@@ -73,6 +76,7 @@ ZirVecReserve(void *data, int64_t *capacity, int64_t count,
     return ZirVecReserveBounded(data, capacity, count, additional, element_size, INT64_MAX);
 }
 
+/*@ZirVecGrow*/
 /* Reserve one more element. A failed reserve leaves both fields unchanged. */
 static inline void *
 ZirVecGrow(void *data, int64_t *capacity, int64_t count,
@@ -81,4 +85,5 @@ ZirVecGrow(void *data, int64_t *capacity, int64_t count,
     return ZirVecReserve(data, capacity, count, 1, element_size);
 }
 
+/*@*/
 #endif

@@ -145,13 +145,15 @@ static void compiler_runtime_emit_ReleaseOwnedText(String value) ZIRAN_MAYBE_UNU
 static String compiler_runtime_emit_CText(uint8_t* value) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_runtime_emit_CPointer(String value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_TextHasPrefix(String value, String prefix) ZIRAN_MAYBE_UNUSED;
-static zir_22e76ced0c40bffa_Results__string__bool compiler_runtime_emit_JoinPath(String directory, String name) ZIRAN_MAYBE_UNUSED;
+static zir_8e7ef9a1e6f28a8e_Results__string__bool compiler_runtime_emit_JoinPath(String directory, String name) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_runtime_emit_DecimalCount(int64_t value) ZIRAN_MAYBE_UNUSED;
-static zir_22e76ced0c40bffa_Results__string__bool compiler_runtime_emit_JoinTemporary(String path, int32_t process_id) ZIRAN_MAYBE_UNUSED;
+static zir_8e7ef9a1e6f28a8e_Results__string__bool compiler_runtime_emit_JoinTemporary(String path, int32_t process_id) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_SameBytes(String left, String right) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_WriteGenerated(String path, String text) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_runtime_emit_BytesFromText(String value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_WordByte(uint8_t value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_runtime_emit_KeptSegments(String text, SimdNames* used, __type_838711075b90279a* output) ZIRAN_MAYBE_UNUSED;
+static bool compiler_runtime_emit_SegmentNamed(String names, SimdNames* used) ZIRAN_MAYBE_UNUSED;
 static void compiler_runtime_emit_NeedHelper(int64_t helper, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work) ZIRAN_MAYBE_UNUSED;
 static void compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_Cleanup(SimdNames* helpers, __type_2f893a38d978b828* segments, __type_1f00ef809eed7c2e* last, __type_1f00ef809eed7c2e* first, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work, __type_838711075b90279a* output, bool result) ZIRAN_MAYBE_UNUSED;
@@ -306,7 +308,7 @@ compiler_runtime_emit_IsRuntimeHeader(String name)
 }
 
 bool
-compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, ZirSimdUses* simd)
+compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, ZirSimdUses* simd, SimdNames* used)
 {
     __type_838711075b90279a generated_bytes = {0};
     __type_838711075b90279a* value_2 = &generated_bytes;
@@ -482,23 +484,65 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
                 index = (int64_t)((uint64_t)index + UINT64_C(1));
                 continue;
             }
-            zir_22e76ced0c40bffa_Results__string__bool results_1_ = compiler_runtime_emit_JoinPath(out_dir, header_name);
+            __type_838711075b90279a kept = {0};
+            __type_838711075b90279a* value_30 = &kept;
+            String text = compiler_runtime_emit_CText((uint8_t*)header->text);
+            bool built = false;
+            if (StringEqual(header_name, StringLiteral("ziran_simd_ops.h"))) {
+                bool value_31 = false;
+                if ((text).length == 0) {
+                    value_31 = true;
+                } else {
+                    void *value_32 = ZirVecReserve((void *)(kept).data, &(kept).capacity, (kept).count, (int64_t)(text).length, sizeof(*(kept).data));
+                    if (value_32 != NULL) {
+                        (kept).data = (uint8_t *)value_32;
+                        memcpy((kept).data + (kept).count, (text).data, (size_t)(text).length);
+                        (kept).count += (int64_t)(text).length;
+                        value_31 = true;
+                    }
+                }
+                built = value_31;
+            } else {
+                built = compiler_runtime_emit_KeptSegments(text, used, &(kept));
+            }
+            zir_8e7ef9a1e6f28a8e_Results__string__bool results_1_ = compiler_runtime_emit_JoinPath(out_dir, header_name);
             String path = results_1_.value_0;
             bool made = results_1_.value_1;
-            if (!made) {
-                ok = false;
-                break;
+            bool value_33 = built && made;
+            if (value_33) {
+                Slice value_34 = {(kept).data, (kept).count};
+                Slice value_35 = SliceRange(value_34, 0LL, kept.count, sizeof(*(kept).data));
+                bool value_36 = compiler_runtime_emit_WriteGenerated(path, StringView((const char *)(value_35).data, (size_t)(value_35).length));
+                value_33 = value_36;
             }
-            bool wrote = compiler_runtime_emit_WriteGenerated(path, compiler_runtime_emit_CText((uint8_t*)header->text));
-            compiler_runtime_emit_ReleaseOwnedText(path);
+            bool wrote = value_33;
+            if (made) {
+                compiler_runtime_emit_ReleaseOwnedText(path);
+            }
+            free((kept).data);
+            (kept).data = NULL;
+            kept.capacity = 0;
+            kept.count = 0;
             if (!wrote) {
                 ok = false;
+                free((*value_30).data);
+                (*value_30).data = NULL;
+                (*value_30).capacity = 0;
+                (*value_30).count = 0;
                 break;
             }
             if (index == range_last_58) {
+                free((*value_30).data);
+                (*value_30).data = NULL;
+                (*value_30).capacity = 0;
+                (*value_30).count = 0;
                 break;
             }
             index = (int64_t)((uint64_t)index + UINT64_C(1));
+            free((*value_30).data);
+            (*value_30).data = NULL;
+            (*value_30).capacity = 0;
+            (*value_30).count = 0;
         }
     }
     free((needed).data);
@@ -512,7 +556,7 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
         generated_bytes.capacity = 0;
         generated_bytes.count = 0;
     }
-    bool value_30 = cleanup_return_1;
+    bool value_37 = cleanup_return_1;
     free((*value_6).data);
     (*value_6).data = NULL;
     (*value_6).capacity = 0;
@@ -521,7 +565,7 @@ compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, 
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
     (*value_2).count = 0;
-    return value_30;
+    return value_37;
 }
 
 bool
@@ -891,7 +935,7 @@ compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses)
             segment_index = (int64_t)((uint64_t)segment_index + UINT64_C(1));
         }
     }
-    zir_22e76ced0c40bffa_Results__string__bool results_2_ = compiler_runtime_emit_JoinPath(out_dir, StringLiteral("ziran_simd_ops.h"));
+    zir_8e7ef9a1e6f28a8e_Results__string__bool results_2_ = compiler_runtime_emit_JoinPath(out_dir, StringLiteral("ziran_simd_ops.h"));
     String path = results_2_.value_0;
     bool made = results_2_.value_1;
     bool ok = false;
@@ -977,7 +1021,7 @@ compiler_runtime_emit_TextHasPrefix(String value, String prefix)
     return StringEqual(StringRange(value, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
 }
 
-static zir_22e76ced0c40bffa_Results__string__bool
+static zir_8e7ef9a1e6f28a8e_Results__string__bool
 compiler_runtime_emit_JoinPath(String directory, String name)
 {
     __type_838711075b90279a bytes = {0};
@@ -995,7 +1039,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
         }
     }
     if (!value_3) {
-        zir_22e76ced0c40bffa_Results__string__bool value_5 = (zir_22e76ced0c40bffa_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_8e7ef9a1e6f28a8e_Results__string__bool value_5 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1015,7 +1059,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_22e76ced0c40bffa_Results__string__bool value_9 = (zir_22e76ced0c40bffa_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_8e7ef9a1e6f28a8e_Results__string__bool value_9 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1039,7 +1083,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_22e76ced0c40bffa_Results__string__bool value_12 = (zir_22e76ced0c40bffa_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_8e7ef9a1e6f28a8e_Results__string__bool value_12 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1053,7 +1097,7 @@ compiler_runtime_emit_JoinPath(String directory, String name)
     (bytes).data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
-    zir_22e76ced0c40bffa_Results__string__bool value_15 = (zir_22e76ced0c40bffa_Results__string__bool){.value_0 = result, .value_1 = true};
+    zir_8e7ef9a1e6f28a8e_Results__string__bool value_15 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = result, .value_1 = true};
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -1073,7 +1117,7 @@ compiler_runtime_emit_DecimalCount(int64_t value)
     return count;
 }
 
-static zir_22e76ced0c40bffa_Results__string__bool
+static zir_8e7ef9a1e6f28a8e_Results__string__bool
 compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
 {
     int64_t digits = compiler_runtime_emit_DecimalCount((int64_t)(process_id));
@@ -1108,7 +1152,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_22e76ced0c40bffa_Results__string__bool value_9 = (zir_22e76ced0c40bffa_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_8e7ef9a1e6f28a8e_Results__string__bool value_9 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1134,7 +1178,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_22e76ced0c40bffa_Results__string__bool value_15 = (zir_22e76ced0c40bffa_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_8e7ef9a1e6f28a8e_Results__string__bool value_15 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1169,7 +1213,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_22e76ced0c40bffa_Results__string__bool value_19 = (zir_22e76ced0c40bffa_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_8e7ef9a1e6f28a8e_Results__string__bool value_19 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -1183,7 +1227,7 @@ compiler_runtime_emit_JoinTemporary(String path, int32_t process_id)
     (bytes).data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
-    zir_22e76ced0c40bffa_Results__string__bool value_22 = (zir_22e76ced0c40bffa_Results__string__bool){.value_0 = result, .value_1 = true};
+    zir_8e7ef9a1e6f28a8e_Results__string__bool value_22 = (zir_8e7ef9a1e6f28a8e_Results__string__bool){.value_0 = result, .value_1 = true};
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -1233,7 +1277,7 @@ compiler_runtime_emit_WriteGenerated(String path, String text)
         (*value_3).count = 0;
         return value_10;
     }
-    zir_22e76ced0c40bffa_Results__string__bool results_3_ = compiler_runtime_emit_JoinTemporary(path, zir_f_a87e346e42fbd6c3_ProcessId());
+    zir_8e7ef9a1e6f28a8e_Results__string__bool results_3_ = compiler_runtime_emit_JoinTemporary(path, zir_f_a87e346e42fbd6c3_ProcessId());
     String temporary = results_3_.value_0;
     bool made = results_3_.value_1;
     if (!made) {
@@ -1306,6 +1350,97 @@ compiler_runtime_emit_WordByte(uint8_t value)
     bool upper = value >= 65 && value <= 90;
     bool digit = value >= 48 && value <= 57;
     return lower || upper || digit || value == 95;
+}
+
+static bool
+compiler_runtime_emit_KeptSegments(String text, SimdNames* used, __type_838711075b90279a* output)
+{
+    bool keep = true;
+    int64_t at = 0LL;
+    while (at < (int64_t)(text).length) {
+        int64_t newline = at;
+        while (newline < (int64_t)(text).length && (uint8_t)ZIRAN_INDEX(text.data, text.length, newline) != 10) {
+            newline = (int64_t)((uint64_t)newline + UINT64_C(1));
+        }
+        int64_t value_0 = 0;
+        if (newline < (int64_t)(text).length) {
+            value_0 = (int64_t)((uint64_t)newline + UINT64_C(1));
+        } else {
+            value_0 = (int64_t)(text).length;
+        }
+        int64_t after = value_0;
+        bool value_1 = (int64_t)((uint64_t)newline - (uint64_t)at) >= 5LL && (uint8_t)ZIRAN_INDEX(text.data, text.length, at) == 47;
+        bool value_2 = value_1 && (uint8_t)ZIRAN_INDEX(text.data, text.length, ((int64_t)((uint64_t)at + UINT64_C(1)))) == 42;
+        bool value_3 = value_2 && (uint8_t)ZIRAN_INDEX(text.data, text.length, ((int64_t)((uint64_t)at + UINT64_C(2)))) == 64;
+        bool value_4 = value_3 && (uint8_t)ZIRAN_INDEX(text.data, text.length, ((int64_t)((uint64_t)newline - UINT64_C(2)))) == 42;
+        bool marker = value_4 && (uint8_t)ZIRAN_INDEX(text.data, text.length, ((int64_t)((uint64_t)newline - UINT64_C(1)))) == 47;
+        if (marker) {
+            bool value_5 = used == ((void *)0);
+            keep = value_5 || compiler_runtime_emit_SegmentNamed(StringRange(text, (int64_t)((int64_t)((uint64_t)at + UINT64_C(3))), (int64_t)((int64_t)((uint64_t)newline - UINT64_C(2)))), used);
+        } else {
+            bool value_6 = keep;
+            if (value_6) {
+                bool value_7 = false;
+                if ((StringRange(text, (int64_t)at, (int64_t)after)).length == 0) {
+                    value_7 = true;
+                } else {
+                    void *value_8 = ZirVecReserve((void *)((*(output))).data, &((*(output))).capacity, ((*(output))).count, (int64_t)(StringRange(text, (int64_t)at, (int64_t)after)).length, sizeof(*((*(output))).data));
+                    if (value_8 != NULL) {
+                        ((*(output))).data = (uint8_t *)value_8;
+                        memcpy(((*(output))).data + ((*(output))).count, (StringRange(text, (int64_t)at, (int64_t)after)).data, (size_t)(StringRange(text, (int64_t)at, (int64_t)after)).length);
+                        ((*(output))).count += (int64_t)(StringRange(text, (int64_t)at, (int64_t)after)).length;
+                        value_7 = true;
+                    }
+                }
+                value_6 = !value_7;
+            }
+            if (value_6) {
+                return false;
+            }
+        }
+        at = after;
+    }
+    return true;
+}
+
+static bool
+compiler_runtime_emit_SegmentNamed(String names, SimdNames* used)
+{
+    if ((int64_t)(names).length == 0LL) {
+        return true;
+    }
+    int64_t start = 0LL;
+    while (start < (int64_t)(names).length) {
+        while (start < (int64_t)(names).length && (uint8_t)ZIRAN_INDEX(names.data, names.length, start) == 32) {
+            start = (int64_t)((uint64_t)start + UINT64_C(1));
+        }
+        int64_t end = start;
+        while (end < (int64_t)(names).length && (uint8_t)ZIRAN_INDEX(names.data, names.length, end) != 32) {
+            end = (int64_t)((uint64_t)end + UINT64_C(1));
+        }
+        bool value_0 = end > start;
+        if (value_0) {
+            String value_1 = StringRange(names, (int64_t)start, (int64_t)end);
+            uint8_t* value_2 = (void *)0;
+            {
+                String value = value_1;
+                if ((int64_t)(value).length == 0LL) {
+                    value_2 = (void *)0;
+                    goto value_3;
+                }
+                TextDescriptor* descriptor = (TextDescriptor*)(&(value));
+                value_2 = descriptor->data;
+            value_3: ;
+            }
+            int64_t value_4 = zir_f_a87e346e42fbd6c3_SimdNamesFind(used, value_2, (size_t)(((int64_t)((uint64_t)end - (uint64_t)start))), 0);
+            value_0 = (value_4 >= 0LL);
+        }
+        if (value_0) {
+            return true;
+        }
+        start = end;
+    }
+    return false;
 }
 
 static void

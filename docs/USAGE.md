@@ -413,9 +413,10 @@ only ones that include its headers, so each header declares just the types,
 procedures, constants, variables and foreign bindings that another generated
 file names. The module's own `.c` keeps whatever only it reads, a header copy
 stays only for a procedure another module calls, and a module whose header
-would declare nothing has no header. A library build, without `--exe` or a
-C `main`, keeps each header's whole public interface for the C code that
-hosts it.
+would declare nothing has no header. Runtime headers such as `zir_bounds.h`
+keep only the helpers some generated file calls. A library build, without
+`--exe` or a C `main`, keeps each header's whole public interface for the C
+code that hosts it.
 
 `#inline` after a procedure's result asks generated C to always inline it:
 `Mix :: (value: s64) -> s64 #inline { ... }`. GCC and Clang get

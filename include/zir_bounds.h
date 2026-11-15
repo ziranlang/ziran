@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/*@BoundsCheck ZIRAN_INDEX*/
 /* Fixed-array and string indexing is checked in every build. Keep the index
  * wide until it is validated: a 64-bit index must not wrap into a valid
  * offset on a 32-bit target. */
@@ -32,6 +33,7 @@ static inline size_t BoundsCheck(size_t length, uint64_t index,
         (size_t)__zi_index; })])
 #endif
 
+/*@EmptyArrayIndex ZIRAN_EMPTY_INDEX*/
 /* A zero-capacity array has no valid index in any build configuration. */
 static inline size_t EmptyArrayIndex(uint64_t index, const char *what)
 {
@@ -42,4 +44,5 @@ static inline size_t EmptyArrayIndex(uint64_t index, const char *what)
 #define ZIRAN_EMPTY_INDEX(base, index) \
     ((base)[EmptyArrayIndex((uint64_t)(index), #base)])
 
+/*@*/
 #endif /* ZIRAN_RUNTIME_BOUNDS_H */

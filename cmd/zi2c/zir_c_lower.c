@@ -2178,11 +2178,12 @@ owned_text(const char *text)
 }
 
 /* Writes one generated file of M with its runtime includes and helpers
- * resolved, then the runtime headers it includes. A SPLIT source also gets
- * the tier units that compile its clones. */
+ * resolved, then the runtime headers it includes, with just the helpers
+ * USED names when it is not NULL. A SPLIT source also gets the tier units
+ * that compile its clones. */
 static int
 write_module_file(const ZirModule *m, const char *out_dir, const char *path,
-                  const char *text, int source, int split)
+                  const char *text, int source, int split, SimdNames *used)
 {
     const char *what = source ? "source" : "header";
     char temp[1100];
@@ -2203,7 +2204,8 @@ write_module_file(const ZirModule *m, const char *out_dir, const char *path,
         return 0;
     }
     if(!compiler_runtime_emit_EmitRuntimeHeaders(StringView(out_dir, strlen(out_dir)),
-                                                 StringView(path, strlen(path)), lowering_simd)) {
+                                                 StringView(path, strlen(path)), lowering_simd,
+                                                 used)) {
         Diagnostic(m->span, "zir_c.global", "cannot write runtime headers beside %s", path);
         return 0;
     }
@@ -2523,7 +2525,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         prune->vector_operations = ModuleUsesVecOperations(m);
         prune->header = header_text;
     } else {
-        int written = write_module_file(m, out_dir, buffers->hpath, header_text, 0, 0);
+        int written = write_module_file(m, out_dir, buffers->hpath, header_text, 0, 0, NULL);
         free(header_text);
         if(!written)
             return 0;
@@ -2849,7 +2851,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         prune->source = source_text;
         return 1;
     }
-    int written = write_module_file(m, out_dir, buffers->cpath, source_text, 1, split);
+    int written = write_module_file(m, out_dir, buffers->cpath, source_text, 1, split, NULL);
     free(source_text);
     return written;
 }
@@ -2957,23 +2959,31 @@ write_pruned_program(const ZirProgram *program, const char *out_dir)
                    "cannot prune the C output in %s", out_dir);
         return 0;
     }
+    /* The runtime headers keep the helpers some generated file names. */
+    SimdNames used = {0};
     for(int i = 0; i < count; i++) {
+        if(lowering_prune[i].final_header != NULL)
+            PruneNoteNames(lowering_prune[i].final_header, &used);
+        if(lowering_prune[i].final_source != NULL)
+            PruneNoteNames(lowering_prune[i].final_source, &used);
+    }
+    int written = 1;
+    for(int i = 0; written && i < count; i++) {
         const ZirModule *m = &program->modules[i];
         const ZirCPruneModule *prune = &lowering_prune[i];
         char path[1100];
         if(prune->final_header != NULL) {
             snprintf(path, sizeof(path), "%s/%s.h", out_dir, prune->stem);
-            if(!write_module_file(m, out_dir, path, prune->final_header, 0, 0))
-                return 0;
+            written = write_module_file(m, out_dir, path, prune->final_header, 0, 0, &used);
         }
-        if(prune->final_source != NULL) {
+        if(written && prune->final_source != NULL) {
             snprintf(path, sizeof(path), "%s/%s.c", out_dir, prune->stem);
-            if(!write_module_file(m, out_dir, path, prune->final_source, 1,
-                                  module_splits_tiers(m)))
-                return 0;
+            written = write_module_file(m, out_dir, path, prune->final_source, 1,
+                                        module_splits_tiers(m), &used);
         }
     }
-    return 1;
+    SimdNamesFree(&used);
+    return written;
 }
 
 int

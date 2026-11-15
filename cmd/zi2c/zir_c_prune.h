@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 struct ZirSimdUses;
+struct SimdNames;
 
 /* An entry-linked program with its own C main is closed: every file that
  * includes one of its module headers is another of its generated files. The
@@ -59,5 +60,9 @@ int HeaderInlineSection(FILE *out, const char *stem, const char *guard,
 int PruneProgram(ZirCPruneModule *modules, int count, struct ZirSimdUses *simd);
 
 void PruneModuleFree(ZirCPruneModule *module);
+
+/* Adds each identifier TEXT names to NAMES, which keeps pointers into TEXT:
+ * the names a closed program's runtime headers keep helpers for. */
+void PruneNoteNames(const char *text, struct SimdNames *names);
 
 #endif

@@ -170,13 +170,12 @@ name_listed(const char *names, const char *text, size_t length)
     return 0;
 }
 
-/* Notes each identifier TEXT names outside comments, literals and marks.
- * A header chunk does not count its own names as a use of them. */
-static void
-note_words(PruneWords *words, const char *text, size_t length, int how,
-           int module, const char *own_names)
+/* The next identifier at or after *CURSOR before END outside comments,
+ * literals and marks, or NULL; *CURSOR moves past it. */
+static const char *
+next_identifier(const char **cursor, const char *end, size_t *length)
 {
-    const char *p = text, *end = text + length;
+    const char *p = *cursor;
     while(p < end) {
         if(*p == PRUNE_MARK || (*p == '/' && p + 1 < end && p[1] == '/')) {
             while(p < end && *p != '\n')
@@ -195,23 +194,48 @@ note_words(PruneWords *words, const char *text, size_t length, int how,
             const char *start = p;
             while(p < end && word_byte(*p))
                 p++;
-            size_t size = (size_t)(p - start);
             if(*start >= '0' && *start <= '9')
                 continue;
-            if(own_names != NULL && name_listed(own_names, start, size))
-                continue;
-            PruneWord *word = word_entry(words, start, size, 1);
-            if(how == NOTE_HEADER)
-                word->header_use = 1;
-            else if(how == NOTE_STAMP)
-                word->stamp = words->stamp;
-            else if(word->source_owner < 0)
-                word->source_owner = module;
-            else if(word->source_owner != module)
-                word->source_shared = 1;
+            *cursor = p;
+            *length = (size_t)(p - start);
+            return start;
         } else
             p++;
     }
+    *cursor = p;
+    return NULL;
+}
+
+/* Notes each identifier TEXT names. A header chunk does not count its own
+ * names as a use of them. */
+static void
+note_words(PruneWords *words, const char *text, size_t length, int how,
+           int module, const char *own_names)
+{
+    const char *cursor = text, *start;
+    size_t size;
+    while((start = next_identifier(&cursor, text + length, &size)) != NULL) {
+        if(own_names != NULL && name_listed(own_names, start, size))
+            continue;
+        PruneWord *word = word_entry(words, start, size, 1);
+        if(how == NOTE_HEADER)
+            word->header_use = 1;
+        else if(how == NOTE_STAMP)
+            word->stamp = words->stamp;
+        else if(word->source_owner < 0)
+            word->source_owner = module;
+        else if(word->source_owner != module)
+            word->source_shared = 1;
+    }
+}
+
+void
+PruneNoteNames(const char *text, struct SimdNames *names)
+{
+    const char *cursor = text, *start;
+    size_t size;
+    while((start = next_identifier(&cursor, text + strlen(text), &size)) != NULL)
+        SimdNamesFind(names, start, size, 1);
 }
 
 static void

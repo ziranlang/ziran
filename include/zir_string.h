@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*@StringRange*/
 static inline String StringRange(String source, int64_t low, int64_t high) {
     if (low < 0 || high < low || (uint64_t)high > source.length ||
         (source.data == NULL && source.length != 0)) {
@@ -16,11 +17,13 @@ static inline String StringRange(String source, int64_t low, int64_t high) {
                       (size_t)(high - low));
 }
 
+/*@StringEqual*/
 static inline bool StringEqual(String a, String b) {
     return a.length == b.length &&
         (a.length == 0 || memcmp(a.data, b.data, a.length) == 0);
 }
 
+/*@print_float*/
 /* print writes floats as the shortest decimal that reads back to the same
  * value, in plain positional notation, so every target agrees. printf has
  * no such format. */
@@ -57,4 +60,5 @@ static inline void print_float(double value, int single) {
     }
 }
 
+/*@*/
 #endif

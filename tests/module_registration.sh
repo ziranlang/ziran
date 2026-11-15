@@ -145,7 +145,8 @@ grep -Fq 'Go global startup cannot call a host before binding' "$work/host-start
 # A closed program's files carry only what the program uses. A module it
 # imports but never reaches has no files, and a header declares only what
 # another file names: shapes keeps Pair and Sum, which only it reads, and the
-# inline copy of Sum, which no other module calls, in no header.
+# inline copy of Sum, which no other module calls, in no header. A runtime
+# header keeps just the helpers the program calls.
 cat > "$work/shapes.zi" <<'ZI'
 Point :: struct { x: s32; y: s32; }
 Pair :: struct { a: s32; b: s32; }
@@ -169,7 +170,9 @@ main :: () -> s32 {
     point: Shapes.Point
     point.x = 20
     point.y = 22
-    print("%\n", Shapes.Total(point))
+    values: [2]s32
+    values[point.x % 2] = Shapes.Total(point)
+    print("%\n", values[0])
     return 0
 }
 ZI
@@ -188,6 +191,11 @@ grep -q 'struct Pair' "$out/shapes.c"
 grep -q 'shapes_Sum' "$out/shapes.c"
 if grep -q 'shapes_Twice' "$out/shapes.c"; then
     echo 'shapes.c defines a procedure the program never reaches' >&2
+    exit 1
+fi
+grep -q 'BoundsCheck' "$out/zir_bounds.h"
+if grep -q 'EmptyArrayIndex\|/\*@' "$out/zir_bounds.h"; then
+    echo 'zir_bounds.h carries a helper the program never calls' >&2
     exit 1
 fi
 echo 'An imported module registers itself from its initializer; unimported modules are absent'

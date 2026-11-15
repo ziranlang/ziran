@@ -84,8 +84,11 @@ IsRuntimeHeader :: (name: string) -> bool {
     return false
 }
 
+// USED holds every name a closed program's generated files spell; each
+// runtime header then keeps only the helper segments those names reach. A
+// null USED keeps every helper.
 EmitRuntimeHeaders :: (out_dir: string, generated_path: string,
-                       simd: *ZirSimdUses) -> bool {
+                       simd: *ZirSimdUses, used: *SimdNames) -> bool {
     generated_bytes: Vectors.Vec(u8)
     readable := Files.ReadFileInto(generated_path, *generated_bytes)
     if !readable { VecFree(generated_bytes); return false }
@@ -144,10 +147,19 @@ EmitRuntimeHeaders :: (out_dir: string, generated_path: string,
             simd.header = 1
             continue
         }
+        // ziran_simd_ops.h has segments of its own, pruned by EmitSimdOps.
+        kept: Vectors.Vec(u8)
+        text := CText(header.text)
+        built := false
+        if header_name == SimdOpsName {
+            built = BuilderAppend(kept, text)
+        } else {
+            built = KeptSegments(text, used, *kept)
+        }
         path, made := JoinPath(out_dir, header_name)
-        if !made { ok = false; break }
-        wrote := WriteGenerated(path, CText(header.text))
-        ReleaseOwnedText(path)
+        wrote := built && made && WriteGenerated(path, TextView(kept[:]))
+        if made { ReleaseOwnedText(path) }
+        VecFree(kept)
         if !wrote { ok = false; break }
     }
     VecFree(needed)
@@ -390,6 +402,50 @@ WordByte :: (value: u8) -> bool {
     upper := value >= cast(u8)#char "A" && value <= cast(u8)#char "Z"
     digit := value >= cast(u8)#char "0" && value <= cast(u8)#char "9"
     return lower || upper || digit || value == cast(u8)#char "_"
+}
+
+// A small runtime header is split into helper segments. A line holding
+// only a comment that starts with @, such as /*@BoundsCheck ZIRAN_INDEX*/,
+// starts the lines a copy keeps when a generated file names one of its
+// names; /*@*/ starts lines every copy keeps, as is the text before the
+// first mark. A helper's mark also lists the helpers that call it. The
+// marks themselves are left out, and a null USED keeps every segment.
+KeptSegments :: (text: string, used: *SimdNames, output: *Vectors.Vec(u8)) -> bool {
+    keep := true
+    at: s64 = 0
+    while at < text.count {
+        newline := at
+        while newline < text.count && text[newline] != #char "\n" { newline += 1 }
+        after := ifx newline < text.count then newline + 1 else text.count
+        marker := newline - at >= 5 && text[at] == #char "/" && text[at + 1] == #char "*" &&
+            text[at + 2] == #char "@" && text[newline - 2] == #char "*" &&
+            text[newline - 1] == #char "/"
+        if marker {
+            keep = used == null || SegmentNamed(text[at + 3:newline - 2], used)
+        } else if keep && !BuilderAppend(<<output, text[at:after]) {
+            return false
+        }
+        at = after
+    }
+    return true
+}
+
+// Whether USED holds one of the space-separated NAMES; a mark without
+// names always holds.
+SegmentNamed :: (names: string, used: *SimdNames) -> bool {
+    if names.count == 0 { return true }
+    start: s64 = 0
+    while start < names.count {
+        while start < names.count && names[start] == #char " " { start += 1 }
+        end := start
+        while end < names.count && names[end] != #char " " { end += 1 }
+        if end > start && SimdNamesFind(used, CPointer(names[start:end]),
+                                        cast(usize)(end - start), 0) >= 0 {
+            return true
+        }
+        start = end
+    }
+    return false
 }
 
 NeedHelper :: (helper: s64, needed: *Vectors.Vec(s64), work: *Vectors.Vec(s64)) {

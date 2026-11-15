@@ -126,7 +126,7 @@ cat > "$work/copy.c" <<'C'
 int main(int argc, char **argv) {
     return argc == 3 && compiler_runtime_emit_EmitRuntimeHeaders(
         StringView(argv[1], strlen(argv[1])),
-        StringView(argv[2], strlen(argv[2])), NULL) ? 0 : 1;
+        StringView(argv[2], strlen(argv[2])), NULL, NULL) ? 0 : 1;
 }
 C
 cat > "$work/copied/use.c" <<'C'

@@ -32,7 +32,7 @@ typedef struct ByteDescriptor ByteDescriptor;
 #ifdef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
 typedef struct Segment Segment;
 #endif
-typedef struct zir_22e76ced0c40bffa_Results__string__bool zir_22e76ced0c40bffa_Results__string__bool;
+typedef struct zir_8e7ef9a1e6f28a8e_Results__string__bool zir_8e7ef9a1e6f28a8e_Results__string__bool;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
 #define ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
 typedef struct __type_838711075b90279a __type_838711075b90279a;
@@ -108,7 +108,7 @@ struct Segment {
 };
 #endif
 
-struct zir_22e76ced0c40bffa_Results__string__bool {
+struct zir_8e7ef9a1e6f28a8e_Results__string__bool {
     String value_0;
     bool value_1;
 };
@@ -156,7 +156,7 @@ bool compiler_runtime_emit_RecordPathC(uint8_t* path);
 int64_t compiler_runtime_emit_GeneratedPathCount(void);
 uint8_t* compiler_runtime_emit_GeneratedPath(int64_t index);
 bool compiler_runtime_emit_IsRuntimeHeader(String name);
-bool compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, ZirSimdUses* simd);
+bool compiler_runtime_emit_EmitRuntimeHeaders(String out_dir, String generated_path, ZirSimdUses* simd, SimdNames* used);
 bool compiler_runtime_emit_EmitSimdOps(String out_dir, ZirSimdUses* uses);
 
 #ifdef __cplusplus

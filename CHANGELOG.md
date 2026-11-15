@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- The instruction engine reuses the address a derivation last made, hands a run's console output to stdio in one write and returns from the entry without building a result; on Omega, zx loops 1994 → 857 ns, arrays 1767 → 891 ns and enums 547 → 229 ns per run.
 - The instruction engine runs verified ZX about 4–5 times faster; on Omega, json_scan 665 → about 175 ms, image_resize 278 → about 50 ms and float text 43.7 → 11.9 s.
 - The bundle Wasm tier runs in Asyncify Emscripten runtimes like Kryon's web player, suspending and resuming at host calls; JSPI still uses the engine, and `ZIRAN_WASM_TIER` opts out.
 - Wasm modules run faster: loops become Wasm loops, records share frame slots, copies are unrolled, and printing is buffered before host calls and traps.

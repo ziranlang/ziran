@@ -28,14 +28,16 @@ ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_repor
     }
     LirExecPlan plan = {0};
     LirExecInstance instance = {0};
+    ZxConsole console = {0};
     LirExecResult result = compiler_exec_LirExecPlanBuild(*program, compiler_lowered_ir_LirDefaultLimits(), &plan);
     if(result.problem == LirExecProblem_None)
         result = compiler_exec_LirExecInstanceOpen(&plan, limits, 1, &instance);
     if(result.problem == LirExecProblem_None) {
-        LirExecProblem bound = ZxBindConsole(&instance, &plan.program);
+        LirExecProblem bound = ZxBindConsole(&instance, &plan.program, &console);
         if(bound != LirExecProblem_None) result.problem = bound;
     }
     if(result.problem == LirExecProblem_None) result = compiler_exec_LirExecRun(&instance);
+    ZxConsoleFlush(&console);
     int status = result_type.kind == LirTypeKind_Void ? 0 : (int)(result.value.bits & 255);
     if(result.problem != LirExecProblem_None) {
         fflush(stdout);

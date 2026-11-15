@@ -10,7 +10,9 @@
 #include "compiler_exec.h"
 #include "compiler_lowered_ir.h"
 
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 enum {
     ZX_SERVICE_NONE,
@@ -26,9 +28,24 @@ enum {
  * one of the ZX_SERVICE_ names in the ziran.platform module, else none. */
 int ZxPlatformService(const LirProgram *program, int64_t function);
 
+/* Standard output a program writes, gathered so that a run hands it to
+ * stdio in one write rather than one per print. It goes out when the
+ * console is flushed (at the end of a run, before any other host call and
+ * when an instance closes), before anything is written to standard error,
+ * and when it fills. A terminal gets every write at once, as before. */
+typedef struct ZxConsole {
+    size_t used;
+    int direct;
+    unsigned char data[4096];
+} ZxConsole;
+
 /* Binds every declared platform console service of the instance's program.
- * Other host capabilities stay unbound. */
-LirExecProblem ZxBindConsole(LirExecInstance *instance, const LirProgram *program);
+ * Other host capabilities stay unbound. `console` is zeroed here and must
+ * outlive the instance; NULL writes every print straight to stdio. */
+LirExecProblem ZxBindConsole(LirExecInstance *instance, const LirProgram *program, ZxConsole *console);
+
+/* Hands what the console holds to standard output: 0 when that failed. */
+int ZxConsoleFlush(ZxConsole *console);
 
 /* What a failed run's problem means to the program's reader, or NULL. */
 const char *ZxExecProblemText(LirExecProblem problem);

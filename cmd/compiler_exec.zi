@@ -140,6 +140,9 @@ LirExecCode :: struct {
     // first, inside it: the type it checks, and the field's offset and size.
     prefix: s32
     prefix_type: s32
+    // A derivation that makes a table entry: its slot in the instance's
+    // derived_tokens, or -1.
+    memo: s32
     prefix_offset: s64
     prefix_size: s64
     // Byte sizes, bit widths and frame storage offsets (relative to the
@@ -205,6 +208,8 @@ LirExecPlan :: struct {
     global_offsets: Vec(s64)
     global_bytes: s64
     code: Vec(LirExecCode)
+    // How many codes have a `memo` slot.
+    derived_count: s64
     moves: Vec(LirExecMove)
     edge_plans: Vec(LirExecEdgePlan)
     constant_words: Vec(LirExecConstantWord)
@@ -270,6 +275,11 @@ LirExecFrame :: struct {
     addresses: s64
 }
 
+// The token a derivation code last made, and the operand words it made it
+// from. The same words derive the same address, so while the token is
+// still a live table entry it is the one the table lookup would find.
+LirExecDerivedToken :: struct { base: u64; index: u64; count: u64; token: u64 }
+
 LirExecInstance :: struct {
     plan: *LirExecPlan
     limits: LirExecLimits
@@ -283,6 +293,8 @@ LirExecInstance :: struct {
     address_used: s64
     // Table slots given back by frames that returned and heap blocks that died.
     address_free: Vec(s64)
+    // One per derivation code with a `memo` slot (ExecFastDerive).
+    derived_tokens: Vec(LirExecDerivedToken)
     // The table entries transient derivations take in turn (ExecTransient):
     // ExecTransientSlots of them from transient_base, never indexed.
     transient_base: s64
@@ -294,10 +306,12 @@ LirExecInstance :: struct {
     result_bytes: Vec(u8)
     result_value: LirExecValue
     hosts: Vec(LirExecHostBinding)
-    // Memo of host binding indexes by function symbol: 0 unresolved, -1 no
-    // binding, one more than the binding index otherwise. Hosts bind before
-    // an instance runs and never change while it runs.
+    // Per program function: one more than its binding's index, or 0 while
+    // not yet looked up (ExecFastHostBinding). Bindings never change once made.
     host_lookup: Vec(s32)
+    // Every external function has a binding. Bindings are only ever added,
+    // so once a run has found them all they stay complete.
+    hosts_bound: bool
     host_arguments: Vec(u64)
     typed_arguments: Vec(LirExecArgument)
     host_bytes: Vec(u8)
@@ -1138,6 +1152,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
     out.result_value = instruction.result
     out.value = -1
     out.prefix = 0
+    out.memo = -1
     if instruction.result != LirNoId { out.result = ExecPlanWord(plan, base, instruction.result) }
     if count > 0 { out.a = ExecPlanWord(plan, base, instruction.operands[0]) }
     if count > 1 { out.b = ExecPlanWord(plan, base, instruction.operands[1]) }
@@ -1626,6 +1641,12 @@ ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
                 entries[index] = -1
                 if kinds[index] == .Fast || kinds[index] == .Slow {
                     entries[index] = plan.code.count
+                    handler := codes[index].handler
+                    if kinds[index] == .Fast && codes[index].flag == 0 && (handler == .FieldAddress ||
+                        handler == .ElementIndex || handler == .ElementView) {
+                        codes[index].memo = cast(s32)plan.derived_count
+                        plan.derived_count += 1
+                    }
                     if !VecPush(plan.code, codes[index]) { return .Allocation }
                 }
             }
@@ -2036,7 +2057,8 @@ ExecTransient :: (instance: *LirExecInstance, address: LirExecAddress) -> u64 {
         instance.transient_count = ExecTransientSlots
     }
     index := instance.transient_base + instance.transient_next
-    instance.transient_next = (instance.transient_next + 1) % ExecTransientSlots
+    instance.transient_next += 1
+    if instance.transient_next == ExecTransientSlots { instance.transient_next = 0 }
     entry := address
     entry.version = (instance.addresses[index].version + 1) & cast(u64)268435455
     entry.token = ExecAddressToken(instance.identity, index, entry.version)
@@ -2209,7 +2231,7 @@ ExecResizeWords :: (instance: *LirExecInstance, count: s64) -> bool {
 ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
     operands: []s32, return_value: s32, arguments: []LirExecArgument) -> bool {
     if function_id < 0 || function_id >= instance.plan.program.functions.count { return ExecFail(instance, .Calling) }
-    function := instance.plan.program.functions[function_id]
+    function := *instance.plan.program.functions[function_id]
     if operands.count != 0 && arguments.count != 0 ||
         operands.count == 0 && arguments.count != function.parameters.count ||
         operands.count != 0 && operands.count != function.parameters.count { return ExecFail(instance, .Calling) }
@@ -2223,7 +2245,7 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
         if caller < 0 { ExecInitialLocation(instance, function_id) }
         return false
     }
-    plan := instance.plan.functions[function_id]
+    plan := *instance.plan.functions[function_id]
     base := instance.storage.count
     word_base := instance.words.count
     if !ExecResizeStorage(instance, base + plan.frame_bytes) {
@@ -2255,7 +2277,7 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
         constant := instance.plan.constant_words[at]
         instance.words[word_base + constant.word] = constant.bits
     }
-    entry := function.blocks[function.entry]
+    entry := *function.blocks[function.entry]
     for index: cast(s64)0..function.parameters.count - 1 {
         destination := entry.parameters[index]
         type_id := function.parameters[index]
@@ -2283,10 +2305,9 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
 }
 
 ExecPopFrame :: (instance: *LirExecInstance) {
-    frame := instance.frames[instance.frames.count - 1]
+    frame := *instance.frames[instance.frames.count - 1]
     ExecReleaseAddresses(instance, frame.addresses)
-    function := instance.plan.program.functions[frame.function]
-    instance.live_values -= function.values.count
+    instance.live_values -= instance.plan.program.functions[frame.function].values.count
     unused VecResize(instance.storage, frame.base)
     unused VecResize(instance.words, frame.word_base)
     unused VecPop(instance.frames)
@@ -3572,6 +3593,17 @@ ExecHostBinding :: (instance: *LirExecInstance, function: s32) -> s64 {
     return -1
 }
 
+// ExecHostBinding, remembered per function in host_lookup (one entry per
+// program function, sized when the instance opens). A function with no
+// binding yet is not remembered: one can still be bound before a run.
+ExecFastHostBinding :: (instance: *LirExecInstance, function: s32) -> s64 #inline {
+    known := instance.host_lookup[function]
+    if known > 0 { return cast(s64)known - 1 }
+    resolved := ExecHostBinding(instance, function)
+    if resolved >= 0 { instance.host_lookup[function] = cast(s32)(resolved + 1) }
+    return resolved
+}
+
 ExecPlatformWriteSignature :: (program: LirProgram, function: s32) -> bool {
     fn := program.functions[function]
     if fn.parameters.count != 3 || program.types[fn.result].kind != .Void { return false }
@@ -3786,7 +3818,7 @@ ExecPutBits :: (bytes: []u8, at: s64, size: s64, value: u64) #inline {
 ExecCopyBytes :: (bytes: []u8, from: s64, to: s64, count: s64) #inline {
     if from == to { return }
     // Apart, eight bytes at a time give the same bytes as one at a time.
-    if count >= 16 && (to + count <= from || from + count <= to) {
+    if count >= 8 && (to + count <= from || from + count <= to) {
         source := bytes[from:from + count]
         target := bytes[to:to + count]
         at: s64
@@ -3808,12 +3840,23 @@ ExecFailedToken :: () -> u64 #inline { return ~cast(u64)0 }
 
 ExecFastDerive :: (instance: *LirExecInstance, words: []u64, frame_index: s64, code: *LirExecCode,
     word_base: s64, view: bool, indexed: bool) -> u64 #inline {
+    base_token := words[word_base + code.a]
+    index_word: u64
+    count_word: u64
+    if view || indexed { index_word = words[word_base + code.b] }
+    if view { count_word = words[word_base + code.c] }
+    if code.memo >= 0 {
+        memo := *instance.derived_tokens[code.memo]
+        if memo.token != 0 && memo.base == base_token && memo.index == index_word &&
+            memo.count == count_word && ExecFastFind(instance, memo.token) >= 0 { return memo.token }
+    }
     derived: LirExecAddress
     if !ExecFastAddress(instance, words, code, word_base, view, indexed, *derived) { return 0 }
     if code.flag != 0 {
         if instance.transient_count == 0 { return 0 }
         index := instance.transient_base + instance.transient_next
-        instance.transient_next = (instance.transient_next + 1) % ExecTransientSlots
+        instance.transient_next += 1
+        if instance.transient_next == ExecTransientSlots { instance.transient_next = 0 }
         entry := *instance.addresses[index]
         version := (entry.version + 1) & cast(u64)268435455
         <<entry = derived
@@ -3826,7 +3869,55 @@ ExecFastDerive :: (instance: *LirExecInstance, words: []u64, frame_index: s64, c
     made := ExecFastIntern(instance, frame_index, code, *derived, *token)
     if made < 0 { return ExecFailedToken() }
     if made == 0 { return 0 }
+    if code.memo >= 0 {
+        instance.derived_tokens[code.memo] = .{.base = base_token, .index = index_word,
+            .count = count_word, .token = token}
+    }
     return token
+}
+
+// Stands where ExecStep would once `code` has run and charged its own
+// work: for a failure it reports after its host was called.
+ExecFastStand :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCode) #cold {
+    instance.work_remaining += code.rest_work - code.cost
+    instance.fuel_remaining += code.rest_fuel
+    ExecSetPosition(instance, frame_index, code.block, code.index, code.base)
+}
+
+// A HostWrite from the fast loop, as ExecPlatformWriteCall makes it:
+// `count` bytes of `element` at `pointer` to `descriptor`. 1 when written;
+// 0 hands the instruction to ExecStep with nothing done; -1 when the host
+// failed, standing on the instruction.
+ExecFastWrite :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCode,
+    function: s32, element: s32, descriptor: u64, pointer: u64, count: u64) -> s32 #inline {
+    binding := ExecFastHostBinding(instance, function)
+    if binding < 0 || count > cast(u64)9223372036854775807 { return 0 }
+    host := instance.hosts[binding]
+    if host.write == null { return 0 }
+    size := cast(s64)count
+    no_bytes: [0]u8
+    bytes: []u8 = no_bytes[:]
+    copy: s64 = 0
+    if size != 0 {
+        index := ExecFastFind(instance, pointer)
+        if index < 0 { return 0 }
+        address := *instance.addresses[index]
+        if address.type != element || address.extent < size { return 0 }
+        at := ExecFastLocate(instance, address)
+        if at < 0 { return 0 }
+        if address.owned { bytes = instance.owned[at:at + size] }
+        else if address.frame < 0 { bytes = instance.globals[at:at + size] }
+        else { bytes = instance.storage[at:at + size] }
+        copy = ExecCopyCost(size)
+        if copy > instance.work_remaining { return 0 }
+    }
+    instance.work_remaining -= copy
+    if !host.write(host.context, descriptor, bytes) {
+        ExecFastStand(instance, frame_index, code)
+        unused ExecFail(instance, .Host)
+        return -1
+    }
+    return 1
 }
 
 ExecFastIntern :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCode,
@@ -4396,48 +4487,17 @@ ExecRunCode :: (instance: *LirExecInstance, frame_index: s64, start: s64) -> s64
         } else if h == .GlobalAddress {
             words[wb + c.result] = instance.addresses[c.x].token
         } else if h == .HostWrite {
-            host_binding := ExecHostBinding(instance, c.target)
-            if host_binding < 0 { return pc }
-            write_count := words[wb + c.c]
-            if write_count > cast(u64)9223372036854775807 { return pc }
-            write_size := cast(s64)write_count
-            no_bytes: [0]u8
-            write_bytes: []u8 = no_bytes[:]
-            write_copy: s64 = 0
-            if write_size != 0 {
-                write_index := ExecFastFind(instance, words[wb + c.b])
-                if write_index < 0 { return pc }
-                write_address := *instance.addresses[write_index]
-                if write_address.type != c.type || write_address.extent < write_size { return pc }
-                write_at := ExecFastLocate(instance, write_address)
-                if write_at < 0 { return pc }
-                if write_address.owned { write_bytes = instance.owned[write_at:write_at + write_size] }
-                else if write_address.frame < 0 { write_bytes = instance.globals[write_at:write_at + write_size] }
-                else { write_bytes = instance.storage[write_at:write_at + write_size] }
-                write_copy = ExecCopyCost(write_size)
-                if write_copy > instance.work_remaining { return pc }
-            }
-            write_host := instance.hosts[host_binding]
-            instance.work_remaining -= write_copy
-            if !write_host.write(write_host.context, words[wb + c.a], write_bytes) {
-                unused ExecFail(instance, .Host)
-                return ExecFailed
-            }
+            written := ExecFastWrite(instance, frame_index, c, c.target, c.type,
+                words[wb + c.a], words[wb + c.b], words[wb + c.c])
+            if written == 0 { return pc }
+            if written < 0 { return ExecFailed }
         } else if h == .HostCall {
             // The planner only sends calls whose arguments are frame words;
             // anything the host binds as a write or a typed image still runs
             // on ExecStep.
-            if c.target >= instance.host_lookup.count {
-                if !VecResize(instance.host_lookup, cast(s64)c.target + 1) { return pc }
-            }
-            host_binding := instance.host_lookup[c.target]
-            if host_binding == 0 {
-                resolved := ExecHostBinding(instance, c.target)
-                if resolved >= 0 { host_binding = cast(s32)(resolved + 1) } else { host_binding = -1 }
-                instance.host_lookup[c.target] = host_binding
-            }
-            if host_binding <= 0 { return pc }
-            host := instance.hosts[host_binding - 1]
+            host_binding := ExecFastHostBinding(instance, c.target)
+            if host_binding < 0 { return pc }
+            host := instance.hosts[host_binding]
             if host.write != null || host.typed != null { return pc }
             host_arguments: [3]u64
             if c.x >= 1 { host_arguments[0] = words[wb + c.a] }
@@ -4445,11 +4505,13 @@ ExecRunCode :: (instance: *LirExecInstance, frame_index: s64, start: s64) -> s64
             if c.x >= 3 { host_arguments[2] = words[wb + c.c] }
             host_result: u64
             if !host.call(host.context, c.target, host_arguments[:c.x], *host_result) {
+                ExecFastStand(instance, frame_index, c)
                 unused ExecFail(instance, .Host)
                 return ExecFailed
             }
             if c.result >= 0 {
                 if !ExecHostCanonical(plan.program.types[c.type], host_result) {
+                    ExecFastStand(instance, frame_index, c)
                     unused ExecFail(instance, .Host)
                     return ExecFailed
                 }
@@ -4514,11 +4576,8 @@ ExecFastCall :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCod
     for at: code.x..code.x + code.y - 1 {
         move := *plan.moves[at]
         if move.word { instance.words[word_base + move.to] = instance.words[caller_words + move.from] }
-        else {
-            for byte: cast(s64)0..move.size - 1 {
-                instance.storage[base + move.to + byte] = instance.storage[caller_storage + move.from + byte]
-            }
-        }
+        // The callee's storage lies past the caller's: the two never overlap.
+        else { ExecCopyBytes(instance.storage[:], caller_storage + move.from, base + move.to, move.size) }
     }
     ExecSetPosition(instance, frame_index, code.block, code.index + 1, code.base)
     return true
@@ -4527,7 +4586,7 @@ ExecFastCall :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCod
 // A Return to a calling program frame, as ExecFinishFrame makes it, when it
 // cannot fail. false: ExecStep makes it.
 ExecFastReturn :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCode) -> bool {
-    if frame_index == 0 { return false }
+    if frame_index == 0 { return ExecFastRootReturn(instance, code) }
     frame := *instance.frames[frame_index]
     caller := *instance.frames[frame_index - 1]
     cost: s64 = 1
@@ -4547,6 +4606,31 @@ ExecFastReturn :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecC
             for byte: cast(s64)0..code.size - 1 { instance.storage[to + byte] = instance.storage[from + byte] }
         }
     }
+    instance.work_remaining -= cost
+    ExecPopFrame(instance)
+    return true
+}
+
+// The root call's Return of a word or of nothing, as ExecFinishFrame makes
+// it; false hands anything else to ExecStep.
+ExecFastRootReturn :: (instance: *LirExecInstance, code: *LirExecCode) -> bool {
+    frame := *instance.frames[0]
+    result_type := instance.plan.program.functions[frame.function].result
+    result_size := instance.plan.type_sizes[result_type]
+    if code.size != result_size || result_size != 0 && code.a < 0 { return false }
+    cost: s64 = 1
+    if result_size != 0 { cost += ExecCopyCost(result_size) }
+    available := instance.limits.value_bytes - instance.globals.count -
+        instance.storage.count - instance.words.count * 8 - instance.owned.count
+    if cost > instance.work_remaining || result_size > available ||
+        !VecResizeBounded(instance.result_bytes, result_size,
+            instance.limits.value_bytes - instance.globals.count) { return false }
+    bits: u64
+    if result_size != 0 {
+        bits = instance.words[frame.word_base + code.a]
+        ExecPutBits(instance.result_bytes[:], 0, result_size, bits)
+    }
+    instance.result_value = .{.type = result_type, .bits = bits, .bytes = result_size}
     instance.work_remaining -= cost
     ExecPopFrame(instance)
     return true
@@ -4594,7 +4678,8 @@ ExecResetRun :: (instance: *LirExecInstance) -> bool {
     instance.current_value_base = 0
     instance.current_word_base = 0
     instance.result_value = .{.type = LirNoId}
-    instance.failure = ExecResult(.None)
+    // Only ExecFail sets a problem, so with none the record is already this.
+    if instance.failure.problem != .None { instance.failure = ExecResult(.None) }
     instance.work_remaining = instance.limits.work
     instance.fuel_remaining = instance.limits.fuel
     return true
@@ -4616,18 +4701,21 @@ ExecRunFunction :: (instance: *LirExecInstance, function: s32, arguments: []LirE
     }
     if instance.running { return ExecResult(.Busy) }
     if instance.initializer_failed { return instance.initializer_failure }
-    program := instance.plan.program
+    program := *instance.plan.program
     // LirNoId runs only the initializers that have not run yet.
     if function != LirNoId && (function < 0 || function >= program.functions.count ||
         program.functions[function].external) {
         return ExecResult(.Calling)
     }
-    for index: cast(s32)0..cast(s32)program.functions.count - 1 {
-        if program.functions[index].external && ExecHostBinding(instance, index) < 0 {
-            missing := ExecResult(.Host)
-            missing.function = index
-            return missing
+    if !instance.hosts_bound {
+        for index: cast(s32)0..cast(s32)program.functions.count - 1 {
+            if program.functions[index].external && ExecHostBinding(instance, index) < 0 {
+                missing := ExecResult(.Host)
+                missing.function = index
+                return missing
+            }
         }
+        instance.hosts_bound = true
     }
     if !ExecResetRun(instance) { return ExecResult(.Allocation) }
     instance.running = true
@@ -4648,21 +4736,24 @@ ExecRunFunction :: (instance: *LirExecInstance, function: s32, arguments: []LirE
     if instance.failure.problem == .None && function != LirNoId && !ExecRunRoot(instance, function, arguments) {
         // ExecRunRoot records the stable failure location in the instance.
     }
-    if instance.failure.problem != .None {
-        instance.running = false
-        result := instance.failure
-        unused VecResize(instance.frames, 0)
-        unused VecResize(instance.storage, 0)
-        unused VecResize(instance.words, 0)
-        instance.live_values = 0
-        return result
-    }
-    instance.running = false
+    if !ExecEndRun(instance) { return instance.failure }
     result := ExecResult(.None)
     result.value = instance.result_value
     result.work_remaining = instance.work_remaining
     result.fuel_remaining = instance.fuel_remaining
     return result
+}
+
+// Ends a run: false when it failed, with the frames it left given up and
+// the failure in instance.failure.
+ExecEndRun :: (instance: *LirExecInstance) -> bool {
+    instance.running = false
+    if instance.failure.problem == .None { return true }
+    unused VecResize(instance.frames, 0)
+    unused VecResize(instance.storage, 0)
+    unused VecResize(instance.words, 0)
+    instance.live_values = 0
+    return false
 }
 
 ExecGlobalAccess :: (instance: *LirExecInstance, global: s32) -> LirExecProblem {
@@ -4719,6 +4810,7 @@ LirExecPlanFree :: (plan: *LirExecPlan) {
     VecFree(plan.powers)
     plan.program = .{}
     plan.global_bytes = 0
+    plan.derived_count = 0
     plan.ready = false
 }
 
@@ -4728,6 +4820,7 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     VecFree(instance.addresses)
     VecFree(instance.address_slots)
     VecFree(instance.address_free)
+    VecFree(instance.derived_tokens)
     instance.address_used = 0
     VecFree(instance.storage)
     VecFree(instance.words)
@@ -4759,6 +4852,7 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     instance.initializer_failure = ExecResult(.None)
     instance.initialized = false
     instance.initializer_failed = false
+    instance.hosts_bound = false
     instance.ready = false
     instance.running = false
 }
@@ -4809,7 +4903,9 @@ LirExecInstanceOpen :: (plan: *LirExecPlan, limits: LirExecLimits, identity: u32
     output.fuel_remaining = limits.fuel
     output.failure = ExecResult(.None)
     if !VecResizeBounded(output.globals, plan.global_bytes, limits.value_bytes) ||
-        !VecResizeBounded(output.addresses, plan.program.globals.count, limits.addresses) {
+        !VecResizeBounded(output.addresses, plan.program.globals.count, limits.addresses) ||
+        !VecResize(output.derived_tokens, plan.derived_count) ||
+        !VecResize(output.host_lookup, plan.program.functions.count) {
         LirExecInstanceClose(output)
         return ExecResult(.Allocation)
     }
@@ -4843,6 +4939,32 @@ LirExecRun :: (instance: *LirExecInstance) -> LirExecResult {
     }
     no_arguments: [0]LirExecArgument
     return ExecRunFunction(instance, instance.plan.program.entry, no_arguments[:])
+}
+
+// LirExecRun for a host that runs the entry again and again, without
+// building a result: true when the run succeeded, with the result in
+// instance.result_value and what is left in instance.work_remaining and
+// instance.fuel_remaining; false with the result LirExecRun gives in
+// `failed`. The first run takes LirExecRun's own path.
+LirExecRunEntry :: (instance: *LirExecInstance, failed: *LirExecResult) -> bool {
+    if instance != null && instance.ready && instance.initialized && instance.hosts_bound &&
+        !instance.running && instance.plan != null && instance.plan.ready {
+        entry := instance.plan.program.entry
+        if entry != LirNoId && !instance.plan.program.functions[entry].external {
+            if !ExecResetRun(instance) {
+                <<failed = ExecResult(.Allocation)
+                return false
+            }
+            instance.running = true
+            no_arguments: [0]LirExecArgument
+            unused ExecRunRoot(instance, entry, no_arguments[:])
+            if ExecEndRun(instance) { return true }
+            <<failed = instance.failure
+            return false
+        }
+    }
+    <<failed = LirExecRun(instance)
+    return failed.problem == .None
 }
 
 // LirExecRun with every instruction run by the reference implementation,

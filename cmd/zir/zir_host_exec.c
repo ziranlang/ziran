@@ -33,6 +33,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <io.h>
+#define exec_terminal(stream) _isatty(_fileno(stream))
+#else
+#include <unistd.h>
+#define exec_terminal(stream) isatty(fileno(stream))
+#endif
 
 /* ---- Platform console services ---------------------------------------- */
 
@@ -61,16 +68,43 @@ ZxPlatformService(const LirProgram *program, int64_t function)
     return ZX_SERVICE_NONE;
 }
 
+int
+ZxConsoleFlush(ZxConsole *console)
+{
+    if(console == NULL || console->used == 0) return 1;
+    size_t used = console->used;
+    console->used = 0;
+    return fwrite(console->data, 1, used, stdout) == used;
+}
+
+/* Standard output through the console; NULL or a terminal writes at once. */
+static bool
+exec_console_out(ZxConsole *console, const void *bytes, size_t size)
+{
+    if(size == 0) return true;
+    if(console == NULL || console->direct) return fwrite(bytes, 1, size, stdout) == size;
+    if(size > sizeof(console->data) - console->used) {
+        if(!ZxConsoleFlush(console)) return false;
+        if(size > sizeof(console->data)) return fwrite(bytes, 1, size, stdout) == size;
+    }
+    memcpy(console->data + console->used, bytes, size);
+    console->used += size;
+    return true;
+}
+
 /* Output uses the same spelling as the checked language's print on every
  * other route. */
 static bool
 exec_console_write(void *closure, void *context, uint64_t descriptor, Slice bytes)
 {
-    (void)closure;
     (void)context;
-    FILE *stream = descriptor == 2 ? stderr : descriptor == 1 ? stdout : NULL;
-    if(stream == NULL) return false;
-    return bytes.length == 0 || fwrite(bytes.data, 1, (size_t)bytes.length, stream) == (size_t)bytes.length;
+    ZxConsole *console = closure;
+    if(descriptor == 1) return exec_console_out(console, bytes.data, (size_t)bytes.length);
+    if(descriptor != 2) return false;
+    /* What came before on standard output reaches stdio first, as it did
+     * when every print went straight there. */
+    if(!ZxConsoleFlush(console)) return false;
+    return bytes.length == 0 || fwrite(bytes.data, 1, (size_t)bytes.length, stderr) == (size_t)bytes.length;
 }
 
 static size_t
@@ -89,7 +123,6 @@ exec_format_unsigned(char *text, uint64_t value)
 static bool
 exec_console_print(void *closure, void *context, int32_t function, Slice arguments, uint64_t *result)
 {
-    (void)closure;
     (void)function;
     const uint64_t *values = arguments.data;
     *result = 0;
@@ -130,21 +163,25 @@ exec_console_print(void *closure, void *context, int32_t function, Slice argumen
     }
     default: return false;
     }
-    return fwrite(text, 1, length, stdout) == length;
+    return exec_console_out(closure, text, length);
 }
 
 LirExecProblem
-ZxBindConsole(LirExecInstance *instance, const LirProgram *program)
+ZxBindConsole(LirExecInstance *instance, const LirProgram *program, ZxConsole *console)
 {
+    if(console != NULL) {
+        memset(console, 0, sizeof(*console));
+        console->direct = exec_terminal(stdout);
+    }
     for(int64_t index = 0; index < program->functions.length; index++) {
         int service = ZxPlatformService(program, index);
         LirExecProblem bound = LirExecProblem_None;
         if(service == ZX_SERVICE_PRINT_BYTES)
             bound = compiler_exec_LirExecBindPlatformWrite(instance, (int32_t)index,
-                (LirExecPlatformWrite){NULL, exec_console_write}, NULL);
+                (LirExecPlatformWrite){console, exec_console_write}, NULL);
         else if(service != ZX_SERVICE_NONE)
             bound = compiler_exec_LirExecBindHost(instance, (int32_t)index,
-                (LirExecHostCall){NULL, exec_console_print}, (void *)(intptr_t)service);
+                (LirExecHostCall){console, exec_console_print}, (void *)(intptr_t)service);
         if(bound != LirExecProblem_None) return bound;
     }
     return LirExecProblem_None;
@@ -1128,6 +1165,7 @@ struct ExecInstance {
     long long limit, used;
     int cumulative;
     int failed;
+    ZxConsole console;
 };
 
 static bool
@@ -1139,6 +1177,9 @@ exec_host_call(void *closure, void *context, int32_t function, Slice arguments, 
     const ExecHost *host = &instance->bundle->hosts[call->host];
     LirExecArgument *given = arguments.data;
     if(host->function != function || arguments.length != host->parameter_count) return false;
+    /* The host may write to standard output or wait for input: the
+     * program's own output comes first. */
+    if(!ZxConsoleFlush(&instance->console)) return false;
     for(int64_t at = 0; at < arguments.length; at++)
         instance->arguments[at] = (ExecHostArgument){given[at].type, given[at].bits,
             given[at].bytes.data, (size_t)given[at].bytes.length, 0};
@@ -1171,10 +1212,25 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
         return 0;
     }
     instance->instance.limits.fuel = fuel;
-    *ran = initialize ? compiler_exec_LirExecInitialize(&instance->instance) : compiler_exec_LirExecRun(&instance->instance);
-    if(instance->cumulative) instance->used += fuel - ran->fuel_remaining;
+    /* A run that succeeds leaves its result and remaining fuel in the
+     * instance; only a failure fills `ran`. */
+    int ok;
+    long long remaining;
+    if(initialize) {
+        *ran = compiler_exec_LirExecInitialize(&instance->instance);
+        ok = ran->problem == LirExecProblem_None;
+        remaining = ran->fuel_remaining;
+    } else {
+        ok = compiler_exec_LirExecRunEntry(&instance->instance, ran);
+        remaining = ok ? instance->instance.fuel_remaining : ran->fuel_remaining;
+    }
+    if(instance->cumulative) instance->used += fuel - remaining;
+    /* A run that ends normally leaves its output to the stream's own
+     * buffering, as a C program's does; a failed run's output comes out
+     * before its diagnostic. */
+    ZxConsoleFlush(&instance->console);
+    if(ok) return 1;
     fflush(stdout);
-    if(ran->problem == LirExecProblem_None) return 1;
     instance->failed = 1;
     if(ran->problem == LirExecProblem_FuelLimit && instance->limit > 0)
         Diagnostic((ZirSourceSpan){0}, "zx.runtime", "portable execution failed: stopped after %lld steps",
@@ -1217,7 +1273,7 @@ ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, 
     if(identity == 0) identity = ++identities;
     LirExecResult opened = compiler_exec_LirExecInstanceOpen((LirExecPlan *)&bundle->plan, limits, identity, &instance->instance);
     LirExecProblem bound = opened.problem == LirExecProblem_None ?
-        ZxBindConsole(&instance->instance, &bundle->program) : opened.problem;
+        ZxBindConsole(&instance->instance, &bundle->program, &instance->console) : opened.problem;
     for(size_t index = 0; index < bundle->host_count && bound == LirExecProblem_None; index++) {
         const ExecHost *host = &bundle->hosts[index];
         instance->calls[index] = (ExecCall){instance, index};
@@ -1253,7 +1309,7 @@ ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result)
     int returns = type->kind != LirTypeKind_Void;
     if(has_result != NULL) *has_result = returns;
     if(result != NULL) {
-        uint64_t bits = ran.value.bits;
+        uint64_t bits = instance->instance.result_value.bits;
         if(type->kind == LirTypeKind_Integer && type->is_signed && type->bits < 64 && (bits >> (type->bits - 1)) & 1)
             bits |= ~((UINT64_C(1) << type->bits) - 1);
         *result = returns ? (long long)bits : 0;
@@ -1386,6 +1442,9 @@ void
 ExecInstanceClose(ExecInstance *instance)
 {
     if(instance == NULL) return;
+    /* What the instance wrote is out by the time it closes. */
+    ZxConsoleFlush(&instance->console);
+    fflush(stdout);
     compiler_exec_LirExecInstanceClose(&instance->instance);
     ExecHostsClose(instance->hosts);
     free(instance->calls);

@@ -4,7 +4,7 @@
     "desktop": {
       "label": "Desktop",
       "host": "Linux x86_64 \u00b7 AMD Ryzen 9 9950X 16-Core Processor",
-      "measured_at": "2026-11-15T03:26:13.322660+00:00",
+      "measured_at": "2026-11-15T13:49:00.795827+00:00",
       "samples": 5,
       "runtimes": {
         "c": "C \u00b7 cc -O2",
@@ -17,161 +17,159 @@
           "wasm": {
             "result": "0",
             "batches": 65536,
-            "warmup_ms": 150.661257,
-            "warmup_count": 415970,
+            "warmup_ms": 150.696228,
+            "warmup_count": 383965,
             "batch_samples_ms": [
-              17.05471700000001,
-              16.710994999999997,
-              17.040807,
-              17.30982800000001,
-              17.243918000000008
+              18.388982999999996,
+              18.398803999999984,
+              18.179382999999973,
+              18.352103,
+              18.26071300000001
             ],
-            "load_ms": 0.6751229999999993,
+            "load_ms": 0.5648020000000002,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.000260234329223633,
-              0.00025498954772949214,
-              0.00026002207946777345,
-              0.0002641270141601564,
-              0.000263121307373047
+              0.0002805936126708984,
+              0.000280743469238281,
+              0.000277395370483398,
+              0.00028003086853027343,
+              0.0002786363677978517
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.00025537323760986314,
-              "upper_ms": 0.0002677701492309573,
-              "excluded_indices": [
-                1
-              ],
+              "lower_ms": 0.0002757005004882817,
+              "upper_ms": 0.0002835294799804684,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.000260234329223633,
-                0.00026002207946777345,
-                0.0002641270141601564,
-                0.000263121307373047
+                0.0002805936126708984,
+                0.000280743469238281,
+                0.000277395370483398,
+                0.00028003086853027343,
+                0.0002786363677978517
               ],
-              "median_ms": 0.00026167781829834
+              "median_ms": 0.00028003086853027343
             },
-            "execution_ms": 0.00026167781829834,
+            "execution_ms": 0.00028003086853027343,
             "checksum": "0",
-            "command": "node scripts/site_target_node.cjs site/generated/targets/loops/wasm/loops.wasm 0 5",
+            "command": "node scripts/site_target_node.cjs /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/loops/wasm/loops.wasm 0 5",
             "artifact_sha256": "4664ec3c11b6aac8c4f9f9f8cd0a1489f9c19e3acd3c74b64d30fd6da61e4442"
           },
           "zx": {
             "result": "0",
-            "batches": 8192,
-            "load_ms": 0.502301991,
-            "warmup_ms": 150.001893014,
-            "warmup_count": 72629,
+            "batches": 16384,
+            "load_ms": 0.219381005,
+            "warmup_ms": 150.000923991,
+            "warmup_count": 139013,
             "batch_samples_ms": [
-              16.283803016,
-              16.331142992,
-              16.379002988,
-              16.303832978,
-              16.335533023
+              13.866751015,
+              14.177331984,
+              14.114061981,
+              14.03808099,
+              13.925480992
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0019877689228515625,
-              0.001993547728515625,
-              0.0019993900131835937,
-              0.0019902139865722655,
-              0.0019940836209716797
+              0.0008463593148803711,
+              0.0008653156728515625,
+              0.0008614539783325196,
+              0.0008568164666748046,
+              0.000849943908203125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0019844095349731443,
-              "upper_ms": 0.001999888072570801,
+              "lower_ms": 0.0008326788030090333,
+              "upper_ms": 0.0008787190835266114,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.0019877689228515625,
-                0.001993547728515625,
-                0.0019993900131835937,
-                0.0019902139865722655,
-                0.0019940836209716797
+                0.0008463593148803711,
+                0.0008653156728515625,
+                0.0008614539783325196,
+                0.0008568164666748046,
+                0.000849943908203125
               ],
-              "median_ms": 0.001993547728515625
+              "median_ms": 0.0008568164666748046
             },
-            "execution_ms": 0.001993547728515625,
+            "execution_ms": 0.0008568164666748046,
             "checksum": "0",
-            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/loops/zx/loops.zx 0 5",
-            "artifact_sha256": "4ae62e8bf132dd4ab791e93597ab14a399e3a01913eb380b518f9f477d97f6e1"
+            "command": "build/site-target-platforms/desktop/zx-runner /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/loops/zx/loops.zx 0 5",
+            "artifact_sha256": "de6f7a69eabc365f53b2c13dde289c0550ab9850e40182321c1bbe5cd01beb8d"
           },
           "go": {
             "batch_samples_ms": [
-              14.429303,
-              14.219232,
-              14.304153,
-              14.336883,
-              15.71276
+              14.556794,
+              14.888196,
+              14.196592,
+              14.243983,
+              14.121992
             ],
             "batches": 8192,
             "load_ms": 0,
             "result": "0",
-            "warmup_count": 81800,
-            "warmup_ms": 150.000543,
+            "warmup_count": 81702,
+            "warmup_ms": 150.000394,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0017613895263671876,
-              0.00173574609375,
-              0.0017461124267578124,
-              0.0017501077880859375,
-              0.0019180615234375
+              0.001776952392578125,
+              0.00181740673828125,
+              0.001732982421875,
+              0.0017387674560546875,
+              0.0017238759765625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0017231967773437497,
-              "upper_ms": 0.0017843051757812504,
-              "excluded_indices": [
-                4
-              ],
+              "lower_ms": 0.0016670274658203126,
+              "upper_ms": 0.0018429073486328123,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.0017613895263671876,
-                0.00173574609375,
-                0.0017461124267578124,
-                0.0017501077880859375
+                0.001776952392578125,
+                0.00181740673828125,
+                0.001732982421875,
+                0.0017387674560546875,
+                0.0017238759765625
               ],
-              "median_ms": 0.001748110107421875
+              "median_ms": 0.0017387674560546875
             },
-            "execution_ms": 0.001748110107421875,
+            "execution_ms": 0.0017387674560546875,
             "checksum": "0",
             "command": "build/site-target-platforms/desktop/loops/go-program - 0 5",
             "artifact_sha256": "51da0bc4dbd9ec43bbb892091e49991caf1845097bf1a5bf410c11f3ccad926c"
           },
           "c": {
             "result": "0",
-            "batches": 65536,
-            "load_ms": 0.000279993,
-            "warmup_ms": 150.00067398,
-            "warmup_count": 359635,
+            "batches": 32768,
+            "load_ms": 0.000369996,
+            "warmup_ms": 150.000223994,
+            "warmup_count": 328493,
             "batch_samples_ms": [
-              19.956182003,
-              19.994421989,
-              19.70965001,
-              19.560270011,
-              19.46687898
+              10.13044101,
+              10.075621009,
+              10.097202003,
+              11.744760007,
+              10.777585
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0003045071716766357,
-              0.0003050906675567627,
-              0.000300745391998291,
-              0.00029846603410339356,
-              0.00029704100006103517
+              0.0003091565249633789,
+              0.00030748355130004885,
+              0.00030814215097045897,
+              0.00035842163107299805,
+              0.00032890579223632813
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0002894043277435303,
-              "upper_ms": 0.00031356887803649894,
+              "lower_ms": 0.00027699668907165526,
+              "upper_ms": 0.0003600512541351319,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.0003045071716766357,
-                0.0003050906675567627,
-                0.000300745391998291,
-                0.00029846603410339356,
-                0.00029704100006103517
+                0.0003091565249633789,
+                0.00030748355130004885,
+                0.00030814215097045897,
+                0.00035842163107299805,
+                0.00032890579223632813
               ],
-              "median_ms": 0.000300745391998291
+              "median_ms": 0.0003091565249633789
             },
-            "execution_ms": 0.000300745391998291,
+            "execution_ms": 0.0003091565249633789,
             "checksum": "0",
             "command": "build/site-target-platforms/desktop/loops/c-program - 0 5",
             "artifact_sha256": "dad97e183aeb6586151bda06e386668bb177763e4a6bf1bd6814abd2e5d830fd"
@@ -180,40 +178,41 @@
         "text_demo": {
           "go": {
             "batch_samples_ms": [
-              0.241571,
-              0.18383,
-              0.195491,
-              0.227472,
-              0.228551
+              0.127691,
+              0.126321,
+              0.12601,
+              0.160701,
+              0.126771
             ],
             "batches": 65536,
             "load_ms": 0,
             "result": "1",
-            "warmup_count": 1925542,
-            "warmup_ms": 150.000123,
+            "warmup_count": 1941458,
+            "warmup_ms": 150.000034,
             "stdout_verified": true,
             "execution_samples_ms": [
-              3.6860809326171876e-06,
-              2.805023193359375e-06,
-              2.9829559326171875e-06,
-              3.470947265625e-06,
-              3.4874114990234376e-06
+              1.9484100341796875e-06,
+              1.9275054931640623e-06,
+              1.922760009765625e-06,
+              2.4521026611328127e-06,
+              1.9343719482421874e-06
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 2.2262725830078125e-06,
-              "upper_ms": 4.244094848632813e-06,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                3.6860809326171876e-06,
-                2.805023193359375e-06,
-                2.9829559326171875e-06,
-                3.470947265625e-06,
-                3.4874114990234376e-06
+              "lower_ms": 1.8961486816406246e-06,
+              "upper_ms": 1.9797668457031254e-06,
+              "excluded_indices": [
+                3
               ],
-              "median_ms": 3.470947265625e-06
+              "included_samples_ms": [
+                1.9484100341796875e-06,
+                1.9275054931640623e-06,
+                1.922760009765625e-06,
+                1.9343719482421874e-06
+              ],
+              "median_ms": 1.930938720703125e-06
             },
-            "execution_ms": 3.470947265625e-06,
+            "execution_ms": 1.930938720703125e-06,
             "checksum": "65536",
             "command": "build/site-target-platforms/desktop/text_demo/go-program - 1 5",
             "artifact_sha256": "356834b8dec9bba1dd6a9833f507ae6e22b04ebf9a82877e447f02f40a9a0602"
@@ -221,39 +220,40 @@
           "c": {
             "result": "1",
             "batches": 65536,
-            "load_ms": 0.00029999,
-            "warmup_ms": 150.000093013,
-            "warmup_count": 2193885,
+            "load_ms": 0.000640005,
+            "warmup_ms": 150.000044018,
+            "warmup_count": 2201577,
             "batch_samples_ms": [
-              0.146010995,
-              0.146021008,
-              0.146009982,
-              0.146070987,
-              0.146100998
+              0.145181,
+              0.145051003,
+              0.145090014,
+              0.145080984,
+              0.145090997
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              2.2279509735107423e-06,
-              2.228103759765625e-06,
-              2.227935516357422e-06,
-              2.22886637878418e-06,
-              2.2293243103027345e-06
+              2.2152862548828126e-06,
+              2.213302658081055e-06,
+              2.2138979187011717e-06,
+              2.2137601318359374e-06,
+              2.2139129180908203e-06
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 2.226577865600586e-06,
-              "upper_ms": 2.2302394866943363e-06,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                2.2279509735107423e-06,
-                2.228103759765625e-06,
-                2.227935516357422e-06,
-                2.22886637878418e-06,
-                2.2293243103027345e-06
+              "lower_ms": 2.213530952453613e-06,
+              "upper_ms": 2.2141420974731444e-06,
+              "excluded_indices": [
+                0,
+                1
               ],
-              "median_ms": 2.228103759765625e-06
+              "included_samples_ms": [
+                2.2138979187011717e-06,
+                2.2137601318359374e-06,
+                2.2139129180908203e-06
+              ],
+              "median_ms": 2.2138979187011717e-06
             },
-            "execution_ms": 2.228103759765625e-06,
+            "execution_ms": 2.2138979187011717e-06,
             "checksum": "65536",
             "command": "build/site-target-platforms/desktop/text_demo/c-program - 1 5",
             "artifact_sha256": "649e52e5cf0dabb65775786f5f95736f2a069c1947ea9c22954dc166bedc97fe"
@@ -261,162 +261,163 @@
           "zx": {
             "result": "1",
             "batches": 32768,
-            "load_ms": 0.375351995,
-            "warmup_ms": 150.000404,
-            "warmup_count": 321308,
+            "load_ms": 0.221170992,
+            "warmup_ms": 150.00021401,
+            "warmup_count": 374345,
             "batch_samples_ms": [
-              12.661834985,
-              12.825735003,
-              12.92483601,
-              12.590884,
-              12.824014992
+              11.314536989,
+              11.45164898,
+              11.481408,
+              11.358137995,
+              11.411487997
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0003864085383605957,
-              0.0003914103699645996,
-              0.0003944346926879883,
-              0.0003842432861328125,
-              0.00039135787939453126
+              0.0003452922665100098,
+              0.00034947659240722656,
+              0.000350384765625,
+              0.00034662286361694336,
+              0.00034825097647094727
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0003789057909545899,
-              "upper_ms": 0.00039891311737060546,
+              "lower_ms": 0.0003423422704315186,
+              "upper_ms": 0.0003537571855926514,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.0003864085383605957,
-                0.0003914103699645996,
-                0.0003944346926879883,
-                0.0003842432861328125,
-                0.00039135787939453126
+                0.0003452922665100098,
+                0.00034947659240722656,
+                0.000350384765625,
+                0.00034662286361694336,
+                0.00034825097647094727
               ],
-              "median_ms": 0.00039135787939453126
+              "median_ms": 0.00034825097647094727
             },
-            "execution_ms": 0.00039135787939453126,
+            "execution_ms": 0.00034825097647094727,
             "checksum": "32768",
-            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/text_demo/zx/text_demo.zx 1 5",
-            "artifact_sha256": "4ae62e8bf132dd4ab791e93597ab14a399e3a01913eb380b518f9f477d97f6e1"
+            "command": "build/site-target-platforms/desktop/zx-runner /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/text_demo/zx/text_demo.zx 1 5",
+            "artifact_sha256": "de6f7a69eabc365f53b2c13dde289c0550ab9850e40182321c1bbe5cd01beb8d"
           },
           "wasm": {
             "result": "1",
             "batches": 65536,
-            "warmup_ms": 150.02247400000002,
-            "warmup_count": 1119544,
+            "warmup_ms": 150.025653,
+            "warmup_count": 1059834,
             "batch_samples_ms": [
-              2.666393999999997,
-              2.7138240000000167,
-              2.6689839999999947,
-              2.696902999999992,
-              2.6995039999999904
+              2.8919950000000085,
+              2.9039149999999836,
+              2.8763549999999896,
+              2.892813999999987,
+              2.880995000000013
             ],
-            "load_ms": 0.5388929999999998,
+            "load_ms": 0.5460729999999998,
             "stdout_verified": true,
             "execution_samples_ms": [
-              4.0685943603515577e-05,
-              4.1409667968750254e-05,
-              4.072546386718742e-05,
-              4.115147399902331e-05,
-              4.119116210937485e-05
+              4.412834167480482e-05,
+              4.431022644042944e-05,
+              4.388969421386703e-05,
+              4.414083862304668e-05,
+              4.3960494995117384e-05
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 4.002691650390627e-05,
-              "upper_ms": 4.1889709472656004e-05,
+              "lower_ms": 4.368997955322344e-05,
+              "upper_ms": 4.441135406494062e-05,
               "excluded_indices": [],
               "included_samples_ms": [
-                4.0685943603515577e-05,
-                4.1409667968750254e-05,
-                4.072546386718742e-05,
-                4.115147399902331e-05,
-                4.119116210937485e-05
+                4.412834167480482e-05,
+                4.431022644042944e-05,
+                4.388969421386703e-05,
+                4.414083862304668e-05,
+                4.3960494995117384e-05
               ],
-              "median_ms": 4.115147399902331e-05
+              "median_ms": 4.412834167480482e-05
             },
-            "execution_ms": 4.115147399902331e-05,
+            "execution_ms": 4.412834167480482e-05,
             "checksum": "65536",
-            "command": "node scripts/site_target_node.cjs site/generated/targets/text_demo/wasm/text_demo.wasm 1 5",
+            "command": "node scripts/site_target_node.cjs /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/text_demo/wasm/text_demo.wasm 1 5",
             "artifact_sha256": "930543a3a6075c2bbf4983b9744bd33d163bb1acea0d5be358d45bc399ff44f7"
           }
         },
         "enums": {
           "zx": {
             "result": "0",
-            "batches": 32768,
-            "load_ms": 0.461531997,
-            "warmup_ms": 150.000643998,
-            "warmup_count": 245618,
+            "batches": 65536,
+            "load_ms": 0.156800985,
+            "warmup_ms": 150.000542998,
+            "warmup_count": 390039,
             "batch_samples_ms": [
-              18.078291982,
-              17.731081009,
-              17.862729996,
-              17.922311991,
-              18.224051982
+              15.215177,
+              15.906910986,
+              14.963355988,
+              14.934035987,
+              15.000636995
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0005517056879272461,
-              0.0005411096499328613,
-              0.0005451272581787109,
-              0.0005469455563659668,
-              0.0005561539301147461
+              0.00023216517639160157,
+              0.0002427201993713379,
+              0.00022832269268798828,
+              0.000227875304977417,
+              0.00022889155570983888
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0005352596135559081,
-              "upper_ms": 0.0005615733325500488,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.0005517056879272461,
-                0.0005411096499328613,
-                0.0005451272581787109,
-                0.0005469455563659668,
-                0.0005561539301147461
-              ],
-              "median_ms": 0.0005469455563659668
-            },
-            "execution_ms": 0.0005469455563659668,
-            "checksum": "0",
-            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/enums/zx/enums.zx 0 5",
-            "artifact_sha256": "4ae62e8bf132dd4ab791e93597ab14a399e3a01913eb380b518f9f477d97f6e1"
-          },
-          "go": {
-            "batch_samples_ms": [
-              13.152697,
-              14.550644,
-              13.152837,
-              13.043287,
-              13.048826
-            ],
-            "batches": 32768,
-            "load_ms": 0,
-            "result": "0",
-            "warmup_count": 312420,
-            "warmup_ms": 150.000123,
-            "stdout_verified": true,
-            "execution_samples_ms": [
-              0.0004013884582519531,
-              0.0004440504150390625,
-              0.0004013927307128906,
-              0.00039804953002929686,
-              0.00039821856689453125
-            ],
-            "sample_statistics": {
-              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0003934573211669922,
-              "upper_ms": 0.0004061539764404297,
+              "lower_ms": 0.00022255896713256835,
+              "upper_ms": 0.0002379289019470215,
               "excluded_indices": [
                 1
               ],
               "included_samples_ms": [
-                0.0004013884582519531,
-                0.0004013927307128906,
-                0.00039804953002929686,
-                0.00039821856689453125
+                0.00023216517639160157,
+                0.00022832269268798828,
+                0.000227875304977417,
+                0.00022889155570983888
               ],
-              "median_ms": 0.0003998035125732422
+              "median_ms": 0.00022860712419891358
             },
-            "execution_ms": 0.0003998035125732422,
+            "execution_ms": 0.00022860712419891358,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/zx-runner /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/enums/zx/enums.zx 0 5",
+            "artifact_sha256": "de6f7a69eabc365f53b2c13dde289c0550ab9850e40182321c1bbe5cd01beb8d"
+          },
+          "go": {
+            "batch_samples_ms": [
+              12.913286,
+              12.757555,
+              12.536973,
+              12.845176,
+              12.819095
+            ],
+            "batches": 32768,
+            "load_ms": 0,
+            "result": "0",
+            "warmup_count": 312882,
+            "warmup_ms": 150.000344,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00039408221435546873,
+              0.0003893296813964844,
+              0.0003825980529785156,
+              0.000392003662109375,
+              0.0003912077331542969
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.0003853187103271484,
+              "upper_ms": 0.00039601463317871094,
+              "excluded_indices": [
+                2
+              ],
+              "included_samples_ms": [
+                0.00039408221435546873,
+                0.0003893296813964844,
+                0.000392003662109375,
+                0.0003912077331542969
+              ],
+              "median_ms": 0.00039160569763183593
+            },
+            "execution_ms": 0.00039160569763183593,
             "checksum": "0",
             "command": "build/site-target-platforms/desktop/enums/go-program - 0 5",
             "artifact_sha256": "13283d1538dc2d29c20d5e55980f2bf953205f2e02dec956bea000cf0774be70"
@@ -424,80 +425,80 @@
           "wasm": {
             "result": "0",
             "batches": 65536,
-            "warmup_ms": 150.02300400000001,
-            "warmup_count": 682408,
+            "warmup_ms": 150.026083,
+            "warmup_count": 687383,
             "batch_samples_ms": [
-              7.724038999999976,
-              7.749570000000006,
-              7.668969000000004,
-              7.848839999999996,
-              7.939899999999994
+              7.998570000000001,
+              7.983510000000024,
+              7.995420999999993,
+              8.04000099999999,
+              8.030250999999993
             ],
-            "load_ms": 0.5646729999999991,
+            "load_ms": 0.6408529999999999,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.00011785948181152308,
-              0.00011824905395507821,
-              0.00011701918029785163,
-              0.00011976379394531243,
-              0.00012115325927734366
+              0.00012204849243164064,
+              0.00012181869506835974,
+              0.00012200044250488271,
+              0.0001226806793212889,
+              0.00012253190612792958
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.00011500301361083904,
-              "upper_ms": 0.00012262026214599647,
+              "lower_ms": 0.00012120324707031241,
+              "upper_ms": 0.00012332910156249988,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.00011785948181152308,
-                0.00011824905395507821,
-                0.00011701918029785163,
-                0.00011976379394531243,
-                0.00012115325927734366
+                0.00012204849243164064,
+                0.00012181869506835974,
+                0.00012200044250488271,
+                0.0001226806793212889,
+                0.00012253190612792958
               ],
-              "median_ms": 0.00011824905395507821
+              "median_ms": 0.00012204849243164064
             },
-            "execution_ms": 0.00011824905395507821,
+            "execution_ms": 0.00012204849243164064,
             "checksum": "0",
-            "command": "node scripts/site_target_node.cjs site/generated/targets/enums/wasm/enums.wasm 0 5",
+            "command": "node scripts/site_target_node.cjs /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/enums/wasm/enums.wasm 0 5",
             "artifact_sha256": "9bea9c8c60bb0ec00d6a68d2f0c2abb0bffdbe532fa3007591051d91ed7bf4e0"
           },
           "c": {
             "result": "0",
             "batches": 65536,
-            "load_ms": 0.000620008,
-            "warmup_ms": 150.000153989,
-            "warmup_count": 789688,
+            "load_ms": 0.000339985,
+            "warmup_ms": 150.000123978,
+            "warmup_count": 766056,
             "batch_samples_ms": [
-              4.019300997,
-              4.006900012,
-              3.991750002,
-              4.215521991,
-              4.017159998
+              4.091021001,
+              4.052531004,
+              4.581692994,
+              4.226871997,
+              4.076930016
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              6.132966609191895e-05,
-              6.114044207763672e-05,
-              6.090927127075195e-05,
-              6.432376084899903e-05,
-              6.129699703979493e-05
+              6.24240265045166e-05,
+              6.183671575927735e-05,
+              6.991108694458008e-05,
+              6.449694819641113e-05,
+              6.220901513671876e-05
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 6.0856606056213375e-05,
-              "upper_ms": 6.16135021133423e-05,
+              "lower_ms": 5.877711554718019e-05,
+              "upper_ms": 6.79288477859497e-05,
               "excluded_indices": [
-                3
+                2
               ],
               "included_samples_ms": [
-                6.132966609191895e-05,
-                6.114044207763672e-05,
-                6.090927127075195e-05,
-                6.129699703979493e-05
+                6.24240265045166e-05,
+                6.183671575927735e-05,
+                6.449694819641113e-05,
+                6.220901513671876e-05
               ],
-              "median_ms": 6.121871955871582e-05
+              "median_ms": 6.231652082061768e-05
             },
-            "execution_ms": 6.121871955871582e-05,
+            "execution_ms": 6.231652082061768e-05,
             "checksum": "0",
             "command": "build/site-target-platforms/desktop/enums/c-program - 0 5",
             "artifact_sha256": "dc96df864ede74e410ddf51f7048642c3ae085f4c456a881c43a766cff947135"
@@ -506,161 +507,163 @@
         "arrays": {
           "go": {
             "batch_samples_ms": [
-              11.508328,
-              11.68532,
-              11.480628,
-              11.516289,
-              11.695779
+              11.876281,
+              12.124911,
+              11.844891,
+              11.85041,
+              11.88663
             ],
             "batches": 16384,
             "load_ms": 0,
             "result": "0",
-            "warmup_count": 195338,
-            "warmup_ms": 150.000353,
+            "warmup_count": 186807,
+            "warmup_ms": 150.000284,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.00070241259765625,
-              0.00071321533203125,
-              0.000700721923828125,
-              0.0007028984985351563,
-              0.0007138536987304687
+              0.0007248706665039063,
+              0.0007400458374023438,
+              0.0007229547729492188,
+              0.0007232916259765625,
+              0.0007255023193359375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0006862084960937501,
-              "upper_ms": 0.0007294194335937501,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.00070241259765625,
-                0.00071321533203125,
-                0.000700721923828125,
-                0.0007028984985351563,
-                0.0007138536987304687
+              "lower_ms": 0.0007199755859375,
+              "upper_ms": 0.000728818359375,
+              "excluded_indices": [
+                1
               ],
-              "median_ms": 0.0007028984985351563
+              "included_samples_ms": [
+                0.0007248706665039063,
+                0.0007229547729492188,
+                0.0007232916259765625,
+                0.0007255023193359375
+              ],
+              "median_ms": 0.0007240811462402344
             },
-            "execution_ms": 0.0007028984985351563,
+            "execution_ms": 0.0007240811462402344,
             "checksum": "0",
             "command": "build/site-target-platforms/desktop/arrays/go-program - 0 5",
             "artifact_sha256": "d1f65de5f29fe42c0221001318765baa554cf79db89726a41b8fcc7ba2713c34"
           },
           "zx": {
             "result": "0",
-            "batches": 8192,
-            "load_ms": 0.559792995,
-            "warmup_ms": 150.001304001,
-            "warmup_count": 80897,
+            "batches": 16384,
+            "load_ms": 0.254111975,
+            "warmup_ms": 150.000932992,
+            "warmup_count": 139005,
             "batch_samples_ms": [
-              14.47507301,
-              14.759945989,
-              14.341232985,
-              14.753804982,
-              14.396212995
+              14.637934983,
+              14.752434999,
+              15.045316011,
+              14.558315009,
+              14.48752299
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0017669766857910155,
-              0.0018017512193603516,
-              0.0017506387921142578,
-              0.0018010015847167969,
-              0.001757350219116211
+              0.000893428648864746,
+              0.0009004171752319336,
+              0.0009182932135620118,
+              0.0008885690313110351,
+              0.0008842482293701172
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0016918731707153323,
-              "upper_ms": 0.0018664786331176757,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.0017669766857910155,
-                0.0018017512193603516,
-                0.0017506387921142578,
-                0.0018010015847167969,
-                0.001757350219116211
+              "lower_ms": 0.0008707968154296874,
+              "upper_ms": 0.0009181893911132813,
+              "excluded_indices": [
+                2
               ],
-              "median_ms": 0.0017669766857910155
+              "included_samples_ms": [
+                0.000893428648864746,
+                0.0009004171752319336,
+                0.0008885690313110351,
+                0.0008842482293701172
+              ],
+              "median_ms": 0.0008909988400878906
             },
-            "execution_ms": 0.0017669766857910155,
+            "execution_ms": 0.0008909988400878906,
             "checksum": "0",
-            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/arrays/zx/arrays.zx 0 5",
-            "artifact_sha256": "4ae62e8bf132dd4ab791e93597ab14a399e3a01913eb380b518f9f477d97f6e1"
+            "command": "build/site-target-platforms/desktop/zx-runner /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/arrays/zx/arrays.zx 0 5",
+            "artifact_sha256": "de6f7a69eabc365f53b2c13dde289c0550ab9850e40182321c1bbe5cd01beb8d"
           },
           "wasm": {
             "result": "0",
             "batches": 65536,
-            "warmup_ms": 150.035434,
-            "warmup_count": 502158,
+            "warmup_ms": 150.022614,
+            "warmup_count": 464815,
             "batch_samples_ms": [
-              13.04040599999999,
-              13.122306000000009,
-              13.321328000000022,
-              13.470479000000012,
-              13.974681000000004
+              13.92691099999999,
+              13.959230999999988,
+              13.7851,
+              14.290292999999991,
+              14.027981000000011
             ],
-            "load_ms": 0.5544229999999999,
+            "load_ms": 0.7101539999999993,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.00019898080444335923,
-              0.00020023049926757826,
-              0.00020326733398437534,
-              0.00020554319763183612,
-              0.00021323670959472662
+              0.00021250779724121078,
+              0.00021300096130371076,
+              0.00021034393310546875,
+              0.00021805256652832018,
+              0.00021405000305175798
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.00019226145172119148,
-              "upper_ms": 0.0002135122451782229,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.00019898080444335923,
-                0.00020023049926757826,
-                0.00020326733398437534,
-                0.00020554319763183612,
-                0.00021323670959472662
+              "lower_ms": 0.00021019448852538998,
+              "upper_ms": 0.00021636331176757878,
+              "excluded_indices": [
+                3
               ],
-              "median_ms": 0.00020326733398437534
+              "included_samples_ms": [
+                0.00021250779724121078,
+                0.00021300096130371076,
+                0.00021034393310546875,
+                0.00021405000305175798
+              ],
+              "median_ms": 0.00021275437927246077
             },
-            "execution_ms": 0.00020326733398437534,
+            "execution_ms": 0.00021275437927246077,
             "checksum": "0",
-            "command": "node scripts/site_target_node.cjs site/generated/targets/arrays/wasm/arrays.wasm 0 5",
+            "command": "node scripts/site_target_node.cjs /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/arrays/wasm/arrays.wasm 0 5",
             "artifact_sha256": "5418a50f22316a97fb268a1a4350ccecc5234739d740fe65a32115ff945c25b1"
           },
           "c": {
             "result": "0",
             "batches": 65536,
-            "load_ms": 0.000279993,
-            "warmup_ms": 150.000232995,
-            "warmup_count": 520445,
+            "load_ms": 0.00029999,
+            "warmup_ms": 150.000223994,
+            "warmup_count": 465748,
             "batch_samples_ms": [
-              11.284047008,
-              11.354328007,
-              11.491657972,
-              11.299778014,
-              11.168666989
+              11.743339002,
+              14.298992991,
+              11.657019973,
+              11.656589001,
+              13.511408985
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.00017218089306640625,
-              0.00017325329600524901,
-              0.00017534878497314454,
-              0.00017242092916870116,
-              0.000170420333694458
+              0.00017918913272094728,
+              0.00021818531785583497,
+              0.00017787200886535645,
+              0.0001778654327545166,
+              0.00020616773963928221
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.00017057228865814211,
-              "upper_ms": 0.00017486190041351318,
-              "excluded_indices": [
-                2,
-                4
-              ],
+              "lower_ms": 0.00013542841270446781,
+              "upper_ms": 0.00024861133580017085,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.00017218089306640625,
-                0.00017325329600524901,
-                0.00017242092916870116
+                0.00017918913272094728,
+                0.00021818531785583497,
+                0.00017787200886535645,
+                0.0001778654327545166,
+                0.00020616773963928221
               ],
-              "median_ms": 0.00017242092916870116
+              "median_ms": 0.00017918913272094728
             },
-            "execution_ms": 0.00017242092916870116,
+            "execution_ms": 0.00017918913272094728,
             "checksum": "0",
             "command": "build/site-target-platforms/desktop/arrays/c-program - 0 5",
             "artifact_sha256": "cb22cdc1d96685ff4cdf18b8022acfb4f0d9a9bb27c329a38e81f7724cf9dbb7"
@@ -669,40 +672,40 @@
         "score": {
           "go": {
             "batch_samples_ms": [
-              0.060671,
-              0.06069,
-              0.06066,
-              0.060681,
-              0.06068
+              0.06424,
+              0.064251,
+              0.06423,
+              0.06424,
+              0.064231
             ],
             "batches": 65536,
             "load_ms": 0,
             "result": "42",
-            "warmup_count": 2039156,
-            "warmup_ms": 150.000084,
+            "warmup_count": 1934909,
+            "warmup_ms": 150.000104,
             "stdout_verified": true,
             "execution_samples_ms": [
-              9.257659912109375e-07,
-              9.26055908203125e-07,
-              9.2559814453125e-07,
-              9.259185791015625e-07,
-              9.259033203125e-07
+              9.80224609375e-07,
+              9.803924560546875e-07,
+              9.80072021484375e-07,
+              9.80224609375e-07,
+              9.800872802734374e-07
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 9.255371093750001e-07,
-              "upper_ms": 9.261474609374999e-07,
+              "lower_ms": 9.798812866210935e-07,
+              "upper_ms": 9.80430603027344e-07,
               "excluded_indices": [],
               "included_samples_ms": [
-                9.257659912109375e-07,
-                9.26055908203125e-07,
-                9.2559814453125e-07,
-                9.259185791015625e-07,
-                9.259033203125e-07
+                9.80224609375e-07,
+                9.803924560546875e-07,
+                9.80072021484375e-07,
+                9.80224609375e-07,
+                9.800872802734374e-07
               ],
-              "median_ms": 9.259033203125e-07
+              "median_ms": 9.80224609375e-07
             },
-            "execution_ms": 9.259033203125e-07,
+            "execution_ms": 9.80224609375e-07,
             "checksum": "2752512",
             "command": "build/site-target-platforms/desktop/score/go-program - 42 5",
             "artifact_sha256": "bd895011e0ff8bf25c3932c5267e0a703fb679a47a85925c8326cb9b6afbb82b"
@@ -710,80 +713,81 @@
           "zx": {
             "result": "42",
             "batches": 65536,
-            "load_ms": 0.194541007,
-            "warmup_ms": 150.000162989,
-            "warmup_count": 1004977,
+            "load_ms": 0.108621001,
+            "warmup_ms": 150.000153005,
+            "warmup_count": 1132269,
             "batch_samples_ms": [
-              5.473928005,
-              5.321376979,
-              5.310467005,
-              5.236357003,
-              5.283077002
+              4.490132004,
+              4.419662982,
+              4.451893002,
+              4.483732015,
+              4.980015993
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              8.352551277160645e-05,
-              8.119776884460449e-05,
-              8.103129585266113e-05,
-              7.990046696472168e-05,
-              8.061335757446289e-05
+              6.851397711181641e-05,
+              6.743870516967774e-05,
+              6.79304962463379e-05,
+              6.841632102966309e-05,
+              7.598901356506348e-05
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 7.973674066925047e-05,
-              "upper_ms": 8.20743857498169e-05,
+              "lower_ms": 6.705527494812013e-05,
+              "upper_ms": 6.93891984100342e-05,
               "excluded_indices": [
-                0
+                4
               ],
               "included_samples_ms": [
-                8.119776884460449e-05,
-                8.103129585266113e-05,
-                7.990046696472168e-05,
-                8.061335757446289e-05
+                6.851397711181641e-05,
+                6.743870516967774e-05,
+                6.79304962463379e-05,
+                6.841632102966309e-05
               ],
-              "median_ms": 8.0822326713562e-05
+              "median_ms": 6.817340863800048e-05
             },
-            "execution_ms": 8.0822326713562e-05,
+            "execution_ms": 6.817340863800048e-05,
             "checksum": "2752512",
-            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/score/zx/score.zx 42 5",
-            "artifact_sha256": "4ae62e8bf132dd4ab791e93597ab14a399e3a01913eb380b518f9f477d97f6e1"
+            "command": "build/site-target-platforms/desktop/zx-runner /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/score/zx/score.zx 42 5",
+            "artifact_sha256": "de6f7a69eabc365f53b2c13dde289c0550ab9850e40182321c1bbe5cd01beb8d"
           },
           "c": {
             "result": "42",
             "batches": 65536,
-            "load_ms": 0.000310004,
-            "warmup_ms": 150.000044018,
-            "warmup_count": 2289718,
+            "load_ms": 0.000280023,
+            "warmup_ms": 150.000072986,
+            "warmup_count": 2213703,
             "batch_samples_ms": [
-              0.060180008,
-              0.060230017,
-              0.060150981,
-              0.060210019,
-              0.06020999
+              0.061390013,
+              0.061360002,
+              0.061361015,
+              0.061360002,
+              0.061369985
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              9.182740478515625e-07,
-              9.19037124633789e-07,
-              9.178311309814453e-07,
-              9.187319793701171e-07,
-              9.187315368652343e-07
+              9.367372589111328e-07,
+              9.362793273925781e-07,
+              9.362947845458984e-07,
+              9.362793273925781e-07,
+              9.364316558837891e-07
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 9.175871505737306e-07,
-              "upper_ms": 9.194188766479491e-07,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                9.182740478515625e-07,
-                9.19037124633789e-07,
-                9.178311309814453e-07,
-                9.187319793701171e-07,
-                9.187315368652343e-07
+              "lower_ms": 9.360508346557616e-07,
+              "upper_ms": 9.366601486206056e-07,
+              "excluded_indices": [
+                0
               ],
-              "median_ms": 9.187315368652343e-07
+              "included_samples_ms": [
+                9.362793273925781e-07,
+                9.362947845458984e-07,
+                9.362793273925781e-07,
+                9.364316558837891e-07
+              ],
+              "median_ms": 9.362870559692382e-07
             },
-            "execution_ms": 9.187315368652343e-07,
+            "execution_ms": 9.362870559692382e-07,
             "checksum": "2752512",
             "command": "build/site-target-platforms/desktop/score/c-program - 42 5",
             "artifact_sha256": "0182c9fbc8b6c5ec0ea94062615e67cf3ecf6afc87ca902079939d6f2bb8a9ce"
@@ -791,41 +795,41 @@
           "wasm": {
             "result": "42",
             "batches": 65536,
-            "warmup_ms": 150.027453,
-            "warmup_count": 1168094,
+            "warmup_ms": 150.024584,
+            "warmup_count": 1162118,
             "batch_samples_ms": [
-              2.0082400000000007,
-              2.032190000000014,
-              2.015841000000023,
-              2.0413300000000163,
-              2.0176199999999938
+              3.2404669999999953,
+              2.831464000000011,
+              2.0647610000000043,
+              2.0226100000000145,
+              2.0599709999999902
             ],
-            "load_ms": 0.8060039999999997,
+            "load_ms": 0.7884039999999999,
             "stdout_verified": true,
             "execution_samples_ms": [
-              3.064331054687501e-05,
-              3.100875854492209e-05,
-              3.0759292602539415e-05,
-              3.1148223876953374e-05,
-              3.0786437988281155e-05
+              4.9445602416992116e-05,
+              4.320471191406267e-05,
+              3.150575256347663e-05,
+              3.0862579345703346e-05,
+              3.143266296386704e-05
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 3.03850936889654e-05,
-              "upper_ms": 3.1382957458496105e-05,
+              "lower_ms": 1.3774589538573592e-05,
+              "upper_ms": 6.0862785339356115e-05,
               "excluded_indices": [],
               "included_samples_ms": [
-                3.064331054687501e-05,
-                3.100875854492209e-05,
-                3.0759292602539415e-05,
-                3.1148223876953374e-05,
-                3.0786437988281155e-05
+                4.9445602416992116e-05,
+                4.320471191406267e-05,
+                3.150575256347663e-05,
+                3.0862579345703346e-05,
+                3.143266296386704e-05
               ],
-              "median_ms": 3.0786437988281155e-05
+              "median_ms": 3.150575256347663e-05
             },
-            "execution_ms": 3.0786437988281155e-05,
+            "execution_ms": 3.150575256347663e-05,
             "checksum": "2752512",
-            "command": "node scripts/site_target_node.cjs site/generated/targets/score/wasm/score.wasm 42 5",
+            "command": "node scripts/site_target_node.cjs /home/wao/.config/harmony/task-work/22f4b70580e40b45b63a579f/tasks/fe186db7c390e012a9daa5665e35c49d5b7a/tmp/claude-1000/-mnt-storage-Projects/4540710f-28b4-4bc1-a030-b8480751150e/scratchpad/committed/generated/targets/score/wasm/score.wasm 42 5",
             "artifact_sha256": "101a7ef938b7bc461936cd875579934d6544988a3de4339254e3894acada8855"
           }
         }

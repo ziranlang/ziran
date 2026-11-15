@@ -31,21 +31,40 @@ HasOp :: (program: LirProgram, function: s32, op: LirOp) -> bool {
 FixtureCases :: () -> s32 {
     record_fields: [2]s32 = .{2, 2}
     identity_parameters: [1]s32 = .{2}
-    types: [6]LirType = .{
+    text_fields: [2]s32 = .{7, 2}
+    types: [13]LirType = .{
         .{kind = .Void}, .{kind = .Bool, bits = 1},
         .{kind = .Integer, bits = 32, is_signed = true},
         .{kind = .Record, fields = record_fields[:]},
         .{kind = .Function, parameters = identity_parameters[:], result = 2},
-        .{kind = .Float, bits = 64}}
-    modules: [1]string = .{"optimizer"}
+        .{kind = .Float, bits = 64},
+        .{kind = .Integer, bits = 8},
+        .{kind = .Pointer, element = 6},
+        .{kind = .Record, fields = text_fields[:]},
+        .{kind = .Array, element = 6, count = 5},
+        .{kind = .Pointer, element = 9},
+        .{kind = .Array, element = 6, count = 3},
+        .{kind = .Pointer, element = 11}}
+    modules: [2]string = .{"optimizer", "text"}
     sources: [1]string = .{"optimizer.zi"}
     origins: [1]LirOrigin = .{.{file = 0, line = 9, column = 3, begin = 8, end = 19, parent = -1}}
-    constants: [9]LirConstant = .{
+    ziran_bytes: [5]u8 = .{90, 105, 114, 97, 110}
+    zir_bytes: [3]u8 = .{122, 105, 114}
+    zzz_bytes: [3]u8 = .{122, 122, 122}
+    constants: [17]LirConstant = .{
         .{type = 2, bits = 20}, .{type = 2, bits = 22}, .{type = 1, bits = 1},
         .{type = 2, bits = 0}, .{type = 2, bits = 1}, .{type = 2, bits = 3},
         .{type = 2, bits = 7}, .{type = 2, bits = 32},
-        .{type = 5, bits = 0x7ff8000000000000}}
-
+        .{type = 5, bits = 0x7ff8000000000000},
+        .{type = 9, bytes = ziran_bytes[:]}, .{type = 2, bits = 0},
+        .{type = 2, bits = 5}, .{type = 11, bytes = zir_bytes[:]},
+        .{type = 2, bits = 0}, .{type = 2, bits = 3},
+        .{type = 11, bytes = zzz_bytes[:]},
+        .{type = 1, bits = 0}}
+    text_globals: [3]LirGlobal = .{
+        .{module = 1, type = 9, constant = 9, writable = false, name = "string.0"},
+        .{module = 1, type = 11, constant = 12, writable = false, name = "string.1"},
+        .{module = 1, type = 11, constant = 15, writable = false, name = "string.2"}}
     none: [0]s32
     answer_values: [8]s32 = .{2, 2, 2, 2, 1, 2, 2, 2}
     answer_pair: [2]s32 = .{0, 1}
@@ -174,7 +193,35 @@ FixtureCases :: () -> s32 {
     identity_blocks: [1]LirBlock = .{
         .{parameters = identity_entry_parameter[:], instructions = identity_instructions[:]}}
 
-    functions: [8]LirFunction = .{
+    // The lowerer represents literal strings as a constant-data pointer plus
+    // a count. Exercise both predicates and both constant results.
+    text_parameters: [2]s32 = .{8, 2}
+    text_values: [3]s32 = .{8, 2, 1}
+    text_entry_parameters: [2]s32 = .{0, 1}
+    text_result: [1]s32 = .{2}
+    text_true_entry: [2]LirInstruction = .{
+        Instruction(.Constant, 2, none[:], 2),
+        Instruction(.Return, -1, text_result[:])}
+    text_false_entry: [2]LirInstruction = .{
+        Instruction(.Constant, 2, none[:], 16),
+        Instruction(.Return, -1, text_result[:])}
+    text_true_blocks: [1]LirBlock = .{
+        .{parameters = text_entry_parameters[:], instructions = text_true_entry[:]}}
+    text_false_blocks: [1]LirBlock = .{
+        .{parameters = text_entry_parameters[:], instructions = text_false_entry[:]}}
+
+    fixed_values: [4]s32 = .{12, 2, 7, 2}
+    fixed_index_operands: [2]s32 = .{0, 1}
+    fixed_return_operands: [1]s32 = .{3}
+    fixed_instructions: [5]LirInstruction = .{
+        Instruction(.GlobalAddress, 0, none[:], 1),
+        Instruction(.Constant, 1, none[:], 4),
+        Instruction(.ElementAddress, 2, fixed_index_operands[:]),
+        Instruction(.Constant, 3, none[:], 7),
+        Instruction(.Return, -1, fixed_return_operands[:])}
+    fixed_blocks: [1]LirBlock = .{.{instructions = fixed_instructions[:]}}
+
+    functions: [12]LirFunction = .{
         .{module = 0, name = "answer", result = 2, values = answer_values[:],
             blocks = answer_blocks[:], entry = 0, origin = 0},
         .{module = 0, name = "divide-trap", result = 2, values = divide_values[:],
@@ -190,11 +237,30 @@ FixtureCases :: () -> s32 {
         .{module = 0, name = "conversion-trap", result = 2, values = conversion_values[:],
             blocks = conversion_blocks[:], entry = 0, origin = 0},
         .{module = 0, name = "identity", parameters = identity_parameters[:], result = 2,
-            values = identity_values[:], blocks = identity_blocks[:], entry = 0, origin = 0}}
+            values = identity_values[:], blocks = identity_blocks[:], entry = 0, origin = 0},
+        .{module = 1, name = "StartsWithFoldASCII", result = 1,
+            parameters = text_parameters[:], values = text_values[:],
+            blocks = text_true_blocks[:], entry = 0, origin = 0},
+        .{module = 1, name = "ContainsFoldASCII", result = 1,
+            parameters = text_parameters[:], values = text_values[:],
+            blocks = text_true_blocks[:], entry = 0, origin = 0},
+        .{module = 1, name = "ContainsFoldASCII", result = 1,
+            parameters = text_parameters[:], values = text_values[:],
+            blocks = text_false_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "fixed-index", result = 2,
+            values = fixed_values[:], blocks = fixed_blocks[:], entry = 0, origin = 0}}
     program := LirProgram.{version = LirVersion, modules = modules[:], sources = sources[:],
         types = types[:], constants = constants[:], functions = functions[:],
-        origins = origins[:], entry = 0}
+        globals = text_globals[:], origins = origins[:], entry = 0}
 
+    initial_verification := LirVerify(program, LirDefaultLimits())
+    if initial_verification.problem != .None {
+        print("fixture verifier problem=% function=% block=% instruction=% value=% origin=%\n",
+            cast(s32)initial_verification.problem, initial_verification.function,
+            initial_verification.block, initial_verification.instruction,
+            initial_verification.value, initial_verification.origin)
+        return 1
+    }
     before_answer := Execute(program, 0)
     before_divide := Execute(program, 1)
     before_shift := Execute(program, 2)
@@ -225,6 +291,25 @@ FixtureCases :: () -> s32 {
         !HasOp(optimized, 3, .Fuel) || !HasOp(optimized, 4, .Branch) ||
         !HasOp(optimized, 5, .Aggregate) || !HasOp(optimized, 5, .FunctionAddress) ||
         !HasOp(optimized, 6, .Convert) || HasOp(optimized, 7, .Bitcast) { return 6 }
+    expected_results: [3]u64 = .{1, 1, 0}
+    for at: 0..2 {
+        function: s32 = 8 + cast(s32)at
+        if optimized.functions[function].blocks.count != 1 ||
+            HasOp(optimized, function, .Call) || HasOp(optimized, function, .GlobalAddress) ||
+            HasOp(optimized, function, .Aggregate) { return 16 }
+        folded := false
+        for block: optimized.functions[function].blocks {
+            for instruction: block.instructions {
+                if instruction.op == .Constant &&
+                    optimized.types[optimized.constants[instruction.symbol].type].kind == .Bool {
+                    folded = optimized.constants[instruction.symbol].bits == expected_results[at]
+                }
+            }
+        }
+        if !folded { return 17 }
+    }
+    if HasOp(optimized, 11, .GlobalAddress) ||
+        HasOp(optimized, 11, .ElementAddress) { return 18 }
     fuel := optimized.functions[3].blocks[0].instructions[0]
     if fuel.op != .Fuel || fuel.effect != 1 || fuel.immediate != 3 || fuel.origin != 0 { return 7 }
     for function: optimized.functions {

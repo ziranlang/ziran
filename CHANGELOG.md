@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- The shared LIR optimizer adds common-subexpression elimination, constant-text folding, precise scratch-slot accounting, safe dead-code and CFG cleanup, and Wasm range-based bounds-check elimination.
 - Go accepts a module initializer that stores a procedure which later calls a host, as a feature module does when it registers itself; only a host call made while an initializer runs is refused.
 - `zi2zx` rejects `--opt` on ZX input instead of ignoring it; saved ZX is never reoptimized.
 - On Linux x86-64, `ziran run app.zx`, `zi2zx run` and the embedding API run bundles as native code with the engine's pointer checks: dangling frame pointers, use after free, double free and read-only stores trap, a native gap is a named error, and nothing falls back to the engine. `--backend engine` picks the engine.

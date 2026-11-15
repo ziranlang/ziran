@@ -20,6 +20,7 @@ LirOptPassCounters :: struct {
 LirOptCounters :: struct {
     fold: LirOptPassCounters
     copy: LirOptPassCounters
+    cse: LirOptPassCounters
     dead: LirOptPassCounters
     cfg: LirOptPassCounters
     compact: LirOptPassCounters
@@ -62,6 +63,7 @@ OptState :: struct {
     remaining: s64
     used: s64
     scratch_bytes: s64
+    peak_scratch_bytes: s64
     maximum_bytes: s64
     counters: LirOptCounters
 }
@@ -70,6 +72,123 @@ ConstantFact :: struct {
     known: bool
     type: s32
     bits: u64
+}
+
+TextFact :: struct {
+    known: bool
+    bytes: []u8
+    count: s64
+}
+
+DefinitionAt :: (function: LirFunction, value: s32) -> LirInstruction {
+    if value < 0 { return .{} }
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if instruction.result == value { return instruction }
+        }
+    }
+    return .{}
+}
+
+TextByteAt :: (text: TextFact, index: s64) -> u8 {
+    if index < 0 || index >= text.count || index >= text.bytes.count { return 0 }
+    return text.bytes[index]
+}
+
+// Pure-call interpretation has its own small budget. Exhaustion leaves the
+// runtime call in place and never marks optimizer state as a compilation error.
+EvalBudget :: struct {
+    work: s64
+    scratch_bytes: s64
+    maximum_bytes: s64
+}
+
+// Successful result of bounded interpretation of one direct call.
+EvalFact :: struct {
+    fact: ConstantFact
+    ok: bool
+}
+
+// A compile-time string is the constant bytes addressed by an aggregate's
+// first field and the aggregate's constant element count. Rejecting writable
+// globals and nonzero element offsets keeps the view tied to literal storage.
+ConstantText :: (program: LirProgram, function: LirFunction,
+    value: s32) -> TextFact {
+    unknown: TextFact
+    if value < 0 { return unknown }
+    aggregate := DefinitionAt(function, value)
+    if aggregate.op != .Aggregate || aggregate.operands.count != 2 { return unknown }
+    count := DefinitionAt(function, aggregate.operands[1])
+    if count.op != .Constant || count.symbol < 0 ||
+        count.symbol >= program.constants.count { return unknown }
+    length := program.constants[count.symbol].bits
+    address := DefinitionAt(function, aggregate.operands[0])
+    if address.op == .ElementAddress {
+        if address.operands.count != 2 { return unknown }
+        offset := DefinitionAt(function, address.operands[1])
+        if offset.op != .Constant || offset.symbol < 0 ||
+            offset.symbol >= program.constants.count ||
+            program.constants[offset.symbol].bits != 0 { return unknown }
+        address = DefinitionAt(function, address.operands[0])
+    }
+    if address.op != .GlobalAddress || address.symbol < 0 ||
+        address.symbol >= program.globals.count { return unknown }
+    global := program.globals[address.symbol]
+    if global.writable || global.constant < 0 ||
+        global.constant >= program.constants.count { return unknown }
+    bytes := program.constants[global.constant].bytes
+    if length > cast(u64)bytes.count { return unknown }
+    return .{known = true, bytes = bytes, count = cast(s64)length}
+}
+
+TextLowerASCII :: (value: u8) -> u8 {
+    if value >= 65 && value <= 90 { return value + 32 }
+    return value
+}
+
+// Folds the two exported ASCII predicates by their published definitions.
+// Interpretation work is bounded independently; exhaustion leaves the call.
+FoldTextCall :: (state: *OptState, program: LirProgram, callee: LirFunction,
+    function: LirFunction, instruction: LirInstruction,
+    budget: *EvalBudget) -> ConstantFact {
+    unknown: ConstantFact
+    if callee.module < 0 || callee.module >= program.modules.count ||
+        program.modules[callee.module] != "text" || instruction.operands.count != 2 {
+        return unknown
+    }
+    if callee.name == "StartsWithFoldASCII" {
+        value := ConstantText(program, function, instruction.operands[0])
+        prefix := ConstantText(program, function, instruction.operands[1])
+        if !value.known || !prefix.known || prefix.count > value.count { return unknown }
+        for index: 0..cast(s64)prefix.count - 1 {
+            if !EvalSpend(budget, 1) { return unknown }
+            if TextLowerASCII(TextByteAt(value, index)) != TextLowerASCII(TextByteAt(prefix, index)) {
+                return .{known = true, type = callee.result, bits = 0}
+            }
+        }
+        return .{known = true, type = callee.result, bits = 1}
+    }
+    if callee.name == "ContainsFoldASCII" {
+        value := ConstantText(program, function, instruction.operands[0])
+        needle := ConstantText(program, function, instruction.operands[1])
+        if !value.known || !needle.known { return unknown }
+        if needle.count == 0 { return .{known = true, type = callee.result, bits = 1} }
+        if needle.count > value.count { return .{known = true, type = callee.result, bits = 0} }
+        last := cast(s64)value.count - cast(s64)needle.count
+        for start: 0..last {
+            same := true
+            for index: 0..cast(s64)needle.count - 1 {
+                if !EvalSpend(budget, 1) { return unknown }
+                if TextLowerASCII(TextByteAt(value, start + index)) != TextLowerASCII(TextByteAt(needle, index)) {
+                    same = false
+                    break
+                }
+            }
+            if same { return .{known = true, type = callee.result, bits = 1} }
+        }
+        return .{known = true, type = callee.result, bits = 0}
+    }
+    return unknown
 }
 
 EmptyDiagnostic :: () -> LirDiagnostic {
@@ -82,6 +201,24 @@ Fail :: (state: *OptState, problem: LirOptProblem) -> bool {
     return false
 }
 
+RenumberEffects :: (function: *LirFunction) {
+    for block_index: 0..function.blocks.count - 1 {
+        effect: s32
+        block := function.blocks[block_index]
+        for instruction_index: 0..block.instructions.count - 1 {
+            instruction := block.instructions[instruction_index]
+            if LirEffectful(instruction.op) {
+                effect += 1
+                instruction.effect = effect
+            } else {
+                instruction.effect = 0
+            }
+            block.instructions[instruction_index] = instruction
+        }
+        function.blocks[block_index] = block
+    }
+}
+
 Spend :: (state: *OptState, count: s64) -> bool {
     if count < 0 || count > state.remaining { return Fail(state, .Limit) }
     state.remaining -= count
@@ -89,12 +226,41 @@ Spend :: (state: *OptState, count: s64) -> bool {
     return true
 }
 
+EvalSpend :: (budget: *EvalBudget, count: s64) -> bool {
+    if count < 0 || count > budget.work { return false }
+    budget.work -= count
+    return true
+}
+
+EvalScratch :: (budget: *EvalBudget, count: s64, width: s64) -> bool {
+    if count < 0 || width < 1 || count > 2147483647 ||
+        budget.scratch_bytes > budget.maximum_bytes ||
+        count > (budget.maximum_bytes - budget.scratch_bytes) / width { return false }
+    budget.scratch_bytes += count * width
+    return true
+}
+
+EvalRelease :: (budget: *EvalBudget, bytes: s64) {
+    budget.scratch_bytes -= bytes
+}
+
 Scratch :: (state: *OptState, count: s64, width: s64) -> bool {
     if count < 0 || width < 1 || count > 2147483647 ||
         state.scratch_bytes > state.maximum_bytes ||
         count > (state.maximum_bytes - state.scratch_bytes) / width { return Fail(state, .Limit) }
     state.scratch_bytes += count * width
+    if state.scratch_bytes > state.peak_scratch_bytes {
+        state.peak_scratch_bytes = state.scratch_bytes
+    }
     return true
+}
+
+ScratchRelease :: (state: *OptState, bytes: s64) {
+    if bytes >= 0 && bytes <= state.scratch_bytes { state.scratch_bytes -= bytes }
+}
+
+ScratchReset :: (state: *OptState) {
+    state.scratch_bytes = 0
 }
 
 CountProgram :: (state: *OptState, program: LirProgram, output: bool) -> bool {
@@ -146,6 +312,7 @@ CloneProgram :: (state: *OptState, program: LirProgram, limits: LirLimits,
     measured := LirWrite(program, empty)
     if measured.problem != .None { return CodecFailure(state, measured) }
     if !Scratch(state, measured.size, 1) { return false }
+    defer ScratchRelease(state, measured.size)
     encoded: Vec(u8)
     defer VecFree(encoded)
     if !VecResizeBounded(encoded, measured.size, measured.size) { return Fail(state, .Allocation) }
@@ -173,6 +340,37 @@ Signed :: (bits: u64, width: s32) -> s64 {
         value |= ~Mask(width)
     }
     return cast(s64)value
+}
+
+// A fixed-array global has its full extent before any use. Allocations have
+// a different pointer shape, so only the GlobalAddress marker is accepted.
+SafeConstantElement :: (program: LirProgram, function: LirFunction,
+    base: s32, result: s32, index_symbol: s32) -> s32 {
+    if base < 0 || base >= function.values.count || result < 0 ||
+        result >= function.values.count || index_symbol < 0 ||
+        index_symbol >= program.constants.count { return LirNoId }
+    base_pointer := program.types[function.values[base]]
+    result_pointer := program.types[function.values[result]]
+    if base_pointer.kind != .Pointer || base_pointer.element == result_pointer.element ||
+        result_pointer.kind != .Pointer ||
+        base_pointer.element < 0 || base_pointer.element >= program.types.count ||
+        result_pointer.element < 0 || result_pointer.element >= program.types.count {
+        return LirNoId
+    }
+    target := program.types[base_pointer.element]
+    if target.kind != .Array || target.element != result_pointer.element ||
+        target.count < 1 { return LirNoId }
+    constant := program.constants[index_symbol]
+    if constant.type < 0 || constant.type >= program.types.count { return LirNoId }
+    index_type := program.types[constant.type]
+    if index_type.kind != .Integer || index_type.bits < 1 || index_type.bits > 64 {
+        return LirNoId
+    }
+    if index_type.is_signed {
+        index := Signed(constant.bits, index_type.bits)
+        if index < 0 || index >= target.count { return LirNoId }
+    } else if constant.bits >= cast(u64)target.count { return LirNoId }
+    return base
 }
 
 Fact :: (facts: []ConstantFact, value: s32) -> ConstantFact {
@@ -311,7 +509,21 @@ FoldPass :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits,
         state.counters.fold.runs += 1
         for function_index: 0..program.functions.count - 1 {
             function := program.functions[function_index]
+            function_changed: s64
             for value: 0..function.values.count - 1 { facts[value] = .{} }
+            uses_text := false
+            for block: function.blocks {
+                for instruction: block.instructions {
+                    if instruction.op != .Call || instruction.symbol < 0 ||
+                        instruction.symbol >= program.functions.count { continue }
+                    callee := program.functions[instruction.symbol]
+                    if callee.module < 0 || callee.module >= program.modules.count { continue }
+                    if program.modules[callee.module] == "text" &&
+                        (callee.name == "StartsWithFoldASCII" ||
+                         callee.name == "ContainsFoldASCII") { uses_text = true; break }
+                }
+                if uses_text { break }
+            }
             for block: function.blocks {
                 for instruction: block.instructions {
                     if !Spend(state, 1) { return false }
@@ -331,6 +543,75 @@ FoldPass :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits,
                         facts[instruction.result] = .{known = true, type = constant.type, bits = constant.bits}
                         continue
                     }
+                    if instruction.op == .Call {
+                        if instruction.symbol < 0 ||
+                            instruction.symbol >= program.functions.count { continue }
+                        arguments_known := true
+                        for argument: instruction.operands {
+                            if !facts[argument].known { arguments_known = false; break }
+                        }
+                        if arguments_known {
+                            evaluation_work := limits.work
+                            if evaluation_work > 1000000 { evaluation_work = 1000000 }
+                            evaluation_bytes := limits.bytes
+                            if evaluation_bytes > 1048576 { evaluation_bytes = 1048576 }
+                            budget := EvalBudget.{work = evaluation_work,
+                                maximum_bytes = evaluation_bytes}
+                            evaluated := EvaluatePureCall(state, program,
+                                instruction.symbol, facts[:function.values.count],
+                                instruction.operands[:], 0, *budget)
+                            if state.problem != .None { return false }
+                            if evaluated.ok && instruction.result != LirNoId &&
+                                evaluated.fact.type == function.values[instruction.result] {
+                                if constant_count >= constants.count { return Fail(state, .Limit) }
+                                constants[constant_count] = .{type = evaluated.fact.type,
+                                    bits = evaluated.fact.bits}
+                                instruction.op = .Constant
+                                instruction.operands = instruction.operands[:0]
+                                instruction.edges = instruction.edges[:0]
+                                instruction.immediate = 0
+                                instruction.symbol = cast(s32)constant_count
+                                instruction.alignment = 0
+                                instruction.effect = 0
+                                block.instructions[instruction_index] = instruction
+                                facts[instruction.result] = evaluated.fact
+                                constant_count += 1
+                                program.constants = constants[:constant_count]
+                                changed += 1
+                                function_changed += 1
+                                total += 1
+                                continue
+                            }
+                        }
+                        if uses_text && instruction.result != LirNoId {
+                            callee := program.functions[instruction.symbol]
+                            text_budget := EvalBudget.{work = 4096}
+                            folded_text := FoldTextCall(state, program, callee,
+                                function, instruction, *text_budget)
+                            if state.problem != .None { return false }
+                            if folded_text.known && folded_text.type == function.values[instruction.result] {
+                                if constant_count >= constants.count { return Fail(state, .Limit) }
+                                constants[constant_count] = .{type = folded_text.type,
+                                    bits = folded_text.bits}
+                                instruction.op = .Constant
+                                instruction.operands = instruction.operands[:0]
+                                instruction.edges = instruction.edges[:0]
+                                instruction.immediate = 0
+                                instruction.symbol = cast(s32)constant_count
+                                instruction.alignment = 0
+                                instruction.effect = 0
+                                block.instructions[instruction_index] = instruction
+                                facts[instruction.result] = folded_text
+                                constant_count += 1
+                                program.constants = constants[:constant_count]
+                                changed += 1
+                                function_changed += 1
+                                total += 1
+                                continue
+                            }
+                        }
+                        continue
+                    }
                     folded := FoldInstruction(program, function, instruction, facts[:function.values.count])
                     if !folded.known { continue }
                     if constant_count >= constants.count { return Fail(state, .Limit) }
@@ -345,11 +626,15 @@ FoldPass :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits,
                     block.instructions[instruction_index] = instruction
                     facts[instruction.result] = folded
                     constant_count += 1
+                    program.constants = constants[:constant_count]
                     changed += 1
+                    function_changed += 1
                     total += 1
+                    continue
                 }
                 function.blocks[block_index] = block
             }
+            if function_changed > 0 { RenumberEffects(*function) }
             program.functions[function_index] = function
         }
         if changed == 0 { break }
@@ -361,6 +646,125 @@ FoldPass :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits,
     if !VerifyPass(state, pass_program, limits) { return false }
     if total == 0 { return true }
     return CloneProgram(state, pass_program, limits, *owner.storage)
+}
+
+// Follows one executable path through a direct non-external procedure. Only
+// scalar integer and Boolean computations are admitted: every effectful
+// operation except the fuel marker makes the value unknown, an unknown branch
+// makes it unknown, and revisiting a block proves a loop. Recursive calls use
+// the same rules and a hard depth bound. This folds only computations the
+// program would actually perform; fuel and trapping behavior remain in every
+// path the compiler leaves behind.
+EvaluatePureCall :: (state: *OptState, program: LirProgram,
+    symbol: s32, facts: []ConstantFact, arguments: []s32, depth: s32,
+    budget: *EvalBudget) -> EvalFact {
+    unknown: EvalFact
+    if depth >= 64 || !EvalSpend(budget, 1) { return unknown }
+    if symbol < 0 || symbol >= program.functions.count { return unknown }
+    callee := program.functions[symbol]
+    if callee.external || callee.calling != .Portable || callee.blocks.count < 1 ||
+        callee.result < 0 || callee.result >= program.types.count ||
+        callee.parameters.count != arguments.count { return unknown }
+    result := program.types[callee.result]
+    if (result.kind != .Integer && result.kind != .Bool) || result.bits < 1 || result.bits > 64 {
+        return unknown
+    }
+    for at: 0..callee.parameters.count - 1 {
+        type := program.types[facts[arguments[at]].type]
+        if (type.kind != .Integer && type.kind != .Bool) || type.bits < 1 || type.bits > 64 {
+            return unknown
+        }
+    }
+    if !EvalScratch(budget, callee.values.count, 24) ||
+        !EvalScratch(budget, callee.blocks.count, 1) {
+        return unknown
+    }
+    frame_bytes := callee.values.count * 24 + callee.blocks.count
+    defer EvalRelease(budget, frame_bytes)
+    values: Vec(ConstantFact)
+    defer VecFree(values)
+    visited: Vec(u8)
+    defer VecFree(visited)
+    if !VecResizeBounded(values, callee.values.count, callee.values.count) ||
+        !VecResizeBounded(visited, callee.blocks.count, callee.blocks.count) {
+        return unknown
+    }
+    for value: 0..callee.values.count - 1 { values[value] = .{} }
+    for block: 0..callee.blocks.count - 1 { visited[block] = 0 }
+    entry := callee.blocks[callee.entry]
+    if entry.parameters.count != callee.parameters.count { return unknown }
+    for at: 0..entry.parameters.count - 1 {
+        values[entry.parameters[at]] = facts[arguments[at]]
+    }
+
+    block_index := callee.entry
+    while true {
+        if visited[block_index] != 0 { return unknown }
+        visited[block_index] = 1
+        block := callee.blocks[block_index]
+        next: s32 = LirNoId
+        for instruction: block.instructions {
+            if !EvalSpend(budget, 1) { return unknown }
+            if instruction.op == .Constant {
+                constant := program.constants[instruction.symbol]
+                values[instruction.result] = .{known = true, type = constant.type,
+                    bits = constant.bits}
+                continue
+            }
+            if instruction.op == .Fuel { continue }
+            if instruction.op == .Return {
+                if instruction.operands.count != 1 { return unknown }
+                answer := values[instruction.operands[0]]
+                if !answer.known || answer.type != callee.result { return unknown }
+                return .{fact = answer, ok = true}
+            }
+            if instruction.op == .Jump {
+                if instruction.edges.count != 1 { return unknown }
+                edge := instruction.edges[0]
+                target := callee.blocks[edge.block]
+                if edge.arguments.count != target.parameters.count { return unknown }
+                for at: 0..edge.arguments.count - 1 {
+                    values[target.parameters[at]] = values[edge.arguments[at]]
+                }
+                next = edge.block
+                break
+            }
+            if instruction.op == .Branch {
+                if instruction.operands.count != 1 || instruction.edges.count != 2 { return unknown }
+                condition := values[instruction.operands[0]]
+                if !condition.known || program.types[condition.type].kind != .Bool { return unknown }
+                edge_index := ifx condition.bits != 0 then 0 else 1
+                edge := instruction.edges[edge_index]
+                target := callee.blocks[edge.block]
+                if edge.arguments.count != target.parameters.count { return unknown }
+                for at: 0..edge.arguments.count - 1 {
+                    values[target.parameters[at]] = values[edge.arguments[at]]
+                }
+                next = edge.block
+                break
+            }
+            if instruction.op == .Call {
+                if instruction.result == LirNoId || instruction.symbol < 0 ||
+                    instruction.symbol >= program.functions.count { return unknown }
+                for argument: instruction.operands {
+                    if !values[argument].known { return unknown }
+                }
+                nested := EvaluatePureCall(state, program, instruction.symbol,
+                    values[:], instruction.operands[:], depth + 1, budget)
+                if state.problem != .None { return unknown }
+                if !nested.ok { return unknown }
+                values[instruction.result] = nested.fact
+                continue
+            }
+            if LirEffectful(instruction.op) { return unknown }
+            folded := FoldInstruction(program, callee, instruction, values[:])
+            if !folded.known || instruction.result == LirNoId ||
+                folded.type != callee.values[instruction.result] { return unknown }
+            values[instruction.result] = folded
+        }
+        if next == LirNoId { return unknown }
+        block_index = next
+    }
 }
 
 ResolveAlias :: (state: *OptState, aliases: []s32, value: s32) -> s32 {
@@ -534,9 +938,8 @@ CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                     aliases[instruction.result] = instruction.operands[0]
                 }
                 if instruction.op == .Constant { symbols[instruction.result] = instruction.symbol }
-                if instruction.op == .GlobalAddress || instruction.op == .Allocate {
-                    non_null[instruction.result] = 1
-                }
+                if instruction.op == .GlobalAddress { non_null[instruction.result] = 1 }
+                if instruction.op == .Allocate { non_null[instruction.result] = 2 }
                 if instruction.op == .Aggregate {
                     aggregate_block[instruction.result] = cast(s32)block_index
                     aggregate_instruction[instruction.result] = cast(s32)instruction_index
@@ -716,12 +1119,209 @@ CompactValues :: (state: *OptState, function: *LirFunction, keep: []u8,
     return true
 }
 
+// One distinct pure instruction remembered by the block scan.
+CseEntry :: struct {
+    op: LirOp
+    immediate: u64
+    symbol: s32
+    alignment: u32
+    result_type: s32
+    operands: s32
+    operand_count: s32
+    value: s32
+    next: s32
+}
+
+CseHash :: (hash: u64, value: u64) -> u64 {
+    mixed := hash ^ value
+    mixed *= 1099511628211
+    mixed ^= mixed >> 29
+    return mixed
+}
+
+// Whether an instruction is the same computation as a remembered entry:
+// same operation, type, immediates and operand values, and for constants the
+// same constant value rather than the same constant slot.
+CseSame :: (state: *OptState, program: LirProgram, function: LirFunction,
+    instruction: LirInstruction, entry: CseEntry, keys: []s32) -> bool {
+    if entry.op != instruction.op || entry.immediate != instruction.immediate ||
+        entry.alignment != instruction.alignment ||
+        entry.result_type != function.values[instruction.result] ||
+        entry.operand_count != instruction.operands.count { return false }
+    if instruction.op == .Constant {
+        left := program.constants[entry.symbol]
+        right := program.constants[instruction.symbol]
+        if left.type != right.type || left.bits != right.bits { return false }
+        if left.bytes.count != right.bytes.count { return false }
+        for at: 0..left.bytes.count - 1 {
+            if !Spend(state, 1) { return Fail(state, .Limit) }
+            if left.bytes[at] != right.bytes[at] { return false }
+        }
+        return true
+    }
+    if entry.symbol != instruction.symbol { return false }
+    for at: 0..entry.operand_count - 1 {
+        if !Spend(state, 1) { return Fail(state, .Limit) }
+        if keys[entry.operands + at] != instruction.operands[at] { return false }
+    }
+    return true
+}
+
+// Common-subexpression elimination: within one block, a pure instruction
+// whose operation, type, immediates and operand values repeat an earlier one
+// computes the same value or raises the same trap, so the later copy is
+// dropped and every use reads the earlier result. The earlier instruction
+// still runs, so trapping behavior and the effectful order never change.
+CsePass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
+    state.counters.cse.runs += 1
+    for function_index: 0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        if !Scratch(state, function.values.count, 4) { return false }
+        aliases: Vec(s32)
+        if !VecResizeBounded(aliases, function.values.count, function.values.count) {
+            VecFree(aliases)
+            return Fail(state, .Allocation)
+        }
+        for value: 0..function.values.count - 1 { aliases[value] = cast(s32)value }
+        merged: s64 = 0
+        for block_index: 0..function.blocks.count - 1 {
+            block := function.blocks[block_index]
+            count := block.instructions.count
+            if count == 0 { continue }
+            total_operands: s64
+            for instruction: block.instructions { total_operands += instruction.operands.count }
+            buckets := 16
+            while buckets < count * 4 && buckets < 268435456 { buckets *= 2 }
+            if !Scratch(state, count, 48) || !Scratch(state, count, 5) ||
+                !Scratch(state, total_operands, 4) || !Scratch(state, buckets, 4) {
+                VecFree(aliases)
+                return false
+            }
+            seen: Vec(CseEntry)
+            keys: Vec(s32)
+            heads: Vec(s32)
+            dropped: Vec(u8)
+            if !VecResizeBounded(seen, count, count) ||
+                !VecResizeBounded(keys, total_operands, total_operands) ||
+                !VecResizeBounded(heads, buckets, buckets) ||
+                !VecResizeBounded(dropped, count, count) {
+                VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
+                VecFree(aliases)
+                return Fail(state, .Allocation)
+            }
+            for bucket: 0..heads.count - 1 { heads[bucket] = LirNoId }
+            seen_count: s64
+            key_count: s64
+            for read: 0..count - 1 {
+                dropped[read] = 0
+                instruction := block.instructions[read]
+                if LirTerminator(instruction.op) || instruction.result == LirNoId || instruction.effect != 0 { continue }
+                if !Spend(state, 1) {
+                    VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
+                    VecFree(aliases)
+                    return false
+                }
+                hash := CseHash(CseHash(CseHash(1469598103934665603,
+                    cast(u64)cast(s32)instruction.op), instruction.immediate),
+                    cast(u64)cast(s32)function.values[instruction.result])
+                for operand: instruction.operands { hash = CseHash(hash, cast(u64)cast(s32)operand) }
+                if instruction.op == .Constant {
+                    constant := program.constants[instruction.symbol]
+                    hash = CseHash(CseHash(hash, cast(u64)cast(s32)constant.type), constant.bits)
+                } else {
+                    hash = CseHash(hash, cast(u64)cast(s32)instruction.symbol)
+                }
+                bucket := cast(s32)(hash & cast(u64)(heads.count - 1))
+                found: s32 = LirNoId
+                at := heads[bucket]
+                while at != LirNoId {
+                    entry := seen[at]
+                    same := CseSame(state, program, function, instruction, entry, keys[:])
+                    if state.problem != .None {
+                        VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
+                        VecFree(aliases)
+                        return false
+                    }
+                    if same { found = entry.value; break }
+                    at = entry.next
+                }
+                if found != LirNoId {
+                    aliases[instruction.result] = found
+                    dropped[read] = 1
+                    merged += 1
+                    state.counters.cse.instructions += 1
+                    continue
+                }
+                if seen_count >= seen.count || key_count + instruction.operands.count > keys.count {
+                    VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
+                    VecFree(aliases)
+                    return Fail(state, .Limit)
+                }
+                entry := CseEntry.{op = instruction.op, immediate = instruction.immediate,
+                    symbol = instruction.symbol, alignment = instruction.alignment,
+                    result_type = function.values[instruction.result],
+                    operands = cast(s32)key_count, operand_count = cast(s32)instruction.operands.count,
+                    value = instruction.result, next = heads[bucket]}
+                seen[seen_count] = entry
+                for operand: instruction.operands {
+                    keys[key_count] = operand
+                    key_count += 1
+                }
+                heads[bucket] = cast(s32)seen_count
+                seen_count += 1
+            }
+            if merged > 0 {
+                write: s64
+                for read: 0..count - 1 {
+                    instruction := block.instructions[read]
+                    if dropped[read] != 0 { continue }
+                    block.instructions[write] = instruction
+                    write += 1
+                }
+                block.instructions = block.instructions[:write]
+                function.blocks[block_index] = block
+            }
+            VecFree(seen)
+            VecFree(keys)
+            VecFree(heads)
+            VecFree(dropped)
+        }
+        if merged > 0 {
+            for block_index: 0..function.blocks.count - 1 {
+                block := function.blocks[block_index]
+                for instruction_index: 0..block.instructions.count - 1 {
+                    instruction := block.instructions[instruction_index]
+                    for at: 0..instruction.operands.count - 1 {
+                        instruction.operands[at] = ResolveAlias(state, aliases[:], instruction.operands[at])
+                        if state.problem != .None { VecFree(aliases); return false }
+                    }
+                    for edge_index: 0..instruction.edges.count - 1 {
+                        edge := instruction.edges[edge_index]
+                        for at: 0..edge.arguments.count - 1 {
+                            edge.arguments[at] = ResolveAlias(state, aliases[:], edge.arguments[at])
+                            if state.problem != .None { VecFree(aliases); return false }
+                        }
+                        instruction.edges[edge_index] = edge
+                    }
+                    block.instructions[instruction_index] = instruction
+                }
+                function.blocks[block_index] = block
+            }
+            empty: []u8
+            if !CompactValues(state, *function, empty, *state.counters.cse) { return false }
+        }
+        VecFree(aliases)
+        program.functions[function_index] = function
+    }
+    return VerifyPass(state, program, limits)
+}
+
 DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     state.counters.dead.runs += 1
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
         count := function.values.count
-        if !Scratch(state, count, 15) { return false }
+        if !Scratch(state, count, 19) { return false }
         uses: Vec(s64)
         removed: Vec(u8)
         symbols: Vec(s32)
@@ -743,21 +1343,29 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                 for value: instruction.operands { uses[value] += 1 }
                 for edge: instruction.edges { for value: edge.arguments { uses[value] += 1 } }
                 if instruction.op == .Constant { symbols[instruction.result] = instruction.symbol }
-                if instruction.op == .GlobalAddress || instruction.op == .Allocate {
-                    non_null[instruction.result] = 1
-                }
+                if instruction.op == .GlobalAddress { non_null[instruction.result] = 1 }
+                if instruction.op == .Allocate { non_null[instruction.result] = 2 }
             }
         }
         for block: function.blocks {
             for instruction: block.instructions {
-                if instruction.op != .ElementAddress || instruction.operands.count != 3 { continue }
+                if instruction.op != .ElementAddress ||
+                    instruction.operands.count < 2 || instruction.operands.count > 3 { continue }
                 base := instruction.operands[0]
                 index_symbol := symbols[instruction.operands[1]]
-                count_symbol := symbols[instruction.operands[2]]
-                if non_null[base] != 0 && index_symbol != LirNoId && count_symbol != LirNoId &&
-                    program.constants[index_symbol].bits == 0 &&
-                    program.constants[count_symbol].bits == 1 &&
-                    function.values[base] == function.values[instruction.result] {
+                safe := false
+                if instruction.operands.count == 3 {
+                    count_symbol := symbols[instruction.operands[2]]
+                    safe = non_null[base] != 0 && index_symbol != LirNoId && count_symbol != LirNoId &&
+                        program.constants[index_symbol].bits == 0 &&
+                        program.constants[count_symbol].bits == 1 &&
+                        function.values[base] == function.values[instruction.result]
+                } else {
+                    safe = non_null[base] == 1 && index_symbol != LirNoId &&
+                        SafeConstantElement(program, function, base,
+                            instruction.result, index_symbol) != LirNoId
+                }
+                if safe {
                     safe_element[instruction.result] = 1
                 }
             }
@@ -1043,6 +1651,7 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
         if function.external { continue }
+        jump_target: s64 = -1
         if !Scratch(state, function.values.count, 4) || !Scratch(state, function.blocks.count, 9) {
             return false
         }
@@ -1080,6 +1689,35 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
             }
             function.blocks[block_index] = block
         }
+        entry_block := function.blocks[function.entry]
+        if entry_block.instructions.count == 1 {
+            entry_terminal_index := entry_block.instructions.count - 1
+            entry_terminal := entry_block.instructions[entry_terminal_index]
+            if entry_terminal.op == .Jump && entry_terminal.edges.count == 1 {
+                target_index := entry_terminal.edges[0].block
+                if target_index != function.entry &&
+                    function.blocks[target_index].parameters.count == 0 {
+                    target := function.blocks[target_index]
+                    sole_predecessor := true
+                    for block_index: 0..function.blocks.count - 1 {
+                        if block_index == function.entry { continue }
+                        for instruction: function.blocks[block_index].instructions {
+                            for edge: instruction.edges {
+                                if edge.block == target_index { sole_predecessor = false }
+                            }
+                        }
+                    }
+                    moves_fuel := false
+                    for instruction: target.instructions {
+                        if instruction.op == .Fuel { moves_fuel = true }
+                    }
+                    if sole_predecessor && !moves_fuel {
+                        state.counters.cfg.instructions += 1
+                        jump_target = target_index
+                    }
+                }
+            }
+        }
         head: s64
         tail: s64 = 1
         queue[0] = function.entry
@@ -1098,7 +1736,7 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                 }
             }
         }
-        if tail != function.blocks.count {
+        if tail != function.blocks.count || jump_target >= 0 {
             if !CompactValues(state, *function, reachable[:], *state.counters.cfg) {
                 VecFree(symbols); VecFree(reachable); VecFree(queue); VecFree(block_map)
                 return false
@@ -1124,7 +1762,9 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
             }
             old_blocks := function.blocks.count
             function.blocks = function.blocks[:next]
-            function.entry = block_map[function.entry]
+            retained_entry: s64 = function.entry
+            if jump_target >= 0 { retained_entry = jump_target }
+            function.entry = block_map[retained_entry]
             state.counters.cfg.blocks += old_blocks - cast(s64)next
         }
         program.functions[function_index] = function
@@ -1138,7 +1778,8 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
 
 Result :: (state: OptState) -> LirOptResult {
     return .{problem = state.problem, diagnostic = state.diagnostic,
-        counters = state.counters, work = state.used, scratch_bytes = state.scratch_bytes}
+        counters = state.counters, work = state.used,
+        scratch_bytes = state.peak_scratch_bytes}
 }
 
 #scope_export
@@ -1191,29 +1832,40 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
     }
     owner.valid = false
     owner.program = .{version = LirVersion, entry = LirNoId}
+    ScratchReset(*state)
     if options.fold_constants && !FoldPass(*state, owner, limits, options) {
         LirOptFree(owner)
         return Result(state)
     }
     optimized := LirReadProgram(*owner.storage)
+    ScratchReset(*state)
     if options.propagate_copies && !CopyPass(*state, optimized, limits) {
         LirOptFree(owner)
         return Result(state)
     }
+    ScratchReset(*state)
     if options.fold_constants && !FoldPass(*state, owner, limits, options) {
         LirOptFree(owner)
         return Result(state)
     }
     optimized = LirReadProgram(*owner.storage)
+    ScratchReset(*state)
+    if options.propagate_copies && !CsePass(*state, optimized, limits) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    ScratchReset(*state)
     if options.simplify_cfg && !CfgPass(*state, optimized, limits) {
         LirOptFree(owner)
         return Result(state)
     }
     optimized = LirReadProgram(*owner.storage)
+    ScratchReset(*state)
     if options.eliminate_dead && !DeadPass(*state, optimized, limits) {
         LirOptFree(owner)
         return Result(state)
     }
+    ScratchReset(*state)
     if !CompactPass(*state, owner, limits) {
         LirOptFree(owner)
         return Result(state)

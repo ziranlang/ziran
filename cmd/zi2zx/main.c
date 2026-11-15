@@ -51,6 +51,7 @@ opt_report(FILE *stream, const LirOptResult *result)
         (long long)counters->output_values, (long long)counters->output_instructions);
     opt_pass(stream, "fold", &counters->fold); fputc(',', stream);
     opt_pass(stream, "copy", &counters->copy); fputc(',', stream);
+    opt_pass(stream, "cse", &counters->cse); fputc(',', stream);
     opt_pass(stream, "cfg", &counters->cfg); fputc(',', stream);
     opt_pass(stream, "dead", &counters->dead);
     fputs("]}\n", stream);

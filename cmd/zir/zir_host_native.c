@@ -72,13 +72,23 @@ void NativeInstanceClose(NativeInstance *instance) { (void)instance; }
 #include "compiler_lowered_ir.h"
 #include "compiler_machine_image.h"
 #include "compiler_machine_pipeline.h"
+#include "compiler_native_cache.h"
 #include "compiler_target.h"
 #include "compiler_x86_64.h"
 #include "zir_exec_console.h"
+#include "zir_profile.h"
 #include "zir_text.h"
 
 #include <cpuid.h>
+#include <dirent.h>
+#include <elf.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <link.h>
 #include <pthread.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>
 
 enum {
     NATIVE_HOST_STUB_SIZE = 256,
@@ -89,8 +99,15 @@ enum {
     NATIVE_CALL_STACK = 200,
     NATIVE_CALL_STACK_ARGUMENTS = 208,
     /* Code compiled for a file nobody holds, kept for a reopen. */
-    NATIVE_CACHE_IDLE = 4
+    NATIVE_CACHE_IDLE = 4,
+    /* Entries the disk cache keeps; the oldest go first. */
+    NATIVE_DISK_ENTRIES = 64
 };
+
+/* Bytes the disk cache keeps, and the age after which a writer's temporary
+ * file is taken as abandoned. */
+#define NATIVE_DISK_BYTES ((off_t)512 * 1024 * 1024)
+#define NATIVE_DISK_ABANDONED ((time_t)3600)
 
 #define NATIVE_TRAP_HOST ((uint32_t)MachineX64TrapReserved)
 #define NATIVE_TRAP_BOUNDS ((uint32_t)MachineX64TrapReserved - 1u)
@@ -130,7 +147,14 @@ _Static_assert(sizeof(NativeAbiFrame) <= NATIVE_CALL_STACK, "frame size");
 /* Compiled code, shared by every bundle with the same content digest on the
  * same CPU. The backend is this build's, so it is part of every key. */
 struct NativeBundleCode {
+    /* Compiled in this process (owner), or read from the disk cache
+     * (cached). The image, globals and result flag come from either. */
+    int compiled;
     MachineNativeOwner owner;
+    NativeCacheOwner cached;
+    MachineImage image;
+    NativeCacheGlobal *globals;
+    int64_t global_count;
     unsigned char digest[32];
     uint64_t cpu;
     int has_result;
@@ -415,8 +439,41 @@ machine_problem_name(MachineProblem problem)
 static void
 native_free_code(NativeBundleCode *code)
 {
-    compiler_machine_pipeline_MachineNativeFree(&code->owner);
+    if(code->compiled) compiler_machine_pipeline_MachineNativeFree(&code->owner);
+    else compiler_native_cache_NativeCacheFree(&code->cached);
+    free(code->globals);
     free(code);
+}
+
+/* Every host and platform relocation names something this bundle has. */
+static int
+native_check_image(const ExecBundle *bundle, const LirProgram *lir, MachineImage image,
+                   char *problem, size_t capacity)
+{
+    MachineRelocation *relocations = image.relocations.data;
+    for(int64_t at = 0; at < image.relocations.length; at++) {
+        MachineRelocation relocation = relocations[at];
+        size_t index;
+        if(relocation.kind == MachineRelocationKind_HostCapability &&
+           !capability_index(bundle, relocation.symbol, &index)) {
+            snprintf(problem, capacity,
+                "assembly.native.host-symbol: host call %d is not a capability", relocation.symbol);
+            return 0;
+        }
+        if(relocation.kind == MachineRelocationKind_PlatformService &&
+           ZxPlatformService(lir, relocation.symbol) == ZX_SERVICE_NONE) {
+            snprintf(problem, capacity,
+                "assembly.gap.platform-service: function %d is not a native platform service",
+                relocation.symbol);
+            return 0;
+        }
+    }
+    if(image.stack_limit_offset < 0 || image.pointer_offset <= 0 || image.entry < 0 ||
+       image.entry >= image.function_offsets.length) {
+        snprintf(problem, capacity, "assembly.native.image: the native image has no checked entry");
+        return 0;
+    }
+    return 1;
 }
 
 /* Compiles BUNDLE, with its debug attachment's origins when it has one: the
@@ -434,6 +491,7 @@ native_compile(const ExecBundle *bundle, char *problem, size_t capacity)
         snprintf(problem, capacity, "assembly.native.allocation: cannot allocate native code");
         return NULL;
     }
+    code->compiled = 1;
     ZxDebugOwner debug = {0};
     LirProgram restored = {0};
     const LirProgram *source = lir;
@@ -460,39 +518,292 @@ native_compile(const ExecBundle *bundle, char *problem, size_t capacity)
         return NULL;
     }
     MachineImage image = compiler_machine_pipeline_MachineCodeImageView(&code->owner);
-    MachineRelocation *relocations = image.relocations.data;
-    for(int64_t at = 0; at < image.relocations.length; at++) {
-        MachineRelocation relocation = relocations[at];
-        size_t index;
-        if(relocation.kind == MachineRelocationKind_HostCapability &&
-           !capability_index(bundle, relocation.symbol, &index)) {
-            snprintf(problem, capacity,
-                "assembly.native.host-symbol: host call %d is not a capability", relocation.symbol);
-            native_free_code(code);
-            return NULL;
-        }
-        if(relocation.kind == MachineRelocationKind_PlatformService &&
-           ZxPlatformService(lir, relocation.symbol) == ZX_SERVICE_NONE) {
-            snprintf(problem, capacity,
-                "assembly.gap.platform-service: function %d is not a native platform service",
-                relocation.symbol);
-            native_free_code(code);
-            return NULL;
-        }
+    if(!native_check_image(bundle, lir, image, problem, capacity)) {
+        native_free_code(code);
+        return NULL;
     }
-    MachineFunction *functions = code->owner.machine.program.functions.data;
-    MachineType *types = code->owner.machine.program.types.data;
-    int32_t entry = code->owner.machine.program.entry;
-    if(image.stack_limit_offset < 0 || image.pointer_offset <= 0 || entry < 0 ||
-       entry >= code->owner.machine.program.functions.length ||
-       functions[entry].result_type < 0 ||
-       functions[entry].result_type >= code->owner.machine.program.types.length) {
+    MachineProgram program = code->owner.machine.program;
+    MachineFunction *functions = program.functions.data;
+    MachineType *types = program.types.data;
+    MachineGlobal *globals = program.globals.data;
+    int32_t entry = program.entry;
+    if(entry < 0 || entry >= program.functions.length ||
+       functions[entry].result_type < 0 || functions[entry].result_type >= program.types.length ||
+       program.globals.length < 0 || program.globals.length + 1 >= MachinePointerCapacity) {
         snprintf(problem, capacity, "assembly.native.image: the native image has no checked entry");
         native_free_code(code);
         return NULL;
     }
     code->has_result = types[functions[entry].result_type].kind != MachineTypeKind_Void;
+    code->global_count = program.globals.length;
+    code->globals = calloc((size_t)(code->global_count > 0 ? code->global_count : 1), sizeof(*code->globals));
+    if(code->globals == NULL) {
+        snprintf(problem, capacity, "assembly.native.allocation: cannot allocate native code");
+        native_free_code(code);
+        return NULL;
+    }
+    for(int64_t at = 0; at < code->global_count; at++) {
+        if(globals[at].type < 0 || globals[at].type >= program.types.length) {
+            snprintf(problem, capacity, "assembly.native.image: global %lld has no type", (long long)at);
+            native_free_code(code);
+            return NULL;
+        }
+        code->globals[at].size = types[globals[at].type].size;
+        code->globals[at].writable = globals[at].writable;
+    }
+    code->image = image;
     return code;
+}
+
+/* ---- The disk cache ------------------------------------------------------ */
+
+/* The GNU build ID of the object that holds this code: any change to the
+ * compiler that made a cached image changes it. */
+typedef struct NativeBuildSearch {
+    uintptr_t address;
+    unsigned char id[64];
+    size_t length;
+} NativeBuildSearch;
+
+static int
+native_build_note(struct dl_phdr_info *info, size_t size, void *data)
+{
+    (void)size;
+    NativeBuildSearch *search = data;
+    int contains = 0;
+    for(int at = 0; at < info->dlpi_phnum; at++) {
+        const ElfW(Phdr) *header = &info->dlpi_phdr[at];
+        uintptr_t begin = (uintptr_t)info->dlpi_addr + header->p_vaddr;
+        if(header->p_type == PT_LOAD && search->address >= begin &&
+           search->address - begin < header->p_memsz) contains = 1;
+    }
+    if(!contains) return 0;
+    for(int at = 0; at < info->dlpi_phnum; at++) {
+        const ElfW(Phdr) *header = &info->dlpi_phdr[at];
+        if(header->p_type != PT_NOTE) continue;
+        const unsigned char *note = (const unsigned char *)(info->dlpi_addr + header->p_vaddr);
+        size_t left = header->p_memsz;
+        while(left >= sizeof(ElfW(Nhdr))) {
+            const ElfW(Nhdr) *entry = (const ElfW(Nhdr) *)note;
+            size_t name = (entry->n_namesz + 3u) & ~(size_t)3;
+            size_t description = (entry->n_descsz + 3u) & ~(size_t)3;
+            if(name > left - sizeof(*entry) || description > left - sizeof(*entry) - name) break;
+            const unsigned char *text = note + sizeof(*entry);
+            if(entry->n_type == NT_GNU_BUILD_ID && entry->n_namesz == 4 && !memcmp(text, "GNU", 4) &&
+               entry->n_descsz > 0 && entry->n_descsz <= sizeof(search->id)) {
+                memcpy(search->id, text + name, entry->n_descsz);
+                search->length = entry->n_descsz;
+                return 1;
+            }
+            note += sizeof(*entry) + name + description;
+            left -= sizeof(*entry) + name + description;
+        }
+    }
+    return 1;
+}
+
+/* The cache directory: ZIRAN_NATIVE_CACHE names it, or "off" disables the
+ * cache; otherwise $XDG_CACHE_HOME/ziran/native or ~/.cache/ziran/native. */
+static int
+native_disk_directory(char *path, size_t capacity)
+{
+    const char *chosen = getenv("ZIRAN_NATIVE_CACHE");
+    int written;
+    if(chosen != NULL && (!strcmp(chosen, "off") || !strcmp(chosen, "0"))) return 0;
+    if(chosen != NULL && chosen[0] != 0) written = snprintf(path, capacity, "%s", chosen);
+    else {
+        const char *cache = getenv("XDG_CACHE_HOME");
+        const char *home = getenv("HOME");
+        if(cache != NULL && cache[0] == '/') written = snprintf(path, capacity, "%s/ziran/native", cache);
+        else if(home != NULL && home[0] == '/') written = snprintf(path, capacity, "%s/.cache/ziran/native", home);
+        else return 0;
+    }
+    if(written <= 0 || (size_t)written >= capacity || path[0] != '/') return 0;
+    for(char *at = path + 1; ; at++) {
+        if(*at != '/' && *at != 0) continue;
+        char saved = *at;
+        *at = 0;
+        int made = mkdir(path, 0700) == 0 || errno == EEXIST;
+        *at = saved;
+        if(!made) return 0;
+        if(saved == 0) break;
+    }
+    struct stat info;
+    return stat(path, &info) == 0 && S_ISDIR(info.st_mode);
+}
+
+/* The entry's path under the cache directory, from its key. */
+static int
+native_disk_path(const NativeCacheDigest *key, const char *suffix, char *path, size_t capacity)
+{
+    if(!native_disk_directory(path, capacity)) return 0;
+    size_t used = strlen(path);
+    if(used + 1 + 64 + strlen(suffix) + 1 > capacity) return 0;
+    path[used++] = '/';
+    for(int at = 0; at < 32; at++) used += (size_t)snprintf(path + used, capacity - used, "%02x", key->bytes[at]);
+    snprintf(path + used, capacity - used, "%s", suffix);
+    return 1;
+}
+
+static int
+native_disk_key(const unsigned char digest[32], uint64_t cpu, NativeCacheDigest *key)
+{
+    static NativeBuildSearch build;
+    static int searched;
+    if(!searched) {
+        build.address = (uintptr_t)&native_disk_key;
+        dl_iterate_phdr(native_build_note, &build);
+        searched = 1;
+    }
+    if(build.length == 0) return 0;
+    *key = compiler_native_cache_NativeCacheKey((Slice){(void *)digest, 32},
+        compiler_target_TargetLinuxX64(), cpu, (Slice){build.id, (int64_t)build.length});
+    return 1;
+}
+
+/* A verified entry for KEY, or NULL. A file that does not decode under its
+ * key and digest, or whose image does not fit this bundle, is removed. */
+static NativeBundleCode *
+native_disk_load(const ExecBundle *bundle, const NativeCacheDigest *key)
+{
+    char path[4096];
+    if(!native_disk_path(key, ".zxn", path, sizeof(path))) return NULL;
+    int file = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if(file < 0) return NULL;
+    struct stat info;
+    unsigned char *bytes = NULL;
+    size_t length = 0;
+    if(fstat(file, &info) == 0 && S_ISREG(info.st_mode) && info.st_size > 0 &&
+       info.st_size <= (off_t)NativeCacheMaximum) {
+        length = (size_t)info.st_size;
+        bytes = malloc(length);
+        size_t done = 0;
+        while(bytes != NULL && done < length) {
+            ssize_t got = read(file, bytes + done, length - done);
+            if(got < 0 && errno == EINTR) continue;
+            if(got <= 0) break;
+            done += (size_t)got;
+        }
+        if(done != length) { free(bytes); bytes = NULL; }
+    }
+    close(file);
+    NativeBundleCode *code = bytes != NULL ? calloc(1, sizeof(*code)) : NULL;
+    char problem[512];
+    int ok = code != NULL &&
+        compiler_native_cache_NativeCacheDecode((Slice){bytes, (int64_t)length}, *key, &code->cached);
+    free(bytes);
+    if(ok) {
+        code->image = code->cached.image.image;
+        code->has_result = code->cached.has_result;
+        code->global_count = compiler_native_cache_NativeCacheGlobalCount(&code->cached);
+        code->globals = calloc((size_t)(code->global_count > 0 ? code->global_count : 1), sizeof(*code->globals));
+        ok = code->globals != NULL && code->global_count + 1 < MachinePointerCapacity &&
+            native_check_image(bundle, ExecBundleProgram(bundle), code->image, problem, sizeof(problem));
+        for(int64_t at = 0; ok && at < code->global_count; at++)
+            code->globals[at] = compiler_native_cache_NativeCacheGlobalAt(&code->cached, at);
+    }
+    if(!ok) {
+        if(code != NULL) native_free_code(code);
+        if(bytes != NULL || length > 0) { unlink(path); ProfileCount("native_cache_disk_reject"); }
+        return NULL;
+    }
+    ProfileCount("native_cache_disk_hit");
+    return code;
+}
+
+typedef struct NativeDiskEntry {
+    char name[96];
+    time_t modified;
+    off_t size;
+} NativeDiskEntry;
+
+static int
+native_disk_older(const void *left, const void *right)
+{
+    const NativeDiskEntry *a = left, *b = right;
+    return a->modified < b->modified ? -1 : a->modified > b->modified;
+}
+
+/* Keeps at most NATIVE_DISK_ENTRIES entries and NATIVE_DISK_BYTES, oldest
+ * first out, and removes temporary files writers abandoned. */
+static void
+native_disk_trim(const char *directory)
+{
+    DIR *listing = opendir(directory);
+    if(listing == NULL) return;
+    NativeDiskEntry *entries = NULL;
+    size_t count = 0, capacity = 0;
+    off_t total = 0;
+    time_t now = time(NULL);
+    struct dirent *item;
+    while((item = readdir(listing)) != NULL) {
+        size_t length = strlen(item->d_name);
+        int entry = length == 68 && !strcmp(item->d_name + 64, ".zxn");
+        int temporary = length > 69 && length < sizeof(entries->name) && !strncmp(item->d_name + 64, ".tmp.", 5);
+        if(!entry && !temporary) continue;
+        struct stat info;
+        if(fstatat(dirfd(listing), item->d_name, &info, AT_SYMLINK_NOFOLLOW) != 0 || !S_ISREG(info.st_mode))
+            continue;
+        if(temporary) {
+            if(now - info.st_mtime > NATIVE_DISK_ABANDONED) unlinkat(dirfd(listing), item->d_name, 0);
+            continue;
+        }
+        if(count == capacity) {
+            size_t grown = capacity ? capacity * 2 : 64;
+            NativeDiskEntry *more = realloc(entries, grown * sizeof(*entries));
+            if(more == NULL) break;
+            entries = more;
+            capacity = grown;
+        }
+        snprintf(entries[count].name, sizeof(entries[count].name), "%s", item->d_name);
+        entries[count].modified = info.st_mtime;
+        entries[count].size = info.st_size;
+        total += info.st_size;
+        count++;
+    }
+    if(count > 0) qsort(entries, count, sizeof(*entries), native_disk_older);
+    for(size_t at = 0; at < count && (count - at > NATIVE_DISK_ENTRIES || total > NATIVE_DISK_BYTES); at++) {
+        if(unlinkat(dirfd(listing), entries[at].name, 0) == 0) total -= entries[at].size;
+    }
+    closedir(listing);
+    free(entries);
+}
+
+/* Writes CODE's image under KEY: a private temporary file in the cache
+ * directory, synced, then renamed over the entry, so a reader sees a whole
+ * entry or none. */
+static void
+native_disk_store(const NativeBundleCode *code, const NativeCacheDigest *key)
+{
+    char path[4096], temporary[4200];
+    if(!native_disk_path(key, ".zxn", path, sizeof(path))) return;
+    if(snprintf(temporary, sizeof(temporary), "%.*s.tmp.XXXXXX", (int)(strlen(path) - 4), path) >=
+       (int)sizeof(temporary)) return;
+    NativeCacheBytes encoded = {0};
+    if(!compiler_native_cache_NativeCacheEncodeBytes(*key, code->image,
+            (Slice){code->globals, code->global_count}, code->has_result, &encoded)) {
+        compiler_native_cache_NativeCacheBytesFree(&encoded);
+        return;
+    }
+    Slice bytes = {encoded.bytes.data, encoded.bytes.count};
+    int file = mkstemp(temporary);
+    int ok = file >= 0;
+    size_t done = 0;
+    while(ok && done < (size_t)bytes.length) {
+        ssize_t wrote = write(file, (const unsigned char *)bytes.data + done, (size_t)bytes.length - done);
+        if(wrote < 0 && errno == EINTR) continue;
+        if(wrote <= 0) ok = 0;
+        else done += (size_t)wrote;
+    }
+    if(ok && fsync(file) != 0) ok = 0;
+    if(file >= 0 && close(file) != 0) ok = 0;
+    if(ok && rename(temporary, path) != 0) ok = 0;
+    if(!ok && file >= 0) unlink(temporary);
+    compiler_native_cache_NativeCacheBytesFree(&encoded);
+    if(!ok) return;
+    ProfileCount("native_cache_disk_store");
+    char directory[4096];
+    if(native_disk_directory(directory, sizeof(directory))) native_disk_trim(directory);
 }
 
 /* Drops idle entries beyond NATIVE_CACHE_IDLE, oldest first. Holds the lock. */
@@ -528,7 +839,13 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
                 break;
             }
         if(slot->code == NULL) {
-            NativeBundleCode *code = native_compile(bundle, slot->problem, sizeof(slot->problem));
+            NativeCacheDigest key;
+            int keyed = native_disk_key(digest, cpu, &key);
+            NativeBundleCode *code = keyed ? native_disk_load(bundle, &key) : NULL;
+            if(code == NULL) {
+                code = native_compile(bundle, slot->problem, sizeof(slot->problem));
+                if(code != NULL && keyed) native_disk_store(code, &key);
+            }
             if(code != NULL) {
                 memcpy(code->digest, digest, 32);
                 code->cpu = cpu;
@@ -610,10 +927,29 @@ native_trap_problem(uint32_t code)
 }
 
 /* Names the function, block and source origin of a trap's return address. */
+static void native_trap_site_in(const NativeInstance *instance, const MachineNativeOwner *owner,
+                                char *text, size_t capacity);
+
+/* Code read from the disk cache has no machine program; the trap compiles
+ * one to name its site, which costs a compile on this slow path only. */
 static void
 native_trap_site(const NativeInstance *instance, char *text, size_t capacity)
 {
-    const MachineNativeOwner *owner = &instance->code->owner;
+    if(instance->code->compiled) {
+        native_trap_site_in(instance, &instance->code->owner, text, capacity);
+        return;
+    }
+    char problem[512];
+    NativeBundleCode *named = native_compile(instance->bundle, problem, sizeof(problem));
+    if(named == NULL) { snprintf(text, capacity, "function=? block=?"); return; }
+    native_trap_site_in(instance, &named->owner, text, capacity);
+    native_free_code(named);
+}
+
+static void
+native_trap_site_in(const NativeInstance *instance, const MachineNativeOwner *owner,
+                    char *text, size_t capacity)
+{
     MachineX64Image image = owner->encoded.image;
     MachineProgram program = owner->machine.program;
     uintptr_t base = (uintptr_t)instance->arena.address;
@@ -1043,14 +1379,13 @@ native_pointers_open(NativeInstance *instance, MachineImage image, const unsigne
     if(!ZirNativeReserve(table + MachinePointerArenaBytes, &instance->pointers)) return 0;
     instance->pointer_header = instance->data + image.pointer_offset;
     unsigned char *base = instance->pointers.address;
-    MachineProgram program = instance->code->owner.machine.program;
-    MachineGlobal *globals = program.globals.data;
-    MachineType *types = program.types.data;
+    const NativeCacheGlobal *globals = instance->code->globals;
+    int64_t global_count = instance->code->global_count;
     int64_t *global_offsets = image.global_offsets.data;
     int64_t *constant_offsets = image.constant_offsets.data;
-    if(program.globals.length + 1 >= MachinePointerCapacity) return 0;
+    if(global_count + 1 >= MachinePointerCapacity) return 0;
     native_set_header(instance, MachinePointerHeaderFree, 0);
-    native_set_header(instance, MachinePointerHeaderUnused, (uint64_t)program.globals.length + 1);
+    native_set_header(instance, MachinePointerHeaderUnused, (uint64_t)global_count + 1);
     native_set_header(instance, MachinePointerHeaderCapacity, MachinePointerCapacity);
     native_set_header(instance, MachinePointerHeaderArenaTop, (uint64_t)(uintptr_t)(base + table));
     native_set_header(instance, MachinePointerHeaderArenaLimit,
@@ -1058,9 +1393,8 @@ native_pointers_open(NativeInstance *instance, MachineImage image, const unsigne
     native_set_header(instance, MachinePointerHeaderTable, (uint64_t)(uintptr_t)base);
     NativeSlot *slots = native_slots(instance);
     slots[0].flags = MachinePointerLive;
-    for(int64_t at = 0; at < program.globals.length; at++) {
+    for(int64_t at = 0; at < global_count; at++) {
         NativeSlot *entry = &slots[at + 1];
-        if(globals[at].type < 0 || globals[at].type >= program.types.length) return 0;
         if(globals[at].writable) {
             if(at >= image.global_offsets.length || global_offsets[at] < 0) return 0;
             entry->base = (uint64_t)(uintptr_t)(instance->data + global_offsets[at]);
@@ -1070,7 +1404,7 @@ native_pointers_open(NativeInstance *instance, MachineImage image, const unsigne
             entry->base = (uint64_t)(uintptr_t)(constants + constant_offsets[at]);
             entry->flags = MachinePointerLive;
         }
-        entry->size = (uint64_t)types[globals[at].type].size;
+        entry->size = (uint64_t)globals[at].size;
         instance->global_bytes += (size_t)entry->size;
     }
     ExecHostsNativePointers(instance->hosts, native_resolve, native_create, instance);
@@ -1164,8 +1498,7 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
                    NativeFindBinding find, void *context, long long max_steps)
 {
     if(code == NULL || bundle == NULL) return NULL;
-    MachineImage image = compiler_machine_pipeline_MachineCodeImageView(
-        (MachineNativeOwner *)&code->owner);
+    MachineImage image = code->image;
     if(image.code.bytes.data == NULL || image.code.bytes.length <= 0 ||
        image.entry < 0 || image.entry >= image.function_offsets.length ||
        image.stack_limit_offset < 0)

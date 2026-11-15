@@ -1,0 +1,131 @@
+// The native loader's disk cache: a cold run stores the compiled image, a
+// warm run in another process maps it, and a corrupt, truncated or
+// abandoned file is never used; each run's output matches the engine's.
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+DiskRun :: struct { output: string; error: string; profile: string; code: s32 }
+
+DiskRunWith :: (test: *NativeTest, tool: string, bundle: string, cache: string, label: string) -> DiskRun {
+    profile := CheckPath(test.work, CheckConcat(label, ".profile.json"))
+    NativeSet(test, "ZIRAN_NATIVE_CACHE", cache)
+    NativeSet(test, "ZIRAN_PROFILE", profile)
+    command := string.[tool, "run", bundle]
+    result := NativeInvoke(test, command[:])
+    NativeUnset(test, "ZIRAN_PROFILE")
+    NativeUnset(test, "ZIRAN_NATIVE_CACHE")
+    // A run that counts nothing, or ends in a trap, writes no profile.
+    written := ifx PathExists(profile) then NativeRead(test, profile) else ""
+    return .{output = result.output, error = result.error, profile = written, code = result.code}
+}
+
+Counted :: (run: DiskRun, counter: string) -> bool {
+    return TextContains(run.profile, CheckConcat("\"", CheckConcat(counter, "\":1")))
+}
+
+// The one entry the cache directory holds, or "" when it holds another number.
+OnlyEntry :: (directory: string) -> string {
+    entries := NativeFiles(directory, ".zxn")
+    if entries.count != 1 { return "" }
+    return TextDetach(TextCopy(entries[0]))
+}
+
+// The file with one payload byte flipped, or cut to half its length.
+Damaged :: (test: *NativeTest, path: string, truncate: bool) -> bool {
+    text := NativeRead(test, path)
+    if test.failed || text.count < 200 { return false }
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    limit := ifx truncate then text.count / 2 else text.count
+    for index: cast(s64)0..limit - 1 { VecPush(bytes, text[index]) }
+    if !truncate { bytes[bytes.count - 1] = bytes[bytes.count - 1] ^ cast(u8)1 }
+    return NativeWrite(test, path, TextView(bytes[:]))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "native-disk-cache-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    tool := CheckPath(PathParent(test.ziran), "zi2zx")
+    std := CheckPath(test.repo, "std")
+    spec := CheckPath(test.repo, "tests/spec")
+    bundle := CheckPath(test.work, "records.zx")
+    build := string.[tool, "--root", spec, "--module-path", std, "--entry", "zx_lowered_records:main",
+        "-o", bundle, CheckPath(spec, "zx_lowered_records.zi")]
+    unused NativeRun(*test, build[:])
+    engine_run := string.[tool, "run", "--backend", "engine", bundle]
+    engine := NativeInvoke(*test, engine_run[:])
+    if test.failed || !NativeAssert(*test, engine.code == 0 && engine.output != "", "engine reference run failed") { return 1 }
+    cache := CheckPath(test.work, "cache")
+
+    cold := DiskRunWith(*test, tool, bundle, cache, "cold")
+    entry := OnlyEntry(cache)
+    if !NativeAssert(*test, cold.code == 0 && cold.output == engine.output && Counted(cold, "native_cache_disk_store") &&
+        entry != "", CheckConcat("a cold run did not store one entry matching the engine: ", cold.error)) { return 1 }
+    warm := DiskRunWith(*test, tool, bundle, cache, "warm")
+    if !NativeAssert(*test, warm.code == 0 && warm.output == engine.output && Counted(warm, "native_cache_disk_hit") &&
+        !Counted(warm, "native_cache_disk_store"), "a warm run did not map the stored entry") { return 1 }
+
+    // A writer that died before its rename leaves only a temporary file.
+    abandoned := CheckConcat(entry[0:entry.count - 4], ".tmp.abcdef")
+    if !NativeWrite(*test, abandoned, "half an entry") { return 1 }
+    beside := DiskRunWith(*test, tool, bundle, cache, "beside")
+    if !NativeAssert(*test, beside.output == engine.output && Counted(beside, "native_cache_disk_hit") && OnlyEntry(cache) == entry,
+        "an abandoned temporary file was taken for an entry") { return 1 }
+
+    damages := string.["flipped", "truncated"]
+    for damage, index: damages {
+        if !Damaged(*test, entry, index == 1) { return 1 }
+        refused := DiskRunWith(*test, tool, bundle, cache, damage)
+        if !NativeAssert(*test, refused.code == 0 && refused.output == engine.output &&
+            Counted(refused, "native_cache_disk_reject") && Counted(refused, "native_cache_disk_store"),
+            CheckConcat("a damaged entry was used or not replaced: ", damage)) { return 1 }
+        again := DiskRunWith(*test, tool, bundle, cache, CheckConcat(damage, "-again"))
+        if !NativeAssert(*test, again.output == engine.output && Counted(again, "native_cache_disk_hit"),
+            CheckConcat("the replaced entry was not used: ", damage)) { return 1 }
+    }
+
+    off := DiskRunWith(*test, tool, bundle, "off", "off")
+    if !NativeAssert(*test, off.output == engine.output && !Counted(off, "native_cache_disk_store") &&
+        !Counted(off, "native_cache_disk_hit"), "ZIRAN_NATIVE_CACHE=off still used the disk") { return 1 }
+
+    // A trap in code read from disk still names its function.
+    trap := CheckPath(test.work, "trap.zx")
+    trap_build := string.[tool, "--root", spec, "--module-path", std, "--entry", "std_string_bad:main",
+        "-o", trap, CheckPath(spec, "std_string_bad.zi")]
+    unused NativeRun(*test, trap_build[:])
+    trap_cache := CheckPath(test.work, "trap-cache")
+    first := DiskRunWith(*test, tool, trap, trap_cache, "trap-cold")
+    stored := OnlyEntry(trap_cache)
+    second := DiskRunWith(*test, tool, trap, trap_cache, "trap-warm")
+    if !NativeAssert(*test, first.code != 0 && second.code == first.code && stored != "" && OnlyEntry(trap_cache) == stored &&
+        TextContains(second.error, "native execution failed in main") && TextContains(second.error, "function=main"),
+        CheckConcat("a trap in cached code lost its site: ", second.error)) { return 1 }
+
+    // Cold runs racing on one directory all agree and leave one entry.
+    shared := CheckPath(test.work, "shared-cache")
+    NativeSet(*test, "ZIRAN_NATIVE_CACHE", shared)
+    children: Vec(NativeChild)
+    defer NativeChildrenStop(*children)
+    racing := string.[tool, "run", bundle]
+    for racer: 0..3 { unused racer; VecPush(children, NativeSpawn(*test, racing[:], "racer")) }
+    deadline := MonotonicMilliseconds() + 120000
+    for index: cast(s64)0..children.count - 1 {
+        while !PollProcess(*children[index].run) {
+            if !NativeAssert(*test, MonotonicMilliseconds() < deadline, "a racing run did not finish") { return 1 }
+            unused SleepMilliseconds(5)
+        }
+        if !NativeAssert(*test, children[index].run.code == 0 && NativeRead(*test, children[index].output) == engine.output,
+            "a racing run differs from the engine") { return 1 }
+    }
+    NativeUnset(*test, "ZIRAN_NATIVE_CACHE")
+    if !NativeAssert(*test, OnlyEntry(shared) != "", "racing runs left other than one entry") { return 1 }
+    print("native disk cache: cold store, warm hit, abandoned writer, flipped and truncated entries refused and replaced, off switch, trap sites and racing writers match the engine\n")
+    return 0
+}

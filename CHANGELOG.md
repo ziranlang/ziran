@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native code compiled for a bundle is cached on disk (`$XDG_CACHE_HOME/ziran/native`, or `~/.cache/ziran/native`), keyed by content, CPU features and compiler build and checked by digest before use, so later runs skip compiling; `ZIRAN_NATIVE_CACHE=DIR` moves it and `ZIRAN_NATIVE_CACHE=off` turns it off.
 - The shared LIR optimizer adds common-subexpression elimination, constant-text folding, precise scratch-slot accounting, safe dead-code and CFG cleanup, and Wasm range-based bounds-check elimination.
 - Go accepts a module initializer that stores a procedure which later calls a host, as a feature module does when it registers itself; only a host call made while an initializer runs is refused.
 - `zi2zx` rejects `--opt` on ZX input instead of ignoring it; saved ZX is never reoptimized.

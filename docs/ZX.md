@@ -30,6 +30,14 @@ engine. `zi2zx --debug` also writes
 the program's source origins to the optional debug attachment, so native trap
 diagnostics and `zx2native --emit map` name source lines.
 
+Compiled native code is cached on disk in `$XDG_CACHE_HOME/ziran/native`, or
+`~/.cache/ziran/native` without it, so a later run in another process maps the
+code instead of compiling it again. An entry is keyed by the bundle's content,
+the CPU's features and the build of the compiler that made it. It is checked
+against that key and its SHA-256 digest before it is used, and a damaged entry
+is removed and rebuilt. `ZIRAN_NATIVE_CACHE=DIR` uses another directory and
+`ZIRAN_NATIVE_CACHE=off` turns the cache off.
+
 Use `ziran run app.zx` for both console and graphical programs. The linker
 includes the reachable code of imported modules, including a UI library.
 Platform effects such as windows and input are supplied by an installed runtime

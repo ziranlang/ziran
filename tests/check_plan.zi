@@ -89,7 +89,7 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
         VecPush(result, CheckPath(bin, name))
         return result
     }
-    if name == "artifact_consumer_cases.zi" {
+    if name == "artifact_consumer_cases.zi" || name == "native_disk_cache_cases.zi" {
         VecPush(result, CheckPath(bin, "ziran"))
         VecPush(result, "run")
         VecPush(result, "--target=c")
@@ -131,6 +131,9 @@ DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) 
     if TextContains("bundle-link-test", filter) { VecPush(checks, CheckCase.{.name = "bundle-link-test"}) }
     if TextContains("artifact_consumer_cases.zi", filter) {
         VecPush(checks, CheckCase.{.name = "artifact_consumer_cases.zi"})
+    }
+    if TextContains("native_disk_cache_cases.zi", filter) {
+        VecPush(checks, CheckCase.{.name = "native_disk_cache_cases.zi"})
     }
     names: Vec(string)
     if !ListDirectory(tests, *names) { return .{} }

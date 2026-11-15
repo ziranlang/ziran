@@ -30,6 +30,13 @@ native trap is reported once. Nothing ever falls back to, or retries on, the
 engine. <code>zi2zx --debug</code> also writes
 the program's source origins to the optional debug attachment, so native trap
 diagnostics and <code>zx2native --emit map</code> name source lines.</p>
+<p>Compiled native code is cached on disk in <code>$XDG_CACHE_HOME/ziran/native</code>, or
+<code>~/.cache/ziran/native</code> without it, so a later run in another process maps the
+code instead of compiling it again. An entry is keyed by the bundle's content,
+the CPU's features and the build of the compiler that made it. It is checked
+against that key and its SHA-256 digest before it is used, and a damaged entry
+is removed and rebuilt. <code>ZIRAN_NATIVE_CACHE=DIR</code> uses another directory and
+<code>ZIRAN_NATIVE_CACHE=off</code> turns the cache off.</p>
 <p>Use <code>ziran run app.zx</code> for both console and graphical programs. The linker
 includes the reachable code of imported modules, including a UI library.
 Platform effects such as windows and input are supplied by an installed runtime

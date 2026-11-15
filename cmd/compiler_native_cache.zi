@@ -1,0 +1,285 @@
+// Persistent native code: one machine image framed for the loader's disk
+// cache. The key names everything the code depends on, and decoding refuses
+// any entry whose key, length, payload digest or image does not check out,
+// so a corrupt, truncated or stale file is never mapped.
+using Image :: #import "compiler_machine_image"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+compiler :: #system_library "ziran";
+ShaBegin :: (hash: *void) #foreign compiler "Sha256Begin";
+ShaAdd :: (hash: *void, bytes: *u8, count: usize) #foreign compiler "Sha256Add";
+ShaEnd :: (hash: *void, output: *u8) #foreign compiler "Sha256End";
+
+// Bump when the framing or the payload layout changes.
+NativeCacheFormat :: "ziran native image 1\n"
+NativeCacheDigestBytes :: 32
+// The loader refuses larger entries; an image this size is not a bundle's.
+NativeCacheMaximum :: 1073741824
+
+NativeCacheDigest :: struct { bytes: [32]u8 }
+
+// What the loader needs besides the image: each global's size and whether it
+// is writable, and whether the entry returns a value.
+NativeCacheGlobal :: struct { size: s64; writable: bool }
+
+NativeCacheOwner :: struct {
+    valid: bool
+    image: MachineImageOwner
+    globals: Vectors.Vec(NativeCacheGlobal)
+    has_result: bool
+}
+
+NativeCacheHash :: struct { state: [128]u8 }
+
+HashBegin :: () -> NativeCacheHash { hash: NativeCacheHash; ShaBegin(cast(*void)*hash); return hash }
+HashAdd :: (hash: *NativeCacheHash, bytes: []u8) {
+    if bytes.count > 0 { ShaAdd(cast(*void)hash, *bytes[0], cast(usize)bytes.count) }
+}
+HashWord :: (hash: *NativeCacheHash, value: u64) {
+    bytes: [8]u8
+    for index: 0..7 { bytes[index] = cast(u8)(value >> cast(u64)(8 * index)) }
+    HashAdd(hash, bytes[:])
+}
+HashEnd :: (hash: *NativeCacheHash) -> NativeCacheDigest {
+    digest: NativeCacheDigest
+    ShaEnd(cast(*void)hash, *digest.bytes[0])
+    return digest
+}
+
+// The key: format, image version and runtime ABI, the target, the CPU
+// features the code may use, the identity of the compiler build that made
+// it, and the bundle's content digest.
+NativeCacheKey :: (bundle_digest: []u8, target: TargetDescription, cpu: u64, build: []u8) -> NativeCacheDigest {
+    hash := HashBegin()
+    format := NativeCacheFormat
+    for byte: format { value: u8 = byte; ShaAdd(cast(*void)*hash, *value, 1) }
+    HashWord(*hash, cast(u64)MachineImageVersion)
+    HashWord(*hash, cast(u64)MachineRuntimeABI.Revision1)
+    HashWord(*hash, cast(u64)target.arch)
+    HashWord(*hash, cast(u64)target.os)
+    HashWord(*hash, cast(u64)target.abi)
+    HashWord(*hash, cpu)
+    HashWord(*hash, cast(u64)build.count)
+    HashAdd(*hash, build)
+    HashWord(*hash, cast(u64)bundle_digest.count)
+    HashAdd(*hash, bundle_digest)
+    return HashEnd(*hash)
+}
+
+PutWord :: (output: *Vectors.Vec(u8), value: u64) -> bool {
+    for index: 0..7 { if !VecPush(<<output, cast(u8)(value >> cast(u64)(8 * index))) { return false } }
+    return true
+}
+PutBytes :: (output: *Vectors.Vec(u8), bytes: []u8) -> bool {
+    if !PutWord(output, cast(u64)bytes.count) { return false }
+    for byte: bytes { if !VecPush(<<output, byte) { return false } }
+    return true
+}
+PutSection :: (output: *Vectors.Vec(u8), section: MachineSection) -> bool {
+    return PutWord(output, cast(u64)section.alignment) && PutBytes(output, section.bytes)
+}
+PutOffsets :: (output: *Vectors.Vec(u8), values: []s64) -> bool {
+    if !PutWord(output, cast(u64)values.count) { return false }
+    for value: values { if !PutWord(output, cast(u64)value) { return false } }
+    return true
+}
+
+// Frames IMAGE under KEY: format, key, payload length and payload digest,
+// then the payload.
+NativeCacheEncode :: (key: NativeCacheDigest, image: MachineImage, globals: []NativeCacheGlobal,
+    has_result: bool, output: *Vectors.Vec(u8)) -> bool {
+    payload: Vectors.Vec(u8)
+    defer { VecFree(payload) }
+    ok := PutWord(*payload, cast(u64)image.version) && PutWord(*payload, cast(u64)image.target.arch) &&
+        PutWord(*payload, cast(u64)image.target.os) && PutWord(*payload, cast(u64)image.runtime_abi) &&
+        PutSection(*payload, image.code) && PutSection(*payload, image.constants) &&
+        PutSection(*payload, image.data) && PutOffsets(*payload, image.function_offsets) &&
+        PutOffsets(*payload, image.global_offsets) && PutOffsets(*payload, image.constant_offsets) &&
+        PutWord(*payload, cast(u64)image.initializers.count)
+    if !ok { return false }
+    for initializer: image.initializers { if !PutWord(*payload, cast(u64)initializer) { return false } }
+    if !PutWord(*payload, cast(u64)image.relocations.count) { return false }
+    for relocation: image.relocations {
+        ok = PutWord(*payload, cast(u64)relocation.section) && PutWord(*payload, cast(u64)relocation.offset) &&
+            PutWord(*payload, cast(u64)relocation.width) && PutWord(*payload, cast(u64)relocation.kind) &&
+            PutWord(*payload, cast(u64)relocation.symbol) && PutWord(*payload, cast(u64)relocation.addend)
+        if !ok { return false }
+    }
+    ok = PutWord(*payload, cast(u64)image.entry) && PutWord(*payload, image.required_features) &&
+        PutWord(*payload, cast(u64)image.stack_alignment) && PutWord(*payload, cast(u64)image.stack_bytes) &&
+        PutWord(*payload, cast(u64)image.fuel_offset) && PutWord(*payload, cast(u64)image.stack_limit_offset) &&
+        PutWord(*payload, cast(u64)image.pointer_offset) && PutWord(*payload, cast(u64)image.host_symbols) &&
+        PutWord(*payload, cast(u64)image.platform_symbols) && PutWord(*payload, cast(u64)image.trap_symbols) &&
+        PutWord(*payload, cast(u64)globals.count)
+    if !ok { return false }
+    for global: globals {
+        if !PutWord(*payload, cast(u64)global.size) || !PutWord(*payload, cast(u64)global.writable) { return false }
+    }
+    if !PutWord(*payload, cast(u64)has_result) { return false }
+    hash := HashBegin()
+    HashAdd(*hash, payload[:])
+    payload_digest := HashEnd(*hash)
+    format := NativeCacheFormat
+    for byte: format { if !VecPush(<<output, byte) { return false } }
+    for byte: key.bytes { if !VecPush(<<output, byte) { return false } }
+    if !PutWord(output, cast(u64)payload.count) { return false }
+    for byte: payload_digest.bytes { if !VecPush(<<output, byte) { return false } }
+    for byte: payload[:] { if !VecPush(<<output, byte) { return false } }
+    return true
+}
+
+// An encoded entry the C loader writes to disk.
+NativeCacheBytes :: struct { bytes: Vectors.Vec(u8) }
+NativeCacheEncodeBytes :: (key: NativeCacheDigest, image: MachineImage, globals: []NativeCacheGlobal,
+    has_result: bool, output: *NativeCacheBytes) -> bool {
+    VecFree(output.bytes)
+    return NativeCacheEncode(key, image, globals, has_result, *output.bytes)
+}
+NativeCacheBytesFree :: (output: *NativeCacheBytes) { VecFree(output.bytes) }
+NativeCacheGlobalAt :: (owner: *NativeCacheOwner, index: s64) -> NativeCacheGlobal { return owner.globals[index] }
+NativeCacheGlobalCount :: (owner: *NativeCacheOwner) -> s64 { return owner.globals.count }
+
+Reader :: struct { bytes: []u8; at: s64; failed: bool }
+
+TakeWord :: (reader: *Reader) -> u64 {
+    if reader.failed || reader.at < 0 || 8 > reader.bytes.count - reader.at { reader.failed = true; return 0 }
+    value: u64
+    for index: 0..7 { value = value | (cast(u64)reader.bytes[reader.at + index] << cast(u64)(8 * index)) }
+    reader.at += 8
+    return value
+}
+// A count of items of SIZE bytes each that the rest of the input can hold.
+TakeCount :: (reader: *Reader, size: s64) -> s64 {
+    value := TakeWord(reader)
+    if reader.failed || value > cast(u64)(reader.bytes.count - reader.at) / cast(u64)size {
+        reader.failed = true
+        return 0
+    }
+    return cast(s64)value
+}
+TakeS32 :: (reader: *Reader) -> s32 {
+    value := cast(s64)TakeWord(reader)
+    if value < -2147483648 || value > 2147483647 { reader.failed = true; return 0 }
+    return cast(s32)value
+}
+TakeBytes :: (reader: *Reader, output: *Vectors.Vec(u8)) -> bool {
+    count := TakeCount(reader, 1)
+    if reader.failed || !VecResize(<<output, count) { reader.failed = true; return false }
+    for index: cast(s64)0..count - 1 { (<<output)[index] = reader.bytes[reader.at + index] }
+    reader.at += count
+    return true
+}
+TakeOffsets :: (reader: *Reader, output: *Vectors.Vec(s64)) -> bool {
+    count := TakeCount(reader, 8)
+    if reader.failed || !VecResize(<<output, count) { reader.failed = true; return false }
+    for index: cast(s64)0..count - 1 { (<<output)[index] = cast(s64)TakeWord(reader) }
+    return !reader.failed
+}
+
+// Decodes BYTES, which must be framed under KEY, into OWNER. False leaves
+// OWNER freed; the loader then compiles as if there were no entry.
+NativeCacheDecode :: (bytes: []u8, key: NativeCacheDigest, owner: *NativeCacheOwner) -> bool {
+    NativeCacheFree(owner)
+    format := NativeCacheFormat
+    header := cast(s64)format.count + NativeCacheDigestBytes + 8 + NativeCacheDigestBytes
+    if bytes.count < header || bytes.count > NativeCacheMaximum { return false }
+    for index: cast(s64)0..format.count - 1 { if bytes[index] != format[index] { return false } }
+    at := cast(s64)format.count
+    for index: 0..NativeCacheDigestBytes - 1 { if bytes[at + index] != key.bytes[index] { return false } }
+    at += NativeCacheDigestBytes
+    length_reader := Reader.{bytes = bytes, at = at}
+    length := TakeWord(*length_reader)
+    at += 8
+    if length != cast(u64)(bytes.count - header) { return false }
+    payload := bytes[header:bytes.count]
+    hash := HashBegin()
+    HashAdd(*hash, payload)
+    actual := HashEnd(*hash)
+    for index: 0..NativeCacheDigestBytes - 1 { if bytes[at + index] != actual.bytes[index] { return false } }
+    if !DecodePayload(payload, owner) { NativeCacheFree(owner); return false }
+    return true
+}
+
+DecodePayload :: (payload: []u8, owner: *NativeCacheOwner) -> bool {
+    reader := Reader.{bytes = payload}
+    image := *owner.image
+    version := TakeS32(*reader)
+    arch := TakeWord(*reader)
+    os := TakeWord(*reader)
+    runtime := TakeS32(*reader)
+    if reader.failed || version != MachineImageVersion || runtime != cast(s32)MachineRuntimeABI.Revision1 ||
+        arch != cast(u64)TargetArch.X86_64 || os != cast(u64)TargetOS.Linux { return false }
+    code_alignment := TakeS32(*reader)
+    if !TakeBytes(*reader, *image.code) { return false }
+    constants_alignment := TakeS32(*reader)
+    if !TakeBytes(*reader, *image.constants) { return false }
+    data_alignment := TakeS32(*reader)
+    if !TakeBytes(*reader, *image.data) || !TakeOffsets(*reader, *image.function_offsets) ||
+        !TakeOffsets(*reader, *image.global_offsets) || !TakeOffsets(*reader, *image.constant_offsets) { return false }
+    initializers := TakeCount(*reader, 8)
+    if reader.failed || !VecResize(image.initializers, initializers) { return false }
+    for index: cast(s64)0..initializers - 1 { image.initializers[index] = TakeS32(*reader) }
+    relocations := TakeCount(*reader, 48)
+    if reader.failed || !VecResize(image.relocations, relocations) { return false }
+    for index: cast(s64)0..relocations - 1 {
+        relocation: MachineRelocation
+        section := TakeS32(*reader)
+        relocation.offset = cast(s64)TakeWord(*reader)
+        relocation.width = TakeS32(*reader)
+        kind := TakeS32(*reader)
+        relocation.symbol = TakeS32(*reader)
+        relocation.addend = cast(s64)TakeWord(*reader)
+        if reader.failed || section < 0 || section > cast(s32)MachineSectionKind.Data ||
+            kind < 0 || kind > cast(s32)MachineRelocationKind.PointerRuntime { return false }
+        relocation.section = cast(MachineSectionKind)section
+        relocation.kind = cast(MachineRelocationKind)kind
+        image.relocations[index] = relocation
+    }
+    view: MachineImage
+    view.version = version
+    view.target = TargetLinuxX64()
+    view.runtime_abi = .Revision1
+    view.entry = TakeS32(*reader)
+    view.required_features = TakeWord(*reader)
+    view.stack_alignment = TakeS32(*reader)
+    view.stack_bytes = cast(s64)TakeWord(*reader)
+    view.fuel_offset = cast(s64)TakeWord(*reader)
+    view.stack_limit_offset = cast(s64)TakeWord(*reader)
+    view.pointer_offset = cast(s64)TakeWord(*reader)
+    view.host_symbols = TakeS32(*reader)
+    view.platform_symbols = TakeS32(*reader)
+    view.trap_symbols = TakeS32(*reader)
+    globals := TakeCount(*reader, 16)
+    if reader.failed || !VecResize(owner.globals, globals) { return false }
+    for index: cast(s64)0..globals - 1 {
+        size := cast(s64)TakeWord(*reader)
+        writable := TakeWord(*reader)
+        if size < 0 || writable > 1 { return false }
+        owner.globals[index] = .{size = size, writable = writable == 1}
+    }
+    has_result := TakeWord(*reader)
+    if reader.failed || has_result > 1 || reader.at != payload.count { return false }
+    view.code = .{bytes = image.code[:], alignment = code_alignment}
+    view.constants = .{bytes = image.constants[:], alignment = constants_alignment}
+    view.data = .{bytes = image.data[:], alignment = data_alignment}
+    view.function_offsets = image.function_offsets[:]
+    view.global_offsets = image.global_offsets[:]
+    view.constant_offsets = image.constant_offsets[:]
+    view.initializers = image.initializers[:]
+    view.relocations = image.relocations[:]
+    if MachineImageValidate(view).problem != .None { return false }
+    image.image = view
+    image.valid = true
+    owner.has_result = has_result == 1
+    owner.valid = true
+    return true
+}
+
+NativeCacheFree :: (owner: *NativeCacheOwner) {
+    if owner == null { return }
+    MachineImageFree(*owner.image)
+    VecFree(owner.globals)
+    owner.has_result = false
+    owner.valid = false
+}

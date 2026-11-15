@@ -4,7 +4,7 @@ ASSEMBLY_MACHINE_SOURCES := cmd/compiler_target.zi cmd/compiler_machine_image.zi
     cmd/compiler_regalloc.zi cmd/compiler_x86_bytes.zi cmd/compiler_x86_64.zi \
     cmd/compiler_aarch64.zi \
     cmd/compiler_arm_bytes.zi \
-    cmd/compiler_machine_elf.zi cmd/compiler_machine_pipeline.zi
+    cmd/compiler_machine_elf.zi cmd/compiler_machine_pipeline.zi cmd/compiler_native_cache.zi
 ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi $(ASSEMBLY_MACHINE_SOURCES)
 
 ifneq ($(BOOTSTRAP),1)
@@ -30,7 +30,7 @@ $(ASSEMBLY_C)/.ran: assembly.mk $(ASSEMBLY_SOURCES) $(BIN_DIR)/zi2c
 	rm -rf $(BUILD_DIR)/compiler-assembly.next
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd -o $(BUILD_DIR)/compiler-assembly.next \
 	    cmd/compiler_lowered_verify.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
-	    cmd/compiler_machine_pipeline.zi
+	    cmd/compiler_machine_pipeline.zi cmd/compiler_native_cache.zi
 	@mkdir -p $(ASSEMBLY_C); changed=; \
 	for f in $(BUILD_DIR)/compiler-assembly.next/*; do \
 	    cmp -s "$$f" "$(ASSEMBLY_C)/$${f##*/}" || { cp "$$f" $(ASSEMBLY_C)/; changed=1; }; done; \
@@ -61,7 +61,8 @@ ASSEMBLY_NATIVE_MODULES := compiler_abi compiler_machine_image \
     compiler_target compiler_x86_bytes compiler_x86_64 compiler_aarch64 \
     compiler_arm_bytes \
     compiler_machine_elf \
-    compiler_machine_pipeline
+    compiler_machine_pipeline \
+    compiler_native_cache
 
 $(BUILD_DIR)/obj/native-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(ENGINE_NAMES) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(BUILD_DIR)/obj/native-assembly

@@ -307,6 +307,12 @@ No step commits before its implementation and proof are complete.
   `Makefile:611` and to the bootstrap dependencies at `Makefile:485-506`.
 - Delete `cmd/zir-asm/zir_asm_lower.c` and `cmd/zir-asm/zir_asm_lower.h`.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=zx_lowered_parity`.
+- Done 2026-11-15: `cmd/compiler_zir_lower.zi` ports the full lowering
+  (AssemblyLower/View/Free/HostInterface/PrintLir and every assembly_* helper);
+  `cmd/zi2zx` and `cmd/zx2native` call the generated ABI; `assembly.mk` and the
+  `zi2zx` link use the generated module; `bootstrap/compiler_zir_lower` and
+  `bootstrap/compiler_lowered_ir` are checked in and verified by
+  `check-bootstrap`; the old `cmd/zi2zx/zir_asm_lower.c/.h` are deleted.
 
 ### S2 — ZX -> WebAssembly lowering
 

@@ -1,4 +1,4 @@
-#include "zir_asm_lower.h"
+#include "compiler_zir_lower.h"
 #include "zx_exec_run.h"
 #include "zir_check.h"
 #include "compiler_lowered_verify.h"
@@ -601,7 +601,7 @@ main(int argc, char **argv)
         for(int binding = 0; binding < binding_count; binding++)
             if(!BindHostProvider(&merged, bindings[binding])) goto done;
         if(assembly_machine_source_gap(&merged)) goto done;
-        lowered = AssemblyLower(&merged, module, function);
+        lowered = AssemblyLower(&merged, (uint8_t *)module, (uint8_t *)function);
         if(lowered == NULL) goto done;
         view = AssemblyView(lowered);
     }
@@ -635,7 +635,7 @@ main(int argc, char **argv)
     int64_t size = 0;
     if(!serialized && canonical) {
         size_t interface_length = 0;
-        const char *interface = AssemblyHostInterface(lowered, &interface_length);
+        const char *interface = (const char *)AssemblyHostInterface(lowered, &interface_length);
         if(interface == NULL) goto done;
         String interface_text = {interface, interface_length};
         ZxExecResult measured = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){0}, interface_text,
@@ -720,7 +720,7 @@ main(int argc, char **argv)
     }
     if(!strcmp(output, "-") && !executable) {
         int written = reporting ? assembly_opt_report(stdout, &optimization) :
-            listing ? AssemblyPrintLir(view, stdout) : mapping ?
+            listing ? AssemblyPrintLir((LirProgram *)view, stdout) : mapping ?
                 assembly_machine_map(view, stdout, &selection, &machine_owner, bytes, size, 1) :
             fwrite(bytes, 1, (size_t)size, stdout) == (size_t)size;
         status = written && fflush(stdout) == 0 ? 0 : 1;
@@ -750,7 +750,7 @@ main(int argc, char **argv)
         goto done;
     }
     int written = reporting ? assembly_opt_report(stream, &optimization) :
-        listing ? AssemblyPrintLir(view, stream) : mapping ?
+        listing ? AssemblyPrintLir((LirProgram *)view, stream) : mapping ?
             assembly_machine_map(view, stream, &selection, &machine_owner, bytes, size, 1) :
         fwrite(bytes, 1, (size_t)size, stream) == (size_t)size;
 #if defined(__unix__) || defined(__APPLE__)

@@ -248,7 +248,7 @@ build_to(int argc, char **argv, FILE *into)
     if(reporting)
         written = opt_report(target, ZxLowerOptimization(&lower));
     else if(listing)
-        written = AssemblyPrintLir(ZxLowerView(&lower), target);
+        written = AssemblyPrintLir((LirProgram *)ZxLowerView(&lower), target);
     else
         written = fwrite(bytes, 1, size, target) == size;
     if(into == NULL && target != stdout) {
@@ -369,7 +369,7 @@ inspect_zx(int argc, char **argv)
     }
     LirProgram program = compiler_exec_link_ZxExecReadProgram(&owner);
     int written = !strcmp(emit, "lir")
-        ? AssemblyPrintLir(&program, target)
+        ? AssemblyPrintLir((LirProgram *)&program, target)
         : fwrite(bytes, 1, size, target) == size;
     if(target == stdout) {
         if(fflush(stdout) != 0) written = 0;

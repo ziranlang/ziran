@@ -5,7 +5,7 @@ ASSEMBLY_MACHINE_SOURCES := cmd/compiler_target.zi cmd/compiler_machine_image.zi
     cmd/compiler_aarch64.zi \
     cmd/compiler_arm_bytes.zi \
     cmd/compiler_machine_elf.zi cmd/compiler_machine_pipeline.zi
-ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi $(ASSEMBLY_MACHINE_SOURCES)
+ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi $(ASSEMBLY_MACHINE_SOURCES)
 
 ifneq ($(BOOTSTRAP),1)
 ifeq ($(NATIVE_HOST_ENABLED),1)
@@ -29,7 +29,7 @@ check: zx-tools
 $(ASSEMBLY_C)/.ran: assembly.mk $(ASSEMBLY_SOURCES) $(BIN_DIR)/zi2c
 	rm -rf $(BUILD_DIR)/compiler-assembly.next
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd -o $(BUILD_DIR)/compiler-assembly.next \
-	    cmd/compiler_lowered_verify.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
+	    cmd/compiler_lowered_verify.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
 	    cmd/compiler_machine_pipeline.zi
 	@mkdir -p $(ASSEMBLY_C); changed=; \
 	for f in $(BUILD_DIR)/compiler-assembly.next/*; do \
@@ -74,13 +74,11 @@ $(BUILD_DIR)/obj/native-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(ENGINE_NA
 	    objects="$$objects $$object"; \
 	done; $(CC) -r -nostdlib -o $@ $$objects
 
-$(call obj,cmd/zx2native/main.c cmd/zi2zx/zir_asm_lower.c cmd/zi2zx/zx_exec_run.c cmd/zi2zx/main.c): $(BUILD_DIR)/obj/%.o: %.c $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags $(IR_READY)
+$(call obj,cmd/zx2native/main.c cmd/zi2zx/zx_exec_run.c cmd/zi2zx/main.c): $(BUILD_DIR)/obj/%.o: %.c $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags $(IR_READY)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -I$(ASSEMBLY_C) -Icmd/zi2zx -Icmd/zx2wasm -c -o $@ $<
 
-# Native output is a separate verified-ZX consumer. The source-side lowerer is
-# linked only until the remaining unreachable source helpers move to zi2zx.
-$(BIN_DIR)/zx2native: $(call obj,cmd/zx2native/main.c cmd/zi2zx/zir_asm_lower.c cmd/zi2zx/zx_exec_run.c) \
+$(BIN_DIR)/zx2native: $(call obj,cmd/zx2native/main.c cmd/zi2zx/zx_exec_run.c) \
     $(BUILD_DIR)/obj/assembly-core.o $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 	chmod 755 $@

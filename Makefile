@@ -591,7 +591,7 @@ $(BIN_DIR)/zi2go: $(call obj,cmd/zi2go/main.c cmd/zi2go/zir_go_lower.c cmd/zi2go
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 # zi2zx runs revision-28 executable ZX on the portable instruction engine.
-$(BIN_DIR)/zi2zx: $(call obj,cmd/zi2zx/main.c cmd/zi2zx/zx_exec_run.c cmd/zi2zx/zir_asm_lower.c) $(BUILD_DIR)/obj/assembly-core.o \
+$(BIN_DIR)/zi2zx: $(call obj,cmd/zi2zx/main.c cmd/zi2zx/zx_exec_run.c) $(BUILD_DIR)/obj/assembly-core.o \
     $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 	chmod 755 $@
@@ -634,7 +634,9 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_runtime_emit/c_string.h bootstrap/compiler_runtime_emit/vec.c \
     bootstrap/compiler_runtime_emit/vec.h Makefile \
     bootstrap/compiler_native_names/compiler_native_names.c \
-    bootstrap/compiler_native_names/compiler_native_names.h
+    bootstrap/compiler_native_names/compiler_native_names.h \
+    bootstrap/compiler_lowered_ir/compiler_lowered_ir.c bootstrap/compiler_lowered_ir/compiler_lowered_ir.h \
+    bootstrap/compiler_zir_lower/compiler_zir_lower.c bootstrap/compiler_zir_lower/compiler_zir_lower.h
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=$(call quote,$(BOOTSTRAP_CFLAGS)) \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -739,7 +741,7 @@ $(LINK_C)/.generated: cmd/compiler_link.zi cmd/compiler_services.zi cmd/compiler
 # The checked-in bootstrap C must match what the current compiler generates
 # from cmd/compiler_*.zi; update-bootstrap refreshes it. A seed also keeps the
 # generated headers of standard modules it uses, such as vec.h.
-BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names
+BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names lowered_ir zir_lower
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse

@@ -7,7 +7,7 @@
 #ifndef ZX_EXEC_RUN_H
 #define ZX_EXEC_RUN_H
 
-#include "zir_asm_lower.h"
+#include "compiler_zir_lower.h"
 #include "compiler_exec.h"
 #include "compiler_lowered_ir.h"
 #include "compiler_opt.h"

@@ -1,5 +1,5 @@
 #include "zx_exec_run.h"
-#include "zir_asm_lower.h"
+#include "compiler_zir_lower.h"
 #include "compiler_exec_link.h"
 #include "compiler_opt.h"
 #include "compiler_lowered_verify.h"
@@ -91,7 +91,7 @@ ZxLowerBuild(struct ZirProgram *program, const char *module, const char *functio
                    "entry must be one unique zero-argument integer, bool, or void Ziran function");
         return 0;
     }
-    owner->lowered = AssemblyLower(program, module, function);
+    owner->lowered = AssemblyLower(program, (uint8_t *)module, (uint8_t *)function);
     if(owner->lowered == NULL) return 0;
     const LirProgram *view = AssemblyView(owner->lowered);
     LirDiagnostic diagnostic = compiler_lowered_verify_LirVerify(*view, compiler_lowered_ir_LirDefaultLimits());
@@ -152,7 +152,7 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     if(!ZxLowerBuild(program, module, function, 1, &lower)) return NULL;
     const LirProgram *optimized_program = ZxLowerView(&lower);
     size_t interface_length = 0;
-    const char *interface = AssemblyHostInterface(lower.lowered, &interface_length);
+    const char *interface = (const char *)AssemblyHostInterface(lower.lowered, &interface_length);
     if(interface == NULL) goto done;
     String interface_text = {interface, interface_length};
     ZxExecResult measured = compiler_exec_link_ZxExecWrite(*optimized_program, assets, (Slice){0}, interface_text,

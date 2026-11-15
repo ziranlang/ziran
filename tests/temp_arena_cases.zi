@@ -1,0 +1,98 @@
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/path"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+TempGoRun :: (directory: string) -> Vec(string) {
+    command: Vec(string)
+    VecPush(command, "go")
+    VecPush(command, "run")
+    files := NativeFiles(directory, ".go")
+    for file: files { VecPush(command, file) }
+    return command
+}
+
+TempSuccess :: (test: *NativeTest, input: string, root: string, label: string) -> bool {
+    entry := "temp_arena_spec:main"
+    c_output := CheckPath(test.work, CheckConcat(label, "-c"))
+    c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", entry,
+        "--root", root, "-o", c_output, input]
+    unused NativeRun(test, c_build[:])
+    c_run := string.[CheckPath(c_output, "temp_arena_spec")]
+    if test.failed || !NativeExpect(test, c_run[:], "temp 12 42\n") { return false }
+
+    go_output := CheckPath(test.work, CheckConcat(label, "-go"))
+    go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main", "--entry", entry,
+        "--root", root, "-o", go_output, input]
+    unused NativeRun(test, go_build[:])
+    go_run := TempGoRun(go_output)
+    if test.failed || !NativeExpect(test, go_run[:], "temp 12 42\n") { return false }
+
+    bundle := CheckPath(test.work, CheckConcat(label, ".zx"))
+    bundle_build := string.[test.ziran, "bundle", "--entry", entry, "--root", root, "-o", bundle, input]
+    unused NativeRun(test, bundle_build[:])
+    tools := PathParent(test.ziran)
+    engine := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "engine", bundle]
+    native := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "native", bundle]
+    bundle_expected := "temp 12 42\n0\n"
+    if test.failed || !NativeExpect(test, engine[:], bundle_expected) ||
+        !NativeExpect(test, native[:], bundle_expected) { return false }
+
+    wasm := CheckPath(test.work, CheckConcat(label, ".wasm"))
+    wasm_build := string.[CheckPath(tools, "zx2wasm"), "-o", wasm, bundle]
+    unused NativeRun(test, wasm_build[:])
+    wasm_run := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm, "--output"]
+    return !test.failed && NativeExpect(test, wasm_run[:], "temp 12 42\n")
+}
+
+TempDeadPointers :: (test: *NativeTest, input: string, root: string, label: string) -> bool {
+    entry := "temp_arena_spec:DeadAfterReset"
+    bundle := CheckPath(test.work, CheckConcat(label, "-dead.zx"))
+    build := string.[test.ziran, "bundle", "--entry", entry, "--root", root, "-o", bundle, input]
+    unused NativeRun(test, build[:])
+    tools := PathParent(test.ziran)
+    backends := string.["engine", "native"]
+    for backend: backends {
+        run := string.[CheckPath(tools, "zi2zx"), "run", "--backend", backend, bundle]
+        result := NativeInvoke(test, run[:])
+        if !NativeAssert(test, result.code != 0 && result.output == "before stale read\n" &&
+            TextContains(result.error, "no longer valid"),
+            CheckConcat(label, CheckConcat(" did not trap a dead pointer on ", backend))) { return false }
+    }
+    return true
+}
+
+TempLiveResetRejected :: (test: *NativeTest, source_root: string) -> bool {
+    source := CheckPath(source_root, "temp_arena_live_reset_reject.zi")
+    command := string.[test.ziran, "check", "--root", source_root, source]
+    result := NativeInvoke(test, command[:])
+    return NativeAssert(test, result.code != 0 &&
+        TextContains(result.error, "mutating text backing storage while its view is live"),
+        "reset with a live temporary view must be rejected")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "temp-arena-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off")
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
+    source_root := CheckPath(test.repo, "tests/spec")
+    source := CheckPath(source_root, "temp_arena_spec.zi")
+    saved_root := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", source_root, "-o", saved_root, source]
+    unused NativeRun(*test, save[:])
+    saved := CheckPath(saved_root, "temp_arena_spec.zir")
+    if test.failed || !TempLiveResetRejected(*test, source_root) ||
+        !TempSuccess(*test, source, source_root, "source") ||
+        !TempDeadPointers(*test, source, source_root, "source") ||
+        !TempSuccess(*test, saved, saved_root, "saved") ||
+        !TempDeadPointers(*test, saved, saved_root, "saved") { return 1 }
+    print("temporary arena: source/saved C, Go, Wasm, engine and native local tests passed; reset pointers trapped on engine/native\n")
+    return 0
+}

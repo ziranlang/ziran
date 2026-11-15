@@ -24,6 +24,10 @@ typedef struct Origin {
      * view keeps depth 1; these bits only name the parameter when a return
      * is rejected. */
     uint64_t lent;
+    /* Direct pointer parameters whose owned Vec backing this view borrows.
+     * Unlike an inline pointee array, the caller owns that allocation, so a
+     * checked wrapper may return the view and the caller supplies its depth. */
+    uint64_t lent_vec;
     /* A VecSlice of a global Vec: it lives only for its block. */
     int global_vec;
 } Origin;
@@ -373,6 +377,7 @@ merge(BorrowCheck *check, Origin a, Origin b)
     result.parameters |= b.parameters;
     result.pointees |= b.pointees;
     result.lent |= b.lent;
+    result.lent_vec |= b.lent_vec;
     result.global_vec |= b.global_vec;
     if(b.depth > result.depth)
         result.depth = b.depth;
@@ -408,6 +413,7 @@ same_origin(Origin left, Origin right)
 {
     return left.parameters == right.parameters &&
         left.pointees == right.pointees && left.lent == right.lent &&
+        left.lent_vec == right.lent_vec &&
         left.global_vec == right.global_vec && left.depth == right.depth && left.invalid == right.invalid &&
         left.unknown == right.unknown && left.globals == right.globals;
 }
@@ -617,22 +623,33 @@ static void add_active_text_borrows(BorrowCheck *check, BorrowSource *sources,
                                     int depth);
 static BorrowPlace storage_place(BorrowCheck *check, int index,
                                  int follow_address);
+static BorrowSource *text_view_backings(BorrowCheck *check, int index);
 
-/* A slice taken by VecSlice borrows its Vec place until the view's block
- * closes. */
+/* A slice taken by VecSlice borrows its precise Vec place until the view's
+ * block closes. A checked wrapper can return a slice reached through a
+ * pointer parameter too; without a returned field path, conservatively keep
+ * the pointee storage borrowed rather than treating it as a precise Vec. */
 static void
 add_active_vec_borrow(BorrowCheck *check, int index, int depth)
 {
     const ZirFunction *fn = check->current->fn;
     if(index < 0 || fn->exprs[index].kind != ZIR_EXPR_CALL ||
-       strcmp(fn->exprs[index].name, "VecSlice"))
+       !SliceElementType(fn->exprs[index].type, NULL, 0))
         return;
-    BorrowSource source = {0};
-    source.place = storage_place(check, fn->exprs[index].first_child, 1);
+    BorrowSource direct = {0};
+    BorrowSource *sources = NULL;
+    int precise_vec = !strcmp(fn->exprs[index].name, "VecSlice");
+    if(precise_vec) {
+        direct.place = storage_place(check, fn->exprs[index].first_child, 1);
+        sources = &direct;
+    } else {
+        sources = text_view_backings(check, index);
+    }
     int first = check->active_count;
-    add_active_text_borrows(check, &source, depth);
-    for(int i = first; i < check->active_count; i++)
-        check->active[i].vec = 1;
+    add_active_text_borrows(check, sources, depth);
+    if(precise_vec)
+        for(int i = first; i < check->active_count; i++)
+            check->active[i].vec = 1;
 }
 
 static void
@@ -1345,6 +1362,12 @@ text_view_backings(BorrowCheck *check, int index)
             if(pointee != NULL)
                 result = merge_sources(check, result, pointee->text_backings);
         }
+        if((summary->returned.lent | summary->returned.lent_vec) &
+           (UINT64_C(1) << parameter)) {
+            BorrowBinding *pointee = pointee_binding(check, child);
+            if(pointee != NULL)
+                result = add_source(check, result, root_place(pointee));
+        }
         if(!(summary->returned.parameters & (UINT64_C(1) << parameter)))
             continue;
         BorrowSource *candidate = text_view_backings(check, child);
@@ -1379,6 +1402,38 @@ call_origin(BorrowCheck *check, const ZirExpr *expression)
             result = merge(check, result, expression_origin(check, child));
         if(summary->returned.pointees & (UINT64_C(1) << parameter))
             result = merge(check, result, pointee_view_origin(check, child));
+        if(summary->returned.lent & (UINT64_C(1) << parameter)) {
+            BorrowBinding *pointee = pointee_binding(check, child);
+            if(pointee == NULL) {
+                Origin unknown = {0};
+                unknown.unknown = 1;
+                result = merge(check, result, unknown);
+            } else {
+                Origin origin = {0};
+                origin.depth = pointee->depth;
+                if(pointee->global_index >= 0)
+                    origin.globals = global_bit(check, pointee->global_index);
+                if(direct_pointer_parameter(pointee))
+                    origin.lent = UINT64_C(1) << pointee->parameter;
+                result = merge(check, result, origin);
+            }
+        }
+        if(summary->returned.lent_vec & (UINT64_C(1) << parameter)) {
+            BorrowBinding *pointee = pointee_binding(check, child);
+            if(pointee == NULL) {
+                Origin unknown = {0};
+                unknown.unknown = 1;
+                result = merge(check, result, unknown);
+            } else {
+                Origin origin = {0};
+                origin.depth = pointee->depth;
+                if(pointee->global_index >= 0)
+                    origin.globals = global_bit(check, pointee->global_index);
+                if(direct_pointer_parameter(pointee))
+                    origin.lent_vec = UINT64_C(1) << pointee->parameter;
+                result = merge(check, result, origin);
+            }
+        }
     }
     return result;
 }
@@ -1509,6 +1564,11 @@ expression_origin(BorrowCheck *check, int index)
              * like a view of a local: it cannot be returned or kept in a
              * global or an outer binding. */
             BorrowPlace place = storage_place(check, expression->first_child, 1);
+            if(direct_pointer_parameter(place.root)) {
+                uint64_t parameter = UINT64_C(1) << place.root->parameter;
+                origin.lent &= ~parameter;
+                origin.lent_vec |= parameter;
+            }
             if(!origin.unknown && place.root != NULL &&
                place.root->global_index >= 0) {
                 if(origin.depth < check->depth)
@@ -1863,6 +1923,12 @@ check_function(BorrowCheck *check, BorrowFunction *function)
         } else if(statement->kind == ZIR_STMT_RETURN &&
                   view_type(check, fn->return_type)) {
             Origin source = expression_origin(check, statement->expr_root);
+            /* Owned Vec backing reached through a pointer parameter belongs
+             * to the caller, unlike an inline pointee array. Keep that
+             * relationship in the summary so the caller supplies its depth. */
+            if(source.lent == 0 && source.lent_vec != 0 &&
+               !source.invalid && !source.unknown && source.depth <= 1)
+                source.depth = 0;
             if(source.invalid || source.unknown || source.depth > 0)
                 reject_return(check, statement->span, source);
             if(accumulate(check, &function->returned, source))

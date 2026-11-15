@@ -1,0 +1,8 @@
+#import "std/temp"
+
+main :: () -> s32 {
+    arena := TempBegin()
+    live := TempSlice(*arena, 4)
+    if !TempReset(*arena, 0) { return 1 }
+    return cast(s32)live[0]
+}

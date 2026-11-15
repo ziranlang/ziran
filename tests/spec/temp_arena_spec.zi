@@ -1,0 +1,67 @@
+#import "std/temp"
+
+#program_export
+main :: () -> s32 {
+    arena := TempBegin()
+    defer TempEnd(*arena)
+    prefix_ok := false
+    {
+        prefix := TempSlice(*arena, 4)
+        prefix_ok = prefix.count == 4
+        if prefix_ok {
+            for index: 0..3 { prefix[index] = cast(u8)(index + 1) }
+        }
+    }
+    if !prefix_ok { return 1 }
+    mark := TempMark(*arena)
+    label_ok := false
+    {
+        label := TempText(*arena, "row")
+        label_ok = label == "row"
+    }
+    if !label_ok { return 2 }
+    cells_ok := false
+    {
+        cells := TempSlice(*arena, 3)
+        cells_ok = cells.count == 3
+        if cells_ok { cells[2] = 42 }
+    }
+    if !cells_ok { return 2 }
+    if !TempReset(*arena, mark) || TempMark(*arena) != 4 { return 3 }
+    if TempReset(*arena, -1) || TempReset(*arena, 5) { return 4 }
+    if TempSlice(*arena, -1).count != 0 || TempSlice(*arena, 0).count != 0 ||
+        TempSlice(*arena, 9223372036854775807).count != 0 { return 5 }
+    again_ok := false
+    {
+        again := TempSlice(*arena, 8)
+        again_ok = again.count == 8
+        if again_ok {
+            again[7] = 42
+            print("temp % %\n", TempMark(*arena), again[7])
+        }
+    }
+    if !again_ok { return 6 }
+    return 0
+}
+
+// The slice view ends before reset, but this pointer token still names the old
+// allocation. Reset must retire it; engine and native execution trap here.
+#program_export
+DeadAfterReset :: () -> s32 {
+    arena := TempBegin()
+    defer TempEnd(*arena)
+    stale: *u8
+    {
+        retained := TempSlice(*arena, 2)
+        retained[0] = 3
+    }
+    mark := TempMark(*arena)
+    {
+        scratch := TempSlice(*arena, 4)
+        scratch[0] = 7
+        stale = *scratch[0]
+    }
+    if mark != 2 || !TempReset(*arena, mark) { return 2 }
+    print("before stale read\n")
+    return cast(s32)stale.*
+}

@@ -1,0 +1,56 @@
+// Scoped temporary byte storage. A mark names the initialized prefix at the
+// instant it was taken. Releasing to a mark moves that prefix to a fresh Vec
+// and frees the old allocation, so checked pointers into released storage are
+// retired instead of becoming aliases of later scratch.
+#import "vec"
+
+Temp :: struct {
+    bytes: Vec(u8)
+}
+
+TempBegin :: () -> Temp { return .{} }
+
+TempMark :: (arena: *Temp) -> s64 {
+    if arena == null { return 0 }
+    return arena.bytes.count
+}
+
+// Allocate initialized scratch at the end of the arena. An empty slice means
+// either a zero-size request or a rejected negative/overflow/allocation request.
+TempSlice :: (arena: *Temp, count: s64) -> []u8 {
+    empty: []u8
+    if arena == null || count <= 0 || arena.bytes.count > 9223372036854775807 - count { return empty }
+    begin := arena.bytes.count
+    if !VecResize(arena.bytes, begin + count) { return empty }
+    return VecSlice(arena.bytes, begin, begin + count)
+}
+
+// Copy text into the arena and return a borrowed UTF-8 view.
+TempText :: (arena: *Temp, value: string) -> string {
+    if value.count == 0 { return "" }
+    output := TempSlice(arena, cast(s64)value.count)
+    if output.count != cast(s64)value.count { return "" }
+    for index: cast(s64)0..output.count - 1 { output[index] = value[index] }
+    return TextView(output)
+}
+
+// Release everything at and after mark. Replacing the allocation deliberately
+// retires its checked-pointer generation; retaining Vec capacity here would let
+// a stale pointer silently name later scratch on the engine/native backends.
+TempReset :: (arena: *Temp, mark: s64) -> bool {
+    if arena == null || mark < 0 || mark > arena.bytes.count { return false }
+    if mark == arena.bytes.count { return true }
+    retained: Vec(u8)
+    if mark > 0 {
+        if !VecResize(retained, mark) { return false }
+        for index: cast(s64)0..mark - 1 { retained[index] = arena.bytes[index] }
+    }
+    VecSwap(arena.bytes, retained)
+    VecFree(retained)
+    return true
+}
+
+TempEnd :: (arena: *Temp) {
+    if arena == null { return }
+    VecFree(arena.bytes)
+}

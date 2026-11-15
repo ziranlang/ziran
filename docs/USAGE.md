@@ -1357,6 +1357,48 @@ against actual capacity after success. Default staging for managed elements
 and runtime object overhead require separate accounting. Ordinary Go fatal
 physical OOM remains outside recoverable allocation failures.
 
+### Scoped temporary storage
+
+`std/temp` provides one explicit temporary byte arena for a frame, request, or
+other bounded scope. `TempSlice(*arena, count)` and `TempText(*arena, value)`
+append initialized scratch, `TempMark(*arena)` records the current boundary,
+and `TempReset(*arena, mark)` releases everything after it. Finish with
+`TempEnd(*arena)`, normally through `defer`:
+
+```zi
+#import "std/temp"
+
+Frame :: () -> s32 {
+    arena := TempBegin()
+    defer TempEnd(*arena)
+    mark := TempMark(*arena)
+    label_ok := false
+    {
+        label := TempText(*arena, "row")
+        label_ok = label == "row"
+    }
+    if !label_ok { return 1 }
+    cells_ok := false
+    {
+        cells := TempSlice(*arena, 64)
+        cells_ok = cells.count == 64
+    }
+    if !cells_ok { return 1 }
+    if !TempReset(*arena, mark) { return 2 }
+    return 0
+}
+```
+
+Slices and text are borrowed views and cannot remain live across a reset under
+the normal Vec borrow rules. Raw checked pointers are generation-bound too:
+reset-to-mark replaces and releases the old allocation, so a pointer retained
+after its view ends traps if used on the engine or native backend instead of
+silently naming reused scratch. A negative size, arithmetic overflow,
+allocation failure, null arena, or mark outside the current initialized range
+fails without changing the arena. A zero-size request returns an empty view.
+The module is ordinary checked Ziran and has the same API on C, Go, Wasm,
+portable ZX engine, and native execution.
+
 ### Building text
 
 `std/format.zi` builds text on an owned `Vec(u8)` builder. `Append(*builder,

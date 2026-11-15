@@ -42,9 +42,12 @@ What needed to change:
    risked being implemented twice. They have been merged onto the machine-IR
    path and the old encoder is deleted; new native features land only there.
 5. **Speed-critical shortcuts were not tracked as debt.** Native procedure and
-   pointer tokens are dispatched by a linear scan, native code is stack-slot
-   only, and native `Fuel` emits no bytes, so native output does not yet satisfy
-   the ZX budget contract. These are now explicit M2/M3 exit criteria.
+   pointer tokens were dispatched by a linear scan, native code was stack-slot
+   only, and native `Fuel` emitted no bytes. These became M2 exit criteria and
+   are done: a pointer token carries its slot, version and offset and is checked
+   in constant time, a procedure value is a code address called through a
+   register, values live in allocated registers, and `Fuel` decrements the
+   instance counter at loop headers and function entries.
 6. **Stale status.** Step 05 was still "planned" after the revision-28
    container landed, and the README listed the container and machine IR as
    wholly outstanding. The statuses now match the code.

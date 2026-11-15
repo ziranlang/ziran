@@ -42,8 +42,26 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     reference := NativeInvoke(test, c_run[:])
     actual := NativeInvoke(test, interpreter[:])
     if item.traps {
-        unused NativeAssert(test, reference.code != 0 && actual.code == 125,
-            CheckConcat(item.entry, ": an expected trap did not trap on both routes"))
+        if !NativeAssert(test, reference.code != 0 && actual.code == 125,
+            CheckConcat(item.entry, ": an expected trap did not trap on both routes")) { return }
+        // The bundle traps natively with the named gap, and the ELF exits
+        // with the interpreter's trap status.
+        trap_bundle := string.[zi2zx, "--root", item.root, "--module-path", std,
+            "--entry", item.entry, "-o", bundled, item.file]
+        unused NativeRun(test, trap_bundle[:])
+        if test.failed { return }
+        trap_run := string.[zi2zx, "run", bundled]
+        trapped := NativeInvoke(test, trap_run[:])
+        if !NativeAssert(test, trapped.code != 0 && TextContains(trapped.error, "native execution failed"),
+            CheckConcat(item.entry, CheckConcat(": the bundle did not trap natively: ", trapped.error))) { return }
+        trap_native := string.[zx2native, "-o", elf, lowered]
+        trap_encoded := NativeInvoke(test, trap_native[:])
+        if !NativeAssert(test, trap_encoded.code == 0,
+            CheckConcat(item.entry, CheckConcat(": native output failed: ", trap_encoded.error))) { return }
+        trap_executable := string.[elf]
+        trap_ran := NativeInvoke(test, trap_executable[:])
+        unused NativeAssert(test, trap_ran.code == actual.code,
+            CheckConcat(item.entry, ": the native ELF did not trap like the interpreter"))
         return
     }
     if !NativeAssert(test, actual.output == reference.output,

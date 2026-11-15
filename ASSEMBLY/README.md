@@ -77,9 +77,10 @@ assembler, C compiler, or system linker to produce this executable.
 - Static globals and checked global/record-field pointer slots in direct ELF,
   with zero/scalar initialization, packed aggregate loads/stores, pointer
   parameters/results and separate RX text, read-only data and RW data segments.
-  Writes through read-only data tokens trap. Native dispatch
-  validates tokens and exact pointee types; it is currently a bounded linear
-  scan, not an optimized pointer-access path. No generated-C bridge is used.
+  Writes through read-only data tokens trap. Native code checks a pointer
+  token's liveness, version, writability and bounds in constant time from the
+  token itself; unlike the engine it does not yet check the pointee's element
+  type. No generated-C bridge is used.
 - Verified lowered IR supports frame-local allocation of every current scalar,
   record, fixed-array and procedure-value type in both the portable engine and
   native ELF.

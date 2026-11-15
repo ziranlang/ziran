@@ -292,7 +292,7 @@ until the implementation and its local correctness gates are complete.
   records/arrays, checked dynamic indexing, global/field pointers and aliasing,
   allocation/collection/borrowed-view churn, text processing, host bridges and
   applicable concurrency/runtime workloads. Include the VM root-tracing fix
-  and current linear token dispatch in relevant workload results. Unsupported
+  and the constant-time native pointer-token checks in relevant workload results. Unsupported
   engine/workload pairs must be explicit limitations, never zero-time samples.
 - Measure cold compilation, cold startup, warm cached startup, warm sustained
   throughput, memory, native code size and bundle size separately. Define the

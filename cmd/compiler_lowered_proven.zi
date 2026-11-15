@@ -1,0 +1,886 @@
+// Checked-access obligations a verified LIR program decides statically. One
+// pass computes them for every backend, so native code and Wasm elide the
+// same runtime checks and nothing elides a check on its own.
+//
+// Pointer facts. A pointer value's root is either the slot of a global or
+// the frame slot of an `allocate` in the same function. Such a slot is live
+// whenever the value can be used: global slots are never retired, a frame
+// slot only when its function returns, and neither can be resized or freed
+// (resizing needs a heap slot). The fact gives the root's extent and
+// writability (a global's flag; frame storage is writable) and the value's
+// byte offset from the root: exact when every derivation step is static,
+// otherwise bounded by the value's own type, because a field or fixed-array
+// element always lies inside its parent and the fixed-array index is checked.
+// Parameters, loads, call results, block parameters and heap blocks have no
+// root.
+//
+// Index facts. An `element.address` into a fixed array, or a dynamic
+// `extract` or `insert`, whose index an interval analysis proves lies inside
+// the array, so its bounds check is redundant.
+//
+// The program must already have passed LirVerify: definitions dominate their
+// uses and every address step is well typed. A backend drops a check only when
+// a fact covers everything that check enforces; the native machine verifier
+// re-derives the pointer facts it relies on from machine IR.
+using IR :: #import "compiler_lowered_ir"
+using Vectors :: #import "std/vec"
+
+LirProvenProblem :: enum s32 { None; Owner; Limit; Allocation }
+
+LirProvenRoot :: enum s32 { Unknown; Global; Frame }
+
+LirProvenPointer :: struct {
+    root: LirProvenRoot
+    // The global's index (Global) or the allocate's result value (Frame).
+    symbol: s32
+    // Bytes from the root's start when every step is static, else -1.
+    offset: s64
+    // The root's bytes.
+    extent: s64
+    writable: bool
+}
+
+// Function F's facts for its value V are at value_begin[F] + V.
+LirProvenOwner :: struct {
+    valid: bool
+    value_begin: Vec(s64)
+    pointers: Vec(LirProvenPointer)
+    // 1 when the instruction defining the value has its index proven inside
+    // its fixed array.
+    index: Vec(u8)
+}
+
+LirProvenResult :: struct {
+    problem: LirProvenProblem
+    work: s64
+    // Pointer values with a root, and index checks proven redundant.
+    rooted: s64
+    indices: s64
+}
+
+#scope_file
+
+Infinite :: 9223372036854775807
+NegativeInfinite :: (-9223372036854775807 - 1)
+// An interval proof is an optimization: larger functions keep their checks.
+RangeCellLimit :: 262144
+WideningRounds :: 32
+NarrowingRounds :: 16
+// The interval work one function may spend; past it, that function alone
+// keeps its index checks.
+FunctionWork :: 67108864
+
+ProvenState :: struct {
+    problem: LirProvenProblem
+    remaining: s64
+    used: s64
+    maximum_bytes: s64
+}
+
+Fail :: (state: *ProvenState, problem: LirProvenProblem) -> bool {
+    if state.problem == .None { state.problem = problem }
+    return false
+}
+
+Spend :: (state: *ProvenState, count: s64) -> bool {
+    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
+    state.remaining -= count
+    state.used += count
+    return true
+}
+
+// Packed layout, as every backend lays LIR values out in memory.
+TypeSize :: (program: LirProgram, type_id: s32, depth: s32) -> s64 {
+    if depth > 256 || type_id < 0 || type_id >= program.types.count { return -1 }
+    type := program.types[type_id]
+    if type.kind == .Void { return 0 }
+    if type.kind == .Bool { return 1 }
+    if type.kind == .Integer || type.kind == .Float {
+        if type.bits <= 0 || type.bits > 64 { return -1 }
+        return (type.bits + 7) / 8
+    }
+    if type.kind == .Pointer || type.kind == .Function { return 8 }
+    if type.kind == .Array {
+        element := TypeSize(program, type.element, depth + 1)
+        if element < 0 || type.count < 0 || element > 0 && type.count > Infinite / element { return -1 }
+        return element * type.count
+    }
+    if type.kind == .Record {
+        size: s64
+        for field: type.fields {
+            part := TypeSize(program, field, depth + 1)
+            if part < 0 || size > Infinite - part { return -1 }
+            size += part
+        }
+        return size
+    }
+    return -1
+}
+
+PointeeSize :: (program: LirProgram, type_id: s32) -> s64 {
+    if type_id < 0 || type_id >= program.types.count || program.types[type_id].kind != .Pointer { return -1 }
+    return TypeSize(program, program.types[type_id].element, 0)
+}
+
+Unknown :: () -> LirProvenPointer { return .{root = .Unknown, symbol = LirNoId, offset = -1} }
+
+// The value of an integer constant VALUE when it is defined by one, read
+// with the constant's signedness.
+ConstantInteger :: (program: LirProgram, function: LirFunction, definition: []s64,
+    value: s32, result: *s64) -> bool {
+    if value < 0 || value >= definition.count || definition[value] < 0 { return false }
+    block := definition[value] >> 32
+    at := definition[value] & 4294967295
+    source := function.blocks[block].instructions[at]
+    if source.op != .Constant || source.symbol < 0 || source.symbol >= program.constants.count { return false }
+    type_id := function.values[value]
+    if type_id < 0 || type_id >= program.types.count { return false }
+    type := program.types[type_id]
+    if type.kind != .Integer || type.bits < 1 || type.bits > 64 { return false }
+    bits := program.constants[source.symbol].bits
+    if type.bits < 64 { bits &= (cast(u64)1 << cast(u64)type.bits) - 1 }
+    if type.is_signed {
+        if type.bits < 64 && (bits & (cast(u64)1 << cast(u64)(type.bits - 1))) != 0 {
+            bits |= ~((cast(u64)1 << cast(u64)type.bits) - 1)
+        }
+        <<result = cast(s64)bits
+        return true
+    }
+    if bits > cast(u64)Infinite { return false }
+    <<result = cast(s64)bits
+    return true
+}
+
+// The fact for SOURCE's result, given the fact of its first operand.
+PointerStep :: (program: LirProgram, function: LirFunction, definition: []s64,
+    source: LirInstruction, base: LirProvenPointer) -> LirProvenPointer {
+    if source.op == .GlobalAddress {
+        if source.symbol < 0 || source.symbol >= program.globals.count { return Unknown() }
+        global := program.globals[source.symbol]
+        extent := TypeSize(program, global.type, 0)
+        if extent < 0 { return Unknown() }
+        return .{root = .Global, symbol = source.symbol, offset = 0, extent = extent,
+            writable = global.writable}
+    }
+    if source.op == .Allocate {
+        extent := PointeeSize(program, function.values[source.result])
+        if extent < 0 { return Unknown() }
+        return .{root = .Frame, symbol = source.result, offset = 0, extent = extent, writable = true}
+    }
+    if base.root == .Unknown || source.operands.count < 1 { return Unknown() }
+    pointer := function.values[source.operands[0]]
+    if pointer < 0 || pointer >= program.types.count || program.types[pointer].kind != .Pointer { return Unknown() }
+    target_id := program.types[pointer].element
+    if target_id < 0 || target_id >= program.types.count { return Unknown() }
+    target := program.types[target_id]
+    step: s64 = -1
+    if source.op == .FieldAddress && source.operands.count == 1 {
+        if target.kind != .Record || source.immediate >= cast(u64)target.fields.count { return Unknown() }
+        step = 0
+        for at: cast(s64)0..cast(s64)source.immediate - 1 {
+            part := TypeSize(program, target.fields[at], 0)
+            if part < 0 { return Unknown() }
+            step += part
+        }
+    } else if source.op == .ElementAddress && source.operands.count == 2 {
+        if target.kind != .Array { return Unknown() }
+        index: s64
+        if ConstantInteger(program, function, definition, source.operands[1], *index) {
+            // A constant outside the array traps at the derivation.
+            if index < 0 || index >= target.count { return Unknown() }
+            element := TypeSize(program, target.element, 0)
+            if element < 0 { return Unknown() }
+            step = index * element
+        } else { step = -2 }
+    } else { return Unknown() }
+    result := base
+    if base.offset < 0 || step == -2 { result.offset = -1 }
+    else { result.offset = base.offset + step }
+    if result.offset > result.extent { return Unknown() }
+    return result
+}
+
+// Definitions: value -> block << 32 | instruction, or -1 (a parameter).
+Definitions :: (state: *ProvenState, function: LirFunction, definition: *Vec(s64)) -> bool {
+    if !VecResizeBounded(<<definition, function.values.count, state.maximum_bytes / 8) {
+        return Fail(state, .Allocation)
+    }
+    for at: cast(s64)0..function.values.count - 1 { (<<definition)[at] = -1 }
+    for block, block_index: function.blocks {
+        for instruction, at: block.instructions {
+            if !Spend(state, 1) { return false }
+            if instruction.result >= 0 && instruction.result < function.values.count {
+                (<<definition)[instruction.result] = (block_index << 32) | at
+            }
+        }
+    }
+    return true
+}
+
+PointerFacts :: (state: *ProvenState, program: LirProgram, function: LirFunction,
+    definition: []s64, facts: []LirProvenPointer, done: *Vec(u8), chain: *Vec(s32)) -> bool {
+    if !VecResizeBounded(<<done, function.values.count, state.maximum_bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..function.values.count - 1 { (<<done)[at] = 0; facts[at] = Unknown() }
+    for value: cast(s32)0..cast(s32)function.values.count - 1 {
+        if (<<done)[value] != 0 { continue }
+        // Follow first operands down to a value already decided or one that
+        // no address step derives, then decide the chain from its base up.
+        if !VecResize(<<chain, 0) { return Fail(state, .Allocation) }
+        at := value
+        while at >= 0 && at < function.values.count && (<<done)[at] == 0 {
+            if !Spend(state, 1) { return false }
+            if (<<chain).count >= function.values.count { return Fail(state, .Limit) }
+            if !VecPush(<<chain, at) { return Fail(state, .Allocation) }
+            (<<done)[at] = 1
+            if definition[at] < 0 { break }
+            source := function.blocks[definition[at] >> 32].instructions[definition[at] & 4294967295]
+            if source.op != .FieldAddress && source.op != .ElementAddress || source.operands.count < 1 { break }
+            at = source.operands[0]
+        }
+        index := (<<chain).count - 1
+        while index >= 0 {
+            current := (<<chain)[index]
+            index -= 1
+            if definition[current] < 0 { continue }
+            source := function.blocks[definition[current] >> 32].instructions[definition[current] & 4294967295]
+            base := Unknown()
+            if source.operands.count >= 1 && source.operands[0] >= 0 &&
+                source.operands[0] < function.values.count { base = facts[source.operands[0]] }
+            facts[current] = PointerStep(program, function, definition, source, base)
+        }
+    }
+    return true
+}
+
+// Intervals over the mathematical value of an integer or bool. An endpoint at
+// the s64 limit means unbounded on that side; every other endpoint is a true
+// bound on every execution that reaches the point.
+Interval :: struct { low: s64; high: s64 }
+
+Full :: () -> Interval { return .{low = NegativeInfinite, high = Infinite} }
+
+Finite :: (range: Interval) -> bool { return range.low != NegativeInfinite && range.high != Infinite }
+
+Join :: (left: Interval, right: Interval) -> Interval {
+    return .{low = ifx left.low < right.low then left.low else right.low,
+        high = ifx left.high > right.high then left.high else right.high}
+}
+
+Meet :: (left: Interval, right: Interval) -> Interval {
+    return .{low = ifx left.low > right.low then left.low else right.low,
+        high = ifx left.high < right.high then left.high else right.high}
+}
+
+// Every value of an integer or bool type; anything else is unbounded.
+TypeTop :: (program: LirProgram, type_id: s32) -> Interval {
+    if type_id < 0 || type_id >= program.types.count { return Full() }
+    type := program.types[type_id]
+    if type.kind == .Bool { return .{low = 0, high = 1} }
+    if type.kind != .Integer || type.bits < 1 || type.bits > 64 { return Full() }
+    if type.is_signed && type.bits == 64 { return Full() }
+    if !type.is_signed && type.bits >= 63 { return .{low = 0, high = Infinite} }
+    if type.is_signed {
+        half := cast(s64)1 << cast(s64)(type.bits - 1)
+        return .{low = -half, high = half - 1}
+    }
+    return .{low = 0, high = (cast(s64)1 << cast(s64)type.bits) - 1}
+}
+
+AddExact :: (left: s64, right: s64, result: *s64) -> bool {
+    if right > 0 && left > Infinite - right || right < 0 && left < NegativeInfinite - right { return false }
+    <<result = left + right
+    return true
+}
+
+SubtractExact :: (left: s64, right: s64, result: *s64) -> bool {
+    if right < 0 && left > Infinite + right || right > 0 && left < NegativeInfinite + right { return false }
+    <<result = left - right
+    return true
+}
+
+MultiplyExact :: (left: s64, right: s64, result: *s64) -> bool {
+    if left > 0 {
+        if right > 0 { if left > Infinite / right { return false } }
+        else if right < NegativeInfinite / left { return false }
+    } else if right > 0 {
+        if left < NegativeInfinite / right { return false }
+    } else if left != 0 && right < Infinite / left { return false }
+    <<result = left * right
+    return true
+}
+
+// The interval of an add, subtract or multiply; TOP when an input is
+// unbounded, an endpoint overflows, or the result leaves its type's range
+// (where the operation wraps).
+Arithmetic :: (op: LirOp, left: Interval, right: Interval, top: Interval) -> Interval {
+    if !Finite(left) || !Finite(right) { return top }
+    result: Interval
+    if op == .Add {
+        if !AddExact(left.low, right.low, *result.low) || !AddExact(left.high, right.high, *result.high) { return top }
+    } else if op == .Subtract {
+        if !SubtractExact(left.low, right.high, *result.low) || !SubtractExact(left.high, right.low, *result.high) { return top }
+    } else if op == .Multiply {
+        products: [4]s64
+        if !MultiplyExact(left.low, right.low, *products[0]) || !MultiplyExact(left.low, right.high, *products[1]) ||
+            !MultiplyExact(left.high, right.low, *products[2]) || !MultiplyExact(left.high, right.high, *products[3]) {
+            return top
+        }
+        result = .{low = products[0], high = products[0]}
+        for at: 1..3 {
+            if products[at] < result.low { result.low = products[at] }
+            if products[at] > result.high { result.high = products[at] }
+        }
+    } else { return top }
+    if result.low < top.low || result.high > top.high { return top }
+    return result
+}
+
+Comparison :: (op: LirOp) -> bool {
+    return op == .Equal || op == .NotEqual || op == .Less || op == .LessEqual ||
+        op == .Greater || op == .GreaterEqual
+}
+
+Flow :: struct {
+    values: s64
+    blocks: s64
+    edges: s64
+    // Edge slots number every edge of a block's instructions in order;
+    // edge_offset[B] is the first slot of block B.
+    edge_offset: Vec(s64)
+    pred_offset: Vec(s64)
+    pred_slot: Vec(s64)
+    pred_block: Vec(s64)
+    pred_instruction: Vec(s64)
+    pred_edge: Vec(s64)
+    cursor: Vec(s64)
+    loop_header: Vec(u8)
+    edge_ready: Vec(u8)
+    edge_low: Vec(s64)
+    edge_high: Vec(s64)
+    seen: Vec(u8)
+    previous_low: Vec(s64)
+    previous_high: Vec(s64)
+    top_low: Vec(s64)
+    top_high: Vec(s64)
+    in_low: Vec(s64)
+    in_high: Vec(s64)
+    work_low: Vec(s64)
+    work_high: Vec(s64)
+    changed: bool
+    narrowing: bool
+}
+
+FlowFree :: (flow: *Flow) {
+    VecFree(flow.edge_offset); VecFree(flow.pred_offset); VecFree(flow.pred_slot)
+    VecFree(flow.pred_block); VecFree(flow.pred_instruction); VecFree(flow.pred_edge)
+    VecFree(flow.cursor); VecFree(flow.loop_header); VecFree(flow.edge_ready)
+    VecFree(flow.edge_low); VecFree(flow.edge_high); VecFree(flow.seen)
+    VecFree(flow.previous_low); VecFree(flow.previous_high)
+    VecFree(flow.top_low); VecFree(flow.top_high)
+    VecFree(flow.in_low); VecFree(flow.in_high); VecFree(flow.work_low); VecFree(flow.work_high)
+}
+
+Sized :: (state: *ProvenState, values: *Vec(s64), count: s64) -> bool {
+    if !VecResizeBounded(<<values, count, state.maximum_bytes / 8) { return Fail(state, .Allocation) }
+    return true
+}
+
+Flags :: (state: *ProvenState, values: *Vec(u8), count: s64) -> bool {
+    if !VecResizeBounded(<<values, count, state.maximum_bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..count - 1 { (<<values)[at] = 0 }
+    return true
+}
+
+// Lays out the edge slots and predecessors. False with no problem when the
+// function is too large for an interval proof.
+FlowInit :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow: *Flow) -> bool {
+    flow.values = function.values.count
+    flow.blocks = function.blocks.count
+    flow.edges = 0
+    flow.narrowing = false
+    if flow.blocks < 1 || function.entry < 0 || function.entry >= flow.blocks { return false }
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if !Spend(state, 1) { return false }
+            flow.edges += instruction.edges.count
+        }
+    }
+    if flow.values > 0 && (flow.edges > RangeCellLimit / flow.values || flow.blocks > RangeCellLimit / flow.values) {
+        return false
+    }
+    cells := flow.edges * flow.values
+    if !Sized(state, *flow.edge_offset, flow.blocks + 1) || !Sized(state, *flow.pred_offset, flow.blocks + 1) ||
+        !Sized(state, *flow.pred_slot, flow.edges) || !Sized(state, *flow.pred_block, flow.edges) ||
+        !Sized(state, *flow.pred_instruction, flow.edges) || !Sized(state, *flow.pred_edge, flow.edges) ||
+        !Sized(state, *flow.cursor, flow.blocks) || !Flags(state, *flow.loop_header, flow.blocks) ||
+        !Flags(state, *flow.edge_ready, flow.edges) || !Sized(state, *flow.edge_low, cells) ||
+        !Sized(state, *flow.edge_high, cells) || !Flags(state, *flow.seen, flow.blocks) ||
+        !Sized(state, *flow.previous_low, flow.blocks * flow.values) ||
+        !Sized(state, *flow.previous_high, flow.blocks * flow.values) ||
+        !Sized(state, *flow.top_low, flow.values) || !Sized(state, *flow.top_high, flow.values) ||
+        !Sized(state, *flow.in_low, flow.values) || !Sized(state, *flow.in_high, flow.values) ||
+        !Sized(state, *flow.work_low, flow.values) || !Sized(state, *flow.work_high, flow.values) { return false }
+    for at: cast(s64)0..flow.blocks { flow.pred_offset[at] = 0 }
+    for value: cast(s64)0..flow.values - 1 {
+        top := TypeTop(program, function.values[value])
+        flow.top_low[value] = top.low
+        flow.top_high[value] = top.high
+    }
+    slot: s64 = 0
+    for block, block_index: function.blocks {
+        flow.edge_offset[block_index] = slot
+        for instruction: block.instructions {
+            for edge: instruction.edges {
+                if !Spend(state, 1) { return false }
+                slot += 1
+                if edge.block < 0 || edge.block >= flow.blocks { continue }
+                flow.pred_offset[edge.block + 1] += 1
+                if cast(s64)edge.block <= block_index { flow.loop_header[edge.block] = 1 }
+            }
+        }
+    }
+    flow.edge_offset[flow.blocks] = slot
+    for at: cast(s64)0..flow.blocks - 1 { flow.pred_offset[at + 1] += flow.pred_offset[at] }
+    for at: cast(s64)0..flow.blocks - 1 { flow.cursor[at] = flow.pred_offset[at] }
+    slot = 0
+    for block, block_index: function.blocks {
+        for instruction, instruction_index: block.instructions {
+            for edge, edge_index: instruction.edges {
+                if edge.block >= 0 && edge.block < flow.blocks {
+                    at := flow.cursor[edge.block]
+                    flow.cursor[edge.block] = at + 1
+                    flow.pred_slot[at] = slot
+                    flow.pred_block[at] = block_index
+                    flow.pred_instruction[at] = instruction_index
+                    flow.pred_edge[at] = edge_index
+                }
+                slot += 1
+            }
+        }
+    }
+    return true
+}
+
+WorkGet :: (flow: *Flow, value: s32) -> Interval {
+    if value < 0 || value >= flow.values { return Full() }
+    return .{low = flow.work_low[value], high = flow.work_high[value]}
+}
+
+WorkPut :: (flow: *Flow, value: s32, range: Interval) {
+    if value < 0 || value >= flow.values { return }
+    flow.work_low[value] = range.low
+    flow.work_high[value] = range.high
+}
+
+// Adds the fact that comparison OP of LEFT and RIGHT is TAKEN (true) or not.
+Refine :: (flow: *Flow, op: LirOp, left_value: s32, right_value: s32, taken: bool) {
+    left := WorkGet(flow, left_value)
+    right := WorkGet(flow, right_value)
+    if op == .Less || op == .LessEqual {
+        if !taken {
+            Refine(flow, ifx op == .Less then LirOp.LessEqual else LirOp.Less, right_value, left_value, true)
+            return
+        }
+        strict := op == .Less
+        bound := Full()
+        bound.high = right.high
+        if strict && right.high != Infinite && right.high != NegativeInfinite { bound.high = right.high - 1 }
+        WorkPut(flow, left_value, Meet(left, bound))
+        bound = Full()
+        bound.low = left.low
+        if strict && left.low != NegativeInfinite && left.low != Infinite { bound.low = left.low + 1 }
+        WorkPut(flow, right_value, Meet(WorkGet(flow, right_value), bound))
+        return
+    }
+    if op == .Greater || op == .GreaterEqual {
+        if taken {
+            Refine(flow, ifx op == .Greater then LirOp.Less else LirOp.LessEqual, right_value, left_value, true)
+        } else {
+            Refine(flow, ifx op == .Greater then LirOp.LessEqual else LirOp.Less, left_value, right_value, true)
+        }
+        return
+    }
+    if op == .Equal && taken || op == .NotEqual && !taken {
+        both := Meet(left, right)
+        WorkPut(flow, left_value, both)
+        WorkPut(flow, right_value, Meet(WorkGet(flow, right_value), both))
+    }
+}
+
+Transfer :: (program: LirProgram, function: LirFunction, flow: *Flow, source: LirInstruction) {
+    if source.result < 0 || source.result >= flow.values { return }
+    top := Interval.{low = flow.top_low[source.result], high = flow.top_high[source.result]}
+    result := top
+    if source.op == .Constant && source.symbol >= 0 && source.symbol < program.constants.count {
+        type := program.types[function.values[source.result]]
+        bits := program.constants[source.symbol].bits
+        if type.kind == .Bool {
+            value := ifx bits != 0 then cast(s64)1 else 0
+            result = .{low = value, high = value}
+        } else if type.kind == .Integer && type.bits >= 1 && type.bits <= 64 {
+            if type.bits < 64 { bits &= (cast(u64)1 << cast(u64)type.bits) - 1 }
+            negative := type.is_signed && (bits & (cast(u64)1 << cast(u64)(type.bits - 1))) != 0
+            if negative && type.bits < 64 { bits |= ~((cast(u64)1 << cast(u64)type.bits) - 1) }
+            if negative || bits <= cast(u64)Infinite {
+                value := cast(s64)bits
+                result = .{low = value, high = value}
+            }
+        }
+    } else if (source.op == .Add || source.op == .Subtract || source.op == .Multiply) &&
+        source.operands.count == 2 {
+        result = Arithmetic(source.op, WorkGet(flow, source.operands[0]), WorkGet(flow, source.operands[1]), top)
+    } else if (source.op == .Convert || source.op == .Bitcast) && source.operands.count == 1 {
+        // A value its destination type can hold converts to itself.
+        input := program.types[function.values[source.operands[0]]]
+        output := program.types[function.values[source.result]]
+        range := WorkGet(flow, source.operands[0])
+        if (input.kind == .Integer || input.kind == .Bool) && output.kind == .Integer && Finite(range) &&
+            range.low >= top.low && range.high <= top.high { result = range }
+    } else if source.op == .BitAnd && source.operands.count == 2 {
+        // With a non-negative side, the result lies between zero and it.
+        sides: [2]Interval = .[WorkGet(flow, source.operands[0]), WorkGet(flow, source.operands[1])]
+        bounded := false
+        high := Infinite
+        for side: sides {
+            if Finite(side) && side.low >= 0 {
+                bounded = true
+                if side.high < high { high = side.high }
+            }
+        }
+        if bounded && high <= top.high && top.low <= 0 { result = .{low = 0, high = high} }
+    } else if source.op == .Remainder && source.operands.count == 2 {
+        // A non-negative dividend and a positive divisor leave a remainder
+        // below both the divisor and the dividend.
+        left := WorkGet(flow, source.operands[0])
+        right := WorkGet(flow, source.operands[1])
+        if Finite(left) && Finite(right) && left.low >= 0 && right.low >= 1 {
+            high := right.high - 1
+            if left.high < high { high = left.high }
+            result = .{low = 0, high = high}
+        }
+    } else if Comparison(source.op) && source.operands.count == 2 {
+        left := WorkGet(flow, source.operands[0])
+        right := WorkGet(flow, source.operands[1])
+        operand := program.types[function.values[source.operands[0]]]
+        numeric := operand.kind == .Integer || operand.kind == .Bool
+        if numeric && Finite(left) && Finite(right) && left.low == left.high && right.low == right.high {
+            truth := false
+            if source.op == .Equal { truth = left.low == right.low }
+            if source.op == .NotEqual { truth = left.low != right.low }
+            if source.op == .Less { truth = left.low < right.low }
+            if source.op == .LessEqual { truth = left.low <= right.low }
+            if source.op == .Greater { truth = left.low > right.low }
+            if source.op == .GreaterEqual { truth = left.low >= right.low }
+            value := ifx truth then cast(s64)1 else 0
+            result = .{low = value, high = value}
+        }
+    }
+    WorkPut(flow, source.result, result)
+}
+
+StoreEdge :: (state: *ProvenState, flow: *Flow, slot: s64) -> bool {
+    if !Spend(state, flow.values) { return false }
+    base := slot * flow.values
+    if flow.edge_ready[slot] == 0 { flow.changed = true; flow.edge_ready[slot] = 1 }
+    for value: cast(s64)0..flow.values - 1 {
+        if flow.edge_low[base + value] != flow.work_low[value] ||
+            flow.edge_high[base + value] != flow.work_high[value] {
+            flow.changed = true
+            flow.edge_low[base + value] = flow.work_low[value]
+            flow.edge_high[base + value] = flow.work_high[value]
+        }
+    }
+    return true
+}
+
+// The instruction of BLOCK that defines VALUE, or -1.
+ConditionOf :: (block: LirBlock, value: s32) -> s64 {
+    at := block.instructions.count - 1
+    while at >= 0 {
+        if block.instructions[at].result == value { return at }
+        at -= 1
+    }
+    return -1
+}
+
+// Marks an index proven inside its fixed array at SOURCE.
+Mark :: (program: LirProgram, function: LirFunction, flow: *Flow, source: LirInstruction, index: []u8) {
+    if source.result < 0 || source.result >= index.count { return }
+    array_type: s32 = LirNoId
+    position: s32 = LirNoId
+    if source.op == .ElementAddress && source.operands.count == 2 {
+        pointer := function.values[source.operands[0]]
+        if program.types[pointer].kind == .Pointer { array_type = program.types[pointer].element }
+        position = source.operands[1]
+    } else if source.op == .Extract && source.operands.count == 2 || source.op == .Insert && source.operands.count == 3 {
+        array_type = function.values[source.operands[0]]
+        position = source.operands[source.operands.count - 1]
+    }
+    if array_type < 0 || array_type >= program.types.count || program.types[array_type].kind != .Array { return }
+    range := WorkGet(flow, position)
+    if Finite(range) && range.low >= 0 && range.low <= range.high && range.high < program.types[array_type].count {
+        index[source.result] = 1
+    }
+}
+
+WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow: *Flow,
+    block_index: s64, index: []u8, collect: bool) -> bool {
+    block := function.blocks[block_index]
+    entry := block_index == function.entry
+    if !Spend(state, flow.values + 1) { return false }
+    // Incoming: the join over every predecessor edge seen so far, plus the
+    // function's own start for the entry block. A block nothing reaches yet
+    // waits for a later round.
+    any := false
+    if entry {
+        for value: cast(s64)0..flow.values - 1 {
+            flow.in_low[value] = flow.top_low[value]
+            flow.in_high[value] = flow.top_high[value]
+        }
+        any = true
+    }
+    for at: flow.pred_offset[block_index]..flow.pred_offset[block_index + 1] - 1 {
+        slot := flow.pred_slot[at]
+        if flow.edge_ready[slot] == 0 { continue }
+        if !Spend(state, flow.values) { return false }
+        base := slot * flow.values
+        for value: cast(s64)0..flow.values - 1 {
+            low := flow.edge_low[base + value]
+            high := flow.edge_high[base + value]
+            if !any || low < flow.in_low[value] { flow.in_low[value] = low }
+            if !any || high > flow.in_high[value] { flow.in_high[value] = high }
+        }
+        any = true
+    }
+    if !any { return true }
+    for parameter, parameter_index: block.parameters {
+        if parameter < 0 || parameter >= flow.values { continue }
+        joined := Interval.{low = flow.top_low[parameter], high = flow.top_high[parameter]}
+        assigned := entry
+        for at: flow.pred_offset[block_index]..flow.pred_offset[block_index + 1] - 1 {
+            slot := flow.pred_slot[at]
+            if flow.edge_ready[slot] == 0 { continue }
+            edge := function.blocks[flow.pred_block[at]].instructions[flow.pred_instruction[at]].edges[flow.pred_edge[at]]
+            if parameter_index >= edge.arguments.count { continue }
+            argument := edge.arguments[parameter_index]
+            if argument < 0 || argument >= flow.values { joined = Full(); assigned = true; continue }
+            range := Interval.{low = flow.edge_low[slot * flow.values + argument],
+                high = flow.edge_high[slot * flow.values + argument]}
+            joined = ifx assigned then Join(joined, range) else range
+            assigned = true
+        }
+        flow.in_low[parameter] = joined.low
+        flow.in_high[parameter] = joined.high
+    }
+    // Widening: a loop header's parameter whose bound moved since the
+    // header's last visit becomes unbounded on that side, so loops settle in
+    // a bounded number of rounds. Every value a loop changes passes through a
+    // header parameter; values defined before the loop keep their bounds.
+    previous := block_index * flow.values
+    if flow.loop_header[block_index] != 0 && !flow.narrowing && flow.seen[block_index] != 0 {
+        for value: block.parameters {
+            if value < 0 || value >= flow.values { continue }
+            if flow.in_low[value] < flow.previous_low[previous + value] { flow.in_low[value] = NegativeInfinite }
+            if flow.in_high[value] > flow.previous_high[previous + value] { flow.in_high[value] = Infinite }
+        }
+    }
+    flow.seen[block_index] = 1
+    for value: cast(s64)0..flow.values - 1 {
+        flow.previous_low[previous + value] = flow.in_low[value]
+        flow.previous_high[previous + value] = flow.in_high[value]
+        flow.work_low[value] = flow.in_low[value]
+        flow.work_high[value] = flow.in_high[value]
+    }
+    slot := flow.edge_offset[block_index]
+    for source: block.instructions {
+        if !Spend(state, 1) { return false }
+        if collect { Mark(program, function, flow, source, index) }
+        Transfer(program, function, flow, source)
+        if source.op == .Branch && source.edges.count == 2 && source.operands.count == 1 {
+            defined := ConditionOf(block, source.operands[0])
+            condition := block.instructions[ifx defined >= 0 then defined else 0]
+            refined := defined >= 0 && Comparison(condition.op) && condition.operands.count == 2
+            if refined {
+                operand := program.types[function.values[condition.operands[0]]]
+                refined = operand.kind == .Integer || operand.kind == .Bool
+            }
+            for edge: 0..1 {
+                if refined {
+                    if !Spend(state, flow.values) { return false }
+                    for value: cast(s64)0..flow.values - 1 {
+                        flow.in_low[value] = flow.work_low[value]
+                        flow.in_high[value] = flow.work_high[value]
+                    }
+                    Refine(flow, condition.op, condition.operands[0], condition.operands[1], edge == 0)
+                }
+                if !StoreEdge(state, flow, slot) { return false }
+                slot += 1
+                if refined {
+                    for value: cast(s64)0..flow.values - 1 {
+                        flow.work_low[value] = flow.in_low[value]
+                        flow.work_high[value] = flow.in_high[value]
+                    }
+                }
+            }
+        } else {
+            for edge: source.edges {
+                if !StoreEdge(state, flow, slot) { return false }
+                slot += 1
+            }
+        }
+    }
+    return true
+}
+
+Round :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow: *Flow,
+    index: []u8, collect: bool) -> bool {
+    flow.changed = false
+    for block: cast(s64)0..flow.blocks - 1 {
+        if !WalkBlock(state, program, function, flow, block, index, collect) { return false }
+    }
+    return true
+}
+
+// Proves indices for one function. A function whose intervals do not settle
+// in the round budget or within FunctionWork keeps every check.
+IndexFacts :: (state: *ProvenState, program: LirProgram, function: LirFunction,
+    flow: *Flow, index: []u8) -> bool {
+    saved := state.remaining
+    budget := ifx saved < FunctionWork then saved else FunctionWork
+    state.remaining = budget
+    proved := IndexProof(state, program, function, flow, index)
+    state.remaining = saved - (budget - state.remaining)
+    if proved || state.problem != .Limit { return proved }
+    state.problem = .None
+    for at: cast(s64)0..index.count - 1 { index[at] = 0 }
+    return true
+}
+
+IndexProof :: (state: *ProvenState, program: LirProgram, function: LirFunction,
+    flow: *Flow, index: []u8) -> bool {
+    for at: cast(s64)0..index.count - 1 { index[at] = 0 }
+    if !FlowInit(state, program, function, flow) { return state.problem == .None }
+    stable := false
+    for round: 0..WideningRounds - 1 {
+        if !Round(state, program, function, flow, index, false) { return false }
+        if !flow.changed { stable = true; break }
+    }
+    if !stable { return true }
+    flow.narrowing = true
+    for round: 0..NarrowingRounds - 1 {
+        if !Round(state, program, function, flow, index, false) { return false }
+        if !flow.changed { break }
+    }
+    return Round(state, program, function, flow, index, true)
+}
+
+Scratch :: struct {
+    definition: Vec(s64)
+    done: Vec(u8)
+    chain: Vec(s32)
+    flow: Flow
+}
+
+ScratchFree :: (scratch: *Scratch) {
+    VecFree(scratch.definition)
+    VecFree(scratch.done)
+    VecFree(scratch.chain)
+    FlowFree(*scratch.flow)
+}
+
+// The facts of FUNCTION, whose values start at BEGIN in OWNER.
+FunctionFacts :: (state: *ProvenState, program: LirProgram, function: LirFunction,
+    owner: *LirProvenOwner, begin: s64, scratch: *Scratch, result: *LirProvenResult) -> bool {
+    count := function.values.count
+    facts := owner.pointers[begin:begin + count]
+    index := owner.index[begin:begin + count]
+    for at: cast(s64)0..count - 1 { facts[at] = Unknown(); index[at] = 0 }
+    if count == 0 || function.blocks.count == 0 { return true }
+    if !Definitions(state, function, *scratch.definition) ||
+        !PointerFacts(state, program, function, scratch.definition[:], facts, *scratch.done, *scratch.chain) ||
+        !IndexFacts(state, program, function, *scratch.flow, index) { return false }
+    for at: cast(s64)0..count - 1 {
+        if facts[at].root != .Unknown { result.rooted += 1 }
+        if index[at] != 0 { result.indices += 1 }
+    }
+    return true
+}
+
+#scope_export
+
+LirProvenFree :: (owner: *LirProvenOwner) {
+    if owner == null { return }
+    owner.valid = false
+    VecFree(owner.value_begin)
+    VecFree(owner.pointers)
+    VecFree(owner.index)
+}
+
+// Computes the facts of PROGRAM, which has passed LirVerify. Work and scratch
+// are bounded by LIMITS; a failure leaves OWNER empty.
+LirProvenBuild :: (owner: *LirProvenOwner, program: LirProgram, limits: LirLimits) -> LirProvenResult {
+    state := ProvenState.{remaining = limits.work, maximum_bytes = limits.bytes}
+    if owner == null { return .{problem = .Owner} }
+    LirProvenFree(owner)
+    if limits.work < 0 || limits.bytes < 0 { return .{problem = .Limit} }
+    total: s64
+    for function: program.functions {
+        if function.values.count < 0 || function.values.count > limits.values ||
+            total > limits.bytes / size_of(LirProvenPointer) - function.values.count {
+            return .{problem = .Limit}
+        }
+        total += function.values.count
+    }
+    if !VecResizeBounded(owner.value_begin, program.functions.count + 1, program.functions.count + 1) ||
+        !VecResizeBounded(owner.pointers, total, total) || !VecResizeBounded(owner.index, total, total) {
+        LirProvenFree(owner)
+        return .{problem = .Allocation}
+    }
+    scratch: Scratch
+    defer ScratchFree(*scratch)
+    result: LirProvenResult
+    begin: s64
+    failed := false
+    for function, function_index: program.functions {
+        owner.value_begin[function_index] = begin
+        if !FunctionFacts(*state, program, function, owner, begin, *scratch, *result) { failed = true; break }
+        begin += function.values.count
+    }
+    if failed {
+        LirProvenFree(owner)
+        return .{problem = ifx state.problem == .None then LirProvenProblem.Limit else state.problem,
+            work = state.used}
+    }
+    owner.value_begin[program.functions.count] = begin
+    owner.valid = true
+    result.work = state.used
+    return result
+}
+
+LirProvenPointerOf :: (owner: *LirProvenOwner, function: s64, value: s32) -> LirProvenPointer {
+    if owner == null || !owner.valid || function < 0 || function + 1 >= owner.value_begin.count || value < 0 {
+        return Unknown()
+    }
+    at := owner.value_begin[function] + value
+    if at >= owner.value_begin[function + 1] { return Unknown() }
+    return owner.pointers[at]
+}
+
+LirProvenIndex :: (owner: *LirProvenOwner, function: s64, value: s32) -> bool {
+    if owner == null || !owner.valid || function < 0 || function + 1 >= owner.value_begin.count || value < 0 {
+        return false
+    }
+    at := owner.value_begin[function] + value
+    return at < owner.value_begin[function + 1] && owner.index[at] != 0
+}
+
+// Whether FACT, the fact of pointer value POINTER, covers an access of WIDTH
+// bytes (a write when WRITE): its root is live and the bytes lie inside it.
+LirProvenCovers :: (program: LirProgram, function: LirFunction, fact: LirProvenPointer,
+    pointer: s32, width: s64, write: bool) -> bool {
+    if fact.root == .Unknown || width < 0 || write && !fact.writable { return false }
+    if fact.offset >= 0 { return fact.offset <= fact.extent && width <= fact.extent - fact.offset }
+    if pointer < 0 || pointer >= function.values.count { return false }
+    pointee := PointeeSize(program, function.values[pointer])
+    return pointee >= 0 && width <= pointee
+}

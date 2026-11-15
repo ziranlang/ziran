@@ -204,13 +204,16 @@ Relocations :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     empty: [0]u8
     layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
     if !Check(layout.diagnostic.problem == .None && owner.encoded.image.relocations.count >= 3,
-        "pointer runtime, fuel and trap relocations are retained") { return false }
+        "global, fuel and trap relocations are retained") { return false }
     // Globals are reached through checked pointers: their tokens are
-    // constants, and resolving one names the pointer runtime header.
+    // constants, and resolving one names the pointer runtime header. An
+    // access the shared facts prove (this fixture's only global, at the start
+    // of the data) addresses the global's bytes directly.
     saw_global := false; saw_fuel := false; saw_trap := false
     for relocation: owner.encoded.image.relocations {
         target: s64 = 0
         if relocation.kind == .PointerRuntime { target = 0x400000 + layout.pointer_offset; saw_global = true }
+        else if relocation.kind == .GlobalAddress { target = 0x400000 + layout.data_offset; saw_global = true }
         else if relocation.kind == .FuelCounter { target = 0x400000 + layout.fuel_offset; saw_fuel = true }
         else if relocation.kind == .TrapHandler {
             target = 0x400000 + layout.text_offset + Elf.MachineElfStartupSize +
@@ -238,9 +241,10 @@ Rejections :: (owner: *Pipeline.MachineNativeOwner) -> bool {
 
     global: s64 = -1
     for index: cast(s64)0..owner.encoded.relocations.count - 1 {
-        if owner.encoded.relocations[index].kind == .PointerRuntime { global = index; break }
+        kind := owner.encoded.relocations[index].kind
+        if kind == .PointerRuntime || kind == .GlobalAddress { global = index; break }
     }
-    if !Check(global >= 0, "pointer runtime relocation fixture") { return false }
+    if !Check(global >= 0, "global relocation fixture") { return false }
     saved := owner.encoded.relocations[global]
     owner.encoded.relocations[global].symbol = 99
     rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])

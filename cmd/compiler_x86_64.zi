@@ -1783,6 +1783,25 @@ PointerResolve :: (state: *State) -> bool {
     return true
 }
 
+// PointerDirect raw, token, base, width, flags: raw = base + the token's
+// 32-bit offset. The machine verifier accepted the access, so nothing here
+// reads the pointer table.
+PointerDirect :: (state: *State) -> bool {
+    if !Count(state, 5) { return false }
+    destination := Register(state, 0, .Define)
+    token := Register(state, 1, .Use)
+    base := Register(state, 2, .Use)
+    if destination == MachineNoId || token == MachineNoId || base == MachineNoId { return false }
+    if OperandAt(state, 3).kind != .Immediate || OperandAt(state, 4).kind != .Immediate {
+        return Fail(state, .Unsupported, OperandId(state, 3))
+    }
+    writer := *state.writer
+    X86Load(writer, X86R11, X86Direct(token), 4, false)
+    if destination != base { X86Move(writer, destination, base) }
+    X86Arithmetic(writer, X86Add, destination, X86R11)
+    return true
+}
+
 // ArenaAllocate raw, size, r10: SIZE fresh bytes, 16-byte aligned, from the
 // frame arena; the storage trap past its limit.
 ArenaAllocate :: (state: *State) -> bool {
@@ -1995,6 +2014,7 @@ Instruction :: (state: *State) -> bool {
     else if op == .StackAddress { ok = StackAddress(state) }
     else if op == .Zero { ok = Zero(state) }
     else if op == .PointerResolve { ok = PointerResolve(state) }
+    else if op == .PointerDirect { ok = PointerDirect(state) }
     else if op == .PointerCreate { ok = PointerCreate(state) }
     else if op == .ArenaAllocate { ok = ArenaAllocate(state) }
     else if op == .FunctionAddress { ok = FunctionAddress(state) }

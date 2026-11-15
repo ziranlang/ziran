@@ -43,6 +43,13 @@ MachineOpcode :: enum s32 {
     // Allocator-inserted, flag-preserving transfers. Spill stores a register
     // into a stack object; Reload loads one into a register.
     Spill; Reload
+    //   PointerDirect raw, token, base, width, flags: raw = base + the
+    //     token's byte offset, with no runtime check. BASE is the raw start of
+    //     the token's root (a GlobalAddress, or the ArenaAllocate behind the
+    //     PointerCreate it derives from); MachineVerify re-derives that root
+    //     and accepts the instruction only where it covers the slot, version,
+    //     liveness, WIDTH bytes and, for flag 1, writability.
+    PointerDirect
 }
 
 MachineCondition :: enum s32 {
@@ -299,6 +306,9 @@ MachineProblem :: enum s32 {
     Constraint; Flags; Call; Stack; Edge; Copy; Relocation; NativeWidth; Unsupported
     // Allocation and allocated-program failures.
     Stage; Fuel; Undefined; Interference; Clobber; Tie; Frame; Pressure; Cycle; Spill
+    // A memory access whose address is neither a checked resolve nor a
+    // PointerDirect the verifier proves safe.
+    Unchecked
 }
 
 MachineDiagnostic :: struct {

@@ -4,6 +4,7 @@ using LirVerifyModule :: #import "compiler_lowered_verify"
 using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using MachineVerifyModule :: #import "compiler_machine_verify"
+using Proven :: #import "compiler_lowered_proven"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 
@@ -21,6 +22,10 @@ LowerState :: struct {
     remaining: s64
     used: s64
     bytes: s64
+    // The shared LIR facts, and per value of the function being lowered the
+    // raw-storage virtual of its `allocate`, or MachineNoId.
+    proven: *LirProvenOwner
+    frame_raw: *Vec(s32)
 }
 
 EmptyDiagnostic :: () -> MachineDiagnostic {
@@ -609,16 +614,75 @@ LowerMove :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
+// The raw start of the root a shared LIR fact gives pointer LOCAL, when that
+// fact covers an access of WIDTH bytes: a fresh GlobalAddress for a global,
+// the `allocate`'s storage for a frame slot. MachineNoId keeps the check.
+// AArch64 elides after its checked-memory stage lands.
+DirectBase :: (state: *LowerState, function: *MachineFunction, local: s32, width: s64,
+    write: bool, origin: s32) -> s32 {
+    if state.target.arch != .X86_64 { return MachineNoId }
+    lir_function := state.lir.functions[function.lir_function]
+    fact := LirProvenPointerOf(state.proven, function.lir_function, local)
+    if !LirProvenCovers(state.lir, lir_function, fact, local, width, write) { return MachineNoId }
+    if fact.root == .Frame {
+        if fact.symbol < 0 || fact.symbol >= state.frame_raw.count { return MachineNoId }
+        return (<<state.frame_raw)[fact.symbol]
+    }
+    if fact.root != .Global || fact.symbol < 0 || fact.symbol >= state.owner.globals.count { return MachineNoId }
+    base := RawVirtual(state, function, GlobalVirtual(state, function, local))
+    if base == MachineNoId { return MachineNoId }
+    instruction := BeginInstruction(state, .GlobalAddress, origin)
+    if VirtualOperand(state, base, .Define) == MachineNoId { return MachineNoId }
+    operand := SymbolOperand(state, .Global, fact.symbol)
+    if operand == MachineNoId { return MachineNoId }
+    instruction_id := FinishInstruction(state, instruction)
+    kind: MachineRelocationKind = ifx state.owner.globals[fact.symbol].writable then .GlobalAddress else .ConstantAddress
+    if instruction_id == MachineNoId || !AddRelocation(state, .{instruction = instruction_id,
+        operand = operand, kind = kind, symbol = fact.symbol}) { return MachineNoId }
+    return base
+}
+
+// raw = BASE + TOKEN's offset for an access the verifier re-derives as safe.
+LowerDirect :: (state: *LowerState, function: *MachineFunction, token: s32, base: s32, width: s64,
+    write: bool, origin: s32) -> s32 {
+    raw := RawVirtual(state, function, token)
+    if raw == MachineNoId { return MachineNoId }
+    instruction := BeginInstruction(state, .PointerDirect, origin)
+    instruction.flags_def = FlagsVirtual(state, function, origin)
+    if instruction.flags_def == MachineNoId || VirtualOperand(state, raw, .Define) == MachineNoId ||
+        VirtualOperand(state, token, .Use) == MachineNoId || VirtualOperand(state, base, .Use) == MachineNoId ||
+        ImmediateOperand(state, cast(u64)width) == MachineNoId ||
+        ImmediateOperand(state, ifx write then cast(u64)1 else 0) == MachineNoId ||
+        FinishInstruction(state, instruction) == MachineNoId { return MachineNoId }
+    return raw
+}
+
 LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstruction,
     opcode: MachineOpcode) -> bool {
-    // A load or store goes through the address its checked pointer resolves to.
+    // A load, store or zero goes through the address its checked pointer
+    // resolves to, or the one a shared fact proves needs no check.
     resolved: s32 = MachineNoId
-    if (opcode == .Load || opcode == .Store) && source.operands.count >= 1 {
+    if (opcode == .Load || opcode == .Store || opcode == .Zero) && source.operands.count >= 1 {
         token := GlobalVirtual(state, function, source.operands[0])
-        accessed := ifx opcode == .Load then source.result else source.operands[source.operands.count - 1]
-        width := state.owner.types[state.owner.virtuals[GlobalVirtual(state, function, accessed)].type].size
-        resolved = LowerResolve(state, function, token, width, MachineNoId,
-            ifx opcode == .Store then cast(u64)1 else 0, source.origin)
+        if token == MachineNoId { return false }
+        width: s64
+        if opcode == .Zero {
+            pointer := state.owner.types[state.owner.virtuals[token].type]
+            if pointer.kind != .Pointer || pointer.element < 0 { return Fail(state, .Unsupported) }
+            width = state.owner.types[pointer.element].size
+        } else {
+            accessed := ifx opcode == .Load then source.result else source.operands[source.operands.count - 1]
+            width = state.owner.types[state.owner.virtuals[GlobalVirtual(state, function, accessed)].type].size
+        }
+        write := opcode != .Load
+        base := DirectBase(state, function, source.operands[0], width, write, source.origin)
+        if state.problem != .None { return false }
+        if base != MachineNoId {
+            resolved = LowerDirect(state, function, token, base, width, write, source.origin)
+        } else {
+            resolved = LowerResolve(state, function, token, width, MachineNoId,
+                ifx write then cast(u64)1 else 0, source.origin)
+        }
         if resolved == MachineNoId { return false }
     }
     instruction := BeginInstruction(state, opcode, source.origin)
@@ -651,8 +715,9 @@ LowerAllocate :: (state: *LowerState, function: *MachineFunction, source: LirIns
     if pointer.kind != .Pointer || pointer.element < 0 { return Fail(state, .Unsupported) }
     if function.pointer_chain == 0 { return Fail(state, .Stack) }
     size := state.owner.types[pointer.element].size
-    raw := RawVirtual(state, function, result)
-    if raw == MachineNoId { return false }
+    if source.result < 0 || source.result >= state.frame_raw.count { return Fail(state, .Virtual) }
+    raw := (<<state.frame_raw)[source.result]
+    if raw == MachineNoId { return Fail(state, .Virtual) }
     scratch := MachineAbiAddressScratchRegister(state.target)
     allocate := BeginInstruction(state, .ArenaAllocate, source.origin)
     allocate.flags_def = FlagsVirtual(state, function, source.origin)
@@ -930,10 +995,22 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     if !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
     // A function that allocates keeps the frame arena's top at entry and
-    // the head of its pointer chain in two frame words.
+    // the head of its pointer chain in two frame words. Each `allocate` gets
+    // its raw-storage virtual up front, so a direct access in any block it
+    // dominates can name it.
+    frame_raw := state.frame_raw
+    if !VecResizeBounded(<<frame_raw, source.values.count, state.limits.bytes / 4) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..source.values.count - 1 { (<<frame_raw)[at] = MachineNoId }
     allocates := false
     for block: source.blocks {
-        for instruction: block.instructions { if instruction.op == .Allocate { allocates = true } }
+        for instruction: block.instructions {
+            if instruction.op != .Allocate { continue }
+            allocates = true
+            if instruction.result < 0 || instruction.result >= source.values.count { return Fail(state, .Virtual) }
+            raw := RawVirtual(state, *function, GlobalVirtual(state, *function, instruction.result))
+            if raw == MachineNoId { return false }
+            (<<frame_raw)[instruction.result] = raw
+        }
     }
     if allocates {
         for at: 0..1 {
@@ -1042,6 +1119,15 @@ MachineLower :: (owner: *MachineOwner, program: LirProgram, target: TargetDescri
         state.problem = ifx lir_diagnostic.problem == .Unsupported then .Unsupported else .VerifyInput
         return Result(state)
     }
+    // Facts are an optimization: a program too large to prove keeps every
+    // check.
+    proven: LirProvenOwner
+    defer LirProvenFree(*proven)
+    unused LirProvenBuild(*proven, program, LirDefaultLimits())
+    state.proven = *proven
+    frame_raw: Vec(s32)
+    defer VecFree(frame_raw)
+    state.frame_raw = *frame_raw
     if !CopyMetadata(*state) || !CopyTypes(*state) || !AddFunctionRecords(*state) {
         result := Result(state)
         MachineFree(owner)

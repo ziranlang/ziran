@@ -1,0 +1,228 @@
+// Tier-0 check elision (plans/2026-11-15-trust-tiers.md, steps 0 to 2). The
+// shared LIR facts let x86-64 code reach a global or a frame record directly
+// instead of resolving its token, with the machine verifier re-deriving each
+// such access, and let Wasm skip index checks the same intervals prove. This
+// prints each fixture's facts and machine check counts, runs it natively and
+// as Wasm, and proves that the same accesses with a runtime index out of
+// range, a resized heap block or a stale alias still trap.
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Link :: #import "compiler_exec_link"
+using Lir :: #import "compiler_lowered_ir"
+using Lower :: #import "compiler_machine_lower"
+using Machine :: #import "compiler_machine_ir"
+using Pipeline :: #import "compiler_machine_pipeline"
+using Proven :: #import "compiler_lowered_proven"
+using Target :: #import "compiler_target"
+using Verify :: #import "compiler_machine_verify"
+using Vectors :: #import "std/vec"
+
+// The x86-64 check counts of the bundle at PATH.
+Counts :: (test: *NativeTest, path: string, counts: *Pipeline.MachineChecks) -> bool {
+    bytes := NativeRead(test, path)
+    owner: Link.ZxExecOwner
+    defer Link.ZxExecReadFree(*owner)
+    read := Link.ZxExecRead(*owner, bytes, Lir.LirDefaultLimits())
+    if !NativeAssert(test, read.problem == .None, CheckConcat("read ", path)) { return false }
+    target := Target.TargetDescribe(.X86_64, .Linux)
+    native: Pipeline.MachineNativeOwner
+    defer Pipeline.MachineNativeFree(*native)
+    built := Pipeline.MachineCodeBuild(Link.ZxExecReadProgram(*owner), target.target,
+        Machine.MachineDefaultLimits(), *native)
+    if !NativeAssert(test, target.problem == .None && built.problem == .None,
+        CheckConcat("the machine pipeline rejected ", CheckConcat(path, CheckConcat(": problem ",
+            CheckNumber(cast(s64)built.problem))))) { return false }
+    <<counts = Pipeline.MachineCheckCount(Lower.MachineProgramView(*native.machine))
+    facts: Proven.LirProvenOwner
+    defer Proven.LirProvenFree(*facts)
+    proved := Proven.LirProvenBuild(*facts, Link.ZxExecReadProgram(*owner), Lir.LirDefaultLimits())
+    if !NativeAssert(test, proved.problem == .None, CheckConcat("the shared facts failed for ", path)) { return false }
+    print("% rooted=% proven-indices=% resolves=% direct-global=% direct-frame=% index-checks=%\n", PathName(path),
+        proved.rooted, proved.indices, counts.resolves, counts.direct_global, counts.direct_frame, counts.index_checks)
+    return true
+}
+
+// Lowers BUNDLE to Wasm and runs it: it returns EXPECTED (printed after its
+// output), or traps when EXPECTED is empty.
+WasmRuns :: (test: *NativeTest, tools: string, bundle: string, expected: string) -> bool {
+    wasm := CheckConcat(bundle, ".wasm")
+    lower := string.[CheckPath(tools, "zx2wasm"), "-o", wasm, bundle]
+    unused NativeRun(test, lower[:])
+    if test.failed { return false }
+    node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm]
+    ran := NativeInvoke(test, node[:])
+    if expected != "" {
+        return NativeAssert(test, ran.code == 0 && ran.output == expected,
+            CheckConcat(wasm, CheckConcat(" printed ", ran.output)))
+    }
+    return NativeAssert(test, ran.code != 0, CheckConcat(wasm, " did not trap"))
+}
+
+// The instruction defining virtual VALUE, or -1.
+Definer :: (program: Machine.MachineProgram, value: s32) -> s64 {
+    for instruction, at: program.instructions {
+        for local: 0..instruction.operand_count - 1 {
+            operand := program.operands[instruction.operand_begin + local]
+            if operand.kind == .Virtual && operand.role == .Define && operand.id == value { return at }
+        }
+    }
+    return -1
+}
+
+// Whether MachineVerify refuses PROGRAM as unchecked memory, then restores
+// operand AT to SAVED.
+Refused :: (test: *NativeTest, program: Machine.MachineProgram, at: s32, saved: Machine.MachineOperand,
+    message: string) -> bool {
+    refused := Verify.MachineVerify(program, Machine.MachineDefaultLimits()).problem == .Unchecked
+    program.operands[at] = saved
+    return NativeAssert(test, refused, message)
+}
+
+// The verifier re-derives each direct access: a store through a direct
+// address that claims no write, a base from another root, an access wider
+// than the proof and a store through the raw token are all refused.
+Tampered :: (test: *NativeTest, path: string) -> bool {
+    bytes := NativeRead(test, path)
+    reader: Link.ZxExecOwner
+    defer Link.ZxExecReadFree(*reader)
+    if !NativeAssert(test, Link.ZxExecRead(*reader, bytes, Lir.LirDefaultLimits()).problem == .None,
+        CheckConcat("read ", path)) { return false }
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    lowered := Lower.MachineLower(*owner, Link.ZxExecReadProgram(*reader), Target.TargetDescribe(.X86_64, .Linux).target,
+        Machine.MachineDefaultOptions(), Machine.MachineDefaultLimits())
+    if !NativeAssert(test, lowered.problem == .None, "lower the direct fixture") { return false }
+    program := Lower.MachineProgramView(*owner)
+    store: s64 = -1
+    direct: s64 = -1
+    other: s32 = Machine.MachineNoId
+    for instruction, at: program.instructions {
+        if instruction.opcode != .Store || instruction.operand_count != 2 { continue }
+        address := program.operands[instruction.operand_begin]
+        if address.kind != .Virtual { continue }
+        definer := Definer(program, address.id)
+        if definer < 0 || program.instructions[definer].opcode != .PointerDirect { continue }
+        if store >= 0 && other == Machine.MachineNoId {
+            // A second direct store's base, from another root.
+            base := program.operands[program.instructions[definer].operand_begin + 2].id
+            if base != program.operands[program.instructions[direct].operand_begin + 2].id { other = base }
+        }
+        if store < 0 { store = at; direct = definer }
+    }
+    if !NativeAssert(test, store >= 0 && other != Machine.MachineNoId, "the fixture has direct stores to two roots") {
+        return false
+    }
+    begin := program.instructions[direct].operand_begin
+    flags := begin + 4
+    saved := program.operands[flags]
+    program.operands[flags].immediate = 0
+    if !Refused(test, program, flags, saved, "a store through a read-only direct address verified") { return false }
+    base := begin + 2
+    saved = program.operands[base]
+    program.operands[base].id = other
+    if !Refused(test, program, base, saved, "a direct address on another root's base verified") { return false }
+    width := begin + 3
+    saved = program.operands[width]
+    program.operands[width].immediate += 1
+    if !Refused(test, program, width, saved, "a direct address wider than its pointee verified") { return false }
+    address := program.instructions[store].operand_begin
+    saved = program.operands[address]
+    program.operands[address].id = program.operands[begin + 1].id
+    if !Refused(test, program, address, saved, "a store through an unresolved token verified") { return false }
+    return NativeAssert(test, Verify.MachineVerify(program, Machine.MachineDefaultLimits()).problem == .None,
+        "the restored program does not verify")
+}
+
+// Builds SOURCE (written to NAME.zi unless it is a path) to a bundle.
+Bundle :: (test: *NativeTest, tools: string, root: string, name: string, source: string) -> string {
+    file := CheckPath(root, CheckConcat(name, ".zi"))
+    if source != "" && !NativeWrite(test, file, source) { return "" }
+    bundle := CheckPath(test.work, CheckConcat(name, ".zx"))
+    command := string.[CheckPath(tools, "zi2zx"), "--root", root, "--module-path", CheckPath(test.repo, "std"),
+        "--entry", CheckConcat(name, ":main"), "-o", bundle, file]
+    unused NativeRun(test, command[:])
+    return bundle
+}
+
+// Runs BUNDLE natively: it prints EXPECTED, or traps on a checked pointer.
+Runs :: (test: *NativeTest, tools: string, bundle: string, expected: string) -> bool {
+    command := string.[CheckPath(tools, "zi2zx"), "run", bundle]
+    ran := NativeInvoke(test, command[:])
+    if expected != "" {
+        return NativeAssert(test, ran.code == 0 && ran.output == expected,
+            CheckConcat(bundle, CheckConcat(" printed ", ran.output)))
+    }
+    return NativeAssert(test, ran.code != 0 && TextContains(ran.error, "out of bounds or no longer valid") &&
+        TextContains(ran.error, "problem=pointer"), CheckConcat(bundle, CheckConcat(" did not trap: ", ran.error)))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "proven-pointers-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    tools := PathParent(test.ziran)
+    counts: Pipeline.MachineChecks
+
+    // The frame record main writes and reads is direct; Observe reaches it
+    // through a parameter, and platform calls take strings with a count, so
+    // those keep their resolves.
+    pointers := Bundle(*test, tools, CheckPath(test.repo, "tests/spec"), "zx_lowered_pointers", "")
+    if test.failed || !Counts(*test, pointers, *counts) { return 1 }
+    if !NativeAssert(*test, counts.resolves == 13 && counts.direct_global == 0 && counts.direct_frame == 4,
+        "the pointer fixture's frame record accesses are not the four direct ones") ||
+        !Runs(*test, tools, pointers, "true true false 0 4\n4\n") { return 1 }
+
+    // Globals and an in-memory frame array, with constant and runtime
+    // indices. Mark reaches an element through its parameter, which keeps
+    // its resolves; the table's initializer store is direct too.
+    direct := Bundle(*test, tools, test.work, "direct",
+        "table: [4]s64 = .{10, 20, 30, 40};\nMark :: (value: *s64) { <<value += 1 }\n#program_export\nmain :: () -> s64 {\n    local: [8]s64\n    Mark(*local[0])\n    for i: 0..7 { local[i] += cast(s64)i * 3 }\n    total := table[2] + local[5]\n    for i: 0..3 { total += table[i] }\n    table[1] = 7\n    return total + table[1]\n}\n")
+    if test.failed || !Counts(*test, direct, *counts) { return 1 }
+    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_global == 5 && counts.direct_frame == 3,
+        "global and frame array accesses are not all direct") ||
+        !Runs(*test, tools, direct, "152\n") || !WasmRuns(*test, tools, direct, "152\n") ||
+        !Tampered(*test, direct) { return 1 }
+
+    // A runtime index past an in-memory frame array: the accesses are
+    // direct, and the element address they derive from still traps.
+    index := Bundle(*test, tools, test.work, "index",
+        "limit: s64 = 9;\nMark :: (value: *s64) { <<value += 1 }\n#program_export\nmain :: () -> s64 {\n    local: [4]s64\n    Mark(*local[0])\n    local[limit] = 1\n    return local[limit]\n}\n")
+    if test.failed || !Counts(*test, index, *counts) { return 1 }
+    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_frame == 2 && counts.index_checks == 3,
+        "the runtime-index accesses are not direct behind their index checks") ||
+        !Runs(*test, tools, index, "") || !WasmRuns(*test, tools, index, "") { return 1 }
+
+    // A heap block moved by growth: the stale element pointer has no root,
+    // keeps its resolve and traps.
+    resized := Bundle(*test, tools, test.work, "resized",
+        "#import \"vec\"\n#program_export\nmain :: () -> s64 {\n    values: Vec(s64)\n    defer VecFree(values)\n    VecPush(values, 1)\n    first := *values[0]\n    for i: 0..99 { VecPush(values, cast(s64)i) }\n    return <<first\n}\n")
+    if test.failed || !Counts(*test, resized, *counts) { return 1 }
+    if !NativeAssert(*test, counts.resolves > 0, "a heap access lost its resolve") ||
+        !Runs(*test, tools, resized, "") { return 1 }
+
+    // A frame pointer that outlives its call: the caller's read has no root,
+    // keeps its resolve and traps; the callee's own store is direct.
+    stale := Bundle(*test, tools, test.work, "stale",
+        "Escape :: () -> *s64 {\n    local: [2]s64\n    local[1] = 3\n    return *local[1]\n}\n#program_export\nmain :: () -> s64 {\n    p := Escape()\n    return <<p\n}\n")
+    if test.failed || !Counts(*test, stale, *counts) { return 1 }
+    if !NativeAssert(*test, counts.resolves == 1 && counts.direct_frame == 1,
+        "the escaped frame pointer's read is not the one resolve") ||
+        !Runs(*test, tools, stale, "") { return 1 }
+
+    // Indices a loop bounds: the shared intervals prove both sieve indices
+    // inside the array, so Wasm drops their checks; the same loop one step
+    // past the end keeps its check and traps on both routes.
+    ranges := Bundle(*test, tools, test.work, "ranges",
+        "#program_export\nmain :: () -> s64 {\n    flags: [64]bool\n    count: s64\n    for i: 2..63 {\n        if !flags[i] {\n            count += 1\n            j := i * i\n            while j < 64 { flags[j] = true; j += i }\n        }\n    }\n    return count\n}\n")
+    if test.failed || !Counts(*test, ranges, *counts) || !Runs(*test, tools, ranges, "18\n") ||
+        !WasmRuns(*test, tools, ranges, "18\n") { return 1 }
+    past := Bundle(*test, tools, test.work, "past",
+        "#program_export\nmain :: () -> s64 {\n    flags: [64]bool\n    count: s64\n    for i: 2..64 { if !flags[i] { count += 1 } }\n    return count\n}\n")
+    if test.failed || !Counts(*test, past, *counts) || !Runs(*test, tools, past, "") ||
+        !WasmRuns(*test, tools, past, "") { return 1 }
+    print("proven checks: direct global and frame accesses and proven indices run natively and as Wasm, the verifier refuses broken direct proofs, and runtime indices, resized blocks and stale aliases still trap\n")
+    return 0
+}

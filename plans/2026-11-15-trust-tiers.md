@@ -11,6 +11,24 @@ Everything below is checked against the current tree at HEAD `40212fc9`
 progress. Laws quoted from `docs/LAWS.md`; trust rules from
 `ASSEMBLY/milestones.md` and `ASSEMBLY/gap-policy.md`.
 
+## Status (2026-11-15)
+
+Steps 0-2 are implemented. What landed differs from the sketches below in
+three places, each for a reason:
+
+- Step 0's counter is `MachineCheckCount` in
+  `cmd/compiler_machine_pipeline.zi`, printed per fixture by
+  `tests/proven_pointer_cases.zi`, not a `zi2zx` flag: no new CLI surface, and
+  the test asserts the numbers.
+- The facts live in their own module, `cmd/compiler_lowered_proven.zi`, which
+  joins the engine module set so native lowering and `zx2wasm` link one copy.
+  `compiler_opt.zi` is unchanged.
+- The measured 17/17 does not all go: 4 of the pointer fixture's 17 resolves
+  are elided. The other 8 load/store sites are in `Observe`, which reaches the
+  record through a parameter (any caller's pointer, possibly stale), and the 5
+  platform-call string arguments carry a run-time count. Both keep their
+  checks. The fixture prints `resolves=13 direct-frame=4`.
+
 ## Verdicts
 
 | Tier | Verdict | Why, tied to the laws |

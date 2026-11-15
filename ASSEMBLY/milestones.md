@@ -124,6 +124,17 @@ a named gap, and nothing falls back to the engine. A browser with the Wasm
 provider runs the Wasm tier and other CPUs the engine. The old VM and TinyCC
 measurements survive as the M0 baseline receipts.
 
+Tier-0 check elision (2026-11-15, plans/2026-11-15-trust-tiers.md steps
+0-2): `cmd/compiler_lowered_proven.zi` computes, once per verified program,
+each pointer's root (a global, or an `allocate` in the same function) and the
+fixed-array indices an interval analysis proves in range. x86-64 lowering
+turns a load, store or zero through a rooted pointer into `PointerDirect`
+(the root's raw start plus the token's offset); `MachineVerify` rejects any
+memory access whose address is not a `PointerResolve`, fresh `ArenaAllocate`
+storage or a `PointerDirect` it re-derives to the same root, and
+`zx2wasm` reads the same index proofs. `tests/proven_pointer_cases.zi`
+prints the per-fixture counts and holds the hostile twins.
+
 M0 integration is done (2026-11-15): the allocator fix, the AArch64
 encoder, the native default with checked pointers, the self-hosted C-backend
 build/cache/process ports and the legacy deletions are committed. M4's first slice, the explicit

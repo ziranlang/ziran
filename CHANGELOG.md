@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 code reaches a global or a frame allocation directly when one shared LIR pass proves the access stays inside a live root, instead of resolving its checked pointer; the machine verifier now checks every load, store, zero and byte comparison and re-derives each direct access, and Wasm takes its index proofs from the same pass. Parameters, loaded pointers and heap blocks keep their resolves, so stale aliases, resized blocks and out-of-range runtime indices still trap. A LIR `zero` is now resolved like a store instead of writing through the raw token.
 - `#insert NAME;` at file scope splices a compile-time string constant, such as a `#string` body or `#run` output, into the module as checked source; every target sees ordinary declarations, the same from source and saved IR.
 - Modules take compile-time parameters: `#module_parameters(NAME := value, NAME: Type = value)` as a module's first declaration, and `#import "module"(NAME = value)` chooses the values, so `#if` keeps unchosen features out of C, Go, ZX, Wasm and native code. One program binds a module's parameters once; an unknown name, a value that does not fit and imports that disagree fail as `module.parameter_unknown`, `module.parameter_type` and `module.parameter_conflict`. Saved `.zir` is version 65 and keeps the bindings.
 - A constant whose string holds `#import`, such as module source in `#string`, is no longer read as an import.

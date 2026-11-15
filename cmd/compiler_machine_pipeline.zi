@@ -129,6 +129,46 @@ NativeExchange :: (owner: *MachineNativeOwner, built: *MachineNativeOwner) {
     native_image := owner.image; owner.image = built.image; built.image = native_image
 }
 
+// The SSA virtual an operand names in either stage.
+ValueOf :: (operand: MachineOperand) -> s32 {
+    return ifx operand.kind == .Virtual then operand.id else operand.value
+}
+
+#scope_export
+
+// Checked-access counts of a lowered program: pointer resolves left in the
+// code, accesses the verifier proved need none (by the root their base
+// starts), and fixed-array index checks.
+MachineChecks :: struct {
+    resolves: s64
+    direct_global: s64
+    direct_frame: s64
+    index_checks: s64
+}
+
+MachineCheckCount :: (program: MachineProgram) -> MachineChecks {
+    counts: MachineChecks
+    // A direct access's base is defined by a GlobalAddress for a global.
+    globals: Vec(u8)
+    defer VecFree(globals)
+    if !VecResizeBounded(globals, program.virtuals.count, program.virtuals.count) { return counts }
+    for at: cast(s64)0..globals.count - 1 { globals[at] = 0 }
+    for instruction: program.instructions {
+        if instruction.opcode != .GlobalAddress || instruction.operand_count < 1 { continue }
+        value := ValueOf(program.operands[instruction.operand_begin])
+        if value >= 0 && value < globals.count { globals[value] = 1 }
+    }
+    for instruction: program.instructions {
+        if instruction.opcode == .PointerResolve { counts.resolves += 1 }
+        if instruction.opcode == .ElementAddress && instruction.operand_count == 3 { counts.index_checks += 1 }
+        if instruction.opcode != .PointerDirect || instruction.operand_count < 3 { continue }
+        base := ValueOf(program.operands[instruction.operand_begin + 2])
+        if base >= 0 && base < globals.count && globals[base] != 0 { counts.direct_global += 1 }
+        else { counts.direct_frame += 1 }
+    }
+    return counts
+}
+
 #scope_export
 
 MachineNativeFree :: (owner: *MachineNativeOwner) {

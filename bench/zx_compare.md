@@ -1,13 +1,16 @@
 # ZX / native C / embedded Wasm comparison
 
-This is a benchmark harness, not an architecture migration. The current direct
-physical-Alpha optimized data is in
-`results/zx-compare-alpha-physical-pointer-dispatch-2026-11-13.json`; the earlier
-2026-11-13 optimized receipt is retained as an intermediate cohort and the
-pre-optimization Alpha baseline is
-`results/zx-compare-alpha-physical-2026-11-12.json`. Baseline Moto data is in
-`results/zx-compare-moto-apk.json`. These datasets passed independent oracle and
-real-engine evidence checks.
+This is a benchmark harness, not an architecture migration. The current
+receipt is interim comparison 2 (M3), measured on Alpha's physical host:
+`results/zx-compare-alpha-physical-native-2026-11-15.json`, with a
+second-machine cohort in `results/zx-compare-omega-native-2026-11-15.json`;
+see [Interim comparison 2](#interim-comparison-2-native-zx-on-linux-x86-64-2026-11-15).
+The M0 baseline of the removed old VM and TinyCC tiers is
+`results/zx-compare-alpha-physical-2026-11-12.json`, the M1 portable-engine
+cohort is `results/zx-compare-alpha-physical-pointer-dispatch-2026-11-13.json`,
+and baseline Moto data is in `results/zx-compare-moto-apk.json`. The sections
+before "Interim comparison 1" describe how those older receipts were made;
+their old VM and TinyCC tiers no longer exist, so they are kept read-only.
 
 The checked `zx_compare.zi` receives seed, iteration count and workload through
 three runtime s64 -> s64 host calls. Its scalar workload uses integer recurrence,
@@ -67,43 +70,13 @@ in this harness.
 
 ## Reproduce
 
-Run source builds directly on Alpha's physical host with Harmony's verified
-physical-host transport. The transport checks hostname and virtualization,
-copies the current tree without a clone or worktree, and preserves exact source
-hashes:
-
-```sh
-cd /mnt/storage/Projects/harness/harmony
-python3 scripts/alpha_git.py sync ziranlang/ziran
-python3 scripts/alpha_git.py run ziranlang/ziran --synced -- \
-  python3 bench/zx_compare_apk/build.py
-python3 scripts/alpha_git.py run ziranlang/ziran --synced -- \
-  python3 bench/zx_compare_apk/collect.py desktop \
-  --results bench/results/zx-compare-alpha-physical.json
-```
-
-`alpha_git.py run` admits the whole command through the shared build queue; do
-not nest another `build-queue` invocation inside it. Run these USB transport
-commands on the machine physically attached to the authorized phone,
-substituting its explicit serial rather than selecting an arbitrary device:
-
-```sh
-python3 bench/zx_compare_apk/collect.py android --serial SERIAL --lifecycle --results bench/results/zx-compare-moto-apk.json
-python3 bench/zx_compare_apk/visual_collect.py --serial SERIAL --results bench/results/zx-compare-moto-visual.json
-```
-
-The compute collector installs/replaces only its own package, force-stops that
-package to obtain a fresh process, and starts NativeActivity with `benchmark=true`.
-Normal launcher starts show the interactive fixture immediately. Final APK path:
-`build/benchmarks/zx-compare-android/zx-compare.apk`. Desktop executable path:
-`build/benchmarks/zx-compare-embedded/zxcompare`.
-
-Prerequisites: canonical Ziran native tools/archive, Python 3, CMake, a C compiler,
-Android NDK r28c (28.2.13676358), JDK/keytool, aapt plus Android framework-res,
-apksigner, and USB adb on the transport machine. `build.py` downloads hash-pinned
-unmodified WAMR 2.4.5 source and its published Ubuntu x86_64 wamrc release into
-`build/deps`; it does not clone a repository. WAMR license is embedded in the APK.
-The test debug signing key is not part of maintained artifacts.
+Comparison 2 runs from the repository root through the build queue with the
+`zx_compare.zi` driver; the exact command is in
+[Interim comparison 2](#interim-comparison-2-native-zx-on-linux-x86-64-2026-11-15)
+and `README.md`. Run it in Alpha's checkout at a pushed revision for the
+measured receipt. The older receipts came from `zx_compare.py` and
+`zx_compare_apk/` with the removed TinyCC and old-VM tiers and cannot be
+re-measured.
 
 ## Measurement boundaries and provenance
 
@@ -160,16 +133,6 @@ transition and periodic adb battery reads are part of the recorded environment.
 The Moto ABBA baseline and candidate APK hashes are distinct in
 `results/zx-compare-moto-arm-r0r1-summary.json`; invalid installation/cache
 attempts and their reasons are retained there and excluded from the valid pairs.
-
-## Validation status
-
-Local `make check` completed 516 unique Ziran tests after minimal fixture
-corrections and focused reruns, and `make check-bootstrap` passed. The final
-Kryon component tests and benchmark passed. Full Kryon `make test` validation is
-unresolved: it failed on an import/export mismatch, with that issue under
-separate repair. At measurement/review time the performance feature set was
-uncommitted and unpushed, and no GitHub checks had run. These benchmark receipts
-do not substitute for that unresolved integration validation.
 
 ## Supported intersection and exclusions
 
@@ -271,42 +234,10 @@ This receipt measured the new portable engine at 2.5× slower than the old VM on
 the scalar workload and 5.5× slower on the structured one. It predates the
 optimized executor below and is retained as its direct physical-host baseline.
 
-### Intermediate optimized portable-engine follow-up (2026-11-13)
-
-The follow-up receipt is
-`results/zx-compare-alpha-physical-2026-11-13.json` (SHA-256
-`149f88325cd6f85ba074c7a0ead1694e64c60fe51b8efcce08c60c3df2fa69e5`).
-It uses the same 9 interleaved trials, 4,096 rounds and 16 batches on the same
-physical Alpha. The receipt authenticates machine ID
-`56391af3c57a496aba7e9f1f24cce732`, outer virtualization `none`, and the
-managed execution namespace separately. All 90 engine/workload trials completed
-with no unavailable engine cell.
-
-Warm median / nearest-rank p95 in milliseconds:
-
-| Workload | Old VM | Old TinyCC native | Optimized LIR portable engine | C control | Wasm (node) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Scalar | 2.227 / 2.268 | 0.0166 / 0.0171 | 3.631 / 3.648 | 0.0046 / 0.0047 | 0.0183 / 0.0194 |
-| Structured | 8.016 / 8.097 | 0.0412 / 0.0422 | 14.04 / 14.44 | 0.0064 / 0.0066 | 0.0622 / 0.0638 |
-
-Against the 2026-11-12 lowered-engine medians, scalar improved from 5.820 to
-3.631 ms (37.61%) and structured improved from 46.52 to 14.04 ms (69.83%). The
-changes use word-backed scalar slots, cached immutable plan facts, proven-safe
-direct edge copies, single- and same-root multi-predecessor block-parameter slot
-coalescing, and dead-content-use analysis for in-place aggregate `Insert`.
-Overlap and cycle cases retain parallel-copy scratch semantics.
-
-This is a substantial portable-engine improvement, not parity or final ASM
-completion. The optimized path is still 1.63× slower than the old VM on scalar
-and 1.75× slower on structured work in this receipt. No new native engine has
-been measured: register allocation, machine-IR encoding and native ZX remain
-milestones M2/M3. As with the baseline, the receipt's `complete: false` labels
-this as preliminary shell comparison data rather than the strict five-core final
-campaign.
-
 ### Final pointer-dispatch cohort (2026-11-13)
 
-The accepted final receipt is
+The accepted final M1 receipt (superseding the intermediate
+`results/zx-compare-alpha-physical-2026-11-13.json`) is
 `results/zx-compare-alpha-physical-pointer-dispatch-2026-11-13.json` (SHA-256
 `0ca4a2d2ffc0d234a375cfec31ba10217329daaf5b8194148ec9ee48d20d7d03`).
 It was measured on synchronized source pin
@@ -337,9 +268,7 @@ slots, plan facts, safe direct edge copies and dead-source aggregate `Insert`
 aliasing. The rejected same-location edge-argument cache is absent from the
 measured sources. This remains a preliminary portable-engine comparison with
 `measurement_loop_finished: true` and `complete: false`, not the strict
-five-core final campaign or evidence for a new native ZX engine. Register
-allocation/splitting/spilling, post-allocation verification, complete machine-IR
-encoding and native ZX default integration remain M2/M3 work.
+five-core final campaign or evidence for native ZX, which comparison 2 measures.
 
 ## Interim comparison 2: native ZX on Linux x86-64 (2026-11-15)
 

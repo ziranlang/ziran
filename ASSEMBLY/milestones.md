@@ -166,37 +166,19 @@ summarized in [Interim comparison 2](../bench/zx_compare.md#interim-comparison-2
 Warm native ZX medians were 0.0483 ms scalar and 0.0633 ms structured per
 entry: 11.1× / 16.1× faster than the portable engine, 2.82× / 1.48× slower
 than the M0 TinyCC native tier (0.0171 / 0.0427 ms), and about 10× slower
-than the C control (0.0046 / 0.0063 ms). The earlier physical-Alpha 275/276 and 274-check
-results remain historical, not the current full-suite claim. M0's Alpha
-physical-host baseline and M1's interim comparisons exist; see the
-[baseline](../bench/zx_compare.md#interim-comparison-1-new-portable-engine-2026-11-12)
-and [final pointer-dispatch cohort](../bench/zx_compare.md#final-pointer-dispatch-cohort-2026-11-13).
+than the C control (0.0046 / 0.0063 ms). M0's Alpha physical-host baseline
+and M1's portable-engine comparisons are in
+[interim comparison 1](../bench/zx_compare.md#interim-comparison-1-new-portable-engine-2026-11-12)
+and the [final pointer-dispatch cohort](../bench/zx_compare.md#final-pointer-dispatch-cohort-2026-11-13).
 
-`bench/zx_compare.zi` runs through scalar host capabilities and strings on the
-new portable engine with oracle-correct results. Word-backed scalar slots,
-cached plan facts and frame bases, flattened immutable instructions,
-pointer-based instruction/edge dispatch, proven-safe direct edge copies and
-dead-source aggregate `Insert` aliasing reduced the lowered scalar median from
-5.820 to 2.339 ms (59.81%) and structured median from 46.52 to 8.773 ms
-(81.14%). Focused tests cover optimized and still-live aggregate cases and
-non-coalescible loop inputs. In this receipt the new engine is 1.024× slower
-than the old VM on scalar and 1.079× slower on structured work. The remaining
-native speedup requires completion of M2/M3 integration and runtime work.
-
-Parts of M2 are now implemented for Linux x86-64 SysV: deterministic liveness
-and linear-scan register allocation with splitting/spilling, an independent
-allocated-program verifier, 16-byte-aligned frame layout, and direct encoding
-of verified allocated machine IR into an in-memory image with relocations. The
-machine pipeline can write and execute that image without external compilation
-tools, and `zx2native` now selects that machine path exclusively. This does not
-close M2. Completing the promised call and instruction surface and passing every
-M2 exit fixture remain required.
-
-The M0/M1 implementation also covers dependency-ordered once-only runtime
-initializers, local aggregate/procedure address-taking, checked portable slices
-and string comparison, native readonly data, the first no-libc Linux x86-64
-console veneer and validated typed host values
-with instance-owned returned bytes, released once nothing the program can reach
-names them. Resizable collection ownership, reentrant
-callbacks and general native string/arbitrary-host instructions remain explicit gaps;
-none of the M2–M6 exit criteria is claimed by this subset.
+M1 and M2 are done (2026-11-15): typed host capability calls, in-bundle
+providers, and Linux x86-64 SysV liveness, linear-scan allocation with
+splitting and spilling, the independent allocated-program verifier and direct
+encoding of verified machine IR. The implementation also covers
+dependency-ordered once-only runtime initializers, local aggregate/procedure
+address-taking, checked portable slices and string comparison, native
+readonly data, the no-libc Linux x86-64 console veneer and validated typed
+host values with instance-owned returned bytes, released once nothing the
+program can reach names them. Resizable collection ownership, reentrant
+callbacks and general native string/arbitrary-host instructions remain
+explicit gaps. Open work from M4 on is in `plans/2026-11-15-assembly-remaining.md`.

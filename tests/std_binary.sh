@@ -1,6 +1,6 @@
 #!/bin/sh
 # std/binary: little-endian fields and IEEE 754 bit decoding, checked in the
-# portable VM from source and saved IR, and natively against the C
+# portable engine from source and saved IR, and natively against the C
 # compiler's own reading of the same bits over random and edge patterns.
 set -eu
 ziran=${1:?pass the ziran command}

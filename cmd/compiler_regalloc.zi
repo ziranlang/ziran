@@ -810,13 +810,14 @@ Occurrences :: (state: *Alloc, fill: bool) -> bool {
                 operand := program.operands[operand_id]
                 if operand.kind != .Virtual || operand.role != .Use || !RegisterClass(operand.class) ||
                     EffectiveFixed(program, instruction, local) != MachineNoId || operand.tied_to != MachineNoId { continue }
-                required := !CallArgument(program, instruction, operand_id)
+                required := !CallArgument(program, instruction, operand_id) &&
+                    instruction.opcode != .AggregateBuild
                 if !Occur(state, operand.id, position, required, fill) { return false }
             }
             for edge_id: instruction.edge_begin..instruction.edge_begin + instruction.edge_count - 1 {
                 edge := program.edges[edge_id]
                 for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
-                    if !Occur(state, program.copies[copy_id].source, position, false, fill) { return false }
+                    if !Occur(state, program.copies[copy_id].source, position + 1, false, fill) { return false }
                 }
             }
             for local: 0..instruction.operand_count - 1 {
@@ -979,16 +980,30 @@ BuildFixed :: (state: *Alloc) -> bool {
             if !AddFixed(state, item.bank, item.physical, position + 1, original * 2, .Fixed) { return false }
         } else if item.kind == .FixedDef {
             original := state.item_of_instruction[item.instruction]
-            if !AddFixed(state, item.bank, item.physical, original * 2 + 1, position, .Fixed) { return false }
+            // A fixed result overwrites its ABI register even when another
+            // value is read from that register by the same instruction.
+            // Reserve from instruction entry so the allocator preserves the
+            // old value before the write while still serving its read.
+            if !AddFixed(state, item.bank, item.physical, original * 2, position, .Fixed) { return false }
         } else if item.kind == .Original {
             instruction := program.instructions[item.instruction]
             for local: 0..instruction.operand_count - 1 {
                 operand := program.operands[instruction.operand_begin + local]
-                if operand.kind != .Physical { continue }
-                bank := MachineRegisterBank(state.target, operand.class)
-                start := ifx operand.role == .Define then position + 1 else position
-                end := ifx operand.role == .Use then position else position + 1
-                if !AddFixed(state, bank, operand.id, start, end, .Fixed) { return false }
+                if operand.kind == .Physical {
+                    bank := MachineRegisterBank(state.target, operand.class)
+                    start := ifx operand.role == .Define then position + 1 else position
+                    end := ifx operand.role == .Use then position else position + 1
+                    if !AddFixed(state, bank, operand.id, start, end, .Fixed) { return false }
+                } else if operand.kind == .Virtual && operand.role == .Define &&
+                    EffectiveFixed(program, instruction, local) != MachineNoId &&
+                    state.used[Local(state, operand.id)] == 0 {
+                    // Even an unused fixed result overwrites its ABI register.
+                    // Reserve that definition point so a value live across the
+                    // instruction is split instead of being silently destroyed.
+                    bank := MachineRegisterBank(state.target, operand.class)
+                    if !AddFixed(state, bank, EffectiveFixed(program, instruction, local),
+                        position, position, .Fixed) { return false }
+                }
             }
             if instruction.call != MachineNoId {
                 call := program.calls[instruction.call]
@@ -1067,7 +1082,9 @@ FirstRequired :: (state: *Alloc, interval: s32, from: s32) -> s32 {
 // Splits `interval` so the child covers [position, end]. Uses move with it.
 SplitAt :: (state: *Alloc, interval: s32, position: s32, reason: MachineSpillReason) -> s32 {
     it := state.intervals[interval]
-    if position <= it.start || position > it.end { unused Fail(state, .Pressure, virtual = it.value); return MachineNoId }
+    if position <= it.start || position > it.end {
+        unused Fail(state, .Pressure, virtual = it.value); return MachineNoId
+    }
     split := it.use_begin
     while split < it.use_begin + it.use_count && state.uses[split].position < position { split += 1 }
     child := NewInterval(state, it.value, it.bank, it.class, position, it.end)
@@ -1251,6 +1268,12 @@ ScanBank :: (state: *Alloc, bank: s32) -> bool {
     return true
 }
 
+// An AggregateBuild operand may live in memory, so its interval may start there.
+AggregateBuildStart :: (state: *Alloc, it: Interval) -> bool {
+    item := state.items[it.start]
+    return item.kind == .Original && state.input.instructions[item.instruction].opcode == .AggregateBuild
+}
+
 AllocateBlocked :: (state: *Alloc, current: s32, bank: s32) -> bool {
     it := state.intervals[current]
     start := it.start
@@ -1262,6 +1285,8 @@ AllocateBlocked :: (state: *Alloc, current: s32, bank: s32) -> bool {
         active := state.active[index]
         register := state.intervals[active].register
         next := FirstRequired(state, active, start)
+        // An interval that needs its register at this instruction cannot be evicted.
+        if next <= start + 1 { next = 0 }
         if next < state.next_use[register] { state.next_use[register] = next }
     }
     best: s32 = MachineNoId
@@ -1272,10 +1297,15 @@ AllocateBlocked :: (state: *Alloc, current: s32, bank: s32) -> bool {
     if best == MachineNoId { return Fail(state, .Pressure, virtual = it.value) }
     if first > state.next_use[best] {
         // Every register is needed sooner: keep this value in memory.
-        if first <= start + 1 { return Fail(state, .Pressure, virtual = it.value) }
+        if first <= start + 1 {
+            if !AggregateBuildStart(state, it) { return Fail(state, .Pressure, virtual = it.value) }
+        }
         return MemoryUntilNextUse(state, current, .Pressure)
     }
-    if state.next_use[best] <= start { return Fail(state, .Pressure, virtual = it.value) }
+    if state.next_use[best] <= start {
+        if !AggregateBuildStart(state, it) { return Fail(state, .Pressure, virtual = it.value) }
+        return MemoryUntilNextUse(state, current, .Pressure)
+    }
     kept: s64 = 0
     for index: cast(s64)0..state.active.count - 1 {
         active := state.active[index]
@@ -1369,6 +1399,8 @@ CollectBoundaries :: (state: *Alloc) -> bool {
             // an odd one is stored before the block's first instruction.
             if (it.start & 1) == 0 { continue }
             item += 1
+        } else if (it.start & 1) != 0 && it.register != MachineNoId {
+            item += 1
         }
         if !VecPush(scratch, .{item = item, interval = cast(s32)index}) { return Fail(state, .Allocation) }
         state.boundary_begin[item + 1] += 1
@@ -1399,19 +1431,49 @@ Temporary :: (state: *Alloc, index: s64, type: s32, size: s64, alignment: s32) -
     return state.temps[index]
 }
 
-SameSource :: (move: CopyMove, register: s32, slot: s32) -> bool {
-    if register >= 0 { return move.source_register == register }
-    return move.source_register < 0 && move.source_slot == slot
+// A pending transfer reads the old destination value only when its source
+// value differs. Equal values describe the allocator's ordered split chain.
+ReadsDestination :: (move: CopyMove, destination: CopyMove) -> bool {
+    if destination.destination_register >= 0 {
+        return move.source_register >= 0 && move.bank == destination.bank &&
+            move.source_register == destination.destination_register
+    }
+    return move.source_register < 0 && move.source_slot == destination.destination_slot
 }
 
-// Sequentializes the pending simultaneous copies. A copy is emitted once no
-// other pending copy still reads its destination; a cycle saves one
-// destination in a frame temporary first.
+OverwritesSource :: (move: CopyMove, reader: CopyMove) -> bool {
+    if reader.source_register >= 0 {
+        return move.destination_register >= 0 && move.bank == reader.bank &&
+            move.destination_register == reader.source_register
+    }
+    return move.destination_register < 0 && move.destination_slot == reader.source_slot
+}
+
+// A move waits when another pending move reads a differing value from its
+// destination, or when it is the later half of a same-value source chain.
+BlockedBy :: (move: CopyMove, candidate: CopyMove) -> bool {
+    if ReadsDestination(candidate, move) &&
+        (move.source_value != candidate.source_value || move.destination_value != move.source_value) { return true }
+    if move.source_register >= 0 {
+        if candidate.destination_register == move.source_register &&
+            candidate.destination_slot == MachineNoId &&
+            move.destination_register == MachineNoId && move.destination_slot == candidate.source_slot &&
+            move.destination_value == candidate.source_value { return false }
+        return candidate.destination_register >= 0 && candidate.bank == move.bank &&
+            candidate.destination_register == move.source_register &&
+            move.source_value == candidate.destination_value
+    }
+    return candidate.destination_register < 0 &&
+        candidate.destination_slot == move.source_slot &&
+        move.source_value != candidate.destination_value
+}
+
+// Sequentializes pending copies in source order. Same-value transfers describe
+// ordered allocator chains; a real cycle first saves the sources whose
+// locations that cycle is about to overwrite.
 ResolveCopies :: (state: *Alloc) -> bool {
     temporaries: s64 = 0
     remaining := state.copies.count
-    // A bank's scratch register can park one cycle value when no copy in
-    // this set needs it for a memory-to-memory transfer.
     scratch_free: [3]bool
     for bank: cast(s32)0..2 { scratch_free[bank] = state.scratch[bank] >= 0 }
     for move: state.copies {
@@ -1428,11 +1490,7 @@ ResolveCopies :: (state: *Alloc) -> bool {
             blocked := false
             for other: cast(s64)0..state.copies.count - 1 {
                 candidate := state.copies[other]
-                if other == index || candidate.done { continue }
-                if move.class == .Stack {
-                    if candidate.class == .Stack && candidate.source_slot == move.destination_slot { blocked = true; break }
-                } else if candidate.class != .Stack && candidate.bank == move.bank &&
-                    SameSource(candidate, move.destination_register, move.destination_slot) {
+                if other != index && !candidate.done && BlockedBy(move, candidate) {
                     blocked = true
                     break
                 }
@@ -1442,69 +1500,93 @@ ResolveCopies :: (state: *Alloc) -> bool {
             state.copies[index].done = true
             remaining -= 1
             progress = true
+            break
         }
-        if progress || remaining == 0 { continue }
-        // Break a cycle: park the first pending destination's value.
-        cycle: s64 = 0
-        while state.copies[cycle].done { cycle += 1 }
-        move := state.copies[cycle]
-        size: s64 = 16
-        alignment: s32 = 16
-        if move.class == .Stack {
-            object := state.out.stack_objects[move.destination_slot]
-            size = object.size
-            alignment = object.alignment
-        }
-        parked_value: s32 = MachineNoId
-        for other: cast(s64)0..state.copies.count - 1 {
-            candidate := state.copies[other]
-            if candidate.done { continue }
-            if move.class == .Stack {
-                if candidate.class == .Stack && candidate.source_slot == move.destination_slot { parked_value = candidate.source_value }
-            } else if candidate.class != .Stack && candidate.bank == move.bank &&
-                SameSource(candidate, move.destination_register, move.destination_slot) {
-                parked_value = candidate.source_value
+        if remaining == 0 { break }
+        if progress { continue }
+        // Break a cycle by saving the old values at the first blocked
+        // destination. A bank scratch register can hold one such value when
+        // no pending memory-to-memory copy needs it.
+        move := state.copies[0]
+        found_cycle := false
+        for index: cast(s64)0..state.copies.count - 1 {
+            current := state.copies[index]
+            if current.done { continue }
+            blocked := false
+            overwrites := false
+            for other: cast(s64)0..state.copies.count - 1 {
+                candidate := state.copies[other]
+                if candidate.done { continue }
+                if BlockedBy(current, candidate) { blocked = true }
+                if OverwritesSource(current, candidate) { overwrites = true }
+            }
+            if blocked && overwrites {
+                move = current
+                found_cycle = true
+                break
             }
         }
-        if parked_value == MachineNoId { return Fail(state, .Cycle) }
+        if !found_cycle {
+            return Fail(state, .Cycle)
+        }
+        parked: s64 = 0
         if move.class != .Stack && scratch_free[move.bank] {
             scratch := state.scratch[move.bank]
             scratch_free[move.bank] = false
-            if !EmitTransfer(state, move.class, scratch, MachineNoId, parked_value,
-                move.destination_register, move.destination_slot, parked_value, .Cycle) { return false }
+            saved_value: s32 = MachineNoId
             for other: cast(s64)0..state.copies.count - 1 {
                 candidate := state.copies[other]
-                if candidate.done || candidate.class == .Stack || candidate.bank != move.bank ||
-                    !SameSource(candidate, move.destination_register, move.destination_slot) { continue }
+                if candidate.done || !OverwritesSource(move, candidate) { continue }
+                if saved_value == MachineNoId { saved_value = candidate.source_value }
+                else if saved_value != candidate.source_value { return Fail(state, .Cycle) }
+            }
+            if saved_value == MachineNoId { return Fail(state, .Cycle) }
+            if !EmitTransfer(state, move.class, scratch, MachineNoId, saved_value,
+                move.destination_register, move.destination_slot, saved_value, .Cycle) { return false }
+            for other: cast(s64)0..state.copies.count - 1 {
+                candidate := state.copies[other]
+                if candidate.done || !OverwritesSource(move, candidate) { continue }
                 state.copies[other].source_register = scratch
                 state.copies[other].source_slot = MachineNoId
                 state.copies[other].reason = .Cycle
+                parked += 1
             }
+            if parked == 0 { return Fail(state, .Cycle) }
             continue
         }
-        temporary := Temporary(state, temporaries, move.type, size, alignment)
-        if temporary == MachineNoId { return false }
-        temporaries += 1
-        if move.class == .Stack {
-            if !EmitAggregateMove(state, temporary, parked_value, move.destination_slot, parked_value) { return false }
-        } else if !EmitTransfer(state, move.class, MachineNoId, temporary, parked_value,
-            move.destination_register, move.destination_slot, parked_value, .Cycle) { return false }
         for other: cast(s64)0..state.copies.count - 1 {
             candidate := state.copies[other]
-            if candidate.done { continue }
-            if move.class == .Stack {
-                if candidate.class == .Stack && candidate.source_slot == move.destination_slot {
-                    state.copies[other].source_slot = temporary
-                }
-            } else if candidate.class != .Stack && candidate.bank == move.bank &&
-                SameSource(candidate, move.destination_register, move.destination_slot) {
-                state.copies[other].source_register = MachineNoId
-                state.copies[other].source_slot = temporary
-                state.copies[other].reason = .Cycle
+            if candidate.done || !OverwritesSource(move, candidate) { continue }
+            size: s64 = 16
+            alignment: s32 = 16
+            if candidate.source_register < 0 {
+                object := state.out.stack_objects[candidate.source_slot]
+                size = object.size
+                alignment = object.alignment
             }
+            temporary := Temporary(state, temporaries, candidate.type, size, alignment)
+            if temporary == MachineNoId { return false }
+            temporaries += 1
+            if candidate.source_register >= 0 {
+                if !EmitTransfer(state, candidate.class, MachineNoId, temporary,
+                    candidate.source_value, candidate.source_register, candidate.source_slot,
+                    candidate.source_value, .Cycle) { return false }
+            } else if candidate.class == .Stack {
+                if !EmitAggregateMove(state, temporary, candidate.source_value,
+                    candidate.source_slot, candidate.source_value) { return false }
+            } else if !EmitTransfer(state, candidate.class, MachineNoId, temporary,
+                candidate.source_value, MachineNoId, candidate.source_slot,
+                candidate.source_value, .Cycle) { return false }
+            state.copies[other].source_register = MachineNoId
+            state.copies[other].source_slot = temporary
+            state.copies[other].reason = .Cycle
+            parked += 1
         }
+        if parked == 0 { return Fail(state, .Cycle) }
+        continue
     }
-    return VecResize(state.copies, 0) || Fail(state, .Allocation)
+    if !VecResize(state.copies, 0) { return Fail(state, .Allocation) }
+    return true
 }
 
 EmitCopy :: (state: *Alloc, move: CopyMove) -> bool {
@@ -1553,13 +1635,23 @@ ValueCopy :: (state: *Alloc, destination_value: s32, destination_position: s32, 
         type = state.input.virtuals[destination_value].type, reason = reason})
 }
 
+// Whether VALUE is introduced by an explicit block-parameter copy. Such
+// values are not live-through sources; the generic location-fix pass below
+// must not emit a second self-location copy before the parameter exists.
+CopyDestination :: (program: MachineProgram, edge: MachineEdge, value: s32) -> bool {
+    for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
+        if program.copies[copy_id].destination == value { return true }
+    }
+    return false
+}
+
 // Block-parameter copies and split-location fixes for one CFG edge.
 EdgeCopies :: (state: *Alloc, block: s32, edge_id: s32) -> bool {
     program := state.input
     function := state.function
     edge := program.edges[edge_id]
     target := edge.target - function.block_begin
-    from := state.block_end[block] * 2
+    from := state.block_end[block] * 2 + 1
     to := state.block_start[target] * 2
     for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
         if !Spend(state, 1) { return false }
@@ -1581,6 +1673,7 @@ EdgeCopies :: (state: *Alloc, block: s32, edge_id: s32) -> bool {
             while ((bits >> cast(u64)bit) & 1) == 0 { bit += 1 }
             bits = bits & ~(cast(u64)1 << cast(u64)bit)
             value := function.virtual_begin + cast(s32)(word * 64) + bit
+            if CopyDestination(program, edge, value) { continue }
             if !ValueCopy(state, value, to, value, from) { return false }
         }
     }
@@ -1601,6 +1694,9 @@ GapMoves :: (state: *Alloc, item: s32) -> bool {
             destination_value = to.value, source_value = to.value, type = state.input.virtuals[to.value].type,
             reason = ifx to.register == MachineNoId then to.reason else from.reason}) { return false }
     }
+    // Boundary assignments at one instruction gap are parallel. Resolve the
+    // whole set together so a source is saved before another move reuses its
+    // register.
     return ResolveCopies(state)
 }
 
@@ -1613,7 +1709,9 @@ ValueOperand :: (state: *Alloc, role: MachineOperandRole, value: s32, position: 
     it := state.intervals[child]
     class := state.input.virtuals[value].class
     if it.register == MachineNoId {
-        if required { unused Fail(state, .Pressure, virtual = value); return MachineNoId }
+        if required {
+            unused Fail(state, .Pressure, virtual = value); return MachineNoId
+        }
         return StackOperand(state, role, class, state.intervals[root].slot, value)
     }
     type := state.input.virtuals[value].type
@@ -1668,7 +1766,8 @@ RewriteOriginal :: (state: *Alloc, item_index: s32) -> bool {
                 if OutOperand(state, rewritten) == MachineNoId { return false }
                 continue
             }
-            required := operand.role == .Define || !CallArgument(program, source, operand_id)
+            required := operand.role == .Define ||
+                (!CallArgument(program, source, operand_id) && source.opcode != .AggregateBuild)
             at_position := ifx operand.role == .Define then position + 1 else position
             if ValueOperand(state, operand.role, operand.id, at_position, required, operand.tied_to) == MachineNoId {
                 return false
@@ -2037,15 +2136,20 @@ Exchange :: (owner: *MachineOwner, built: *MachineOwner) {
 // Names a diagnostic of the built program by the input program. Functions
 // and virtuals keep their numbering. An allocated instruction maps back to
 // the input instruction it rewrote, whose operands keep their positions; a
-// transfer the allocator inserted has no input instruction, so only the
-// function and virtual remain.
+// transfer the allocator inserted has no input instruction, so its raw
+// allocated instruction and operand remain for a precise compiler bug report.
 InputLocation :: (state: *Alloc, found: MachineDiagnostic) -> MachineDiagnostic {
     program := state.input
     located := found
     located.block = MachineNoId
     located.instruction = MachineNoId
     located.operand = MachineNoId
-    if found.instruction < 0 || found.instruction >= state.out.instructions.count { return located }
+    if found.instruction < 0 || found.instruction >= state.out.instructions.count {
+        located.block = MachineNoId
+        located.instruction = MachineNoId
+        located.operand = MachineNoId
+        return located
+    }
     for index: cast(s64)0..state.instruction_map.count - 1 {
         if state.instruction_map[index] != found.instruction { continue }
         source := program.instructions[index]
@@ -2065,6 +2169,10 @@ InputLocation :: (state: *Alloc, found: MachineDiagnostic) -> MachineDiagnostic 
         }
         return located
     }
+    located.block = found.block
+    located.instruction = found.instruction
+    located.operand = found.operand
+    located.function = found.function
     return located
 }
 

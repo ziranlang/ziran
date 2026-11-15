@@ -113,8 +113,11 @@ Describe :: (arch: TargetArch, os: TargetOS) -> TargetResult {
         target.float_registers = 32
         target.vector_registers = 32
         target.float_vector_overlap = true
-        target.allocatable_general = 0x3fffffff
-        target.reserved_general = 0xc0000000
+        // x16/x17 are the AAPCS64 intra-call scratch pair, x18 is the
+        // platform register, x29 the frame pointer, x30 the link register
+        // and x31 the stack-pointer/zero spelling. None may hold a value.
+        target.allocatable_general = 0x1ff8ffff
+        target.reserved_general = 0xe0070000
         target.allocatable_float = 0xffffffff
         target.allocatable_vector = 0xffffffff
         target.feature_mask = TargetFeatureBit(.Simd)
@@ -163,6 +166,16 @@ TargetValid :: (target: TargetDescription) -> bool {
 }
 
 TargetMachineLoweringSupported :: (target: TargetDescription) -> bool {
+    if !TargetValid(target) { return false }
+    if target.arch == .X86_64 && target.os == .Linux && target.abi == .SysV { return true }
+    if target.arch == .AArch64 && (target.os == .Linux || target.os == .Android) &&
+        target.abi == .Aapcs64 { return true }
+    return false
+}
+
+// Executable native output is narrower than machine lowering: it also needs
+// the process-entry, write_all and exit-group runtime veneer for that row.
+TargetExecutableNativeSupported :: (target: TargetDescription) -> bool {
     return TargetValid(target) && target.arch == .X86_64 && target.os == .Linux &&
         target.abi == .SysV
 }
@@ -333,11 +346,11 @@ TargetRowAt :: (index: s32) -> TargetRow {
     }
     if index == 6 {
         return .{arch = .AArch64, os = .Linux, state = .Gap, milestone = "M4",
-            note = "No AArch64 instruction selection or encoding."}
+            note = "AArch64 machine encoding is implemented; native device execution cutover is pending."}
     }
     if index == 7 {
         return .{arch = .AArch64, os = .Android, state = .Gap, milestone = "M4",
-            note = "No AArch64 instruction selection or encoding; the USB Moto row needs device evidence."}
+            note = "AArch64 machine encoding is implemented; native device execution cutover and USB Moto device evidence are pending."}
     }
     if index == 8 {
         return .{arch = .AArch64, os = .Windows, state = .Gap, milestone = "M5",

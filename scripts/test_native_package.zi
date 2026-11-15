@@ -21,7 +21,7 @@ ConformanceOptions :: struct {
 }
 
 ConformanceUsage :: () {
-    print("test_native_package.sh --source FILE --entry MODULE:FUNCTION --library-dir DIR --libraries FLAGS\n")
+    print("test_native_package.zi --source FILE --entry MODULE:FUNCTION --library-dir DIR --libraries FLAGS\n")
     print("    [--ziran COMMAND] [--tools DIR] [--target all|c|go] [--build-dir DIR]\n")
 }
 

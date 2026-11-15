@@ -4,7 +4,7 @@
 # written slice against the other slices, strings and arrays the body reads
 # and runs the region in order when they share storage, so a region that
 # reads the buffer it writes still gives the serial result. C builds,
-# natively run bundles, the portable VM and Go all agree.
+# natively run bundles, the portable engine and Go all agree.
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

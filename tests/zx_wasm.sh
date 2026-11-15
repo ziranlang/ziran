@@ -283,7 +283,7 @@ test "$("$zi2zx" run --heap-report "$work/heap.zx" 2>/dev/null)" = 99000
 # The bundle Wasm tier in a WebAssembly host: libziran built by emcc with
 # the instruction engine, whose web provider lowers each revision-28 bundle
 # through zx_wasm_lower and translates its host calls and module state to
-# VmHostValue bindings. The Wasm instances and engine instances must agree.
+# HostValue bindings. The Wasm instances and engine instances must agree.
 # Skipped without emcc.
 emcc=${ZIRAN_WASM_EMCC:-}
 if ! command -v "$emcc" >/dev/null 2>&1 && test -x "$HOME/emsdk/upstream/emscripten/emcc"; then
@@ -353,61 +353,61 @@ ZI
 #include <stdlib.h>
 #include <string.h>
 static char text[64], title[32];
-static VmHostField fields[3];
-static long long tree_sum(const VmHostValue *node)
+static HostField fields[3];
+static long long tree_sum(const HostValue *node)
 {
     long long sum = node->fields[0].value.integer;
-    const VmHostValue *children = &node->fields[1].value;
+    const HostValue *children = &node->fields[1].value;
     for(size_t at = 0; at < children->length; at++) sum += tree_sum(&children->elements[at]);
     return sum;
 }
-static VmHostValue tree_node(VmHostField parts[2], long long value, VmHostValue *children, size_t count)
+static HostValue tree_node(HostField parts[2], long long value, HostValue *children, size_t count)
 {
-    parts[0] = (VmHostField){"value", {.kind = VM_HOST_INTEGER, .type = "s32", .integer = value, .bits = (uint64_t)value}};
-    parts[1] = (VmHostField){"children", {.kind = VM_HOST_SLICE, .type = "[]Node", .length = count, .elements = children}};
-    return (VmHostValue){.kind = VM_HOST_RECORD, .type = "Node", .fields = parts, .field_count = 2};
+    parts[0] = (HostField){"value", {.kind = HOST_INTEGER, .type = "s32", .integer = value, .bits = (uint64_t)value}};
+    parts[1] = (HostField){"children", {.kind = HOST_SLICE, .type = "[]Node", .length = count, .elements = children}};
+    return (HostValue){.kind = HOST_RECORD, .type = "Node", .fields = parts, .field_count = 2};
 }
 static int call(void *context, const char *module, const char *function,
-                const VmHostValue *args, int count, VmHostValue *result)
+                const HostValue *args, int count, HostValue *result)
 {
     (void)context; (void)module; (void)count;
     if(!strcmp(function, "Greet")) {
         snprintf(text, sizeof(text), "hi %.*s x%lld", (int)args[0].length, (const char *)args[0].data,
                  (long long)args[1].integer);
-        result->kind = VM_HOST_STRING; result->data = (const unsigned char *)text; result->length = strlen(text);
+        result->kind = HOST_STRING; result->data = (const unsigned char *)text; result->length = strlen(text);
     } else if(!strcmp(function, "Join")) {
         snprintf(text, sizeof(text), "%.*s%.*s%.*s",
                  (int)args[0].length, (const char *)args[0].data,
                  (int)args[1].length, (const char *)args[1].data,
                  (int)args[2].length, (const char *)args[2].data);
-        result->kind = VM_HOST_STRING; result->data = (const unsigned char *)text; result->length = strlen(text);
+        result->kind = HOST_STRING; result->data = (const unsigned char *)text; result->length = strlen(text);
     } else if(!strcmp(function, "Weigh")) {
-        const VmHostField *in = args[0].fields;
+        const HostField *in = args[0].fields;
         snprintf(title, sizeof(title), "%.*s!", (int)in[0].value.length, (const char *)in[0].value.data);
-        fields[0] = (VmHostField){"title", {.kind = VM_HOST_STRING, .type = "string",
+        fields[0] = (HostField){"title", {.kind = HOST_STRING, .type = "string",
             .data = (const unsigned char *)title, .length = strlen(title)}};
-        fields[1] = (VmHostField){"weight", {.kind = VM_HOST_INTEGER, .type = "s32", .integer = in[1].value.integer * 10}};
-        fields[2] = (VmHostField){"on", {.kind = VM_HOST_INTEGER, .type = "bool", .integer = !in[2].value.integer}};
-        result->kind = VM_HOST_RECORD; result->fields = fields; result->field_count = 3;
+        fields[1] = (HostField){"weight", {.kind = HOST_INTEGER, .type = "s32", .integer = in[1].value.integer * 10}};
+        fields[2] = (HostField){"on", {.kind = HOST_INTEGER, .type = "bool", .integer = !in[2].value.integer}};
+        result->kind = HOST_RECORD; result->fields = fields; result->field_count = 3;
     } else if(!strcmp(function, "Fill")) {
         for(size_t at = 0; at < args[0].length; at++)
             args[0].elements[at].bits = (uint64_t)(args[0].elements[at].integer = 40 + (int64_t)at);
-        result->kind = VM_HOST_VOID;
+        result->kind = HOST_VOID;
     } else if(!strcmp(function, "Flag")) {
-        result->kind = VM_HOST_UNSIGNED; result->bits = (uint64_t)(args[0].integer * args[1].real * 100 + 0.5);
+        result->kind = HOST_UNSIGNED; result->bits = (uint64_t)(args[0].integer * args[1].real * 100 + 0.5);
     } else if(!strcmp(function, "Note")) {
         printf("note %lld %llu %lld\n", (long long)args[0].integer, (unsigned long long)args[1].bits,
                (long long)args[2].integer);
-        result->kind = VM_HOST_VOID;
+        result->kind = HOST_VOID;
     } else if(!strcmp(function, "Count")) {
-        result->kind = VM_HOST_INTEGER; result->integer = 7;
+        result->kind = HOST_INTEGER; result->integer = 7;
     } else if(!strcmp(function, "AddHost")) {
-        result->kind = VM_HOST_INTEGER; result->integer = args[0].integer + 1000;
+        result->kind = HOST_INTEGER; result->integer = args[0].integer + 1000;
     } else if(!strcmp(function, "Grow")) {
         /* The given tree's sum over leaves 100 and 200, the second with a
          * leaf 7 of its own. */
-        static VmHostField root[2], first[2], second[2], inner[2];
-        static VmHostValue leaves[2], below[1];
+        static HostField root[2], first[2], second[2], inner[2];
+        static HostValue leaves[2], below[1];
         below[0] = tree_node(inner, 7, NULL, 0);
         leaves[0] = tree_node(first, 100, NULL, 0);
         leaves[1] = tree_node(second, 200, below, 1);
@@ -451,7 +451,7 @@ static void scenario(const char *engine, BundleBackendPolicy policy,
     int ok = exported && BundleStateFind(saved, "state", "runs", &runs) && BundleStateFind(saved, "state", "title", &named);
     BundleStateValue *count = ok ? BundleStateValueRef(saved, runs) : NULL;
     BundleStateValue *label = ok ? BundleStateValueRef(saved, named) : NULL;
-    if(count != NULL && label != NULL && label->value.kind == VM_HOST_STRING) {
+    if(count != NULL && label != NULL && label->value.kind == HOST_STRING) {
         count->value.integer = 100;
         count->value.bits = 100;
         unsigned char *copied = malloc(5);
@@ -643,7 +643,7 @@ EOF
 build_wasm "$work/large_frame.wasm" --root "$work" --entry large_frame:Answer "$work/large_frame.zi"
 test "$(run_engine scalar "$work/large_frame.wasm" 1000000)" = 42
 
-# The same fixture through the native tier and the portable VM.
+# The same fixture through the native tier and the portable engine.
 "$ziran" bundle --root "$repo/tests/spec" --entry "$entry" \
     -o "$work/zx_wasm_test.zx" "$source"
 test "$("$ziran" run "$work/zx_wasm_test.zx")" = "$expected"

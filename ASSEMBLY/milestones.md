@@ -37,11 +37,10 @@ What needed to change:
    still cannot lower: it needs `#foreign host_api` calls and string values.
    Step 03 work is now ordered by a measured corpus-coverage report, starting
    with the benchmark workloads.
-4. **Two native code paths.** The direct LIR-to-x86-64 encoder kept gaining
-   features while the [machine IR](machine-ir.md) boundary was being built
-   beside it, so every native feature risked being implemented twice. From now
-   on the direct encoder receives fixes only; new native features land on the
-   machine-IR path, and the direct encoder is deleted once M2 passes.
+4. **Two native code paths existed.** The old LIR-to-x86-64 encoder and the
+   [machine IR](machine-ir.md) boundary had overlapped, so every native feature
+   risked being implemented twice. They have been merged onto the machine-IR
+   path and the old encoder is deleted; new native features land only there.
 5. **Speed-critical shortcuts were not tracked as debt.** Native procedure and
    pointer tokens are dispatched by a linear scan, native code is stack-slot
    only, and native `Fuel` emits no bytes, so native output does not yet satisfy
@@ -86,7 +85,7 @@ itself moves to Ziran.
 | --- | --- | --- |
 | **M0** Integrate and baseline | Land the in-flight slices behind one passing local `make check` and `make check-bootstrap`. On Alpha's physical host, measure the old portable VM and old TinyCC native ZX with the M1 workloads, hashing and preserving the exact old binaries. | Green local suites; baseline receipt with raw samples under `bench/results/`. |
 | **M1** Workload-complete portable path | Typed host capability calls (`s64 -> s64` first, then scalar/string/record signatures), in-bundle `--bind` providers, immutable strings (literal, copy, `.count`, checked index), runtime global initializers. The revision-28 container lists capabilities recomputed from reachable `HostCall` instructions. Add a C embedding API for the new engine (open, list capabilities, bind, run with fuel) that the existing comparison harness can drive. Unsupported operations are Gap diagnostics, not calls into the old VM. | Corpus-coverage report shows every benchmark workload lowering; source, saved IR and new ZX agree with the oracle; negative fixtures account for every remaining Gap; **interim comparison 1**: explicitly selected new portable engine vs explicitly selected old VM. |
-| **M2** Register-allocated x86-64 | Liveness, linear-scan allocation with splitting and spilling, a post-allocation verifier, and machine-IR-to-x86-64 encoding that reuses the existing byte encoders. Fuel at loop back-edges and calls. Constant-time token dispatch. | Every x86-64 fixture passes on the machine-IR path; the direct LIR encoder is removed. |
+| **M2** Register-allocated x86-64 | Liveness, linear-scan allocation with splitting and spilling, a post-allocation verifier, and machine-IR-to-x86-64 encoding that reuses the existing byte encoders. Fuel at loop back-edges and calls. Constant-time token dispatch. | Every x86-64 fixture passes on the sole machine-IR path; no alternate native encoder remains. |
 | **M3** Native ZX on Linux x86-64 (first cutover row) | In-memory loading with W^X pages, relocation of the same encoder output, host trampolines, stack and fuel checks, and a content/CPU/backend-keyed cache. `ziran run app.zx` runs revision 28 natively on linux-x86_64; unsupported native features fail preflight without starting the portable engine. | Full local suite on the new default for that row, including no-fallback negative fixtures; installed tool verified; **interim comparison 2**: explicitly selected new native ZX vs the M0 TinyCC native ZX receipts, plus AOT and C controls. |
 | **M4** ARM rows and direct wasm | AArch64 and ARMv7 (USB Moto) machine targets, and direct wasm lowering from LIR. Each row is cut over separately. | Per-row execution evidence; Moto comparison on the device. |
 | **M5** Objects, linker and foreign libraries | Relocatable ELF/COFF/Mach-O, archive reading, external C ABI and foreign libraries, Windows/macOS ABIs and required signing. | Step 07/08 rows with real launches. |
@@ -102,32 +101,42 @@ edges, frame-free literal writes and compact adjacent read-only file data.
 Retained tests require text below 200 bytes, ELF below 1.5 KB and valid retained
 function extents, with inlined platform service declarations omitted rather than trap
 aliases. Pointer token runs lower with bounds-checked base/index arithmetic.
-These fixes do not close M2/M3: machine-IR service lowering, native fuel,
-source debug origins and broader ABI coverage remain gaps. Wasm lowers the
-same verified ZX, both for `zx2wasm` and for the bundle Wasm tier.
+On the machine-IR path, native code consumes the same fuel checkpoints as
+the engine (loop headers and function entries) and AOT executables start with
+the same unbounded budget as a bundle run (`zx2native --fuel N` sets one).
+Every calling function checks a stack limit and traps on runaway recursion.
+Host calls pass and return records, arrays and strings, and the optional ZX
+debug attachment (`zi2zx --debug`) gives native maps and native trap
+diagnostics source lines. Wasm lowers the same verified ZX, both for
+`zx2wasm` and for the bundle Wasm tier.
 
 There is one ZX format. Every `.zx` is revision 28; the semantic bundle writer
 and reader, the portable VM with `run --vm`, `BundleUsePortableVm`,
 `BundleInstantiatePortable`, `libziran-vm.a`, bundle libraries, TinyCC and the
-generated-C native ZX route are removed. `ziran run` and the embedding API run
-every bundle on the portable instruction engine, or on the Wasm tier where a
-provider is installed. No native ZX engine exists until M3. The old VM and
-TinyCC measurements survive as the M0 baseline receipts.
+generated-C native ZX route are removed. On linux-x86_64, `ziran run app.zx`,
+`zi2zx run` and the embedding API's `Auto` policy load the bundle's verified
+program as native code into W^X memory, with the engine's pointer, freed-block
+and bounds checks; a bundle native code cannot run fails before it starts with
+a named gap, and nothing falls back to the engine. A browser with the Wasm
+provider runs the Wasm tier and other CPUs the engine. The old VM and TinyCC
+measurements survive as the M0 baseline receipts.
 
-M0 integration is in progress. M4's first slice, the explicit
+M0 integration is done (2026-11-15): the allocator fix, the AArch64
+encoder, the native default with checked pointers, the self-hosted C-backend
+build/cache/process ports and the legacy deletions are committed. M4's first slice, the explicit
 [target registry and preflight](07-architecture-and-platform-coverage.md#target-registry-and-preflight),
 lists every CPU/OS row with its gap-policy state; no row is Implemented yet,
 so every general registry selection fails preflight with
-`assembly.gap.target-unimplemented`. The separate opt-in `zx2native` tool
-implements only `--target x86_64 --platform linux`; other target rows fail with the stable native
-platform-service gap before input or output. The revision-28 container, frame-local
+`assembly.gap.target-unimplemented`. `zx2native` implements only
+`--target x86_64 --platform linux` through the machine-IR pipeline; other
+target rows fail with the stable native platform-service gap before input or
+output, and AArch64 encodes machine code but has no AOT ELF writer. The revision-28 container, frame-local
 `Allocate`, local scalar address-taking and the pre-allocation machine-IR
-boundary are implemented. On the final synchronized physical-Alpha cohort, the
-four required focused executor scripts and `make check-bootstrap` passed. The
-full `make check CHECK_JOBS=2` result was 275/276: its only failure was the
-unrelated stale generated site-page check for `guide/usage.html`,
-`guide/packages.html` and `guide/language-direction.html`. The earlier 274-check
-result remains historical, not the current full-suite claim. M0's Alpha
+boundary are implemented. On Omega, `make check-bootstrap` passes and the
+full `make check` passes 264/266: `zstd_go` needs Go 1.25 (Omega has 1.24.4)
+and `site_targets` waits for the bench lane to re-measure the target matrix
+with its new native column. The earlier physical-Alpha 275/276 and 274-check
+results remain historical, not the current full-suite claim. M0's Alpha
 physical-host baseline and M1's interim comparisons exist; see the
 [baseline](../bench/zx_compare.md#interim-comparison-1-new-portable-engine-2026-11-12)
 and [final pointer-dispatch cohort](../bench/zx_compare.md#final-pointer-dispatch-cohort-2026-11-13).
@@ -148,9 +157,9 @@ and linear-scan register allocation with splitting/spilling, an independent
 allocated-program verifier, 16-byte-aligned frame layout, and direct encoding
 of verified allocated machine IR into an in-memory image with relocations. The
 machine pipeline can write and execute that image without external compilation
-tools, but `zx2native` still selects the direct-LIR encoder. This does not close M2. Completing the
-promised call and instruction surface, removing the direct LIR encoder,
-and passing every M2 exit fixture remain required.
+tools, and `zx2native` now selects that machine path exclusively. This does not
+close M2. Completing the promised call and instruction surface and passing every
+M2 exit fixture remain required.
 
 The M0/M1 implementation also covers dependency-ordered once-only runtime
 initializers, local aggregate/procedure address-taking, checked portable slices

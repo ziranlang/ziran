@@ -23,9 +23,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
     compile := string.[NativeCompiler(), "-c", CheckPath(library, "fixture.c"), "-o", CheckPath(library, "fixture.o")]; unused NativeRun(*test, compile[:])
     archive := string.["ar", "rcs", CheckPath(library, "libconformance_fixture.a"), CheckPath(library, "fixture.o")]; unused NativeRun(*test, archive[:])
     lock := string.["lock", "--offline"]; unused PackageCommand(*test, app, lock[:])
-    script := CheckPath(test.repo, "scripts/test_native_package.sh")
+    script := CheckPath(test.repo, "scripts/test_native_package.zi")
+    runner := string.[test.ziran, "run", "--target=c", "--root", CheckPath(test.repo, "scripts"),
+        "--module-path", CheckPath(test.repo, "tests"), script, "--"]
     for explicit_tools: 0..1 {
-        command: Vec(string); prefix := string.["sh", script, "--ziran", CheckQuote(test.ziran), "--source", "tests/conformance.zi", "--entry", "conformance:main", "--library-dir", library,
+        command: Vec(string); for argument: runner { VecPush(command, argument) }
+        prefix := string.["--ziran", test.ziran, "--source", "tests/conformance.zi", "--entry", "conformance:main", "--library-dir", library,
             "--libraries=-lconformance_fixture -lm", "--build-dir", CheckPath(app, ifx explicit_tools == 0 then "build/project" else "build/standalone")]
         for argument: prefix { VecPush(command, argument) }
         if explicit_tools == 1 { VecPush(command, "--tools"); VecPush(command, PathParent(test.ziran)) }
@@ -33,9 +36,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
         expected := string.["PASS c (source)", "PASS c (saved)", "PASS go (source)", "PASS go (saved)"]
         for line: expected { if !NativeAssert(*test, !test.failed && TextContains(result.output, line), CheckConcat("native package driver omitted an actual backend/form: ", CheckConcat(line, CheckConcat("\n", CheckConcat(result.output, result.error))))) { return 1 } }
     }
-    help := string.["sh", script, "--help"]; usage := NativeRun(*test, help[:])
+    help: Vec(string); for argument: runner { VecPush(help, argument) }; VecPush(help, "--help"); usage := NativeRun(*test, help[:])
     if !NativeAssert(*test, !test.failed && TextContains(usage.output, "--target all|c|go"), "native package driver omitted target discovery") { return 1 }
-    invalid := string.["sh", script, "--target=invalid"]; unused NativeRun(*test, invalid[:], "", 2)
+    invalid: Vec(string); for argument: runner { VecPush(invalid, argument) }; VecPush(invalid, "--target=invalid"); unused NativeRun(*test, invalid[:], "", 2)
     if test.failed { return 1 }
     print("Native package conformance driver: project and explicit toolchains, C/Go source/saved IR and a real static foreign library passed local tests\n")
     return 0

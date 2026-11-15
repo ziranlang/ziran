@@ -1,4 +1,5 @@
 #include "ziran_host.h"
+#include "zir_host_exec.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -7,36 +8,51 @@
 
 static int storage = 7;
 
+static unsigned char *
+read_file(const char *path, size_t *size)
+{
+    FILE *input = fopen(path, "rb");
+    assert(input != NULL && fseek(input, 0, SEEK_END) == 0);
+    long length = ftell(input);
+    assert(length > 0 && fseek(input, 0, SEEK_SET) == 0);
+    unsigned char *bytes = malloc((size_t)length);
+    assert(bytes != NULL &&
+           fread(bytes, 1, (size_t)length, input) == (size_t)length);
+    fclose(input);
+    *size = (size_t)length;
+    return bytes;
+}
+
 /* The sum of a tree's values through every level of children. */
 static long long
-tree_sum(const VmHostValue *node)
+tree_sum(const HostValue *node)
 {
-    assert(node->kind == VM_HOST_RECORD && strcmp(node->type, "Node") == 0 && node->field_count == 2);
-    const VmHostValue *children = &node->fields[1].value;
-    assert(strcmp(node->fields[1].name, "children") == 0 && children->kind == VM_HOST_SLICE);
+    assert(node->kind == HOST_RECORD && strcmp(node->type, "Node") == 0 && node->field_count == 2);
+    const HostValue *children = &node->fields[1].value;
+    assert(strcmp(node->fields[1].name, "children") == 0 && children->kind == HOST_SLICE);
     long long sum = node->fields[0].value.integer;
     for(size_t i = 0; i < children->length; i++) sum += tree_sum(&children->elements[i]);
     return sum;
 }
 
-static VmHostValue
-tree_node(VmHostField fields[2], long long value, VmHostValue *children, size_t count)
+static HostValue
+tree_node(HostField fields[2], long long value, HostValue *children, size_t count)
 {
-    fields[0] = (VmHostField){"value", {.kind = VM_HOST_INTEGER, .type = "s32", .integer = value,
+    fields[0] = (HostField){"value", {.kind = HOST_INTEGER, .type = "s32", .integer = value,
                                         .bits = (uint64_t)value}};
-    fields[1] = (VmHostField){"children", {.kind = VM_HOST_SLICE, .type = "[]Node", .length = count,
+    fields[1] = (HostField){"children", {.kind = HOST_SLICE, .type = "[]Node", .length = count,
                                            .elements = children}};
-    return (VmHostValue){.kind = VM_HOST_RECORD, .type = "Node", .fields = fields, .field_count = 2};
+    return (HostValue){.kind = HOST_RECORD, .type = "Node", .fields = fields, .field_count = 2};
 }
 
 /* Gives back a tree with the given tree's sum at its root, over leaves 100
  * and 200, the second with a leaf 7 of its own. */
 static int
 grow_host(void *context, const char *module, const char *function,
-          const VmHostValue *args, int arg_count, VmHostValue *result)
+          const HostValue *args, int arg_count, HostValue *result)
 {
-    static VmHostField root[2], first[2], second[2], inner[2];
-    static VmHostValue leaves[2], below[1];
+    static HostField root[2], first[2], second[2], inner[2];
+    static HostValue leaves[2], below[1];
     (void)module; (void)function;
     (*(int *)context)++;
     if(arg_count != 1) return 0;
@@ -50,16 +66,16 @@ grow_host(void *context, const char *module, const char *function,
 /* A 64-byte label for each index, in storage the next call reuses. */
 static int
 label_host(void *context, const char *module, const char *function,
-           const VmHostValue *args, int arg_count, VmHostValue *result)
+           const HostValue *args, int arg_count, HostValue *result)
 {
     static unsigned char text[64];
     (void)module; (void)function;
-    if(arg_count != 1 || args[0].kind != VM_HOST_INTEGER) return 0;
+    if(arg_count != 1 || args[0].kind != HOST_INTEGER) return 0;
     (*(int *)context)++;
     memset(text, '.', sizeof(text));
     int written = snprintf((char *)text, sizeof(text), "label-%lld", (long long)args[0].integer);
     text[written] = '.';
-    result->kind = VM_HOST_STRING;
+    result->kind = HOST_STRING;
     result->data = text;
     result->length = sizeof(text);
     return 1;
@@ -68,86 +84,146 @@ label_host(void *context, const char *module, const char *function,
 /* The one capability of a program that reads through the handle it gets. */
 static int
 make_handle(void *context, const char *module, const char *function,
-            const VmHostValue *args, int arg_count, VmHostValue *result)
+            const HostValue *args, int arg_count, HostValue *result)
 {
     (void)module; (void)function; (void)args;
     (*(int *)context)++;
     if(arg_count != 0) return 0;
-    result->kind = VM_HOST_POINTER;
+    result->kind = HOST_POINTER;
     result->pointer = &storage;
     return 1;
 }
 
 static int
 host_call(void *context, const char *module, const char *function,
-          const VmHostValue *args, int arg_count, VmHostValue *result)
+          const HostValue *args, int arg_count, HostValue *result)
 {
     int *calls = context;
-    if(strcmp(module, "host_api") != 0 && strcmp(module, "handle_host") != 0)
+    if(strcmp(module, "host_api") != 0 &&
+       strcmp(module, "handle_host") != 0 &&
+       strcmp(module, "native_host") != 0)
         return 0;
     (*calls)++;
     if(strcmp(function, "AddTenHost") == 0 && arg_count == 1 &&
-       args[0].kind == VM_HOST_INTEGER &&
+       args[0].kind == HOST_INTEGER &&
        strcmp(args[0].type, "s32") == 0) {
-        result->kind = VM_HOST_INTEGER;
+        result->kind = HOST_INTEGER;
         result->integer = args[0].integer + 10;
         return 1;
     }
     if(strcmp(function, "ByteCountHost") == 0 && arg_count == 1 &&
-       args[0].kind == VM_HOST_STRING &&
+       args[0].kind == HOST_STRING &&
        args[0].length == 2 &&
        memcmp(args[0].data, "hi", 2) == 0) {
-        result->kind = VM_HOST_INTEGER;
+        result->kind = HOST_INTEGER;
         result->integer = (int64_t)args[0].length;
         return 1;
     }
     if(strcmp(function, "DoubleHost") == 0 && arg_count == 1 &&
-       args[0].kind == VM_HOST_REAL &&
+       args[0].kind == HOST_REAL &&
        strcmp(args[0].type, "float32") == 0) {
-        result->kind = VM_HOST_REAL;
+        result->kind = HOST_REAL;
         result->real = args[0].real * 2.0;
         return 1;
     }
     if(strcmp(function, "EchoHost") == 0 && arg_count == 1 &&
-       args[0].kind == VM_HOST_UNSIGNED &&
+       args[0].kind == HOST_UNSIGNED &&
        strcmp(args[0].type, "u32") == 0) {
-        result->kind = VM_HOST_UNSIGNED;
+        result->kind = HOST_UNSIGNED;
         result->bits = args[0].bits;
         return 1;
     }
     if(strcmp(function, "MakeHandleHost") == 0 && arg_count == 0) {
-        result->kind = VM_HOST_POINTER;
+        result->kind = HOST_POINTER;
         result->type = "*s32";
         result->pointer = &storage;
         return 1;
     }
     if(strcmp(function, "ReadHandleHost") == 0 && arg_count == 1 &&
-       args[0].kind == VM_HOST_POINTER &&
+       args[0].kind == HOST_POINTER &&
        strcmp(args[0].type, "*s32") == 0) {
-        result->kind = VM_HOST_INTEGER;
+        result->kind = HOST_INTEGER;
         result->integer = args[0].pointer == NULL ? -1 : *(int *)args[0].pointer;
         return 1;
     }
     if(strcmp(function, "BorrowBoxHost") == 0 && arg_count == 0) {
-        static VmHostField fields[2];
-        static VmHostValue value, count;
-        value.kind = VM_HOST_POINTER;
+        static HostField fields[2];
+        static HostValue value, count;
+        value.kind = HOST_POINTER;
         value.type = "*s32";
         value.pointer = &storage;
-        count.kind = VM_HOST_INTEGER;
+        count.kind = HOST_INTEGER;
         count.type = "s32";
         count.integer = 1;
         fields[0].name = "value";
         fields[0].value = value;
         fields[1].name = "count";
         fields[1].value = count;
-        result->kind = VM_HOST_RECORD;
+        result->kind = HOST_RECORD;
         result->type = "Box";
         result->fields = fields;
         result->field_count = 2;
         return 1;
     }
     return 0;
+}
+
+static const HostBinding *
+find_binding(void *context, const char *module, const char *function)
+{
+    const HostBinding *binding = context;
+    return strcmp(binding->module, module) == 0 &&
+           strcmp(binding->function, function) == 0 ? binding : NULL;
+}
+
+static int
+mutate_native_slice(void *context, const char *module, const char *function,
+                    const HostValue *args, int arg_count,
+                    HostValue *result)
+{
+    int *calls = context;
+    (void)module;
+    assert(strcmp(function, "Mutate") == 0);
+    assert(arg_count == 1 && args[0].kind == HOST_SLICE &&
+           strcmp(args[0].type, "[]s32") == 0 && args[0].length == 2);
+    assert(args[0].elements[0].integer == 1 &&
+           args[0].elements[1].integer == 2);
+    args[0].elements[0].integer = 40;
+    args[0].elements[0].bits = 40;
+    result->kind = HOST_INTEGER;
+    result->type = "s32";
+    result->integer = 2;
+    (*calls)++;
+    return 1;
+}
+
+typedef struct ReenterContext {
+    BundleInstance *instance;
+    int depth;
+    int calls;
+} ReenterContext;
+
+static int
+reenter_native(void *opaque, const char *module, const char *function,
+               const HostValue *args, int arg_count, HostValue *result)
+{
+    ReenterContext *context = opaque;
+    assert(strcmp(module, "native_reentrant") == 0 &&
+           strcmp(function, "ReenterHost") == 0);
+    assert(arg_count == 1 && args[0].kind == HOST_INTEGER);
+    context->calls++;
+    long long value = args[0].integer + 10;
+    if(context->depth == 0) {
+        int has_result = 0;
+        context->depth = 1;
+        assert(BundleInstanceRun(context->instance, &value, &has_result));
+        assert(has_result);
+        context->depth = 0;
+    }
+    result->kind = HOST_INTEGER;
+    result->type = "s32";
+    result->integer = value;
+    return 1;
 }
 
 int
@@ -167,8 +243,80 @@ main(int argc, char **argv)
     HostBinding bindings[7];
     int bound[7] = {0};
     assert(argc == 2 || (argc == 3 && (strcmp(argv[2], "dereference") == 0 ||
-                                       strcmp(argv[2], "strings") == 0)) ||
+                                       strcmp(argv[2], "strings") == 0 ||
+                                       strcmp(argv[2], "native") == 0 ||
+                                       strcmp(argv[2], "native_reentrant") == 0 ||
+                                       strcmp(argv[2], "native_bridge") == 0)) ||
            (argc == 4 && strcmp(argv[2], "tree") == 0));
+    if(argc == 3 && strcmp(argv[2], "native_bridge") == 0) {
+        size_t size = 0;
+        unsigned char *bytes = read_file(argv[1], &size);
+        ExecBundle *exec = ExecBundleOpen(bytes, size, argv[1]);
+        free(bytes);
+        assert(exec != NULL && ExecBundleCapabilityCount(exec) == 1);
+        HostBinding binding = {ExecBundleCapabilityModule(exec, 0),
+                               ExecBundleCapabilityFunction(exec, 0),
+                               mutate_native_slice, &calls};
+        ExecHosts *hosts = ExecHostsOpen(exec, find_binding, &binding);
+        assert(hosts != NULL);
+        int32_t data[2] = {1, 2};
+        struct { int32_t *data; int64_t count; } slice = {data, 2};
+        ExecHostNativeValue argument = {
+            .type = ExecBundleCapabilityParameterTypeId(exec, 0, 0),
+            .bytes = (unsigned char *)&slice,
+            .size = sizeof(slice)
+        };
+        ExecHostNativeValue returned = {0};
+        assert(ExecHostsCallNative(hosts, 0, &argument, 1, &returned));
+        assert(calls == 1 && data[0] == 40 && data[1] == 2);
+        assert(returned.type == ExecBundleCapabilityResultTypeId(exec, 0) &&
+               returned.bits == 2);
+        ExecHostsClose(hosts);
+        ExecBundleClose(exec);
+        return 0;
+    }
+    if(argc == 3 && strcmp(argv[2], "native") == 0) {
+        Bundle *native_bundle = BundleOpen(argv[1]);
+        assert(native_bundle != NULL && BundleCapabilityCount(native_bundle) == 2);
+        HostBinding native_bindings[2];
+        for(size_t index = 0; index < 2; index++)
+            native_bindings[index] = (HostBinding){
+                BundleCapabilityModule(native_bundle, index),
+                BundleCapabilityFunction(native_bundle, index),
+                host_call, &calls
+            };
+        assert(strcmp(BundleNativeProblem(native_bundle), "") == 0);
+        BundleInstanceOptions options = {BUNDLE_BACKEND_NATIVE, 1000000};
+        BundleInstance *native = BundleInstantiateWithOptions(
+            native_bundle, native_bindings, 2, &options);
+        assert(native != NULL && BundleInstanceBackend(native) ==
+                                 BUNDLE_EXECUTION_NATIVE_X86_64);
+        assert(BundleInstanceRun(native, &result, &has_result));
+        assert(has_result && result == 42 && calls == 3);
+        BundleInstanceClose(native);
+        BundleClose(native_bundle);
+        return 0;
+    }
+    if(argc == 3 && strcmp(argv[2], "native_reentrant") == 0) {
+        Bundle *native_bundle = BundleOpen(argv[1]);
+        assert(native_bundle != NULL && BundleCapabilityCount(native_bundle) == 1);
+        ReenterContext context = {0};
+        HostBinding binding = {
+            BundleCapabilityModule(native_bundle, 0),
+            BundleCapabilityFunction(native_bundle, 0),
+            reenter_native, &context
+        };
+        BundleInstanceOptions options = {BUNDLE_BACKEND_NATIVE, 1000000};
+        context.instance = BundleInstantiateWithOptions(
+            native_bundle, &binding, 1, &options);
+        assert(context.instance != NULL);
+        assert(BundleInstanceRun(context.instance, &result, &has_result));
+        assert(has_result && result == 42 && context.calls == 2 &&
+               context.depth == 0);
+        BundleInstanceClose(context.instance);
+        BundleClose(native_bundle);
+        return 0;
+    }
     if(argc == 3 && strcmp(argv[2], "strings") == 0) {
         /* 100,100 host strings of 64 bytes would hold 6.4 MB. The ones the
          * program drops give their storage back; the ones it keeps stay. */

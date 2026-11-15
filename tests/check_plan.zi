@@ -63,9 +63,10 @@ PlanChecks :: (checks: []CheckCase) -> Vec(s64) {
     return selected
 }
 
-CheckArguments :: (name: string, bin: string, tests: string) -> Vec(string) {
+CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
     result: Vec(string)
-    if name == "native_backend_policy" || name == "x86_encoder" {
+    tests := CheckPath(repo, "tests")
+    if name == "native_backend_policy" || name == "x86_encoder" || name == "aarch64_encoder" {
         VecPush(result, CheckPath(bin, "ziran"))
         VecPush(result, "run")
         VecPush(result, "--target=c")
@@ -75,6 +76,10 @@ CheckArguments :: (name: string, bin: string, tests: string) -> Vec(string) {
             VecPush(result, "--module-path")
             VecPush(result, CheckPath(tests, "../cmd"))
             VecPush(result, CheckPath(tests, "x86_encoder_cases.zi"))
+        } else if name == "aarch64_encoder" {
+            VecPush(result, "--module-path")
+            VecPush(result, CheckPath(tests, "../cmd"))
+            VecPush(result, CheckPath(tests, "aarch64_encoder_cases.zi"))
         } else {
             VecPush(result, CheckPath(tests, "native_backend_policy_cases.zi"))
         }
@@ -82,6 +87,17 @@ CheckArguments :: (name: string, bin: string, tests: string) -> Vec(string) {
     }
     if name == "bundle-link-test" {
         VecPush(result, CheckPath(bin, name))
+        return result
+    }
+    if name == "artifact_consumer_cases.zi" {
+        VecPush(result, CheckPath(bin, "ziran"))
+        VecPush(result, "run")
+        VecPush(result, "--target=c")
+        VecPush(result, "--root")
+        VecPush(result, tests)
+        VecPush(result, CheckPath(tests, name))
+        VecPush(result, "--")
+        VecPush(result, CheckPath(bin, "ziran"))
         return result
     }
     VecPush(result, "sh")
@@ -109,7 +125,13 @@ DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) 
     if TextContains("x86_encoder", filter) {
         VecPush(checks, CheckCase.{.name = "x86_encoder", .cost = 2})
     }
+    if TextContains("aarch64_encoder", filter) {
+        VecPush(checks, CheckCase.{.name = "aarch64_encoder", .cost = 2})
+    }
     if TextContains("bundle-link-test", filter) { VecPush(checks, CheckCase.{.name = "bundle-link-test"}) }
+    if TextContains("artifact_consumer_cases.zi", filter) {
+        VecPush(checks, CheckCase.{.name = "artifact_consumer_cases.zi"})
+    }
     names: Vec(string)
     if !ListDirectory(tests, *names) { return .{} }
     for name: names {

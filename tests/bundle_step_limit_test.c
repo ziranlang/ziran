@@ -4,12 +4,12 @@
 #include <stdio.h>
 
 static int tick(void *context, const char *module, const char *function,
-                const VmHostValue *args, int count, VmHostValue *result)
+                const HostValue *args, int count, HostValue *result)
 {
     (void)module; (void)function; (void)args;
     assert(count == 0);
     (*(int *)context)++;
-    result->kind = VM_HOST_VOID;
+    result->kind = HOST_VOID;
     return 1;
 }
 

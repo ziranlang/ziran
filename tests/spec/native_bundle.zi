@@ -1,2 +1,110 @@
+// Entries for tests/native_load.sh: each is its own bundle, run natively
+// in memory through the embedding API and through `zi2zx run`.
+#import "std/vec"
+host_api :: #system_library "host_api";
+Label :: (round: s64) -> string #foreign host_api;
+
+count: s64;
+
 #program_export
 Answer :: () -> s32 { return 42 }
+
+// Stops only when its fuel runs out.
+#program_export
+Spin :: () -> s32 {
+    value: s64 = 0
+    while value >= 0 { value += 1 }
+    return 0
+}
+
+Forever :: (depth: s64) -> s64 { return 1 + Forever(depth + 1) }
+
+// Stops only when its stack runs out.
+#program_export
+Overflow :: () -> s32 { return cast(s32)Forever(0) }
+
+// Each instance has its own globals.
+#program_export
+Bump :: () -> s32 {
+    count += 1
+    return cast(s32)count
+}
+
+// More iterations than any fixed fuel budget.
+#program_export
+Long :: () -> s32 {
+    value: s64 = 0
+    while value < 20000000 { value += 1 }
+    return cast(s32)(value / 1000000)
+}
+
+Divide :: (left: s64, right: s64) -> s64 { return left / right }
+
+#program_export
+Trapper :: () -> s32 {
+    print("before\n")
+    zero: s64 = 0
+    return cast(s32)Divide(1, zero)
+}
+
+// A string a host returned stays valid across a later host call.
+#program_export
+Retain :: () -> s32 {
+    first := Label(1)
+    second := Label(2)
+    if first != "one" || second != "two" { return 0 }
+    return 42
+}
+
+// Checked pointers: the dangling read traps on every backend, and Vec
+// storage grows, reads and frees.
+Escape :: () -> *s32 {
+    local: s32 = 3
+    return *local
+}
+
+#program_export
+Dangling :: () -> s32 {
+    print("started\n")
+    p := Escape()
+    return <<p
+}
+
+#program_export
+Grow :: () -> s32 {
+    values: Vec(s64)
+    VecPush(values, 41)
+    result := values[0] + 1
+    VecFree(values)
+    return cast(s32)result
+}
+
+// Freed storage is gone: a read through an alias of a freed pointer traps,
+// and so does freeing it twice.
+#program_export
+AfterFree :: () -> s32 {
+    p := New(s32)
+    <<p = 1
+    alias := p
+    free(p)
+    return <<alias
+}
+
+#program_export
+FreeTwice :: () -> s32 {
+    p := New(s32)
+    free(p)
+    free(p)
+    return 0
+}
+
+// An element past the end of a resizable block traps.
+#program_export
+PastEnd :: () -> s32 {
+    values: Vec(s64)
+    VecPush(values, 1)
+    index: s64 = 1
+    result := values[index]
+    VecFree(values)
+    return cast(s32)result
+}

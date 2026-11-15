@@ -87,7 +87,7 @@ ZI
 (cd "$work" && ./program)
 
 # Stable owned document text, independent deep copies, reset/error reuse and
-# caller-owned output must agree in source, saved IR, C, Go and the portable VM.
+# caller-owned output must agree in source, saved IR, C, Go and the portable engine.
 "$ziran" ir --root "$root/tests/spec" --module-path "$root/std" \
     -o "$work/ir" "$root/tests/spec/json_document_lifetime_test.zi"
 "$ziran" ir --root "$root/tests/spec" --module-path "$root/std" \

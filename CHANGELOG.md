@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- `zi2zx` rejects `--opt` on ZX input instead of ignoring it; saved ZX is never reoptimized.
+- On Linux x86-64, `ziran run app.zx`, `zi2zx run` and the embedding API run bundles as native code with the engine's pointer checks: dangling frame pointers, use after free, double free and read-only stores trap, a native gap is a named error, and nothing falls back to the engine. `--backend engine` picks the engine.
+- Native bundles export and import module state, so hot reload and component replacement keep their state.
+- Native code checks the stack in calling functions and traps on runaway recursion, and native traps name the function and, with `zi2zx --debug`, the source line.
+- `zi2zx --debug` writes source origins to the optional ZX debug attachment, and `zx2native --emit map` names source lines from it.
+- `zx2native` executables start with unbounded fuel like a bundle run; `--fuel N` sets a budget.
+- Native host calls return records, arrays and strings, and a returned string stays valid across later host calls.
+- Native code starts every fresh local allocation as zeros, as the engine does.
 - The instruction engine reuses the address a derivation last made, hands a run's console output to stdio in one write and returns from the entry without building a result; on Omega, zx loops 1994 → 857 ns, arrays 1767 → 891 ns and enums 547 → 229 ns per run.
 - The instruction engine runs verified ZX about 4–5 times faster; on Omega, json_scan 665 → about 175 ms, image_resize 278 → about 50 ms and float text 43.7 → 11.9 s.
 - The bundle Wasm tier runs in Asyncify Emscripten runtimes like Kryon's web player, suspending and resuming at host calls; JSPI still uses the engine, and `ZIRAN_WASM_TIER` opts out.

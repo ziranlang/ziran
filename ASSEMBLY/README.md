@@ -35,22 +35,21 @@ assembler, C compiler, or system linker to produce this executable.
 - Fixed-width signed/unsigned integers, bools, float32 and float64, local scalar
   bindings, arithmetic, ordered/unordered comparisons and checked conversions.
 - Branches, lazy `&&`, `||` and `ifx`, while and counting loops, loop exits, and
-  direct scalar calls including recursion. Native calls support six integer and
-  eight floating-point register arguments, independently.
+  direct scalar calls including recursion. Portable calls support the checked
+  value shapes below. Machine-native calls support at most six general-register
+  arguments and one general-register result; float, vector, aggregate and
+  stack-passed call forms fail before encoding as named gaps.
 - Record and fixed-array construction, extraction, local field/index mutation,
   record-returning direct calls, nested value copies and simultaneous aggregate
-  block transfers in lowered IR and native ELF output. Local fixed arrays accept
-  dynamic integer indices with signedness-aware bounds checks. Assignment
+  block transfers in lowered IR and the portable engine. Local fixed arrays
+  accept dynamic integer indices with signedness-aware bounds checks. Assignment
   destinations and every nested index are evaluated once before the right side.
-  Aggregate programs use the explicitly documented
-  [packed internal ABI](native-aggregate-abi.md), not the external System V
-  aggregate ABI; mixed direct calls are not limited to argument registers.
-- Portable and native procedure values, arguments/results and indirect calls
-  through local slots, record fields and fixed-array elements. Native procedure
-  slots are checked tokens with explicit signatures: null, invalid and
-  wrong-signature targets trap instead of becoming arbitrary machine addresses.
-  Dispatch is currently an unoptimized matching scan. External C/System/Host
-  callbacks remain unsupported; this is the packed internal ABI, not a foreign ABI.
+  Machine-native aggregate call arguments and results remain explicit gaps.
+- Portable procedure values, arguments/results and indirect calls through local
+  slots, record fields and fixed-array elements. Procedure slots are checked
+  tokens with explicit signatures: null, invalid and wrong-signature targets
+  trap instead of becoming arbitrary machine addresses. Dispatch is currently an
+  unoptimized matching scan. External C/System/Host callbacks remain unsupported.
 - Static integer/bool constant globals and zero-default records/fixed arrays,
   including nested field mutation, imported globals, file-private definitions
   and local shadowing in source/saved IR and the portable instruction engine.
@@ -115,25 +114,23 @@ assembler, C compiler, or system linker to produce this executable.
   slicing and equality/inequality work in source, saved IR and the portable
   engine. Slices use checked `{data, count}` views over fixed arrays or other
   byte views, including empty/null views. Stores through read-only bytes trap.
-  Direct native output supports the read-only data section and checked indexing.
-  Its console formatter also accepts checked text views over frame-allocated
-  fixed byte arrays, including nonzero and nested slices, with allocation
-  generation, owner-frame, extent and lifetime validation. Byte comparison
-  retains the stable `assembly.gap.native-string-compare` gap; slice shapes
-  outside the verified checked-token forms remain outside this implemented subset.
+  Machine-native output supports the read-only data section, checked indexing,
+  byte equality and checked text views over frame-allocated fixed byte arrays,
+  including nonzero and nested slices, with allocation generation, owner-frame,
+  extent and lifetime validation. Slice shapes outside the verified
+  checked-token forms remain outside this implemented subset.
   String concatenation is not a current checked-language string operation.
-- A verified, target-neutral [machine IR](machine-ir.md) boundary lowers the
-  current LIR subset for Linux x86-64 SysV with virtual registers, fixed-register
-  constraints, explicit flags, call clobbers and parallel copies. Deterministic
-  allocation, an allocated-program verifier and x86-64 encoding feed the
-  internal ELF writer. `zx2native` still selects the separate direct-LIR
-  prototype while the M2 encoder merge is open.
-- The direct Linux x86-64 console veneer emits a static ELF with its own
+- A verified, target-neutral [machine IR](machine-ir.md) boundary is the only
+  `zx2native` lowering path. It lowers the current LIR subset for Linux x86-64
+  SysV with virtual registers, fixed-register constraints, explicit flags, call
+  clobbers and parallel copies. Deterministic allocation, an allocated-program
+  verifier and x86-64 encoding feed the internal ELF writer.
+- The machine Linux x86-64 console veneer emits a static ELF with its own
   `_start`, Linux `write` syscall 1 through a partial-write/`EINTR` retry loop,
   and `exit_group` syscall 231. It has no libc, CRT, `PT_INTERP` or `PT_DYNAMIC`.
   Literal formatting covers strings/text views by byte length, bools, every
-  fixed signed/unsigned integer width and `%%`; floats and other platform
-  services are named hard gaps.
+  fixed signed/unsigned integer width, float32/float64 values and `%%`. Other
+  platform services are named hard gaps.
 - `--emit lir` and `--emit map` inspection views. Map ranges are half-open,
   relative to `.text`, and identify function, block and instruction.
   Native always reads the verified, optimized ZX image, even for source input;
@@ -155,8 +152,9 @@ assembler, C compiler, or system linker to produce this executable.
 - Recoverable errors for unsupported constructs and atomic file replacement;
   rejected programs do not overwrite an existing output.
 - ZX production always transforms a separately owned copy of verified instructions
-  with exact scalar constant folding, identity-copy propagation, constant-branch
-  CFG simplification and nontrapping dead-instruction removal. Each enabled pass
+  with exact scalar constant folding, identity-copy propagation, common
+  subexpression elimination, constant-branch CFG simplification and
+  nontrapping dead-instruction removal. Each enabled pass
   is verified. Source `--opt --emit lir` exposes the transformed program, while
   `--opt --emit opt-report` emits deterministic JSON transformation counters.
   Trapping operations, ordered effects and executed fuel checkpoints remain
@@ -268,8 +266,8 @@ runtime work includes resizable owned vectors and other dynamic collections,
 their generated cleanup/move paths, nested or reentrant host-to-bundle calls,
 foreign C/system services, concurrency and the remaining matrix operations.
 The new ZX container still needs complete library composition and capability
-metadata cross-checking; native string-comparison instructions, slice shapes
-outside the checked-token subset, and arbitrary host trampolines remain gaps.
+metadata cross-checking; slice shapes outside the checked-token subset, native
+aggregate call forms and arbitrary host trampolines remain gaps.
 The remaining M2 integration,
 relocatable objects and a general linker, other architectures and OS ABIs,
 source/unwind information, profiler/JIT mapping and final cutover remain M2–M6.
@@ -288,9 +286,8 @@ close the full upgrade's feature or validation gates.
 
 ## Implementation and local tests
 
-- [Lowered schema](../cmd/compiler_lowered_ir.zi),
-  [verifier](../cmd/compiler_lowered_verify.zi),
-  [encoder](../cmd/compiler_lowered_x64.zi).
+- [Lowered schema](../cmd/compiler_lowered_ir.zi) and
+  [verifier](../cmd/compiler_lowered_verify.zi).
 - [Instruction codec](../cmd/compiler_exec_serial.zi),
   [wire format](lowered-format.md), [portable engine](../cmd/compiler_exec.zi).
 - [Executable container binding](../cmd/compiler_exec_link.zi) and
@@ -300,7 +297,7 @@ close the full upgrade's feature or validation gates.
   [CLI](../cmd/zi2zx/main.c), [build integration](../assembly.mk).
 - [Source/saved-IR integration tests](../tests/assembly_cases.zi),
   [verifier fixtures](../tests/spec/compiler_lowered_verify_test.zi),
-  [encoder fixtures](../tests/spec/compiler_lowered_x64_test.zi).
+  and [machine ELF/map tests](../tests/machine_elf.sh).
 - [Comparison processor](../bench/assembly_compare.zi),
   [report schema and methodology](performance-report.md), and
   [synthetic report tests](../tests/assembly_compare_cases.zi). These validate
@@ -311,10 +308,10 @@ env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- sh -eu <<'SH'
 make assembly JOBS=2
 sh tests/direct_assembly.sh build/bin/ziran
 sh tests/compiler_lowered_verify.sh build/bin/ziran
-sh tests/compiler_lowered_x64.sh build/bin/ziran
 sh tests/lowered_serial.sh build/bin/ziran
 sh tests/lowered_exec.sh build/bin/ziran
 sh tests/compiler_opt.sh build/bin/ziran
+sh tests/machine_elf.sh build/bin/ziran
 sh tests/assembly_compare.sh build/bin/ziran
 make check check-bootstrap JOBS=2 CHECK_JOBS=2
 SH

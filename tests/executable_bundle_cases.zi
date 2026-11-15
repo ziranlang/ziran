@@ -1,4 +1,5 @@
 using Bundle :: #import "compiler_bundle"
+using Debug :: #import "compiler_exec_debug"
 using Exec :: #import "compiler_exec"
 using Link :: #import "compiler_exec_link"
 using Lir :: #import "compiler_lowered_ir"
@@ -319,6 +320,75 @@ ReadOnlyBytes :: () -> s32 {
     return 0
 }
 
+// The optional debug attachment restores the source texts and origins the
+// program section strips, and only onto the program it was written for.
+DebugAttachment :: (program: Lir.LirProgram) -> s32 {
+    empty: []u8
+    no_assets: []Bundle.Asset
+    measured := Link.ZxExecWrite(program, no_assets, empty, "", true)
+    plain := Link.ZxExecWrite(program, no_assets, empty)
+    if measured.problem != .None || plain.problem != .None || measured.size <= plain.size {
+        return Fail(70, cast(s32)measured.problem)
+    }
+    bytes: Vec(u8)
+    if !VecResizeBounded(bytes, measured.size, measured.size) { return Fail(71) }
+    if Link.ZxExecWrite(program, no_assets, bytes[:], "", true).problem != .None { return Fail(72) }
+    owner: Link.ZxExecOwner
+    read := Link.ZxExecRead(*owner, TextView(bytes[:]), Lir.LirDefaultLimits())
+    stripped := Link.ZxExecReadProgram(*owner)
+    if read.problem != .None || stripped.origins.count != 0 || stripped.sources.count != 0 {
+        return Fail(73, cast(s32)read.problem)
+    }
+    debug: Debug.ZxDebugOwner
+    if Link.ZxExecReadDebug(*owner, *debug, Lir.LirDefaultLimits()) != .None { return Fail(74) }
+    restored := Debug.ZxDebugProgram(*debug)
+    if restored.sources.count != 1 || restored.sources[0] != program.sources[0] ||
+        restored.origins.count != program.origins.count || restored.origins[0].line != 1 ||
+        restored.functions[0].origin != 0 ||
+        restored.functions[0].blocks[0].instructions[1].origin != 0 { return Fail(75) }
+
+    // An attachment for other program bytes, or a damaged one, is refused and
+    // leaves no restored program.
+    attachment: Vec(u8)
+    other: [32]u8
+    if !Debug.ZxDebugEncode(program, TextView(other[:]), *attachment) { return Fail(76) }
+    if Debug.ZxDebugApply(*debug, stripped, TextView(attachment[:]), TextView(owner.identity[:]),
+        Lir.LirDefaultLimits()) != .Identity || debug.valid { return Fail(77) }
+    VecFree(attachment)
+    damaged: Vec(u8)
+    if !Debug.ZxDebugEncode(program, TextView(owner.identity[:]), *damaged) { return Fail(78) }
+    if Debug.ZxDebugApply(*debug, stripped, TextView(VecSlice(damaged, 0, damaged.count - 1)),
+        TextView(owner.identity[:]), Lir.LirDefaultLimits()) != .Format || debug.valid { return Fail(79) }
+    damaged[44] = 9
+    if Debug.ZxDebugApply(*debug, stripped, TextView(damaged[:]), TextView(owner.identity[:]),
+        Lir.LirDefaultLimits()) != .Format { return Fail(80) }
+    VecFree(damaged)
+    wrong_file := program
+    wrong_origins: [1]Lir.LirOrigin = .{program.origins[0]}
+    wrong_origins[0].file = 3
+    wrong_file.origins = wrong_origins[:]
+    inconsistent: Vec(u8)
+    if !Debug.ZxDebugEncode(wrong_file, TextView(owner.identity[:]), *inconsistent) { return Fail(81) }
+    if Debug.ZxDebugApply(*debug, stripped, TextView(inconsistent[:]), TextView(owner.identity[:]),
+        Lir.LirDefaultLimits()) != .Verify || debug.valid { return Fail(82) }
+    VecFree(inconsistent)
+    Debug.ZxDebugFree(*debug)
+    Link.ZxExecReadFree(*owner)
+    VecFree(bytes)
+
+    // Without the attachment there is nothing to restore.
+    plain_bytes: Vec(u8)
+    if !VecResizeBounded(plain_bytes, plain.size, plain.size) ||
+        Link.ZxExecWrite(program, no_assets, plain_bytes[:]).problem != .None { return Fail(83) }
+    read = Link.ZxExecRead(*owner, TextView(plain_bytes[:]), Lir.LirDefaultLimits())
+    if read.problem != .None || Link.ZxExecReadDebug(*owner, *debug, Lir.LirDefaultLimits()) != .Absent {
+        return Fail(84)
+    }
+    Link.ZxExecReadFree(*owner)
+    VecFree(plain_bytes)
+    return 0
+}
+
 main :: () -> s32 {
     types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
     modules: [1]string = .{"executable"}
@@ -424,6 +494,8 @@ main :: () -> s32 {
     if host_result != 0 { return host_result }
     host_result = ReadOnlyBytes()
     if host_result != 0 { return host_result }
-    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls, host capabilities, read-only bytes and mutation local tests passed\n")
+    debug_result := DebugAttachment(program)
+    if debug_result != 0 { return debug_result }
+    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls, host capabilities, read-only bytes, debug attachment and mutation local tests passed\n")
     return 0
 }

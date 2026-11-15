@@ -65,9 +65,17 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
         function := JsonElement(*document, functions, index)
         begin := CheckInteger(*document, function, "begin")
         end := CheckInteger(*document, function, "end")
+        actual_begin: s64 = -1
+        actual_end: s64 = -1
+        for range_index: 0..JsonCount(*document, ranges) - 1 {
+            range := JsonElement(*document, ranges, range_index)
+            if CheckInteger(*document, range, "function_id") != index { continue }
+            if actual_begin < 0 { actual_begin = CheckInteger(*document, range, "begin") }
+            actual_end = CheckInteger(*document, range, "end")
+        }
         if !NativeAssert(test, CheckInteger(*document, function, "id") == index &&
             CheckField(*document, function, "module") != "" && CheckField(*document, function, "name") != "" &&
-            begin >= 35 && end > begin && end <= previous,
+            actual_begin >= 0 && begin == actual_begin && end == actual_end && end > begin && end <= previous,
             "function extents must identify their actual native text bytes") { return false }
     }
     for index: 0..JsonCount(*document, origins) - 1 {
@@ -93,7 +101,9 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
     text_address := CheckInteger(*document, image, "text_virtual_address")
     data_size := CheckInteger(*document, image, "data_size")
     if !NativeAssert(test, (segments == 1 || segments == 2) && binary.count >= 64 + cast(s64)segments * 56 &&
-        text_offset == 64 + cast(s64)segments * 56 && ElfWord(binary, 64, 4) == 1 && ElfWord(binary, 68, 4) == 5 &&
+        text_offset >= 64 + cast(s64)segments * 56 && ElfWord(binary, 64, 4) == 1 && ElfWord(binary, 68, 4) == 5 &&
+        ElfWord(binary, 72, 8) == 0 && ElfWord(binary, 112, 8) > 0 &&
+        cast(u64)text_offset % ElfWord(binary, 112, 8) == 0 &&
         text_address == cast(s64)ElfWord(binary, 80, 8) + text_offset &&
         CheckField(*document, image, "kind") == "aot-elf" && CheckField(*document, image, "address_space") == "elf-virtual" &&
         CheckInteger(*document, image, "file_size") == binary.count &&
@@ -138,7 +148,7 @@ CompileOptimized :: (test: *NativeTest, compiler: string, source: string, entry:
     if emit == "elf" || emit == "map" {
         wire := CheckConcat(output, ".zx")
         if wire_input {
-            lower := string.[compiler, "--opt", "-o", wire, source]
+            lower := string.[compiler, "-o", wire, source]
             unused NativeRun(test, lower[:])
         } else {
             lower := string.[compiler, "--opt", "--root", PathParent(source), "--entry", entry, "-o", wire, source]
@@ -156,7 +166,7 @@ CompileOptimized :: (test: *NativeTest, compiler: string, source: string, entry:
         return !test.failed
     }
     if wire_input {
-        arguments := string.[compiler, "--opt", "--emit", emit, "-o", output, source]
+        arguments := string.[compiler, "--emit", emit, "-o", output, source]
         unused NativeRun(test, arguments[:])
     } else {
         arguments := string.[compiler, "--opt", "--root", PathParent(source), "--entry", entry,
@@ -697,7 +707,7 @@ HostExercise :: (test: *NativeTest, compiler: string) -> bool {
     native_wire := CheckPath(test.work, "host_calls-native.zx")
     if !Compile(test, compiler, input, entry, "zx", native_wire) { return false }
     native := string.[native_tool, "--diagnostics=json", "-o", native_output, native_wire]
-    if !NativeReject(test, native[:], "assembly.gap.native-platform-service-unavailable") ||
+    if !NativeReject(test, native[:], "assembly.gap.machine-host") ||
         !NativeAssert(test, NativeRead(test, native_output) == "preserved native host output",
             "a missing native host ABI must not select another engine or replace output") { return false }
 
@@ -751,8 +761,8 @@ HostExercise :: (test: *NativeTest, compiler: string) -> bool {
 }
 
 // String literals, copies, reassignment, slicing, indexing and comparison lower to a
-// {data, count} record over deduplicated read-only bytes. They run portably
-// and match C; the direct native row names its still-open comparison gap.
+// {data, count} record over deduplicated read-only bytes. They run portably and
+// through the machine-native row, matching C.
 StringExercise :: (test: *NativeTest, compiler: string) -> bool {
     input := CheckPath(test.work, "strings.zi")
     source := "Pick :: (flag: bool) -> string { if flag { return \"event\" }; return \"layout\" }\nAnswer :: () -> s64 { title: string = \"layout\"; other := Pick(true); empty := \"\"; same := \"layout\"; copy := title; title = other; window := copy[1:4]; if window != \"ayo\" || window.count != 3 || window[0] != cast(u8)97 || empty != \"\" { return 1 }; return 42 }\n"
@@ -777,22 +787,23 @@ StringExercise :: (test: *NativeTest, compiler: string) -> bool {
     if !Compile(test, compiler, input, entry, "zx", bundle) { return false }
     run := string.[compiler, "run", "--fuel", "9223372036854775807", bundle]
     unused NativeRun(test, run[:], "", 42)
-    native_output := CheckPath(test.work, "strings")
-    if !NativeWrite(test, native_output, "preserved native string output") { return false }
     native_tool := CheckPath(PathParent(compiler), "zx2native")
-    native := string.[native_tool, "--diagnostics=json", "-o", native_output, bundle]
-    if test.failed || !NativeReject(test, native[:], "assembly.gap.native-string-compare") ||
-        !NativeAssert(test, NativeRead(test, native_output) == "preserved native string output",
-            "missing native string comparison must not select another engine or replace output") { return false }
+    native_output := CheckPath(test.work, "strings")
+    native := string.[native_tool, "-o", native_output, bundle]
+    unused NativeRun(test, native[:])
+    run_strings := string.[native_output]
+    unused NativeRun(test, run_strings[:], "", 42)
+    if test.failed { return false }
     compare_input := CheckPath(test.work, "string_compare.zi")
     compare_source := "Answer :: () -> s64 { left := \"layout\"; right := \"event\"; if left == right { return 1 }; return 42 }\n"
     if !NativeWrite(test, compare_input, compare_source) { return false }
     compare_wire := CheckPath(test.work, "string_compare.zx")
     if !Compile(test, compiler, compare_input, "string_compare:Answer", "zx", compare_wire) { return false }
-    compare := string.[native_tool, "--diagnostics=json", "-o", native_output, compare_wire]
-    return NativeReject(test, compare[:], "assembly.gap.native-string-compare") &&
-        NativeAssert(test, NativeRead(test, native_output) == "preserved native string output",
-            "missing native string comparison must not select another engine or replace output")
+    compare := string.[native_tool, "-o", native_output, compare_wire]
+    unused NativeRun(test, compare[:])
+    run_compare := string.[native_output]
+    unused NativeRun(test, run_compare[:], "", 42)
+    return !test.failed
 }
 
 #program_export
@@ -937,16 +948,5 @@ main :: (argc: s32, argv: **u8) -> s32 {
     runtime_initializer := "counter: s32; Advance :: () -> s32 { counter += 1; return counter }; unused_value: s32 = Advance(); Answer :: () -> s32 { if unused_value != 1 || counter != 1 { return 1 }; return 42 }\n"
     if !GlobalExercise(*test, compiler, "runtime_initializer", runtime_initializer, "global.address") { return 1 }
     if !HostExercise(*test, compiler) || !StringExercise(*test, compiler) { return 1 }
-    broken := CheckPath(test.work, "unsupported.zi")
-    broken_wire := CheckPath(test.work, "unsupported.zx")
-    output := CheckPath(test.work, "untouched")
-    if !NativeWrite(*test, broken, "Answer :: () -> s32 { print(\"%\\n\", 0.1); return 0 }\n") ||
-        !NativeWrite(*test, output, "keep this output unchanged") { return 1 }
-    lower := string.[compiler, "--root", test.work, "--entry", "unsupported:Answer", "-o", broken_wire, broken]
-    unused NativeRun(*test, lower[:])
-    native := CheckPath(PathParent(compiler), "zx2native")
-    rejected := string.[native, "--diagnostics=json", "-o", output, broken_wire]
-    if !NativeReject(*test, rejected[:], "assembly.gap.native-float-format") ||
-        !NativeAssert(*test, NativeRead(*test, output) == "keep this output unchanged", "failed lowering must not overwrite outputs") { return 1 }
     return ifx test.failed then 1 else 0
 }

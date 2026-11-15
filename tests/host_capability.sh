@@ -80,6 +80,54 @@ cmp "$work/source.zx" "$work/saved.zx"
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/bundle_assertions.zi" -- "$ziran" "$work" capabilities
 "$host_test" "$work/source.zx"
 "$host_test" "$work/saved.zx"
+# Strict native execution reaches installed scalar capabilities and the
+# platform write service through the runtime's typed host veneers.
+cat > "$work/native_host.zi" <<'EOF'
+host_api :: #system_library "host_api";
+AddTenHost :: (value: s32) -> s32 #foreign host_api;
+EchoHost :: (value: u32) -> u32 #foreign host_api;
+initial: s32 = AddTenHost(1);
+#program_export
+Answer :: () -> s32 {
+    value := AddTenHost(28)
+    print("native host %\n", value)
+    return value + cast(s32)EchoHost(4) + initial - 11
+}
+EOF
+"$ziran" bundle --root "$work" --entry native_host:Answer \
+    -o "$work/native-host.zx" "$work/native_host.zi"
+native_output=$("$host_test" "$work/native-host.zx" native)
+test "$native_output" = "native host 38"
+# Re-entering the same strict-native instance from its host callback nests an
+# instance-local active-call frame; it does not depend on process-global TLS.
+cat > "$work/native_reentrant.zi" <<'EOF'
+host_api :: #system_library "host_api";
+ReenterHost :: (value: s32) -> s32 #foreign host_api;
+#program_export
+Answer :: () -> s32 {
+    return ReenterHost(32)
+}
+EOF
+"$ziran" bundle --root "$work" --entry native_reentrant:Answer \
+    -o "$work/native-reentrant.zx" "$work/native_reentrant.zi"
+"$host_test" "$work/native-reentrant.zx" native_reentrant
+# Exercise the target-neutral conversion path directly while aggregate calls
+# are still excluded by the machine compiler: native slice storage must be
+# translated through HostValue and copied back after the callback.
+cat > "$work/native_bridge.zi" <<'EOF'
+host_api :: #system_library "host_api";
+Mutate :: (values: []s32) -> s32 #foreign host_api;
+values: [2]s32;
+#program_export
+Answer :: () -> s32 {
+    values[0] = 1
+    values[1] = 2
+    return Mutate(values[:])
+}
+EOF
+"$ziran" bundle --root "$work" --entry native_bridge:Answer \
+    -o "$work/native-bridge.zx" "$work/native_bridge.zi"
+"$host_test" "$work/native-bridge.zx" native_bridge
 if ZIRAN_HOST_PATH="$work/no-providers" "$ziran" run "$work/source.zx" 2> "$work/missing.err"; then
     echo 'bundle unexpectedly ran without its host capabilities' >&2
     exit 1

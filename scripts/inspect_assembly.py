@@ -248,7 +248,6 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
     optimized = STAGING / "optimized.lir"
     optimized_command = [
         str(zi2zx),
-        "--opt",
         "--emit",
         "lir",
         "-o",

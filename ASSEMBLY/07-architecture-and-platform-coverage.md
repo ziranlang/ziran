@@ -61,7 +61,7 @@ such as `TargetMachineLoweringSupported` never implements a row. The
 `zx2native` is a separate opt-in tool. Its `--target ARCH --platform OS`
 selector currently implements only `x86_64` with `linux`; every other
 described row fails before input/output with
-`assembly.gap.native-platform-service-unavailable` because it has no
+`assembly.gap.machine-platform-service-unavailable` because it has no
 process-entry/`write_all`/`exit_group` veneer. Once a registry row
 is Implemented, a CPU feature it does not implement (including another
 family's, such as `neon` on x86-64) fails with `assembly.gap.cpu-feature`,

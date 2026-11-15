@@ -144,12 +144,10 @@ Parallel execution is a target requirement. Effect classes and the
 target. Native C executes forward regions on pthreads with
 iteration-local workers and read-only captures; the portable engine and Go run
 regions serially with a reported downgrade, which the backend-duties clause
-permits. `#parallel_gpu for` regions enforce the GPU clause — pointer
-storage and pointer-bearing arguments are rejected before offload — and, on
-the native C target, run as OpenGL ES 3.1 compute shaders on the fastest GPU
-when one is available. A region a shader cannot compute as the CPU does stays
-on the CPU worker path with an emitted marker, and one that cannot finish on a
-device reruns there.
+permits. `#parallel_gpu for` regions enforce the GPU clause — pointer storage
+and pointer-bearing arguments are rejected before backend selection — and then
+every target reports an explicit GPU device Gap. There is no CPU fallback and
+no device substitute until a complete GPU backend exists.
 
 ## Jai source syntax
 

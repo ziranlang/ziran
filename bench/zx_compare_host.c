@@ -8,10 +8,10 @@
 #include "ziran_host.h"
 static int64_t inputs[3];
 static int input(void *ctx, const char *mod, const char *fn,
-                 const VmHostValue *args, int n, VmHostValue *out) {
+                 const HostValue *args, int n, HostValue *out) {
     (void)ctx; (void)mod; (void)fn;
-    if(n != 1 || args[0].kind != VM_HOST_INTEGER || args[0].integer < 0 || args[0].integer > 2) return 0;
-    out->kind = VM_HOST_INTEGER; out->type = "s64";
+    if(n != 1 || args[0].kind != HOST_INTEGER || args[0].integer < 0 || args[0].integer > 2) return 0;
+    out->kind = HOST_INTEGER; out->type = "s64";
     out->integer = inputs[args[0].integer]; return 1;
 }
 #else

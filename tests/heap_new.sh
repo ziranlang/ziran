@@ -71,7 +71,8 @@ run_fails() {
         echo "$name: ran" >&2
         exit 1
     fi
-    grep -Fq 'portable execution failed' "$work/$name.out"
+    # The platform's backend reports it: native code on linux-x86_64.
+    grep -Eq '(portable|native) execution failed' "$work/$name.out"
 }
 run_fails after_free <<'ZI'
 main :: () { p := New(s32); <<p = 1; alias := p; free(p); print("%\n", <<alias); }

@@ -49,7 +49,7 @@ ClassValid :: (class: MachineRegisterClass) -> bool {
 RelocationKindValid :: (kind: MachineRelocationKind) -> bool {
     return kind == .FunctionAddress || kind == .FunctionCall || kind == .GlobalAddress ||
         kind == .FuelCounter || kind == .ConstantAddress || kind == .RuntimeTrap ||
-        kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint
+        kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint || kind == .RuntimeResize
 }
 
 RelocationSymbolValid :: (program: MachineProgram, relocation: MachineRelocation) -> bool {
@@ -65,7 +65,8 @@ RelocationSymbolValid :: (program: MachineProgram, relocation: MachineRelocation
     if relocation.kind == .ConstantAddress {
         return symbol >= 0 && symbol < program.globals.count && !program.globals[symbol].writable
     }
-    if relocation.kind == .FuelCounter || relocation.kind == .RuntimeTrap { return symbol == 0 }
+    if relocation.kind == .FuelCounter || relocation.kind == .RuntimeTrap ||
+        relocation.kind == .RuntimeResize { return symbol == 0 }
     if relocation.kind == .HostCapability {
         return symbol >= 0 && symbol < program.functions.count &&
             program.functions[symbol].calling == .Host
@@ -97,6 +98,9 @@ RelocationFormValid :: (program: MachineProgram, relocation: MachineRelocation) 
     }
     if relocation.kind == .RuntimeTrap {
         return instruction.opcode == .Trap && operand.kind == .Immediate
+    }
+    if relocation.kind == .RuntimeResize {
+        return instruction.opcode == .Resize && operand.kind == .Immediate
     }
     if relocation.kind == .HostCapability || relocation.kind == .PlatformService {
         return instruction.opcode == .CallDirect && operand.kind == .Function &&

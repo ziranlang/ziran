@@ -1,5 +1,5 @@
 #!/bin/sh
-# clz, ctz, popcount and bswap agree on C, Go and the portable VM, from
+# clz, ctz, popcount and bswap agree on C, Go and the portable engine, from
 # source and from saved IR, with the width as the count for zero.
 set -eu
 
@@ -70,13 +70,14 @@ for input in source saved; do
 #include "app.h"
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
-    # Compiler builtins, then the portable fallback a compiler without them uses.
+    # Compiler builtins, then the scalar software implementation a compiler
+    # without them uses.
     "${CC:-cc}" -std=c99 -pedantic-errors -O2 \
         -I"$repo/include" -I"$output" "$output"/*.c -o "$output/app"
     "$output/app"
     "${CC:-cc}" -std=c99 -pedantic-errors -O2 -D__TINYC__ \
-        -I"$repo/include" -I"$output" "$output"/*.c -o "$output/portable"
-    "$output/portable"
+        -I"$repo/include" -I"$output" "$output"/*.c -o "$output/scalar"
+    "$output/scalar"
     grep -q 'ZiClz(' "$output/app.c"
     grep -q 'ZiBswap64(' "$output/app.c"
     if grep -q 'IntegerOp(.*Zi\(Clz\|Ctz\|Popcount\)' "$output/app.c"; then

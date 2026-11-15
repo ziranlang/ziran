@@ -143,7 +143,8 @@ ZxLowerFree(ZxLowerOwner *owner)
 }
 
 unsigned char *
-ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets, size_t *size)
+ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets,
+            int debug, size_t *size)
 {
     unsigned char *bytes = NULL;
     *size = 0;
@@ -154,7 +155,8 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     const char *interface = AssemblyHostInterface(lower.lowered, &interface_length);
     if(interface == NULL) goto done;
     String interface_text = {interface, interface_length};
-    ZxExecResult measured = compiler_exec_link_ZxExecWrite(*optimized_program, assets, (Slice){0}, interface_text);
+    ZxExecResult measured = compiler_exec_link_ZxExecWrite(*optimized_program, assets, (Slice){0}, interface_text,
+        debug != 0);
     if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
         String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
         Diagnostic((ZirSourceSpan){0}, "assembly.container",
@@ -165,7 +167,7 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     bytes = malloc((size_t)measured.size);
     if(bytes == NULL) goto done;
     ZxExecResult encoded = compiler_exec_link_ZxExecWrite(*optimized_program, assets,
-        (Slice){bytes, measured.size}, interface_text);
+        (Slice){bytes, measured.size}, interface_text, debug != 0);
     if(encoded.problem != ZxExecProblem_None || encoded.size != measured.size) {
         String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);
         Diagnostic((ZirSourceSpan){0}, "assembly.container",

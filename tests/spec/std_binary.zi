@@ -3,7 +3,7 @@
 #import "std/text"
 
 // Little-endian fields read back from bytes written by hand, and float
-// values decoded from known bit patterns, in the portable VM and natively.
+// values decoded from known bit patterns, in the portable engine and natively.
 #program_export
 SelfTest :: () -> s32 {
     bytes: [12]u8

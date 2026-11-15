@@ -51,6 +51,25 @@ ToolCases :: (test: *NativeTest) -> bool {
         !NativeWrite(test, string_entry, "#program_export\nAnswer :: () -> string { return \"text\" }\n") { return false }
     entry := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "text_entry:Answer", "--diagnostics=json", "--root", test.work, "-o", CheckPath(test.work, "string"), string_entry]
     unused ToolDiagnostics(test, entry[:], "zir_c.entry")
+    // Enough programs for forked C emission workers, which text diagnostics
+    // keep enabled. The build succeeds quietly and writes every module.
+    modules: Vec(string)
+    for index: cast(s64)0..47 {
+        module := CheckPath(test.work, CheckConcat("emit/m", CheckConcat(CheckNumber(index), ".zi")))
+        if !NativeWrite(test, module, "Read :: () -> s32 { return 1 }\n") { return false }
+        VecPush(modules, module)
+    }
+    NativeSet(test, "ZIRAN_JOBS", "2")
+    emit_output := CheckPath(test.work, "emit-c")
+    emit := string.[test.ziran, "build", "--target=c", "--root", CheckPath(test.work, "emit"), "-o", emit_output]
+    emit_command: Vec(string)
+    for part: emit { VecPush(emit_command, part) }
+    for module: modules { VecPush(emit_command, module) }
+    emitted := NativeInvoke(test, emit_command[:])
+    NativeUnset(test, "ZIRAN_JOBS")
+    emitted_files := NativeFiles(emit_output, ".c")
+    if !NativeAssert(test, emitted.code == 0 && emitted.error == "" && emitted_files.count >= modules.count,
+        CheckConcat("forked C emission failed or wrote no modules:\n", emitted.error)) { return false }
     fixture_output := CheckPath(test.work, "fixture")
     fixture := string.[test.ziran, "build", "--target=c", "--exe", "--root", CheckPath(test.repo, "tests"), "--entry", "process_fixture:main", "-o", fixture_output, CheckPath(test.repo, "tests/process_fixture.zi")]
     unused NativeRun(test, fixture[:])
@@ -75,7 +94,12 @@ ToolCases :: (test: *NativeTest) -> bool {
     compile := string.[NativeCompiler(), "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", CheckPath(test.repo, "cmd/zir")),
         CheckConcat("-I", CheckPath(test.repo, "bootstrap/compiler_ir")), probe, CheckPath(test.repo, "cmd/zir/zir_diagnostic.c"), CheckPath(test.repo, "cmd/zir/zir_memory.c"), "-o", CheckPath(test.work, "probe")]
     unused NativeRun(test, compile[:]); run := string.[CheckPath(test.work, "probe")]; memory := ToolDiagnostics(test, run[:], "compiler.memory")
-    return NativeAssert(test, !test.failed && JsonCount(*memory, memory.root) == 2 && TextHasPrefix(CheckField(*memory, JsonElement(*memory, memory.root, 0), "message"), "🙂ÿ"), "allocation-free OOM or malformed UTF-8 diagnostics changed")
+    if !NativeAssert(test, !test.failed && JsonCount(*memory, memory.root) == 2 && TextHasPrefix(CheckField(*memory, JsonElement(*memory, memory.root, 0), "message"), "🙂ÿ"), "allocation-free OOM or malformed UTF-8 diagnostics changed") { return false }
+    // A command that fails without a diagnostic still reports exactly one.
+    silent := string.[CheckPath(test.work, "probe"), "silent"]; unreported := ToolDiagnostics(test, silent[:], "compiler.internal")
+    if !NativeAssert(test, !test.failed && JsonCount(*unreported, unreported.root) == 1, "silent failure did not report exactly one diagnostic") { return false }
+    worker := string.[CheckPath(test.work, "probe"), "worker"]; reported := NativeInvoke(test, worker[:])
+    return NativeAssert(test, reported.code == 1 && reported.error == "", "a failure a worker already reported was reported twice")
 }
 
 #program_export
@@ -84,6 +108,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     if !ToolCases(*test) { return 1 }
-    print("Native tool diagnostics: arguments, inputs, byte paths, bounded compiler output and allocation-free OOM local tests passed\n")
+    print("Native tool diagnostics: arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
     return 0
 }

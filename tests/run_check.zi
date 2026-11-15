@@ -160,7 +160,7 @@ ExecuteChecks :: (options: CheckOptions, self: string) -> s32 {
     reused: s64 = 0
     for index: selection {
         if incremental {
-            command := CheckArguments(checks[index].name, options.bin, CheckPath(options.repo, "tests"))
+            command := CheckArguments(checks[index].name, options.bin, options.repo)
             keys[index] = CheckCacheKey(checks[index].name, command[:], options.repo, options.logs, fingerprint)
         }
         if keys[index] != "" && keys[index] == CheckField(*cache, cache.root, checks[index].name) {
@@ -208,7 +208,7 @@ ExecuteChecks :: (options: CheckOptions, self: string) -> s32 {
             child_environment: Vec(string)
             for value: environment { VecPush(child_environment, value) }
             VecPush(child_environment, CheckConcat("TMPDIR=", checks[index].scratch))
-            arguments := CheckArguments(checks[index].name, options.bin, CheckPath(options.repo, "tests"))
+            arguments := CheckArguments(checks[index].name, options.bin, options.repo)
             command: ProcessOptions = .{.arguments = arguments[:], .directory = options.repo,
                 .environment = child_environment[:], .output_path = checks[index].log, .merge_error = true, .new_session = true}
             checks[index].started = MonotonicNanoseconds()

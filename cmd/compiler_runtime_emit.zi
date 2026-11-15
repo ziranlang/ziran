@@ -1,0 +1,441 @@
+// Runtime-header selection and the pruned native SIMD helper writer.
+// Backends name only the runtime files their generated C includes; this module
+// closes those dependencies and emits each file only when its bytes change.
+using Files :: #import "std/file"
+using Vectors :: #import "vec"
+
+IncludePrefix :: "#include \""
+
+RuntimeHeader :: struct {
+    name: *u8 #c "const char *"
+    text: *u8 #c "const char *"
+    includes: u32 // bit J names the Jth runtime header.
+}
+
+// A local mirror of the C SIMD table. The uses field spells the C type so
+// existing callers keep one shared record ABI while this module owns its use.
+SimdNames :: struct {
+    text: **u8 #c "const char **"
+    length: *usize
+    count: usize
+    capacity: usize
+    slots: *usize
+    slot_count: usize
+}
+
+ZirSimdUses :: struct {
+    names: SimdNames // owned copies, released with the record.
+    header: s32
+}
+
+// Worker reports cross program contexts, so emitted paths stay in this
+// process-lifetime registry instead of the current compiler context.
+GeneratedPathStore :: struct { paths: Vectors.Vec(string) }
+GeneratedPaths: GeneratedPathStore = .{};
+
+RecordPath :: (path: string) -> bool {
+    if path.count == 0 { return false }
+    for existing: GeneratedPaths.paths[:] {
+        if existing == path { return true }
+    }
+    // GeneratedPath and the C output registry read these as C strings, so
+    // the owned copy keeps a terminating zero after its bytes.
+    bytes: Vectors.Vec(u8)
+    if !BuilderAppend(bytes, path) || !VecPush(bytes, cast(u8)0) {
+        VecFree(bytes)
+        return false
+    }
+    terminated := BuilderFinish(bytes)
+    owned := terminated[0:path.count]
+    if !VecPush(GeneratedPaths.paths, owned) {
+        ReleaseOwnedText(owned)
+        return false
+    }
+    GeneratedOutputRecord(CPointer(owned))
+    return true
+}
+
+RecordPathC :: (path: *u8) -> bool {
+    return RecordPath(CText(path))
+}
+
+// Every generated file, including the module sources the C emitter records
+// itself; RecordPath adds its paths to the same registry. Emission workers
+// report this whole list and pruning keeps exactly it.
+GeneratedPathCount :: () -> s64 {
+    count: s64 = 0
+    while GeneratedOutputPath(cast(s32)count) != null { count += 1 }
+    return count
+}
+
+GeneratedPath :: (index: s64) -> *u8 {
+    if index < 0 || index > 2147483647 { return null }
+    return GeneratedOutputPath(cast(s32)index)
+}
+
+IsRuntimeHeader :: (name: string) -> bool {
+    count := RuntimeHeaderCountForeign()
+    index: s64 = 0
+    while index < count {
+        header := RuntimeHeaderAtForeign(index)
+        if header != null && CText(header.name) == name { return true }
+        index += 1
+    }
+    return false
+}
+
+EmitRuntimeHeaders :: (out_dir: string, generated_path: string,
+                       simd: *ZirSimdUses) -> bool {
+    generated_bytes: Vectors.Vec(u8)
+    readable := Files.ReadFileInto(generated_path, *generated_bytes)
+    if !readable { VecFree(generated_bytes); return false }
+    generated := TextView(generated_bytes[:])
+    defer { VecFree(generated_bytes) }
+
+    count := RuntimeHeaderCountForeign()
+    needed: Vectors.Vec(bool)
+    if !VecResize(needed, count) { return false }
+    for index: 0..count - 1 { needed[index] = false }
+
+    line_start: s64 = 0
+    while line_start < generated.count {
+        line_end := line_start
+        while line_end < generated.count && generated[line_end] != #char "\n" { line_end += 1 }
+        line := generated[line_start:line_end]
+        if TextHasPrefix(line, IncludePrefix) {
+            index: s64 = 0
+            while index < count {
+                header := RuntimeHeaderAtForeign(index)
+                name := CText(header.name)
+            if line.count >= IncludePrefix.count + name.count + 1 &&
+                   line[IncludePrefix.count:IncludePrefix.count + name.count] == name &&
+                   line[IncludePrefix.count + name.count] == #char "\"" {
+                    needed[index] = true
+                }
+                index += 1
+            }
+        }
+        line_start = line_end + 1
+    }
+
+    changed := true
+    while changed {
+        changed = false
+        for index: 0..count - 1 {
+            if !needed[index] { continue }
+            bits := cast(u64)RuntimeHeaderAtForeign(index).includes
+            other: s64 = 0
+            while other < count {
+                if !needed[other] && (bits >> cast(u64)other & cast(u64)1) != 0 {
+                    needed[other] = true
+                    changed = true
+                }
+                other += 1
+            }
+        }
+    }
+
+    ok := true
+    for index: 0..count - 1 {
+        if !needed[index] { continue }
+        header := RuntimeHeaderAtForeign(index)
+        header_name := CText(header.name)
+        if simd != null && header_name == SimdOpsName {
+            simd.header = 1
+            continue
+        }
+        path, made := JoinPath(out_dir, header_name)
+        if !made { ok = false; break }
+        wrote := WriteGenerated(path, CText(header.text))
+        ReleaseOwnedText(path)
+        if !wrote { ok = false; break }
+    }
+    VecFree(needed)
+    return ok
+}
+
+EmitSimdOps :: (out_dir: string, uses: *ZirSimdUses) -> bool {
+    full_header: *RuntimeHeader = null
+    header_count := RuntimeHeaderCountForeign()
+    index: s64 = 0
+    while index < header_count {
+        header := RuntimeHeaderAtForeign(index)
+        if CText(header.name) == SimdOpsName { full_header = header }
+        index += 1
+    }
+    if full_header == null { return false }
+    full := CText(full_header.text)
+
+    helpers: SimdNames = .{}
+    segments: Vectors.Vec(Segment)
+    last: Vectors.Vec(s64)
+    first: Vectors.Vec(s64)
+    needed: Vectors.Vec(s64)
+    work: Vectors.Vec(s64)
+    output: Vectors.Vec(u8)
+    common_end: s64 = -1
+    at: s64 = 0
+    while at < full.count {
+        newline := at
+        while newline < full.count && full[newline] != #char "\n" { newline += 1 }
+        after := ifx newline < full.count then newline + 1 else full.count
+        length := after - at
+        marker := length >= 6 && full[at] == #char "/" && full[at + 1] == #char "*" &&
+            full[at + 2] == #char "@" && newline < full.count &&
+            full[newline - 1] == #char "/" && full[newline - 2] == #char "*"
+        if marker {
+            if common_end < 0 { common_end = at }
+            name_start := at + 3
+            name_length := length - 6
+            helper: s64 = -1
+            if name_length > 0 {
+                helper = SimdNamesFind(*helpers, CPointer(full[name_start:name_start + name_length]),
+                                       cast(usize)name_length, 1)
+            }
+            if !VecPush(segments, Segment.{.helper = helper, .start = after,
+                                           .length = 0, .next = 0}) {
+                return Cleanup(*helpers, *segments, *last, *first, *needed,
+                               *work, *output, false)
+            }
+            segment_index := segments.count - 1
+            if helper >= 0 {
+                if helper >= last.count && !VecResize(last, helper + 1) {
+                    return Cleanup(*helpers, *segments, *last, *first, *needed,
+                                   *work, *output, false)
+                }
+                previous := last[helper]
+                if previous != 0 { segments[previous - 1].next = segment_index + 1 }
+                last[helper] = segment_index + 1
+            }
+        } else if segments.count > 0 {
+            segments[segments.count - 1].length += length
+        }
+        at = after
+    }
+    if common_end < 0 { common_end = full.count }
+
+    if !VecResize(first, cast(s64)helpers.count + 1) || !VecResize(needed, cast(s64)helpers.count + 1) ||
+       !VecResize(work, cast(s64)helpers.count + 1) || !BuilderAppend(output, full[0:common_end]) {
+        return Cleanup(*helpers, *segments, *last, *first, *needed,
+                       *work, *output, false)
+    }
+    index = segments.count - 1
+    while index >= 0 {
+        if segments[index].helper >= 0 { first[segments[index].helper] = index + 1 }
+        index -= 1
+    }
+    for use_index: 0..cast(s64)uses.names.count - 1 {
+        name := CText(cast(*u8)uses.names.text[use_index])
+        helper := SimdNamesFind(*helpers, CPointer(name), cast(usize)name.count, 0)
+        NeedHelper(helper, *needed, *work)
+    }
+    queue_at := 0
+    while queue_at < work.count {
+        helper := work[queue_at]
+        queue_at += 1
+        next := first[helper]
+        while next != 0 {
+            NeedCalls(*helpers, segments[next - 1], full, *needed, *work)
+            next = segments[next - 1].next
+        }
+    }
+    for segment_index: 0..segments.count - 1 {
+        segment := segments[segment_index]
+        if segment.helper < 0 || needed[segment.helper] == 1 {
+            if !BuilderAppend(output, full[segment.start:segment.start + segment.length]) {
+                return Cleanup(*helpers, *segments, *last, *first, *needed,
+                               *work, *output, false)
+            }
+        }
+    }
+    path, made := JoinPath(out_dir, SimdOpsName)
+    ok := false
+    if made {
+        ok = WriteGenerated(path, TextView(output[:]))
+        ReleaseOwnedText(path)
+    }
+    return Cleanup(*helpers, *segments, *last, *first, *needed,
+                   *work, *output, ok)
+}
+
+#scope_file
+
+SimdOpsName :: "ziran_simd_ops.h"
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+RuntimeHeaderCountForeign :: () -> s64 #foreign compiler "CompilerRuntimeHeaderCount";
+RuntimeHeaderAtForeign :: (index: s64) -> *RuntimeHeader #foreign compiler "CompilerRuntimeHeaderAt";
+SimdNamesFind :: (names: *SimdNames, name: *u8, length: usize, add: s32) -> s64 #foreign compiler "SimdNamesFind";
+SimdNamesFree :: (names: *SimdNames) #foreign compiler "SimdNamesFree";
+SimdHelperWord :: (word: **u8, length: *usize) -> s32 #foreign compiler "SimdHelperWord";
+GeneratedOutputRecord :: (path: *u8) #foreign compiler "GeneratedOutputRecord";
+GeneratedOutputPath :: (index: s32) -> *u8 #foreign compiler "GeneratedOutputPath";
+ProcessId :: () -> s32 #foreign libc "getpid";
+FreeRaw :: (memory: *void) #foreign libc "free";
+
+TextDescriptor :: struct { data: *u8; length: usize }
+ByteDescriptor :: struct { data: *u8; length: s64 }
+Segment :: struct { helper: s64; start: s64; length: s64; next: s64 }
+
+ReleaseOwnedText :: (value: string) {
+    if value.count == 0 { return }
+    descriptor := cast(*TextDescriptor)(*value)
+    FreeRaw(cast(*void)descriptor.data)
+}
+
+CText :: (value: *u8) -> string {
+    result := ""
+    if value == null { return result }
+    length: usize = 0
+    while value[length] != 0 { length += 1 }
+    descriptor := cast(*TextDescriptor)(*result)
+    descriptor.data = value
+    descriptor.length = length
+    return result
+}
+
+CPointer :: (value: string) -> *u8 {
+    if value.count == 0 { return null }
+    descriptor := cast(*TextDescriptor)(*value)
+    return descriptor.data
+}
+
+TextHasPrefix :: (value: string, prefix: string) -> bool {
+    if prefix.count > value.count { return false }
+    return value[0:prefix.count] == prefix
+}
+
+JoinPath :: (directory: string, name: string) -> (path: string, ok: bool) {
+    bytes: Vectors.Vec(u8)
+    if !BuilderAppend(bytes, directory) { return "", false }
+    if !VecPush(bytes, #char "/") { VecFree(bytes); return "", false }
+    if !BuilderAppend(bytes, name) { VecFree(bytes); return "", false }
+    result := TextDetach(TextCopy(TextView(bytes[:])))
+    VecFree(bytes)
+    return result, true
+}
+
+DecimalCount :: (value: s64) -> s64 {
+    count: s64 = 1
+    remaining := value
+    while remaining >= 10 { count += 1; remaining /= 10 }
+    return count
+}
+
+JoinTemporary :: (path: string, process_id: s32) -> (path: string, ok: bool) {
+    digits := DecimalCount(process_id)
+    bytes: Vectors.Vec(u8)
+    if !BuilderAppend(bytes, path) || !VecPush(bytes, #char ".") {
+        VecFree(bytes); return "", false
+    }
+    low := bytes.count
+    if !VecResize(bytes, low + digits) { VecFree(bytes); return "", false }
+    at := bytes.count - 1
+    remaining := process_id
+    while true {
+        bytes[at] = cast(u8)#char "0" + cast(u8)(remaining % 10)
+        at -= 1
+        remaining /= 10
+        if remaining == 0 { break }
+    }
+    if !BuilderAppend(bytes, ".tmp") { VecFree(bytes); return "", false }
+    result := TextDetach(TextCopy(TextView(bytes[:])))
+    VecFree(bytes)
+    return result, true
+}
+
+SameBytes :: (left: string, right: string) -> bool {
+    return left.count == right.count &&
+        (left.count == 0 || left[0:left.count] == right[0:right.count])
+}
+
+WriteGenerated :: (path: string, text: string) -> bool {
+    if !RecordPath(path) { return false }
+    current: Vectors.Vec(u8)
+    readable := Files.ReadFileInto(path, *current)
+    unchanged := readable && SameBytes(TextView(current[:]), text)
+    VecFree(current)
+    if unchanged { return true }
+
+    temporary, made := JoinTemporary(path, ProcessId())
+    if !made { return false }
+    temporary_name := TextDetach(TextCopy(temporary))
+    ReleaseOwnedText(temporary)
+    file := Files.OpenNew(temporary_name)
+    written := false
+    closed := false
+    if file.valid {
+        count := Files.WriteAt(file, BytesFromText(text), 0)
+        written = count == cast(s64)text.count
+        closed = Files.CloseFile(file)
+    }
+    moved := written && closed && Files.RenamePath(temporary_name, path)
+    if !moved { Files.RemoveFile(temporary_name) }
+    ReleaseOwnedText(temporary_name)
+    if !moved { return false }
+    return true
+}
+
+BytesFromText :: (value: string) -> []u8 {
+    result: []u8
+    descriptor := cast(*ByteDescriptor)(*result)
+    descriptor.data = CPointer(value)
+    descriptor.length = cast(s64)value.count
+    return result
+}
+
+WordByte :: (value: u8) -> bool {
+    lower := value >= cast(u8)#char "a" && value <= cast(u8)#char "z"
+    upper := value >= cast(u8)#char "A" && value <= cast(u8)#char "Z"
+    digit := value >= cast(u8)#char "0" && value <= cast(u8)#char "9"
+    return lower || upper || digit || value == cast(u8)#char "_"
+}
+
+NeedHelper :: (helper: s64, needed: *Vectors.Vec(s64), work: *Vectors.Vec(s64)) {
+    if helper < 0 || (<<needed)[helper] == 1 { return }
+    (<<needed)[helper] = 1
+    VecPush(<<work, helper)
+}
+
+NeedCalls :: (helpers: *SimdNames, segment: Segment, full: string,
+              needed: *Vectors.Vec(s64), work: *Vectors.Vec(s64)) {
+    start := segment.start
+    while start < segment.start + segment.length {
+        if !WordByte(full[start]) { start += 1; continue }
+        word_start := start
+        while start < segment.start + segment.length && WordByte(full[start]) { start += 1 }
+        word := full[word_start:start]
+        if word == "ZI_N" && start < segment.start + segment.length && full[start] == #char "(" {
+            name_start := start + 1
+            start = name_start
+            while start < segment.start + segment.length && WordByte(full[start]) { start += 1 }
+            name := full[name_start:start]
+            if name.count > 3 && name[name.count - 3:name.count] == "_p_" {
+                name = name[0:name.count - 3]
+            }
+            helper := SimdNamesFind(helpers, CPointer(name), cast(usize)name.count, 0)
+            NeedHelper(helper, needed, work)
+        } else if word[0] == #char "z" {
+            word_pointer := CPointer(word)
+            word_length := cast(usize)word.count
+            if SimdHelperWord(*word_pointer, *word_length) == 1 {
+                helper := SimdNamesFind(helpers, word_pointer, word_length, 0)
+                NeedHelper(helper, needed, work)
+            }
+        }
+    }
+}
+
+Cleanup :: (helpers: *SimdNames, segments: *Vectors.Vec(Segment), last: *Vectors.Vec(s64),
+            first: *Vectors.Vec(s64), needed: *Vectors.Vec(s64), work: *Vectors.Vec(s64),
+            output: *Vectors.Vec(u8), result: bool) -> bool {
+    SimdNamesFree(helpers)
+    VecFree(<<segments)
+    VecFree(<<last)
+    VecFree(<<first)
+    VecFree(<<needed)
+    VecFree(<<work)
+    VecFree(<<output)
+    return result
+}

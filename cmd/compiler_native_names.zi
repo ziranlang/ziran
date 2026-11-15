@@ -1,0 +1,225 @@
+// Native symbol planning and C/Go scalar spelling shared by the backends.
+using IR :: #import "compiler_ir"
+using Services :: #import "compiler_services"
+
+ZirTarget :: enum s32 { ZIR_C; ZIR_GO }
+
+NativeVector :: struct {
+    name: *u8 #c "const char *"
+    lane: *u8 #c "const char *"
+    lanes: s32
+    lane_bits: s32
+    bytes: s32
+    is_signed: s32
+    is_float: s32
+    is_native: s32
+    block: *u8 #c "const char *"
+};
+
+TargetName :: struct { source: string; c: string; go: string }
+
+FixedVectors: [30]TargetName = .{
+    .{source = "u8x16", c = "zi_u8x16", go = "[16]uint8"},
+    .{source = "s8x16", c = "zi_s8x16", go = "[16]int8"},
+    .{source = "u16x8", c = "zi_u16x8", go = "[8]uint16"},
+    .{source = "s16x8", c = "zi_s16x8", go = "[8]int16"},
+    .{source = "u32x4", c = "zi_u32x4", go = "[4]uint32"},
+    .{source = "s32x4", c = "zi_s32x4", go = "[4]int32"},
+    .{source = "u64x2", c = "zi_u64x2", go = "[2]uint64"},
+    .{source = "s64x2", c = "zi_s64x2", go = "[2]int64"},
+    .{source = "f32x4", c = "zi_f32x4", go = "[4]float32"},
+    .{source = "f64x2", c = "zi_f64x2", go = "[2]float64"},
+    .{source = "u8x32", c = "zi_u8x32", go = "[32]uint8"},
+    .{source = "s8x32", c = "zi_s8x32", go = "[32]int8"},
+    .{source = "u16x16", c = "zi_u16x16", go = "[16]uint16"},
+    .{source = "s16x16", c = "zi_s16x16", go = "[16]int16"},
+    .{source = "u32x8", c = "zi_u32x8", go = "[8]uint32"},
+    .{source = "s32x8", c = "zi_s32x8", go = "[8]int32"},
+    .{source = "u64x4", c = "zi_u64x4", go = "[4]uint64"},
+    .{source = "s64x4", c = "zi_s64x4", go = "[4]int64"},
+    .{source = "f32x8", c = "zi_f32x8", go = "[8]float32"},
+    .{source = "f64x4", c = "zi_f64x4", go = "[4]float64"},
+    .{source = "u8xN", c = "zi_u8xN", go = "[16]uint8"},
+    .{source = "s8xN", c = "zi_s8xN", go = "[16]int8"},
+    .{source = "u16xN", c = "zi_u16xN", go = "[8]uint16"},
+    .{source = "s16xN", c = "zi_s16xN", go = "[8]int16"},
+    .{source = "u32xN", c = "zi_u32xN", go = "[4]uint32"},
+    .{source = "s32xN", c = "zi_s32xN", go = "[4]int32"},
+    .{source = "u64xN", c = "zi_u64xN", go = "[2]uint64"},
+    .{source = "s64xN", c = "zi_s64xN", go = "[2]int64"},
+    .{source = "f32xN", c = "zi_f32xN", go = "[4]float32"},
+    .{source = "f64xN", c = "zi_f64xN", go = "[2]float64"},
+};
+
+ScalarNames: [16]TargetName = .{
+    .{source = "s8", c = "int8_t", go = "int8"},
+    .{source = "s16", c = "int16_t", go = "int16"},
+    .{source = "s32", c = "int32_t", go = "int32"},
+    .{source = "s64", c = "int64_t", go = "int64"},
+    .{source = "isize", c = "ptrdiff_t", go = "int"},
+    .{source = "usize", c = "size_t", go = "uint"},
+    .{source = "u8", c = "uint8_t", go = "uint8"},
+    .{source = "u16", c = "uint16_t", go = "uint16"},
+    .{source = "u32", c = "uint32_t", go = "uint32"},
+    .{source = "u64", c = "uint64_t", go = "uint64"},
+    .{source = "float32", c = "float", go = "float32"},
+    .{source = "float64", c = "double", go = "float64"},
+    .{source = "bool", c = "bool", go = "bool"},
+    .{source = "void", c = "void", go = ""},
+    .{source = "char", c = "char", go = "byte"},
+    .{source = "string", c = "String", go = "string"},
+};
+
+native_blocks: s32 = 0;
+literal_names: [64]*u8 = .{};
+literal_count: s32 = 0;
+
+SetBlocks :: (blocks: s32) { native_blocks = blocks }
+Blocks :: () -> s32 { return native_blocks }
+
+#program_export "VectorTypeHereZiran"
+VectorTypeHere :: (type: *void, target: ZirTarget) -> *void {
+    vector: NativeVector
+    if CVectorType(cast(*u8)type, *vector) == 0 { return type }
+    if vector.is_native == 0 { return type }
+    if target == .ZIR_GO || native_blocks == 1 { return cast(*void)vector.block }
+    if native_blocks == 2 {
+        return cast(*void)CVectorTypeName(vector.lane, vector.lanes * 2)
+    }
+    return cast(*void)vector.name
+}
+
+#program_export "TargetTypeZiran"
+TargetType :: (type: *void, target: ZirTarget) -> *void {
+    text := IR.CText(cast(*u8)type)
+    vector: NativeVector
+    if CVectorType(cast(*u8)type, *vector) != 0 {
+        here := cast(*u8)VectorTypeHere(type, target)
+        here_vector: NativeVector
+        if CVectorType(here, *here_vector) != 0 {
+            for index: 0..29 {
+                if here_vector.name == null || IR.CText(here_vector.name) != FixedVectors[index].source { continue }
+                if target == .ZIR_C { return Literal(FixedVectors[index].c) }
+                return Literal(FixedVectors[index].go)
+            }
+            return null
+        }
+    }
+
+    scalar := CScalarType(cast(*u8)type)
+    if scalar != null && IR.CText(scalar).count > 0 { text = IR.CText(scalar) }
+    if text == "integer" { text = "s64" }
+    else if text == "real" { text = "float64" }
+    if target == .ZIR_C && CSliceElementType(cast(*u8)type, null, 0) != 0 { return Literal("Slice") }
+    for index: 0..15 {
+        if text != ScalarNames[index].source { continue }
+        if target == .ZIR_GO { return Literal(ScalarNames[index].go) }
+        return Literal(ScalarNames[index].c)
+    }
+    return null
+}
+
+#program_export
+PrepareNativeNames :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    NativeNamesReset()
+    for p: 0..count - 1 {
+        program := programs[p]
+        for m: 0..program.module_count - 1 {
+            module := *program.modules[m]
+            for g: 0..module.global_count - 1 { module.globals[g].native_name_collision = 0 }
+            for d: 0..module.define_count - 1 { module.defines[d].native_name_collision = 0 }
+            for t: 0..module.type_count - 1 {
+                type := *module.types[t]
+                type.native_name_mangled = cast(s32)(type.is_file_private != 0 &&
+                    StartsText(IR.BufferText(type.name[:]), "zir_file_type_"))
+                if type.is_record_template != 0 ||
+                (type.is_extern != 0 && IR.BufferText(type.foreign_target[:]).count == 0) { continue }
+                mapped: [IR.ZIR_NAME_MAX * 2]u8
+                TargetBindingName(null, .ZIR_GO, *type.name[0], *mapped[0], cast(usize)mapped.count)
+                if CNativeHeaderKeyword(*type.name[0]) != 0 ||
+                IR.CText(*mapped[0]) != IR.BufferText(type.name[:]) { type.native_name_mangled = 1 }
+            }
+        }
+    }
+    if CMarkNativeNameCollisions(programs, count) == 0 {
+        DiagnosticOutOfMemory()
+        return 0
+    }
+    for p: 0..count - 1 {
+        program := programs[p]
+        for m: 0..program.module_count - 1 {
+            module := *program.modules[m]
+            for t: 0..module.type_count - 1 {
+                type := *module.types[t]
+                if type.is_record_template != 0 ||
+                (type.is_extern != 0 && IR.BufferText(type.foreign_target[:]).count == 0) { continue }
+                for q: p..count - 1 {
+                    first := ifx q == p then m else 0
+                    for n: first..programs[q].module_count - 1 {
+                        other_module := *programs[q].modules[n]
+                        first_type := ifx q == p && n == m then t + 1 else 0
+                        for u: first_type..other_module.type_count - 1 {
+                            other := *other_module.types[u]
+                            if other.is_record_template != 0 ||
+                            (other.is_extern != 0 && IR.BufferText(other.foreign_target[:]).count == 0) ||
+                            IR.BufferText(type.name[:]) != IR.BufferText(other.name[:]) { continue }
+                            source_owner: *IR.ZirModule = *program.modules[m]
+                            other_owner: *IR.ZirModule = *programs[q].modules[n]
+                            if CSameTypeApplication(source_owner, *module.types[t],
+                                other_owner, *other_module.types[u]) != 0 ||
+                            CSameMapType(source_owner, *module.types[t],
+                                other_owner, *other_module.types[u]) != 0 { continue }
+                            type.native_name_mangled = 1
+                            other.native_name_mangled = 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 1
+}
+
+#scope_file
+
+compiler :: #system_library "ziran";
+
+CVectorType :: (type: *u8, vector: *NativeVector) -> s32 #foreign compiler "VectorType";
+CVectorTypeName :: (lane: *u8, lanes: s32) -> *u8 #foreign compiler "VectorTypeName";
+CScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+CSliceElementType :: (type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "SliceElementType";
+TargetBindingName :: (function: *IR.ZirFunction, target: ZirTarget, name: *u8,
+    output: *u8, size: usize) #foreign compiler "TargetBindingName";
+CNativeHeaderKeyword :: (name: *u8) -> s32 #foreign compiler "NativeHeaderKeyword";
+NativeNamesReset :: () #foreign compiler "NativeNamesReset";
+CMarkNativeNameCollisions :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "MarkNativeNameCollisions";
+CSameTypeApplicationRaw :: (target_owner: *void, target: *IR.ZirType,
+    source_owner: *void, source: *IR.ZirType) -> s32 #foreign compiler "same_type_application";
+CSameMapTypeRaw :: (target_owner: *void, target: *IR.ZirType,
+    source_owner: *void, source: *IR.ZirType) -> s32 #foreign compiler "SameMapType";
+CSameTypeApplication :: (target_owner: *IR.ZirModule, target: *IR.ZirType,
+    source_owner: *IR.ZirModule, source: *IR.ZirType) -> s32 {
+    return CSameTypeApplicationRaw(cast(*void)target_owner, target,
+        cast(*void)source_owner, source)
+}
+CSameMapType :: (target_owner: *IR.ZirModule, target: *IR.ZirType,
+    source_owner: *IR.ZirModule, source: *IR.ZirType) -> s32 {
+    return CSameMapTypeRaw(cast(*void)target_owner, target,
+        cast(*void)source_owner, source)
+}
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+
+Literal :: (text: string) -> *void {
+    for index: 0..literal_count - 1 {
+        if IR.CText(literal_names[index]) == text { return cast(*void)literal_names[index] }
+    }
+    if literal_count >= 64 { return null }
+    stored := Services.Keep(text)
+    literal_names[literal_count] = stored
+    literal_count += 1
+    return cast(*void)stored
+}
+
+StartsText :: (text: string, prefix: string) -> bool {
+    return text.count >= prefix.count && text[0:prefix.count] == prefix
+}

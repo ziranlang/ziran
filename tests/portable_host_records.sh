@@ -51,6 +51,8 @@ Answer :: () -> s32 {
     points[1] = transformed.point
     view: []Point = points[0:2]
     if SumSliceHost(view) != 49 { return 0 }
+    // A string a host returned stays valid across later host calls.
+    if transformed.label != "ok" { return 0 }
     state: State
     state.values[0] = 10
     values := state.values[:]

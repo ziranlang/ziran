@@ -7,6 +7,7 @@ using RegAlloc :: #import "compiler_regalloc"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 using X64 :: #import "compiler_x86_64"
+using A64 :: #import "compiler_aarch64"
 
 // Owner for one complete direct machine pipeline. The borrowed ELF view stays
 // valid until the next successful MachineNativeBuild or MachineNativeFree.
@@ -15,6 +16,7 @@ MachineNativeOwner :: struct {
     image: []u8
     machine: MachineOwner
     encoded: MachineX64Owner
+    encoded_a64: MachineA64Owner
     elf: Vec(u8)
 }
 
@@ -97,6 +99,32 @@ NativeExchange :: (owner: *MachineNativeOwner, built: *MachineNativeOwner) {
     VecSwap(owner.encoded.machine_image.initializers, built.encoded.machine_image.initializers)
     VecSwap(owner.encoded.machine_image.relocations, built.encoded.machine_image.relocations)
 
+    encoded_a64_valid := owner.encoded_a64.valid
+    owner.encoded_a64.valid = built.encoded_a64.valid
+    built.encoded_a64.valid = encoded_a64_valid
+    image_a64 := owner.encoded_a64.image
+    owner.encoded_a64.image = built.encoded_a64.image
+    built.encoded_a64.image = image_a64
+    VecSwap(owner.encoded_a64.code, built.encoded_a64.code)
+    VecSwap(owner.encoded_a64.functions, built.encoded_a64.functions)
+    VecSwap(owner.encoded_a64.blocks, built.encoded_a64.blocks)
+    VecSwap(owner.encoded_a64.instructions, built.encoded_a64.instructions)
+    VecSwap(owner.encoded_a64.relocations, built.encoded_a64.relocations)
+    machine_image_a64_valid := owner.encoded_a64.machine_image.valid
+    owner.encoded_a64.machine_image.valid = built.encoded_a64.machine_image.valid
+    built.encoded_a64.machine_image.valid = machine_image_a64_valid
+    machine_image_a64 := owner.encoded_a64.machine_image.image
+    owner.encoded_a64.machine_image.image = built.encoded_a64.machine_image.image
+    built.encoded_a64.machine_image.image = machine_image_a64
+    VecSwap(owner.encoded_a64.machine_image.code, built.encoded_a64.machine_image.code)
+    VecSwap(owner.encoded_a64.machine_image.constants, built.encoded_a64.machine_image.constants)
+    VecSwap(owner.encoded_a64.machine_image.data, built.encoded_a64.machine_image.data)
+    VecSwap(owner.encoded_a64.machine_image.function_offsets, built.encoded_a64.machine_image.function_offsets)
+    VecSwap(owner.encoded_a64.machine_image.global_offsets, built.encoded_a64.machine_image.global_offsets)
+    VecSwap(owner.encoded_a64.machine_image.constant_offsets, built.encoded_a64.machine_image.constant_offsets)
+    VecSwap(owner.encoded_a64.machine_image.initializers, built.encoded_a64.machine_image.initializers)
+    VecSwap(owner.encoded_a64.machine_image.relocations, built.encoded_a64.machine_image.relocations)
+
     VecSwap(owner.elf, built.elf)
     native_image := owner.image; owner.image = built.image; built.image = native_image
 }
@@ -110,6 +138,7 @@ MachineNativeFree :: (owner: *MachineNativeOwner) {
     owner.image = empty
     MachineFree(*owner.machine)
     MachineX64Free(*owner.encoded)
+    MachineA64Free(*owner.encoded_a64)
     VecFree(owner.elf)
 }
 
@@ -120,13 +149,14 @@ MachineNativeView :: (owner: *MachineNativeOwner) -> []u8 {
 
 MachineCodeImageView :: (owner: *MachineNativeOwner) -> MachineImage {
     if owner == null || !owner.valid { return .{version = MachineImageVersion, entry = MachineNoId} }
+    if owner.encoded_a64.valid { return MachineA64MachineView(*owner.encoded_a64) }
     return MachineX64MachineView(*owner.encoded)
 }
 
 // Transactional MachineLower -> RegAllocAllocate -> MachineX64Encode, with an
 // optional AOT ELF layout. A failure leaves OUTPUT unchanged.
 Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
-    output: *MachineNativeOwner, emit_elf: bool) -> MachineDiagnostic {
+    output: *MachineNativeOwner, emit_elf: bool, fuel: s64) -> MachineDiagnostic {
     if output == null { return Problem(.Owner) }
     built: MachineNativeOwner
     lowered := MachineLower(*built.machine, lir, target, MachineDefaultOptions(), limits)
@@ -138,12 +168,25 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     diagnostic := RegAllocAllocate(*built.machine, target, limits)
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     program := MachineProgramView(*built.machine)
+    if target.arch == .AArch64 {
+        // AArch64 has no AOT ELF writer.
+        if emit_elf {
+            MachineNativeFree(*built)
+            return Problem(.UnsupportedTarget)
+        }
+        diagnostic = MachineA64Encode(program, limits, *built.encoded_a64)
+        if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
+        built.valid = true
+        NativeExchange(output, *built)
+        MachineNativeFree(*built)
+        return NoDiagnostic()
+    }
     diagnostic = MachineX64Encode(program, limits, *built.encoded)
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     if emit_elf {
         image := MachineX64View(*built.encoded)
         empty: [0]u8
-        measured := MachineElfEncode(program, image, empty[:])
+        measured := MachineElfEncode(program, image, empty[:], fuel)
         if measured.diagnostic.problem != .None {
             MachineNativeFree(*built)
             return measured.diagnostic
@@ -153,7 +196,7 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
             MachineNativeFree(*built)
             return Problem(ifx measured.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
         }
-        written := MachineElfEncode(program, image, built.elf[:])
+        written := MachineElfEncode(program, image, built.elf[:], fuel)
         if written.diagnostic.problem != .None || written.size != measured.size {
             diagnostic = written.diagnostic
             if diagnostic.problem == .None { diagnostic = Problem(.Relocation) }
@@ -170,10 +213,12 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
 
 MachineCodeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     output: *MachineNativeOwner) -> MachineDiagnostic {
-    return Build(lir, target, limits, output, false)
+    return Build(lir, target, limits, output, false, 0)
 }
 
+// FUEL is the AOT executable's starting budget; the default is unbounded,
+// as for a bundle run.
 MachineNativeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
-    output: *MachineNativeOwner) -> MachineDiagnostic {
-    return Build(lir, target, limits, output, true)
+    output: *MachineNativeOwner, fuel: s64 = MachineElfInitialFuel) -> MachineDiagnostic {
+    return Build(lir, target, limits, output, true, fuel)
 }

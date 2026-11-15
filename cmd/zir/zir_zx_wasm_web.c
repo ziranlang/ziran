@@ -13,7 +13,7 @@
  * The JavaScript side only moves bytes: a revision-28 module's (zx, host)
  * import hands the call record's address to ZxWasmHostCall, which reads
  * the host images from the instance's memory, translates them to the
- * page's VmHostValue bindings (ExecHosts) and writes the result back,
+ * page's HostValue bindings (ExecHosts) and writes the result back,
  * placing result images with the module's zx_reserve.
  *
  * Under Asyncify a host may suspend the page's stack inside a host call.

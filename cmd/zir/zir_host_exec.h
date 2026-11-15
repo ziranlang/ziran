@@ -24,11 +24,23 @@ ExecBundle *ExecBundleOpen(const unsigned char *bytes, size_t size, const char *
 void ExecBundleClose(ExecBundle *bundle);
 /* The verified program, a `const LirProgram *`. */
 const void *ExecBundleProgram(const ExecBundle *bundle);
+/* The program with the file's optional debug attachment, its source texts
+ * and origins, restored into DEBUG, a `ZxDebugOwner *` that borrows the
+ * bundle's program. False when the file has none or it does not belong to
+ * this program. */
+int ExecBundleDebugProgram(const ExecBundle *bundle, void *debug);
 /* Host capabilities in program order; the platform console services the
  * engine binds itself are not among them. */
 size_t ExecBundleCapabilityCount(const ExecBundle *bundle);
 const char *ExecBundleCapabilityModule(const ExecBundle *bundle, size_t index);
 const char *ExecBundleCapabilityFunction(const ExecBundle *bundle, size_t index);
+/* The verified LIR function a capability names, or -1. */
+int32_t ExecBundleCapabilityFunctionId(const ExecBundle *bundle, size_t index);
+/* Verified LIR type identifiers for the native bridge, or -1. */
+int32_t ExecBundleCapabilityParameterTypeId(const ExecBundle *bundle,
+                                            size_t index, size_t parameter);
+int32_t ExecBundleCapabilityResultTypeId(const ExecBundle *bundle,
+                                         size_t index);
 /* The capability's declaration as written; 0 for an invalid index. */
 int ExecBundleCapabilityAbi(const ExecBundle *bundle, size_t index, BundleCapabilityAbi *abi);
 /* Whether parameter `parameter` of capability `index` is a []T slice: the
@@ -59,7 +71,22 @@ typedef struct ExecHostArgument {
     int changed;
 } ExecHostArgument;
 
-/* Host calls of one bundle translated between host images and VmHostValue
+/* A value at a native call boundary. Scalars and pointers use `bits`.
+ * Aggregate values use their in-process representation at mutable `bytes`;
+ * string and slice views therefore contain real data pointers rather than
+ * offsets into an engine image. ExecHostsCallNative translates that form
+ * through the same typed host conversion as ExecHostsCall. Mutable slice
+ * elements are copied back into the caller's storage after a successful
+ * synchronous call. A non-scalar result's bytes are borrowed until the next
+ * call on `hosts`. */
+typedef struct ExecHostNativeValue {
+    int32_t type;
+    uint64_t bits;
+    unsigned char *bytes;
+    size_t size;
+} ExecHostNativeValue;
+
+/* Host calls of one bundle translated between host images and HostValue
  * trees, with every capability bound through `find`; NULL when one is
  * missing. ExecHostsCall calls capability `host` (an index as above). A
  * mutable slice argument comes back with `changed` set and `bytes` holding
@@ -68,6 +95,26 @@ typedef struct ExecHostArgument {
 ExecHosts *ExecHostsOpen(const ExecBundle *bundle, ExecFindBinding find, void *context);
 int ExecHostsCall(ExecHosts *hosts, size_t host, ExecHostArgument *arguments, size_t count,
                   ExecHostArgument *result);
+/* Native data pointers are tokens of the instance's pointer table. RESOLVE
+ * gives the address BYTES bytes may be read (or written) at, or NULL; CREATE
+ * names BYTES read-only bytes at ADDRESS that a host returned. Without them
+ * native values are plain addresses. */
+typedef void *(*ExecNativeResolve)(void *context, uint64_t token, size_t bytes, int writable);
+typedef uint64_t (*ExecNativeCreate)(void *context, const void *address, size_t bytes);
+void ExecHostsNativePointers(ExecHosts *hosts, ExecNativeResolve resolve,
+                             ExecNativeCreate create, void *context);
+/* Module state of a native instance: global INDEX's native bytes as a host
+ * value, and a host value written over them (nested views get read-only
+ * storage through the native hooks). StateNativeCheck converts without
+ * writing, so a store can be checked whole before any global changes. */
+int ExecHostsNativeStateValue(ExecHosts *hosts, size_t index, const unsigned char *native,
+                              HostValue *value);
+int ExecHostsNativeStateCheck(ExecHosts *hosts, size_t index, const HostValue *value);
+int ExecHostsNativeStateStore(ExecHosts *hosts, size_t index, const HostValue *value,
+                              unsigned char *native);
+int ExecHostsCallNative(ExecHosts *hosts, size_t host,
+                        ExecHostNativeValue *arguments, size_t count,
+                        ExecHostNativeValue *result);
 void ExecHostsMatchFieldsByName(ExecHosts *hosts, int enabled);
 /* Module globals the interface section names, for an engine that keeps them
  * itself: `global` is the LIR global. A global crosses as its host image;
@@ -77,8 +124,8 @@ size_t ExecBundleStateCount(const ExecBundle *bundle);
 int ExecBundleStateAt(const ExecBundle *bundle, size_t index, const char **module, const char **name,
                       const char **type, int32_t *global);
 int ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, size_t size,
-                        VmHostValue *value);
-int ExecHostsStateImage(ExecHosts *hosts, size_t index, const VmHostValue *value,
+                        HostValue *value);
+int ExecHostsStateImage(ExecHosts *hosts, size_t index, const HostValue *value,
                         const unsigned char **image, size_t *size);
 void ExecHostsClose(ExecHosts *hosts);
 
@@ -98,10 +145,10 @@ size_t ExecInstanceLiveBytes(const ExecInstance *instance);
  * is not NULL. It is borrowed until the next call into the instance. */
 size_t ExecInstanceStateCount(const ExecInstance *instance);
 int ExecInstanceStateAt(ExecInstance *instance, size_t index, const char **module, const char **name,
-                        const char **type, VmHostValue *value);
+                        const char **type, HostValue *value);
 /* Gives global i the value values[i], unless that is NULL; changes none
  * when one is rejected. */
-int ExecInstanceStateStore(ExecInstance *instance, const VmHostValue *const *values);
+int ExecInstanceStateStore(ExecInstance *instance, const HostValue *const *values);
 void ExecInstanceClose(ExecInstance *instance);
 
 /* A bundle's entry return type as written, for printing its result. */

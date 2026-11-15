@@ -7,7 +7,7 @@
 
 static int
 fill(void *context, const char *module, const char *function,
-     const VmHostValue *args, int arg_count, VmHostValue *result)
+     const HostValue *args, int arg_count, HostValue *result)
 {
     int *calls = context;
     if(strcmp(module, "returned") == 0)
@@ -15,10 +15,10 @@ fill(void *context, const char *module, const char *function,
     assert(strcmp(module, "host_buffer") == 0);
     assert(arg_count == 1);
     if(strcmp(function, "ReplaceWord") == 0) {
-        assert(args[0].kind == VM_HOST_SLICE);
+        assert(args[0].kind == HOST_SLICE);
         assert(strcmp(args[0].type, "[]string") == 0);
         assert(args[0].length == 2);
-        assert(args[0].elements[0].kind == VM_HOST_STRING);
+        assert(args[0].elements[0].kind == HOST_STRING);
         assert(args[0].elements[0].length == 3);
         assert(memcmp(args[0].elements[0].data, "old", 3) == 0);
         assert(args[0].elements[1].length == 6);
@@ -26,26 +26,26 @@ fill(void *context, const char *module, const char *function,
         (*calls)++;
         args[0].elements[0].data = (const unsigned char *)"new";
         args[0].elements[0].length = 3;
-        result->kind = VM_HOST_INTEGER;
+        result->kind = HOST_INTEGER;
         result->integer = 2;
         return 1;
     }
     assert(strcmp(function, "Fill") == 0);
-    assert(args[0].kind == VM_HOST_SLICE);
+    assert(args[0].kind == HOST_SLICE);
     assert(strcmp(args[0].type, "[]u8") == 0);
     (*calls)++;
-    result->kind = VM_HOST_INTEGER;
+    result->kind = HOST_INTEGER;
     result->integer = (int64_t)args[0].length;
     if(args[0].length == 0)
         return 1;
     assert(args[0].length == 2);
-    assert(args[0].elements[0].kind == VM_HOST_UNSIGNED);
+    assert(args[0].elements[0].kind == HOST_UNSIGNED);
     assert(strcmp(args[0].elements[0].type, "u8") == 0);
     assert(args[0].elements[0].bits == 1);
     assert(args[0].elements[1].bits == 2);
     args[0].elements[0].bits = 40;
     if(*calls == 7)
-        args[0].elements[1].kind = VM_HOST_INTEGER;
+        args[0].elements[1].kind = HOST_INTEGER;
     return 1;
 }
 
@@ -53,19 +53,19 @@ static int view[3] = {10, 20, 30};
 
 static int
 return_view(void *context, const char *module, const char *function,
-            const VmHostValue *args, int arg_count, VmHostValue *result)
+            const HostValue *args, int arg_count, HostValue *result)
 {
-    static VmHostValue elements[3];
+    static HostValue elements[3];
     int mode = *(const int *)context;
     (void)args; (void)arg_count;
     if(strcmp(module, "returned") != 0 || strcmp(function, "MakeView") != 0)
         return 0;
     for(int i = 0; i < 3; i++) {
-        elements[i].kind = VM_HOST_INTEGER;
+        elements[i].kind = HOST_INTEGER;
         elements[i].type = "s32";
         elements[i].integer = view[i];
     }
-    result->kind = VM_HOST_SLICE;
+    result->kind = HOST_SLICE;
     result->type = "[]s32";
     result->elements = elements;
     result->length = 3;
@@ -84,46 +84,46 @@ return_view(void *context, const char *module, const char *function,
 
 static int
 record_slice(void *context, const char *module, const char *function,
-             const VmHostValue *args, int arg_count, VmHostValue *result)
+             const HostValue *args, int arg_count, HostValue *result)
 {
     int bad_return = *(const int *)context;
     assert(strcmp(module, "record_slices") == 0);
     if(strcmp(function, "Mutate") == 0) {
-        assert(arg_count == 1 && args[0].kind == VM_HOST_SLICE);
+        assert(arg_count == 1 && args[0].kind == HOST_SLICE);
         assert(strcmp(args[0].type, "[]Point") == 0);
         assert(args[0].length == 2 && args[0].elements != NULL);
-        assert(args[0].elements[0].kind == VM_HOST_RECORD);
+        assert(args[0].elements[0].kind == HOST_RECORD);
         assert(strcmp(args[0].elements[0].type, "Point") == 0);
         assert(args[0].elements[0].field_count == 2);
-        VmHostField *fields = (VmHostField *)args[0].elements[0].fields;
+        HostField *fields = (HostField *)args[0].elements[0].fields;
         assert(strcmp(fields[0].name, "x") == 0);
-        assert(fields[0].value.kind == VM_HOST_INTEGER);
+        assert(fields[0].value.kind == HOST_INTEGER);
         assert(fields[0].value.integer == 1);
         fields[0].value.integer = 40;
-        result->kind = VM_HOST_INTEGER;
+        result->kind = HOST_INTEGER;
         result->type = "s32";
         result->integer = 2;
         return 1;
     }
     assert(strcmp(function, "Make") == 0 && arg_count == 0);
-    static VmHostField fields[2][2];
-    static VmHostValue elements[2];
+    static HostField fields[2][2];
+    static HostValue elements[2];
     for(int i = 0; i < 2; i++) {
         for(int j = 0; j < 2; j++) {
             fields[i][j].name = j == 0 ? "x" : "y";
-            fields[i][j].value.kind = VM_HOST_INTEGER;
+            fields[i][j].value.kind = HOST_INTEGER;
             fields[i][j].value.type = "s32";
             fields[i][j].value.integer = i == 0 && j == 0 ? 1 :
                                          i == 1 && j == 1 ? 2 : 0;
         }
-        elements[i].kind = VM_HOST_RECORD;
+        elements[i].kind = HOST_RECORD;
         elements[i].type = "Point";
         elements[i].fields = fields[i];
         elements[i].field_count = 2;
     }
     if(bad_return)
         fields[1][1].name = "wrong";
-    result->kind = VM_HOST_SLICE;
+    result->kind = HOST_SLICE;
     result->type = "[]Point";
     result->elements = elements;
     result->length = 2;
@@ -132,7 +132,7 @@ record_slice(void *context, const char *module, const char *function,
 
 static int
 named_records(void *context, const char *module, const char *function,
-              const VmHostValue *args, int arg_count, VmHostValue *result)
+              const HostValue *args, int arg_count, HostValue *result)
 {
     int *calls = context;
     assert(strcmp(module, "bridge") == 0);
@@ -141,18 +141,18 @@ named_records(void *context, const char *module, const char *function,
     assert(arg_count == 1 && args[0].length == 2 &&
            args[0].elements != NULL);
     assert(args[0].kind == (strcmp(function, "SliceHost") == 0 ?
-                            VM_HOST_SLICE : VM_HOST_ARRAY));
+                            HOST_SLICE : HOST_ARRAY));
     assert(strcmp(args[0].type, strcmp(function, "SliceHost") == 0 ?
                                       "[]Types.Point" : "[2]Types.Point") == 0);
     for(size_t i = 0; i < args[0].length; i++) {
-        assert(args[0].elements[i].kind == VM_HOST_RECORD);
+        assert(args[0].elements[i].kind == HOST_RECORD);
         assert(strcmp(args[0].elements[i].type, "Types.Point") == 0);
     }
-    VmHostField *first = (VmHostField *)args[0].elements[0].fields;
-    VmHostField *second = (VmHostField *)args[0].elements[1].fields;
+    HostField *first = (HostField *)args[0].elements[0].fields;
+    HostField *second = (HostField *)args[0].elements[1].fields;
     assert(first[0].value.integer == 40 && second[1].value.integer == 2);
     (*calls)++;
-    result->kind = VM_HOST_INTEGER;
+    result->kind = HOST_INTEGER;
     result->type = "s32";
     result->integer = 42;
     return 1;

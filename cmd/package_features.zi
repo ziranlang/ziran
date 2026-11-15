@@ -249,9 +249,9 @@ Features :: (arguments: []string) -> s32 {
         .{target = "zx", status = "supported", limit = "CPU regions execute serially with a downgrade marker."}
     ]
     gpu_targets: [3]PkgTargetSupport = .[
-        .{target = "c", status = "supported", limit = "CPU fallback only; no GPU device backend."},
-        .{target = "go", status = "supported", limit = "CPU fallback only; no GPU device backend."},
-        .{target = "zx", status = "supported", limit = "CPU fallback only; no GPU device backend."}
+        .{target = "c", status = "unsupported", limit = "No GPU device backend; CPU execution is never selected."},
+        .{target = "go", status = "unsupported", limit = "No GPU device backend; CPU execution is never selected."},
+        .{target = "zx", status = "unsupported", limit = "No GPU device backend; CPU execution is never selected."}
     ]
     contracts: [7]PkgFeature = .[
         .{
@@ -277,12 +277,12 @@ Features :: (arguments: []string) -> s32 {
             targets = parallel_targets
         },
         .{
-            id = "execution.gpu-fallback",
+            id = "execution.gpu-gap",
             syntax = "#parallel_gpu for RANGE { BODY }",
-            limits = "GPU-safe regions are checked, but execute on the CPU with an explicit downgrade marker. No GPU device backend exists. Pointer storage, pointer-bearing calls, and allocator-backed Vec mutation are rejected.",
+            limits = "GPU-safe regions are checked, but no target has a GPU device backend. Native targets reject the selection with a Gap instead of running it on the CPU. Pointer storage, pointer-bearing calls, and allocator-backed Vec mutation are rejected.",
             accepted_example = "Square :: (value: s64) -> s64 { return value * value }\n#program_export\nAnswer :: () -> s64 {\n    #parallel_gpu for 0..3 {\n        local := Square(it)\n    }\n    return 42\n}\n",
             rejected_example = "shared: s64;\nAnswer :: () {\n    #parallel_gpu for 0..3 {\n        shared += it\n    }\n}\n",
-            rejection = "GPU fallback retains the checked parallel-region effect rules.",
+            rejection = "A GPU selection has no device backend; CPU execution is never selected.",
             evidence = "tests/capabilities.sh\n",
             status = "implemented",
             targets = gpu_targets
@@ -290,7 +290,7 @@ Features :: (arguments: []string) -> s32 {
         .{
             id = "memory.heap-allocation",
             syntax = "New(T) and free(pointer)",
-            limits = "New allocates a zeroed value and free ignores null. Types holding owned Vec storage are rejected. Native callers must release allocations once and preserve pointer lifetimes; Python and the portable VM reject direct reads after free and double frees.",
+            limits = "New allocates a zeroed value and free ignores null. Types holding owned Vec storage are rejected. Native callers must release allocations once and preserve pointer lifetimes; Python and the portable engine reject direct reads after free and double frees.",
             accepted_example = "#program_export\nAnswer :: () -> s32 {\n    pointer := New(s32)\n    if <<pointer != 0 { return 1 }\n    <<pointer = 42\n    value := <<pointer\n    free(pointer)\n    return value\n}\n",
             rejected_example = "#import \"vec\"\nHolder :: struct { items: Vec(s32); }\nAnswer :: () { pointer := New(Holder); free(pointer) }\n",
             rejection = "Heap allocation cannot bypass owned Vec cleanup.",

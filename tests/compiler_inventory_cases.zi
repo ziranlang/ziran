@@ -48,7 +48,7 @@ InventoryCapabilities :: (test: *NativeTest) -> bool {
     tiers := JsonMember(*document, document.root, "tier")
     if !InventoryKeys(test, *document, tiers, "c|go|zx") || !NativeAssert(test, CheckField(*document, tiers, "c") == "primary" && CheckField(*document, tiers, "go") == "secondary" && CheckField(*document, tiers, "zx") == "primary" &&
         CheckField(*document, JsonMember(*document, document.root, "parallel_execution"), "c") == "threads" &&
-        CheckField(*document, JsonMember(*document, document.root, "text_view_mutable_bytes"), "c") == "borrowed" && CheckField(*document, document.root, "gpu_execution") == "cpu_fallback" &&
+        CheckField(*document, JsonMember(*document, document.root, "text_view_mutable_bytes"), "c") == "borrowed" && CheckField(*document, document.root, "gpu_execution") == "gap" &&
         CheckField(*document, document.root, "diagnostics_json") == "partial", "capability execution or support contract changed") { return false }
     booleans := string.["source_and_saved_ir", "target_preflight", "text_view_opaque_pointer_check", "automatic_vec_drop", "heap_allocation", "aggregate_vec_transfer", "text_view_local_mutation_check"]
     for field: booleans { if !NativeAssert(test, JsonKindOf(*document, JsonMember(*document, document.root, field)) == .True, CheckConcat("missing capability: ", field)) { return false } }

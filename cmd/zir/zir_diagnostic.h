@@ -35,5 +35,12 @@ void DiagnosticTarget(ZirSourceSpan span, const char *code, const char *target,
                       const char *capability, const char *format, ...);
 /* A note that does not fail the command: "path:line:col: warning: ...". */
 void Warning(ZirSourceSpan span, const char *code, const char *format, ...);
+/* Error diagnostics this process has reported. */
+int DiagnosticErrorCount(void);
+/* Count an error another process, such as a forked worker, already reported. */
+void DiagnosticCountReportedError(void);
+/* A failing command always says why. Pass its exit status on return: a
+ * failure that reported no error gets one naming the command. */
+int DiagnosticEnsureFailureReported(int status, const char *command);
 
 #endif

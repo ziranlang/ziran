@@ -1,0 +1,951 @@
+// Native tool execution and jobs.
+using Files :: #import "std/file"
+using Vectors :: #import "std/vec"
+using Snapshots :: #import "std/file_tree_linux"
+using EnvironmentValues :: #import "std/environment"
+using Ordering :: #import "std/text_tools"
+using Sorting :: #import "std/sort"
+using Timing :: #import "std/timer_linux"
+using CStrings :: #import "std/c_string"
+using Cache :: #import "compiler_backend_cache"
+
+WorkerMemory :: 512
+WorkerMaximum :: 16
+ArgumentMaximum :: 1024
+TextMaximum :: 4096
+LockReadWrite :: 2
+LockCreate :: 64
+LockCloseOnExec :: 131072
+LockNoFollow :: 262144
+AffinityBytes :: 128
+Job :: struct {
+    process: s32
+    descriptor: s32
+    output: Vectors.Vec(u8)
+    finished: bool
+    ok: bool
+}
+SlotOutput :: struct {
+    file: s64
+    running: bool
+}
+PendingOutput :: struct {
+    file: s64
+    output: Vectors.Vec(u8)
+}
+WorkerLimit :: () -> s32 {
+    online := SysconfByName(84)
+    affinity := AffinityCpus()
+    cpus := ifx affinity > 0 && (online <= 0 || affinity < online) then affinity else online
+    workers := ifx cpus > 1 then cpus / 2 else 1
+    requested := EnvironmentValues.EnvironmentNumber("ZIRAN_JOBS", workers)
+    if requested > 0 && requested < workers { workers = requested }
+    memory := AvailableMemory()
+    if memory >= 0 {
+        capacity := memory / WorkerMemory
+        if capacity > 0 && capacity < workers { workers = capacity }
+        if capacity <= 0 { workers = 1 }
+    }
+    return cast(s32)(ifx workers < WorkerMaximum then workers else WorkerMaximum)
+}
+BuildLock :: (directory: string) -> s32 {
+    lock_path, made := PathJoin(directory, ".build.lock")
+    if !made { return -1 }
+    defer { ReleaseOwnedText(lock_path) }
+    name: [TextMaximum]u8
+    if !CreateDirectories(directory) || !CStrings.CopyCString(lock_path, name[:]) { return -1 }
+    descriptor := OpenLock(*name[0], LockReadWrite | LockCreate | LockCloseOnExec | LockNoFollow, 384)
+    if descriptor < 0 { return -1 }
+    info := Snapshots.PathStatus(lock_path, false)
+    if info.kind != .File { CloseDescriptor(descriptor); return -1 }
+    if FlockLock(descriptor, 2) != 0 { CloseDescriptor(descriptor); return -1 }
+    return descriptor
+}
+
+ReleaseTextVector :: (values: *Vectors.Vec(string)) {
+    owned: Vectors.Vec(string)
+    VecSwap(owned, <<values)
+    for value: owned { ReleaseOwnedText(value) }
+    VecFree(owned)
+}
+
+ReleasePointerVector :: (values: *Vectors.Vec(*u8)) {
+    owned: Vectors.Vec(*u8)
+    VecSwap(owned, <<values)
+    for value: owned { FreeRaw(cast(*void)value) }
+    VecFree(owned)
+}
+StartJob :: (commands: []string, capture: bool, report_error: bool) -> Job {
+    result: Job
+    result.process = -1
+    result.descriptor = -1
+    pointers: Vectors.Vec(*u8)
+    if commands.count == 0 || commands.count > ArgumentMaximum - 1 || !PrepareArguments(commands, *pointers) {
+        FreePointers(pointers)
+        return result
+    }
+    pipes: [2]s32 = .[-1, -1]
+    if capture && PipeRaw(*pipes[0]) != 0 {
+        FreePointers(pointers)
+        return result
+    }
+    if capture {
+        SetCloexec(pipes[0])
+        SetCloexec(pipes[1])
+    }
+    unused FlushStreams(null)
+    process := ForkRaw()
+    if process == 0 {
+        if capture { CloseDescriptor(pipes[0]) }
+        if capture {
+            if DupRaw(pipes[1], 1) < 0 || DupRaw(pipes[1], 2) < 0 { ExitChild(127) }
+            if pipes[1] > 2 { CloseDescriptor(pipes[1]) }
+        }
+        slots: [ArgumentMaximum]CapturePointer
+        for index: 0..pointers.count - 1 { slots[index].value = pointers[index] }
+        ExecChild(slots[0].value, *slots[0], report_error)
+        ExitChild(127)
+    }
+    if capture { CloseDescriptor(pipes[1]) }
+    FreePointers(pointers)
+    if process < 0 {
+        if capture { CloseDescriptor(pipes[0]) }
+        return result
+    }
+    ProfileCount("native_process_fork")
+    ProfileCount("native_process_poll")
+    result.process = process
+    result.descriptor = ifx capture then pipes[0] else -1
+    return result
+}
+PollJob :: (job: *Job) -> bool {
+    if job.finished { return true }
+    if job.descriptor >= 0 {
+        poller: PollRecord = .{job.descriptor, 1, 0}
+        ready := PollRaw(*poller, 1, 0)
+        if ready < 0 {
+            if ErrnoValue() == 4 { return false }
+            CloseDescriptor(job.descriptor); job.descriptor = -1; job.ok = false
+        } else if ready > 0 {
+            if !ReadJobOutput(job) { job.ok = false }
+        }
+    }
+    if job.descriptor < 0 {
+        status: s32 = 0
+        waited := WaitRaw(job.process, *status, 1)
+        if waited == job.process { FinishStatus(job, status); return true }
+        if waited < 0 && ErrnoValue() != 4 { job.finished = true; job.ok = false; return true }
+    }
+    return false
+}
+WaitJob :: (job: *Job) -> bool {
+    while job.descriptor >= 0 {
+        if !ReadJobOutput(job) { job.ok = false }
+    }
+    if job.finished { return job.ok }
+    status: s32 = 0
+    waited: s32
+    waited = WaitRaw(job.process, *status, 0)
+    while waited < 0 && ErrnoValue() == 4 { waited = WaitRaw(job.process, *status, 0) }
+    if waited != job.process { job.finished = true; job.ok = false; return false }
+    FinishStatus(job, status)
+    return job.ok
+}
+
+FreeJob :: (job: *Job) {
+    if job.descriptor >= 0 { CloseDescriptor(job.descriptor); job.descriptor = -1 }
+    VecFree(job.output)
+}
+TextStartsWith :: (value: string, prefix: string) -> bool {
+    return prefix.count <= value.count && value[0:prefix.count] == prefix
+}
+
+TextEndsWith :: (value: string, suffix: string) -> bool {
+    return suffix.count <= value.count && value[value.count - suffix.count:value.count] == suffix
+}
+
+TextContains :: (value: string, piece: string) -> bool {
+    at: s64 = 0
+    if piece.count == 0 { return true }
+    while at + piece.count <= value.count {
+        if value[at:at + piece.count] == piece { return true }
+        at += 1
+    }
+    return false
+}
+
+PathName :: (value: string) -> string {
+    at := value.count
+    while at > 0 && value[at - 1] != #char "/" { at -= 1 }
+    return value[at:value.count]
+}
+
+PathJoin :: (left: string, right: string) -> (path: string, ok: bool) {
+    bytes: Vectors.Vec(u8)
+    if !BuilderAppend(bytes, left) { VecFree(bytes); return "", false }
+    if left.count > 0 && left[left.count - 1] != #char "/" { if !VecPush(bytes, #char "/") { VecFree(bytes); return "", false } }
+    if !BuilderAppend(bytes, right) { VecFree(bytes); return "", false }
+    result := TextDetach(TextCopy(TextView(bytes[:])))
+    VecFree(bytes)
+    return result, true
+}
+
+PathSuffix :: (value: string, suffix: string) -> (path: string, ok: bool) {
+    bytes: Vectors.Vec(u8)
+    if !BuilderAppend(bytes, value) || !BuilderAppend(bytes, suffix) { VecFree(bytes); return "", false }
+    result := TextDetach(TextCopy(TextView(bytes[:])))
+    VecFree(bytes)
+    return result, true
+}
+
+ReleaseOwnedText :: (value: string) {
+    if value.count == 0 { return }
+    descriptor := cast(*OwnedText)(*value)
+    FreeRaw(cast(*void)descriptor.data)
+}
+AllocateText :: (value: string) -> *u8 {
+    memory := AllocateRaw(1, cast(usize)(value.count + 1))
+    if memory == null { return null }
+    target := cast(*u8)memory
+    for index: 0..value.count - 1 { target[index] = value[index] }
+    target[value.count] = 0
+    return target
+}
+
+CText :: (value: *u8) -> string {
+    result := ""
+    if value == null { return result }
+    length: s64 = 0
+    while value[length] != 0 { length += 1 }
+    descriptor := cast(*OwnedText)(*result)
+    descriptor.data = value
+    descriptor.length = cast(usize)length
+    return result
+}
+
+FreePointers :: (values: Vectors.Vec(*u8)) {
+    for value: values[:] { FreeRaw(cast(*void)value) }
+    VecFree(values)
+}
+
+FreeCStrings :: (values: Vectors.Vec(*u8)) {
+    for value: values[:] { FreeRaw(cast(*void)value) }
+    VecFree(values)
+}
+
+PrepareArguments :: (arguments: []string, pointers: *Vectors.Vec(*u8)) -> bool {
+    for argument: arguments {
+        value := AllocateText(argument)
+        if value == null || !VecPush(<<pointers, value) { return false }
+    }
+    return VecPush(<<pointers, null)
+}
+WordsInto :: (value: string, output: *Vectors.Vec(*u8)) -> bool {
+    start: s64 = -1
+    at: s64 = 0
+    while at <= value.count {
+        space := at == value.count || value[at] == #char " " || value[at] == 9
+        if !space && start < 0 { start = at }
+        if space && start >= 0 {
+            word := AllocateText(value[start:at])
+            if word == null || !VecPush(<<output, word) { return false }
+            start = -1
+        }
+        at += 1
+    }
+    return true
+}
+
+EnvironmentWords :: (name: string, output: *Vectors.Vec(*u8)) -> bool {
+    value := EnvironmentValues.EnvironmentText(name)
+    return WordsInto(value, output)
+}
+
+AddCArgument :: (output: *Vectors.Vec(*u8), flag: string, value: string) -> bool {
+    left := AllocateText(flag)
+    if left == null || !VecPush(<<output, left) { return false }
+    if value.count == 0 { return true }
+    right := AllocateText(value)
+    return right != null && VecPush(<<output, right)
+}
+
+AddSource :: (files: *Vectors.Vec(*u8), path: string) -> bool {
+    if !TextEndsWith(path, ".c") { return true }
+    for index: 0..files.count - 1 { if CText((<<files)[index]) == path { return true } }
+    value := AllocateText(path)
+    return value != null && VecPush(<<files, value)
+}
+CompileExecutable :: (out: string, name: string, threads: bool, release: bool) -> bool {
+    files: Vectors.Vec(*u8)
+    objects: Vectors.Vec(*u8)
+    base: Vectors.Vec(*u8)
+    tail: Vectors.Vec(*u8)
+    log: Vectors.Vec(u8)
+    ok := false
+    compiler_name := EnvironmentValues.EnvironmentText("CC")
+    if compiler_name.count == 0 { compiler_name = "cc" }
+    flags := EnvironmentValues.EnvironmentText("CFLAGS")
+    if flags.count == 0 { flags = ifx release then "-O3 -flto=auto" else "-O3" }
+    if !WordsInto(compiler_name, *base) || !WordsInto(flags, *base) {
+        ReleaseBuildValues(*base, *tail, *files, *objects, *log)
+        return false
+    }
+    forced_language := false
+    for argument: base[:] { if TextContains(CText(argument), "-x") { forced_language = true } }
+    compiler := CText(base[0])
+    tool := PathName(compiler)
+    if (TextContains(tool, "gcc") || TextContains(tool, "clang") || tool == "cc") && !TextContains(tool, "tcc") {
+        if !AddCArgument(*base, "-Wno-psabi", "") {
+            ReleaseBuildValues(*base, *tail, *files, *objects, *log)
+            return false
+        }
+    }
+    if !EnvironmentWords("LDFLAGS", *tail) || !EnvironmentWords("LDLIBS", *tail) {
+        ReleaseBuildValues(*base, *tail, *files, *objects, *log)
+        return false
+    }
+    if !AddCArgument(*base, "-I", out) {
+        ReleaseBuildValues(*base, *tail, *files, *objects, *log)
+        return false
+    }
+    if threads && !AddCArgument(*base, "-pthread", "") {
+        ReleaseBuildValues(*base, *tail, *files, *objects, *log)
+        return false
+    }
+    include := ToolchainIncludeDirectory()
+    if include != null && !AddCArgument(*base, "-I", CText(include)) {
+        ReleaseBuildValues(*base, *tail, *files, *objects, *log)
+        return false
+    }
+    return FinishCompile(out, name, forced_language, *base, *tail, *files, *objects, *log)
+}
+FinishCompile :: (out: string, name: string, forced_language: bool, base: *Vectors.Vec(*u8), tail: *Vectors.Vec(*u8), files: *Vectors.Vec(*u8), objects: *Vectors.Vec(*u8), log: *Vectors.Vec(u8)) -> bool {
+    index: s64 = 0
+    added := false
+    while true {
+        generated := GeneratedOutputPath(index)
+        if generated == null { break }
+        added = AddSource(files, CText(generated))
+        if !added { ReleaseBuildValues(base, tail, files, objects, log); return false }
+        index += 1
+    }
+    cursor := Files.OpenDirectory(out)
+    if !cursor.valid { ReleaseBuildValues(base, tail, files, objects, log); return false }
+    listed := true
+    while true {
+        entry := Files.NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+    entry_name := CTextN(*entry.name[0], cast(s64)entry.name_count)
+        path, made := PathJoin(out, entry_name)
+        if !made { listed = false; break }
+        added = AddSource(files, path)
+        ReleaseOwnedText(path)
+        if !added { listed = false; break }
+    }
+    Files.CloseDirectory(*cursor)
+    if !listed || files.count == 0 { ReleaseBuildValues(base, tail, files, objects, log); return false }
+    SortPaths(files)
+    object_directory, made := PathJoin(out, ".objects")
+    if !made { ReleaseBuildValues(base, tail, files, objects, log); return false }
+    created := Files.CreateDirectory(object_directory)
+    ReleaseOwnedText(object_directory)
+    if !created { ReleaseBuildValues(base, tail, files, objects, log); return false }
+    for index: 0..files.count - 1 {
+        source := CText((<<files)[index])
+        if !TextStartsWith(source, out) || source.count <= out.count || source[out.count] != #char "/" { ReleaseBuildValues(base, tail, files, objects, log); return false }
+        relative := source[out.count + 1:source.count]
+        object, object_ok := ObjectPath(out, relative)
+        if !object_ok || object == null { ReleaseBuildValues(base, tail, files, objects, log); return false }
+        if !VecPush(<<objects, object) { FreeRaw(cast(*void)object); ReleaseBuildValues(base, tail, files, objects, log); return false }
+        parent := object
+        directory_name := PathParent(CText(parent))
+        if !CreateDirectories(directory_name) { ReleaseBuildValues(base, tail, files, objects, log); return false }
+    }
+    return CompileAndLink(out, name, forced_language, base, tail, files, objects, log)
+}
+
+ObjectPath :: (out: string, relative: string) -> (path: *u8, ok: bool) {
+    root, root_ok := PathJoin(out, ".objects")
+    if !root_ok { return null, false }
+    defer { ReleaseOwnedText(root) }
+    relative_object := Cache.JoinTemporary(relative, ".o")
+    if relative_object.count == 0 { return null, false }
+    defer { ReleaseOwnedText(relative_object) }
+    joined, made := PathJoin(root, relative_object)
+    if !made { return null, false }
+    result := AllocateText(joined)
+    ReleaseOwnedText(joined)
+    return result, result != null
+}
+
+SortPaths :: (values: *Vectors.Vec(*u8)) {
+    for at: 1..values.count - 1 {
+        value := (<<values)[at]
+        before := at - 1
+        while before >= 0 && PathBefore(CText(value), CText((<<values)[before])) {
+            (<<values)[before + 1] = (<<values)[before]
+            before -= 1
+        }
+        (<<values)[before + 1] = value
+    }
+}
+
+PathBefore :: (left: string, right: string) -> bool {
+    count := ifx left.count < right.count then left.count else right.count
+    for at: 0..count - 1 {
+        if left[at] != right[at] { return left[at] < right[at] }
+    }
+    return left.count < right.count
+}
+
+ReapJob :: (job: *Job) {
+    if job.finished || job.process < 0 { return }
+    status: s32 = 0
+    waited := WaitRaw(job.process, *status, 1)
+    if waited == job.process { FinishStatus(job, status) }
+    else if waited < 0 && ErrnoValue() != 4 { job.finished = true; job.ok = false }
+}
+
+StoreJob :: (target: *Job, value: Job) {
+    target.process = value.process
+    target.descriptor = value.descriptor
+    target.finished = value.finished
+    target.ok = value.ok
+    VecSwap(target.output, value.output)
+}
+
+PollSlots :: (jobs: []Job, slots: []SlotOutput, failed: *bool) {
+    pollers: [WorkerMaximum]PollRecord
+    numbered: [WorkerMaximum]s64
+    count: s64 = 0
+    // A job whose output has closed is reaped here. Once one has finished,
+    // return without blocking so the caller frees its slot; while one has
+    // not exited yet, poll briefly. Blocking on the remaining pipes instead
+    // waits on a held or silent compiler that keeps its pipe open.
+    finished := false
+    unreaped := false
+    for slot: 0..WorkerMaximum - 1 {
+        if !slots[slot].running { continue }
+        if jobs[slot].descriptor >= 0 {
+            pollers[count] = .{jobs[slot].descriptor, 1, 0}
+            numbered[count] = slot
+            count += 1
+        } else {
+            ReapJob(*jobs[slot])
+            if jobs[slot].finished { finished = true } else { unreaped = true }
+        }
+    }
+    if finished { return }
+    if count > 0 {
+        ready := PollRaw(*pollers[0], cast(u64)count, ifx unreaped then 1 else -1)
+        if ready < 0 && ErrnoValue() != 4 { failed.* = true }
+        for index: 0..count - 1 {
+            slot := numbered[index]
+            if pollers[index].revents == 0 || !slots[slot].running { continue }
+            if !ReadJobOutput(*jobs[slot]) { failed.* = true; ReapJob(*jobs[slot]) }
+            else { ReapJob(*jobs[slot]) }
+        }
+    } else {
+        SleepMilliseconds(1)
+    }
+}
+
+CompileAndLink :: (out: string, name: string, forced_language: bool, base: *Vectors.Vec(*u8), tail: *Vectors.Vec(*u8), files: *Vectors.Vec(*u8), objects: *Vectors.Vec(*u8), log: *Vectors.Vec(u8)) -> bool {
+    base_text := PointerTexts(base)
+    requested_pipe := Cache.RequestedPipe(base_text[:])
+    cache := Cache.Open(base_text[:], out, name)
+    VecFree(base_text)
+    workers := WorkerLimit()
+    if workers > files.count { workers = cast(s32)files.count }
+    for slot: 0..workers - 1 { ProfileCount("native_worker_slots") }
+    identity_started := ProfileStart()
+    ProfileEnd("native.toolchain", identity_started)
+    objects_started := ProfileStart()
+    outputs: Vectors.Vec(PendingOutput)
+    outputs_ready := true
+    capture := DiagnosticJsonEnabled() != 0
+    compile_ok := true
+    slots: [WorkerMaximum]SlotOutput
+    jobs: [WorkerMaximum]Job
+    for index: 0..WorkerMaximum - 1 {
+        slots[index].file = -1
+        slots[index].running = false
+        jobs[index].process = -1
+        jobs[index].descriptor = -1
+    }
+    next_file: s64 = 0
+    running: s64 = 0
+    if capture { outputs_ready = VecResize(outputs, files.count) }
+    if !outputs_ready { compile_ok = false }
+    while running > 0 || (compile_ok && next_file < files.count) {
+        for slot: 0..cast(s64)workers - 1 {
+            if !compile_ok || next_file >= files.count || slots[slot].file >= 0 { continue }
+            while next_file < files.count && Cache.Hit(cache, CText((<<objects)[next_file])) {
+                ProfileCount("native_object_reuse")
+                next_file += 1
+            }
+            if next_file >= files.count { break }
+            index := next_file
+            next_file += 1
+            ProfileCount("native_object_compile")
+            arguments := CloneTexts(base)
+            piped := Cache.Piped(cache) && !requested_pipe
+            added := false
+            started := false
+            if piped {
+                added = AddTextArgument(*arguments, "-pipe", "")
+                if added { ProfileCount("native_object_pipe") }
+            } else { added = true }
+            object := CText((<<objects)[index])
+            dependency, dependency_ok := PathSuffix(object, ".d")
+            if dependency_ok {
+                Files.RemoveFile(dependency)
+                if cache != null {
+                    AddDependencyArguments(*arguments, dependency)
+                    ReleaseOwnedText(dependency)
+                } else { ReleaseOwnedText(dependency) }
+            }
+            if added {
+                added = AddObjectArguments(*arguments, CText((<<files)[index]), object)
+            }
+            if added {
+                inputs, inputs_ok := PathSuffix(object, ".inputs")
+                if inputs_ok {
+                    Files.RemoveFile(inputs)
+                    ReleaseOwnedText(inputs)
+                } else { added = false }
+            }
+            if added {
+                Files.RemoveFile(object)
+                job := StartJob(arguments[:], capture, true)
+                StoreJob(*jobs[slot], job)
+                if jobs[slot].process >= 0 {
+                    slots[slot].file = index
+                    slots[slot].running = true
+                    running += 1
+                    started = true
+                }
+            }
+            FreeArguments(*arguments)
+            if !added || !started { compile_ok = false; break }
+        }
+        if running == 0 { break }
+        poll_failed := false
+        PollSlots(jobs[:], slots[:], *poll_failed)
+        if poll_failed { compile_ok = false }
+        for slot: 0..WorkerMaximum - 1 {
+            if !slots[slot].running { continue }
+            finished := jobs[slot].finished
+            if finished && !jobs[slot].ok {
+                compile_ok = false
+            }
+            object := ""
+            if finished {
+                object = CText((<<objects)[slots[slot].file])
+                info := Snapshots.PathStatus(object, false)
+                if jobs[slot].ok && (!info.identity_valid || info.kind != .File || info.size <= 0) { jobs[slot].ok = false; compile_ok = false }
+                if jobs[slot].ok && cache != null {
+                    record_started := ProfileStart()
+                    Cache.Record(cache, object, CText((<<files)[slots[slot].file]))
+                    ProfileEnd("native.cache.record", record_started)
+                }
+            }
+            if finished {
+                if capture && outputs_ready {
+                    saved := *outputs[slots[slot].file]
+                    VecSwap(saved.output, jobs[slot].output)
+                }
+                job := *jobs[slot]
+                FreeJob(job)
+                slots[slot].file = -1
+                slots[slot].running = false
+                running -= 1
+            }
+        }
+    }
+    if capture && outputs_ready {
+        for index: 0..files.count - 1 {
+            saved := *outputs[index]
+            if saved.output.count > 0 { AppendLog(log, saved.output[:]) }
+            VecFree(saved.output)
+        }
+    }
+    VecFree(outputs)
+    ProfileEnd("native.objects", objects_started)
+    for slot: 0..WorkerMaximum - 1 {
+        if slots[slot].file >= 0 {
+            job := *jobs[slot]
+            FreeJob(job)
+        }
+        slots[slot].file = -1
+        slots[slot].running = false
+    }
+    if !compile_ok {
+        Cache.Close(cache)
+        ReportToolchain(out, log, false)
+        ReleaseBuildValues(base, tail, files, objects, log)
+        return false
+    }
+    return LinkOwnedObjects(out, name, forced_language, base, tail, files, objects, log, cache)
+}
+PointerTexts :: (source: *Vectors.Vec(*u8)) -> Vectors.Vec(string) {
+    values: Vectors.Vec(*u8)
+    VecSwap(values, <<source)
+    result: Vectors.Vec(string)
+    for value: values { VecPush(result, CText(value)) }
+    VecSwap(values, <<source)
+    return result
+}
+
+CloneTexts :: (source: *Vectors.Vec(*u8)) -> Vectors.Vec(string) {
+    values: Vectors.Vec(*u8)
+    VecSwap(values, <<source)
+    result: Vectors.Vec(string)
+    for value: values {
+        owned_text := AllocateText(CText(value))
+        if owned_text == null || !VecPush(result, CText(owned_text)) {
+            if owned_text != null { FreeRaw(cast(*void)owned_text) }
+            FreeArguments(*result)
+            return .{}
+        }
+    }
+    VecSwap(values, <<source)
+    return result
+}
+
+FreeArguments :: (values: *Vectors.Vec(string)) {
+    owned: Vectors.Vec(string)
+    VecSwap(owned, <<values)
+    for value: owned { ReleaseOwnedText(value) }
+    VecFree(owned)
+}
+
+AddDependencyArguments :: (arguments: *Vectors.Vec(string), dependency: string) -> bool {
+    if !AddTextArgument(arguments, "-MD", "") { return false }
+    if !AddTextArgument(arguments, "-MF", dependency) { return false }
+    return AddTextArgument(arguments, "-MT", "ziran-cache")
+}
+
+AddObjectArguments :: (arguments: *Vectors.Vec(string), source: string, object: string) -> bool {
+    if !AddTextArgument(arguments, "-c", "") { return false }
+    if !AddTextArgument(arguments, source, "") { return false }
+    if !AddTextArgument(arguments, "-o", "") { return false }
+    return AddTextArgument(arguments, object, "")
+}
+
+AddTextArgument :: (output: *Vectors.Vec(string), flag: string, value: string) -> bool {
+    left := AllocateText(flag)
+    if left == null { return false }
+    if !VecPush(<<output, CText(left)) { FreeRaw(cast(*void)left); return false }
+    if value.count == 0 { return true }
+    right := AllocateText(value)
+    if right == null { return false }
+    return VecPush(<<output, CText(right))
+}
+
+// Tool output is kept from the start, separated by a newline per job and
+// with NUL shown as '?'. One byte past ToolLogMaximum records that more was
+// cut, which ReportToolchain reports as truncation.
+AppendLog :: (log: *Vectors.Vec(u8), output: []u8) -> bool {
+    if output.count == 0 || log.count > ToolLogMaximum { return true }
+    if log.count > 0 && (<<log)[log.count - 1] != 10 { if !VecPush(<<log, cast(u8)10) { return false } }
+    for byte: output {
+        if log.count > ToolLogMaximum { return true }
+        if byte == 0 { if !VecPush(<<log, cast(u8)63) { return false } }
+        else { if !VecPush(<<log, byte) { return false } }
+    }
+    return true
+}
+LinkOwnedObjects :: (out: string, name: string, forced_language: bool, base: *Vectors.Vec(*u8), tail: *Vectors.Vec(*u8), files: *Vectors.Vec(*u8), objects: *Vectors.Vec(*u8), log: *Vectors.Vec(u8), cache: *Cache.BuildCache) -> bool {
+    link_directory := Snapshots.CreateTemporaryDirectory(out, name)
+    if link_directory.count == 0 {
+        Cache.Close(cache); ReportToolchain(out, log, false); ReleaseBuildValues(base, tail, files, objects, log); return false
+    }
+    defer { ReleaseOwnedText(link_directory) }
+    temporary, temporary_ok := PathJoin(link_directory, name)
+        if !temporary_ok { Snapshots.RemoveTree(link_directory); Cache.Close(cache); ReportToolchain(out, log, false); ReleaseBuildValues(base, tail, files, objects, log); return false }
+    defer { ReleaseOwnedText(temporary) }
+    arguments := CloneTexts(base)
+    tail_values: Vectors.Vec(*u8)
+    VecSwap(tail_values, <<tail)
+    ok := true
+    added := false
+    if forced_language {
+        added = AddTextArgument(*arguments, "-x", "none")
+        ok = added
+    }
+    for index: 0..objects.count - 1 {
+        if ok { added = AddTextArgument(*arguments, CText((<<objects)[index]), ""); ok = added }
+    }
+    if ok { added = AddTextArgument(*arguments, "-o", temporary); ok = added }
+    for value: tail_values[:] { if ok { added = AddTextArgument(*arguments, CText(value), ""); ok = added } }
+    VecSwap(tail_values, <<tail)
+    if ok { added = AddTextArgument(*arguments, "-lm", ""); ok = added }
+    if !ok {
+        FreeArguments(*arguments)
+        Snapshots.RemoveTree(link_directory); Cache.Close(cache); ReportToolchain(out, log, false); ReleaseBuildValues(base, tail, files, objects, log); return false
+    }
+    link_started := ProfileStart()
+    job := StartJob(arguments[:], DiagnosticJsonEnabled() != 0, true)
+    FreeArguments(*arguments)
+    linked := job.process >= 0 && WaitJob(*job)
+    AppendLog(log, job.output[:])
+    FreeJob(*job)
+    if linked && !MoveLinkOutput(link_directory, out, name) { linked = false }
+    Snapshots.RemoveTree(link_directory)
+    Cache.Close(cache)
+    ProfileEnd("native.link", link_started)
+    ReportToolchain(out, log, linked)
+    ReleaseBuildValues(base, tail, files, objects, log)
+    return linked
+}
+
+ReleaseBuildValues :: (base: *Vectors.Vec(*u8), tail: *Vectors.Vec(*u8), files: *Vectors.Vec(*u8), objects: *Vectors.Vec(*u8), log: *Vectors.Vec(u8)) {
+    ReleasePointerVector(base); ReleasePointerVector(tail)
+    ReleasePointerVector(files); ReleasePointerVector(objects); VecFree(<<log)
+}
+MoveLinkOutput :: (directory: string, out: string, name: string) -> bool {
+    temporary_path, temporary_ok := PathJoin(directory, name)
+    if !temporary_ok { return false }
+    defer { ReleaseOwnedText(temporary_path) }
+    executable := Snapshots.PathStatus(temporary_path, false)
+    if executable.kind != .File || executable.size <= 0 || (executable.mode & 73) == 0 { return false }
+    cursor := Files.OpenDirectory(directory)
+    if !cursor.valid { return false }
+    moved := true
+    while moved {
+        entry := Files.NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        entry_name := CTextN(*entry.name[0], cast(s64)entry.name_count)
+        if entry_name == "." || entry_name == ".." || entry_name == name { continue }
+        source, source_ok := PathJoin(directory, entry_name)
+        destination, destination_ok := PathJoin(out, entry_name)
+        moved = source_ok && destination_ok && Files.RenamePath(source, destination)
+        ReleaseOwnedText(source)
+        ReleaseOwnedText(destination)
+    }
+    failed := cursor.failed
+    Files.CloseDirectory(*cursor)
+    if !moved || failed { return false }
+    final, final_ok := PathJoin(out, name)
+    if !final_ok { return false }
+    defer { ReleaseOwnedText(final) }
+    return Files.RenamePath(temporary_path, final)
+}
+
+ReportToolchain :: (out: string, log: *Vectors.Vec(u8), ok: bool) {
+    if ok && log.count == 0 { VecFree(<<log); return }
+    truncated := log.count > ToolLogMaximum
+    kept := ifx truncated then ToolLogMaximum else log.count
+    text: Vectors.Vec(u8)
+    defer { VecFree(text) }
+    if !ok {
+        unused Cache.AppendText(*text, "compiling "); unused Cache.AppendText(*text, out); unused Cache.AppendText(*text, " failed")
+        if kept > 0 { unused Cache.AppendText(*text, ": ") }
+    }
+    for index: cast(s64)0..kept - 1 { if !VecPush(text, (<<log)[index]) { VecFree(<<log); return } }
+    VecFree(<<log)
+    if truncated { unused Cache.AppendText(*text, " [output truncated]") }
+    Report(ok, "zir_c.toolchain", TextView(text[:]))
+}
+
+// A toolchain warning after a successful build, or the build's failure
+// diagnostic for the native C toolchain capability.
+Report :: (ok: bool, code: string, message: string) {
+    message_pointer := AllocateText(message)
+    empty := AllocateText("")
+    code_pointer := AllocateText(code)
+    if message_pointer != null && empty != null && code_pointer != null {
+        if ok {
+            format := AllocateText("%s")
+            if format != null { WarningForeign(.{}, code_pointer, format, message_pointer) }
+            FreeRaw(cast(*void)format)
+        } else {
+            target := AllocateText("c")
+            capability := AllocateText("toolchain.native")
+            format := AllocateText("%s%s")
+            if target != null && capability != null && format != null {
+                DiagnosticTargetForeign(.{}, code_pointer, target, capability, format, message_pointer, empty)
+            }
+            FreeRaw(cast(*void)target); FreeRaw(cast(*void)capability); FreeRaw(cast(*void)format)
+        }
+    }
+    FreeRaw(cast(*void)message_pointer); FreeRaw(cast(*void)empty); FreeRaw(cast(*void)code_pointer)
+}
+ToolLogMaximum :: 4095
+
+DiagnosticSpan :: struct {
+    context: *u8
+    file: s32
+    line: s32
+    column: s32
+    end_line: s32
+    end_column: s32
+}
+
+AffinityCpus :: () -> s64 {
+    online := SysconfByName(84)
+    mask: [AffinityBytes]u8
+    if SchedGetAffinity(0, AffinityBytes, *mask[0]) != 0 { return online }
+    count: s64 = 0
+    for byte: mask {
+        for bit: 0..7 {
+            if (byte & (cast(u8)1 << cast(u8)bit)) != 0 { count += 1 }
+        }
+    }
+    return count
+}
+
+AvailableMemory :: () -> s64 {
+    name: [64]u8
+    if !CStrings.CopyCString("/proc/meminfo", name[:]) { return -1 }
+    descriptor := OpenReadFile(*name[0])
+    if descriptor < 0 { return -1 }
+    bytes: [4096]u8
+    count := ReadDescriptor(descriptor, *bytes[0], 4095)
+    CloseDescriptor(descriptor)
+    if count <= 0 { return -1 }
+    text := CTextN(*bytes[0], count)
+    at := Ordering.TextFind(text, "MemAvailable:", 0)
+    if at < 0 { return -1 }
+    at += 13
+    while at < text.count && (text[at] == #char " " || text[at] == 9) { at += 1 }
+    start := at
+    while at < text.count && text[at] >= #char "0" && text[at] <= #char "9" { at += 1 }
+    if at == start { return -1 }
+    value := NumberText(text[start:at])
+    return value / 1024
+}
+
+NumberText :: (value: string) -> s64 {
+    result: s64 = 0
+    for byte: value { result = result * 10 + cast(s64)(byte - cast(u8)#char "0") }
+    return result
+}
+CTextN :: (value: *u8, length: s64) -> string {
+    result := ""
+    if value == null { return result }
+    descriptor := cast(*OwnedText)(*result)
+    descriptor.data = value
+    descriptor.length = cast(usize)length
+    return result
+}
+
+CreateDirectories :: (path: string) -> bool {
+    name: [TextMaximum]u8
+    if path.count >= TextMaximum || !CStrings.CopyCString(path, name[:]) { return false }
+    at: s64 = 1
+    while at < path.count {
+        if name[at] != cast(u8)#char "/" { at += 1; continue }
+        name[at] = 0
+        status := MakeDirectory(*name[0], 493)
+        if status != 0 && ErrnoValue() != 17 { return false }
+        name[at] = cast(u8)#char "/"
+        at += 1
+    }
+    status := MakeDirectory(*name[0], 493)
+    return status == 0 || ErrnoValue() == 17
+}
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+SysconfByName :: (name: s32) -> s64 #foreign libc "sysconf";
+SchedGetAffinity :: (process: s32, size: usize, mask: *u8) -> s32 #foreign libc "sched_getaffinity";
+OpenReadFile :: (path: *u8) -> s32 #foreign libc "open";
+CloseDescriptor :: (descriptor: s32) -> s32 #foreign libc "close";
+ReadDescriptor :: (descriptor: s32, output: *u8, count: usize) -> s64 #foreign libc "read";
+MakeDirectory :: (path: *u8, mode: s32) -> s32 #foreign libc "mkdir";
+OpenLock :: (path: *u8, flags: s32, mode: u32) -> s32 #foreign libc "open";
+FlockLock :: (descriptor: s32, operation: s32) -> s32 #foreign libc "flock";
+PipeRaw :: (fds: *s32) -> s32 #foreign libc "pipe";
+FcntlCloexec :: (descriptor: s32, command: s32, value: s32) -> s32 #foreign libc "fcntl";
+ForkRaw :: () -> s32 #foreign libc "fork";
+DupRaw :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
+ExitChild :: (code: s32) -> void #foreign libc "_exit";
+WaitRaw :: (process: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
+ErrnoLocation :: () -> *s32 #foreign libc "__errno_location";
+AllocateRaw :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+FreeRaw :: (memory: *void) #foreign libc "free";
+FlushStreams :: (file: *void) -> s32 #foreign libc "fflush";
+DiagnosticJsonEnabled :: () -> s32 #foreign compiler "DiagnosticJsonEnabled";
+GeneratedOutputPath :: (index: s64) -> *u8 #foreign compiler "GeneratedOutputPath";
+ToolchainIncludeDirectory :: () -> *u8 #foreign compiler "ToolchainIncludeDirectory";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ProfileEndForeign :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
+ProfileCountForeign :: (counter: *u8) #foreign compiler "ProfileCount";
+
+ErrnoValue :: () -> s32 { return ErrnoLocation().* }
+SetCloexec :: (descriptor: s32) { unused FcntlCloexec(descriptor, 2, 1) }
+PollRecord :: struct { descriptor: s32; events: s16; revents: s16 }
+PollRaw :: (fds: *PollRecord, count: u64, timeout: s32) -> s32 #foreign libc "poll";
+OwnedText :: struct { data: *u8; length: usize }
+ProfileNames: Vectors.Vec(string);
+
+FinishStatus :: (job: *Job, status: s32) {
+    job.finished = true
+    job.ok = (status & 127) == 0 && ((status >> 8) & 255) == 0
+}
+
+ReadJobOutput :: (job: *Job) -> bool {
+    bytes: [4096]u8
+    count: s64
+    count = ReadDescriptor(job.descriptor, *bytes[0], 4096)
+    while count < 0 && ErrnoValue() == 4 { count = ReadDescriptor(job.descriptor, *bytes[0], 4096) }
+    if count < 0 { CloseDescriptor(job.descriptor); job.descriptor = -1; return false }
+    if count == 0 { CloseDescriptor(job.descriptor); job.descriptor = -1; return true }
+    index: s64 = 0
+    while index < count {
+        if !VecPush(job.output, bytes[index]) { return false }
+        index += 1
+    }
+    return true
+}
+
+ExecChild :: (path: *u8, arguments: *CapturePointer, report_error: bool) {
+    if ExecRaw(path, arguments) == 0 { return }
+    if report_error {
+        prefix := "cannot run "
+        value := CText(path)
+        prefix_message := AllocateText(prefix)
+        path_message := AllocateText(value)
+        reason := Strerror(ErrnoValue())
+        reason_text := CText(reason)
+        separator := AllocateText(": ")
+        ending := AllocateText("\n")
+        if prefix_message != null { unused WriteDescriptor(2, prefix_message, cast(usize)prefix.count); FreeRaw(cast(*void)prefix_message) }
+        if path_message != null { unused WriteDescriptor(2, path_message, cast(usize)value.count); FreeRaw(cast(*void)path_message) }
+        if separator != null { unused WriteDescriptor(2, separator, cast(usize)2); FreeRaw(cast(*void)separator) }
+        if reason != null { unused WriteDescriptor(2, reason, cast(usize)reason_text.count) }
+        if ending != null { unused WriteDescriptor(2, ending, cast(usize)1); FreeRaw(cast(*void)ending) }
+    }
+}
+CapturePointer :: struct { value: *u8 }
+WriteDescriptor :: (descriptor: s32, output: *u8, count: usize) -> s64 #foreign libc "write";
+ExecRaw :: (path: *u8, arguments: *CapturePointer) -> s32 #foreign libc "execvp";
+Strerror :: (number: s32) -> *u8 #foreign libc "strerror";
+WarningForeign :: (span: DiagnosticSpan, code: *u8, format: *u8, value: *u8) #foreign compiler "Warning";
+DiagnosticTargetForeign :: (span: DiagnosticSpan, code: *u8, target: *u8, capability: *u8, format: *u8, first: *u8, second: *u8) #foreign compiler "DiagnosticTarget";
+ProfileCount :: (counter: string) {
+    value := ProfileName(counter)
+    if value != null { ProfileCountForeign(value) }
+}
+
+ProfileEnd :: (phase: string, started: u64) {
+    value := ProfileName(phase)
+    if value == null { return }
+    ProfileEndForeign(value, started)
+}
+ProfileName :: (name: string) -> *u8 {
+    for value: ProfileNames {
+        if value == name {
+            descriptor := cast(*OwnedText)(*value)
+            return descriptor.data
+        }
+    }
+    pointer := AllocateText(name)
+    if pointer == null { return null }
+    owned := CText(pointer)
+    if !VecPush(ProfileNames, owned) { FreeRaw(cast(*void)pointer); return null }
+    descriptor := cast(*OwnedText)(*owned)
+    return descriptor.data
+}

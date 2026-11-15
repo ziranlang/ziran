@@ -393,30 +393,40 @@ main :: () -> s32 {
             allocated.diagnostic.instruction, allocated.diagnostic.operand,
             allocated.diagnostic.virtual)
     }
+    // Every execution of an allocate takes fresh frame arena bytes, stores
+    // the initial value through their address and names them with a new
+    // pointer slot on the frame's chain, kept in two frame words.
     allocate_program := Lower.MachineProgramView(*allocate_owner)
-    allocate_id := FindOpcode(allocate_program, .StackAddress)
+    allocate_id := FindOpcode(allocate_program, .ArenaAllocate)
     store_id := FindOpcode(allocate_program, .Store)
-    if !Check(allocated.problem == .None && FindOpcode(allocate_program, .Allocate) < 0,
+    create_id := FindOpcode(allocate_program, .PointerCreate)
+    function := allocate_program.functions[0]
+    if !Check(allocated.problem == .None && FindOpcode(allocate_program, .Allocate) < 0 &&
+            FindOpcode(allocate_program, .StackAddress) < 0,
             "local allocation is resolved before machine encoding") ||
-        !Check(allocate_id >= 0 && store_id >= 0 && allocate_program.stack_objects.count == 1 &&
-            allocate_program.stack_objects[0].kind == .Local,
-            "local allocation owns fixed frame storage") ||
-        !Check(allocate_program.instructions[allocate_id].operand_count == 2 &&
+        !Check(allocate_id >= 0 && store_id > allocate_id && create_id > store_id &&
+            allocate_program.stack_objects.count == 2 && function.arena_mark != 0 &&
+            function.pointer_chain != 0,
+            "local allocation takes frame arena storage and a frame-chained slot") ||
+        !Check(allocate_program.instructions[allocate_id].operand_count == 3 &&
             allocate_program.operands[allocate_program.instructions[allocate_id].operand_begin].role == .Define &&
-            allocate_program.operands[allocate_program.instructions[allocate_id].operand_begin + 1].kind == .StackObject &&
-            allocate_program.instructions[store_id].operand_count == 2,
-            "local allocation emits address and initializer store") { return 1 }
-    allocate_result := allocate_program.instructions[allocate_id].operand_begin
-    allocate_program.operands[allocate_result].role = .Use
-    if !Check(Verify.MachineVerify(allocate_program, limits).problem == .Instruction,
-        "malformed stack address is rejected") { return 1 }
-    allocate_program.operands[allocate_result].role = .Define
+            allocate_program.instructions[store_id].operand_count == 2 &&
+            allocate_program.instructions[create_id].operand_count == 6,
+            "local allocation emits arena storage, initializer store and pointer slot") { return 1 }
+    // The slot's token defining the storage address again is rejected.
+    storage := allocate_program.operands[allocate_program.instructions[allocate_id].operand_begin].id
+    token := allocate_program.instructions[create_id].operand_begin
+    token_value := allocate_program.operands[token].id
+    allocate_program.operands[token].id = storage
+    if !Check(Verify.MachineVerify(allocate_program, limits).problem == .Virtual,
+        "a value defined twice is rejected") { return 1 }
+    allocate_program.operands[token].id = token_value
 
     instruction_limit := limits; instruction_limit.instructions = 1
     limited: Machine.MachineOwner
     if !Check(LowerFixture(*limited, target, instruction_limit).problem == .Limit,
         "instruction limit") { return 1 }
-    unsupported := Target.TargetDescribe(.AArch64, .Linux).target
+    unsupported := Target.TargetDescribe(.ArmV7, .Linux).target
     if !Check(LowerFixture(*limited, unsupported, limits).problem == .UnsupportedTarget,
         "unsupported target is explicit") { return 1 }
     invalid := target; invalid.pointer_bits = 32

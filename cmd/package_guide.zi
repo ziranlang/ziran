@@ -50,7 +50,7 @@ Guide :: (arguments: []string) -> s32 {
     PkgPrint("  Direct owned Vec locals and parameters drop at scope exit.\n", false)
     PkgPrint("  Aggregates containing Vec cannot be copied, passed, or returned.\n", false)
     PkgPrint("  TextView of mutable backing bytes has target-dependent aliasing.\n", false)
-    PkgPrint("  GPU annotations currently use a CPU fallback.\n\n", false)
+    PkgPrint("  GPU selections report an explicit device Gap.\n\n", false)
     PkgPrint("See docs/IMPLEMENTATION_STATUS.md and docs/OWNED_VALUES.md for details.\n", false)
     return 0
 }

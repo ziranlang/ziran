@@ -1,0 +1,975 @@
+// Native compiler object-cache identity and dependency fingerprints.
+using Files :: #import "std/file"
+using Vectors :: #import "std/vec"
+using Snapshots :: #import "std/file_tree_linux"
+using EnvironmentValues :: #import "std/environment"
+using Ordering :: #import "std/text_tools"
+using Sorting :: #import "std/sort"
+using Processes :: #import "std/process_run_linux"
+using CStrings :: #import "std/c_string"
+
+ItemMaximum :: 16384
+ProbeMaximum :: 65536
+PathMaximum :: 4096
+CacheMagic :: "Ziran C cache 1\n"
+IdentitySeed :: "Ziran native object cache 4"
+
+Digest :: struct { bytes: [32]u8 }
+Fingerprint :: struct {
+    path: string
+    parent: string
+    digest: Digest
+    info: Snapshots.PathInfo
+    unsafe: bool
+    probes: Vectors.Vec(string)
+    directory: bool
+    recent: bool
+}
+BuildCache :: struct {
+    identity: Digest
+    roots: Vectors.Vec(string)
+    output: string
+    executable: string
+    started_seconds: s64
+    started_nanoseconds: s64
+    files: Vectors.Vec(Fingerprint)
+    candidates: Vectors.Vec(Fingerprint)
+    piped: bool
+}
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+ClockRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
+ClockValue :: struct { seconds: isize; nanoseconds: isize }
+ShaBegin :: (hash: *void) #foreign compiler "Sha256Begin";
+ShaAdd :: (hash: *void, bytes: *u8, count: usize) #foreign compiler "Sha256Add";
+ShaEnd :: (hash: *void, output: *u8) #foreign compiler "Sha256End";
+AllocateRaw :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+FreeOwned :: (memory: *void) #foreign libc "free";
+ProfileCountForeign :: (name: *u8) #foreign compiler "ProfileCount";
+OwnProcessId :: () -> s32 #foreign libc "getpid";
+CurrentDirectory :: (output: *u8, size: usize) -> *u8 #foreign libc "getcwd";
+ProfileNames: Vectors.Vec(string);
+
+HashState :: struct { bytes: [128]u8 }
+HashNew :: () -> HashState { result: HashState; ShaBegin(cast(*void)*result); return result }
+HashByte :: (hash: *HashState, value: u8) { byte: u8 = value; ShaAdd(cast(*void)hash, cast(*u8)*byte, 1) }
+HashBytes :: (hash: *HashState, value: string) {
+    for byte: value { HashByte(hash, byte) }
+}
+HashInteger :: (hash: *HashState, value: u64) {
+    bytes: [8]u8
+    for index: 0..7 { bytes[index] = cast(u8)(value >> cast(u64)(8 * index)) }
+    HashBytes(hash, TextView(bytes[:]))
+}
+HashText :: (hash: *HashState, value: string) {
+    HashInteger(hash, cast(u64)value.count)
+    for byte: value { HashByte(hash, byte) }
+}
+HashFinish :: (hash: *HashState, output: *Digest) { ShaEnd(cast(*void)hash, output.bytes.data) }
+ProfileCount :: (name: string) {
+    pointer := ProfileName(name)
+    if pointer != null { ProfileCountForeign(pointer) }
+}
+ProfileName :: (name: string) -> *u8 {
+    for value: ProfileNames {
+        if value == name {
+            descriptor := cast(*View)(*value)
+            return descriptor.data
+        }
+    }
+    value := AllocateRaw(1, cast(usize)(name.count + 1))
+    if value == null { return null }
+    pointer := cast(*u8)value
+    if !CStrings.CopyCString(name, BytesFromPointer(pointer, cast(u64)(name.count + 1))) { FreeOwned(value); return null }
+    stored := ""
+    descriptor := cast(*View)(*stored)
+    descriptor.data = pointer
+    descriptor.count = cast(usize)name.count
+    if !VecPush(ProfileNames, stored) { FreeOwned(value); return null }
+    return pointer
+}
+BytesFromPointer :: (data: *u8, count: u64) -> []u8 {
+    result: []u8
+    if data == null { return result }
+    descriptor := cast(*ByteView)(*result)
+    descriptor.data = data
+    descriptor.count = cast(s64)count
+    return result
+}
+ByteView :: struct { data: *u8; count: s64 }
+
+Owned :: (value: string) -> string { return TextDetach(TextCopy(value)) }
+Release :: (value: string) {
+    if value.count == 0 { return }
+    descriptor := cast(*View)(*value)
+    FreeOwned(cast(*void)descriptor.data)
+}
+View :: struct { data: *u8; count: usize }
+SameText :: (left: string, right: string) -> bool { return left == right }
+HasPrefix :: (value: string, prefix: string) -> bool { return Ordering.TextHasPrefix(value, prefix) }
+HasSuffix :: (value: string, suffix: string) -> bool { return Ordering.TextHasSuffix(value, suffix) }
+Contains :: (value: string, piece: string) -> bool { return Ordering.TextContains(value, piece) }
+TextName :: (value: string) -> string {
+    at := value.count
+    while at > 0 && value[at - 1] != #char "/" { at -= 1 }
+    return value[at:value.count]
+}
+JoinTemporary :: (left: string, right: string) -> string {
+    builder: Vectors.Vec(u8)
+    if !BuilderAppend(builder, left) || !BuilderAppend(builder, right) {
+        VecFree(builder)
+        return ""
+    }
+    return TextDetach(TextCopy(TextView(builder[:])))
+}
+JoinPath :: (left: string, right: string) -> string {
+    builder: Vectors.Vec(u8)
+    if !BuilderAppend(builder, left) { VecFree(builder); return "" }
+    if left.count > 0 && left[left.count - 1] != #char "/" {
+        if !VecPush(builder, #char "/") { VecFree(builder); return "" }
+    }
+    if !BuilderAppend(builder, right) { VecFree(builder); return "" }
+    return TextDetach(TextCopy(TextView(builder[:])))
+}
+AppendOwned :: (values: *Vectors.Vec(string), value: string) -> bool {
+    owned := Owned(value)
+    if owned.count == 0 && value.count != 0 { return false }
+    if !VecPush(<<values, owned) { Release(owned); return false }
+    return true
+}
+ClearNames :: (values: *Vectors.Vec(string)) {
+    owned: Vectors.Vec(string)
+    VecSwap(owned, <<values)
+    for value: owned { Release(value) }
+    VecSwap(owned, <<values)
+    VecFree(<<values)
+}
+Executable :: (command: string) -> string {
+    if Contains(command, "/") { return Resolved(command) }
+    search := EnvironmentValues.EnvironmentText("PATH")
+    paths := ifx search.count == 0 then "/bin:/usr/bin" else search
+    pieces := Ordering.TextSplit(paths, ":")
+    result := ""
+    for piece: pieces {
+        directory := ifx piece.count == 0 then "." else piece
+        candidate := JoinPath(directory, command)
+        if candidate.count > 0 && Runnable(candidate) {
+            result = Resolved(candidate)
+            Release(candidate)
+            break
+        }
+        Release(candidate)
+    }
+    return result
+}
+Runnable :: (path: string) -> bool {
+    info := Snapshots.PathStatus(path)
+    return info.kind == .File && (info.mode & 73) != 0
+}
+Resolved :: (path: string) -> string {
+    resolved := Snapshots.ResolvePath(path)
+    result := TextDetach(TextCopy(resolved))
+    if result.count == 0 { return "" }
+    return result
+}
+NativeImage :: (path: string) -> bool {
+    bytes: Vectors.Vec(u8)
+    if !Files.ReadFileInto(path, *bytes) || bytes.count < 4 { VecFree(bytes); return false }
+    result := (bytes[0] == 127 && bytes[1] == #char "E" && bytes[2] == #char "L" && bytes[3] == #char "F") ||
+        (bytes[0] == 207 && bytes[1] == 250 && bytes[2] == 237 && bytes[3] == 254) ||
+        (bytes[0] == 254 && bytes[1] == 237 && bytes[2] == 250 && bytes[3] == 207) ||
+        (bytes[0] == 202 && bytes[1] == 254 && bytes[2] == 186 && bytes[3] == 190)
+    VecFree(bytes)
+    return result
+}
+PairedArgument :: (value: string) -> bool {
+    values: [15]string = .["-I", "-isystem", "-iquote", "-idirafter", "-include", "-imacros", "-isysroot", "--sysroot", "-target", "--target", "-x", "-D", "-U", "-B", "-Xlinker"]
+    for candidate: values { if value == candidate { return true } }
+    return false
+}
+RequestedPipe :: (arguments: []string) -> bool {
+    index: s64 = 1
+    while index < arguments.count {
+        if PairedArgument(arguments[index]) { index += 2; continue }
+        if arguments[index] == "-pipe" { return true }
+        index += 1
+    }
+    return false
+}
+UnsupportedEffects :: () -> bool {
+    names: [6]string = .["DEPENDENCIES_OUTPUT", "SUNPRO_DEPENDENCIES", "GCC_DIAGNOSTICS_LOG", "GCC_COMPARE_DEBUG", "GCC_EXTRA_DIAGNOSTIC_OUTPUT", "EXPERIMENTAL_SARIF_SOCKET"]
+    for name: names { if EnvironmentValues.EnvironmentText(name).count > 0 { return true } }
+    return false
+}
+SupportedArguments :: (arguments: []string) -> bool {
+    if UnsupportedEffects() { return false }
+    index: s64 = 1
+    while index < arguments.count {
+        value := arguments[index]
+        if Contains(value, "__DATE__") || Contains(value, "__TIME__") || Contains(value, "__TIMESTAMP__") ||
+            Contains(value, "__has_include") || value == "-march=native" || value == "-mcpu=native" || value == "-mtune=native" { return false }
+        if PairedArgument(value) {
+            index += 1
+            if index >= arguments.count || (value == "-x" && arguments[index] != "c") { return false }
+            index += 1
+            continue
+        }
+        if !SupportedOption(value) { return false }
+        index += 1
+    }
+    return true
+}
+SupportedOption :: (value: string) -> bool {
+    if HasPrefix(value, "-D") || HasPrefix(value, "-U") || HasPrefix(value, "-I") || HasPrefix(value, "-std=") ||
+        HasPrefix(value, "--sysroot=") || HasPrefix(value, "--target=") { return true }
+    if HasPrefix(value, "-Wl,") || (HasPrefix(value, "-fuse-ld=") && value.count > 9) ||
+        (HasPrefix(value, "-B") && value.count > 2) { return true }
+    if HasPrefix(value, "-W") && !HasPrefix(value, "-Wa,") && !HasPrefix(value, "-Wp,") && !HasPrefix(value, "-Wl,") { return true }
+    if HasPrefix(value, "-g") && !HasPrefix(value, "-gsplit") { return true }
+    optimizations: [8]string = .["-O0", "-O1", "-O2", "-O3", "-Os", "-Oz", "-Og", "-Ofast"]
+    for known: optimizations { if value == known { return true } }
+    if HasPrefix(value, "-m") && value != "-mllvm" { return true }
+    plain: [29]string = .["-pthread", "-pipe", "-pedantic", "-pedantic-errors", "-ansi", "-nostdinc", "-nostdlib", "-static", "-shared", "-s", "-fPIC", "-fpic", "-fPIE", "-fpie", "-fno-plt", "-fomit-frame-pointer", "-fno-omit-frame-pointer", "-ffast-math", "-fno-fast-math", "-fstrict-aliasing", "-fno-strict-aliasing", "-fwrapv", "-fno-wrapv", "-fcommon", "-fno-common", "-fsigned-char", "-funsigned-char", "-fexceptions", "-fno-exceptions"]
+    for known: plain { if value == known { return true } }
+    return HasPrefix(value, "-flto") || HasPrefix(value, "-fvisibility=")
+}
+FileFind :: (cache: *BuildCache, path: string, directory: bool) -> s64 {
+    if directory {
+        for index: 0..cache.candidates.count - 1 {
+            if cache.candidates[index].path == path { return index }
+        }
+    } else {
+        for index: 0..cache.files.count - 1 {
+            if cache.files[index].path == path { return index }
+        }
+    }
+    return -1
+}
+FileAdd :: (cache: *BuildCache, path: string, directory: bool) -> s64 {
+    if cache.files.count + cache.candidates.count >= 262144 || path.count >= PathMaximum { return -1 }
+    item: Fingerprint
+    item.directory = directory
+    if directory {
+        if !VecPush(cache.candidates, item) { return -1 }
+        index := cache.candidates.count - 1
+        cache.candidates[index].path = Owned(path)
+        if cache.candidates[index].path.count == 0 && path.count != 0 { return -1 }
+        return index
+    }
+    if !VecPush(cache.files, item) { return -1 }
+    index := cache.files.count - 1
+    cache.files[index].path = Owned(path)
+    if cache.files[index].path.count == 0 && path.count != 0 { return -1 }
+    return index
+}
+ProbeLiteral :: (text: string, start: s64, name: *string) -> s64 {
+    at := start
+    if HasPrefix(text[at:Minimum(at + 5, text.count)], "_next") { at += 5 }
+    while at < text.count && Ordering.TextIsSpace(text[at]) { at += 1 }
+    if at >= text.count || text[at] != #char "(" { return -1 }
+    at += 1
+    while at < text.count && Ordering.TextIsSpace(text[at]) { at += 1 }
+    if at >= text.count { return -1 }
+    end := ifx text[at] == #char "\"" then #char "\"" else ifx text[at] == #char "<" then #char ">" else 0
+    if end == 0 { return -1 }
+    at += 1
+    first := at
+    while at < text.count && text[at] != end {
+        if text[at] == #char "/" || text[at] == #char "\n" { return -1 }
+        at += 1
+    }
+    if at >= text.count || at == first || at - first >= PathMaximum { return -1 }
+    literal := Owned(text[first:at])
+    if literal.count == 0 { return -1 }
+    name.* = literal
+    at += 1
+    while at < text.count && Ordering.TextIsSpace(text[at]) { at += 1 }
+    if at < text.count && text[at] == #char ")" { return at + 1 }
+    return -1
+}
+Minimum :: (left: s64, right: s64) -> s64 { return ifx left < right then left else right }
+UnsafeText :: (text: string) -> bool {
+    tokens: [6]string = .["__DATE__", "__TIME__", "__TIMESTAMP__", ".incbin", ".include", "../"]
+    for token: tokens { if Contains(text, token) { return true } }
+    at := Ordering.TextFind(text, "__has_include", 0)
+    while at >= 0 {
+        name := ""
+        at = ProbeLiteral(text, at + 13, *name)
+        if at < 0 { Release(name); return true }
+        Release(name)
+        at = Ordering.TextFind(text, "__has_include", at)
+    }
+    return false
+}
+ProbeNames :: (text: string, names: *Vectors.Vec(string)) -> bool {
+    at := Ordering.TextFind(text, "__has_include", 0)
+    while at >= 0 {
+        name := ""
+        at = ProbeLiteral(text, at + 13, *name)
+        if at < 0 || !AppendOwned(names, name) { Release(name); return false }
+        Release(name)
+        at = Ordering.TextFind(text, "__has_include", at)
+    }
+    return true
+}
+FileDigest :: (cache: *BuildCache, path: string) -> s64 {
+    before := Snapshots.PathStatus(path)
+    if before.kind != .File { return -1 }
+    found := FileFind(cache, path, false)
+    if found >= 0 && Snapshots.SameFileSnapshot(cache.files[found].info, before) { return found }
+    bytes: Vectors.Vec(u8)
+    if !Files.ReadFileInto(path, *bytes) { VecFree(bytes); return -1 }
+    text := TextView(bytes[:])
+    hash := HashNew()
+    HashBytes(*hash, text)
+    unsafe := false
+    for byte: text { if byte == 0 { unsafe = true; break } }
+    if !unsafe { unsafe = UnsafeText(text) }
+    probes: Vectors.Vec(string)
+    if Contains(text, "__has_include") && !unsafe && !ProbeNames(text, *probes) {
+        ClearNames(*probes); VecFree(bytes); return -1
+    }
+    after := Snapshots.PathStatus(path)
+    VecFree(bytes)
+    if !Snapshots.SameFileSnapshot(before, after) { ClearNames(*probes); return -1 }
+    if found < 0 {
+        found = FileAdd(cache, path, false)
+        if found < 0 { ClearNames(*probes); return -1 }
+    } else {
+        ClearNames(*cache.files[found].probes)
+    }
+    VecSwap(probes, cache.files[found].probes)
+    cache.files[found].info = after
+    cache.files[found].unsafe = unsafe
+    cache.files[found].parent = ""
+    cache.files[found].recent = false
+    HashFinish(*hash, *cache.files[found].digest)
+    return found
+}
+OlderThanBuild :: (cache: *BuildCache, info: Snapshots.PathInfo, changed: bool) -> bool {
+    seconds := ifx changed then info.changed else info.modified
+    nanoseconds := ifx changed then info.changed_nanoseconds else info.modified_nanoseconds
+    if seconds != cache.started_seconds { return seconds < cache.started_seconds }
+    return cast(s64)nanoseconds < cache.started_nanoseconds
+}
+SpellingDigest :: (cache: *BuildCache, spelling: string, root: string) -> s64 {
+    if Contains(spelling, "\n") || Contains(root, "\n") { return -1 }
+    key := JoinTemporary(JoinTemporary(root, "\n"), spelling)
+    if key.count == 0 { return -1 }
+    found := FileFind(cache, key, true)
+    if found >= 0 {
+        Release(key)
+        if cache.candidates[found].unsafe { return -1 }
+        return found
+    }
+    found = FileAdd(cache, key, true)
+    Release(key)
+    if found < 0 { return -1 }
+    cache.candidates[found].unsafe = true
+    hash := HashNew()
+    roots := cache.roots.count
+    use_root := root.count > 0
+    if use_root { roots = 1 }
+    for root_index: 0..roots - 1 {
+        directory := ifx use_root then root else cache.roots[root_index]
+        at: s64 = 0
+        while at < spelling.count && spelling[at] == #char "/" { at += 1 }
+        while at < spelling.count && at > -1 {
+            candidate := JoinPath(directory, spelling[at:spelling.count])
+            if candidate.count == 0 { return -1 }
+            HashText(*hash, candidate)
+            info := Snapshots.PathStatus(candidate)
+            Release(candidate)
+            if info.identity_valid {
+                kind := ifx info.kind == .File then 32768 else ifx info.kind == .Directory then 16384 else 0
+                HashInteger(*hash, cast(u64)kind)
+                if !OlderThanBuild(cache, info, true) { cache.candidates[found].recent = true }
+            } else {
+                HashInteger(*hash, 0)
+            }
+            slash := Ordering.TextFind(spelling, "/", at)
+            if slash < 0 { break }
+            at = slash + 1
+            while at < spelling.count && spelling[at] == #char "/" { at += 1 }
+            if at >= spelling.count { break }
+        }
+    }
+    HashFinish(*hash, *cache.candidates[found].digest)
+    cache.candidates[found].unsafe = false
+    return found
+}
+EnvironmentEntries :: (bytes: []u8, entries: *Vectors.Vec(string)) -> bool {
+    start: s64 = 0
+    for index: 0..bytes.count - 1 {
+        if bytes[index] != 0 { continue }
+        if index > start && !VecPush(<<entries, TextView(bytes[start:index])) { return false }
+        start = index + 1
+    }
+    return start == bytes.count || (start < bytes.count && VecPush(<<entries, TextView(bytes[start:bytes.count])))
+}
+CompilerEnvironment :: (entry: string) -> bool {
+    names: [13]string = .["PATH", "CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "OBJC_INCLUDE_PATH", "OBJCPLUS_INCLUDE_PATH", "COMPILER_PATH", "LIBRARY_PATH", "SOURCE_DATE_EPOCH", "SDKROOT", "DEVELOPER_DIR", "ZERO_AR_DATE", "LANG"]
+    equals := Ordering.TextFind(entry, "=", 0)
+    name := ifx equals >= 0 then entry[0:equals] else entry
+    for known: names { if name == known { return true } }
+    prefixes: [10]string = .["LC_", "GCC_", "COLLECT_", "CC_", "CCC_", "CLANG_", "LLVM_", "RC_", "LD_", "DYLD_"]
+    for prefix: prefixes { if HasPrefix(entry, prefix) { return true } }
+    return HasSuffix(name, "_DEPLOYMENT_TARGET")
+}
+HashEnvironment :: (hash: *HashState) -> bool {
+    bytes: Vectors.Vec(u8)
+    if !Files.ReadFileInto("/proc/self/environ", *bytes) { VecFree(bytes); return false }
+    entries: Vectors.Vec(string)
+    ok := EnvironmentEntries(bytes[:], *entries)
+    if ok {
+        Sorting.SortText(entries[:])
+        for entry: entries[:] { if CompilerEnvironment(entry) { HashText(hash, entry) } }
+    }
+    VecFree(entries)
+    VecFree(bytes)
+    return ok
+}
+Probe :: (arguments: []string, piped: bool) -> Vectors.Vec(u8) {
+    command: Vectors.Vec(string)
+    for value: arguments { unused VecPush(command, value) }
+    if piped && !RequestedPipe(arguments) { unused VecPush(command, "-pipe") }
+    unused VecPush(command, "-v")
+    unused VecPush(command, "-x")
+    unused VecPush(command, "c")
+    unused VecPush(command, "-c")
+    unused VecPush(command, "/dev/null")
+    unused VecPush(command, "-o")
+    unused VecPush(command, "/dev/null")
+    result: Vectors.Vec(u8)
+    options: Processes.ProcessOptions = .{arguments = command[:], capture_output = true, merge_error = true}
+    run: Processes.ProcessRun
+    if Processes.RunProcess(options, *run) && run.code == 0 {
+        for byte: run.output { unused VecPush(result, byte) }
+    }
+    ProfileCount(ifx piped then "native_probe_pipe" else "native_probe_compile")
+    VecFree(run.output)
+    VecFree(command)
+    if result.count > ProbeMaximum { VecFree(result); return .{} }
+    for byte: result { if byte == 0 { VecFree(result); return .{} } }
+    return result
+}
+HashProbeOutput :: (hash: *HashState, text: string) -> bool {
+    lines := Ordering.TextLines(text)
+    if lines.count == 0 || lines.count > ItemMaximum { VecFree(lines); return false }
+    if !JoinProbeVersions(*lines) { VecFree(lines); return false }
+    Sorting.SortText(lines[:])
+    HashInteger(hash, cast(u64)lines.count)
+    for line: lines[:] { HashText(hash, line) }
+    VecFree(lines)
+    return true
+}
+
+JoinProbeVersions :: (lines: *Vectors.Vec(string)) -> bool {
+    prefix := "\tcompiled by GNU C version "
+    checksum_label := "Compiler executable checksum: "
+    assembler_label := "GNU assembler version "
+    gmp_label := "GMP version "
+    bfd_label := " using BFD version "
+    for index: cast(s64)0..lines.count - 2 {
+        banner_at: s64 = -1
+        if TextHasPrefix((<<lines)[index], prefix) && TextHasPrefix((<<lines)[index + 1], gmp_label) {
+            banner_at = TextFind((<<lines)[index], assembler_label, prefix.count)
+            if banner_at <= cast(s64)prefix.count { continue }
+            if (<<lines)[index][banner_at - 2] != cast(u8)44 || (<<lines)[index][banner_at - 1] != cast(u8)32 { continue }
+        } else if TextHasPrefix((<<lines)[index], checksum_label) {
+            banner_at = TextFind((<<lines)[index], assembler_label, checksum_label.count)
+            if banner_at < 0 { continue }
+            before := banner_at - cast(s64)checksum_label.count
+            after: s64 = 0
+            while after < (<<lines)[index + 1].count && (<<lines)[index + 1][after] != cast(u8)13 { after += 1 }
+            if before + after != 32 { continue }
+            digits := true
+            for at: cast(s64)0..before - 1 {
+                byte := (<<lines)[index][cast(s64)checksum_label.count + at]
+                hex := (byte >= 48 && byte <= 57) || (byte >= 97 && byte <= 102)
+                if !hex { digits = false;  }
+            }
+            for at: cast(s64)0..after - 1 {
+                next_byte := (<<lines)[index + 1][at]
+                next_hex := (next_byte >= 48 && next_byte <= 57) || (next_byte >= 97 && next_byte <= 102)
+                if !next_hex { digits = false }
+            }
+            if !digits { continue }
+                    } else { continue }
+        if !Contains((<<lines)[index][banner_at:], bfd_label) { continue }
+        saved: Text = TextCopy((<<lines)[index][banner_at:])
+        if saved.bytes.count == 0 { return false }
+        rebuilt: Text = TextCopy((<<lines)[index][0:banner_at])
+        unused BuilderAppend(rebuilt.bytes, (<<lines)[index + 1])
+        merged: Vectors.Vec(string)
+        VecPush(merged, TextDetach(rebuilt))
+        VecPush(merged, TextDetach(saved))
+        tail: Vectors.Vec(string)
+        VecSwap(merged, tail)
+        head: Vectors.Vec(string)
+        for at: cast(s64)0..index - 1 { VecPush(head, (<<lines)[at]) }
+        VecPush(head, tail[0])
+        VecPush(head, tail[1])
+        for at: index + 2..lines.count - 1 { VecPush(head, (<<lines)[at]) }
+        VecSwap(head, <<lines)
+        VecFree(head)
+        VecFree(tail)
+    }
+    return true
+}
+Open :: (arguments: []string, output: string, executable: string) -> *BuildCache {
+    if arguments.count == 0 { return null }
+    if !SupportedArguments(arguments) { return null }
+    compiler := Executable(arguments[0])
+    if compiler.count == 0 { Release(compiler); return null }
+    if !NativeImage(compiler) { Release(compiler); return null }
+    name := TextName(compiler)
+    if !Contains(name, "gcc") && !Contains(name, "clang") && name != "cc" { Release(compiler); return null }
+    piped := !Contains(name, "clang")
+    cache := cast(*BuildCache)AllocateRaw(1, size_of(BuildCache))
+    if cache == null { Release(compiler); return null }
+    cache.piped = piped
+    resolved_output := Resolved(output)
+    if resolved_output.count == 0 { Close(cache); Release(compiler); return null }
+    cache.output = resolved_output
+    cache.executable = Owned(executable)
+    clock: ClockValue
+    if cache.executable.count == 0 { Close(cache); Release(compiler); return null }
+    if ClockRaw(0, *clock) != 0 { Close(cache); Release(compiler); return null }
+    cache.started_seconds = cast(s64)clock.seconds
+    cache.started_nanoseconds = cast(s64)clock.nanoseconds
+    hash := HashNew()
+    HashText(*hash, IdentitySeed)
+    HashInteger(*hash, ifx piped then 1 else 0)
+    directory: [4096]u8
+    working_pointer := CurrentDirectory(*directory[0], 4096)
+    working_length: s64 = 0
+    if working_pointer != null {
+        while directory[working_length] != 0 { working_length += 1 }
+    }
+    if working_length == 0 { Close(cache); Release(compiler); return null }
+    HashText(*hash, TextView(directory[0:working_length]))
+    for argument: arguments { HashText(*hash, argument) }
+    if !HashEnvironment(*hash) { Close(cache); Release(compiler); return null }
+    info := Snapshots.PathStatus(compiler)
+    HashText(*hash, compiler)
+    HashSnapshot(*hash, info)
+    Release(compiler)
+    probe := Probe(arguments, piped)
+    probe_text := TextView(probe[:])
+    if probe.count == 0 || (piped && !HashProbeOutput(*hash, probe_text)) {
+        VecFree(probe); Close(cache); return null
+    }
+    if !ParseProbe(cache, *hash, probe_text, piped) {
+        VecFree(probe); Close(cache); return null
+    }
+    VecFree(probe)
+    if !AppendOwned(*cache.roots, cache.output) { Close(cache); return null }
+    HashFinish(*hash, *cache.identity)
+    return cache
+}
+HashSnapshot :: (hash: *HashState, info: Snapshots.PathInfo) {
+    HashInteger(hash, cast(u64)info.device_major)
+    HashInteger(hash, cast(u64)info.device_minor)
+    HashInteger(hash, info.inode)
+    HashInteger(hash, cast(u64)info.mode)
+    HashInteger(hash, cast(u64)info.size)
+    HashInteger(hash, cast(u64)info.modified)
+    HashInteger(hash, cast(u64)info.modified_nanoseconds)
+    HashInteger(hash, cast(u64)info.changed)
+    HashInteger(hash, cast(u64)info.changed_nanoseconds)
+}
+ToolFromLine :: (line: string) -> string {
+    value := Ordering.TextTrim(line)
+    if value.count == 0 { return "" }
+    if value[0] == #char "\"" {
+        end := Ordering.TextFind(value, "\"", 1)
+        if end < 0 { return "" }
+        return value[1:end]
+    }
+    at: s64 = 0
+    while at < value.count && !Ordering.TextIsSpace(value[at]) { at += 1 }
+    return value[0:at]
+}
+ParseProbe :: (cache: *BuildCache, hash: *HashState, text: string, piped: bool) -> bool {
+    programs: Vectors.Vec(string)
+    searching := false
+    ended := false
+    tools: s64 = 0
+    ok := true
+    lines := Ordering.TextLines(text)
+    for line: lines {
+        if !ok { break }
+        if HasPrefix(line, "COLLECT_GCC=") {
+            resolved := Executable(line[12:line.count])
+            if resolved.count == 0 { ok = false }
+            else if Snapshots.PathStatus(resolved).kind != .File { ok = false }
+            else if !AppendOwned(*programs, resolved) { ok = false }
+            Release(resolved)
+        } else if HasPrefix(line, "#include ") { searching = true }
+        else if line == "End of search list." { searching = false; ended = true }
+        else if searching && line.count > 0 && line[0] == #char " " {
+            path := Ordering.TextTrim(line)
+            framework := Ordering.TextFind(path, " (framework directory)", 0)
+            if framework >= 0 { path = path[0:framework] }
+            if piped && Snapshots.PathStatus(path).kind != .Directory { ok = false }
+            if ok && AppendOwned(*cache.roots, path) { HashText(hash, path) } else { ok = false }
+        } else if searching && piped && HasPrefix(line, "GNU assembler version ") && Contains(line, " using BFD version ") {
+        } else if searching && piped { ok = false }
+        else if HasPrefix(line, "ignoring nonexistent directory \"") {
+            first := Ordering.TextFind(line, "\"", 0)
+            last := Ordering.TextFindLast(line, "\"")
+            if first >= 0 && last > first {
+                path := line[first + 1:last]
+                if AppendOwned(*cache.roots, path) { HashText(hash, path) } else { ok = false }
+            }
+        } else if line == " (in-process)" {
+        } else if line.count > 1 && line[0] == #char " " && !Ordering.TextIsSpace(line[1]) {
+            tool := ToolFromLine(line)
+            if tool.count > 0 {
+                resolved := Executable(tool)
+                    if resolved.count == 0 { ok = false }
+                    else if !NativeImage(resolved) { ok = false }
+                    else if Snapshots.PathStatus(resolved).kind != .File { ok = false }
+                    else if AppendOwned(*programs, resolved) { tools += 1 }
+                    else { ok = false }
+                Release(resolved)
+            }
+        } else if !piped && (HasPrefix(line, "Compiler executable checksum:") || Contains(line, " version ")) {
+            HashText(hash, line)
+        }
+    }
+    VecFree(lines)
+    if !ok { ClearNames(*programs); return false }
+    if !ended { ClearNames(*programs); return false }
+    if tools < 1 { ClearNames(*programs); return false }
+    if piped && tools < 2 { ClearNames(*programs); return false }
+    Sorting.SortText(programs[:])
+    HashInteger(hash, cast(u64)programs.count)
+    for index: 0..programs.count - 1 {
+        path := programs[index]
+        info := Snapshots.PathStatus(path)
+        if info.kind != .File { ClearNames(*programs); return false }
+        HashText(hash, path)
+        HashSnapshot(hash, info)
+    }
+    ClearNames(*programs)
+    resolved_roots: Vectors.Vec(string)
+    for root: cache.roots[:] {
+        resolved := Resolved(root)
+        if resolved.count > 0 {
+            if !AppendOwned(*resolved_roots, resolved) {
+                Release(resolved)
+                ClearNames(*resolved_roots)
+                return false
+            }
+        } else if !AppendOwned(*resolved_roots, root) {
+            ClearNames(*resolved_roots)
+            return false
+        }
+        Release(resolved)
+    }
+    VecSwap(resolved_roots, cache.roots)
+    VecFree(resolved_roots)
+    return true
+}
+SpellingKey :: (cache: *BuildCache, hash: *HashState, spelling: string, parents: *Vectors.Vec(string), recordable: *bool) -> bool {
+    item := SpellingDigest(cache, spelling, "")
+    if item < 0 { return false }
+    HashBytes(hash, TextView(cache.candidates[item].digest.bytes[:]))
+    if cache.candidates[item].recent { recordable.* = false }
+    parent_values: Vectors.Vec(string)
+    VecSwap(parent_values, <<parents)
+    for parent: parent_values {
+        item := SpellingDigest(cache, spelling, parent)
+        if item < 0 { VecSwap(parent_values, <<parents); return false }
+        HashBytes(hash, TextView(cache.candidates[item].digest.bytes[:]))
+        if cache.candidates[item].recent { recordable.* = false }
+    }
+    VecSwap(parent_values, <<parents)
+    return true
+}
+LookupDigest :: (cache: *BuildCache, dependencies: *Vectors.Vec(string), output: *Digest, recording: bool) -> bool {
+    parents: Vectors.Vec(string)
+    pending: Vectors.Vec(string)
+    VecSwap(pending, <<dependencies)
+    hash := HashNew()
+    recordable := true
+    ok := true
+    for dependency: pending {
+        item := FileFind(cache, dependency, false)
+        if item < 0 { ok = false; break }
+        if cache.files[item].parent.count == 0 {
+            resolved := Resolved(dependency)
+            if resolved.count > 0 && !Contains(resolved, "/.objects/") {
+                slash := Ordering.TextFindLast(resolved, "/")
+                if slash > 0 {
+                    directory := Owned(resolved[0:slash])
+                    cache.files[item].parent = directory
+                }
+            }
+            Release(resolved)
+        }
+        if cache.files[item].parent.count == 0 ||
+            !AppendOwned(*parents, cache.files[item].parent) { ok = false; break }
+    }
+    for dependency: pending {
+        if !ok { break }
+        item := FileFind(cache, dependency, false)
+        if item < 0 || !SpellingKey(cache, *hash, dependency, *parents, *recordable) {
+            ok = false
+            break
+        }
+        for probe_index: 0..cache.files[item].probes.count - 1 {
+            probe := cache.files[item].probes[probe_index]
+            if !SpellingKey(cache, *hash, probe, *parents, *recordable) {
+                ok = false
+                break
+            }
+        }
+    }
+    VecSwap(pending, <<dependencies)
+    ClearNames(*parents)
+    if ok { HashFinish(*hash, output) }
+    return ok && (!recording || recordable)
+}
+ReadDependencies :: (object: string, dependencies: *Vectors.Vec(string)) -> bool {
+    path := JoinTemporary(object, ".d")
+    if path.count == 0 { return false }
+    defer { Release(path) }
+    bytes: Vectors.Vec(u8)
+    if !Files.ReadFileInto(path, *bytes) { VecFree(bytes); return false }
+    text := TextView(bytes[:])
+    colon := Ordering.TextFind(text, ":", 0)
+    if colon < 0 { VecFree(bytes); return false }
+    at := colon + 1
+    word: Vectors.Vec(u8)
+    ok := true
+    while at <= text.count {
+        byte := ifx at < text.count then text[at] else #char " "
+        if byte == 92 && at + 1 < text.count {
+            next := text[at + 1]
+            if next == #char "\n" { at += 2; continue }
+            if next == #char " " || next == 9 || next == #char "#" || next == 92 {
+                if !VecPush(word, next) { ok = false; break }
+                at += 2
+                continue
+            }
+        } else if byte == #char "$" {
+            if at + 1 >= text.count || text[at + 1] != #char "$" { ok = false; break }
+            if !VecPush(word, byte) { ok = false; break }
+            at += 2
+            continue
+        }
+        if Ordering.TextIsSpace(byte) {
+            if word.count > 0 {
+                owned := Owned(TextView(word[:]))
+                if owned.count == 0 { ok = false }
+                else if !VecPush(<<dependencies, owned) { Release(owned); ok = false }
+                if !ok { break }
+                VecClear(word)
+            }
+            if byte == #char "\n" { break }
+        } else if !VecPush(word, byte) { ok = false; break }
+        at += 1
+    }
+    VecFree(word)
+    VecFree(bytes)
+    return ok && dependencies.count > 0
+}
+ReadInteger :: (bytes: []u8, offset: *s64, output: *u32) -> bool {
+    if offset.* + 4 > bytes.count { return false }
+    value: u32 = 0
+    for index: 0..3 { value |= cast(u32)bytes[offset.* + index] << cast(u32)(8 * index) }
+    offset.* += 4
+    output.* = value
+    return true
+}
+ReadDigest :: (bytes: []u8, offset: *s64, output: *Digest) -> bool {
+    if offset.* + 32 > bytes.count { return false }
+    for index: 0..31 { output.bytes[index] = bytes[offset.* + index] }
+    offset.* += 32
+    return true
+}
+SameDigest :: (left: Digest, right: Digest) -> bool {
+    for index: 0..31 { if left.bytes[index] != right.bytes[index] { return false } }
+    return true
+}
+Piped :: (cache: *BuildCache) -> bool { return cache != null && cache.piped }
+Hit :: (cache: *BuildCache, object: string) -> bool {
+    if cache == null { return false }
+    path := JoinTemporary(object, ".inputs")
+    if path.count == 0 { return false }
+    defer { Release(path) }
+    bytes: Vectors.Vec(u8)
+    if !Files.ReadFileInto(path, *bytes) { VecFree(bytes); return false }
+    data := TextView(bytes[:])
+    at: s64 = 0
+    if data.count < 16 || data[0:16] != CacheMagic { VecFree(bytes); return false }
+    at = 16
+    identity: Digest
+    object_digest: Digest
+    lookup: Digest
+    count: u32
+    ok := ReadDigest(bytes[:], *at, *identity) && ReadDigest(bytes[:], *at, *object_digest) &&
+        ReadDigest(bytes[:], *at, *lookup) && ReadInteger(bytes[:], *at, *count) &&
+        count > 0 && count <= ItemMaximum
+    if ok { ok = SameDigest(identity, cache.identity) }
+    dependencies: Vectors.Vec(string)
+    if ok {
+        compiled := FileDigest(cache, object)
+        if compiled < 0 || !SameDigest(cache.files[compiled].digest, object_digest) { ok = false }
+    }
+    for index: 0..cast(s64)count - 1 {
+        if !ok { break }
+        length: u32
+        if !ReadInteger(bytes[:], *at, *length) || length == 0 ||
+            at + cast(s64)length > data.count { ok = false; break }
+        dependency := data[at:at + cast(s64)length]
+        at += cast(s64)length
+        saved: Digest
+        if Contains(dependency, "\x00") || !ReadDigest(bytes[:], *at, *saved) { ok = false; break }
+        item := FileDigest(cache, dependency)
+        if item < 0 || cache.files[item].unsafe || !SameDigest(cache.files[item].digest, saved) ||
+            !AppendOwned(*dependencies, dependency) { ok = false; break }
+    }
+    if ok {
+        current: Digest
+        ok = at == data.count && LookupDigest(cache, *dependencies, *current, false) && SameDigest(current, lookup)
+    }
+    ClearNames(*dependencies)
+    VecFree(bytes)
+    return ok
+}
+
+AppendBytes :: (output: *Vectors.Vec(u8), bytes: []u8) -> bool {
+    for byte: bytes { if !VecPush(<<output, byte) { return false } }
+    return true
+}
+
+AppendText :: (output: *Vectors.Vec(u8), value: string) -> bool {
+    for byte: value { if !VecPush(<<output, byte) { return false } }
+    return true
+}
+
+AppendDigest :: (output: *Vectors.Vec(u8), value: Digest) -> bool {
+    return AppendBytes(output, value.bytes[:])
+}
+
+AppendCount :: (output: *Vectors.Vec(u8), value: u32) -> bool {
+    bytes: [4]u8
+    for index: 0..3 { bytes[index] = cast(u8)(value >> cast(u32)(8 * index)) }
+    return AppendBytes(output, bytes[:])
+}
+
+AppendNumber :: (output: *Vectors.Vec(u8), value: s64) -> bool {
+    if value == 0 { return VecPush(<<output, #char "0") }
+    digits: [24]u8
+    at: s64 = 24
+    positive := value
+    while positive > 0 {
+        at -= 1
+        digits[at] = cast(u8)(48 + positive % 10)
+        positive /= 10
+    }
+    return AppendBytes(output, digits[at:24])
+}
+
+TemporaryInputPath :: (object: string, attempt: s64) -> string {
+    bytes: Vectors.Vec(u8)
+    if !AppendText(*bytes, object) || !AppendText(*bytes, ".inputs.") ||
+        !AppendNumber(*bytes, attempt) { VecFree(bytes); return "" }
+    return TextDetach(TextCopy(TextView(bytes[:])))
+}
+
+Record :: (cache: *BuildCache, object: string, source: string) {
+    if cache == null || object.count == 0 || object.count >= PathMaximum || source.count == 0 || source.count >= PathMaximum { return }
+    dependencies: Vectors.Vec(string)
+    if !ReadDependencies(object, *dependencies) { ClearNames(*dependencies); return }
+    source_present := false
+    ok := dependencies.count > 0 && dependencies.count <= ItemMaximum
+    for index: 0..dependencies.count - 1 {
+        if !ok { break }
+        if dependencies[index].count == 0 || dependencies[index].count >= PathMaximum { ok = false; break }
+        if dependencies[index] == source { source_present = true }
+        item := FileDigest(cache, dependencies[index])
+        if item < 0 || cache.files[item].unsafe ||
+            !OlderThanBuild(cache, cache.files[item].info, false) ||
+            !OlderThanBuild(cache, cache.files[item].info, true) { ok = false; break }
+    }
+    lookup: Digest
+    if ok && source_present {
+        ok = LookupDigest(cache, *dependencies, *lookup, true)
+    } else { ok = false }
+    compiled := ifx ok then FileDigest(cache, object) else -1
+    if compiled < 0 { ok = false }
+    if !ok { ClearNames(*dependencies); return }
+    bytes: Vectors.Vec(u8)
+    if !AppendText(*bytes, CacheMagic) || !AppendDigest(*bytes, cache.identity) ||
+        !AppendDigest(*bytes, cache.files[compiled].digest) || !AppendDigest(*bytes, lookup) ||
+        !AppendCount(*bytes, cast(u32)dependencies.count) { VecFree(bytes); ClearNames(*dependencies); return }
+    for index: 0..dependencies.count - 1 {
+        if !ok { break }
+        item := FileDigest(cache, dependencies[index])
+        if item < 0 || cache.files[item].unsafe ||
+            !OlderThanBuild(cache, cache.files[item].info, false) ||
+            !OlderThanBuild(cache, cache.files[item].info, true) ||
+            !AppendCount(*bytes, cast(u32)dependencies[index].count) ||
+            !AppendText(*bytes, dependencies[index]) ||
+            !AppendDigest(*bytes, cache.files[item].digest) { ok = false }
+    }
+    if ok {
+        attempt: s64 = 0
+        temporary := ""
+        file: Files.FileHandle
+        while attempt < 128 {
+            attempt += 1
+            temporary = TemporaryInputPath(object, OwnProcessId() * 128 + attempt)
+            if temporary.count == 0 { break }
+            file = Files.OpenExclusivePrivate(temporary)
+            if file.valid { break }
+            Release(temporary)
+            temporary = ""
+        }
+        if temporary.count > 0 && file.valid {
+            written := Files.WriteAt(file, bytes[:], 0)
+            closed := Files.SyncFile(file) && Files.CloseFile(file)
+            if written == bytes.count && closed {
+                final := JoinTemporary(object, ".inputs")
+                if final.count > 0 {
+                    ok = Files.RenamePath(temporary, final)
+                    Release(final)
+                }
+            }
+            if !ok { Files.RemoveFile(temporary) }
+            Release(temporary)
+        }
+    }
+    VecFree(bytes)
+    ClearNames(*dependencies)
+}
+
+ReleaseFingerprints :: (values: *Vectors.Vec(Fingerprint)) {
+    owned: Vectors.Vec(Fingerprint)
+    VecSwap(owned, <<values)
+    for * owned {
+        Release(it.path)
+        Release(it.parent)
+        ClearNames(*it.probes)
+    }
+    VecSwap(owned, <<values)
+    VecFree(<<values)
+}
+
+Close :: (cache: *BuildCache) {
+    if cache == null { return }
+    ClearNames(*cache.roots)
+    VecFree(cache.roots)
+    Release(cache.output)
+    Release(cache.executable)
+    ReleaseFingerprints(*cache.files)
+    ReleaseFingerprints(*cache.candidates)
+    FreeOwned(cast(*void)cache)
+}
+

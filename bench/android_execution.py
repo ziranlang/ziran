@@ -140,7 +140,7 @@ func benchKernel(n int64, seed uint64) uint64 {
                          'Go uses GOMAXPROCS=1 for the single-threaded kernel; no device settings are changed.',
                          'C/Go use the same SWAR population-count formula; Python bit_count supplies the independent oracle.'])
     (out/'manifest.json').write_text(json.dumps(data,indent=2)+'\n')
-    print('Prepared Android native/Go controls and portable VM fixture')
+    print('Prepared Android native/Go controls and portable engine fixture')
 
 
 def run(args):

@@ -18,13 +18,13 @@ static void report(const char *name, int ok)
 }
 
 static int adjust(void *context, const char *module, const char *function,
-                  const VmHostValue *arguments, int count, VmHostValue *result)
+                  const HostValue *arguments, int count, HostValue *result)
 {
     (void)context;
     if(strcmp(module, "component") != 0 || strcmp(function, "Adjust") != 0 ||
-       count != 1 || arguments[0].kind != VM_HOST_INTEGER)
+       count != 1 || arguments[0].kind != HOST_INTEGER)
         return 0;
-    result->kind = VM_HOST_INTEGER;
+    result->kind = HOST_INTEGER;
     result->type = "s64";
     result->integer = arguments[0].integer + 1;
     result->bits = (uint64_t)result->integer;
@@ -41,28 +41,28 @@ static int state_find(const BundleState *state, const char *name, size_t *index)
     return 0;
 }
 
-static VmHostValue *record_field(VmHostValue *record, const char *name)
+static HostValue *record_field(HostValue *record, const char *name)
 {
-    VmHostField *fields;
-    if(record == NULL || record->kind != VM_HOST_RECORD)
+    HostField *fields;
+    if(record == NULL || record->kind != HOST_RECORD)
         return NULL;
-    fields = (VmHostField *)record->fields;
+    fields = (HostField *)record->fields;
     for(size_t i = 0; i < record->field_count; i++)
         if(fields[i].name != NULL && strcmp(fields[i].name, name) == 0)
             return &fields[i].value;
     return NULL;
 }
 
-static VmHostValue *state_field(BundleStateValue *value, const char *name)
+static HostValue *state_field(BundleStateValue *value, const char *name)
 {
     return value == NULL ? NULL : record_field(&value->value, name);
 }
 
-static int copy_owned_string(VmHostValue *target, const VmHostValue *source)
+static int copy_owned_string(HostValue *target, const HostValue *source)
 {
     unsigned char *copied = NULL;
-    if(target == NULL || source == NULL || target->kind != VM_HOST_STRING ||
-       source->kind != VM_HOST_STRING)
+    if(target == NULL || source == NULL || target->kind != HOST_STRING ||
+       source->kind != HOST_STRING)
         return 0;
     if(source->length != 0) {
         copied = malloc(source->length + 1);
@@ -84,9 +84,9 @@ static int migrate(void *context, const BundleState *old_state,
     size_t old_index = 0, new_index = 0;
     BundleStateValue old_value;
     BundleStateValue *new_value;
-    VmHostValue *old_count, *new_count, *old_first, *new_first;
-    VmHostValue *old_history, *new_history, *new_open;
-    VmHostValue *old_title, *new_title, *old_weight, *new_weight;
+    HostValue *old_count, *new_count, *old_first, *new_first;
+    HostValue *old_history, *new_history, *new_open;
+    HostValue *old_title, *new_title, *old_weight, *new_weight;
     int ok = state_find(old_state, "state", &old_index) &&
              state_find(new_state, "state", &new_index) &&
              BundleStateValueAt(old_state, old_index, &old_value) &&
@@ -98,8 +98,8 @@ static int migrate(void *context, const BundleState *old_state,
              (old_history = state_field(&old_value, "history")) != NULL &&
              (new_history = state_field(new_value, "history")) != NULL &&
              (new_open = state_field(new_value, "open")) != NULL &&
-             old_count->kind == VM_HOST_INTEGER &&
-             new_count->kind == VM_HOST_INTEGER;
+             old_count->kind == HOST_INTEGER &&
+             new_count->kind == HOST_INTEGER;
     if(!ok)
         return 0;
     new_count->integer = old_count->integer + 100;
@@ -110,19 +110,19 @@ static int migrate(void *context, const BundleState *old_state,
     new_weight = record_field(new_first, "weight");
     ok = old_title != NULL && new_title != NULL && old_weight != NULL &&
          new_weight != NULL && copy_owned_string(new_title, old_title) &&
-         old_weight->kind == VM_HOST_INTEGER &&
-         new_weight->kind == VM_HOST_INTEGER &&
+         old_weight->kind == HOST_INTEGER &&
+         new_weight->kind == HOST_INTEGER &&
          (new_weight->integer = old_weight->integer,
           new_weight->bits = old_weight->bits, 1) &&
-         old_history->kind == VM_HOST_ARRAY &&
-         new_history->kind == VM_HOST_ARRAY &&
+         old_history->kind == HOST_ARRAY &&
+         new_history->kind == HOST_ARRAY &&
          new_history->length == old_history->length;
     for(size_t i = 0; ok && i < old_history->length; i++)
-        ok = old_history->elements[i].kind == VM_HOST_INTEGER &&
-             new_history->elements[i].kind == VM_HOST_INTEGER &&
+        ok = old_history->elements[i].kind == HOST_INTEGER &&
+             new_history->elements[i].kind == HOST_INTEGER &&
              (new_history->elements[i].integer = old_history->elements[i].integer,
               new_history->elements[i].bits = old_history->elements[i].bits, 1);
-    new_open->kind = VM_HOST_INTEGER;
+    new_open->kind = HOST_INTEGER;
     new_open->integer = 1;
     new_open->bits = 1;
     return ok;
@@ -172,7 +172,7 @@ static int migrate_instance(BundleInstance *old, const Bundle *replacement,
     /* Snapshot names, types and nested strings outlive the source instance. */
     size_t index = 0;
     BundleStateValue value;
-    VmHostValue *first, *title;
+    HostValue *first, *title;
     ok = ok && BundleStateFind(new_state, "component", "state", &index) &&
          BundleStateValueAt(new_state, index, &value) &&
          strcmp(value.type, "State") == 0 &&
@@ -190,13 +190,13 @@ static int exported_title_is_old(BundleInstance *instance)
     BundleState *state = NULL;
     BundleStateValue value;
     size_t index = 0;
-    VmHostValue *first, *title;
+    HostValue *first, *title;
     int ok = BundleInstanceExportState(instance, &state) &&
              state_find(state, "state", &index) &&
              BundleStateValueAt(state, index, &value) &&
              (first = state_field(&value, "first")) != NULL &&
              (title = record_field(first, "title")) != NULL &&
-             title->kind == VM_HOST_STRING && title->length == 3 &&
+             title->kind == HOST_STRING && title->length == 3 &&
              title->data != NULL && memcmp(title->data, "old", 3) == 0;
     BundleStateClose(state);
     return ok;

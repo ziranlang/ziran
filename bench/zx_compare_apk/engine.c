@@ -13,10 +13,10 @@ static double ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); r
 int64_t Bench(int64_t,int64_t,int64_t);
 int zx_components(FILE*,const char*,const char*);
 void zx_progress(int,int,int);
-static int input(void *ctx,const char *mod,const char *fn,const VmHostValue *args,int n,VmHostValue *value) {
+static int input(void *ctx,const char *mod,const char *fn,const HostValue *args,int n,HostValue *value) {
     (void)ctx;(void)mod;(void)fn;
-    if(n!=1||args[0].kind!=VM_HOST_INTEGER||args[0].integer<0||args[0].integer>2) return 0;
-    value->kind=VM_HOST_INTEGER;value->type="s64";value->integer=inputs[args[0].integer];return 1;
+    if(n!=1||args[0].kind!=HOST_INTEGER||args[0].integer<0||args[0].integer>2) return 0;
+    value->kind=HOST_INTEGER;value->type="s64";value->integer=inputs[args[0].integer];return 1;
 }
 static wasm_trap_t *host(const wasm_val_vec_t *a,wasm_val_vec_t *r) {
     if(a->num_elems!=2||a->data[0].of.i32!=0||a->data[1].of.i64<0||a->data[1].of.i64>2) abort();

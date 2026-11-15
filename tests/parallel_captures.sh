@@ -3,7 +3,7 @@
 # slice parameter, a record parameter and a scalar, including inside larger
 # expressions. Every read feeds an index, so a binding the native worker
 # failed to capture, or captured wrongly, fails a bounds check. C builds,
-# natively run bundles and the portable VM must all run it.
+# natively run bundles and the portable engine must all run it.
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

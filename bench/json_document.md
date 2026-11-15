@@ -5,7 +5,7 @@ The 0.4.2 JSON readers share an allocation-free scanner that examines complete
 view. Escape decoding, error positions, duplicate member behavior and secure
 cleanup retain their existing policies. Short strings use the scalar tail.
 `Simd.Load` and `Simd.LoadLow` accept immutable strings for `u8` vector lanes;
-whole-load bounds checks apply on C, Go and the portable VM.
+whole-load bounds checks apply on C, Go and the portable engine.
 
 Run `sh bench/json_document.sh`. It builds through Zi2c with the normal native
 executable defaults, constructs a 1 MiB ASCII string outside the timer and checks

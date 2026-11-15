@@ -36,7 +36,7 @@ set +e
 status=$?
 set -e
 test "$status" -eq 42
-"$bin/zx2native" --machine -o "$work/source-machine.elf" "$work/source.zx"
+"$bin/zx2native" -o "$work/source-machine.elf" "$work/source.zx"
 test -x "$work/source-machine.elf"
 set +e
 "$work/source-machine.elf"

@@ -98,9 +98,13 @@ StartupInitializers :: () -> bool {
     layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
     initializer_target := cast(s64)(0x400000 + layout.text_offset + Elf.MachineElfStartupSize + 5 +
         owner.encoded.image.functions[0].begin)
-    field := cast(s64)(0x400000 + layout.text_offset + 1)
-    result := Check(bytes[layout.text_offset] == 0xe8 &&
-        Signed32(bytes, layout.text_offset + 1) == initializer_target - 4 - field,
+    // _start first sets the stack limit (mov rax, rsp; sub rax, imm32;
+    // mov [rip + limit], rax), then calls the initializer.
+    field := cast(s64)(0x400000 + layout.text_offset + 17)
+    result := Check(bytes[layout.text_offset] == 0x48 && bytes[layout.text_offset + 1] == 0x89 &&
+        bytes[layout.text_offset + 2] == 0xe0 && bytes[layout.text_offset + 4] == 0x2d &&
+        bytes[layout.text_offset + 16] == 0xe8 &&
+        Signed32(bytes, layout.text_offset + 17) == initializer_target - 4 - field,
         "startup calls the initializer before entry")
     image := Pipeline.MachineCodeImageView(*owner)
     result = result && Check(image.initializers.count == 1 && image.initializers[0] == 0,
@@ -200,11 +204,13 @@ Relocations :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     empty: [0]u8
     layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
     if !Check(layout.diagnostic.problem == .None && owner.encoded.image.relocations.count >= 3,
-        "global, fuel and trap relocations are retained") { return false }
+        "pointer runtime, fuel and trap relocations are retained") { return false }
+    // Globals are reached through checked pointers: their tokens are
+    // constants, and resolving one names the pointer runtime header.
     saw_global := false; saw_fuel := false; saw_trap := false
     for relocation: owner.encoded.image.relocations {
         target: s64 = 0
-        if relocation.kind == .GlobalAddress { target = 0x400000 + layout.data_offset; saw_global = true }
+        if relocation.kind == .PointerRuntime { target = 0x400000 + layout.pointer_offset; saw_global = true }
         else if relocation.kind == .FuelCounter { target = 0x400000 + layout.fuel_offset; saw_fuel = true }
         else if relocation.kind == .TrapHandler {
             target = 0x400000 + layout.text_offset + Elf.MachineElfStartupSize +
@@ -232,14 +238,14 @@ Rejections :: (owner: *Pipeline.MachineNativeOwner) -> bool {
 
     global: s64 = -1
     for index: cast(s64)0..owner.encoded.relocations.count - 1 {
-        if owner.encoded.relocations[index].kind == .GlobalAddress { global = index; break }
+        if owner.encoded.relocations[index].kind == .PointerRuntime { global = index; break }
     }
-    if !Check(global >= 0, "global relocation fixture") { return false }
+    if !Check(global >= 0, "pointer runtime relocation fixture") { return false }
     saved := owner.encoded.relocations[global]
     owner.encoded.relocations[global].symbol = 99
     rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
     owner.encoded.relocations[global] = saved
-    if !Check(rejected.diagnostic.problem == .Relocation, "unresolved global rejected") { return false }
+    if !Check(rejected.diagnostic.problem == .Relocation, "unresolved runtime symbol rejected") { return false }
     owner.encoded.relocations[global].addend = 2147483648
     rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
     owner.encoded.relocations[global] = saved
@@ -272,12 +278,12 @@ Preservation :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     after = Pipeline.MachineNativeView(owner)
     empty: [0]u8
     measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
-    saw_constant := false
-    for relocation: owner.encoded.image.relocations {
-        if relocation.kind == .ConstantAddress { saw_constant = true }
-    }
-    if !Check(measured.diagnostic.problem == .None && saw_constant,
-        "read-only global uses the constant relocation class") { return false }
+    // The read-only global's pointer slot is live and not writable, so a
+    // store through it traps.
+    table := cast(s64)Little(after, measured.pointer_offset + Image.MachinePointerHeaderTable, 8) - 0x400000
+    flags := Little(after, table + Image.MachinePointerEntryBytes + Image.MachinePointerEntryFlags, 2)
+    if !Check(measured.diagnostic.problem == .None && !owner.machine.program.globals[0].writable &&
+        flags == Image.MachinePointerLive, "read-only global has a read-only pointer slot") { return false }
     machine_image := Pipeline.MachineCodeImageView(owner)
     if !Check(machine_image.constants.bytes.count == 8 && machine_image.constants.bytes[0] == 42 &&
         machine_image.constant_offsets[0] == 0 && machine_image.global_offsets[0] == -1,

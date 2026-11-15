@@ -121,6 +121,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     rejected := NativeInvoke(*test, invalid[:])
     if !NativeAssert(*test, rejected.code != 0 && TextContains(CheckConcat(rejected.output, rejected.error), "module search path is unavailable"), "missing module root was accepted") { return 1 }
     if test.failed { return 1 }
-    print("PASS: 273 roots, last-root resolution, first-root ordering, source/saved IR, identical ZX/portable VM, native C/Go, invalid path\n")
+    print("PASS: 273 roots, last-root resolution, first-root ordering, source/saved IR, identical ZX/portable engine, native C/Go, invalid path\n")
     return 0
 }

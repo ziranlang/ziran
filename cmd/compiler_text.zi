@@ -1,5 +1,5 @@
 // Shared compiler text rules. Buffers belong to the caller; this module uses
-// no native imports, so its behavior can also be checked on the portable VM.
+// no native imports, so its behavior can also be checked on the portable engine.
 
 SourceRange :: struct { begin: s64; end: s64 }
 SourcePart :: struct { begin: s64; end: s64; next: s64 }

@@ -7,32 +7,32 @@
  * does not declare and lacks "scale", as a host built against a newer or
  * older layout would. */
 static int mistyped;
-static VmHostField size_fields[1];
-static VmHostField frame_fields[4];
+static HostField size_fields[1];
+static HostField frame_fields[4];
 
 static int
 host_call(void *context, const char *module, const char *function,
-          const VmHostValue *args, int arg_count, VmHostValue *result)
+          const HostValue *args, int arg_count, HostValue *result)
 {
     (void)context;
     (void)args;
     assert(strcmp(module, "fields_host") == 0);
     assert(strcmp(function, "ReadFrameHost") == 0);
     assert(arg_count == 0);
-    size_fields[0] = (VmHostField){"height", {.kind = VM_HOST_INTEGER,
+    size_fields[0] = (HostField){"height", {.kind = HOST_INTEGER,
         .type = "s32", .integer = 5}};
-    frame_fields[0] = (VmHostField){"label", {.kind = VM_HOST_STRING,
+    frame_fields[0] = (HostField){"label", {.kind = HOST_STRING,
         .type = "string", .data = (const unsigned char *)"ok", .length = 2}};
-    frame_fields[1] = (VmHostField){"added", {.kind = VM_HOST_INTEGER,
+    frame_fields[1] = (HostField){"added", {.kind = HOST_INTEGER,
         .type = "s32", .integer = 9}};
-    frame_fields[2] = (VmHostField){"width", {.kind = VM_HOST_INTEGER,
+    frame_fields[2] = (HostField){"width", {.kind = HOST_INTEGER,
         .type = "s32", .integer = 7}};
     if(mistyped)
-        frame_fields[2].value = (VmHostValue){.kind = VM_HOST_STRING,
+        frame_fields[2].value = (HostValue){.kind = HOST_STRING,
             .type = "string", .data = (const unsigned char *)"7", .length = 1};
-    frame_fields[3] = (VmHostField){"size", {.kind = VM_HOST_RECORD,
+    frame_fields[3] = (HostField){"size", {.kind = HOST_RECORD,
         .type = "Size", .fields = size_fields, .field_count = 1}};
-    result->kind = VM_HOST_RECORD;
+    result->kind = HOST_RECORD;
     result->type = "Frame";
     result->fields = frame_fields;
     result->field_count = 4;

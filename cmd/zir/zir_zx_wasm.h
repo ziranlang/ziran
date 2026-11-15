@@ -31,8 +31,8 @@ size_t ZxWasmLiveBytes(const ZxWasm *wasm);
  * ExecInstanceStateAt and ExecInstanceStateStore give and take them. */
 size_t ZxWasmStateCount(const ZxWasm *wasm);
 int ZxWasmStateAt(ZxWasm *wasm, size_t index, const char **module, const char **name,
-                  const char **type, VmHostValue *value);
-int ZxWasmStateStore(ZxWasm *wasm, const VmHostValue *const *values);
+                  const char **type, HostValue *value);
+int ZxWasmStateStore(ZxWasm *wasm, const HostValue *const *values);
 void ZxWasmClose(ZxWasm *wasm);
 
 /* Platform output services of the (zx, host_i64) import: a string as

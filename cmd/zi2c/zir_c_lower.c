@@ -9,7 +9,6 @@
 #include "zir_text.h"
 #include "zir_emit.h"
 #include "zir_expr.h"
-#include "zir_runtime.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_stream.h"
@@ -808,6 +807,10 @@ resolve_body_symbol(void *context, const char *text, char *out, size_t size)
     BodySymbols *symbols = context;
     const ZirModule *owner = NULL;
     const ZirGlobal *global = NULL;
+    if(text[0] == '*') {
+        strip_alias_type(symbols->module, text, out, size);
+        return;
+    }
     /* A checked type qualified by an alias or by the module that declares
      * it (a type reached only through another module) has one native name. */
     if(strchr(text, '.') != NULL &&
@@ -2407,7 +2410,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                    "cannot replace C header output: %s", buffers->hpath);
         return 0;
     }
-    if(!EmitRuntimeHeaders(out_dir, buffers->hpath, lowering_simd)) {
+    if(!compiler_runtime_emit_EmitRuntimeHeaders(StringView(out_dir, strlen(out_dir)),
+                                                 StringView(buffers->hpath, strlen(buffers->hpath)), lowering_simd)) {
         Diagnostic(m->span, "zir_c.global",
                    "cannot write runtime headers beside %s", buffers->hpath);
         return 0;
@@ -2736,7 +2740,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                    "cannot replace C source output: %s", buffers->cpath);
         return 0;
     }
-    if(!EmitRuntimeHeaders(out_dir, buffers->cpath, lowering_simd)) {
+    if(!compiler_runtime_emit_EmitRuntimeHeaders(StringView(out_dir, strlen(out_dir)),
+                                                 StringView(buffers->cpath, strlen(buffers->cpath)), lowering_simd)) {
         Diagnostic(m->span, "zir_c.global",
                    "cannot write runtime headers beside %s", buffers->cpath);
         return 0;
@@ -2798,7 +2803,8 @@ c_lower_in_context(const ZirProgram *program, const char *root, const char *out_
     lowering_program = NULL;
     lowering_simd = NULL;
     /* Every file is out, so the program's helpers are known. */
-    if(lowered && simd.header && !EmitSimdOps(out_dir, &simd)) {
+    if(lowered && simd.header && !compiler_runtime_emit_EmitSimdOps(
+            StringView(out_dir, strlen(out_dir)), &simd)) {
         Diagnostic(program->modules[0].span, "zir_c.global",
                    "cannot write ziran_simd_ops.h in %s", out_dir);
         lowered = 0;

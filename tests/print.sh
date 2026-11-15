@@ -118,9 +118,7 @@ EOF
 
 done
 
-# The direct Linux x86-64 native path owns formatting and write_all. Keep this
-# fixture float-free: float printing has a stable named gap until its exact
-# shortest-round-trip formatter is part of the native image.
+# The Linux x86-64 machine path owns formatting and write_all.
 cat > "$work/native_print.zi" <<'EOF'
 TwiceNative :: (value: s32) -> s32 {
     print("[twice %]", value)
@@ -222,13 +220,9 @@ EOF
 "$zi2zx" --root "$work/native-float-ir" --entry native_float:NativeFloat \
     -o "$work/native-float.zx" "$work/native-float-ir/native_float.zir"
 printf 'preserve-output\n' > "$work/native-float.elf"
-if ZIRAN_DIAGNOSTICS=json "$zx2native" \
-    -o "$work/native-float.elf" "$work/native-float.zx" > "$work/native-float.log" 2>&1; then
-    echo "native ELF unexpectedly accepted float print formatting" >&2
-    exit 1
-fi
-grep -Fq 'assembly.gap.native-float-format' "$work/native-float.log"
-printf 'preserve-output\n' | cmp - "$work/native-float.elf"
+"$zx2native" -o "$work/native-float.elf" "$work/native-float.zx"
+"$work/native-float.elf" > "$work/native-float.out"
+printf '0.1\n' | cmp - "$work/native-float.out"
 
 # The classic program: no return value, so `ziran run` prints only the text.
 cat > "$work/hello.zi" <<'EOF'

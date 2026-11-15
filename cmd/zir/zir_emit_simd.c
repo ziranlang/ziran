@@ -14,7 +14,7 @@ void
 EmitUseSimdTier(const char *tier, int native_blocks)
 {
     zir_emit_simd_tier = tier;
-    zir_native_blocks = tier != NULL ? native_blocks : 0;
+    compiler_native_names_SetBlocks(tier != NULL ? native_blocks : 0);
 }
 
 /* The procedure of module a plain call names, when only one has that name. */
@@ -73,7 +73,7 @@ helper_name(const Emitter *e, const SimdOp *op, const char *operand,
 {
     char prefix[24];
     helper_prefix(e, op, prefix, sizeof(prefix));
-    if(native && e->target == ZIR_C && zir_native_blocks == 2 && SimdNativeHelper(op)) {
+    if(native && e->target == ZIR_C && compiler_native_names_Blocks() == 2 && SimdNativeHelper(op)) {
         size_t used = strlen(prefix);
         format(prefix + used, sizeof(prefix) - used, "native_");
     }
@@ -101,10 +101,10 @@ native_vector(const char *type)
 static void
 native_count(const Emitter *e, long lanes, char *out, size_t size)
 {
-    if(e->target == ZIR_C && zir_native_blocks == 0)
+    if(e->target == ZIR_C && compiler_native_names_Blocks() == 0)
         format(out, size, "(%ld * ZI_NATIVE_BLOCKS)", lanes);
     else
-        format(out, size, "%ld", lanes * (e->target == ZIR_C ? zir_native_blocks : 1));
+        format(out, size, "%ld", lanes * (e->target == ZIR_C ? compiler_native_names_Blocks() : 1));
 }
 
 /* Lanes a load or store of `type` touches: LoadLow and StoreLow move 64 bits
@@ -118,8 +118,9 @@ touched_lanes(const Emitter *e, const SimdOp *op, const char *type, char *out, s
     int low = op->id == ZI_OP_LOAD_LOW || op->id == ZI_OP_STORE_LOW;
     if(vector.is_native) {
         native_count(e, low ? vector.lanes / 2 : vector.lanes, out, size);
-        return e->target == ZIR_C && zir_native_blocks == 0 ? 0 :
-               (low ? vector.lanes / 2 : vector.lanes) * (e->target == ZIR_C ? zir_native_blocks : 1);
+        return e->target == ZIR_C && compiler_native_names_Blocks() == 0 ? 0 :
+               (low ? vector.lanes / 2 : vector.lanes) *
+               (e->target == ZIR_C ? compiler_native_names_Blocks() : 1);
     }
     format(out, size, "%d", low ? 64 / vector.lane_bits : vector.lanes);
     return low ? 64 / vector.lane_bits : vector.lanes;

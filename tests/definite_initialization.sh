@@ -8,7 +8,7 @@
 # known here, a read or view of the local first, an index not known or one
 # that wraps, a labeled break out of the block, fields of mixed size that
 # leave padding, and a field read through using. Every program prints the
-# same on C, Go, native and the portable VM, from source and saved IR.
+# same on C, Go, native and the portable engine, from source and saved IR.
 set -eu
 
 ziran=${1:?pass the ziran command}

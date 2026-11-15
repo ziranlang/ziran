@@ -108,6 +108,31 @@ ParallelCompiler :: (argc: s32, argv: **u8) -> s32 {
     return child.code
 }
 
+ParallelClear :: (test: *NativeTest, name: string) {
+    kept: s64
+    for index: cast(s64)0..test.environment.count - 1 {
+        entry := test.environment[index]
+        equals: s64 = -1
+        scan: s64
+        while scan < entry.count {
+            if entry[scan] == #char "=" { equals = scan; break }
+            scan += 1
+        }
+        entry_name := ifx equals < 0 then entry else entry[0:equals]
+        if entry_name != name {
+            test.environment[kept] = entry
+            kept += 1
+        }
+    }
+    unused VecResize(test.environment, kept)
+}
+
+ParallelSet :: (test: *NativeTest, entry: string) {
+    equals := TextFind(entry, "=", 0)
+    ParallelClear(test, ifx equals < 0 then entry else entry[0:equals])
+    VecPush(test.environment, entry)
+}
+
 ParallelReset :: (test: *NativeTest) -> bool {
     if !NativeWrite(test, CheckPath(test.work, "state.json"), "{\"active\":0,\"peak\":0,\"started\":0,\"sources\":[],\"parents\":[]}") { return false }
     markers := string.["compile.release", "link.release", "link.ready", "hold.release", "hold.waiting", "failed"]
@@ -146,8 +171,10 @@ ParallelStart :: (context: ParallelContext, mode: string = "json", fail: bool = 
     arguments: Vec(string)
     for argument: context.command { VecPush(arguments, ifx argument == "--diagnostics=json" then CheckConcat("--diagnostics=", mode) else argument) }
     base := test.environment.count
-    NativeSet(test, "BUILD_FAIL_LINK", ifx fail then "1" else "0")
-    for entry: extra { VecPush(test.environment, entry) }
+    controls := string.["BUILD_FAIL_LINK", "BUILD_FAIL_SOURCE", "BUILD_MESSAGES", "BUILD_HOLD_SOURCE", "BUILD_HOLD_OTHERS", "BUILD_NOISE"]
+    for control: controls { ParallelClear(test, control) }
+    ParallelSet(test, CheckConcat("BUILD_FAIL_LINK=", ifx fail then "1" else "0"))
+    for entry: extra { ParallelSet(test, entry) }
     if cpu >= 0 {
         selected: Vec(u8)
         if !NativeAssert(test, affinity.count > 0 && VecResize(selected, affinity.count), "allocate CPU affinity fixture") { return .{} }

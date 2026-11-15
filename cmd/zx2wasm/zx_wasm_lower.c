@@ -63,8 +63,8 @@ enum { ASYNC_NORMAL, ASYNC_UNWIND, ASYNC_REWIND };
 enum { BLOCK_FREE, BLOCK_PROGRAM, BLOCK_HOST };
 
 enum {
-    HOST_NONE, HOST_WRITE, HOST_SIGNED, HOST_UNSIGNED, HOST_BOOL,
-    HOST_FLOAT32, HOST_FLOAT64, HOST_CAPABILITY
+    ZXW_HOST_NONE, ZXW_HOST_WRITE, ZXW_HOST_SIGNED, ZXW_HOST_UNSIGNED, ZXW_HOST_BOOL,
+    ZXW_HOST_FLOAT32, ZXW_HOST_FLOAT64, ZXW_HOST_CAPABILITY
 };
 
 /* Host shape flags of a type, computed once. */
@@ -655,13 +655,13 @@ classify_externals(Lower *lower)
         const int32_t *parameters = function->parameters.data;
         int64_t count = function->parameters.length;
         const LirType *first = count > 0 ? type_at(lower, parameters[0]) : type_at(lower, -1);
-        unsigned char kind = HOST_NONE;
-        if(text_is(name, "ziran.platform.write_all")) kind = HOST_WRITE;
-        else if(text_is(name, "ziran.print.signed")) kind = HOST_SIGNED;
-        else if(text_is(name, "ziran.print.unsigned")) kind = HOST_UNSIGNED;
-        else if(text_is(name, "ziran.print.bool")) kind = HOST_BOOL;
-        else if(text_is(name, "ziran.print.float32")) kind = HOST_FLOAT32;
-        else if(text_is(name, "ziran.print.float64")) kind = HOST_FLOAT64;
+        unsigned char kind = ZXW_HOST_NONE;
+        if(text_is(name, "ziran.platform.write_all")) kind = ZXW_HOST_WRITE;
+        else if(text_is(name, "ziran.print.signed")) kind = ZXW_HOST_SIGNED;
+        else if(text_is(name, "ziran.print.unsigned")) kind = ZXW_HOST_UNSIGNED;
+        else if(text_is(name, "ziran.print.bool")) kind = ZXW_HOST_BOOL;
+        else if(text_is(name, "ziran.print.float32")) kind = ZXW_HOST_FLOAT32;
+        else if(text_is(name, "ziran.print.float64")) kind = ZXW_HOST_FLOAT64;
         else if(text_prefix(name, "ziran.platform.") || text_prefix(name, "ziran.print."))
             return WasmGap(lower, "wasm.gap.platform-service-unavailable",
                        "the wasm32 target does not implement platform service %.*s",
@@ -671,25 +671,25 @@ classify_externals(Lower *lower)
                        "external procedure %.*s is not a host capability",
                        (int)name.length, name.data);
         else
-            kind = HOST_CAPABILITY;
+            kind = ZXW_HOST_CAPABILITY;
         lower->host_kind[index] = kind;
-        if(kind == HOST_CAPABILITY) {
+        if(kind == ZXW_HOST_CAPABILITY) {
             if(!add_capability(lower, index))
                 return 0;
             continue;
         }
         int valid = 1;
-        if(kind == HOST_WRITE)
+        if(kind == ZXW_HOST_WRITE)
             valid = count == 3 && type_at(lower, parameters[0])->kind == LirTypeKind_Integer &&
                 type_at(lower, parameters[1])->kind == LirTypeKind_Pointer &&
                 type_at(lower, parameters[2])->kind == LirTypeKind_Integer;
-        else if(kind == HOST_SIGNED || kind == HOST_UNSIGNED)
+        else if(kind == ZXW_HOST_SIGNED || kind == ZXW_HOST_UNSIGNED)
             valid = count == 1 && first->kind == LirTypeKind_Integer;
-        else if(kind == HOST_BOOL)
+        else if(kind == ZXW_HOST_BOOL)
             valid = count == 1 && (first->kind == LirTypeKind_Bool || first->kind == LirTypeKind_Integer);
-        else if(kind == HOST_FLOAT32 || kind == HOST_FLOAT64)
+        else if(kind == ZXW_HOST_FLOAT32 || kind == ZXW_HOST_FLOAT64)
             valid = count == 1 && first->kind == LirTypeKind_Float &&
-                first->bits == (kind == HOST_FLOAT32 ? 32 : 64);
+                first->bits == (kind == ZXW_HOST_FLOAT32 ? 32 : 64);
         if(!valid || type_at(lower, function->result)->kind != LirTypeKind_Void)
             return WasmGap(lower, "wasm.gap.platform-service-abi",
                        "platform service %.*s has an unexpected LIR signature",
@@ -1283,7 +1283,7 @@ suspension_site(Lower *lower, const LirInstruction *instruction)
     if(symbol < 0 || symbol >= lower->function_count)
         return 0;
     if(instruction->op == LirOp_HostCall)
-        return lower->host_kind[symbol] == HOST_CAPABILITY;
+        return lower->host_kind[symbol] == ZXW_HOST_CAPABILITY;
     return instruction->op == LirOp_Call && !lower->functions[symbol].external && lower->suspends[symbol];
 }
 
@@ -2512,7 +2512,7 @@ lower_host_call(Fn *fn, const LirInstruction *instruction)
     }
     unsigned kind = lower->host_kind[instruction->symbol];
     switch(kind) {
-    case HOST_WRITE:
+    case ZXW_HOST_WRITE:
         /* Only descriptor 1 is the module's builtin output stream. */
         get_i64(fn, operands[0], 0);
         i64_const(fn, 1);
@@ -2522,30 +2522,30 @@ lower_host_call(Fn *fn, const LirInstruction *instruction)
         get_i64(fn, operands[2], 0);
         call(fn, lower->put_function);
         return;
-    case HOST_SIGNED:
+    case ZXW_HOST_SIGNED:
         get_i64(fn, operands[0], 1);
         call(fn, lower->signed_function);
         return;
-    case HOST_UNSIGNED:
+    case ZXW_HOST_UNSIGNED:
         get_i64(fn, operands[0], 0);
         call(fn, lower->unsigned_function);
         return;
-    case HOST_BOOL:
+    case ZXW_HOST_BOOL:
         get_i64(fn, operands[0], 0);
         i64_const(fn, 0); op(fn, 0x52);
         call(fn, lower->bool_function);
         return;
-    case HOST_FLOAT32:
+    case ZXW_HOST_FLOAT32:
         flush_output(fn);
         i32_const(fn, (int32_t)ZX_WASM_PRINT_FLOAT32);
         get(fn, operands[0]); op(fn, 0xbc); op(fn, 0xad);
         break;
-    case HOST_FLOAT64:
+    case ZXW_HOST_FLOAT64:
         flush_output(fn);
         i32_const(fn, (int32_t)ZX_WASM_PRINT_FLOAT64);
         get(fn, operands[0]); op(fn, 0xbd);
         break;
-    case HOST_CAPABILITY:
+    case ZXW_HOST_CAPABILITY:
         lower_capability_call(fn, instruction);
         return;
     default:
@@ -3086,7 +3086,7 @@ lower_function(Lower *lower, int64_t index, Buf *output)
             }
             if(instruction->op == LirOp_HostCall && instruction->symbol >= 0 &&
                instruction->symbol < lower->function_count &&
-               lower->host_kind[instruction->symbol] == HOST_CAPABILITY &&
+               lower->host_kind[instruction->symbol] == ZXW_HOST_CAPABILITY &&
                16 * (instruction->operands.length + 1) > host_area)
                 host_area = 16 * (instruction->operands.length + 1);
             const LirEdge *edges = instruction->edges.data;
@@ -3818,8 +3818,8 @@ scan_program(Lower *lower)
                 LirOp code = instruction->op;
                 int32_t symbol = instruction->symbol;
                 if(code == LirOp_HostCall && symbol >= 0 && symbol < lower->function_count) {
-                    if(lower->host_kind[symbol] == HOST_CAPABILITY) lower->uses_capability = 1;
-                    else if(lower->host_kind[symbol] != HOST_NONE) {
+                    if(lower->host_kind[symbol] == ZXW_HOST_CAPABILITY) lower->uses_capability = 1;
+                    else if(lower->host_kind[symbol] != ZXW_HOST_NONE) {
                         lower->uses_print = 1;
                         lower->print_kinds |= 1u << lower->host_kind[symbol];
                     }
@@ -4041,7 +4041,7 @@ lower_module(const LirProgram *program, ZxWasmImage *image, int suspendable)
         lower.free_table = data_reserve(&lower, 4 * ZXW_CLASSES);
         if(lower.failed) goto done;
     }
-    if(lower.print_kinds & (1u << HOST_BOOL)) {
+    if(lower.print_kinds & (1u << ZXW_HOST_BOOL)) {
         lower.words_address = data_reserve(&lower, 9);
         if(lower.failed) goto done;
         memcpy(lower.data.data + (lower.words_address - ZXW_DATA_BASE), "truefalse", 9);
@@ -4066,9 +4066,9 @@ lower_module(const LirProgram *program, ZxWasmImage *image, int suspendable)
     if(lower.uses_print) {
         lower.flush_function = next++;
         lower.put_function = next++;
-        if(lower.print_kinds & (1u << HOST_SIGNED)) lower.signed_function = next++;
-        if(lower.print_kinds & (1u << HOST_UNSIGNED)) lower.unsigned_function = next++;
-        if(lower.print_kinds & (1u << HOST_BOOL)) lower.bool_function = next++;
+        if(lower.print_kinds & (1u << ZXW_HOST_SIGNED)) lower.signed_function = next++;
+        if(lower.print_kinds & (1u << ZXW_HOST_UNSIGNED)) lower.unsigned_function = next++;
+        if(lower.print_kinds & (1u << ZXW_HOST_BOOL)) lower.bool_function = next++;
     }
     for(int64_t type = 0; type < lower.type_count; type++) {
         if(lower.needs[type] & NEED_ENCODE) {
@@ -4157,9 +4157,9 @@ lower_module(const LirProgram *program, ZxWasmImage *image, int suspendable)
     if(lower.uses_print) {
         emit_flush(&lower, &code);
         emit_put(&lower, &code);
-        if(lower.print_kinds & (1u << HOST_SIGNED)) emit_number(&lower, &code, 1);
-        if(lower.print_kinds & (1u << HOST_UNSIGNED)) emit_number(&lower, &code, 0);
-        if(lower.print_kinds & (1u << HOST_BOOL)) emit_bool(&lower, &code);
+        if(lower.print_kinds & (1u << ZXW_HOST_SIGNED)) emit_number(&lower, &code, 1);
+        if(lower.print_kinds & (1u << ZXW_HOST_UNSIGNED)) emit_number(&lower, &code, 0);
+        if(lower.print_kinds & (1u << ZXW_HOST_BOOL)) emit_bool(&lower, &code);
     }
     for(int64_t type = 0; type < lower.type_count && !lower.failed; type++) {
         if(lower.needs[type] & NEED_ENCODE) {
@@ -4216,9 +4216,9 @@ lower_module(const LirProgram *program, ZxWasmImage *image, int suspendable)
     if(lower.uses_print) {
         buf_uleb(&content, unit_type);
         buf_uleb(&content, put_type);
-        if(lower.print_kinds & (1u << HOST_SIGNED)) buf_uleb(&content, number_type);
-        if(lower.print_kinds & (1u << HOST_UNSIGNED)) buf_uleb(&content, number_type);
-        if(lower.print_kinds & (1u << HOST_BOOL)) buf_uleb(&content, flag_type);
+        if(lower.print_kinds & (1u << ZXW_HOST_SIGNED)) buf_uleb(&content, number_type);
+        if(lower.print_kinds & (1u << ZXW_HOST_UNSIGNED)) buf_uleb(&content, number_type);
+        if(lower.print_kinds & (1u << ZXW_HOST_BOOL)) buf_uleb(&content, flag_type);
     }
     for(int64_t type = 0; type < lower.type_count; type++) {
         if(lower.needs[type] & NEED_ENCODE) {

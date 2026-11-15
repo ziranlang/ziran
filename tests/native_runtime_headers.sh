@@ -11,7 +11,9 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 # Restored sources can be older than a reused embedded-runtime output. Both
 # ordinary and seed builds must refresh its bytes, then preserve its timestamp.
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" headers-refresh
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+    -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_services" \
+    -I"$repo/bootstrap/compiler_native_names" \
     "$repo/tests/native_helpers_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -pthread -o "$work/helpers"
 "$work/helpers"
@@ -118,9 +120,13 @@ done
 # dependency too, and retain timestamps when both files are unchanged.
 mkdir "$work/copied"
 cat > "$work/copy.c" <<'C'
-#include "zir_runtime.h"
+#include "zir_string.h"
+#include "compiler_runtime_emit.h"
+#include <string.h>
 int main(int argc, char **argv) {
-    return argc == 3 && EmitRuntimeHeaders(argv[1], argv[2], 0) ? 0 : 1;
+    return argc == 3 && compiler_runtime_emit_EmitRuntimeHeaders(
+        StringView(argv[1], strlen(argv[1])),
+        StringView(argv[2], strlen(argv[2])), NULL) ? 0 : 1;
 }
 C
 cat > "$work/copied/use.c" <<'C'
@@ -129,8 +135,13 @@ int main(void) { return StringEqual(StringLiteral("a\0z"), StringView("a\0z", 3)
 C
 sh "$repo/scripts/embed_headers.sh" "$repo/include/zir_string.h" \
     "$repo/include/zir_string_types.h" > "$work/embedded.c"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
-    "$work/copy.c" "$repo/cmd/zir/zir_runtime.c" "$work/embedded.c" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+    -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_runtime_emit" \
+    "$work/copy.c" "$repo/bootstrap/compiler_runtime_emit/compiler_runtime_emit.c" \
+        "$repo/bootstrap/compiler_runtime_emit/file.c" \
+        "$repo/bootstrap/compiler_runtime_emit/file_linux.c" \
+        "$repo/bootstrap/compiler_runtime_emit/c_string.c" \
+        "$repo/bootstrap/compiler_runtime_emit/vec.c" "$work/embedded.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -o "$work/copy"
 "$work/copy" "$work/copied" "$work/copied/use.c"
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" headers-copy

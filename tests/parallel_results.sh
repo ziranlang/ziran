@@ -2,7 +2,7 @@
 # A #parallel body hands results out by writing its own slot, A[it] with any
 # field or index after it, of a fixed array the function owns. Iterations
 # write distinct slots, so C builds on several threads, natively run
-# bundles, the portable VM and Go all agree. Writes the checker cannot prove
+# bundles, the portable engine and Go all agree. Writes the checker cannot prove
 # disjoint stay rejected.
 set -eu
 ziran=${1:?pass the ziran command}

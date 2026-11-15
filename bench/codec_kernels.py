@@ -477,7 +477,7 @@ def main():
                         'correctness': 'Python oracle, all native vectors, then source/saved IR small bundle outputs; all before timing',
                         'warm_native': 'fresh process, one full untimed call on identical input, then one timed call; both results checked',
                         'cold_process': 'first call in a fresh process, no cache flush; process wall/CPU include startup and kernel initialization',
-                        'portable_process': 'fresh portable VM process for each sample; includes bundle load/verification and interpreter startup',
+                        'portable_process': 'fresh portable engine process for each sample; includes bundle load/verification and interpreter startup',
                         'kernel_region': 'initialization, scalar algorithm, checksum and call overhead; excludes code generation, build and process startup',
                         'compile': 'single separately recorded build phase, no claim of cold or repeated compile performance'},
                     limitations=[

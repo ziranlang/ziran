@@ -190,14 +190,6 @@ Dependency metadata must contain at least 512 inputs per consumer. Fresh and
 unchanged samples share warm machine caches and identical source inputs.
 This compares two compiler versions, without a Go or C language baseline.
 
-`bench/native_cache_names.py --before-ref REVISION
---out build/benchmarks/native-cache-names` isolates ordered-name collection at
-16, 256, 2,048 and 8,192 names. It compiles the earlier cache source from Git
-through compiler standard input and compares it with the current source.
-Each sample inserts unique names, repeats duplicates, checks order and an
-independent checksum, then frees the collection. Input preparation and process
-startup are outside the internal timer. Report this container timing
-separately from whole builds; process RSS also includes benchmark inputs.
 Both harnesses save raw samples, tool/source hashes and actual CPU affinity.
 For a before/after comparison that reaches late record types within the former
 512-module limit, add `--groups 4 --read-last` to the header-graph benchmark.
@@ -336,7 +328,7 @@ the measured workloads; they do not establish whole-application C/Go parity.
 ## Android device execution
 
 Prepare matched Ziran source/saved-IR C and Go programs, handwritten C/Go
-controls, and a portable VM fixture for one Android ABI:
+controls, and a portable engine fixture for one Android ABI:
 
 ```sh
 python3 bench/android_execution.py prepare \
@@ -641,7 +633,7 @@ portable `.zx`. The harness checks that generated source and bundles match,
 and validates every runtime result against an independent modular-series
 oracle before reporting times. It separately measures Ziran check/emission,
 downstream native compilation, and whole-process execution. Runtime cases are
-shuffled with a fixed seed between sample rounds. The portable VM runs only
+shuffled with a fixed seed between sample rounds. The portable engine runs only
 the small input because its instruction budget excludes the large one.
 
 These numbers are a smoke baseline, not a language ranking. They include
@@ -664,7 +656,7 @@ portable `.zx`, downstream native builds, and whole-process execution.
 Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions provide
 algorithm-level comparisons when their toolchains are installed; unavailable
 tools are recorded explicitly. The checksum uses a closed-form arithmetic
-oracle, and every runtime sample must match it. The portable VM runs the small
+oracle, and every runtime sample must match it. The portable engine runs the small
 input only. Raw commands, samples,
 source and tool hashes, and caveats are written alongside the report. These
 workloads remain a smoke and collection baseline; they do not cover text,

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Every site example with a main prints the same text on the portable VM
+# Every site example with a main prints the same text on the portable engine
 # and as C and Go.
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -33,7 +33,7 @@ for source in "$examples"/*.zi; do
 
     for target in c go; do
         if ! cmp -s "$out/expected" "$out/$target.out"; then
-            echo "$name: $target output differs from the portable VM" >&2
+            echo "$name: $target output differs from the portable engine" >&2
             diff "$out/expected" "$out/$target.out" >&2 || true
             exit 1
         fi

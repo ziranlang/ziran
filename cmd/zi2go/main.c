@@ -217,5 +217,5 @@ done:
         Diagnostic((ZirSourceSpan){0}, "compiler.context", "compiler operation retained live programs");
         result = 1;
     }
-    return result;
+    return DiagnosticEnsureFailureReported(result, "zi2go");
 }

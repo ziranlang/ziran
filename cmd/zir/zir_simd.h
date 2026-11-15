@@ -9,6 +9,7 @@
 #define ZIR_SIMD_H
 
 #include "zir.h"
+#include "compiler_runtime_emit.h"
 #include <stdint.h>
 
 typedef enum SimdShape {
@@ -73,14 +74,6 @@ int SimdBlockLanes(const ZirVector *vector);
  * its LoadLow and StoreLow move half the vector rather than 64 bits. */
 int SimdNativeHelper(const SimdOp *op);
 
-/* Names the table borrows, in open-addressed slots that hold an entry's
- * index + 1. Zero-initialized. */
-typedef struct SimdNames {
-    const char **text;
-    size_t *length;
-    size_t count, capacity;
-    size_t *slots, slot_count;
-} SimdNames;
 /* The entry of a name, added when absent and add is set, or -1. */
 long SimdNamesFind(SimdNames *names, const char *name, size_t length, int add);
 void SimdNamesFree(SimdNames *names);
@@ -89,13 +82,6 @@ void SimdNamesFree(SimdNames *names);
  * add_s16x16. Narrows *word and *length; 0 for other words. */
 int SimdHelperWord(const char **word, size_t *length);
 
-/* The helpers one program's generated C names, and whether any of its files
- * includes ziran_simd_ops.h, which EmitSimdOps writes from them.
- * Zero-initialized; SimdUsesFree releases it. */
-typedef struct ZirSimdUses {
-    SimdNames names; /* owned copies */
-    int header;
-} ZirSimdUses;
 /* Record a word of generated C; words naming no helper are ignored. */
 void SimdUsesNote(ZirSimdUses *uses, const char *word, size_t length);
 void SimdUsesFree(ZirSimdUses *uses);

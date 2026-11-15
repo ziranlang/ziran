@@ -1,4 +1,5 @@
 using Bundle :: #import "compiler_bundle"
+using Debug :: #import "compiler_exec_debug"
 using IR :: #import "compiler_lowered_ir"
 using Verify :: #import "compiler_lowered_verify"
 using Serial :: #import "compiler_exec_serial"
@@ -30,6 +31,10 @@ ZxExecOwner :: struct {
     optional_sections: s64
     // The host interface section's text, copied; empty when absent.
     interface: Vec(u8)
+    // The optional debug attachment, copied and not yet checked; empty when
+    // absent. ZxExecReadDebug validates it against the program identity.
+    debug: Vec(u8)
+    identity: [32]u8
 }
 
 #scope_file
@@ -516,8 +521,10 @@ Result :: (problem: ZxExecProblem) -> ZxExecResult {
 // Writes a deterministic stripped executable. Debug/source records and opaque
 // proof metadata are not copied into the required instruction section.
 // `interface` is the optional host interface section: names an embedder
-// sees, not read by the engine.
-ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, interface: string = "") -> ZxExecResult {
+// sees, not read by the engine. With `debug`, a program's source texts and
+// origins go to the optional debug attachment instead.
+ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, interface: string = "",
+    debug: bool = false) -> ZxExecResult {
     limits := IR.LirDefaultLimits()
     budget := BudgetBegin(limits)
     diagnostic := Verify.LirVerify(program, limits)
@@ -570,38 +577,51 @@ ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, inter
     program_identity := program_digest.bytes
     assets_identity := assets_digest.bytes
     content_identity := content_digest.bytes
+    attachment: Vec(u8)
+    if debug && (program.sources.count != 0 || program.origins.count != 0) &&
+        !ZxDebugEncode(program, TextView(program_identity[:]), *attachment) {
+        VecFree(encoded)
+        VecFree(attachment)
+        return Result(.Allocation)
+    }
     no_attachments: []Bundle.ExecutableAttachment
     header := Bundle.ExecutableHeader.{entry = program.entry, capabilities = capabilities, program = TextView(encoded[:]), assets = assets,
         program_identity = TextView(program_identity[:]), assets_identity = TextView(assets_identity[:]),
-        content_identity = TextView(content_identity[:]), interface = interface, attachments = no_attachments}
+        content_identity = TextView(content_identity[:]), debug = TextView(attachment[:]),
+        interface = interface, attachments = no_attachments}
+    result := EncodeContainer(*budget, header, output)
+    VecFree(encoded)
+    VecFree(attachment)
+    return result
+}
+
+#scope_file
+
+EncodeContainer :: (budget: *ZxExecBudget, header: Bundle.ExecutableHeader, output: []u8) -> ZxExecResult {
+    empty: []u8
     measured_bundle := Bundle.ExecutableEncode(empty, header)
     if measured_bundle.problem != .None {
-        VecFree(encoded)
         result := Result(.Container)
         result.container = measured_bundle.problem
         result.size = measured_bundle.size
         result.offset = measured_bundle.offset
         return result
     }
-    if !BudgetFitsBytes(*budget, measured_bundle.size) {
-        VecFree(encoded)
+    if !BudgetFitsBytes(budget, measured_bundle.size) {
         return Result(.Limit)
     }
     if output.count == 0 {
-        VecFree(encoded)
         result := Result(.None)
         result.size = measured_bundle.size
         return result
     }
     if output.count < measured_bundle.size {
-        VecFree(encoded)
         result := Result(.Output)
         result.container = .Output
         result.size = measured_bundle.size
         return result
     }
     encoded_bundle := Bundle.ExecutableEncode(output, header)
-    VecFree(encoded)
     if encoded_bundle.problem != .None {
         result := Result(ifx encoded_bundle.problem == .Output then .Output else .Container)
         result.container = encoded_bundle.problem
@@ -614,10 +634,13 @@ ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, inter
     return result
 }
 
+#scope_export
+
 ZxExecReadFree :: (owner: *ZxExecOwner) {
     if owner == null { return }
     Serial.LirReadFree(*owner.read)
     VecFree(owner.interface)
+    VecFree(owner.debug)
     owner.valid = false
     owner.entry = LirNoId
     owner.assets = 0
@@ -708,6 +731,13 @@ ZxExecRead :: (owner: *ZxExecOwner, input: string, limits: LirLimits) -> ZxExecR
         return Result(.Allocation)
     }
     for at: cast(s64)0..layout.interface.count - 1 { owner.interface[at] = layout.interface[at] }
+    if !BudgetStorage(*budget, layout.debug.count, 1) ||
+        !VecResizeBounded(owner.debug, layout.debug.count, layout.debug.count) {
+        ZxExecReadFree(owner)
+        return Result(.Allocation)
+    }
+    for at: cast(s64)0..layout.debug.count - 1 { owner.debug[at] = layout.debug[at] }
+    owner.identity = program_identity
     owner.valid = true
     owner.entry = layout.entry
     owner.assets = layout.assets
@@ -720,6 +750,17 @@ ZxExecRead :: (owner: *ZxExecOwner, input: string, limits: LirLimits) -> ZxExecR
 ZxExecReadProgram :: (owner: *ZxExecOwner) -> LirProgram {
     if owner == null || !owner.valid { return .{version = LirVersion, entry = LirNoId} }
     return Serial.LirReadProgram(*owner.read)
+}
+
+// The program with the debug attachment's source texts and origins restored,
+// in DEBUG, which borrows OWNER's program. Absent when the file has none.
+ZxExecReadDebug :: (owner: *ZxExecOwner, debug: *ZxDebugOwner, limits: LirLimits) -> ZxDebugProblem {
+    if owner == null || !owner.valid {
+        ZxDebugFree(debug)
+        return .Absent
+    }
+    return ZxDebugApply(debug, ZxExecReadProgram(owner), TextView(owner.debug[:]),
+        TextView(owner.identity[:]), limits)
 }
 
 ZxExecProblemName :: (problem: ZxExecProblem) -> string {

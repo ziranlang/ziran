@@ -35,7 +35,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   fingerprints the complete derived command options, including installed specs
   changes. Clang retains its ordinary single compile probe. Failed, incomplete,
   ambiguous or oversized probe output falls back to normal compilation.
-  `tests/native_build_cache.sh` covers changed compiler configuration and library
+  `tests/native_cache.sh` covers changed compiler configuration and library
   versions, both probe paths and failure fallback; process profiles count the
   probe operations. Runtime-include scanning keeps literal token lengths in its
   table rather than computing them for every emitted identifier.
@@ -82,7 +82,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   avoid periodic wakeups when available; other systems retain an owned-PID
   wait path. JSON compiler logs remain in source order, failed builds drain
   started jobs and retain the existing executable, and unrelated children
-  remain waitable by their caller. `tests/native_build_parallel.sh` checks
+  remain waitable by their caller. `tests/native_cache_parallel.sh` checks
   both output modes, blocked workers, truncation, failure and fallback;
   the native object-cache tests cover incremental reuse and changed inputs.
   Profiles separate native toolchain preparation, objects and linking and
@@ -405,7 +405,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
 - `ziran features` publishes a versioned, stable-ID feature registry with
   syntax, status, target support, limits, accepted and rejected examples,
   rejection behavior, and evidence links. Its 15 contracts cover compile-time
-  assertions, laws and execution, CPU parallelism and GPU fallback, printing,
+  assertions, laws and execution, CPU parallelism and the GPU device Gap, printing,
   heap allocation, named imports, integer width conformance and widening,
   automatic vector cleanup, local `TextView` mutation checks, record-field
   vector moves, procedure defaults, and procedure values.
@@ -1235,7 +1235,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   saved-IR bundles, unused extern pruning, list tampering, missing binding
   preflight, malformed record returns, and pointer dereference rejection
   are tested. Declared pointer types cross host calls as opaque handles with
-  kind `VM_HOST_POINTER`: the VM stores the address, compares handles against
+  kind `HOST_POINTER`: the VM stores the address, compares handles against
   `null` and each other, and never dereferences them, so the host owns the
   storage behind a handle. Pointer-bearing records, including host-returned
   records, bundle and run with that contract. Array and slot host calls
@@ -1586,18 +1586,10 @@ removed redundant scripts; those fixtures remain in Git history. Run
   emits a downgrade marker, as the backend-duties clause permits;
   region-leaving `return`/`break`/`continue`
   are rejected so no schedule can skip iterations. `#parallel_gpu for`
-  regions validate before offload per the GPU clause: pointer storage,
-  pointer-bearing call arguments, and allocator-backed Vec mutation are
-  rejected, and external-class calls were already barred by the region
-  rules. On the native C target on Linux and Android, `cmd/zir/zir_emit_gpu.c`
-  lowers a region and its callees to an OpenGL ES 3.1 compute shader and
-  `include/ziran_gpu.h` runs it on the fastest device it measures, loading EGL
-  and GLES at run time. Regions of 32-bit integers, float32, bytes and booleans
-  with `capture[it]` writes qualify; 64-bit values, nested `for`, globals,
-  records, signed or variable division and foreign calls keep the CPU worker
-  path with an emitted marker. A failed bounds check, a used up loop budget or a
-  refused shader discards device results and reruns the region on the CPU. The
-  ZX engine and Go do not offload.
+  regions enforce the GPU storage and argument rules, then the target
+  capability boundary reports a GPU device Gap. Every target rejects the
+  selection before backend dispatch; no target substitutes a CPU worker and
+  no GPU environment variables remain supported.
 - `ziran explain` exposes a stable registry for every diagnostic code currently
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is

@@ -50,8 +50,8 @@ Capture :: (arguments: []string, directory: string) -> string {
 }
 
 Fingerprint :: (repo: string) -> string {
-    source_diff: [13]string = .["git", "diff", "--binary", "HEAD", "--", "Makefile",
-        "native-zx.mk", "cmd", "include", "std", "bootstrap", "scripts", "VERSION"]
+    source_diff: [12]string = .["git", "diff", "--binary", "HEAD", "--", "Makefile",
+        "cmd", "include", "std", "bootstrap", "scripts", "VERSION"]
     scratch := JoinPath(repo, "build/scratch")
     if !CreateDirectories(scratch) { return "" }
     difference := JoinPath(scratch, Concat("compiler-build-source-", Concat(Number(ProcessId()), ".diff")))

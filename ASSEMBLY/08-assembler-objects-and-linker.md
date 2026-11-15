@@ -10,7 +10,7 @@ Complete the path from allocated machine instructions to native binaries without
 
 - [Current C executable driver](../cmd/zi2c/main.c) and [build orchestration](../cmd/zi2c/zir_c_build.c) provide entry, diagnostics, cache, and failure-preservation behavior to retain.
 - [Native entry tests](../tests/native_entry.sh) and [link-flag tests](../tests/native_link_flags_cases.zi) provide existing executable/FFI expectations.
-- [Build rules](../Makefile) and [native runtime build selection](../native-zx.mk).
+- [Build rules](../Makefile) and [native runtime build selection](../assembly.mk).
 
 Proposed modules: `cmd/compiler_encode_x86.zi`, `cmd/compiler_encode_arm.zi`, `cmd/compiler_encode_aarch64.zi`, `cmd/compiler_object.zi`, `cmd/compiler_elf.zi`, `cmd/compiler_coff.zi`, `cmd/compiler_macho.zi`, `cmd/compiler_link_native.zi`, and `cmd/compiler_disassemble.zi`.
 

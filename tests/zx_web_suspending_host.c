@@ -9,14 +9,14 @@
 static int suspended;
 
 static int adjust(void *context, const char *module, const char *function,
-                  const VmHostValue *arguments, int count, VmHostValue *result)
+                  const HostValue *arguments, int count, HostValue *result)
 {
     (void)context; (void)module; (void)function;
-    if(count != 1 || arguments[0].kind != VM_HOST_INTEGER)
+    if(count != 1 || arguments[0].kind != HOST_INTEGER)
         return 0;
     emscripten_sleep(1);
     suspended++;
-    result->kind = VM_HOST_INTEGER;
+    result->kind = HOST_INTEGER;
     result->type = "s64";
     result->integer = arguments[0].integer + 1;
     result->bits = (uint64_t)result->integer;

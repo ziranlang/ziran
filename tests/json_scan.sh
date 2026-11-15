@@ -36,4 +36,4 @@ func main() { if JsonScanTest_NativeMain() != 0 { panic("JSON array positions di
 GO
     GO111MODULE=off go run "$output"/*.go
 done
-echo 'JSON scanning passed source, saved IR, portable VM and C/Go execution'
+echo 'JSON scanning passed source, saved IR, portable engine and C/Go execution'

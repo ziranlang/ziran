@@ -19,8 +19,9 @@
 
 struct Bundle {
     ExecBundle *exec;
-    NativeBundleCode *native;
-    const char *native_problem;
+    /* Native code, compiled the first time an instance or the preflight
+     * query asks for it. */
+    NativeBundleSlot native;
     size_t references;
     /* SHA-256 of the file's bytes. */
     unsigned char digest[32];
@@ -38,7 +39,6 @@ open_bundle(const unsigned char *bytes, size_t size, const char *name)
         free(bundle);
         return NULL;
     }
-    bundle->native = NativeBundleCodeOpen(bundle->exec, &bundle->native_problem);
     Sha256 hash;
     Sha256Begin(&hash);
     Sha256Add(&hash, bytes, size);
@@ -84,7 +84,7 @@ BundleClose(Bundle *bundle)
 {
     if(bundle == NULL || --bundle->references != 0)
         return;
-    NativeBundleCodeClose(bundle->native);
+    NativeBundleSlotClose(&bundle->native);
     ExecBundleClose(bundle->exec);
     free(bundle);
 }
@@ -229,16 +229,19 @@ struct BundleInstance {
 };
 
 /* Auto is a platform decision, never a per-bundle probe: a web runtime that
- * installed the wasm provider runs bundles on it, and every other host,
- * including 64-bit and JSPI web runtimes such as the playground's, on the
- * instruction engine. Native x86-64 stays strict-only until the
- * complete-backend parity gate is met. */
+ * installed the wasm provider runs bundles on it; linux-x86_64, which has a
+ * native backend, runs native code, and a bundle native code cannot run fails
+ * instead of moving to another engine; every other host, including 64-bit
+ * and JSPI web runtimes such as the playground's, runs the instruction
+ * engine. */
 static BundleExecutionBackend
 auto_platform_backend(void)
 {
 #if defined(__EMSCRIPTEN__)
     if(ZxWasmPlatformActive() != NULL)
         return BUNDLE_EXECUTION_WASM;
+#elif defined(__x86_64__) && defined(__linux__)
+    return BUNDLE_EXECUTION_NATIVE_X86_64;
 #endif
     return BUNDLE_EXECUTION_ENGINE;
 }
@@ -356,11 +359,15 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
         instance->wasm = ZxWasmOpenExec(bundle->exec, find_binding, &instance->set, max_steps);
         instance->backend = BUNDLE_EXECUTION_WASM;
     } else if(selected == BUNDLE_EXECUTION_NATIVE_X86_64) {
-        if(bundle->native == NULL) {
+        Bundle *mutable_bundle = (Bundle *)bundle;
+        const NativeBundleCode *code = NativeBundleSlotCode(&mutable_bundle->native,
+                                                            bundle->exec, bundle->digest);
+        if(code == NULL) {
             BundleInstanceClose(instance);
             return NULL;
         }
-        instance->native = NativeInstanceOpen(bundle->native, max_steps);
+        instance->native = NativeInstanceOpen(code, bundle->exec, find_binding,
+                                              &instance->set, max_steps);
         instance->backend = BUNDLE_EXECUTION_NATIVE_X86_64;
     } else {
         instance->exec = ExecInstanceOpen(bundle->exec, find_binding, &instance->set, max_steps);
@@ -413,8 +420,8 @@ BundleInstanceBackend(const BundleInstance *instance)
 const char *
 BundleNativeProblem(const Bundle *bundle)
 {
-    return bundle != NULL && bundle->native_problem != NULL ? bundle->native_problem :
-        "assembly.gap.target-unimplemented";
+    if(bundle == NULL) return "assembly.native.input: no bundle";
+    return NativeBundleSlotProblem(&((Bundle *)bundle)->native, bundle->exec, bundle->digest);
 }
 
 int
@@ -449,6 +456,8 @@ BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
         return;
     if(instance->wasm != NULL)
         ZxWasmMatchFieldsByName(instance->wasm, enabled);
+    else if(instance->native != NULL)
+        NativeInstanceMatchFieldsByName(instance->native, enabled);
     else if(instance->exec != NULL)
         ExecInstanceMatchFieldsByName(instance->exec, enabled);
 }
@@ -506,24 +515,24 @@ state_budget_add(StateBudget *budget, size_t bytes)
 }
 
 static void
-release_owned_state_value(VmHostValue *value, int depth)
+release_owned_state_value(HostValue *value, int depth)
 {
     if(depth >= STATE_DEPTH)
         return;
-    if(value->kind == VM_HOST_ARRAY) {
+    if(value->kind == HOST_ARRAY) {
         for(size_t i = 0; i < value->length && value->elements != NULL; i++)
             release_owned_state_value(&value->elements[i], depth + 1);
         free(value->elements);
         value->elements = NULL;
-    } else if(value->kind == VM_HOST_RECORD && value->fields != NULL) {
-        VmHostField *fields = (VmHostField *)value->fields;
+    } else if(value->kind == HOST_RECORD && value->fields != NULL) {
+        HostField *fields = (HostField *)value->fields;
         for(size_t i = 0; i < value->field_count; i++)
             release_owned_state_value(&fields[i].value, depth + 1);
         for(size_t i = 0; i < value->field_count; i++)
             free((void *)fields[i].name);
         free(fields);
         value->fields = NULL;
-    } else if(value->kind == VM_HOST_STRING)
+    } else if(value->kind == HOST_STRING)
         free((void *)value->data);
     value->data = NULL;
     free((void *)value->type);
@@ -557,14 +566,14 @@ clone_state_name(const char *name, StateBudget *budget)
 }
 
 static int
-state_value_portable(const VmHostValue *value, int depth)
+state_value_portable(const HostValue *value, int depth)
 {
     if(depth >= STATE_DEPTH || !state_type_portable(value->type) ||
-       value->kind == VM_HOST_POINTER || value->kind == VM_HOST_SLICE ||
-       (value->kind == VM_HOST_STRING && value->data == NULL &&
+       value->kind == HOST_POINTER || value->kind == HOST_SLICE ||
+       (value->kind == HOST_STRING && value->data == NULL &&
         value->length != 0))
         return 0;
-    if(value->kind == VM_HOST_ARRAY) {
+    if(value->kind == HOST_ARRAY) {
         if(value->length != 0 && value->elements == NULL)
             return 0;
         for(size_t i = 0; i < value->length; i++)
@@ -572,7 +581,7 @@ state_value_portable(const VmHostValue *value, int depth)
                 return 0;
         return 1;
     }
-    if(value->kind == VM_HOST_RECORD) {
+    if(value->kind == HOST_RECORD) {
         if(value->field_count != 0 && value->fields == NULL)
             return 0;
         for(size_t i = 0; i < value->field_count; i++)
@@ -583,12 +592,12 @@ state_value_portable(const VmHostValue *value, int depth)
 }
 
 static int
-clone_state_value(const VmHostValue *input, VmHostValue *output,
+clone_state_value(const HostValue *input, HostValue *output,
                   int depth, StateBudget *budget)
 {
     if(depth >= STATE_DEPTH || !state_type_portable(input->type) ||
-       input->kind == VM_HOST_POINTER || input->kind == VM_HOST_SLICE ||
-       (input->kind == VM_HOST_STRING && input->data == NULL &&
+       input->kind == HOST_POINTER || input->kind == HOST_SLICE ||
+       (input->kind == HOST_STRING && input->data == NULL &&
         input->length != 0))
         return 0;
     *output = *input;
@@ -598,7 +607,7 @@ clone_state_value(const VmHostValue *input, VmHostValue *output,
     output->fields = NULL;
     if(output->type == NULL)
         return 0;
-    if(input->kind == VM_HOST_STRING) {
+    if(input->kind == HOST_STRING) {
         if(input->length == 0) {
             output->data = NULL;
             return 1;
@@ -616,7 +625,7 @@ clone_state_value(const VmHostValue *input, VmHostValue *output,
         output->data = data;
         return 1;
     }
-    if(input->kind == VM_HOST_ARRAY) {
+    if(input->kind == HOST_ARRAY) {
         if(input->length == 0) {
             output->elements = NULL;
             return 1;
@@ -638,18 +647,18 @@ clone_state_value(const VmHostValue *input, VmHostValue *output,
         }
         return 1;
     }
-    if(input->kind != VM_HOST_RECORD)
+    if(input->kind != HOST_RECORD)
         return 1;
     if(input->field_count == 0) {
         output->fields = NULL;
         return 1;
     }
-    if(input->fields == NULL || input->field_count > SIZE_MAX / sizeof(VmHostField))
+    if(input->fields == NULL || input->field_count > SIZE_MAX / sizeof(HostField))
         goto fail;
-    state_budget_add(budget, input->field_count * sizeof(VmHostField));
+    state_budget_add(budget, input->field_count * sizeof(HostField));
     if(budget->failed)
         goto fail;
-    output->fields = calloc(input->field_count, sizeof(VmHostField));
+    output->fields = calloc(input->field_count, sizeof(HostField));
     if(output->fields == NULL)
         goto fail;
     for(size_t i = 0; i < input->field_count; i++) {
@@ -657,9 +666,9 @@ clone_state_value(const VmHostValue *input, VmHostValue *output,
         if(name == NULL) {
             goto fail;
         }
-        ((VmHostField *)output->fields)[i].name = name;
+        ((HostField *)output->fields)[i].name = name;
         if(!clone_state_value(&input->fields[i].value,
-                              (VmHostValue *)&output->fields[i].value,
+                              (HostValue *)&output->fields[i].value,
                               depth + 1, budget)) {
             goto fail;
         }
@@ -708,24 +717,25 @@ clone_state_metadata(BundleStateValue *value, StateBudget *budget)
 static size_t
 state_count(BundleInstance *instance)
 {
-    if(instance->native != NULL) return 0;
+    if(instance->native != NULL) return NativeInstanceStateCount(instance->native);
     return instance->wasm != NULL ? ZxWasmStateCount(instance->wasm) :
         ExecInstanceStateCount(instance->exec);
 }
 
 static int
 state_at(BundleInstance *instance, size_t index, const char **module, const char **name,
-         const char **type, VmHostValue *value)
+         const char **type, HostValue *value)
 {
-    if(instance->native != NULL) return 0;
+    if(instance->native != NULL)
+        return NativeInstanceStateAt(instance->native, index, module, name, type, value);
     return instance->wasm != NULL ? ZxWasmStateAt(instance->wasm, index, module, name, type, value) :
         ExecInstanceStateAt(instance->exec, index, module, name, type, value);
 }
 
 static int
-state_store(BundleInstance *instance, const VmHostValue *const *values)
+state_store(BundleInstance *instance, const HostValue *const *values)
 {
-    if(instance->native != NULL) return values != NULL;
+    if(instance->native != NULL) return NativeInstanceStateStore(instance->native, values);
     return instance->wasm != NULL ? ZxWasmStateStore(instance->wasm, values) :
         ExecInstanceStateStore(instance->exec, values);
 }
@@ -750,7 +760,7 @@ BundleInstanceExportState(BundleInstance *instance, BundleState **state)
     StateBudget budget = {0};
     for(size_t i = 0; i < count; i++) {
         const char *module = "", *name = "", *type = "";
-        VmHostValue borrowed = {0};
+        HostValue borrowed = {0};
         if(!state_at(instance, i, &module, &name, &type, &borrowed) ||
            !state_type_portable(type) || !state_value_portable(&borrowed, 0)) {
             Diagnostic(Span("<host>", 1, 1), "zx.state",
@@ -782,7 +792,7 @@ BundleInstanceImportState(BundleInstance *instance, const BundleState *state)
     if(instance == NULL || state == NULL)
         return 0;
     size_t count = state_count(instance);
-    const VmHostValue **values = calloc(count ? count : 1, sizeof(*values));
+    const HostValue **values = calloc(count ? count : 1, sizeof(*values));
     if(values == NULL)
         return 0;
     for(size_t i = 0; i < state->count; i++) {
@@ -858,7 +868,7 @@ int
 BundleStateSetInteger(BundleState *state, size_t index, int64_t value)
 {
     if(state == NULL || index >= state->count ||
-       state->values[index].value.kind != VM_HOST_INTEGER)
+       state->values[index].value.kind != HOST_INTEGER)
         return 0;
     state->values[index].value.integer = value;
     state->values[index].value.bits = (uint64_t)value;
@@ -869,7 +879,7 @@ int
 BundleStateSetUnsigned(BundleState *state, size_t index, uint64_t value)
 {
     if(state == NULL || index >= state->count ||
-       state->values[index].value.kind != VM_HOST_UNSIGNED)
+       state->values[index].value.kind != HOST_UNSIGNED)
         return 0;
     state->values[index].value.bits = value;
     state->values[index].value.integer = (int64_t)value;
@@ -880,7 +890,7 @@ int
 BundleStateSetReal(BundleState *state, size_t index, double value)
 {
     if(state == NULL || index >= state->count ||
-       state->values[index].value.kind != VM_HOST_REAL)
+       state->values[index].value.kind != HOST_REAL)
         return 0;
     state->values[index].value.real = value;
     return 1;
@@ -891,7 +901,7 @@ BundleStateSetString(BundleState *state, size_t index,
                      const unsigned char *data, size_t length)
 {
     if(state == NULL || index >= state->count ||
-       state->values[index].value.kind != VM_HOST_STRING ||
+       state->values[index].value.kind != HOST_STRING ||
        (data == NULL && length != 0) || length == SIZE_MAX)
         return 0;
     unsigned char *copied = NULL;
@@ -942,6 +952,8 @@ component_live_value_bytes(const BundleComponent *component)
         return 0;
     if(component->instance->wasm != NULL)
         return ZxWasmLiveBytes(component->instance->wasm);
+    if(component->instance->native != NULL)
+        return NativeInstanceLiveBytes(component->instance->native);
     return ExecInstanceLiveBytes(component->instance->exec);
 }
 

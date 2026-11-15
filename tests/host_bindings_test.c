@@ -14,7 +14,7 @@ typedef struct State { size_t calls; } State;
 typedef struct Context { unsigned index, group; State *state; } Context;
 
 static int host_call(void *opaque, const char *module, const char *function,
-                     const VmHostValue *args, int count, VmHostValue *result)
+                     const HostValue *args, int count, HostValue *result)
 {
     Context *context = opaque;
     assert(context != NULL); /* Extra bindings must never be dispatched. */
@@ -22,9 +22,9 @@ static int host_call(void *opaque, const char *module, const char *function,
     char expected[32];
     snprintf(expected, sizeof(expected), "H%03u", context->index);
     assert(strcmp(function, expected) == 0);
-    assert(count == 1 && args[0].kind == VM_HOST_INTEGER);
+    assert(count == 1 && args[0].kind == HOST_INTEGER);
     context->state->calls++;
-    result->kind = VM_HOST_INTEGER;
+    result->kind = HOST_INTEGER;
     result->integer = (int64_t)(((uint64_t)args[0].integer * 48271 + context->index + 1 +
                                 context->group * 1000) & INT64_MAX);
     return 1;
@@ -40,14 +40,14 @@ static char *copy_name(const char *name)
 }
 
 static int only_call(void *opaque, const char *module, const char *function,
-                      const VmHostValue *args, int count, VmHostValue *result)
+                      const HostValue *args, int count, HostValue *result)
 {
     unsigned *calls = opaque;
     assert(strcmp(module, "solo") == 0 && strcmp(function, "Only") == 0);
-    assert(count == 1 && args[0].kind == VM_HOST_INTEGER);
+    assert(count == 1 && args[0].kind == HOST_INTEGER);
     assert(args[0].integer == 7 || args[0].integer == 8);
     (*calls)++;
-    result->kind = VM_HOST_INTEGER;
+    result->kind = HOST_INTEGER;
     result->integer = args[0].integer + 1;
     return 1;
 }

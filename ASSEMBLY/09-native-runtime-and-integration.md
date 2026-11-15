@@ -1,8 +1,9 @@
 # Step 09 — Integrate native ZX execution, AOT builds, caching, and hosts
 
-Status: in progress at an experimental Linux x86-64 AOT slice; native ZX
-loading, complete runtime/host integration, and the remaining targets are still
-planned. The current startup/syscall work is not a completion claim. Depends on
+Status: in progress. Linux x86-64 has an AOT slice and native ZX loading,
+which `ziran run app.zx` and the embedding API use by default on that row,
+with the engine's pointer checks; a persistent code cache, the element-type
+check on pointer access and the remaining targets are still planned. The current startup/syscall work is not a completion claim. Depends on
 [steps 04](04-portable-instruction-engine.md)–[08](08-assembler-objects-and-linker.md).
 Next: [inspection and final cutover](10-inspection-performance-and-cutover.md).
 
@@ -24,14 +25,41 @@ separate ABI veneers for entry, calls, operating-system services, and exit. The
 initial Linux x86-64 console contract uses a static executable with its own
 `_start`, no libc/CRT/dynamic linker, `write` syscall 1 through a `write_all`
 loop that handles partial progress and `EINTR`, and `exit_group` syscall 231
-rather than syscall 60. That opt-in AOT slice is implemented and executed;
-native ZX loading and the wider integration work below remain open.
+rather than syscall 60. That opt-in AOT slice is implemented and executed.
+
+Native ZX loading on linux-x86_64 ([`zir_host_native.c`](../cmd/zir/zir_host_native.c))
+compiles the bundle's verified program with the same machine pipeline, copies
+the image into RW pages, resolves its relocations against the instance's own
+data, host veneers, trap stub and resize runtime, and only then makes the code
+RX; no mapping is ever writable and executable. Compiled code is shared by
+open bundles of the same content digest on the same CPU and kept briefly
+after the last closes. Each instance owns its globals, fuel counter, stack
+limit and resizable storage. A trap returns through `longjmp`, prints a
+`zx.runtime` diagnostic naming the function, block and (with a debug
+attachment) source line, and ends that instance; nothing restarts on the
+engine.
+
+Native data pointers are checked as the engine checks them
+([plan](../plans/2026-11-15-native-checked-pointers.md)). A pointer is a
+token naming a slot of the instance's pointer table, version and offset; every
+load, store, byte comparison and platform-service argument resolves it
+against a live slot of the same version, within its size and, for writes,
+writable. Each run of `allocate` takes fresh zeroed bytes from the frame arena
+under a slot on the frame's chain, and `Return` ends the chain and gives the
+arena back. `resize` ends the old block's slot once the runtime has moved or
+freed it; a request that does not fit gives null and keeps the old block.
+Globals are slots 1..G, read-only ones without the writable flag. The host
+bridge resolves the views it copies and gives returned views read-only slots.
+The engine also checks a pointer's element type on each access; native code
+does not yet.
 
 `ziran build FILE.zi` composes `zi2zx` and `zx2native`, so source-native output
 serializes and reads the same ZX image as direct `zx2native`; neither route
-lowers source-side LIR directly. The
-current stripped payload has no source origins, so source debug maps remain a
-gap. Bundles and the bundle Wasm tier use this shared instruction route.
+lowers source-side LIR directly. The required payload is stripped of source
+origins; `zi2zx --debug` writes them to the optional debug attachment, bound
+to the program section's identity, and `zx2native --emit map` names source
+lines from it without changing a byte of the executable. Bundles and the
+bundle Wasm tier use this shared instruction route.
 
 For literal-only hello, direct instruction selection emits no stack frame or
 spill slots, uses short constants, and writes the literal from read-only data.
@@ -43,7 +71,7 @@ so the static executable has no undefined symbols or misleading trap aliases.
 
 ## Existing integration points
 
-- [Embedding API](../include/ziran_host.h), [bundle lifecycle](../cmd/zir/zir_host.c) and the [engine bridge](../cmd/zir/zir_host_exec.c), which translates host values for the [portable instruction engine](../cmd/compiler_exec.zi). There is no native ZX loader yet.
+- [Embedding API](../include/ziran_host.h), [bundle lifecycle](../cmd/zir/zir_host.c) and the [engine bridge](../cmd/zir/zir_host_exec.c), which translates host values for the [portable instruction engine](../cmd/compiler_exec.zi) and for the [native ZX loader](../cmd/zir/zir_host_native.c).
 - [Wasm lowering](../cmd/zx2wasm/zx_wasm_lower.h) and [browser integration](../cmd/zir/zir_zx_wasm_web.c).
 - [Package entry](../cmd/package_entry.zi), [options](../cmd/package_options.zi), [bundle run](../cmd/package_bundle_run.zi), and [capability reporting](../cmd/package_capabilities.zi).
 
@@ -78,7 +106,7 @@ Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`,
 
 ## Tests
 
-Extend [native run](../tests/native_run.sh), [portable entry](../tests/portable_entry.sh), [bundle providers](../tests/bundle_runtime_provider.sh), [cache tests](../tests/native_build_cache.sh), [object reuse](../tests/native_object_reuse_cases.zi), [build concurrency](../tests/native_build_parallel.sh), [browser lifecycle](../tests/zx_web_lifecycle.sh), and [install tests](../tests/install_user.sh).
+Extend [native run](../tests/native_run.sh), [portable entry](../tests/portable_entry.sh), [bundle providers](../tests/bundle_runtime_provider.sh), [cache tests](../tests/native_cache.sh), [object reuse](../tests/native_object_reuse_cases.zi), [build concurrency](../tests/native_cache_parallel.sh), [browser lifecycle](../tests/zx_web_lifecycle.sh), and [install tests](../tests/install_user.sh).
 
 Add cold/warm cache correctness, interrupted writes, incompatible CPU cache reuse, stale runtime ABI, corrupted entries, load/unload races, nested host callbacks, parallel failure, and mutable-state separation. Test from stripped bundles with no C compiler available. Run independent native AOT and native ZX instances against the same fixture expectations.
 

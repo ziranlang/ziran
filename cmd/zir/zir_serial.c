@@ -3,7 +3,7 @@
 #include "zir_stream.h"
 #include "zir_serial.h"
 #include "zir_check.h"
-#include "zir_native.h"
+#include "compiler_native_names.h"
 #include "zir_diagnostic.h"
 #include "zir_parse.h"
 #include "zir_text.h"

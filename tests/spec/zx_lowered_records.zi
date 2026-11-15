@@ -3,6 +3,23 @@
 
 Point :: struct { x: s64; y: s64 }
 Pair :: struct { left: Point; right: Point; tags: [3]s64 }
+Box :: struct { x: float32; y: float32; width: float32; height: float32 }
+Framed :: struct { clip: Box; left: s32; height: s32 }
+
+// A record result with more integer arguments than registers: the last one
+// passes on the stack beside the record argument and the result address.
+Frame :: (bounds: Box, a: s32, b: s32, c: s32, d: s32, e: s32, f: s32, guard: s32) -> Framed {
+    framed: Framed
+    framed.clip = Box.{bounds.x + cast(float32)a, bounds.y - cast(float32)guard,
+        bounds.width, bounds.height + cast(float32)(guard * 2)}
+    framed.left = cast(s32)bounds.x + a - b
+    framed.height = c + d + e + f
+    return framed
+}
+Guard :: (scale: s32) -> s32 { return scale * 3 }
+Moved :: (point: Point, by: s64) -> Point { point.x += by; return point }
+Mover :: #type (point: Point, by: s64) -> Point;
+Holder :: struct { move: Mover; point: Point }
 
 main :: () -> s32 {
     points: [4]Point
@@ -53,5 +70,18 @@ main :: () -> s32 {
     seen := points[1]
     if seen.x > 0 { points[1].x = 0 }
     print("% %\n", seen.x, points[1].x)
+
+    // Record results through direct and indirect calls.
+    bounds := Box.{10.0, 20.0, 220.0, 40.0}
+    framed := Frame(bounds, 12, 0, 14, 14, 10, 4, Guard(1))
+    constant := Frame(bounds, 12, 0, 14, 14, 10, 4, 1)
+    print("% % % % % % %\n", framed.clip.x, framed.clip.y, framed.clip.height, framed.left,
+        framed.height, constant.clip.y, constant.clip.height)
+    holder: Holder
+    mover: Mover = Moved
+    holder.move = mover
+    holder.point = Point.{x = 5, y = 6}
+    holder.point = holder.move(holder.point, 30)
+    print("% %\n", holder.point.x, holder.point.y)
     return 0
 }

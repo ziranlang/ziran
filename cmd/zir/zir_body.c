@@ -2,7 +2,7 @@
 #include "zir_memory.h"
 #include "zir_body.h"
 #include "zir_check.h"
-#include "zir_native.h"
+#include "zir_emit.h"
 #include "zir_text.h"
 
 typedef struct TypePath {

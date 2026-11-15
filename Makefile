@@ -137,9 +137,55 @@ SERVICES_READY := $(SERVICES_C)/.generated
 LINK_C := $(BUILD_DIR)/compiler-link
 LINK_READY := $(LINK_C)/.generated
 endif
+ifeq ($(BOOTSTRAP),1)
+RUNTIME_EMIT_C := bootstrap/compiler_runtime_emit
+RUNTIME_EMIT_READY := $(RUNTIME_EMIT_C)/compiler_runtime_emit.c $(RUNTIME_EMIT_C)/compiler_runtime_emit.h \
+    $(RUNTIME_EMIT_C)/file.c $(RUNTIME_EMIT_C)/file.h $(RUNTIME_EMIT_C)/file_linux.c $(RUNTIME_EMIT_C)/file_linux.h \
+    $(RUNTIME_EMIT_C)/c_string.c $(RUNTIME_EMIT_C)/c_string.h $(RUNTIME_EMIT_C)/vec.c $(RUNTIME_EMIT_C)/vec.h
+else
+RUNTIME_EMIT_C := $(BUILD_DIR)/runtime-emit
+RUNTIME_EMIT_READY := $(RUNTIME_EMIT_C)/.generated
+endif
+ifneq ($(BOOTSTRAP),1)
+$(RUNTIME_EMIT_C)/%.c: $(RUNTIME_EMIT_C)/.generated
+	@test -f $@
+endif
 override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(PROOF_C) -I$(BUNDLE_C) -I$(IR_C) -I$(LAW_C) -I$(SERVICES_C) -I$(LINK_C)
+override CFLAGS += -I$(RUNTIME_EMIT_C)
+ifeq ($(BOOTSTRAP),1)
+BACKEND_CACHE_C := bootstrap/compiler_backend_cache
+BACKEND_PROCESS_C := bootstrap/compiler_backend_process
+BACKEND_CACHE_READY := $(filter %.c %.h,$(wildcard $(BACKEND_CACHE_C)/*))
+BACKEND_PROCESS_READY := $(filter %.c %.h,$(wildcard $(BACKEND_PROCESS_C)/*))
+else
+BACKEND_CACHE_C := $(BUILD_DIR)/backend-cache
+BACKEND_PROCESS_C := $(BUILD_DIR)/backend-process
+BACKEND_CACHE_READY := $(BACKEND_CACHE_C)/.generated
+BACKEND_PROCESS_READY := $(BACKEND_PROCESS_C)/.generated
+$(BACKEND_CACHE_C)/%.c $(BACKEND_CACHE_C)/%.h: $(BACKEND_CACHE_C)/.generated
+	@test -f $@
+$(BACKEND_PROCESS_C)/%.c $(BACKEND_PROCESS_C)/%.h: $(BACKEND_PROCESS_C)/.generated
+	@test -f $@
+endif
+BACKEND_PROCESS_FILES := $(filter %.c %.h,$(wildcard $(BACKEND_PROCESS_C)/*))
+BACKEND_BOOTSTRAP_FILES := $(filter %.c %.h,$(wildcard bootstrap/compiler_backend_cache/*)) \
+    $(filter %.c %.h,$(wildcard bootstrap/compiler_backend_process/*))
+ifeq ($(BOOTSTRAP),1)
+NATIVE_NAMES_C := bootstrap/compiler_native_names
+NATIVE_NAMES_READY := $(NATIVE_NAMES_C)/compiler_native_names.c $(NATIVE_NAMES_C)/compiler_native_names.h
+else
+NATIVE_NAMES_C := $(BUILD_DIR)/native-names
+NATIVE_NAMES_READY := $(NATIVE_NAMES_C)/.generated
+endif
+NATIVE_NAMES_OBJECT := $(BUILD_DIR)/obj/native-names/compiler_native_names.o
+ifneq ($(BOOTSTRAP),1)
+$(NATIVE_NAMES_C)/%.c: $(NATIVE_NAMES_C)/.generated
+	@test -f $@
+endif
+override CFLAGS += -I$(BACKEND_CACHE_C) -I$(BACKEND_PROCESS_C)
+override CFLAGS += -I$(NATIVE_NAMES_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
-    cmd/zir/zir_native.c cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
+    cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
@@ -159,7 +205,7 @@ obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # bootstrap compiler opens no bundle and has none.
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
-    compiler_exec_serial compiler_exec_link compiler_exec compiler_opt
+    compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt
 # The Wasm lowering of revision-28 ZX (cmd/zx2wasm/zx_wasm_lower.c) reads
 # the program through the same engine, under the same names.
 HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir/zir_host_native.c cmd/zx2wasm/zx_wasm_lower.c
@@ -169,11 +215,14 @@ ENGINE_OBJECTS :=
 $(call obj,$(HOST_EXEC_SOURCES)): CFLAGS += -DZIRAN_NO_ENGINE
 else
 ENGINE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/engine/%.o,$(ENGINE_MODULES))
-$(call obj,$(HOST_EXEC_SOURCES)): CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)
+# Per-object flags, not a target-specific CFLAGS: that would also reach the
+# prerequisites make builds for these objects (zi2c, through zir_host_native's
+# generated assembly headers), and engine_names.h does not exist yet there.
+$(foreach object,$(call obj,$(HOST_EXEC_SOURCES)),$(eval $(object)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)))
 $(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_NAMES)
 endif
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
-    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o \
+    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(NATIVE_NAMES_OBJECT) \
     $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c)
 NATIVE_HOST_ENABLED := 1
 ifneq ($(findstring emcc,$(notdir $(firstword $(CC)))),)
@@ -185,13 +234,19 @@ LIB_OBJECTS += $(BUILD_DIR)/obj/native-core.o
 endif
 endif
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
-    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
+    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(NATIVE_NAMES_OBJECT)
 # The expression parser, cmd/compiler_parse.zi.
 override CFLAGS += -I$(PARSE_C)
 LIB_OBJECTS += $(PARSE_OBJECT)
 FRONTEND_OBJECTS += $(PARSE_OBJECT)
 BUNDLE_OBJECT := $(call obj,$(PORTABLE)) $(BUNDLE_MODULE_OBJECT)
-RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
+RUNTIME_EMIT_OBJECTS := $(addprefix $(BUILD_DIR)/obj/runtime-emit/,compiler_runtime_emit.o file.o file_linux.o c_string.o vec.o)
+BACKEND_PROCESS_SOURCES := compiler_backend_process.c byte_text_linux.c environment_linux.c \
+    file_tree_linux.c number_text.c process_run_linux.c sort.c text_buffer.c text_tools.c timer_linux.c
+BACKEND_PROCESS_OBJECTS := $(addprefix $(BUILD_DIR)/obj/backend-process/,$(addsuffix .o,$(basename $(BACKEND_PROCESS_SOURCES))))
+BACKEND_CACHE_OBJECT := $(BUILD_DIR)/obj/backend-cache/compiler_backend_cache.o
+$(BACKEND_PROCESS_OBJECTS): FRAMEFLAGS := -Wframe-larger-than=1048576
+RUNTIME_OBJECTS := $(RUNTIME_EMIT_OBJECTS) $(BACKEND_CACHE_OBJECT) $(BACKEND_PROCESS_OBJECTS) $(BUILD_DIR)/obj/runtime_headers.o
 
 .PHONY: all check curl-http-test clean install-user package-objects package-link force-compiler-flags
 .PHONY: sanitize fuzz
@@ -251,12 +306,15 @@ $(BUILD_DIR)/.compiler-flags: force-compiler-flags
 
 force-compiler-flags:
 
-# zir.h includes the IR records generated from cmd/compiler_ir.zi.
-$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY)
+# zir.h includes the IR records generated from cmd/compiler_ir.zi, and
+# zir_simd.h (included through the checker and emitter headers) the
+# runtime-emit records.
+$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAMES_READY) $(RUNTIME_EMIT_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $($@_CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(call obj,cmd/zir/zir_token.c): $(SCANNER_READY)
+$(call obj,cmd/zi2c/main.c): $(BACKEND_PROCESS_READY)
 $(call obj,cmd/zir/zir.c): $(TYPE_READY)
 $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
@@ -325,7 +383,27 @@ $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
 
-$(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags $(IR_READY)
+$(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(RUNTIME_EMIT_READY)
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+$(RUNTIME_EMIT_OBJECTS): $(BUILD_DIR)/obj/runtime-emit/%.o: $(RUNTIME_EMIT_C)/%.c \
+    $(BUILD_DIR)/.compiler-flags $(RUNTIME_EMIT_READY)
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+$(BACKEND_PROCESS_OBJECTS): $(BUILD_DIR)/obj/backend-process/%.o: $(BACKEND_PROCESS_C)/%.c \
+    $(BUILD_DIR)/.compiler-flags $(BACKEND_PROCESS_READY)
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+$(BACKEND_CACHE_OBJECT): $(BACKEND_CACHE_C)/compiler_backend_cache.c \
+    $(BUILD_DIR)/.compiler-flags $(BACKEND_CACHE_READY)
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+$(NATIVE_NAMES_OBJECT): $(NATIVE_NAMES_C)/compiler_native_names.c \
+    $(BUILD_DIR)/.compiler-flags $(NATIVE_NAMES_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -470,6 +548,7 @@ RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_s
 
 # Reused builds can be newer than restored or exported source headers.
 # Compare embedded bytes too, retaining timestamps when nothing changed.
+BOOTSTRAP_BIN := $(BUILD_DIR)/bootstrap/bin/zi2c
 $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS) force-compiler-flags
 	mkdir -p $(dir $@)
 	@set -e; temporary="$@.$$$$.tmp"; trap 'rm -f "$$temporary"' EXIT HUP INT TERM; \
@@ -477,7 +556,33 @@ $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS) forc
 	    if cmp -s "$$temporary" "$@"; then rm -f "$$temporary"; \
 	    else mv -f "$$temporary" "$@"; fi
 
-$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_build.c cmd/zi2c/zir_c_cache.c cmd/zi2c/zir_c_lower.c) \
+$(RUNTIME_EMIT_C)/.generated: cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi \
+    std/c_string.zi std/vec.zi $(BOOTSTRAP_BIN)
+	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(RUNTIME_EMIT_C) cmd/compiler_runtime_emit.zi
+	touch $@
+
+$(BACKEND_CACHE_C)/.generated: cmd/compiler_backend_cache.zi std/file.zi std/file_linux.zi \
+    std/file_tree_linux.zi std/environment.zi std/environment_linux.zi std/c_string.zi std/vec.zi \
+    std/text_tools.zi std/sort.zi std/process_run_linux.zi std/byte_text_linux.zi $(BOOTSTRAP_BIN)
+	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(BACKEND_CACHE_C) cmd/compiler_backend_cache.zi
+	touch $@
+
+$(BACKEND_PROCESS_C)/.generated: cmd/compiler_backend_process.zi cmd/compiler_backend_cache.zi \
+    std/file.zi std/file_linux.zi std/file_tree_linux.zi std/environment.zi std/environment_linux.zi \
+    std/c_string.zi std/vec.zi std/text_tools.zi std/sort.zi std/timer_linux.zi \
+    std/process_run_linux.zi std/byte_text_linux.zi $(BOOTSTRAP_BIN)
+	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(BACKEND_PROCESS_C) cmd/compiler_backend_process.zi
+	touch $@
+
+$(NATIVE_NAMES_C)/.generated: cmd/compiler_native_names.zi cmd/compiler_ir.zi cmd/compiler_services.zi $(BOOTSTRAP_BIN)
+	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(NATIVE_NAMES_C) cmd/compiler_native_names.zi
+	touch $@
+
+$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 	chmod 755 $@
@@ -498,11 +603,12 @@ $(BIN_DIR)/zx2wasm: $(call obj,cmd/zx2wasm/main.c) $(BUILD_DIR)/libziran.a | $(B
 	chmod 755 $@
 
 ifneq ($(BOOTSTRAP),1)
-BOOTSTRAP_BIN := $(BUILD_DIR)/bootstrap/bin/zi2c
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
-    $(PORTABLE) cmd/zir/zir_runtime.c cmd/zi2c/main.c cmd/zi2c/zir_c_build.c cmd/zi2c/zir_c_build.h cmd/zi2c/zir_c_cache.c cmd/zi2c/zir_c_cache.h cmd/zi2c/zir_c_lower.c \
-    cmd/zi2c/zir_c_process.h $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/vec.zi \
+    cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
+    cmd/compiler_native_names.zi \
     bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \
     bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h \
     bootstrap/compiler_source/compiler_source.c bootstrap/compiler_source/compiler_source.h \
@@ -521,7 +627,14 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_law/compiler_law.c bootstrap/compiler_law/compiler_law.h \
     bootstrap/compiler_services/compiler_services.c bootstrap/compiler_services/compiler_services.h \
     bootstrap/compiler_link/compiler_link.c bootstrap/compiler_link/compiler_link.h \
-    bootstrap/compiler_link/vec.h Makefile
+    bootstrap/compiler_link/vec.h bootstrap/compiler_runtime_emit/compiler_runtime_emit.c \
+    bootstrap/compiler_runtime_emit/compiler_runtime_emit.h bootstrap/compiler_runtime_emit/file.c \
+    bootstrap/compiler_runtime_emit/file.h bootstrap/compiler_runtime_emit/file_linux.c \
+    bootstrap/compiler_runtime_emit/file_linux.h bootstrap/compiler_runtime_emit/c_string.c \
+    bootstrap/compiler_runtime_emit/c_string.h bootstrap/compiler_runtime_emit/vec.c \
+    bootstrap/compiler_runtime_emit/vec.h Makefile \
+    bootstrap/compiler_native_names/compiler_native_names.c \
+    bootstrap/compiler_native_names/compiler_native_names.h
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=$(call quote,$(BOOTSTRAP_CFLAGS)) \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -581,7 +694,7 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 	    -o $(PROOF_C) cmd/compiler_proof.zi
 	touch $@
 
-$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
+$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_ir.zi \
     cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
@@ -626,14 +739,14 @@ $(LINK_C)/.generated: cmd/compiler_link.zi cmd/compiler_services.zi cmd/compiler
 # The checked-in bootstrap C must match what the current compiler generates
 # from cmd/compiler_*.zi; update-bootstrap refreshes it. A seed also keeps the
 # generated headers of standard modules it uses, such as vec.h.
-BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link
+BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse
 check-bootstrap: $(BIN_DIR)/zi2c
 	@set -e; for module in $(BOOTSTRAP_MODULES); do \
 	    $(GENERATE_BOOTSTRAP); \
-	    for file in $$(ls bootstrap/compiler_$$module); do \
+	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n' | sort); do \
 	        cmp bootstrap/compiler_$$module/$$file $(BUILD_DIR)/bootstrap-check/$$file; \
 	    done; \
 	done; echo "bootstrap matches: $(BOOTSTRAP_MODULES)"
@@ -641,7 +754,20 @@ check-bootstrap: $(BIN_DIR)/zi2c
 update-bootstrap: $(BIN_DIR)/zi2c
 	@set -e; for module in $(BOOTSTRAP_MODULES); do \
 	    $(GENERATE_BOOTSTRAP); \
-	    for file in compiler_$$module.c compiler_$$module.h $$(ls bootstrap/compiler_$$module); do \
+	    files="compiler_$$module.c compiler_$$module.h"; \
+	    case "$$module" in \
+	        proof_kernel|proof|link) files="$$files vec.h";; \
+	        runtime_emit) files="compiler_runtime_emit.c compiler_runtime_emit.h \
+	            file.c file.h file_linux.c file_linux.h \
+	            c_string.c c_string.h vec.c vec.h";; \
+	        backend_process) files="compiler_backend_process.c compiler_backend_process.h \
+	            byte_text_linux.c byte_text_linux.h environment.h environment_linux.c environment_linux.h \
+	            file_tree_linux.c file_tree_linux.h number_text.c number_text.h \
+	            text_buffer.c text_buffer.h \
+	            process_run_linux.c process_run_linux.h \
+	            sort.c sort.h text_tools.c text_tools.h timer_linux.c timer_linux.h";; \
+	    esac; \
+	    for file in $$files; do \
 	        cp $(BUILD_DIR)/bootstrap-check/$$file bootstrap/compiler_$$module/; \
 	    done; \
 	done
@@ -652,7 +778,7 @@ $(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJ
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 
 $(BIN_DIR)/host-capability-test: tests/host_capability_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_capability_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ tests/host_capability_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/record-host-test: tests/record_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_host_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
@@ -664,7 +790,7 @@ $(BIN_DIR)/array-host-test: tests/host_array_test.c $(BUILD_DIR)/libziran.a | $(
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_array_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/startup-graph-test: tests/startup_graph_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -I$(NATIVE_NAMES_C) -o $@ \
 		tests/startup_graph_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)

@@ -19,7 +19,7 @@ batches, not Kryon rendering, input latency or frame throughput. The separate
 Python oracle checks every timed batch, in addition to the executable's C
 crosscheck.
 
-The shared native adapter runs the real portable VM, raw BundleInstantiate TinyCC
+The shared native adapter runs the real portable engine, raw BundleInstantiate TinyCC
 native tier, handwritten optimized C control and WAMR 2.4.5 AOT-only runtime.
 WAMR executes the unmodified `zx2wasm` output after host-side target-specific AOT
 compilation. Its C API supplies the original mutable budget global and host ABI;
@@ -59,7 +59,7 @@ cache on variant switch. Mean-of-run-median improvements were 2.58% scalar and
 not a statistically significant gain claim.
 
 Native kernel numbers do not describe current live Kryon components:
-BundleComponentOpen/Replace force the portable VM. Moto component trials
+BundleComponentOpen/Replace force the portable engine. Moto component trials
 verified migrated integer state, rejection rollback, continued old state after
 rejection, and stale handles. This is a tiny counter fixture, not full
 application hot reload. There is no Wasm component replacement implementation

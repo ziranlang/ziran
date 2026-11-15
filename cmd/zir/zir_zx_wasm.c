@@ -5,7 +5,7 @@
  * cmd/zx2wasm/zx_wasm_lower.c; its host calls and its globals cross as
  * the engine's host images, which the bridge copies between the
  * instance's memory and ExecHosts, the embedding API's translation to
- * VmHostValue trees.
+ * HostValue trees.
  */
 #include "zir_zx_wasm.h"
 #include "zir_diagnostic.h"
@@ -429,7 +429,7 @@ ZxWasmStateCount(const ZxWasm *wasm)
 
 int
 ZxWasmStateAt(ZxWasm *wasm, size_t index, const char **module, const char **name, const char **type,
-              VmHostValue *value)
+              HostValue *value)
 {
     int32_t global;
     if(wasm == NULL || wasm->failed || !ExecBundleStateAt(wasm->exec, index, module, name, type, &global))
@@ -447,7 +447,7 @@ ZxWasmStateAt(ZxWasm *wasm, size_t index, const char **module, const char **name
 }
 
 int
-ZxWasmStateStore(ZxWasm *wasm, const VmHostValue *const *values)
+ZxWasmStateStore(ZxWasm *wasm, const HostValue *const *values)
 {
     if(wasm == NULL || wasm->failed || values == NULL)
         return 0;

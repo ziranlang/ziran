@@ -1,9 +1,8 @@
 #include "zir_asm_lower.h"
 #include "zx_exec_run.h"
-#include "zx_wasm_lower.h"
 #include "zir_check.h"
 #include "compiler_lowered_verify.h"
-#include "compiler_lowered_x64.h"
+#include "compiler_exec_debug.h"
 #include "compiler_exec_link.h"
 #include "compiler_exec.h"
 #include "compiler_machine_ir.h"
@@ -26,9 +25,10 @@
 static int
 assembly_usage(void)
 {
-    fputs("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android] [--machine] [--emit elf|map|image] -o FILE INPUT.zx\n"
+    fputs("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android] [--emit elf|map|image] [--fuel N] -o FILE INPUT.zx\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
-          "zx2native reads only decoded and verified ZX; --machine explicitly selects the no-fallback machine-IR path\n"
+          "--fuel sets an ELF's starting fuel; it is unbounded by default, as for a bundle run\n"
+          "zx2native reads only decoded and verified ZX and uses only the no-fallback machine-IR path\n"
           "image is reserved for the relocatable in-memory image and is a named gap until that loader lands\n", stderr);
     return 2;
 }
@@ -37,7 +37,7 @@ assembly_usage(void)
  * current experimental writer owns only the Linux x86-64 entry, write_all and
  * exit_group veneer; accepting a described row must never imply a fallback. */
 static int
-assembly_target_supported(const char *name)
+assembly_target_supported(const char *name, TargetDescription *native_target)
 {
     const char *dash = strchr(name, '-');
     if(dash == NULL || dash == name || dash[1] == 0 || strchr(dash + 1, '-') != NULL) {
@@ -56,12 +56,13 @@ assembly_target_supported(const char *name)
             "unknown zx2native target row %s; use ARCH and OS IDs from ziran capabilities --json", name);
         return 0;
     }
-    if(!compiler_target_TargetMachineLoweringSupported(described.target)) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-platform-service-unavailable",
-            "assembly.gap.native-platform-service-unavailable: selected target %s has no process-entry/write_all/exit_group veneer; no libc, host binding or alternate engine was selected",
+    if(!compiler_target_TargetExecutableNativeSupported(described.target)) {
+        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-platform-service-unavailable",
+            "assembly.gap.machine-platform-service-unavailable: selected target %s has no process-entry/write_all/exit_group veneer; no libc, host binding or alternate engine was selected",
             name);
         return 0;
     }
+    *native_target = described.target;
     return 1;
 }
 
@@ -79,36 +80,6 @@ assembly_limit(const char *text, int64_t *value)
     }
     *value = amount;
     return 1;
-}
-
-static int
-assembly_text_contains(String text, const char *needle)
-{
-    size_t length = strlen(needle);
-    if(length == 0 || length > text.length) return 0;
-    for(size_t at = 0; at + length <= text.length; at++)
-        if(!memcmp(text.data + at, needle, length)) return 1;
-    return 0;
-}
-
-static int
-assembly_parallel_function(const LirProgram *program, int symbol)
-{
-    if(symbol < 0 || symbol >= program->functions.length) return 0;
-    LirFunction function = ((LirFunction *)program->functions.data)[symbol];
-    String module = {0};
-    if(function.module >= 0 && function.module < program->modules.length)
-        module = ((String *)program->modules.data)[function.module];
-    return assembly_text_contains(module, "parallel") ||
-           assembly_text_contains(function.name, "parallel") ||
-           assembly_text_contains(function.name, "Parallel");
-}
-
-static int
-assembly_float_service(int service)
-{
-    return service == ZX_SERVICE_PRINT_FLOAT32 ||
-           service == ZX_SERVICE_PRINT_FLOAT64;
 }
 
 static int
@@ -143,188 +114,19 @@ assembly_machine_source_gap(const ZirProgram *program)
     return 0;
 }
 
-/* Whether a pointer value can be traced to something other than one of this
- * procedure's arguments. The native encoders resolve record fields through
- * the procedure's own allocations, globals and pointers loaded from them; a
- * field reached through a pointer argument names another procedure's frame
- * and would trap at run time, so it is named as a gap. Block parameters are
- * followed to every incoming edge; `seen` breaks loops. */
-static int
-assembly_local_root(const LirFunction *function, int32_t value, unsigned char *seen, int depth)
-{
-    if(depth > 256 || value < 0 || value >= function->values.length) return 0;
-    if(seen[value]) return 1;
-    seen[value] = 1;
-    const LirBlock *blocks = function->blocks.data;
-    for(int64_t block = 0; block < function->blocks.length; block++) {
-        const LirInstruction *instructions = blocks[block].instructions.data;
-        for(int64_t at = 0; at < blocks[block].instructions.length; at++) {
-            if(instructions[at].result != value) continue;
-            if((instructions[at].op == LirOp_FieldAddress || instructions[at].op == LirOp_ElementAddress) &&
-               instructions[at].operands.length > 0)
-                return assembly_local_root(function, ((const int32_t *)instructions[at].operands.data)[0],
-                    seen, depth + 1);
-            return 1;
-        }
-    }
-    for(int64_t block = 0; block < function->blocks.length; block++) {
-        const int32_t *parameters = blocks[block].parameters.data;
-        for(int64_t position = 0; position < blocks[block].parameters.length; position++) {
-            if(parameters[position] != value) continue;
-            /* The entry block's parameters are the procedure's arguments. */
-            if(block == function->entry) return 0;
-            for(int64_t from = 0; from < function->blocks.length; from++) {
-                int64_t count = blocks[from].instructions.length;
-                if(count == 0) continue;
-                const LirInstruction *last = &((const LirInstruction *)blocks[from].instructions.data)[count - 1];
-                const LirEdge *edges = last->edges.data;
-                for(int64_t edge = 0; edge < last->edges.length; edge++) {
-                    if(edges[edge].block != block || position >= edges[edge].arguments.length) continue;
-                    if(!assembly_local_root(function, ((const int32_t *)edges[edge].arguments.data)[position],
-                        seen, depth + 1)) return 0;
-                }
-            }
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static int
-assembly_pointer_field(const LirFunction *function, LirInstruction instruction)
-{
-    if(instruction.op != LirOp_FieldAddress || instruction.operands.length != 1) return 0;
-    unsigned char *seen = calloc((size_t)function->values.length + 1, 1);
-    if(seen == NULL) return 1;
-    int local = assembly_local_root(function, ((const int32_t *)instruction.operands.data)[0], seen, 0);
-    free(seen);
-    return !local;
-}
-
-/* A checked view element address (data, index, count[, high]) whose element
- * is a record, fixed array or procedure value. Portable execution supports
- * it; the native encoders address only scalar view elements. */
-static int
-assembly_aggregate_view(const LirProgram *program, const LirFunction *function, LirInstruction instruction)
-{
-    if(instruction.op != LirOp_ElementAddress || instruction.operands.length < 3) return 0;
-    int value = ((int *)instruction.operands.data)[0];
-    if(value < 0 || value >= function->values.length) return 0;
-    const LirType *types = program->types.data;
-    LirType pointer = types[((int *)function->values.data)[value]];
-    if(pointer.kind != LirTypeKind_Pointer || pointer.element < 0 || pointer.element >= program->types.length) return 0;
-    LirTypeKind kind = types[pointer.element].kind;
-    return kind == LirTypeKind_Record || kind == LirTypeKind_Array || kind == LirTypeKind_Function;
-}
-
-/* Every known unsupported machine-AOT surface has a stable, named hard gap.
- * This runs before the pipeline, so no other backend or execution engine can
- * be selected after one of these diagnostics. */
+/* Foreign host calls are the only decoded-program preflight gap. All portable
+ * platform services are lowered by the machine pipeline itself. */
 static int
 assembly_machine_gap(const LirProgram *program)
 {
-    int has_allocate = 0;
     const LirFunction *functions = program->functions.data;
     for(int64_t index = 0; index < program->functions.length; index++) {
         if(!functions[index].external) continue;
         int service = ZxPlatformService(program, index);
-        if(assembly_float_service(service))
-            Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-float-format",
-                "assembly.gap.machine-float-format: machine ELF has no native float print formatter; no alternate engine was selected");
-        else if(service != ZX_SERVICE_NONE)
-            Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-platform-service-unavailable",
-                "assembly.gap.machine-platform-service-unavailable: machine ELF does not implement platform service %.*s; no alternate engine was selected",
-                (int)functions[index].name.length, functions[index].name.data);
-        else if(assembly_parallel_function(program, (int)index))
-            Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-parallel",
-                "assembly.gap.machine-parallel: machine ELF does not implement parallel runtime calls; no alternate engine was selected");
-        else
-            Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-host",
-                "assembly.gap.machine-host: machine ELF does not implement host capability %.*s; no alternate engine was selected",
-                (int)functions[index].name.length, functions[index].name.data);
-        return 1;
-    }
-    const LirGlobal *globals = program->globals.data;
-    for(int64_t index = 0; index < program->globals.length; index++) {
-        if(!globals[index].writable) {
-            Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-string",
-                "assembly.gap.machine-string: machine ELF does not implement read-only string/data globals; no alternate engine was selected");
-            return 1;
-        }
-        if(globals[index].constant >= 0) {
-            Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-global-init",
-                "assembly.gap.machine-global-init: machine ELF does not implement explicit global initial data; no alternate engine was selected");
-            return 1;
-        }
-    }
-    if(program->initializers.length != 0) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-global-init",
-            "assembly.gap.machine-global-init: machine ELF does not implement runtime module initialization; no alternate engine was selected");
-        return 1;
-    }
-    for(int64_t function = 0; function < program->functions.length; function++) {
-        const LirBlock *blocks = functions[function].blocks.data;
-        for(int64_t block = 0; block < functions[function].blocks.length; block++) {
-            const LirInstruction *instructions = blocks[block].instructions.data;
-            for(int64_t instruction = 0; instruction < blocks[block].instructions.length; instruction++) {
-                LirInstruction current = instructions[instruction];
-                if(current.op == LirOp_Resize) {
-                    Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-heap",
-                        "assembly.gap.native-heap: machine ELF does not implement heap storage; no alternate engine was selected");
-                    return 1;
-                }
-                if(current.op == LirOp_BytesEqual) {
-                    Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-string",
-                        "assembly.gap.machine-string: machine ELF does not implement string comparison; no alternate engine was selected");
-                    return 1;
-                }
-                if(assembly_aggregate_view(program, &functions[function], current)) {
-                    Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-aggregate-view",
-                        "assembly.gap.native-aggregate-view: machine ELF does not implement checked views of records, arrays or procedure values; no alternate engine was selected");
-                    return 1;
-                }
-                if(assembly_pointer_field(&functions[function], current)) {
-                    Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-pointer-field",
-                        "assembly.gap.native-pointer-field: machine ELF does not implement record fields reached through a pointer parameter; no alternate engine was selected");
-                    return 1;
-                }
-                if(current.op == LirOp_ElementAddress && current.operands.length == 4) {
-                    Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-slice",
-                        "assembly.gap.machine-slice: machine ELF does not implement borrowed slices; no alternate engine was selected");
-                    return 1;
-                }
-                if(current.op == LirOp_Allocate) {
-                    /* An allocation commonly precedes the operation that
-                     * explains why the value cannot be lowered (for example,
-                     * a borrowed slice). Keep scanning so that stable,
-                     * specific gap wins; report allocation only when it is
-                     * the program's remaining unsupported surface. */
-                    has_allocate = 1;
-                }
-                if(current.op == LirOp_HostCall) {
-                    int service = current.symbol >= 0 && current.symbol < program->functions.length ?
-                        ZxPlatformService(program, current.symbol) : ZX_SERVICE_NONE;
-                    if(assembly_float_service(service))
-                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-float-format",
-                            "assembly.gap.machine-float-format: machine ELF has no native float print formatter; no alternate engine was selected");
-                    else if(service != ZX_SERVICE_NONE)
-                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-platform-service-unavailable",
-                            "assembly.gap.machine-platform-service-unavailable: machine ELF does not implement platform service %.*s; no alternate engine was selected",
-                            (int)functions[current.symbol].name.length, functions[current.symbol].name.data);
-                    else if(assembly_parallel_function(program, current.symbol))
-                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-parallel",
-                            "assembly.gap.machine-parallel: machine ELF does not implement parallel runtime calls; no alternate engine was selected");
-                    else
-                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-host",
-                            "assembly.gap.machine-host: machine ELF does not implement host calls; no alternate engine was selected");
-                    return 1;
-                }
-            }
-        }
-    }
-    if(has_allocate) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-allocate",
-            "assembly.gap.machine-allocate: machine ELF does not implement local or dynamic allocation; no alternate engine was selected");
+        if(service != ZX_SERVICE_NONE) continue;
+        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-host",
+            "assembly.gap.machine-host: machine ELF does not implement host capability %.*s; no alternate engine was selected",
+            (int)functions[index].name.length, functions[index].name.data);
         return 1;
     }
     return 0;
@@ -381,8 +183,17 @@ typedef struct AssemblyMapSelection {
     int64_t end;
 } AssemblyMapSelection;
 
+typedef struct AssemblyNativeRange {
+    int32_t function;
+    int32_t block;
+    int32_t instruction;
+    int32_t origin;
+    int64_t begin;
+    int64_t end;
+} AssemblyNativeRange;
+
 static int
-assembly_map_selected(LirNativeRange range, const AssemblyMapSelection *selection)
+assembly_map_selected(AssemblyNativeRange range, const AssemblyMapSelection *selection)
 {
     if(selection->function >= 0 && range.function != selection->function) return 0;
     if(selection->block >= 0 && range.block != selection->block) return 0;
@@ -428,12 +239,12 @@ assembly_opt_report(FILE *stream, const LirOptResult *result)
 }
 
 static int
-assembly_map_range(LirNativeRange *ranges, int64_t capacity, int64_t *count,
+assembly_map_range(AssemblyNativeRange *ranges, int64_t capacity, int64_t *count,
                    int function, int block, int instruction, int origin,
                    int64_t begin, int64_t end)
 {
     if(*count >= capacity || begin < 0 || end < begin) return 0;
-    ranges[(*count)++] = (LirNativeRange){.function = function, .block = block,
+    ranges[(*count)++] = (AssemblyNativeRange){.function = function, .block = block,
         .instruction = instruction, .origin = origin, .begin = begin, .end = end};
     return 1;
 }
@@ -454,7 +265,10 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
     }
     MachineProgram machine = owner->machine.program;
     MachineX64Image encoded = owner->encoded.image;
-    MachineElfResult image = compiler_machine_elf_MachineElfEncode(machine, encoded, (Slice){0});
+    /* Text-relative coordinates start after the process entry stub. */
+    int64_t startup = compiler_machine_elf_MachineElfStartupBytes(machine);
+    MachineElfResult image = compiler_machine_elf_MachineElfEncode(machine, encoded, (Slice){0},
+        INT64_MAX);
     if(image.diagnostic.problem != MachineProblem_None) {
         Diagnostic((ZirSourceSpan){0}, "assembly.encode", "cannot measure native machine image layout: problem=%d",
             image.diagnostic.problem);
@@ -484,11 +298,11 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
     }
     int64_t range_capacity = (machine.instructions.length + machine.blocks.length +
         machine.functions.length) * 2 + 4;
-    if(range_capacity <= 0 || (uint64_t)range_capacity > SIZE_MAX / sizeof(LirNativeRange)) {
+    if(range_capacity <= 0 || (uint64_t)range_capacity > SIZE_MAX / sizeof(AssemblyNativeRange)) {
         Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native map range allocation is outside supported bounds");
         return 0;
     }
-    LirNativeRange *ranges = malloc((size_t)range_capacity * sizeof(*ranges));
+    AssemblyNativeRange *ranges = malloc((size_t)range_capacity * sizeof(*ranges));
     if(ranges == NULL) { DiagnosticOutOfMemory(); return 0; }
     int64_t mapped = 0;
     AssemblyFunctionExtent *extents = calloc((size_t)program->functions.length, sizeof(*extents));
@@ -501,16 +315,16 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
     MachineX64Range *encoded_instructions = encoded.instructions.data;
     int64_t cursor = 0;
     if(!assembly_map_range(ranges, range_capacity, &mapped, -1, -1, -1, -1,
-                           cursor, MachineElfStartupSize)) goto invalid_map;
-    cursor = MachineElfStartupSize;
+                           cursor, startup)) goto invalid_map;
+    cursor = startup;
     for(int64_t function_id = 0; function_id < machine.functions.length; function_id++) {
         MachineFunction function = machine_functions[function_id];
         MachineX64Function encoded_function = encoded_functions[function_id];
         int lir_function = function.lir_function;
-        int64_t function_begin = MachineElfStartupSize + encoded_function.begin;
-        int64_t function_body = MachineElfStartupSize + encoded_function.body;
-        int64_t function_end = MachineElfStartupSize + encoded_function.end;
-        if(lir_function < 0 || lir_function >= program->functions.length ||
+        int64_t function_begin = startup + encoded_function.begin;
+        int64_t function_body = startup + encoded_function.body;
+        int64_t function_end = startup + encoded_function.end;
+        if(lir_function < -1 || lir_function >= program->functions.length ||
            function.origin < -1 || function.origin >= program->origins.length ||
            function_begin < cursor || function_body < function_begin || function_end < function_body ||
            function.block_begin < 0 || function.block_count < 0 ||
@@ -525,7 +339,7 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
         for(int64_t block_id = function.block_begin;
             block_id < (int64_t)function.block_begin + function.block_count; block_id++) {
             MachineBlock block = machine_blocks[block_id];
-            int64_t block_begin = MachineElfStartupSize + encoded_blocks[block_id];
+            int64_t block_begin = startup + encoded_blocks[block_id];
             if(block.function != function_id || block.lir_block < -1 ||
                (block.lir_block >= 0 &&
                 block.lir_block >= ((LirFunction *)program->functions.data)[lir_function].blocks.length) ||
@@ -540,8 +354,8 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
                 instruction_id < (int64_t)block.instruction_begin + block.instruction_count; instruction_id++) {
                 MachineInstruction instruction = machine_instructions[instruction_id];
                 MachineX64Range encoded_instruction = encoded_instructions[instruction_id];
-                int64_t begin = MachineElfStartupSize + encoded_instruction.begin;
-                int64_t end = MachineElfStartupSize + encoded_instruction.end;
+                int64_t begin = startup + encoded_instruction.begin;
+                int64_t end = startup + encoded_instruction.end;
                 if(instruction.origin < -1 || instruction.origin >= program->origins.length ||
                    begin < cursor || end < begin || end > function_end) goto invalid_map;
                 if(cursor < begin &&
@@ -556,14 +370,16 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
            !assembly_map_range(ranges, range_capacity, &mapped, lir_function, -1, -1,
                                function.origin, cursor, function_end)) goto invalid_map;
         cursor = function_end;
-        extents[lir_function].begin = function_begin;
-        extents[lir_function].end = function_end;
-        extents[lir_function].seen = 1;
+        if(lir_function >= 0) {
+            extents[lir_function].begin = function_begin;
+            extents[lir_function].end = function_end;
+            extents[lir_function].seen = 1;
+        }
     }
-    if(cursor < MachineElfStartupSize + encoded.code.length &&
+    if(cursor < startup + encoded.code.length &&
        !assembly_map_range(ranges, range_capacity, &mapped, -1, -1, -1, -1,
-                           cursor, MachineElfStartupSize + encoded.code.length)) goto invalid_map;
-    cursor = MachineElfStartupSize + encoded.code.length;
+                           cursor, startup + encoded.code.length)) goto invalid_map;
+    cursor = startup + encoded.code.length;
     if(cursor > image.text_size ||
        !assembly_map_range(ranges, range_capacity, &mapped, -1, -1, -1, -1,
                            cursor, image.text_size)) goto invalid_map;
@@ -576,7 +392,7 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
     }
     int64_t selected_ranges = 0;
     for(int64_t index = 0; index < mapped; index++) {
-        LirNativeRange range = ranges[index];
+        AssemblyNativeRange range = ranges[index];
         if(!assembly_map_selected(range, selection)) continue;
         selected_ranges++;
         if(range.function >= 0) extents[range.function].selected = 1;
@@ -607,7 +423,7 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
         (long long)mapped, (long long)selected_ranges);
     int separator = 0;
     for(int64_t index = 0; index < mapped; index++) {
-        LirNativeRange range = ranges[index];
+        AssemblyNativeRange range = ranges[index];
         if(!assembly_map_selected(range, selection)) continue;
         if(separator++) fputc(',', stream);
         fprintf(stream, "{\"begin\":%lld,\"end\":%lld,\"function_id\":%d,\"block\":%d,\"instruction\":%d,\"origin\":%d",
@@ -666,167 +482,6 @@ invalid_map:
     return 0;
 }
 
-static int
-assembly_direct_map(const LirProgram *program, FILE *stream, const AssemblyMapSelection *selection,
-                    const unsigned char *bytes, int64_t size, int optimize)
-{
-    if(selection->function >= program->functions.length ||
-       (selection->block >= 0 && selection->block >= ((LirFunction *)program->functions.data)[selection->function].blocks.length)) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.inspect", "native map function or block selector is outside the program");
-        return 0;
-    }
-    int filtered = selection->function >= 0 || selection->begin >= 0;
-    LirX64ImageLayout image = compiler_lowered_x64_LirX64ElfLayout(*program);
-    if(image.problem != LirProblem_None) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.encode", "cannot measure native image layout: problem=%d", image.problem);
-        return 0;
-    }
-    if(bytes == NULL || size != image.file_size) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native map image does not match the encoded file size");
-        return 0;
-    }
-    Sha256 hash;
-    unsigned char digest[32];
-    char identity[65];
-    static const char hex[] = "0123456789abcdef";
-    Sha256Begin(&hash);
-    Sha256Add(&hash, bytes, (size_t)size);
-    Sha256End(&hash, digest);
-    for(size_t index = 0; index < sizeof(digest); index++) {
-        identity[index * 2] = hex[digest[index] >> 4];
-        identity[index * 2 + 1] = hex[digest[index] & 15];
-    }
-    identity[64] = 0;
-    LirNativeResult measured = compiler_lowered_x64_LirX64Ranges(*program, (Slice){0});
-    if(measured.problem != LirProblem_None || measured.size <= 0 ||
-       measured.size > 268435456 / (int64_t)sizeof(LirNativeRange)) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.encode", "cannot measure native map: problem=%d", measured.problem);
-        return 0;
-    }
-    LirNativeRange *ranges = malloc((size_t)measured.size * sizeof(*ranges));
-    if(ranges == NULL) { DiagnosticOutOfMemory(); return 0; }
-    LirNativeResult mapped = compiler_lowered_x64_LirX64Ranges(*program, (Slice){ranges, measured.size});
-    if(mapped.problem != LirProblem_None || mapped.size != measured.size) {
-        free(ranges);
-        Diagnostic((ZirSourceSpan){0}, "assembly.encode", "cannot write native map: problem=%d", mapped.problem);
-        return 0;
-    }
-    if(ranges[mapped.size - 1].end != image.text_size) {
-        free(ranges);
-        Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native map does not match the encoded text extent");
-        return 0;
-    }
-    AssemblyFunctionExtent *extents = calloc((size_t)program->functions.length, sizeof(*extents));
-    if(extents == NULL) { free(ranges); DiagnosticOutOfMemory(); return 0; }
-    for(int64_t index = 0; index < mapped.size; index++) {
-        LirNativeRange range = ranges[index];
-        if(range.function < 0) continue;
-        if(range.function >= program->functions.length) {
-            free(extents);
-            free(ranges);
-            Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native map contains an invalid function identity");
-            return 0;
-        }
-        AssemblyFunctionExtent *extent = &extents[range.function];
-        if(!extent->seen || range.begin < extent->begin) extent->begin = range.begin;
-        if(!extent->seen || range.end > extent->end) extent->end = range.end;
-        extent->seen = 1;
-    }
-    unsigned char *selected_origins = NULL;
-    if(filtered && program->origins.length > 0) {
-        selected_origins = calloc((size_t)program->origins.length, 1);
-        if(selected_origins == NULL) { free(extents); free(ranges); DiagnosticOutOfMemory(); return 0; }
-    }
-    int64_t selected_ranges = 0;
-    for(int64_t index = 0; index < mapped.size; index++) {
-        LirNativeRange range = ranges[index];
-        if(!assembly_map_selected(range, selection)) continue;
-        selected_ranges++;
-        if(range.function >= 0) extents[range.function].selected = 1;
-        if(filtered) assembly_select_origin(program, range.origin, selected_origins);
-    }
-    LirFunction *functions = program->functions.data;
-    for(int64_t index = 0; filtered && index < program->functions.length; index++) {
-        if(index == selection->function) extents[index].selected = 1;
-        if(extents[index].selected) assembly_select_origin(program, functions[index].origin, selected_origins);
-    }
-    fputs("{\"format\":\"ziran-native-map\",\"version\":1,\"target\":\"x86_64-linux\","
-          "\"coordinate\":\"text-relative\",\"variant\":\"x86-64-baseline\",\"abi\":\"ziran-internal\",", stream);
-    fprintf(stream, "\"optimization_request\":\"%s\",\"identity\":{\"algorithm\":\"sha256\",\"scope\":\"complete-elf\",\"digest\":\"%s\"},",
-        optimize ? "verified-basic" : "none", identity);
-    fputs("\"image\":{\"kind\":\"aot-elf\",\"address_space\":\"elf-virtual\",", stream);
-    fprintf(stream, "\"file_size\":%lld,\"text_file_offset\":%lld,\"text_virtual_address\":%llu,\"text_size\":%lld,"
-        "\"data_file_offset\":%lld,\"data_virtual_address\":%llu,\"data_size\":%lld},\"selection\":",
-        (long long)image.file_size, (long long)image.text_offset, (unsigned long long)image.text_address,
-        (long long)image.text_size, (long long)image.data_offset, (unsigned long long)image.data_address,
-        (long long)image.data_size);
-    if(filtered) {
-        fprintf(stream, "{\"function_id\":%lld,\"block_id\":%lld,\"begin\":%lld,\"end\":%lld}",
-            (long long)selection->function, (long long)selection->block, (long long)selection->begin, (long long)selection->end);
-    } else fputs("null", stream);
-    fprintf(stream, ",\"total_ranges\":%lld,\"selected_ranges\":%lld,\"ranges\":[",
-        (long long)mapped.size, (long long)selected_ranges);
-    int separator = 0;
-    for(int64_t index = 0; index < mapped.size; index++) {
-        LirNativeRange range = ranges[index];
-        if(!assembly_map_selected(range, selection)) continue;
-        if(separator++) fputc(',', stream);
-        fprintf(stream, "{\"begin\":%lld,\"end\":%lld,\"function_id\":%d,\"block\":%d,\"instruction\":%d,\"origin\":%d",
-            (long long)range.begin, (long long)range.end, range.function, range.block, range.instruction, range.origin);
-        if(range.function >= 0) {
-            LirFunction function = ((LirFunction *)program->functions.data)[range.function];
-            fputs(",\"module\":", stream); assembly_json(stream, ((String *)program->modules.data)[function.module]);
-            fputs(",\"function\":", stream); assembly_json(stream, function.name);
-            if(range.block >= 0) {
-                LirBlock block = ((LirBlock *)function.blocks.data)[range.block];
-                LirInstruction instruction = ((LirInstruction *)block.instructions.data)[range.instruction];
-                fputs(",\"op\":", stream);
-                assembly_json(stream, compiler_lowered_ir_LirOpName(instruction.op));
-            }
-        }
-        if(range.origin >= 0) {
-            LirOrigin origin = ((LirOrigin *)program->origins.data)[range.origin];
-            fputs(",\"file\":", stream); assembly_json(stream, ((String *)program->sources.data)[origin.file]);
-            fprintf(stream, ",\"line\":%d,\"column\":%d,\"end_line\":%d,\"end_column\":%d",
-                origin.line, origin.column, origin.end_line, origin.end_column);
-        }
-        fputc('}', stream);
-    }
-    fprintf(stream, "],\"text_size\":%lld,\"functions\":[", (long long)ranges[mapped.size - 1].end);
-    separator = 0;
-    for(int64_t index = 0; index < program->functions.length; index++) {
-        LirFunction function = functions[index];
-        if(filtered && !extents[index].selected) continue;
-        if(separator++) fputc(',', stream);
-        fprintf(stream, "{\"id\":%lld,\"module_id\":%d,\"module\":", (long long)index, function.module);
-        assembly_json(stream, ((String *)program->modules.data)[function.module]);
-        fputs(",\"name\":", stream); assembly_json(stream, function.name);
-        fprintf(stream, ",\"entry\":%d,\"origin\":%d,\"emitted\":%s", function.entry, function.origin,
-            extents[index].seen ? "true" : "false");
-        if(extents[index].seen)
-            fprintf(stream, ",\"begin\":%lld,\"end\":%lld}", (long long)extents[index].begin, (long long)extents[index].end);
-        else fputs(",\"begin\":null,\"end\":null}", stream);
-    }
-    fputs("],\"origins\":[", stream);
-    LirOrigin *origins = program->origins.data;
-    separator = 0;
-    for(int64_t index = 0; index < program->origins.length; index++) {
-        LirOrigin origin = origins[index];
-        if(filtered && !selected_origins[index]) continue;
-        if(separator++) fputc(',', stream);
-        fprintf(stream, "{\"id\":%lld,\"file_id\":%d,\"file\":", (long long)index, origin.file);
-        assembly_json(stream, ((String *)program->sources.data)[origin.file]);
-        fprintf(stream, ",\"line\":%d,\"column\":%d,\"end_line\":%d,\"end_column\":%d,\"begin\":%lld,\"end\":%lld,\"parent\":%d}",
-            origin.line, origin.column, origin.end_line, origin.end_column,
-            (long long)origin.begin, (long long)origin.end, origin.parent);
-    }
-    fputs("]}\n", stream);
-    free(selected_origins);
-    free(extents);
-    free(ranges);
-    return !ferror(stream);
-}
-
 int
 main(int argc, char **argv)
 {
@@ -843,11 +498,12 @@ main(int argc, char **argv)
     const char *block_id = NULL;
     const char *address_begin = NULL;
     const char *address_end = NULL;
+    const char *elf_fuel_text = NULL;
+    int64_t elf_fuel = INT64_MAX;
     AssemblyMapSelection selection = {.function = -1, .block = -1, .begin = -1, .end = -1};
     int run = 0;
     int heap_report = 0;
     int optimize = 0;
-    int machine = 0;
     const char **module_paths = CommandModulePaths(argc);
     int module_path_count = 0;
     const char *bindings[64];
@@ -862,7 +518,7 @@ main(int argc, char **argv)
         COMMAND_TEXT("--target", target), COMMAND_TEXT("--platform", platform),
         COMMAND_TEXT("--function-id", function_id), COMMAND_TEXT("--block-id", block_id),
         COMMAND_TEXT("--address-begin", address_begin), COMMAND_TEXT("--address-end", address_end),
-        COMMAND_FLAG("--machine", machine)
+        COMMAND_TEXT("--fuel", elf_fuel_text)
     };
     int input = ReadCommandOptions(argc, argv, options, sizeof(options) / sizeof(*options));
     char module[ZIR_NAME_MAX], function[ZIR_NAME_MAX];
@@ -873,6 +529,7 @@ main(int argc, char **argv)
        input_length <= 3 || strcmp(argv[input] + input_length - 3, ".zx") ||
        !assembly_limit(function_id, &selection.function) || !assembly_limit(block_id, &selection.block) ||
        !assembly_limit(address_begin, &selection.begin) || !assembly_limit(address_end, &selection.end) ||
+       !assembly_limit(elf_fuel_text, &elf_fuel) || (elf_fuel_text != NULL && strcmp(emit, "elf")) ||
        selection.function > INT32_MAX || selection.block > INT32_MAX ||
        (selection.block >= 0 && selection.function < 0) ||
        ((selection.begin < 0) != (selection.end < 0)) ||
@@ -884,21 +541,23 @@ main(int argc, char **argv)
        (strcmp(emit, "elf") && strcmp(emit, "map") && strcmp(emit, "image")))
         return assembly_usage();
     char target_row[64];
+    TargetDescription native_target = {0};
     if(snprintf(target_row, sizeof(target_row), "%s-%s", target, platform) < 0 ||
-       !assembly_target_supported(target_row)) return 1;
+       !assembly_target_supported(target_row, &native_target)) return 1;
     if(!strcmp(emit, "image")) {
         Diagnostic((ZirSourceSpan){0}, "assembly.gap.target-unimplemented",
             "relocatable in-memory machine images are not implemented for %s; no alternate output was selected",
             target_row);
         return 1;
     }
-    int wasm = 0;
     int status = 1;
     ProgramSet sources = {0};
     ZirProgram merged = {0};
     AssemblyProgram *lowered = NULL;
     ZxExecOwner zx_owner = {0};
+    ZxDebugOwner debug_owner = {0};
     LirProgram decoded = {0};
+    LirProgram origins = {0};
     LirOptOwner optimized_owner = {0};
     LirOptResult optimization = {0};
     LirProgram optimized_program = {0};
@@ -932,7 +591,6 @@ main(int argc, char **argv)
     } else {
         /* A wasm32 module targets the web, so compile-time conditions on the
          * target, OS and CPU select its branches. */
-        if(wasm) CompilerConfigureTarget(ZIR_TARGET_WASM, ZIR_OS_WEB, ZIR_CPU_WASM32);
         if(!ProgramsLoadWithDefines(&sources, root, module_paths, module_path_count, defines, define_count,
                                     (const char *const *)(argv + input), argc - input) ||
            !CheckCanonicalPrograms(sources.programs, sources.count, (const char *const *)sources.paths) ||
@@ -941,7 +599,7 @@ main(int argc, char **argv)
         if(!LinkImports(programs, 1)) goto done;
         for(int binding = 0; binding < binding_count; binding++)
             if(!BindHostProvider(&merged, bindings[binding])) goto done;
-        if(machine && assembly_machine_source_gap(&merged)) goto done;
+        if(assembly_machine_source_gap(&merged)) goto done;
         lowered = AssemblyLower(&merged, module, function);
         if(lowered == NULL) goto done;
         view = AssemblyView(lowered);
@@ -979,7 +637,8 @@ main(int argc, char **argv)
         const char *interface = AssemblyHostInterface(lowered, &interface_length);
         if(interface == NULL) goto done;
         String interface_text = {interface, interface_length};
-        ZxExecResult measured = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){0}, interface_text);
+        ZxExecResult measured = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){0}, interface_text,
+            false);
         if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
             String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
             Diagnostic((ZirSourceSpan){0}, "assembly.container",
@@ -991,7 +650,7 @@ main(int argc, char **argv)
         zx_bytes = malloc((size_t)zx_size);
         if(zx_bytes == NULL) { DiagnosticOutOfMemory(); goto done; }
         ZxExecResult encoded = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){zx_bytes, zx_size},
-            interface_text);
+            interface_text, false);
         if(encoded.problem != ZxExecProblem_None || encoded.size != zx_size) {
             String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);
             Diagnostic((ZirSourceSpan){0}, "assembly.container",
@@ -1013,118 +672,55 @@ main(int argc, char **argv)
         view = &decoded;
     }
     if(run) { status = ZxExecRunProgram(view, execution_limits, heap_report); goto done; }
+    /* A map lowers the same verified program with the attachment's checked
+     * origins restored, so machine instructions carry them; the encoded
+     * bytes are the same either way. */
+    if(mapping) {
+        ZxDebugProblem restored = compiler_exec_link_ZxExecReadDebug(&zx_owner, &debug_owner,
+            compiler_lowered_ir_LirDefaultLimits());
+        if(restored == ZxDebugProblem_None) {
+            origins = compiler_exec_debug_ZxDebugProgram(&debug_owner);
+            view = &origins;
+        } else if(restored != ZxDebugProblem_Absent) {
+            String problem = compiler_exec_debug_ZxDebugProblemName(restored);
+            Diagnostic((ZirSourceSpan){0}, "zx.debug",
+                "the ZX debug attachment does not belong to this program: %.*s",
+                (int)problem.length, problem.data);
+            goto done;
+        }
+    }
     if(!strcmp(emit, "zx")) {
         /* Preserve all declared assets and optional sections when rewriting. */
         bytes = zx_bytes;
         zx_bytes = NULL;
         size = zx_size;
-    } else if(wasm) {
-        /* The module comes from the verified ZX bytes alone, so source and
-         * saved-ZX input give identical modules. */
-        ZxWasmImage image = {0};
-        if(!ZxWasmLowerExecutable(zx_bytes, (size_t)zx_size, &image)) goto done;
-        size = (int64_t)image.size;
-        bytes = image.bytes;
-        image.bytes = NULL;
-        ZxWasmImageFree(&image);
     } else if(executable || mapping) {
-        if(machine) {
-            if(assembly_machine_gap(view)) goto done;
-            MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineNativeBuild(
-                *view, compiler_target_TargetLinuxX64(), compiler_machine_ir_MachineDefaultLimits(),
-                &machine_owner);
-            if(diagnostic.problem != MachineProblem_None) {
-                Diagnostic((ZirSourceSpan){0}, "assembly.machine",
-                    "machine pipeline rejected the program: problem=%d function=%d block=%d instruction=%d operand=%d virtual=%d; no alternate engine was selected",
-                    diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
-                    diagnostic.operand, diagnostic.virtual);
-                goto done;
-            }
-            Slice native = compiler_machine_pipeline_MachineNativeView(&machine_owner);
-            if(native.length <= 0 || native.length > 268435456) {
-                Diagnostic((ZirSourceSpan){0}, "assembly.machine",
-                    "machine pipeline produced an invalid ELF extent; no alternate engine was selected");
-                goto done;
-            }
-            size = native.length;
-            bytes = malloc((size_t)size);
-            if(bytes == NULL) { DiagnosticOutOfMemory(); goto done; }
-            memcpy(bytes, native.data, (size_t)size);
-        } else {
-        const LirFunction *functions = view->functions.data;
-        for(int64_t index = 0; index < view->functions.length; index++) {
-            if(!functions[index].external) continue;
-            int service = ZxPlatformService(view, index);
-            if(assembly_float_service(service)) {
-                Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-float-format",
-                    "assembly.gap.native-float-format: selected target linux-x86_64-elf has no native float print formatter; no alternate engine was selected");
-                goto done;
-            }
-            if(service == ZX_SERVICE_NONE) {
-                Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-platform-service-unavailable",
-                    "assembly.gap.native-platform-service-unavailable: selected target linux-x86_64-elf does not implement platform service %.*s; no alternate engine was selected",
-                    (int)functions[index].name.length, functions[index].name.data);
-                goto done;
-            }
-        }
-        for(int64_t function = 0; function < view->functions.length; function++) {
-            const LirBlock *blocks = functions[function].blocks.data;
-            for(int64_t block = 0; block < functions[function].blocks.length; block++) {
-                const LirInstruction *instructions = blocks[block].instructions.data;
-                for(int64_t instruction = 0; instruction < blocks[block].instructions.length; instruction++) {
-                    if(instructions[instruction].op == LirOp_Resize) {
-                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-heap",
-                            "assembly.gap.native-heap: selected target linux-x86_64-elf does not implement heap storage; no alternate engine was selected");
-                        goto done;
-                    }
-                    if(instructions[instruction].op == LirOp_BytesEqual) {
-                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-string-compare",
-                            "assembly.gap.native-string-compare: selected target linux-x86_64-elf does not implement string comparison; no alternate engine was selected");
-                        goto done;
-                    }
-                    if(assembly_aggregate_view(view, &functions[function], instructions[instruction])) {
-                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-aggregate-view",
-                            "assembly.gap.native-aggregate-view: selected target linux-x86_64-elf does not implement checked views of records, arrays or procedure values; no alternate engine was selected");
-                        goto done;
-                    }
-                    if(assembly_pointer_field(&functions[function], instructions[instruction])) {
-                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-pointer-field",
-                            "assembly.gap.native-pointer-field: selected target linux-x86_64-elf does not implement record fields reached through a pointer parameter; no alternate engine was selected");
-                        goto done;
-                    }
-                }
-            }
-        }
-        LirNativeResult measured = compiler_lowered_x64_LirX64Elf(*view, (Slice){0});
-        if(measured.problem != LirProblem_None || measured.size <= 0 || measured.size > 268435456) {
-            /* The encoder's two expected refusals are gaps of this target,
-             * not encoder faults: its bounded tables, and forms it has no
-             * code for yet. */
-            if(measured.problem == LirProblem_Limit)
-                Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-limit",
-                    "assembly.gap.native-limit: selected target linux-x86_64-elf encoder bounds on addresses, frame size or compile work do not admit this program; no alternate engine was selected");
-            else if(measured.problem == LirProblem_Unsupported)
-                Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-unsupported",
-                    "assembly.gap.native-unsupported: selected target linux-x86_64-elf has no code for an instruction or entry signature in this program; no alternate engine was selected");
-            else
-                Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native encoder rejected the program: problem=%d", measured.problem);
+        if(assembly_machine_gap(view)) goto done;
+        MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineNativeBuild(
+            *view, native_target, compiler_machine_ir_MachineDefaultLimits(),
+            &machine_owner, elf_fuel);
+        if(diagnostic.problem != MachineProblem_None) {
+            Diagnostic((ZirSourceSpan){0}, "assembly.machine",
+                "machine pipeline rejected the program: problem=%d function=%d block=%d instruction=%d operand=%d virtual=%d; no alternate engine was selected",
+                diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
+                diagnostic.operand, diagnostic.virtual);
             goto done;
         }
-        size = measured.size;
+        Slice native = compiler_machine_pipeline_MachineNativeView(&machine_owner);
+        if(native.length <= 0 || native.length > 268435456) {
+            Diagnostic((ZirSourceSpan){0}, "assembly.machine",
+                "machine pipeline produced an invalid ELF extent; no alternate engine was selected");
+            goto done;
+        }
+        size = native.length;
         bytes = malloc((size_t)size);
         if(bytes == NULL) { DiagnosticOutOfMemory(); goto done; }
-        LirNativeResult encoded = compiler_lowered_x64_LirX64Elf(*view, (Slice){bytes, size});
-        if(encoded.problem != LirProblem_None || encoded.size != size) {
-            Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native encoder failed after measuring: problem=%d", encoded.problem);
-            goto done;
-        }
-        }
+        memcpy(bytes, native.data, (size_t)size);
     }
     if(!strcmp(output, "-") && !executable) {
         int written = reporting ? assembly_opt_report(stdout, &optimization) :
             listing ? AssemblyPrintLir(view, stdout) : mapping ?
-                (machine ? assembly_machine_map(view, stdout, &selection, &machine_owner, bytes, size, 1) :
-                    assembly_direct_map(view, stdout, &selection, bytes, size, 1)) :
+                assembly_machine_map(view, stdout, &selection, &machine_owner, bytes, size, 1) :
             fwrite(bytes, 1, (size_t)size, stdout) == (size_t)size;
         status = written && fflush(stdout) == 0 ? 0 : 1;
         goto done;
@@ -1154,8 +750,7 @@ main(int argc, char **argv)
     }
     int written = reporting ? assembly_opt_report(stream, &optimization) :
         listing ? AssemblyPrintLir(view, stream) : mapping ?
-            (machine ? assembly_machine_map(view, stream, &selection, &machine_owner, bytes, size, 1) :
-                assembly_direct_map(view, stream, &selection, bytes, size, 1)) :
+            assembly_machine_map(view, stream, &selection, &machine_owner, bytes, size, 1) :
         fwrite(bytes, 1, (size_t)size, stream) == (size_t)size;
 #if defined(__unix__) || defined(__APPLE__)
     if(executable && fchmod(fileno(stream), 0755) != 0) written = 0;
@@ -1182,6 +777,7 @@ done:
     compiler_machine_pipeline_MachineNativeFree(&machine_owner);
     compiler_opt_LirOptFree(&optimized_owner);
     AssemblyFree(lowered);
+    compiler_exec_debug_ZxDebugFree(&debug_owner);
     compiler_exec_link_ZxExecReadFree(&zx_owner);
     free(merged.modules);
     ProgramsFree(&sources);

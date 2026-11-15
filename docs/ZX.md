@@ -17,6 +17,19 @@ bundle file. Zero-argument entries returning an integer, `bool` or nothing
 run; the command prints a non-void result on its own line, unsigned results
 over their full range.
 
+On linux-x86_64, `ziran run app.zx`, `zi2zx run` and the embedding API run a
+bundle as native code compiled from its verified instructions; in a browser
+it runs on the Wasm tier and on other CPUs on the portable instruction engine.
+The platform makes that choice, never the bundle: a bundle native code cannot
+run fails before it starts with a named gap. `--backend engine` picks the
+engine explicitly. Native code checks every pointer as the engine does: a read through a pointer into a returned frame, a use after `free`, a
+second `free` and a store through read-only bytes all trap, and each run of
+`allocate` gets fresh zeroed storage that lasts until its frame returns. A
+native trap is reported once. Nothing ever falls back to, or retries on, the
+engine. `zi2zx --debug` also writes
+the program's source origins to the optional debug attachment, so native trap
+diagnostics and `zx2native --emit map` name source lines.
+
 Use `ziran run app.zx` for both console and graphical programs. The linker
 includes the reachable code of imported modules, including a UI library.
 Platform effects such as windows and input are supplied by an installed runtime
@@ -101,17 +114,17 @@ not matter. Separate instances of one bundle may run concurrently; each owns its
 globals, which persist across `BundleInstanceRun` calls. Global initializers run
 when the instance opens.
 
-Each host call is translated between the engine's host image and `VmHostValue`
+Each host call is translated between the engine's host image and `HostValue`
 trees by the host interface section. A value's type is the spelling declared at
 its position, and a spelling that starts with `u` is unsigned; a `u64` above the
 `s64` range reaches the host in `bits` alone. Returned records give every
 declared field by name and in order, unless `BundleInstanceMatchFieldsByName`
 lets a host built against another layout omit or add fields. Numeric, string
-and record slice parameters cross as `VM_HOST_SLICE` with a mutable `elements`
+and record slice parameters cross as `HOST_SLICE` with a mutable `elements`
 array: the host keeps the count and pointer, and its changes are validated and
 copied back into the caller's slice after a successful call. Two slice
 arguments of one call may not share elements. Declared pointer types cross as
-`VM_HOST_POINTER`: an opaque handle that bundles store, compare and pass back,
+`HOST_POINTER`: an opaque handle that bundles store, compare and pass back,
 and that fails the run when the program reads through it. The host owns the
 storage behind every handle it hands out. A value that nests past 64 levels,
 such as a tree that holds itself, fails the call. Values a host returns are
@@ -195,7 +208,7 @@ instruction engine. Set `ZIRAN_WASM_TIER=0` in the environment, or
 `globalThis.ZIRAN_WASM_TIER = "0"` before a page loads the runtime, to leave
 bundles to the instruction engine. Each instance
 keeps its own bindings and linear memory. Host calls and module state cross as
-host images, which the embedding API translates to `VmHostValue` trees by the
+host images, which the embedding API translates to `HostValue` trees by the
 host interface section, so typed capabilities, records, strings, slices and
 state export and import behave as on the engine. A program outside the
 lowering, or a module the provider rejects, fails instantiation; no other

@@ -10,6 +10,7 @@
 
 static atomic_int diagnostic_json = ATOMIC_VAR_INIT(-1);
 static atomic_flag diagnostic_lock = ATOMIC_FLAG_INIT;
+static atomic_int diagnostic_errors = ATOMIC_VAR_INIT(0);
 
 /* Preserve valid UTF-8; escape invalid bytes so every record is decodable. */
 static size_t utf8_length(const unsigned char *at)
@@ -103,6 +104,7 @@ int DiagnosticJsonEnabled(void)
 void DiagnosticOutOfMemory(void)
 {
     /* No allocation, source interning, or nested diagnostic buffer. */
+    atomic_fetch_add(&diagnostic_errors, 1);
     if(DiagnosticJsonEnabled())
         fputs("{\"schema_version\":2,\"severity\":\"error\",\"code\":\"compiler.memory\","
               "\"message\":\"out of memory\",\"path\":\"\",\"line\":0,\"column\":0,"
@@ -119,6 +121,7 @@ static void report(ZirSourceSpan span, const char *severity, const char *code,
 {
     int message_length = vsnprintf(buffers->message, sizeof(buffers->message), format, args);
     int json = DiagnosticJsonEnabled(), warning = strcmp(severity, "warning") == 0;
+    if(!warning) atomic_fetch_add(&diagnostic_errors, 1);
 #ifdef __ANDROID__
     __android_log_print(warning ? ANDROID_LOG_WARN : ANDROID_LOG_ERROR, "Ziran",
                         "%s:%d:%d: %s [%s]", SpanPath(span), span.line,
@@ -233,4 +236,20 @@ void DiagnosticTarget(ZirSourceSpan span, const char *code, const char *target, 
     DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
     va_list args; va_start(args, format); report(span, "error", code, &details, format, args, buffers);
     va_end(args); free(buffers);
+}
+int DiagnosticErrorCount(void)
+{
+    return atomic_load(&diagnostic_errors);
+}
+void DiagnosticCountReportedError(void)
+{
+    atomic_fetch_add(&diagnostic_errors, 1);
+}
+int DiagnosticEnsureFailureReported(int status, const char *command)
+{
+    if(status != 0 && DiagnosticErrorCount() == 0)
+        Diagnostic((ZirSourceSpan){0}, "compiler.internal",
+                   "%s failed without reporting a cause; this is a compiler bug",
+                   command);
+    return status;
 }

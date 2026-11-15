@@ -26,7 +26,7 @@ GO
     GO111MODULE=off go run "$work/$form-go"/*.go
 done
 cmp "$work/source.zx" "$work/saved.zx"
-echo 'TOML reading passed source, saved IR, portable VM and C/Go execution'
+echo 'TOML reading passed source, saved IR, portable engine and C/Go execution'
 # Exercise the actual package reader, including mixed inline and full tables.
 cat > "$work/valid.toml" <<'TOML'
 [package]

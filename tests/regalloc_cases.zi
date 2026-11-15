@@ -382,6 +382,30 @@ FloatCallFixture :: (owner: *Machine.MachineOwner, float_result: bool) -> Machin
     return LowerProgram(owner, functions[:], 1)
 }
 
+// The call result is deliberately unused while `kept` remains live across the
+// call. The ABI still defines RAX at the call, so allocation must reserve that
+// fixed definition even though no interval is created for the result value.
+UnusedFixedResultFixture :: (owner: *Machine.MachineOwner) -> Machine.MachineResult {
+    storage: [8]s32
+    at: s64 = 0
+    identity_values: [1]s32 = .[TypeInteger]
+    identity_parameters: [1]s32 = .[TypeInteger]
+    identity_entry: [1]s32 = .[0]
+    identity_body: [2]Lir.LirInstruction = .[Fuel(1), Return(One(storage[:], *at, 0))]
+    identity_blocks: [1]Lir.LirBlock = .[.{parameters = identity_entry[:], instructions = identity_body[:]}]
+
+    main_values: [2]s32 = .[TypeInteger, TypeInteger]
+    main_body: [4]Lir.LirInstruction = .[Fuel(1), Constant(0, 2),
+        Call(1, 0, One(storage[:], *at, 0), 2), Return(One(storage[:], *at, 0))]
+    main_blocks: [1]Lir.LirBlock = .[.{instructions = main_body[:]}]
+    functions: [2]Lir.LirFunction = .[
+        .{module = 0, name = "identity", parameters = identity_parameters[:], result = TypeInteger,
+            values = identity_values[:], blocks = identity_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "main", result = TypeInteger, values = main_values[:],
+            blocks = main_blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], 1)
+}
+
 Lowered :: (label: string, result: Machine.MachineResult) -> bool {
     if result.problem == .None { return true }
     print("% lowering failed: problem % lir %\n", label, cast(s32)result.problem, result.lir_diagnostic_problem)
@@ -466,24 +490,19 @@ Intact :: (owner: *Machine.MachineOwner, before: u64, message: string) -> bool {
         Verify.MachineVerify(view, Machine.MachineDefaultLimits()).problem == .None, message)
 }
 
-// Allocation succeeds for these inputs, so the allocated verifier is what
-// rejects them: the late failure path. The owner keeps its program and the
-// diagnostic names the input call operand.
-LateCallForm :: (float_result: bool, message: string) -> bool {
+// Float arguments and results use the first XMM ABI register.
+FloatCallForm :: (float_result: bool, message: string) -> bool {
     owner: Machine.MachineOwner
     defer Lower.MachineFree(*owner)
     if !Lowered(message, FloatCallFixture(*owner, float_result)) { return false }
-    input := Lower.MachineProgramView(*owner)
-    before := Fingerprint(input)
-    call := input.calls[0]
+    if !Allocate(message, *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, message) { return false }
+    call := program.calls[0]
     operand := ifx float_result then call.result_operand else call.argument_begin
-    late := RegAlloc.RegAllocAllocate(*owner, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
-    if !Check(late.problem == .Unsupported && late.function == 1 && late.instruction == call.instruction &&
-        late.block == input.functions[1].block_begin && late.operand == operand, message) {
-        Report(message, late)
-        return false
-    }
-    return Intact(*owner, before, "a late allocation failure leaves the owner's program intact")
+    value := program.operands[operand]
+    return Check(value.kind == .Physical && value.class == .Float && value.id == 0 &&
+        value.fixed_register == 0, message)
 }
 
 PressureCases :: () -> bool {
@@ -636,9 +655,21 @@ CallCases :: () -> bool {
     if !Allocate("call addend restored", *addend_owner) ||
         !Allocated(Lower.MachineProgramView(*addend_owner), "the kept owner allocates after a late failure") { return false }
 
-    // Float call arguments and results are not implemented natively.
-    return LateCallForm(false, "a float call argument is unsupported at that argument") &&
-        LateCallForm(true, "a float call result is unsupported at that result")
+    return FloatCallForm(false, "a float call argument uses XMM0") &&
+        FloatCallForm(true, "a float call result uses XMM0")
+}
+
+UnusedFixedResultCase :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered("unused fixed result", UnusedFixedResultFixture(*owner)) ||
+        !Allocate("unused fixed result", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "unused fixed result allocation verifies") { return false }
+    call := FindOpcode(program, .CallDirect, program.blocks[program.functions[1].block_begin].instruction_begin)
+    returned := FindOpcode(program, .Return, call + 1)
+    return Check(call >= 0 && returned > call && Operand(program, returned, 0).id == Rax,
+        "a value live across an unused RAX result is restored for return")
 }
 
 ArithmeticCases :: () -> bool {
@@ -739,9 +770,32 @@ RotateCases :: () -> bool {
     program := Lower.MachineProgramView(*owner)
     if !Allocated(program, "rotating loop verifies") { return false }
     // The register cycle is broken through the scratch register.
+    cycle_begin: s32 = -1
+    cycle_end: s32 = -1
+    cycle_length: s32 = 0
+    run_begin: s32 = -1
+    run_length: s32 = 0
+    for index: cast(s32)0..cast(s32)program.instructions.count - 1 {
+        if MachineIsTransfer(program.instructions[index].opcode) {
+            if run_length == 0 { run_begin = index }
+            run_length += 1
+        } else {
+            if run_length > cycle_length {
+                cycle_begin = run_begin
+                cycle_length = run_length
+            }
+            run_begin = -1
+            run_length = 0
+        }
+    }
+    if run_length > cycle_length {
+        cycle_begin = run_begin
+        cycle_length = run_length
+    }
+    cycle_end = cycle_begin + cycle_length - 1
     park: s32 = -1
     reader: s32 = -1
-    for index: cast(s32)0..cast(s32)program.instructions.count - 1 {
+    for index: cycle_begin..cycle_end {
         if program.instructions[index].opcode != .Move { continue }
         if Operand(program, index, 0).id == program.scratch_general && park < 0 { park = index }
         if Operand(program, index, 1).id == program.scratch_general { reader = index }
@@ -750,7 +804,7 @@ RotateCases :: () -> bool {
     // Reading the overwritten register instead of the parked copy is caught.
     source := program.instructions[reader].operand_begin + 1
     saved := program.operands[source]
-    program.operands[source].id = Operand(program, park, 1).id
+    program.operands[source].id = Operand(program, cycle_begin, 1).id
     copy_error := Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits())
     if !Check(copy_error.problem == .Copy && copy_error.instruction == reader && copy_error.operand == source,
         "parallel copy reading a source it already overwrote is rejected at that copy") {
@@ -781,7 +835,6 @@ RotateCases :: () -> bool {
     if !Allocated(tail_program, "spilled tail swap verifies") ||
         !Check(tail_temporary && CountSpills(tail_program, .Cycle) >= 2,
             "a cycle between two spilled parameters parks one through a frame temporary") {
-        print("tail swap: temporary % cycle spills %\n", tail_temporary, CountSpills(tail_program, .Cycle))
         return false
     }
 
@@ -831,8 +884,8 @@ RotateCases :: () -> bool {
     target_owner: Machine.MachineOwner
     defer Lower.MachineFree(*target_owner)
     if !Lowered("target", RotateFixture(*target_owner, 3, true)) { return false }
-    aarch64 := Target.TargetDescribe(.AArch64, .Linux).target
-    if !Check(RegAlloc.RegAllocAllocate(*target_owner, aarch64, Machine.MachineDefaultLimits()).problem == .UnsupportedTarget,
+    armv7 := Target.TargetDescribe(.ArmV7, .Linux).target
+    if !Check(RegAlloc.RegAllocAllocate(*target_owner, armv7, Machine.MachineDefaultLimits()).problem == .UnsupportedTarget,
         "an unsupported target is explicit") { return false }
     small := Machine.MachineDefaultLimits()
     small.work = 50
@@ -875,23 +928,16 @@ FrameCases :: () -> bool {
     if !Check(Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits()).problem == .None,
         "restored incoming order verifies again") { return false }
 
-    // Stack-passed call arguments are not implemented natively. Allocation
-    // succeeds, so the allocated verifier finds the aggregate argument late;
-    // the owner keeps its program and the diagnostic names the input call.
+    // Aggregate and excess scalar call arguments use the outgoing stack area.
     stacked: Machine.MachineOwner
     defer Lower.MachineFree(*stacked)
-    if !Lowered("stack calls", FrameFixture(*stacked, true)) { return false }
-    input := Lower.MachineProgramView(*stacked)
-    before := Fingerprint(input)
-    take := input.calls[0]
-    late := RegAlloc.RegAllocAllocate(*stacked, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
-    if !Check(late.problem == .Unsupported && late.function == 2 && late.instruction == take.instruction &&
-        late.block == input.functions[2].block_begin && late.operand == take.argument_begin,
-        "an aggregate call argument is unsupported at that argument") {
-        Report("stack call", late)
-        return false
-    }
-    if !Intact(*stacked, before, "a late allocation failure leaves the owner's program intact") { return false }
+    if !Lowered("stack calls", FrameFixture(*stacked, true)) || !Allocate("stack calls", *stacked) { return false }
+    stacked_program := Lower.MachineProgramView(*stacked)
+    if !Allocated(stacked_program, "stack call allocation verifies") ||
+        !Check(stacked_program.calls[0].stack_argument_bytes == 16 &&
+            stacked_program.calls[1].stack_argument_bytes == 16 &&
+            stacked_program.frames[2].outgoing_size == 16,
+            "aggregate and excess scalar call arguments share a 16-byte outgoing area") { return false }
 
     // Conflicting fixed registers at one instruction hard-fail during allocation.
     conflict: Machine.MachineOwner
@@ -953,7 +999,7 @@ VectorCases :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !PressureCases() || !CallCases() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+    if !PressureCases() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
         !VectorCases() { return 1 }
     print("register allocation: pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
     return 0

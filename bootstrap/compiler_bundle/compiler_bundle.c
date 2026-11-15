@@ -1789,7 +1789,7 @@ compiler_bundle_ExecutableMessage(ExecutableProblem problem)
         return StringLiteral("not a ZX executable container");
     }
     if (problem == ExecutableProblem_Legacy) {
-        return StringLiteral("legacy ZX version contains semantic IR; rebuild with zi2asm --emit zx");
+        return StringLiteral("legacy ZX version contains semantic IR; rebuild with zi2zx");
     }
     if (problem == ExecutableProblem_Version) {
         return StringLiteral("unsupported executable ZX version");

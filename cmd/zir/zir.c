@@ -205,6 +205,21 @@ CheckTargetCapabilities(const ZirProgram *program, const char *target)
             }
         }
     }
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        for(int f = 0; f < module->function_count; f++) {
+            const ZirFunction *function = &module->functions[f];
+            for(int i = 0; i < function->stmt_count; i++) {
+                if(!function->stmts[i].is_gpu) continue;
+                DiagnosticDetails details = {0};
+                details.target = target;
+                details.capability = "gpu.device";
+                DiagnosticDetailed(function->stmts[i].span, "gpu.device", &details,
+                    "GPU regions have no device backend; CPU fallback is disabled");
+                return 0;
+            }
+        }
+    }
     return 1;
 }
 

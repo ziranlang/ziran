@@ -14,65 +14,65 @@ typedef struct BundleState BundleState;
 typedef struct BundleComponent BundleComponent;
 typedef struct BundleComponentHandle BundleComponentHandle;
 
-typedef enum VmHostValueKind {
-    VM_HOST_VOID,
-    VM_HOST_INTEGER,
-    VM_HOST_UNSIGNED,
-    VM_HOST_REAL,
-    VM_HOST_STRING,
-    VM_HOST_RECORD,
-    VM_HOST_SLICE,
-    VM_HOST_POINTER,
-    VM_HOST_ARRAY
-} VmHostValueKind;
+typedef enum HostValueKind {
+    HOST_VOID,
+    HOST_INTEGER,
+    HOST_UNSIGNED,
+    HOST_REAL,
+    HOST_STRING,
+    HOST_RECORD,
+    HOST_SLICE,
+    HOST_POINTER,
+    HOST_ARRAY
+} HostValueKind;
 
-typedef struct VmHostField VmHostField;
+typedef struct HostField HostField;
 
-typedef struct VmHostValue {
-    VmHostValueKind kind;
+typedef struct HostValue {
+    HostValueKind kind;
     const char *type;
     int64_t integer;
     uint64_t bits;
     double real;
     const unsigned char *data;
     size_t length;
-    const VmHostField *fields;
+    const HostField *fields;
     size_t field_count;
-    struct VmHostValue *elements;
+    struct HostValue *elements;
     void *pointer;
-} VmHostValue;
+} HostValue;
 
-struct VmHostField {
+struct HostField {
     const char *name;
-    VmHostValue value;
+    HostValue value;
 };
 
 /* Return nonzero after writing a result of the declared return type.
  * Record fields are in declaration order and carry their declared names and
  * types. Argument fields are borrowed for the call. A scalar, string, or record slice
- * argument has kind VM_HOST_SLICE, length elements, and a mutable elements array.
+ * argument has kind HOST_SLICE, length elements, and a mutable elements array.
  * Modify elements in place and keep the elements pointer and length intact;
  * the engine validates and copies every element back after the call. Returned
  * fields, collection elements and string bytes are copied after the callback
  * returns, before the next host call. Keep them valid until that next call;
  * a later call may reuse their storage. Strings copied into the instance retain
  * their bytes while reachable, including across BundleInstanceRun calls.
- * Fixed arrays have kind VM_HOST_ARRAY and exactly their declared length.
+ * Fixed arrays have kind HOST_ARRAY and exactly their declared length.
  * Their elements may be inspected during the call; mutations to argument
  * elements are not copied back. A zero-length array has no elements.
  * A returned zero-length slice may have a null elements pointer. Longer
  * slices need elements for their declared length; oversized lengths fail.
- * A declared pointer type crosses as kind VM_HOST_POINTER with the raw address
+ * A declared pointer type crosses as kind HOST_POINTER with the raw address
  * in `pointer`; the engine treats it as an opaque handle and never dereferences
  * it, so the host owns the storage behind it. */
-typedef int (*VmHostCall)(void *context, const char *module,
-                          const char *function, const VmHostValue *args,
-                          int arg_count, VmHostValue *result);
+typedef int (*HostCall)(void *context, const char *module,
+                          const char *function, const HostValue *args,
+                          int arg_count, HostValue *result);
 
 typedef struct HostBinding {
     const char *module;
     const char *function;
-    VmHostCall call;
+    HostCall call;
     void *context;
 } HostBinding;
 
@@ -100,7 +100,7 @@ typedef struct BundleStateValue {
     const char *module;
     const char *name;
     const char *type;
-    VmHostValue value;
+    HostValue value;
 } BundleStateValue;
 
 typedef int (*BundleStateMigrate)(void *context,
@@ -177,8 +177,9 @@ BundleInstance *BundleInstantiateWithOptions(
     const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
     const BundleInstanceOptions *options);
 BundleExecutionBackend BundleInstanceBackend(const BundleInstance *instance);
-/* Stable diagnostic code for the bundle's native preflight rejection, or an
- * empty string when native preflight has no recorded problem. */
+/* Native preflight: compiles the bundle for this host on first use, sharing
+ * code with any open bundle of the same content. An empty string when it
+ * runs natively, else a diagnostic whose first word is its stable code. */
 const char *BundleNativeProblem(const Bundle *bundle);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);

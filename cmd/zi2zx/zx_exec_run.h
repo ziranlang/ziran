@@ -42,8 +42,9 @@ void ZxLowerFree(ZxLowerOwner *owner);
  * executable ZX with its host interface section: what zi2zx
  * writes. `assets` is a slice of compiler_bundle Asset values in name order.
  * The entry must take no arguments and return an integer, bool or nothing.
- * Returns malloc'd bytes, or NULL after a diagnostic. */
+ * With `debug`, source texts and origins go to the optional debug
+ * attachment. Returns malloc'd bytes, or NULL after a diagnostic. */
 unsigned char *ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets,
-                           size_t *size);
+                           int debug, size_t *size);
 
 #endif

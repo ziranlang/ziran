@@ -36,4 +36,4 @@ func main() { if JsonArrayReuseTest_NativeMain() != 0 { panic("JSON array reuse 
 GO
     GO111MODULE=off go run "$output"/*.go
 done
-echo 'JSON array reuse passed source, saved IR, portable VM and C/Go execution'
+echo 'JSON array reuse passed source, saved IR, portable engine and C/Go execution'

@@ -3,24 +3,24 @@
 #include <assert.h>
 #include <string.h>
 
-static VmHostField fields[3];
+static HostField fields[3];
 
-static VmHostValue
+static HostValue
 string_value(const char *text)
 {
-    VmHostValue value = {0};
-    value.kind = VM_HOST_STRING;
+    HostValue value = {0};
+    value.kind = HOST_STRING;
     value.type = "string";
     value.data = (const unsigned char *)text;
     value.length = strlen(text);
     return value;
 }
 
-static VmHostValue
+static HostValue
 integer_value(const char *type, long long number)
 {
-    VmHostValue value = {0};
-    value.kind = VM_HOST_INTEGER;
+    HostValue value = {0};
+    value.kind = HOST_INTEGER;
     value.type = type;
     value.integer = number;
     return value;
@@ -28,35 +28,35 @@ integer_value(const char *type, long long number)
 
 static int
 host_call(void *context, const char *module, const char *function,
-          const VmHostValue *args, int count, VmHostValue *result)
+          const HostValue *args, int count, HostValue *result)
 {
     int *calls = context;
     assert(strcmp(module, "process") == 0);
     if(strcmp(function, "StartHost") == 0) {
-        assert(count == 2 && args[0].kind == VM_HOST_RECORD);
-        assert(args[1].kind == VM_HOST_SLICE && args[1].length == 1);
+        assert(count == 2 && args[0].kind == HOST_RECORD);
+        assert(args[1].kind == HOST_SLICE && args[1].length == 1);
         assert(args[0].fields[5].value.integer == 1);
         assert(args[1].elements[0].length == 3);
         assert(memcmp(args[1].elements[0].data, "arg", 3) == 0);
-        fields[0] = (VmHostField){"handle", integer_value("s32", 7)};
-        fields[1] = (VmHostField){"error", string_value("")};
-        result->kind = VM_HOST_RECORD;
+        fields[0] = (HostField){"handle", integer_value("s32", 7)};
+        fields[1] = (HostField){"error", string_value("")};
+        result->kind = HOST_RECORD;
         result->fields = fields;
         result->field_count = 2;
     } else if(strcmp(function, "NextLineHost") == 0) {
         assert(count == 1 && args[0].integer == 7);
-        fields[0] = (VmHostField){"text", string_value("ready")};
-        fields[1] = (VmHostField){"eof", integer_value("bool", 0)};
-        fields[2] = (VmHostField){"error", string_value("")};
-        result->kind = VM_HOST_RECORD;
+        fields[0] = (HostField){"text", string_value("ready")};
+        fields[1] = (HostField){"eof", integer_value("bool", 0)};
+        fields[2] = (HostField){"error", string_value("")};
+        result->kind = HOST_RECORD;
         result->fields = fields;
         result->field_count = 3;
     } else if(strcmp(function, "WaitHost") == 0) {
         assert(count == 1 && args[0].integer == 7);
-        fields[0] = (VmHostField){"code", integer_value("s32", 0)};
-        fields[1] = (VmHostField){"stderr", string_value("")};
-        fields[2] = (VmHostField){"error", string_value("")};
-        result->kind = VM_HOST_RECORD;
+        fields[0] = (HostField){"code", integer_value("s32", 0)};
+        fields[1] = (HostField){"stderr", string_value("")};
+        fields[2] = (HostField){"error", string_value("")};
+        result->kind = HOST_RECORD;
         result->fields = fields;
         result->field_count = 3;
     } else {

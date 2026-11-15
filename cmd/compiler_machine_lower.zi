@@ -212,8 +212,9 @@ StackOperand :: (state: *LowerState, object: s32) -> s32 {
         tied_to = MachineNoId, value = MachineNoId})
 }
 
-PhysicalOperand :: (state: *LowerState, physical: s32, role: MachineOperandRole) -> s32 {
-    return AddOperand(state, .{kind = .Physical, role = role, class = .General, id = physical,
+PhysicalOperand :: (state: *LowerState, physical: s32, role: MachineOperandRole,
+    class: MachineRegisterClass = .General) -> s32 {
+    return AddOperand(state, .{kind = .Physical, role = role, class = class, id = physical,
         type = MachineNoId, fixed_register = physical, tied_to = MachineNoId, value = MachineNoId})
 }
 
@@ -361,6 +362,12 @@ CreateVirtuals :: (state: *LowerState, function_id: s32) -> bool {
         if AddVirtual(state, .{class = class, type = type, fixed_register = MachineNoId,
             stack_object = stack, origin = MachineNoId}) == MachineNoId { return false }
     }
+    if source.result != MachineNoId && state.owner.types[source.result].class == .Stack &&
+        state.lir.types[source.result].kind != .Void {
+        if AddStack(state, .{function = function_id, kind = .ResultAddress, size = 8,
+            alignment = 8, type = 0, origin = Origin(state, source.origin),
+            value = MachineNoId}) == MachineNoId { return false }
+    }
     integer_ordinal: s32
     float_ordinal: s32
     for parameter: cast(s64)0..source.parameters.count - 1 {
@@ -454,6 +461,12 @@ LowerConstant :: (state: *LowerState, function: *MachineFunction,
     class := state.owner.virtuals[result].class
     if ImmediateOperand(state, ifx source.op == .Null then 0 else state.lir.constants[source.symbol].bits,
         class) == MachineNoId { return false }
+    // x86 has no scalar floating immediate. The encoder materializes its bits
+    // through r11, which must be an explicit clobber for allocation.
+    if class == .Float &&
+        PhysicalOperand(state, MachineAbiScratchRegister(state.target), .Define) == MachineNoId {
+        return false
+    }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
@@ -470,6 +483,43 @@ LowerAddress :: (state: *LowerState, function: *MachineFunction,
         operand = operand, kind = relocation_kind, symbol = source.symbol})
 }
 
+// A flags virtual for an instruction whose sequence changes the flags.
+FlagsVirtual :: (state: *LowerState, function: *MachineFunction, origin: s32) -> s32 {
+    flags := AddVirtual(state, .{class = .Flags, type = 0, fixed_register = MachineNoId,
+        stack_object = MachineNoId, origin = Origin(state, origin)})
+    function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
+    return flags
+}
+
+// A raw-address virtual with the type of TOKEN, a checked pointer.
+RawVirtual :: (state: *LowerState, function: *MachineFunction, token: s32) -> s32 {
+    raw := AddVirtual(state, .{class = .General, type = state.owner.virtuals[token].type,
+        fixed_register = MachineNoId, stack_object = MachineNoId, origin = MachineNoId})
+    function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
+    return raw
+}
+
+// raw = the address WIDTH bytes may be accessed at through TOKEN (a width
+// value when WIDTH_VALUE is a virtual), or the bounds trap. FLAGS: 1 for a
+// write, 2 when a zero width needs no live pointer.
+LowerResolve :: (state: *LowerState, function: *MachineFunction, token: s32, width: s64,
+    width_value: s32, flags: u64, origin: s32) -> s32 {
+    raw := RawVirtual(state, function, token)
+    if raw == MachineNoId { return MachineNoId }
+    instruction := BeginInstruction(state, .PointerResolve, origin)
+    instruction.flags_def = FlagsVirtual(state, function, origin)
+    if instruction.flags_def == MachineNoId { return MachineNoId }
+    if VirtualOperand(state, raw, .Define) == MachineNoId ||
+        VirtualOperand(state, token, .Use) == MachineNoId { return MachineNoId }
+    if width_value != MachineNoId {
+        if VirtualOperand(state, width_value, .Use) == MachineNoId { return MachineNoId }
+    } else if ImmediateOperand(state, cast(u64)width) == MachineNoId { return MachineNoId }
+    if PhysicalOperand(state, MachineAbiAddressScratchRegister(state.target), .UseDefine) == MachineNoId ||
+        ImmediateOperand(state, flags) == MachineNoId ||
+        FinishInstruction(state, instruction) == MachineNoId { return MachineNoId }
+    return raw
+}
+
 LowerUnary :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     result := GlobalVirtual(state, function, source.result)
     input := GlobalVirtual(state, function, source.operands[0])
@@ -478,6 +528,8 @@ LowerUnary :: (state: *LowerState, function: *MachineFunction, source: LirInstru
     instruction := BeginInstruction(state, opcode, source.origin)
     if VirtualOperand(state, result, .Define, tied = 1) == MachineNoId ||
         VirtualOperand(state, input, .Use, tied = 0) == MachineNoId { return false }
+    scratch := MachineAbiScratchRegister(state.target)
+    if opcode == .FloatNegate && PhysicalOperand(state, scratch, .Define) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
@@ -525,8 +577,12 @@ LowerCompare :: (state: *LowerState, function: *MachineFunction, source: LirInst
     set := BeginInstruction(state, .SetCondition, source.origin)
     set.flags_use = flags
     set.condition = compare.condition
-    if VirtualOperand(state, result, .Define) == MachineNoId ||
-        FinishInstruction(state, set) == MachineNoId { return false }
+    if VirtualOperand(state, result, .Define) == MachineNoId { return false }
+    if state.owner.virtuals[left].class == .Float &&
+        PhysicalOperand(state, MachineAbiScratchRegister(state.target), .Define) == MachineNoId {
+        return false
+    }
+    if FinishInstruction(state, set) == MachineNoId { return false }
     function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
     return true
 }
@@ -539,57 +595,140 @@ LowerMove :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
     for operand: source.operands {
         if VirtualOperand(state, GlobalVirtual(state, function, operand), .Use) == MachineNoId { return false }
     }
+    if opcode == .Convert && source.operands.count == 1 {
+        input := GlobalVirtual(state, function, source.operands[0])
+        if state.owner.virtuals[result].class == .Float || state.owner.virtuals[input].class == .Float {
+            // Checked float conversions use r11 for exact bit constants and
+            // xmm15 as the comparison/arithmetic temporary.
+            if PhysicalOperand(state, MachineAbiScratchRegister(state.target), .Define) == MachineNoId ||
+                PhysicalOperand(state, MachineAbiScratchFloatRegister(state.target), .Define, .Float) == MachineNoId {
+                return false
+            }
+        }
+    }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
 LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstruction,
     opcode: MachineOpcode) -> bool {
+    // A load or store goes through the address its checked pointer resolves to.
+    resolved: s32 = MachineNoId
+    if (opcode == .Load || opcode == .Store) && source.operands.count >= 1 {
+        token := GlobalVirtual(state, function, source.operands[0])
+        accessed := ifx opcode == .Load then source.result else source.operands[source.operands.count - 1]
+        width := state.owner.types[state.owner.virtuals[GlobalVirtual(state, function, accessed)].type].size
+        resolved = LowerResolve(state, function, token, width, MachineNoId,
+            ifx opcode == .Store then cast(u64)1 else 0, source.origin)
+        if resolved == MachineNoId { return false }
+    }
     instruction := BeginInstruction(state, opcode, source.origin)
     if source.result != LirNoId &&
         VirtualOperand(state, GlobalVirtual(state, function, source.result), .Define) == MachineNoId { return false }
-    for operand: source.operands {
-        if VirtualOperand(state, GlobalVirtual(state, function, operand), .Use) == MachineNoId { return false }
+    for operand, at: source.operands {
+        value := ifx at == 0 && resolved != MachineNoId then resolved else GlobalVirtual(state, function, operand)
+        if VirtualOperand(state, value, .Use) == MachineNoId { return false }
+    }
+    dynamic_member := source.op == .Extract && source.operands.count == 2 ||
+        source.op == .Insert && source.operands.count == 3
+    if dynamic_member {
+        // R10 holds the computed member address; R11 is the byte-copy scratch.
+        if PhysicalOperand(state, MachineAbiAddressScratchRegister(state.target), .Define) == MachineNoId ||
+            PhysicalOperand(state, MachineAbiScratchRegister(state.target), .Define) == MachineNoId {
+            return false
+        }
     }
     if (source.op == .FieldAddress || source.op == .Extract || source.op == .Insert) &&
         ImmediateOperand(state, source.immediate) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
+// Every execution of `allocate` gets fresh storage that stays valid until
+// its frame returns, as on the portable engine: frame arena bytes, zeroed or
+// given their initial value, named by a new slot on the frame's chain.
 LowerAllocate :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     result := GlobalVirtual(state, function, source.result)
     pointer := state.owner.types[state.owner.virtuals[result].type]
-    if pointer.kind != .Pointer { return Fail(state, .Unsupported) }
-    object := NewStack(state, function.lir_function, .Local, pointer.element, source.origin)
-    if object == MachineNoId { return false }
-    instruction := BeginInstruction(state, .StackAddress, source.origin)
-    if VirtualOperand(state, result, .Define) == MachineNoId ||
-        StackOperand(state, object) == MachineNoId || FinishInstruction(state, instruction) == MachineNoId { return false }
+    if pointer.kind != .Pointer || pointer.element < 0 { return Fail(state, .Unsupported) }
+    if function.pointer_chain == 0 { return Fail(state, .Stack) }
+    size := state.owner.types[pointer.element].size
+    raw := RawVirtual(state, function, result)
+    if raw == MachineNoId { return false }
+    scratch := MachineAbiAddressScratchRegister(state.target)
+    allocate := BeginInstruction(state, .ArenaAllocate, source.origin)
+    allocate.flags_def = FlagsVirtual(state, function, source.origin)
+    if allocate.flags_def == MachineNoId || VirtualOperand(state, raw, .Define) == MachineNoId ||
+        ImmediateOperand(state, cast(u64)size) == MachineNoId ||
+        PhysicalOperand(state, scratch, .UseDefine) == MachineNoId ||
+        FinishInstruction(state, allocate) == MachineNoId { return false }
     if source.operands.count == 1 {
         store := BeginInstruction(state, .Store, source.origin)
-        if VirtualOperand(state, result, .Use) == MachineNoId ||
+        if VirtualOperand(state, raw, .Use) == MachineNoId ||
             VirtualOperand(state, GlobalVirtual(state, function, source.operands[0]), .Use) == MachineNoId ||
             FinishInstruction(state, store) == MachineNoId { return false }
+    } else {
+        zero := BeginInstruction(state, .Zero, source.origin)
+        if VirtualOperand(state, raw, .Use) == MachineNoId ||
+            FinishInstruction(state, zero) == MachineNoId { return false }
     }
-    function.stack_count = cast(s32)state.owner.stack_objects.count - function.stack_begin
+    create := BeginInstruction(state, .PointerCreate, source.origin)
+    create.flags_def = FlagsVirtual(state, function, source.origin)
+    if create.flags_def == MachineNoId || VirtualOperand(state, result, .Define) == MachineNoId ||
+        VirtualOperand(state, raw, .Use) == MachineNoId ||
+        ImmediateOperand(state, cast(u64)size) == MachineNoId ||
+        PhysicalOperand(state, scratch, .UseDefine) == MachineNoId ||
+        ImmediateOperand(state, cast(u64)(MachinePointerLive | MachinePointerWritable)) == MachineNoId ||
+        StackOperand(state, function.stack_begin + function.pointer_chain - 1) == MachineNoId ||
+        FinishInstruction(state, create) == MachineNoId { return false }
     return true
 }
 
 LowerBytesEqual :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     if source.operands.count != 4 { return Fail(state, .Unsupported) }
+    // Both byte views are read through their resolved addresses; an empty
+    // view needs no live pointer.
+    values: [4]s32
+    for at: cast(s64)0..3 { values[at] = GlobalVirtual(state, function, source.operands[at]) }
+    for at: cast(s64)0..1 {
+        values[at * 2] = LowerResolve(state, function, values[at * 2], 0, values[at * 2 + 1], 2, source.origin)
+        if values[at * 2] == MachineNoId { return false }
+    }
     instruction := BeginInstruction(state, .BytesEqual, source.origin)
     result := GlobalVirtual(state, function, source.result)
-    // rep cmpsb: rdi=left, rcx=left count, rsi=right, rdx=right count;
-    // rdi/rsi/rcx are destructive and are explicit non-value clobbers.
-    fixed: [4]s32 = .[7, 1, 6, 2]
     if VirtualOperand(state, result, .Define, 0) == MachineNoId { return false }
     for at: cast(s64)0..3 {
-        if VirtualOperand(state, GlobalVirtual(state, function, source.operands[at]), .Use,
-            fixed[at]) == MachineNoId { return false }
+        if VirtualOperand(state, values[at], .Use,
+            MachineAbiFormFixedRegister(state.target, .BytesEqual, cast(s32)at)) == MachineNoId {
+            return false
+        }
     }
-    if PhysicalOperand(state, 7, .UseDefine) == MachineNoId ||
-        PhysicalOperand(state, 6, .UseDefine) == MachineNoId ||
-        PhysicalOperand(state, 1, .UseDefine) == MachineNoId { return false }
+    for at: cast(s64)0..2 {
+        if PhysicalOperand(state, MachineAbiFormClobberRegister(state.target, .BytesEqual,
+            cast(s32)at), .Define) == MachineNoId { return false }
+    }
     return FinishInstruction(state, instruction) != MachineNoId
+}
+
+LowerResize :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    if source.operands.count != 3 { return Fail(state, .Unsupported) }
+    instruction := BeginInstruction(state, .Resize, source.origin)
+    result := GlobalVirtual(state, function, source.result)
+    if VirtualOperand(state, result, .Define, 0) == MachineNoId { return false }
+    for at: cast(s64)0..2 {
+        if VirtualOperand(state, GlobalVirtual(state, function, source.operands[at]), .Use,
+            MachineAbiFormFixedRegister(state.target, .Resize, cast(s32)at)) == MachineNoId {
+            return false
+        }
+    }
+    for at: cast(s64)0..7 {
+        if PhysicalOperand(state, MachineAbiFormClobberRegister(state.target, .Resize,
+            cast(s32)at), .Define) == MachineNoId { return false }
+    }
+    runtime := ImmediateOperand(state, 0)
+    if runtime == MachineNoId { return false }
+    instruction_id := FinishInstruction(state, instruction)
+    if instruction_id == MachineNoId { return false }
+    return AddRelocation(state, .{instruction = instruction_id, operand = runtime,
+        kind = .RuntimeResize, symbol = 0})
 }
 
 RoundEight :: (value: s64) -> s64 {
@@ -600,6 +739,26 @@ RoundEight :: (value: s64) -> s64 {
 LowerCall :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     indirect := source.op == .CallIndirect
     if source.op != .Call && source.op != .HostCall && !indirect { return Fail(state, .Unsupported) }
+    // Platform services take raw addresses: a pointer argument is resolved
+    // for the byte count that follows it, or for its pointee.
+    resolved: [16]s32
+    for at: 0..15 { resolved[at] = MachineNoId }
+    if !indirect && source.symbol >= 0 && source.symbol < state.owner.functions.count &&
+        state.owner.functions[source.symbol].calling == .Platform && source.operands.count <= 16 {
+        for at: cast(s64)0..source.operands.count - 1 {
+            token := GlobalVirtual(state, function, source.operands[at])
+            type := state.owner.types[state.owner.virtuals[token].type]
+            if type.kind != .Pointer { continue }
+            width: s64 = 0
+            width_value: s32 = MachineNoId
+            if at + 1 < source.operands.count &&
+                state.owner.types[state.owner.virtuals[GlobalVirtual(state, function, source.operands[at + 1])].type].kind == .Integer {
+                width_value = GlobalVirtual(state, function, source.operands[at + 1])
+            } else if type.element >= 0 { width = state.owner.types[type.element].size }
+            resolved[at] = LowerResolve(state, function, token, width, width_value, 2, source.origin)
+            if resolved[at] == MachineNoId { return false }
+        }
+    }
     instruction := BeginInstruction(state, ifx indirect then .CallIndirect else .CallDirect, source.origin)
     result_operand: s32 = MachineNoId
     result_class := MachineRegisterClass.Invalid
@@ -614,7 +773,9 @@ LowerCall :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
     parameter_types: []s32
     if indirect {
         callable := GlobalVirtual(state, function, source.operands[0])
-        if VirtualOperand(state, callable, .Use) == MachineNoId { return false }
+        fixed := MachineAbiIndirectCallRegister(state.target)
+        if fixed < 0 { fixed = MachineNoId }
+        if VirtualOperand(state, callable, .Use, fixed) == MachineNoId { return false }
         signature := state.lir.types[state.lir.functions[function.lir_function].values[source.operands[0]]]
         if signature.kind != .Function { return Fail(state, .Unsupported) }
         parameter_types = signature.parameters
@@ -633,6 +794,7 @@ LowerCall :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
     for at: cast(s64)0..parameter_types.count - 1 {
         local := source.operands[at + cast(s64)argument_offset]
         value := GlobalVirtual(state, function, local)
+        if argument_offset == 0 && at < 16 && resolved[at] != MachineNoId { value = resolved[at] }
         class := state.owner.virtuals[value].class
         ordinal := integer_ordinal
         if class == .Float { ordinal = float_ordinal; float_ordinal += 1 }
@@ -718,9 +880,13 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Constant { return LowerConstant(state, function, source, .MoveImmediate) }
     if source.op == .Null { return LowerConstant(state, function, source, .MoveImmediate) }
     if source.op == .GlobalAddress {
-        relocation := MachineRelocationKind.ConstantAddress
-        if state.lir.globals[source.symbol].writable { relocation = .GlobalAddress }
-        return LowerAddress(state, function, source, .GlobalAddress, .Global, relocation)
+        // Global G is pointer slot 1 + G, version 0, from instance start.
+        instruction := BeginInstruction(state, .MoveImmediate, source.origin)
+        if VirtualOperand(state, GlobalVirtual(state, function, source.result), .Define) == MachineNoId ||
+            ImmediateOperand(state, MachinePointerToken(1 + cast(s64)source.symbol, 0, 0)) == MachineNoId {
+            return false
+        }
+        return FinishInstruction(state, instruction) != MachineNoId
     }
     if source.op == .FunctionAddress {
         return LowerAddress(state, function, source, .FunctionAddress, .Function, .FunctionAddress)
@@ -744,7 +910,7 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .FieldAddress { return LowerMemory(state, function, source, .FieldAddress) }
     if source.op == .ElementAddress { return LowerMemory(state, function, source, .ElementAddress) }
     if source.op == .BytesEqual { return LowerBytesEqual(state, function, source) }
-    if source.op == .Resize { return LowerMemory(state, function, source, .Resize) }
+    if source.op == .Resize { return LowerResize(state, function, source) }
     if source.op == .Call || source.op == .CallIndirect || source.op == .HostCall {
         return LowerCall(state, function, source)
     }
@@ -763,6 +929,22 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     function := state.owner.functions[function_id]
     if !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
+    // A function that allocates keeps the frame arena's top at entry and
+    // the head of its pointer chain in two frame words.
+    allocates := false
+    for block: source.blocks {
+        for instruction: block.instructions { if instruction.op == .Allocate { allocates = true } }
+    }
+    if allocates {
+        for at: 0..1 {
+            object := AddStack(state, .{function = function_id, kind = .Local, size = 8,
+                alignment = 8, type = 0, origin = Origin(state, source.origin), value = MachineNoId})
+            if object == MachineNoId { return false }
+            relative := object - function.stack_begin + 1
+            if at == 0 { function.arena_mark = relative } else { function.pointer_chain = relative }
+        }
+        function.stack_count = cast(s32)state.owner.stack_objects.count - function.stack_begin
+    }
     function.block_begin = cast(s32)state.owner.blocks.count
     function.block_count = cast(s32)source.blocks.count
     for block_id: cast(s64)0..source.blocks.count - 1 {

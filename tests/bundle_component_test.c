@@ -8,12 +8,12 @@
 #include <time.h>
 
 static int adjust(void *context, const char *module, const char *function,
-                  const VmHostValue *arguments, int count, VmHostValue *result)
+                  const HostValue *arguments, int count, HostValue *result)
 {
     (void)context; (void)module; (void)function;
-    if(count != 1 || arguments[0].kind != VM_HOST_INTEGER)
+    if(count != 1 || arguments[0].kind != HOST_INTEGER)
         return 0;
-    result->kind = VM_HOST_INTEGER;
+    result->kind = HOST_INTEGER;
     result->type = "s64";
     result->integer = arguments[0].integer + 1;
     return 1;
@@ -38,18 +38,18 @@ static int state_find(const BundleState *state, const char *name, size_t *index)
     return 0;
 }
 
-static VmHostValue *record_field(VmHostValue *record, const char *name)
+static HostValue *record_field(HostValue *record, const char *name)
 {
-    if(record == NULL || record->kind != VM_HOST_RECORD)
+    if(record == NULL || record->kind != HOST_RECORD)
         return NULL;
-    VmHostField *fields = (VmHostField *)record->fields;
+    HostField *fields = (HostField *)record->fields;
     for(size_t i = 0; i < record->field_count; i++)
         if(fields[i].name != NULL && strcmp(fields[i].name, name) == 0)
             return &fields[i].value;
     return NULL;
 }
 
-static VmHostValue *state_field(BundleStateValue *value, const char *name)
+static HostValue *state_field(BundleStateValue *value, const char *name)
 {
     return value == NULL ? NULL : record_field(&value->value, name);
 }
@@ -60,13 +60,13 @@ static int state_integer(const BundleState *state, const char *name, long long e
     size_t index = 0;
     BundleStateValue value;
     return state_find(state, name, &index) && BundleStateValueAt(state, index, &value) &&
-           value.value.kind == VM_HOST_INTEGER && value.value.integer == expected;
+           value.value.kind == HOST_INTEGER && value.value.integer == expected;
 }
 
-static int copy_owned_string(VmHostValue *target, const VmHostValue *source)
+static int copy_owned_string(HostValue *target, const HostValue *source)
 {
-    if(target == NULL || source == NULL || target->kind != VM_HOST_STRING ||
-       source->kind != VM_HOST_STRING)
+    if(target == NULL || source == NULL || target->kind != HOST_STRING ||
+       source->kind != HOST_STRING)
         return 0;
     unsigned char *copied = NULL;
     if(source->length != 0) {
@@ -89,8 +89,8 @@ static int migrate(void *context, const BundleState *old_state,
     size_t old_index = 0, new_index = 0;
     BundleStateValue old_value;
     BundleStateValue *new_value;
-    VmHostValue *old_count, *new_count, *old_first, *new_first;
-    VmHostValue *old_history, *new_history, *new_open;
+    HostValue *old_count, *new_count, *old_first, *new_first;
+    HostValue *old_history, *new_history, *new_open;
     int ok = state_find(old_state, "state", &old_index) &&
              state_find(new_state, "state", &new_index) &&
              BundleStateValueAt(old_state, old_index, &old_value) &&
@@ -108,28 +108,28 @@ static int migrate(void *context, const BundleState *old_state,
         return 0;
     new_count->integer = old_count->integer + 100;
     new_count->bits = (uint64_t)new_count->integer;
-    VmHostValue *old_title = record_field(old_first, "title");
-    VmHostValue *new_title = record_field(new_first, "title");
-    VmHostValue *old_weight = record_field(old_first, "weight");
-    VmHostValue *new_weight = record_field(new_first, "weight");
+    HostValue *old_title = record_field(old_first, "title");
+    HostValue *new_title = record_field(new_first, "title");
+    HostValue *old_weight = record_field(old_first, "weight");
+    HostValue *new_weight = record_field(new_first, "weight");
     ok = old_title != NULL && new_title != NULL &&
          old_weight != NULL && new_weight != NULL &&
          copy_owned_string(new_title, old_title) &&
-         old_weight->kind == VM_HOST_INTEGER &&
-         new_weight->kind == VM_HOST_INTEGER &&
+         old_weight->kind == HOST_INTEGER &&
+         new_weight->kind == HOST_INTEGER &&
          (new_weight->integer = old_weight->integer,
           new_weight->bits = old_weight->bits, 1) &&
-         old_history->kind == VM_HOST_ARRAY &&
-         new_history->kind == VM_HOST_ARRAY &&
+         old_history->kind == HOST_ARRAY &&
+         new_history->kind == HOST_ARRAY &&
          new_history->length == old_history->length;
     for(size_t i = 0; ok && i < old_history->length; i++)
-        ok = old_history->elements[i].kind == VM_HOST_INTEGER &&
-             new_history->elements[i].kind == VM_HOST_INTEGER &&
+        ok = old_history->elements[i].kind == HOST_INTEGER &&
+             new_history->elements[i].kind == HOST_INTEGER &&
              (new_history->elements[i].integer =
                   old_history->elements[i].integer,
               new_history->elements[i].bits =
                   old_history->elements[i].bits, 1);
-    new_open->kind = VM_HOST_INTEGER;
+    new_open->kind = HOST_INTEGER;
     new_open->integer = 1;
     new_open->bits = 1;
     return ok;

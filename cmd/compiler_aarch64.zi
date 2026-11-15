@@ -1,0 +1,2561 @@
+using Allocated :: #import "compiler_machine_verify_allocated"
+using Bytes :: #import "compiler_arm_bytes"
+using Image :: #import "compiler_machine_image"
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+// Direct AArch64 encoder for allocated machine IR on Linux and Android
+// AAPCS64. It consumes only a program that passes MachineVerifyAllocated and
+// checks every instruction form it encodes; anything else is a hard
+// diagnostic reported before the output owner is touched. One pass emits
+// each function: a measuring run records function, block and instruction
+// offsets and counts relocations, and the writing run repeats the same calls
+// into an exactly sized buffer and must reproduce every recorded offset.
+//
+// Frame, mirroring the x86-64 encoder and the machine-IR object contract:
+// the prologue is `stp x29, x30, [sp, #-16]!`, `mov x29, sp`, then `sub sp,
+// #reserve` in steps of at most 4095 where RESERVE is frame.size rounded up
+// to the 16-byte stack alignment. Callee-saved homes, spills and temporaries
+// sit at their negative frame-pointer offsets inside the reserved region,
+// incoming stack arguments at x29 + 16 + offset, and the outgoing region at
+// the bottom of the frame so an argument written to sp + offset is read by
+// the callee at its entry sp + offset. The stack pointer never moves again
+// until the epilogue reverses the prologue exactly and returns with `ret`.
+//
+// Integer values live in registers normalized to their declared width: 32
+// and 64-bit operations use W and X forms, and sub-32-bit results are
+// re-extended with SXTB/SXTH/UXTB/UXTH exactly where x86 reloads them.
+// x15 is the bank scratch reserved for transfers between two stack
+// locations, x16 and x17 are the encoder-internal address and bit pair, and
+// x11 and x10 are the declared ABI scratches the lowerer names on forms that
+// need one. Direct calls and function addresses inside the image resolve as
+// self-relative displacements; global addresses, the fuel counter and the
+// trap handler are relocations the loader resolves. Materialized symbolic
+// addresses use four MOVZ/MOVK halves, each carrying a width-2 image
+// relocation whose addend selects the shifted half (0, 2, 4 or 6, meaning
+// the loader stores bits 16*addend..16*addend+15 of the address). Direct
+// calls carry width-4 relocations with addend -4, matching the x86
+// convention that the displacement is measured from the field plus four
+// bytes. Every trap materializes its code in w0 with movz/movk, calls the
+// trap handler and executes BRK so a fallthrough can never continue.
+
+MachineA64TrapReserved :: 0xffff0000
+MachineA64TrapUnreachable :: 0xffff0001
+MachineA64TrapDivideByZero :: 0xffff0002
+MachineA64TrapShift :: 0xffff0003
+MachineA64TrapFuel :: 0xffff0004
+MachineA64TrapConversion :: 0xffff0005
+MachineA64TrapSize :: 16
+
+MachineA64RelocationKind :: enum s32 {
+    Invalid; GlobalAddress; ConstantAddress; FuelCounter; TrapHandler; PlatformService; HostCapability; RuntimeResize; FunctionAddress
+}
+
+MachineA64Relocation :: struct {
+    offset: s64
+    kind: MachineA64RelocationKind
+    symbol: s32
+    addend: s64
+    instruction: s32
+}
+
+// Byte offsets of a function, the first byte after its prologue, and its end.
+MachineA64Function :: struct { begin: s64; body: s64; end: s64 }
+MachineA64Range :: struct { begin: s64; end: s64 }
+
+MachineA64Image :: struct {
+    code: []u8
+    functions: []MachineA64Function
+    blocks: []s64
+    instructions: []MachineA64Range
+    relocations: []MachineA64Relocation
+    entry: s32
+}
+
+MachineA64Result :: struct {
+    diagnostic: MachineDiagnostic
+    code_bytes: s64
+    relocations: s64
+    work: s64
+}
+
+MachineA64Owner :: struct {
+    valid: bool
+    image: MachineA64Image
+    code: Vec(u8)
+    functions: Vec(MachineA64Function)
+    blocks: Vec(s64)
+    instructions: Vec(MachineA64Range)
+    relocations: Vec(MachineA64Relocation)
+    machine_image: MachineImageOwner
+}
+
+#scope_file
+
+CodeLimit :: 2147483647
+
+// A frame-relative memory operand. Base 29 is the frame pointer, 31 the
+// stack pointer; both spellings are explicit in every load and store.
+A64Memory :: struct { base: s32; displacement: s64 }
+
+Layout :: struct {
+    function_begin: Vec(s64)
+    function_body: Vec(s64)
+    function_end: Vec(s64)
+    block_begin: Vec(s64)
+    instruction_begin: Vec(s64)
+    instruction_end: Vec(s64)
+    relocation_of: Vec(s32)
+}
+
+State :: struct {
+    program: MachineProgram
+    writer: Bytes.ArmWriter
+    diagnostic: MachineDiagnostic
+    remaining: s64
+    used: s64
+    emit: bool
+    function_begin: []s64
+    function_body: []s64
+    function_end: []s64
+    block_begin: []s64
+    instruction_begin: []s64
+    instruction_end: []s64
+    relocation_of: []s32
+    relocations: []MachineA64Relocation
+    relocation_count: s64
+    consumed: s64
+    function: s32
+    block: s32
+    instruction: s32
+    flags_value: s32
+    flags_signed: bool
+    flags_float: bool
+    flags_swapped: bool
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Fail :: (state: *State, problem: MachineProblem, operand: s32 = MachineNoId) -> bool {
+    if state.diagnostic.problem == .None {
+        value: s32 = MachineNoId
+        if operand >= 0 && operand < state.program.operands.count { value = state.program.operands[operand].value }
+        state.diagnostic = .{problem = problem, function = state.function, block = state.block,
+            instruction = state.instruction, operand = operand, virtual = value}
+    }
+    return false
+}
+
+Spend :: (state: *State, count: s64) -> bool {
+    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
+    state.remaining -= count
+    state.used += count
+    return true
+}
+
+LayoutFree :: (layout: *Layout) {
+    VecFree(layout.function_begin)
+    VecFree(layout.function_body)
+    VecFree(layout.function_end)
+    VecFree(layout.block_begin)
+    VecFree(layout.instruction_begin)
+    VecFree(layout.instruction_end)
+    VecFree(layout.relocation_of)
+}
+
+Filled :: (values: *Vec(s64), count: s64) -> bool {
+    if !VecResizeBounded(<<values, count, count) { return false }
+    for index: cast(s64)0..count - 1 { (<<values)[index] = -1 }
+    return true
+}
+
+// Records the current offset while measuring; while writing, requires it.
+Place :: (state: *State, slots: []s64, index: s64) -> bool {
+    if state.emit {
+        if slots[index] != state.writer.at { return Fail(state, .Instruction) }
+        return true
+    }
+    slots[index] = state.writer.at
+    return true
+}
+
+Relocate :: (state: *State, kind: MachineA64RelocationKind, symbol: s32, addend: s64, field: s64) {
+    if state.emit && state.relocation_count < state.relocations.count {
+        state.relocations[state.relocation_count] = .{offset = field, kind = kind, symbol = symbol,
+            addend = addend, instruction = state.instruction}
+    }
+    state.relocation_count += 1
+}
+
+Current :: (state: *State) -> MachineInstruction {
+    return state.program.instructions[state.instruction]
+}
+
+OperandId :: (state: *State, local: s32) -> s32 {
+    return Current(state).operand_begin + local
+}
+
+OperandAt :: (state: *State, local: s32) -> MachineOperand {
+    return state.program.operands[OperandId(state, local)]
+}
+
+TypeOf :: (state: *State, operand: MachineOperand) -> MachineType {
+    return state.program.types[state.program.virtuals[operand.value].type]
+}
+
+TypeIdOf :: (state: *State, operand: MachineOperand) -> s32 {
+    if operand.value >= 0 { return state.program.virtuals[operand.value].type }
+    if operand.type >= 0 { return operand.type }
+    if operand.kind == .StackObject { return state.program.stack_objects[operand.id].type }
+    return MachineNoId
+}
+
+BitsOf :: (state: *State, operand: MachineOperand) -> s32 {
+    return state.program.types[TypeIdOf(state, operand)].bits
+}
+
+// The W/X selector bit for a type: 1 encodes a 64-bit operand, 0 a 32-bit
+// one. Machine IR only declares 32 and 64-bit integer register classes here;
+// smaller widths live in W registers as re-extended values.
+Selector :: (state: *State, type_id: s32) -> u64 {
+    bits := state.program.types[type_id].bits
+    if bits == 64 { return 1 }
+    if bits == 32 { return 0 }
+    return 0
+}
+
+// A general register number that can hold an allocated value: 0-28 excludes
+// the encoder pair x16/x17, the platform register x18 and the pointer and
+// link registers.
+A64Register :: (register: s32) -> bool {
+    return register >= 0 && register <= 28
+}
+
+// One 32-bit encoding word in measure or write mode.
+Emit :: (state: *State, word: u32) {
+    if state.diagnostic.problem != .None { return }
+    Bytes.ArmWord(*state.writer, word)
+}
+
+// The frame byte count the prologue and epilogue reserve together: the
+// machine frame rounded up to the 16-byte stack alignment.
+ReservedSize :: (frame: MachineFrame) -> s64 {
+    size := frame.size
+    if size < 0 { return -1 }
+    return (size + Bytes.ArmStackAlign - 1) & ~cast(s64)(Bytes.ArmStackAlign - 1)
+}
+
+// General-register ADD or SUBTRACT with the 12-bit scaled immediate form.
+// SIGNED selects subtract; the SP spelling is used because frame and stack
+// adjustments target sp, plain arithmetic targets a general register.
+AddSubImmediate :: (state: *State, rd: s32, rn: s32, value: s64, subtract: bool,
+    selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    if value < 0 || value > 4095 { unused Fail(state, .Unsupported); return }
+    word := (selector << 31) | cast(u64)0x11000000
+    if subtract { word = word | cast(u64)0x40000000 }
+    word = word | (cast(u64)value << 10) | (cast(u64)rn << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+}
+
+// General-register ADD or SUBTRACT of a shifted register operand.
+AddSubRegister :: (state: *State, rd: s32, rn: s32, rm: s32, subtract: bool, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    word := (selector << 31) | cast(u64)0x0b000000
+    if subtract { word = word | cast(u64)0x40000000 }
+    word = word | (cast(u64)rm << 16) | (cast(u64)rn << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+}
+
+// Register-to-register integer move: ORR with the zero register.
+MoveRegister :: (state: *State, rd: s32, rn: s32, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    word := (selector << 31) | cast(u64)0x2a000000 | (cast(u64)31 << 16) | (cast(u64)rn << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+}
+
+// Floating-point register move: FMOV in the 32 or 64-bit size.
+MoveFloatRegister :: (state: *State, rd: s32, rn: s32, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    word := cast(u64)0x1e204000 | (selector << 22) | (cast(u64)rn << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+}
+
+// A 32 or 64-bit constant materialized with MOVZ for half 0 and one MOVK
+// per remaining information-carrying half. VALUE is already masked to the
+// selector width by the caller.
+MoveImmediate :: (state: *State, rd: s32, value: u64, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    width: s32 = 32
+    if selector == 1 { width = 64 }
+    count := Bytes.ArmHalfCount(value, width)
+    if count == 0 { unused Fail(state, .Unsupported); return }
+    word := (selector << 31) | cast(u64)0x52800000 | (cast(u64)Bytes.ArmHalf(value, 0) << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+    half: s32 = 1
+    while half < count {
+        move := (selector << 31) | cast(u64)0x72800000 | (cast(u64)half << 21)
+        move = move | (cast(u64)Bytes.ArmHalf(value, half) << 5) | (cast(u64)rd & 31)
+        Emit(state, cast(u32)move)
+        half += 1
+    }
+}
+
+// The number of words MaterializeRelocated emits: four MOVZ/MOVK halves for
+// a 64-bit pointer materialization.
+MaterializedWords :: () -> s64 {
+    return 4
+}
+
+// Materializes the address the loader computes for KIND and SYMBOL into RD
+// as four MOVZ/MOVK halves. Each half carries its own width-2 relocation
+// whose addend selects the shifted half; while measuring the relocation
+// pass only counts them. The half fields encode zero because the loader
+// overwrites every half unconditionally.
+MaterializeRelocated :: (state: *State, rd: s32, kind: MachineA64RelocationKind,
+    symbol: s32) {
+    if state.diagnostic.problem != .None { return }
+    half := 0
+    while half < 4 {
+        Relocate(state, kind, symbol, cast(s64)half * 2, state.writer.at)
+        if state.diagnostic.problem != .None { return }
+        if half == 0 {
+            Emit(state, cast(u32)(cast(u64)0xd2800000 | (cast(u64)rd & 31)))
+        } else {
+            Emit(state, cast(u32)(cast(u64)0xf2800000 | (cast(u64)half << 21) | (cast(u64)rd & 31)))
+        }
+        half += 1
+    }
+}
+
+// COMPARE against a register: SUBS with the zero-register destination,
+// which defines the NZCV flags without writing a general register.
+CompareRegister :: (state: *State, rn: s32, rm: s32, subtract: bool, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    word := (selector << 31) | cast(u64)0x6b000000
+    if subtract { word = word | cast(u64)0x40000000 }
+    word = word | (cast(u64)rm << 16) | (cast(u64)rn << 5) | (cast(u64)31 & 31)
+    Emit(state, cast(u32)word)
+}
+
+// SUBS with an unsigned 12-bit immediate and the zero-register destination.
+SubsImmediate :: (state: *State, rn: s32, value: s64, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    if value < 0 || value > 4095 { unused Fail(state, .Unsupported); return }
+    word := (selector << 31) | cast(u64)0x71000000 | (cast(u64)value << 10) | (cast(u64)rn << 5) | cast(u64)31
+    Emit(state, cast(u32)word)
+}
+
+// CMN RN, #1: ADDS against the zero register, so the flags report RN == -1.
+CmnOne :: (state: *State, rn: s32, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    word := (selector << 31) | cast(u64)0x31000000 | (cast(u64)1 << 10) | (cast(u64)rn << 5) | cast(u64)31
+    Emit(state, cast(u32)word)
+}
+
+// A direct branch or call whose word delta the caller range-checked. TARGET
+// is a byte offset in the image; the field is emitted during the writing
+// pass and zero-filled while measuring.
+Branch :: (state: *State, target: s64, link: bool) {
+    if state.diagnostic.problem != .None { return }
+    delta := Bytes.ArmBranchDelta(*state.writer, target)
+    if state.writer.failed { unused Fail(state, .Unsupported); return }
+    field := Bytes.ArmField(*state.writer, delta, 26)
+    if state.writer.failed { unused Fail(state, .Unsupported); return }
+    base := cast(u64)0x14000000
+    if link { base = cast(u64)0x94000000 }
+    Emit(state, cast(u32)(base | field))
+}
+
+// Unconditional return: branch to x30.
+ReturnFrom :: (state: *State) {
+    if state.diagnostic.problem != .None { return }
+    Emit(state, 0xd65f03c0)
+}
+
+// BRK #0 terminator under every trap sequence.
+BreakInstruction :: (state: *State) {
+    if state.diagnostic.problem != .None { return }
+    Emit(state, 0xd4200000)
+}
+
+// CBZ/CBNZ with a 19-bit word delta. NONZERO selects CBNZ; SELECTOR picks
+// the 32 or 64-bit form.
+CompareZeroBranch :: (state: *State, rt: s32, target: s64, nonzero: bool, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    delta := Bytes.ArmBranchDelta(*state.writer, target)
+    if state.writer.failed { unused Fail(state, .Unsupported); return }
+    field := Bytes.ArmField(*state.writer, delta, 19)
+    if state.writer.failed { unused Fail(state, .Unsupported); return }
+    word := (selector << 31) | cast(u64)0x34000000 | (field << 5) | (cast(u64)rt & 31)
+    if nonzero { word = word | cast(u64)0x1000000 }
+    Emit(state, cast(u32)word)
+}
+
+// Conditional branch with the raw condition CODE. TARGET is a byte offset
+// in the image or forward from the current position inside one sequence.
+BranchCondition :: (state: *State, target: s64, code: s32) {
+    if state.diagnostic.problem != .None { return }
+    delta := Bytes.ArmBranchDelta(*state.writer, target)
+    if state.writer.failed { unused Fail(state, .Unsupported); return }
+    field := Bytes.ArmField(*state.writer, delta, 19)
+    if state.writer.failed { unused Fail(state, .Unsupported); return }
+    word := cast(u64)0x54000000 | (field << 5) | (cast(u64)code & 15)
+    Emit(state, cast(u32)word)
+}
+
+// The stack-memory operand for one allocated frame object. Incoming
+// argument offsets are already frame-pointer relative (16 and above),
+// resident objects sit at negative frame-pointer offsets, and outgoing
+// arguments are stack-pointer relative at the call so the callee reads them
+// from its own entry sp.
+StackMemory :: (state: *State, object_id: s32, operand: s32) -> A64Memory {
+    object := state.program.stack_objects[object_id]
+    if object.offset < -0x40000000 || object.offset > 0x40000000 ||
+        object.offset + object.size > 0x40000000 {
+        unused Fail(state, .Frame, operand)
+        return .{base = 29, displacement = 0}
+    }
+    base: s32 = 29
+    if object.kind == .OutgoingArgument { base = 31 }
+    return .{base = base, displacement = object.offset}
+}
+
+// Adds a byte offset to a frame-relative memory operand.
+AtOffset :: (memory: A64Memory, offset: s64) -> A64Memory {
+    memory.displacement += offset
+    return memory
+}
+
+// The scaled load/store offset: unsigned, a multiple of the access size,
+// and at most 4095 scaled units.
+ScaledFits :: (displacement: s64, scale: s64) -> bool {
+    return displacement >= 0 && displacement % scale == 0 &&
+        displacement / scale <= 4095
+}
+
+// The unscaled nine-bit signed load/store offset.
+UnscaledFits :: (displacement: s64) -> bool {
+    return displacement >= -256 && displacement <= 255
+}
+
+// Rebases a memory operand into x16 when neither the scaled nor the
+// unscaled offset form can express its displacement: copy the base register
+// with ADD, then fold the displacement in with ADD/SUB immediate steps of
+// at most 4095.
+AddressInto :: (state: *State, base: s32, displacement: s64) {
+    if state.diagnostic.problem != .None { return }
+    AddSubImmediate(state, 16, base, 0, false, 1)
+    subtract := displacement < 0
+    value := ifx subtract then -displacement else displacement
+    if value > 0x40000000 { unused Fail(state, .Frame); return }
+    while value > 0 {
+        step := ifx value > 4095 then cast(s64)4095 else value
+        AddSubImmediate(state, 16, 16, step, subtract, 1)
+        value -= step
+    }
+}
+
+// One integer load or store whose displacement fits the scaled or unscaled
+// offset form. Returns false without failing when neither form can express
+// the displacement, so the wrapper rebases the address into x16 and
+// retries. SIZE selects the access width, SIGNED selects the sign-extending
+// load forms, and the W/X spellings follow from the width exactly like the
+// x86 encoder.
+IntegerLoadStore :: (state: *State, rt: s32, memory: A64Memory, size: s64,
+    signed: bool, store: bool) -> bool {
+    if state.diagnostic.problem != .None { return false }
+    if size != 8 && size != 4 && size != 2 && size != 1 {
+        unused Fail(state, .Unsupported)
+        return false
+    }
+    selector := cast(u64)0
+    word := cast(u64)0xB9400000
+    if size == 8 { selector = 1 }
+    if size == 4 && signed && !store { word = cast(u64)0xB9800000 }
+    if size == 2 { word = cast(u64)0x79400000 }
+    if size == 1 { word = cast(u64)0x39400000 }
+    // Signed narrow loads use opc=10, the LDRSB/LDRSH X forms, so the value
+    // is sign-extended to 64 bits like LDRSW and the x86 MOVSX loads.
+    if signed && !store && (size == 2 || size == 1) {
+        word = (word & ~cast(u64)0x00c00000) | cast(u64)0x00800000
+    }
+    if store { word = word & ~cast(u64)0x00400000 }
+    if ScaledFits(memory.displacement, size) {
+        scaled := word | (selector << 30) |
+            (cast(u64)(memory.displacement / size) << 10) |
+            (cast(u64)memory.base << 5) | (cast(u64)rt & 31)
+        Emit(state, cast(u32)scaled)
+        return true
+    }
+    if UnscaledFits(memory.displacement) {
+        unscaled := (word & ~cast(u64)0x01000000) | (selector << 30) |
+            (cast(u64)(memory.displacement & 511) << 12) |
+            (cast(u64)memory.base << 5) | (cast(u64)rt & 31)
+        Emit(state, cast(u32)unscaled)
+        return true
+    }
+    return false
+}
+
+// Integer load with the x16 rebase fallback for large displacements.
+A64Load :: (state: *State, rt: s32, memory: A64Memory, size: s64, signed: bool) {
+    if state.diagnostic.problem != .None { return }
+    if IntegerLoadStore(state, rt, memory, size, signed, false) { return }
+    if state.diagnostic.problem != .None { return }
+    AddressInto(state, memory.base, memory.displacement)
+    rebased: A64Memory = .{base = 16, displacement = 0}
+    if !IntegerLoadStore(state, rt, rebased, size, signed, false) &&
+        state.diagnostic.problem == .None { unused Fail(state, .Unsupported) }
+}
+
+// Integer store with the x16 rebase fallback for large displacements.
+A64Store :: (state: *State, memory: A64Memory, rt: s32, size: s64) {
+    if state.diagnostic.problem != .None { return }
+    if IntegerLoadStore(state, rt, memory, size, false, true) { return }
+    if state.diagnostic.problem != .None { return }
+    AddressInto(state, memory.base, memory.displacement)
+    rebased: A64Memory = .{base = 16, displacement = 0}
+    if !IntegerLoadStore(state, rt, rebased, size, false, true) &&
+        state.diagnostic.problem == .None { unused Fail(state, .Unsupported) }
+}
+
+// One floating-point load or store whose displacement fits the scaled or
+// unscaled offset form; returns false without failing so the wrappers can
+// rebase the address into x16 and retry.
+FloatLoadStore :: (state: *State, rt: s32, memory: A64Memory, size: s64,
+    store: bool) -> bool {
+    if state.diagnostic.problem != .None { return false }
+    if size != 4 && size != 8 {
+        unused Fail(state, .Unsupported)
+        return false
+    }
+    word := cast(u64)0xBD400000
+    if size == 8 { word = cast(u64)0xFD400000 }
+    if store { word = word & ~cast(u64)0x00400000 }
+    if ScaledFits(memory.displacement, size) {
+        scaled := word | (cast(u64)(memory.displacement / size) << 10) |
+            (cast(u64)memory.base << 5) | (cast(u64)rt & 31)
+        Emit(state, cast(u32)scaled)
+        return true
+    }
+    if UnscaledFits(memory.displacement) {
+        unscaled := (word & ~cast(u64)0x01000000) |
+            (cast(u64)(memory.displacement & 511) << 12) |
+            (cast(u64)memory.base << 5) | (cast(u64)rt & 31)
+        Emit(state, cast(u32)unscaled)
+        return true
+    }
+    return false
+}
+
+// Floating-point load with the x16 rebase fallback.
+A64FloatLoad :: (state: *State, rt: s32, memory: A64Memory, size: s64) {
+    if state.diagnostic.problem != .None { return }
+    if FloatLoadStore(state, rt, memory, size, false) { return }
+    if state.diagnostic.problem != .None { return }
+    AddressInto(state, memory.base, memory.displacement)
+    rebased: A64Memory = .{base = 16, displacement = 0}
+    if !FloatLoadStore(state, rt, rebased, size, false) &&
+        state.diagnostic.problem == .None { unused Fail(state, .Unsupported) }
+}
+
+// Floating-point store with the x16 rebase fallback.
+A64FloatStore :: (state: *State, memory: A64Memory, rt: s32, size: s64) {
+    if state.diagnostic.problem != .None { return }
+    if FloatLoadStore(state, rt, memory, size, true) { return }
+    if state.diagnostic.problem != .None { return }
+    AddressInto(state, memory.base, memory.displacement)
+    rebased: A64Memory = .{base = 16, displacement = 0}
+    if !FloatLoadStore(state, rt, rebased, size, true) &&
+        state.diagnostic.problem == .None { unused Fail(state, .Unsupported) }
+}
+
+// Copies SIZE bytes between two frame-relative locations through the bank
+// scratch x15, widening each step to 8, 4, 2 or 1 bytes.
+CopyMemory :: (state: *State, destination: A64Memory, source: A64Memory,
+    size: s64) -> bool {
+    offset: s64
+    while offset < size {
+        remaining := size - offset
+        width: s64 = 1
+        if remaining >= 8 { width = 8 }
+        else if remaining >= 4 { width = 4 }
+        else if remaining >= 2 { width = 2 }
+        A64Load(state, 15, AtOffset(source, offset), width, false)
+        if state.diagnostic.problem != .None { return false }
+        A64Store(state, AtOffset(destination, offset), 15, width)
+        if state.diagnostic.problem != .None { return false }
+        offset += width
+    }
+    return true
+}
+
+// Stores zeros into SIZE bytes of a frame-relative location. Register 31 is
+// the zero register in load/store forms, so no scratch register is needed.
+ZeroMemory :: (state: *State, destination: A64Memory, size: s64) -> bool {
+    offset: s64
+    while offset < size {
+        remaining := size - offset
+        width: s64 = 1
+        if remaining >= 8 { width = 8 }
+        else if remaining >= 4 { width = 4 }
+        else if remaining >= 2 { width = 2 }
+        A64Store(state, AtOffset(destination, offset), 31, width)
+        if state.diagnostic.problem != .None { return false }
+        offset += width
+    }
+    return true
+}
+
+// Resolves one record or array member: its type id and byte offset.
+Member :: (state: *State, type_id: s32, index: u64, member: *s32, offset: *s64) -> bool {
+    if type_id < 0 || type_id >= state.program.types.count { return false }
+    type := state.program.types[type_id]
+    <<offset = 0
+    if type.kind == .Array {
+        if index >= cast(u64)type.count || type.element < 0 { return false }
+        <<member = type.element
+        <<offset = cast(s64)index * state.program.types[type.element].size
+        return true
+    }
+    if type.kind != .Record || index >= cast(u64)type.fields_count { return false }
+    member_offset: s64
+    for at: cast(s32)0..cast(s32)index {
+        field := state.program.type_ids[type.fields_begin + at]
+        field_type := state.program.types[field]
+        // LIR records are packed in declaration order. The aggregate itself
+        // is aligned as a stack object, but members have no implicit padding.
+        if field_type.size < 0 || member_offset > type.size - field_type.size { return false }
+        if at == cast(s32)index {
+            <<member = field
+            <<offset = member_offset
+            return true
+        }
+        member_offset += field_type.size
+    }
+    return false
+}
+
+// Byte size of a general scalar the encoder can hold in a register, or -1.
+ScalarSize :: (type: MachineType) -> s64 {
+    if type.class != .General { return -1 }
+    if type.kind == .Bool { return ifx type.size == 1 then cast(s64)1 else -1 }
+    if type.kind == .Pointer || type.kind == .Function { return ifx type.size == 8 then cast(s64)8 else -1 }
+    if type.kind == .Integer && (type.bits == 8 || type.bits == 16 || type.bits == 32 || type.bits == 64) &&
+        type.size == cast(s64)(type.bits / 8) { return type.size }
+    return -1
+}
+
+FloatSize :: (type: MachineType) -> s64 {
+    if type.class != .Float || type.kind != .Float ||
+        (type.bits != 32 && type.bits != 64) || type.size != cast(s64)(type.bits / 8) { return -1 }
+    return type.size
+}
+
+Signed :: (type: MachineType) -> bool { return type.kind == .Integer && type.is_signed }
+
+Integer :: (type: MachineType) -> bool { return type.kind == .Integer && ScalarSize(type) > 0 }
+
+StackArgumentSize :: (value: s64) -> s64 {
+    if value < 0 || value > 9223372036854775799 { return -1 }
+    return (value + 7) & ~cast(s64)7
+}
+
+// A float physical register number: every V register is allocatable here.
+A64FloatRegister :: (register: s32) -> bool {
+    return register >= 0 && register <= 31
+}
+
+// A general physical register holding a typed value, or MachineNoId.
+Register :: (state: *State, local: s32, role: MachineOperandRole) -> s32 {
+    if local < 0 || local >= Current(state).operand_count { unused Fail(state, .Unsupported); return MachineNoId }
+    id := OperandId(state, local)
+    operand := state.program.operands[id]
+    if operand.kind != .Physical || operand.class != .General || operand.role != role ||
+        operand.value == MachineNoId || ScalarSize(TypeOf(state, operand)) < 0 ||
+        !A64Register(operand.id) {
+        unused Fail(state, .Unsupported, id)
+        return MachineNoId
+    }
+    return operand.id
+}
+
+FloatRegister :: (state: *State, local: s32, role: MachineOperandRole) -> s32 {
+    if local < 0 || local >= Current(state).operand_count { unused Fail(state, .Unsupported); return MachineNoId }
+    id := OperandId(state, local)
+    operand := state.program.operands[id]
+    if operand.kind != .Physical || operand.class != .Float || operand.role != role ||
+        operand.value == MachineNoId || FloatSize(TypeOf(state, operand)) < 0 ||
+        !A64FloatRegister(operand.id) {
+        unused Fail(state, .Unsupported, id)
+        return MachineNoId
+    }
+    return operand.id
+}
+
+Count :: (state: *State, count: s32) -> bool {
+    if Current(state).operand_count != count { return Fail(state, .Unsupported) }
+    return true
+}
+
+// Re-establishes the register representation of TYPE after an operation
+// that produced a full 32-bit or 64-bit result. AArch64 W-form operations
+// clear the upper half of their own register, so only byte and halfword
+// results need an explicit sign- or zero-extend here.
+Normalize :: (state: *State, register: s32, type: MachineType) {
+    if type.kind != .Integer || ScalarSize(type) >= 4 { return }
+    word := cast(u64)0x13001C00
+    if type.size == 2 { word = cast(u64)0x13003C00 }
+    if !type.is_signed { word = word | cast(u64)0x40000000 }
+    word = word | (cast(u64)register << 5) | (cast(u64)register & 31)
+    Emit(state, cast(u32)word)
+}
+
+NormalizeConstant :: (value: u64, type: MachineType) -> u64 {
+    size := ScalarSize(type)
+    if type.kind != .Integer || size == 8 { return value }
+    bits := cast(u64)(size * 8)
+    mask := (cast(u64)1 << bits) - 1
+    low := value & mask
+    if type.is_signed && ((low >> (bits - 1)) & 1) != 0 { return low | ~mask }
+    return low
+}
+
+// Moves raw float bits into a general register: FMOV Wd, Sn or FMOV Xd, Dn.
+FloatToGeneralBits :: (state: *State, rd: s32, rn: s32, size: s64) {
+    if state.diagnostic.problem != .None { return }
+    word := cast(u64)0x1E260000
+    if size == 8 { word = cast(u64)0x9E260000 }
+    word = word | (cast(u64)rn << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+}
+
+// Moves raw general bits into a float register: FMOV Sd, Wn or FMOV Dd, Xn.
+GeneralToFloatBits :: (state: *State, rd: s32, rn: s32, size: s64) {
+    if state.diagnostic.problem != .None { return }
+    word := cast(u64)0x1E270000
+    if size == 8 { word = cast(u64)0x9E270000 }
+    word = word | (cast(u64)rn << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+}
+
+// SUBS with a register operand.
+SubsRegister :: (state: *State, rd: s32, rn: s32, rm: s32, selector: u64) {
+    if state.diagnostic.problem != .None { return }
+    word := (selector << 31) | cast(u64)0xEB000000 |
+        (cast(u64)rm << 16) | (cast(u64)rn << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+}
+
+// Materializes CODE in w0, calls the trap handler through a width-4
+// relocation with the shared PC-relative addend, and executes BRK so a
+// fallthrough can never continue.
+TrapSequence :: (state: *State, code: u64) {
+    if state.diagnostic.problem != .None { return }
+    Emit(state, cast(u32)0x52BFFFE0)
+    Emit(state, cast(u32)(cast(u64)0x72800000 | ((code & cast(u64)0xffff) << 5)))
+    Relocate(state, .TrapHandler, 0, -4, state.writer.at)
+    Branch(state, state.writer.at, true)
+    BreakInstruction(state)
+}
+
+// Continues past an inline trap when the raw condition CODE holds; the
+// conditional branch skips the four-word trap sequence.
+TrapUnless :: (state: *State, condition: s32, code: u64) {
+    if state.diagnostic.problem != .None { return }
+    BranchCondition(state, state.writer.at + MachineA64TrapSize, condition)
+    TrapSequence(state, code)
+}
+
+NextBlock :: (state: *State) -> s32 {
+    function := state.program.functions[state.function]
+    if state.block + 1 < function.block_begin + function.block_count { return state.block + 1 }
+    return MachineNoId
+}
+
+BlockTarget :: (state: *State, block: s32) -> s64 {
+    return state.block_begin[block]
+}
+
+FunctionTarget :: (state: *State, function: s32) -> s64 {
+    return state.function_begin[function]
+}
+
+// The relocation attached to the current instruction, or MachineNoId after a
+// diagnostic when it is missing, of another kind or carries an addend the
+// form cannot hold.
+Relocation :: (state: *State, kind: MachineRelocationKind, operand: s32, zero_addend: bool) -> s32 {
+    id := state.relocation_of[state.instruction]
+    if id < 0 { unused Fail(state, .Relocation, operand); return MachineNoId }
+    relocation := state.program.relocations[id]
+    if relocation.kind != kind || relocation.operand != operand || zero_addend && relocation.addend != 0 {
+        unused Fail(state, .Relocation, operand)
+        return MachineNoId
+    }
+    state.consumed += 1
+    return id
+}
+
+// Transfers between allocation homes: register moves, spills and reloads
+// for general and float values, and full-object stack copies.
+Transfer :: (state: *State, instruction: MachineInstruction) -> bool {
+    destination_id := instruction.operand_begin
+    source_id := destination_id + 1
+    destination := state.program.operands[destination_id]
+    source := state.program.operands[source_id]
+    if destination.class == .Stack {
+        if instruction.opcode != .Move || destination.kind != .StackObject || source.kind != .StackObject {
+            return Fail(state, .Unsupported, destination_id)
+        }
+        destination_memory := StackMemory(state, destination.id, destination_id)
+        source_memory := StackMemory(state, source.id, source_id)
+        if state.diagnostic.problem != .None { return false }
+        size := state.program.stack_objects[destination.id].size
+        if state.program.stack_objects[source.id].size != size { return Fail(state, .Stack, source_id) }
+        return CopyMemory(state, destination_memory, source_memory, size)
+    }
+    if destination.class == .Float {
+        size := FloatSize(TypeOf(state, destination))
+        if size < 0 || FloatSize(TypeOf(state, source)) != size {
+            return Fail(state, .Unsupported, destination_id)
+        }
+        selector := ifx size == 8 then cast(u64)1 else cast(u64)0
+        if instruction.opcode == .Move {
+            if destination.kind != .Physical || source.kind != .Physical {
+                return Fail(state, .Unsupported, destination_id)
+            }
+            if destination.id != source.id {
+                MoveFloatRegister(state, destination.id, source.id, selector)
+            }
+            return true
+        }
+        if instruction.opcode == .Spill {
+            if destination.kind != .StackObject || source.kind != .Physical ||
+                state.program.stack_objects[destination.id].size < size {
+                return Fail(state, .Stack, destination_id)
+            }
+            memory := StackMemory(state, destination.id, destination_id)
+            if state.diagnostic.problem != .None { return false }
+            A64FloatStore(state, memory, source.id, size)
+            return true
+        }
+        if destination.kind != .Physical || source.kind != .StackObject ||
+            state.program.stack_objects[source.id].size < size {
+            return Fail(state, .Stack, source_id)
+        }
+        memory := StackMemory(state, source.id, source_id)
+        if state.diagnostic.problem != .None { return false }
+        A64FloatLoad(state, destination.id, memory, size)
+        return true
+    }
+    if destination.class != .General { return Fail(state, .Unsupported, destination_id) }
+    if ScalarSize(TypeOf(state, destination)) < 0 { return Fail(state, .Unsupported, destination_id) }
+    if ScalarSize(TypeOf(state, source)) < 0 { return Fail(state, .Unsupported, source_id) }
+    type := TypeOf(state, destination)
+    selector := Selector(state, TypeIdOf(state, destination))
+    if instruction.opcode == .Move {
+        if destination.id != source.id { MoveRegister(state, destination.id, source.id, selector) }
+        return true
+    }
+    if instruction.opcode == .Spill {
+        size := ScalarSize(TypeOf(state, source))
+        if state.program.stack_objects[destination.id].size < size { return Fail(state, .Stack, destination_id) }
+        memory := StackMemory(state, destination.id, destination_id)
+        if state.diagnostic.problem != .None { return false }
+        A64Store(state, memory, destination.id, size)
+        return true
+    }
+    size := ScalarSize(type)
+    if state.program.stack_objects[source.id].size < size { return Fail(state, .Stack, source_id) }
+    memory := StackMemory(state, source.id, source_id)
+    if state.diagnostic.problem != .None { return false }
+    A64Load(state, destination.id, memory, size, Signed(type))
+    Normalize(state, destination.id, type)
+    return true
+}
+
+// MOVZ/MOVK constant materialization for an integer destination or the
+// general side of a float bit move.
+MoveImmediate :: (state: *State) -> bool {
+    if Current(state).operand_count != 2 && Current(state).operand_count != 3 {
+        return Fail(state, .Unsupported)
+    }
+    immediate := OperandAt(state, 1)
+    if immediate.kind != .Immediate || immediate.role != .Use { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    type := TypeOf(state, OperandAt(state, 0))
+    if type.class == .Float {
+        destination := FloatRegister(state, 0, .Define)
+        if destination == MachineNoId || FloatSize(type) < 0 || Current(state).operand_count != 3 { return false }
+        scratch := OperandAt(state, 2)
+        if scratch.kind != .Physical || scratch.class != .General ||
+            scratch.id != MachineAbiScratchRegister(state.program.target) ||
+            scratch.role != .Define || scratch.value != MachineNoId {
+            return Fail(state, .Constraint, OperandId(state, 2))
+        }
+        selector := ifx type.size == 8 then cast(u64)1 else cast(u64)0
+        MoveImmediate(state, MachineAbiScratchRegister(state.program.target),
+            cast(u64)immediate.immediate, selector)
+        GeneralToFloatBits(state, destination, MachineAbiScratchRegister(state.program.target), type.size)
+        return true
+    }
+    if Current(state).operand_count != 2 { return Fail(state, .Unsupported) }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    if type.kind == .Bool && immediate.immediate > 1 { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    MoveImmediate(state, destination, NormalizeConstant(cast(u64)immediate.immediate, type),
+        Selector(state, TypeIdOf(state, OperandAt(state, 0))))
+    return true
+}
+
+// Integer add, subtract, and, or, xor and multiply. Multiplication is MADD
+// with the zero addend register; every other form is its plain register
+// operation.
+Binary :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 3) { return false }
+    destination := Register(state, 0, .Define)
+    left := Register(state, 1, .Use)
+    right := Register(state, 2, .Use)
+    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    if destination != left { return Fail(state, .Tie, OperandId(state, 0)) }
+    type := TypeOf(state, OperandAt(state, 0))
+    logical := opcode == .IntegerAnd || opcode == .IntegerOr || opcode == .IntegerXor
+    if type.kind == .Bool && !logical || type.kind == .Function { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    selector := Selector(state, TypeIdOf(state, OperandAt(state, 0)))
+    if opcode == .IntegerMultiply {
+        word := (selector << 31) | cast(u64)0x1B000000 | (cast(u64)right << 16) |
+            (cast(u64)31 << 10) | (cast(u64)left << 5) | (cast(u64)destination & 31)
+        Emit(state, cast(u32)word)
+    } else {
+        word := cast(u64)0x0B000000
+        if opcode == .IntegerSubtract { word = cast(u64)0x4B000000 }
+        if opcode == .IntegerAnd { word = cast(u64)0x0A000000 }
+        if opcode == .IntegerOr { word = cast(u64)0x2A000000 }
+        if opcode == .IntegerXor { word = cast(u64)0x4A000000 }
+        word = (selector << 31) | word | (cast(u64)right << 16) | (cast(u64)left << 5) |
+            (cast(u64)destination & 31)
+        Emit(state, cast(u32)word)
+    }
+    Normalize(state, destination, type)
+    return true
+}
+
+// Floating add, subtract, multiply and divide.
+FloatBinary :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 3) { return false }
+    destination := FloatRegister(state, 0, .Define)
+    left := FloatRegister(state, 1, .Use)
+    right := FloatRegister(state, 2, .Use)
+    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    if destination != left { return Fail(state, .Tie, OperandId(state, 0)) }
+    size := FloatSize(TypeOf(state, OperandAt(state, 0)))
+    if size < 0 || FloatSize(TypeOf(state, OperandAt(state, 2))) != size {
+        return Fail(state, .Unsupported, OperandId(state, 0))
+    }
+    selector := ifx size == 8 then cast(u64)1 else cast(u64)0
+    code: u64 = 2
+    if opcode == .FloatSubtract { code = 3 }
+    if opcode == .FloatMultiply { code = 0 }
+    if opcode == .FloatDivide { code = 1 }
+    word := (selector << 22) | cast(u64)0x1E200800 | (code << 12) |
+        (cast(u64)right << 16) | (cast(u64)left << 5) | (cast(u64)destination & 31)
+    Emit(state, cast(u32)word)
+    return true
+}
+
+// Integer negate or bitwise complement.
+Unary :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    source := Register(state, 1, .Use)
+    if destination == MachineNoId || source == MachineNoId { return false }
+    if destination != source { return Fail(state, .Tie, OperandId(state, 0)) }
+    type := TypeOf(state, OperandAt(state, 0))
+    if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    selector := Selector(state, TypeIdOf(state, OperandAt(state, 0)))
+    word := cast(u64)0x4B000000
+    if opcode != .IntegerNegate { word = cast(u64)0x2A200000 }
+    word = (selector << 31) | word | (cast(u64)source << 16) |
+        (cast(u64)31 << 5) | (cast(u64)destination & 31)
+    Emit(state, cast(u32)word)
+    Normalize(state, destination, type)
+    return true
+}
+
+// Floating negate.
+FloatUnary :: (state: *State) -> bool {
+    if !Count(state, 3) { return false }
+    destination := FloatRegister(state, 0, .Define)
+    source := FloatRegister(state, 1, .Use)
+    if destination == MachineNoId || source == MachineNoId { return false }
+    if destination != source { return Fail(state, .Tie, OperandId(state, 0)) }
+    scratch := OperandAt(state, 2)
+    if scratch.kind != .Physical || scratch.class != .General ||
+        scratch.id != MachineAbiScratchRegister(state.program.target) ||
+        scratch.role != .Define || scratch.value != MachineNoId {
+        return Fail(state, .Constraint, OperandId(state, 2))
+    }
+    size := FloatSize(TypeOf(state, OperandAt(state, 0)))
+    word := cast(u64)0x1E214000
+    if size == 8 { word = cast(u64)0x1E614000 }
+    word = word | (cast(u64)source << 5) | (cast(u64)destination & 31)
+    Emit(state, cast(u32)word)
+    return true
+}
+
+// Divide and remainder over arbitrary registers. A zero divisor traps;
+// SDIV and UDIV are defined for every other pair, including the most
+// negative dividend over -1, so no further guard is needed. Remainder is
+// MSUB against the quotient in the bank scratch.
+Divide :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 3) { return false }
+    destination := Register(state, 0, .Define)
+    left := Register(state, 1, .Use)
+    right := Register(state, 2, .Use)
+    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    type := TypeOf(state, OperandAt(state, 1))
+    if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    selector := Selector(state, TypeIdOf(state, OperandAt(state, 1)))
+    remainder := opcode == .IntegerRemainder
+    CompareRegister(state, 31, right, true, selector)
+    TrapUnless(state, 1, MachineA64TrapDivideByZero)
+    quotient := cast(u64)0x1AC00C00
+    if !Signed(type) { quotient = cast(u64)0x1AC00800 }
+    if !remainder {
+        word := (selector << 31) | quotient | (cast(u64)right << 16) |
+            (cast(u64)left << 5) | (cast(u64)destination & 31)
+        Emit(state, cast(u32)word)
+    } else {
+        step := (selector << 31) | quotient | (cast(u64)right << 16) |
+            (cast(u64)left << 5) | cast(u64)15
+        Emit(state, cast(u32)step)
+        word := (selector << 31) | cast(u64)0x1B008000 | (cast(u64)right << 16) |
+            (cast(u64)left << 10) | (cast(u64)15 << 5) | (cast(u64)destination & 31)
+        Emit(state, cast(u32)word)
+    }
+    Normalize(state, destination, type)
+    return true
+}
+
+// Shift by a variable count. A count outside [0, width) traps; SUBS against
+// the zero register and a signed-lower branch keep the four-word trap off
+// the in-range path.
+Shift :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 3) { return false }
+    destination := Register(state, 0, .Define)
+    left := Register(state, 1, .Use)
+    right := Register(state, 2, .Use)
+    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    if destination != left { return Fail(state, .Tie, OperandId(state, 0)) }
+    type := TypeOf(state, OperandAt(state, 1))
+    count_type := TypeOf(state, OperandAt(state, 2))
+    if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    if !Integer(count_type) { return Fail(state, .Unsupported, OperandId(state, 2)) }
+    selector := Selector(state, TypeIdOf(state, OperandAt(state, 1)))
+    count_selector := Selector(state, TypeIdOf(state, OperandAt(state, 2)))
+    SubsImmediate(state, right, ScalarSize(type) * 8, count_selector)
+    BranchCondition(state, state.writer.at + MachineA64TrapSize + 4, 3)
+    TrapSequence(state, MachineA64TrapShift)
+    word := cast(u64)0x1AC02000
+    if opcode == .ShiftRight {
+        word = ifx Signed(type) then cast(u64)0x1AC02800 else cast(u64)0x1AC02400
+    }
+    word = (selector << 31) | word | (cast(u64)right << 16) | (cast(u64)left << 5) |
+        (cast(u64)destination & 31)
+    Emit(state, cast(u32)word)
+    Normalize(state, destination, type)
+    return true
+}
+
+// The raw AArch64 condition field for a comparison: signed comparisons use
+// the signed variants, everything else the unsigned or unordered-safe ones.
+ConditionRaw :: (condition: MachineCondition, signed: bool) -> s32 {
+    if condition == .Equal { return 0 }
+    if condition == .NotEqual { return 1 }
+    if condition == .Less { return ifx signed then 11 else 3 }
+    if condition == .LessEqual { return ifx signed then 13 else 9 }
+    if condition == .Greater { return ifx signed then 12 else 8 }
+    if condition == .GreaterEqual { return ifx signed then 10 else 2 }
+    return MachineNoId
+}
+
+// CSET with the raw condition; the field carries the inverted condition.
+CSet :: (state: *State, rd: s32, condition: s32) {
+    if state.diagnostic.problem != .None { return }
+    word := cast(u64)0x1A800400 | (cast(u64)((condition ^ 1) & 15) << 12) |
+        (cast(u64)31 << 16) | (cast(u64)31 << 5) | (cast(u64)rd & 31)
+    Emit(state, cast(u32)word)
+}
+
+// Records the flags of a comparison for a later conditional use. One
+// ordered FCMP serves every condition; LessEqual swaps the operands so its
+// code becomes GreaterEqual on the swapped pair.
+Compare :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    type := TypeOf(state, OperandAt(state, 0))
+    if type.class == .Float {
+        left := FloatRegister(state, 0, .Use)
+        right := FloatRegister(state, 1, .Use)
+        if left == MachineNoId || right == MachineNoId ||
+            FloatSize(TypeOf(state, OperandAt(state, 1))) != FloatSize(type) { return false }
+        state.flags_swapped = false
+        rn := left
+        rm := right
+        if Current(state).condition == .LessEqual {
+            rn = right
+            rm = left
+            state.flags_swapped = true
+        }
+        word := cast(u64)0x1E202000 | (cast(u64)rm << 16) | (cast(u64)rn << 5)
+        if FloatSize(type) == 8 { word = cast(u64)0x1E602000 | (cast(u64)rm << 16) | (cast(u64)rn << 5) }
+        Emit(state, cast(u32)word)
+        state.flags_float = true
+    } else {
+        left := Register(state, 0, .Use)
+        right := Register(state, 1, .Use)
+        if left == MachineNoId || right == MachineNoId { return false }
+        CompareRegister(state, left, right, false, Selector(state, TypeIdOf(state, OperandAt(state, 0))))
+        state.flags_float = false
+        state.flags_swapped = false
+    }
+    state.flags_value = Current(state).flags_def
+    state.flags_signed = Signed(type)
+    return true
+}
+
+// The condition code for a flags use, which must read the flags of the
+// latest Compare in this block with only transfers since.
+FlagsCondition :: (state: *State) -> s32 {
+    instruction := Current(state)
+    if instruction.flags_use == MachineNoId || instruction.flags_use != state.flags_value {
+        unused Fail(state, .Flags)
+        return MachineNoId
+    }
+    if state.flags_float { unused Fail(state, .Unsupported); return MachineNoId }
+    code := ConditionRaw(instruction.condition, state.flags_signed)
+    if code == MachineNoId { unused Fail(state, .Unsupported) }
+    return code
+}
+
+// Materializes the current condition in a general register. Integer flags
+// use one CSET; float flags use CSET plus a second CSET on the scratch and
+// AND/OR so unordered comparisons behave like x86 setcc with parity.
+SetCondition :: (state: *State) -> bool {
+    if Current(state).operand_count != 1 && Current(state).operand_count != 2 {
+        return Fail(state, .Unsupported)
+    }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    type := TypeOf(state, OperandAt(state, 0))
+    if !state.flags_float {
+        if Current(state).operand_count != 1 { return Fail(state, .Unsupported) }
+        code := FlagsCondition(state)
+        if code == MachineNoId { return false }
+        CSet(state, destination, code)
+        Normalize(state, destination, type)
+        return true
+    }
+    if Current(state).flags_use == MachineNoId || Current(state).flags_use != state.flags_value ||
+        Current(state).operand_count != 2 { return Fail(state, .Flags) }
+    scratch := OperandAt(state, 1)
+    if scratch.kind != .Physical || scratch.class != .General ||
+        scratch.id != MachineAbiScratchRegister(state.program.target) ||
+        scratch.role != .Define || scratch.value != MachineNoId {
+        return Fail(state, .Constraint, OperandId(state, 1))
+    }
+    condition := Current(state).condition
+    code := ConditionRaw(condition, false)
+    if code == MachineNoId { return Fail(state, .Unsupported) }
+    if condition == .Equal {
+        CSet(state, destination, 0)
+        CSet(state, 15, 7)
+        Emit(state, cast(u32)(cast(u64)0x0A000000 | (cast(u64)15 << 16) |
+            (cast(u64)destination << 5) | (cast(u64)destination & 31)))
+    } else if condition == .NotEqual {
+        CSet(state, destination, 1)
+        CSet(state, 15, 6)
+        Emit(state, cast(u32)(cast(u64)0x2A000000 | (cast(u64)15 << 16) |
+            (cast(u64)destination << 5) | (cast(u64)destination & 31)))
+    } else {
+        branch_code := code
+        if condition == .LessEqual { branch_code = 10 }
+        CSet(state, destination, branch_code)
+    }
+    Normalize(state, destination, type)
+    return true
+}
+
+// Validates the two scratch operands the lowerer names on converting
+// instructions: one general and one float ABI scratch.
+FloatConvertScratch :: (state: *State) -> bool {
+    general := OperandAt(state, 2)
+    floating := OperandAt(state, 3)
+    return general.kind == .Physical && general.class == .General &&
+        general.id == MachineAbiScratchRegister(state.program.target) &&
+        general.role == .Define && general.value == MachineNoId &&
+        floating.kind == .Physical && floating.class == .Float &&
+        floating.id == MachineAbiScratchFloatRegister(state.program.target) &&
+        floating.role == .Define && floating.value == MachineNoId
+}
+
+// Float to integer with the x86 range contract: unordered values and
+// values outside the inclusive lower and exclusive upper bounds trap. All
+// three failures share the four-word trap at the end of the sequence.
+FloatToIntegerValue :: (state: *State, destination: s32, source: s32,
+    target: MachineType, origin: MachineType) -> bool {
+    if target.kind != .Integer { return false }
+    exponent := target.bits - (ifx target.is_signed then 1 else 0)
+    exponent_bias := ifx origin.bits == 32 then 127 else 1023
+    exponent_shift := ifx origin.bits == 32 then 23 else 52
+    sign_bit := ifx origin.bits == 32 then cast(u64)1 << 31 else cast(u64)1 << 63
+    bound := cast(u64)(exponent_bias + exponent) << cast(u64)exponent_shift
+    lower := ifx target.is_signed then bound | sign_bit else cast(u64)0
+    lower_words := cast(s64)Bytes.ArmHalfCount(lower, 64)
+    bound_words := cast(s64)Bytes.ArmHalfCount(bound, 64)
+    end := state.writer.at + (lower_words + bound_words + 13) * 4
+    self_compare := cast(u64)0x1E202000 | (cast(u64)source << 16) | (cast(u64)source << 5)
+    if origin.bits == 64 { self_compare = cast(u64)0x1E602000 | (cast(u64)source << 16) | (cast(u64)source << 5) }
+    Emit(state, cast(u32)self_compare)
+    BranchCondition(state, end, 6)
+    MoveImmediate(state, 15, lower, 1)
+    GeneralToFloatBits(state, 15, 15, origin.size)
+    Emit(state, cast(u32)(cast(u64)0x1E202000 | (cast(u64)15 << 16) | (cast(u64)source << 5)))
+    BranchCondition(state, end, 4)
+    MoveImmediate(state, 15, bound, 1)
+    GeneralToFloatBits(state, 15, 15, origin.size)
+    Emit(state, cast(u32)(cast(u64)0x1E202000 | (cast(u64)15 << 16) | (cast(u64)source << 5)))
+    BranchCondition(state, end, 10)
+    word := cast(u64)0x1E380000
+    if !target.is_signed { word = cast(u64)0x1E3B0000 }
+    if origin.size == 8 { word = word | cast(u64)0x400000 }
+    if target.bits == 64 { word = word | cast(u64)0x80000000 }
+    word = word | (cast(u64)source << 5) | (cast(u64)destination & 31)
+    Emit(state, cast(u32)word)
+    TrapSequence(state, MachineA64TrapConversion)
+    Normalize(state, destination, target)
+    return true
+}
+
+// Conversions: integer to integer, bitcasts, float width changes, integer
+// to float and float to integer through the shared range contract.
+Convert :: (state: *State, opcode: MachineOpcode) -> bool {
+    if Current(state).operand_count != 2 && Current(state).operand_count != 4 {
+        return Fail(state, .Unsupported)
+    }
+    target := TypeOf(state, OperandAt(state, 0))
+    origin := TypeOf(state, OperandAt(state, 1))
+    if target.kind == .Bool {
+        return Fail(state, .Unsupported, OperandId(state, 0))
+    }
+    target_float := FloatSize(target) > 0
+    origin_float := FloatSize(origin) > 0
+    if !target_float && !origin_float {
+        destination := Register(state, 0, .Define)
+        source := Register(state, 1, .Use)
+        if destination == MachineNoId || source == MachineNoId || Current(state).operand_count != 2 { return false }
+        if destination != source {
+            MoveRegister(state, destination, source, Selector(state, TypeIdOf(state, OperandAt(state, 0))))
+        }
+        Normalize(state, destination, target)
+        return true
+    }
+    if opcode == .Bitcast {
+        if Current(state).operand_count != 2 || target.size != origin.size {
+            return Fail(state, .Unsupported, OperandId(state, 0))
+        }
+        if target_float {
+            destination := FloatRegister(state, 0, .Define)
+            source := Register(state, 1, .Use)
+            if destination == MachineNoId || source == MachineNoId { return false }
+            GeneralToFloatBits(state, destination, source, target.size)
+        } else {
+            destination := Register(state, 0, .Define)
+            source := FloatRegister(state, 1, .Use)
+            if destination == MachineNoId || source == MachineNoId { return false }
+            FloatToGeneralBits(state, destination, source, origin.size)
+            Normalize(state, destination, target)
+        }
+        return true
+    }
+    if Current(state).operand_count != 4 || !FloatConvertScratch(state) {
+        return Fail(state, .Constraint, OperandId(state, 0))
+    }
+    if target_float && origin_float {
+        destination := FloatRegister(state, 0, .Define)
+        source := FloatRegister(state, 1, .Use)
+        if destination == MachineNoId || source == MachineNoId { return false }
+        if target.size == origin.size {
+            if destination != source {
+                selector := ifx target.size == 8 then cast(u64)1 else cast(u64)0
+                MoveFloatRegister(state, destination, source, selector)
+            }
+        } else {
+            word := cast(u64)0x1E22C000
+            if origin.size == 8 { word = cast(u64)0x1E624000 }
+            word = word | (cast(u64)source << 5) | (cast(u64)destination & 31)
+            Emit(state, cast(u32)word)
+        }
+        return true
+    }
+    if target_float {
+        destination := FloatRegister(state, 0, .Define)
+        source := Register(state, 1, .Use)
+        if destination == MachineNoId || source == MachineNoId || origin.kind != .Integer {
+            return Fail(state, .Unsupported, OperandId(state, 1))
+        }
+        word := cast(u64)0x1E220000
+        if !origin.is_signed { word = cast(u64)0x1E230000 }
+        if origin.bits == 64 { word = word | cast(u64)0x80000000 }
+        if target.size == 8 { word = word | cast(u64)0x400000 }
+        word = word | (cast(u64)source << 5) | (cast(u64)destination & 31)
+        Emit(state, cast(u32)word)
+        return true
+    }
+    destination := Register(state, 0, .Define)
+    source := FloatRegister(state, 1, .Use)
+    if destination == MachineNoId || source == MachineNoId ||
+        !FloatToIntegerValue(state, destination, source, target, origin) {
+        return Fail(state, .Unsupported, OperandId(state, 0))
+    }
+    return true
+}
+
+// Computes BASE plus DISPLACEMENT into RD: copy the base register with one
+// ADD, then fold the displacement in with ADD/SUBTRACT immediate steps of
+// at most 4095. Register 31 reads the stack pointer in this form, so both
+// frame and stack bases copy correctly.
+ComputeAddress :: (state: *State, rd: s32, base: s32, displacement: s64) {
+    if state.diagnostic.problem != .None { return }
+    AddSubImmediate(state, rd, base, 0, false, 1)
+    subtract := displacement < 0
+    value := ifx subtract then -displacement else displacement
+    if value > 0x40000000 { unused Fail(state, .Frame); return }
+    while value > 0 {
+        step := ifx value > 4095 then cast(s64)4095 else value
+        AddSubImmediate(state, rd, rd, step, subtract, 1)
+        value -= step
+    }
+}
+
+// Loads through a pointer held in a register. Stack destinations copy the
+// whole object through the bank scratch, float results use the float load
+// forms, and general results keep the load's own width and sign semantics
+// exactly like the x86-64 encoder.
+Load :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination_operand := OperandAt(state, 0)
+    address_operand := OperandAt(state, 1)
+    if destination_operand.class == .Stack {
+        address := Register(state, 1, .Use)
+        if address == MachineNoId || destination_operand.kind != .StackObject ||
+            TypeOf(state, address_operand).kind != .Pointer { return false }
+        destination := StackMemory(state, destination_operand.id, OperandId(state, 0))
+        if state.diagnostic.problem != .None { return false }
+        source: A64Memory = .{base = address, displacement = 0}
+        return CopyMemory(state, destination, source,
+            state.program.stack_objects[destination_operand.id].size)
+    }
+    address := Register(state, 1, .Use)
+    if address == MachineNoId { return false }
+    if TypeOf(state, OperandAt(state, 1)).kind != .Pointer { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    type := TypeOf(state, OperandAt(state, 0))
+    if type.class == .Float {
+        destination := FloatRegister(state, 0, .Define)
+        if destination == MachineNoId { return false }
+        source: A64Memory = .{base = address, displacement = 0}
+        A64FloatLoad(state, destination, source, FloatSize(type))
+        return true
+    }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    source: A64Memory = .{base = address, displacement = 0}
+    A64Load(state, destination, source, ScalarSize(type), Signed(type))
+    return true
+}
+
+// Stores through a pointer held in a register, mirroring Load.
+Store :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    value_operand := OperandAt(state, 1)
+    if value_operand.class == .Stack {
+        address := Register(state, 0, .Use)
+        if address == MachineNoId || value_operand.kind != .StackObject ||
+            TypeOf(state, OperandAt(state, 0)).kind != .Pointer { return false }
+        source := StackMemory(state, value_operand.id, OperandId(state, 1))
+        if state.diagnostic.problem != .None { return false }
+        destination: A64Memory = .{base = address, displacement = 0}
+        return CopyMemory(state, destination, source,
+            state.program.stack_objects[value_operand.id].size)
+    }
+    address := Register(state, 0, .Use)
+    if address == MachineNoId { return false }
+    if TypeOf(state, OperandAt(state, 0)).kind != .Pointer { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    type := TypeOf(state, OperandAt(state, 1))
+    if type.class == .Float {
+        value := FloatRegister(state, 1, .Use)
+        if value == MachineNoId { return false }
+        destination: A64Memory = .{base = address, displacement = 0}
+        A64FloatStore(state, destination, value, FloatSize(type))
+        return true
+    }
+    value := Register(state, 1, .Use)
+    if value == MachineNoId { return false }
+    destination: A64Memory = .{base = address, displacement = 0}
+    A64Store(state, destination, value, ScalarSize(type))
+    return true
+}
+
+// Copies one allocated general scalar into memory. Uses may reside in either
+// a physical register or a spill object after allocation.
+ScalarToMemory :: (state: *State, operand: MachineOperand, operand_id: s32,
+    destination: A64Memory, size: s64) -> bool {
+    type := TypeOf(state, operand)
+    scalar_size := ifx operand.class == .Float then FloatSize(type) else ScalarSize(type)
+    if (operand.class != .General && operand.class != .Float) || operand.role != .Use ||
+        scalar_size != size { return Fail(state, .Unsupported, operand_id) }
+    if operand.kind == .Physical {
+        if operand.class == .Float {
+            if !A64FloatRegister(operand.id) { return Fail(state, .Unsupported, operand_id) }
+            A64FloatStore(state, destination, operand.id, size)
+        } else {
+            if !A64Register(operand.id) { return Fail(state, .Unsupported, operand_id) }
+            A64Store(state, destination, operand.id, size)
+        }
+        return !state.writer.failed
+    }
+    if operand.kind != .StackObject || state.program.stack_objects[operand.id].size < size {
+        return Fail(state, .Unsupported, operand_id)
+    }
+    source := StackMemory(state, operand.id, operand_id)
+    if state.diagnostic.problem != .None { return false }
+    return CopyMemory(state, destination, source, size)
+}
+
+// Copies one scalar member out of memory to its allocated definition.
+MemoryToScalar :: (state: *State, operand: MachineOperand, operand_id: s32,
+    source: A64Memory, type: MachineType) -> bool {
+    size := ScalarSize(type)
+    if operand.class == .Float { size = FloatSize(type) }
+    if (operand.class != .General && operand.class != .Float) || operand.role != .Define || size < 0 {
+        return Fail(state, .Unsupported, operand_id)
+    }
+    if operand.kind == .Physical {
+        if operand.class == .Float {
+            if !A64FloatRegister(operand.id) { return Fail(state, .Unsupported, operand_id) }
+            A64FloatLoad(state, operand.id, source, size)
+        } else {
+            if !A64Register(operand.id) { return Fail(state, .Unsupported, operand_id) }
+            A64Load(state, operand.id, source, size, Signed(type))
+        }
+        return !state.writer.failed
+    }
+    if operand.kind != .StackObject || state.program.stack_objects[operand.id].size < size {
+        return Fail(state, .Unsupported, operand_id)
+    }
+    destination := StackMemory(state, operand.id, operand_id)
+    if state.diagnostic.problem != .None { return false }
+    return CopyMemory(state, destination, source, size)
+}
+
+// Builds one aggregate stack object member by member.
+AggregateBuild :: (state: *State) -> bool {
+    instruction := Current(state)
+    if instruction.operand_count < 1 { return Fail(state, .Unsupported) }
+    destination := OperandAt(state, 0)
+    if destination.kind != .StackObject || destination.class != .Stack || destination.role != .Define {
+        return Fail(state, .Unsupported, OperandId(state, 0))
+    }
+    memory := StackMemory(state, destination.id, OperandId(state, 0))
+    if state.diagnostic.problem != .None { return false }
+    for local: 1..instruction.operand_count - 1 {
+        source := OperandAt(state, local)
+        member: s32
+        offset: s64
+        if !Member(state, TypeIdOf(state, destination), cast(u64)(local - 1), *member, *offset) ||
+            TypeIdOf(state, source) != member {
+            return Fail(state, .Unsupported, OperandId(state, local))
+        }
+        size := state.program.types[member].size
+        if source.class == .Stack {
+            if source.kind != .StackObject { return Fail(state, .Unsupported, OperandId(state, local)) }
+            source_memory := StackMemory(state, source.id, OperandId(state, local))
+            if state.diagnostic.problem != .None || !CopyMemory(state, AtOffset(memory, offset), source_memory, size) {
+                return false
+            }
+        } else {
+            if !ScalarToMemory(state, source, OperandId(state, local),
+                AtOffset(memory, offset), size) { return false }
+        }
+    }
+    aggregate := state.program.types[TypeIdOf(state, destination)]
+    member_count := aggregate.count
+    if aggregate.kind != .Array { member_count = cast(s64)aggregate.fields_count }
+    return instruction.operand_count - 1 == member_count
+}
+
+// Extracts one aggregate member: immediate member indexes read the fixed
+// offset, and dynamic array indexes bound-check and scale into x10 first.
+// The dynamic bound compares run in pointer width, so x16 materializes
+// counts the 12-bit immediate form cannot express.
+AggregateExtract :: (state: *State) -> bool {
+    instruction := Current(state)
+    if instruction.operand_count != 3 && instruction.operand_count != 6 {
+        return Fail(state, .Unsupported)
+    }
+    destination := OperandAt(state, 0)
+    source := OperandAt(state, 1)
+    if source.kind != .StackObject || source.class != .Stack {
+        return Fail(state, .Unsupported)
+    }
+    member: s32
+    offset: s64
+    source_memory := StackMemory(state, source.id, OperandId(state, 1))
+    if state.diagnostic.problem != .None { return false }
+    if instruction.operand_count == 3 {
+        index := OperandAt(state, 2)
+        if index.kind != .Immediate ||
+            !Member(state, TypeIdOf(state, source), index.immediate, *member, *offset) {
+            return Fail(state, .Unsupported, OperandId(state, 2))
+        }
+        source_memory = AtOffset(source_memory, offset)
+    } else {
+        index := Register(state, 2, .Use)
+        scratch_address := OperandAt(state, 3)
+        scratch_copy := OperandAt(state, 4)
+        immediate := OperandAt(state, 5)
+        aggregate := state.program.types[TypeIdOf(state, source)]
+        if index == MachineNoId || aggregate.kind != .Array || aggregate.element < 0 ||
+            scratch_address.kind != .Physical || scratch_address.role != .Define ||
+            scratch_address.id != MachineAbiAddressScratchRegister(state.program.target) ||
+            scratch_copy.kind != .Physical || scratch_copy.role != .Define ||
+            scratch_copy.id != MachineAbiScratchRegister(state.program.target) ||
+            immediate.kind != .Immediate || immediate.immediate != 0 {
+            return Fail(state, .Unsupported)
+        }
+        member = aggregate.element
+        size := state.program.types[member].size
+        if aggregate.count >= 0 && aggregate.count <= 4095 {
+            SubsImmediate(state, index, aggregate.count, 1)
+        } else {
+            MoveImmediate(state, 16, cast(u64)aggregate.count, 1)
+            CompareRegister(state, index, 16, true, 1)
+        }
+        if state.diagnostic.problem != .None { return false }
+        TrapUnless(state, 3, MachineA64TrapReserved - 1)
+        ComputeAddress(state, 10, source_memory.base, source_memory.displacement)
+        if size == 1 {
+            AddSubRegister(state, 10, 10, index, false, 1)
+        } else {
+            MoveImmediate(state, 16, cast(u64)size, 1)
+            Emit(state, cast(u32)(cast(u64)0x80000000 | cast(u64)0x1B000000 |
+                (cast(u64)16 << 16) | (cast(u64)10 << 10) |
+                (cast(u64)index << 5) | cast(u64)10))
+        }
+        source_memory = .{base = 10, displacement = 0}
+    }
+    size := state.program.types[member].size
+    if destination.class == .Stack {
+        if destination.kind != .StackObject { return Fail(state, .Unsupported, OperandId(state, 0)) }
+        return CopyMemory(state, StackMemory(state, destination.id, OperandId(state, 0)), source_memory, size)
+    }
+    return MemoryToScalar(state, destination, OperandId(state, 0), source_memory,
+        state.program.types[member])
+}
+
+// Inserts one aggregate member into a fresh copy of the aggregate stack
+// object, mirroring AggregateExtract for the dynamic member path.
+AggregateInsert :: (state: *State) -> bool {
+    instruction := Current(state)
+    if instruction.operand_count != 4 && instruction.operand_count != 7 {
+        return Fail(state, .Unsupported)
+    }
+    destination := OperandAt(state, 0)
+    aggregate := OperandAt(state, 1)
+    value := OperandAt(state, 2)
+    index := OperandAt(state, instruction.operand_count - 1)
+    if destination.kind != .StackObject || aggregate.kind != .StackObject ||
+        destination.class != .Stack || aggregate.class != .Stack || index.kind != .Immediate {
+        return Fail(state, .Unsupported)
+    }
+    destination_memory := StackMemory(state, destination.id, OperandId(state, 0))
+    aggregate_memory := StackMemory(state, aggregate.id, OperandId(state, 1))
+    size := state.program.stack_objects[destination.id].size
+    if state.diagnostic.problem != .None || state.program.stack_objects[aggregate.id].size != size ||
+        !CopyMemory(state, destination_memory, aggregate_memory, size) { return false }
+    member: s32
+    offset: s64
+    member_memory := destination_memory
+    if instruction.operand_count == 4 {
+        if index.kind != .Immediate ||
+            !Member(state, TypeIdOf(state, aggregate), index.immediate, *member, *offset) {
+            return Fail(state, .Unsupported, OperandId(state, 3))
+        }
+        member_memory = AtOffset(member_memory, offset)
+    } else {
+        dynamic_index := Register(state, 3, .Use)
+        scratch_address := OperandAt(state, 4)
+        scratch_copy := OperandAt(state, 5)
+        aggregate_type := state.program.types[TypeIdOf(state, aggregate)]
+        if dynamic_index == MachineNoId || aggregate_type.kind != .Array || aggregate_type.element < 0 ||
+            scratch_address.kind != .Physical || scratch_address.role != .Define ||
+            scratch_address.id != MachineAbiAddressScratchRegister(state.program.target) ||
+            scratch_copy.kind != .Physical || scratch_copy.role != .Define ||
+            scratch_copy.id != MachineAbiScratchRegister(state.program.target) ||
+            index.kind != .Immediate || index.immediate != 0 {
+            return Fail(state, .Unsupported)
+        }
+        member = aggregate_type.element
+        element_size := state.program.types[member].size
+        if aggregate_type.count >= 0 && aggregate_type.count <= 4095 {
+            SubsImmediate(state, dynamic_index, aggregate_type.count, 1)
+        } else {
+            MoveImmediate(state, 16, cast(u64)aggregate_type.count, 1)
+            CompareRegister(state, dynamic_index, 16, true, 1)
+        }
+        if state.diagnostic.problem != .None { return false }
+        TrapUnless(state, 3, MachineA64TrapReserved - 1)
+        ComputeAddress(state, 10, destination_memory.base, destination_memory.displacement)
+        if element_size == 1 {
+            AddSubRegister(state, 10, 10, dynamic_index, false, 1)
+        } else {
+            MoveImmediate(state, 16, cast(u64)element_size, 1)
+            Emit(state, cast(u32)(cast(u64)0x80000000 | cast(u64)0x1B000000 |
+                (cast(u64)16 << 16) | (cast(u64)10 << 10) |
+                (cast(u64)dynamic_index << 5) | cast(u64)10))
+        }
+        member_memory = .{base = 10, displacement = 0}
+    }
+    member_size := state.program.types[member].size
+    if value.class == .Stack {
+        if value.kind != .StackObject { return Fail(state, .Unsupported, OperandId(state, 2)) }
+        return CopyMemory(state, member_memory,
+            StackMemory(state, value.id, OperandId(state, 2)), member_size)
+    }
+    return ScalarToMemory(state, value, OperandId(state, 2),
+        member_memory, member_size)
+}
+
+// Computes base + member offset into the destination register.
+FieldAddress :: (state: *State) -> bool {
+    if !Count(state, 3) { return false }
+    destination := Register(state, 0, .Define)
+    base := Register(state, 1, .Use)
+    index := OperandAt(state, 2)
+    if destination == MachineNoId || base == MachineNoId || index.kind != .Immediate { return false }
+    pointer := TypeOf(state, OperandAt(state, 1))
+    member: s32
+    offset: s64
+    if pointer.kind != .Pointer || !Member(state, pointer.element, index.immediate, *member, *offset) {
+        return Fail(state, .Unsupported, OperandId(state, 2))
+    }
+    if offset == 0 {
+        MoveRegister(state, destination, base, 1)
+    } else if offset >= -4095 && offset <= 4095 {
+        subtract := offset < 0
+        value := ifx subtract then -offset else offset
+        AddSubImmediate(state, destination, base, value, subtract, 1)
+    } else {
+        ComputeAddress(state, destination, base, offset)
+    }
+    return true
+}
+
+// Computes base + element * size into the destination register after the
+// form's bound checks. The compare forms run in pointer width, continuing
+// on unsigned less-than for the two bounded forms and unsigned
+// less-than-or-equal for the low/high range form.
+ElementAddress :: (state: *State) -> bool {
+    instruction := Current(state)
+    if instruction.operand_count < 3 || instruction.operand_count > 5 { return Fail(state, .Unsupported) }
+    destination := Register(state, 0, .Define)
+    base := Register(state, 1, .Use)
+    low := Register(state, 2, .Use)
+    if destination == MachineNoId || base == MachineNoId || low == MachineNoId { return false }
+    pointer := TypeOf(state, OperandAt(state, 0))
+    if pointer.kind != .Pointer || pointer.element < 0 { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    size := state.program.types[pointer.element].size
+    if size <= 0 || size > 2147483647 { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    if instruction.operand_count == 3 {
+        source_pointer := TypeOf(state, OperandAt(state, 1))
+        if source_pointer.kind != .Pointer || source_pointer.element < 0 ||
+            state.program.types[source_pointer.element].kind != .Array {
+            return Fail(state, .Unsupported, OperandId(state, 1))
+        }
+        count := state.program.types[source_pointer.element].count
+        if count >= 0 && count <= 4095 {
+            SubsImmediate(state, low, count, 1)
+            if state.diagnostic.problem != .None { return false }
+        } else {
+            MoveImmediate(state, 16, cast(u64)count, 1)
+            CompareRegister(state, low, 16, true, 1)
+            if state.diagnostic.problem != .None { return false }
+        }
+        TrapUnless(state, 3, MachineA64TrapReserved - 1)
+    } else if instruction.operand_count == 4 {
+        count := Register(state, 3, .Use)
+        if count == MachineNoId { return false }
+        CompareRegister(state, low, count, true, 1)
+        TrapUnless(state, 3, MachineA64TrapReserved - 1)
+    } else {
+        high := Register(state, 3, .Use)
+        count := Register(state, 4, .Use)
+        if high == MachineNoId || count == MachineNoId { return false }
+        CompareRegister(state, low, high, true, 1)
+        TrapUnless(state, 9, MachineA64TrapReserved - 1)
+        CompareRegister(state, high, count, true, 1)
+        TrapUnless(state, 9, MachineA64TrapReserved - 1)
+    }
+    if size == 1 {
+        AddSubRegister(state, destination, base, low, false, 1)
+    } else {
+        MoveImmediate(state, 16, cast(u64)size, 1)
+        word := cast(u64)0x80000000 | cast(u64)0x1B000000 |
+            (cast(u64)16 << 16) | (cast(u64)base << 10) |
+            (cast(u64)low << 5) | (cast(u64)destination & 31)
+        Emit(state, cast(u32)word)
+    }
+    return true
+}
+
+// Byte-wise equality loop on x10-x13 with x14/x15 as the byte holders: the
+// counts must match, then the pointers advance in lockstep until the counts
+// run out or a byte differs.
+BytesEqual :: (state: *State) -> bool {
+    if !Count(state, 8) { return false }
+    result := Register(state, 0, .Define)
+    left := Register(state, 1, .Use)
+    left_count := Register(state, 2, .Use)
+    right := Register(state, 3, .Use)
+    right_count := Register(state, 4, .Use)
+    if result != MachineAbiResultRegister(state.program.target, .General) ||
+        left != MachineAbiFormFixedRegister(state.program.target, .BytesEqual, 0) ||
+        left_count != MachineAbiFormFixedRegister(state.program.target, .BytesEqual, 1) ||
+        right != MachineAbiFormFixedRegister(state.program.target, .BytesEqual, 2) ||
+        right_count != MachineAbiFormFixedRegister(state.program.target, .BytesEqual, 3) {
+        return Fail(state, .Constraint)
+    }
+    target := state.program.target
+    clobbers: [3]s32 = .[MachineAbiFormClobberRegister(target, .BytesEqual, 0),
+        MachineAbiFormClobberRegister(target, .BytesEqual, 1),
+        MachineAbiFormClobberRegister(target, .BytesEqual, 2)]
+    for local: 5..7 {
+        operand := OperandAt(state, cast(s32)local)
+        if operand.kind != .Physical || operand.role != .Define || operand.value != MachineNoId ||
+            operand.id != clobbers[local - 5] {
+            return Fail(state, .Constraint, OperandId(state, cast(s32)local))
+        }
+    }
+    loop := state.writer.at
+    CompareRegister(state, left_count, right_count, true, 1)
+    BranchCondition(state, loop + 44, 1)
+    CompareZeroBranch(state, left_count, loop + 36, false, 1)
+    Emit(state, 0x3840154E)
+    Emit(state, 0x3840158F)
+    CompareRegister(state, 14, 15, true, 0)
+    BranchCondition(state, loop + 44, 1)
+    SubsImmediate(state, left_count, 1, 1)
+    Branch(state, loop, false)
+    Emit(state, 0x52800020)
+    Branch(state, loop + 48, false)
+    Emit(state, 0x2A1F03E0)
+    return true
+}
+
+// Calls the runtime resize helper with the saved x1-x8 argument bank.
+Resize :: (state: *State) -> bool {
+    if !Count(state, 13) { return false }
+    result := Register(state, 0, .Define)
+    pointer := Register(state, 1, .Use)
+    old_count := Register(state, 2, .Use)
+    new_count := Register(state, 3, .Use)
+    if result != MachineAbiResultRegister(state.program.target, .General) ||
+        pointer != MachineAbiFormFixedRegister(state.program.target, .Resize, 0) ||
+        old_count != MachineAbiFormFixedRegister(state.program.target, .Resize, 1) ||
+        new_count != MachineAbiFormFixedRegister(state.program.target, .Resize, 2) {
+        return Fail(state, .Constraint)
+    }
+    resize_target := state.program.target
+    clobbers: [8]s32 = .[MachineAbiFormClobberRegister(resize_target, .Resize, 0),
+        MachineAbiFormClobberRegister(resize_target, .Resize, 1),
+        MachineAbiFormClobberRegister(resize_target, .Resize, 2),
+        MachineAbiFormClobberRegister(resize_target, .Resize, 3),
+        MachineAbiFormClobberRegister(resize_target, .Resize, 4),
+        MachineAbiFormClobberRegister(resize_target, .Resize, 5),
+        MachineAbiFormClobberRegister(resize_target, .Resize, 6),
+        MachineAbiFormClobberRegister(resize_target, .Resize, 7)]
+    for local: 4..11 {
+        operand := OperandAt(state, cast(s32)local)
+        if operand.kind != .Physical || operand.role != .Define || operand.value != MachineNoId ||
+            operand.id != clobbers[local - 4] {
+            return Fail(state, .Constraint, OperandId(state, cast(s32)local))
+        }
+    }
+    runtime := OperandAt(state, 12)
+    if runtime.kind != .Immediate || runtime.role != .Use || runtime.immediate != 0 ||
+        Relocation(state, .RuntimeResize, OperandId(state, 12), true) == MachineNoId {
+        return Fail(state, .Relocation, OperandId(state, 12))
+    }
+    pointer_type := TypeOf(state, OperandAt(state, 0))
+    if pointer_type.kind != .Pointer || pointer_type.element < 0 ||
+        pointer_type.element >= state.program.types.count { return Fail(state, .Unsupported) }
+    element := state.program.types[pointer_type.element]
+    if element.size < 0 || element.size > 2147483647 { return Fail(state, .Unsupported) }
+    Emit(state, 0xA9BF0BE1)
+    Emit(state, 0xA9BF13E3)
+    Emit(state, 0xA9BF1BE5)
+    Emit(state, 0xA9BF23E7)
+    MoveRegister(state, 0, 10, 1)
+    MoveRegister(state, 1, 11, 1)
+    MoveRegister(state, 2, 12, 1)
+    MoveImmediate(state, 3, cast(u64)element.size, 0)
+    Relocate(state, .RuntimeResize, 0, -4, state.writer.at)
+    Branch(state, state.writer.at, true)
+    Emit(state, 0xA8C123E7)
+    Emit(state, 0xA8C11BE5)
+    Emit(state, 0xA8C113E3)
+    Emit(state, 0xA8C10BE1)
+    return true
+}
+
+// Computes the frame-relative address of one stack object. Register 29
+// copies through the general move; the stack pointer spelling needs the
+// ADD immediate form because register 31 reads as the zero register there.
+StackAddress :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    object := OperandAt(state, 1)
+    if object.kind != .StackObject || object.role != .Use { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    memory := StackMemory(state, object.id, OperandId(state, 1))
+    if state.diagnostic.problem != .None { return false }
+    if memory.displacement == 0 {
+        if memory.base == 29 {
+            MoveRegister(state, destination, 29, 1)
+        } else {
+            AddSubImmediate(state, destination, 31, 0, false, 1)
+        }
+    } else {
+        ComputeAddress(state, destination, memory.base, memory.displacement)
+    }
+    return true
+}
+
+// Materializes the image-relative address of one internal function.
+FunctionAddress :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    symbol := OperandAt(state, 1)
+    if symbol.kind != .Function || symbol.role != .Use { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    if Relocation(state, .FunctionAddress, OperandId(state, 1), true) == MachineNoId { return false }
+    MaterializeRelocated(state, destination, .FunctionAddress, symbol.id)
+    return true
+}
+
+// Materializes the address of one global or constant. AArch64 relocations
+// carry no symbolic addend; the loader resolves the whole address per
+// materialized halfword.
+GlobalAddress :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    symbol := OperandAt(state, 1)
+    if symbol.kind != .Global || symbol.role != .Use { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    relocation_id := state.relocation_of[state.instruction]
+    if relocation_id < 0 { return Fail(state, .Relocation, OperandId(state, 1)) }
+    machine_kind := state.program.relocations[relocation_id].kind
+    if machine_kind != .GlobalAddress && machine_kind != .ConstantAddress {
+        return Fail(state, .Relocation, OperandId(state, 1))
+    }
+    if Relocation(state, machine_kind, OperandId(state, 1), true) == MachineNoId { return false }
+    kind: MachineA64RelocationKind = ifx machine_kind == .GlobalAddress then .GlobalAddress else .ConstantAddress
+    MaterializeRelocated(state, destination, kind, symbol.id)
+    return true
+}
+
+// Decrements the fuel counter through x16/x17 and traps when it borrows.
+Fuel :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    amount := OperandAt(state, 0)
+    counter := OperandAt(state, 1)
+    if amount.kind != .Immediate || counter.kind != .Immediate || amount.immediate == 0 ||
+        amount.immediate > 9223372036854775807 { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    id := Relocation(state, .FuelCounter, OperandId(state, 1), true)
+    if id == MachineNoId { return false }
+    symbol := state.program.relocations[id].symbol
+    MaterializeRelocated(state, 16, .FuelCounter, symbol)
+    Emit(state, 0xF9400211)
+    if amount.immediate <= 4095 {
+        SubsImmediate(state, 17, cast(s64)amount.immediate, 1)
+    } else {
+        MoveImmediate(state, 11, amount.immediate, 1)
+        SubsRegister(state, 17, 17, 11, 1)
+    }
+    if state.diagnostic.problem != .None { return false }
+    Emit(state, 0xF9000211)
+    TrapUnless(state, 2, MachineA64TrapFuel)
+    return true
+}
+
+// Direct, platform, host and indirect calls. Stack arguments stage through
+// the outgoing object at sp, register arguments match the AAPCS64 banks,
+// and the hidden stack-result pointer passes in x0 for internal calls.
+Call :: (state: *State) -> bool {
+    instruction := Current(state)
+    call := state.program.calls[instruction.call]
+    indirect := instruction.opcode == .CallIndirect
+    target: s32 = MachineNoId
+    outgoing: s32 = MachineNoId
+    for local: 0..instruction.operand_count - 1 {
+        id := instruction.operand_begin + local
+        if id >= call.argument_begin && id < call.argument_begin + call.argument_count || id == call.result_operand { continue }
+        operand := state.program.operands[id]
+        if operand.kind == .StackObject && operand.class == .Stack && operand.role == .Use {
+            if outgoing != MachineNoId { return Fail(state, .Call, id) }
+            outgoing = operand.id
+        }
+    }
+    integer_ordinal: s32
+    float_ordinal: s32
+    stack_offset: s64
+    for local: 0..instruction.operand_count - 1 {
+        id := instruction.operand_begin + local
+        operand := state.program.operands[id]
+        if id == call.result_operand {
+            if operand.class == .Stack {
+                if call.calling != .Internal || operand.kind != .StackObject || operand.role != .Define {
+                    return Fail(state, .Unsupported, id)
+                }
+                destination := StackMemory(state, operand.id, id)
+                if state.diagnostic.problem != .None { return false }
+                ComputeAddress(state, 0, destination.base, destination.displacement)
+            } else if operand.class == .Float {
+                result := FloatRegister(state, local, .Define)
+                if result == MachineNoId { return false }
+                if result != MachineAbiResultRegister(state.program.target, .Float) { return Fail(state, .Constraint, id) }
+            } else {
+                result := Register(state, local, .Define)
+                if result == MachineNoId { return false }
+                if result != MachineAbiResultRegister(state.program.target, .General) { return Fail(state, .Constraint, id) }
+            }
+        } else if id >= call.argument_begin && id < call.argument_begin + call.argument_count {
+            ordinal := integer_ordinal
+            if operand.class == .Float { ordinal = float_ordinal; float_ordinal += 1 }
+            else if operand.class == .General { integer_ordinal += 1 }
+            expected := MachineAbiArgumentRegister(state.program.target, operand.class, ordinal)
+            if (operand.class == .General || operand.class == .Float) && expected >= 0 {
+                argument := ifx operand.class == .Float then FloatRegister(state, local, .Use) else Register(state, local, .Use)
+                if argument == MachineNoId { return false }
+                if argument != expected { return Fail(state, .Constraint, id) }
+                continue
+            }
+            if outgoing == MachineNoId || operand.value == MachineNoId ||
+                outgoing < 0 || outgoing >= state.program.stack_objects.count {
+                return Fail(state, .Frame, id)
+            }
+            type := TypeOf(state, operand)
+            size := StackArgumentSize(type.size)
+            if size < 0 || stack_offset > call.stack_argument_bytes - size { return Fail(state, .Frame, id) }
+            destination := AtOffset(StackMemory(state, outgoing, id), stack_offset)
+            if state.diagnostic.problem != .None { return false }
+            if operand.class == .Stack {
+                if operand.kind != .StackObject || operand.role != .Use ||
+                    !CopyMemory(state, destination, StackMemory(state, operand.id, id), type.size) { return false }
+            } else if operand.class == .General {
+                source: s32 = 15
+                if operand.kind == .Physical && operand.role == .Use { source = operand.id }
+                else if operand.kind == .StackObject && operand.role == .Use {
+                    stack_source := StackMemory(state, operand.id, id)
+                    if state.diagnostic.problem != .None { return false }
+                    A64Load(state, 15, stack_source, 8, false)
+                } else { return Fail(state, .Unsupported, id) }
+                if state.diagnostic.problem != .None { return false }
+                A64Store(state, destination, source, 8)
+            } else if operand.class == .Float {
+                if operand.kind == .Physical && operand.role == .Use {
+                    if !A64FloatRegister(operand.id) { return Fail(state, .Unsupported, id) }
+                    A64FloatStore(state, destination, operand.id, type.size)
+                } else if operand.kind == .StackObject && operand.role == .Use {
+                    if !CopyMemory(state, destination, StackMemory(state, operand.id, id), type.size) { return false }
+                } else { return Fail(state, .Unsupported, id) }
+            } else { return Fail(state, .Unsupported, id) }
+            stack_offset += size
+        } else {
+            if operand.kind == .StackObject && operand.id == outgoing { continue }
+            if target != MachineNoId { return Fail(state, .Unsupported, id) }
+            target = id
+            if indirect {
+                if Register(state, local, .Use) == MachineNoId { return false }
+            } else if operand.kind != .Function || operand.role != .Use {
+                return Fail(state, .Unsupported, id)
+            }
+        }
+    }
+    if stack_offset != call.stack_argument_bytes { return Fail(state, .Frame) }
+    if target == MachineNoId { return Fail(state, .Call) }
+    if indirect {
+        Emit(state, cast(u32)(cast(u64)0xD63F0000 | (cast(u64)state.program.operands[target].id << 5)))
+        return true
+    }
+    machine_kind := MachineRelocationKind.FunctionCall
+    image_kind: MachineA64RelocationKind = .Invalid
+    if call.calling == .Platform {
+        machine_kind = .PlatformService
+        image_kind = .PlatformService
+    } else if call.calling == .Host {
+        machine_kind = .HostCapability
+        image_kind = .HostCapability
+    }
+    if Relocation(state, machine_kind, target, true) == MachineNoId { return false }
+    if call.calling == .Internal {
+        Branch(state, FunctionTarget(state, state.program.operands[target].id), true)
+    } else {
+        Branch(state, state.writer.at, true)
+        Relocate(state, image_kind, state.program.operands[target].id, -4, state.writer.at - 4)
+    }
+    return true
+}
+
+// Falls through when TARGET is the next block, else branches directly.
+JumpTo :: (state: *State, target: s32) {
+    if target != NextBlock(state) { Branch(state, BlockTarget(state, target), false) }
+}
+
+// Conditional branches: a value condition uses CBZ/CBNZ directly and a
+// flags condition uses the recorded compare, inverting the raw condition
+// when the fall-through edge is the taken one.
+Branch :: (state: *State) -> bool {
+    instruction := Current(state)
+    taken := state.program.edges[instruction.edge_begin].target
+    other := state.program.edges[instruction.edge_begin + 1].target
+    next := NextBlock(state)
+    if instruction.operand_count == 1 && instruction.flags_use == MachineNoId {
+        value := Register(state, 0, .Use)
+        if value == MachineNoId { return false }
+        selector := Selector(state, TypeIdOf(state, OperandAt(state, 0)))
+        if other == next {
+            CompareZeroBranch(state, value, BlockTarget(state, taken), true, selector)
+        } else if taken == next {
+            CompareZeroBranch(state, value, BlockTarget(state, other), true, selector)
+        } else {
+            CompareZeroBranch(state, value, BlockTarget(state, taken), true, selector)
+            Branch(state, BlockTarget(state, other), false)
+        }
+        return true
+    }
+    if instruction.operand_count != 0 { return Fail(state, .Unsupported) }
+    condition := FlagsCondition(state)
+    if condition == MachineNoId { return false }
+    if other == next {
+        BranchCondition(state, BlockTarget(state, taken), condition)
+    } else if taken == next {
+        BranchCondition(state, BlockTarget(state, other), condition ^ 1)
+    } else {
+        BranchCondition(state, BlockTarget(state, taken), condition)
+        Branch(state, BlockTarget(state, other), false)
+    }
+    return true
+}
+
+// Stores or restores every allocated callee-saved general register home.
+CalleeSaves :: (state: *State, restore: bool) -> bool {
+    function := state.program.functions[state.function]
+    for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
+        object := state.program.stack_objects[object_id]
+        if object.kind != .CalleeSave { continue }
+        if !Spend(state, 1) { return false }
+        register := object.value % MachineBankWidth
+        if object.value / MachineBankWidth != 0 || !A64Register(register) { return Fail(state, .Frame) }
+        memory := StackMemory(state, object_id, MachineNoId)
+        if state.diagnostic.problem != .None { return false }
+        if restore { A64Load(state, register, memory, 8, false) }
+        else { A64Store(state, memory, register, 8) }
+    }
+    return true
+}
+
+// Returns through the caller's x30 after the hidden stack-result copy and
+// the exact reversal of the prologue.
+Return :: (state: *State) -> bool {
+    instruction := Current(state)
+    if instruction.operand_count > 1 { return Fail(state, .Unsupported) }
+    if instruction.operand_count == 1 {
+        operand := OperandAt(state, 0)
+        if operand.class == .Stack {
+            function := state.program.functions[state.function]
+            if operand.kind != .StackObject || operand.role != .Use ||
+                function.result_type < 0 || function.result_type >= state.program.types.count {
+                return Fail(state, .Unsupported, OperandId(state, 0))
+            }
+            address: s32 = MachineNoId
+            for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
+                if state.program.stack_objects[object_id].kind == .ResultAddress {
+                    if address != MachineNoId { return Fail(state, .Frame) }
+                    address = object_id
+                }
+            }
+            size := state.program.types[function.result_type].size
+            if address == MachineNoId || state.program.stack_objects[operand.id].size != size {
+                return Fail(state, .Frame, OperandId(state, 0))
+            }
+            A64Load(state, 0, StackMemory(state, address, OperandId(state, 0)), 8, false)
+            if state.diagnostic.problem != .None { return false }
+            source := StackMemory(state, operand.id, OperandId(state, 0))
+            if state.diagnostic.problem != .None { return false }
+            pointer: A64Memory = .{base = 0, displacement = 0}
+            if !CopyMemory(state, pointer, source, size) { return false }
+        } else {
+            if operand.class == .Float {
+                value := FloatRegister(state, 0, .Use)
+                if value == MachineNoId { return false }
+                if value != MachineAbiResultRegister(state.program.target, .Float) { return Fail(state, .Constraint, OperandId(state, 0)) }
+            } else {
+                value := Register(state, 0, .Use)
+                if value == MachineNoId { return false }
+                if value != MachineAbiResultRegister(state.program.target, .General) { return Fail(state, .Constraint, OperandId(state, 0)) }
+            }
+        }
+    }
+    if !CalleeSaves(state, true) { return false }
+    size := ReservedSize(state.program.frames[state.function])
+    if size < 0 { return Fail(state, .Frame) }
+    while size > 0 {
+        step := ifx size > 4095 then cast(s64)4095 else size
+        AddSubImmediate(state, 31, 31, step, false, 1)
+        size -= step
+    }
+    Emit(state, 0xA8C17BFD)
+    ReturnFrom(state)
+    return true
+}
+
+// Traps with the caller's immediate code.
+Trap :: (state: *State) -> bool {
+    if !Count(state, 1) { return false }
+    code := OperandAt(state, 0)
+    if code.kind != .Immediate || code.immediate >= MachineA64TrapReserved {
+        return Fail(state, .Unsupported, OperandId(state, 0))
+    }
+    TrapSequence(state, code.immediate)
+    return true
+}
+
+// One instruction: the shared opcode dispatch, mirroring the x86-64
+// encoder form by form.
+Instruction :: (state: *State) -> bool {
+    instruction := Current(state)
+    op := instruction.opcode
+    if !Spend(state, 1 + cast(s64)instruction.operand_count) { return false }
+    if op == .Move || op == .Spill || op == .Reload { return Transfer(state, instruction) }
+    ok := false
+    if op == .MoveImmediate { ok = MoveImmediate(state) }
+    else if op == .IntegerAdd || op == .IntegerSubtract || op == .IntegerMultiply ||
+        op == .IntegerAnd || op == .IntegerOr || op == .IntegerXor { ok = Binary(state, op) }
+    else if op == .FloatAdd || op == .FloatSubtract || op == .FloatMultiply ||
+        op == .FloatDivide { ok = FloatBinary(state, op) }
+    else if op == .IntegerNegate || op == .IntegerNot { ok = Unary(state, op) }
+    else if op == .FloatNegate { ok = FloatUnary(state) }
+    else if op == .IntegerDivide || op == .IntegerRemainder { ok = Divide(state, op) }
+    else if op == .ShiftLeft || op == .ShiftRight { ok = Shift(state, op) }
+    else if op == .Compare { ok = Compare(state) }
+    else if op == .SetCondition { ok = SetCondition(state) }
+    else if op == .Convert || op == .Bitcast { ok = Convert(state, op) }
+    else if op == .Load { ok = Load(state) }
+    else if op == .Store { ok = Store(state) }
+    else if op == .AggregateBuild { ok = AggregateBuild(state) }
+    else if op == .AggregateExtract { ok = AggregateExtract(state) }
+    else if op == .AggregateInsert { ok = AggregateInsert(state) }
+    else if op == .FieldAddress { ok = FieldAddress(state) }
+    else if op == .ElementAddress { ok = ElementAddress(state) }
+    else if op == .BytesEqual { ok = BytesEqual(state) }
+    else if op == .Resize { ok = Resize(state) }
+    else if op == .StackAddress { ok = StackAddress(state) }
+    else if op == .FunctionAddress { ok = FunctionAddress(state) }
+    else if op == .GlobalAddress { ok = GlobalAddress(state) }
+    else if op == .Fuel { ok = Fuel(state) }
+    else if op == .CallDirect || op == .CallIndirect { ok = Call(state) }
+    else if op == .Jump {
+        ok = Count(state, 0)
+        if ok { JumpTo(state, state.program.edges[instruction.edge_begin].target) }
+    }
+    else if op == .Branch { ok = Branch(state) }
+    else if op == .Return { ok = Return(state) }
+    else if op == .Trap { ok = Trap(state) }
+    else if op == .Unreachable {
+        ok = Count(state, 0)
+        if ok { TrapSequence(state, MachineA64TrapUnreachable) }
+    }
+    else { return Fail(state, .Unsupported) }
+    if op != .Compare { state.flags_value = MachineNoId }
+    return ok
+}
+
+// The function prologue: save x30 with the frame pointer in one stp, copy
+// the stack pointer into x29, reserve the frame in steps of at most 4095,
+// store callee saves and result-address homes, then jump to the entry.
+Prologue :: (state: *State) -> bool {
+    frame := state.program.frames[state.function]
+    function := state.program.functions[state.function]
+    if frame.dynamic_allocation || frame.callee_saved_float != 0 { return Fail(state, .Frame) }
+    if frame.size < 0 || frame.size > 2147483647 { return Fail(state, .Frame) }
+    Emit(state, 0xA9BF7BFD)
+    AddSubImmediate(state, 29, 31, 0, false, 1)
+    size := ReservedSize(frame)
+    if size < 0 { return Fail(state, .Frame) }
+    while size > 0 {
+        step := ifx size > 4095 then cast(s64)4095 else size
+        AddSubImmediate(state, 31, 31, step, true, 1)
+        size -= step
+    }
+    if !CalleeSaves(state, false) { return false }
+    result_addresses: s32
+    for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
+        object := state.program.stack_objects[object_id]
+        if object.kind != .ResultAddress { continue }
+        result_addresses += 1
+        A64Store(state, StackMemory(state, object_id, MachineNoId), 0, 8)
+    }
+    result_class := MachineRegisterClass.Invalid
+    if function.result_type >= 0 && function.result_type < state.program.types.count &&
+        state.program.types[function.result_type].kind != .Void {
+        result_class = state.program.types[function.result_type].class
+    }
+    if result_addresses > 1 || (result_addresses == 1) != (result_class == .Stack) {
+        return Fail(state, .Frame)
+    }
+    if !Place(state, state.function_body, state.function) { return false }
+    if function.entry != function.block_begin { Branch(state, BlockTarget(state, function.entry), false) }
+    return true
+}
+
+// The shared two-pass walk: measure, then write into an exactly sized
+// buffer, requiring identical offsets and relocation counts.
+Pass :: (state: *State) -> bool {
+    program := state.program
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        state.function = cast(s32)function_index
+        state.block = MachineNoId
+        state.instruction = MachineNoId
+        function := program.functions[function_index]
+        if function.calling != .Internal {
+            if !Spend(state, 1) || !Place(state, state.function_begin, function_index) ||
+                !Place(state, state.function_body, function_index) ||
+                !Place(state, state.function_end, function_index) { return false }
+            continue
+        }
+        if !Spend(state, 1) || !Place(state, state.function_begin, function_index) || !Prologue(state) { return false }
+        if state.writer.failed { return Fail(state, .Limit) }
+        for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+            state.block = block_id
+            state.instruction = MachineNoId
+            state.flags_value = MachineNoId
+            if !Spend(state, 1) || !Place(state, state.block_begin, block_id) { return false }
+            block := program.blocks[block_id]
+            for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+                state.instruction = instruction_id
+                if !Place(state, state.instruction_begin, instruction_id) || !Instruction(state) { return false }
+                if state.writer.failed { return Fail(state, .Limit) }
+                if !Place(state, state.instruction_end, instruction_id) { return false }
+            }
+        }
+        state.block = MachineNoId
+        state.instruction = MachineNoId
+        if !Place(state, state.function_end, function_index) { return false }
+    }
+    if state.consumed != program.relocations.count { return Fail(state, .Relocation) }
+    return true
+}
+
+// The shared diagnostic constructor for Process and the exports.
+Failure :: (problem: MachineProblem) -> MachineA64Result {
+    result := MachineA64Result.{diagnostic = NoDiagnostic()}
+    result.diagnostic.problem = problem
+    return result
+}
+
+Copy :: (destination: *Vec(s64), source: []s64) -> bool {
+    if !VecResizeBounded(<<destination, source.count, source.count) { return false }
+    for index: cast(s64)0..source.count - 1 { (<<destination)[index] = source[index] }
+    return true
+}
+
+AlignValue :: (value: s64, alignment: s32) -> s64 {
+    return (value + alignment - 1) & ~cast(s64)(alignment - 1)
+}
+
+PutSectionLittle :: (bytes: []u8, at: s64, value: u64, count: s64) {
+    for index: cast(s64)0..count - 1 {
+        bytes[at + index] = cast(u8)((value >> cast(u64)(index * 8)) & 255)
+    }
+}
+
+// Writes one global's initializer bytes into its image section.
+WriteGlobalImage :: (program: MachineProgram, global_id: s32, bytes: []u8, at: s64) -> bool {
+    global := program.globals[global_id]
+    if global.constant < 0 { return global.writable }
+    constant := program.constants[global.constant]
+    size := program.types[global.type].size
+    if constant.bytes_count == 0 {
+        if size > 8 { return false }
+        PutSectionLittle(bytes, at, constant.bits, size)
+        return true
+    }
+    if constant.bytes_count != size { return false }
+    for index: cast(s64)0..size - 1 {
+        bytes[at + index] = program.data[constant.bytes_begin + index]
+    }
+    return true
+}
+
+// Maps encoder relocations onto image relocations.
+ImageRelocationKind :: (kind: MachineA64RelocationKind) -> Image.MachineRelocationKind {
+    if kind == .FunctionAddress { return .FunctionAddress }
+    if kind == .GlobalAddress { return .GlobalAddress }
+    if kind == .ConstantAddress { return .ConstantAddress }
+    if kind == .FuelCounter { return .FuelCounter }
+    if kind == .TrapHandler { return .RuntimeTrap }
+    if kind == .PlatformService { return .PlatformService }
+    if kind == .HostCapability { return .HostCapability }
+    if kind == .RuntimeResize { return .RuntimeResize }
+    return .Invalid
+}
+
+// Symbolic addresses materialize as halfword fields; direct calls, trap
+// dispatch and the runtime resize call patch whole words.
+ImageRelocationWidth :: (kind: MachineA64RelocationKind) -> s32 {
+    if kind == .GlobalAddress || kind == .ConstantAddress ||
+        kind == .FunctionAddress || kind == .FuelCounter { return 2 }
+    return 4
+}
+
+// Finds the machine operand of the source relocation matching the image
+// relocation's kind, or any relocation for the runtime trap handler.
+ImageOperand :: (program: MachineProgram, relocation: MachineA64Relocation,
+    kind: Image.MachineRelocationKind) -> s32 {
+    for source: program.relocations {
+        if source.instruction != relocation.instruction || source.symbol != relocation.symbol { continue }
+        if cast(s32)source.kind == cast(s32)kind ||
+            kind == .RuntimeTrap && source.kind != .Invalid { return source.operand }
+    }
+    return MachineNoId
+}
+
+// Builds the runtime image: code, aligned constant and data sections with
+// the fuel counter at the end of data, initializers, and relocations.
+BuildMachineImage :: (program: MachineProgram, output: *MachineA64Owner,
+    limits: MachineLimits) -> bool {
+    owner := *output.machine_image
+    code_count := output.code.count
+    globals := program.globals.count
+    functions := program.functions.count
+    if !VecResizeBounded(owner.code, code_count, limits.bytes) ||
+        !VecResizeBounded(owner.function_offsets, functions, limits.bytes) ||
+        !VecResizeBounded(owner.global_offsets, globals, limits.bytes) ||
+        !VecResizeBounded(owner.constant_offsets, globals, limits.bytes) ||
+        !VecResizeBounded(owner.initializers, program.initializers.count, limits.bytes) ||
+        !VecResizeBounded(owner.relocations, output.relocations.count, limits.bytes) {
+        return false
+    }
+    for index: cast(s64)0..code_count - 1 { owner.code[index] = output.code[index] }
+    for index: cast(s64)0..functions - 1 {
+        owner.function_offsets[index] = -1
+        if program.functions[index].calling == .Internal {
+            owner.function_offsets[index] = output.functions[index].begin
+        }
+    }
+    constants_size: s64 = 0
+    data_size: s64 = 0
+    for index: cast(s64)0..globals - 1 {
+        global := program.globals[index]
+        type := program.types[global.type]
+        if type.size <= 0 || type.alignment <= 0 { return false }
+        owner.global_offsets[index] = -1
+        owner.constant_offsets[index] = -1
+        if global.writable {
+            data_size = AlignValue(data_size, type.alignment)
+            owner.global_offsets[index] = data_size
+            data_size += type.size
+        } else {
+            constants_size = AlignValue(constants_size, type.alignment)
+            owner.constant_offsets[index] = constants_size
+            constants_size += type.size
+        }
+        if data_size < 0 || constants_size < 0 || data_size > limits.bytes || constants_size > limits.bytes {
+            return false
+        }
+    }
+    fuel := AlignValue(data_size, 8)
+    if fuel > limits.bytes - 16 { return false }
+    data_size = AlignValue(fuel + 12, 8)
+    if !VecResizeBounded(owner.constants, constants_size, limits.bytes) ||
+        !VecResizeBounded(owner.data, data_size, limits.bytes) { return false }
+    for index: cast(s64)0..globals - 1 {
+        global := program.globals[index]
+        at := ifx global.writable then owner.global_offsets[index] else owner.constant_offsets[index]
+        destination := ifx global.writable then owner.data[:] else owner.constants[:]
+        if !WriteGlobalImage(program, cast(s32)index, destination, at) { return false }
+    }
+    for index: cast(s64)0..program.initializers.count - 1 {
+        owner.initializers[index] = program.initializers[index]
+    }
+    for index: cast(s64)0..output.relocations.count - 1 {
+        relocation := output.relocations[index]
+        kind := ImageRelocationKind(relocation.kind)
+        if kind == .Invalid { return false }
+        owner.relocations[index] = .{section = .Code, offset = relocation.offset,
+            width = ImageRelocationWidth(relocation.kind),
+            instruction = relocation.instruction,
+            operand = ImageOperand(program, relocation, kind), kind = kind,
+            symbol = relocation.symbol, addend = relocation.addend}
+    }
+    stack_bytes: s64 = 16
+    for frame: program.frames { if frame.size > stack_bytes { stack_bytes = frame.size } }
+    stack_bytes = AlignValue(stack_bytes, 16)
+    owner.image = .{version = MachineImageVersion, target = program.target,
+        runtime_abi = .Revision1,
+        code = .{bytes = owner.code[:], alignment = 16},
+        constants = .{bytes = owner.constants[:], alignment = 16},
+        data = .{bytes = owner.data[:], alignment = 8},
+        function_offsets = owner.function_offsets[:], global_offsets = owner.global_offsets[:],
+        constant_offsets = owner.constant_offsets[:], initializers = owner.initializers[:],
+        relocations = owner.relocations[:], entry = program.entry,
+        stack_alignment = 16, stack_bytes = stack_bytes, fuel_offset = fuel,
+        stack_limit_offset = -1,
+        host_symbols = cast(s32)functions, platform_symbols = cast(s32)functions,
+        trap_symbols = 1}
+    if MachineImageValidate(owner.image).problem != .None { return false }
+    owner.valid = true
+    return true
+}
+
+// Verifies and measures PROGRAM; with an OUTPUT, writes and publishes the
+// image there. Every diagnostic from verification, form checks or measuring
+// returns before OUTPUT is touched.
+Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineA64Owner) -> MachineA64Result {
+    verified := MachineVerifyAllocated(program, limits)
+    if verified.problem != .None { return .{diagnostic = verified} }
+    if (program.target.arch != .AArch64 || program.target.abi != .Aapcs64) ||
+        (program.target.os != .Linux && program.target.os != .Android) {
+        return Failure(.UnsupportedTarget)
+    }
+    layout: Layout
+    defer LayoutFree(*layout)
+    if !Filled(*layout.function_begin, program.functions.count) ||
+        !Filled(*layout.function_body, program.functions.count) ||
+        !Filled(*layout.function_end, program.functions.count) ||
+        !Filled(*layout.block_begin, program.blocks.count) ||
+        !Filled(*layout.instruction_begin, program.instructions.count) ||
+        !Filled(*layout.instruction_end, program.instructions.count) ||
+        !VecResizeBounded(layout.relocation_of, program.instructions.count, program.instructions.count) {
+        return Failure(.Allocation)
+    }
+    for index: cast(s64)0..program.instructions.count - 1 { layout.relocation_of[index] = MachineNoId }
+    for relocation_id: cast(s64)0..program.relocations.count - 1 {
+        relocation := program.relocations[relocation_id]
+        if layout.relocation_of[relocation.instruction] != MachineNoId {
+            result := Failure(.Relocation)
+            result.diagnostic.instruction = relocation.instruction
+            result.diagnostic.operand = relocation.operand
+            return result
+        }
+        layout.relocation_of[relocation.instruction] = cast(s32)relocation_id
+    }
+    limit := limits.bytes
+    if limit > CodeLimit { limit = CodeLimit }
+    state := State.{program = program, writer = .{limit = limit}, diagnostic = NoDiagnostic(),
+        remaining = limits.work,
+        function_begin = layout.function_begin[:], function_body = layout.function_body[:],
+        function_end = layout.function_end[:], block_begin = layout.block_begin[:],
+        instruction_begin = layout.instruction_begin[:], instruction_end = layout.instruction_end[:],
+        relocation_of = layout.relocation_of[:],
+        function = MachineNoId, block = MachineNoId, instruction = MachineNoId,
+        flags_value = MachineNoId}
+    if !Pass(*state) { return .{diagnostic = state.diagnostic, work = state.used} }
+    measured := MachineA64Result.{diagnostic = state.diagnostic, code_bytes = state.writer.at,
+        relocations = state.relocation_count, work = state.used}
+    if output == null { return measured }
+
+    MachineA64Free(output)
+    if !VecResizeBounded(output.code, measured.code_bytes, measured.code_bytes) ||
+        !VecResizeBounded(output.relocations, measured.relocations, measured.relocations) ||
+        !VecResizeBounded(output.functions, program.functions.count, program.functions.count) ||
+        !VecResizeBounded(output.instructions, program.instructions.count, program.instructions.count) ||
+        !Copy(*output.blocks, layout.block_begin[:]) {
+        MachineA64Free(output)
+        return Failure(.Allocation)
+    }
+    state.emit = true
+    state.writer = .{output = output.code[:], limit = limit}
+    state.relocations = output.relocations[:]
+    state.relocation_count = 0
+    state.consumed = 0
+    state.remaining = limits.work
+    state.used = 0
+    if !Pass(*state) || state.writer.at != measured.code_bytes || state.relocation_count != measured.relocations {
+        result := MachineA64Result.{diagnostic = state.diagnostic}
+        if result.diagnostic.problem == .None { result = Failure(.Instruction) }
+        MachineA64Free(output)
+        return result
+    }
+    for index: cast(s64)0..program.functions.count - 1 {
+        output.functions[index] = .{begin = layout.function_begin[index], body = layout.function_body[index],
+            end = layout.function_end[index]}
+    }
+    for index: cast(s64)0..program.instructions.count - 1 {
+        output.instructions[index] = .{begin = layout.instruction_begin[index], end = layout.instruction_end[index]}
+    }
+    output.image = .{code = output.code[:], functions = output.functions[:], blocks = output.blocks[:],
+        instructions = output.instructions[:], relocations = output.relocations[:], entry = program.entry}
+    if !BuildMachineImage(program, output, limits) {
+        MachineA64Free(output)
+        return Failure(.Allocation)
+    }
+    output.valid = true
+    return measured
+}
+
+#scope_export
+
+MachineA64Free :: (owner: *MachineA64Owner) {
+    if owner == null { return }
+    owner.valid = false
+    owner.image = .{entry = MachineNoId}
+    VecFree(owner.code)
+    VecFree(owner.functions)
+    VecFree(owner.blocks)
+    VecFree(owner.instructions)
+    VecFree(owner.relocations)
+    MachineImageFree(*owner.machine_image)
+}
+
+// A borrowed view of a published image, valid until the next Encode or Free.
+MachineA64View :: (owner: *MachineA64Owner) -> MachineA64Image {
+    if owner == null || !owner.valid { return .{entry = MachineNoId} }
+    return owner.image
+}
+
+MachineA64MachineView :: (owner: *MachineA64Owner) -> MachineImage {
+    if owner == null || !owner.valid || !owner.machine_image.valid {
+        return .{version = MachineImageVersion, entry = MachineNoId}
+    }
+    return owner.machine_image.image
+}
+
+MachineA64Validate :: (program: MachineProgram, limits: MachineLimits) -> MachineDiagnostic {
+    return Process(program, limits, null).diagnostic
+}
+
+MachineA64Measure :: (program: MachineProgram, limits: MachineLimits) -> MachineA64Result {
+    return Process(program, limits, null)
+}
+
+// Publishes the encoded image in OUTPUT. A diagnostic from verification,
+// form checks or measuring leaves OUTPUT exactly as it was.
+MachineA64Encode :: (program: MachineProgram, limits: MachineLimits, output: *MachineA64Owner) -> MachineDiagnostic {
+    if output == null { return Failure(.Owner).diagnostic }
+    return Process(program, limits, output).diagnostic
+}

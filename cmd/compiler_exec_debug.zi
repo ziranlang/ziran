@@ -1,0 +1,278 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Vectors :: #import "std/vec"
+
+// The optional ZX debug attachment (section 0x80000001). The required program
+// section is stripped of source texts and origins; this attachment carries
+// them, bound to that section's SHA-256 identity. A reader restores them into
+// a copy of the verified program and verifies the copy again, so a stale,
+// truncated or inconsistent attachment is rejected and never changes the
+// program that runs.
+//
+// Little-endian layout:
+//   u32 magic "ZXDB"; u32 version
+//   [32]u8 program section identity
+//   u32 sources; each: u32 length, bytes
+//   u32 origins; each: s32 file, line, column, end_line, end_column;
+//       s64 begin, end; s32 parent
+//   u32 functions, equal to the program's; each: s32 origin,
+//       u32 instructions in block order, equal to the function's,
+//       then one s32 origin per instruction
+
+ZxDebugMagic :: 0x4244585a
+ZxDebugVersion :: 1
+
+ZxDebugProblem :: enum s32 { None; Absent; Format; Identity; Shape; Verify; Allocation; Limit }
+
+ZxDebugOwner :: struct {
+    valid: bool
+    program: LirProgram
+    text: Vec(u8)
+    sources: Vec(string)
+    origins: Vec(LirOrigin)
+    functions: Vec(LirFunction)
+    blocks: Vec(LirBlock)
+    instructions: Vec(LirInstruction)
+}
+
+#scope_file
+
+OriginBytes :: 44
+
+Put :: (output: *Vec(u8), value: u64, count: s64) -> bool {
+    for at: cast(s64)0..count - 1 {
+        if !VecPush(<<output, cast(u8)((value >> cast(u64)(at * 8)) & 255)) { return false }
+    }
+    return true
+}
+
+PutBytes :: (output: *Vec(u8), bytes: string) -> bool {
+    for byte: bytes { if !VecPush(<<output, byte) { return false } }
+    return true
+}
+
+Cursor :: struct { input: string; at: s64; failed: bool }
+
+Take :: (cursor: *Cursor, count: s64) -> u64 {
+    if cursor.failed || count < 0 || cursor.at > cursor.input.count - count {
+        cursor.failed = true
+        return 0
+    }
+    value: u64
+    for at: cast(s64)0..count - 1 {
+        value |= cast(u64)cursor.input[cursor.at + at] << cast(u64)(at * 8)
+    }
+    cursor.at += count
+    return value
+}
+
+TakeS32 :: (cursor: *Cursor) -> s32 {
+    bits := cast(u32)Take(cursor, 4)
+    return cast(s32)bits
+}
+
+TakeS64 :: (cursor: *Cursor) -> s64 { return cast(s64)Take(cursor, 8) }
+
+// A count of items of at least WIDTH bytes each that the rest of the
+// attachment can hold, so a hostile count cannot reserve unbacked storage.
+TakeCount :: (cursor: *Cursor, width: s64) -> s64 {
+    count := cast(s64)Take(cursor, 4)
+    if cursor.failed || count > (cursor.input.count - cursor.at) / width {
+        cursor.failed = true
+        return 0
+    }
+    return count
+}
+
+Skip :: (cursor: *Cursor, count: s64) {
+    if cursor.failed || count < 0 || cursor.at > cursor.input.count - count {
+        cursor.failed = true
+        return
+    }
+    cursor.at += count
+}
+
+InstructionCount :: (function: LirFunction) -> s64 {
+    count: s64
+    for block: function.blocks { count += block.instructions.count }
+    return count
+}
+
+Fail :: (owner: *ZxDebugOwner, problem: ZxDebugProblem) -> ZxDebugProblem {
+    ZxDebugFree(owner)
+    return problem
+}
+
+#scope_export
+
+// Appends the attachment for PROGRAM, whose stripped program section has the
+// 32-byte IDENTITY. False only when OUTPUT cannot grow.
+ZxDebugEncode :: (program: LirProgram, identity: string, output: *Vec(u8)) -> bool {
+    if identity.count != 32 || !Put(output, ZxDebugMagic, 4) ||
+        !Put(output, ZxDebugVersion, 4) || !PutBytes(output, identity) ||
+        !Put(output, cast(u64)program.sources.count, 4) { return false }
+    for source: program.sources {
+        if !Put(output, cast(u64)source.count, 4) || !PutBytes(output, source) { return false }
+    }
+    if !Put(output, cast(u64)program.origins.count, 4) { return false }
+    for origin: program.origins {
+        if !Put(output, cast(u64)origin.file, 4) || !Put(output, cast(u64)origin.line, 4) ||
+            !Put(output, cast(u64)origin.column, 4) || !Put(output, cast(u64)origin.end_line, 4) ||
+            !Put(output, cast(u64)origin.end_column, 4) || !Put(output, cast(u64)origin.begin, 8) ||
+            !Put(output, cast(u64)origin.end, 8) || !Put(output, cast(u64)origin.parent, 4) {
+            return false
+        }
+    }
+    if !Put(output, cast(u64)program.functions.count, 4) { return false }
+    for function: program.functions {
+        if !Put(output, cast(u64)function.origin, 4) ||
+            !Put(output, cast(u64)InstructionCount(function), 4) { return false }
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if !Put(output, cast(u64)instruction.origin, 4) { return false }
+            }
+        }
+    }
+    return true
+}
+
+ZxDebugFree :: (owner: *ZxDebugOwner) {
+    if owner == null { return }
+    owner.valid = false
+    owner.program = .{version = LirVersion, entry = LirNoId}
+    VecFree(owner.text)
+    VecFree(owner.sources)
+    VecFree(owner.origins)
+    VecFree(owner.functions)
+    VecFree(owner.blocks)
+    VecFree(owner.instructions)
+}
+
+// Restores ATTACHMENT's sources and origins into a copy of the stripped,
+// verified PROGRAM whose program section has IDENTITY. The copy borrows
+// PROGRAM's other tables, so PROGRAM must outlive OWNER's view.
+ZxDebugApply :: (owner: *ZxDebugOwner, program: LirProgram, attachment: string,
+    identity: string, limits: LirLimits) -> ZxDebugProblem {
+    if owner == null { return .Allocation }
+    ZxDebugFree(owner)
+    if attachment.count == 0 { return .Absent }
+    if attachment.count > limits.bytes { return .Limit }
+    if program.sources.count != 0 || program.origins.count != 0 { return .Shape }
+    cursor := Cursor.{input = attachment}
+    magic := Take(*cursor, 4)
+    version := Take(*cursor, 4)
+    if cursor.failed || magic != ZxDebugMagic || version != ZxDebugVersion ||
+        cursor.at > attachment.count - 32 { return .Format }
+    if identity.count != 32 || attachment[cursor.at:cursor.at + 32] != identity { return .Identity }
+    cursor.at += 32
+
+    // Size the text once, so the source views never move.
+    sources_at := cursor.at
+    source_count := TakeCount(*cursor, 4)
+    text_bytes: s64
+    for at: cast(s64)0..source_count - 1 {
+        length := TakeCount(*cursor, 1)
+        Skip(*cursor, length)
+        text_bytes += length
+    }
+    if cursor.failed { return .Format }
+    if !VecResizeBounded(owner.text, text_bytes, text_bytes) ||
+        !VecResizeBounded(owner.sources, source_count, source_count) {
+        return Fail(owner, .Allocation)
+    }
+    cursor.at = sources_at
+    unused TakeCount(*cursor, 4)
+    text_at: s64
+    for at: cast(s64)0..source_count - 1 {
+        length := TakeCount(*cursor, 1)
+        if cursor.failed { return Fail(owner, .Format) }
+        for index: cast(s64)0..length - 1 { owner.text[text_at + index] = attachment[cursor.at + index] }
+        cursor.at += length
+        owner.sources[at] = TextView(VecSlice(owner.text, text_at, text_at + length))
+        text_at += length
+    }
+
+    origin_count := TakeCount(*cursor, OriginBytes)
+    if cursor.failed { return Fail(owner, .Format) }
+    if !VecResizeBounded(owner.origins, origin_count, origin_count) { return Fail(owner, .Allocation) }
+    for at: cast(s64)0..origin_count - 1 {
+        origin: LirOrigin
+        origin.file = TakeS32(*cursor)
+        origin.line = TakeS32(*cursor)
+        origin.column = TakeS32(*cursor)
+        origin.end_line = TakeS32(*cursor)
+        origin.end_column = TakeS32(*cursor)
+        origin.begin = TakeS64(*cursor)
+        origin.end = TakeS64(*cursor)
+        origin.parent = TakeS32(*cursor)
+        owner.origins[at] = origin
+    }
+
+    blocks: s64
+    instructions: s64
+    for function: program.functions {
+        blocks += function.blocks.count
+        instructions += InstructionCount(function)
+    }
+    function_count := cast(s64)Take(*cursor, 4)
+    if cursor.failed { return Fail(owner, .Format) }
+    if function_count != program.functions.count { return Fail(owner, .Shape) }
+    if !VecResizeBounded(owner.functions, function_count, function_count) ||
+        !VecResizeBounded(owner.blocks, blocks, blocks) ||
+        !VecResizeBounded(owner.instructions, instructions, instructions) {
+        return Fail(owner, .Allocation)
+    }
+    block_at: s64
+    instruction_at: s64
+    for function, function_index: program.functions {
+        copy := function
+        copy.origin = TakeS32(*cursor)
+        count := cast(s64)Take(*cursor, 4)
+        if cursor.failed { return Fail(owner, .Format) }
+        if count != InstructionCount(function) { return Fail(owner, .Shape) }
+        begin := block_at
+        for block: function.blocks {
+            block_copy := block
+            instruction_begin := instruction_at
+            for instruction: block.instructions {
+                instruction_copy := instruction
+                instruction_copy.origin = TakeS32(*cursor)
+                owner.instructions[instruction_at] = instruction_copy
+                instruction_at += 1
+            }
+            block_copy.instructions = VecSlice(owner.instructions, instruction_begin, instruction_at)
+            owner.blocks[block_at] = block_copy
+            block_at += 1
+        }
+        copy.blocks = VecSlice(owner.blocks, begin, block_at)
+        owner.functions[function_index] = copy
+    }
+    if cursor.failed || cursor.at != attachment.count { return Fail(owner, .Format) }
+    restored := program
+    restored.sources = owner.sources[:]
+    restored.origins = owner.origins[:]
+    restored.functions = owner.functions[:]
+    diagnostic := Verify.LirVerify(restored, limits)
+    if diagnostic.problem != .None {
+        return Fail(owner, ifx diagnostic.problem == .Limit then ZxDebugProblem.Limit else ZxDebugProblem.Verify)
+    }
+    owner.program = restored
+    owner.valid = true
+    return .None
+}
+
+ZxDebugProgram :: (owner: *ZxDebugOwner) -> LirProgram {
+    if owner == null || !owner.valid { return .{version = LirVersion, entry = LirNoId} }
+    return owner.program
+}
+
+ZxDebugProblemName :: (problem: ZxDebugProblem) -> string {
+    if problem == .None { return "none" }
+    if problem == .Absent { return "absent" }
+    if problem == .Format { return "format" }
+    if problem == .Identity { return "identity" }
+    if problem == .Shape { return "shape" }
+    if problem == .Verify { return "verification" }
+    if problem == .Allocation { return "allocation" }
+    return "limit"
+}

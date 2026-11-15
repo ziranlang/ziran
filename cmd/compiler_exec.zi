@@ -111,6 +111,13 @@ LirExecHandler :: enum s32 {
     // A generic host call whose arguments are frame words and whose result,
     // if any, is a scalar word: it runs in the fast loop like HostWrite.
     HostCall
+    // A slice whose bounds hold: the ElementView of its element `low`, with
+    // `b` low, `value` high and `c` the view's count; `sign_b`, `extra` and
+    // `sign_c` are their sign bits.
+    ElementSlice
+    // Frame storage at the end of the frame's bytes, made by the run loop
+    // (ExecFastAllocate) like a Call.
+    Allocate
 }
 
 LirExecCode :: struct {
@@ -1027,6 +1034,15 @@ ExecPlanMask :: (plan: *LirExecPlan, base: s64, value: s32) -> u64 {
 }
 
 // The sign bit an index operand must not have (ExecIndexBits), or 0.
+// k when `size` is 2^k, else -1.
+ExecPlanShift :: (size: s64) -> s64 {
+    if size <= 0 { return -1 }
+    shift: u64 = 0
+    while shift < 62 && (cast(u64)1 << shift) < cast(u64)size { shift += 1 }
+    if (cast(u64)1 << shift) == cast(u64)size { return cast(s64)shift }
+    return -1
+}
+
 ExecPlanSign :: (program: LirProgram, plan: *LirExecPlan, base: s64, value: s32) -> u64 {
     type := program.types[plan.value_types[base + value]]
     if type.kind != .Integer || !type.is_signed { return 0 }
@@ -1341,13 +1357,29 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         return .Fast
     }
     if op == .FieldAddress || op == .ElementAddress {
-        if out.result < 0 || out.a < 0 || count > 3 { return .Slow }
+        if out.result < 0 || out.a < 0 || count > 4 { return .Slow }
         expected := program.types[plan.value_types[base + instruction.operands[0]]].element
         target := program.types[plan.value_types[base + instruction.result]].element
         out.type = expected
         out.target = target
         out.size = plan.type_sizes[target]
         out.flag = cast(s32)transient
+        // Views check their count against the extent per element: by a
+        // shift when the size is a power of two (ExecFastPerElement).
+        out.z = ExecPlanShift(out.size)
+        if count == 4 {
+            // A slice of `low`, `high` and the view's count: the view of its
+            // element `low` (ElementSlice).
+            out.value = out.c
+            out.c = ExecPlanWord(plan, base, instruction.operands[3])
+            if expected != target || out.size <= 0 || out.b < 0 || out.c < 0 || out.value < 0 { return .Slow }
+            out.sign_b = ExecPlanSign(program, plan, base, instruction.operands[1])
+            out.extra = ExecPlanSign(program, plan, base, instruction.operands[2])
+            out.sign_c = ExecPlanSign(program, plan, base, instruction.operands[3])
+            out.handler = .ElementSlice
+            <<work = 2
+            return .Fast
+        }
         if op == .FieldAddress {
             member_offset: s64
             member_cost: s64
@@ -1372,6 +1404,27 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         }
         <<work = 2
         return .Fast
+    }
+    if op == .Allocate {
+        // Frame storage and its table entry, with the first value copied in
+        // when there is one (ExecAllocate). `y` is that copy's work.
+        if out.result < 0 || count > 1 { return .Slow }
+        pointee := program.types[plan.value_types[base + instruction.result]].element
+        out.type = pointee
+        out.size = plan.type_sizes[pointee]
+        out.x = 0
+        out.y = 0
+        if count == 1 {
+            value := instruction.operands[0]
+            if plan.value_types[base + value] != pointee || plan.value_sizes[base + value] != out.size { return .Slow }
+            if out.a < 0 { out.x = plan.value_offsets[base + value] }
+            out.y = ExecCopyCost(out.size)
+        }
+        // It grows the frame's storage, so it ends its segment: the run loop
+        // makes it (ExecFastAllocate) and charges its work.
+        out.handler = .Allocate
+        <<work = 1 + out.y
+        return .Slow
     }
     if op == .Call {
         // The callee's entry parameters take the arguments in order.
@@ -1404,6 +1457,10 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
     }
     if op == .Return {
         out.handler = .Return
+        // The code record is reused from block to block: nothing returned
+        // has no size.
+        out.size = 0
+        out.x = 0
         if count == 1 {
             value := instruction.operands[0]
             out.size = plan.value_sizes[base + value]
@@ -1643,7 +1700,7 @@ ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
                     entries[index] = plan.code.count
                     handler := codes[index].handler
                     if kinds[index] == .Fast && codes[index].flag == 0 && (handler == .FieldAddress ||
-                        handler == .ElementIndex || handler == .ElementView) {
+                        handler == .ElementIndex || handler == .ElementView || handler == .ElementSlice) {
                         codes[index].memo = cast(s32)plan.derived_count
                         plan.derived_count += 1
                     }
@@ -1738,7 +1795,11 @@ ExecSpend :: (instance: *LirExecInstance, count: s64) -> bool #inline {
     return true
 }
 
-ExecCopyCost :: (count: s64) -> s64 { return 1 + (count + 7) / 8 }
+ExecCopyCost :: (count: s64) -> s64 {
+    // A shift rather than a checked division for the sizes copies have.
+    if count >= 0 { return 1 + ((count + 7) >> 3) }
+    return 1 + (count + 7) / 8
+}
 
 ExecFrameValueOffset :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> s64 {
     frame := instance.frames[frame_index]
@@ -1873,18 +1934,18 @@ ExecMember :: (instance: *LirExecInstance, type_id: s32, member: u64, offset: *s
 
 // A table holds at most this many entries, and a slot is reused at most
 // ExecAddressVersions times before it is retired.
-ExecAddressSlots :: 1048575
+ExecAddressSlots :: 2097151
 ExecAddressVersions :: 268435455
 
 // A pointer's bits: the instance's identity (its low 16 bits), the slot's
 // version, and one more than the slot. Zero is the null pointer.
 ExecAddressToken :: (identity: u32, index: s64, version: u64 = 0) -> u64 {
-    return (cast(u64)(identity & 65535) << cast(u64)48) | (version << cast(u64)20) | cast(u64)(index + 1)
+    return (cast(u64)(identity & 65535) << cast(u64)48) | (version << cast(u64)22) | cast(u64)(index + 1)
 }
 
 ExecFindAddress :: (instance: *LirExecInstance, token: u64) -> s32 {
     if token == 0 { return -1 }
-    low := token & cast(u64)1048575
+    low := token & cast(u64)4194303
     if low == 0 { return -1 }
     index := cast(s64)(low - cast(u64)1)
     if index >= instance.addresses.count || instance.addresses[index].token != token { return -1 }
@@ -1963,7 +2024,18 @@ ExecAddressIndexRemove :: (instance: *LirExecInstance, index: s64) {
     slot := cast(s64)(ExecAddressHash(instance.addresses[index]) & cast(u64)mask)
     entry := instance.address_slots[slot]
     while entry != 0 {
-        if cast(s64)entry == index + 1 { instance.address_slots[slot] = -1; return }
+        if cast(s64)entry == index + 1 {
+            instance.address_slots[slot] = -1
+            // A removed slot right before an empty one ends no probe, so it
+            // and the removed slots before it are empty again: frames that
+            // come and go leave no trail for lookups to walk.
+            while instance.address_slots[slot] == -1 && instance.address_slots[(slot + 1) & mask] == 0 {
+                instance.address_slots[slot] = 0
+                instance.address_used -= 1
+                slot = (slot - 1) & mask
+            }
+            return
+        }
         slot = (slot + 1) & mask
         entry = instance.address_slots[slot]
     }
@@ -3832,6 +3904,13 @@ ExecCopyBytes :: (bytes: []u8, from: s64, to: s64, count: s64) #inline {
     for index: cast(s64)0..count - 1 { bytes[to + index] = bytes[from + index] }
 }
 
+// How many of a view code's elements `extent` bytes hold, as `extent /
+// code.size` gives it: a shift by `code.z` when the size is a power of two.
+ExecFastPerElement :: (extent: s64, code: *LirExecCode) -> u64 #inline {
+    if code.z >= 0 && extent >= 0 { return cast(u64)extent >> cast(u64)code.z }
+    return cast(u64)(extent / code.size)
+}
+
 // A derivation's token, made as ExecDeriveToken would without its work
 // charge (the segment paid it): a transient one takes the next of its
 // entries. 0 hands the instruction to ExecStep;
@@ -4063,7 +4142,7 @@ ExecFastAddress :: (instance: *LirExecInstance, words: []u64, code: *LirExecCode
         count := words[word_base + code.c]
         if (element & code.sign_b) != 0 || (count & code.sign_c) != 0 || element >= count ||
             count > cast(u64)9223372036854775807 ||
-            code.size != 0 && count > cast(u64)(base.extent / code.size) { return false }
+            code.size != 0 && count > ExecFastPerElement(base.extent, code) { return false }
         offset := cast(s64)element * code.size
         <<derived = .{.global = base.global, .frame = base.frame, .generation = base.generation,
             .offset = base.offset + offset, .extent = base.extent - offset, .type = code.target,
@@ -4407,6 +4486,15 @@ ExecRunCode :: (instance: *LirExecInstance, frame_index: s64, start: s64) -> s64
             if token == 0 { return pc }
             if token == ExecFailedToken() { return ExecFailed }
             words[wb + c.result] = token
+        } else if h == .ElementSlice {
+            // Bounds that do not hold, and an empty slice (its base's own
+            // token), run on ExecStep.
+            high := words[wb + c.value]
+            if (high & c.extra) != 0 || words[wb + c.b] >= high || high > words[wb + c.c] { return pc }
+            token := ExecFastDerive(instance, words, frame_index, c, wb, true, false)
+            if token == 0 { return pc }
+            if token == ExecFailedToken() { return ExecFailed }
+            words[wb + c.result] = token
         } else if h == .Negate {
             words[wb + c.result] = (cast(u64)0 - words[wb + c.a]) & c.immediate
         } else if h == .BitNot {
@@ -4611,6 +4699,36 @@ ExecFastReturn :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecC
     return true
 }
 
+// An Allocate, as ExecStep and ExecAllocate make it, standing on the
+// instruction. false, with nothing done, hands it to ExecStep when the work,
+// the storage or a table entry might not be there; a table that cannot grow
+// leaves its failure recorded, as ExecAllocate would.
+ExecFastAllocate :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCode) -> bool {
+    at := instance.storage.count
+    available := instance.limits.value_bytes - instance.globals.count -
+        instance.result_bytes.count - instance.owned.count - instance.words.count * 8
+    if code.cost > instance.work_remaining || available < 0 || code.size > available - at ||
+        instance.address_free.count == 0 && (instance.addresses.count >= instance.limits.addresses ||
+            instance.addresses.count >= ExecAddressSlots) ||
+        !VecResizeBounded(instance.storage, at + code.size, available) { return false }
+    frame_base := instance.frames[frame_index].base
+    word_base := instance.frames[frame_index].word_base
+    // ExecStep's own work comes first; the first value's copy after the entry.
+    instance.work_remaining -= 1
+    made := ExecNewAddress(instance, .{.global = -1, .frame = frame_index,
+        .generation = instance.frames[frame_index].generation, .offset = at - frame_base,
+        .extent = code.size, .type = code.type, .writable = true})
+    if made < 0 { return false }
+    if code.y != 0 {
+        instance.work_remaining -= code.y
+        if code.a >= 0 { ExecPutBits(instance.storage[:], at, code.size, instance.words[word_base + code.a]) }
+        else { ExecCopyBytes(instance.storage[:], frame_base + code.x, at, code.size) }
+    }
+    instance.words[word_base + code.result] = instance.addresses[made].token
+    ExecSetPosition(instance, frame_index, code.block, code.index + 1, code.base)
+    return true
+}
+
 // The root call's Return of a word or of nothing, as ExecFinishFrame makes
 // it; false hands anything else to ExecStep.
 ExecFastRootReturn :: (instance: *LirExecInstance, code: *LirExecCode) -> bool {
@@ -4657,6 +4775,11 @@ ExecRunFast :: (instance: *LirExecInstance) -> bool {
             code := *plan.code[stopped]
             if code.handler == .Call && ExecFastCall(instance, frame_index, code) ||
                 code.handler == .Return && ExecFastReturn(instance, frame_index, code) { continue }
+            if code.handler == .Allocate {
+                allocated := ExecFastAllocate(instance, frame_index, code)
+                if instance.failure.problem != .None { return false }
+                if allocated { continue }
+            }
             // The rest of the segment from here goes to ExecStep: give back
             // what it was charged and stand on the instruction.
             instance.work_remaining += code.rest_work
@@ -4771,7 +4894,7 @@ ExecGlobalAccess :: (instance: *LirExecInstance, global: s32) -> LirExecProblem 
 
 LirExecDefaultLimits :: () -> LirExecLimits {
     return .{.work = 16000000, .fuel = 16000000, .frames = 128,
-        .values = 1048576, .addresses = 1048576, .value_bytes = 268435456}
+        .values = 1048576, .addresses = ExecAddressSlots, .value_bytes = 268435456}
 }
 
 // Heap blocks the program allocated and still holds. A program that frees

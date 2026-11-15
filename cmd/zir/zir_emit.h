@@ -1,8 +1,14 @@
 #ifndef ZIR_EMIT_H
 #define ZIR_EMIT_H
 #include "zir.h"
-#include "zir_native.h"
+#include "compiler_native_names.h"
 #include "zir_body.h"
+
+enum { ZIR_C = ZirTarget_ZIR_C, ZIR_GO = ZirTarget_ZIR_GO };
+
+/* Zir procedure parameters cannot preserve the const C qualifier yet. */
+#define VectorTypeHere(type, target) ((const char *)VectorTypeHereZiran((void *)(type), target))
+#define TargetType(type, target) ((const char *)TargetTypeZiran((void *)(type), target))
 
 void EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *function,
                          ZirTarget target, const char *result_type, const char *args);

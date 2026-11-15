@@ -14,7 +14,7 @@ the command output, and [tests/features.sh](../tests/features.sh) validates:
 - rejection of every negative example.
 
 The registry is intentionally incremental. Its 16 contracts cover compile-time
-assertions, laws and execution, CPU parallelism and explicit GPU fallback,
+assertions, laws and execution, CPU parallelism and the explicit GPU device Gap,
 checked printing, heap allocation, named imports, integer width conformance
 and implicit widening, automatic vector cleanup, local `TextView` mutation
 checks, record-field vector moves, procedure defaults, procedure values, and

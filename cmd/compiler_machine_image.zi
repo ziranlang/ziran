@@ -18,7 +18,47 @@ MachineSection :: struct {
 MachineRelocationKind :: enum s32 {
     Invalid
     FunctionAddress; FunctionCall; GlobalAddress; FuelCounter
-    ConstantAddress; RuntimeTrap; PlatformService; HostCapability; EntryPoint
+    ConstantAddress; RuntimeTrap; PlatformService; HostCapability; EntryPoint; RuntimeResize
+    // The instance's lowest usable stack address, which a function compares
+    // with its stack pointer after reserving its frame.
+    StackLimit
+    // The instance's pointer runtime header (MachinePointerHeader*).
+    PointerRuntime
+}
+
+// Checked pointer tokens: slot in bits 63..44, version in 43..32, byte offset
+// in 31..0. Slot 0 is never live, so a null pointer always traps.
+MachinePointerSlotShift :: 44
+MachinePointerVersionShift :: 32
+MachinePointerVersionMask :: 0xfff
+MachinePointerVersions :: 4096
+// Slots 1..globals name the program's globals; capacity bounds the rest.
+MachinePointerCapacity :: 1048575
+MachinePointerEntryBytes :: 32
+// Entry fields: base u64, size u64, version u16, flags u16, next u32.
+MachinePointerEntryBase :: 0
+MachinePointerEntrySize :: 8
+MachinePointerEntryVersion :: 16
+MachinePointerEntryFlags :: 18
+MachinePointerEntryNext :: 20
+MachinePointerLive :: 1
+MachinePointerWritable :: 2
+MachinePointerHeap :: 4
+// Header words: free list head, next unused slot, capacity, frame arena top
+// and limit, and the address of entry 0.
+MachinePointerHeaderFree :: 0
+MachinePointerHeaderUnused :: 8
+MachinePointerHeaderCapacity :: 16
+MachinePointerHeaderArenaTop :: 24
+MachinePointerHeaderArenaLimit :: 32
+MachinePointerHeaderTable :: 40
+MachinePointerHeaderBytes :: 48
+// Frame arena bytes, the engine's value-byte limit.
+MachinePointerArenaBytes :: 268435456
+
+MachinePointerToken :: (slot: s64, version: s64, offset: s64) -> u64 {
+    return (cast(u64)slot << cast(u64)MachinePointerSlotShift) |
+        (cast(u64)version << cast(u64)MachinePointerVersionShift) | cast(u64)offset
 }
 
 // `instruction` and `operand` identify an IR reference. Allocation remaps
@@ -55,6 +95,14 @@ MachineImage :: struct {
     stack_alignment: s32
     stack_bytes: s64
     fuel_offset: s64
+    // The data offset of the stack limit word, or -1 when the image has no
+    // stack checks.
+    stack_limit_offset: s64
+    // The data offset of the pointer runtime header, or 0 when the image has
+    // no checked pointers (the header always follows the fuel word). The
+    // table and frame arena are zeroed memory the loader provides; slots
+    // 1..globals name the globals.
+    pointer_offset: s64
     host_symbols: s32
     platform_symbols: s32
     trap_symbols: s32
@@ -108,7 +156,8 @@ AddendFits :: (addend: s64, width: s32) -> bool {
 KindValid :: (kind: MachineRelocationKind) -> bool {
     return kind == .FunctionAddress || kind == .FunctionCall || kind == .GlobalAddress ||
         kind == .FuelCounter || kind == .ConstantAddress || kind == .RuntimeTrap ||
-        kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint
+        kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint || kind == .RuntimeResize ||
+        kind == .StackLimit || kind == .PointerRuntime
 }
 
 OffsetTable :: (offsets: []s64, section: MachineSection, optional: bool) -> bool {
@@ -142,6 +191,9 @@ SymbolValid :: (image: MachineImage, relocation: MachineRelocation) -> bool {
     }
     if relocation.kind == .FuelCounter { return symbol == 0 }
     if relocation.kind == .RuntimeTrap { return symbol >= 0 && symbol < image.trap_symbols }
+    if relocation.kind == .RuntimeResize { return symbol == 0 }
+    if relocation.kind == .StackLimit { return symbol == 0 && image.stack_limit_offset >= 0 }
+    if relocation.kind == .PointerRuntime { return symbol == 0 && image.pointer_offset > 0 }
     if relocation.kind == .PlatformService { return symbol >= 0 && symbol < image.platform_symbols }
     if relocation.kind == .HostCapability { return symbol >= 0 && symbol < image.host_symbols }
     return false
@@ -172,6 +224,16 @@ MachineImageValidate :: (image: MachineImage) -> MachineImageDiagnostic {
         image.stack_bytes <= 0 || image.stack_bytes % image.stack_alignment != 0 { return Fail(.Stack) }
     if image.fuel_offset < 0 || image.fuel_offset > image.data.bytes.count ||
         image.fuel_offset % 8 != 0 || 8 > image.data.bytes.count - image.fuel_offset { return Fail(.Fuel) }
+    if image.pointer_offset != 0 &&
+        (image.pointer_offset < 0 || image.pointer_offset % 8 != 0 ||
+         image.pointer_offset > image.data.bytes.count - MachinePointerHeaderBytes) {
+        return Fail(.Section)
+    }
+    if image.stack_limit_offset != -1 &&
+        (image.stack_limit_offset < 0 || image.stack_limit_offset > image.data.bytes.count ||
+         image.stack_limit_offset % 8 != 0 || 8 > image.data.bytes.count - image.stack_limit_offset) {
+        return Fail(.Stack)
+    }
     if image.host_symbols < 0 || image.platform_symbols < 0 || image.trap_symbols < 1 {
         return Fail(.RelocationSymbol)
     }

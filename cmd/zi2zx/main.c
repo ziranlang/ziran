@@ -21,10 +21,12 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-            "usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--emit zx|lir|opt-report] -o FILE file.zi|file.zir ...\n"
-            "       zi2zx [--opt] [--emit zx|lir] -o FILE file.zx\n"
-            "       zi2zx run file.zx\n"
-            "       zi2zx run [ZX build options] [--root DIR] [--entry module:function] file.zi ...\n");
+            "usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--emit zx|lir|opt-report] -o FILE file.zi|file.zir ...\n"
+            "       zi2zx [--emit zx|lir] -o FILE file.zx\n"
+            "       zi2zx run [--backend native|engine] file.zx\n"
+            "       zi2zx run [--backend native|engine] [ZX build options] [--root DIR] [--entry module:function] file.zi ...\n"
+            "run uses native code on linux-x86_64 and the portable engine elsewhere; a bundle native code\n"
+            "cannot run fails before it starts with a named gap, and nothing falls back to the engine\n");
 }
 
 static void
@@ -67,6 +69,7 @@ build_to(int argc, char **argv, FILE *into)
     const char *emit = "zx";
     const char *compile_target = "zx";
     int optimize = 0;
+    int debug = 0;
     int first_file = -1;
     int count, result = 1;
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
@@ -121,6 +124,8 @@ build_to(int argc, char **argv, FILE *into)
             compile_target = argv[i] + 9;
         else if(strcmp(argv[i], "--opt") == 0)
             optimize = 1;
+        else if(strcmp(argv[i], "--debug") == 0)
+            debug = 1;
         else if(strcmp(argv[i], "-o") == 0 && i + 1 < argc)
             output = argv[++i];
         else if(strncmp(argv[i], "--diagnostics=", 14) == 0) {
@@ -221,7 +226,7 @@ build_to(int argc, char **argv, FILE *into)
     int reporting = !strcmp(emit, "opt-report");
     if(!listing && !reporting) {
         bytes = ZxExecBuild(&merged, entry_module, entry_function,
-            (Slice){views, (int64_t)assets.count}, &size);
+            (Slice){views, (int64_t)assets.count}, debug, &size);
         if(bytes == NULL) goto done;
     } else if(!ZxLowerBuild(&merged, entry_module, entry_function,
                            optimize, &lower))
@@ -325,11 +330,6 @@ inspect_zx(int argc, char **argv)
             emit = argv[++index];
         else if(!strcmp(argv[index], "-o") && index + 1 < argc)
             output = argv[++index];
-        // Saved ZX is already canonical. Keep accepting --opt for the former
-        // inspect/re-emit contract; it deliberately cannot change the verified
-        // payload without rebuilding its optional executable sections.
-        else if(!strcmp(argv[index], "--opt"))
-            continue;
         else if(!strncmp(argv[index], "--diagnostics=", 14)) {
             if(!SetDiagnosticFormat(argv[index] + 14)) return 1;
         } else if(argv[index][0] == '-' || input != NULL)
@@ -457,20 +457,35 @@ run_command(int argc, char **argv)
     int dispatch_host = 0;
     int debug_engine = 0;
     int heap_report = 0;
+    /* The platform decides the default, never the bundle: native code on
+     * linux-x86_64, where a native gap is a named error. */
+#if defined(__x86_64__) && defined(__linux__)
+    BundleBackendPolicy backend = BUNDLE_BACKEND_NATIVE;
+#else
+    BundleBackendPolicy backend = BUNDLE_BACKEND_AUTO;
+#endif
     LirExecLimits limits = compiler_exec_LirExecDefaultLimits();
     for(; argc > 0 && !strncmp(argv[0], "--", 2); argc--, argv++) {
         if(!strcmp(argv[0], "--host-dispatch"))
             dispatch_host = 1;
+        else if(!strcmp(argv[0], "--backend") && argc > 1) {
+            if(!strcmp(argv[1], "native")) backend = BUNDLE_BACKEND_NATIVE;
+            else if(!strcmp(argv[1], "engine")) backend = BUNDLE_BACKEND_ENGINE;
+            else { usage(); return 1; }
+            argc--;
+            argv++;
+        }
         else if(!strcmp(argv[0], "--heap-report")) {
             heap_report = 1;
             debug_engine = 1;
         } else if((!strcmp(argv[0], "--work") || !strcmp(argv[0], "--fuel") ||
-                   !strcmp(argv[0], "--frames")) && argc > 1) {
+                   !strcmp(argv[0], "--frames") || !strcmp(argv[0], "--addresses")) && argc > 1) {
             int64_t value = 0;
             if(!run_limit(argv[1], &value)) { usage(); return 1; }
-            if(!strcmp(argv[0], "--work")) limits.work = value;
-            else if(!strcmp(argv[0], "--fuel")) limits.fuel = value;
-            else limits.frames = value;
+        if(!strcmp(argv[0], "--work")) limits.work = value;
+        else if(!strcmp(argv[0], "--fuel")) limits.fuel = value;
+        else if(!strcmp(argv[0], "--addresses")) limits.addresses = value;
+        else limits.frames = value;
             debug_engine = 1;
             argc--;
             argv++;
@@ -503,7 +518,19 @@ run_command(int argc, char **argv)
     }
     long long result = 0;
     int has_result = 0;
-    int ok = BundleRun(bundle, NULL, 0, &result, &has_result);
+    /* Native preflight finishes before any initializer runs. */
+    if(backend == BUNDLE_BACKEND_NATIVE) {
+        const char *problem = BundleNativeProblem(bundle);
+        if(problem[0] != 0) {
+            Diagnostic((ZirSourceSpan){0}, "zx.native", "%s", problem);
+            BundleClose(bundle);
+            return 1;
+        }
+    }
+    BundleInstanceOptions options = {backend, 0};
+    BundleInstance *instance = BundleInstantiateWithOptions(bundle, NULL, 0, &options);
+    int ok = instance != NULL && BundleInstanceRun(instance, &result, &has_result);
+    BundleInstanceClose(instance);
     if(ok && has_result) {
         if(BundleEntryReturnType(bundle)[0] == 'u')
             printf("%llu\n", (unsigned long long)result);
@@ -522,7 +549,9 @@ main(int argc, char **argv)
         return run_command(argc - 2, argv + 2);
     if(argc <= 1 || !strcmp(argv[1], "bundle")) return usage(), 1;
     CommandLowerPriority();
+    // `zi2zx run` returns the program's own status; the other commands fail
+    // only with a diagnostic.
     if(is_zx(argv[argc - 1]))
-        return inspect_zx(argc - 1, argv + 1);
-    return build_to(argc - 1, argv + 1, NULL);
+        return DiagnosticEnsureFailureReported(inspect_zx(argc - 1, argv + 1), "zi2zx");
+    return DiagnosticEnsureFailureReported(build_to(argc - 1, argv + 1, NULL), "zi2zx");
 }

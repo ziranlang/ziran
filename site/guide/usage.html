@@ -451,18 +451,10 @@ to itself. Arithmetic compiles to C operators, a constant divisor or shift
 count needs no check, and other divisions and shifts call a small checked
 helper of their width. Generated Go shifts by a variable count in the
 operand's own type after checking the count.</p>
-<p><code>#parallel_gpu for</code> runs a loop on the fastest GPU in native C builds on Linux
-and Android, and on CPU threads otherwise. Programs need no graphics libraries
-to build or start. A region qualifies when it uses only <code>s32</code>, <code>u32</code>, <code>float32</code>,
-<code>u8</code> and <code>bool</code> locals, parameters and slices, assigns slices only at
-<code>values[it]</code>, and calls plain functions of those types. Use <code>cast(s32)it</code> for
-arithmetic on the index. The generated C names why any other region stays on
-CPU threads. Integers, bytes and booleans match the CPU exactly; <code>float32</code>
-results may round differently. A region that fails a bounds check or runs a
-loop past about a million rounds per iteration reruns on the CPU, so failures
-are reported as usual. <code>ZIRAN_GPU=off</code> keeps regions on the CPU, <code>ZIRAN_GPU=N</code>
-chooses a device, <code>ZIRAN_GPU_MIN</code> sets the fewest iterations worth sending
-(default 4096) and <code>ZIRAN_GPU_LOG=1</code> reports what ran where.</p>
+<p><code>#parallel_gpu for</code> is an explicit Gap on every target. The checker still
+enforces the GPU storage and argument rules, but no target has a GPU device
+backend and CPU execution is never substituted. There are no GPU device
+selection environment variables.</p>
 <p>C program entries use a standard <code>int main(int, char **)</code> adapter.
 The Ziran procedure keeps its declared parameter and result types for ordinary
 calls and function values. The adapter converts its integer result to a process

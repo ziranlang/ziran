@@ -12,12 +12,11 @@
 #include "zir_load.h"
 #include "zir_link.h"
 #include "zir_c_lower.h"
-#include "zir_c_build.h"
+#include "compiler_backend_process.h"
 
 #include "zir_emit.h"
 #include "zir_profile.h"
 #include "zir_simd.h"
-#include "zir_runtime.h"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -40,10 +39,16 @@ usage(void)
             "[--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
+static String
+c_string(const char *text)
+{
+    return StringView(text != NULL ? text : "", text != NULL ? strlen(text) : 0);
+}
+
 static int
 lock_output(const char *directory)
 {
-    int fd = c_build_lock(directory);
+    int fd = compiler_backend_process_BuildLock(c_string(directory));
     if(fd < 0)
         Diagnostic((ZirSourceSpan){0}, "zir_c.global", "cannot prepare output directory: %s", directory);
     return fd;
@@ -122,7 +127,7 @@ read_worker_outputs(int fd)
             end = strchr(line, '\n');
             if(end == NULL) { ok = 0; break; }
             *end = 0;
-            GeneratedOutputRecord(line);
+            if(!compiler_runtime_emit_RecordPathC(line)) { ok = 0; break; }
         }
     }
     free(text);
@@ -141,24 +146,24 @@ static int
 finish_simd_helpers(const char *out_dir)
 {
     int simd = 0;
-    for(int i = 0; GeneratedOutputPath(i) != NULL; i++) {
-        const char *path = GeneratedOutputPath(i);
+    for(int i = 0; i < compiler_runtime_emit_GeneratedPathCount(); i++) {
+        const char *path = (const char *)compiler_runtime_emit_GeneratedPath(i);
         const char *name = strrchr(path, '/');
         if(!strcmp(name ? name + 1 : path, "ziran_simd_ops.h")) { simd = 1; break; }
     }
     if(!simd) return 1;
     ZirSimdUses uses = {0};
     int ok = 1;
-    for(int i = 0; ok && GeneratedOutputPath(i) != NULL; i++) {
-        const char *path = GeneratedOutputPath(i);
+    for(int i = 0; ok && i < compiler_runtime_emit_GeneratedPathCount(); i++) {
+        const char *path = (const char *)compiler_runtime_emit_GeneratedPath(i);
         size_t length = strlen(path);
         if(length < 2 || path[length - 2] != '.' ||
            (path[length - 1] != 'c' && path[length - 1] != 'h')) continue;
         const char *name = strrchr(path, '/');
         name = name ? name + 1 : path;
         int runtime = 0;
-        for(size_t h = 0; ZirRuntimeHeaders[h].name != NULL; h++)
-            if(!strcmp(name, ZirRuntimeHeaders[h].name)) { runtime = 1; break; }
+        runtime = compiler_runtime_emit_IsRuntimeHeader(
+            StringView(name, strlen(name)));
         if(runtime) continue;
         // Scan public headers too: an inline body may be the only user of
         // a helper. Embedded runtime headers are deliberately excluded.
@@ -176,7 +181,9 @@ finish_simd_helpers(const char *out_dir)
         }
         free(text);
     }
-    if(ok && uses.names.count > 0) ok = EmitSimdOps(out_dir, &uses);
+    if(ok && uses.names.count > 0)
+        ok = compiler_runtime_emit_EmitSimdOps(
+            StringView(out_dir, strlen(out_dir)), &uses);
     SimdUsesFree(&uses);
     if(!ok) Diagnostic((ZirSourceSpan){0}, "zir_c.global", "cannot finish shared SIMD helpers in %s", out_dir);
     return ok;
@@ -187,7 +194,7 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
                const ZirCModuleSyms *syms, int symbol_count)
 {
     enum { MAX_EMIT_WORKERS = 16, PROGRAMS_PER_WORKER = 16 };
-    int workers = c_worker_limit();
+    int workers = compiler_backend_process_WorkerLimit();
     if(workers > count / PROGRAMS_PER_WORKER) workers = count / PROGRAMS_PER_WORKER;
     if(workers > MAX_EMIT_WORKERS) workers = MAX_EMIT_WORKERS;
     if(workers < 2 || DiagnosticJsonEnabled()) {
@@ -196,7 +203,7 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
         return finish_simd_helpers(out_dir);
     }
     int recorded = 0;
-    while(GeneratedOutputPath(recorded) != NULL) recorded++;
+    recorded = compiler_runtime_emit_GeneratedPathCount();
     pid_t pids[MAX_EMIT_WORKERS];
     int reports[MAX_EMIT_WORKERS];
     int started = 0, ok = 1, start_error = 0;
@@ -214,26 +221,46 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
             int lowered = 1;
             for(int i = started; lowered && i < count; i += workers)
                 lowered = c_lower(progs[i], root, out_dir, syms, symbol_count, 0);
-            for(int k = recorded; lowered && GeneratedOutputPath(k) != NULL; k++) {
-                const char *path = GeneratedOutputPath(k);
+            for(int k = recorded; lowered && k < compiler_runtime_emit_GeneratedPathCount(); k++) {
+                const char *path = (const char *)compiler_runtime_emit_GeneratedPath(k);
                 lowered = write_all(pipes[1], path, strlen(path)) &&
                           write_all(pipes[1], "\n", 1);
             }
+            if(close(pipes[1]) != 0 && lowered) {
+                Diagnostic((ZirSourceSpan){0}, "zir_c.global",
+                           "cannot report C emission worker results: %s", strerror(errno));
+                lowered = 0;
+            }
+            if(!lowered) DiagnosticEnsureFailureReported(1, "C emission worker");
             fflush(stdout);
             fflush(stderr);
             /* The parent owns every exit handler and cleanup. */
-            _exit(lowered && close(pipes[1]) == 0 ? 0 : 1);
+            _exit(lowered ? 0 : 1);
         }
         close(pipes[1]);
         pids[started] = pid;
         reports[started] = pipes[0];
     }
     for(int w = 0; w < started; w++) {
-        if(!read_worker_outputs(reports[w])) ok = 0;
+        int collected = read_worker_outputs(reports[w]);
         int status = 0;
         pid_t waited;
         do { waited = waitpid(pids[w], &status, 0); } while(waited < 0 && errno == EINTR);
-        if(waited != pids[w] || !WIFEXITED(status) || WEXITSTATUS(status) != 0) ok = 0;
+        int exited = waited == pids[w] && WIFEXITED(status);
+        if(exited && WEXITSTATUS(status) != 0) {
+            /* The worker reported its own failure before exiting. */
+            DiagnosticCountReportedError();
+            ok = 0;
+        } else if(waited != pids[w])
+            ok = 0, Diagnostic((ZirSourceSpan){0}, "zir_c.global",
+                               "cannot wait for C emission worker %d: %s", w, strerror(errno));
+        else if(!exited)
+            ok = 0, Diagnostic((ZirSourceSpan){0}, "zir_c.global",
+                               "C emission worker %d stopped by signal %d", w,
+                               WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+        else if(!collected)
+            ok = 0, Diagnostic((ZirSourceSpan){0}, "zir_c.global",
+                               "cannot collect the files C emission worker %d wrote", w);
     }
     ProfileEnd("emit.c.workers", profile_started);
     if(start_error)
@@ -460,7 +487,8 @@ done:
     }
     if(exe) {
         const char *name = strrchr(entry_module, '/');
-        if(!c_compile_executable(out_dir, name != NULL ? name + 1 : entry_module, posix_threads, release)) {
+        if(!compiler_backend_process_CompileExecutable(c_string(out_dir),
+                c_string(name != NULL ? name + 1 : entry_module), posix_threads, release)) {
             result = 1;
             goto finish;
         }
@@ -472,5 +500,5 @@ finish:
         Diagnostic((ZirSourceSpan){0}, "compiler.context", "compiler operation retained live programs");
         result = 1;
     }
-    return result;
+    return DiagnosticEnsureFailureReported(result, "zi2c");
 }

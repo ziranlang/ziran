@@ -1,0 +1,105 @@
+// Shared fixed-width ARM byte writing, range checks and immediate
+// decomposition for the AArch64 and ARMv7 machine-IR encoders. A writer
+// either measures (no output buffer) or writes into a buffer sized by a
+// previous measure; both modes run the same calls so measured and written
+// sizes agree exactly. Field helpers range-check before masking: an
+// out-of-range immediate fails the writer instead of silently truncating.
+
+// A64 and ARM instructions are four-byte units written little-endian.
+ArmInstrBytes :: 4
+ArmStackAlign :: 16
+
+ArmWriter :: struct {
+    output: []u8
+    at: s64
+    limit: s64
+    failed: bool
+}
+
+#scope_file
+
+ArmByte :: (writer: *ArmWriter, value: u8) {
+    if writer.failed { return }
+    if writer.at >= writer.limit { writer.failed = true; return }
+    if writer.output.count != 0 {
+        if writer.at >= writer.output.count { writer.failed = true; return }
+        writer.output[writer.at] = value
+    }
+    writer.at += 1
+}
+
+#scope_export
+
+// One little-endian 32-bit instruction word.
+ArmWord :: (writer: *ArmWriter, value: u32) {
+    ArmByte(writer, cast(u8)(value & 255))
+    ArmByte(writer, cast(u8)((value >> 8) & 255))
+    ArmByte(writer, cast(u8)((value >> 16) & 255))
+    ArmByte(writer, cast(u8)((value >> 24) & 255))
+}
+
+ArmFitsSigned :: (value: s64, bits: s32) -> bool {
+    if bits <= 0 || bits >= 64 { return false }
+    shifted := (cast(u64)1) << cast(u64)(bits - 1)
+    min := -cast(s64)(shifted)
+    max := cast(s64)(shifted - 1)
+    return value >= min && value <= max
+}
+
+ArmFitsUnsigned :: (value: s64, bits: s32) -> bool {
+    if bits <= 0 || bits >= 64 { return false }
+    if value < 0 { return false }
+    if bits < 63 { return value < cast(s64)((cast(u64)1) << cast(u64)bits) }
+    return true
+}
+
+// The two's-complement VALUE truncated to BITS after a checked range test.
+// A value outside the signed range fails the writer and returns zero, so an
+// encoding can use the result unconditionally once the writer is clean.
+ArmField :: (writer: *ArmWriter, value: s64, bits: s32) -> u64 {
+    if !ArmFitsSigned(value, bits) { writer.failed = true; return 0 }
+    mask := (cast(u64)1 << cast(u64)bits) - 1
+    return cast(u64)value & mask
+}
+
+// Same contract for an unsigned immediate field.
+ArmUField :: (writer: *ArmWriter, value: s64, bits: s32) -> u64 {
+    if !ArmFitsUnsigned(value, bits) { writer.failed = true; return 0 }
+    mask := (cast(u64)1 << cast(u64)bits) - 1
+    return cast(u64)value & mask
+}
+
+// The WIDTH-bit VALUE split into 16-bit halves; half 0 holds the least
+// significant bits. VALUE must already be masked to WIDTH bits by the
+// caller. Move-wide sequences emit half 0 with MOVZ and every higher half
+// up to the deterministic count with MOVK, so the encoder needs only the
+// half values and the count.
+ArmHalf :: (value: u64, index: s32) -> u16 {
+    if index < 0 || index > 3 { return 0 }
+    shift := cast(u64)(index * 16)
+    return cast(u16)((value >> shift) & 65535)
+}
+
+// Number of 16-bit halves that carry information: trailing all-zero halves
+// are dropped, never the first half, so a zero value is one MOVZ and a
+// 32-bit constant uses at most two halves.
+ArmHalfCount :: (value: u64, width: s32) -> s32 {
+    count := width / 16
+    if count < 1 || count > 4 { return 0 }
+    while count > 1 && ArmHalf(value, count - 1) == 0 { count -= 1 }
+    return count
+}
+
+// The signed word delta from the four-byte branch field starting at the
+// current writer position to TARGET. While measuring, or while TARGET is
+// still unknown (-1), the width alone matters and the delta is zero. The
+// caller range-checks the result with ArmFitsSigned(delta, 26) or 19; A64
+// and word-aligned ARM code keep every delta divisible by four by
+// construction, and a misaligned delta fails the writer. The writer
+// position is read, never advanced: the instruction emit moves it.
+ArmBranchDelta :: (writer: *ArmWriter, target: s64) -> s64 {
+    if writer.output.count == 0 || target < 0 { return 0 }
+    delta := target - writer.at
+    if (delta & cast(s64)3) != 0 { writer.failed = true; return 0 }
+    return delta / 4
+}

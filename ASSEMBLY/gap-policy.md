@@ -75,14 +75,12 @@ or dynamic linker. Its `write_all` retries `EINTR` and partial progress; other
 write failures take the image's fixed trap exit. This is execution evidence for
 the experimental AOT slice, not a completed target-row or native-ZX claim.
 
-The implemented direct print subset covers read-only literal format strings,
+The implemented machine print subset covers read-only literal format strings,
 strings and text views by exact byte length, booleans, every fixed signed and
-unsigned integer type, and `%%`. Floating-point formatting remains
-`assembly.gap.native-float-format` until its exact locale-independent formatter
-and tests exist. A missing target veneer or service reports
-`assembly.gap.native-platform-service-unavailable`. The machine-IR path uses
-the corresponding `assembly.gap.machine-*` codes. None permits a C/Go route or
-portable interpreter to start.
+unsigned integer type, deterministic float32/float64 output, and `%%`. A
+missing target-owned formatter, veneer or service reports
+`assembly.gap.machine-platform-service-unavailable`. None permits a C/Go route
+or portable interpreter to start.
 
 ## Target preflight codes
 

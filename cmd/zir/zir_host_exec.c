@@ -8,7 +8,7 @@
  * followed by the elements of each view inside it, a view's two words being
  * the offset of its elements and their count. The host interface section
  * names what an embedder sees, so each call is translated between that image
- * and VmHostValue trees by the rules the semantic VM follows: a value's type
+ * and HostValue trees by the rules the semantic VM follows: a value's type
  * is the spelling declared at its position, a spelling that starts with `u`
  * is unsigned, a returned record gives every declared field by name and in
  * order unless fields are matched by name, and a host's changes to the
@@ -571,6 +571,14 @@ failed:
 }
 
 const void *ExecBundleProgram(const ExecBundle *bundle) { return &bundle->program; }
+
+int
+ExecBundleDebugProgram(const ExecBundle *bundle, void *debug)
+{
+    return bundle != NULL && debug != NULL &&
+        compiler_exec_link_ZxExecReadDebug((ZxExecOwner *)&bundle->owner, debug,
+            compiler_lowered_ir_LirDefaultLimits()) == ZxDebugProblem_None;
+}
 size_t ExecBundleCapabilityCount(const ExecBundle *bundle) { return bundle->host_count; }
 
 const char *
@@ -583,6 +591,34 @@ const char *
 ExecBundleCapabilityFunction(const ExecBundle *bundle, size_t index)
 {
     return index < bundle->host_count ? bundle->hosts[index].name : NULL;
+}
+
+int32_t
+ExecBundleCapabilityFunctionId(const ExecBundle *bundle, size_t index)
+{
+    return index < bundle->host_count ? bundle->hosts[index].function : -1;
+}
+
+int32_t
+ExecBundleCapabilityParameterTypeId(const ExecBundle *bundle, size_t index,
+                                    size_t parameter)
+{
+    if(index >= bundle->host_count) return -1;
+    const ExecHost *host = &bundle->hosts[index];
+    if(parameter >= (size_t)host->parameter_count) return -1;
+    const LirFunction *declared =
+        &((const LirFunction *)bundle->program.functions.data)[host->function];
+    return ((const int32_t *)declared->parameters.data)[parameter];
+}
+
+int32_t
+ExecBundleCapabilityResultTypeId(const ExecBundle *bundle, size_t index)
+{
+    if(index >= bundle->host_count) return -1;
+    const ExecHost *host = &bundle->hosts[index];
+    const LirFunction *declared =
+        &((const LirFunction *)bundle->program.functions.data)[host->function];
+    return declared->result;
 }
 
 int
@@ -653,8 +689,35 @@ struct ExecHosts {
     ExecImage result;
     /* Mutable slice arguments' new images, and images of imported state. */
     ExecImage back;
+    /* Native aggregate arguments translated to engine images, and native
+     * result/copy-back payloads. A payload holding the elements of returned
+     * views moves to `retained`, so a string or slice a host returns stays
+     * valid for later calls, as on the engine, until the hosts close. */
+    ExecImage native_in;
+    ExecImage native_out;
+    unsigned char **retained;
+    size_t retained_count, retained_capacity, retained_bytes;
+    ExecNativeResolve native_resolve;
+    ExecNativeCreate native_create;
+    void *native_pointers;
     int match_fields_by_name;
 };
+
+/* The address a native pointer value names for BYTES bytes, or NULL. */
+static const unsigned char *
+exec_native_address(ExecHosts *hosts, uint64_t value, size_t bytes, int writable)
+{
+    if(hosts->native_resolve == NULL) return (const unsigned char *)(uintptr_t)value;
+    return hosts->native_resolve(hosts->native_pointers, value, bytes, writable);
+}
+
+/* The native pointer value naming BYTES read-only bytes at ADDRESS. */
+static uint64_t
+exec_native_name(ExecHosts *hosts, const unsigned char *address, size_t bytes)
+{
+    if(hosts->native_create == NULL) return (uint64_t)(uintptr_t)address;
+    return hosts->native_create(hosts->native_pointers, address, bytes);
+}
 
 static void *
 exec_arena(ExecHosts *hosts, size_t count, size_t width)
@@ -716,11 +779,11 @@ exec_view_element(const ExecBundle *bundle, int32_t type)
 /* A scalar's bits as the semantic VM gives them to a host, which keeps a
  * u64 beyond the s64 range only in bits. */
 static int
-exec_scalar_value(const ExecNode *node, const LirType *type, uint64_t bits, VmHostValue *out)
+exec_scalar_value(const ExecNode *node, const LirType *type, uint64_t bits, HostValue *out)
 {
     out->type = node->spelling;
     if(type->kind == LirTypeKind_Float) {
-        out->kind = VM_HOST_REAL;
+        out->kind = HOST_REAL;
         if(type->bits == 32) {
             uint32_t narrow = (uint32_t)bits;
             float value;
@@ -734,8 +797,8 @@ exec_scalar_value(const ExecNode *node, const LirType *type, uint64_t bits, VmHo
     int64_t integer = (int64_t)bits;
     if(type->kind == LirTypeKind_Integer && type->is_signed && width < 64 && (bits >> (width - 1)) & 1)
         integer = (int64_t)(bits | ~((UINT64_C(1) << width) - 1));
-    out->kind = node->spelling[0] == 'u' ? VM_HOST_UNSIGNED : VM_HOST_INTEGER;
-    if(out->kind == VM_HOST_UNSIGNED && bits > INT64_MAX) integer = 0;
+    out->kind = node->spelling[0] == 'u' ? HOST_UNSIGNED : HOST_INTEGER;
+    if(out->kind == HOST_UNSIGNED && bits > INT64_MAX) integer = 0;
     out->integer = integer;
     out->bits = bits;
     return 1;
@@ -744,7 +807,7 @@ exec_scalar_value(const ExecNode *node, const LirType *type, uint64_t bits, VmHo
 /* Reads the `type` value at image[at] into *out, as `node` names it. */
 static int
 exec_from_image(ExecHosts *hosts, int node_id, int32_t type, const unsigned char *image, int64_t size,
-                int64_t at, VmHostValue *out, int depth)
+                int64_t at, HostValue *out, int depth)
 {
     const ExecBundle *bundle = hosts->bundle;
     const ExecNode *node = &bundle->nodes[node_id];
@@ -756,14 +819,14 @@ exec_from_image(ExecHosts *hosts, int node_id, int32_t type, const unsigned char
     if(node->class == NODE_SCALAR) return exec_scalar_value(node, shape, exec_read(image + at, width), out);
     if(node->class == NODE_POINTER) {
         if(shape->kind != LirTypeKind_Pointer) return 0;
-        out->kind = VM_HOST_POINTER;
+        out->kind = HOST_POINTER;
         out->pointer = (void *)(uintptr_t)exec_read(image + at, 8);
         return 1;
     }
     if(node->class == NODE_ARRAY) {
         if(shape->kind != LirTypeKind_Array) return 0;
         int64_t element = exec_size(bundle, shape->element);
-        out->kind = VM_HOST_ARRAY;
+        out->kind = HOST_ARRAY;
         out->length = (size_t)shape->count;
         if(shape->count == 0) return 1;
         out->elements = exec_arena(hosts, (size_t)shape->count, sizeof(*out->elements));
@@ -775,9 +838,9 @@ exec_from_image(ExecHosts *hosts, int node_id, int32_t type, const unsigned char
     }
     if(node->class == NODE_RECORD) {
         if(shape->kind != LirTypeKind_Record || shape->fields.length != node->field_count) return 0;
-        VmHostField *fields = exec_arena(hosts, (size_t)node->field_count, sizeof(*fields));
+        HostField *fields = exec_arena(hosts, (size_t)node->field_count, sizeof(*fields));
         if(fields == NULL) return 0;
-        out->kind = VM_HOST_RECORD;
+        out->kind = HOST_RECORD;
         out->fields = fields;
         out->field_count = (size_t)node->field_count;
         int64_t offset = at;
@@ -799,12 +862,12 @@ exec_from_image(ExecHosts *hosts, int node_id, int32_t type, const unsigned char
        count > (uint64_t)((size - (int64_t)start) / element_width)) return 0;
     if(node->class == NODE_STRING) {
         if(element_width != 1) return 0;
-        out->kind = VM_HOST_STRING;
+        out->kind = HOST_STRING;
         out->data = count ? image + start : NULL;
         out->length = (size_t)count;
         return 1;
     }
-    out->kind = VM_HOST_SLICE;
+    out->kind = HOST_SLICE;
     out->length = (size_t)count;
     out->elements = exec_arena(hosts, (size_t)count, sizeof(*out->elements));
     if(out->elements == NULL) return 0;
@@ -838,6 +901,144 @@ exec_image_grow(ExecImage *image, int64_t count)
     if(count > 0) memset(image->bytes + at, 0, (size_t)count);
     image->length = needed;
     return at;
+}
+
+/* Writes the in-process representation at NATIVE into an engine image. A
+ * native string or slice contains an address and count; the image contains a
+ * root-relative offset and count. */
+static int
+exec_native_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type,
+                     const unsigned char *native, int64_t at, int depth)
+{
+    const ExecBundle *bundle = hosts->bundle;
+    const ExecNode *node = &bundle->nodes[node_id];
+    const LirType *shape = exec_type(bundle, type);
+    int64_t width = exec_size(bundle, type);
+    if(depth > EXEC_DEPTH || native == NULL || width < 0 || node->class == NODE_PROCEDURE)
+        return 0;
+    if(node->class == NODE_SCALAR || node->class == NODE_POINTER) {
+        memcpy(image->bytes + at, native, (size_t)width);
+        return 1;
+    }
+    if(node->class == NODE_ARRAY) {
+        if(shape->kind != LirTypeKind_Array) return 0;
+        int64_t element = exec_size(bundle, shape->element);
+        for(int64_t index = 0; index < shape->count; index++)
+            if(!exec_native_to_image(hosts, image, node->child, shape->element,
+                                     native + index * element, at + index * element,
+                                     depth + 1)) return 0;
+        return 1;
+    }
+    if(node->class == NODE_RECORD) {
+        if(shape->kind != LirTypeKind_Record || shape->fields.length != node->field_count)
+            return 0;
+        int64_t offset = 0;
+        for(int index = 0; index < node->field_count; index++) {
+            int32_t field = ((const int32_t *)shape->fields.data)[index];
+            if(!exec_native_to_image(hosts, image, node->field_nodes[index], field,
+                                     native + offset, at + offset, depth + 1)) return 0;
+            offset += exec_size(bundle, field);
+        }
+        return 1;
+    }
+    int32_t element = exec_view_element(bundle, type);
+    int64_t element_width = element >= 0 ? exec_size(bundle, element) : -1;
+    if(element < 0 || width != 16 || element_width <= 0) return 0;
+    uint64_t pointer = exec_read(native, 8);
+    uint64_t count = exec_read(native + 8, 8);
+    memset(image->bytes + at, 0, 16);
+    exec_write(image->bytes + at + 8, 8, count);
+    if(count == 0) return 1;
+    if(pointer == 0 || count > (uint64_t)(INT64_MAX / element_width)) return 0;
+    int64_t bytes = (int64_t)count * element_width;
+    const unsigned char *elements = exec_native_address(hosts, pointer, (size_t)bytes, 0);
+    if(elements == NULL) return 0;
+    int64_t start = exec_image_grow(image, bytes);
+    if(start < 0) return 0;
+    exec_write(image->bytes + at, 8, (uint64_t)(start - (int64_t)image->base));
+    /* A string's elements are its bytes; its node has no element child. */
+    if(node->class == NODE_STRING) {
+        memcpy(image->bytes + start, elements, (size_t)bytes);
+        return 1;
+    }
+    for(uint64_t index = 0; index < count; index++)
+        if(!exec_native_to_image(hosts, image, node->child, element,
+                                 elements + index * (uint64_t)element_width,
+                                 start + (int64_t)index * element_width,
+                                 depth + 1)) return 0;
+    return 1;
+}
+
+/* Writes one engine-image value into its native representation. OUT owns the
+ * elements of returned nested views. Its capacity is reserved before this is
+ * called, so addresses written into NATIVE cannot be invalidated by growth. */
+static int
+exec_image_to_native(ExecHosts *hosts, ExecImage *out, int node_id, int32_t type,
+                     const unsigned char *image, int64_t size, int64_t at,
+                     unsigned char *native, int depth)
+{
+    const ExecBundle *bundle = hosts->bundle;
+    const ExecNode *node = &bundle->nodes[node_id];
+    const LirType *shape = exec_type(bundle, type);
+    int64_t width = exec_size(bundle, type);
+    if(depth > EXEC_DEPTH || native == NULL || at < 0 || width < 0 ||
+       at > size || width > size - at || node->class == NODE_PROCEDURE)
+        return 0;
+    if(node->class == NODE_SCALAR || node->class == NODE_POINTER) {
+        memcpy(native, image + at, (size_t)width);
+        return 1;
+    }
+    if(node->class == NODE_ARRAY) {
+        if(shape->kind != LirTypeKind_Array) return 0;
+        int64_t element = exec_size(bundle, shape->element);
+        for(int64_t index = 0; index < shape->count; index++)
+            if(!exec_image_to_native(hosts, out, node->child, shape->element,
+                                     image, size, at + index * element,
+                                     native + index * element, depth + 1)) return 0;
+        return 1;
+    }
+    if(node->class == NODE_RECORD) {
+        if(shape->kind != LirTypeKind_Record || shape->fields.length != node->field_count)
+            return 0;
+        int64_t offset = 0;
+        for(int index = 0; index < node->field_count; index++) {
+            int32_t field = ((const int32_t *)shape->fields.data)[index];
+            if(!exec_image_to_native(hosts, out, node->field_nodes[index], field,
+                                     image, size, at + offset, native + offset,
+                                     depth + 1)) return 0;
+            offset += exec_size(bundle, field);
+        }
+        return 1;
+    }
+    int32_t element = exec_view_element(bundle, type);
+    int64_t element_width = element >= 0 ? exec_size(bundle, element) : -1;
+    if(element < 0 || width != 16 || element_width <= 0) return 0;
+    uint64_t start = exec_read(image + at, 8), count = exec_read(image + at + 8, 8);
+    if(start > (uint64_t)size || count > (uint64_t)((size - (int64_t)start) / element_width) ||
+       count > (uint64_t)(INT64_MAX / element_width)) return 0;
+    exec_write(native + 8, 8, count);
+    if(count == 0) {
+        exec_write(native, 8, 0);
+        return 1;
+    }
+    int64_t bytes = (int64_t)count * element_width;
+    int64_t target = exec_image_grow(out, bytes);
+    if(target < 0) return 0;
+    unsigned char *elements = out->bytes + target;
+    uint64_t named = exec_native_name(hosts, elements, (size_t)bytes);
+    if(named == 0) return 0;
+    exec_write(native, 8, named);
+    /* A string's elements are its bytes; its node has no element child. */
+    if(node->class == NODE_STRING) {
+        memcpy(elements, image + start, (size_t)bytes);
+        return 1;
+    }
+    for(uint64_t index = 0; index < count; index++)
+        if(!exec_image_to_native(hosts, out, node->child, element, image, size,
+                                 (int64_t)start + (int64_t)index * element_width,
+                                 elements + index * (uint64_t)element_width,
+                                 depth + 1)) return 0;
+    return 1;
 }
 
 /* Whether a host names a returned value's type as declared: the same
@@ -886,17 +1087,17 @@ exec_type_matches(const char *expected, const char *actual, int depth)
 /* A scalar or pointer result's canonical bits, by the rules of the semantic
  * VM's host returns: the host gives the kind its spelling selects. */
 static int
-exec_scalar_bits(const ExecNode *node, const LirType *type, const VmHostValue *value, uint64_t *bits)
+exec_scalar_bits(const ExecNode *node, const LirType *type, const HostValue *value, uint64_t *bits)
 {
     if(value->field_count != 0 || value->fields != NULL ||
        !exec_type_matches(node->spelling, value->type, 0)) return 0;
     if(node->class == NODE_POINTER) {
-        if(type->kind != LirTypeKind_Pointer || value->kind != VM_HOST_POINTER) return 0;
+        if(type->kind != LirTypeKind_Pointer || value->kind != HOST_POINTER) return 0;
         *bits = (uint64_t)(uintptr_t)value->pointer;
         return 1;
     }
     if(type->kind == LirTypeKind_Float) {
-        if(value->kind != VM_HOST_REAL) return 0;
+        if(value->kind != HOST_REAL) return 0;
         if(type->bits == 32) {
             float narrow = (float)value->real;
             uint32_t word;
@@ -906,16 +1107,16 @@ exec_scalar_bits(const ExecNode *node, const LirType *type, const VmHostValue *v
         return 1;
     }
     if(type->kind != LirTypeKind_Integer && type->kind != LirTypeKind_Bool) return 0;
-    VmHostValueKind expected = node->spelling[0] == 'u' ? VM_HOST_UNSIGNED : VM_HOST_INTEGER;
+    HostValueKind expected = node->spelling[0] == 'u' ? HOST_UNSIGNED : HOST_INTEGER;
     if(value->kind != expected) return 0;
-    uint64_t raw = expected == VM_HOST_UNSIGNED ? value->bits : (uint64_t)value->integer;
+    uint64_t raw = expected == HOST_UNSIGNED ? value->bits : (uint64_t)value->integer;
     if(type->kind == LirTypeKind_Bool) *bits = raw != 0;
     else *bits = type->bits < 64 ? raw & ((UINT64_C(1) << type->bits) - 1) : raw;
     return 1;
 }
 
-static const VmHostField *
-exec_field_named(const VmHostValue *value, const char *name)
+static const HostField *
+exec_field_named(const HostValue *value, const char *name)
 {
     for(size_t index = 0; index < value->field_count; index++)
         if(value->fields[index].name != NULL && !strcmp(value->fields[index].name, name))
@@ -926,7 +1127,7 @@ exec_field_named(const VmHostValue *value, const char *name)
 /* Writes the host's `value` as the `type` value at image->bytes[at],
  * appending the elements of its views. */
 static int
-exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, const VmHostValue *value,
+exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, const HostValue *value,
               int64_t at, int depth)
 {
     const ExecBundle *bundle = hosts->bundle;
@@ -942,7 +1143,7 @@ exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, con
         return 1;
     }
     if(node->class == NODE_ARRAY) {
-        if(shape->kind != LirTypeKind_Array || value->kind != VM_HOST_ARRAY ||
+        if(shape->kind != LirTypeKind_Array || value->kind != HOST_ARRAY ||
            value->length != (size_t)shape->count || (shape->count && value->elements == NULL)) return 0;
         int64_t element = exec_size(bundle, shape->element);
         for(int64_t index = 0; index < shape->count; index++)
@@ -952,12 +1153,12 @@ exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, con
     }
     if(node->class == NODE_RECORD) {
         if(shape->kind != LirTypeKind_Record || shape->fields.length != node->field_count ||
-           value->kind != VM_HOST_RECORD || (value->field_count && value->fields == NULL)) return 0;
+           value->kind != HOST_RECORD || (value->field_count && value->fields == NULL)) return 0;
         if(!hosts->match_fields_by_name && value->field_count != (size_t)node->field_count) return 0;
         int64_t offset = at;
         for(int index = 0; index < node->field_count; index++) {
             int32_t field = ((const int32_t *)shape->fields.data)[index];
-            const VmHostField *given = NULL;
+            const HostField *given = NULL;
             if(hosts->match_fields_by_name) given = exec_field_named(value, node->field_names[index]);
             else if(value->fields[index].name != NULL && !strcmp(value->fields[index].name, node->field_names[index]))
                 given = &value->fields[index];
@@ -975,7 +1176,7 @@ exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, con
     if(element < 0 || width != 16 || element_width <= 0) return 0;
     size_t count = value->length;
     if(node->class == NODE_STRING) {
-        if(value->kind != VM_HOST_STRING || element_width != 1 || (count && value->data == NULL)) return 0;
+        if(value->kind != HOST_STRING || element_width != 1 || (count && value->data == NULL)) return 0;
         memset(image->bytes + at, 0, 16);
         if(count == 0) return 1;
         uintptr_t data = (uintptr_t)value->data, given = (uintptr_t)image->given;
@@ -993,7 +1194,7 @@ exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, con
         exec_write(image->bytes + at + 8, 8, (uint64_t)count);
         return 1;
     }
-    if(value->kind != VM_HOST_SLICE || (count && value->elements == NULL) ||
+    if(value->kind != HOST_SLICE || (count && value->elements == NULL) ||
        count > (size_t)(INT64_MAX / element_width)) return 0;
     memset(image->bytes + at, 0, 16);
     if(count == 0) return 1;
@@ -1011,7 +1212,7 @@ exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, con
  * hosts->back: the image it was given with each element written again, as
  * the semantic VM copies a host's slice elements back. */
 static int
-exec_copy_back(ExecHosts *hosts, int node_id, const ExecHostArgument *argument, const VmHostValue *value,
+exec_copy_back(ExecHosts *hosts, int node_id, const ExecHostArgument *argument, const HostValue *value,
                size_t *offset)
 {
     const ExecBundle *bundle = hosts->bundle;
@@ -1020,7 +1221,7 @@ exec_copy_back(ExecHosts *hosts, int node_id, const ExecHostArgument *argument, 
     int64_t width = element >= 0 ? exec_size(bundle, element) : 0;
     if(width <= 0 || argument->size < 16) return 0;
     uint64_t start = exec_read(argument->bytes, 8), count = exec_read(argument->bytes + 8, 8);
-    if(value->kind != VM_HOST_SLICE || value->type == NULL || strcmp(value->type, node->spelling) != 0 ||
+    if(value->kind != HOST_SLICE || value->type == NULL || strcmp(value->type, node->spelling) != 0 ||
        value->length != count || (count && value->elements == NULL)) return 0;
     ExecImage *image = &hosts->back;
     image->base = image->length;
@@ -1066,7 +1267,7 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
     if(index >= bundle->host_count || count != (size_t)bundle->hosts[index].parameter_count) return 0;
     const ExecHost *host = &bundle->hosts[index];
     int ok = 0;
-    VmHostValue *values = exec_arena(hosts, count, sizeof(*values));
+    HostValue *values = exec_arena(hosts, count, sizeof(*values));
     size_t *backs = exec_arena(hosts, count, sizeof(*backs));
     if(values == NULL || backs == NULL) goto done;
     for(size_t at = 0; at < count; at++) {
@@ -1077,7 +1278,7 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
             if(!exec_scalar_value(node, type, arguments[at].bits, &values[at])) goto done;
         } else if(node->class == NODE_POINTER) {
             if(type->kind != LirTypeKind_Pointer) goto done;
-            values[at].kind = VM_HOST_POINTER;
+            values[at].kind = HOST_POINTER;
             values[at].type = node->spelling;
             values[at].pointer = (void *)(uintptr_t)arguments[at].bits;
         } else if(!exec_from_image(hosts, host->parameters[at], arguments[at].type, arguments[at].bytes,
@@ -1086,7 +1287,7 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
     const HostBinding *binding = hosts->bound[index];
     /* As on the semantic VM, the result starts named as declared, so a host
      * may leave its type as it finds it. */
-    VmHostValue returned;
+    HostValue returned;
     memset(&returned, 0, sizeof(returned));
     returned.type = host->result >= 0 ? bundle->nodes[host->result].spelling : "void";
     if(!binding->call(binding->context, host->module, host->name, values, (int)count, &returned)) goto done;
@@ -1100,7 +1301,7 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
     int32_t type = declared->result;
     *result = (ExecHostArgument){.type = type};
     if(host->result < 0) {
-        ok = returned.kind == VM_HOST_VOID;
+        ok = returned.kind == HOST_VOID;
         goto done;
     }
     const ExecNode *node = &bundle->nodes[host->result];
@@ -1130,6 +1331,208 @@ done:
     return ok;
 }
 
+/* Keeps native_out when it holds more than a result root the caller copies
+ * out at once, within the same value-byte limit as the engine's storage. */
+static int
+exec_native_retain(ExecHosts *hosts, size_t root_bytes)
+{
+    size_t length = hosts->native_out.length;
+    if(length <= root_bytes) return 1;
+    size_t limit = (size_t)compiler_exec_LirExecDefaultLimits().value_bytes;
+    if(hosts->retained_bytes > limit || length > limit - hosts->retained_bytes) return 0;
+    if(hosts->retained_count == hosts->retained_capacity) {
+        size_t capacity = hosts->retained_capacity ? hosts->retained_capacity * 2 : 8;
+        unsigned char **grown = realloc(hosts->retained, capacity * sizeof(*grown));
+        if(grown == NULL) return 0;
+        hosts->retained = grown;
+        hosts->retained_capacity = capacity;
+    }
+    hosts->retained[hosts->retained_count++] = hosts->native_out.bytes;
+    hosts->retained_bytes += length;
+    hosts->native_out = (ExecImage){0};
+    return 1;
+}
+
+int
+ExecHostsCallNative(ExecHosts *hosts, size_t index,
+                    ExecHostNativeValue *arguments, size_t count,
+                    ExecHostNativeValue *result)
+{
+    if(hosts == NULL || result == NULL || index >= hosts->bundle->host_count)
+        return 0;
+    const ExecBundle *bundle = hosts->bundle;
+    const ExecHost *host = &bundle->hosts[index];
+    if(count != (size_t)host->parameter_count ||
+       (count != 0 && arguments == NULL))
+        return 0;
+    const LirFunction *declared =
+        &((const LirFunction *)bundle->program.functions.data)[host->function];
+    const int32_t *parameters = declared->parameters.data;
+    ExecHostArgument *wire = calloc(count ? count : 1, sizeof(*wire));
+    size_t *offsets = calloc(count ? count : 1, sizeof(*offsets));
+    if(wire == NULL || offsets == NULL) {
+        free(offsets);
+        free(wire);
+        return 0;
+    }
+    int ok = 0;
+    hosts->native_in.length = 0;
+    for(size_t at = 0; at < count; at++) {
+        int32_t type = parameters[at];
+        const ExecNode *node = &bundle->nodes[host->parameters[at]];
+        int64_t width = exec_size(bundle, type);
+        if(arguments[at].type != type || width < 0) goto done;
+        wire[at].type = type;
+        if(node->class == NODE_SCALAR || node->class == NODE_POINTER) {
+            wire[at].bits = arguments[at].bits;
+            continue;
+        }
+        if(arguments[at].bytes == NULL || arguments[at].size < (size_t)width)
+            goto done;
+        offsets[at] = hosts->native_in.length;
+        hosts->native_in.base = hosts->native_in.length;
+        int64_t root = exec_image_grow(&hosts->native_in, width);
+        if(root < 0 ||
+           !exec_native_to_image(hosts, &hosts->native_in,
+                                 host->parameters[at], type,
+                                 arguments[at].bytes, root, 0))
+            goto done;
+    }
+    for(size_t at = 0; at < count; at++) {
+        const ExecNode *node = &bundle->nodes[host->parameters[at]];
+        if(node->class == NODE_SCALAR || node->class == NODE_POINTER)
+            continue;
+        size_t end = hosts->native_in.length;
+        for(size_t next = at + 1; next < count; next++) {
+            const ExecNode *next_node = &bundle->nodes[host->parameters[next]];
+            if(next_node->class != NODE_SCALAR && next_node->class != NODE_POINTER) {
+                end = offsets[next];
+                break;
+            }
+        }
+        wire[at].bytes = hosts->native_in.bytes + offsets[at];
+        wire[at].size = end - offsets[at];
+    }
+    /* The semantic engine rejects overlapping mutable views. Do it before
+     * the callback here as well, so copy-back order cannot change behavior. */
+    for(size_t left = 0; left < count; left++) {
+        if(!ExecBundleHostMutable(bundle, index, left)) continue;
+        int32_t type = parameters[left];
+        int32_t element = exec_view_element(bundle, type);
+        int64_t width = element >= 0 ? exec_size(bundle, element) : -1;
+        if(width <= 0 || arguments[left].bytes == NULL ||
+           arguments[left].size < 16) goto done;
+        uint64_t elements = exec_read(arguments[left].bytes + 8, 8);
+        if(elements > SIZE_MAX / (size_t)width) goto done;
+        size_t bytes = (size_t)elements * (size_t)width;
+        uintptr_t begin = bytes == 0 ? 0 :
+            (uintptr_t)exec_native_address(hosts, exec_read(arguments[left].bytes, 8), bytes, 1);
+        if(bytes != 0 && begin == 0) goto done;
+        if(begin > UINTPTR_MAX - bytes) goto done;
+        uintptr_t end = begin + bytes;
+        for(size_t right = left + 1; right < count; right++) {
+            if(!ExecBundleHostMutable(bundle, index, right)) continue;
+            int32_t right_type = parameters[right];
+            int32_t right_element = exec_view_element(bundle, right_type);
+            int64_t right_width = right_element >= 0 ?
+                exec_size(bundle, right_element) : -1;
+            if(right_width <= 0 || arguments[right].bytes == NULL ||
+               arguments[right].size < 16) goto done;
+            uint64_t other_count = exec_read(arguments[right].bytes + 8, 8);
+            if(other_count > SIZE_MAX / (size_t)right_width) goto done;
+            size_t other_bytes = (size_t)other_count * (size_t)right_width;
+            uintptr_t other = other_bytes == 0 ? 0 :
+                (uintptr_t)exec_native_address(hosts, exec_read(arguments[right].bytes, 8), other_bytes, 1);
+            if(other_bytes != 0 && other == 0) goto done;
+            if(other > UINTPTR_MAX - other_bytes) goto done;
+            uintptr_t other_end = other + other_bytes;
+            if(bytes != 0 && other_bytes != 0 && begin < other_end && other < end)
+                goto done;
+        }
+    }
+    ExecHostArgument returned = {0};
+    if(!ExecHostsCall(hosts, index, wire, count, &returned))
+        goto done;
+    size_t reserve = returned.size;
+    for(size_t at = 0; at < count; at++) {
+        if(wire[at].changed) {
+            if(wire[at].size > SIZE_MAX - reserve) goto done;
+            reserve += wire[at].size;
+        }
+    }
+    hosts->native_out.length = 0;
+    if(reserve != 0) {
+        if(reserve > (size_t)INT64_MAX ||
+           exec_image_grow(&hosts->native_out, (int64_t)reserve) < 0)
+            goto done;
+        hosts->native_out.length = 0;
+    }
+    for(size_t at = 0; at < count; at++) {
+        if(!wire[at].changed) continue;
+        int32_t type = parameters[at];
+        int32_t element = exec_view_element(bundle, type);
+        int64_t element_width = element >= 0 ? exec_size(bundle, element) : -1;
+        if(element_width <= 0 || arguments[at].bytes == NULL ||
+           arguments[at].size < 16 || wire[at].bytes == NULL ||
+           wire[at].size < 16) goto done;
+        uint64_t count_before = exec_read(arguments[at].bytes + 8, 8);
+        uint64_t start = exec_read(wire[at].bytes, 8);
+        uint64_t count_after = exec_read(wire[at].bytes + 8, 8);
+        if(count_before > SIZE_MAX / (size_t)element_width) goto done;
+        uintptr_t destination = count_before == 0 ? 0 :
+            (uintptr_t)exec_native_address(hosts, exec_read(arguments[at].bytes, 8),
+                                           (size_t)count_before * (size_t)element_width, 1);
+        if(count_before != count_after || (count_after != 0 && destination == 0) ||
+           start > wire[at].size ||
+           count_after > (wire[at].size - (size_t)start) / (size_t)element_width)
+            goto done;
+        for(uint64_t item = 0; item < count_after; item++)
+            if(!exec_image_to_native(hosts, &hosts->native_out,
+                                     bundle->nodes[host->parameters[at]].child,
+                                     element, wire[at].bytes, (int64_t)wire[at].size,
+                                     (int64_t)start + (int64_t)item * element_width,
+                                     (unsigned char *)destination +
+                                         item * (uint64_t)element_width, 1))
+                goto done;
+    }
+    *result = (ExecHostNativeValue){.type = returned.type,
+                                    .bits = returned.bits};
+    size_t root_bytes = 0;
+    if(host->result >= 0) {
+        const ExecNode *node = &bundle->nodes[host->result];
+        if(node->class != NODE_SCALAR && node->class != NODE_POINTER &&
+           exec_size(bundle, returned.type) > 0) {
+            int64_t width = exec_size(bundle, returned.type);
+            int64_t root = exec_image_grow(&hosts->native_out, width);
+            if(root < 0 ||
+               !exec_image_to_native(hosts, &hosts->native_out,
+                                     host->result, returned.type,
+                                     returned.bytes, (int64_t)returned.size, 0,
+                                     hosts->native_out.bytes + root, 0))
+                goto done;
+            result->bytes = hosts->native_out.bytes + root;
+            result->size = (size_t)width;
+            root_bytes = (size_t)width;
+        }
+    }
+    if(!exec_native_retain(hosts, root_bytes)) goto done;
+    ok = 1;
+done:
+    free(offsets);
+    free(wire);
+    return ok;
+}
+
+void
+ExecHostsNativePointers(ExecHosts *hosts, ExecNativeResolve resolve, ExecNativeCreate create,
+                        void *context)
+{
+    if(hosts == NULL) return;
+    hosts->native_resolve = resolve;
+    hosts->native_create = create;
+    hosts->native_pointers = context;
+}
+
 void
 ExecHostsMatchFieldsByName(ExecHosts *hosts, int enabled)
 {
@@ -1143,6 +1546,10 @@ ExecHostsClose(ExecHosts *hosts)
     exec_arena_free(hosts);
     free(hosts->result.bytes);
     free(hosts->back.bytes);
+    free(hosts->native_in.bytes);
+    free(hosts->native_out.bytes);
+    for(size_t at = 0; at < hosts->retained_count; at++) free(hosts->retained[at]);
+    free(hosts->retained);
     free(hosts->bound);
     free(hosts);
 }
@@ -1339,7 +1746,7 @@ size_t ExecInstanceStateCount(const ExecInstance *instance) { return instance->b
 
 int
 ExecInstanceStateAt(ExecInstance *instance, size_t index, const char **module, const char **name,
-                    const char **type, VmHostValue *value)
+                    const char **type, HostValue *value)
 {
     const ExecBundle *bundle = instance->bundle;
     if(index >= bundle->global_count || instance->failed) return 0;
@@ -1357,7 +1764,7 @@ ExecInstanceStateAt(ExecInstance *instance, size_t index, const char **module, c
 }
 
 int
-ExecInstanceStateStore(ExecInstance *instance, const VmHostValue *const *values)
+ExecInstanceStateStore(ExecInstance *instance, const HostValue *const *values)
 {
     const ExecBundle *bundle = instance->bundle;
     ExecHosts *hosts = instance->hosts;
@@ -1408,7 +1815,7 @@ ExecBundleStateAt(const ExecBundle *bundle, size_t index, const char **module, c
 }
 
 int
-ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, size_t size, VmHostValue *value)
+ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, size_t size, HostValue *value)
 {
     const ExecBundle *bundle = hosts->bundle;
     if(index >= bundle->global_count || size > INT64_MAX) return 0;
@@ -1420,7 +1827,51 @@ ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, 
 }
 
 int
-ExecHostsStateImage(ExecHosts *hosts, size_t index, const VmHostValue *value, const unsigned char **image,
+ExecHostsNativeStateValue(ExecHosts *hosts, size_t index, const unsigned char *native, HostValue *value)
+{
+    const ExecBundle *bundle = hosts->bundle;
+    if(index >= bundle->global_count || native == NULL || value == NULL) return 0;
+    const ExecGlobal *global = &bundle->globals[index];
+    int32_t type = ((const LirGlobal *)bundle->program.globals.data)[global->index].type;
+    ExecImage *image = &hosts->native_in;
+    image->length = 0;
+    image->base = 0;
+    int64_t root = exec_image_grow(image, exec_size(bundle, type));
+    if(root < 0 || !exec_native_to_image(hosts, image, global->node, type, native, root, 0)) return 0;
+    memset(value, 0, sizeof(*value));
+    exec_arena_free(hosts);
+    return exec_from_image(hosts, global->node, type, image->bytes, (int64_t)image->length, 0, value, 0);
+}
+
+int
+ExecHostsNativeStateCheck(ExecHosts *hosts, size_t index, const HostValue *value)
+{
+    const unsigned char *image;
+    size_t size;
+    return ExecHostsStateImage(hosts, index, value, &image, &size);
+}
+
+int
+ExecHostsNativeStateStore(ExecHosts *hosts, size_t index, const HostValue *value, unsigned char *native)
+{
+    const ExecBundle *bundle = hosts->bundle;
+    const unsigned char *image;
+    size_t size;
+    if(native == NULL || !ExecHostsStateImage(hosts, index, value, &image, &size)) return 0;
+    const ExecGlobal *global = &bundle->globals[index];
+    int32_t type = ((const LirGlobal *)bundle->program.globals.data)[global->index].type;
+    /* Reserve the image's bytes so nested views never move, then keep them. */
+    hosts->native_out.length = 0;
+    if(size > (size_t)INT64_MAX || exec_image_grow(&hosts->native_out, (int64_t)size) < 0) return 0;
+    hosts->native_out.length = 0;
+    if(!exec_image_to_native(hosts, &hosts->native_out, global->node, type, image, (int64_t)size, 0,
+                             native, 0))
+        return 0;
+    return exec_native_retain(hosts, 0);
+}
+
+int
+ExecHostsStateImage(ExecHosts *hosts, size_t index, const HostValue *value, const unsigned char **image,
                     size_t *size)
 {
     const ExecBundle *bundle = hosts->bundle;
@@ -1466,9 +1917,15 @@ ExecBundle *ExecBundleOpen(const unsigned char *bytes, size_t size, const char *
 }
 void ExecBundleClose(ExecBundle *bundle) { (void)bundle; }
 const void *ExecBundleProgram(const ExecBundle *bundle) { (void)bundle; return NULL; }
+int ExecBundleDebugProgram(const ExecBundle *bundle, void *debug) { (void)bundle; (void)debug; return 0; }
 size_t ExecBundleCapabilityCount(const ExecBundle *bundle) { (void)bundle; return 0; }
 const char *ExecBundleCapabilityModule(const ExecBundle *bundle, size_t index) { (void)bundle; (void)index; return NULL; }
 const char *ExecBundleCapabilityFunction(const ExecBundle *bundle, size_t index) { (void)bundle; (void)index; return NULL; }
+int32_t ExecBundleCapabilityFunctionId(const ExecBundle *bundle, size_t index) { (void)bundle; (void)index; return -1; }
+int32_t ExecBundleCapabilityParameterTypeId(const ExecBundle *bundle, size_t index, size_t parameter)
+{ (void)bundle; (void)index; (void)parameter; return -1; }
+int32_t ExecBundleCapabilityResultTypeId(const ExecBundle *bundle, size_t index)
+{ (void)bundle; (void)index; return -1; }
 int ExecBundleCapabilityAbi(const ExecBundle *bundle, size_t index, BundleCapabilityAbi *abi)
 {
     (void)bundle; (void)index; (void)abi;
@@ -1497,20 +1954,36 @@ int ExecHostsCall(ExecHosts *hosts, size_t host, ExecHostArgument *arguments, si
     (void)hosts; (void)host; (void)arguments; (void)count; (void)result;
     return 0;
 }
+int ExecHostsCallNative(ExecHosts *hosts, size_t host,
+                        ExecHostNativeValue *arguments, size_t count,
+                        ExecHostNativeValue *result)
+{
+    (void)hosts; (void)host; (void)arguments; (void)count; (void)result;
+    return 0;
+}
 void ExecHostsMatchFieldsByName(ExecHosts *hosts, int enabled) { (void)hosts; (void)enabled; }
+void ExecHostsNativePointers(ExecHosts *hosts, ExecNativeResolve resolve, ExecNativeCreate create,
+                             void *context)
+{ (void)hosts; (void)resolve; (void)create; (void)context; }
 size_t ExecBundleStateCount(const ExecBundle *bundle) { (void)bundle; return 0; }
+int ExecHostsNativeStateValue(ExecHosts *hosts, size_t index, const unsigned char *native, HostValue *value)
+{ (void)hosts; (void)index; (void)native; (void)value; return 0; }
+int ExecHostsNativeStateCheck(ExecHosts *hosts, size_t index, const HostValue *value)
+{ (void)hosts; (void)index; (void)value; return 0; }
+int ExecHostsNativeStateStore(ExecHosts *hosts, size_t index, const HostValue *value, unsigned char *native)
+{ (void)hosts; (void)index; (void)value; (void)native; return 0; }
 int ExecBundleStateAt(const ExecBundle *bundle, size_t index, const char **module, const char **name,
                       const char **type, int32_t *global)
 {
     (void)bundle; (void)index; (void)module; (void)name; (void)type; (void)global;
     return 0;
 }
-int ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, size_t size, VmHostValue *value)
+int ExecHostsStateValue(ExecHosts *hosts, size_t index, const unsigned char *image, size_t size, HostValue *value)
 {
     (void)hosts; (void)index; (void)image; (void)size; (void)value;
     return 0;
 }
-int ExecHostsStateImage(ExecHosts *hosts, size_t index, const VmHostValue *value, const unsigned char **image,
+int ExecHostsStateImage(ExecHosts *hosts, size_t index, const HostValue *value, const unsigned char **image,
                         size_t *size)
 {
     (void)hosts; (void)index; (void)value; (void)image; (void)size;
@@ -1533,12 +2006,12 @@ void ExecInstanceMatchFieldsByName(ExecInstance *instance, int enabled) { (void)
 size_t ExecInstanceLiveBytes(const ExecInstance *instance) { (void)instance; return 0; }
 size_t ExecInstanceStateCount(const ExecInstance *instance) { (void)instance; return 0; }
 int ExecInstanceStateAt(ExecInstance *instance, size_t index, const char **module, const char **name,
-                        const char **type, VmHostValue *value)
+                        const char **type, HostValue *value)
 {
     (void)instance; (void)index; (void)module; (void)name; (void)type; (void)value;
     return 0;
 }
-int ExecInstanceStateStore(ExecInstance *instance, const VmHostValue *const *values)
+int ExecInstanceStateStore(ExecInstance *instance, const HostValue *const *values)
 {
     (void)instance; (void)values;
     return 0;

@@ -71,6 +71,13 @@ MachineAbiTypeSize :: (program: LirProgram, type_id: s32) -> s64 {
 MachineAbiArgumentRegister :: (target: TargetDescription, class: MachineRegisterClass,
     ordinal: s32) -> s32 {
     if !TargetMachineLoweringSupported(target) || ordinal < 0 { return -1 }
+    if target.arch == .AArch64 {
+        // AAPCS64 passes the first eight general arguments in x0-x7 and the
+        // first eight floating/vector arguments in v0-v7. Machine float
+        // registers use the same numbering as their v encodings.
+        if ordinal < 8 { return ordinal }
+        return -1
+    }
     if class == .General {
         registers: [6]s32 = .[cast(s32)X64Register.Rdi, cast(s32)X64Register.Rsi,
             cast(s32)X64Register.Rdx, cast(s32)X64Register.Rcx,
@@ -83,6 +90,10 @@ MachineAbiArgumentRegister :: (target: TargetDescription, class: MachineRegister
 
 MachineAbiResultRegister :: (target: TargetDescription, class: MachineRegisterClass) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }
+    if target.arch == .AArch64 {
+        if class == .General || class == .Float { return 0 }
+        return -1
+    }
     if class == .General { return cast(s32)X64Register.Rax }
     if class == .Float { return 0 }
     return -1
@@ -93,6 +104,11 @@ MachineAbiResultRegister :: (target: TargetDescription, class: MachineRegisterCl
 // divisor, leaving the quotient in RAX and clobbering RDX, and shifts by CL.
 MachineAbiFixedRegister :: (target: TargetDescription, use: MachineAbiFixedUse) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }
+    if target.arch == .AArch64 {
+        // SDIV/UDIV and the variable-shift forms take arbitrary registers;
+        // divide-by-zero and range traps are encoded inline per target.
+        return -1
+    }
     if use == .DivideDividend || use == .DivideResult { return cast(s32)X64Register.Rax }
     if use == .DivideClobber { return cast(s32)X64Register.Rdx }
     if use == .ShiftCount { return cast(s32)X64Register.Rcx }
@@ -100,12 +116,10 @@ MachineAbiFixedRegister :: (target: TargetDescription, use: MachineAbiFixedUse) 
 }
 
 // Whether the implemented native call ABI passes and returns CLASS in
-// registers. Only general registers are implemented; float and vector
-// arguments and results, and arguments passed on the stack, are not, and a
-// call using them is an unsupported form rather than a call lowered some
-// other way.
+// registers. SysV scalar general and float values use their independent
+// register sequences; vectors remain outside the native scalar contract.
 MachineAbiCallRegisterClass :: (target: TargetDescription, class: MachineRegisterClass) -> bool {
-    return TargetMachineLoweringSupported(target) && class == .General
+    return TargetMachineLoweringSupported(target) && (class == .General || class == .Float)
 }
 
 // Whether the target's relocation of KIND can carry ADDEND. A Linux x86-64
@@ -113,6 +127,11 @@ MachineAbiCallRegisterClass :: (target: TargetDescription, class: MachineRegiste
 // addresses and the fuel counter carry no addend.
 MachineAbiRelocationAddend :: (target: TargetDescription, kind: MachineRelocationKind, addend: s64) -> bool {
     if !TargetMachineLoweringSupported(target) { return false }
+    if target.arch == .AArch64 {
+        // Addresses materialize as MOVZ/MOVK halfwords; symbolic addends
+        // beyond the field itself are not carried per halfword relocation.
+        return addend == 0
+    }
     if kind == .GlobalAddress || kind == .ConstantAddress {
         return addend >= -2147483648 && addend <= 2147483647
     }
@@ -121,6 +140,11 @@ MachineAbiRelocationAddend :: (target: TargetDescription, kind: MachineRelocatio
 
 MachineAbiCallGeneralClobbers :: (target: TargetDescription) -> u64 {
     if !TargetMachineLoweringSupported(target) { return 0 }
+    if target.arch == .AArch64 {
+        // x0-x17 are caller-saved. x18 is the platform register and is
+        // reserved from allocation, so calls never need to declare it.
+        return 0x3ffff
+    }
     return (cast(u64)1 << cast(u64)X64Register.Rax) |
         (cast(u64)1 << cast(u64)X64Register.Rcx) |
         (cast(u64)1 << cast(u64)X64Register.Rdx) |
@@ -134,6 +158,11 @@ MachineAbiCallGeneralClobbers :: (target: TargetDescription) -> u64 {
 
 MachineAbiCallFloatClobbers :: (target: TargetDescription) -> u64 {
     if !TargetMachineLoweringSupported(target) { return 0 }
+    if target.arch == .AArch64 {
+        // v0-v7 and v16-v31 are caller-saved; the low halves of v8-v15 are
+        // callee-saved.
+        return 0xffff00ff
+    }
     return 0xffff
 }
 
@@ -144,4 +173,94 @@ MachineAbiPhysicalClass :: (target: TargetDescription, class: MachineRegisterCla
     if class == .Float { return physical < target.float_registers }
     if class == .Vector { return physical < target.vector_registers }
     return false
+}
+
+// One fixed-register instruction form the target lower materializes.
+MachineAbiForm :: enum s32 { Invalid; BytesEqual; Resize }
+
+// The register an indirect call's target lives in at the call. The x86-64
+// call sequence writes rax (the hidden result pointer) and r11 (the copy
+// scratch of stack arguments) before it calls, so the target must be
+// elsewhere; r10 is caller-saved and passes no argument. AArch64 has no
+// fixed choice yet.
+MachineAbiIndirectCallRegister :: (target: TargetDescription) -> s32 {
+    if !TargetMachineLoweringSupported(target) || target.arch == .AArch64 { return -1 }
+    return cast(s32)X64Register.R10
+}
+
+// A general register an encoder may clobber inside one instruction without
+// an IR-visible home. x86 uses R11 for bit and byte scratch; AArch64 keeps
+// the same numbering because x11 carries no cross-instruction role.
+MachineAbiScratchRegister :: (target: TargetDescription) -> s32 {
+    if !TargetMachineLoweringSupported(target) { return -1 }
+    return 11
+}
+
+// The address scratch of dynamic aggregate and element addressing.
+MachineAbiAddressScratchRegister :: (target: TargetDescription) -> s32 {
+    if !TargetMachineLoweringSupported(target) { return -1 }
+    return 10
+}
+
+// A floating register an encoder may clobber inside one instruction.
+MachineAbiScratchFloatRegister :: (target: TargetDescription) -> s32 {
+    if !TargetMachineLoweringSupported(target) { return -1 }
+    if target.arch == .AArch64 { return 31 }
+    return 15
+}
+
+// USE register INDEX of a fixed form: BytesEqual exposes left, left count,
+// right and right count; Resize exposes pointer, old count and new count.
+MachineAbiFormFixedRegister :: (target: TargetDescription, form: MachineAbiForm,
+    index: s32) -> s32 {
+    if !TargetMachineLoweringSupported(target) || index < 0 { return -1 }
+    if target.arch == .AArch64 {
+        // Byte-compare and resize loops run on x10-x13 with x14-x16 spare.
+        if form == .BytesEqual && index < 4 { return 10 + index }
+        if form == .Resize && index < 3 { return 10 + index }
+        return -1
+    }
+    if form == .BytesEqual {
+        registers: [4]s32 = .[cast(s32)X64Register.Rdi, cast(s32)X64Register.Rcx,
+            cast(s32)X64Register.Rsi, cast(s32)X64Register.Rdx]
+        if index < registers.count { return registers[index] }
+        return -1
+    }
+    if form == .Resize {
+        registers: [3]s32 = .[cast(s32)X64Register.Rdi, cast(s32)X64Register.Rsi,
+            cast(s32)X64Register.Rdx]
+        if index < registers.count { return registers[index] }
+        return -1
+    }
+    return -1
+}
+
+// CLOBBER register INDEX of a fixed form. Resize on x86 declares every SysV
+// caller-saved register so allocation keeps no value in one across the call;
+// AArch64 declares the same eight slots for its x10-x13 loop registers and
+// additional spares, while the emitted sequence preserves x0-x17 itself.
+MachineAbiFormClobberRegister :: (target: TargetDescription, form: MachineAbiForm,
+    index: s32) -> s32 {
+    if !TargetMachineLoweringSupported(target) || index < 0 { return -1 }
+    if target.arch == .AArch64 {
+        if form == .BytesEqual && index < 3 { return 14 + index }
+        if form == .Resize {
+            clobbers: [8]s32 = .[13, 14, 15, 16, 17, 9, 10, 11]
+            if index < clobbers.count { return clobbers[index] }
+        }
+        return -1
+    }
+    if form == .BytesEqual {
+        clobbers: [3]s32 = .[cast(s32)X64Register.Rdi, cast(s32)X64Register.Rsi,
+            cast(s32)X64Register.Rcx]
+        if index < clobbers.count { return clobbers[index] }
+        return -1
+    }
+    if form == .Resize {
+        clobbers: [8]s32 = .[cast(s32)X64Register.Rdi, cast(s32)X64Register.Rsi,
+            cast(s32)X64Register.Rdx, cast(s32)X64Register.Rcx, 8, 9, 10, 11]
+        if index < clobbers.count { return clobbers[index] }
+        return -1
+    }
+    return -1
 }

@@ -32,14 +32,14 @@ typedef struct State { size_t calls, count; } State;
 typedef struct Context { size_t index; const char *function; State *state; } Context;
 
 static int host_call(void *opaque, const char *module, const char *function,
-                     const VmHostValue *args, int count, VmHostValue *result)
+                     const HostValue *args, int count, HostValue *result)
 {
     Context *context = opaque;
     assert(strcmp(module, "api") == 0 && strcmp(function, context->function) == 0);
     assert(context->state->calls % context->state->count == context->index);
-    assert(count == 1 && args[0].kind == VM_HOST_INTEGER);
+    assert(count == 1 && args[0].kind == HOST_INTEGER);
     context->state->calls++;
-    result->kind = VM_HOST_INTEGER;
+    result->kind = HOST_INTEGER;
     result->integer = (int64_t)(((uint64_t)args[0].integer * 48271 + context->index + 1) & INT64_MAX);
     return 1;
 }

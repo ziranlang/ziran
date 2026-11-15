@@ -925,24 +925,26 @@ Calls :: () -> bool {
     if encoded.problem != .None { Report("calls encode", encoded); return false }
     image := X64.MachineX64View(*owner)
     measured := Apply(*b, .Measure, null, limits)
-    if !Check(measured.code_bytes == 125 && image.code.count == 125 && measured.relocations == 6,
+    // Only the caller calls, so only its prologue checks the stack limit:
+    // cmp rsp, [rip + limit]; jae; then the stack trap.
+    if !Check(measured.code_bytes == 146 && image.code.count == 146 && measured.relocations == 8,
             "call image size") ||
         !Check(Accounted(*b, image), "call image accounting") ||
-        !Check(image.functions[caller].begin == 31 && image.functions[later].begin == 78 &&
-            image.functions[failing].begin == 109, "function offsets") ||
-        !Instruction(image, backward, "e8 d3 ff ff ff", "backward direct call") ||
+        !Check(image.functions[caller].begin == 31 && image.functions[later].begin == 99 &&
+            image.functions[failing].begin == 130, "function offsets") ||
+        !Instruction(image, backward, "e8 be ff ff ff", "backward direct call") ||
         !Instruction(image, forward, "e8 17 00 00 00", "forward direct call") ||
         !Check(Displacement(image.code, image.instructions[forward].begin + 1) ==
             image.functions[later].begin - image.instructions[forward].end, "forward call reaches callee") ||
-        !Instruction(image, address, "48 8d 0d c2 ff ff ff", "rip-relative function address") ||
+        !Instruction(image, address, "48 8d 0d ad ff ff ff", "rip-relative function address") ||
         !Instruction(image, indirect, "ff d1", "indirect call") ||
         !Instruction(image, global, "48 8d 15 00 00 00 00", "relocated global address") ||
         !Instruction(image, explicit, "bf 09 00 00 00 e8 00 00 00 00 0f 0b", "explicit trap") { return false }
-    kinds: [6]X64.MachineX64RelocationKind = .[.FuelCounter, .TrapHandler, .GlobalAddress,
-        .FuelCounter, .TrapHandler, .TrapHandler]
-    offsets: [6]s64 = .[7, 20, 72, 85, 98, 119]
-    addends: [6]s64 = .[-5, -4, 4, -5, -4, -4]
-    for index: 0..5 {
+    kinds: [8]X64.MachineX64RelocationKind = .[.FuelCounter, .TrapHandler, .StackLimit, .TrapHandler,
+        .GlobalAddress, .FuelCounter, .TrapHandler, .TrapHandler]
+    offsets: [8]s64 = .[7, 20, 38, 50, 93, 106, 119, 140]
+    addends: [8]s64 = .[-5, -4, -4, -4, 4, -5, -4, -4]
+    for index: 0..7 {
         relocation := image.relocations[index]
         if !Check(relocation.kind == kinds[index] && relocation.offset == offsets[index] &&
             relocation.addend == addends[index], "call image relocation") {
@@ -951,8 +953,10 @@ Calls :: () -> bool {
             return false
         }
     }
-    return Check(image.relocations[2].symbol == 0 && image.relocations[2].instruction == global,
-        "global relocation symbol")
+    return Check(image.relocations[4].symbol == 0 && image.relocations[4].instruction == global,
+        "global relocation symbol") &&
+        Check(image.relocations[2].instruction == MachineNoId && image.relocations[3].instruction == MachineNoId,
+            "prologue relocations name no instruction")
 }
 
 Aggregates :: () -> bool {
@@ -990,8 +994,8 @@ Aggregates :: () -> bool {
     encoded := Apply(*b, .Encode, *owner, limits).diagnostic
     if encoded.problem != .None { Report("aggregate encode", encoded); return false }
     image := X64.MachineX64View(*owner)
-    return Instruction(image, build_id, "40 88 7d f0 48 89 75 f8", "record build respects field padding") &&
-        Instruction(image, extract_id, "48 8b 45 f8", "record extract uses the aligned field offset") &&
+    return Instruction(image, build_id, "40 88 7d f0 48 89 75 f1", "record build uses packed field offsets") &&
+        Instruction(image, extract_id, "48 8b 45 f1", "record extract uses the packed field offset") &&
         Check(Accounted(*b, image), "aggregate image accounting")
 }
 
@@ -1006,7 +1010,7 @@ NegativeKind :: enum s32 {
 // relocation addends the target cannot hold, the stage and the target.
 Early :: (kind: NegativeKind) -> bool {
     return kind == .MissingRelocation || kind == .DuplicateRelocation ||
-        kind == .StackArguments || kind == .FloatArgument || kind == .FloatResult ||
+        kind == .CallRegister || kind == .StackArguments || kind == .FloatArgument || kind == .FloatResult ||
         kind == .GlobalAddendHigh || kind == .GlobalAddendLow || kind == .Stage || kind == .Target
 }
 
@@ -1081,7 +1085,7 @@ BuildNegative :: (b: *Builder, kind: NegativeKind) -> s32 {
         b.instructions[id] = instruction
     }
     if kind == .Stage { b.stage = .Virtual }
-    if kind == .Target { b.target = TargetDescribe(.AArch64, .Linux).target }
+    if kind == .Target { b.target = TargetDescribe(.ArmV7, .Linux).target }
     return id
 }
 
@@ -1135,11 +1139,7 @@ Negatives :: () -> bool {
         !Negative(*kept, .ShiftCount, .Constraint, true, "shift count outside cl") ||
         !Negative(*kept, .DivideRegister, .Constraint, true, "dividend outside rax") ||
         !Negative(*kept, .DivideClobber, .Unsupported, true, "divide without rdx clobber") ||
-        !Negative(*kept, .FloatValue, .Unsupported, true, "float register value") ||
         !Negative(*kept, .CallRegister, .Constraint, true, "call argument outside its ABI register") ||
-        !Negative(*kept, .StackArguments, .Unsupported, true, "stack call arguments") ||
-        !Negative(*kept, .FloatArgument, .Unsupported, true, "float call argument") ||
-        !Negative(*kept, .FloatResult, .Unsupported, true, "float call result") ||
         !Negative(*kept, .GlobalAddendHigh, .Relocation, true, "global address addend above i32") ||
         !Negative(*kept, .GlobalAddendLow, .Relocation, true, "global address addend below i32") ||
         !Negative(*kept, .MissingRelocation, .Call, true, "direct call without relocation") ||
@@ -1167,6 +1167,6 @@ Negatives :: () -> bool {
 
 main :: () -> s32 {
     if !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
-    print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of unsupported call forms and addends, no-output diagnostics and ownership local tests passed\n")
+    print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, packed aggregates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of invalid call forms and addends, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

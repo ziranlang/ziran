@@ -86,8 +86,10 @@ MachineIsTransfer :: (opcode: MachineOpcode) -> bool {
 }
 
 MachineFrameResident :: (kind: MachineStackKind) -> bool {
-    return kind == .Value || kind == .Local || kind == .Spill || kind == .CalleeSave || kind == .Temporary
+    return kind == .Value || kind == .Local || kind == .Spill || kind == .ResultAddress ||
+        kind == .CalleeSave || kind == .Temporary
 }
+
 
 #scope_file
 
@@ -140,7 +142,7 @@ Optional :: (id: s32, total: s64) -> bool {
 RelocationKindValid :: (kind: MachineRelocationKind) -> bool {
     return kind == .FunctionAddress || kind == .FunctionCall || kind == .GlobalAddress ||
         kind == .FuelCounter || kind == .ConstantAddress || kind == .RuntimeTrap ||
-        kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint
+        kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint || kind == .RuntimeResize
 }
 
 RelocationSymbolValid :: (program: MachineProgram, relocation: MachineRelocation) -> bool {
@@ -156,7 +158,8 @@ RelocationSymbolValid :: (program: MachineProgram, relocation: MachineRelocation
     if relocation.kind == .ConstantAddress {
         return symbol >= 0 && symbol < program.globals.count && !program.globals[symbol].writable
     }
-    if relocation.kind == .FuelCounter || relocation.kind == .RuntimeTrap { return symbol == 0 }
+    if relocation.kind == .FuelCounter || relocation.kind == .RuntimeTrap ||
+        relocation.kind == .RuntimeResize { return symbol == 0 }
     if relocation.kind == .HostCapability {
         return symbol >= 0 && symbol < program.functions.count &&
             program.functions[symbol].calling == .Host
@@ -188,6 +191,9 @@ RelocationFormValid :: (program: MachineProgram, relocation: MachineRelocation) 
     }
     if relocation.kind == .RuntimeTrap {
         return instruction.opcode == .Trap && operand.kind == .Immediate
+    }
+    if relocation.kind == .RuntimeResize {
+        return instruction.opcode == .Resize && operand.kind == .Immediate
     }
     if relocation.kind == .HostCapability || relocation.kind == .PlatformService {
         return instruction.opcode == .CallDirect && operand.kind == .Function &&
@@ -592,8 +598,11 @@ CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
         if call.indirect && references != 0 || !call.indirect && references != 1 {
             return Fail(state, .Call, instruction = call.instruction)
         }
+        // Calls clobber the full ABI caller-saved set, which overlaps the
+        // target reserved mask on AArch64 (intra-call scratch x16/x17).
+        // Only reserved registers outside the ABI set must survive a call.
         if (call.clobber_general & general_abi) != general_abi ||
-            (call.clobber_general & target.reserved_general) != 0 ||
+            (call.clobber_general & target.reserved_general & ~general_abi) != 0 ||
             (call.clobber_general & ~MachineBankLimit(target, 0)) != 0 ||
             (call.clobber_float & float_abi) != float_abi ||
             (call.clobber_float & ~MachineBankLimit(target, 1)) != 0 ||
@@ -623,11 +632,8 @@ CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
     return true
 }
 
-// Calls use only the native call forms the target implements: register
-// arguments in ABI order and register results of an implemented class, with
-// nothing passed on the stack. Anything else, such as a float argument or
-// result, an aggregate or seventh integer argument, or outgoing stack bytes,
-// is Unsupported at that call here, before any encoder runs.
+// Calls use independent general/float register sequences in ABI order and a
+// contiguous outgoing stack area for aggregates and scalar overflow arguments.
 CallForms :: (state: *State, program: MachineProgram) -> bool {
     target := program.target
     for function_id: cast(s64)0..program.functions.count - 1 {
@@ -639,19 +645,78 @@ CallForms :: (state: *State, program: MachineProgram) -> bool {
                 instruction := program.instructions[instruction_id]
                 if instruction.call == MachineNoId { continue }
                 call := program.calls[instruction.call]
+                integer_ordinal: s32
+                float_ordinal: s32
+                stack_bytes: s64
                 for local: 0..instruction.operand_count - 1 {
                     operand_id := instruction.operand_begin + local
                     operand := program.operands[operand_id]
                     argument := operand_id >= call.argument_begin && operand_id < call.argument_begin + call.argument_count
-                    if !argument && operand_id != call.result_operand { continue }
-                    if !MachineAbiCallRegisterClass(target, operand.class) || operand.kind != .Physical ||
-                        argument && MachineAbiArgumentRegister(target, operand.class, operand_id - call.argument_begin) < 0 {
+                    if operand_id == call.result_operand {
+                        register_result := MachineAbiCallRegisterClass(target, operand.class) &&
+                            operand.kind == .Physical &&
+                            operand.id == MachineAbiResultRegister(target, operand.class)
+                        // Internal and host calls pass the result address in the
+                        // target's hidden result register; platform services
+                        // never return aggregates.
+                        stack_result := (call.calling == .Internal || call.calling == .Host) &&
+                            operand.class == .Stack &&
+                            operand.kind == .StackObject && operand.role == .Define &&
+                            operand.value != MachineNoId
+                        if !register_result && !stack_result {
+                            return Fail(state, .Unsupported, cast(s32)function_id, block_id, instruction_id,
+                                operand_id, operand.value)
+                        }
+                        continue
+                    }
+                    if !argument { continue }
+                    ordinal := integer_ordinal
+                    if operand.class == .Float { ordinal = float_ordinal; float_ordinal += 1 }
+                    else if operand.class == .General { integer_ordinal += 1 }
+                    fixed := MachineAbiArgumentRegister(target, operand.class, ordinal)
+                    if operand.class == .Stack {
+                        if operand.kind != .StackObject || operand.role != .Use || operand.value == MachineNoId {
+                            return Fail(state, .Unsupported, cast(s32)function_id, block_id, instruction_id,
+                                operand_id, operand.value)
+                        }
+                    } else if (operand.class == .General || operand.class == .Float) && fixed >= 0 {
+                        if operand.kind != .Physical || operand.id != fixed {
+                            return Fail(state, .Constraint, cast(s32)function_id, block_id, instruction_id,
+                                operand_id, operand.value)
+                        }
+                        continue
+                    } else if operand.class == .General || operand.class == .Float {
+                        if operand.kind != .Physical && operand.kind != .StackObject {
+                            return Fail(state, .Unsupported, cast(s32)function_id, block_id, instruction_id,
+                                operand_id, operand.value)
+                        }
+                    } else {
                         return Fail(state, .Unsupported, cast(s32)function_id, block_id, instruction_id,
                             operand_id, operand.value)
                     }
+                    type := program.types[program.virtuals[operand.value].type]
+                    size := RoundEight(type.size)
+                    if size < 0 || stack_bytes > 9223372036854775807 - size {
+                        return Fail(state, .Frame, cast(s32)function_id, block_id, instruction_id, operand_id)
+                    }
+                    stack_bytes += size
                 }
-                if call.stack_argument_bytes != 0 {
-                    return Fail(state, .Unsupported, cast(s32)function_id, block_id, instruction_id)
+                outgoing: s32 = MachineNoId
+                for local: 0..instruction.operand_count - 1 {
+                    operand_id := instruction.operand_begin + local
+                    if operand_id >= call.argument_begin && operand_id < call.argument_begin + call.argument_count ||
+                        operand_id == call.result_operand { continue }
+                    operand := program.operands[operand_id]
+                    if operand.kind == .StackObject && operand.class == .Stack && operand.role == .Use {
+                        if outgoing != MachineNoId { return Fail(state, .Call, cast(s32)function_id, block_id, instruction_id) }
+                        outgoing = operand.id
+                    }
+                }
+                if stack_bytes != call.stack_argument_bytes ||
+                    stack_bytes > 0 && (outgoing == MachineNoId ||
+                        program.stack_objects[outgoing].kind != .OutgoingArgument ||
+                        program.stack_objects[outgoing].size != stack_bytes) {
+                    return Fail(state, .Frame, cast(s32)function_id, block_id, instruction_id)
                 }
             }
         }
@@ -723,6 +788,9 @@ FrameLayout :: (state: *State, program: MachineProgram, limits: MachineLimits, f
                 if (saved_float & bit) != 0 { return Fail(state, .Frame, function_id) }
                 saved_float = saved_float | bit
             }
+        } else if object.kind == .ResultAddress &&
+            (object.size != 8 || object.alignment != 8 || object.value != MachineNoId) {
+            return Fail(state, .Frame, function_id)
         }
     }
     if saved_general != frame.callee_saved_general || saved_float != frame.callee_saved_float {
@@ -1044,13 +1112,17 @@ Transfer :: (state: *State, program: MachineProgram, function_id: s32, block_id:
     block := program.blocks[block_id]
     target := program.target
     pending := false
+    parked_location := -1
     for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
         if !Spend(state, 1) { return false }
         instruction := program.instructions[instruction_id]
-        if pending && !MachineIsTransfer(instruction.opcode) {
-            if !Spend(state, current.count * 3) { return false }
-            Commit(current, marks, function.virtual_begin)
-            pending = false
+        if !MachineIsTransfer(instruction.opcode) {
+            if pending {
+                if !Spend(state, current.count * 3) { return false }
+                Commit(current, marks, function.virtual_begin)
+                pending = false
+            }
+            parked_location = -1
         }
         for local: 0..instruction.operand_count - 1 {
             operand_id := instruction.operand_begin + local
@@ -1059,12 +1131,17 @@ Transfer :: (state: *State, program: MachineProgram, function_id: s32, block_id:
             location := Location(program, function, operand)
             if location < 0 { continue }
             found := current[location]
-            if check && found != operand.value {
+            transfer_new := MachineIsTransfer(instruction.opcode) && found <= StateNew &&
+                StateNew - found == operand.value
+            if check && found != operand.value && !transfer_new {
                 problem := MachineProblem.Undefined
                 if found == StateClobbered { problem = .Clobber }
                 else if found >= 0 { problem = .Interference }
                 else if found <= StateNew { problem = .Copy }
                 return Fail(state, problem, function_id, block_id, instruction_id, operand_id, operand.value)
+            }
+            if check && found == operand.value && location == parked_location {
+                return Fail(state, .Copy, function_id, block_id, instruction_id, operand_id, operand.value)
             }
         }
         if check && instruction.flags_use != MachineNoId && current[FlagsSlot] != instruction.flags_use {
@@ -1073,16 +1150,31 @@ Transfer :: (state: *State, program: MachineProgram, function_id: s32, block_id:
         if MachineIsTransfer(instruction.opcode) {
             destination := program.operands[instruction.operand_begin]
             source := program.operands[instruction.operand_begin + 1]
-            if destination.class == .Stack { continue }
+            if destination.class == .Stack {
+                if source.kind == .Physical {
+                    stack := Location(program, function, destination)
+                    register := Location(program, function, source)
+                    if stack >= 0 && register >= 0 {
+                        value := current[register]
+                        if value <= StateNew && StateNew - value == source.value { value = source.value }
+                        current[stack] = value
+                    }
+                }
+                continue
+            }
             to := Location(program, function, destination)
             from := Location(program, function, source)
             if to < 0 || from < 0 { continue }
             moved := current[from]
+            if moved <= StateNew && StateNew - moved == source.value { moved = source.value }
             if destination.value != source.value {
                 moved = ifx moved == source.value then StateNew - destination.value else StateConflict
                 pending = true
             }
             current[to] = moved
+            if destination.id == program.scratch_general && destination.class != .Stack && source.kind == .Physical {
+                parked_location = from
+            }
             continue
         }
         if !Spend(state, current.count) { return false }

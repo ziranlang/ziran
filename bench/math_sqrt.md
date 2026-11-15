@@ -32,7 +32,7 @@ neighbors, signed zeros, NaNs, infinities and negative-domain inputs. Native
 source and saved IR both run the full set. Portable source and saved IR run
 the same bounded edge set and produce byte-identical bundles. The existing
 `math_float64.sh` also checks all 21 elementary functions against libm and in
-the portable VM. NaN tests compare classification, not payload bits.
+the portable engine. NaN tests compare classification, not payload bits.
 
 ## Repeatable microbenchmark
 

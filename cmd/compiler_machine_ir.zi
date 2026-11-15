@@ -32,6 +32,14 @@ MachineOpcode :: enum s32 {
     Load; Store; Copy; Zero; FieldAddress; ElementAddress; BytesEqual; Resize
     CallDirect; CallIndirect
     Fuel; Trap; Jump; Branch; Return; Unreachable
+    // Checked pointers (see compiler_machine_image MachinePointer*): a data
+    // pointer is a token naming a slot of the instance's pointer table.
+    //   PointerResolve raw, token, width, flags: the address WIDTH bytes may
+    //     be read (or written, flag 1) at, or the bounds trap.
+    //   PointerCreate token, raw, size, flags: a new slot for SIZE bytes at
+    //     RAW, linked into the frame's chain unless it is heap storage.
+    //   ArenaAllocate raw, size: fresh frame storage, released at return.
+    PointerResolve; PointerCreate; ArenaAllocate
     // Allocator-inserted, flag-preserving transfers. Spill stores a register
     // into a stack object; Reload loads one into a register.
     Spill; Reload
@@ -43,9 +51,9 @@ MachineCondition :: enum s32 {
 
 MachineStackKind :: enum s32 {
     Invalid; Value; Local; IncomingArgument; OutgoingArgument; Spill
-    // Allocation frame storage: callee-saved register homes and the
-    // temporaries that break parallel-copy cycles.
-    CalleeSave; Temporary
+    // Allocation frame storage: the hidden destination pointer for aggregate
+    // returns, callee-saved register homes and parallel-copy temporaries.
+    ResultAddress; CalleeSave; Temporary
 }
 
 MachineSpillReason :: enum s32 { Invalid; Pressure; Call; Fixed; Parameter; Cycle }
@@ -193,6 +201,12 @@ MachineFunction :: struct {
     calling: MachineCalling
     entry: s32
     origin: s32
+    // Frame words of a function with checked frame storage, each one more
+    // than its stack object's index from stack_begin, which allocation keeps
+    // (0 without frame storage): the frame arena's top at entry and the head
+    // of the function's pointer slot chain.
+    arena_mark: s32
+    pointer_chain: s32
 }
 
 MachineOrigin :: struct {
@@ -336,8 +350,11 @@ MachineOwner :: struct {
 
 #scope_export
 
+// Work is charged per instruction, operand and live interval visited by
+// lowering, allocation and encoding; the default admits a program at the
+// LIR instruction limit. The table limits bound the program itself.
 MachineDefaultLimits :: () -> MachineLimits {
-    return .{.work = 16000000, .bytes = 268435456, .functions = 65536, .types = 65536,
+    return .{.work = 4000000000, .bytes = 268435456, .functions = 65536, .types = 65536,
         .type_ids = 1048576, .constants = 1048576, .globals = 1048576,
         .blocks = 262144, .virtuals = 1048576, .instructions = 2097152,
         .operands = 8388608, .edges = 524288, .copies = 2097152,

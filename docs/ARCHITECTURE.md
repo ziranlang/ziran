@@ -69,7 +69,9 @@ the stripped ZX boundary, while source LIR inspection retains them.
 
 The first implemented direct console veneer is the opt-in Linux x86-64 static
 ELF path. It owns `_start`, calls Linux `write` syscall 1 through a retrying
-`write_all`, and terminates with `exit_group` syscall 231. It uses no libc,
+`write_all` with standard output buffered until a newline on a terminal, a full
+buffer, another descriptor's write, a trap or exit, and terminates with
+`exit_group` syscall 231. It uses no libc,
 CRT, or dynamic linker. Other OS/CPU service rows and floating-point print
 formatting remain named gaps rather than alternate-engine requests.
 

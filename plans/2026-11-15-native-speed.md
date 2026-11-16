@@ -427,6 +427,34 @@ with no call or resize (needs a verifier-visible view instruction) and
 dropping fuel sites when an ELF's budget is unbounded (measured 1-12% per
 kernel by patching them out).
 
+## Status: fix 4 for Printing (2026-11-15, Omega)
+
+`cmd/compiler_x86_runtime.zi` now also emits the console: `write_all`, the
+integer and bool formatters, `stdout_bytes` for the float formatter (the one
+blob left, minus its private write loop) and `Exit`, which `_start` and the
+trap stub both jump to. Standard output collects in an 8 KiB buffer, written
+when full, after each line when it is a terminal (one `TCGETS` on the first
+write), before any write to another descriptor, before a trap's exit and at
+exit. A failed write still exits 125 without flushing again. 100 lines are one
+write; `tests/print.sh` checks the bytes, an injected EINTR and short write,
+the write count, terminal output and output before a trap.
+
+Receipt `bench/results/wasm-tier-omega-2026-11-15-speed-after.json` (this
+change on top of fix 2, load 8.53/11.55), µs per call:
+
+| Printing | C | zx engine | native | Wasm |
+| --- | ---: | ---: | ---: | ---: |
+| before | 3.86 | 24.38 | 41.72 | 2.89 |
+| after | 4.35 | 25.39 | 4.52 | 2.67 |
+
+Startup-free the kernel is 1.57 µs (34 before), 2.5× faster than C. The bench
+row includes the native process start its Calls row shows (3.9-5.5 µs per
+call over 32 calls), which is why native and C meet there. The zx engine is
+unchanged: its prints already reach libc's buffered stdout, and its cost is
+one generic host call per fragment in `cmd/zir/zir_host_native.c`
+(`NativeHostInvoke` allocates the argument array, then `snprintf` and
+`fputs`), which belongs to the loader lane.
+
 ## Document verification and publication
 
 Only this document is in scope for writes. Static inspection used receipt hash

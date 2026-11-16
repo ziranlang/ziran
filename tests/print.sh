@@ -198,6 +198,49 @@ native_closed_status=$?
 set -e
 test "$native_closed_status" -eq 125
 
+# A hundred formatted lines, extremes among them, reach standard output byte
+# for byte in no more writes than lines, an injected EINTR and short write
+# included. Output buffered before a trap still arrives, before the trap.
+cat > "$work/lines.zi" <<'EOF'
+#program_export
+Lines :: () -> s32 {
+    lowest: s64 = -9223372036854775807 - 1
+    for i: 0..99 { print("% % % %\n", i - 50, i * i * -1234567, i % 7 == 0, lowest + i) }
+    return 0
+}
+
+values: [2]s64;
+index: s64 = 5;
+
+#program_export
+Trapped :: () -> s32 {
+    print("before the trap\n")
+    return cast(s32)values[index]
+}
+EOF
+"$zi2zx" --root "$work" --entry lines:Lines -o "$work/lines.zx" "$work/lines.zi"
+"$zx2native" -o "$work/lines.elf" "$work/lines.zx"
+"$ziran" run "$work/lines.zx" | head -n 100 > "$work/lines.expected"
+test "$(wc -l < "$work/lines.expected")" -eq 100
+"$work/lines.elf" > "$work/lines.out"
+cmp "$work/lines.expected" "$work/lines.out"
+"$ziran" run --target=c --root "$repo/tests" \
+    "$repo/tests/native_write_all_cases.zi" -- "$work/lines.elf" 100 > "$work/lines-injected.out"
+cmp "$work/lines.expected" "$work/lines-injected.out"
+# On a terminal the buffer is written line by line; the bytes are the same.
+if script --version 2>/dev/null | grep -q util-linux; then
+    script -qec "$work/lines.elf" /dev/null | tr -d '\r' > "$work/lines.tty"
+    cmp "$work/lines.expected" "$work/lines.tty"
+fi
+"$zi2zx" --root "$work" --entry lines:Trapped -o "$work/trapped.zx" "$work/lines.zi"
+"$zx2native" -o "$work/trapped.elf" "$work/trapped.zx"
+set +e
+"$work/trapped.elf" > "$work/trapped.out"
+trapped_status=$?
+set -e
+test "$trapped_status" -eq 125
+printf 'before the trap\n' | cmp - "$work/trapped.out"
+
 "$ziran" bundle --root "$work" --entry native_print:NativePrint \
     -o "$work/native.zx" "$work/native_print.zi"
 "$ziran" run "$work/native.zx" > "$work/native.zx.out"

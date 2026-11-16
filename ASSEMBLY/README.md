@@ -128,7 +128,8 @@ assembler, C compiler, or system linker to produce this executable.
   verifier and x86-64 encoding feed the internal ELF writer.
 - The machine Linux x86-64 console veneer emits a static ELF with its own
   `_start`, Linux `write` syscall 1 through a partial-write/`EINTR` retry loop,
-  and `exit_group` syscall 231. It has no libc, CRT, `PT_INTERP` or `PT_DYNAMIC`.
+  and `exit_group` syscall 231. Standard output is buffered (line by line on a
+  terminal) and flushed before other descriptors' writes, traps and exit. It has no libc, CRT, `PT_INTERP` or `PT_DYNAMIC`.
   Literal formatting covers strings/text views by byte length, bools, every
   fixed signed/unsigned integer width, float32/float64 values and `%%`. Other
   platform services are named hard gaps.

@@ -77,7 +77,9 @@ Native source maps currently lose source origins at
 the stripped ZX boundary, while source LIR inspection retains them.</p>
 <p>The first implemented direct console veneer is the opt-in Linux x86-64 static
 ELF path. It owns <code>_start</code>, calls Linux <code>write</code> syscall 1 through a retrying
-<code>write_all</code>, and terminates with <code>exit_group</code> syscall 231. It uses no libc,
+<code>write_all</code> with standard output buffered until a newline on a terminal, a full
+buffer, another descriptor's write, a trap or exit, and terminates with
+<code>exit_group</code> syscall 231. It uses no libc,
 CRT, or dynamic linker. Other OS/CPU service rows and floating-point print
 formatting remain named gaps rather than alternate-engine requests.</p>
 <p>Inside the compiler, names in that model are interned: an expression's or

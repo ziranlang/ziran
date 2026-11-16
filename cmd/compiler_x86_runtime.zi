@@ -5,6 +5,17 @@ using Bytes :: #import "compiler_x86_bytes"
 // offsets: text and data are mapped congruently, so a rip-relative field
 // reaches any runtime state through its file offset.
 //
+// Exit(edi = status) ends the process; _start and the trap handler end there,
+// so buffered output always reaches its descriptor first.
+//
+// Console: write_all(rdi = fd, rsi = bytes, rdx = count) and the integer and
+// bool formatters. Standard output collects in MachineX64RuntimeOutBytes of
+// buffer, written when it fills, when a terminal sees a newline (as C's line
+// buffering does; other descriptors get whole buffers), before any write to
+// another descriptor, and at exit, so the bytes and their order match direct
+// writes. Every write takes all its bytes, repeating after a partial write or
+// EINTR; a failed write exits with status 125.
+//
 // Resize(rdi = data or null, rsi = old count, rdx = new count, rcx = element
 // size) -> rax: the new data, or null when freed or refused. A refused
 // request (an overflowing size, no memory) leaves the old block live. It
@@ -24,19 +35,32 @@ MachineX64RuntimeHeader :: 32
 MachineX64RuntimeHeapTop :: 168
 MachineX64RuntimeHeapLimit :: 176
 MachineX64RuntimeHeapBytes :: 192
+// Console state: the buffered byte count, the descriptor mode (0 unknown, 1
+// terminal, 2 other), then the buffer.
+MachineX64RuntimeOutBytes :: 8192
+MachineX64RuntimeConsoleBytes :: 8208
 
 // What the routines use, as image file offsets.
 MachineX64RuntimePlaces :: struct {
     trap: s64
     heap: s64
+    console: s64
 }
 
 MachineX64RuntimeUses :: struct {
     resize: bool
+    console: bool
 }
 
 // Entry offsets of the emitted routines and the end of their code.
 MachineX64RuntimeEntries :: struct {
+    exit: s64
+    write_all: s64
+    print_signed: s64
+    print_unsigned: s64
+    print_bool: s64
+    // stdout_bytes(rdi = bytes, rsi = count), the float formatter's writer.
+    stdout_bytes: s64
     resize: s64
     end: s64
 }
@@ -64,8 +88,10 @@ TrapStorage :: 0xffff0007
 Label :: enum s32 {
     Resize; CheckOld; Checked; Null; Done; Size; InPlace; Take; Bump; Carve; Fill; Kept; Cleared
     Released; Large; Remapped; NewMapping; Release; Unmap; Map; Trap
+    Exit; WriteLoop; WriteAgain; WriteDone; WriteFail; Flush; WriteAll; StdoutBytes; Stdout; Known
+    Fits; Bytes; Long; Appended; Signed; Unsigned; Format; Digit; Emit; Bool; True
 }
-LabelCount :: 21
+LabelCount :: 42
 
 Emitter :: struct {
     writer: X86Writer
@@ -358,7 +384,202 @@ EmitResize :: (emitter: *Emitter) {
     X86Undefined(writer)
 }
 
+OutLength :: (emitter: *Emitter) -> X86Operand { return X86RipTarget(emitter.places.console) }
+OutMode :: (emitter: *Emitter) -> X86Operand { return X86RipTarget(emitter.places.console + 8) }
+OutBuffer :: (emitter: *Emitter) -> X86Operand { return X86RipTarget(emitter.places.console + 16) }
+
+Step :: (writer: *X86Writer, register: s32, extension: s32) {
+    X86Encode(writer, 0, true, 255, 1, extension, X86Direct(register))
+}
+
+// cmp byte [MEMORY], VALUE.
+CompareByteAt :: (writer: *X86Writer, memory: X86Operand, value: u8) {
+    X86Encode(writer, 0, false, 128, 1, 7, memory, trailing = 1)
+    X86Byte(writer, value)
+}
+
+EmitExit :: (emitter: *Emitter, console: bool) {
+    writer := *emitter.writer
+    Mark(emitter, .Exit)
+    if console {
+        X86Push(writer, Rdi)
+        Call(emitter, .Flush)
+        Pop(writer, Rdi)
+    }
+    Syscall(writer, 231)
+    X86Undefined(writer)
+}
+
+EmitConsole :: (emitter: *Emitter) {
+    writer := *emitter.writer
+    // WriteLoop(rdi = fd, rsi = bytes, rdx = count): every byte, or exit.
+    Mark(emitter, .WriteLoop)
+    X86Arithmetic(writer, X86Test, Rdx, Rdx)
+    JumpIf(emitter, X86Equal, .WriteDone)
+    Mark(emitter, .WriteAgain)
+    Syscall(writer, 1)
+    X86CompareImmediate(writer, Rax, -4)
+    JumpIf(emitter, X86Equal, .WriteAgain)
+    X86Arithmetic(writer, X86Test, Rax, Rax)
+    JumpIf(emitter, X86LessEqual, .WriteFail)
+    X86Arithmetic(writer, X86Add, Rsi, Rax)
+    X86Arithmetic(writer, X86Subtract, Rdx, Rax)
+    JumpIf(emitter, X86NotEqual, .WriteAgain)
+    Mark(emitter, .WriteDone)
+    X86Return(writer)
+    Mark(emitter, .WriteFail)
+    X86MoveImmediate32(writer, Rdi, 125)
+    Syscall(writer, 231)
+    X86Undefined(writer)
+
+    // Flush: the buffered bytes go out and the buffer empties.
+    Mark(emitter, .Flush)
+    X86Load(writer, Rdx, OutLength(emitter), 8, false)
+    X86Arithmetic(writer, X86Test, Rdx, Rdx)
+    JumpIf(emitter, X86Equal, .WriteDone)
+    X86Encode(writer, 0, true, 199, 1, 0, OutLength(emitter), trailing = 4)
+    X86Little(writer, 0, 4)
+    X86Lea(writer, Rsi, OutBuffer(emitter))
+    X86MoveImmediate32(writer, Rdi, 1)
+    Jump(emitter, .WriteLoop)
+
+    // write_all: another descriptor first takes what standard output holds.
+    Mark(emitter, .WriteAll)
+    X86CompareImmediate(writer, Rdi, 1)
+    JumpIf(emitter, X86Equal, .Stdout)
+    X86Push(writer, Rdi); X86Push(writer, Rsi); X86Push(writer, Rdx)
+    Call(emitter, .Flush)
+    Pop(writer, Rdx); Pop(writer, Rsi); Pop(writer, Rdi)
+    Jump(emitter, .WriteLoop)
+
+    // stdout_bytes(rdi = bytes, rsi = count), then Stdout(rsi, rdx = count).
+    Mark(emitter, .StdoutBytes)
+    X86Move(writer, Rdx, Rsi)
+    X86Move(writer, Rsi, Rdi)
+    Mark(emitter, .Stdout)
+    // The first write learns whether standard output is a terminal.
+    CompareByteAt(writer, OutMode(emitter), 0)
+    JumpIf(emitter, X86NotEqual, .Known)
+    X86Push(writer, Rsi); X86Push(writer, Rdx)
+    X86SubtractStack(writer, 64)
+    X86MoveImmediate32(writer, Rdi, 1)
+    X86MoveImmediate32(writer, Rsi, 0x5401)
+    X86Move(writer, Rdx, X86Rsp)
+    Syscall(writer, 16)
+    X86Encode(writer, 0, true, 131, 1, 0, X86Direct(X86Rsp), trailing = 1)
+    X86Byte(writer, 64)
+    X86MoveImmediate32(writer, Rcx, 2)
+    X86MoveImmediate32(writer, Rdx, 1)
+    X86Arithmetic(writer, X86Test, Rax, Rax)
+    X86Encode(writer, 0, false, 0x0f44, 2, Rcx, X86Direct(Rdx))
+    X86Store(writer, OutMode(emitter), Rcx, 1)
+    Pop(writer, Rdx); Pop(writer, Rsi)
+    Mark(emitter, .Known)
+    X86Load(writer, Rax, OutLength(emitter), 8, false)
+    X86MoveImmediate32(writer, Rcx, MachineX64RuntimeOutBytes)
+    X86Arithmetic(writer, X86Subtract, Rcx, Rax)
+    X86Arithmetic(writer, X86Compare, Rdx, Rcx)
+    JumpIf(emitter, X86BelowEqual, .Fits)
+    // Too few bytes left: flush, then buffer it or, larger than the whole
+    // buffer, write it directly.
+    X86Push(writer, Rsi); X86Push(writer, Rdx)
+    Call(emitter, .Flush)
+    Pop(writer, Rdx); Pop(writer, Rsi)
+    Clear(writer, Rax)
+    X86CompareImmediate(writer, Rdx, MachineX64RuntimeOutBytes)
+    JumpIf(emitter, X86BelowEqual, .Fits)
+    X86MoveImmediate32(writer, Rdi, 1)
+    Jump(emitter, .WriteLoop)
+    // rax = the buffered count: append rdx bytes, byte by byte when short.
+    Mark(emitter, .Fits)
+    X86Lea(writer, Rdi, OutBuffer(emitter))
+    X86Arithmetic(writer, X86Add, Rdi, Rax)
+    X86Arithmetic(writer, X86Add, Rax, Rdx)
+    X86Store(writer, OutLength(emitter), Rax, 8)
+    X86Move(writer, Rcx, Rdx)
+    X86CompareImmediate(writer, Rcx, 32)
+    JumpIf(emitter, X86AboveEqual, .Long)
+    X86Arithmetic(writer, X86Test, Rcx, Rcx)
+    JumpIf(emitter, X86Equal, .Appended)
+    Mark(emitter, .Bytes)
+    X86Load(writer, Rax, X86At(Rsi, 0), 1, false)
+    X86Store(writer, X86At(Rdi, 0), Rax, 1)
+    Step(writer, Rsi, 0)
+    Step(writer, Rdi, 0)
+    Step(writer, Rcx, 1)
+    JumpIf(emitter, X86NotEqual, .Bytes)
+    Jump(emitter, .Appended)
+    Mark(emitter, .Long)
+    X86Byte(writer, 243); X86Byte(writer, 164)
+    Mark(emitter, .Appended)
+    // A terminal gets each line once it ends.
+    CompareByteAt(writer, OutMode(emitter), 1)
+    JumpIf(emitter, X86NotEqual, .WriteDone)
+    X86Arithmetic(writer, X86Subtract, Rdi, Rdx)
+    X86Move(writer, Rcx, Rdx)
+    X86MoveImmediate32(writer, Rax, 10)
+    X86Byte(writer, 242); X86Byte(writer, 174)
+    JumpIf(emitter, X86NotEqual, .WriteDone)
+    Jump(emitter, .Flush)
+
+    // Signed and unsigned integers in decimal, digits by a reciprocal
+    // multiply, written as one fragment.
+    Mark(emitter, .Signed)
+    Clear(writer, R9)
+    X86Arithmetic(writer, X86Test, Rdi, Rdi)
+    JumpIf(emitter, X86NotSign, .Format)
+    X86Group3(writer, 3, Rdi)
+    X86MoveImmediate32(writer, R9, 1)
+    Jump(emitter, .Format)
+    Mark(emitter, .Unsigned)
+    Clear(writer, R9)
+    Mark(emitter, .Format)
+    X86SubtractStack(writer, 40)
+    X86Lea(writer, Rsi, X86At(X86Rsp, 32))
+    X86Move(writer, Rax, Rdi)
+    X86MoveImmediate(writer, R8, 0xcccccccccccccccd)
+    Mark(emitter, .Digit)
+    X86Move(writer, Rcx, Rax)
+    X86Group3(writer, 4, R8)
+    X86ShiftImmediate(writer, 5, Rdx, 3)
+    X86MultiplyImmediate(writer, Rax, Rdx, 10)
+    X86Arithmetic(writer, X86Subtract, Rcx, Rax)
+    X86Encode(writer, 0, false, 131, 1, 0, X86Direct(Rcx), trailing = 1)
+    X86Byte(writer, 48)
+    Step(writer, Rsi, 1)
+    X86Store(writer, X86At(Rsi, 0), Rcx, 1)
+    X86Move(writer, Rax, Rdx)
+    X86Arithmetic(writer, X86Test, Rax, Rax)
+    JumpIf(emitter, X86NotEqual, .Digit)
+    X86Encode(writer, 0, false, X86Test, 1, R9, X86Direct(R9))
+    JumpIf(emitter, X86Equal, .Emit)
+    Step(writer, Rsi, 1)
+    X86Encode(writer, 0, false, 198, 1, 0, X86At(Rsi, 0), trailing = 1)
+    X86Byte(writer, 45)
+    Mark(emitter, .Emit)
+    X86Lea(writer, Rdx, X86At(X86Rsp, 32))
+    X86Arithmetic(writer, X86Subtract, Rdx, Rsi)
+    Call(emitter, .Stdout)
+    X86Encode(writer, 0, true, 131, 1, 0, X86Direct(X86Rsp), trailing = 1)
+    X86Byte(writer, 40)
+    X86Return(writer)
+
+    Mark(emitter, .Bool)
+    X86Lea(writer, Rsi, X86RipTarget(At(emitter, .True)))
+    X86MoveImmediate32(writer, Rdx, 4)
+    X86Encode(writer, 0, false, 132, 1, Rdi, X86Direct(Rdi), reg_byte = true, rm_byte = true)
+    JumpIf(emitter, X86NotEqual, .Stdout)
+    X86Lea(writer, Rsi, X86RipTarget(At(emitter, .True) + 4))
+    X86MoveImmediate32(writer, Rdx, 5)
+    Jump(emitter, .Stdout)
+    Mark(emitter, .True)
+    text := "truefalse"
+    for index: cast(s64)0..text.count - 1 { X86Byte(writer, cast(u8)text[index]) }
+}
+
 Emit :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
+    EmitExit(emitter, uses.console)
+    if uses.console { EmitConsole(emitter) }
     if uses.resize { EmitResize(emitter) }
 }
 
@@ -369,13 +590,17 @@ Emit :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
 MachineX64RuntimeEmit :: (output: []u8, at: s64, uses: MachineX64RuntimeUses,
     places: MachineX64RuntimePlaces, entries: *MachineX64RuntimeEntries) -> bool {
     // One recorded position per label.
-    if cast(s64)Label.Trap + 1 != LabelCount { return false }
+    if cast(s64)Label.True + 1 != LabelCount { return false }
     measure: Emitter
     measure.writer = .{at = at, limit = 9223372036854775807}
     measure.places = places
     Emit(*measure, uses)
     if measure.writer.failed { return false }
-    <<entries = .{resize = measure.labels[cast(s64)Label.Resize], end = measure.writer.at}
+    labels := measure.labels
+    <<entries = .{exit = labels[cast(s64)Label.Exit], write_all = labels[cast(s64)Label.WriteAll],
+        print_signed = labels[cast(s64)Label.Signed], print_unsigned = labels[cast(s64)Label.Unsigned],
+        print_bool = labels[cast(s64)Label.Bool], stdout_bytes = labels[cast(s64)Label.StdoutBytes],
+        resize = labels[cast(s64)Label.Resize], end = measure.writer.at}
     if output.count == 0 { return true }
     write := measure
     write.writer = .{output = output, at = at, limit = output.count}

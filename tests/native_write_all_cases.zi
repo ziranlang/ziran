@@ -1,7 +1,9 @@
 // Linux x86-64 fault injection around an unchanged direct-native ELF. The
 // kernel performs real writes, capped to three bytes, while the tracer restores
 // the original requested count before the veneer resumes. One write also gets
-// an injected -EINTR result. This harness uses libc; the traced ELF must not.
+// an injected -EINTR result. An optional second argument bounds the number of
+// write requests to standard output; the retry after EINTR or a short write
+// continues its request. This harness uses libc; the traced ELF must not.
 trace_libc :: #system_library "libc";
 TraceRaw :: (request: s64, pid: s32, address: u64, data: u64) -> s64 #foreign trace_libc "ptrace";
 TraceFork :: () -> s32 #foreign trace_libc "fork";
@@ -13,10 +15,12 @@ TraceKill :: (pid: s32, number: s32) -> s32 #foreign trace_libc "kill";
 TraceErrno :: () -> *s32 #foreign trace_libc "__errno_location";
 
 // Linux's user_regs_struct has 27 64-bit words in this order. Only the syscall
-// number, result, descriptor and count are inspected or changed.
+// number, result, descriptor, bytes and count are inspected; the bytes are
+// never changed.
 Registers :: struct { words: [27]u64 }
 RAX :: 10
 RDX :: 12
+RSI :: 13
 RDI :: 14
 ORIG_RAX :: 15
 
@@ -41,9 +45,27 @@ Abort :: (pid: s32, message: string) -> s32 {
     return 1
 }
 
+// The decimal number in TEXT, or -1.
+Number :: (text: *u8) -> s64 {
+    value: s64
+    at: s64
+    while text[at] != 0 {
+        digit := cast(s64)text[at] - 48
+        if digit < 0 || digit > 9 || value > 100000000 { return -1 }
+        value = value * 10 + digit
+        at += 1
+    }
+    return ifx at == 0 then -1 else value
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
-    if argc != 2 { print("pass the direct-native executable\n"); return 1 }
+    if argc != 2 && argc != 3 { print("pass the direct-native executable and an optional write bound\n"); return 1 }
+    bound: s64 = -1
+    if argc == 3 {
+        bound = Number(argv[2])
+        if bound < 0 { print("the write bound is not a number\n"); return 1 }
+    }
     arguments: [2]*u8 = .[argv[1], null]
     pid := TraceFork()
     if pid < 0 { print("write_all injection could not fork\n"); return 1 }
@@ -69,13 +91,19 @@ main :: (argc: s32, argv: **u8) -> s32 {
     interrupt_pending := false
     short_pending := false
     requested: u64
+    writes: s64
+    continuing := false
+    next_bytes: u64
+    next_count: u64
     for stop: 0..9999 {
         if TraceRaw(24, pid, 0, 0) < 0 { return Abort(pid, "resume syscall") }
         if !Wait(pid, *status) { return Abort(pid, "syscall wait") }
         if (status & 127) == 0 {
             code := (status >> 8) & 255
-            if code == 0 && injected_interrupt && injected_short && saw_exit_group { return 0 }
-            print("write_all injection: exit=% EINTR=% short=% exit_group=%\n", code, injected_interrupt, injected_short, saw_exit_group)
+            within := bound < 0 || writes <= bound
+            if code == 0 && injected_interrupt && injected_short && saw_exit_group && within { return 0 }
+            print("write_all injection: exit=% EINTR=% short=% exit_group=% writes=% bound=%\n", code,
+                injected_interrupt, injected_short, saw_exit_group, writes, bound)
             return 1
         }
         if (status & 255) != 127 { return Abort(pid, "child terminated by a signal") }
@@ -88,6 +116,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if entering {
             if registers.words[ORIG_RAX] == 231 { saw_exit_group = true }
             if registers.words[ORIG_RAX] == 1 && registers.words[RDI] == 1 {
+                bytes := registers.words[RSI]
+                count := registers.words[RDX]
+                if !continuing || bytes != next_bytes || count != next_count { writes += 1 }
+                continuing = false
                 if !injected_interrupt {
                     // Invalid syscall: no bytes are written. Replace ENOSYS
                     // with EINTR at the exit stop before user code resumes.
@@ -95,12 +127,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
                     interrupt_pending = true
                     injected_interrupt = true
                     changed = true
-                } else if registers.words[RDX] > 3 {
-                    requested = registers.words[RDX]
+                    continuing = true; next_bytes = bytes; next_count = count
+                } else if count > 3 {
+                    requested = count
                     registers.words[RDX] = 3
                     short_pending = true
                     injected_short = true
                     changed = true
+                    continuing = true; next_bytes = bytes + 3; next_count = count - 3
                 }
             }
         } else if interrupt_pending {

@@ -484,10 +484,31 @@ source, but gets rsi, so the common composite path keeps a `mov rsi, rcx;
 jmp` edge block and b9 a `mov rcx, rsi`. Preferring a loop-carried
 parameter as the hint changed nothing. The block is register availability:
 the copy at b9's end is both the parameter's last use and the header
-count's definition at one position, so rcx reads as taken. Coalescing a
-copy's source and destination when the source dies at the copy has to
-happen in the linear-scan core (ScanBank's free_until at interval
-boundaries, or a coalescing step before allocation), not in the hints.
+count's definition at one position, so rcx reads as taken. The root cause is
+that intervals have no lifetime holes. The header count's interval spans
+[b1 start, b9 end] in linear order, so it holds rcx through b9, where its
+old value is already dead (not in b9's live-in, no use in b9). Two designs,
+both in compiler_regalloc.zi:
+- Lifetime holes: build each root's ranges from the per-block live-in and
+  live-out sets the allocator already computes, test free_until against
+  ranges instead of [start, end], and let resolution move values at
+  block boundaries. That is the general fix.
+- Copy coalescing before ScanBank: merge a parameter with the parameter
+  it is copied into (or from) when neither is live at the other's
+  definitions (the block liveness sets decide), so both share one root
+  and the copies become identities. That is narrower, and enough for
+  loop-carried counters.
+Tightening the hint check alone would let two intervals hold one register
+and break spilling and splitting.
+
+Loop rotation, the SSA pass: a new module, cmd/compiler_opt_rotate.zi,
+with its own tests, run in the shared LIR optimizer before native and
+Wasm lowering. For a loop header H whose only work is a compare and branch
+on its parameters, with latch L jumping to H: give the body block B the
+parameters it reads (H's parameters that B or blocks it dominates use),
+rewrite those uses, duplicate H's compare and branch at the end of L with
+L's arguments, and pass the next values on both edges. H then runs only
+on entry.
 
 Loop rotation cannot be done while lowering: the optimized LIR has dropped
 the loop body's block parameters, so the body names the header's

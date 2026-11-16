@@ -776,6 +776,9 @@ LowerDirect :: (state: *LowerState, function: *MachineFunction, token: s32, base
 LowerElement :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     // Folded into the load or store that uses it.
     if state.select.address_shift[source.result] >= 0 { return true }
+    // A constant zero index folded to its base: nothing to emit.
+    if source.result >= 0 && source.result < state.aggregates.alias.count &&
+        state.aggregates.alias[source.result] != MachineNoId { return true }
     bound: s64
     if !state.checks && !source.checked && source.operands.count >= 2 && source.operands.count <= 4 {
         // Unchecked: the no-check form at base + index (a subview's low);
@@ -1319,6 +1322,99 @@ ForwardExtracts :: (state: *LowerState, function: *MachineFunction, source: LirF
     return true
 }
 
+// An alias may name a value that a later fold aliased in turn: point every
+// alias at the end of its chain so no use names an eliminated virtual.
+ResolveAliasChains :: (state: *LowerState, function: *MachineFunction) {
+    count := function.virtual_count
+    for local: cast(s64)0..count - 1 {
+        if local >= state.aggregates.alias.count { break }
+        target := state.aggregates.alias[local]
+        steps: s64
+        while target != MachineNoId && steps <= count {
+            next := target - function.virtual_begin
+            if next < 0 || next >= count || next >= state.aggregates.alias.count ||
+                state.aggregates.alias[next] == MachineNoId { break }
+            target = state.aggregates.alias[next]
+            steps += 1
+        }
+        if state.aggregates.alias[local] != MachineNoId { state.aggregates.alias[local] = target }
+    }
+    // Field virtuals cached before a later fold aliased their source follow
+    // the same chains; fresh field definitions are past the value range.
+    for at: cast(s64)0..state.aggregates.fields.count - 1 {
+        field := state.aggregates.fields[at]
+        if field == MachineNoId { continue }
+        local := cast(s64)field - cast(s64)function.virtual_begin
+        if local < 0 || local >= state.aggregates.alias.count || state.aggregates.alias[local] == MachineNoId { continue }
+        state.aggregates.fields[at] = state.aggregates.alias[local]
+    }
+}
+
+// Every use of VALUE keeps a pointer word intact: a call argument, return
+// value, control-edge argument, or member of a split record. The last uses
+// scalar field storage instead of a typed aggregate build.
+PointerValueUses :: (state: *LowerState, source: LirFunction, value: s32) -> bool {
+    used := false
+    for block: source.blocks {
+        for instruction: block.instructions {
+            for operand: instruction.operands {
+                if operand != value { continue }
+                if instruction.op == .Call || instruction.op == .CallIndirect ||
+                    instruction.op == .HostCall || instruction.op == .Return { used = true; continue }
+                if instruction.op == .Aggregate && instruction.result >= 0 &&
+                    instruction.result < state.aggregates.plan.split.count &&
+                    state.aggregates.plan.split[instruction.result] { used = true; continue }
+                return false
+            }
+            if instruction.op != .Jump && instruction.op != .Branch { continue }
+            for edge: instruction.edges {
+                for argument: edge.arguments {
+                    if argument != value { continue }
+                    used = true
+                }
+            }
+        }
+    }
+    return used
+}
+
+// A constant zero element index addresses its base exactly: every such
+// address whose lowering needs no bounds check aliases to the base and
+// emits nothing, and this use no longer materializes the index constant.
+FoldZeroElements :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
+    if state.target.arch != .X86_64 { return true }
+    for at: cast(s64)0..source.blocks.count - 1 {
+        block := source.blocks[state.select.layout[at]]
+        for instruction: block.instructions {
+            if !Spend(state, 1) { return false }
+            if instruction.op != .ElementAddress || instruction.result < 0 { continue }
+            if instruction.operands.count < 2 { continue }
+            if state.select.address_shift[instruction.result] >= 0 { continue }
+            if state.aggregates.alias[instruction.result] != MachineNoId { continue }
+            if !state.checks && !instruction.checked && instruction.operands.count <= 4 {
+                // The no-check form: its bound only records the shape.
+            } else if instruction.operands.count <= 3 &&
+                LirProvenIndexBound(state.proven, function.lir_function, instruction.result) > 0 {
+                // Facts prove the index below its bound: no check.
+            } else { continue }
+            index := instruction.operands[1]
+            if index < 0 || index >= state.select.constant.count { continue }
+            if !state.select.constant[index] || state.select.bits[index] != 0 { continue }
+            base := instruction.operands[0]
+            if base < 0 || !RegisterClassValue(state, function, base) ||
+                !RegisterClassValue(state, function, instruction.result) { continue }
+            // A differing base pointer type may alias only when every use
+            // moves the pointer value itself, never a typed aggregate build.
+            if source.values[base] != source.values[instruction.result] &&
+                (state.checks || !PointerValueUses(state, source, instruction.result)) { continue }
+            state.aggregates.alias[instruction.result] = GlobalVirtual(state, function, base)
+            if state.select.uses[index] > 0 { state.select.uses[index] -= 1 }
+            state.select.loaded[index] = state.select.uses[index] > state.select.folded[index]
+        }
+    }
+    return true
+}
+
 RegisterClassValue :: (state: *LowerState, function: *MachineFunction, value: s32) -> bool {
     class := state.owner.virtuals[function.virtual_begin + value].class
     return class == .General || class == .Float
@@ -1525,7 +1621,8 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     function = state.owner.functions[function_id]
     function.fuel_register = state.options.fuel && MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
     if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) ||
-        !ForwardExtracts(state, *function, source) { return false }
+        !FoldZeroElements(state, *function, source) || !ForwardExtracts(state, *function, source) { return false }
+    ResolveAliasChains(state, *function)
     // A function that allocates keeps the frame arena's top at entry and
     // the head of its pointer chain in two frame words. Each `allocate` gets
     // its raw-storage virtual up front, so a direct access in any block it

@@ -85,11 +85,12 @@ compile_native() {
 main_instructions=$(awk '{
     while (match($0, /\{"begin":[0-9]+,"end":[0-9]+[^{}]*"function":"main"\}/)) {
         range = substr($0, RSTART, RLENGTH)
+        after = RSTART + RLENGTH
         begin = 0; end = 0
         if (match(range, /"begin":[0-9]+/)) begin = substr(range, RSTART + 8, RLENGTH - 8) + 0
         if (match(range, /"end":[0-9]+/)) end = substr(range, RSTART + 6, RLENGTH - 6) + 0
         if (begin < end) count++
-        $0 = substr($0, RSTART + RLENGTH)
+        $0 = substr($0, after)
     }
 }
 END { print count + 0 }' "$work/hello.map")
@@ -182,6 +183,29 @@ Answer :: () -> s32 {
 ZI
 compile_native "$work/long-elf" "$work" long:Answer "$work/long.zi"
 run_status "$work/long-elf" 20
+
+# A record built from a field of another record aliases that field through a
+# chain of folded values: no use may name an eliminated virtual.
+cat > "$work/alias.zi" <<'ZI'
+#import "std/math"
+Triple :: struct { x: float64; y: float64; z: float64 }
+State :: struct { height: float64; saturation: float64 }
+SampleAt :: (hour: float64) -> State {
+    out: State
+    out.height = hour
+    sun: Triple = .{hour, out.height, hour}
+    length := Sqrt(sun.x * sun.x + sun.y * sun.y + sun.z * sun.z)
+    return out
+}
+#program_export
+Answer :: () -> s32 {
+    v := SampleAt(3.0)
+    if v.height != 3.0 || v.saturation != 0.0 { return 1 }
+    return 0
+}
+ZI
+compile_native "$work/alias-elf" "$work" alias:Answer "$work/alias.zi"
+run_status "$work/alias-elf" 0
 
 # A debug attachment gives map ranges source lines without changing a byte
 # of the executable.

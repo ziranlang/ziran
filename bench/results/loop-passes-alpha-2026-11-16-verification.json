@@ -1,0 +1,75 @@
+{
+  "reports": {
+    "before": {
+      "verified_target_kernel_pairs": 20,
+      "report_sha256": "6af7df6d8bd314de4f42f498150566eda6eae0c86ab7b1d92e99c22db11d9613"
+    },
+    "after": {
+      "verified_target_kernel_pairs": 20,
+      "report_sha256": "b6bc66e9a0a860f0bb14aaacf3856d89ed06af3da45781f6df1a941a141a1f50"
+    }
+  },
+  "local_validation": "Raw sample counts, inclusive IQR exclusions and medians recomputed; output/checksum flags and observer coverage verified.",
+  "scope": "Saved artifact verification only; no new benchmark samples.",
+  "four_kernel_summary": [
+    {
+      "kernel": "Sieve",
+      "native_before_us": 58.409609375,
+      "native_after_us": 56.3021875,
+      "native_change_percent": -3.608005425049121,
+      "c_before_us": 33.64725393554688,
+      "c_after_us": 33.378891588867184,
+      "native_after_over_c": 1.6867602493660512,
+      "native_excluded_before": [
+        0
+      ],
+      "native_excluded_after": [
+        9,
+        10
+      ]
+    },
+    {
+      "kernel": "Records",
+      "native_before_us": 57.08259375,
+      "native_after_us": 43.6373125,
+      "native_change_percent": -23.554082543770182,
+      "c_before_us": 16.54059473339844,
+      "c_after_us": 15.483208000976562,
+      "native_after_over_c": 2.818363771722739,
+      "native_excluded_before": [
+        1
+      ],
+      "native_excluded_after": [
+        0,
+        10
+      ]
+    },
+    {
+      "kernel": "Hash",
+      "native_before_us": 63.617281250000005,
+      "native_after_us": 57.014234375,
+      "native_change_percent": -10.379328926446385,
+      "c_before_us": 27.322523412109376,
+      "c_after_us": 26.807639661132814,
+      "native_after_over_c": 2.1267905379100704,
+      "native_excluded_before": [],
+      "native_excluded_after": [
+        1
+      ]
+    },
+    {
+      "kernel": "Vectors",
+      "native_before_us": 63.029875,
+      "native_after_us": 89.16096875,
+      "native_change_percent": 41.458266813951326,
+      "c_before_us": 33.35317381445312,
+      "c_after_us": 33.320511691406246,
+      "native_after_over_c": 2.6758583294204232,
+      "native_excluded_before": [],
+      "native_excluded_after": [
+        6,
+        10
+      ]
+    }
+  ]
+}

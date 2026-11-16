@@ -1,0 +1,545 @@
+{
+  "stage": "complete",
+  "host": "alpha",
+  "root": "/home/wao/Projects/ziranlang/ziran",
+  "before": "898f58a5fb03295e9a0979355f4ac222de326e5c",
+  "after": "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512",
+  "learning": "off",
+  "commands": [
+    [
+      "git",
+      "read-tree",
+      "898f58a5fb03295e9a0979355f4ac222de326e5c"
+    ],
+    [
+      "/home/wao/.local/bin/make",
+      "-j4",
+      "all"
+    ],
+    [
+      "git",
+      "read-tree",
+      "898f58a5fb03295e9a0979355f4ac222de326e5c"
+    ],
+    [
+      "/usr/bin/python3",
+      "bench/wasm_tier.py",
+      "--samples",
+      "11",
+      "--observe-host",
+      "--label",
+      "Physical Alpha shared loop/SIMD before 898f58a5fb03295e9a0979355f4ac222de326e5c",
+      "--output",
+      "/home/wao/Projects/ziranlang/ziran/bench/results/loop-passes-alpha-2026-11-16-before.json"
+    ],
+    [
+      "git",
+      "read-tree",
+      "898f58a5fb03295e9a0979355f4ac222de326e5c"
+    ],
+    [
+      "git",
+      "fetch",
+      "origin",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ],
+    [
+      "git",
+      "read-tree",
+      "898f58a5fb03295e9a0979355f4ac222de326e5c"
+    ],
+    [
+      "git",
+      "merge",
+      "--ff-only",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ],
+    [
+      "git",
+      "fetch",
+      "origin",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ],
+    [
+      "git",
+      "read-tree",
+      "898f58a5fb03295e9a0979355f4ac222de326e5c"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "a72a9330f0352c902cfe00b8c8941f212d73e478",
+      "plans/2026-11-15-native-speed.md"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "26030df9ebc1d5c185d039d507ebcba11542c398",
+      "tests/compiler_opt_cases.zi"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "9fd4ccc6970eecda8761c9ec5898a4fec97c3875",
+      "tests/zx_parity_list.zi"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "8ad489052c404aac4294713690c6a440aa97e9c3",
+      "bench/results/c-teacher-alpha-2026-11-16-after.md"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "3d4d9408673026f425866d0f3e6c314af5f51254",
+      "bench/results/c-teacher-alpha-2026-11-16-before.md"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "45359dd324f7794a7babfd35eae754aa9101c727",
+      "bench/results/c-teacher-alpha-2026-11-16-calls-validation.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "383fa92cd28a9c886c14a1fa63867e524001c16e",
+      "bench/results/c-teacher-alpha-2026-11-16-validation.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "23b81514db08f6bb0bcea86b247d9eb67273c129",
+      "bench/results/c-teacher-alpha-2026-11-16-widgets-after.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "611ea45c155fe54f048a8238a29deaba38295fb5",
+      "bench/results/c-teacher-alpha-2026-11-16-widgets-before.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "3290e7934416f7a938c1dc345936e0f00921c788",
+      "bench/results/c-teacher-alpha-after.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "d82694b60a93409f2269f339d8704f592744400a",
+      "bench/results/c-teacher-alpha-before.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "a435c41df931ca716e7d41a1eb1a1b880bd03496",
+      "bench/results/c-teacher-alpha-six-after.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "f81db41bf817681654b57a769a25ba257f200da1",
+      "bench/results/c-teacher-alpha-six-before.json"
+    ],
+    [
+      "git",
+      "merge",
+      "--ff-only",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ],
+    [
+      "git",
+      "fetch",
+      "origin",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ],
+    [
+      "git",
+      "read-tree",
+      "898f58a5fb03295e9a0979355f4ac222de326e5c"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "a72a9330f0352c902cfe00b8c8941f212d73e478",
+      "plans/2026-11-15-native-speed.md"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "abd5dab824495f26ee9f1904c0187fd67db4ec06",
+      "plans/2026-11-15-learning-compiler.md"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "26030df9ebc1d5c185d039d507ebcba11542c398",
+      "tests/compiler_opt_cases.zi"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "9fd4ccc6970eecda8761c9ec5898a4fec97c3875",
+      "tests/zx_parity_list.zi"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "8ad489052c404aac4294713690c6a440aa97e9c3",
+      "bench/results/c-teacher-alpha-2026-11-16-after.md"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "3d4d9408673026f425866d0f3e6c314af5f51254",
+      "bench/results/c-teacher-alpha-2026-11-16-before.md"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "45359dd324f7794a7babfd35eae754aa9101c727",
+      "bench/results/c-teacher-alpha-2026-11-16-calls-validation.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "383fa92cd28a9c886c14a1fa63867e524001c16e",
+      "bench/results/c-teacher-alpha-2026-11-16-validation.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "23b81514db08f6bb0bcea86b247d9eb67273c129",
+      "bench/results/c-teacher-alpha-2026-11-16-widgets-after.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "611ea45c155fe54f048a8238a29deaba38295fb5",
+      "bench/results/c-teacher-alpha-2026-11-16-widgets-before.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "3290e7934416f7a938c1dc345936e0f00921c788",
+      "bench/results/c-teacher-alpha-after.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "d82694b60a93409f2269f339d8704f592744400a",
+      "bench/results/c-teacher-alpha-before.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "a435c41df931ca716e7d41a1eb1a1b880bd03496",
+      "bench/results/c-teacher-alpha-six-after.json"
+    ],
+    [
+      "git",
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "100644",
+      "f81db41bf817681654b57a769a25ba257f200da1",
+      "bench/results/c-teacher-alpha-six-before.json"
+    ],
+    [
+      "git",
+      "merge",
+      "--ff-only",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ],
+    [
+      "git",
+      "read-tree",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ],
+    [
+      "/home/wao/.local/bin/make",
+      "-j4",
+      "all"
+    ],
+    [
+      "git",
+      "read-tree",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ],
+    [
+      "/usr/bin/python3",
+      "bench/wasm_tier.py",
+      "--samples",
+      "11",
+      "--observe-host",
+      "--label",
+      "Physical Alpha shared loop/SIMD after 18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512",
+      "--output",
+      "/home/wao/Projects/ziranlang/ziran/bench/results/loop-passes-alpha-2026-11-16-after.json"
+    ],
+    [
+      "git",
+      "read-tree",
+      "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512"
+    ]
+  ],
+  "epochs": {
+    "before": {
+      "commit": "898f58a5fb03295e9a0979355f4ac222de326e5c",
+      "tree": "1031589fe6144f94d2f580c5dec98de478d408ad",
+      "compiler_sha256": {
+        "build/bin/ziran": "6f2433eefc3721145be0a6527a77156067b45e78f092d9c8c3e08c40b69c2e39",
+        "build/bin/zi2c": "2e21cbdd222519dc2f54993721c5168719b0340fc00d4271c4ca101dd8300152",
+        "build/bin/zi2zx": "2a5be43d81a6cc5504bcc4a75eb8604db9e2d1725bcf2472d5af1f3f57249621",
+        "build/bin/zx2native": "be0ac4c0b3b1a7282411d21d8f88de781f4a63395f7e139ea84ed6a50050b4d6",
+        "build/bin/zx2wasm": "c96d673cf048fefa9d2d5d44bd1ac27355d7b5d2a0af1f9c0ca41d562bec7b2b",
+        "build/libziran.a": "04931887e064aa7efce31fd9ade6ee360a043d4db021141e108f8a4bd509230f"
+      },
+      "harness_sha256": {
+        "bench/wasm_tier.py": "b2018bcf57a2bd2039279578c3f7fc101c678784522c9ba26ac75e85f6ccd3e2",
+        "bench/wasm_tier_reference.go": "12bf7226a91eaf198540c95acde47b32b6f0370fc63ec0487aa5a0ad6405d75b",
+        "bench/wasm_tier.zi": "0e6bdffd2b7dd8b7f6df7b3665393a17d1b840e4b48bb4b88d110d27b84dde91",
+        "bench/site_target_host.c": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
+        "bench/site_target_backend.h": "95533f9193a0756044d4ccee581e007c1b119f5c2b3bf71a090792b1a047a5db",
+        "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202",
+        "scripts/site_target_platforms.py": "87df13aa3ee01068e8bcbc8b334a2e2d4c7863314b7245b2a77416839c405eb5",
+        "scripts/site_targets.py": "cf86480e379b7997a0b30d827c083668837b26f2b7bdd22899301698f0856d6b"
+      },
+      "frequency_before_khz": {
+        "cpu0": "800000",
+        "cpu1": "800000",
+        "cpu10": "4497482",
+        "cpu11": "4458169",
+        "cpu2": "800000",
+        "cpu3": "4400946",
+        "cpu4": "4397629",
+        "cpu5": "800000",
+        "cpu6": "800000",
+        "cpu7": "4495107",
+        "cpu8": "4499961",
+        "cpu9": "800000"
+      },
+      "load_before": [
+        3.603515625,
+        3.25244140625,
+        3.23828125
+      ],
+      "frequency_after_khz": {
+        "cpu0": "4297825",
+        "cpu1": "4297212",
+        "cpu10": "4306526",
+        "cpu11": "4315884",
+        "cpu2": "4313295",
+        "cpu3": "4355874",
+        "cpu4": "4358044",
+        "cpu5": "4313453",
+        "cpu6": "4299977",
+        "cpu7": "4327702",
+        "cpu8": "4306899",
+        "cpu9": "4354792"
+      },
+      "load_after": [
+        3.55517578125,
+        3.248046875,
+        3.23681640625
+      ],
+      "raw_report_sha256": "6af7df6d8bd314de4f42f498150566eda6eae0c86ab7b1d92e99c22db11d9613",
+      "report": "bench/results/loop-passes-alpha-2026-11-16-before.json",
+      "artifact_archive_sha256": "391439327f04d25eeaed3805938c1a66caac7a9765b1771549c06429d128bdfe"
+    },
+    "after": {
+      "commit": "18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512",
+      "tree": "87077a947b7c7bdcd69d50d48f869d527bf03499",
+      "compiler_sha256": {
+        "build/bin/ziran": "6f2433eefc3721145be0a6527a77156067b45e78f092d9c8c3e08c40b69c2e39",
+        "build/bin/zi2c": "2e21cbdd222519dc2f54993721c5168719b0340fc00d4271c4ca101dd8300152",
+        "build/bin/zi2zx": "a9817a2488b40fc0e72f57e2e688ccce87997070b62a7209e38e36ea5ea4d90a",
+        "build/bin/zx2native": "cd5f47a2cc846647c096de5a6aee3c9b0d7cc4b422f154cb38a8e805a4748f76",
+        "build/bin/zx2wasm": "c96d673cf048fefa9d2d5d44bd1ac27355d7b5d2a0af1f9c0ca41d562bec7b2b",
+        "build/libziran.a": "8e795a93b8ddeb3c998baae17b22ff00da99a009b6a08403ef45f1ca7081eff8"
+      },
+      "harness_sha256": {
+        "bench/wasm_tier.py": "b2018bcf57a2bd2039279578c3f7fc101c678784522c9ba26ac75e85f6ccd3e2",
+        "bench/wasm_tier_reference.go": "12bf7226a91eaf198540c95acde47b32b6f0370fc63ec0487aa5a0ad6405d75b",
+        "bench/wasm_tier.zi": "0e6bdffd2b7dd8b7f6df7b3665393a17d1b840e4b48bb4b88d110d27b84dde91",
+        "bench/site_target_host.c": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
+        "bench/site_target_backend.h": "95533f9193a0756044d4ccee581e007c1b119f5c2b3bf71a090792b1a047a5db",
+        "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202",
+        "scripts/site_target_platforms.py": "87df13aa3ee01068e8bcbc8b334a2e2d4c7863314b7245b2a77416839c405eb5",
+        "scripts/site_targets.py": "cf86480e379b7997a0b30d827c083668837b26f2b7bdd22899301698f0856d6b"
+      },
+      "frequency_before_khz": {
+        "cpu0": "4306097",
+        "cpu1": "4396508",
+        "cpu10": "800000",
+        "cpu11": "800000",
+        "cpu2": "800000",
+        "cpu3": "800000",
+        "cpu4": "4297925",
+        "cpu5": "4333448",
+        "cpu6": "4339239",
+        "cpu7": "4396910",
+        "cpu8": "4311255",
+        "cpu9": "4353512"
+      },
+      "load_before": [
+        3.1455078125,
+        3.0634765625,
+        3.0419921875
+      ],
+      "frequency_after_khz": {
+        "cpu0": "800000",
+        "cpu1": "4299954",
+        "cpu10": "800000",
+        "cpu11": "800000",
+        "cpu2": "4294816",
+        "cpu3": "4303884",
+        "cpu4": "4299878",
+        "cpu5": "800000",
+        "cpu6": "800000",
+        "cpu7": "4300066",
+        "cpu8": "4299955",
+        "cpu9": "800000"
+      },
+      "load_after": [
+        3.1337890625,
+        3.06201171875,
+        3.04150390625
+      ],
+      "raw_report_sha256": "b6bc66e9a0a860f0bb14aaacf3856d89ed06af3da45781f6df1a941a141a1f50",
+      "report": "bench/results/loop-passes-alpha-2026-11-16-after.json",
+      "artifact_archive_sha256": "99111a59b2f819f37e68cb923db6c6914a965648cd335febbb5ab2540bb7caec"
+    }
+  },
+  "limitation": "Sequential existing-harness cohorts; CPU frequency observations are recorded, not controlled.",
+  "index_policy": "Build and benchmark subprocesses use a private source index; default index bytes are guarded, never refreshed by harness status probes.",
+  "default_index_sha256": "e778aa03acadf4a3e6dcc0ae159b6a8a373dae34f42b4a15344b13a38fb81a3a",
+  "protected_standard_sha256": {
+    "bench/standard/entry.zi": "5fe661a680ebdf2a1663956f3e63ec5d6d1357aa31ed4174f07df257d390e6a1",
+    "bench/standard/host.c": "5a26f5413276c5fc0903e449964e61f2279b37054b3f0185a19fac31aa2273cf",
+    "bench/standard/host.cjs": "676df749aedf9388a6ed47892cc6f64a79b5af4345ce5181d54f9dea421354ed",
+    "bench/standard/host.go": "7f6fd0a6dd9edb309e90053edac18c8b645681e71fcc8bcfcd019cfcc7814516",
+    "bench/standard/kernels.zi": "ad8068a45ff9eb9b461c1ae32163878ecb1efd28ed95252e713a263d3b20611a",
+    "bench/standard/reference.c": "facbff17184b6d3eddb6c762c3a18fd26513fa80f3bfb127aa792e1e8fc80d10",
+    "bench/standard/reference.go": "7f39ca053aeba83f054f8916bb7295e3a8f5f7bc4625c2a5c22ddd77c923a4af",
+    "build/standard/c": "b056d76232c8a8af447d180bfa71427dcd62b08ddc7e5ee0b2b1492d198ad56a",
+    "build/standard/go": "1a69cfd01ee676ce1acd7beca84c942611b365762d1b86d3eabd0f82b1a6f826",
+    "build/standard/native": "8edd4f0a78db8ec60c9fa0246ae2f5a206189afe70a56a7eebe3e4f138f35773",
+    "build/standard/suite.wasm": "b15bf15535b2e4b0107d14896967b7b1095f78d324971a64dd77f77b4547339c",
+    "build/standard/suite.zx": "86177fbebd3794aec264b57f73d25b18bfadd558d3dee6087044a86237ce2832",
+    "bench/results/standard/game-performance.partial.json": "9d6a7ce07edee28c05a739910bec6f6257fdb71a11d1f5cc9037b2b5506d84a0",
+    "bench/results/standard/matrix.json": "972a321963148e95ae1620445ca5b74bb295a677bc451088af27c9966864c961",
+    "bench/results/standard/sources.zip": "f7de2b7208b49c16edcbd22fb6b8974b29ee30770d59cc9c509624a6f1483936"
+  },
+  "started_at_utc_epoch": 1794868103.042826,
+  "resume_after_only": true,
+  "prior_failure": {
+    "failure": "Command '['git', 'merge', '--ff-only', '18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512']' returned non-zero exit status 1.",
+    "failed_at_utc_epoch": 1794868114.582753
+  },
+  "preserved_overlap_sha256": {
+    "plans/2026-11-15-native-speed.md": "b142f6aa7f993622bd16c90a06ef18a338c9ef73c200df1d3eb0d8ef476f34bf",
+    "plans/2026-11-15-learning-compiler.md": "926ba958d585fbf912658d5a1ce3be5be51245f91d04eb528500919c69a6eb70",
+    "tests/compiler_opt_cases.zi": "50abfb928ef2cf33fbfd8510dae0351d450d0480626d8f1390e14e47ebc4d4e2",
+    "tests/zx_parity_list.zi": "176845ee98e5bca3c42d4e57f4a055f5bd7ac575d33aeecee2099b4dd5bb4efe",
+    "bench/results/c-teacher-alpha-2026-11-16-after.md": "f6c127329290a9c9d6461fcf4829dbaec0c44ea56b2ad27fbac3e6e426643424",
+    "bench/results/c-teacher-alpha-2026-11-16-before.md": "67b478846fb389a81f000c8c3428b288977d98d2568760ff65f5b4a03e0f1d51",
+    "bench/results/c-teacher-alpha-2026-11-16-calls-validation.json": "8ad138306cfc595a333d1b40f44cb5a22ee71d4a69001e670958a317dafb69e9",
+    "bench/results/c-teacher-alpha-2026-11-16-validation.json": "1e1c0766f81471de19bae0608cf69d821677628ed467fc1eb93c358090bd91f9",
+    "bench/results/c-teacher-alpha-2026-11-16-widgets-after.json": "0036e46140dbf3d061f34853114b4153db40a1940029921fef3ae96a4662144e",
+    "bench/results/c-teacher-alpha-2026-11-16-widgets-before.json": "b95d5b9c16ba20a68e5a99ebb567e331ec4f72e15b65ecedd0bb791fdbb446d8",
+    "bench/results/c-teacher-alpha-after.json": "9289ecb27270cd9edf084dc445145830f1590b1fd8bb3db5deda197ebfd03b36",
+    "bench/results/c-teacher-alpha-before.json": "85598ace482c35e7a10039f204eb1f00d6a470f7b8bb847813150013f38361b0",
+    "bench/results/c-teacher-alpha-six-after.json": "dd4eff4ec037b5c970f9e3d0f3bb860cf81079c77b9d343876895fe9e54a55ba",
+    "bench/results/c-teacher-alpha-six-before.json": "aa72f847a45d8a72576c568110b62d8d81b25938e06761414df636a855fce950"
+  },
+  "resume_failures": [
+    {
+      "failure": "Command '['git', 'merge', '--ff-only', '18fb5aeb6c4ab1ea31b39320c1a4eb7120eaf512']' returned non-zero exit status 1.",
+      "failed_at_utc_epoch": 1794868640.891715
+    }
+  ],
+  "protected_standard_artifacts_unchanged": true,
+  "completed_at_utc_epoch": 1794868802.6866364,
+  "default_index_unchanged": true
+}

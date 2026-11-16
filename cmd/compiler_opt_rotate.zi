@@ -1,0 +1,472 @@
+using IR :: #import "compiler_lowered_ir"
+using Vectors :: #import "std/vec"
+
+// Loop rotation in SSA form. A loop header that only charges fuel, names
+// constants, compares and branches is entered once from its preheader; the
+// latch that jumps back to it runs the header's fuel check, compare and
+// branch itself, with the header's parameters replaced by the values the
+// latch passes. Each loop then tests at its bottom and takes one branch per
+// iteration instead of a jump back to a test.
+//
+// The header's parameters stop being updated on the latch's way round, so
+// the header's two successors get new parameters for them: the header passes
+// its own, the latch passes its arguments, and every use of a header
+// parameter in a block the body (or the exit) dominates names the body's
+// (or the exit's) parameter instead. A header qualifies when it has exactly
+// one preheader and one latch (a jump it dominates), its successors are
+// reached only from it, the body dominates the latch and the exit does not,
+// and every use of its parameters lies under one of the two successors.
+//
+// Each call rotates at most one loop per function; callers repeat it until
+// it rotates none. The rewritten program lives in the owner's storage until
+// it is copied.
+
+LirRotateOwner :: struct {
+    functions: Vec(LirFunction)
+    blocks: Vec(LirBlock)
+    instructions: Vec(LirInstruction)
+    edges: Vec(LirEdge)
+    values: Vec(s32)
+}
+
+LirRotateFree :: (owner: *LirRotateOwner) {
+    VecFree(owner.functions)
+    VecFree(owner.blocks)
+    VecFree(owner.instructions)
+    VecFree(owner.edges)
+    VecFree(owner.values)
+}
+
+#scope_file
+
+Rotation :: struct {
+    function: s32
+    header: s32
+    latch: s32
+    body: s32
+    exit: s32
+}
+
+// Per function: predecessors, reverse postorder and immediate dominators.
+Graph :: struct {
+    // Per block its predecessor count and where its predecessors start in
+    // predecessors (one entry per edge).
+    predecessor_count: Vec(s32)
+    predecessor_begin: Vec(s32)
+    predecessors: Vec(s32)
+    order: Vec(s32)
+    rank: Vec(s32)
+    idom: Vec(s32)
+    stack: Vec(s32)
+    next: Vec(s32)
+}
+
+GraphFree :: (graph: *Graph) {
+    VecFree(graph.predecessor_count)
+    VecFree(graph.predecessor_begin)
+    VecFree(graph.predecessors)
+    VecFree(graph.order)
+    VecFree(graph.rank)
+    VecFree(graph.idom)
+    VecFree(graph.stack)
+    VecFree(graph.next)
+}
+
+Terminator :: (block: LirBlock) -> LirInstruction {
+    if block.instructions.count == 0 { return .{op = .Invalid, result = LirNoId} }
+    return block.instructions[block.instructions.count - 1]
+}
+
+// Reverse postorder from the entry and immediate dominators (Cooper, Harvey
+// and Kennedy); an unreached block has rank and idom -1.
+Analyze :: (graph: *Graph, function: LirFunction, bytes: s64) -> bool {
+    count := function.blocks.count
+    if !VecResizeBounded(graph.predecessor_count, count, bytes) || !VecResizeBounded(graph.rank, count, bytes) ||
+        !VecResizeBounded(graph.idom, count, bytes) || !VecResizeBounded(graph.next, count, bytes) ||
+        !VecResize(graph.order, 0) || !VecResize(graph.stack, 0) { return false }
+    for block: cast(s64)0..count - 1 {
+        graph.predecessor_count[block] = 0
+        graph.rank[block] = -1
+        graph.idom[block] = -1
+        graph.next[block] = 0
+    }
+    edges: s64 = 0
+    for block: function.blocks {
+        for edge: Terminator(block).edges { graph.predecessor_count[edge.block] += 1; edges += 1 }
+    }
+    if !VecResizeBounded(graph.predecessor_begin, count + 1, bytes) ||
+        !VecResizeBounded(graph.predecessors, edges, bytes) { return false }
+    graph.predecessor_begin[0] = 0
+    for block: cast(s64)0..count - 1 {
+        graph.predecessor_begin[block + 1] = graph.predecessor_begin[block] + graph.predecessor_count[block]
+        graph.next[block] = graph.predecessor_begin[block]
+    }
+    for block, block_index: function.blocks {
+        for edge: Terminator(block).edges {
+            graph.predecessors[graph.next[edge.block]] = cast(s32)block_index
+            graph.next[edge.block] += 1
+        }
+    }
+    for block: cast(s64)0..count - 1 { graph.next[block] = 0 }
+    // Iterative depth-first search; a block is numbered when it is finished.
+    postorder: Vec(s32)
+    defer VecFree(postorder)
+    if !VecPush(graph.stack, function.entry) { return false }
+    graph.rank[function.entry] = 0
+    while graph.stack.count > 0 {
+        top := graph.stack[graph.stack.count - 1]
+        edges := Terminator(function.blocks[top]).edges
+        if graph.next[top] < cast(s32)edges.count {
+            successor := edges[graph.next[top]].block
+            graph.next[top] += 1
+            if graph.rank[successor] < 0 {
+                graph.rank[successor] = 0
+                if !VecPush(graph.stack, successor) { return false }
+            }
+            continue
+        }
+        unused VecResize(graph.stack, graph.stack.count - 1)
+        if !VecPush(postorder, top) { return false }
+    }
+    at := postorder.count - 1
+    while at >= 0 {
+        block := postorder[at]
+        graph.rank[block] = cast(s32)graph.order.count
+        if !VecPush(graph.order, block) { return false }
+        at -= 1
+    }
+    graph.idom[function.entry] = function.entry
+    changed := true
+    while changed {
+        changed = false
+        for block: graph.order {
+            if block == function.entry { continue }
+            chosen: s32 = -1
+            for at: graph.predecessor_begin[block]..graph.predecessor_begin[block + 1] - 1 {
+                other := graph.predecessors[at]
+                if graph.idom[other] < 0 { continue }
+                chosen = ifx chosen < 0 then other else Intersect(graph, other, chosen)
+            }
+            if chosen >= 0 && graph.idom[block] != chosen { graph.idom[block] = chosen; changed = true }
+        }
+    }
+    return true
+}
+
+Intersect :: (graph: *Graph, left: s32, right: s32) -> s32 {
+    a := left
+    b := right
+    while a != b {
+        while graph.rank[a] > graph.rank[b] { a = graph.idom[a] }
+        while graph.rank[b] > graph.rank[a] { b = graph.idom[b] }
+    }
+    return a
+}
+
+// Whether DOMINATOR dominates BLOCK, which must be reached.
+Dominates :: (graph: *Graph, dominator: s32, block: s32) -> bool {
+    if graph.idom[block] < 0 || graph.idom[dominator] < 0 { return false }
+    at := block
+    while true {
+        if at == dominator { return true }
+        if graph.idom[at] == at { return false }
+        at = graph.idom[at]
+    }
+    return false
+}
+
+Compare :: (op: LirOp) -> bool {
+    return op == .Equal || op == .NotEqual || op == .Less || op == .LessEqual || op == .Greater ||
+        op == .GreaterEqual
+}
+
+// How many times FUNCTION names VALUE as an operand or edge argument.
+Uses :: (function: LirFunction, value: s32) -> s64 {
+    count: s64 = 0
+    for block: function.blocks {
+        for instruction: block.instructions {
+            for operand: instruction.operands { if operand == value { count += 1 } }
+            for edge: instruction.edges { for argument: edge.arguments { if argument == value { count += 1 } } }
+        }
+    }
+    return count
+}
+
+Parameter :: (block: LirBlock, value: s32) -> s64 {
+    for parameter, at: block.parameters { if parameter == value { return at } }
+    return -1
+}
+
+// The rotation HEADER of FUNCTION allows, or one with header -1.
+Candidate :: (graph: *Graph, function: LirFunction, header: s32) -> Rotation {
+    none := Rotation.{header = -1}
+    block := function.blocks[header]
+    count := block.instructions.count
+    if header == function.entry || graph.idom[header] < 0 || count < 2 ||
+        graph.predecessor_count[header] != 2 { return none }
+    branch := block.instructions[count - 1]
+    compare := block.instructions[count - 2]
+    if branch.op != .Branch || branch.operands.count != 1 || branch.edges.count != 2 ||
+        !Compare(compare.op) || compare.result != branch.operands[0] || Uses(function, compare.result) != 1 {
+        return none
+    }
+    for at: cast(s64)0..count - 3 {
+        op := block.instructions[at].op
+        if op != .Constant && (op != .Fuel || at != 0) { return none }
+    }
+    // One predecessor is the preheader and the other a latch it dominates.
+    latch: s32 = -1
+    latches: s32 = 0
+    for at: graph.predecessor_begin[header]..graph.predecessor_begin[header + 1] - 1 {
+        other := graph.predecessors[at]
+        if graph.idom[other] < 0 || !Dominates(graph, header, other) { continue }
+        jump := Terminator(function.blocks[other])
+        if jump.op != .Jump || jump.edges.count != 1 || other == header { return none }
+        latch = other
+        latches += 1
+    }
+    if latches != 1 { return none }
+    first := branch.edges[0].block
+    second := branch.edges[1].block
+    body := ifx Dominates(graph, first, latch) then first else second
+    exit := ifx body == first then second else first
+    if first == second || body == header || exit == header || Dominates(graph, exit, latch) ||
+        !Dominates(graph, body, latch) || graph.predecessor_count[body] != 1 ||
+        graph.predecessor_count[exit] != 1 { return none }
+    // Every use of a header parameter outside the header lies under the body
+    // or the exit.
+    for other, other_index: function.blocks {
+        if other_index == cast(s64)header { continue }
+        under := graph.idom[other_index] >= 0 &&
+            (Dominates(graph, body, cast(s32)other_index) || Dominates(graph, exit, cast(s32)other_index))
+        for instruction: other.instructions {
+            for operand: instruction.operands { if Parameter(block, operand) >= 0 && !under { return none } }
+            for edge: instruction.edges {
+                for argument: edge.arguments { if Parameter(block, argument) >= 0 && !under { return none } }
+            }
+        }
+    }
+    return .{header = header, latch = latch, body = body, exit = exit}
+}
+
+// Room the rotation of FUNCTION needs in the owner's arrays.
+Room :: struct {
+    blocks: s64
+    instructions: s64
+    edges: s64
+    values: s64
+}
+
+Needed :: (function: LirFunction, rotation: Rotation) -> Room {
+    header := function.blocks[rotation.header]
+    latch := function.blocks[rotation.latch]
+    branch := Terminator(header)
+    k := header.parameters.count
+    arguments := branch.edges[0].arguments.count + branch.edges[1].arguments.count + 2 * k
+    fuel := ifx header.instructions[0].op == .Fuel then cast(s64)1 else 0
+    return .{blocks = function.blocks.count, edges = 4,
+        instructions = header.instructions.count + latch.instructions.count - 1 + fuel + 2,
+        values = function.values.count + 2 * k + 1 + function.blocks[rotation.body].parameters.count + k +
+            function.blocks[rotation.exit].parameters.count + k + 2 * arguments + 3}
+}
+
+// Views of the owner's arrays, sized up front, and how far each is used.
+Builder :: struct {
+    blocks: []LirBlock
+    instructions: []LirInstruction
+    edges: []LirEdge
+    values: []s32
+    block: s64
+    instruction: s64
+    edge: s64
+    value: s64
+}
+
+Values :: (builder: *Builder, count: s64) -> []s32 {
+    begin := builder.value
+    builder.value += count
+    return builder.values[begin:builder.value]
+}
+
+// Replaces every header parameter named in BLOCK by its counterpart from
+// FIRST onward.
+Rename :: (block: LirBlock, header: LirBlock, first: s32) {
+    for instruction: block.instructions {
+        for operand, at: instruction.operands {
+            index := Parameter(header, operand)
+            if index >= 0 { instruction.operands[at] = first + cast(s32)index }
+        }
+        for edge: instruction.edges {
+            for argument, at: edge.arguments {
+                index := Parameter(header, argument)
+                if index >= 0 { edge.arguments[at] = first + cast(s32)index }
+            }
+        }
+    }
+}
+
+// VALUE as the latch passes it: its argument for a header parameter.
+Passed :: (header: LirBlock, jump: LirInstruction, value: s32) -> s32 {
+    index := Parameter(header, value)
+    return ifx index >= 0 then jump.edges[0].arguments[index] else value
+}
+
+// ARGUMENTS of a header edge as the latch passes them, then the latch's
+// arguments for the successor's new parameters.
+LatchArguments :: (builder: *Builder, header: LirBlock, jump: LirInstruction, arguments: []s32) -> []s32 {
+    k := header.parameters.count
+    out := Values(builder, arguments.count + k)
+    for argument, at: arguments { out[at] = Passed(header, jump, argument) }
+    for at: cast(s64)0..k - 1 { out[arguments.count + at] = jump.edges[0].arguments[at] }
+    return out
+}
+
+HeaderArguments :: (builder: *Builder, header: LirBlock, arguments: []s32) -> []s32 {
+    out := Values(builder, arguments.count + header.parameters.count)
+    for argument, at: arguments { out[at] = argument }
+    for parameter, at: header.parameters { out[arguments.count + at] = parameter }
+    return out
+}
+
+Extend :: (builder: *Builder, parameters: []s32, first: s32, count: s64) -> []s32 {
+    out := Values(builder, parameters.count + count)
+    for parameter, at: parameters { out[at] = parameter }
+    for at: cast(s64)0..count - 1 { out[parameters.count + at] = first + cast(s32)at }
+    return out
+}
+
+Rotate :: (builder: *Builder, graph: *Graph, function: LirFunction, rotation: Rotation) -> LirFunction {
+    header := function.blocks[rotation.header]
+    k := header.parameters.count
+    old := function.values.count
+    body_first := cast(s32)old
+    exit_first := cast(s32)(old + k)
+    test := cast(s32)(old + 2 * k)
+    branch := Terminator(header)
+    compare := header.instructions[header.instructions.count - 2]
+    // Uses under the body or the exit name their new parameters, the latch's
+    // arguments included.
+    for block, block_index: function.blocks {
+        if block_index == cast(s64)rotation.header || graph.idom[block_index] < 0 { continue }
+        if Dominates(graph, rotation.body, cast(s32)block_index) { Rename(block, header, body_first) }
+        else if Dominates(graph, rotation.exit, cast(s32)block_index) { Rename(block, header, exit_first) }
+    }
+    latch := function.blocks[rotation.latch]
+    jump := Terminator(latch)
+    values := Values(builder, old + 2 * k + 1)
+    for type, at: function.values { values[at] = type }
+    for parameter, at: header.parameters {
+        values[old + at] = function.values[parameter]
+        values[old + k + at] = function.values[parameter]
+    }
+    values[old + 2 * k] = function.values[compare.result]
+    blocks_begin := builder.block
+    for block: function.blocks { builder.blocks[builder.block] = block; builder.block += 1 }
+    blocks := builder.blocks[blocks_begin:builder.block]
+    blocks[rotation.body].parameters = Extend(builder, function.blocks[rotation.body].parameters, body_first, k)
+    blocks[rotation.exit].parameters = Extend(builder, function.blocks[rotation.exit].parameters, exit_first, k)
+    // The header passes its own parameters on.
+    header_edges_begin := builder.edge
+    builder.edge += 2
+    header_edges := builder.edges[header_edges_begin:builder.edge]
+    for edge, at: branch.edges {
+        header_edges[at] = .{block = edge.block, arguments = HeaderArguments(builder, header, edge.arguments)}
+    }
+    header_begin := builder.instruction
+    for instruction: header.instructions {
+        builder.instructions[builder.instruction] = instruction
+        builder.instruction += 1
+    }
+    header_instructions := builder.instructions[header_begin:builder.instruction]
+    header_instructions[header_instructions.count - 1].edges = header_edges
+    blocks[rotation.header].instructions = header_instructions
+    // The latch tests and branches itself.
+    latch_begin := builder.instruction
+    for at: cast(s64)0..latch.instructions.count - 2 {
+        builder.instructions[builder.instruction] = latch.instructions[at]
+        builder.instruction += 1
+    }
+    if header.instructions[0].op == .Fuel {
+        builder.instructions[builder.instruction] = header.instructions[0]
+        builder.instruction += 1
+    }
+    operands := Values(builder, 2)
+    operands[0] = Passed(header, jump, compare.operands[0])
+    operands[1] = Passed(header, jump, compare.operands[1])
+    tested := compare
+    tested.result = test
+    tested.operands = operands
+    builder.instructions[builder.instruction] = tested
+    builder.instruction += 1
+    latch_edges_begin := builder.edge
+    builder.edge += 2
+    latch_edges := builder.edges[latch_edges_begin:builder.edge]
+    for edge, at: branch.edges {
+        latch_edges[at] = .{block = edge.block, arguments = LatchArguments(builder, header, jump, edge.arguments)}
+    }
+    condition := Values(builder, 1)
+    condition[0] = test
+    closing := branch
+    closing.operands = condition
+    closing.edges = latch_edges
+    closing.origin = jump.origin
+    builder.instructions[builder.instruction] = closing
+    builder.instruction += 1
+    latch_instructions := builder.instructions[latch_begin:builder.instruction]
+    effect: s32 = 0
+    for instruction, at: latch_instructions {
+        if LirEffectful(instruction.op) { effect += 1; latch_instructions[at].effect = effect }
+        else { latch_instructions[at].effect = 0 }
+    }
+    blocks[rotation.latch].instructions = latch_instructions
+    rotated := function
+    rotated.values = values
+    rotated.blocks = blocks
+    return rotated
+}
+
+#scope_export
+
+// Rotates at most one loop in each function of PROGRAM into OWNER, whose
+// program then views it and PROGRAM's unchanged storage; returns how many
+// loops it rotated, or -1 when its scratch could not be sized within BYTES.
+// PROGRAM's operands under rotated loops are renamed in place.
+LirRotateLoops :: (program: LirProgram, owner: *LirRotateOwner, bytes: s64) -> s64 {
+    graph: Graph
+    defer GraphFree(*graph)
+    rotations: Vec(Rotation)
+    defer VecFree(rotations)
+    room: Room
+    for function, function_index: program.functions {
+        if function.external || function.blocks.count < 3 { continue }
+        if !Analyze(*graph, function, bytes) { return -1 }
+        for header: cast(s32)0..cast(s32)function.blocks.count - 1 {
+            rotation := Candidate(*graph, function, header)
+            if rotation.header < 0 { continue }
+            rotation.function = cast(s32)function_index
+            if !VecPush(rotations, rotation) { return -1 }
+            needed := Needed(function, rotation)
+            room.blocks += needed.blocks
+            room.instructions += needed.instructions
+            room.edges += needed.edges
+            room.values += needed.values
+            break
+        }
+    }
+    if rotations.count == 0 { return 0 }
+    if !VecResizeBounded(owner.functions, program.functions.count, bytes) ||
+        !VecResizeBounded(owner.blocks, room.blocks, bytes) ||
+        !VecResizeBounded(owner.instructions, room.instructions, bytes) ||
+        !VecResizeBounded(owner.edges, room.edges, bytes) ||
+        !VecResizeBounded(owner.values, room.values, bytes) { return -1 }
+    functions := owner.functions[:]
+    for function, at: program.functions { functions[at] = function }
+    builder := Builder.{blocks = owner.blocks[:], instructions = owner.instructions[:], edges = owner.edges[:],
+        values = owner.values[:]}
+    for rotation: rotations {
+        function := program.functions[rotation.function]
+        if !Analyze(*graph, function, bytes) { return -1 }
+        functions[rotation.function] = Rotate(*builder, *graph, function, rotation)
+    }
+    return rotations.count
+}

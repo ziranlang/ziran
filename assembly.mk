@@ -6,7 +6,7 @@ ASSEMBLY_MACHINE_SOURCES := cmd/compiler_target.zi cmd/compiler_machine_image.zi
     cmd/compiler_aarch64.zi cmd/compiler_armv7.zi \
     cmd/compiler_arm_bytes.zi \
     cmd/compiler_machine_elf.zi cmd/compiler_machine_pe.zi cmd/compiler_machine_pipeline.zi cmd/compiler_native_cache.zi
-ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi $(ASSEMBLY_MACHINE_SOURCES)
+ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_rotate.zi $(ASSEMBLY_MACHINE_SOURCES)
 
 ifneq ($(BOOTSTRAP),1)
 ifeq ($(NATIVE_HOST_ENABLED),1)

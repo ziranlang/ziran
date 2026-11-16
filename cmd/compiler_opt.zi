@@ -2,6 +2,7 @@ using IR :: #import "compiler_lowered_ir"
 using Verify :: #import "compiler_lowered_verify"
 using Codec :: #import "compiler_exec_serial"
 using Vectors :: #import "std/vec"
+using Rotate :: #import "compiler_opt_rotate"
 
 LirOptProblem :: enum s32 {
     None; Owner; Options; VerifyInput; VerifyPass; Limit; Allocation; Codec
@@ -1776,6 +1777,24 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     return VerifyPass(state, program, limits)
 }
 
+// Rotates loops (see compiler_opt_rotate) a round at a time, each round
+// written back into the owner's storage, until none rotates.
+RotatePass :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits) -> bool {
+    for round: 0..7 {
+        program := LirReadProgram(*owner.storage)
+        if !Spend(state, program.functions.count + 1) { return false }
+        rotated: LirRotateOwner
+        defer LirRotateFree(*rotated)
+        count := LirRotateLoops(program, *rotated, state.maximum_bytes)
+        if count < 0 { return Fail(state, .Allocation) }
+        if count == 0 { return true }
+        next := program
+        next.functions = rotated.functions[:]
+        if !CloneProgram(state, next, limits, *owner.storage) { return false }
+    }
+    return true
+}
+
 Result :: (state: OptState) -> LirOptResult {
     return .{problem = state.problem, diagnostic = state.diagnostic,
         counters = state.counters, work = state.used,
@@ -1856,6 +1875,11 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
     }
     ScratchReset(*state)
     if options.simplify_cfg && !CfgPass(*state, optimized, limits) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    ScratchReset(*state)
+    if options.simplify_cfg && !RotatePass(*state, owner, limits) {
         LirOptFree(owner)
         return Result(state)
     }

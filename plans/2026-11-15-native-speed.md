@@ -511,14 +511,19 @@ verifier), so RegAllocAllocate allocates once more without coalescing
 whenever the verifier rejects the result. Spill and split handling for
 merged roots is still to do, so that the retry is never needed.
 
-Loop rotation, the SSA pass: a new module, cmd/compiler_opt_rotate.zi,
-with its own tests, run in the shared LIR optimizer before native and
-Wasm lowering. For a loop header H whose only work is a compare and branch
-on its parameters, with latch L jumping to H: give the body block B the
-parameters it reads (H's parameters that B or blocks it dominates use),
-rewrite those uses, duplicate H's compare and branch at the end of L with
-L's arguments, and pass the next values on both edges. H then runs only
-on entry.
+Loop rotation, the SSA pass: implemented on branch wip/loop-rotation
+(cmd/compiler_opt_rotate.zi, run by RotatePass after CfgPass). A header that
+only charges fuel, names constants, compares and branches, with one
+preheader and one latch, is entered once. The latch runs its test, and the
+header's successors get parameters for its values, with uses below them
+renamed. It passes make check, and Sieve's inner loop becomes `movb; add;
+cmp; jl` (C's four instructions). It is not on master because a controlled
+A/B (today's zi2zx with and without the pass, the same zx2native) measured
+Sieve 24 -> 29 us and Records 16 -> 18 us slower, with Hash and Vectors
+neutral, although every rotated loop is shorter. Rotating main's loop
+shifts Sieve's hot loops by 19 bytes, so aligning loop heads (16 or 32
+bytes) is the first thing to try before landing it, and it needs its own
+case in compiler_opt_cases.
 
 Loop rotation cannot be done while lowering: the optimized LIR has dropped
 the loop body's block parameters, so the body names the header's

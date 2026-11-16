@@ -349,12 +349,18 @@ CompareRegister :: (state: *State, rn: s32, rm: s32, subtract: bool, selector: u
     Emit(state, cast(u32)word)
 }
 
-// SUBS with an unsigned 12-bit immediate and the zero-register destination.
-SubsImmediate :: (state: *State, rn: s32, value: s64, selector: u64) {
+// SUBS with an unsigned 12-bit immediate into RD; register 31 is the zero
+// register, which makes it a compare.
+SubsImmediateInto :: (state: *State, rd: s32, rn: s32, value: s64, selector: u64) {
     if state.diagnostic.problem != .None { return }
     if value < 0 || value > 4095 { unused Fail(state, .Unsupported); return }
-    word := (selector << 31) | cast(u64)0x71000000 | (cast(u64)value << 10) | (cast(u64)rn << 5) | cast(u64)31
+    word := (selector << 31) | cast(u64)0x71000000 | (cast(u64)value << 10) | (cast(u64)rn << 5) | (cast(u64)rd & 31)
     Emit(state, cast(u32)word)
+}
+
+// CMP RN, #VALUE.
+SubsImmediate :: (state: *State, rn: s32, value: s64, selector: u64) {
+    SubsImmediateInto(state, 31, rn, value, selector)
 }
 
 // CMN RN, #1: ADDS against the zero register, so the flags report RN == -1.
@@ -737,7 +743,7 @@ NormalizeConstant :: (value: u64, type: MachineType) -> u64 {
 FloatToGeneralBits :: (state: *State, rd: s32, rn: s32, size: s64) {
     if state.diagnostic.problem != .None { return }
     word := cast(u64)0x1E260000
-    if size == 8 { word = cast(u64)0x9E260000 }
+    if size == 8 { word = cast(u64)0x9E660000 }
     word = word | (cast(u64)rn << 5) | (cast(u64)rd & 31)
     Emit(state, cast(u32)word)
 }
@@ -746,7 +752,7 @@ FloatToGeneralBits :: (state: *State, rd: s32, rn: s32, size: s64) {
 GeneralToFloatBits :: (state: *State, rd: s32, rn: s32, size: s64) {
     if state.diagnostic.problem != .None { return }
     word := cast(u64)0x1E270000
-    if size == 8 { word = cast(u64)0x9E270000 }
+    if size == 8 { word = cast(u64)0x9E670000 }
     word = word | (cast(u64)rn << 5) | (cast(u64)rd & 31)
     Emit(state, cast(u32)word)
 }
@@ -871,14 +877,16 @@ Transfer :: (state: *State, instruction: MachineInstruction) -> bool {
     }
     if instruction.opcode == .Spill {
         size := ScalarSize(TypeOf(state, source))
-        if state.program.stack_objects[destination.id].size < size { return Fail(state, .Stack, destination_id) }
+        if destination.kind != .StackObject || source.kind != .Physical ||
+            state.program.stack_objects[destination.id].size < size { return Fail(state, .Stack, destination_id) }
         memory := StackMemory(state, destination.id, destination_id)
         if state.diagnostic.problem != .None { return false }
-        A64Store(state, memory, destination.id, size)
+        A64Store(state, memory, source.id, size)
         return true
     }
     size := ScalarSize(type)
-    if state.program.stack_objects[source.id].size < size { return Fail(state, .Stack, source_id) }
+    if destination.kind != .Physical || source.kind != .StackObject ||
+        state.program.stack_objects[source.id].size < size { return Fail(state, .Stack, source_id) }
     memory := StackMemory(state, source.id, source_id)
     if state.diagnostic.problem != .None { return false }
     A64Load(state, destination.id, memory, size, Signed(type))
@@ -1188,8 +1196,12 @@ SetCondition :: (state: *State) -> bool {
         Emit(state, cast(u32)(cast(u64)0x2A000000 | (cast(u64)15 << 16) |
             (cast(u64)destination << 5) | (cast(u64)destination & 31)))
     } else {
-        branch_code := code
-        if condition == .LessEqual { branch_code = 10 }
+        // Ordered conditions, false when either side is NaN: MI for less,
+        // GT for greater, and GE for greater-or-equal and for less-or-equal,
+        // whose operands Compare swapped.
+        branch_code: s32 = 10
+        if condition == .Less { branch_code = 4 }
+        if condition == .Greater { branch_code = 12 }
         CSet(state, destination, branch_code)
     }
     Normalize(state, destination, type)
@@ -1210,8 +1222,8 @@ FloatConvertScratch :: (state: *State) -> bool {
 }
 
 // Float to integer with the x86 range contract: unordered values and
-// values outside the inclusive lower and exclusive upper bounds trap. All
-// three failures share the four-word trap at the end of the sequence.
+// values outside the inclusive lower and exclusive upper bounds trap. The
+// bounds load through the form's general and float scratch registers.
 FloatToIntegerValue :: (state: *State, destination: s32, source: s32,
     target: MachineType, origin: MachineType) -> bool {
     if target.kind != .Integer { return false }
@@ -1221,28 +1233,27 @@ FloatToIntegerValue :: (state: *State, destination: s32, source: s32,
     sign_bit := ifx origin.bits == 32 then cast(u64)1 << 31 else cast(u64)1 << 63
     bound := cast(u64)(exponent_bias + exponent) << cast(u64)exponent_shift
     lower := ifx target.is_signed then bound | sign_bit else cast(u64)0
-    lower_words := cast(s64)Bytes.ArmHalfCount(lower, 64)
-    bound_words := cast(s64)Bytes.ArmHalfCount(bound, 64)
-    end := state.writer.at + (lower_words + bound_words + 13) * 4
-    self_compare := cast(u64)0x1E202000 | (cast(u64)source << 16) | (cast(u64)source << 5)
-    if origin.bits == 64 { self_compare = cast(u64)0x1E602000 | (cast(u64)source << 16) | (cast(u64)source << 5) }
-    Emit(state, cast(u32)self_compare)
-    BranchCondition(state, end, 6)
-    MoveImmediate(state, 15, lower, 1)
-    GeneralToFloatBits(state, 15, 15, origin.size)
-    Emit(state, cast(u32)(cast(u64)0x1E202000 | (cast(u64)15 << 16) | (cast(u64)source << 5)))
-    BranchCondition(state, end, 4)
-    MoveImmediate(state, 15, bound, 1)
-    GeneralToFloatBits(state, 15, 15, origin.size)
-    Emit(state, cast(u32)(cast(u64)0x1E202000 | (cast(u64)15 << 16) | (cast(u64)source << 5)))
-    BranchCondition(state, end, 10)
+    general := MachineAbiScratchRegister(state.program.target)
+    scratch := MachineAbiScratchFloatRegister(state.program.target)
+    compare := ifx origin.size == 8 then cast(u64)0x1E602000 else cast(u64)0x1E202000
+    compare = compare | (cast(u64)scratch << 16) | (cast(u64)source << 5)
+    MoveImmediate(state, general, lower, 1)
+    GeneralToFloatBits(state, scratch, general, origin.size)
+    Emit(state, cast(u32)compare)
+    // GE: SOURCE >= LOWER, false when either side is NaN.
+    TrapUnless(state, 10, MachineA64TrapConversion)
+    MoveImmediate(state, general, bound, 1)
+    GeneralToFloatBits(state, scratch, general, origin.size)
+    Emit(state, cast(u32)compare)
+    // MI: SOURCE < BOUND.
+    TrapUnless(state, 4, MachineA64TrapConversion)
+    // FCVTZS or FCVTZU, rounding toward zero.
     word := cast(u64)0x1E380000
-    if !target.is_signed { word = cast(u64)0x1E3B0000 }
+    if !target.is_signed { word = cast(u64)0x1E390000 }
     if origin.size == 8 { word = word | cast(u64)0x400000 }
     if target.bits == 64 { word = word | cast(u64)0x80000000 }
     word = word | (cast(u64)source << 5) | (cast(u64)destination & 31)
     Emit(state, cast(u32)word)
-    TrapSequence(state, MachineA64TrapConversion)
     Normalize(state, destination, target)
     return true
 }
@@ -1264,8 +1275,20 @@ Convert :: (state: *State, opcode: MachineOpcode) -> bool {
         destination := Register(state, 0, .Define)
         source := Register(state, 1, .Use)
         if destination == MachineNoId || source == MachineNoId || Current(state).operand_count != 2 { return false }
-        if destination != source {
-            MoveRegister(state, destination, source, Selector(state, TypeIdOf(state, OperandAt(state, 0))))
+        wide := Selector(state, TypeIdOf(state, OperandAt(state, 0)))
+        narrow_origin := Selector(state, TypeIdOf(state, OperandAt(state, 1))) == 0
+        if wide == 1 && narrow_origin {
+            // A W value reads only its low 32 bits, which a sign-extending
+            // load leaves extended above: a signed one widens with SXTW, any
+            // other with a 32-bit move, which clears the upper half.
+            if origin.kind == .Integer && origin.is_signed {
+                Emit(state, cast(u32)(cast(u64)0x93407C00 | (cast(u64)source << 5) | (cast(u64)destination & 31)))
+            } else {
+                MoveRegister(state, destination, source, 0)
+            }
+        } else if destination != source || wide == 0 && !narrow_origin {
+            // A 32-bit move also clears the upper half of a narrowed X value.
+            MoveRegister(state, destination, source, wide)
         }
         Normalize(state, destination, target)
         return true
@@ -1544,25 +1567,9 @@ AggregateExtract :: (state: *State) -> bool {
             return Fail(state, .Unsupported)
         }
         member = aggregate.element
-        size := state.program.types[member].size
-        if aggregate.count >= 0 && aggregate.count <= 4095 {
-            SubsImmediate(state, index, aggregate.count, 1)
-        } else {
-            MoveImmediate(state, 16, cast(u64)aggregate.count, 1)
-            CompareRegister(state, index, 16, true, 1)
-        }
+        source_memory = DynamicElement(state, source_memory, index, aggregate.count,
+            state.program.types[member].size)
         if state.diagnostic.problem != .None { return false }
-        TrapUnless(state, 3, MachineA64TrapReserved - 1)
-        ComputeAddress(state, 10, source_memory.base, source_memory.displacement)
-        if size == 1 {
-            AddSubRegister(state, 10, 10, index, false, 1)
-        } else {
-            MoveImmediate(state, 16, cast(u64)size, 1)
-            Emit(state, cast(u32)(cast(u64)0x80000000 | cast(u64)0x1B000000 |
-                (cast(u64)16 << 16) | (cast(u64)10 << 10) |
-                (cast(u64)index << 5) | cast(u64)10))
-        }
-        source_memory = .{base = 10, displacement = 0}
     }
     size := state.program.types[member].size
     if destination.class == .Stack {
@@ -1571,6 +1578,30 @@ AggregateExtract :: (state: *State) -> bool {
     }
     return MemoryToScalar(state, destination, OperandId(state, 0), source_memory,
         state.program.types[member])
+}
+
+// The address of element INDEX of the COUNT-element array at MEMORY, after
+// the bound check. It is built in the encoder-internal x17, which neither the
+// index nor a value can occupy and which loads and stores that rebase a far
+// frame displacement through x16 leave alone; x16 holds the element SIZE.
+DynamicElement :: (state: *State, memory: A64Memory, index: s32, count: s64, size: s64) -> A64Memory {
+    if count >= 0 && count <= 4095 {
+        SubsImmediate(state, index, count, 1)
+    } else {
+        MoveImmediate(state, 16, cast(u64)count, 1)
+        CompareRegister(state, index, 16, true, 1)
+    }
+    TrapUnless(state, 3, MachineA64TrapReserved - 1)
+    ComputeAddress(state, 17, memory.base, memory.displacement)
+    if size == 1 {
+        AddSubRegister(state, 17, 17, index, false, 1)
+    } else {
+        // MADD x17, INDEX, x16, x17.
+        MoveImmediate(state, 16, cast(u64)size, 1)
+        Emit(state, cast(u32)(cast(u64)0x9B000000 | (cast(u64)16 << 16) | (cast(u64)17 << 10) |
+            (cast(u64)index << 5) | cast(u64)17))
+    }
+    return .{base = 17, displacement = 0}
 }
 
 // Inserts one aggregate member into a fresh copy of the aggregate stack
@@ -1616,25 +1647,9 @@ AggregateInsert :: (state: *State) -> bool {
             return Fail(state, .Unsupported)
         }
         member = aggregate_type.element
-        element_size := state.program.types[member].size
-        if aggregate_type.count >= 0 && aggregate_type.count <= 4095 {
-            SubsImmediate(state, dynamic_index, aggregate_type.count, 1)
-        } else {
-            MoveImmediate(state, 16, cast(u64)aggregate_type.count, 1)
-            CompareRegister(state, dynamic_index, 16, true, 1)
-        }
+        member_memory = DynamicElement(state, destination_memory, dynamic_index, aggregate_type.count,
+            state.program.types[member].size)
         if state.diagnostic.problem != .None { return false }
-        TrapUnless(state, 3, MachineA64TrapReserved - 1)
-        ComputeAddress(state, 10, destination_memory.base, destination_memory.displacement)
-        if element_size == 1 {
-            AddSubRegister(state, 10, 10, dynamic_index, false, 1)
-        } else {
-            MoveImmediate(state, 16, cast(u64)element_size, 1)
-            Emit(state, cast(u32)(cast(u64)0x80000000 | cast(u64)0x1B000000 |
-                (cast(u64)16 << 16) | (cast(u64)10 << 10) |
-                (cast(u64)dynamic_index << 5) | cast(u64)10))
-        }
-        member_memory = .{base = 10, displacement = 0}
     }
     member_size := state.program.types[member].size
     if value.class == .Stack {
@@ -1728,9 +1743,8 @@ ElementAddress :: (state: *State) -> bool {
     return true
 }
 
-// Byte-wise equality loop on x10-x13 with x14/x15 as the byte holders: the
-// counts must match, then the pointers advance in lockstep until the counts
-// run out or a byte differs.
+// Byte-wise equality of x10/x11 and x12/x13 (pointer and count each) into
+// w0, with x14/x15 as the byte holders and x16 as the index.
 BytesEqual :: (state: *State) -> bool {
     if !Count(state, 8) { return false }
     result := Register(state, 0, .Define)
@@ -1756,18 +1770,27 @@ BytesEqual :: (state: *State) -> bool {
             return Fail(state, .Constraint, OperandId(state, cast(s32)local))
         }
     }
-    loop := state.writer.at
+    // The counts must match; then one index in the third clobber counts up
+    // to the length while the first two hold each side's byte. The pointers
+    // and counts, which are uses, keep their values.
+    left_byte := clobbers[0]
+    right_byte := clobbers[1]
+    index := clobbers[2]
+    start := state.writer.at
     CompareRegister(state, left_count, right_count, true, 1)
-    BranchCondition(state, loop + 44, 1)
-    CompareZeroBranch(state, left_count, loop + 36, false, 1)
-    Emit(state, 0x3840154E)
-    Emit(state, 0x3840158F)
-    CompareRegister(state, 14, 15, true, 0)
-    BranchCondition(state, loop + 44, 1)
-    SubsImmediate(state, left_count, 1, 1)
-    Branch(state, loop, false)
+    BranchCondition(state, start + 52, 1)
+    Emit(state, cast(u32)(cast(u64)0xD2800000 | cast(u64)index))
+    CompareRegister(state, index, left_count, true, 1)
+    BranchCondition(state, start + 44, 2)
+    // LDRB Wt, [Xn, Xm].
+    Emit(state, cast(u32)(cast(u64)0x38606800 | (cast(u64)index << 16) | (cast(u64)left << 5) | cast(u64)left_byte))
+    Emit(state, cast(u32)(cast(u64)0x38606800 | (cast(u64)index << 16) | (cast(u64)right << 5) | cast(u64)right_byte))
+    CompareRegister(state, left_byte, right_byte, true, 0)
+    BranchCondition(state, start + 52, 1)
+    AddSubImmediate(state, index, index, 1, false, 1)
+    Branch(state, start + 12, false)
     Emit(state, 0x52800020)
-    Branch(state, loop + 48, false)
+    Branch(state, start + 56, false)
     Emit(state, 0x2A1F03E0)
     return true
 }
@@ -2295,7 +2318,7 @@ Fuel :: (state: *State) -> bool {
     MaterializeRelocated(state, 16, .FuelCounter, symbol)
     Emit(state, 0xF9400211)
     if amount.immediate <= 4095 {
-        SubsImmediate(state, 17, cast(s64)amount.immediate, 1)
+        SubsImmediateInto(state, 17, 17, cast(s64)amount.immediate, 1)
     } else {
         MoveImmediate(state, 11, amount.immediate, 1)
         SubsRegister(state, 17, 17, 11, 1)
@@ -2452,7 +2475,8 @@ Branch :: (state: *State) -> bool {
         if other == next {
             CompareZeroBranch(state, value, BlockTarget(state, taken), true, selector)
         } else if taken == next {
-            CompareZeroBranch(state, value, BlockTarget(state, other), true, selector)
+            // A zero value leaves for the other block.
+            CompareZeroBranch(state, value, BlockTarget(state, other), false, selector)
         } else {
             CompareZeroBranch(state, value, BlockTarget(state, taken), true, selector)
             Branch(state, BlockTarget(state, other), false)
@@ -2473,7 +2497,8 @@ Branch :: (state: *State) -> bool {
     return true
 }
 
-// Stores or restores every allocated callee-saved general register home.
+// Stores or restores every allocated callee-saved register home: x19-x28,
+// and the low 64 bits of v8-v15, which are all AAPCS64 preserves of them.
 CalleeSaves :: (state: *State, restore: bool) -> bool {
     function := state.program.functions[state.function]
     for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
@@ -2481,10 +2506,16 @@ CalleeSaves :: (state: *State, restore: bool) -> bool {
         if object.kind != .CalleeSave { continue }
         if !Spend(state, 1) { return false }
         register := object.value % MachineBankWidth
-        if object.value / MachineBankWidth != 0 || !A64Register(register) { return Fail(state, .Frame) }
+        bank := object.value / MachineBankWidth
+        if bank == 0 && !A64Register(register) || bank == 1 && !A64FloatRegister(register) || bank > 1 {
+            return Fail(state, .Frame)
+        }
         memory := StackMemory(state, object_id, MachineNoId)
         if state.diagnostic.problem != .None { return false }
-        if restore { A64Load(state, register, memory, 8, false) }
+        if bank == 1 {
+            if restore { A64FloatLoad(state, register, memory, 8) }
+            else { A64FloatStore(state, memory, register, 8) }
+        } else if restore { A64Load(state, register, memory, 8, false) }
         else { A64Store(state, memory, register, 8) }
     }
     return true
@@ -2618,7 +2649,7 @@ Instruction :: (state: *State) -> bool {
 Prologue :: (state: *State) -> bool {
     frame := state.program.frames[state.function]
     function := state.program.functions[state.function]
-    if frame.dynamic_allocation || frame.callee_saved_float != 0 { return Fail(state, .Frame) }
+    if frame.dynamic_allocation { return Fail(state, .Frame) }
     if frame.size < 0 || frame.size > 2147483647 { return Fail(state, .Frame) }
     Emit(state, 0xA9BF7BFD)
     AddSubImmediate(state, 29, 31, 0, false, 1)

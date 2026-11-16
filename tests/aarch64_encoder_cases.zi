@@ -569,10 +569,12 @@ Ids :: struct {
     branch_ops: [6]s32
     branch2: s32
     branch2_ops: [3]s32
+    branch_fallthrough: s32
     loop: s32
     loop_ops: [6]s32
     fuel: s32
     fuel_ops: [2]s32
+    convert_ops: [3]s32
     divide: [2]s32
     unsigned_divide: [1]s32
     shift: [3]s32
@@ -611,9 +613,11 @@ BuildBasics :: (b: *Builder, ids: *Ids) {
 
     ids.stack = Begin(b, "stack")
     sa := Parameter(b, S64, X0); sb := Parameter(b, S32, X1); sc := Parameter(b, U8, X2)
-    wide_slot := Object(b, .Spill, 8, -128, sa, S64)
-    word_slot := Object(b, .Spill, 4, -136, sb, S32)
+    // Slot ids differ from the spilled registers, so a spill that stored
+    // the slot's number as its register fails here.
     byte_slot := Object(b, .Spill, 1, -137, sc, U8)
+    word_slot := Object(b, .Spill, 4, -136, sb, S32)
+    wide_slot := Object(b, .Spill, 8, -128, sa, S64)
     Enter(b, Blocks(b, 1))
     ids.stack_ops[0] = SpillTo(b, wide_slot, X0, sa)
     ids.stack_ops[1] = SpillTo(b, word_slot, X1, sb)
@@ -672,6 +676,18 @@ BuildBasics :: (b: *Builder, ids: *Ids) {
     ids.branch2_ops[2] = Return(b, -1, -1)
     End(b, 0)
 
+    // When the taken block falls through, a zero value leaves for the other.
+    unused Begin(b, "branch-fallthrough")
+    falls := Parameter(b, BOOL, X0)
+    third := Blocks(b, 3)
+    Enter(b, third)
+    ids.branch_fallthrough = BranchOn(b, X0, falls, third + 1, third + 2)
+    Enter(b, third + 1)
+    unused Return(b, -1, -1)
+    Enter(b, third + 2)
+    unused Return(b, -1, -1)
+    End(b, 0)
+
     ids.loop = Begin(b, "loop")
     limit := Parameter(b, S64, X0)
     count := Value(b, S64); step := Value(b, S64); next := Value(b, S64)
@@ -697,6 +713,18 @@ BuildBasics :: (b: *Builder, ids: *Ids) {
     ids.fuel_ops[0] = Fuel(b, 1000)
     ids.fuel_ops[1] = Fuel(b, 0x100000000)
     unused Return(b, -1, -1)
+    End(b, 0)
+
+    // A signed W value widens with SXTW, and 64-bit bits move between the
+    // banks with FMOV Dd, Xn and FMOV Xd, Dn.
+    unused Begin(b, "convert")
+    narrow := Parameter(b, S32, X0)
+    widened := Value(b, S64); double_bits := Value(b, F64); general_bits := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    ids.convert_ops[0] = Two(b, .Convert, X0, widened, X0, narrow)
+    ids.convert_ops[1] = Two(b, .Bitcast, 0, double_bits, X0, widened)
+    ids.convert_ops[2] = Two(b, .Bitcast, X0, general_bits, 0, double_bits)
+    unused Return(b, X0, general_bits)
     End(b, 0)
 
     unused Begin(b, "divide")
@@ -813,13 +841,14 @@ Basics :: () -> bool {
     if !Check(branch.end - branch.begin == 36, "branch function size") { return false }
     if !Instruction(image, ids.branch2_ops[0], "c0 00 00 35 05 00 00 14", "two-way value branch") ||
         !Instruction(image, ids.branch2_ops[1], TRAP_UNREACHABLE, "unreachable trap") ||
-        !Instruction(image, ids.branch2_ops[2], "fd 7b c1 a8 c0 03 5f d6", "void return") { return false }
+        !Instruction(image, ids.branch2_ops[2], "fd 7b c1 a8 c0 03 5f d6", "void return") ||
+        !Instruction(image, ids.branch_fallthrough, "60 00 00 34", "zero branch to the other block") { return false }
 
     loop := image.functions[ids.loop]
     fuel_range := image.instructions[ids.loop_ops[1]]
     if !Instruction(image, ids.loop_ops[0], "", "fallthrough into loop") ||
         !Bytes(image.code, fuel_range.begin, fuel_range.end,
-            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 3f 06 00 f1 11 02 00 f9 a2 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
+            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 31 06 00 f1 11 02 00 f9 a2 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
             "fuel through the counter") ||
         !Instruction(image, ids.loop_ops[2], "1f 00 00 eb", "loop compare") ||
         !Instruction(image, ids.loop_ops[3], "8a 00 00 54", "inverse flags branch") ||
@@ -834,11 +863,14 @@ Basics :: () -> bool {
             "backward jump reaches the loop head") { return false }
 
     if !Instruction(image, ids.fuel_ops[0],
-            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 3f a2 0f f1 11 02 00 f9 a2 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
+            "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 31 a2 0f f1 11 02 00 f9 a2 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
             "fuel imm12") ||
         !Instruction(image, ids.fuel_ops[1],
             "10 00 80 d2 10 00 a0 f2 10 00 c0 f2 10 00 e0 f2 11 02 40 f9 0b 00 80 d2 0b 00 a0 f2 2b 00 c0 f2 31 02 0b eb 11 02 00 f9 a2 00 00 54 e0 ff bf 52 80 00 80 72 00 00 00 94 00 00 20 d4",
             "fuel through scratch") { return false }
+    if !Instruction(image, ids.convert_ops[0], "00 7c 40 93", "signed widening") ||
+        !Instruction(image, ids.convert_ops[1], "00 00 67 9e", "general bits to double") ||
+        !Instruction(image, ids.convert_ops[2], "00 00 66 9e", "double bits to general") { return false }
 
     if !Instruction(image, ids.divide[0],
             "ff 03 01 eb a1 00 00 54 e0 ff bf 52 40 00 80 72 00 00 00 94 00 00 20 d4 00 0c c1 9a",
@@ -856,7 +888,7 @@ Basics :: () -> bool {
         if !Instruction(image, ids.shift[index], expected_shift[index], "guarded shifts") { return false }
     }
     if !Instruction(image, ids.bytes_equal,
-            "7f 01 0d eb 41 01 00 54 eb 00 00 b4 4e 15 40 38 8f 15 40 38 df 01 0f 6b a1 00 00 54 7f 05 00 f1 f8 ff ff 17 20 00 80 52 02 00 00 14 e0 03 1f 2a",
+            "7f 01 0d eb 81 01 00 54 10 00 80 d2 1f 02 0b eb e2 00 00 54 4e 69 70 38 8f 69 70 38 df 01 0f 6b a1 00 00 54 10 06 00 91 f9 ff ff 17 20 00 80 52 02 00 00 14 e0 03 1f 2a",
             "bytes equal form") ||
         !Instruction(image, ids.resize,
             "e1 0b bf a9 e3 13 bf a9 e5 1b bf a9 e7 23 bf a9 ea 0f 1f f8 ec 0f 1f f8 11 00 80 d2 11 00 a0 f2 11 00 c0 f2 11 00 e0 f2 8a 05 00 b4 50 fd 6c d3 2d 0a 40 f9 1f 02 0d eb a3 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 09 ea 7b d3 2d 16 40 f9 29 01 0d 8b 4d ad 60 d3 2e 21 40 79 bf 01 0e eb a0 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 30 25 40 79 10 02 40 d3 1f 02 00 f1 a1 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 30 25 40 79 10 0a 42 d3 1f 02 00 f1 a1 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 4d 7d 40 d3 bf 01 00 f1 a0 00 00 54 c0 ff bf 52 e0 ff 9f 72 00 00 00 94 00 00 20 d4 2a 01 40 f9 40 01 1f aa 61 01 1f aa 82 01 1f aa 03 02 80 d2 00 00 00 94 ec 07 41 f8 ed 07 41 f8 11 00 80 d2 11 00 a0 f2 11 00 c0 f2 11 00 e0 f2 0e 02 80 d2 8e 7d 0e 9b 40 00 00 b5 0c 06 00 b5 ed 01 00 b4 aa fd 6c d3 49 e9 7b d3 30 16 40 f9 29 01 10 8b 2b 21 40 79 6b 05 00 91 2b 21 00 79 3f 25 00 79 10 00 82 d2 7f 01 10 eb 82 00 00 54 30 02 40 f9 30 15 00 b9 2a 02 00 f9 00 04 00 b4 0f 00 1f aa 2a 02 40 f9 ea 00 00 b4 40 e9 7b d3 30 16 40 f9 00 00 10 8b 10 14 40 b9 30 02 00 f9 04 00 00 14 2a 06 40 f9 50 05 00 91 30 06 00 f9 30 0a 40 f9 5f 01 10 eb a3 00 00 54 e0 ff bf 52 e0 00 80 72 00 00 00 94 00 00 20 d4 40 e9 7b d3 30 16 40 f9 00 00 10 8b 0f 00 00 f9 0e 04 00 f9 f0 00 80 52 10 24 00 79 1f 14 00 b9 10 20 40 79 10 7e 60 d3 40 4d 54 d3 00 00 10 aa e7 23 c1 a8 e5 1b c1 a8 e3 13 c1 a8 e1 0b c1 a8",
@@ -943,7 +975,7 @@ Basics :: () -> bool {
     resize_begin := image.functions[ids.resize_function].begin
     if !Bytes(image.code, resize_begin, image.instructions[ids.resize].begin, "fd 7b bf a9 fd 03 00 91 11 00 80 d2 11 00 a0 f2 11 00 c0 f2 11 00 e0 f2 31 02 40 f9 f0 03 00 91 1f 02 11 eb a2 00 00 54 e0 ff bf 52 c0 00 80 72 00 00 00 94 00 00 20 d4", "resize prologue checks the stack limit") { return false }
     if !Bytes(image.code, image.instructions[ids.resize].end, image.functions[ids.resize_function].end, "fd 7b c1 a8 c0 03 5f d6", "resize epilogue") { return false }
-    if !Check(measured.code_bytes == 1288 && measured.relocations == 42, "measured image totals") {
+    if !Check(measured.code_bytes == 1352 && measured.relocations == 42, "measured image totals") {
         print("measured % bytes, % relocations, image % bytes\n", measured.code_bytes, measured.relocations, image.code.count)
         return false
     }

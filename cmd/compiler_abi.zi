@@ -74,8 +74,9 @@ MachineAbiArgumentRegister :: (target: TargetDescription, class: MachineRegister
     if target.arch == .AArch64 {
         // AAPCS64 passes the first eight general arguments in x0-x7 and the
         // first eight floating/vector arguments in v0-v7. Machine float
-        // registers use the same numbering as their v encodings.
-        if ordinal < 8 { return ordinal }
+        // registers use the same numbering as their v encodings. Records,
+        // arrays and vectors stay on the stack, as on x86-64.
+        if (class == .General || class == .Float) && ordinal < 8 { return ordinal }
         return -1
     }
     if class == .General {

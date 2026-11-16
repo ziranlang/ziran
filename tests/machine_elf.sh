@@ -261,7 +261,7 @@ printf 'preserve-output\n' | cmp - "$work/native-host.elf"
 # produce an executable and the poison log must remain empty.
 mkdir "$work/no-tools"
 : > "$work/invoked"
-for tool in cc c++ gcc g++ clang clang++ as ld tcc go; do
+for tool in cc c++ gcc g++ clang clang++ as ld go; do
     cat > "$work/no-tools/$tool" <<SCRIPT
 #!/bin/sh
 printf '%s\n' '$tool' >> '$work/invoked'

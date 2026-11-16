@@ -1,8 +1,8 @@
 #!/bin/sh
 # std/simd: lane semantics with known answers, and one fingerprint of every
 # operation shape that each build agrees on (GCC and Clang native vectors,
-# SSE4.1 and AVX2 instructions, the lane-array fallback that TinyCC and older
-# compilers use, sanitizers, Go's lane loops, bundles on the instruction
+# SSE4.1 and AVX2 instructions, the lane-array fallback that older compilers
+# use, sanitizers, Go's lane loops, bundles on the instruction
 # engine's lane-by-lane code, wasm32 with and without SIMD128, and
 # AArch64 and ARMv7 from the Android NDK), from source and from saved IR.
 # Checking rejects mismatched vectors, out-of-range constants and operators on
@@ -297,7 +297,7 @@ for input in source saved; do
     output=$work/c-$input
     "$ziran" build --target=c --entry app:main --root "$root" -o "$output" "$module"
     printf '#include "app.h"\nint main(void) { app_main(); return 0; }\n' > "$output/main.c"
-    set -- "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"
+    set -- "-O2" "-O2 -DZIRAN_SIMD_SCALAR"
     case "$(uname -m)" in
         x86_64|amd64)
             set -- "$@" "-O2 -msse4.1"
@@ -323,8 +323,8 @@ for input in source saved; do
     grep -q 'zi_simd_at(' "$output/app.c"
     # The program's copy of the operations header keeps only the helpers it
     # calls, which the builds above compiled.
-    grep -q 'zi_add_sat_s16x8' "$output/ziran_simd_ops.h"
-    if grep -q -e 'zi_sub_u64x4' -e '^/\*@' "$output/ziran_simd_ops.h"; then
+    grep -q 'ZI_N(add_sat_s16x8)' "$output/ziran_simd_ops.h"
+    if grep -q -e 'ZI_N(sub_u64x4)' -e '^/\*@' "$output/ziran_simd_ops.h"; then
         echo "$input: ziran_simd_ops.h kept an unused helper or a segment mark" >&2
         exit 1
     fi
@@ -551,7 +551,7 @@ values_expected='20 100 0 9 5 200 0 5
 1.5 -0 0.25'
 "$ziran" build --target=c --entry values:main --root "$work" -o "$work/values" "$work/values.zi"
 printf '#include "values.h"\nint main(void) { values_main(); return 0; }\n' > "$work/values/main.c"
-for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"; do
+for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR"; do
     "${CC:-cc}" -std=c11 -Wno-psabi $flags -I"$work/values" "$work/values"/*.c -o "$work/values/app"
     test "$("$work/values/app")" = "$values_expected" ||
         { echo "vector values $flags: wrong result" >&2; exit 1; }
@@ -564,8 +564,8 @@ fi
 "$ziran" bundle --root "$work" --entry values:main -o "$work/values.zx" "$work/values.zi"
 test "$("$ziran" run "$work/values.zx")" = "$values_expected"
 
-# A program's own names never meet the helpers' macro temporaries (TinyCC's
-# inline operations, the 256-bit split calls): values spelled __zi_* are
+# A program's own names never meet the helpers' macro temporaries (the
+# 256-bit split calls): values spelled __zi_* are
 # renamed in C, as keywords are.
 cat > "$work/names.zi" <<'ZI'
 Simd :: #import "simd"
@@ -615,7 +615,7 @@ if grep -q 'memmove\|static const' "$work/table-main.c"; then
     exit 1
 fi
 printf '#include "table.h"\nint main(void) { table_main(); return 0; }\n' > "$work/table/main.c"
-for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"; do
+for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR"; do
     "${CC:-cc}" -std=c11 -Wno-psabi -Werror=discarded-qualifiers $flags -I"$work/table" \
         "$work/table"/*.c -o "$work/table/app"
     test "$("$work/table/app")" = "114 118 8" ||
@@ -660,7 +660,7 @@ if grep -q '#include "ziran_simd.h"' "$work/split/c/lib.h" "$work/split/c/user.h
     exit 1
 fi
 printf '#include "user.h"\nint main(void) { user_main(); return 0; }\n' > "$work/split/c/main.c"
-for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"; do
+for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR"; do
     "${CC:-cc}" -std=c11 -Wno-psabi $flags -I"$work/split/c" "$work/split/c"/*.c -o "$work/split/app"
     test "$("$work/split/app")" = 42 ||
         { echo "split SIMD headers $flags: wrong result" >&2; exit 1; }

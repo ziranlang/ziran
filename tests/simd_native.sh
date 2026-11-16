@@ -182,7 +182,7 @@ for input in source saved; do
     compilers=${CC:-cc}
     test -n "$clang" && compilers="$compilers $clang"
     for compiler in $compilers; do
-        set -- "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"
+        set -- "-O2" "-O2 -DZIRAN_SIMD_SCALAR"
         if test -n "$x86"; then
             set -- "$@" "-O2 -mssse3" "-O2 -msse4.1"
             test "$best" = 4 && set -- "$@" "-O2 -mavx2"
@@ -195,7 +195,7 @@ for input in source saved; do
             case "$flags" in
                 "-O2") widths="1 $(blocks_at "$best")" ;;
                 "-O2 -mavx2") widths="2 2" ;;
-                *SCALAR*|*TINYC*) widths="1 1" ;;
+                *SCALAR*) widths="1 1" ;;
             esac
             agree "$compiler $input $flags" "$("$output/app")" "$widths"
             test "$flags" = "-O2" && test -n "$x86" || continue

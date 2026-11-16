@@ -994,7 +994,7 @@ compares_idents(const ZirFunction *fn, int index, const char *op,
  * starts: i and the bound are locals declared just before it, nothing takes
  * their address, and every change of i is a step that stops at the bound
  * first, so i never passes it. C then writes `if (test) for (;;)`, a loop
- * with one exit, which GCC can vectorize and TinyCC runs without the test. */
+ * with one exit, which GCC can vectorize. */
 static int
 range_tests_once(const ZirFunction *fn, int loop, int close)
 {

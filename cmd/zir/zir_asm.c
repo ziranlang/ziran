@@ -18,12 +18,10 @@ typedef struct Assembly {
     const char *part[6];
     int architecture;
     uint64_t features;
-    int tinycc; /* TinyCC's assembler and constraints can build it */
 } Assembly;
 
 static void assembly_string(FILE *out, const char *text);
 static int operand_list(const char *text, const char **items);
-static int tinycc_variant(const Assembly *assembly);
 static void assembly_predicate(FILE *out, const Assembly *assembly);
 
 enum { ASM_X86_64, ASM_X86, ASM_AARCH64, ASM_ARM, ASM_WASM32 };
@@ -175,17 +173,15 @@ assembly_variant(const char **cursor, Assembly *assembly, ZirSourceSpan span,
     if(strncmp(at, "#asm", 4) || *skip_ws(at + 4) != '(')
         return assembly_error(span, "#asm requires four to six literal strings in parentheses");
     at = skip_ws(at + 4) + 1;
-    int named = 0;
     for(int i = 0; i < 6; i++) assembly->part[i] = "";
     for(int i = 0; i < 6; i++) {
         const char *start;
         size_t length, decoded_length = 0;
         int kind = assembly_argument(&at, &start, &length);
         if(kind < 0) return assembly_error(span, "unterminated #asm string");
-        if(kind == 2 && names && i >= 1 && i <= 4) named = 1;
-        else if(kind == 2 && !names && i >= 1 && i <= 4)
-            return assembly_error(span, "#asm constant name was not resolved");
-        else if(kind != 1)
+        if(kind == 2 && i >= 1 && i <= 4) {
+            if(!names) return assembly_error(span, "#asm constant name was not resolved");
+        } else if(kind != 1)
             return assembly_error(span, i >= 1 && i <= 4 ?
                 "#asm template, operands and clobbers must be literal strings or constant string names" :
                 "#asm architecture and options must be literal strings");
@@ -227,7 +223,6 @@ assembly_variant(const char **cursor, Assembly *assembly, ZirSourceSpan span,
     if(!assembly_target(assembly, span)) return 0;
     if(*assembly->part[5] && strcmp(assembly->part[5], "volatile"))
         return assembly_error(span, "#asm options must be empty or volatile");
-    assembly->tinycc = !named && tinycc_variant(assembly);
     *cursor = at;
     return 1;
 }
@@ -870,53 +865,6 @@ check_variant(const Assembly *assembly, const char *const *aliases,
     return check_template(assembly, aliases, count, &allowed, span);
 }
 
-/* TinyCC (`ziran run`, CC=tcc) assembles x86-64 GNU syntax through SSE4.2
- * with xmm0..xmm15 and allocates general registers and memory operands; it
- * has no AVX encoding and no "x" constraint. Other variants keep to GCC and
- * Clang. CPU features it can select read cpuid leaf 1 directly. */
-static const struct { const char *name; char reg; int bit; } tinycc_features[] = {
-    {"sse2", 'd', 26}, {"ssse3", 'c', 9}, {"sse4.1", 'c', 19}, {"sse4.2", 'c', 20}, {"popcnt", 'c', 23}
-};
-
-static int
-tinycc_feature(size_t feature)
-{
-    for(size_t i = 0; i < sizeof(tinycc_features) / sizeof(*tinycc_features); i++)
-        if(!strcmp(tinycc_features[i].name, cpu_features[feature].name)) return (int)i;
-    return -1;
-}
-
-static int
-tinycc_variant(const Assembly *assembly)
-{
-    if(assembly->architecture != ASM_X86_64) return 0;
-    for(size_t i = 0; i < CPU_FEATURES; i++)
-        if((assembly->features & (UINT64_C(1) << i)) && tinycc_feature(i) < 0) return 0;
-    for(int part = 2; part <= 3; part++) {
-        const char *items[ASSEMBLY_OPERANDS];
-        int count = operand_list(assembly->part[part], items);
-        if(count < 0) return 0;
-        for(int i = 0; i < count; i++)
-            for(const char *at = items[i]; *at && *at != ':'; at++) {
-                if(*at == '[') { at = strchr(at, ']'); if(!at) return 0; continue; }
-                if(!strchr("=+&%,0123456789abcdSDAqrRpmgieNMI", *at)) return 0;
-            }
-    }
-    const char *items[ASSEMBLY_OPERANDS];
-    int count = operand_list(assembly->part[4], items);
-    for(int i = 0; i < count; i++) {
-        if(!strcmp(items[i], "memory") || !strcmp(items[i], "cc")) continue;
-        const char *dots = strstr(items[i], "..");
-        int slots[2];
-        size_t length = dots ? (size_t)(dots - items[i]) : strlen(items[i]);
-        if(register_slots(ASM_X86_64, items[i], length, slots) != 1 || slots[0] >= 32) return 0;
-        if(dots && (register_slots(ASM_X86_64, dots + 2, strlen(dots + 2), slots) != 1 || slots[0] >= 32))
-            return 0;
-        if(!strncmp(items[i], "ymm", 3) || !strncmp(items[i], "zmm", 3)) return 0;
-    }
-    return 1;
-}
-
 typedef struct BlockBinding {
     const char *constraint, *alias, *name;
 } BlockBinding;
@@ -1309,8 +1257,8 @@ assembly_operand_text(FILE *out, const char *text, const char **names, int count
 static void
 assembly_guard(FILE *out, const Assembly *assembly)
 {
-    fprintf(out, "!defined(ZIRAN_NO_ASM) && (((defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__))%s) && (%s)",
-            assembly->tinycc ? " || defined(__TINYC__)" : "", architectures[assembly->architecture].guard);
+    fprintf(out, "!defined(ZIRAN_NO_ASM) && (defined(__GNUC__) || defined(__clang__)) && (%s)",
+            architectures[assembly->architecture].guard);
     if(!assembly->features) return;
     if(assembly->architecture <= ASM_X86)
         fputs(" && !defined(_MSC_VER)", out);
@@ -1347,14 +1295,11 @@ assembly_tier(const Assembly *assembly)
 static void
 assembly_includes(FILE *out, const Assembly *assembly)
 {
-    /* The selection cache; TinyCC has no __atomic_load_n, and on x86-64,
-     * its only assembly target, plain int accesses are atomic and ordered. */
-    fputs("#ifndef ZIRAN_ASM_LOAD\n#if defined(__TINYC__)\n"
-          "#define ZIRAN_ASM_LOAD(p) (*(volatile int *)(p))\n"
-          "#define ZIRAN_ASM_STORE(p, v) (*(volatile int *)(p) = (v))\n#else\n"
+    /* The selection cache. */
+    fputs("#ifndef ZIRAN_ASM_LOAD\n"
           "#define ZIRAN_ASM_LOAD(p) __atomic_load_n((p), __ATOMIC_ACQUIRE)\n"
           "#define ZIRAN_ASM_STORE(p, v) __atomic_store_n((p), (v), __ATOMIC_RELEASE)\n"
-          "#endif\n#endif\n", out);
+          "#endif\n", out);
     if(assembly_tier(assembly))
         fputs("#if !defined(ZIRAN_NO_ASM)\n#include <stdlib.h>\n#endif\n", out);
     if(!assembly->features ||
@@ -1369,9 +1314,6 @@ assembly_includes(FILE *out, const Assembly *assembly)
 static void
 assembly_attribute(FILE *out, const Assembly *assembly)
 {
-    /* TinyCC assembles any instruction it knows and never inlines; it has no
-     * target attribute. Only x86-64 variants are TinyCC variants. */
-    if(assembly->tinycc) fputs("\n#if !defined(__TINYC__)\n", out);
     for(int compiler = 0; compiler < (assembly->architecture == ASM_ARM ? 2 : 1); compiler++) {
         if(assembly->architecture == ASM_ARM)
             fputs(compiler ? "#else\n" : "#if defined(__clang__)\n", out);
@@ -1393,7 +1335,6 @@ assembly_attribute(FILE *out, const Assembly *assembly)
         if(assembly->architecture == ASM_ARM) fputc('\n', out);
     }
     if(assembly->architecture == ASM_ARM) fputs("#endif\n", out);
-    if(assembly->tinycc) fputs("\n#endif\n", out);
 }
 
 /* Clang assembles inline ARM templates for the translation unit's FPU, not
@@ -1628,8 +1569,8 @@ assembly_check(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTar
         if(used >= sizeof(call)) exit(1);
     }
     fprintf(out, "#if defined(ZIRAN_ASM_CHECK) && !defined(ZIRAN_NO_ASM)\n    {\n"
-                 "#if defined(__TINYC__)\n        static int %s;\n#else\n        static __thread int %s;\n#endif\n"
-                 "        if(!%s) {\n", flag, flag, flag);
+                 "        static __thread int %s;\n"
+                 "        if(!%s) {\n", flag, flag);
     for(int i = 0; i < parameters->count; i++) {
         if(!check_region(fn, target, &parameters->items[i], size, address, sizeof(size))) continue;
         fprintf(out, "            size_t ziran_size_%d = %s;\n"
@@ -1713,13 +1654,6 @@ assembly_predicate(FILE *out, const Assembly *assembly)
         else if(!strcmp(cpu_features[i].name, "lzcnt"))
             fprintf(out, "(\n#if defined(__clang__) && __clang_major__ < 19\n%s\n#else\n"
                          "__builtin_cpu_supports(\"lzcnt\")\n#endif\n)", lzcnt_cpuid);
-        else if(assembly->tinycc)
-            fprintf(out, "(\n#if defined(__TINYC__)\n__extension__ ({\n"
-                         "    unsigned int zir_a = 1u, zir_b, zir_c = 0u, zir_d;\n"
-                         "    __asm__(\"cpuid\" : \"+a\"(zir_a), \"=b\"(zir_b), \"+c\"(zir_c), \"=d\"(zir_d));\n"
-                         "    (zir_%c >> %du) & 1u; })\n#else\n__builtin_cpu_supports(\"%s\")\n#endif\n)",
-                    tinycc_features[tinycc_feature(i)].reg, tinycc_features[tinycc_feature(i)].bit,
-                    cpu_features[i].name);
         else fprintf(out, "__builtin_cpu_supports(\"%s\")", cpu_features[i].name);
         first = 0;
     }
@@ -1762,7 +1696,7 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
                      "        int %s = ZIRAN_ASM_LOAD(&%s);\n"
                      "        if(%s == 0) {\n            %s = 1;\n",
                      state, selected, state, selected, selected);
-        fputs("#if (defined(__x86_64__) || defined(__i386__)) && !defined(__TINYC__)\n"
+        fputs("#if defined(__x86_64__) || defined(__i386__)\n"
               "            __builtin_cpu_init();\n#endif\n", out);
         cursor = fn->assembly_text;
         int ordinal = 0;
@@ -1854,7 +1788,7 @@ EmitAssemblyAvailable(FILE *out, const ZirFunction *fn, int statement)
         fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
         if(runtime_selected(&assembly)) {
             if(assembly.architecture == ASM_X86 || assembly.architecture == ASM_X86_64)
-                fputs("#if !defined(__TINYC__)\n    __builtin_cpu_init();\n#endif\n", out);
+                fputs("    __builtin_cpu_init();\n", out);
             fputs("    if(", out); assembly_predicate(out, &assembly); fputs(") return 1;\n", out);
         } else fputs("    return 1;\n", out);
         fputs("#endif\n", out);
@@ -2038,7 +1972,7 @@ assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
                      "        int %s = ZIRAN_ASM_LOAD(&%s);\n"
                      "        if(%s == 0) {\n            %s = 1;\n",
                      state, selected, state, selected, selected);
-        fputs("#if (defined(__x86_64__) || defined(__i386__)) && !defined(_MSC_VER) && !defined(__TINYC__)\n"
+        fputs("#if (defined(__x86_64__) || defined(__i386__)) && !defined(_MSC_VER)\n"
               "            __builtin_cpu_init();\n#endif\n", out);
         cursor = st->assembly_text;
         int variant = 0;

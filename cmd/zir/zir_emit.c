@@ -1737,7 +1737,7 @@ static const struct {
     {"ZiClz",
      "static inline uint64_t ZiClz(uint64_t x, int w) {\n"
      "    if(!x) return (uint64_t)w;\n"
-     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "#if defined(__GNUC__) || defined(__clang__)\n"
      "    return (uint64_t)__builtin_clzll(x) - (uint64_t)(64 - w);\n"
      "#else\n"
      "    uint64_t n = 0;\n"
@@ -1748,7 +1748,7 @@ static const struct {
     {"ZiCtz",
      "static inline uint64_t ZiCtz(uint64_t x, int w) {\n"
      "    if(!x) return (uint64_t)w;\n"
-     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "#if defined(__GNUC__) || defined(__clang__)\n"
      "    return (uint64_t)__builtin_ctzll(x);\n"
      "#else\n"
      "    uint64_t n = 0;\n"
@@ -1759,7 +1759,7 @@ static const struct {
     {"ZiPopcount",
      "static inline uint64_t ZiPopcount(uint64_t x, int w) {\n"
      "    (void)w;\n"
-     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "#if defined(__GNUC__) || defined(__clang__)\n"
      "    return (uint64_t)__builtin_popcountll(x);\n"
      "#else\n"
      "    uint64_t n = 0;\n"
@@ -1773,7 +1773,7 @@ static const struct {
      "}\n"},
     {"ZiBswap32",
      "static inline uint32_t ZiBswap32(uint32_t x) {\n"
-     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "#if defined(__GNUC__) || defined(__clang__)\n"
      "    return __builtin_bswap32(x);\n"
      "#else\n"
      "    return (x >> 24) | ((x >> 8) & 0xff00u) | ((x << 8) & 0xff0000u) | (x << 24);\n"
@@ -1781,7 +1781,7 @@ static const struct {
      "}\n"},
     {"ZiBswap64",
      "static inline uint64_t ZiBswap64(uint64_t x) {\n"
-     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "#if defined(__GNUC__) || defined(__clang__)\n"
      "    return __builtin_bswap64(x);\n"
      "#else\n"
      "    return ((uint64_t)ZiBswap32((uint32_t)x) << 32) | ZiBswap32((uint32_t)(x >> 32));\n"
@@ -1791,10 +1791,10 @@ static const struct {
      * types use the 32-bit forms. Zero divisors and shift counts outside
      * 0..w-1 abort; MIN / -1 wraps to MIN. The signed right shift is
      * written so C defines it, and compilers emit one arithmetic shift.
-     * TinyCC and unoptimized GCC or Clang never inline, so there each is a
-     * macro that checks in place instead of a call. */
+     * Unoptimized GCC or Clang never inlines, so there each is a macro that
+     * checks in place instead of a call. */
     {"ZiDivS32",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiDivS32(a, b, min) __extension__ ({ int32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? (__zi_a == (min) ? __zi_a : -__zi_a) : __zi_a / __zi_b; })\n"
      "#else\n"
      "static inline int32_t ZiDivS32(int32_t a, int32_t b, int32_t min) {\n"
@@ -1804,7 +1804,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiRemS32",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiRemS32(a, b) __extension__ ({ int32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? 0 : __zi_a % __zi_b; })\n"
      "#else\n"
      "static inline int32_t ZiRemS32(int32_t a, int32_t b) {\n"
@@ -1813,7 +1813,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiDivU32",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiDivU32(a, b) __extension__ ({ uint32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a / __zi_b; })\n"
      "#else\n"
      "static inline uint32_t ZiDivU32(uint32_t a, uint32_t b) {\n"
@@ -1822,7 +1822,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiRemU32",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiRemU32(a, b) __extension__ ({ uint32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a % __zi_b; })\n"
      "#else\n"
      "static inline uint32_t ZiRemU32(uint32_t a, uint32_t b) {\n"
@@ -1831,7 +1831,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiShl32",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiShl32(a, s, w) __extension__ ({ uint32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); (uint32_t)(__zi_a << __zi_s); })\n"
      "#else\n"
      "static inline uint32_t ZiShl32(uint32_t a, uint64_t s, int w) {\n"
@@ -1840,7 +1840,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiShrU32",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiShrU32(a, s, w) __extension__ ({ uint32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a >> __zi_s; })\n"
      "#else\n"
      "static inline uint32_t ZiShrU32(uint32_t a, uint64_t s, int w) {\n"
@@ -1849,7 +1849,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiShrS32",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiShrS32(a, s, w) __extension__ ({ int32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a < 0 ? ~(~__zi_a >> __zi_s) : __zi_a >> __zi_s; })\n"
      "#else\n"
      "static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {\n"
@@ -1858,7 +1858,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiDivS64",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiDivS64(a, b, min) __extension__ ({ int64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? (__zi_a == (min) ? __zi_a : -__zi_a) : __zi_a / __zi_b; })\n"
      "#else\n"
      "static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {\n"
@@ -1868,7 +1868,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiRemS64",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiRemS64(a, b) __extension__ ({ int64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? 0 : __zi_a % __zi_b; })\n"
      "#else\n"
      "static inline int64_t ZiRemS64(int64_t a, int64_t b) {\n"
@@ -1877,7 +1877,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiDivU64",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiDivU64(a, b) __extension__ ({ uint64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a / __zi_b; })\n"
      "#else\n"
      "static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {\n"
@@ -1886,7 +1886,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiRemU64",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiRemU64(a, b) __extension__ ({ uint64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a % __zi_b; })\n"
      "#else\n"
      "static inline uint64_t ZiRemU64(uint64_t a, uint64_t b) {\n"
@@ -1895,7 +1895,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiShl64",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiShl64(a, s, w) __extension__ ({ uint64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); (uint64_t)(__zi_a << __zi_s); })\n"
      "#else\n"
      "static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {\n"
@@ -1904,7 +1904,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiShrU64",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiShrU64(a, s, w) __extension__ ({ uint64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a >> __zi_s; })\n"
      "#else\n"
      "static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {\n"
@@ -1913,7 +1913,7 @@ static const struct {
      "}\n"
      "#endif\n"},
     {"ZiShrS64",
-     "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)\n"
      "#define ZiShrS64(a, s, w) __extension__ ({ int64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a < 0 ? ~(~__zi_a >> __zi_s) : __zi_a >> __zi_s; })\n"
      "#else\n"
      "static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {\n"

@@ -11,9 +11,7 @@ cmd/zir/zir_simd_go_bodies.h, the typed Go helpers zi2go writes.
 Every helper computes exactly what zi_ref in include/ziran_simd.h does. GCC
 (12 or later) and Clang builds use native vectors and, where they give the
 same bits, SSE2..AVX2, NEON or WebAssembly SIMD128 instructions; any other
-build (TinyCC, ZIRAN_SIMD_SCALAR) runs plain C over each type's own lanes.
-TinyCC runs every helper as an inline macro, on x86-64 the common integer
-ones as SSE2 assembly.
+build (ZIRAN_SIMD_SCALAR) runs plain C over each type's own lanes.
 --test writes a program that checks every helper, in every x86-64 tier the
 build can run, against zi_ref; tests/simd_go.sh checks the Go helpers.
 """
@@ -1528,10 +1526,9 @@ def ops():
 
 # ---------------------------------------------------------------- lane arrays
 
-# Builds without native vectors (TinyCC under `ziran run`, ZIRAN_SIMD_SCALAR
-# and compilers without __builtin_shufflevector) compute each helper over its
-# own lane type, one statement per lane: TinyCC indexes a loop's lanes
-# through a counter in memory, but addresses a fixed lane directly.
+# Builds without native vectors (ZIRAN_SIMD_SCALAR and compilers without
+# __builtin_shufflevector) compute each helper over its own lane type, one
+# statement per lane.
 
 def calc(t):
     """The unsigned type t's integer lanes compute in, past int promotion."""
@@ -1626,7 +1623,7 @@ def scalar_body(op, t):
                         (ct, m(i), t.utype, a(i), m(i), t.utype, b(i)))
     if isinstance(op, Shift):
         # A count of the lane width or more gives 0, or the sign for a
-        # signed ShiftRight. No branches, so TinyCC runs these as macros.
+        # signed ShiftRight.
         if op.kind == 'shr' and t.signed:
             return per_lane(t, lambda i: '(%s)(%s >> s_)' % (ct, a(i)),
                             setup=['int s_ = n >= %d ? %d : (int)n;' % (W, W - 1)])
@@ -1760,294 +1757,6 @@ def reinterpret_bodies(t, r):
              (t.bytes, t.name, r.name))]
 
 
-# ---------------------------------------------------------------- TinyCC
-
-# TinyCC inlines nothing: a helper function costs a call, with its vectors
-# copied in and out. Every helper is a statement-expression macro there
-# instead, evaluating each argument once as a call does. On x86-64 the
-# common integer helpers are one asm statement that reads each vector
-# argument in place through a memory operand and writes the result into a
-# local the expression yields, which TinyCC reads in place again; TinyCC
-# never reuses a finished block's stack slots. The rest run their
-# lane-array C on argument locals. Macro temporaries are spelled __zi_*,
-# which C reserves for the implementation and the C emitter never gives a
-# program's value, so no argument can name one.
-# TinyCC's assembler knows the SSE2 integer instructions MMX had, pshufd and
-# pmuludq (not movdqu, punpcklqdq or the byte shifts), so these run one
-# instruction per 128-bit block. Each block loads as the two 64-bit halves
-# TinyCC itself stores, which keeps store-to-load forwarding, and stores
-# whole, which a later load of either half still forwards from.
-# Every operation still crosses memory. On Zen 5 a general register stored
-# to the stack and loaded back costs about a cycle, but an xmm register
-# about ten, so a dependent chain costs 13 to 20 cycles an operation:
-# four-lane code with long chains can trail its scalar form under TinyCC.
-# TinyCC encodes pavgb and pavgw for MMX registers whatever the operands
-# say, and MMX code leaves the x87 state TinyCC's unsigned 64-bit
-# conversions use unusable, so Avg keeps its C.
-TCC = 'ZI_TCC'
-TCC_X64 = 'ZI_TCC_X64'
-TX_BITS = {8: 'b', 16: 'w', 32: 'd', 64: 'q'}
-
-
-def tx_asm(text, outputs, inputs):
-    """An asm statement running text, with X0.. for %xmm0..; %r10 holds
-    the address of the memory operand being read or written."""
-    asm = '\\n\\t'.join(text)
-    for k in range(8):
-        asm = asm.replace('X%d' % k, '%%%%xmm%d' % k)
-    return '__asm__("%s" : %s : %s : "r10", "memory")' % (asm, ', '.join(outputs), ', '.join(inputs))
-
-
-def tx_macro(params, r, sources, steps, scalars=(), store=None, out=0, store_low=False, locals_=()):
-    """Load each source parameter's blocks into %xmm0.. (a vector's through
-    its memory operand, a pointer's through the pointer), run steps (S0..
-    for the scalar parameters' registers) and store %xmm{out} into the
-    result of type r, or through the pointer parameter `store` when r is
-    None, block by block; store_low stores the low 64 bits alone. Scalars
-    and pointers convert to their parameter types first, as a call's
-    arguments do; locals_ are (type, name, value) scalars computed first,
-    which steps can name as scalars too."""
-    types = dict((n, c) for c, n in list(params) + [(c, n) for c, n, _v in locals_])
-    vector = lambda n: types[n].startswith('zi_')
-    wide = not store_low and ((r is not None and r.wide) or
-                              any(vector(n) and BY_NAME[types[n][3:]].wide for n in sources))
-    outputs = ['"=m"(__zi_r)'] if r is not None else []
-    inputs, index = [], {}
-    for n in list(sources) + list(scalars) + ([store] if store else []):
-        if n not in index:
-            index[n] = len(outputs) + len(inputs)
-            inputs.append('"m"(%s)' % n if vector(n) else '"r"((%s)(%s))' % (types[n], n))
-    text = []
-
-    def base(n):
-        if not vector(n):
-            return '%%%d' % index[n]
-        text.append('lea %%%d, %%%%r10' % index[n])
-        return '%%r10'
-    for block in range(2 if wide else 1):
-        at = 16 * block
-        for j, n in enumerate(sources):
-            reg = base(n)
-            text.append('movq %d(%s), X%d' % (at, reg, j))
-            if not store_low:
-                text.append('movhps %d(%s), X%d' % (at + 8, reg, j))
-        for step in steps:
-            for k, n in enumerate(scalars):
-                step = step.replace('S%d' % k, '%%%d' % index[n])
-            text.append(step)
-        if r is not None:
-            text.append('lea %0, %%r10')
-        reg = '%%r10' if r is not None else '%%%d' % index[store]
-        text.append('%s X%d, %d(%s)' % ('movq' if store_low else 'movups', out, at, reg))
-    asm = tx_asm(text, outputs, inputs)
-    decls = ''.join('%s %s = %s; ' % (c, n, v) for c, n, v in locals_)
-    if r is None:
-        return '__extension__ ({ %s%s; })' % (decls, asm)
-    return '__extension__ ({ %s%s __zi_r; %s; __zi_r; })' % (decls, r.c, asm)
-
-
-def tcc_lane_macro(ret, params, body):
-    """A lane-array body as a statement expression: each argument is
-    evaluated once into a local of its parameter type, as a call's are, and
-    the body runs on those, its final return becoming the value. None for a
-    body of another shape."""
-    if '#' in body or '"' in body or '//' in body or body.count('return') != (ret != 'void'):
-        return None
-    text = ' '.join(line.strip() for line in body.split('\n'))
-    if ret != 'void':
-        at = text.find('return ')
-        if at < 0 or (at > 0 and text[at - 1] not in ' ;}') or not text.endswith(';') or \
-                '}' in text[at:] or ';' in text[at:-1]:
-            return None
-        text = text[:at] + text[at + len('return '):]
-    for _c, n in params:
-        if re.search(r'(\.|->)%s\b|\b__zi_%s\b' % (n, n), text):
-            return None
-        text = re.sub(r'\b%s\b' % n, '__zi_%s' % n, text)
-    decls = ' '.join('%s __zi_%s = (%s);' % (c, n, n) for c, n in params)
-    return '__extension__ ({ %s %s })' % (decls, text) if decls else '__extension__ ({ %s })' % text
-
-
-def tcc_macro(op, t, ret, params, bodies):
-    """The TinyCC macro body for a helper on any target. TinyCC copies a
-    structure at any address, in place or through memmove, so the memory
-    helpers copy through structures of bytes rather than calling memcpy."""
-    if isinstance(op, Reinterpret):
-        return '__extension__ ({ union { %s from; %s to; } __zi_u; __zi_u.from = (a); __zi_u.to; })' % (t.c, ret.c)
-    if isinstance(op, Memory):
-        # LoadLow and StoreLow move the low 64 bits whatever the width.
-        block = 'struct __zi_m { unsigned char b[%d]; };' % (8 if op.low else t.bytes)
-        if op.store:
-            return ('__extension__ ({ %s void *__zi_p = (p); union { %s v; struct __zi_m m; } __zi_u; '
-                    '__zi_u.v = (a); *(struct __zi_m *)__zi_p = __zi_u.m; })' % (block, t.c))
-        return ('__extension__ ({ %s const void *__zi_p = (p); union { %s v; struct __zi_m m; } __zi_u%s; '
-                '__zi_u.m = *(const struct __zi_m *)__zi_p; __zi_u.v; })' % (block, t.c, ' = {0}' if op.low else ''))
-    if isinstance(op, Gather):
-        lane = '__zi_r.m[%d] = *(const struct __zi_m *)(__zi_p + 4 * (int64_t)ZI_AT(__zi_a, %d));'
-        return ('__extension__ ({ struct __zi_m { unsigned char b[4]; }; const char *__zi_p = (const char *)(p); '
-                '%s __zi_a = (a); union { %s v; struct __zi_m m[%d]; } __zi_r; %s __zi_r.v; })' %
-                (t.c, ret.c, t.lanes, ' '.join(lane % (i, i) for i in range(t.lanes))))
-    # TinyCC builds have no native vectors, so every other condition is
-    # false there and the final body runs.
-    return tcc_lane_macro(ret.c if isinstance(ret, T) else ret, params, bodies[-1][1])
-
-
-def tcc_x64_macro(op, t, ret, params):
-    """The TinyCC x86-64 macro body for a helper, or None to keep its
-    tcc_macro."""
-    asm = tcc_x64_asm(op, t, ret, params)
-    if asm is not None:
-        return asm
-    if isinstance(op, Gather):
-        # TinyCC keeps no type-based aliasing, so lanes load straight from
-        # the table rather than through memcpy, which it calls, and pairs of
-        # them are stored as 64-bit words, which the next operation's 64-bit
-        # loads take from the store buffer.
-        lane = lambda i: '(uint64_t)*(const uint32_t *)(__zi_p + 4 * (int64_t)ZI_AT(__zi_a, %d))' % i
-        words = ' '.join('__zi_r.w[%d] = %s | %s << 32;' % (k, lane(2 * k), lane(2 * k + 1))
-                         for k in range(t.lanes // 2))
-        return ('__extension__ ({ const char *__zi_p = (const char *)(p); %s __zi_a = (a); '
-                'union { %s v; uint64_t w[%d]; } __zi_r; %s __zi_r.v; })' % (t.c, ret.c, t.lanes // 2, words))
-    return None
-
-
-def tcc_x64_asm(op, t, ret, params):
-    """The TinyCC x86-64 assembly macro for a helper, or None."""
-    if isinstance(op, Narrow):
-        return tcc_x64_narrow(t, ret, params)
-    if isinstance(op, (Convert, Gather, Reinterpret)):
-        return None
-    e, r, W = op.enum, op.result(t), t.bits
-    if t.float and e not in ('ZI_OP_SELECT', 'ZI_OP_LOAD', 'ZI_OP_LOAD_LOW', 'ZI_OP_STORE',
-                             'ZI_OP_STORE_LOW', 'ZI_OP_INTERLEAVE_LOW', 'ZI_OP_INTERLEAVE_HIGH'):
-        return None
-    x = TX_BITS[W]
-    body = lambda sources, steps, **kw: tx_macro(params, r, sources, steps, **kw)
-    one = {
-        'ZI_OP_ADD': W < 64 and 'padd' + x,
-        'ZI_OP_SUB': W < 64 and 'psub' + x,
-        'ZI_OP_MUL': W == 16 and 'pmullw',
-        'ZI_OP_MUL_HIGH': W == 16 and t.signed and 'pmulhw',
-        'ZI_OP_AND': 'pand', 'ZI_OP_OR': 'por', 'ZI_OP_XOR': 'pxor',
-        'ZI_OP_EQ': W < 64 and 'pcmpeq' + x,
-        'ZI_OP_GT': W < 64 and t.signed and 'pcmpgt' + x,
-        'ZI_OP_MADD': 'pmaddwd',
-    }
-    if W < 32:
-        sat = ('s' if t.signed else 'us') + x
-        one['ZI_OP_ADD_SAT'] = 'padd' + sat
-        one['ZI_OP_SUB_SAT'] = 'psub' + sat
-    if (W == 16 and t.signed) or (W == 8 and not t.signed):
-        kind = 's' if t.signed else 'u'
-        one['ZI_OP_MIN'] = 'pmin%s%s' % (kind, x)
-        one['ZI_OP_MAX'] = 'pmax%s%s' % (kind, x)
-    if one.get(e):
-        return body('ab', ['%s X1, X0' % one[e]])
-    if e == 'ZI_OP_LT' and W < 64 and t.signed:
-        return body('ba', ['pcmpgt%s X1, X0' % x])
-    if e == 'ZI_OP_AND_NOT':
-        return body('ab', ['pandn X0, X1'], out=1)
-    if e == 'ZI_OP_NOT':
-        return body('a', ['pcmpeqd X1, X1', 'pxor X1, X0'])
-    if e == 'ZI_OP_NEG' and W < 64:
-        return body('a', ['pxor X1, X1', 'psub%s X0, X1' % x], out=1)
-    if e == 'ZI_OP_ABS' and W == 16:
-        return body('a', ['pxor X1, X1', 'psubw X0, X1', 'pmaxsw X1, X0'])
-    if e == 'ZI_OP_ABS' and W < 64:
-        # (a ^ m) - m with m the sign mask.
-        return body('a', ['pxor X1, X1', 'pcmpgt%s X0, X1' % x, 'pxor X1, X0', 'psub%s X1, X0' % x])
-    if e in ('ZI_OP_MIN', 'ZI_OP_MAX') and W == 16:
-        # Unsigned: max = (a -sat b) + b, min = a - (a -sat b).
-        if e == 'ZI_OP_MAX':
-            return body('ab', ['psubusw X1, X0', 'paddw X1, X0'])
-        return body('aba', ['psubusw X1, X2', 'psubw X2, X0'])
-    if e in ('ZI_OP_MIN', 'ZI_OP_MAX') and t.signed and W in (8, 32):
-        # m = a > b (Max) or b > a (Min) picks a: (a & m) | (b & ~m).
-        mask = ['pcmpgt%s X1, X2' % x] if e == 'ZI_OP_MAX' else ['pcmpgt%s X0, X2' % x]
-        return body('aba' if e == 'ZI_OP_MAX' else 'abb', mask + ['pand X2, X0', 'pandn X1, X2', 'por X2, X0'])
-    if e == 'ZI_OP_SELECT':
-        return body('mab', ['pand X0, X1', 'pandn X2, X0', 'por X1, X0'])
-    if e == 'ZI_OP_MUL' and W == 32:
-        # The even lanes' 64-bit products and the odd lanes', their low
-        # halves interleaved back.
-        return body('ab', ['pshufd $0xf5, X0, X2', 'pshufd $0xf5, X1, X3', 'pmuludq X1, X0',
-                           'pmuludq X3, X2', 'pshufd $0x08, X0, X0', 'pshufd $0x08, X2, X2', 'punpckldq X2, X0'])
-    if isinstance(op, Shift) and op.kind == 'shr_round' and W in (16, 32):
-        # a >> n plus bit n - 1 of a. A count past the lane width shifts in
-        # the sign, or zeros, as Ziran's does, and that bit is then the top
-        # one (signed) or none; a count of 64 clears it when n is 0.
-        if t.signed:
-            bit = '__zi_n == 0 ? 64 : __zi_n - 1 < %d ? __zi_n - 1 : %d' % (W - 1, W - 1)
-        else:
-            bit = '__zi_n - 1 < %d ? __zi_n - 1 : 64' % W
-        return body('aa', ['movq S0, X2', '%s X2, X0' % (('psra' if t.signed else 'psrl') + x),
-                           'movq S1, X2', 'psrl%s X2, X1' % x, 'pcmpeq%s X2, X2' % x,
-                           'psrl%s $%d, X2' % (x, W - 1), 'pand X2, X1', 'padd%s X1, X0' % x],
-                    scalars=('__zi_n', '__zi_t'),
-                    locals_=(('uint64_t', '__zi_n', '(n)'), ('uint64_t', '__zi_t', bit)))
-    if isinstance(op, WidenHalf) and not t.wide:
-        # Each lane interleaved with zeros, or with its sign: 0 > a.
-        sign = ['pcmpgt%s X0, X1' % x] if t.signed else []
-        return body('a', ['pxor X1, X1'] + sign +
-                    ['punpck%s%s X1, X0' % ('h' if op.high else 'l', {8: 'bw', 16: 'wd', 32: 'dq'}[W])])
-    if isinstance(op, Shift) and op.kind != 'shr_round' and W > 8:
-        if op.kind == 'shl':
-            name = 'psll' + x
-        elif not t.signed:
-            name = 'psrl' + x
-        elif W < 64:
-            name = 'psra' + x
-        else:
-            return None
-        # A count past the lane width gives 0, or the sign, as Ziran's does.
-        return body('a', ['movq S0, X1', '%s X1, X0' % name], scalars='n')
-    if e in ('ZI_OP_INTERLEAVE_LOW', 'ZI_OP_INTERLEAVE_HIGH') and W < 64:
-        return body('ab', ['punpck%s%s X1, X0' % ('l' if e == 'ZI_OP_INTERLEAVE_LOW' else 'h',
-                                                   {8: 'bw', 16: 'wd', 32: 'dq'}[W])])
-    if e == 'ZI_OP_LOAD':
-        return body('p', [])
-    if e == 'ZI_OP_STORE':
-        return tx_macro(params, None, 'a', [], store='p')
-    if e == 'ZI_OP_STORE_LOW':
-        return tx_macro(params, None, 'a', [], store='p', store_low=True)
-    if e == 'ZI_OP_LOAD_LOW':
-        # 64 bits into a zeroed vector.
-        text = ['lea %0, %%r10', 'movq (%1), X0', 'movq X0, (%%r10)', 'pxor X0, X0', 'movq X0, 8(%%r10)']
-        if t.wide:
-            text += ['movq X0, 16(%%r10)', 'movq X0, 24(%%r10)']
-        return '__extension__ ({ %s __zi_r; %s; __zi_r; })' % (
-            r.c, tx_asm(text, ['"=m"(__zi_r)'], ['"r"((const void *)(p))']))
-    if e in ('ZI_OP_SPLAT', 'ZI_OP_ZERO') and not t.float:
-        # Every 64-bit word holds the same lanes.
-        words = t.bytes // 8
-        if e == 'ZI_OP_ZERO':
-            w = '0'
-        else:
-            w = '(uint64_t)(%s)(%s)(x) * UINT64_C(0x%s)' % (t.utype, t.ctype, ('0' * (W // 4 - 1) + '1') * (64 // W))
-        return '__extension__ ({ union { %s v; uint64_t w[%d]; } __zi_r; uint64_t __zi_w = %s; %s __zi_r.v; })' % (
-            t.c, words, w, ' '.join('__zi_r.w[%d] = __zi_w;' % i for i in range(words)))
-    return None
-
-
-def tcc_x64_narrow(t, r, params):
-    """TinyCC x86-64 assembly for a 128-bit Narrow from signed lanes, or
-    None."""
-    if t.wide or not t.signed:
-        return None
-    body = lambda sources, steps: tx_macro(params, r, sources, steps)
-    packs = {('s16', 's8'): 'packsswb', ('s16', 'u8'): 'packuswb', ('s32', 's16'): 'packssdw'}
-    if (t.lane, r.lane) in packs:
-        return body('ab', ['%s X1, X0' % packs[(t.lane, r.lane)]])
-    if (t.lane, r.lane) == ('s32', 'u16'):
-        # SSE2 packs only to signed words: negative lanes become 0, the
-        # rest less 32768 saturate to s16, and the top bit of each word
-        # returns the 32768.
-        return body('abab', ['pxor X4, X4', 'pcmpgtd X4, X2', 'pcmpgtd X4, X3', 'pand X2, X0', 'pand X3, X1',
-                             'pcmpeqd X4, X4', 'psrld $31, X4', 'pslld $15, X4', 'psubd X4, X0', 'psubd X4, X1',
-                             'packssdw X1, X0', 'pcmpeqd X4, X4', 'psllw $15, X4', 'pxor X4, X0'])
-    return None
-
-
 def lane_array_common(out):
     """Byte views, byte shifts and Shuffle over lane arrays."""
     out.append('#if ZI_VEC || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) || \\')
@@ -2055,18 +1764,6 @@ def lane_array_common(out):
     out.append('#define ZI_LE 1')
     out.append('#else')
     out.append('#define ZI_LE 0')
-    out.append('#endif')
-    out.append('/* TinyCC runs the helpers as macros, on x86-64 the common integer ones in')
-    out.append(' * SSE2 assembly. */')
-    out.append('#if !ZI_VEC && defined(__TINYC__) && !defined(__GNUC__) && !defined(ZIRAN_SIMD_SCALAR)')
-    out.append('#define ZI_TCC 1')
-    out.append('#else')
-    out.append('#define ZI_TCC 0')
-    out.append('#endif')
-    out.append('#if ZI_TCC && defined(__x86_64__)')
-    out.append('#define ZI_TCC_X64 1')
-    out.append('#else')
-    out.append('#define ZI_TCC_X64 0')
     out.append('#endif')
     out.append('#if !ZI_VEC')
     out.append('#if !ZI_LE')
@@ -2393,7 +2090,7 @@ def macros(out):
 
 # Whether a build uses native vectors, as every SIMD header sees it.
 VEC_DETECTION = r"""/* Native vectors need __builtin_shufflevector: Clang, or GCC 12 and later. */
-#if !defined(ZIRAN_SIMD_SCALAR) && !defined(__TINYC__) && \
+#if !defined(ZIRAN_SIMD_SCALAR) && \
     (defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)) && \
     defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define ZI_VEC 1
@@ -2632,9 +2329,6 @@ def header():
     common(out)
     out.append('')
     items = entries()
-    tcc = [tcc_macro(op, t, ret, params, bodies) for op, t, ret, name, params, bodies in items]
-    x64 = [tcc_x64_macro(op, t, ret, params) for op, t, ret, name, params, bodies in items]
-    guards = [TCC if any_ else TCC_X64 if x else None for any_, x in zip(tcc, x64)]
     segment = ['']
 
     def mark(name):
@@ -2643,60 +2337,24 @@ def header():
             out.append('/*@%s*/' % name)
             segment[0] = name
     out.append('/* ---- operations for ZI_TIER ---- */')
-    unless_tcc_macro(out, items, guards, mark,
-                     lambda op, t, ret, name, params, bodies: prototype(out, ret, name, params))
-    mark('')
-    out.append('')
-    out.append('/* TinyCC runs these as macros; see tcc_macro and tcc_x64_macro. */')
-
-    def define(item, macro):
-        mark(item[3])
-        out.append('#define zi_%s(%s) %s' % (item[3], ', '.join(n for _c, n in item[4]), macro))
-    out.append('#if %s' % TCC_X64)
-    for item, macro in zip(items, x64):
-        if macro:
-            define(item, macro)
-    mark('')
-    out.append('#elif %s' % TCC)
-    for item, macro, x in zip(items, tcc, x64):
-        if macro and x:
-            define(item, macro)
-    mark('')
-    out.append('#endif')
-    out.append('#if %s' % TCC)
-    for item, macro, x in zip(items, tcc, x64):
-        if macro and not x:
-            define(item, macro)
-    mark('')
-    out.append('#endif')
+    each_helper(items, mark, lambda op, t, ret, name, params, bodies: prototype(out, ret, name, params))
     out.append('')
     split_macros(out, items, mark)
     out.append('')
-    unless_tcc_macro(out, items, guards, mark, lambda op, t, ret, name, params, bodies:
-                     function(out, ret, name, params, bodies))
+    each_helper(items, mark, lambda op, t, ret, name, params, bodies:
+                function(out, ret, name, params, bodies))
     out.append('')
     native_section(out, items, mark)
     return '\n'.join(out) + '\n'
 
 
-def unless_tcc_macro(out, items, guards, mark, write):
-    """write(*item) for every helper, each one a TinyCC build runs as a
-    macro (its guard, ZI_TCC or ZI_TCC_X64) outside that build. mark(name)
-    tags the lines that follow with their helper."""
-    inside = None
-    for item, guard in zip(items, guards):
-        if guard != inside:
-            mark('')
-            if inside:
-                out.append('#endif')
-            if guard:
-                out.append('#if !%s' % guard)
-            inside = guard
+def each_helper(items, mark, write):
+    """write(*item) for every helper; mark(name) tags the lines that follow
+    with their helper."""
+    for item in items:
         mark(item[3])
         write(*item)
     mark('')
-    if inside:
-        out.append('#endif')
 
 
 # ---------------------------------------------------------------- test

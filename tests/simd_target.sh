@@ -170,7 +170,7 @@ for input in source saved; do
     compilers=${CC:-cc}
     test -n "$clang" && compilers="$compilers $clang"
     for compiler in $compilers; do
-        set -- "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"
+        set -- "-O2" "-O2 -DZIRAN_SIMD_SCALAR"
         if test -n "$x86"; then
             set -- "$@" "-O2 -mssse3" "-O2 -msse4.1"
             test "$best" = 4 && set -- "$@" "-O2 -mavx2"

@@ -23,7 +23,7 @@ SliceIndex(Slice source, int64_t index)
     }
     return index;
 }
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define SliceIndex(source, index) __extension__ ({ \
         int64_t __zi_slice_index = (index); \
         if((uint64_t)__zi_slice_index >= (uint64_t)(source).length) \
@@ -56,7 +56,7 @@ SliceRangeAt(Slice source, int64_t low, int64_t high, size_t element_size)
 }
 /*@SliceRange*/
 /* Where nothing inlines, the view is taken in place; the call only reports. */
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define SliceRange(source, low, high, element_size) __extension__ ({ \
         Slice __zi_range = (source); \
         int64_t __zi_range_low = (low), __zi_range_high = (high); \

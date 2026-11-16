@@ -48,6 +48,8 @@ Context :: struct {
     plan: *MachineSelectPlan
     program: LirProgram
     function: LirFunction
+    // Stores may take an immediate value.
+    stores: bool
     budget: s64
     problem: MachineProblem
 }
@@ -96,9 +98,15 @@ Commutative :: (op: LirOp) -> bool {
     return op == .Add || op == .Multiply || op == .BitAnd || op == .BitOr || op == .BitXor
 }
 
-// Which operand of INSTRUCTION folds as an immediate.
+// Which operand of INSTRUCTION folds as an immediate: a constant operand of
+// a binary operation or compare, or the scalar value a store writes.
 Fold :: (context: *Context, instruction: LirInstruction) -> MachineSelectFold {
     op := instruction.op
+    if op == .Store {
+        if !context.stores || instruction.operands.count != 2 || !Scalar(TypeOf(context, instruction.operands[1])) ||
+            !Immediate(context, instruction.operands[1]) { return .None }
+        return .Right
+    }
     if !Compare(op) && !Commutative(op) && op != .Subtract || instruction.operands.count != 2 {
         return .None
     }
@@ -193,9 +201,10 @@ Plan :: (context: *Context) -> bool {
 // plan.work, and BYTES elements per scratch vector. A plan that is not
 // ENABLED loads every used value and folds, fuses and threads nothing.
 MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, function: LirFunction,
-    enabled: bool, budget: s64, bytes: s64) -> MachineProblem {
+    enabled: bool, stores: bool, budget: s64, bytes: s64) -> MachineProblem {
     plan.work = 0
-    context := Context.{plan = plan, program = program, function = function, budget = budget, problem = .None}
+    context := Context.{plan = plan, program = program, function = function, stores = stores, budget = budget,
+        problem = .None}
     count := function.values.count
     instructions: s64
     for block: function.blocks { instructions += block.instructions.count }

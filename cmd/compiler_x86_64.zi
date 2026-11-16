@@ -1004,7 +1004,16 @@ Store :: (state: *State) -> bool {
     }
     address := Register(state, 0, .Use)
     if address == MachineNoId { return false }
-    if TypeOf(state, OperandAt(state, 0)).kind != .Pointer { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    pointer := TypeOf(state, OperandAt(state, 0))
+    if pointer.kind != .Pointer { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    if value_operand.kind == .Immediate {
+        if pointer.element < 0 || pointer.element >= state.program.types.count {
+            return Fail(state, .Unsupported, OperandId(state, 0))
+        }
+        X86StoreImmediate(*state.writer, X86At(address, 0), value_operand.immediate,
+            ScalarSize(state.program.types[pointer.element]))
+        return true
+    }
     type := TypeOf(state, OperandAt(state, 1))
     if type.class == .Float {
         value := FloatRegister(state, 1, .Use)
@@ -1719,16 +1728,47 @@ Falls :: (state: *State, target: s32) -> bool {
     end := function.block_begin + function.block_count
     block := state.block + 1
     while block < end && block != target {
-        lone := state.program.blocks[block]
-        if lone.instruction_count != 1 { return false }
-        jump := state.program.instructions[lone.instruction_begin]
-        if jump.opcode != .Jump || state.program.edges[jump.edge_begin].target != target { return false }
+        if Forward(state, block) != target { return false }
         block += 1
     }
     return block == target
 }
 
-JumpTo :: (state: *State, target: s32) {
+// The block BLOCK only jumps to: it holds nothing but moves of a register
+// to itself and a closing jump, so it emits at most that jump; otherwise -1.
+LoneJump :: (state: *State, block: s32) -> s32 {
+    lone := state.program.blocks[block]
+    if lone.instruction_count == 0 || FuelStub(state, block) { return MachineNoId }
+    last := lone.instruction_begin + lone.instruction_count - 1
+    for at: lone.instruction_begin..last - 1 {
+        move := state.program.instructions[at]
+        if move.opcode != .Move || move.operand_count != 2 { return MachineNoId }
+        destination := state.program.operands[move.operand_begin]
+        source := state.program.operands[move.operand_begin + 1]
+        if destination.kind != .Physical || source.kind != .Physical || destination.id != source.id ||
+            destination.class != source.class { return MachineNoId }
+    }
+    jump := state.program.instructions[last]
+    if jump.opcode != .Jump { return MachineNoId }
+    return state.program.edges[jump.edge_begin].target
+}
+
+// Where a jump to BLOCK really goes: past every lone jump (edge copies are
+// already moves), so control takes one branch instead of a chain. A cycle
+// of lone jumps stays where it is.
+Forward :: (state: *State, block: s32) -> s32 {
+    function := state.program.functions[state.function]
+    target := block
+    for step: 0..function.block_count - 1 {
+        next := LoneJump(state, target)
+        if next == MachineNoId { return target }
+        target = next
+    }
+    return block
+}
+
+JumpTo :: (state: *State, block: s32) {
+    target := Forward(state, block)
     if !Falls(state, target) { X86Jump32(*state.writer, BlockTarget(state, target)) }
 }
 
@@ -1746,8 +1786,8 @@ Branch :: (state: *State) -> bool {
     } else {
         return Fail(state, .Unsupported)
     }
-    taken := state.program.edges[instruction.edge_begin].target
-    other := state.program.edges[instruction.edge_begin + 1].target
+    taken := Forward(state, state.program.edges[instruction.edge_begin].target)
+    other := Forward(state, state.program.edges[instruction.edge_begin + 1].target)
     if Falls(state, other) {
         X86JumpCondition32(*state.writer, condition, BlockTarget(state, taken))
     } else if Falls(state, taken) {

@@ -442,6 +442,17 @@ names. Vectors does not move (56 → 61 µs privately at load 17, inside
 noise): its per-element checked resolves dominate, which the manual-safety
 lane turns off by default.
 
+Landed (2026-11-16, unchecked default): stores of a constant take an
+immediate, and jumps forward through blocks that only jump on. Measured at
+load 22, Sieve, Hash, Records and Vectors are within noise of before. Sieve's
+inner loop is now `cmp; jge; lea; mov byte [rdx], 1; add; jmp` (C: 4
+instructions). What remains is structural: loop rotation (test at the
+bottom, no jump back to the header), block layout (the return block sits
+inside the outer loop), the element address folded into the store and load,
+`cmp byte [mem], 0` for the flag test, and copy moves the allocator could
+coalesce. The zero-initialized local array is still allocated, loaded and
+reallocated (`allocate; load; allocate v`), three 20 KB passes on entry.
+
 Remaining per kernel after that, from objdump of the current build:
 - Sieve inner loop (12 instructions, C 5): the direct frame store goes
   `lea token; mov r9d, 1; mov r11d, tok; mov rsi, base; add rsi, r11; mov [rsi],

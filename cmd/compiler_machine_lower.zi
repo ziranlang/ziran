@@ -793,6 +793,10 @@ LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     if source.result != LirNoId &&
         VirtualOperand(state, GlobalVirtual(state, function, source.result), .Define) == MachineNoId { return false }
     for operand, at: source.operands {
+        if opcode == .Store && at == 1 && state.select.fold[state.select_at] == .Right {
+            if ImmediateOperand(state, state.select.bits[operand]) == MachineNoId { return false }
+            continue
+        }
         value := ifx at == 0 && resolved != MachineNoId then resolved else GlobalVirtual(state, function, operand)
         if VirtualOperand(state, value, .Use) == MachineNoId { return false }
     }
@@ -1380,7 +1384,10 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     if !Spend(state, state.aggregates.plan.work) { return false }
     if !VecResizeBounded(state.aggregates.alias, source.values.count, state.limits.bytes) { return Fail(state, .Allocation) }
     for at: cast(s64)0..source.values.count - 1 { state.aggregates.alias[at] = MachineNoId }
-    problem = MachineSelectPlanBuild(state.select, state.lir, source, state.target.arch == .X86_64,
+    // An unchecked store may write an immediate; a checked one names its
+    // value so the checked-memory proof can size the access.
+    x86 := state.target.arch == .X86_64
+    problem = MachineSelectPlanBuild(state.select, state.lir, source, x86, x86 && !state.checks,
         state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.select.work) || !CreateVirtuals(state, function_id) { return false }

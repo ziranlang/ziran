@@ -258,6 +258,15 @@ X86Load :: (writer: *X86Writer, destination: s32, source: X86Operand, size: s64,
     writer.failed = true
 }
 
+// mov SIZE [DESTINATION], VALUE: a sign-extended imm32 for eight bytes.
+X86StoreImmediate :: (writer: *X86Writer, destination: X86Operand, value: u64, size: s64) {
+    if size == 8 { X86Encode(writer, 0, true, 199, 1, 0, destination, trailing = 4); X86Little(writer, value, 4); return }
+    if size == 4 { X86Encode(writer, 0, false, 199, 1, 0, destination, trailing = 4); X86Little(writer, value, 4); return }
+    if size == 2 { X86Encode(writer, 102, false, 199, 1, 0, destination, trailing = 2); X86Little(writer, value, 2); return }
+    if size == 1 { X86Encode(writer, 0, false, 198, 1, 0, destination, trailing = 1); X86Little(writer, value, 1); return }
+    writer.failed = true
+}
+
 X86Store :: (writer: *X86Writer, destination: X86Operand, source: s32, size: s64) {
     if size == 8 { X86Encode(writer, 0, true, 137, 1, source, destination); return }
     if size == 4 { X86Encode(writer, 0, false, 137, 1, source, destination); return }

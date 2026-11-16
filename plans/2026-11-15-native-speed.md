@@ -467,6 +467,17 @@ gain is within noise, since the store-to-load forwarding was cheap. Next
 for Records: block layout (forwarding jumps and dead trap stubs sit on the
 hot path) and `shl` for the 32-byte element scale.
 
+Landed: block layout and pass-through edges. Each function's blocks go
+entry first, then the rest in order, then those that return, trap or are
+unreachable. An edge into a block that only jumps on (its parameters used
+by nothing else) goes straight to where it leads, so such blocks die and
+sink. Records 17 -> 15 us; Sieve, Hash and Vectors unchanged. Moving
+Sieve's return block alone made its common composite path take an extra
+taken branch. The pass-through edges recovered it, but that path still
+goes through an allocator edge block (`mov rsi, rcx; jmp`) because the
+count lives in different registers on the two sides: copy coalescing is
+next.
+
 Loop rotation cannot be done while lowering: the optimized LIR has dropped
 the loop body's block parameters, so the body names the header's
 parameters directly, and a test copied to the bottom would branch back

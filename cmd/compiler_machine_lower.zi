@@ -459,11 +459,42 @@ GlobalVirtual :: (state: *LowerState, function: *MachineFunction, local: s32) ->
     return function.virtual_begin + local
 }
 
+// The arguments ONWARD, the jump of THROUGH, passes when THROUGH receives
+// ARGUMENTS, into OUT.
+PassArguments :: (state: *LowerState, through: LirBlock, onward: LirEdge, arguments: []s32, out: *Vec(s32)) -> bool {
+    if !VecResizeBounded(<<out, onward.arguments.count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for argument, at: onward.arguments {
+        value := argument
+        for parameter, index: through.parameters { if parameter == argument { value = arguments[index] } }
+        (<<out)[at] = value
+    }
+    return true
+}
+
 AddEdges :: (state: *LowerState, function: *MachineFunction, edges: []LirEdge) -> bool {
     source_function := state.lir.functions[function.lir_function]
-    for source: edges {
-        if !Spend(state, 1) || source.block < 0 || source.block >= source_function.blocks.count {
+    for edge: edges {
+        if !Spend(state, 1) || edge.block < 0 || edge.block >= source_function.blocks.count {
             return Fail(state, .Edge)
+        }
+        // Past blocks that only jump on, with their parameters replaced by
+        // the arguments passed to them.
+        source := edge
+        first: Vec(s32)
+        defer VecFree(first)
+        second: Vec(s32)
+        defer VecFree(second)
+        for step: 0..source_function.blocks.count - 1 {
+            if state.select.pass[source.block] < 0 { break }
+            through := source_function.blocks[source.block]
+            onward := through.instructions[0].edges[0]
+            if (step & 1) == 0 {
+                if !PassArguments(state, through, onward, source.arguments, *first) { return false }
+                source = .{block = onward.block, arguments = first[:]}
+            } else {
+                if !PassArguments(state, through, onward, source.arguments, *second) { return false }
+                source = .{block = onward.block, arguments = second[:]}
+            }
         }
         target := source_function.blocks[source.block]
         if source.arguments.count != target.parameters.count { return Fail(state, .Edge) }
@@ -489,7 +520,7 @@ AddEdges :: (state: *LowerState, function: *MachineFunction, edges: []LirEdge) -
             if AddCopy(state, .{destination = to, source = from,
                 class = state.owner.virtuals[from].class}) == MachineNoId { return false }
         }
-        if AddEdge(state, .{target = function.block_begin + source.block, copy_begin = copy_begin,
+        if AddEdge(state, .{target = function.block_begin + state.select.position[source.block], copy_begin = copy_begin,
             copy_count = cast(s32)state.owner.copies.count - copy_begin}) == MachineNoId { return false }
     }
     return true
@@ -1527,17 +1558,21 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     }
     function.block_begin = cast(s32)state.owner.blocks.count
     function.block_count = cast(s32)source.blocks.count
-    for block_id: cast(s64)0..source.blocks.count - 1 {
-        if AddBlock(state, .{function = function_id, lir_block = cast(s32)block_id}) == MachineNoId { return false }
+    // Blocks go in the selection plan's layout; each keeps its LIR block.
+    for position: cast(s64)0..source.blocks.count - 1 {
+        if AddBlock(state, .{function = function_id, lir_block = state.select.layout[position]}) == MachineNoId {
+            return false
+        }
     }
-    function.entry = function.block_begin + source.entry
+    function.entry = function.block_begin + state.select.position[source.entry]
     state.owner.functions[function_id] = function
-    state.select_at = 0
-    for block_id: cast(s64)0..source.blocks.count - 1 {
-        block_index := function.block_begin + cast(s32)block_id
+    for position: cast(s64)0..source.blocks.count - 1 {
+        block_id := cast(s64)state.select.layout[position]
+        block_index := function.block_begin + cast(s32)position
         block := state.owner.blocks[block_index]
         block.instruction_begin = cast(s32)state.owner.instructions.count
         state.select_block = cast(s32)block_id
+        state.select_at = state.select.start[block_id]
         if state.select.dead[block_id] {
             // Every edge into it threads past it.
             unreachable := BeginInstruction(state, .Unreachable, source.origin)

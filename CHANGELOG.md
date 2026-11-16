@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 code lays out each function with blocks that return, trap or are never reached after the rest, and an edge into a block that only jumps on goes straight to where it leads, so hot blocks fall into each other. Records runs in about 15 µs instead of 17 on Omega.
 - Native code reads a field or element it has just inserted as the inserted value instead of loading it back: Records' `x > 1000` test after `x += dx` compares the register.
 - Native x86-64 code reads and writes an array element at `[base + index*scale]` in unchecked builds instead of computing its address first. On Omega, Sieve runs in 29 µs instead of 33 and Vectors in 26 instead of 37.
 - Native x86-64 code stores a constant straight to memory (`mov byte [rdx], 1`) in unchecked builds, and a jump or branch into a block that only jumps on goes to the final target in one step.

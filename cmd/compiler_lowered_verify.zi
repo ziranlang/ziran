@@ -550,12 +550,11 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     return Fail(state, .Unsupported)
 }
 
-Reach :: (state: *State, function: LirFunction, excluded: s32, seen: []u8, queue: []s32) -> bool {
+Reach :: (state: *State, function: LirFunction, seen: []u8, queue: []s32) -> bool {
     for at: cast(s64)0..seen.count - 1 {
         if !Spend(state, 1) { return false }
         seen[at] = 0
     }
-    if function.entry == excluded { return true }
     head: s64 = 0
     tail: s64 = 1
     queue[0] = function.entry
@@ -567,7 +566,7 @@ Reach :: (state: *State, function: LirFunction, excluded: s32, seen: []u8, queue
         terminal := block.instructions[block.instructions.count - 1]
         for edge: terminal.edges {
             if !Spend(state, 1) { return false }
-            if edge.block != excluded && seen[edge.block] == 0 {
+            if seen[edge.block] == 0 {
                 seen[edge.block] = 1
                 queue[tail] = edge.block
                 tail += 1
@@ -577,8 +576,151 @@ Reach :: (state: *State, function: LirFunction, excluded: s32, seen: []u8, queue
     return true
 }
 
+// Dominator-tree intervals: `owner` dominates `block` exactly when
+// pre[owner] <= pre[block] and post[block] <= post[owner]. Every block is
+// reachable and no edge enters the entry, so Cooper, Harvey and Kennedy's
+// iteration over reverse postorder finds each immediate dominator once per
+// function, and a use costs one comparison instead of a search.
+Dominators :: (state: *State, function: LirFunction, pre: []s32, post: []s32) -> bool {
+    count := function.blocks.count
+    edges: s64 = 0
+    for block: function.blocks { edges += block.instructions[block.instructions.count - 1].edges.count }
+    if !Charge(state, count + 1, 24) || !Charge(state, edges + 1, 4) { return false }
+    number: Vec(s32)
+    order: Vec(s32)
+    idom: Vec(s32)
+    stack: Vec(s32)
+    next: Vec(s32)
+    starts: Vec(s32)
+    links: Vec(s32)
+    defer VecFree(number)
+    defer VecFree(order)
+    defer VecFree(idom)
+    defer VecFree(stack)
+    defer VecFree(next)
+    defer VecFree(starts)
+    defer VecFree(links)
+    if !VecResizeBounded(number, count, count) || !VecResizeBounded(order, count, count) ||
+        !VecResizeBounded(idom, count, count) || !VecResizeBounded(stack, count, count) ||
+        !VecResizeBounded(next, count, count) || !VecResizeBounded(starts, count + 1, count + 1) ||
+        !VecResizeBounded(links, edges + 1, edges + 1) { return Fail(state, .Allocation) }
+    // Predecessors, grouped by block in links[starts[b]..starts[b + 1]].
+    for at: cast(s64)0..count { starts[at] = 0 }
+    for block: function.blocks {
+        for edge: block.instructions[block.instructions.count - 1].edges { starts[edge.block + 1] += 1 }
+    }
+    for at: cast(s64)1..count { starts[at] += starts[at - 1] }
+    for at: cast(s64)0..count - 1 { next[at] = starts[at] }
+    for block_index: cast(s32)0..cast(s32)count - 1 {
+        block := function.blocks[block_index]
+        for edge: block.instructions[block.instructions.count - 1].edges {
+            links[next[edge.block]] = block_index
+            next[edge.block] += 1
+        }
+    }
+    // Postorder numbers; -1 marks a block not yet seen.
+    for at: cast(s64)0..count - 1 {
+        number[at] = -1
+        next[at] = 0
+        idom[at] = LirNoId
+    }
+    depth: s64 = 1
+    finished: s32 = 0
+    stack[0] = function.entry
+    number[function.entry] = -2
+    while depth > 0 {
+        if !Spend(state, 1) { return false }
+        block := stack[depth - 1]
+        terminal := function.blocks[block].instructions[function.blocks[block].instructions.count - 1]
+        if next[block] < cast(s32)terminal.edges.count {
+            target := terminal.edges[next[block]].block
+            next[block] += 1
+            if number[target] == -1 {
+                number[target] = -2
+                stack[depth] = target
+                depth += 1
+            }
+        } else {
+            number[block] = finished
+            order[finished] = block
+            finished += 1
+            depth -= 1
+        }
+    }
+    idom[function.entry] = function.entry
+    changed := true
+    while changed {
+        changed = false
+        at := cast(s64)finished - 2
+        while at >= 0 {
+            block := order[at]
+            at -= 1
+            chosen: s32 = LirNoId
+            link := starts[block]
+            while link < starts[block + 1] {
+                if !Spend(state, 1) { return false }
+                left := links[link]
+                link += 1
+                if idom[left] == LirNoId { continue }
+                if chosen == LirNoId { chosen = left; continue }
+                right := chosen
+                while left != right {
+                    while number[left] < number[right] {
+                        if !Spend(state, 1) { return false }
+                        left = idom[left]
+                    }
+                    while number[right] < number[left] {
+                        if !Spend(state, 1) { return false }
+                        right = idom[right]
+                    }
+                }
+                chosen = left
+            }
+            if idom[block] != chosen {
+                idom[block] = chosen
+                changed = true
+            }
+        }
+    }
+    // The tree's children, grouped like the predecessors, then intervals.
+    for at: cast(s64)0..count { starts[at] = 0 }
+    for block_index: cast(s32)0..cast(s32)count - 1 {
+        if block_index != function.entry { starts[idom[block_index] + 1] += 1 }
+    }
+    for at: cast(s64)1..count { starts[at] += starts[at - 1] }
+    for at: cast(s64)0..count - 1 { next[at] = starts[at] }
+    for block_index: cast(s32)0..cast(s32)count - 1 {
+        if block_index != function.entry {
+            links[next[idom[block_index]]] = block_index
+            next[idom[block_index]] += 1
+        }
+    }
+    for at: cast(s64)0..count - 1 { next[at] = starts[at] }
+    clock: s32 = 1
+    depth = 1
+    stack[0] = function.entry
+    pre[function.entry] = 0
+    while depth > 0 {
+        if !Spend(state, 1) { return false }
+        block := stack[depth - 1]
+        if next[block] < starts[block + 1] {
+            child := links[next[block]]
+            next[block] += 1
+            pre[child] = clock
+            clock += 1
+            stack[depth] = child
+            depth += 1
+        } else {
+            post[block] = clock
+            clock += 1
+            depth -= 1
+        }
+    }
+    return true
+}
+
 Use :: (state: *State, function: LirFunction, value: s32, block: s32, instruction: s32,
-    definitions: []s32, positions: []s32, seen: []u8, queue: []s32) -> bool {
+    definitions: []s32, positions: []s32, pre: []s32, post: []s32) -> bool {
     state.diagnostic.value = value
     if !Spend(state, 1) { return false }
     if !Id(value, function.values.count) { return Fail(state, .Operand) }
@@ -587,8 +729,7 @@ Use :: (state: *State, function: LirFunction, value: s32, block: s32, instructio
         if positions[value] >= instruction { return Fail(state, .Dominance) }
         return true
     }
-    if !Reach(state, function, owner, seen, queue) { return false }
-    if seen[block] != 0 { return Fail(state, .Dominance) }
+    if pre[block] < pre[owner] || post[owner] < post[block] { return Fail(state, .Dominance) }
     return true
 }
 
@@ -598,11 +739,21 @@ Function :: (state: *State, program: LirProgram, function: LirFunction) -> bool 
     positions: Vec(s32)
     seen: Vec(u8)
     queue: Vec(s32)
-    if !Charge(state, function.values.count, 8) || !Charge(state, function.blocks.count, 5) { return false }
+    pre: Vec(s32)
+    post: Vec(s32)
+    defer VecFree(definitions)
+    defer VecFree(positions)
+    defer VecFree(seen)
+    defer VecFree(queue)
+    defer VecFree(pre)
+    defer VecFree(post)
+    if !Charge(state, function.values.count, 8) || !Charge(state, function.blocks.count, 13) { return false }
     if !VecResizeBounded(definitions, function.values.count, function.values.count) ||
         !VecResizeBounded(positions, function.values.count, function.values.count) ||
         !VecResizeBounded(seen, function.blocks.count, function.blocks.count) ||
-        !VecResizeBounded(queue, function.blocks.count, function.blocks.count) { return Fail(state, .Allocation) }
+        !VecResizeBounded(queue, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(pre, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(post, function.blocks.count, function.blocks.count) { return Fail(state, .Allocation) }
     for at: cast(s64)0..function.values.count - 1 { definitions[at] = LirNoId }
     for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
         state.diagnostic.block = block_index
@@ -663,7 +814,7 @@ Function :: (state: *State, program: LirProgram, function: LirFunction) -> bool 
         if !Spend(state, 1) { return false }
         if function.values[entry.parameters[at]] != function.parameters[at] { return Fail(state, .Calling) }
     }
-    if !Reach(state, function, LirNoId, seen[:], queue[:]) { return false }
+    if !Reach(state, function, seen[:], queue[:]) { return false }
     for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
         state.diagnostic.block = block_index
         if seen[block_index] == 0 {
@@ -673,6 +824,7 @@ Function :: (state: *State, program: LirProgram, function: LirFunction) -> bool 
             return Fail(state, .Block)
         }
     }
+    if !Dominators(state, function, pre[:], post[:]) { return false }
     for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
         state.diagnostic.block = block_index
         block := function.blocks[block_index]
@@ -681,13 +833,13 @@ Function :: (state: *State, program: LirProgram, function: LirFunction) -> bool 
             state.diagnostic.instruction = at
             state.diagnostic.origin = instruction.origin
             for value: instruction.operands {
-                if !Use(state, function, value, block_index, at, definitions[:], positions[:], seen[:], queue[:]) { return false }
+                if !Use(state, function, value, block_index, at, definitions[:], positions[:], pre[:], post[:]) { return false }
             }
             for edge: instruction.edges {
                 target := function.blocks[edge.block]
                 for index: cast(s64)0..edge.arguments.count - 1 {
                     value := edge.arguments[index]
-                    if !Use(state, function, value, block_index, at, definitions[:], positions[:], seen[:], queue[:]) { return false }
+                    if !Use(state, function, value, block_index, at, definitions[:], positions[:], pre[:], post[:]) { return false }
                     if function.values[value] != function.values[target.parameters[index]] { return Fail(state, .Edge) }
                 }
             }

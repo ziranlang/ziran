@@ -83,13 +83,34 @@ U8 :: (writer: *Writer, value: u8) {
     if writer.problem == .None && writer.output.count != 0 { writer.output[at] = value }
 }
 
+// Whole fields are placed with one bounds check; a field that does not fit
+// goes byte by byte, so the failure and its position stay exactly as before.
+Fits :: (writer: *Writer, count: s64) -> bool {
+    return writer.problem == .None && writer.at >= 0 && count <= CodecMaximumBytes - writer.at &&
+        (writer.output.count == 0 || count <= writer.output.count - writer.at)
+}
+
 U32 :: (writer: *Writer, value: u32) {
+    if Fits(writer, 4) {
+        if writer.output.count != 0 {
+            for byte: 0..3 { writer.output[writer.at + byte] = cast(u8)(value >> cast(u32)(byte * 8)) }
+        }
+        writer.at += 4
+        return
+    }
     for byte: 0..3 { U8(writer, cast(u8)(value >> cast(u32)(byte * 8))) }
 }
 
 S32 :: (writer: *Writer, value: s32) { U32(writer, cast(u32)value) }
 
 U64 :: (writer: *Writer, value: u64) {
+    if Fits(writer, 8) {
+        if writer.output.count != 0 {
+            for byte: 0..7 { writer.output[writer.at + byte] = cast(u8)(value >> cast(u64)(byte * 8)) }
+        }
+        writer.at += 8
+        return
+    }
     for byte: 0..7 { U8(writer, cast(u8)(value >> cast(u64)(byte * 8))) }
 }
 
@@ -228,8 +249,19 @@ TakeU8 :: (cursor: *Cursor) -> u8 {
     return cursor.input[at]
 }
 
+// A whole field is read with one bounds check; a truncated one goes byte by
+// byte, so the failure and its offset stay exactly as before.
+Holds :: (cursor: *Cursor, count: s64) -> bool {
+    return cursor.problem == .None && cursor.at >= 0 && cursor.at <= cursor.end && count <= cursor.end - cursor.at
+}
+
 TakeU32 :: (cursor: *Cursor) -> u32 {
     value: u32
+    if Holds(cursor, 4) {
+        for byte: 0..3 { value |= cast(u32)cursor.input[cursor.at + byte] << cast(u32)(byte * 8) }
+        cursor.at += 4
+        return value
+    }
     for byte: 0..3 { value |= cast(u32)TakeU8(cursor) << cast(u32)(byte * 8) }
     return value
 }
@@ -238,6 +270,11 @@ TakeS32 :: (cursor: *Cursor) -> s32 { return cast(s32)TakeU32(cursor) }
 
 TakeU64 :: (cursor: *Cursor) -> u64 {
     value: u64
+    if Holds(cursor, 8) {
+        for byte: 0..7 { value |= cast(u64)cursor.input[cursor.at + byte] << cast(u64)(byte * 8) }
+        cursor.at += 8
+        return value
+    }
     for byte: 0..7 { value |= cast(u64)TakeU8(cursor) << cast(u64)(byte * 8) }
     return value
 }

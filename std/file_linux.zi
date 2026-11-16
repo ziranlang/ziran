@@ -346,7 +346,8 @@ DirectoryMetadata :: struct {
     WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
     #if #defined(__APPLE__) {
         // Intel Darwin versions its 64-bit directory symbols; Apple Silicon
-        // uses their plain names. Resolve the matching ABI once per cursor.
+        // has only their plain names, with the same record. Resolve the
+        // matching ABI once per cursor, so one build serves both CPUs.
         DarwinOpenDirectory :: #type (path: *u8) -> *void #c_call;
         DarwinReadDirectory :: #type (directory: *void) -> *DirectoryMetadata #c_call;
         DarwinCloseDirectory :: #type (directory: *void) -> s32 #c_call;
@@ -377,13 +378,10 @@ DirectoryMetadata :: struct {
             search.library = DarwinLibrary(null, 2)
             valid := search.library != null
             if valid {
-                #if #defined(__x86_64__) {
-                    valid = DarwinResolve(search.library, "opendir$INODE64", cast(*void)(*search.open)) &&
-                        DarwinResolve(search.library, "readdir$INODE64", cast(*void)(*search.read))
-                } else {
-                    valid = DarwinResolve(search.library, "opendir", cast(*void)(*search.open)) &&
-                        DarwinResolve(search.library, "readdir", cast(*void)(*search.read))
-                }
+                valid = (DarwinResolve(search.library, "opendir$INODE64", cast(*void)(*search.open)) &&
+                    DarwinResolve(search.library, "readdir$INODE64", cast(*void)(*search.read))) ||
+                    (DarwinResolve(search.library, "opendir", cast(*void)(*search.open)) &&
+                    DarwinResolve(search.library, "readdir", cast(*void)(*search.read)))
                 valid = valid && DarwinResolve(search.library, "closedir", cast(*void)(*search.close))
             }
             if valid { search.directory = search.open(path); valid = search.directory != null }

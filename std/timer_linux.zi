@@ -78,15 +78,28 @@
     }
 
     ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
-    ClockSleepRaw :: (clock: s32, flags: s32, request: *ClockValue,
-        remaining: *ClockValue) -> s32 #foreign libc "clock_nanosleep";
+    #if #defined(__APPLE__) {
+        // Darwin numbers CLOCK_MONOTONIC 6 and has no clock_nanosleep;
+        // nanosleep reports EINTR through errno instead of its result.
+        MONOTONIC_CLOCK :: 6;
+        SleepRaw :: (request: *ClockValue, remaining: *ClockValue) -> s32 #foreign libc "nanosleep";
+        ErrnoRaw :: () -> *s32 #foreign libc "__error";
+        ClockSleepRaw :: (clock: s32, flags: s32, request: *ClockValue, remaining: *ClockValue) -> s32 {
+            if SleepRaw(request, remaining) == 0 { return 0 }
+            return <<ErrnoRaw()
+        }
+    } else {
+        MONOTONIC_CLOCK :: 1;
+        ClockSleepRaw :: (clock: s32, flags: s32, request: *ClockValue,
+            remaining: *ClockValue) -> s32 #foreign libc "clock_nanosleep";
+    }
 
     // Nanosecond resolution for profiling short operations. -1 reports a failed
     // clock or a value outside the signed nanosecond range.
     #program_export
     MonotonicNanoseconds :: () -> s64 {
         value: ClockValue
-        if ClockGetTimeRaw(1, *value) != 0 { return -1 }
+        if ClockGetTimeRaw(MONOTONIC_CLOCK, *value) != 0 { return -1 }
         seconds := cast(s64)value.seconds; nanoseconds := cast(s64)value.nanoseconds
         if seconds < 0 || nanoseconds < 0 || nanoseconds > 999999999 ||
         seconds > 9223372036 ||
@@ -97,7 +110,7 @@
     #program_export
     MonotonicMilliseconds :: () -> s64 {
         value: [1]ClockValue
-        if ClockGetTimeRaw(1, *value[0]) != 0 { return -1 }
+        if ClockGetTimeRaw(MONOTONIC_CLOCK, *value[0]) != 0 { return -1 }
         seconds := cast(s64)value[0].seconds; nanoseconds := cast(s64)value[0].nanoseconds
         if nanoseconds < 0 || nanoseconds > 999999999 {
             return -1
@@ -129,7 +142,7 @@
         remaining: [1]ClockValue
         request[0] = MakeClockValue(milliseconds)
         while request[0].seconds > 0 || request[0].nanoseconds > 0 {
-            status: s32 = ClockSleepRaw(1, 0, *request[0], *remaining[0])
+            status: s32 = ClockSleepRaw(MONOTONIC_CLOCK, 0, *request[0], *remaining[0])
             if status == 0 { return true }
             if status != 4 { return false }
             request[0] = remaining[0]

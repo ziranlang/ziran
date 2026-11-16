@@ -144,8 +144,11 @@ SERVICES_READY := $(SERVICES_C)/.generated
 LINK_C := $(BUILD_DIR)/compiler-link
 LINK_READY := $(LINK_C)/.generated
 endif
+# The seed's file, process and timer modules are generated per platform:
+# Darwin's copies come from the same sources with the Darwin defines.
+BOOTSTRAP_PLATFORM := $(if $(DARWIN_TARGET),bootstrap/darwin,bootstrap)
 ifeq ($(BOOTSTRAP),1)
-RUNTIME_EMIT_C := bootstrap/compiler_runtime_emit
+RUNTIME_EMIT_C := $(BOOTSTRAP_PLATFORM)/compiler_runtime_emit
 RUNTIME_EMIT_READY := $(RUNTIME_EMIT_C)/compiler_runtime_emit.c $(RUNTIME_EMIT_C)/compiler_runtime_emit.h \
     $(RUNTIME_EMIT_C)/file.c $(RUNTIME_EMIT_C)/file.h $(RUNTIME_EMIT_C)/file_linux.c $(RUNTIME_EMIT_C)/file_linux.h \
     $(RUNTIME_EMIT_C)/c_string.c $(RUNTIME_EMIT_C)/c_string.h $(RUNTIME_EMIT_C)/result.h \
@@ -164,8 +167,8 @@ endif
 override CFLAGS += -I$(IR_C) -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(PROOF_C) -I$(BUNDLE_C) -I$(LAW_C) -I$(SERVICES_C) -I$(LINK_C)
 override CFLAGS += -I$(RUNTIME_EMIT_C)
 ifeq ($(BOOTSTRAP),1)
-BACKEND_CACHE_C := bootstrap/compiler_backend_cache
-BACKEND_PROCESS_C := bootstrap/compiler_backend_process
+BACKEND_CACHE_C := $(BOOTSTRAP_PLATFORM)/compiler_backend_cache
+BACKEND_PROCESS_C := $(BOOTSTRAP_PLATFORM)/compiler_backend_process
 BACKEND_CACHE_READY := $(filter %.c %.h,$(wildcard $(BACKEND_CACHE_C)/*))
 BACKEND_PROCESS_READY := $(filter %.c %.h,$(wildcard $(BACKEND_PROCESS_C)/*))
 else
@@ -179,8 +182,9 @@ $(BACKEND_PROCESS_C)/%.c $(BACKEND_PROCESS_C)/%.h: $(BACKEND_PROCESS_C)/.generat
 	@test -f $@
 endif
 BACKEND_PROCESS_FILES := $(filter %.c %.h,$(wildcard $(BACKEND_PROCESS_C)/*))
-BACKEND_BOOTSTRAP_FILES := $(filter %.c %.h,$(wildcard bootstrap/compiler_backend_cache/*)) \
-    $(filter %.c %.h,$(wildcard bootstrap/compiler_backend_process/*))
+BACKEND_BOOTSTRAP_FILES := $(filter %.c %.h,$(wildcard $(BOOTSTRAP_PLATFORM)/compiler_backend_cache/*)) \
+    $(filter %.c %.h,$(wildcard $(BOOTSTRAP_PLATFORM)/compiler_backend_process/*)) \
+    $(filter %.c %.h,$(wildcard $(BOOTSTRAP_PLATFORM)/compiler_runtime_emit/*))
 ifeq ($(BOOTSTRAP),1)
 NATIVE_NAMES_C := bootstrap/compiler_native_names
 NATIVE_NAMES_READY := $(NATIVE_NAMES_C)/compiler_native_names.c $(NATIVE_NAMES_C)/compiler_native_names.h
@@ -571,14 +575,14 @@ $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS) forc
 
 $(RUNTIME_EMIT_C)/.generated: cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi \
     std/c_string.zi std/result.zi std/vec.zi $(BOOTSTRAP_BIN)
-	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	$(BOOTSTRAP_BIN) --no-main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    -o $(RUNTIME_EMIT_C) cmd/compiler_runtime_emit.zi
 	touch $@
 
 $(BACKEND_CACHE_C)/.generated: cmd/compiler_backend_cache.zi std/file.zi std/file_linux.zi \
     std/file_tree_linux.zi std/environment.zi std/environment_linux.zi std/c_string.zi std/vec.zi \
     std/text_tools.zi std/sort.zi std/process_run_linux.zi std/byte_text_linux.zi $(BOOTSTRAP_BIN)
-	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	$(BOOTSTRAP_BIN) --no-main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    -o $(BACKEND_CACHE_C) cmd/compiler_backend_cache.zi
 	touch $@
 
@@ -586,7 +590,7 @@ $(BACKEND_PROCESS_C)/.generated: cmd/compiler_backend_process.zi cmd/compiler_ba
     std/file.zi std/file_linux.zi std/file_tree_linux.zi std/environment.zi std/environment_linux.zi \
     std/c_string.zi std/vec.zi std/text_tools.zi std/sort.zi std/timer_linux.zi \
     std/process_run_linux.zi std/byte_text_linux.zi $(BOOTSTRAP_BIN)
-	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	$(BOOTSTRAP_BIN) --no-main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    -o $(BACKEND_PROCESS_C) cmd/compiler_backend_process.zi
 	touch $@
 
@@ -758,13 +762,25 @@ BOOTSTRAP_MODULES := scan text source declaration enum type expression statement
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse
+# Darwin's seed copies of the platform modules, generated with the defines a
+# Darwin host passes; one copy serves Apple Silicon and Intel.
+DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process
+GENERATE_DARWIN_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main \
+    --target-os macos --define __APPLE__ --define __aarch64__ --root cmd \
+    -o $(BUILD_DIR)/bootstrap-check-darwin cmd/compiler_$$module.zi
 check-bootstrap: $(BIN_DIR)/zi2c
 	@set -e; for module in $(BOOTSTRAP_MODULES); do \
 	    $(GENERATE_BOOTSTRAP); \
 	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n' | sort); do \
 	        cmp bootstrap/compiler_$$module/$$file $(BUILD_DIR)/bootstrap-check/$$file; \
 	    done; \
-	done; echo "bootstrap matches: $(BOOTSTRAP_MODULES)"
+	done; \
+	for module in $(DARWIN_BOOTSTRAP_MODULES); do \
+	    $(GENERATE_DARWIN_BOOTSTRAP); \
+	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n' | sort); do \
+	        cmp bootstrap/darwin/compiler_$$module/$$file $(BUILD_DIR)/bootstrap-check-darwin/$$file; \
+	    done; \
+	done; echo "bootstrap matches: $(BOOTSTRAP_MODULES); darwin: $(DARWIN_BOOTSTRAP_MODULES)"
 
 update-bootstrap: $(BIN_DIR)/zi2c
 	@set -e; for module in $(BOOTSTRAP_MODULES); do \
@@ -784,6 +800,13 @@ update-bootstrap: $(BIN_DIR)/zi2c
 	    esac; \
 	    for file in $$files; do \
 	        cp $(BUILD_DIR)/bootstrap-check/$$file bootstrap/compiler_$$module/; \
+	    done; \
+	done; \
+	for module in $(DARWIN_BOOTSTRAP_MODULES); do \
+	    $(GENERATE_DARWIN_BOOTSTRAP); \
+	    mkdir -p bootstrap/darwin/compiler_$$module; \
+	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n'); do \
+	        cp $(BUILD_DIR)/bootstrap-check-darwin/$$file bootstrap/darwin/compiler_$$module/; \
 	    done; \
 	done
 

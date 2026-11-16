@@ -10,19 +10,6 @@
 #include "c_string.h"
 #include "byte_text_linux.h"
 #include "sort.h"
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_StatxRaw_bab3b2e7
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_StatxRaw_bab3b2e7
-#ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output) __asm__("_statx");
-#else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output) __asm__("statx");
-#endif
-static int32_t
-zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(directory, path, flags, mask, output);
-}
-#endif
 #ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_MakeDirectoryRaw_9266eb24
 #define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_MakeDirectoryRaw_9266eb24
 #ifdef __APPLE__
@@ -88,18 +75,14 @@ zir_f_0ee210116da2a0c9_ChangeFileModeRaw(int32_t fd, uint32_t mode)
     return zir_foreign_zir_f_0ee210116da2a0c9_ChangeFileModeRaw(fd, mode);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenRaw_6d3762f4
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenRaw_6d3762f4
+#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenRaw_e4db28c4
+#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenRaw_e4db28c4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw(uint8_t* path, int32_t flags, int32_t mode) __asm__("_open");
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("_open");
 #else
-int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw(uint8_t* path, int32_t flags, int32_t mode) __asm__("open");
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("open");
 #endif
-static int32_t
-zir_f_0ee210116da2a0c9_OpenRaw(uint8_t* path, int32_t flags, int32_t mode)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw(path, flags, mode);
-}
+#define zir_f_0ee210116da2a0c9_OpenRaw zir_foreign_zir_f_0ee210116da2a0c9_OpenRaw
 #endif
 #ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_CloseRaw_d6ec0c1e
 #define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_CloseRaw_d6ec0c1e
@@ -231,19 +214,6 @@ zir_f_0ee210116da2a0c9_ProcessIdRaw(void)
     return zir_foreign_zir_f_0ee210116da2a0c9_ProcessIdRaw();
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ErrnoRaw_40ae2072
-#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ErrnoRaw_40ae2072
-#ifdef __APPLE__
-int32_t* zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw(void) __asm__("___errno_location");
-#else
-int32_t* zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw(void) __asm__("__errno_location");
-#endif
-static int32_t*
-zir_f_0ee210116da2a0c9_ErrnoRaw(void)
-{
-    return zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw();
-}
-#endif
 #ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_FreeOwnedRaw_c75930da
 #define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_FreeOwnedRaw_c75930da
 #ifdef __APPLE__
@@ -283,6 +253,32 @@ zir_f_0ee210116da2a0c9_ReadLinkRaw(uint8_t* path, uint8_t* output, size_t capaci
     return zir_foreign_zir_f_0ee210116da2a0c9_ReadLinkRaw(path, output, capacity);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_StatxRaw_bab3b2e7
+#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_StatxRaw_bab3b2e7
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output) __asm__("_statx");
+#else
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output) __asm__("statx");
+#endif
+static int32_t
+zir_f_0ee210116da2a0c9_StatxRaw(int32_t directory, uint8_t* path, int32_t flags, uint32_t mask, StatxRecord* output)
+{
+    return zir_foreign_zir_f_0ee210116da2a0c9_StatxRaw(directory, path, flags, mask, output);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ErrnoRaw_40ae2072
+#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_ErrnoRaw_40ae2072
+#ifdef __APPLE__
+int32_t* zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw(void) __asm__("___errno_location");
+#else
+int32_t* zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw(void) __asm__("__errno_location");
+#endif
+static int32_t*
+zir_f_0ee210116da2a0c9_ErrnoRaw(void)
+{
+    return zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw();
+}
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -290,12 +286,102 @@ zir_f_0ee210116da2a0c9_ReadLinkRaw(uint8_t* path, uint8_t* output, size_t capaci
 #define ZIRAN_MAYBE_UNUSED
 #endif
 #endif
+static PathKind file_tree_linux_PathKindOf(int32_t mode) ZIRAN_MAYBE_UNUSED;
+static bool file_tree_linux_ReadPathInfo(uint8_t* name, int32_t flags, PathInfo* info) ZIRAN_MAYBE_UNUSED;
 static void file_tree_linux_ReleaseOwnedText(String text) ZIRAN_MAYBE_UNUSED;
 static Text file_tree_linux_CopyText(Slice bytes) ZIRAN_MAYBE_UNUSED;
 static void file_tree_linux_ReleaseNames(__type_c53c2d7c4913dc02* names, int64_t from) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_CopyTreeNewContents(String source, String target, int32_t mode) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_CopyLink(String source, String target) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_MatchAt(String name, int64_t at, String pattern, int64_t from) ZIRAN_MAYBE_UNUSED;
+
+static PathKind
+file_tree_linux_PathKindOf(int32_t mode)
+{
+    int32_t type = (int32_t)((uint32_t)mode & 61440u);
+    if (type == 32768) {
+        return PathKind_File;
+    }
+    if (type == 16384) {
+        return PathKind_Directory;
+    }
+    if (type == 40960) {
+        return PathKind_Link;
+    }
+    return PathKind_Other;
+}
+
+static bool
+file_tree_linux_ReadPathInfo(uint8_t* name, int32_t flags, PathInfo* info)
+{
+    StatxRecord record = {0};
+    if (zir_f_0ee210116da2a0c9_StatxRaw(-100, name, flags, 2047, &(record)) != 0) {
+        return false;
+    }
+    uint32_t* value_0 = &(info->metadata_mask);
+    (*value_0) = (uint32_t)((record.words)[0]);
+    int32_t mode = (int32_t)(((uint64_t)((uint64_t)(((record.words)[3] >> 32)) & UINT64_C(65535))));
+    PathKind* value_1 = &(info->kind);
+    int32_t value_2 = mode;
+    PathKind value_3 = (PathKind)(0);
+    {
+        int32_t mode = value_2;
+        int32_t type = (int32_t)((uint32_t)mode & 61440u);
+        if (type == 32768) {
+            value_3 = PathKind_File;
+            goto value_4;
+        }
+        if (type == 16384) {
+            value_3 = PathKind_Directory;
+            goto value_4;
+        }
+        if (type == 40960) {
+            value_3 = PathKind_Link;
+            goto value_4;
+        }
+        value_3 = PathKind_Other;
+    value_4: ;
+    }
+    (*value_1) = value_3;
+    uint32_t* value_5 = &(info->owner_uid);
+    (*value_5) = (uint32_t)(((record.words)[2] >> 32));
+    int32_t* value_6 = &(info->mode);
+    (*value_6) = (int32_t)((uint32_t)mode & 4095u);
+    if (((uint32_t)((uint32_t)(info->metadata_mask) & 512u)) != 0) {
+        int64_t* value_7 = &(info->size);
+        (*value_7) = (int64_t)((record.words)[5]);
+    }
+    if (((uint32_t)((uint32_t)(info->metadata_mask) & 256u)) != 0) {
+        uint64_t* value_8 = &(info->inode);
+        (*value_8) = (record.words)[4];
+    }
+    uint32_t modified_fraction = (uint32_t)((record.words)[15]);
+    uint32_t changed_fraction = (uint32_t)((record.words)[13]);
+    if (((uint32_t)((uint32_t)(info->metadata_mask) & 64u)) != 0 && modified_fraction < 1000000000) {
+        int64_t* value_9 = &(info->modified);
+        (*value_9) = (int64_t)((record.words)[14]);
+        uint32_t* value_10 = &(info->modified_nanoseconds);
+        (*value_10) = modified_fraction;
+    }
+    if (((uint32_t)((uint32_t)(info->metadata_mask) & 128u)) != 0 && changed_fraction < 1000000000) {
+        int64_t* value_11 = &(info->changed);
+        (*value_11) = (int64_t)((record.words)[12]);
+        uint32_t* value_12 = &(info->changed_nanoseconds);
+        (*value_12) = changed_fraction;
+    }
+    uint32_t* value_13 = &(info->device_major);
+    (*value_13) = (uint32_t)((record.words)[17]);
+    uint32_t* value_14 = &(info->device_minor);
+    (*value_14) = (uint32_t)(((record.words)[17] >> 32));
+    bool* value_15 = &(info->identity_valid);
+    bool value_16 = ((uint32_t)((uint32_t)(info->metadata_mask) & 961u)) == 961;
+    if (value_16) {
+        int64_t value_17 = info->size;
+        value_16 = (value_17 >= 0LL);
+    }
+    (*value_15) = value_16 && modified_fraction < 1000000000 && changed_fraction < 1000000000;
+    return true;
+}
 
 PathQueryResult
 file_tree_linux_PathQuery(String path, bool follow_links)
@@ -313,7 +399,6 @@ file_tree_linux_PathQuery(String path, bool follow_links)
         (*value_3) = 22;
         return result;
     }
-    StatxRecord record = {0};
     int32_t value_4 = 0;
     if (follow_links) {
         value_4 = 0;
@@ -321,70 +406,20 @@ file_tree_linux_PathQuery(String path, bool follow_links)
         value_4 = 256;
     }
     int32_t flags = value_4;
-    if (zir_f_0ee210116da2a0c9_StatxRaw(-100, &(name[0]), flags, 2047, &(record)) != 0) {
-        int32_t* value_5 = &(result.error);
-        int32_t* value_6 = zir_f_0ee210116da2a0c9_ErrnoRaw();
-        (*value_5) = *(value_6);
-        bool* value_7 = &(result.missing);
-        (*value_7) = result.error == 2 || result.error == 20;
+    PathInfo info = {0};
+    bool value_5 = file_tree_linux_ReadPathInfo(&(name[0]), flags, &(info));
+    if (!value_5) {
+        int32_t* value_6 = &(result.error);
+        int32_t* value_7 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+        (*value_6) = *(value_7);
+        bool* value_8 = &(result.missing);
+        (*value_8) = result.error == 2 || result.error == 20;
         return result;
     }
-    PathInfo info = {0};
-    uint32_t* value_8 = &(info.metadata_mask);
-    (*value_8) = (uint32_t)((record.words)[0]);
-    int32_t mode = (int32_t)(((uint64_t)((uint64_t)(((record.words)[3] >> 32)) & UINT64_C(65535))));
-    int32_t type = (int32_t)((uint32_t)mode & 61440u);
-    PathKind* value_9 = &(info.kind);
-    (*value_9) = PathKind_Other;
-    if (type == 32768) {
-        PathKind* value_10 = &(info.kind);
-        (*value_10) = PathKind_File;
-    }
-    if (type == 16384) {
-        PathKind* value_11 = &(info.kind);
-        (*value_11) = PathKind_Directory;
-    }
-    if (type == 40960) {
-        PathKind* value_12 = &(info.kind);
-        (*value_12) = PathKind_Link;
-    }
-    uint32_t* value_13 = &(info.owner_uid);
-    (*value_13) = (uint32_t)(((record.words)[2] >> 32));
-    int32_t* value_14 = &(info.mode);
-    (*value_14) = (int32_t)((uint32_t)mode & 4095u);
-    if (((uint32_t)((uint32_t)(info.metadata_mask) & 512u)) != 0) {
-        int64_t* value_15 = &(info.size);
-        (*value_15) = (int64_t)((record.words)[5]);
-    }
-    if (((uint32_t)((uint32_t)(info.metadata_mask) & 256u)) != 0) {
-        uint64_t* value_16 = &(info.inode);
-        (*value_16) = (record.words)[4];
-    }
-    uint32_t modified_fraction = (uint32_t)((record.words)[15]);
-    uint32_t changed_fraction = (uint32_t)((record.words)[13]);
-    if (((uint32_t)((uint32_t)(info.metadata_mask) & 64u)) != 0 && modified_fraction < 1000000000) {
-        int64_t* value_17 = &(info.modified);
-        (*value_17) = (int64_t)((record.words)[14]);
-        uint32_t* value_18 = &(info.modified_nanoseconds);
-        (*value_18) = modified_fraction;
-    }
-    if (((uint32_t)((uint32_t)(info.metadata_mask) & 128u)) != 0 && changed_fraction < 1000000000) {
-        int64_t* value_19 = &(info.changed);
-        (*value_19) = (int64_t)((record.words)[12]);
-        uint32_t* value_20 = &(info.changed_nanoseconds);
-        (*value_20) = changed_fraction;
-    }
-    uint32_t* value_21 = &(info.device_major);
-    (*value_21) = (uint32_t)((record.words)[17]);
-    uint32_t* value_22 = &(info.device_minor);
-    (*value_22) = (uint32_t)(((record.words)[17] >> 32));
-    bool* value_23 = &(info.identity_valid);
-    bool value_24 = ((uint32_t)((uint32_t)(info.metadata_mask) & 961u)) == 961 && info.size >= 0LL && modified_fraction < 1000000000;
-    (*value_23) = value_24 && changed_fraction < 1000000000;
-    PathInfo* value_25 = &(result.info);
-    (*value_25) = info;
-    bool* value_26 = &(result.valid);
-    (*value_26) = true;
+    PathInfo* value_9 = &(result.info);
+    (*value_9) = info;
+    bool* value_10 = &(result.valid);
+    (*value_10) = true;
     return result;
 }
 
@@ -1838,7 +1873,7 @@ file_tree_linux_LockPath(String path, bool exclusive, bool wait)
     if (!value_1) {
         return -1;
     }
-    int32_t fd = zir_f_0ee210116da2a0c9_OpenRaw(&(name[0]), 525377, 420);
+    int32_t fd = zir_f_0ee210116da2a0c9_OpenRaw(&(name[0]), 525377, 420LL);
     if (fd < 0) {
         return -1;
     }

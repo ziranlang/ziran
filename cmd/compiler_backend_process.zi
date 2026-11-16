@@ -14,9 +14,18 @@ WorkerMaximum :: 16
 ArgumentMaximum :: 1024
 TextMaximum :: 4096
 LockReadWrite :: 2
-LockCreate :: 64
-LockCloseOnExec :: 131072
-LockNoFollow :: 262144
+// Darwin numbers its open flags and sysconf names differently.
+#if #defined(__APPLE__) {
+    LockCreate :: 512
+    LockCloseOnExec :: 16777216
+    LockNoFollow :: 256
+    ProcessorsOnline :: 58
+} else {
+    LockCreate :: 64
+    LockCloseOnExec :: 131072
+    LockNoFollow :: 262144
+    ProcessorsOnline :: 84
+}
 AffinityBytes :: 128
 Job :: struct {
     process: s32
@@ -34,7 +43,7 @@ PendingOutput :: struct {
     output: Vectors.Vec(u8)
 }
 WorkerLimit :: () -> s32 {
-    online := SysconfByName(84)
+    online := SysconfByName(ProcessorsOnline)
     affinity := AffinityCpus()
     cpus := ifx affinity > 0 && (online <= 0 || affinity < online) then affinity else online
     workers := ifx cpus > 1 then cpus / 2 else 1
@@ -752,16 +761,21 @@ DiagnosticSpan :: struct {
 }
 
 AffinityCpus :: () -> s64 {
-    online := SysconfByName(84)
-    mask: [AffinityBytes]u8
-    if SchedGetAffinity(0, AffinityBytes, *mask[0]) != 0 { return online }
-    count: s64 = 0
-    for byte: mask {
-        for bit: 0..7 {
-            if (byte & (cast(u8)1 << cast(u8)bit)) != 0 { count += 1 }
+    online := SysconfByName(ProcessorsOnline)
+    // Darwin has no CPU affinity masks.
+    #if #defined(__APPLE__) {
+        return online
+    } else {
+        mask: [AffinityBytes]u8
+        if SchedGetAffinity(0, AffinityBytes, *mask[0]) != 0 { return online }
+        count: s64 = 0
+        for byte: mask {
+            for bit: 0..7 {
+                if (byte & (cast(u8)1 << cast(u8)bit)) != 0 { count += 1 }
+            }
         }
+        return count
     }
-    return count
 }
 
 AvailableMemory :: () -> s64 {
@@ -818,20 +832,26 @@ libc :: #system_library "libc";
 compiler :: #system_library "ziran";
 
 SysconfByName :: (name: s32) -> s64 #foreign libc "sysconf";
-SchedGetAffinity :: (process: s32, size: usize, mask: *u8) -> s32 #foreign libc "sched_getaffinity";
+#if !#defined(__APPLE__) {
+    SchedGetAffinity :: (process: s32, size: usize, mask: *u8) -> s32 #foreign libc "sched_getaffinity";
+}
 OpenReadFile :: (path: *u8) -> s32 #foreign libc "open";
 CloseDescriptor :: (descriptor: s32) -> s32 #foreign libc "close";
 ReadDescriptor :: (descriptor: s32, output: *u8, count: usize) -> s64 #foreign libc "read";
 MakeDirectory :: (path: *u8, mode: s32) -> s32 #foreign libc "mkdir";
-OpenLock :: (path: *u8, flags: s32, mode: u32) -> s32 #foreign libc "open";
+OpenLock :: (path: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "open";
 FlockLock :: (descriptor: s32, operation: s32) -> s32 #foreign libc "flock";
 PipeRaw :: (fds: *s32) -> s32 #foreign libc "pipe";
-FcntlCloexec :: (descriptor: s32, command: s32, value: s32) -> s32 #foreign libc "fcntl";
+FcntlCloexec :: (descriptor: s32, command: s32, value: ..any) -> s32 #foreign libc "fcntl";
 ForkRaw :: () -> s32 #foreign libc "fork";
 DupRaw :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
 ExitChild :: (code: s32) -> void #foreign libc "_exit";
 WaitRaw :: (process: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
-ErrnoLocation :: () -> *s32 #foreign libc "__errno_location";
+#if #defined(__APPLE__) {
+    ErrnoLocation :: () -> *s32 #foreign libc "__error";
+} else {
+    ErrnoLocation :: () -> *s32 #foreign libc "__errno_location";
+}
 AllocateRaw :: (count: usize, size: usize) -> *void #foreign libc "calloc";
 FreeRaw :: (memory: *void) #foreign libc "free";
 FlushStreams :: (file: *void) -> s32 #foreign libc "fflush";

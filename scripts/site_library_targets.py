@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure an ordinary library's manifest-defined entries on desktop C, Go and ZX.
+"""Measure an ordinary library's manifest-defined entries on desktop C, Go and native ZX.
 
 Library behavior and host bindings stay upstream. Publish the exact checked IR,
 generated files, source fixtures and raw samples, without adding compiler cases.
@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import html
 import json
 from pathlib import Path
+import platform
 import re
 import shutil
 import statistics
@@ -24,6 +25,10 @@ MARKER = 'library_matrix'
 
 def public(path):
     return platforms.public(path)
+
+
+def loadavg():
+    return Path('/proc/loadavg').read_text().split()[:3]
 
 
 def archive(directory, output):
@@ -80,6 +85,7 @@ def build(project, manifest_path, samples, revision=None):
             'dirty_inputs': False if revision else
                 bool(run(['git', 'status', '--porcelain', '--', 'src', 'tests', 'ziran.toml', 'ziran.lock'])),
             'measured_at': datetime.now(timezone.utc).isoformat(), 'host': base.cpu_name(),
+            'hostname': platform.node(), 'loadavg_before': loadavg(),
             'versions': {'cc': run(['cc', '--version']).splitlines()[0], 'go': run(['go', 'version'])},
             'methodology': manifest['methodology'] + ' Symmetric 1.5×IQR filtering excludes outliers from the median; raw samples and excluded indices are retained.', 'samples': samples,
             'sources': archive(source_dir, OUTPUT / 'sources.zip'),
@@ -94,7 +100,12 @@ def build(project, manifest_path, samples, revision=None):
                           ['scripts/site_library_targets.py', 'scripts/site_target_platforms.py', 'scripts/benchmark_samples.py',
                            'bench/site_target_host.c', 'bench/site_target_host.go']}, 'examples': []}
     runner = WORK / 'zx-runner'
+    # The runner's Auto policy runs ZX as native code on Linux x86-64 and
+    # AArch64; a native gap fails instantiation and never falls back to the
+    # instruction engine, so a completed measurement is a native one.
+    assert platform.system() == 'Linux' and platform.machine() in ('x86_64', 'aarch64'), 'native ZX needs Linux x86-64 or AArch64'
     platforms.runtime_build('cc', base.REPO / 'build/libziran.a', runner)
+    data['zx_backend'] = 'native'
     for case in manifest['cases']:
         row = {**case, 'module': module, 'stdout': '', 'targets': {}}
         entry = f'{module}:{case["entry"]}'
@@ -137,9 +148,10 @@ def build(project, manifest_path, samples, revision=None):
             cell['download'] = archive(public_dir, OUTPUT / case['id'] / (target + '.zip')) if target != 'zx' else emitted[0]
         data['examples'].append(row)
     assert data['compiler']['library_sha256'] == base.sha(base.REPO / 'build/libziran.a'), 'Runtime changed during measurement'
+    data['loadavg_after'] = loadavg()
     (OUTPUT / 'matrix.json').write_text(json.dumps(data, indent=2) + '\n')
     render(data, write=True)
-    print(f'{len(data["examples"])} library entries: C, Go and portable ZX executed; every batch verified')
+    print(f'{len(data["examples"])} library entries: C, Go and native ZX executed; every batch verified')
 
 
 def render(data, write=False):
@@ -149,7 +161,7 @@ def render(data, write=False):
                         f'<span class="matrix-state is-ok">Verified</span><strong class="matrix-value">'
                         f'{base.format_time(cell["measurement"]["execution_ms"])}</strong></a></td>' for cell in row['targets'].values())
         rows.append(f'<tr><th scope="row">{html.escape(row["title"])}</th>{cells}</tr>')
-    content = '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Desktop widget comparison"><table class="target-matrix library-matrix"><caption class="sr-only">Desktop widget scenarios compiled to C, Go and portable ZX</caption><thead><tr><th scope="col">Two-frame scenario</th><th scope="col">C<small>cc -O2</small></th><th scope="col">Go<small>native</small></th><th scope="col">ZX<small>portable VM</small></th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
+    content = '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Desktop widget comparison"><table class="target-matrix library-matrix"><caption class="sr-only">Desktop widget scenarios compiled to C, Go and ZX run as native code</caption><thead><tr><th scope="col">Two-frame scenario</th><th scope="col">C<small>cc -O2</small></th><th scope="col">Go<small>native</small></th><th scope="col">ZX<small>native</small></th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
     page = base.SITE / 'targets.html'
     original = page.read_text()
     result = re.sub(r'(?s)(<!-- generated:' + MARKER + r' -->).*?(<!-- /generated:' + MARKER + r' -->)', lambda m: m[1] + '\n' + content + '\n' + m[2], original)
@@ -161,7 +173,7 @@ def render(data, write=False):
 
 def check():
     data = json.loads((OUTPUT / 'matrix.json').read_text())
-    assert data['schema_version'] == 1 and data['samples'] >= 3
+    assert data['schema_version'] == 1 and data['samples'] >= 3 and data.get('zx_backend') == 'native'
     for name, digest in data['harnesses'].items():
         assert base.sha(base.REPO / name) == digest, f'Stale library harness: {name}'
     files = [data['sources'], data['checked_ir']]

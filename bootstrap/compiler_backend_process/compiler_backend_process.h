@@ -27,6 +27,7 @@ extern "C" {
 #define LockCreate 64
 #define LockCloseOnExec 131072
 #define LockNoFollow 262144
+#define ProcessorsOnline 84
 #define AffinityBytes 128
 #define ToolLogMaximum 4095
 #ifndef ZIRAN_CONCRETE_FORWARD___type_838711075b90279a
@@ -36,7 +37,7 @@ typedef struct __type_838711075b90279a __type_838711075b90279a;
 typedef struct Job Job;
 typedef struct SlotOutput SlotOutput;
 typedef struct PendingOutput PendingOutput;
-typedef struct zir_8a167d86ad221008_Results__string__bool zir_8a167d86ad221008_Results__string__bool;
+typedef struct zir_e4358493ea4607d1_Results__string__bool zir_e4358493ea4607d1_Results__string__bool;
 typedef struct Results__pu8__bool Results__pu8__bool;
 typedef struct DiagnosticSpan DiagnosticSpan;
 typedef struct PollRecord PollRecord;
@@ -82,7 +83,7 @@ struct PendingOutput {
     __type_838711075b90279a output;
 };
 
-struct zir_8a167d86ad221008_Results__string__bool {
+struct zir_e4358493ea4607d1_Results__string__bool {
     String value_0;
     bool value_1;
 };
@@ -142,7 +143,7 @@ struct __type_6f55d821d15c8cbf {
     int64_t capacity;
 };
 #endif
-extern __type_c53c2d7c4913dc02 zir_g_b176900cac1241ec;
+extern __type_c53c2d7c4913dc02 zir_g_45df0357d1607758;
 #ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_SysconfByName_6b580cc2
 #define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_SysconfByName_6b580cc2
 #ifdef __APPLE__
@@ -221,18 +222,14 @@ zir_f_1cd1ecb166af98b1_MakeDirectory(uint8_t* path, int32_t mode)
     return zir_foreign_zir_f_1cd1ecb166af98b1_MakeDirectory(path, mode);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_OpenLock_a91c4ec7
-#define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_OpenLock_a91c4ec7
+#ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_OpenLock_e4db28c4
+#define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_OpenLock_e4db28c4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_1cd1ecb166af98b1_OpenLock(uint8_t* path, int32_t flags, uint32_t mode) __asm__("_open");
+int32_t zir_foreign_zir_f_1cd1ecb166af98b1_OpenLock(uint8_t* path, int32_t flags, ...) __asm__("_open");
 #else
-int32_t zir_foreign_zir_f_1cd1ecb166af98b1_OpenLock(uint8_t* path, int32_t flags, uint32_t mode) __asm__("open");
+int32_t zir_foreign_zir_f_1cd1ecb166af98b1_OpenLock(uint8_t* path, int32_t flags, ...) __asm__("open");
 #endif
-static int32_t
-zir_f_1cd1ecb166af98b1_OpenLock(uint8_t* path, int32_t flags, uint32_t mode)
-{
-    return zir_foreign_zir_f_1cd1ecb166af98b1_OpenLock(path, flags, mode);
-}
+#define zir_f_1cd1ecb166af98b1_OpenLock zir_foreign_zir_f_1cd1ecb166af98b1_OpenLock
 #endif
 #ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_FlockLock_d74aed45
 #define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_FlockLock_d74aed45
@@ -260,18 +257,14 @@ zir_f_1cd1ecb166af98b1_PipeRaw(int32_t* fds)
     return zir_foreign_zir_f_1cd1ecb166af98b1_PipeRaw(fds);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_FcntlCloexec_deab14bf
-#define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_FcntlCloexec_deab14bf
+#ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_FcntlCloexec_b27e2197
+#define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_FcntlCloexec_b27e2197
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_1cd1ecb166af98b1_FcntlCloexec(int32_t descriptor, int32_t command, int32_t value) __asm__("_fcntl");
+int32_t zir_foreign_zir_f_1cd1ecb166af98b1_FcntlCloexec(int32_t descriptor, int32_t command, ...) __asm__("_fcntl");
 #else
-int32_t zir_foreign_zir_f_1cd1ecb166af98b1_FcntlCloexec(int32_t descriptor, int32_t command, int32_t value) __asm__("fcntl");
+int32_t zir_foreign_zir_f_1cd1ecb166af98b1_FcntlCloexec(int32_t descriptor, int32_t command, ...) __asm__("fcntl");
 #endif
-static int32_t
-zir_f_1cd1ecb166af98b1_FcntlCloexec(int32_t descriptor, int32_t command, int32_t value)
-{
-    return zir_foreign_zir_f_1cd1ecb166af98b1_FcntlCloexec(descriptor, command, value);
-}
+#define zir_f_1cd1ecb166af98b1_FcntlCloexec zir_foreign_zir_f_1cd1ecb166af98b1_FcntlCloexec
 #endif
 #ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_ForkRaw_b09b1e28
 #define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_ForkRaw_b09b1e28
@@ -543,8 +536,8 @@ bool compiler_backend_process_TextStartsWith(String value, String prefix);
 bool compiler_backend_process_TextEndsWith(String value, String suffix);
 bool compiler_backend_process_TextContains(String value, String piece);
 String compiler_backend_process_PathName(String value);
-zir_8a167d86ad221008_Results__string__bool compiler_backend_process_PathJoin(String left, String right);
-zir_8a167d86ad221008_Results__string__bool compiler_backend_process_PathSuffix(String value, String suffix);
+zir_e4358493ea4607d1_Results__string__bool compiler_backend_process_PathJoin(String left, String right);
+zir_e4358493ea4607d1_Results__string__bool compiler_backend_process_PathSuffix(String value, String suffix);
 void compiler_backend_process_ReleaseOwnedText(String value);
 uint8_t* compiler_backend_process_AllocateText(String value);
 String compiler_backend_process_CText(uint8_t* value);

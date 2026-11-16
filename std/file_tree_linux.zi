@@ -12,7 +12,7 @@
 //
 // PathStatus reads a path's kind, owner, permission bits, size and modification
 // time with statx, whose record has one layout on every little-endian Linux
-// architecture.
+// architecture, or on Darwin with fstatat's 64-bit-inode record.
 #import "c_string"
 #import "byte_text_linux"
 #import "sort"
@@ -21,13 +21,12 @@ using Vectors :: #import "vec"
 
 #scope_file
 libc :: #system_library "libc";
-StatxRaw :: (directory: s32, path: *u8, flags: s32, mask: u32, output: *StatxRecord) -> s32 #foreign libc "statx";
 MakeDirectoryRaw :: (path: *u8, mode: u32) -> s32 #foreign libc "mkdir";
 RemoveDirectoryRaw :: (path: *u8) -> s32 #foreign libc "rmdir";
 UnlinkRaw :: (path: *u8) -> s32 #foreign libc "unlink";
 ChangeModeRaw :: (path: *u8, mode: u32) -> s32 #foreign libc "chmod";
 ChangeFileModeRaw :: (fd: s32, mode: u32) -> s32 #foreign libc "fchmod";
-OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 #foreign libc "open";
+OpenRaw :: (path: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "open";
 CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
 FlockRaw :: (fd: s32, operation: s32) -> s32 #foreign libc "flock";
 FsyncRaw :: (fd: s32) -> s32 #foreign libc "fsync";
@@ -38,18 +37,142 @@ TemporaryDirectoryRaw :: (template: *u8) -> *u8 #foreign libc "mkdtemp";
 EffectiveUserRaw :: () -> u32 #foreign libc "geteuid";
 WorkingDirectoryRaw :: (output: *u8, size: usize) -> *u8 #foreign libc "getcwd";
 ProcessIdRaw :: () -> s32 #foreign libc "getpid";
-ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
 FreeOwnedRaw :: (memory: *void) #foreign libc "free";
 SymbolicLinkRaw :: (target: *u8, path: *u8) -> s32 #foreign libc "symlink";
 ReadLinkRaw :: (path: *u8, output: *u8, capacity: usize) -> isize #foreign libc "readlink";
 
-StatxRecord :: struct { words: [32]u64 }
-
-CURRENT_DIRECTORY :: -100;
-NO_FOLLOW :: 256;
-BASIC_STATS :: 2047;
+#if #defined(__APPLE__) {
+    ErrnoRaw :: () -> *s32 #foreign libc "__error";
+    // Darwin's stat record with 64-bit inodes: Intel exports it under the
+    // $INODE64 symbol names, Apple Silicon under the plain ones.
+    StatRecord :: struct {
+        device: s32
+        mode: u16
+        links: u16
+        inode: u64
+        owner_uid: u32
+        group_id: u32
+        special_device: s32
+        padding: s32
+        accessed: s64
+        accessed_nanoseconds: s64
+        modified: s64
+        modified_nanoseconds: s64
+        changed: s64
+        changed_nanoseconds: s64
+        born: s64
+        born_nanoseconds: s64
+        size: s64
+        blocks: s64
+        block_size: s32
+        flags: u32
+        generation: u32
+        spare: s32
+        reserved: [8]s64
+    }
+    StatAt :: #type (directory: s32, path: *u8, output: *StatRecord, flags: s32) -> s32 #c_call;
+    StatEntry :: struct { call: StatAt }
+    LibraryRaw :: (path: *u8, flags: s32) -> *void #foreign libc "dlopen";
+    SymbolRaw :: (library: *void, name: *u8) -> *void #foreign libc "dlsym";
+    CopyBytesRaw :: (output: *void, value: *void, count: usize) -> *void #foreign libc "memcpy";
+    StatAtRaw :: (directory: s32, path: *u8, output: *StatRecord, flags: s32) -> s32 {
+        library := LibraryRaw(null, 2)
+        if library == null { return -1 }
+        names := string.["fstatat$INODE64", "fstatat"]
+        for candidate: names {
+            bytes: [32]u8
+            if !CopyCString(candidate, bytes[:]) { return -1 }
+            symbol := SymbolRaw(library, *bytes[0])
+            if symbol != null {
+                entry: StatEntry
+                unused CopyBytesRaw(cast(*void)(*entry.call), cast(*void)(*symbol), size_of(*void))
+                return entry.call(directory, path, output, flags)
+            }
+        }
+        return -1
+    }
+    CURRENT_DIRECTORY :: -2;
+    NO_FOLLOW :: 32;
+    WRITE_TRUNCATE :: 1537;
+    WRITE_APPEND :: 521;
+    CLOSE_ON_EXEC :: 16777216;
+} else {
+    StatxRaw :: (directory: s32, path: *u8, flags: s32, mask: u32, output: *StatxRecord) -> s32 #foreign libc "statx";
+    ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
+    StatxRecord :: struct { words: [32]u64 }
+    CURRENT_DIRECTORY :: -100;
+    NO_FOLLOW :: 256;
+    BASIC_STATS :: 2047;
+    WRITE_TRUNCATE :: 577;
+    WRITE_APPEND :: 1089;
+    CLOSE_ON_EXEC :: 524288;
+}
 EXISTS :: 17;
 INTERRUPTED :: 4;
+
+PathKindOf :: (mode: s32) -> PathKind {
+    type := mode & 61440
+    if type == 32768 { return .File }
+    if type == 16384 { return .Directory }
+    if type == 40960 { return .Link }
+    return .Other
+}
+
+#if #defined(__APPLE__) {
+    ReadPathInfo :: (name: *u8, flags: s32, info: *PathInfo) -> bool {
+        record: StatRecord
+        if StatAtRaw(CURRENT_DIRECTORY, name, *record, flags) != 0 { return false }
+        mode := cast(s32)record.mode
+        info.kind = PathKindOf(mode)
+        info.owner_uid = record.owner_uid
+        info.mode = mode & 4095
+        info.size = record.size
+        info.inode = record.inode
+        // Darwin always fills the basic fields, so report statx's basic mask.
+        info.metadata_mask = 2047
+        valid_times := record.modified_nanoseconds >= 0 && record.modified_nanoseconds < 1000000000 &&
+            record.changed_nanoseconds >= 0 && record.changed_nanoseconds < 1000000000
+        if valid_times {
+            info.modified = record.modified
+            info.modified_nanoseconds = cast(u32)record.modified_nanoseconds
+            info.changed = record.changed
+            info.changed_nanoseconds = cast(u32)record.changed_nanoseconds
+        }
+        device := cast(u32)record.device
+        info.device_major = (device >> 24) & 255
+        info.device_minor = device & 16777215
+        info.identity_valid = valid_times && info.size >= 0
+        return true
+    }
+} else {
+    ReadPathInfo :: (name: *u8, flags: s32, info: *PathInfo) -> bool {
+        record: StatxRecord
+        if StatxRaw(CURRENT_DIRECTORY, name, flags, BASIC_STATS, *record) != 0 { return false }
+        info.metadata_mask = cast(u32)record.words[0]
+        mode := cast(s32)((record.words[3] >> 32) & 65535)
+        info.kind = PathKindOf(mode)
+        info.owner_uid = cast(u32)(record.words[2] >> 32)
+        info.mode = mode & 4095
+        if (info.metadata_mask & 512) != 0 { info.size = cast(s64)record.words[5] }
+        if (info.metadata_mask & 256) != 0 { info.inode = record.words[4] }
+        modified_fraction := cast(u32)record.words[15]
+        changed_fraction := cast(u32)record.words[13]
+        if (info.metadata_mask & 64) != 0 && modified_fraction < 1000000000 {
+            info.modified = cast(s64)record.words[14]
+            info.modified_nanoseconds = modified_fraction
+        }
+        if (info.metadata_mask & 128) != 0 && changed_fraction < 1000000000 {
+            info.changed = cast(s64)record.words[12]
+            info.changed_nanoseconds = changed_fraction
+        }
+        // Device identifiers are statx stx_dev fields (not the rdev fields).
+        info.device_major = cast(u32)record.words[17]
+        info.device_minor = cast(u32)(record.words[17] >> 32)
+        info.identity_valid = (info.metadata_mask & 961) == 961 && info.size >= 0 &&
+            modified_fraction < 1000000000 && changed_fraction < 1000000000
+        return true
+    }
+}
 
 #scope_export
 PathKind :: enum u8 { Missing :: 0; File :: 1; Directory :: 2; Link :: 3; Other :: 4; }
@@ -93,40 +216,13 @@ PathQuery :: (path: string, follow_links: bool = true) -> PathQueryResult {
         result.error = 22 // EINVAL
         return result
     }
-    record: StatxRecord
     flags: s32 = ifx follow_links then 0 else NO_FOLLOW
-    if StatxRaw(CURRENT_DIRECTORY, *name[0], flags, BASIC_STATS, *record) != 0 {
+    info: PathInfo
+    if !ReadPathInfo(*name[0], flags, *info) {
         result.error = <<ErrnoRaw()
         result.missing = result.error == 2 || result.error == 20 // ENOENT / ENOTDIR
         return result
     }
-    info: PathInfo
-    info.metadata_mask = cast(u32)record.words[0]
-    mode := cast(s32)((record.words[3] >> 32) & 65535)
-    type := mode & 61440
-    info.kind = .Other
-    if type == 32768 { info.kind = .File }
-    if type == 16384 { info.kind = .Directory }
-    if type == 40960 { info.kind = .Link }
-    info.owner_uid = cast(u32)(record.words[2] >> 32)
-    info.mode = mode & 4095
-    if (info.metadata_mask & 512) != 0 { info.size = cast(s64)record.words[5] }
-    if (info.metadata_mask & 256) != 0 { info.inode = record.words[4] }
-    modified_fraction := cast(u32)record.words[15]
-    changed_fraction := cast(u32)record.words[13]
-    if (info.metadata_mask & 64) != 0 && modified_fraction < 1000000000 {
-        info.modified = cast(s64)record.words[14]
-        info.modified_nanoseconds = modified_fraction
-    }
-    if (info.metadata_mask & 128) != 0 && changed_fraction < 1000000000 {
-        info.changed = cast(s64)record.words[12]
-        info.changed_nanoseconds = changed_fraction
-    }
-    // Device identifiers are statx stx_dev fields (not the rdev fields).
-    info.device_major = cast(u32)record.words[17]
-    info.device_minor = cast(u32)(record.words[17] >> 32)
-    info.identity_valid = (info.metadata_mask & 961) == 961 && info.size >= 0 &&
-        modified_fraction < 1000000000 && changed_fraction < 1000000000
     result.info = info
     result.valid = true
     return result
@@ -526,7 +622,7 @@ ReplaceFile :: (path: string, text: string) -> bool {
     final: [4096]u8
     if !CopyCString(temporary, name[:]) || !CopyCString(path, final[:]) { return false }
     mode: s32 = ifx previous.kind == .File then previous.mode else 420
-    fd := OpenRaw(*name[0], 577 | 524288, mode)
+    fd := OpenRaw(*name[0], WRITE_TRUNCATE | CLOSE_ON_EXEC, mode)
     if fd < 0 { return false }
     chunk: [65536]u8
     written: s64 = 0
@@ -557,7 +653,7 @@ ReplaceFile :: (path: string, text: string) -> bool {
 LockPath :: (path: string, exclusive: bool = true, wait: bool = true) -> s32 {
     name: [4096]u8
     if !CopyCString(path, name[:]) { return -1 }
-    fd := OpenRaw(*name[0], 1 | 64 | 1024 | 524288, 420)
+    fd := OpenRaw(*name[0], WRITE_APPEND | CLOSE_ON_EXEC, 420)
     if fd < 0 { return -1 }
     operation: s32 = ifx exclusive then 2 else 1
     if !wait { operation |= 4 }

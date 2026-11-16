@@ -143,7 +143,9 @@ jobs:
       - name: Test every backend from source and saved IR with the current compiler
         working-directory: package
         run: |
-          sh "$GITHUB_WORKSPACE/scripts/test_native_package.sh" \
+          "$GITHUB_WORKSPACE/build/bin/ziran" run --target=c \
+            --root "$GITHUB_WORKSPACE/scripts" --module-path "$GITHUB_WORKSPACE/tests" \
+            "$GITHUB_WORKSPACE/scripts/test_native_package.zi" -- \
             --ziran "$GITHUB_WORKSPACE/build/bin/ziran" \
             --tools "$GITHUB_WORKSPACE/build/bin" \
             --source "tests/${{ matrix.package }}_test.zi" \

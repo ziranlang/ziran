@@ -12,10 +12,16 @@
 extern "C" {
 #endif
 #ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
-#define CLOSE_ON_EXEC 524288
+#define zir_d_2d0217dcdaf8a169 524288
 #endif
 #ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
-#define zir_d_f22e9a1471997af5 4
+#define zir_d_d5d6994db6c75d28 577
+#endif
+#ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
+#define zir_d_2e3bcc0fa2017199 1089
+#endif
+#ifdef ZIRAN_PROCESS_RUN_LINUX_H_PRIVATE
+#define zir_d_ed0a0fdef7fd3c5a 4
 #endif
 typedef struct ProcessArgumentSlot ProcessArgumentSlot;
 typedef struct ProcessOptions ProcessOptions;

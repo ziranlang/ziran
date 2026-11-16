@@ -186,8 +186,14 @@ CodecCases :: () -> s32 {
     read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
     if read.problem != .Feature { return Fail(18, cast(s32)read.problem) }
     VecFree(mutation)
+    // Header flag bit 0 records a --checks build; any other bit is refused.
     mutation = CopyBytes(canonical[:])
     mutation[24] = 1
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .None || !Serial.LirReadProgram(*owner).checks { return Fail(36, cast(s32)read.problem) }
+    VecFree(mutation)
+    mutation = CopyBytes(canonical[:])
+    mutation[24] = 2
     read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
     if read.problem != .Flags { return Fail(19, cast(s32)read.problem) }
     VecFree(mutation)

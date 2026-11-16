@@ -33,7 +33,7 @@ usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2c [--no-main] [--prune-stale] "
-            "[--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] "
+            "[--checks] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] "
             "[--diagnostics=text|json] [--module-path DIR] [--define NAME] "
             "[--target-os linux|windows|macos|android|web|none] "
             "[--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n");
@@ -304,6 +304,7 @@ main(int argc, char **argv)
     int no_main = 0;
     int exe = 0;
     int release = 0;
+    int checks = 0;
     int output_lock = -1;
     int check_ok;
     int result = 1;
@@ -346,6 +347,7 @@ main(int argc, char **argv)
         COMMAND_FLAG("--no-main", no_main),
         COMMAND_FLAG("--exe", exe),
         COMMAND_FLAG("--release", release),
+        COMMAND_FLAG("--checks", checks),
     };
     first_file = ReadCommandOptions(argc, argv, options,
                                     sizeof(options) / sizeof(*options));
@@ -402,6 +404,7 @@ main(int argc, char **argv)
                                 (const char *const *)(argv + first_file),
                                 argc - first_file))
         return 1;
+    if(checks) CommandEnableChecks(&set);
     file_count = set.count;
     progs = set.programs;
     check_ok = CheckCanonicalPrograms(progs, file_count,

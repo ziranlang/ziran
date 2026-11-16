@@ -34216,48 +34216,50 @@ AssemblyLower(ZirProgram* source, uint8_t* module_name, uint8_t* function_name)
         }
         int32_t* value_62 = &(program->result.version);
         (*value_62) = 4;
+        bool* value_63 = &(program->result.checks);
+        (*value_63) = program->source->checks != 0;
         SliceParts* module_parts = (SliceParts*)(&(program->result.modules));
-        void** value_63 = &(module_parts->data);
-        (*value_63) = (void*)(program->modules.data);
-        int64_t* value_64 = &(module_parts->length);
-        (*value_64) = (int64_t)(program->modules.count);
+        void** value_64 = &(module_parts->data);
+        (*value_64) = (void*)(program->modules.data);
+        int64_t* value_65 = &(module_parts->length);
+        (*value_65) = (int64_t)(program->modules.count);
         SliceParts* source_parts = (SliceParts*)(&(program->result.sources));
-        void** value_65 = &(source_parts->data);
-        (*value_65) = (void*)(program->sources.data);
-        int64_t* value_66 = &(source_parts->length);
-        (*value_66) = (int64_t)(program->sources.count);
+        void** value_66 = &(source_parts->data);
+        (*value_66) = (void*)(program->sources.data);
+        int64_t* value_67 = &(source_parts->length);
+        (*value_67) = (int64_t)(program->sources.count);
         SliceParts* type_parts = (SliceParts*)(&(program->result.types));
-        void** value_67 = &(type_parts->data);
-        (*value_67) = (void*)(program->types.data);
-        int64_t* value_68 = &(type_parts->length);
-        (*value_68) = (int64_t)(program->types.count);
+        void** value_68 = &(type_parts->data);
+        (*value_68) = (void*)(program->types.data);
+        int64_t* value_69 = &(type_parts->length);
+        (*value_69) = (int64_t)(program->types.count);
         SliceParts* constant_parts = (SliceParts*)(&(program->result.constants));
-        void** value_69 = &(constant_parts->data);
-        (*value_69) = (void*)(program->constants.data);
-        int64_t* value_70 = &(constant_parts->length);
-        (*value_70) = (int64_t)(program->constants.count);
+        void** value_70 = &(constant_parts->data);
+        (*value_70) = (void*)(program->constants.data);
+        int64_t* value_71 = &(constant_parts->length);
+        (*value_71) = (int64_t)(program->constants.count);
         SliceParts* global_parts = (SliceParts*)(&(program->result.globals));
-        void** value_71 = &(global_parts->data);
-        (*value_71) = (void*)(globals);
-        int64_t* value_72 = &(global_parts->length);
-        (*value_72) = (int64_t)(program->globals.count);
+        void** value_72 = &(global_parts->data);
+        (*value_72) = (void*)(globals);
+        int64_t* value_73 = &(global_parts->length);
+        (*value_73) = (int64_t)(program->globals.count);
         SliceParts* function_parts = (SliceParts*)(&(program->result.functions));
-        void** value_73 = &(function_parts->data);
-        (*value_73) = (void*)(functions);
-        int64_t* value_74 = &(function_parts->length);
-        (*value_74) = (int64_t)(program->functions.count);
+        void** value_74 = &(function_parts->data);
+        (*value_74) = (void*)(functions);
+        int64_t* value_75 = &(function_parts->length);
+        (*value_75) = (int64_t)(program->functions.count);
         SliceParts* origin_parts = (SliceParts*)(&(program->result.origins));
-        void** value_75 = &(origin_parts->data);
-        (*value_75) = (void*)(program->origins.data);
-        int64_t* value_76 = &(origin_parts->length);
-        (*value_76) = (int64_t)(program->origins.count);
+        void** value_76 = &(origin_parts->data);
+        (*value_76) = (void*)(program->origins.data);
+        int64_t* value_77 = &(origin_parts->length);
+        (*value_77) = (int64_t)(program->origins.count);
         SliceParts* initializer_parts = (SliceParts*)(&(program->result.initializers));
-        void** value_77 = &(initializer_parts->data);
-        (*value_77) = (void*)(initializers.data);
-        int64_t* value_78 = &(initializer_parts->length);
-        (*value_78) = (int64_t)(initializers.count);
-        int32_t* value_79 = &(program->result.entry);
-        (*value_79) = 0;
+        void** value_78 = &(initializer_parts->data);
+        (*value_78) = (void*)(initializers.data);
+        int64_t* value_79 = &(initializer_parts->length);
+        (*value_79) = (int64_t)(initializers.count);
+        int32_t* value_80 = &(program->result.entry);
+        (*value_80) = 0;
     }
     if (program->failed != 0) {
         AssemblyFree(program);
@@ -34988,13 +34990,17 @@ AssemblyPrintLir(LirProgram* view, void* output)
     void* value_1 = output;
     compiler_zir_lower_PrintText(value_1, compiler_services_Keep(StringLiteral(" entry @")));
     compiler_zir_lower_PrintSigned(output, (int64_t)(view->entry));
+    if (view->checks) {
+        void* value_2 = output;
+        compiler_zir_lower_PrintText(value_2, compiler_services_Keep(StringLiteral(" checks")));
+    }
     zir_f_0fe5ce4064831140_fputc_raw(10, output);
     int64_t index = 0LL;
     while (true) {
-        int64_t value_2 = (int64_t)(view->modules).length;
-        if (!(index < value_2)) { break; }
-        void* value_3 = output;
-        compiler_zir_lower_PrintText(value_3, compiler_services_Keep(StringLiteral("module m")));
+        int64_t value_3 = (int64_t)(view->modules).length;
+        if (!(index < value_3)) { break; }
+        void* value_4 = output;
+        compiler_zir_lower_PrintText(value_4, compiler_services_Keep(StringLiteral("module m")));
         compiler_zir_lower_PrintSigned(output, index);
         zir_f_0fe5ce4064831140_fputc_raw(32, output);
         compiler_zir_lower_PrintString(output, ((String *)view->modules.data)[SliceIndex(view->modules, (int64_t)index)]);
@@ -35003,10 +35009,10 @@ AssemblyPrintLir(LirProgram* view, void* output)
     }
     index = 0LL;
     while (true) {
-        int64_t value_4 = (int64_t)(view->sources).length;
-        if (!(index < value_4)) { break; }
-        void* value_5 = output;
-        compiler_zir_lower_PrintText(value_5, compiler_services_Keep(StringLiteral("source s")));
+        int64_t value_5 = (int64_t)(view->sources).length;
+        if (!(index < value_5)) { break; }
+        void* value_6 = output;
+        compiler_zir_lower_PrintText(value_6, compiler_services_Keep(StringLiteral("source s")));
         compiler_zir_lower_PrintSigned(output, index);
         zir_f_0fe5ce4064831140_fputc_raw(32, output);
         compiler_zir_lower_PrintString(output, ((String *)view->sources.data)[SliceIndex(view->sources, (int64_t)index)]);
@@ -35015,8 +35021,8 @@ AssemblyPrintLir(LirProgram* view, void* output)
     }
     index = 0LL;
     while (true) {
-        int64_t value_6 = (int64_t)(view->types).length;
-        if (!(index < value_6)) { break; }
+        int64_t value_7 = (int64_t)(view->types).length;
+        if (!(index < value_7)) { break; }
         LirType* ty = &(((LirType *)view->types.data)[SliceIndex(view->types, (int64_t)index)]);
         int32_t signed_flag = 0;
         int32_t native_flag = 0;
@@ -35026,36 +35032,36 @@ AssemblyPrintLir(LirProgram* view, void* output)
         if (ty->native_width == true) {
             native_flag = 1;
         }
-        void* value_7 = output;
-        compiler_zir_lower_PrintText(value_7, compiler_services_Keep(StringLiteral("type t")));
-        compiler_zir_lower_PrintSigned(output, index);
         void* value_8 = output;
-        compiler_zir_lower_PrintText(value_8, compiler_services_Keep(StringLiteral(" kind=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)((int32_t)(((LirTypeKind)(ty->kind)))));
+        compiler_zir_lower_PrintText(value_8, compiler_services_Keep(StringLiteral("type t")));
+        compiler_zir_lower_PrintSigned(output, index);
         void* value_9 = output;
-        compiler_zir_lower_PrintText(value_9, compiler_services_Keep(StringLiteral(" bits=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(ty->bits));
+        compiler_zir_lower_PrintText(value_9, compiler_services_Keep(StringLiteral(" kind=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)((int32_t)(((LirTypeKind)(ty->kind)))));
         void* value_10 = output;
-        compiler_zir_lower_PrintText(value_10, compiler_services_Keep(StringLiteral(" signed=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(signed_flag));
+        compiler_zir_lower_PrintText(value_10, compiler_services_Keep(StringLiteral(" bits=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(ty->bits));
         void* value_11 = output;
-        compiler_zir_lower_PrintText(value_11, compiler_services_Keep(StringLiteral(" native=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(native_flag));
+        compiler_zir_lower_PrintText(value_11, compiler_services_Keep(StringLiteral(" signed=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(signed_flag));
         void* value_12 = output;
-        compiler_zir_lower_PrintText(value_12, compiler_services_Keep(StringLiteral(" element=t")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(ty->element));
+        compiler_zir_lower_PrintText(value_12, compiler_services_Keep(StringLiteral(" native=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(native_flag));
         void* value_13 = output;
-        compiler_zir_lower_PrintText(value_13, compiler_services_Keep(StringLiteral(" count=")));
-        compiler_zir_lower_PrintSigned(output, ty->count);
+        compiler_zir_lower_PrintText(value_13, compiler_services_Keep(StringLiteral(" element=t")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(ty->element));
         void* value_14 = output;
-        compiler_zir_lower_PrintText(value_14, compiler_services_Keep(StringLiteral(" result=t")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(ty->result));
+        compiler_zir_lower_PrintText(value_14, compiler_services_Keep(StringLiteral(" count=")));
+        compiler_zir_lower_PrintSigned(output, ty->count);
         void* value_15 = output;
-        compiler_zir_lower_PrintText(value_15, compiler_services_Keep(StringLiteral(" fields=(")));
+        compiler_zir_lower_PrintText(value_15, compiler_services_Keep(StringLiteral(" result=t")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(ty->result));
+        void* value_16 = output;
+        compiler_zir_lower_PrintText(value_16, compiler_services_Keep(StringLiteral(" fields=(")));
         int64_t field = 0LL;
         while (true) {
-            int64_t value_16 = (int64_t)(ty->fields).length;
-            if (!(field < value_16)) { break; }
+            int64_t value_17 = (int64_t)(ty->fields).length;
+            if (!(field < value_17)) { break; }
             if (field > 0LL) {
                 zir_f_0fe5ce4064831140_fputc_raw(44, output);
             }
@@ -35063,12 +35069,12 @@ AssemblyPrintLir(LirProgram* view, void* output)
             compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)ty->fields.data)[SliceIndex(ty->fields, (int64_t)field)]));
             field = (int64_t)((uint64_t)field + UINT64_C(1));
         }
-        void* value_17 = output;
-        compiler_zir_lower_PrintText(value_17, compiler_services_Keep(StringLiteral(") parameters=(")));
+        void* value_18 = output;
+        compiler_zir_lower_PrintText(value_18, compiler_services_Keep(StringLiteral(") parameters=(")));
         int64_t parameter = 0LL;
         while (true) {
-            int64_t value_18 = (int64_t)(ty->parameters).length;
-            if (!(parameter < value_18)) { break; }
+            int64_t value_19 = (int64_t)(ty->parameters).length;
+            if (!(parameter < value_19)) { break; }
             if (parameter > 0LL) {
                 zir_f_0fe5ce4064831140_fputc_raw(44, output);
             }
@@ -35076,30 +35082,30 @@ AssemblyPrintLir(LirProgram* view, void* output)
             compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)ty->parameters.data)[SliceIndex(ty->parameters, (int64_t)parameter)]));
             parameter = (int64_t)((uint64_t)parameter + UINT64_C(1));
         }
-        void* value_19 = output;
-        compiler_zir_lower_PrintText(value_19, compiler_services_Keep(StringLiteral(")\n")));
+        void* value_20 = output;
+        compiler_zir_lower_PrintText(value_20, compiler_services_Keep(StringLiteral(")\n")));
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
     index = 0LL;
     while (true) {
-        int64_t value_20 = (int64_t)(view->constants).length;
-        if (!(index < value_20)) { break; }
+        int64_t value_21 = (int64_t)(view->constants).length;
+        if (!(index < value_21)) { break; }
         LirConstant* constant = &(((LirConstant *)view->constants.data)[SliceIndex(view->constants, (int64_t)index)]);
-        void* value_21 = output;
-        compiler_zir_lower_PrintText(value_21, compiler_services_Keep(StringLiteral("constant c")));
-        compiler_zir_lower_PrintSigned(output, index);
         void* value_22 = output;
-        compiler_zir_lower_PrintText(value_22, compiler_services_Keep(StringLiteral(":t")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(constant->type));
+        compiler_zir_lower_PrintText(value_22, compiler_services_Keep(StringLiteral("constant c")));
+        compiler_zir_lower_PrintSigned(output, index);
         void* value_23 = output;
-        compiler_zir_lower_PrintText(value_23, compiler_services_Keep(StringLiteral(" = 0x")));
-        compiler_zir_lower_PrintHex64(output, constant->bits);
+        compiler_zir_lower_PrintText(value_23, compiler_services_Keep(StringLiteral(":t")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(constant->type));
         void* value_24 = output;
-        compiler_zir_lower_PrintText(value_24, compiler_services_Keep(StringLiteral(" bytes=")));
+        compiler_zir_lower_PrintText(value_24, compiler_services_Keep(StringLiteral(" = 0x")));
+        compiler_zir_lower_PrintHex64(output, constant->bits);
+        void* value_25 = output;
+        compiler_zir_lower_PrintText(value_25, compiler_services_Keep(StringLiteral(" bytes=")));
         int64_t offset = 0LL;
         while (true) {
-            int64_t value_25 = (int64_t)(constant->bytes).length;
-            if (!(offset < value_25)) { break; }
+            int64_t value_26 = (int64_t)(constant->bytes).length;
+            if (!(offset < value_26)) { break; }
             compiler_zir_lower_PrintHexByte(output, ((uint8_t *)constant->bytes.data)[SliceIndex(constant->bytes, (int64_t)offset)]);
             offset = (int64_t)((uint64_t)offset + UINT64_C(1));
         }
@@ -35108,73 +35114,73 @@ AssemblyPrintLir(LirProgram* view, void* output)
     }
     index = 0LL;
     while (true) {
-        int64_t value_26 = (int64_t)(view->globals).length;
-        if (!(index < value_26)) { break; }
+        int64_t value_27 = (int64_t)(view->globals).length;
+        if (!(index < value_27)) { break; }
         LirGlobal* global = &(((LirGlobal *)view->globals.data)[SliceIndex(view->globals, (int64_t)index)]);
         int32_t writable_flag = 0;
         if (global->writable == true) {
             writable_flag = 1;
         }
-        void* value_27 = output;
-        compiler_zir_lower_PrintText(value_27, compiler_services_Keep(StringLiteral("global g")));
-        compiler_zir_lower_PrintSigned(output, index);
         void* value_28 = output;
-        compiler_zir_lower_PrintText(value_28, compiler_services_Keep(StringLiteral(":t")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(global->type));
+        compiler_zir_lower_PrintText(value_28, compiler_services_Keep(StringLiteral("global g")));
+        compiler_zir_lower_PrintSigned(output, index);
         void* value_29 = output;
-        compiler_zir_lower_PrintText(value_29, compiler_services_Keep(StringLiteral(" module=m")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(global->module));
+        compiler_zir_lower_PrintText(value_29, compiler_services_Keep(StringLiteral(":t")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(global->type));
         void* value_30 = output;
-        compiler_zir_lower_PrintText(value_30, compiler_services_Keep(StringLiteral(" constant=c")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(global->constant));
+        compiler_zir_lower_PrintText(value_30, compiler_services_Keep(StringLiteral(" module=m")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(global->module));
         void* value_31 = output;
-        compiler_zir_lower_PrintText(value_31, compiler_services_Keep(StringLiteral(" writable=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(writable_flag));
+        compiler_zir_lower_PrintText(value_31, compiler_services_Keep(StringLiteral(" constant=c")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(global->constant));
         void* value_32 = output;
-        compiler_zir_lower_PrintText(value_32, compiler_services_Keep(StringLiteral(" name=")));
+        compiler_zir_lower_PrintText(value_32, compiler_services_Keep(StringLiteral(" writable=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(writable_flag));
+        void* value_33 = output;
+        compiler_zir_lower_PrintText(value_33, compiler_services_Keep(StringLiteral(" name=")));
         compiler_zir_lower_PrintString(output, global->name);
         zir_f_0fe5ce4064831140_fputc_raw(10, output);
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
     index = 0LL;
     while (true) {
-        int64_t value_33 = (int64_t)(view->origins).length;
-        if (!(index < value_33)) { break; }
+        int64_t value_34 = (int64_t)(view->origins).length;
+        if (!(index < value_34)) { break; }
         LirOrigin* origin = &(((LirOrigin *)view->origins.data)[SliceIndex(view->origins, (int64_t)index)]);
-        void* value_34 = output;
-        compiler_zir_lower_PrintText(value_34, compiler_services_Keep(StringLiteral("origin o")));
-        compiler_zir_lower_PrintSigned(output, index);
         void* value_35 = output;
-        compiler_zir_lower_PrintText(value_35, compiler_services_Keep(StringLiteral(" source=s")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->file));
+        compiler_zir_lower_PrintText(value_35, compiler_services_Keep(StringLiteral("origin o")));
+        compiler_zir_lower_PrintSigned(output, index);
         void* value_36 = output;
-        compiler_zir_lower_PrintText(value_36, compiler_services_Keep(StringLiteral(" line=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->line));
+        compiler_zir_lower_PrintText(value_36, compiler_services_Keep(StringLiteral(" source=s")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->file));
         void* value_37 = output;
-        compiler_zir_lower_PrintText(value_37, compiler_services_Keep(StringLiteral(" column=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->column));
+        compiler_zir_lower_PrintText(value_37, compiler_services_Keep(StringLiteral(" line=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->line));
         void* value_38 = output;
-        compiler_zir_lower_PrintText(value_38, compiler_services_Keep(StringLiteral(" end_line=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->end_line));
+        compiler_zir_lower_PrintText(value_38, compiler_services_Keep(StringLiteral(" column=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->column));
         void* value_39 = output;
-        compiler_zir_lower_PrintText(value_39, compiler_services_Keep(StringLiteral(" end_column=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->end_column));
+        compiler_zir_lower_PrintText(value_39, compiler_services_Keep(StringLiteral(" end_line=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->end_line));
         void* value_40 = output;
-        compiler_zir_lower_PrintText(value_40, compiler_services_Keep(StringLiteral(" begin=")));
-        compiler_zir_lower_PrintSigned(output, origin->begin);
+        compiler_zir_lower_PrintText(value_40, compiler_services_Keep(StringLiteral(" end_column=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(origin->end_column));
         void* value_41 = output;
-        compiler_zir_lower_PrintText(value_41, compiler_services_Keep(StringLiteral(" end=")));
-        compiler_zir_lower_PrintSigned(output, origin->end);
+        compiler_zir_lower_PrintText(value_41, compiler_services_Keep(StringLiteral(" begin=")));
+        compiler_zir_lower_PrintSigned(output, origin->begin);
         void* value_42 = output;
-        compiler_zir_lower_PrintText(value_42, compiler_services_Keep(StringLiteral(" parent=o")));
+        compiler_zir_lower_PrintText(value_42, compiler_services_Keep(StringLiteral(" end=")));
+        compiler_zir_lower_PrintSigned(output, origin->end);
+        void* value_43 = output;
+        compiler_zir_lower_PrintText(value_43, compiler_services_Keep(StringLiteral(" parent=o")));
         compiler_zir_lower_PrintSigned(output, (int64_t)(origin->parent));
         zir_f_0fe5ce4064831140_fputc_raw(10, output);
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
     int64_t function = 0LL;
     while (true) {
-        int64_t value_43 = (int64_t)(view->functions).length;
-        if (!(function < value_43)) { break; }
+        int64_t value_44 = (int64_t)(view->functions).length;
+        if (!(function < value_44)) { break; }
         LirFunction* body = &(((LirFunction *)view->functions.data)[SliceIndex(view->functions, (int64_t)function)]);
         int32_t external_flag = 0;
         int32_t variadic_flag = 0;
@@ -35184,39 +35190,39 @@ AssemblyPrintLir(LirProgram* view, void* output)
         if (body->variadic == true) {
             variadic_flag = 1;
         }
-        void* value_44 = output;
-        compiler_zir_lower_PrintText(value_44, compiler_services_Keep(StringLiteral("function @")));
-        compiler_zir_lower_PrintSigned(output, function);
         void* value_45 = output;
-        compiler_zir_lower_PrintText(value_45, compiler_services_Keep(StringLiteral(" module=m")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(body->module));
+        compiler_zir_lower_PrintText(value_45, compiler_services_Keep(StringLiteral("function @")));
+        compiler_zir_lower_PrintSigned(output, function);
         void* value_46 = output;
-        compiler_zir_lower_PrintText(value_46, compiler_services_Keep(StringLiteral(" name=")));
-        compiler_zir_lower_PrintString(output, body->name);
+        compiler_zir_lower_PrintText(value_46, compiler_services_Keep(StringLiteral(" module=m")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(body->module));
         void* value_47 = output;
-        compiler_zir_lower_PrintText(value_47, compiler_services_Keep(StringLiteral(" result=t")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(body->result));
+        compiler_zir_lower_PrintText(value_47, compiler_services_Keep(StringLiteral(" name=")));
+        compiler_zir_lower_PrintString(output, body->name);
         void* value_48 = output;
-        compiler_zir_lower_PrintText(value_48, compiler_services_Keep(StringLiteral(" entry=b")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(body->entry));
+        compiler_zir_lower_PrintText(value_48, compiler_services_Keep(StringLiteral(" result=t")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(body->result));
         void* value_49 = output;
-        compiler_zir_lower_PrintText(value_49, compiler_services_Keep(StringLiteral(" calling=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)((int32_t)(((LirCalling)(body->calling)))));
+        compiler_zir_lower_PrintText(value_49, compiler_services_Keep(StringLiteral(" entry=b")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(body->entry));
         void* value_50 = output;
-        compiler_zir_lower_PrintText(value_50, compiler_services_Keep(StringLiteral(" external=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(external_flag));
+        compiler_zir_lower_PrintText(value_50, compiler_services_Keep(StringLiteral(" calling=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)((int32_t)(((LirCalling)(body->calling)))));
         void* value_51 = output;
-        compiler_zir_lower_PrintText(value_51, compiler_services_Keep(StringLiteral(" variadic=")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(variadic_flag));
+        compiler_zir_lower_PrintText(value_51, compiler_services_Keep(StringLiteral(" external=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(external_flag));
         void* value_52 = output;
-        compiler_zir_lower_PrintText(value_52, compiler_services_Keep(StringLiteral(" origin=o")));
-        compiler_zir_lower_PrintSigned(output, (int64_t)(body->origin));
+        compiler_zir_lower_PrintText(value_52, compiler_services_Keep(StringLiteral(" variadic=")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(variadic_flag));
         void* value_53 = output;
-        compiler_zir_lower_PrintText(value_53, compiler_services_Keep(StringLiteral(" parameters=(")));
+        compiler_zir_lower_PrintText(value_53, compiler_services_Keep(StringLiteral(" origin=o")));
+        compiler_zir_lower_PrintSigned(output, (int64_t)(body->origin));
+        void* value_54 = output;
+        compiler_zir_lower_PrintText(value_54, compiler_services_Keep(StringLiteral(" parameters=(")));
         int64_t parameter = 0LL;
         while (true) {
-            int64_t value_54 = (int64_t)(body->parameters).length;
-            if (!(parameter < value_54)) { break; }
+            int64_t value_55 = (int64_t)(body->parameters).length;
+            if (!(parameter < value_55)) { break; }
             if (parameter > 0LL) {
                 zir_f_0fe5ce4064831140_fputc_raw(44, output);
             }
@@ -35224,124 +35230,124 @@ AssemblyPrintLir(LirProgram* view, void* output)
             compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)body->parameters.data)[SliceIndex(body->parameters, (int64_t)parameter)]));
             parameter = (int64_t)((uint64_t)parameter + UINT64_C(1));
         }
-        void* value_55 = output;
-        compiler_zir_lower_PrintText(value_55, compiler_services_Keep(StringLiteral(") values=(")));
+        void* value_56 = output;
+        compiler_zir_lower_PrintText(value_56, compiler_services_Keep(StringLiteral(") values=(")));
         int64_t value = 0LL;
         while (true) {
-            int64_t value_56 = (int64_t)(body->values).length;
-            if (!(value < value_56)) { break; }
+            int64_t value_57 = (int64_t)(body->values).length;
+            if (!(value < value_57)) { break; }
             if (value > 0LL) {
                 zir_f_0fe5ce4064831140_fputc_raw(44, output);
             }
-            void* value_57 = output;
-            compiler_zir_lower_PrintText(value_57, compiler_services_Keep(StringLiteral("v")));
-            compiler_zir_lower_PrintSigned(output, value);
             void* value_58 = output;
-            compiler_zir_lower_PrintText(value_58, compiler_services_Keep(StringLiteral(":t")));
+            compiler_zir_lower_PrintText(value_58, compiler_services_Keep(StringLiteral("v")));
+            compiler_zir_lower_PrintSigned(output, value);
+            void* value_59 = output;
+            compiler_zir_lower_PrintText(value_59, compiler_services_Keep(StringLiteral(":t")));
             compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)body->values.data)[SliceIndex(body->values, (int64_t)value)]));
             value = (int64_t)((uint64_t)value + UINT64_C(1));
         }
-        void* value_59 = output;
-        compiler_zir_lower_PrintText(value_59, compiler_services_Keep(StringLiteral(")\n")));
+        void* value_60 = output;
+        compiler_zir_lower_PrintText(value_60, compiler_services_Keep(StringLiteral(")\n")));
         int64_t block = 0LL;
         while (true) {
-            int64_t value_60 = (int64_t)(body->blocks).length;
-            if (!(block < value_60)) { break; }
+            int64_t value_61 = (int64_t)(body->blocks).length;
+            if (!(block < value_61)) { break; }
             LirBlock* bp = &(((LirBlock *)body->blocks.data)[SliceIndex(body->blocks, (int64_t)block)]);
-            void* value_61 = output;
-            compiler_zir_lower_PrintText(value_61, compiler_services_Keep(StringLiteral("  b")));
+            void* value_62 = output;
+            compiler_zir_lower_PrintText(value_62, compiler_services_Keep(StringLiteral("  b")));
             compiler_zir_lower_PrintSigned(output, block);
             zir_f_0fe5ce4064831140_fputc_raw(40, output);
             int64_t block_parameter = 0LL;
             while (true) {
-                int64_t value_62 = (int64_t)(bp->parameters).length;
-                if (!(block_parameter < value_62)) { break; }
+                int64_t value_63 = (int64_t)(bp->parameters).length;
+                if (!(block_parameter < value_63)) { break; }
                 if (block_parameter > 0LL) {
                     zir_f_0fe5ce4064831140_fputc_raw(44, output);
                     zir_f_0fe5ce4064831140_fputc_raw(32, output);
                 }
                 int32_t held_parameter = ((int32_t *)bp->parameters.data)[SliceIndex(bp->parameters, (int64_t)block_parameter)];
-                void* value_63 = output;
-                compiler_zir_lower_PrintText(value_63, compiler_services_Keep(StringLiteral("v")));
-                compiler_zir_lower_PrintSigned(output, (int64_t)(held_parameter));
                 void* value_64 = output;
-                compiler_zir_lower_PrintText(value_64, compiler_services_Keep(StringLiteral(":t")));
+                compiler_zir_lower_PrintText(value_64, compiler_services_Keep(StringLiteral("v")));
+                compiler_zir_lower_PrintSigned(output, (int64_t)(held_parameter));
+                void* value_65 = output;
+                compiler_zir_lower_PrintText(value_65, compiler_services_Keep(StringLiteral(":t")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)body->values.data)[SliceIndex(body->values, (int64_t)held_parameter)]));
                 block_parameter = (int64_t)((uint64_t)block_parameter + UINT64_C(1));
             }
-            void* value_65 = output;
-            compiler_zir_lower_PrintText(value_65, compiler_services_Keep(StringLiteral("):\n")));
+            void* value_66 = output;
+            compiler_zir_lower_PrintText(value_66, compiler_services_Keep(StringLiteral("):\n")));
             int64_t instruction = 0LL;
             while (true) {
-                int64_t value_66 = (int64_t)(bp->instructions).length;
-                if (!(instruction < value_66)) { break; }
+                int64_t value_67 = (int64_t)(bp->instructions).length;
+                if (!(instruction < value_67)) { break; }
                 LirInstruction* ip = &(((LirInstruction *)bp->instructions.data)[SliceIndex(bp->instructions, (int64_t)instruction)]);
-                void* value_67 = output;
-                compiler_zir_lower_PrintText(value_67, compiler_services_Keep(StringLiteral("    i")));
+                void* value_68 = output;
+                compiler_zir_lower_PrintText(value_68, compiler_services_Keep(StringLiteral("    i")));
                 compiler_zir_lower_PrintSigned(output, instruction);
                 zir_f_0fe5ce4064831140_fputc_raw(32, output);
                 if (ip->result >= 0) {
-                    void* value_68 = output;
-                    compiler_zir_lower_PrintText(value_68, compiler_services_Keep(StringLiteral("v")));
-                    compiler_zir_lower_PrintSigned(output, (int64_t)(ip->result));
                     void* value_69 = output;
-                    compiler_zir_lower_PrintText(value_69, compiler_services_Keep(StringLiteral(":t")));
-                    compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)body->values.data)[SliceIndex(body->values, (int64_t)ip->result)]));
+                    compiler_zir_lower_PrintText(value_69, compiler_services_Keep(StringLiteral("v")));
+                    compiler_zir_lower_PrintSigned(output, (int64_t)(ip->result));
                     void* value_70 = output;
-                    compiler_zir_lower_PrintText(value_70, compiler_services_Keep(StringLiteral(" = ")));
+                    compiler_zir_lower_PrintText(value_70, compiler_services_Keep(StringLiteral(":t")));
+                    compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)body->values.data)[SliceIndex(body->values, (int64_t)ip->result)]));
+                    void* value_71 = output;
+                    compiler_zir_lower_PrintText(value_71, compiler_services_Keep(StringLiteral(" = ")));
                 }
                 String opname = compiler_lowered_ir_LirOpName((LirOp)(ip->op));
                 TextParts* op_parts = (TextParts*)(&(opname));
                 zir_f_0fe5ce4064831140_fwrite_raw((void*)(op_parts->data), (size_t)(1LL), (size_t)(op_parts->length), output);
                 int64_t operand = 0LL;
                 while (true) {
-                    int64_t value_71 = (int64_t)(ip->operands).length;
-                    if (!(operand < value_71)) { break; }
-                    void* value_72 = output;
-                    compiler_zir_lower_PrintText(value_72, compiler_services_Keep(StringLiteral(" v")));
+                    int64_t value_72 = (int64_t)(ip->operands).length;
+                    if (!(operand < value_72)) { break; }
+                    void* value_73 = output;
+                    compiler_zir_lower_PrintText(value_73, compiler_services_Keep(StringLiteral(" v")));
                     compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)ip->operands.data)[SliceIndex(ip->operands, (int64_t)operand)]));
                     operand = (int64_t)((uint64_t)operand + UINT64_C(1));
                 }
                 if (ip->symbol >= 0) {
-                    void* value_73 = output;
-                    compiler_zir_lower_PrintText(value_73, compiler_services_Keep(StringLiteral(" symbol=")));
+                    void* value_74 = output;
+                    compiler_zir_lower_PrintText(value_74, compiler_services_Keep(StringLiteral(" symbol=")));
                     compiler_zir_lower_PrintSigned(output, (int64_t)(ip->symbol));
                 }
-                void* value_74 = output;
-                compiler_zir_lower_PrintText(value_74, compiler_services_Keep(StringLiteral(" immediate=")));
-                compiler_zir_lower_PrintSigned(output, (int64_t)(ip->immediate));
                 void* value_75 = output;
-                compiler_zir_lower_PrintText(value_75, compiler_services_Keep(StringLiteral(" alignment=")));
+                compiler_zir_lower_PrintText(value_75, compiler_services_Keep(StringLiteral(" immediate=")));
+                compiler_zir_lower_PrintSigned(output, (int64_t)(ip->immediate));
+                void* value_76 = output;
+                compiler_zir_lower_PrintText(value_76, compiler_services_Keep(StringLiteral(" alignment=")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(ip->alignment));
                 int64_t edge = 0LL;
                 while (true) {
-                    int64_t value_76 = (int64_t)(ip->edges).length;
-                    if (!(edge < value_76)) { break; }
+                    int64_t value_77 = (int64_t)(ip->edges).length;
+                    if (!(edge < value_77)) { break; }
                     LirEdge* held_edge = &(((LirEdge *)ip->edges.data)[SliceIndex(ip->edges, (int64_t)edge)]);
-                    void* value_77 = output;
-                    compiler_zir_lower_PrintText(value_77, compiler_services_Keep(StringLiteral(" -> b")));
+                    void* value_78 = output;
+                    compiler_zir_lower_PrintText(value_78, compiler_services_Keep(StringLiteral(" -> b")));
                     compiler_zir_lower_PrintSigned(output, (int64_t)(held_edge->block));
                     zir_f_0fe5ce4064831140_fputc_raw(40, output);
                     int64_t argument = 0LL;
                     while (true) {
-                        int64_t value_78 = (int64_t)(held_edge->arguments).length;
-                        if (!(argument < value_78)) { break; }
+                        int64_t value_79 = (int64_t)(held_edge->arguments).length;
+                        if (!(argument < value_79)) { break; }
                         if (argument > 0LL) {
                             zir_f_0fe5ce4064831140_fputc_raw(44, output);
                         }
-                        void* value_79 = output;
-                        compiler_zir_lower_PrintText(value_79, compiler_services_Keep(StringLiteral("v")));
+                        void* value_80 = output;
+                        compiler_zir_lower_PrintText(value_80, compiler_services_Keep(StringLiteral("v")));
                         compiler_zir_lower_PrintSigned(output, (int64_t)(((int32_t *)held_edge->arguments.data)[SliceIndex(held_edge->arguments, (int64_t)argument)]));
                         argument = (int64_t)((uint64_t)argument + UINT64_C(1));
                     }
                     zir_f_0fe5ce4064831140_fputc_raw(41, output);
                     edge = (int64_t)((uint64_t)edge + UINT64_C(1));
                 }
-                void* value_80 = output;
-                compiler_zir_lower_PrintText(value_80, compiler_services_Keep(StringLiteral(" effect=")));
-                compiler_zir_lower_PrintSigned(output, (int64_t)(ip->effect));
                 void* value_81 = output;
-                compiler_zir_lower_PrintText(value_81, compiler_services_Keep(StringLiteral(" origin=o")));
+                compiler_zir_lower_PrintText(value_81, compiler_services_Keep(StringLiteral(" effect=")));
+                compiler_zir_lower_PrintSigned(output, (int64_t)(ip->effect));
+                void* value_82 = output;
+                compiler_zir_lower_PrintText(value_82, compiler_services_Keep(StringLiteral(" origin=o")));
                 compiler_zir_lower_PrintSigned(output, (int64_t)(ip->origin));
                 zir_f_0fe5ce4064831140_fputc_raw(10, output);
                 instruction = (int64_t)((uint64_t)instruction + UINT64_C(1));

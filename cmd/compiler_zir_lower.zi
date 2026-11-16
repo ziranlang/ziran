@@ -7076,6 +7076,7 @@ Lower :: (source: *IR.ZirProgram, module_name: *u8, function_name: *u8) -> *Asse
             index += 1
         }
         program.result.version = LIR.LirVersion
+        program.result.checks = program.source.checks != 0
         module_parts := cast(*SliceParts)(*program.result.modules)
         module_parts.data = cast(*void)program.modules.data
         module_parts.length = cast(s64)program.modules.count
@@ -7569,6 +7570,7 @@ PrintLir :: (view: *LIR.LirProgram, output: *void) -> s32 {
     PrintSigned(output, cast(s64)view.version)
     PrintText(output, SVC.Keep(" entry @"))
     PrintSigned(output, cast(s64)view.entry)
+    if view.checks { PrintText(output, SVC.Keep(" checks")) }
     fputc_raw(10, output)
     index: s64 = 0
     while index < view.modules.count {

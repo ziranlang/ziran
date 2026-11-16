@@ -1871,6 +1871,7 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         return Result(state)
     }
     optimized = LirReadProgram(*owner.storage)
+    optimized.checks = program.checks
     if !CountProgram(*state, optimized, true) {
         LirOptFree(owner)
         return Result(state)

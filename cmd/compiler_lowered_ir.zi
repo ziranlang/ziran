@@ -90,6 +90,9 @@ LirProgram :: struct {
     origins: []LirOrigin
     initializers: []s32
     entry: s32
+    // Built with --checks: checked pointers and every bounds check. Without
+    // it pointers and indexes are raw, as in C.
+    checks: bool
 }
 
 LirProblem :: enum s32 {

@@ -21,7 +21,7 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-            "usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--emit zx|lir|opt-report] -o FILE file.zi|file.zir ...\n"
+            "usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--checks] [--emit zx|lir|opt-report] -o FILE file.zi|file.zir ...\n"
             "       zi2zx [--emit zx|lir] -o FILE file.zx\n"
             "       zi2zx run [--backend native|engine] file.zx\n"
             "       zi2zx run [--backend native|engine] [ZX build options] [--root DIR] [--entry module:function] file.zi ...\n"
@@ -71,6 +71,7 @@ build_to(int argc, char **argv, FILE *into)
     const char *compile_target = "zx";
     int optimize = 0;
     int debug = 0;
+    int checks = 0;
     int first_file = -1;
     int count, result = 1;
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
@@ -127,6 +128,8 @@ build_to(int argc, char **argv, FILE *into)
             optimize = 1;
         else if(strcmp(argv[i], "--debug") == 0)
             debug = 1;
+        else if(strcmp(argv[i], "--checks") == 0)
+            checks = 1;
         else if(strcmp(argv[i], "-o") == 0 && i + 1 < argc)
             output = argv[++i];
         else if(strncmp(argv[i], "--diagnostics=", 14) == 0) {
@@ -182,6 +185,8 @@ build_to(int argc, char **argv, FILE *into)
                                (const char *const *)set.paths))
         goto done;
     merged.context = set.context;
+    merged.checks = checks;
+    if(checks) CommandEnableChecks(&set);
     merged.modules = calloc((size_t)merged.module_count, sizeof(*merged.modules));
     if(merged.modules == NULL)
         goto done;

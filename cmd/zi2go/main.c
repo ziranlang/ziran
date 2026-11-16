@@ -20,7 +20,7 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-            "usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--pkg NAME] [--entry module:function] "
+            "usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--checks] [--pkg NAME] [--entry module:function] "
             "[--bind module:function=module:function] [--bind-host module] "
             "[--diagnostics=text|json] [--module-path DIR] "
             "[--target-os linux|windows|macos|android|web|none] "
@@ -39,6 +39,7 @@ main(int argc, char **argv)
     int no_main = 0;
     int executable = 0;
     int minify = 0;
+    int checks = 0;
     int check_ok;
     ProgramSet set = {0};
     CompilerContext *command_context = NULL, *previous_context = NULL;
@@ -75,6 +76,7 @@ main(int argc, char **argv)
         COMMAND_FLAG("--no-main", no_main),
         COMMAND_FLAG("--exe", executable),
         COMMAND_FLAG("--minify", minify),
+        COMMAND_FLAG("--checks", checks),
     };
     first_file = ReadCommandOptions(argc, argv, options,
                                     sizeof(options) / sizeof(*options));
@@ -110,6 +112,7 @@ main(int argc, char **argv)
     if(!ProgramsLoad(&set, root, module_paths, module_path_count,
                      (const char *const *)(argv + first_file), argc - first_file))
         return 1;
+    if(checks) CommandEnableChecks(&set);
     file_count = set.count;
     progs = set.programs;
     check_ok = CheckCanonicalPrograms(progs, file_count,

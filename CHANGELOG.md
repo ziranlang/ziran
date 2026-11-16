@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Builds take `--checks`: `zi2zx`, `zi2c`, `zi2go` and the `ziran` commands that forward to them accept it, every module of the build is marked checked, and the ZX header records it, so a saved bundle, `zx2native`, `zx2wasm` and the native loader see how it was built (`zi2zx --emit lir` prints `checks`).
 - Native x86-64 code tail-calls: a direct call that its function returns at once leaves the frame and jumps, so the callee returns straight to the caller. A function that keeps nothing on the stack, cannot trap and calls nothing but such a tail call has no frame at all. A function returning a constant is `mov eax, 42; ret`.
 - A native ELF carries only what the program uses. Fuel counter, trap stub, stack limit, pointer runtime, heap, console buffer and each runtime routine appear only when referenced. An executable with an unbounded budget (the default) has no fuel checks, and a function that only calls runtime services checks no stack limit. A program whose one console write runs once writes directly, with no buffer or terminal probe. Text follows the headers and data follows the text with no page padding, and an image with nothing writable has one program header. `examples/hello.zi` shrinks from 8,352 to 576 bytes.
 - Native compilation checks fuel facts, call references and image relocations in one pass each instead of rescanning every relocation per instruction, call or encoded reference: on Omega the 28.7 MB Unicode conformance bundle compiles natively in 7.4 s instead of 81 s, with the same output.

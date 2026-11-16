@@ -384,6 +384,9 @@ ZirModule :: struct {
     parameters: *ZirModuleParameter  // `#module_parameters`, in declaration order
     parameter_count: s32
     parameter_cap: s32
+    // Bounds checks on every access in the module: `#checks` at its top
+    // level, or the build's --checks.
+    checks: s32
     // Bundle composition provenance; derived from payload/library
     // boundaries, never serialized. Library executable bodies follow the
     // owned prefix.
@@ -403,6 +406,7 @@ ZirProgram :: struct {
     modules: *ZirModule
     module_count: s32
     module_cap: s32
+    checks: s32  // the build's --checks; a build option, never serialized
 }
 
 // C text the records keep, read and written from Ziran. A kept string is

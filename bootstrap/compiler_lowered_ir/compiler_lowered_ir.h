@@ -181,6 +181,7 @@ struct LirProgram {
     Slice origins;
     Slice initializers;
     int32_t entry;
+    bool checks;
 };
 
 enum {

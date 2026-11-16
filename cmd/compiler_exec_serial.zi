@@ -9,6 +9,8 @@ using Vectors :: #import "std/vec"
 
 LirCodecVersion :: 2
 LirCodecFeatureBase :: 1
+// Header flag: the program was built with --checks.
+LirCodecFlagChecks :: 1
 
 LirCodecProblem :: enum s32 {
     None; Magic; Version; Feature; Flags; Section; Overlap; Truncated; Trailing
@@ -233,7 +235,7 @@ TakeU64 :: (cursor: *Cursor) -> u64 {
     return value
 }
 
-Layout :: struct { core_begin: s64; core_end: s64; debug_begin: s64; debug_end: s64; debug: bool }
+Layout :: struct { core_begin: s64; core_end: s64; debug_begin: s64; debug_end: s64; debug: bool; checks: bool }
 
 ReadLayout :: (input: string) -> (layout: Layout, result: LirCodecResult) {
     result: LirCodecResult
@@ -263,7 +265,11 @@ ReadLayout :: (input: string) -> (layout: Layout, result: LirCodecResult) {
         result.problem = .Feature
         return Layout.{}, result
     }
-    if flags != 0 || reserved32 != 0 || reserved64 != 0 { result.problem = .Flags; return Layout.{}, result }
+    if (flags & ~cast(u64)LirCodecFlagChecks) != 0 || reserved32 != 0 || reserved64 != 0 {
+        result.problem = .Flags
+        return Layout.{}, result
+    }
+    layout.checks = (flags & cast(u64)LirCodecFlagChecks) != 0
     if section_count != 1 && section_count != 2 || directory != CodecHeaderSize {
         result.problem = .Section
         return Layout.{}, result
@@ -793,7 +799,7 @@ LirWriteUnverified :: (program: LirProgram, output: []u8) -> LirCodecResult {
     U32(*writer, cast(u32)LirVersion)
     U32(*writer, CodecHeaderSize)
     U64(*writer, cast(u64)LirCodecFeatureBase)
-    U64(*writer, 0)
+    U64(*writer, ifx program.checks then cast(u64)LirCodecFlagChecks else 0)
     U32(*writer, cast(u32)sections)
     U32(*writer, 0)
     U64(*writer, cast(u64)size)
@@ -865,7 +871,7 @@ LirRead :: (owner: *LirReadOwner, input: string, limits: LirLimits) -> LirCodecR
     owner.program = .{version = owner.version, modules = owner.modules[:], sources = owner.sources[:],
         types = owner.types[:], constants = owner.constants[:], globals = owner.globals[:],
         functions = owner.functions[:], origins = owner.origins[:],
-        initializers = owner.initializers[:], entry = owner.entry}
+        initializers = owner.initializers[:], entry = owner.entry, checks = layout.checks}
     program := OwnedProgram(owner)
     diagnostic := LirVerify(program, limits)
     if diagnostic.problem != .None {

@@ -412,6 +412,7 @@ struct ZirModule {
     ZirModuleParameter* parameters;
     int32_t parameter_count;
     int32_t parameter_cap;
+    int32_t checks;
     const struct ZirModule * bundle_library;
     int32_t bundle_own_functions;
     int32_t bundle_own_laws;
@@ -428,6 +429,7 @@ struct ZirProgram {
     ZirModule* modules;
     int32_t module_count;
     int32_t module_cap;
+    int32_t checks;
 };
 #ifdef ZIRAN_COMPILER_IR_H_PRIVATE
 

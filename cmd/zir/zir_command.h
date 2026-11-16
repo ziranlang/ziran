@@ -125,6 +125,15 @@ CommandMergePrograms(const ProgramSet *set, ZirProgram *merged)
     return 1;
 }
 
+/* --checks: bounds checks in every loaded module. */
+static inline void
+CommandEnableChecks(const ProgramSet *set)
+{
+    for(int index = 0; index < set->count; index++)
+        for(int module = 0; module < set->programs[index]->module_count; module++)
+            set->programs[index]->modules[module].checks = 1;
+}
+
 static inline int
 valid_define(const char *name)
 {

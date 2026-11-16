@@ -743,6 +743,8 @@ LowerDirect :: (state: *LowerState, function: *MachineFunction, token: s32, base
 // An element whose index the shared facts prove below a bound needs no
 // index check: ElementAddress result, base, index, bound.
 LowerElement :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    // Folded into the load or store that uses it.
+    if state.select.address_shift[source.result] >= 0 { return true }
     bound: s64
     if !state.checks && !source.checked && source.operands.count >= 2 && source.operands.count <= 4 {
         // Unchecked: the no-check form at base + index (a subview's low);
@@ -792,7 +794,15 @@ LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     instruction := BeginInstruction(state, opcode, source.origin)
     if source.result != LirNoId &&
         VirtualOperand(state, GlobalVirtual(state, function, source.result), .Define) == MachineNoId { return false }
+    // A folded element address: the access takes base, index and scale.
+    address := ifx source.operands.count > 0 then source.operands[0] else LirNoId
+    if (opcode == .Load || opcode == .Store) && address != LirNoId && state.select.address_shift[address] >= 0 {
+        if VirtualOperand(state, GlobalVirtual(state, function, state.select.address_base[address]), .Use) == MachineNoId ||
+            VirtualOperand(state, GlobalVirtual(state, function, state.select.address_index[address]), .Use) == MachineNoId ||
+            ImmediateOperand(state, cast(u64)state.select.address_shift[address]) == MachineNoId { return false }
+    }
     for operand, at: source.operands {
+        if at == 0 && address != LirNoId && state.select.address_shift[address] >= 0 { continue }
         if opcode == .Store && at == 1 && state.select.fold[state.select_at] == .Right {
             if ImmediateOperand(state, state.select.bits[operand]) == MachineNoId { return false }
             continue

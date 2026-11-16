@@ -961,7 +961,47 @@ Convert :: (state: *State, opcode: MachineOpcode) -> bool {
     return true
 }
 
+// The memory of an element access whose operands LOCAL.. are base, index and
+// scale shift (a folded element address).
+ElementMemory :: (state: *State, local: s32, memory: *X86Operand) -> bool {
+    base := Register(state, local, .Use)
+    index := Register(state, local + 1, .Use)
+    shift := OperandAt(state, local + 2)
+    if base == MachineNoId || index == MachineNoId { return false }
+    if shift.kind != .Immediate || shift.immediate > 3 { return Fail(state, .Unsupported, OperandId(state, local + 2)) }
+    <<memory = X86Indexed(base, index, 0, cast(s32)shift.immediate)
+    return true
+}
+
+// A scalar load or store through a folded element address: Load is
+// destination, base, index, shift; Store is base, index, shift, value.
+ElementAccess :: (state: *State, load: bool) -> bool {
+    memory: X86Operand
+    if !ElementMemory(state, ifx load then cast(s32)1 else 0, *memory) { return false }
+    value_local: s32 = ifx load then 0 else 3
+    value := OperandAt(state, value_local)
+    size := cast(s64)(cast(u64)1 << OperandAt(state, ifx load then cast(s32)3 else 2).immediate)
+    if !load && value.kind == .Immediate {
+        X86StoreImmediate(*state.writer, memory, value.immediate, size)
+        return true
+    }
+    type := TypeOf(state, value)
+    if type.class == .Float {
+        register := FloatRegister(state, value_local, ifx load then MachineOperandRole.Define else .Use)
+        if register == MachineNoId { return false }
+        if load { X86FloatLoad(*state.writer, register, memory, FloatSize(type)) }
+        else { X86FloatStore(*state.writer, memory, register, FloatSize(type)) }
+        return true
+    }
+    register := Register(state, value_local, ifx load then MachineOperandRole.Define else .Use)
+    if register == MachineNoId { return false }
+    if load { X86Load(*state.writer, register, memory, ScalarSize(type), Signed(type)) }
+    else { X86Store(*state.writer, memory, register, ScalarSize(type)) }
+    return true
+}
+
 Load :: (state: *State) -> bool {
+    if Current(state).operand_count == 4 { return ElementAccess(state, true) }
     if !Count(state, 2) { return false }
     destination_operand := OperandAt(state, 0)
     address_operand := OperandAt(state, 1)
@@ -991,6 +1031,7 @@ Load :: (state: *State) -> bool {
 }
 
 Store :: (state: *State) -> bool {
+    if Current(state).operand_count == 4 { return ElementAccess(state, false) }
     if !Count(state, 2) { return false }
     value_operand := OperandAt(state, 1)
     if value_operand.class == .Stack {

@@ -29,6 +29,13 @@ MachineSelectPlan :: struct {
     // Per instruction, numbered through the blocks in order: which operand of
     // a binary operation or compare is an immediate.
     fold: Vec(MachineSelectFold)
+    // Per value: for an unchecked element address whose only use is the
+    // address of a scalar load or store later in its block, the base, index
+    // and scale shift that access takes as its memory operand; -1 shift
+    // otherwise.
+    address_base: Vec(s32)
+    address_index: Vec(s32)
+    address_shift: Vec(s32)
     // Per block: the block its closing jump threads into, or -1, and whether
     // every edge into it threads past it, so nothing reaches it.
     thread: Vec(s32)
@@ -48,8 +55,9 @@ Context :: struct {
     plan: *MachineSelectPlan
     program: LirProgram
     function: LirFunction
-    // Stores may take an immediate value.
-    stores: bool
+    // An unchecked x86 build: stores take immediates and element addresses
+    // fold into the access.
+    unchecked: bool
     budget: s64
     problem: MachineProblem
 }
@@ -103,7 +111,7 @@ Commutative :: (op: LirOp) -> bool {
 Fold :: (context: *Context, instruction: LirInstruction) -> MachineSelectFold {
     op := instruction.op
     if op == .Store {
-        if !context.stores || instruction.operands.count != 2 || !Scalar(TypeOf(context, instruction.operands[1])) ||
+        if !context.unchecked || instruction.operands.count != 2 || !Scalar(TypeOf(context, instruction.operands[1])) ||
             !Immediate(context, instruction.operands[1]) { return .None }
         return .Right
     }
@@ -156,6 +164,46 @@ ThreadTarget :: (context: *Context, jump: LirInstruction) -> s32 {
     return target
 }
 
+// The scale shift of a scalar of TYPE as an array element, or -1.
+ElementShift :: (type: LirType) -> s32 {
+    size: s32 = 0
+    if type.kind == .Bool { size = 1 }
+    else if type.kind == .Integer || type.kind == .Float { size = type.bits / 8 }
+    else if type.kind == .Pointer { size = 8 }
+    if size == 1 { return 0 }
+    if size == 2 { return 1 }
+    if size == 4 { return 2 }
+    if size == 8 { return 3 }
+    return -1
+}
+
+// Folds the element address ITEM of INSTRUCTIONS into the scalar load or
+// store after it that is its only use.
+FoldAddress :: (context: *Context, instructions: []LirInstruction, item: s64) {
+    address := instructions[item]
+    result := address.result
+    if !context.unchecked || address.op != .ElementAddress || address.checked || result < 0 ||
+        address.operands.count < 2 || address.operands.count > 4 || context.plan.uses[result] != 1 { return }
+    for at: item + 1..instructions.count - 1 {
+        user := instructions[at]
+        named := false
+        for operand: user.operands { if operand == result { named = true } }
+        if !named { continue }
+        accessed: s32 = -1
+        if user.op == .Load && user.operands.count == 1 { accessed = user.result }
+        if user.op == .Store && user.operands.count == 2 && user.operands[0] == result && user.operands[1] != result {
+            accessed = user.operands[1]
+        }
+        if accessed < 0 { return }
+        shift := ElementShift(TypeOf(context, accessed))
+        if shift < 0 { return }
+        context.plan.address_base[result] = address.operands[0]
+        context.plan.address_index[result] = address.operands[1]
+        context.plan.address_shift[result] = shift
+        return
+    }
+}
+
 // Whether the compare defining VALUE at ITEM of INSTRUCTIONS has its only use
 // right after it.
 Fusable :: (context: *Context, instructions: []LirInstruction, item: s64, value: s32) -> bool {
@@ -172,6 +220,7 @@ Plan :: (context: *Context) -> bool {
         instructions := block.instructions
         if !Spend(context, instructions.count) { return false }
         for instruction, item: instructions {
+            FoldAddress(context, instructions, item)
             fold := Fold(context, instruction)
             plan.fold[at] = fold
             if fold == .Right { plan.folded[instruction.operands[1]] += 1 }
@@ -201,16 +250,18 @@ Plan :: (context: *Context) -> bool {
 // plan.work, and BYTES elements per scratch vector. A plan that is not
 // ENABLED loads every used value and folds, fuses and threads nothing.
 MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, function: LirFunction,
-    enabled: bool, stores: bool, budget: s64, bytes: s64) -> MachineProblem {
+    enabled: bool, unchecked: bool, budget: s64, bytes: s64) -> MachineProblem {
     plan.work = 0
-    context := Context.{plan = plan, program = program, function = function, stores = stores, budget = budget,
-        problem = .None}
+    context := Context.{plan = plan, program = program, function = function, unchecked = unchecked,
+        budget = budget, problem = .None}
     count := function.values.count
     instructions: s64
     for block: function.blocks { instructions += block.instructions.count }
     if !VecResizeBounded(plan.constant, count, bytes) || !VecResizeBounded(plan.bits, count, bytes) ||
         !VecResizeBounded(plan.loaded, count, bytes) || !VecResizeBounded(plan.fused, count, bytes) ||
         !VecResizeBounded(plan.uses, count, bytes) || !VecResizeBounded(plan.folded, count, bytes) ||
+        !VecResizeBounded(plan.address_base, count, bytes) || !VecResizeBounded(plan.address_index, count, bytes) ||
+        !VecResizeBounded(plan.address_shift, count, bytes) ||
         !VecResizeBounded(plan.fold, instructions, bytes) ||
         !VecResizeBounded(plan.thread, function.blocks.count, bytes) ||
         !VecResizeBounded(plan.dead, function.blocks.count, bytes) ||
@@ -223,6 +274,9 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
         plan.fused[value] = false
         plan.uses[value] = 0
         plan.folded[value] = 0
+        plan.address_base[value] = -1
+        plan.address_index[value] = -1
+        plan.address_shift[value] = -1
     }
     for at: cast(s64)0..instructions - 1 { plan.fold[at] = .None }
     for at: cast(s64)0..function.blocks.count - 1 {
@@ -239,6 +293,9 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
 }
 
 MachineSelectPlanFree :: (plan: *MachineSelectPlan) {
+    VecFree(plan.address_base)
+    VecFree(plan.address_index)
+    VecFree(plan.address_shift)
     VecFree(plan.constant)
     VecFree(plan.bits)
     VecFree(plan.loaded)

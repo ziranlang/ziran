@@ -453,6 +453,12 @@ inside the outer loop), the element address folded into the store and load,
 coalesce. The zero-initialized local array is still allocated, loaded and
 reallocated (`allocate; load; allocate v`), three 20 KB passes on entry.
 
+Landed: an unchecked element address whose only use is a scalar load or
+store later in its block folds into that access (`movb $1, (%rcx,%rdi,1)`).
+Load 8 on Omega, 3 A/B runs of 41 processes: Sieve 33 -> 29 us, Vectors
+37 -> 26 us, Hash and Records unchanged. Sieve's inner loop is now `cmp;
+jge; movb; add; jmp` (C: 4 instructions).
+
 Loop rotation cannot be done while lowering: the optimized LIR has dropped
 the loop body's block parameters, so the body names the header's
 parameters directly, and a test copied to the bottom would branch back

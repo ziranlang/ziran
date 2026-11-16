@@ -42,23 +42,10 @@ Re-run the caller search first, then the named focused check.
 - Blocked: the M4 AArch64 lane has the file open.
 - Proof: `make check CHECK_FILTER=aarch64_encoder`.
 
-### Unused x86 encoder constants
-
-- Delete `X86Rbx`, `X86Rsi`, `X86R12`, `X86R13` and `X86Sign` in
-  `cmd/compiler_x86_bytes.zi` (no reader).
-- Blocked: a native-speed lane has the file open.
-- Proof: `make check CHECK_FILTER=x86_encoder`.
-
 ### Stale TinyCC comment in the build
 
 - `Makefile`, the `RUNTIME_LIBS` comment: drop "including through TCC".
 - Blocked: `Makefile` is dirty in another lane.
-
-### Generated site copies
-
-- `site/generated/json-text/*/c/ziran_simd*.h` predate the TinyCC removal
-  and still describe the removed tiers. Regenerate them with the site
-  pipeline; never hand-edit generated files.
 
 ## Self-hosting C replacement (planned work, not dead code)
 
@@ -89,6 +76,9 @@ the final gate. No alias or compatibility runner survives a step.
 - The old-tier labels in `bench/assembly_compare.zi`, `bench/assembly_collect.zi`
   and `tests/assembly_compare_cases.zi` name the preserved M0 receipts of the
   before/after comparison.
+- `site/generated/json-text/` is the generated code `bench/json_text.py`
+  published with its measured Alpha run; it changes only with a new run of
+  that benchmark, like `bench/results/`.
 - The ELF writer's fixed-base relocation checks and the native loader's
   per-architecture relocation code serve different live paths (AOT ELF and
   in-process loading); merging them is a refactor for

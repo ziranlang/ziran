@@ -45,9 +45,16 @@ through <code>bench/bench.zi</code> never record. Recording never prints during 
 <code>.zx</code>, ELF, <code>zx2native --emit map</code> ranges and lowered input once under
 <code>$XDG_DATA_HOME/ziran/learn</code> (or <code>~/.local/share/ziran/learn</code>), named by their
 SHA-256 digests, so a rebuild writes nothing and a compiler that emits different
-code adds a second ELF beside the first. <code>--limit-mb N</code> caps the corpus (1024 MB
-by default), <code>ziran learn status</code> shows its size, <code>ZIRAN_LEARN=on|off</code> overrides
-the switch and <code>ZIRAN_LEARN_DIR=DIR</code> moves the corpus.</p>
+code adds a second record beside the first. Programs are filed by format,
+<code>zx&lt;R&gt;-lir&lt;S&gt;/&lt;ZX sha256&gt;/</code>, from the bundle's own header revision and
+instruction schema: tools read only their own revision, so a format change
+starts a new folder instead of mixing in programs the current tools reject.
+Each record ends with <code>&lt;target&gt;-&lt;ELF sha256&gt;.record.json</code>, written last, which
+names the compiler (the SHA-256 of <code>zx2native</code> and <code>zi2zx</code> and the Ziran
+version), the source and entry and the Unix time. <code>--limit-mb N</code> caps the
+corpus (1024 MB by default), <code>ziran learn status</code> shows its size and each
+format's programs and records, <code>ZIRAN_LEARN=on|off</code> overrides the switch and
+<code>ZIRAN_LEARN_DIR=DIR</code> moves the corpus.</p>
 <p>Use <code>ziran run app.zx</code> for both console and graphical programs. The linker
 includes the reachable code of imported modules, including a UI library.
 Platform effects such as windows and input are supplied by an installed runtime

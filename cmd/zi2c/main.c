@@ -54,14 +54,38 @@ lock_output(const char *directory)
     return fd;
 }
 
-/* The C main that runs the entry procedure, unless the entry is itself an
- * exported main. The entry takes nothing or (argc, argv) and returns
- * nothing or an integer. */
+/* The procedure a closed program writes as C's main itself: its --exe
+ * entry, or else its exported main. It keeps a name of its own, and a
+ * separate C main calls it, when other code calls it or takes it as a
+ * value, when it is exported under another symbol, or when it carries
+ * assembly or per-CPU clones. */
+static const ZirFunction *
+in_place_main(const ZirProgram *program, const ZirModule *entry_owner,
+              const ZirFunction *entry_fn, int exe)
+{
+    const ZirModule *owner = exe ? entry_owner : NULL;
+    const ZirFunction *fn = exe ? entry_fn : NULL;
+    for(int m = 0; fn == NULL && m < program->module_count; m++)
+        for(int f = 0; fn == NULL && f < program->modules[m].function_count; f++)
+            if(!program->modules[m].functions[f].is_template &&
+               NativeProgramMain(&program->modules[m], &program->modules[m].functions[f])) {
+                owner = &program->modules[m];
+                fn = &program->modules[m].functions[f];
+            }
+    if(fn == NULL || (fn->exported && !NativeProgramMain(owner, fn)) ||
+       (fn->assembly_text && *fn->assembly_text) || fn->simd_target ||
+       ProgramUsesFunction(program, fn))
+        return NULL;
+    return fn;
+}
+
+/* The C main that runs the entry procedure, when the entry is neither an
+ * exported main nor written as C's main itself. The entry takes nothing or
+ * (argc, argv) and returns nothing or an integer. */
 static int
 write_entry_main(const ZirModule *module, const ZirFunction *fn,
                  const char *out_dir, const char *path)
 {
-    if(!CheckNativeEntry(fn, "c")) return 0;
     if(NativeProgramMain(module, fn))
         return 1;
     char stem[ZIR_PATH_MAX];
@@ -199,7 +223,7 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
     if(workers > MAX_EMIT_WORKERS) workers = MAX_EMIT_WORKERS;
     if(workers < 2 || DiagnosticJsonEnabled()) {
         for(int i = 0; i < count; i++)
-            if(!c_lower(progs[i], root, out_dir, syms, symbol_count, NULL)) return 0;
+            if(!c_lower(progs[i], root, out_dir, syms, symbol_count, NULL, NULL)) return 0;
         return finish_simd_helpers(out_dir);
     }
     int recorded = 0;
@@ -220,7 +244,7 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
             for(int w = 0; w < started; w++) close(reports[w]);
             int lowered = 1;
             for(int i = started; lowered && i < count; i += workers)
-                lowered = c_lower(progs[i], root, out_dir, syms, symbol_count, NULL);
+                lowered = c_lower(progs[i], root, out_dir, syms, symbol_count, NULL, NULL);
             for(int k = recorded; lowered && k < compiler_runtime_emit_GeneratedPathCount(); k++) {
                 const char *path = (const char *)compiler_runtime_emit_GeneratedPath(k);
                 lowered = write_all(pipes[1], path, strlen(path)) &&
@@ -439,21 +463,25 @@ main(int argc, char **argv)
                 closed = !linked->modules[i].functions[f].is_template &&
                          NativeProgramMain(&linked->modules[i],
                                            &linked->modules[i].functions[f]);
+        if(exe && entry_fn == NULL) {
+            DiagnosticTarget((ZirSourceSpan){0}, "zir_c.entry", "c", "entry.signature",
+                             "--exe cannot find %s", entry);
+            goto done;
+        }
+        if(exe && !CheckNativeEntry(entry_fn, "c"))
+            goto done;
+        /* --no-main writes every procedure under its own name. */
+        const ZirFunction *main_fn = closed && !no_main ?
+            in_place_main(linked, entry_owner, entry_fn, exe) : NULL;
         if(!c_lower(linked, root, out_dir, syms, linked->module_count,
-                    closed ? entry_fn : NULL))
+                    closed ? entry_fn : NULL, main_fn))
             goto done;
         char wrapper[ZIR_PATH_MAX];
         snprintf(wrapper, sizeof(wrapper), "%s/ziran_exe_main.c", out_dir);
         remove(wrapper);
-        if(exe) {
-            if(entry_fn == NULL) {
-                DiagnosticTarget((ZirSourceSpan){0}, "zir_c.entry", "c", "entry.signature",
-                                 "--exe cannot find %s", entry);
-                goto done;
-            }
-            if(!write_entry_main(entry_owner, entry_fn, out_dir, wrapper))
-                goto done;
-        }
+        if(exe && entry_fn != main_fn &&
+           !write_entry_main(entry_owner, entry_fn, out_dir, wrapper))
+            goto done;
     } else {
         output_lock = lock_output(out_dir);
         if(output_lock < 0) goto done;
@@ -480,7 +508,6 @@ main(int argc, char **argv)
     }
     result = 0;
 done:
-    (void)no_main;
     ProgramsFree(&set);
     if(syms != NULL)
         c_free_syms(syms, syms_count);

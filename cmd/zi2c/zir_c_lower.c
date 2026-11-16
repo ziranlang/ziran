@@ -191,6 +191,8 @@ static ZirSimdUses *lowering_simd;
  * knows what each header must declare; see zir_c_prune.h. */
 static ZirCPruneModule *lowering_prune;
 static const ZirFunction *lowering_entry;
+/* The procedure written as C's main itself, with no wrapper; see c_lower. */
+static const ZirFunction *lowering_main;
 
 /* A host capability bound to an exported Ziran provider calls the
  * provider's C function, under whatever name collisions gave it. */
@@ -862,12 +864,10 @@ c_text_reads(const char *text, const char *name)
     return 0;
 }
 
-/* Every procedure body, out of line, a #target clone or a header's inline
- * copy, starts by casting each parameter it never reads to void, so C that
- * includes or builds it passes -Wextra's -Wunused-parameter. */
-static void
-lower_body(FILE *out, const ZirModule *module, const ZirCModuleSyms *symbols,
-           int symbol_count, const ZirFunction *function)
+/* The C statements of FUNCTION's body, owned by the caller. */
+static char *
+body_text(const ZirModule *module, const ZirCModuleSyms *symbols,
+          int symbol_count, const ZirFunction *function)
 {
     BodySymbols context = {module, symbols, symbol_count,
                            SpanPath(function->span)};
@@ -884,6 +884,17 @@ lower_body(FILE *out, const ZirModule *module, const ZirCModuleSyms *symbols,
                    "function has no checked typed body: %s", function->name);
         exit(1);
     }
+    return text;
+}
+
+/* Every procedure body, out of line, a #target clone or a header's inline
+ * copy, starts by casting each parameter it never reads to void, so C that
+ * includes or builds it passes -Wextra's -Wunused-parameter. */
+static void
+lower_body(FILE *out, const ZirModule *module, const ZirCModuleSyms *symbols,
+           int symbol_count, const ZirFunction *function)
+{
+    char *text = body_text(module, symbols, symbol_count, function);
     char abi_args[ZIR_TEXT_MAX];
     ArrayAbiArgs(function, abi_args, sizeof(abi_args));
     const ZirParameters *parameters = ParametersOf(abi_args);
@@ -902,6 +913,93 @@ lower_body(FILE *out, const ZirModule *module, const ZirCModuleSyms *symbols,
     }
     fputs(text, out);
     free(text);
+}
+
+/* FIRST, or else SECOND or SECOND_N, whichever the body text and the
+ * body's own parameter NAMES leave free. */
+static void
+free_c_name(const char *text, char names[2][LOWER_NAME_MAX], const char *first,
+            const char *second, char *out, size_t size)
+{
+    copy_text(out, size, first);
+    for(int serial = 1; c_text_reads(text, out) || !strcmp(out, names[0]) ||
+                        !strcmp(out, names[1]); serial++) {
+        if(serial == 1) copy_text(out, size, second);
+        else snprintf(out, size, "%s_%d", second, serial);
+    }
+}
+
+/* How a body uses one of its parameters: not at all, only to cast it to
+ * void as `unused NAME` does, or for its value. */
+enum { MAIN_UNUSED, MAIN_VOIDED, MAIN_READ };
+
+static int
+main_parameter_use(const char *text, const char *name)
+{
+    if(!c_text_reads(text, name)) return MAIN_UNUSED;
+    char cast[LOWER_NAME_MAX + 8];
+    snprintf(cast, sizeof(cast), "(void)%s;", name);
+    size_t length = strlen(cast);
+    char *rest = AllocateOrExit(strlen(text) + 1);
+    strcpy(rest, text);
+    for(char *at = rest; (at = strstr(at, cast)) != NULL; at += length)
+        memset(at, ' ', length);
+    int read = c_text_reads(rest, name);
+    free(rest);
+    return read ? MAIN_READ : MAIN_VOIDED;
+}
+
+/* Writes FUNCTION, a closed program's entry, as C's main itself. C passes
+ * the argument count as int and the arguments as char **. The body keeps
+ * its own parameter names and types: a parameter it only voids, or an s32
+ * count, is main's own, and any other it reads is a copy of main's. Main
+ * declares no parameters when the body uses neither, and an entry with no
+ * result returns 0 from each return statement. */
+static void
+lower_main(FILE *out, const ZirModule *module, const ZirCModuleSyms *symbols,
+           int symbol_count, const ZirFunction *function)
+{
+    int status = !function->return_type[0] || !strcmp(function->return_type, "void");
+    EmitStatusReturns(status ? function : NULL);
+    char *text = body_text(module, symbols, symbol_count, function);
+    EmitStatusReturns(NULL);
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(function));
+    char names[2][LOWER_NAME_MAX] = {"", ""};
+    int uses[2] = {MAIN_UNUSED, MAIN_UNUSED};
+    for(int i = 0; i < parameters->count && i < 2; i++) {
+        const ZirParameter *parameter = &parameters->items[i];
+        if(parameter->name == NULL || parameter->name[0] == '\0') continue;
+        TargetBindingName(function, ZIR_C, parameter->name, names[i], sizeof(names[i]));
+        uses[i] = main_parameter_use(text, names[i]);
+    }
+    if(uses[0] == MAIN_UNUSED && uses[1] == MAIN_UNUSED) {
+        fputs("int\nmain(void)\n{\n", out);
+    } else {
+        const char *count_type = parameters->items[0].type;
+        const char *values_type = !strcmp(parameters->items[1].type, "**s8") ?
+                                  "int8_t **" : "uint8_t **";
+        int own[2] = {uses[0] == MAIN_VOIDED ||
+                      (uses[0] == MAIN_READ && !strcmp(count_type, "s32")),
+                      uses[1] == MAIN_VOIDED};
+        char count[LOWER_NAME_MAX], values[LOWER_NAME_MAX];
+        if(own[0]) copy_text(count, sizeof(count), names[0]);
+        else free_c_name(text, names, "argc", "argument_count", count, sizeof(count));
+        if(own[1]) copy_text(values, sizeof(values), names[1]);
+        else free_c_name(text, names, "argv", "arguments", values, sizeof(values));
+        fprintf(out, "int\nmain(int %s, char **%s)\n{\n", count, values);
+        if(uses[0] == MAIN_UNUSED)
+            fprintf(out, "    (void)%s;\n", count);
+        else if(!own[0])
+            fprintf(out, "    %s %s = (%s)%s;\n", TargetType(count_type, ZIR_C),
+                    names[0], TargetType(count_type, ZIR_C), count);
+        if(uses[1] == MAIN_UNUSED)
+            fprintf(out, "    (void)%s;\n", values);
+        else if(!own[1])
+            fprintf(out, "    %s%s = (%s)%s;\n", values_type, names[1], values_type, values);
+    }
+    fputs(text, out);
+    free(text);
+    fputs("}\n", out);
 }
 
 /* The x86-64 tiers a #target procedure gets a clone for, best first, with
@@ -1765,7 +1863,7 @@ inline_candidate(const ZirModule *m, const ZirFunction *fn)
         return 0;
     if(fn->is_template || !fn->is_public || fn->is_extern || fn->exported ||
        fn->simd_target || fn->is_global_initializer || fn->uses_host || fn->go_method[0] ||
-       (fn->assembly_text && *fn->assembly_text) || NativeProgramMain(m, fn) ||
+       (fn->assembly_text && *fn->assembly_text) || NativeProgramMain(m, fn) || fn == lowering_main ||
        ArrayElementType(fn->return_type, NULL, 0, NULL) || fn->inlining == ZIR_INLINE_COLD ||
        (fn->inlining != ZIR_INLINE_ALWAYS &&
         (fn->stmt_count > INLINE_STATEMENTS || fn->expr_count > INLINE_EXPRESSIONS)))
@@ -2473,6 +2571,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         char cret[LOWER_NAME_MAX];
         if(fn->is_template || !fn->is_public)
             continue;   /* private functions are file-static */
+        if(fn == lowering_main)
+            continue;   /* nothing calls C's main */
         function_c_name(m, fn, cname, sizeof(cname));
         ArrayAbiArgs(fn, buffers->abi_args, sizeof(buffers->abi_args));
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
@@ -2742,6 +2842,12 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             emit_target_clones(c, m, restab, restab_count, fn, cret, cname, buffers->cargs, split);
         if(split && fn->is_public)
             fputs("#ifndef ZIRAN_TIER_UNIT\n", c);
+        if(fn == lowering_main) {
+            lower_main(c, m, restab, restab_count, fn);
+            if(split && fn->is_public)
+                fputs("#endif\n", c);
+            continue;
+        }
         if(fn->is_public)
             fprintf(c, "%s%s\n%s(%s)\n{\n", inlining_prefix(fn), cret[0] ? cret : "void",
                     cname, buffers->cargs);
@@ -2978,7 +3084,8 @@ write_pruned_program(const ZirProgram *program, const char *out_dir)
 
 int
 c_lower_in_context(const ZirProgram *program, const char *root, const char *out_dir,
-        const ZirCModuleSyms *restab, int restab_count, const ZirFunction *entry)
+        const ZirCModuleSyms *restab, int restab_count, const ZirFunction *entry,
+        const ZirFunction *main_fn)
 {
     int i;
 
@@ -3003,6 +3110,7 @@ c_lower_in_context(const ZirProgram *program, const char *root, const char *out_
         lowering_prune = AllocateOrExit(size);
         memset(lowering_prune, 0, size);
         lowering_entry = entry;
+        lowering_main = main_fn;
     }
     header_table_open(restab, restab_count);
     int lowered = 1;
@@ -3018,6 +3126,7 @@ c_lower_in_context(const ZirProgram *program, const char *root, const char *out_
     }
     lowering_prune = NULL;
     lowering_entry = NULL;
+    lowering_main = NULL;
     lowering_program = NULL;
     lowering_simd = NULL;
     /* Every file is out, so the program's helpers are known. */
@@ -3099,10 +3208,10 @@ c_free_syms(ZirCModuleSyms *syms, int count)
     }
 }
 
-int c_lower(const ZirProgram *program, const char *root, const char *out_dir, const ZirCModuleSyms *restab, int restab_count, const ZirFunction *entry)
+int c_lower(const ZirProgram *program, const char *root, const char *out_dir, const ZirCModuleSyms *restab, int restab_count, const ZirFunction *entry, const ZirFunction *main_fn)
 {
     CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
-    int result = c_lower_in_context(program, root, out_dir, restab, restab_count, entry);
+    int result = c_lower_in_context(program, root, out_dir, restab, restab_count, entry, main_fn);
     CompilerContextSelect(previous);
     return result;
 }

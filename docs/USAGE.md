@@ -523,11 +523,21 @@ enforces the GPU storage and argument rules, but no target has a GPU device
 backend and CPU execution is never substituted. There are no GPU device
 selection environment variables.
 
-C program entries use a standard `int main(int, char **)` adapter.
-The Ziran procedure keeps its declared parameter and result types for ordinary
-calls and function values. The adapter converts its integer result to a process
-status; a procedure returning nothing exits successfully. This also applies to
-a procedure exported under the symbol `main` through `#program_export "main"`.
+In a closed program the entry is C's `main` itself, with no adapter and no
+other name: `int main(void)`, or `int main(int argc, char **argv)` when the
+body uses its parameters. An `s32` count is main's own parameter, other
+parameter types the body reads are copied from main's, an integer result is
+the process status and a procedure returning nothing returns 0. This also
+applies to a procedure exported under the symbol `main` through
+`#program_export "main"`.
+
+The entry keeps its own name, and a standard `int main(int, char **)` adapter
+calls it, when other code in the program calls it or takes it as a value, when
+it is exported under another symbol, when it carries assembly or `#target`
+clones, in a library build and with `--no-main`. The procedure keeps its
+declared parameter and result types for those calls and function values. The
+adapter converts its integer result to a process status; a procedure returning
+nothing exits successfully.
 
 C-generated executable builds compile source files concurrently on at most half
 of the available CPUs, with no more workers than free memory holds at 512 MiB

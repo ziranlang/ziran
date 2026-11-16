@@ -1561,6 +1561,14 @@ owned_destination_frees(Emitter *e, int index)
     return 1;
 }
 
+static const ZirFunction *status_returns;
+
+void
+EmitStatusReturns(const ZirFunction *fn)
+{
+    status_returns = fn;
+}
+
 static void emit_sequence(Emitter *e,int begin,int end);
 
 static void
@@ -1800,7 +1808,8 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             }
             else {
                 drop_locals(e, 0);
-                line(e,e->target==ZIR_GO?"return":"return;");
+                line(e, e->target == ZIR_GO ? "return" :
+                        e->fn == status_returns ? "return 0;" : "return;");
             }
             leave_block_locals(e, saved);e->sequence_terminated=1;return;
         case ZIR_STMT_UNREACHABLE:

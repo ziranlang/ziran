@@ -30,6 +30,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
     unused NativeRun(*test, bundle_hello[:])
     bundle_run := string.[runner, "run", "hello.zx"]
     unused NativeExpect(*test, bundle_run[:], "Hello, World!\n", test.work)
+    // A closed program's entry is C's main itself, with no wrapper or header.
+    NativeSet(*test, "CFLAGS", "-O2 -Werror=main -Werror=incompatible-pointer-types -Werror=return-type")
+    hello_c := CheckPath(test.work, "hello-c")
+    build_hello := string.[test.ziran, "build", "--target=c", "--exe", "--root", test.work, "--entry", "hello:main", "-o", hello_c, hello]
+    unused NativeRun(*test, build_hello[:])
+    hello_program := string.[CheckPath(hello_c, "hello")]
+    unused NativeExpect(*test, hello_program[:], "Hello, World!\n")
+    if !NativeAssert(*test, NativeRead(*test, CheckPath(hello_c, "hello.c")) == NativeRead(*test, CheckPath(test.repo, "tests/fixtures/native_entry/hello.c.in")) &&
+        !PathExists(CheckPath(hello_c, "hello.h")) && !PathExists(CheckPath(hello_c, "ziran_exe_main.c")), "hello's C is more than one int main") { return 1 }
     missing := string.[runner, "run", "missing.zi"]
     if !NativeReject(*test, missing[:], "cannot open", test.work) { return 1 }
     cc := NativeCompiler()
@@ -41,12 +50,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
     node := CheckExecutable("node")
     names := string.["unsigned", "signed", "early", "fallthrough", "wide", "renamed", "renamedvoid", "implicit", "collision", "keywords", "recursive", "voidslot", "assembly", "longentry"]
     forms := string.["source", "saved"]
-    compiled: s64; cross_linked: s64; web_executed: s64
+    compiled: s64; cross_linked: s64; web_executed: s64; closed_programs: s64
     for name: names {
         folder := CheckPath(test.work, name)
         module := ifx name == "implicit" then "main" else name
         path := CheckPath(folder, CheckConcat(module, ".zi"))
         text := ""
+        entry := ifx name == "wide" || name == "collision" then "Launch" else "main"
         if name == "longentry" {
             spelling: Vec(u8)
             for unused_index: 0..179 { unused unused_index; BuilderAppend(spelling, "a") }
@@ -97,6 +107,21 @@ main :: (argc: s32, argv: **u8) -> s32 {
             result := NativeRun(*test, run[:], "", answer)
             if !NativeAssert(*test, result.output == expected, "native entry output changed") { return 1 }
             compiled += 1
+            // Linked with --entry, the entry is C's main itself unless other code calls it,
+            // it is exported under another symbol or it carries assembly. Longentry's
+            // procedure name is longer than --entry takes.
+            if name != "longentry" {
+                closed := CheckPath(folder, CheckConcat("exe-", form))
+                build := string.[test.ziran, "build", "--target=c", "--exe", "--root", root, "--entry", CheckConcat(module, CheckConcat(":", entry)), "-o", closed, input]
+                unused NativeRun(*test, build[:])
+                closed_run := string.[CheckPath(closed, module), "alpha", "π"]
+                closed_answer: s32 = ifx name == "renamed" then 7 else ifx name == "renamedvoid" then 0 else answer
+                closed_result := NativeRun(*test, closed_run[:], "", closed_answer)
+                in_place := !PathExists(CheckPath(closed, "ziran_exe_main.c")) && !TextContains(NativeRead(*test, CheckPath(closed, CheckConcat(module, ".c"))), "zir_main_")
+                own := name == "recursive" || name == "assembly" || name == "renamed" || name == "renamedvoid"
+                if !NativeAssert(*test, closed_result.output == expected && in_place != own, CheckConcat("closed C entry changed: ", name)) { return 1 }
+                closed_programs += 1
+            }
             ndk := EnvironmentText("ANDROID_NDK_HOME")
             if form == "source" && name == "unsigned" && ndk != "" {
                 triples := string.["aarch64-linux-android24", "armv7a-linux-androideabi24", "x86_64-linux-android24", "i686-linux-android24"]
@@ -169,6 +194,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if !NativeAssert(*test, found, "missing entry.signature capability") { return 1 }
     }
     if test.failed { return 1 }
-    print("Native C entries preserve typed bodies, argument bytes, status, exports, assembly fallback and saved IR (% executables, % Android cross-links, % Wasm executions)\n", compiled, cross_linked, web_executed)
+    print("Native C entries preserve typed bodies, argument bytes, status, exports, assembly fallback and saved IR, and a closed program's entry is C's main itself (% executables, % closed programs, % Android cross-links, % Wasm executions)\n", compiled, closed_programs, cross_linked, web_executed)
     return 0
 }

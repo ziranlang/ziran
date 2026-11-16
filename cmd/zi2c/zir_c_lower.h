@@ -34,10 +34,13 @@ typedef struct ZirCModuleSyms {
  * cross-module calls; pass NULL/0 to resolve same-module only. ENTRY is
  * the entry procedure of a closed entry-linked program, one with its own C
  * main, whose headers keep only what its generated files use. NULL keeps
- * each header's whole interface. */
+ * each header's whole interface. MAIN_FN, in a closed program, is the
+ * procedure written as C's main itself, with no wrapper and no other
+ * name; NULL writes every procedure under its own name. */
 int c_lower(const ZirProgram *program, const char *root,
                const char *out_dir, const ZirCModuleSyms *restab,
-               int restab_count, const ZirFunction *entry);
+               int restab_count, const ZirFunction *entry,
+               const ZirFunction *main_fn);
 
 /* Build the symbol table entry for one program into out. Returns 0 when
  * memory runs out. Release each entry with c_free_syms. */

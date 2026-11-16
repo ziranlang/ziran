@@ -37,6 +37,17 @@ the CPU's features and the build of the compiler that made it. It is checked
 against that key and its SHA-256 digest before it is used, and a damaged entry
 is removed and rebuilt. <code>ZIRAN_NATIVE_CACHE=DIR</code> uses another directory and
 <code>ZIRAN_NATIVE_CACHE=off</code> turns the cache off.</p>
+<p><code>ziran build FILE.zi</code> keeps a corpus of the programs it compiles to native code,
+as training data for improving Ziran's machine code. It is on by default,
+<code>ziran learn off</code> stops it and <code>ziran learn on</code> resumes it; benchmarks run
+through <code>bench/bench.zi</code> never record. Recording never prints during a build;
+<code>ziran learn status</code> reports a record that failed. Each new build stores its verified
+<code>.zx</code>, ELF, <code>zx2native --emit map</code> ranges and lowered input once under
+<code>$XDG_DATA_HOME/ziran/learn</code> (or <code>~/.local/share/ziran/learn</code>), named by their
+SHA-256 digests, so a rebuild writes nothing and a compiler that emits different
+code adds a second ELF beside the first. <code>--limit-mb N</code> caps the corpus (1024 MB
+by default), <code>ziran learn status</code> shows its size, <code>ZIRAN_LEARN=on|off</code> overrides
+the switch and <code>ZIRAN_LEARN_DIR=DIR</code> moves the corpus.</p>
 <p>Use <code>ziran run app.zx</code> for both console and graphical programs. The linker
 includes the reachable code of imported modules, including a UI library.
 Platform effects such as windows and input are supplied by an installed runtime

@@ -1366,11 +1366,14 @@ reexports_kept(const ZirProgram *program, const ZirModule *via,
     return 0;
 }
 
-/* Literal global initializers store function values outside function IR. */
+/* Literal global initializers store function values outside function IR.
+ * This keeps each one, or with IMPORTED tells whether one comes through
+ * that import, or with WANTED tells whether WANTED is one of them. */
 static int
 mark_global_functions(const ZirProgram *program, const ZirModule *module,
                       const ZirGlobal *global, unsigned char **keep,
-                      int *changed, const ZirModule *imported)
+                      int *changed, const ZirModule *imported,
+                      const ZirFunction *wanted)
 {
     if(!global->init[0])
         return 0;
@@ -1391,6 +1394,10 @@ mark_global_functions(const ZirProgram *program, const ZirModule *module,
             continue;
         if(imported != NULL) {
             used |= reexports_module(imported, owner, 0);
+            continue;
+        }
+        if(wanted != NULL) {
+            used |= function == wanted;
             continue;
         }
         keep_function(program, owner, function, keep, changed);
@@ -1424,7 +1431,7 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
     for(int g = 0; g < module->global_count; g++)
         if(global_is_used(uses, module, &module->globals[g]) &&
            mark_global_functions(program, module, &module->globals[g],
-                                 NULL, NULL, import->resolved_module) != 0)
+                                 NULL, NULL, import->resolved_module, NULL) != 0)
             return 1;
     if(reexports_kept(program, import->resolved_module, keep_all, keep_types))
         return 1;
@@ -1614,7 +1621,7 @@ resolve_reachability:
             for(int g = 0; g < module->global_count; g++)
                 if(global_is_used(&uses, module, &module->globals[g]) &&
                    mark_global_functions(program, module, &module->globals[g],
-                                         keep, &changed, NULL) < 0)
+                                         keep, &changed, NULL, NULL) < 0)
                     goto failed;
             for(int f = 0; active && f < module->function_count; f++)
                 if(module->functions[f].is_global_initializer)
@@ -2191,4 +2198,41 @@ ZirProgram *NativeGoLink(const ZirProgram *program, const char *entry_module, co
     ZirProgram *linked = NativeGoLink_in_context(program, entry_module, entry_function);
     CompilerContextSelect(previous);
     return linked;
+}
+
+static int
+program_uses_function(const ZirProgram *program, const ZirFunction *wanted)
+{
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        for(int f = 0; f < module->function_count; f++) {
+            const ZirFunction *function = &module->functions[f];
+            if(function->is_template) continue;
+            for(int e = 0; e < function->expr_count; e++) {
+                const ZirExpr *expression = &function->exprs[e];
+                const ZirModule *owner = NULL;
+                const ZirFunction *callee = NULL;
+                if((expression->kind == ZIR_EXPR_CALL && expression->slot_type[0] == '\0') ||
+                   expression->is_function_value)
+                    if(ResolveFunction(module, expression->name, &owner, &callee) == 1 &&
+                       callee == wanted)
+                        return 1;
+            }
+        }
+        /* An initializer that runs out of memory counts as a use. */
+        for(int g = 0; g < module->global_count; g++)
+            if(mark_global_functions(program, module, &module->globals[g],
+                                     NULL, NULL, NULL, wanted) != 0)
+                return 1;
+    }
+    return 0;
+}
+
+int
+ProgramUsesFunction(const ZirProgram *program, const ZirFunction *function)
+{
+    CompilerContext *previous = CompilerContextSelect(program->context);
+    int used = program_uses_function(program, function);
+    CompilerContextSelect(previous);
+    return used;
 }

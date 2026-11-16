@@ -10,6 +10,9 @@ ZirProgram *NativeLink(const ZirProgram *program, const char *entry_module,
 /* Go entry pruning also retains methods of reachable receiver records. */
 ZirProgram *NativeGoLink(const ZirProgram *program, const char *entry_module,
                          const char *entry_function);
+/* True when code in a linked program calls FUNCTION directly or takes it as
+ * a value, in a procedure body or a global initializer. */
+int ProgramUsesFunction(const ZirProgram *program, const ZirFunction *function);
 /* Bind one declared host capability to an exported Ziran implementation. */
 int BindHostProvider(ZirProgram *program, const char *spec);
 int BindHostModule(ZirProgram *program, const char *spec);

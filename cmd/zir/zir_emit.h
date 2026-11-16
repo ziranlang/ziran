@@ -151,6 +151,9 @@ int GoSimdWriteCheck(const char *out_dir, const char *pkg);
 /* A native program entry has a typed Ziran body plus a standard main adapter. */
 int NativeProgramMain(const ZirModule *module, const ZirFunction *fn);
 int CheckNativeEntry(const ZirFunction *fn, const char *target);
+/* While FN, an entry with no result, is written as C's main itself, each of
+ * its return statements returns 0, a successful exit. NULL ends this. */
+void EmitStatusReturns(const ZirFunction *fn);
 void EmitNativeMainDeclaration(FILE *out);
 /* Declares a function bound to SYMBOL. Mach-O spells C symbols with a
  * leading underscore, which an assembler label must name explicitly. */

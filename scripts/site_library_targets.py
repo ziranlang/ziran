@@ -64,6 +64,8 @@ def build(project, manifest_path, samples, revision=None):
     def run(command):
         return platforms.run(command, cwd=project, env=env)
 
+    compiler_package = Path(run([ziran, 'pkg', 'path', 'ziran'])).resolve()
+    assert compiler_package == base.REPO.resolve(), 'Set the project ziran override to the compiler being measured'
     run([ziran, 'ir', *common, '-o', ir, source])
     source_dir = WORK / 'sources'
     source_dir.mkdir(exist_ok=True)
@@ -97,11 +99,13 @@ def build(project, manifest_path, samples, revision=None):
             'sources': archive(source_dir, OUTPUT / 'sources.zip'),
             'checked_ir': archive(ir, OUTPUT / 'checked-ir.zip'),
             'compiler': {'library_sha256': base.sha(base.REPO / 'build/libziran.a'),
+                         'package_path': str(compiler_package),
                          'revision': base.git('rev-parse', 'HEAD'),
                          'dirty': bool(base.git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
                          'tools': {name: base.sha(base.REPO / 'build/bin' / name) for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm')},
                          'source_hashes': {str(p.relative_to(base.REPO)): base.sha(p) for p in
-                                           sorted(p for p in (base.REPO / 'cmd/zir').iterdir() if p.suffix in ('.c', '.h'))}},
+                                           sorted([p for p in (base.REPO / 'cmd/zir').iterdir() if p.suffix in ('.c', '.h')] +
+                                                  [base.REPO / 'cmd/zx2wasm/zx_wasm_lower.c', base.REPO / 'cmd/zx2wasm/zx_wasm_lower.h'])}},
             'harnesses': {p: base.sha(base.REPO / p) for p in
                           ['scripts/site_library_targets.py', 'scripts/site_target_platforms.py', 'scripts/benchmark_samples.py',
                            'bench/site_target_host.c', 'bench/site_target_host.go', 'bench/site_target_backend.h',

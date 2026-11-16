@@ -59,13 +59,7 @@ Vectors :: () -> s64 {
     return total
 }
 
-Fib :: (n: s64) -> s64 {
-    if n < 2 { return n }
-    return Fib(n - 1) + Fib(n - 2)
-}
-
-// Calls.
-Calls :: () -> s64 { return Fib(20) }
+// Runtime-input recursion is measured by standard/kernels.zi through --standard.
 
 // Formatted output: the host boundary for every value.
 Printing :: () {

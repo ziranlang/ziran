@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "zir_slice.h"
 #include "drawing_props.h"
 #include "geometry.h"
@@ -83,7 +82,6 @@ void svg_icon_behavior_PaintSvgIcon(Session session, int32_t node, String shape,
 #if !defined(__cplusplus) && !defined(ZIRAN_SVG_ICON_BEHAVIOR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include "zir_vec.h"
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 static inline uint64_t svg_icon_behavior_SvgIconHash_ziran_inline(String shape);
 #define svg_icon_behavior_SvgIconHash(...) svg_icon_behavior_SvgIconHash_ziran_inline(__VA_ARGS__)
 
@@ -93,7 +91,7 @@ svg_icon_behavior_SvgIconHash_ziran_inline(String shape)
     uint64_t hash = 14695981039346656037ULL;
     int32_t index = 0;
     while (index < (int32_t)((int64_t)(shape).length)) {
-        hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)((uint8_t)ZIRAN_INDEX(shape.data, shape.length, index))) * UINT64_C(1099511628211));
+        hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)((uint8_t)shape.data[index])) * UINT64_C(1099511628211));
         index = (int32_t)((uint32_t)index + 1u);
     }
     return hash;

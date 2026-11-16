@@ -70,9 +70,6 @@ func Text_PaintTextEmphasis(session Session, node int32, props zir_5988125b99814
 	var previous_end int32 = 0
 	{
 		value_0 := props.Strong[:]
-		if int64(0) < 0 || int64(int64(len(value_0))) < int64(0) || int64(int64(len(value_0))) > int64(len(value_0)) {
-			panic("slice range out of bounds")
-		}
 		loop_view_1 := value_0[0:int64(len(value_0)):int64(len(value_0))]
 		loop_count_1 := int64(len(loop_view_1))
 		var loop_cursor_1 int64 = 0
@@ -101,7 +98,6 @@ func Text_PaintTextEmphasis(session Session, node int32, props zir_5988125b99814
 			for at < end {
 				run := Text_TextLinkRunAt(props, at, end)
 				value_2 := props.Text
-				if int64(line.Start) < 0 || int64(at) < int64(line.Start) || int64(at) > int64(len(value_2)) { panic("string range out of bounds") }
 				left := x + FontMetrics_GlyphWidth(value_2[line.Start:at], prepared.Font, prepared.Typeface)
 				var value_3 Color = Color{}
 				if run.Link {
@@ -112,7 +108,6 @@ func Text_PaintTextEmphasis(session Session, node int32, props zir_5988125b99814
 				}
 				color := value_3
 				value_5 := props.Text
-				if int64(at) < 0 || int64(run.End) < int64(at) || int64(run.End) > int64(len(value_5)) { panic("string range out of bounds") }
 				var value_6 string = value_5[at:run.End]
 				var value_7 float32 = props.Rotation
 				PaintQueue_PaintClippedEmphasis(session, node, value_6, left, y, prepared.Font, color, clip, prepared.Typeface, value_7, Text_TextOrigin(props, prepared))
@@ -135,9 +130,6 @@ func Text_TextLinkRunAt(props zir_5988125b9981443f_Props, at int32, limit int32)
 	var previous_end int32 = 0
 	{
 		value_0 := props.Links[:]
-		if int64(0) < 0 || int64(int64(len(value_0))) < int64(0) || int64(int64(len(value_0))) > int64(len(value_0)) {
-			panic("slice range out of bounds")
-		}
 		loop_view_2 := value_0[0:int64(len(value_0)):int64(len(value_0))]
 		loop_count_2 := int64(len(loop_view_2))
 		var loop_cursor_2 int64 = 0
@@ -179,21 +171,17 @@ func Text_PaintTextLineRuns(session Session, node int32, props zir_5988125b99814
 	for at < line_end {
 		run := Text_TextLinkRunAt(props, at, line_end)
 		value_0 := props.Text
-		if int64(line_start) < 0 || int64(at) < int64(line_start) || int64(at) > int64(len(value_0)) { panic("string range out of bounds") }
 		left := x + FontMetrics_GlyphWidth(value_0[line_start:at], prepared.Font, prepared.Typeface)
 		if !run.Link {
 			value_1 := props.Text
-			if int64(at) < 0 || int64(run.End) < int64(at) || int64(run.End) > int64(len(value_1)) { panic("string range out of bounds") }
 			var value_2 string = value_1[at:run.End]
 			PaintQueue_PaintClippedLabel(session, node, value_2, left, y, prepared.Font, prepared.Color, clip, prepared.Typeface, props.Rotation, Text_TextOrigin(props, prepared))
 		} else {
 			color := Text_TextLinkColor(prepared.Color)
 			value_3 := props.Text
-			if int64(at) < 0 || int64(run.End) < int64(at) || int64(run.End) > int64(len(value_3)) { panic("string range out of bounds") }
 			var value_4 string = value_3[at:run.End]
 			PaintQueue_PaintClippedLabel(session, node, value_4, left, y, prepared.Font, color, clip, prepared.Typeface, props.Rotation, Text_TextOrigin(props, prepared))
 			value_5 := props.Text
-			if int64(at) < 0 || int64(run.End) < int64(at) || int64(run.End) > int64(len(value_5)) { panic("string range out of bounds") }
 			width := FontMetrics_GlyphWidth(value_5[at:run.End], prepared.Font, prepared.Typeface)
 			underline := Geometry_RectangleIntersection(Rectangle{X: float32(left), Y: float32(((y + prepared.LineHeight) - 1)), Width: float32(width), Height: 1.0}, clip)
 			if underline.Width > 0.0 && underline.Height > 0.0 {
@@ -460,9 +448,6 @@ func Text_TextLinkAt(session Session, props zir_5988125b9981443f_Props, x float3
 			var previous_end int32 = 0
 			{
 				value_1 := props.Links[:]
-				if int64(0) < 0 || int64(int64(len(value_1))) < int64(0) || int64(int64(len(value_1))) > int64(len(value_1)) {
-					panic("slice range out of bounds")
-				}
 				loop_view_17 := value_1[0:int64(len(value_1)):int64(len(value_1))]
 				loop_count_17 := int64(len(loop_view_17))
 				var loop_cursor_17 int64 = 0
@@ -495,10 +480,8 @@ func Text_TextLinkAt(session Session, props zir_5988125b9981443f_Props, x float3
 						continue
 					}
 					value_5 := props.Text
-					if int64(line.Start) < 0 || int64(first) < int64(line.Start) || int64(first) > int64(len(value_5)) { panic("string range out of bounds") }
 					from := left + FontMetrics_GlyphWidth(value_5[line.Start:first], prepared.Font, prepared.Typeface)
 					value_6 := props.Text
-					if int64(line.Start) < 0 || int64(last) < int64(line.Start) || int64(last) > int64(len(value_6)) { panic("string range out of bounds") }
 					to := left + FontMetrics_GlyphWidth(value_6[line.Start:last], prepared.Font, prepared.Typeface)
 					if x >= float32(from) && x < float32(to) {
 						return int32(index)

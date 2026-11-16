@@ -2,7 +2,7 @@
 #define ZIRAN_PAINT_QUEUE_H_SOURCE 1
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
+#include <stdlib.h>
 #include <string.h>
 #include "zir_vec.h"
 #include "paint_queue.h"
@@ -56,7 +56,7 @@ PaintRecorder paint_recorder = {0};
 PaintTextRange
 paint_queue_KeepShortPaintBytes(int32_t slot, String value)
 {
-    PaintTextRange kept = paint_queue___zi_spec_9308732530dd822f(&(ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)), slot, (int64_t)(value).length, 256);
+    PaintTextRange kept = paint_queue___zi_spec_9308732530dd822f(&(pending_short_text[slot]), slot, (int64_t)(value).length, 256);
     if (!kept.valid) {
         return kept;
     }
@@ -65,7 +65,7 @@ paint_queue_KeepShortPaintBytes(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            uint8_t* value_0 = &(((ZIRAN_VEC_INDEX((pending_short_text[slot]).data, (pending_short_text[slot]).count, kept.block)).bytes)[((int64_t)((uint64_t)(kept.start) + (uint64_t)at))]);
             (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
@@ -73,7 +73,7 @@ paint_queue_KeepShortPaintBytes(int32_t slot, String value)
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    paint_queue___zi_spec_27099373fae5fe98(&(ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)));
+    paint_queue___zi_spec_27099373fae5fe98(&(pending_short_text[slot]));
     int32_t* value_1 = &(kept.start);
     (*value_1) = (int32_t)((uint32_t)(0u - (uint32_t)(kept.start)) - 1u);
     return kept;
@@ -82,7 +82,7 @@ paint_queue_KeepShortPaintBytes(int32_t slot, String value)
 PaintTextRange
 paint_queue_KeepMediumPaintBytes(int32_t slot, String value)
 {
-    PaintTextRange kept = paint_queue___zi_spec_27a25ba88f17713a(&(ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)), slot, (int64_t)(value).length, 4096);
+    PaintTextRange kept = paint_queue___zi_spec_27a25ba88f17713a(&(pending_medium_text[slot]), slot, (int64_t)(value).length, 4096);
     if (!kept.valid) {
         return kept;
     }
@@ -91,7 +91,7 @@ paint_queue_KeepMediumPaintBytes(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            uint8_t* value_0 = &(((ZIRAN_VEC_INDEX((pending_medium_text[slot]).data, (pending_medium_text[slot]).count, kept.block)).bytes)[((int64_t)((uint64_t)(kept.start) + (uint64_t)at))]);
             (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
@@ -99,7 +99,7 @@ paint_queue_KeepMediumPaintBytes(int32_t slot, String value)
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    paint_queue___zi_spec_17277838aa4fe0e7(&(ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)));
+    paint_queue___zi_spec_17277838aa4fe0e7(&(pending_medium_text[slot]));
     int32_t* value_1 = &(kept.start);
     (*value_1) = (int32_t)(((uint32_t)(0u - (uint32_t)(kept.start)) - 256u) - 1u);
     return kept;
@@ -108,7 +108,7 @@ paint_queue_KeepMediumPaintBytes(int32_t slot, String value)
 PaintTextRange
 paint_queue_KeepLongPaintBytes(int32_t slot, String value)
 {
-    PaintTextRange kept = paint_queue___zi_spec_542e1e54e11043bf(&(ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)), slot, (int64_t)(value).length, 32768);
+    PaintTextRange kept = paint_queue___zi_spec_542e1e54e11043bf(&(pending_text[slot]), slot, (int64_t)(value).length, 32768);
     if (!kept.valid) {
         return kept;
     }
@@ -117,7 +117,7 @@ paint_queue_KeepLongPaintBytes(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            uint8_t* value_0 = &(((ZIRAN_VEC_INDEX((pending_text[slot]).data, (pending_text[slot]).count, kept.block)).bytes)[((int64_t)((uint64_t)(kept.start) + (uint64_t)at))]);
             (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
@@ -125,7 +125,7 @@ paint_queue_KeepLongPaintBytes(int32_t slot, String value)
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    paint_queue___zi_spec_b997e17bf3928592(&(ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)));
+    paint_queue___zi_spec_b997e17bf3928592(&(pending_text[slot]));
     return kept;
 }
 
@@ -141,7 +141,7 @@ paint_queue_KeepPaintBytes(int32_t slot, String value)
     if ((int64_t)(value).length <= 32768LL) {
         return paint_queue_KeepLongPaintBytes(slot, value);
     }
-    bool* value_0 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+    bool* value_0 = &((pending_paint[slot]).overflow);
     (*value_0) = true;
     PaintTextRange invalid = {0};
     return invalid;
@@ -151,21 +151,21 @@ String
 paint_queue_PendingTextValue(int32_t slot, int32_t block, int64_t offset, int64_t count)
 {
     if (offset >= 0LL) {
-        Slice value_0 = {(ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, block)).bytes, 32768};
-        Slice value_1 = SliceRange(value_0, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)count)), sizeof(uint8_t));
+        Slice value_0 = {(ZIRAN_VEC_INDEX((pending_text[slot]).data, (pending_text[slot]).count, block)).bytes, 32768};
+        Slice value_1 = SliceRangeAt(value_0, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)count)), sizeof(uint8_t));
         Slice value_2 = value_1;
         return StringView((const char *)(value_2).data, (size_t)(value_2).length);
     }
     if (offset >= -256LL) {
         int64_t start = (int64_t)((uint64_t)(UINT64_C(0) - (uint64_t)offset) - UINT64_C(1));
-        Slice value_3 = {(ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, block)).bytes, 256};
-        Slice value_4 = SliceRange(value_3, (int64_t)start, (int64_t)((int64_t)((uint64_t)start + (uint64_t)count)), sizeof(uint8_t));
+        Slice value_3 = {(ZIRAN_VEC_INDEX((pending_short_text[slot]).data, (pending_short_text[slot]).count, block)).bytes, 256};
+        Slice value_4 = SliceRangeAt(value_3, (int64_t)start, (int64_t)((int64_t)((uint64_t)start + (uint64_t)count)), sizeof(uint8_t));
         Slice value_5 = value_4;
         return StringView((const char *)(value_5).data, (size_t)(value_5).length);
     }
     int64_t start = (int64_t)(((uint64_t)(UINT64_C(0) - (uint64_t)offset) - UINT64_C(256)) - UINT64_C(1));
-    Slice value_6 = {(ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, block)).bytes, 4096};
-    Slice value_7 = SliceRange(value_6, (int64_t)start, (int64_t)((int64_t)((uint64_t)start + (uint64_t)count)), sizeof(uint8_t));
+    Slice value_6 = {(ZIRAN_VEC_INDEX((pending_medium_text[slot]).data, (pending_medium_text[slot]).count, block)).bytes, 4096};
+    Slice value_7 = SliceRangeAt(value_6, (int64_t)start, (int64_t)((int64_t)((uint64_t)start + (uint64_t)count)), sizeof(uint8_t));
     Slice value_8 = value_7;
     return StringView((const char *)(value_8).data, (size_t)(value_8).length);
 }
@@ -275,11 +275,11 @@ paint_queue_EmitPaintNow(QueuedPaint command, String value, String asset)
     }
     String* value_6 = &(command.data.value);
     Slice value_7 = {(copy).data, (copy).count};
-    Slice value_8 = SliceRange(value_7, 0LL, (int64_t)(value).length, sizeof(*(copy).data));
+    Slice value_8 = SliceRangeAt(value_7, 0LL, (int64_t)(value).length, sizeof(*(copy).data));
     (*value_6) = StringView((const char *)(value_8).data, (size_t)(value_8).length);
     String* value_9 = &(command.data.asset_path);
     Slice value_10 = {(copy).data, (copy).count};
-    Slice value_11 = SliceRange(value_10, (int64_t)(value).length, copy.count, sizeof(*(copy).data));
+    Slice value_11 = SliceRangeAt(value_10, (int64_t)(value).length, copy.count, sizeof(*(copy).data));
     (*value_9) = StringView((const char *)(value_11).data, (size_t)(value_11).length);
     EmitPaint(command);
     free((copy).data);
@@ -342,21 +342,20 @@ paint_queue_KeepMeshPoints(__type_d590da4570cbd205* blocks, Slice points, int64_
     int32_t block_index = (int32_t)((uint32_t)(blocks->count) - 1u);
     bool value_0 = block_index < 0;
     if (!value_0) {
-        int32_t value_1 = (int32_t)(4096u - (uint32_t)((ZIRAN_VEC_INDEX((*(blocks)).data, (*(blocks)).count, block_index)).count));
-        int64_t value_2 = (int64_t)(value_1);
-        value_0 = (count > value_2);
+        int64_t value_1 = (int64_t)(((int32_t)(4096u - (uint32_t)(((*(blocks)).data[block_index]).count))));
+        value_0 = (count > value_1);
     }
     if (value_0) {
         PaintMeshBlock empty = {0};
-        PaintMeshBlock value_3 = empty;
-        bool value_4 = false;
-        void *value_5 = ZirVecGrow((void *)((*(blocks))).data, &((*(blocks))).capacity, ((*(blocks))).count, sizeof(*((*(blocks))).data));
-        if (value_5 != NULL) {
-            ((*(blocks))).data = (PaintMeshBlock *)value_5;
-            ((*(blocks))).data[((*(blocks))).count++] = value_3;
-            value_4 = true;
+        PaintMeshBlock value_2 = empty;
+        bool value_3 = false;
+        void *value_4 = ZirVecGrow((void *)((*(blocks))).data, &((*(blocks))).capacity, ((*(blocks))).count, sizeof(*((*(blocks))).data));
+        if (value_4 != NULL) {
+            ((*(blocks))).data = (PaintMeshBlock *)value_4;
+            ((*(blocks))).data[((*(blocks))).count++] = value_2;
+            value_3 = true;
         }
-        if (!value_4) {
+        if (!value_3) {
             return result;
         }
         block_index = (int32_t)((uint32_t)block_index + 1u);
@@ -365,23 +364,23 @@ paint_queue_KeepMeshPoints(__type_d590da4570cbd205* blocks, Slice points, int64_
     int32_t start = block->count;
     int32_t at = 0;
     while ((int64_t)(at) < count) {
-        Vector2 point = ((Vector2 *)points.data)[SliceIndex(points, (int64_t)at)];
-        float* value_6 = &(point.x);
-        (*value_6) = (*value_6) + dx;
-        float* value_7 = &(point.y);
-        (*value_7) = (*value_7) + dy;
-        Vector2* value_8 = &(ZIRAN_INDEX(block->points, sizeof(block->points) / sizeof(block->points[0]), ((int32_t)((uint32_t)start + (uint32_t)at))));
-        (*value_8) = point;
+        Vector2 point = ((Vector2 *)points.data)[at];
+        float* value_5 = &(point.x);
+        (*value_5) = (*value_5) + dx;
+        float* value_6 = &(point.y);
+        (*value_6) = (*value_6) + dy;
+        Vector2* value_7 = &(block->points[((int32_t)((uint32_t)start + (uint32_t)at))]);
+        (*value_7) = point;
         at = (int32_t)((uint32_t)at + 1u);
     }
-    int32_t* value_9 = &(block->count);
-    (*value_9) = (int32_t)((uint32_t)start + (uint32_t)at);
-    int32_t* value_10 = &(result.block);
-    (*value_10) = block_index;
-    int32_t* value_11 = &(result.start);
-    (*value_11) = start;
-    bool* value_12 = &(result.valid);
-    (*value_12) = true;
+    int32_t* value_8 = &(block->count);
+    (*value_8) = (int32_t)((uint32_t)start + (uint32_t)at);
+    int32_t* value_9 = &(result.block);
+    (*value_9) = block_index;
+    int32_t* value_10 = &(result.start);
+    (*value_10) = start;
+    bool* value_11 = &(result.valid);
+    (*value_11) = true;
     return result;
 }
 
@@ -396,9 +395,9 @@ paint_queue_KeepPaintMesh(int32_t slot, PaintCommand* data, float dx, float dy)
         dx = (float)0.0;
         dy = (float)0.0;
     }
-    PaintMeshRange kept = paint_queue_KeepMeshPoints(&(ZIRAN_INDEX(pending_mesh, sizeof(pending_mesh) / sizeof(pending_mesh[0]), slot)), data->mesh_points, count, dx, dy);
+    PaintMeshRange kept = paint_queue_KeepMeshPoints(&(pending_mesh[slot]), data->mesh_points, count, dx, dy);
     if (!kept.valid) {
-        bool* value_0 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+        bool* value_0 = &((pending_paint[slot]).overflow);
         (*value_0) = true;
         return;
     }
@@ -1199,7 +1198,7 @@ PaintOrder(Session session)
         while (true) {
             int64_t value_0 = ((pending_paint[slot]).items).count;
             if (!(index < value_0)) { break; }
-            QueuedPaint command = ZIRAN_VEC_INDEX(((pending_paint[slot]).items).data, ((pending_paint[slot]).items).count, index);
+            QueuedPaint command = ((pending_paint[slot]).items).data[index];
             int32_t candidate = command.data.overlay_layer;
             if (candidate == layer) {
                 QueuedPaint value_1 = command;
@@ -1251,7 +1250,7 @@ PendingPaintAt(Session session, int32_t index)
         PaintCommand empty = {0};
         return empty;
     }
-    PaintCommand data = (ZIRAN_VEC_INDEX(((pending_paint[slot]).items).data, ((pending_paint[slot]).items).count, index)).data;
+    PaintCommand data = (((pending_paint[slot]).items).data[index]).data;
     int32_t value_3 = slot;
     PaintCommand* value_4 = &(data);
     {
@@ -1277,7 +1276,7 @@ PendingPaintAt(Session session, int32_t index)
         int32_t count = (int32_t)(value_12);
         Slice* value_13 = &(data.mesh_points);
         Slice value_14 = {(ZIRAN_VEC_INDEX((pending_mesh[slot]).data, (pending_mesh[slot]).count, data.mesh_block)).points, 4096};
-        Slice value_15 = SliceRange(value_14, (int64_t)data.mesh_start, (int64_t)((int32_t)((uint32_t)(data.mesh_start) + (uint32_t)count)), sizeof(Vector2));
+        Slice value_15 = SliceRangeAt(value_14, (int64_t)data.mesh_start, (int64_t)((int32_t)((uint32_t)(data.mesh_start) + (uint32_t)count)), sizeof(Vector2));
         (*value_13) = value_15;
     }
     return data;
@@ -1311,9 +1310,9 @@ paint_queue_SnapshotTextRead(int32_t slot, bool values, int64_t start, int64_t c
     }
     int64_t value_0 = 0;
     if (values) {
-        value_0 = ZIRAN_INDEX(paint_snapshot_value_counts, 9, slot);
+        value_0 = (paint_snapshot_value_counts)[slot];
     } else {
-        value_0 = ZIRAN_INDEX(paint_snapshot_asset_counts, 9, slot);
+        value_0 = (paint_snapshot_asset_counts)[slot];
     }
     int64_t length = value_0;
     if (start < 0LL || count < 0LL || start > length || count > (int64_t)((uint64_t)length - (uint64_t)start)) {
@@ -1323,13 +1322,13 @@ paint_queue_SnapshotTextRead(int32_t slot, bool values, int64_t start, int64_t c
     int64_t offset = start % 512LL;
     if (count <= (int64_t)(UINT64_C(512) - (uint64_t)offset)) {
         if (values) {
-            Slice value_1 = {(ZIRAN_VEC_INDEX((ZIRAN_INDEX(paint_snapshot_values, sizeof(paint_snapshot_values) / sizeof(paint_snapshot_values[0]), slot)).data, (ZIRAN_INDEX(paint_snapshot_values, sizeof(paint_snapshot_values) / sizeof(paint_snapshot_values[0]), slot)).count, block)).bytes, 512};
-            Slice value_2 = SliceRange(value_1, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)count)), sizeof(uint8_t));
+            Slice value_1 = {(ZIRAN_VEC_INDEX((paint_snapshot_values[slot]).data, (paint_snapshot_values[slot]).count, block)).bytes, 512};
+            Slice value_2 = SliceRangeAt(value_1, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)count)), sizeof(uint8_t));
             Slice value_3 = value_2;
             return StringView((const char *)(value_3).data, (size_t)(value_3).length);
         }
-        Slice value_4 = {(ZIRAN_VEC_INDEX((ZIRAN_INDEX(paint_snapshot_assets, sizeof(paint_snapshot_assets) / sizeof(paint_snapshot_assets[0]), slot)).data, (ZIRAN_INDEX(paint_snapshot_assets, sizeof(paint_snapshot_assets) / sizeof(paint_snapshot_assets[0]), slot)).count, block)).bytes, 512};
-        Slice value_5 = SliceRange(value_4, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)count)), sizeof(uint8_t));
+        Slice value_4 = {(ZIRAN_VEC_INDEX((paint_snapshot_assets[slot]).data, (paint_snapshot_assets[slot]).count, block)).bytes, 512};
+        Slice value_5 = SliceRangeAt(value_4, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)count)), sizeof(uint8_t));
         Slice value_6 = value_5;
         return StringView((const char *)(value_6).data, (size_t)(value_6).length);
     }
@@ -1341,9 +1340,9 @@ paint_queue_SnapshotTextJoin(int32_t slot, bool values, int64_t start, int64_t c
 {
     int64_t value_0 = 0;
     if (values) {
-        value_0 = ZIRAN_INDEX(paint_snapshot_value_counts, 9, slot);
+        value_0 = (paint_snapshot_value_counts)[slot];
     } else {
-        value_0 = ZIRAN_INDEX(paint_snapshot_asset_counts, 9, slot);
+        value_0 = (paint_snapshot_asset_counts)[slot];
     }
     int64_t length = value_0;
     if (start < 0LL || count < 0LL || start > length || count > (int64_t)((uint64_t)length - (uint64_t)start)) {
@@ -1360,8 +1359,8 @@ paint_queue_SnapshotTextJoin(int32_t slot, bool values, int64_t start, int64_t c
             part = (int64_t)((uint64_t)count - (uint64_t)copied);
         }
         if (values) {
-            Slice value_1 = {(ZIRAN_VEC_INDEX((ZIRAN_INDEX(paint_snapshot_values, sizeof(paint_snapshot_values) / sizeof(paint_snapshot_values[0]), slot)).data, (ZIRAN_INDEX(paint_snapshot_values, sizeof(paint_snapshot_values) / sizeof(paint_snapshot_values[0]), slot)).count, block)).bytes, 512};
-            Slice value_2 = SliceRange(value_1, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)part)), sizeof(uint8_t));
+            Slice value_1 = {(ZIRAN_VEC_INDEX((paint_snapshot_values[slot]).data, (paint_snapshot_values[slot]).count, block)).bytes, 512};
+            Slice value_2 = SliceRangeAt(value_1, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)part)), sizeof(uint8_t));
             Slice value_3 = value_2;
             bool value_4 = false;
             if ((StringView((const char *)(value_3).data, (size_t)(value_3).length)).length == 0) {
@@ -1379,8 +1378,8 @@ paint_queue_SnapshotTextJoin(int32_t slot, bool values, int64_t start, int64_t c
                 return false;
             }
         } else {
-            Slice value_6 = {(ZIRAN_VEC_INDEX((ZIRAN_INDEX(paint_snapshot_assets, sizeof(paint_snapshot_assets) / sizeof(paint_snapshot_assets[0]), slot)).data, (ZIRAN_INDEX(paint_snapshot_assets, sizeof(paint_snapshot_assets) / sizeof(paint_snapshot_assets[0]), slot)).count, block)).bytes, 512};
-            Slice value_7 = SliceRange(value_6, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)part)), sizeof(uint8_t));
+            Slice value_6 = {(ZIRAN_VEC_INDEX((paint_snapshot_assets[slot]).data, (paint_snapshot_assets[slot]).count, block)).bytes, 512};
+            Slice value_7 = SliceRangeAt(value_6, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)part)), sizeof(uint8_t));
             Slice value_8 = value_7;
             bool value_9 = false;
             if ((StringView((const char *)(value_8).data, (size_t)(value_8).length)).length == 0) {
@@ -1424,7 +1423,7 @@ paint_queue_PaintSnapshotEmit(Session session)
         int64_t range_last_9 = (int64_t)((uint64_t)((paint_snapshots[slot]).count) - UINT64_C(1));
         int64_t index = range_first_9;
         if (index <= range_last_9) for (;;) {
-            PaintSnapshot previous = ZIRAN_VEC_INDEX((paint_snapshots[slot]).data, (paint_snapshots[slot]).count, index);
+            PaintSnapshot previous = (paint_snapshots[slot]).data[index];
             QueuedPaint command = {0};
             PaintCommand* value_4 = &(command.data);
             (*value_4) = previous.data;
@@ -1457,7 +1456,7 @@ paint_queue_PaintSnapshotEmit(Session session)
                 }
                 String* value_8 = &(command.data.value);
                 Slice value_9 = {(value_text).data, (value_text).count};
-                Slice value_10 = SliceRange(value_9, 0LL, value_text.count, sizeof(*(value_text).data));
+                Slice value_10 = SliceRangeAt(value_9, 0LL, value_text.count, sizeof(*(value_text).data));
                 (*value_8) = StringView((const char *)(value_10).data, (size_t)(value_10).length);
             }
             String* value_11 = &(command.data.asset_path);
@@ -1489,7 +1488,7 @@ paint_queue_PaintSnapshotEmit(Session session)
                 }
                 String* value_14 = &(command.data.asset_path);
                 Slice value_15 = {(asset_text).data, (asset_text).count};
-                Slice value_16 = SliceRange(value_15, 0LL, asset_text.count, sizeof(*(asset_text).data));
+                Slice value_16 = SliceRangeAt(value_15, 0LL, asset_text.count, sizeof(*(asset_text).data));
                 (*value_14) = StringView((const char *)(value_16).data, (size_t)(value_16).length);
             }
             int64_t value_17 = paint_queue_PaintPointCount(previous.data);
@@ -1497,7 +1496,7 @@ paint_queue_PaintSnapshotEmit(Session session)
             if (mesh_count > 0) {
                 Slice* value_18 = &(command.data.mesh_points);
                 Slice value_19 = {(ZIRAN_VEC_INDEX((paint_snapshot_meshes[slot]).data, (paint_snapshot_meshes[slot]).count, previous.mesh_block)).points, 4096};
-                (*value_18) = SliceRange(value_19, (int64_t)previous.mesh_start, (int64_t)((int32_t)((uint32_t)(previous.mesh_start) + (uint32_t)mesh_count)), sizeof(Vector2));
+                (*value_18) = SliceRangeAt(value_19, (int64_t)previous.mesh_start, (int64_t)((int32_t)((uint32_t)(previous.mesh_start) + (uint32_t)mesh_count)), sizeof(Vector2));
             }
             PaintEmitter* value_20 = &(command.emit);
             (*value_20) = previous.emit;
@@ -1574,7 +1573,7 @@ paint_queue___zi_spec_9308732530dd822f(__type_494ea4ad55fe9fdb* blocks, int32_t 
     int32_t block_index = (int32_t)((uint32_t)((*(blocks)).count) - 1u);
     int32_t start = 0;
     if (block_index >= 0) {
-        start = (ZIRAN_VEC_INDEX((*(blocks)).data, (*(blocks)).count, block_index)).length;
+        start = ((*(blocks)).data[block_index]).length;
     }
     if (block_index < 0 || count > (int64_t)(((int32_t)((uint32_t)capacity - (uint32_t)start)))) {
         PaintShortTextBlock extra = {0};
@@ -1599,7 +1598,7 @@ paint_queue___zi_spec_9308732530dd822f(__type_494ea4ad55fe9fdb* blocks, int32_t 
             value_5 = !value_7;
         }
         if (value_5) {
-            bool* value_9 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+            bool* value_9 = &((pending_paint[slot]).overflow);
             (*value_9) = true;
             return result;
         }
@@ -1644,7 +1643,7 @@ paint_queue___zi_spec_27a25ba88f17713a(__type_5b77e2bb45c14992* blocks, int32_t 
     int32_t block_index = (int32_t)((uint32_t)((*(blocks)).count) - 1u);
     int32_t start = 0;
     if (block_index >= 0) {
-        start = (ZIRAN_VEC_INDEX((*(blocks)).data, (*(blocks)).count, block_index)).length;
+        start = ((*(blocks)).data[block_index]).length;
     }
     if (block_index < 0 || count > (int64_t)(((int32_t)((uint32_t)capacity - (uint32_t)start)))) {
         PaintMediumTextBlock extra = {0};
@@ -1669,7 +1668,7 @@ paint_queue___zi_spec_27a25ba88f17713a(__type_5b77e2bb45c14992* blocks, int32_t 
             value_5 = !value_7;
         }
         if (value_5) {
-            bool* value_9 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+            bool* value_9 = &((pending_paint[slot]).overflow);
             (*value_9) = true;
             return result;
         }
@@ -1714,7 +1713,7 @@ paint_queue___zi_spec_542e1e54e11043bf(__type_60d5a134727d5dcb* blocks, int32_t 
     int32_t block_index = (int32_t)((uint32_t)((*(blocks)).count) - 1u);
     int32_t start = 0;
     if (block_index >= 0) {
-        start = (ZIRAN_VEC_INDEX((*(blocks)).data, (*(blocks)).count, block_index)).length;
+        start = ((*(blocks)).data[block_index]).length;
     }
     if (block_index < 0 || count > (int64_t)(((int32_t)((uint32_t)capacity - (uint32_t)start)))) {
         PaintTextBlock extra = {0};
@@ -1739,7 +1738,7 @@ paint_queue___zi_spec_542e1e54e11043bf(__type_60d5a134727d5dcb* blocks, int32_t 
             value_5 = !value_7;
         }
         if (value_5) {
-            bool* value_9 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+            bool* value_9 = &((pending_paint[slot]).overflow);
             (*value_9) = true;
             return result;
         }

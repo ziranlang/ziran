@@ -31,7 +31,7 @@ import site_targets as base  # noqa: E402
 
 SOURCE = ROOT / 'bench/wasm_tier.zi'
 WORK = ROOT / 'build/wasm-tier'
-KERNELS = ['Sieve', 'Records', 'Hash', 'Vectors', 'Calls', 'Printing']
+KERNELS = ['Sieve', 'Records', 'Hash', 'Vectors', 'Printing']
 TARGETS = ['c', 'zx', 'native', 'wasm']
 NATIVE_BATCHES = 32
 

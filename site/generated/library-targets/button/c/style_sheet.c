@@ -2,7 +2,6 @@
 #define ZIRAN_STYLE_SHEET_H_SOURCE 1
 #include <stdint.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
 #include "style_sheet.h"
 #include "style.h"
 #include "control_props.h"
@@ -259,9 +258,9 @@ ResolveInstalledStyleRules(StyleData base, StyleFacts facts, int32_t active_stat
             while (candidates != 0ULL) {
                 int32_t index = (int32_t)(((uint32_t)word * 64u) + (uint32_t)(style_sheet_StyleFirstBit(candidates)));
                 candidates = (uint64_t)((uint64_t)candidates & ((uint64_t)candidates - UINT64_C(1)));
-                bool value_10 = StyleRuleMatchesState(ZIRAN_INDEX(installed_states, 512, index), active_state);
-                if (value_10 && StyleSelectorMatches(ZIRAN_INDEX(installed_selectors, 512, index), facts)) {
-                    StyleData value = (ZIRAN_INDEX(installed_rules.items, sizeof(installed_rules.items) / sizeof(installed_rules.items[0]), ZIRAN_INDEX(installed_rule_indices, 512, index))).style;
+                bool value_10 = StyleRuleMatchesState((installed_states)[index], active_state);
+                if (value_10 && StyleSelectorMatches((installed_selectors)[index], facts)) {
+                    StyleData value = (installed_rules.items[(installed_rule_indices)[index]]).style;
                     uint32_t* value_11 = &(value.fields);
                     (*value_11) = (uint32_t)((uint32_t)((*value_11)) & (uint32_t)remaining);
                     base = MergeValues(base, value);

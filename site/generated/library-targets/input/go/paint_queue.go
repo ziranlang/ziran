@@ -401,10 +401,8 @@ func PaintQueue_EmitPaintNow(command QueuedPaint, value string, asset string) {
 		return
 	}
 	value_4 := &(command.Data.Value)
-	if int64(0) < 0 || int64(int64(len(value))) < int64(0) || int64(int64(len(value))) > ziran_keyword_copy_0.Count { panic("slice range out of bounds") }
 	(*value_4) = string(ziran_keyword_copy_0.Data[0:int64(len(value))])
 	value_6 := &(command.Data.AssetPath)
-	if int64(int64(len(value))) < 0 || int64(ziran_keyword_copy_0.Count) < int64(int64(len(value))) || int64(ziran_keyword_copy_0.Count) > ziran_keyword_copy_0.Count { panic("slice range out of bounds") }
 	(*value_6) = string(ziran_keyword_copy_0.Data[int64(len(value)):ziran_keyword_copy_0.Count])
 	PaintQueue_EmitPaint(command)
 	ziran_keyword_copy_0.Data = nil
@@ -841,9 +839,6 @@ func PaintQueue_EmitImageEnd() {
 	value_0 := &(emitting_texture.ID)
 	(*value_0) = 0
 	emitting_smooth = false
-	if int64(0) < 0 || int64(0) < int64(0) || int64(0) > int64(len(emitting_image_polygon)) {
-		panic("slice range out of bounds")
-	}
 	emitting_image_polygon = emitting_image_polygon[0:0:0]
 }
 
@@ -1976,7 +1971,6 @@ func PaintQueue_PaintSnapshotEmit(session Session) bool {
 					return value_7
 				}
 				value_8 := &(command.Data.Value)
-				if int64(0) < 0 || int64(value_text.Count) < int64(0) || int64(value_text.Count) > value_text.Count { panic("slice range out of bounds") }
 				(*value_8) = string(value_text.Data[0:value_text.Count])
 			}
 			value_10 := &(command.Data.AssetPath)
@@ -2003,7 +1997,6 @@ func PaintQueue_PaintSnapshotEmit(session Session) bool {
 					return value_12
 				}
 				value_13 := &(command.Data.AssetPath)
-				if int64(0) < 0 || int64(asset_text.Count) < int64(0) || int64(asset_text.Count) > asset_text.Count { panic("slice range out of bounds") }
 				(*value_13) = string(asset_text.Data[0:asset_text.Count])
 			}
 			var value_15 int64 = PaintQueue_PaintPointCount(previous.Data)
@@ -2102,7 +2095,6 @@ func PaintQueue_PaintCommandArea(command PaintCommand, area *Rectangle) bool {
 		var lines int32 = 1
 		{
 			value_6 := command.Value
-			if int64(0) < 0 || int64(len(value_6)) < int64(0) || int64(len(value_6)) > int64(len(value_6)) { panic("string range out of bounds") }
 			loop_view_14 := value_6[0:len(value_6)]
 			loop_count_14 := int64(len(loop_view_14))
 			var loop_cursor_14 int64 = 0

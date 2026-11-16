@@ -38,22 +38,20 @@ function @1 module=m1 name="StartsWithFoldASCII" result=t0 entry=b0 calling=0 ex
     i3 v4:t3 = extract v0 immediate=1 alignment=0 effect=0 origin=o-1
     i4 v5:t2 = convert v4 immediate=0 alignment=0 effect=0 origin=o-1
     i5 v6:t0 = greater v3 v5 immediate=0 alignment=0 effect=0 origin=o-1
-    i6 branch v6 immediate=0 alignment=0 -> b1() -> b2() effect=0 origin=o-1
+    i6 branch v6 immediate=0 alignment=0 -> b7() -> b1() effect=0 origin=o-1
   b1():
-    i0 v7:t0 = constant symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 return v7 immediate=0 alignment=0 effect=0 origin=o-1
+    i0 jump immediate=0 alignment=0 -> b2() effect=0 origin=o-1
   b2():
-    i0 jump immediate=0 alignment=0 -> b3() effect=0 origin=o-1
-  b3():
     i0 v8:t2 = constant symbol=7 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 jump immediate=0 alignment=0 -> b4(v8) effect=0 origin=o-1
-  b4(v9:t2):
+    i1 v25:t2 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 jump immediate=0 alignment=0 -> b3(v8) effect=0 origin=o-1
+  b3(v9:t2):
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v10:t3 = extract v1 immediate=1 alignment=0 effect=0 origin=o-1
     i2 v11:t2 = convert v10 immediate=0 alignment=0 effect=0 origin=o-1
     i3 v12:t0 = less v9 v11 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 branch v12 immediate=0 alignment=0 -> b5() -> b6() effect=0 origin=o-1
-  b5():
+    i4 branch v12 immediate=0 alignment=0 -> b4() -> b8() effect=0 origin=o-1
+  b4():
     i0 v13:t4 = extract v0 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v14:t3 = extract v0 immediate=1 alignment=0 effect=0 origin=o-1
     i2 v15:t4 = element.address v13 v9 v14 immediate=0 alignment=0 effect=0 origin=o-1
@@ -65,39 +63,41 @@ function @1 module=m1 name="StartsWithFoldASCII" result=t0 entry=b0 calling=0 ex
     i8 v21:t1 = load v20 immediate=0 alignment=0 effect=3 origin=o-1
     i9 v22:t1 = call v21 symbol=2 immediate=0 alignment=0 effect=4 origin=o-1
     i10 v23:t0 = not.equal v17 v22 immediate=0 alignment=0 effect=0 origin=o-1
-    i11 branch v23 immediate=0 alignment=0 -> b7() -> b8() effect=0 origin=o-1
+    i11 branch v23 immediate=0 alignment=0 -> b9() -> b5() effect=0 origin=o-1
+  b5():
+    i0 jump immediate=0 alignment=0 -> b6() effect=0 origin=o-1
   b6():
+    i0 v26:t2 = add v9 v25 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 jump immediate=0 alignment=0 -> b3(v26) effect=0 origin=o-1
+  b7():
+    i0 v7:t0 = constant symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v7 immediate=0 alignment=0 effect=0 origin=o-1
+  b8():
     i0 v27:t0 = constant symbol=4 immediate=0 alignment=0 effect=0 origin=o-1
     i1 return v27 immediate=0 alignment=0 effect=0 origin=o-1
-  b7():
+  b9():
     i0 v24:t0 = constant symbol=3 immediate=0 alignment=0 effect=0 origin=o-1
     i1 return v24 immediate=0 alignment=0 effect=0 origin=o-1
-  b8():
-    i0 jump immediate=0 alignment=0 -> b9() effect=0 origin=o-1
-  b9():
-    i0 v25:t2 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v26:t2 = add v9 v25 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 jump immediate=0 alignment=0 -> b4(v26) effect=0 origin=o-1
 function @2 module=m1 name="LowerASCII" result=t1 entry=b0 calling=0 external=0 variadic=0 origin=o-1 parameters=(t1) values=(v0:t1,v1:t1,v2:t0,v3:t1,v4:t0,v5:t0,v6:t0,v7:t1,v8:t1)
   b0(v0:t1):
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v1:t1 = constant symbol=9 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v2:t0 = greater.equal v0 v1 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 branch v2 immediate=0 alignment=0 -> b1() -> b2() effect=0 origin=o-1
+    i3 branch v2 immediate=0 alignment=0 -> b5() -> b1() effect=0 origin=o-1
   b1():
+    i0 v5:t0 = constant symbol=5 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 jump immediate=0 alignment=0 -> b2(v5) effect=0 origin=o-1
+  b2(v6:t0):
+    i0 branch v6 immediate=0 alignment=0 -> b6() -> b3() effect=0 origin=o-1
+  b3():
+    i0 jump immediate=0 alignment=0 -> b4() effect=0 origin=o-1
+  b4():
+    i0 return v0 immediate=0 alignment=0 effect=0 origin=o-1
+  b5():
     i0 v3:t1 = constant symbol=10 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v4:t0 = less.equal v0 v3 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 jump immediate=0 alignment=0 -> b3(v4) effect=0 origin=o-1
-  b2():
-    i0 v5:t0 = constant symbol=5 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 jump immediate=0 alignment=0 -> b3(v5) effect=0 origin=o-1
-  b3(v6:t0):
-    i0 branch v6 immediate=0 alignment=0 -> b4() -> b5() effect=0 origin=o-1
-  b4():
+    i2 jump immediate=0 alignment=0 -> b2(v4) effect=0 origin=o-1
+  b6():
     i0 v7:t1 = constant symbol=11 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v8:t1 = add v0 v7 immediate=0 alignment=0 effect=0 origin=o-1
     i2 return v8 immediate=0 alignment=0 effect=0 origin=o-1
-  b5():
-    i0 jump immediate=0 alignment=0 -> b6() effect=0 origin=o-1
-  b6():
-    i0 return v0 immediate=0 alignment=0 effect=0 origin=o-1

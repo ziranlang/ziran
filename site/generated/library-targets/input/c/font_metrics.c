@@ -20,7 +20,7 @@ GlyphCaret(String value, int32_t byte, int32_t font, String typeface)
         CaretMeasure value_0 = measure;
         return value_0.call(value_0.context, value, byte, font, typeface);
     }
-    return MeasureGlyphWidth(StringRange(value, (int64_t)0, (int64_t)byte), font, typeface);
+    return MeasureGlyphWidth(StringRangeAt(value, (int64_t)0, (int64_t)byte), font, typeface);
 }
 
 int32_t

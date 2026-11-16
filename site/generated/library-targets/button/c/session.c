@@ -2,7 +2,7 @@
 #define ZIRAN_SESSION_H_SOURCE 1
 #include <stdint.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
+#include <stdlib.h>
 #include "session.h"
 #ifndef ZIRAN_HELPER_ZiShl32
 #define ZIRAN_HELPER_ZiShl32
@@ -30,7 +30,7 @@ SessionIndex(Session session)
     bool value_0 = session.slot > 0 && session.slot < 9 && ((uint32_t)((uint32_t)session_active & (uint32_t)((ZiShl32(1, (uint64_t)((uint32_t)(session.slot)), 32))))) != 0;
     bool value_1 = value_0;
     if (value_1) {
-        uint64_t value_2 = ZIRAN_INDEX(session_epochs, 9, session.slot);
+        uint64_t value_2 = (session_epochs)[session.slot];
         uint64_t value_3 = session.epoch;
         value_1 = (value_2 == value_3);
     }
@@ -49,17 +49,17 @@ SessionOpen(void)
         uint32_t mask = ZiShl32(1, (uint64_t)((uint32_t)(slot)), 32);
         bool value_0 = ((uint32_t)((uint32_t)session_active & (uint32_t)mask)) == 0;
         if (value_0) {
-            uint64_t value_1 = ZIRAN_INDEX(session_epochs, 9, slot);
+            uint64_t value_1 = (session_epochs)[slot];
             value_0 = (value_1 != 18446744073709551615ULL);
         }
         if (value_0) {
-            uint64_t* value_2 = &(ZIRAN_INDEX(session_epochs, sizeof(session_epochs) / sizeof(session_epochs[0]), slot));
+            uint64_t* value_2 = &(session_epochs[slot]);
             (*value_2) = (uint64_t)((uint64_t)((*value_2)) + UINT64_C(1));
             session_active = (uint32_t)((uint32_t)session_active | (uint32_t)mask);
             int32_t* value_3 = &(result.slot);
             (*value_3) = slot;
             uint64_t* value_4 = &(result.epoch);
-            (*value_4) = ZIRAN_INDEX(session_epochs, 9, slot);
+            (*value_4) = (session_epochs)[slot];
             return result;
         }
         slot = (int32_t)((uint32_t)slot + 1u);

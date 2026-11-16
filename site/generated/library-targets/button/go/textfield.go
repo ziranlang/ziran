@@ -192,9 +192,6 @@ func Textfield_TextFieldSecureDisplay(value string, explicit_display string, mas
 		(*value_1) = 42
 		index++
 	}
-	if int64(0) < 0 || int64(count) < int64(0) || int64(count) > int64(len(mask)) {
-		panic("slice range out of bounds")
-	}
 	return string(mask[0:count:count])
 }
 

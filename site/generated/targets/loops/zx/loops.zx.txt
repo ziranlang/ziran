@@ -66,143 +66,147 @@ global g4:t8 module=m0 constant=c14 writable=0 name="string.4"
 global g5:t8 module=m0 constant=c16 writable=0 name="string.5"
 global g6:t15 module=m0 constant=c19 writable=0 name="string.6"
 global g7:t17 module=m0 constant=c28 writable=0 name="string.7"
-function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variadic=0 origin=o-1 parameters=() values=(v0:t3,v1:t3,v2:t4,v3:t4,v4:t1,v5:t9,v6:t4,v7:t6,v8:t5,v9:t5,v10:t4,v11:t11,v12:t6,v13:t3,v14:t3,v15:t4,v16:t4,v17:t4,v18:t1,v19:t9,v20:t4,v21:t6,v22:t5,v23:t5,v24:t11,v25:t6,v26:t4,v27:t4,v28:t6,v29:t4,v30:t7,v31:t7,v32:t7,v33:t12,v34:t14,v35:t6,v36:t4,v37:t7,v38:t12,v39:t9,v40:t6,v41:t4,v42:t7,v43:t12,v44:t9,v45:t6,v46:t7,v47:t12,v48:t4,v49:t4,v50:t1,v51:t7,v52:t5,v53:t6,v54:t4,v55:t5,v56:t16,v57:t4,v58:t6,v59:t5,v60:t11,v61:t6,v62:t4,v63:t4,v64:t4,v65:t4,v66:t4,v67:t1,v68:t4,v69:t4,v70:t4,v71:t1,v72:t4,v73:t4,v74:t4,v75:t1,v76:t18,v77:t4,v78:t6,v79:t5,v80:t5,v81:t11,v82:t6,v83:t4,v84:t4)
+function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variadic=0 origin=o-1 parameters=() values=(v0:t3,v1:t3,v2:t4,v3:t4,v4:t1,v5:t9,v6:t4,v7:t6,v8:t5,v9:t5,v10:t4,v11:t11,v12:t6,v13:t3,v14:t3,v15:t4,v16:t4,v17:t1,v18:t9,v19:t4,v20:t6,v21:t5,v22:t5,v23:t11,v24:t6,v25:t4,v26:t4,v27:t6,v28:t4,v29:t7,v30:t7,v31:t7,v32:t12,v33:t14,v34:t6,v35:t4,v36:t7,v37:t12,v38:t9,v39:t6,v40:t4,v41:t7,v42:t12,v43:t9,v44:t6,v45:t7,v46:t12,v47:t4,v48:t1,v49:t7,v50:t5,v51:t6,v52:t4,v53:t5,v54:t16,v55:t4,v56:t6,v57:t5,v58:t11,v59:t6,v60:t4,v61:t4,v62:t4,v63:t4,v64:t4,v65:t1,v66:t4,v67:t4,v68:t4,v69:t1,v70:t4,v71:t4,v72:t4,v73:t1,v74:t18,v75:t4,v76:t6,v77:t5,v78:t5,v79:t11,v80:t6,v81:t4,v82:t4,v83:t4,v84:t1,v85:t4,v86:t1)
   b0():
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v0:t3 = constant symbol=32 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 jump immediate=0 alignment=0 -> b1(v0) effect=0 origin=o-1
+    i2 v2:t4 = constant symbol=0 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v5:t9 = global.address symbol=0 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 v6:t4 = constant symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
+    i5 v8:t5 = constant symbol=3 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 v9:t5 = constant symbol=34 immediate=0 alignment=0 effect=0 origin=o-1
+    i7 v11:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
+    i8 v13:t3 = constant symbol=33 immediate=0 alignment=0 effect=0 origin=o-1
+    i9 jump immediate=0 alignment=0 -> b1(v0) effect=0 origin=o-1
   b1(v1:t3):
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
-    i1 v2:t4 = constant symbol=0 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v3:t4 = convert v1 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 v4:t1 = less.equal v3 v2 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 branch v4 immediate=0 alignment=0 -> b2() -> b3() effect=0 origin=o-1
+    i1 v3:t4 = convert v1 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v4:t1 = less.equal v3 v2 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 branch v4 immediate=0 alignment=0 -> b13() -> b2() effect=0 origin=o-1
   b2():
-    i0 v5:t9 = global.address symbol=0 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v6:t4 = constant symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v7:t6 = element.address v5 v6 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 v8:t5 = constant symbol=3 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 v9:t5 = constant symbol=34 immediate=0 alignment=0 effect=0 origin=o-1
-    i5 host.call v8 v7 v9 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
-    i6 v10:t4 = convert v1 immediate=0 alignment=0 effect=0 origin=o-1
-    i7 host.call v10 symbol=2 immediate=0 alignment=0 effect=2 origin=o-1
-    i8 v11:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
-    i9 v12:t6 = element.address v11 v6 immediate=0 alignment=0 effect=0 origin=o-1
-    i10 host.call v8 v12 v8 symbol=1 immediate=0 alignment=0 effect=3 origin=o-1
-    i11 v13:t3 = constant symbol=33 immediate=0 alignment=0 effect=0 origin=o-1
-    i12 v14:t3 = add v1 v13 immediate=0 alignment=0 effect=0 origin=o-1
-    i13 jump immediate=0 alignment=0 -> b1(v14) effect=0 origin=o-1
-  b3():
     i0 v15:t4 = constant symbol=5 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 jump immediate=0 alignment=0 -> b4(v15) effect=0 origin=o-1
-  b4(v16:t4):
+    i1 v16:t4 = constant symbol=6 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v18:t9 = global.address symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v19:t4 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 v21:t5 = constant symbol=9 immediate=0 alignment=0 effect=0 origin=o-1
+    i5 v22:t5 = constant symbol=35 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 v23:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
+    i7 v25:t4 = constant symbol=10 immediate=0 alignment=0 effect=0 origin=o-1
+    i8 jump immediate=0 alignment=0 -> b3() effect=0 origin=o-1
+  b3():
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
-    i1 v17:t4 = constant symbol=6 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v18:t1 = less.equal v16 v17 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 branch v18 immediate=0 alignment=0 -> b5() -> b6() effect=0 origin=o-1
+    i1 v17:t1 = less.equal v15 v16 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 branch v17 immediate=0 alignment=0 -> b14(v15) -> b4() effect=0 origin=o-1
+  b4():
+    i0 v27:t6 = null immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v28:t4 = constant symbol=11 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v29:t7 = aggregate v27 v28 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v30:t7 = aggregate v27 v28 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 v31:t7 = aggregate v27 v28 immediate=0 alignment=0 effect=0 origin=o-1
+    i5 v32:t12 = aggregate v29 v30 v31 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 v33:t14 = global.address symbol=3 immediate=0 alignment=0 effect=0 origin=o-1
+    i7 v34:t6 = element.address v33 v28 immediate=0 alignment=0 effect=0 origin=o-1
+    i8 v35:t4 = constant symbol=13 immediate=0 alignment=0 effect=0 origin=o-1
+    i9 v36:t7 = aggregate v34 v35 immediate=0 alignment=0 effect=0 origin=o-1
+    i10 v37:t12 = insert v32 v36 immediate=0 alignment=0 effect=0 origin=o-1
+    i11 v38:t9 = global.address symbol=4 immediate=0 alignment=0 effect=0 origin=o-1
+    i12 v39:t6 = element.address v38 v28 immediate=0 alignment=0 effect=0 origin=o-1
+    i13 v40:t4 = constant symbol=15 immediate=0 alignment=0 effect=0 origin=o-1
+    i14 v41:t7 = aggregate v39 v40 immediate=0 alignment=0 effect=0 origin=o-1
+    i15 v42:t12 = insert v37 v41 immediate=1 alignment=0 effect=0 origin=o-1
+    i16 v43:t9 = global.address symbol=5 immediate=0 alignment=0 effect=0 origin=o-1
+    i17 v44:t6 = element.address v43 v28 immediate=0 alignment=0 effect=0 origin=o-1
+    i18 v45:t7 = aggregate v44 v40 immediate=0 alignment=0 effect=0 origin=o-1
+    i19 v46:t12 = insert v42 v45 immediate=2 alignment=0 effect=0 origin=o-1
+    i20 v47:t4 = constant symbol=17 immediate=0 alignment=0 effect=0 origin=o-1
+    i21 v50:t5 = constant symbol=18 immediate=0 alignment=0 effect=0 origin=o-1
+    i22 v54:t16 = global.address symbol=6 immediate=0 alignment=0 effect=0 origin=o-1
+    i23 v55:t4 = constant symbol=20 immediate=0 alignment=0 effect=0 origin=o-1
+    i24 v57:t5 = constant symbol=36 immediate=0 alignment=0 effect=0 origin=o-1
+    i25 v58:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
+    i26 v60:t4 = constant symbol=21 immediate=0 alignment=0 effect=0 origin=o-1
+    i27 jump immediate=0 alignment=0 -> b5() effect=0 origin=o-1
   b5():
-    i0 v19:t9 = global.address symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v20:t4 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v21:t6 = element.address v19 v20 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 v22:t5 = constant symbol=9 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 v23:t5 = constant symbol=35 immediate=0 alignment=0 effect=0 origin=o-1
-    i5 host.call v22 v21 v23 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
-    i6 host.call v16 symbol=2 immediate=0 alignment=0 effect=2 origin=o-1
-    i7 v24:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
-    i8 v25:t6 = element.address v24 v20 immediate=0 alignment=0 effect=0 origin=o-1
-    i9 v26:t4 = constant symbol=10 immediate=0 alignment=0 effect=0 origin=o-1
-    i10 host.call v22 v25 v22 symbol=1 immediate=0 alignment=0 effect=3 origin=o-1
-    i11 v27:t4 = add v16 v26 immediate=0 alignment=0 effect=0 origin=o-1
-    i12 jump immediate=0 alignment=0 -> b4(v27) effect=0 origin=o-1
+    i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
+    i1 v48:t1 = less v28 v47 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 branch v48 immediate=0 alignment=0 -> b15(v28) -> b6() effect=0 origin=o-1
   b6():
-    i0 v28:t6 = null immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v29:t4 = constant symbol=11 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v30:t7 = aggregate v28 v29 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 v31:t7 = aggregate v28 v29 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 v32:t7 = aggregate v28 v29 immediate=0 alignment=0 effect=0 origin=o-1
-    i5 v33:t12 = aggregate v30 v31 v32 immediate=0 alignment=0 effect=0 origin=o-1
-    i6 v34:t14 = global.address symbol=3 immediate=0 alignment=0 effect=0 origin=o-1
-    i7 v35:t6 = element.address v34 v29 immediate=0 alignment=0 effect=0 origin=o-1
-    i8 v36:t4 = constant symbol=13 immediate=0 alignment=0 effect=0 origin=o-1
-    i9 v37:t7 = aggregate v35 v36 immediate=0 alignment=0 effect=0 origin=o-1
-    i10 v38:t12 = insert v33 v37 immediate=0 alignment=0 effect=0 origin=o-1
-    i11 v39:t9 = global.address symbol=4 immediate=0 alignment=0 effect=0 origin=o-1
-    i12 v40:t6 = element.address v39 v29 immediate=0 alignment=0 effect=0 origin=o-1
-    i13 v41:t4 = constant symbol=15 immediate=0 alignment=0 effect=0 origin=o-1
-    i14 v42:t7 = aggregate v40 v41 immediate=0 alignment=0 effect=0 origin=o-1
-    i15 v43:t12 = insert v38 v42 immediate=1 alignment=0 effect=0 origin=o-1
-    i16 v44:t9 = global.address symbol=5 immediate=0 alignment=0 effect=0 origin=o-1
-    i17 v45:t6 = element.address v44 v29 immediate=0 alignment=0 effect=0 origin=o-1
-    i18 v46:t7 = aggregate v45 v41 immediate=0 alignment=0 effect=0 origin=o-1
-    i19 v47:t12 = insert v43 v46 immediate=2 alignment=0 effect=0 origin=o-1
-    i20 jump immediate=0 alignment=0 -> b7(v29) effect=0 origin=o-1
-  b7(v48:t4):
+    i0 v62:t4 = constant symbol=22 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 jump immediate=0 alignment=0 -> b7(v62) effect=0 origin=o-1
+  b7(v63:t4):
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
-    i1 v49:t4 = constant symbol=17 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v50:t1 = less v48 v49 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 branch v50 immediate=0 alignment=0 -> b8() -> b9() effect=0 origin=o-1
+    i1 v64:t4 = constant symbol=23 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v65:t1 = less.equal v63 v64 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 branch v65 immediate=0 alignment=0 -> b8() -> b12() effect=0 origin=o-1
   b8():
-    i0 v51:t7 = extract v47 v48 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v52:t5 = constant symbol=18 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v53:t6 = extract v51 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 v54:t4 = extract v51 immediate=1 alignment=0 effect=0 origin=o-1
-    i4 v55:t5 = convert v54 immediate=0 alignment=0 effect=0 origin=o-1
-    i5 host.call v52 v53 v55 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
-    i6 v56:t16 = global.address symbol=6 immediate=0 alignment=0 effect=0 origin=o-1
-    i7 v57:t4 = constant symbol=20 immediate=0 alignment=0 effect=0 origin=o-1
-    i8 v58:t6 = element.address v56 v57 immediate=0 alignment=0 effect=0 origin=o-1
-    i9 v59:t5 = constant symbol=36 immediate=0 alignment=0 effect=0 origin=o-1
-    i10 host.call v52 v58 v59 symbol=1 immediate=0 alignment=0 effect=2 origin=o-1
-    i11 host.call v48 symbol=2 immediate=0 alignment=0 effect=3 origin=o-1
-    i12 v60:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
-    i13 v61:t6 = element.address v60 v57 immediate=0 alignment=0 effect=0 origin=o-1
-    i14 v62:t4 = constant symbol=21 immediate=0 alignment=0 effect=0 origin=o-1
-    i15 host.call v52 v61 v52 symbol=1 immediate=0 alignment=0 effect=4 origin=o-1
-    i16 v63:t4 = add v48 v62 immediate=0 alignment=0 effect=0 origin=o-1
-    i17 jump immediate=0 alignment=0 -> b7(v63) effect=0 origin=o-1
+    i0 v66:t4 = constant symbol=24 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v67:t4 = remainder v63 v66 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v68:t4 = constant symbol=25 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v69:t1 = equal v67 v68 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 branch v69 immediate=0 alignment=0 -> b16() -> b9() effect=0 origin=o-1
   b9():
-    i0 v64:t4 = constant symbol=22 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 jump immediate=0 alignment=0 -> b10(v64) effect=0 origin=o-1
-  b10(v65:t4):
-    i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
-    i1 v66:t4 = constant symbol=23 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v67:t1 = less.equal v65 v66 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 branch v67 immediate=0 alignment=0 -> b11() -> b12() effect=0 origin=o-1
+    i0 jump immediate=0 alignment=0 -> b10() effect=0 origin=o-1
+  b10():
+    i0 v72:t4 = constant symbol=27 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v73:t1 = greater v63 v72 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 branch v73 immediate=0 alignment=0 -> b11() -> b17() effect=0 origin=o-1
   b11():
-    i0 v68:t4 = constant symbol=24 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v69:t4 = remainder v65 v68 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v70:t4 = constant symbol=25 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 v71:t1 = equal v69 v70 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 branch v71 immediate=0 alignment=0 -> b13() -> b14() effect=0 origin=o-1
+    i0 jump immediate=0 alignment=0 -> b12() effect=0 origin=o-1
   b12():
     i0 return immediate=0 alignment=0 effect=0 origin=o-1
   b13():
-    i0 v72:t4 = constant symbol=26 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v73:t4 = add v65 v72 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 jump immediate=0 alignment=0 -> b10(v73) effect=0 origin=o-1
-  b14():
-    i0 jump immediate=0 alignment=0 -> b15() effect=0 origin=o-1
-  b15():
-    i0 v74:t4 = constant symbol=27 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v75:t1 = greater v65 v74 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 branch v75 immediate=0 alignment=0 -> b16() -> b17() effect=0 origin=o-1
+    i0 v7:t6 = element.address v5 v6 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 host.call v8 v7 v9 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
+    i2 v10:t4 = convert v1 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 host.call v10 symbol=2 immediate=0 alignment=0 effect=2 origin=o-1
+    i4 v12:t6 = element.address v11 v6 immediate=0 alignment=0 effect=0 origin=o-1
+    i5 host.call v8 v12 v8 symbol=1 immediate=0 alignment=0 effect=3 origin=o-1
+    i6 v14:t3 = add v1 v13 immediate=0 alignment=0 effect=0 origin=o-1
+    i7 jump immediate=0 alignment=0 -> b1(v14) effect=0 origin=o-1
+  b14(v83:t4):
+    i0 v20:t6 = element.address v18 v19 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 host.call v21 v20 v22 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
+    i2 host.call v83 symbol=2 immediate=0 alignment=0 effect=2 origin=o-1
+    i3 v24:t6 = element.address v23 v19 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 host.call v21 v24 v21 symbol=1 immediate=0 alignment=0 effect=3 origin=o-1
+    i5 v26:t4 = add v83 v25 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 fuel immediate=1 alignment=0 effect=4 origin=o-1
+    i7 v84:t1 = less.equal v26 v16 immediate=0 alignment=0 effect=0 origin=o-1
+    i8 branch v84 immediate=0 alignment=0 -> b14(v26) -> b4() effect=0 origin=o-1
+  b15(v85:t4):
+    i0 v49:t7 = extract v46 v85 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v51:t6 = extract v49 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v52:t4 = extract v49 immediate=1 alignment=0 effect=0 origin=o-1
+    i3 v53:t5 = convert v52 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 host.call v50 v51 v53 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
+    i5 v56:t6 = element.address v54 v55 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 host.call v50 v56 v57 symbol=1 immediate=0 alignment=0 effect=2 origin=o-1
+    i7 host.call v85 symbol=2 immediate=0 alignment=0 effect=3 origin=o-1
+    i8 v59:t6 = element.address v58 v55 immediate=0 alignment=0 effect=0 origin=o-1
+    i9 host.call v50 v59 v50 symbol=1 immediate=0 alignment=0 effect=4 origin=o-1
+    i10 v61:t4 = add v85 v60 immediate=0 alignment=0 effect=0 origin=o-1
+    i11 fuel immediate=1 alignment=0 effect=5 origin=o-1
+    i12 v86:t1 = less v61 v47 immediate=0 alignment=0 effect=0 origin=o-1
+    i13 branch v86 immediate=0 alignment=0 -> b15(v61) -> b6() effect=0 origin=o-1
   b16():
-    i0 jump immediate=0 alignment=0 -> b12() effect=0 origin=o-1
+    i0 v70:t4 = constant symbol=26 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v71:t4 = add v63 v70 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 jump immediate=0 alignment=0 -> b7(v71) effect=0 origin=o-1
   b17():
     i0 jump immediate=0 alignment=0 -> b18() effect=0 origin=o-1
   b18():
-    i0 v76:t18 = global.address symbol=7 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v77:t4 = constant symbol=29 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 v78:t6 = element.address v76 v77 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 v79:t5 = constant symbol=30 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 v80:t5 = constant symbol=37 immediate=0 alignment=0 effect=0 origin=o-1
-    i5 host.call v79 v78 v80 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
-    i6 host.call v65 symbol=2 immediate=0 alignment=0 effect=2 origin=o-1
-    i7 v81:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
-    i8 v82:t6 = element.address v81 v77 immediate=0 alignment=0 effect=0 origin=o-1
-    i9 v83:t4 = constant symbol=31 immediate=0 alignment=0 effect=0 origin=o-1
-    i10 host.call v79 v82 v79 symbol=1 immediate=0 alignment=0 effect=3 origin=o-1
-    i11 v84:t4 = add v65 v83 immediate=0 alignment=0 effect=0 origin=o-1
-    i12 jump immediate=0 alignment=0 -> b10(v84) effect=0 origin=o-1
+    i0 v74:t18 = global.address symbol=7 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v75:t4 = constant symbol=29 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 v76:t6 = element.address v74 v75 immediate=0 alignment=0 effect=0 origin=o-1
+    i3 v77:t5 = constant symbol=30 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 v78:t5 = constant symbol=37 immediate=0 alignment=0 effect=0 origin=o-1
+    i5 host.call v77 v76 v78 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
+    i6 host.call v63 symbol=2 immediate=0 alignment=0 effect=2 origin=o-1
+    i7 v79:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
+    i8 v80:t6 = element.address v79 v75 immediate=0 alignment=0 effect=0 origin=o-1
+    i9 v81:t4 = constant symbol=31 immediate=0 alignment=0 effect=0 origin=o-1
+    i10 host.call v77 v80 v77 symbol=1 immediate=0 alignment=0 effect=3 origin=o-1
+    i11 v82:t4 = add v63 v81 immediate=0 alignment=0 effect=0 origin=o-1
+    i12 jump immediate=0 alignment=0 -> b7(v82) effect=0 origin=o-1
 function @1 module=m1 name="ziran.platform.write_all" result=t0 entry=b-1 calling=3 external=1 variadic=0 origin=o-1 parameters=(t5,t6,t5) values=()
 function @2 module=m1 name="ziran.print.signed" result=t0 entry=b-1 calling=3 external=1 variadic=0 origin=o-1 parameters=(t4) values=()

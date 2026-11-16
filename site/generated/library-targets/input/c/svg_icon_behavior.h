@@ -4,7 +4,7 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
+#include <stdlib.h>
 #include "zir_slice.h"
 #include "drawing_props.h"
 #include "geometry.h"
@@ -86,7 +86,7 @@ void PaintStroke(Session session, int32_t node, Slice points, float width, Color
 #if !defined(__cplusplus) && !defined(ZIRAN_SVG_ICON_BEHAVIOR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include "zir_vec.h"
 #include "zir_string_types.h"
-#include "zir_bounds.h"
+#include <stdlib.h>
 #ifndef ZIRAN_HELPER_SignedBits
 #define ZIRAN_HELPER_SignedBits
 /* SignedBits reads the low w bits of x as a signed number. */
@@ -121,7 +121,7 @@ svg_icon_behavior_SvgIconHash_ziran_inline(String shape)
     uint64_t hash = 14695981039346656037ULL;
     int32_t index = 0;
     while (index < (int32_t)((int64_t)(shape).length)) {
-        hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)((uint8_t)ZIRAN_INDEX(shape.data, shape.length, index))) * UINT64_C(1099511628211));
+        hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)((uint8_t)shape.data[index])) * UINT64_C(1099511628211));
         index = (int32_t)((uint32_t)index + 1u);
     }
     return hash;
@@ -143,24 +143,24 @@ svg_icon_behavior_StrokeAppendNumber_ziran_inline(Slice output, int32_t* length,
         count = 1;
     }
     while (whole > 0) {
-        uint8_t* value_1 = &(ZIRAN_INDEX(digits, sizeof(digits) / sizeof(digits[0]), count));
+        uint8_t* value_1 = &(digits[count]);
         (*value_1) = (uint8_t)(((int32_t)(48u + (uint32_t)((whole % 10)))));
         count = (int32_t)((uint32_t)count + 1u);
         whole = whole / 10;
     }
     while (count > 0 && *(length) < (int32_t)((int64_t)(output).length)) {
         count = (int32_t)((uint32_t)count - 1u);
-        uint8_t* value_2 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(length))]);
-        (*value_2) = ZIRAN_INDEX(digits, 12, count);
+        uint8_t* value_2 = &(((uint8_t *)output.data)[*(length)]);
+        (*value_2) = (digits)[count];
         int32_t* value_3 = &((*(length)));
         (*value_3) = (int32_t)((uint32_t)((*value_3)) + 1u);
     }
     if ((int32_t)((uint32_t)(*(length)) + 3u) <= (int32_t)((int64_t)(output).length)) {
-        uint8_t* value_4 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(length))]);
+        uint8_t* value_4 = &(((uint8_t *)output.data)[*(length)]);
         (*value_4) = 46;
-        uint8_t* value_5 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int32_t)((uint32_t)(*(length)) + 1u)))]);
+        uint8_t* value_5 = &(((uint8_t *)output.data)[((int32_t)((uint32_t)(*(length)) + 1u))]);
         (*value_5) = (uint8_t)(((int32_t)(48u + (uint32_t)(((hundredths / 10) % 10)))));
-        uint8_t* value_6 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int32_t)((uint32_t)(*(length)) + 2u)))]);
+        uint8_t* value_6 = &(((uint8_t *)output.data)[((int32_t)((uint32_t)(*(length)) + 2u))]);
         (*value_6) = (uint8_t)(((int32_t)(48u + (uint32_t)((hundredths % 10)))));
         int32_t* value_7 = &((*(length)));
         (*value_7) = (int32_t)((uint32_t)((*value_7)) + 3u);
@@ -171,7 +171,7 @@ static inline void
 svg_icon_behavior_StrokeAppendByte_ziran_inline(Slice output, int32_t* length, uint8_t byte)
 {
     if (*(length) < (int32_t)((int64_t)(output).length)) {
-        uint8_t* value_0 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(length))]);
+        uint8_t* value_0 = &(((uint8_t *)output.data)[*(length)]);
         (*value_0) = byte;
         int32_t* value_1 = &((*(length)));
         (*value_1) = (int32_t)((uint32_t)((*value_1)) + 1u);

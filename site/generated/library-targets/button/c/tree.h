@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "zir_slice.h"
 #include "geometry.h"
 #include "semantic.h"
@@ -406,7 +405,6 @@ void TreeSetStyleId(Session session, int32_t index, int32_t style_id);
 #include "zir_vec.h"
 #include <stdint.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
 static inline uint64_t tree_TreeParentGeneration_ziran_inline(Session session, int32_t index, bool committed);
 #define tree_TreeParentGeneration(...) tree_TreeParentGeneration_ziran_inline(__VA_ARGS__)
 static inline int32_t tree_TreeFindOld_ziran_inline(Session session, uint64_t parent, uint64_t key, int32_t kind, bool auto_key, int32_t auto_ordinal);
@@ -428,17 +426,17 @@ tree_TreeParentGeneration_ziran_inline(Session session, int32_t index, bool comm
     }
     int32_t slot = SessionIndex(session);
     if (committed) {
-        int32_t parent = (ZIRAN_VEC_INDEX(((trees[slot]).committed).data, ((trees[slot]).committed).count, index)).parent;
+        int32_t parent = (((trees[slot]).committed).data[index]).parent;
         if (parent < 0) {
             return 0ULL;
         }
-        return (ZIRAN_VEC_INDEX(((trees[slot]).committed).data, ((trees[slot]).committed).count, parent)).identity_generation;
+        return (((trees[slot]).committed).data[parent]).identity_generation;
     }
-    int32_t parent = (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).parent;
+    int32_t parent = (((trees[slot]).submitted).data[index]).parent;
     if (parent < 0) {
         return 0ULL;
     }
-    return (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, parent)).identity_generation;
+    return (((trees[slot]).submitted).data[parent]).identity_generation;
 }
 
 static inline int32_t
@@ -451,8 +449,8 @@ tree_TreeFindOld_ziran_inline(Session session, uint64_t parent, uint64_t key, in
     }
     uint64_t hash = TreeIdentityHash(parent, key, kind);
     int32_t position = (int32_t)(((uint64_t)((uint64_t)hash & (uint64_t)(((int32_t)((uint32_t)capacity - 1u))))));
-    while (ZIRAN_VEC_INDEX(((trees[slot]).slots).data, ((trees[slot]).slots).count, position) >= 0) {
-        int32_t index = ZIRAN_VEC_INDEX(((trees[slot]).slots).data, ((trees[slot]).slots).count, position);
+    while (((trees[slot]).slots).data[position] >= 0) {
+        int32_t index = ((trees[slot]).slots).data[position];
         NodeCore* entry = &(ZIRAN_VEC_INDEX(((trees[slot]).committed).data, ((trees[slot]).committed).count, index));
         uint64_t value_0 = entry->key;
         bool value_1 = value_0 == key && entry->kind == kind && entry->auto_key == auto_key && (!auto_key || entry->auto_ordinal == auto_ordinal);
@@ -477,9 +475,9 @@ tree_TreeExplicitExists_ziran_inline(Session session, uint64_t parent, uint64_t 
     int32_t capacity = (int32_t)(((trees[slot]).new_slots).count);
     uint64_t hash = TreeIdentityHash(parent, key, 0);
     int32_t position = (int32_t)(((uint64_t)((uint64_t)hash & (uint64_t)(((int32_t)((uint32_t)capacity - 1u))))));
-    while (ZIRAN_VEC_INDEX(((trees[slot]).new_slots).data, ((trees[slot]).new_slots).count, position) >= 0) {
-        int32_t index = ZIRAN_VEC_INDEX(((trees[slot]).new_slots).data, ((trees[slot]).new_slots).count, position);
-        uint64_t value_0 = (ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index)).key;
+    while (((trees[slot]).new_slots).data[position] >= 0) {
+        int32_t index = ((trees[slot]).new_slots).data[position];
+        uint64_t value_0 = (((trees[slot]).submitted).data[index]).key;
         bool value_1 = value_0 == key;
         bool value_2 = value_1;
         if (value_2) {
@@ -502,16 +500,16 @@ tree_TreeLayerAt_ziran_inline(Session session, int32_t index, bool committed, bo
         return 0;
     }
     int32_t slot = session.slot;
-    int32_t count = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_count;
+    int32_t count = (trees[slot]).submitted_count;
     if (committed) {
-        count = (ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_count;
+        count = (trees[slot]).committed_count;
     }
     while (index > 0 && index < count) {
         NodeCore* node = (void *)0;
         if (committed) {
-            node = &(ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).count, index));
+            node = &(ZIRAN_VEC_INDEX(((trees[slot]).committed).data, ((trees[slot]).committed).count, index));
         } else {
-            node = &(ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted).count, index));
+            node = &(ZIRAN_VEC_INDEX(((trees[slot]).submitted).data, ((trees[slot]).submitted).count, index));
         }
         if (node->kind == 46 || (popups && node->popup)) {
             return (int32_t)((uint32_t)index + 1u);
@@ -525,19 +523,19 @@ static inline LabelSpan
 tree_TreeLabelSpanAt_ziran_inline(int32_t slot, int64_t index)
 {
     if (index < 64LL) {
-        return ZIRAN_INDEX((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels, 64, index);
+        return ((trees[slot]).submitted_labels)[index];
     }
-    return ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count, ((int64_t)((uint64_t)index - UINT64_C(64))));
+    return ((trees[slot]).submitted_label_overflow).data[((int64_t)((uint64_t)index - UINT64_C(64)))];
 }
 
 static inline void
 tree_TreeSetLabelSpan_ziran_inline(int32_t slot, int64_t index, LabelSpan span)
 {
     if (index < 64LL) {
-        LabelSpan* value_0 = &(ZIRAN_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels), sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)) / sizeof(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_labels)[0]), index));
+        LabelSpan* value_0 = &(((trees[slot]).submitted_labels)[index]);
         (*value_0) = span;
     } else {
-        LabelSpan* value_1 = &(ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).submitted_label_overflow).count, ((int64_t)((uint64_t)index - UINT64_C(64)))));
+        LabelSpan* value_1 = &(ZIRAN_VEC_INDEX(((trees[slot]).submitted_label_overflow).data, ((trees[slot]).submitted_label_overflow).count, ((int64_t)((uint64_t)index - UINT64_C(64)))));
         (*value_1) = span;
     }
 }

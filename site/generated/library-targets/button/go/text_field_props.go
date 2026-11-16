@@ -89,9 +89,6 @@ func TextFieldProps_StateValid(state zir_3a43421b6719a91d_State) bool {
 	var value_2 bool = value_1
 	if value_2 {
 		value_3 := state.Bytes[:]
-		if int64(0) < 0 || int64(state.Length) < int64(0) || int64(state.Length) > int64(len(value_3)) {
-			panic("slice range out of bounds")
-		}
 		var value_4 bool = StdUtf8_Valid(string(value_3[0:state.Length:state.Length]))
 		value_2 = value_4
 	}
@@ -109,9 +106,6 @@ func TextFieldProps_StateProps(state zir_3a43421b6719a91d_State, props zir_e3d05
 	}
 	value_3 := &(props.Value)
 	value_4 := state.Bytes[:]
-	if int64(0) < 0 || int64(state.Length) < int64(0) || int64(state.Length) > int64(len(value_4)) {
-		panic("slice range out of bounds")
-	}
 	(*value_3) = string(value_4[0:state.Length:state.Length])
 	value_5 := &(props.Cursor)
 	(*value_5) = TextInput_CompositionBoundaryFor(props.Value, state.Cursor)
@@ -148,9 +142,6 @@ func TextFieldProps_StateApplyEdit(state *zir_3a43421b6719a91d_State, edit Edit)
 	}
 	{
 		value_1 := state.Bytes[:]
-		if int64(0) < 0 || int64(state.Length) < int64(0) || int64(state.Length) > int64(len(value_1)) {
-			panic("slice range out of bounds")
-		}
 		value := string(value_1[0:state.Length:state.Length])
 		var value_2 int32 = TextInput_CompositionBoundaryFor(value, edit.Start)
 		var value_3 bool = value_2 != edit.Start
@@ -208,7 +199,6 @@ func TextFieldProps_StateApplyEdit(state *zir_3a43421b6719a91d_State, edit Edit)
 	}
 	{
 		value_13 := edit.Replacement
-		if int64(0) < 0 || int64(len(value_13)) < int64(0) || int64(len(value_13)) > int64(len(value_13)) { panic("string range out of bounds") }
 		loop_view_32 := value_13[0:len(value_13)]
 		loop_count_32 := int64(len(loop_view_32))
 		var loop_cursor_32 int64 = 0
@@ -307,9 +297,6 @@ func TextFieldProps_StateApplyResult(state *zir_3a43421b6719a91d_State, result R
 		return false
 	}
 	value_1 := state.Bytes[:]
-	if int64(0) < 0 || int64(state.Length) < int64(0) || int64(state.Length) > int64(len(value_1)) {
-		panic("slice range out of bounds")
-	}
 	value := string(value_1[0:state.Length:state.Length])
 	value_2 := &(state.Cursor)
 	var value_3 int32 = TextInput_CompositionBoundaryFor(value, result.Cursor)

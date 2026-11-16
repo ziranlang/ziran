@@ -60,9 +60,6 @@ func TextTypeface_TextTypefaceKey(path string, output []uint8) string {
 	}
 	value_2 := &(output[21])
 	(*value_2) = 0
-	if int64(0) < 0 || int64(21) < int64(0) || int64(21) > int64(len(output)) {
-		panic("slice range out of bounds")
-	}
 	return string(output[0:21:21])
 }
 

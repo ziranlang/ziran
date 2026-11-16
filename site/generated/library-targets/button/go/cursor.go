@@ -137,7 +137,6 @@ func Cursor_CursorPropsValid(props CursorProps) bool {
 	}
 	{
 		value_0 := props.AssetPath
-		if int64(0) < 0 || int64(len(value_0)) < int64(0) || int64(len(value_0)) > int64(len(value_0)) { panic("string range out of bounds") }
 		loop_view_3 := value_0[0:len(value_0)]
 		loop_count_3 := int64(len(loop_view_3))
 		var loop_cursor_3 int64 = 0

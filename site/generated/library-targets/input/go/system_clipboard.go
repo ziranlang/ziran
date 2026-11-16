@@ -45,9 +45,6 @@ func SystemClipboard_SystemClipboardText(buffer []uint8) string {
 		}
 	}
 	end := int64(length)
-	if int64(0) < 0 || int64(end) < int64(0) || int64(end) > int64(len(buffer)) {
-		panic("slice range out of bounds")
-	}
 	return string(buffer[0:end:end])
 }
 
@@ -91,9 +88,6 @@ func SystemClipboard_SystemPrimaryText(buffer []uint8) string {
 		if length > 0 && (int32(buffer[(length - 1)]) & 192) == 192 {
 			length--
 		}
-	}
-	if int64(0) < 0 || int64(int64(length)) < int64(0) || int64(int64(length)) > int64(len(buffer)) {
-		panic("slice range out of bounds")
 	}
 	return string(buffer[0:int64(length):int64(length)])
 }

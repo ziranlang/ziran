@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
 #include "shape_paint.h"
 #include "drawing_props.h"
 #include "geometry.h"
@@ -211,7 +210,7 @@ shape_paint_ShapeBatchFlush(void)
 {
     if (shape_batch.count > 0 && shape_batch.color.a != 0) {
         Slice value_0 = {shape_batch.points, 3072};
-        FillTriangles(SliceRange(value_0, (int64_t)0LL, (int64_t)shape_batch.count, sizeof(Vector2)), shape_batch.color);
+        FillTriangles(SliceRangeAt(value_0, (int64_t)0LL, (int64_t)shape_batch.count, sizeof(Vector2)), shape_batch.color);
     }
     int32_t* value_1 = &(shape_batch.count);
     (*value_1) = 0;
@@ -239,17 +238,17 @@ shape_paint_ShapeBatchAdd(Vector2 a, Vector2 b, Vector2 c)
         shape_paint_ShapeBatchFlush();
     }
     int32_t at = shape_batch.count;
-    Vector2* value_6 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), at));
+    Vector2* value_6 = &(shape_batch.points[at]);
     (*value_6) = a;
     if (turn > ((float)0.0)) {
-        Vector2* value_7 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 1u))));
+        Vector2* value_7 = &(shape_batch.points[((int32_t)((uint32_t)at + 1u))]);
         (*value_7) = b;
-        Vector2* value_8 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 2u))));
+        Vector2* value_8 = &(shape_batch.points[((int32_t)((uint32_t)at + 2u))]);
         (*value_8) = c;
     } else {
-        Vector2* value_9 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 1u))));
+        Vector2* value_9 = &(shape_batch.points[((int32_t)((uint32_t)at + 1u))]);
         (*value_9) = c;
-        Vector2* value_10 = &(ZIRAN_INDEX(shape_batch.points, sizeof(shape_batch.points) / sizeof(shape_batch.points[0]), ((int32_t)((uint32_t)at + 2u))));
+        Vector2* value_10 = &(shape_batch.points[((int32_t)((uint32_t)at + 2u))]);
         (*value_10) = b;
     }
     int32_t* value_11 = &(shape_batch.count);
@@ -306,7 +305,7 @@ shape_paint_ShapeClipSide(ShapePolygon polygon, int32_t side, float limit)
     if (polygon.count == 0) {
         return result;
     }
-    Vector2 previous = ZIRAN_INDEX(polygon.points, 8, ((int32_t)((uint32_t)(polygon.count) - 1u)));
+    Vector2 previous = (polygon.points)[((int32_t)((uint32_t)(polygon.count) - 1u))];
     int32_t value_0 = side;
     float value_1 = limit;
     bool value_2 = false;
@@ -332,7 +331,7 @@ shape_paint_ShapeClipSide(ShapePolygon polygon, int32_t side, float limit)
     bool previous_inside = value_2;
     int32_t index = 0;
     while (index < polygon.count) {
-        Vector2 current = ZIRAN_INDEX(polygon.points, 8, index);
+        Vector2 current = (polygon.points)[index];
         int32_t value_4 = side;
         float value_5 = limit;
         bool value_6 = false;
@@ -357,7 +356,7 @@ shape_paint_ShapeClipSide(ShapePolygon polygon, int32_t side, float limit)
         }
         bool current_inside = value_6;
         if (current_inside != previous_inside && result.count < 8) {
-            Vector2* value_8 = &(ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count));
+            Vector2* value_8 = &(result.points[result.count]);
             int32_t value_9 = side;
             float value_10 = limit;
             Vector2 value_11 = {0};
@@ -386,7 +385,7 @@ shape_paint_ShapeClipSide(ShapePolygon polygon, int32_t side, float limit)
             (*value_13) = (int32_t)((uint32_t)((*value_13)) + 1u);
         }
         if (current_inside && result.count < 8) {
-            Vector2* value_14 = &(ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count));
+            Vector2* value_14 = &(result.points[result.count]);
             (*value_14) = current;
             int32_t* value_15 = &(result.count);
             (*value_15) = (int32_t)((uint32_t)((*value_15)) + 1u);
@@ -466,7 +465,7 @@ shape_paint_ShapeBatchTriangle(Vector2 a, Vector2 b, Vector2 c)
     polygon = shape_paint_ShapeClipSide(polygon, 3, clip.y + clip.height);
     int32_t index = 1;
     while ((int32_t)((uint32_t)index + 1u) < polygon.count) {
-        shape_paint_ShapeBatchAdd((polygon.points)[0], ZIRAN_INDEX(polygon.points, 8, index), ZIRAN_INDEX(polygon.points, 8, ((int32_t)((uint32_t)index + 1u))));
+        shape_paint_ShapeBatchAdd((polygon.points)[0], (polygon.points)[index], (polygon.points)[((int32_t)((uint32_t)index + 1u))]);
         index = (int32_t)((uint32_t)index + 1u);
     }
 }
@@ -478,7 +477,7 @@ shape_paint_ShapeArcDirections(float start, float sweep, int32_t segments)
     int32_t index = 0;
     while (index <= segments) {
         float angle = start + (step * (float)(index));
-        Vector2* value_0 = &(ZIRAN_INDEX(shape_directions, sizeof(shape_directions) / sizeof(shape_directions[0]), index));
+        Vector2* value_0 = &(shape_directions[index]);
         Vector2 value_1 = {0};
         float value_2 = CosineDegrees(angle);
         value_1.x = value_2;
@@ -488,7 +487,7 @@ shape_paint_ShapeArcDirections(float start, float sweep, int32_t segments)
         index = (int32_t)((uint32_t)index + 1u);
     }
     if (sweep >= ((float)360.0)) {
-        Vector2* value_4 = &(ZIRAN_INDEX(shape_directions, sizeof(shape_directions) / sizeof(shape_directions[0]), segments));
+        Vector2* value_4 = &(shape_directions[segments]);
         (*value_4) = (shape_directions)[0];
     }
 }
@@ -496,7 +495,7 @@ shape_paint_ShapeArcDirections(float start, float sweep, int32_t segments)
 Vector2
 shape_paint_ShapeArcPoint(Vector2 center, int32_t index, float radius)
 {
-    Vector2 direction = ZIRAN_INDEX(shape_directions, 361, index);
+    Vector2 direction = (shape_directions)[index];
     return (Vector2){.x = center.x + (direction.x * radius), .y = center.y + (direction.y * radius)};
 }
 

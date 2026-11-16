@@ -1759,9 +1759,6 @@ func Tree_TreeTextRange(session Session, index int32, first int32, last int32, o
 		(*value_3) = value_4
 		ziran_keyword_byte_0++
 	}
-	if int64(0) < 0 || int64(ziran_keyword_byte_0) < int64(0) || int64(ziran_keyword_byte_0) > int64(len(output)) {
-		panic("slice range out of bounds")
-	}
 	return string(output[0:ziran_keyword_byte_0:ziran_keyword_byte_0])
 }
 

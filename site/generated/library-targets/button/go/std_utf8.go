@@ -124,9 +124,6 @@ func StdUtf8_Copy(source []uint8, destination []uint8) CopyResult {
 		if end > int64(len(source)) {
 			end = int64(len(source))
 		}
-		if int64(at) < 0 || int64(end) < int64(at) || int64(end) > int64(len(source)) {
-			panic("slice range out of bounds")
-		}
 		decoded := StdUtf8_Decode(string(source[at:end:end]), 0)
 		length := int64(decoded.After)
 		if length <= 0 {

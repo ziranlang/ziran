@@ -180,7 +180,8 @@ function @3 module=m0 name="Sum" result=t3 entry=b0 calling=0 external=0 variadi
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v1:t4 = constant symbol=16 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v2:t3 = constant symbol=24 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 jump immediate=0 alignment=0 -> b1(v2,v1) effect=0 origin=o-1
+    i3 v12:t4 = constant symbol=17 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 jump immediate=0 alignment=0 -> b1(v2,v1) effect=0 origin=o-1
   b1(v3:t3, v4:t4):
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v5:t4 = extract v0 immediate=1 alignment=0 effect=0 origin=o-1
@@ -192,8 +193,7 @@ function @3 module=m0 name="Sum" result=t3 entry=b0 calling=0 external=0 variadi
     i2 v9:t13 = element.address v7 v4 v8 immediate=0 alignment=0 effect=0 origin=o-1
     i3 v10:t3 = load v9 immediate=0 alignment=0 effect=1 origin=o-1
     i4 v11:t3 = add v3 v10 immediate=0 alignment=0 effect=0 origin=o-1
-    i5 v12:t4 = constant symbol=17 immediate=0 alignment=0 effect=0 origin=o-1
-    i6 v13:t4 = add v4 v12 immediate=0 alignment=0 effect=0 origin=o-1
-    i7 jump immediate=0 alignment=0 -> b1(v11,v13) effect=0 origin=o-1
+    i5 v13:t4 = add v4 v12 immediate=0 alignment=0 effect=0 origin=o-1
+    i6 jump immediate=0 alignment=0 -> b1(v11,v13) effect=0 origin=o-1
   b3():
     i0 return v3 immediate=0 alignment=0 effect=0 origin=o-1

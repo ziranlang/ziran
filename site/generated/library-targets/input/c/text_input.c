@@ -2,7 +2,7 @@
 #define ZIRAN_TEXT_INPUT_H_SOURCE 1
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
+#include <stdlib.h>
 #include "text_input.h"
 #ifndef ZIRAN_HELPER_SignedBits
 #define ZIRAN_HELPER_SignedBits
@@ -34,7 +34,7 @@ int32_t
 CompositionBoundaryFor(String value, int32_t offset)
 {
     offset = TextCursorForLength(offset, (int32_t)((int64_t)(value).length));
-    while (offset > 0 && offset < (int32_t)((int64_t)(value).length) && TextUtf8Continuation((uint8_t)ZIRAN_INDEX(value.data, value.length, offset))) {
+    while (offset > 0 && offset < (int32_t)((int64_t)(value).length) && TextUtf8Continuation((uint8_t)value.data[offset])) {
         offset = (int32_t)((uint32_t)offset - 1u);
     }
     return offset;

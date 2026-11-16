@@ -188,7 +188,7 @@ text_context_menu_TextMenuDraw(Session session)
     (*value_23) = !text_menu_select_enabled;
     zir_bc889c92ea67167a_Props props = {.key = (uint64_t)(((uint64_t)text_menu_key * UINT64_C(31)) + UINT64_C(17)), .open = true, .x = text_menu_x, .y = text_menu_y, .escape = text_menu_escape};
     Slice value_24 = {items, 5};
-    ContextMenuResult menu = contextmenu_Draw(session, props, SliceRange(value_24, (int64_t)0LL, (int64_t)5LL, sizeof(ContextMenuItem)));
+    ContextMenuResult menu = contextmenu_Draw(session, props, SliceRangeAt(value_24, (int64_t)0LL, (int64_t)5LL, sizeof(ContextMenuItem)));
     if (menu.activated_id != 0) {
         text_menu_command = menu.activated_id;
         text_menu_command_key = text_menu_key;

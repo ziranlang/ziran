@@ -124,18 +124,16 @@ tree_input_TreeTextFocused_ziran_inline(Session session)
         int32_t range_last_4 = (int32_t)((uint32_t)((trees[input_slot]).committed_count) - 1u);
         int32_t index = range_first_4;
         if (index <= range_last_4) for (;;) {
-            NodeCore value_2 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, index);
-            uint64_t value_3 = value_2.identity_generation;
-            uint64_t value_4 = (active_focus)[input_slot];
-            if (value_3 == value_4) {
-                NodeCore value_5 = ZIRAN_VEC_INDEX(((trees[input_slot]).committed).data, ((trees[input_slot]).committed).count, index);
-                int32_t value_6 = value_5.kind;
-                bool value_7 = false;
+            uint64_t value_2 = (((trees[input_slot]).committed).data[index]).identity_generation;
+            uint64_t value_3 = (active_focus)[input_slot];
+            if (value_2 == value_3) {
+                int32_t value_4 = (((trees[input_slot]).committed).data[index]).kind;
+                bool value_5 = false;
                 {
-                    int32_t kind = value_6;
-                    value_7 = kind == 9 || kind == 10 || kind == 2;
+                    int32_t kind = value_4;
+                    value_5 = kind == 9 || kind == 10 || kind == 2;
                 }
-                return value_7;
+                return value_5;
             }
             if (index == range_last_4) {
                 break;

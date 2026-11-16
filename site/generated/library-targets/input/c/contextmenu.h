@@ -118,7 +118,7 @@ contextmenu_ContextMenuOpens_ziran_inline(Slice items, int32_t id)
     }
     int32_t index = 0;
     while (index < (int32_t)((int64_t)(items).length)) {
-        if ((((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)index)]).parent == id && !(((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)index)]).separator) {
+        if ((((ContextMenuItem *)items.data)[index]).parent == id && !(((ContextMenuItem *)items.data)[index]).separator) {
             return true;
         }
         index = (int32_t)((uint32_t)index + 1u);
@@ -155,7 +155,7 @@ contextmenu_ContextMenuFind_ziran_inline(Slice items, int32_t id)
 {
     int32_t index = 0;
     while (index < (int32_t)((int64_t)(items).length)) {
-        if ((((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)index)]).id == id && !(((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)index)]).separator) {
+        if ((((ContextMenuItem *)items.data)[index]).id == id && !(((ContextMenuItem *)items.data)[index]).separator) {
             return index;
         }
         index = (int32_t)((uint32_t)index + 1u);
@@ -166,18 +166,8 @@ contextmenu_ContextMenuFind_ziran_inline(Slice items, int32_t id)
 static inline bool
 contextmenu_ContextMenuInlineEnds_ziran_inline(Slice items, int32_t index)
 {
-    bool value_0 = (int32_t)((uint32_t)index + 1u) >= (int32_t)((int64_t)(items).length);
-    if (!value_0) {
-        bool value_1 = (((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)((int32_t)((uint32_t)index + 1u)))]).ziran_keyword_inline_0;
-        value_0 = !value_1;
-    }
-    bool value_2 = value_0 || (((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)((int32_t)((uint32_t)index + 1u)))]).separator;
-    bool value_3 = value_2;
-    if (!value_3) {
-        int32_t value_4 = (((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)((int32_t)((uint32_t)index + 1u)))]).parent;
-        value_3 = (value_4 != (((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)index)]).parent);
-    }
-    return value_3;
+    bool value_0 = (int32_t)((uint32_t)index + 1u) >= (int32_t)((int64_t)(items).length) || !(((ContextMenuItem *)items.data)[((int32_t)((uint32_t)index + 1u))]).ziran_keyword_inline_0;
+    return value_0 || (((ContextMenuItem *)items.data)[((int32_t)((uint32_t)index + 1u))]).separator || (((ContextMenuItem *)items.data)[((int32_t)((uint32_t)index + 1u))]).parent != (((ContextMenuItem *)items.data)[index]).parent;
 }
 
 static inline float
@@ -187,12 +177,12 @@ contextmenu_ContextMenuRowTop_ziran_inline(Slice items, int32_t at, Rectangle pa
     float top = panel.y + (float)(value_0);
     int32_t index = 0;
     while (index < at) {
-        if ((((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)index)]).parent == (((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)at)]).parent) {
-            if ((((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)index)]).separator) {
+        if ((((ContextMenuItem *)items.data)[index]).parent == (((ContextMenuItem *)items.data)[at]).parent) {
+            if ((((ContextMenuItem *)items.data)[index]).separator) {
                 float value_1 = top;
                 int32_t value_2 = ScalePixels(9, scale);
                 top = value_1 + (float)(value_2);
-            } else if ((((ContextMenuItem *)items.data)[SliceIndex(items, (int64_t)index)]).ziran_keyword_inline_0) {
+            } else if ((((ContextMenuItem *)items.data)[index]).ziran_keyword_inline_0) {
                 if (contextmenu_ContextMenuInlineEnds(items, index)) {
                     float value_3 = top;
                     int32_t value_4 = ScalePixels(34, scale);

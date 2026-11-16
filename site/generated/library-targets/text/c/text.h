@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "zir_slice.h"
 #include "text_props.h"
 #include "theme.h"
@@ -64,7 +63,6 @@ void text___zi_spec_6a19f7c98e79a734(Session frame, zir_5988125b9981443f_Props p
 #if !defined(__cplusplus) && !defined(ZIRAN_TEXT_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 static inline bool text_TextRangeValid_ziran_inline(String text, Range range, int32_t previous_end);
 #define text_TextRangeValid(...) text_TextRangeValid_ziran_inline(__VA_ARGS__)
 static inline TextFace text_TextFaceOf_ziran_inline(zir_5988125b9981443f_Props props);
@@ -79,7 +77,7 @@ text_TextRangeValid_ziran_inline(String text, Range range, int32_t previous_end)
     if (((uint8_t)((uint32_t)((uint8_t)text.data[range.start]) & 192u)) == 128) {
         return false;
     }
-    return (int64_t)(range.end) == (int64_t)(text).length || ((uint8_t)((uint32_t)((uint8_t)ZIRAN_INDEX(text.data, text.length, range.end)) & 192u)) != 128;
+    return (int64_t)(range.end) == (int64_t)(text).length || ((uint8_t)((uint32_t)((uint8_t)text.data[range.end]) & 192u)) != 128;
 }
 
 static inline TextFace

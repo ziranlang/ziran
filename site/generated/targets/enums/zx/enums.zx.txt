@@ -71,28 +71,28 @@ function @1 module=m0 name="Corners" result=t3 entry=b0 calling=0 external=0 var
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v1:t4 = constant symbol=6 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v2:t1 = equal v0 v1 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 branch v2 immediate=0 alignment=0 -> b1() -> b2() effect=0 origin=o-1
+    i3 branch v2 immediate=0 alignment=0 -> b5() -> b1() effect=0 origin=o-1
   b1():
-    i0 v3:t3 = constant symbol=11 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 return v3 immediate=0 alignment=0 effect=0 origin=o-1
-  b2():
     i0 v4:t4 = constant symbol=7 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v5:t1 = equal v0 v4 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 branch v5 immediate=0 alignment=0 -> b3() -> b4() effect=0 origin=o-1
-  b3():
-    i0 v6:t3 = constant symbol=12 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 return v6 immediate=0 alignment=0 effect=0 origin=o-1
-  b4():
+    i2 branch v5 immediate=0 alignment=0 -> b6() -> b2() effect=0 origin=o-1
+  b2():
     i0 v7:t4 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v8:t1 = equal v0 v7 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 branch v8 immediate=0 alignment=0 -> b5() -> b6() effect=0 origin=o-1
-  b5():
-    i0 v9:t3 = constant symbol=13 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 return v9 immediate=0 alignment=0 effect=0 origin=o-1
-  b6():
-    i0 jump immediate=0 alignment=0 -> b7() effect=0 origin=o-1
-  b7():
+    i2 branch v8 immediate=0 alignment=0 -> b7() -> b3() effect=0 origin=o-1
+  b3():
+    i0 jump immediate=0 alignment=0 -> b4() effect=0 origin=o-1
+  b4():
     i0 v10:t3 = constant symbol=14 immediate=0 alignment=0 effect=0 origin=o-1
     i1 return v10 immediate=0 alignment=0 effect=0 origin=o-1
+  b5():
+    i0 v3:t3 = constant symbol=11 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v3 immediate=0 alignment=0 effect=0 origin=o-1
+  b6():
+    i0 v6:t3 = constant symbol=12 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v6 immediate=0 alignment=0 effect=0 origin=o-1
+  b7():
+    i0 v9:t3 = constant symbol=13 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 return v9 immediate=0 alignment=0 effect=0 origin=o-1
 function @2 module=m1 name="ziran.platform.write_all" result=t0 entry=b-1 calling=3 external=1 variadic=0 origin=o-1 parameters=(t5,t6,t5) values=()
 function @3 module=m1 name="ziran.print.signed" result=t0 entry=b-1 calling=3 external=1 variadic=0 origin=o-1 parameters=(t4) values=()

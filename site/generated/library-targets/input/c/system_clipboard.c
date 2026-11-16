@@ -22,21 +22,21 @@ SystemClipboardText(Slice buffer)
             length = index;
             break;
         }
-        uint8_t* value_0 = &(((uint8_t *)buffer.data)[SliceIndex(buffer, (int64_t)index)]);
+        uint8_t* value_0 = &(((uint8_t *)buffer.data)[index]);
         (*value_0) = (uint8_t)(byte);
         index = (int32_t)((uint32_t)index + 1u);
     }
     if (length < size) {
-        while (length > 0 && ((int32_t)((uint32_t)(((uint8_t *)buffer.data)[SliceIndex(buffer, (int64_t)((int32_t)((uint32_t)length - 1u)))]) & 192u)) == 128) {
+        while (length > 0 && ((int32_t)((uint32_t)(((uint8_t *)buffer.data)[((int32_t)((uint32_t)length - 1u))]) & 192u)) == 128) {
             length = (int32_t)((uint32_t)length - 1u);
         }
-        if (length > 0 && ((int32_t)((uint32_t)(((uint8_t *)buffer.data)[SliceIndex(buffer, (int64_t)((int32_t)((uint32_t)length - 1u)))]) & 192u)) == 192) {
+        if (length > 0 && ((int32_t)((uint32_t)(((uint8_t *)buffer.data)[((int32_t)((uint32_t)length - 1u))]) & 192u)) == 192) {
             length = (int32_t)((uint32_t)length - 1u);
         }
     }
     int64_t end = (int64_t)(length);
     Slice value_1 = buffer;
-    Slice value_2 = SliceRange(value_1, (int64_t)0LL, (int64_t)end, sizeof(uint8_t));
+    Slice value_2 = SliceRangeAt(value_1, (int64_t)0LL, (int64_t)end, sizeof(uint8_t));
     return StringView((const char *)(value_2).data, (size_t)(value_2).length);
 }
 

@@ -17,5 +17,5 @@
 String
 TextSpan(String source, int32_t start, int32_t length)
 {
-    return StringRange(source, (int64_t)start, (int64_t)((int32_t)((uint32_t)start + (uint32_t)length)));
+    return StringRangeAt(source, (int64_t)start, (int64_t)((int32_t)((uint32_t)start + (uint32_t)length)));
 }

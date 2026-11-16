@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "zir_slice.h"
 #include "image_props.h"
 #include "drawing_props.h"
@@ -343,7 +342,6 @@ void paint_queue___zi_spec_b997e17bf3928592(__type_60d5a134727d5dcb* blocks);
 #include "zir_vec.h"
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 static inline PaintTextRange paint_queue_KeepShortPaintBytes_ziran_inline(int32_t slot, String value);
 #define paint_queue_KeepShortPaintBytes(...) paint_queue_KeepShortPaintBytes_ziran_inline(__VA_ARGS__)
 static inline PaintTextRange paint_queue_KeepMediumPaintBytes_ziran_inline(int32_t slot, String value);
@@ -382,7 +380,7 @@ static inline PaintCommand paint_queue_ClipImage_ziran_inline(PaintCommand comma
 static inline PaintTextRange
 paint_queue_KeepShortPaintBytes_ziran_inline(int32_t slot, String value)
 {
-    PaintTextRange kept = paint_queue___zi_spec_9308732530dd822f(&(ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)), slot, (int64_t)(value).length, 256);
+    PaintTextRange kept = paint_queue___zi_spec_9308732530dd822f(&(pending_short_text[slot]), slot, (int64_t)(value).length, 256);
     if (!kept.valid) {
         return kept;
     }
@@ -391,7 +389,7 @@ paint_queue_KeepShortPaintBytes_ziran_inline(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).data, (ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            uint8_t* value_0 = &(((ZIRAN_VEC_INDEX((pending_short_text[slot]).data, (pending_short_text[slot]).count, kept.block)).bytes)[((int64_t)((uint64_t)(kept.start) + (uint64_t)at))]);
             (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
@@ -399,7 +397,7 @@ paint_queue_KeepShortPaintBytes_ziran_inline(int32_t slot, String value)
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    paint_queue___zi_spec_27099373fae5fe98(&(ZIRAN_INDEX(pending_short_text, sizeof(pending_short_text) / sizeof(pending_short_text[0]), slot)));
+    paint_queue___zi_spec_27099373fae5fe98(&(pending_short_text[slot]));
     int32_t* value_1 = &(kept.start);
     (*value_1) = (int32_t)((uint32_t)(0u - (uint32_t)(kept.start)) - 1u);
     return kept;
@@ -408,7 +406,7 @@ paint_queue_KeepShortPaintBytes_ziran_inline(int32_t slot, String value)
 static inline PaintTextRange
 paint_queue_KeepMediumPaintBytes_ziran_inline(int32_t slot, String value)
 {
-    PaintTextRange kept = paint_queue___zi_spec_27a25ba88f17713a(&(ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)), slot, (int64_t)(value).length, 4096);
+    PaintTextRange kept = paint_queue___zi_spec_27a25ba88f17713a(&(pending_medium_text[slot]), slot, (int64_t)(value).length, 4096);
     if (!kept.valid) {
         return kept;
     }
@@ -417,7 +415,7 @@ paint_queue_KeepMediumPaintBytes_ziran_inline(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).data, (ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            uint8_t* value_0 = &(((ZIRAN_VEC_INDEX((pending_medium_text[slot]).data, (pending_medium_text[slot]).count, kept.block)).bytes)[((int64_t)((uint64_t)(kept.start) + (uint64_t)at))]);
             (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
@@ -425,7 +423,7 @@ paint_queue_KeepMediumPaintBytes_ziran_inline(int32_t slot, String value)
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    paint_queue___zi_spec_17277838aa4fe0e7(&(ZIRAN_INDEX(pending_medium_text, sizeof(pending_medium_text) / sizeof(pending_medium_text[0]), slot)));
+    paint_queue___zi_spec_17277838aa4fe0e7(&(pending_medium_text[slot]));
     int32_t* value_1 = &(kept.start);
     (*value_1) = (int32_t)(((uint32_t)(0u - (uint32_t)(kept.start)) - 256u) - 1u);
     return kept;
@@ -434,7 +432,7 @@ paint_queue_KeepMediumPaintBytes_ziran_inline(int32_t slot, String value)
 static inline PaintTextRange
 paint_queue_KeepLongPaintBytes_ziran_inline(int32_t slot, String value)
 {
-    PaintTextRange kept = paint_queue___zi_spec_542e1e54e11043bf(&(ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)), slot, (int64_t)(value).length, 32768);
+    PaintTextRange kept = paint_queue___zi_spec_542e1e54e11043bf(&(pending_text[slot]), slot, (int64_t)(value).length, 32768);
     if (!kept.valid) {
         return kept;
     }
@@ -443,7 +441,7 @@ paint_queue_KeepLongPaintBytes_ziran_inline(int32_t slot, String value)
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1));
         int64_t at = range_first_4;
         if (at <= range_last_4) for (;;) {
-            uint8_t* value_0 = &(ZIRAN_INDEX(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes), sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes)) / sizeof(((ZIRAN_VEC_INDEX((ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).data, (ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)).count, kept.block)).bytes)[0]), ((int64_t)((uint64_t)(kept.start) + (uint64_t)at))));
+            uint8_t* value_0 = &(((ZIRAN_VEC_INDEX((pending_text[slot]).data, (pending_text[slot]).count, kept.block)).bytes)[((int64_t)((uint64_t)(kept.start) + (uint64_t)at))]);
             (*value_0) = (uint8_t)value.data[at];
             if (at == range_last_4) {
                 break;
@@ -451,7 +449,7 @@ paint_queue_KeepLongPaintBytes_ziran_inline(int32_t slot, String value)
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    paint_queue___zi_spec_b997e17bf3928592(&(ZIRAN_INDEX(pending_text, sizeof(pending_text) / sizeof(pending_text[0]), slot)));
+    paint_queue___zi_spec_b997e17bf3928592(&(pending_text[slot]));
     return kept;
 }
 
@@ -467,7 +465,7 @@ paint_queue_KeepPaintBytes_ziran_inline(int32_t slot, String value)
     if ((int64_t)(value).length <= 32768LL) {
         return paint_queue_KeepLongPaintBytes(slot, value);
     }
-    bool* value_0 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+    bool* value_0 = &((pending_paint[slot]).overflow);
     (*value_0) = true;
     PaintTextRange invalid = {0};
     return invalid;
@@ -564,9 +562,9 @@ paint_queue_KeepPaintMesh_ziran_inline(int32_t slot, PaintCommand* data, float d
         dx = (float)0.0;
         dy = (float)0.0;
     }
-    PaintMeshRange kept = paint_queue_KeepMeshPoints(&(ZIRAN_INDEX(pending_mesh, sizeof(pending_mesh) / sizeof(pending_mesh[0]), slot)), data->mesh_points, count, dx, dy);
+    PaintMeshRange kept = paint_queue_KeepMeshPoints(&(pending_mesh[slot]), data->mesh_points, count, dx, dy);
     if (!kept.valid) {
-        bool* value_0 = &((ZIRAN_INDEX(pending_paint, sizeof(pending_paint) / sizeof(pending_paint[0]), slot)).overflow);
+        bool* value_0 = &((pending_paint[slot]).overflow);
         (*value_0) = true;
         return;
     }

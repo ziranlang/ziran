@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
 #include "zir_slice.h"
 #include "drawing_props.h"
 #include "geometry.h"
@@ -74,7 +73,6 @@ void shape_paint_PaintTriangleShape(Session session, int32_t node, Rectangle bou
 #if !defined(__cplusplus) && !defined(ZIRAN_SHAPE_PAINT_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
 static inline int32_t shape_paint_ShapeChannelChange_ziran_inline(uint8_t first, uint8_t second);
 #define shape_paint_ShapeChannelChange(...) shape_paint_ShapeChannelChange_ziran_inline(__VA_ARGS__)
 static inline int32_t shape_paint_ShapeFadeBands_ziran_inline(Color center, Color edge, float radius);
@@ -241,7 +239,7 @@ shape_paint_ShapeClipSide_ziran_inline(ShapePolygon polygon, int32_t side, float
     if (polygon.count == 0) {
         return result;
     }
-    Vector2 previous = ZIRAN_INDEX(polygon.points, 8, ((int32_t)((uint32_t)(polygon.count) - 1u)));
+    Vector2 previous = (polygon.points)[((int32_t)((uint32_t)(polygon.count) - 1u))];
     int32_t value_0 = side;
     float value_1 = limit;
     bool value_2 = false;
@@ -267,7 +265,7 @@ shape_paint_ShapeClipSide_ziran_inline(ShapePolygon polygon, int32_t side, float
     bool previous_inside = value_2;
     int32_t index = 0;
     while (index < polygon.count) {
-        Vector2 current = ZIRAN_INDEX(polygon.points, 8, index);
+        Vector2 current = (polygon.points)[index];
         int32_t value_4 = side;
         float value_5 = limit;
         bool value_6 = false;
@@ -292,7 +290,7 @@ shape_paint_ShapeClipSide_ziran_inline(ShapePolygon polygon, int32_t side, float
         }
         bool current_inside = value_6;
         if (current_inside != previous_inside && result.count < 8) {
-            Vector2* value_8 = &(ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count));
+            Vector2* value_8 = &(result.points[result.count]);
             int32_t value_9 = side;
             float value_10 = limit;
             Vector2 value_11 = {0};
@@ -321,7 +319,7 @@ shape_paint_ShapeClipSide_ziran_inline(ShapePolygon polygon, int32_t side, float
             (*value_13) = (int32_t)((uint32_t)((*value_13)) + 1u);
         }
         if (current_inside && result.count < 8) {
-            Vector2* value_14 = &(ZIRAN_INDEX(result.points, sizeof(result.points) / sizeof(result.points[0]), result.count));
+            Vector2* value_14 = &(result.points[result.count]);
             (*value_14) = current;
             int32_t* value_15 = &(result.count);
             (*value_15) = (int32_t)((uint32_t)((*value_15)) + 1u);

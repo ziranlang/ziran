@@ -387,6 +387,7 @@ TreeEntry TreeNodeAt(Session session, int32_t index);
 int32_t TreeOverlayLayerAt(Session session, int32_t index, bool committed);
 int32_t TreeModalLayerAt(Session session, int32_t index);
 int32_t tree_TreeLayerAt(Session session, int32_t index, bool committed, bool popups);
+String TreeTextRange(Session session, int32_t index, int32_t first, int32_t last, Slice output);
 LabelSpan tree_TreeLabelSpanAt(int32_t slot, int64_t index);
 void tree_TreeSetLabelSpan(int32_t slot, int64_t index, LabelSpan span);
 int64_t tree_TreeStoreLabel(int32_t slot, String value);

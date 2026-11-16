@@ -72,7 +72,7 @@ BuildBundle(const char *root, const char *search, const char *inputs,
             merged.modules[at++] = set.programs[p]->modules[m];
     ZirProgram *program = &merged;
     if(!LinkImports(&program, 1)) goto done;
-    bytes = ZxExecBuild(&merged, entry_module, entry_function, (Slice){0}, &size);
+    bytes = ZxExecBuild(&merged, entry_module, entry_function, (Slice){0}, 0, &size);
     if(bytes == NULL) goto done;
     file = fopen(output, "wb");
     if(file == NULL || fwrite(bytes, 1, size, file) != size) goto done;

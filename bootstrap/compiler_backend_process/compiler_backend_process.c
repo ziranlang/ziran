@@ -28,7 +28,7 @@ static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-__type_c53c2d7c4913dc02 zir_g_b176900cac1241ec = {0};
+__type_c53c2d7c4913dc02 zir_g_45df0357d1607758 = {0};
 
 int32_t
 compiler_backend_process_WorkerLimit(void)
@@ -75,7 +75,7 @@ compiler_backend_process_WorkerLimit(void)
 int32_t
 compiler_backend_process_BuildLock(String directory)
 {
-    zir_8a167d86ad221008_Results__string__bool results_1_ = compiler_backend_process_PathJoin(directory, StringLiteral(".build.lock"));
+    zir_e4358493ea4607d1_Results__string__bool results_1_ = compiler_backend_process_PathJoin(directory, StringLiteral(".build.lock"));
     String lock_path = results_1_.value_0;
     bool made = results_1_.value_1;
     if (!made) {
@@ -96,7 +96,7 @@ compiler_backend_process_BuildLock(String directory)
         }
         return cleanup_return_0;
     }
-    int32_t descriptor = zir_f_1cd1ecb166af98b1_OpenLock(&(name[0]), 393282, 384);
+    int32_t descriptor = zir_f_1cd1ecb166af98b1_OpenLock(&(name[0]), 393282, 384LL);
     if (descriptor < 0) {
         int32_t cleanup_return_1 = -1;
         {
@@ -391,7 +391,7 @@ compiler_backend_process_PathName(String value)
     return StringRange(value, (int64_t)at, (int64_t)(int64_t)(value).length);
 }
 
-zir_8a167d86ad221008_Results__string__bool
+zir_e4358493ea4607d1_Results__string__bool
 compiler_backend_process_PathJoin(String left, String right)
 {
     __type_838711075b90279a bytes = {0};
@@ -413,7 +413,7 @@ compiler_backend_process_PathJoin(String left, String right)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_8a167d86ad221008_Results__string__bool value_5 = (zir_8a167d86ad221008_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_e4358493ea4607d1_Results__string__bool value_5 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -434,7 +434,7 @@ compiler_backend_process_PathJoin(String left, String right)
             (bytes).data = NULL;
             bytes.capacity = 0;
             bytes.count = 0;
-            zir_8a167d86ad221008_Results__string__bool value_9 = (zir_8a167d86ad221008_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+            zir_e4358493ea4607d1_Results__string__bool value_9 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
             free((*value_2).data);
             (*value_2).data = NULL;
             (*value_2).capacity = 0;
@@ -459,7 +459,7 @@ compiler_backend_process_PathJoin(String left, String right)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_8a167d86ad221008_Results__string__bool value_12 = (zir_8a167d86ad221008_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_e4358493ea4607d1_Results__string__bool value_12 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -473,7 +473,7 @@ compiler_backend_process_PathJoin(String left, String right)
     (bytes).data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
-    zir_8a167d86ad221008_Results__string__bool value_15 = (zir_8a167d86ad221008_Results__string__bool){.value_0 = result, .value_1 = true};
+    zir_e4358493ea4607d1_Results__string__bool value_15 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = result, .value_1 = true};
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -481,7 +481,7 @@ compiler_backend_process_PathJoin(String left, String right)
     return value_15;
 }
 
-zir_8a167d86ad221008_Results__string__bool
+zir_e4358493ea4607d1_Results__string__bool
 compiler_backend_process_PathSuffix(String value, String suffix)
 {
     __type_838711075b90279a bytes = {0};
@@ -519,7 +519,7 @@ compiler_backend_process_PathSuffix(String value, String suffix)
         (bytes).data = NULL;
         bytes.capacity = 0;
         bytes.count = 0;
-        zir_8a167d86ad221008_Results__string__bool value_8 = (zir_8a167d86ad221008_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
+        zir_e4358493ea4607d1_Results__string__bool value_8 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = StringLiteral(""), .value_1 = false};
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
@@ -533,7 +533,7 @@ compiler_backend_process_PathSuffix(String value, String suffix)
     (bytes).data = NULL;
     bytes.capacity = 0;
     bytes.count = 0;
-    zir_8a167d86ad221008_Results__string__bool value_11 = (zir_8a167d86ad221008_Results__string__bool){.value_0 = result, .value_1 = true};
+    zir_e4358493ea4607d1_Results__string__bool value_11 = (zir_e4358493ea4607d1_Results__string__bool){.value_0 = result, .value_1 = true};
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
@@ -1105,7 +1105,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
         value_5: ;
         }
         String entry_name = value_4;
-        zir_8a167d86ad221008_Results__string__bool results_2_ = compiler_backend_process_PathJoin(out, entry_name);
+        zir_e4358493ea4607d1_Results__string__bool results_2_ = compiler_backend_process_PathJoin(out, entry_name);
         String path = results_2_.value_0;
         bool made = results_2_.value_1;
         if (!made) {
@@ -1130,7 +1130,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
         return false;
     }
     compiler_backend_process_SortPaths(files);
-    zir_8a167d86ad221008_Results__string__bool results_3_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
+    zir_e4358493ea4607d1_Results__string__bool results_3_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
     String object_directory = results_3_.value_0;
     bool made = results_3_.value_1;
     if (!made) {
@@ -1199,7 +1199,7 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
 Results__pu8__bool
 compiler_backend_process_ObjectPath(String out, String relative)
 {
-    zir_8a167d86ad221008_Results__string__bool results_5_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
+    zir_e4358493ea4607d1_Results__string__bool results_5_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
     String root = results_5_.value_0;
     bool root_ok = results_5_.value_1;
     if (!root_ok) {
@@ -1213,7 +1213,7 @@ compiler_backend_process_ObjectPath(String out, String relative)
         }
         return cleanup_return_0;
     }
-    zir_8a167d86ad221008_Results__string__bool results_6_ = compiler_backend_process_PathJoin(root, relative_object);
+    zir_e4358493ea4607d1_Results__string__bool results_6_ = compiler_backend_process_PathJoin(root, relative_object);
     String joined = results_6_.value_0;
     bool made = results_6_.value_1;
     if (!made) {
@@ -1581,7 +1581,7 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                     added = true;
                 }
                 String object = compiler_backend_process_CText(ZIRAN_VEC_INDEX((*(objects)).data, (*(objects)).count, index));
-                zir_8a167d86ad221008_Results__string__bool results_7_ = compiler_backend_process_PathSuffix(object, StringLiteral(".d"));
+                zir_e4358493ea4607d1_Results__string__bool results_7_ = compiler_backend_process_PathSuffix(object, StringLiteral(".d"));
                 String dependency = results_7_.value_0;
                 bool dependency_ok = results_7_.value_1;
                 if (dependency_ok) {
@@ -1642,7 +1642,7 @@ compiler_backend_process_CompileAndLink(String out, String name, bool forced_lan
                     added = value_38;
                 }
                 if (added) {
-                    zir_8a167d86ad221008_Results__string__bool results_8_ = compiler_backend_process_PathSuffix(object, StringLiteral(".inputs"));
+                    zir_e4358493ea4607d1_Results__string__bool results_8_ = compiler_backend_process_PathSuffix(object, StringLiteral(".inputs"));
                     String inputs = results_8_.value_0;
                     bool inputs_ok = results_8_.value_1;
                     if (inputs_ok) {
@@ -2133,7 +2133,7 @@ compiler_backend_process_LinkOwnedObjects(String out, String name, bool forced_l
         compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
         return false;
     }
-    zir_8a167d86ad221008_Results__string__bool results_9_ = compiler_backend_process_PathJoin(link_directory, name);
+    zir_e4358493ea4607d1_Results__string__bool results_9_ = compiler_backend_process_PathJoin(link_directory, name);
     String temporary = results_9_.value_0;
     bool temporary_ok = results_9_.value_1;
     if (!temporary_ok) {
@@ -2290,7 +2290,7 @@ compiler_backend_process_ReleaseBuildValues(__type_21092c8252d3dcaa* base, __typ
 bool
 compiler_backend_process_MoveLinkOutput(String directory, String out, String name)
 {
-    zir_8a167d86ad221008_Results__string__bool results_10_ = compiler_backend_process_PathJoin(directory, name);
+    zir_e4358493ea4607d1_Results__string__bool results_10_ = compiler_backend_process_PathJoin(directory, name);
     String temporary_path = results_10_.value_0;
     bool temporary_ok = results_10_.value_1;
     if (!temporary_ok) {
@@ -2341,10 +2341,10 @@ compiler_backend_process_MoveLinkOutput(String directory, String out, String nam
         if (StringEqual(entry_name, StringLiteral(".")) || StringEqual(entry_name, StringLiteral("..")) || StringEqual(entry_name, name)) {
             continue;
         }
-        zir_8a167d86ad221008_Results__string__bool results_11_ = compiler_backend_process_PathJoin(directory, entry_name);
+        zir_e4358493ea4607d1_Results__string__bool results_11_ = compiler_backend_process_PathJoin(directory, entry_name);
         String source = results_11_.value_0;
         bool source_ok = results_11_.value_1;
-        zir_8a167d86ad221008_Results__string__bool results_12_ = compiler_backend_process_PathJoin(out, entry_name);
+        zir_e4358493ea4607d1_Results__string__bool results_12_ = compiler_backend_process_PathJoin(out, entry_name);
         String destination = results_12_.value_0;
         bool destination_ok = results_12_.value_1;
         moved = source_ok && destination_ok && RenamePath(source, destination);
@@ -2360,7 +2360,7 @@ compiler_backend_process_MoveLinkOutput(String directory, String out, String nam
         }
         return cleanup_return_2;
     }
-    zir_8a167d86ad221008_Results__string__bool results_13_ = compiler_backend_process_PathJoin(out, name);
+    zir_e4358493ea4607d1_Results__string__bool results_13_ = compiler_backend_process_PathJoin(out, name);
     String final = results_13_.value_0;
     bool final_ok = results_13_.value_1;
     if (!final_ok) {
@@ -2648,7 +2648,7 @@ compiler_backend_process_ErrnoValue(void)
 void
 compiler_backend_process_SetCloexec(int32_t descriptor)
 {
-    zir_f_1cd1ecb166af98b1_FcntlCloexec(descriptor, 2, 1);
+    zir_f_1cd1ecb166af98b1_FcntlCloexec(descriptor, 2, 1LL);
 }
 
 void
@@ -2759,8 +2759,8 @@ compiler_backend_process_ProfileEnd(String phase, uint64_t started)
 uint8_t*
 compiler_backend_process_ProfileName(String name)
 {
-    for (int64_t it_index = 0LL; it_index < zir_g_b176900cac1241ec.count; it_index++) {
-        String value = ZIRAN_VEC_INDEX((zir_g_b176900cac1241ec).data, (zir_g_b176900cac1241ec).count, it_index);
+    for (int64_t it_index = 0LL; it_index < zir_g_45df0357d1607758.count; it_index++) {
+        String value = ZIRAN_VEC_INDEX((zir_g_45df0357d1607758).data, (zir_g_45df0357d1607758).count, it_index);
         if (StringEqual(value, name)) {
             OwnedText* descriptor = (OwnedText*)(&(value));
             return descriptor->data;
@@ -2773,10 +2773,10 @@ compiler_backend_process_ProfileName(String name)
     String owned = compiler_backend_process_CText(pointer);
     String value_0 = owned;
     bool value_1 = false;
-    void *value_2 = ZirVecGrow((void *)(zir_g_b176900cac1241ec).data, &(zir_g_b176900cac1241ec).capacity, (zir_g_b176900cac1241ec).count, sizeof(*(zir_g_b176900cac1241ec).data));
+    void *value_2 = ZirVecGrow((void *)(zir_g_45df0357d1607758).data, &(zir_g_45df0357d1607758).capacity, (zir_g_45df0357d1607758).count, sizeof(*(zir_g_45df0357d1607758).data));
     if (value_2 != NULL) {
-        (zir_g_b176900cac1241ec).data = (String *)value_2;
-        (zir_g_b176900cac1241ec).data[(zir_g_b176900cac1241ec).count++] = value_0;
+        (zir_g_45df0357d1607758).data = (String *)value_2;
+        (zir_g_45df0357d1607758).data[(zir_g_45df0357d1607758).count++] = value_0;
         value_1 = true;
     }
     if (!value_1) {

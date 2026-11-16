@@ -15,7 +15,6 @@
 #include "style.h"
 #include "style_sheet.h"
 #include "surface.h"
-#include "text_input_platform.h"
 #include "tree.h"
 #include "tree_input.h"
 #include "text_request.h"

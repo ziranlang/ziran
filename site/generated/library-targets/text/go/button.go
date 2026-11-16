@@ -9,8 +9,8 @@ package main
 // #import focus
 // #import font_metrics
 // #import geometry
-// #import icon
 // #import image_behavior
+// #import image_lookup
 // #import paint_queue
 // #import style
 // #import style_sheet
@@ -307,7 +307,7 @@ func Button_PaintButtonForNode(session Session, node int32, props zir_2b2386d69a
 	}
 	icon_image := props.Image
 	if icon_image.AssetPath == "" && icon_image.Texture.ID == 0 && props.IconType != 0 {
-		icon_image = Icon_ImageForIcon(props.IconType, bounds, props.Label)
+		icon_image = ImageLookup_IconLookupImage(props.IconType, bounds, props.Label)
 	}
 	has_shape := props.IconShape != ""
 	has_image := icon_image.AssetPath != "" || icon_image.Texture.ID != 0 || has_shape
@@ -324,7 +324,7 @@ func Button_PaintButtonForNode(session Session, node int32, props zir_2b2386d69a
 		image := icon_image
 		value_3 := &(image.Bounds)
 		(*value_3) = Rectangle{X: (bounds.X + content.IconX), Y: (bounds.Y + content.IconY), Width: content.IconSize, Height: content.IconSize}
-		texture := Image_ImageTextureFor(image)
+		texture := ImageLookup_ImageLookupTexture(image)
 		var tint_color uint32 = 4294967295
 		if image.Tint != 0 {
 			tint_color = image.Tint

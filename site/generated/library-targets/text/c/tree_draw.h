@@ -8,8 +8,7 @@
 #include "session.h"
 #include "tree.h"
 #include "tree_input.h"
-#include "text_request.h"
-#include "text_input_platform.h"
+#include "text_editing.h"
 #include "text_selection_host.h"
 #include "input_protocol.h"
 

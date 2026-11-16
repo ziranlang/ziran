@@ -9,6 +9,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#define MONOTONIC_CLOCK 1
 typedef struct zir_9339a8296a493286_ClockValue zir_9339a8296a493286_ClockValue;
 
 struct zir_9339a8296a493286_ClockValue {

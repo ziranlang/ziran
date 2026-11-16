@@ -4,7 +4,9 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#include "zir_slice.h"
 #include "session.h"
+#include "text_editing.h"
 #include "tree.h"
 #include "tree_input.h"
 #include "std_utf8.h"
@@ -12,26 +14,27 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+typedef struct PendingTextRequest PendingTextRequest;
 typedef struct TextBoundary {
     void *context;
     int32_t (*call)(void *, String, int32_t);
 } TextBoundary;
+
+struct PendingTextRequest {
+    Session session;
+    uint64_t generation;
+    uint8_t bytes[65536];
+    int32_t count;
+    int32_t cursor;
+    int32_t anchor;
+    bool replace;
+    bool pending;
+};
 extern TextBoundary text_boundary;
+extern PendingTextRequest text_requests[9];
 bool text_request_TextRequestUseBoundary(TextBoundary boundary);
-
-/* Small procedures other modules inline; text_request.c defines them. */
-#if !defined(__cplusplus) && !defined(ZIRAN_TEXT_REQUEST_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
-#include <stdbool.h>
-static inline bool text_request_TextRequestUseBoundary_ziran_inline(TextBoundary boundary);
-#define text_request_TextRequestUseBoundary(...) text_request_TextRequestUseBoundary_ziran_inline(__VA_ARGS__)
-
-static inline bool
-text_request_TextRequestUseBoundary_ziran_inline(TextBoundary boundary)
-{
-    text_boundary = boundary;
-    return true;
-}
-#endif
+bool TextRequestSend(Session session, int32_t index, String value, bool replace, int32_t cursor, int32_t anchor);
+void TextRequestClear(Session session);
 
 #ifdef __cplusplus
 }

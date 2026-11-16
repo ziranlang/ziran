@@ -85,10 +85,11 @@ main :: (argc: s32, argv: **u8) -> s32 {
     command: Vec(string)
     // The lowering compiles into the page beside libziran, whose engine
     // and optimizer it uses under the engine's private names.
-    fixed: [28]string = .[emcc, "-O2", "-std=c11", "-D_GNU_SOURCE", "-Iinclude", "-Icmd/zir",
+    fixed: [30]string = .[emcc, "-O2", "-std=c11", "-D_GNU_SOURCE", "-Iinclude", "-Icmd/zir",
         "-include", JoinPath(build, "compiler-runtime/engine_names.h"),
-        "-Ibootstrap/compiler_ir", "-Icmd/zi2zx", "-iquote", JoinPath(build, "compiler-runtime"),
-        "web/playground.c", "web/bundle.c", "cmd/zi2zx/zir_asm_lower.c", "cmd/zi2zx/zx_exec_run.c",
+        "-Ibootstrap/compiler_ir", "-Ibootstrap/compiler_services", "-Ibootstrap/compiler_zir_lower",
+        "-Icmd/zi2zx", "-iquote", JoinPath(build, "compiler-runtime"),
+        "web/playground.c", "web/bundle.c", "bootstrap/compiler_zir_lower/compiler_zir_lower.c", "cmd/zi2zx/zx_exec_run.c",
         JoinPath(build, "libziran.a"), "-lm",
         "-sMEMORY64=2", "-sMODULARIZE=1", "-sEXPORT_NAME=createPlayground",
         "-sEXPORTED_FUNCTIONS=_RunSource,_BuildBundle", "-sEXPORTED_RUNTIME_METHODS=FS,ccall",

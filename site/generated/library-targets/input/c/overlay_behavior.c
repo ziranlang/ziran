@@ -8,16 +8,17 @@ DismissibleOverlayPolicyFor(bool released, bool release_consumed, bool dismiss_d
     DismissibleOverlayPolicy policy = {0};
     bool* value_0 = &(policy.tapped);
     (*value_0) = released && !release_consumed;
-    if (released && !release_consumed && !dismiss_disabled && !pointer_inside) {
-        bool* value_1 = &(policy.closed);
-        (*value_1) = true;
-        bool* value_2 = &(policy.outside_released);
+    bool* value_1 = &(policy.release_consumed);
+    (*value_1) = release_consumed;
+    if (released && !release_consumed) {
+        bool* value_2 = &(policy.release_consumed);
         (*value_2) = true;
-        bool* value_3 = &(policy.release_consumed);
-        (*value_3) = true;
-        return policy;
+        if (!dismiss_disabled && !pointer_inside) {
+            bool* value_3 = &(policy.closed);
+            (*value_3) = true;
+            bool* value_4 = &(policy.outside_released);
+            (*value_4) = true;
+        }
     }
-    bool* value_4 = &(policy.release_consumed);
-    (*value_4) = release_consumed;
     return policy;
 }

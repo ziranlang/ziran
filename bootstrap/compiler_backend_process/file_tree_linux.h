@@ -24,10 +24,19 @@ extern "C" {
 #define BASIC_STATS 2047
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define zir_d_11bac2ddd8e54187 577
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define zir_d_8ded2ea5c118fc54 1089
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define zir_d_ba4d3510d74f83d1 524288
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 #define EXISTS 17
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-#define zir_d_01152c6c26cea146 4
+#define zir_d_e772df0ce0bb1f83 4
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 typedef struct StatxRecord StatxRecord;

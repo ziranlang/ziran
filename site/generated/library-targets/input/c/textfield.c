@@ -223,6 +223,28 @@ TextFieldCursorAtX(String value, int32_t x, int32_t font, String typeface)
     return nearest;
 }
 
+String
+TextFieldSecureDisplay(String value, String explicit_display, Slice mask)
+{
+    if (!StringEqual(explicit_display, StringLiteral(""))) {
+        return explicit_display;
+    }
+    int32_t value_0 = TextFieldCodepoints(value);
+    int64_t count = (int64_t)(value_0);
+    if (count > (int64_t)(mask).length) {
+        count = (int64_t)(mask).length;
+    }
+    int64_t index = 0LL;
+    while (index < count) {
+        uint8_t* value_1 = &(((uint8_t *)mask.data)[SliceIndex(mask, (int64_t)index)]);
+        (*value_1) = 42;
+        index = (int64_t)((uint64_t)index + UINT64_C(1));
+    }
+    Slice value_2 = mask;
+    Slice value_3 = SliceRange(value_2, (int64_t)0, (int64_t)count, sizeof(uint8_t));
+    return StringView((const char *)(value_3).data, (size_t)(value_3).length);
+}
+
 int32_t
 TextFieldDisplayByteFor(String value, String display, int32_t cursor, bool secure)
 {
@@ -355,23 +377,25 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
         }
     }
     String display = props.value;
+    uint8_t secure_mask[256] = {0};
     if (props.secure) {
-        display = props.display_value;
+        Slice value_15 = {secure_mask, 256};
+        display = TextFieldSecureDisplay(props.value, props.display_value, value_15);
     }
     int32_t text_width = GlyphWidth(display, font, face.value.typeface);
     TextFieldScroll scroll = TextFieldScrollFor(props.bounds.x, props.bounds.width - clear_size, padding_x, text_width, result.scroll_x);
-    int32_t* value_15 = &(result.scroll_x);
-    (*value_15) = scroll.scroll;
+    int32_t* value_16 = &(result.scroll_x);
+    (*value_16) = scroll.scroll;
     if (!props.disabled && (activated || drag.started || drag.active || drag.ended)) {
-        bool* value_16 = &(result.focused);
-        (*value_16) = true;
+        bool* value_17 = &(result.focused);
+        (*value_17) = true;
         float sample_x = drag.x;
         if (drag.started) {
             sample_x = props.bounds.x + drag.grab_x;
         } else if (previous >= 0) {
-            float value_17 = sample_x;
-            TreeEntry value_18 = TreeNodeAt(session, previous);
-            sample_x = value_17 - (value_18.bounds.x - props.bounds.x);
+            float value_18 = sample_x;
+            TreeEntry value_19 = TreeNodeAt(session, previous);
+            sample_x = value_18 - (value_19.bounds.x - props.bounds.x);
         }
         int32_t selected = TextFieldCursorAtX(display, TextPointerOffset(sample_x, scroll.text_origin_x), font, face.value.typeface);
         if (props.secure) {
@@ -379,38 +403,38 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
             selected = std_grapheme_Boundary(props.value, TextFieldByteAfter(props.value, count));
         }
         if (drag.started || activated) {
-            int32_t* value_19 = &(result.anchor);
-            (*value_19) = selected;
+            int32_t* value_20 = &(result.anchor);
+            (*value_20) = selected;
         }
-        int32_t* value_20 = &(result.cursor);
-        (*value_20) = selected;
+        int32_t* value_21 = &(result.cursor);
+        (*value_21) = selected;
         if (select_number) {
-            int32_t* value_21 = &(result.anchor);
-            (*value_21) = 0;
-            int32_t* value_22 = &(result.cursor);
-            (*value_22) = (int32_t)((int64_t)(props.value).length);
+            int32_t* value_22 = &(result.anchor);
+            (*value_22) = 0;
+            int32_t* value_23 = &(result.cursor);
+            (*value_23) = (int32_t)((int64_t)(props.value).length);
         }
     }
     CompositionState composition_state = props.composition;
     if (activated || drag.started || drag.active || drag.ended) {
         if (composition_state.active) {
             composition_state = (CompositionState){0};
-            bool* value_23 = &(result.composition_changed);
-            (*value_23) = true;
+            bool* value_24 = &(result.composition_changed);
+            (*value_24) = true;
         }
     }
     CompositionTransition transition = CompositionTransitionFor(composition_state, props.input.composition_event, result.focused, props.read_only || props.disabled);
-    CompositionState* value_24 = &(result.composition);
-    (*value_24) = transition.state;
-    bool* value_25 = &(result.composition_changed);
-    (*value_25) = result.composition_changed || transition.changed;
+    CompositionState* value_25 = &(result.composition);
+    (*value_25) = transition.state;
+    bool* value_26 = &(result.composition_changed);
+    (*value_26) = result.composition_changed || transition.changed;
     if (result.focused && !props.disabled) {
-        bool value_26 = ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL)) && !result.composition.active;
-        if (value_26 && props.input.select_all) {
-            int32_t* value_27 = &(result.anchor);
-            (*value_27) = 0;
-            int32_t* value_28 = &(result.cursor);
-            (*value_28) = (int32_t)((int64_t)(props.value).length);
+        bool value_27 = ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL)) && !result.composition.active;
+        if (value_27 && props.input.select_all) {
+            int32_t* value_28 = &(result.anchor);
+            (*value_28) = 0;
+            int32_t* value_29 = &(result.cursor);
+            (*value_29) = (int32_t)((int64_t)(props.value).length);
         } else if (((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL)) && !result.composition.active) {
             int32_t target = result.cursor;
             TextSelectionRange selection = TextSelectionRangeForLength(result.anchor, result.cursor, (int32_t)((int64_t)(props.value).length));
@@ -436,26 +460,26 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
             }
             if (moved) {
                 TextSelectionState state = TextSelectionAfterMove(result.anchor, result.cursor, target, props.input.shift);
-                int32_t* value_29 = &(result.anchor);
-                (*value_29) = state.anchor;
-                int32_t* value_30 = &(result.cursor);
-                (*value_30) = state.cursor;
+                int32_t* value_30 = &(result.anchor);
+                (*value_30) = state.anchor;
+                int32_t* value_31 = &(result.cursor);
+                (*value_31) = state.cursor;
             }
         }
-        bool* value_31 = &(result.committed);
-        (*value_31) = props.input.commit && !result.composition.active && ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL));
+        bool* value_32 = &(result.committed);
+        (*value_32) = props.input.commit && !result.composition.active && ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL));
         if (props.input.escape && result.composition.active) {
-            CompositionState* value_32 = &(result.composition);
-            (*value_32) = (CompositionState){0};
-            bool* value_33 = &(result.composition_changed);
-            (*value_33) = true;
+            CompositionState* value_33 = &(result.composition);
+            (*value_33) = (CompositionState){0};
+            bool* value_34 = &(result.composition_changed);
+            (*value_34) = true;
         } else {
-            bool* value_34 = &(result.escaped);
-            (*value_34) = props.input.escape && ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL));
+            bool* value_35 = &(result.escaped);
+            (*value_35) = props.input.escape && ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL));
         }
         if (result.escaped) {
-            bool* value_35 = &(result.focused);
-            (*value_35) = false;
+            bool* value_36 = &(result.focused);
+            (*value_36) = false;
             TreeBlurAt(session, previous);
         }
         int32_t command = 0;
@@ -468,120 +492,120 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
         }
         if (transition.commit) {
             TextSelectionRange selection = TextSelectionRangeForLength(result.anchor, result.cursor, (int32_t)((int64_t)(props.value).length));
-            bool value_36 = TextFieldInputTextAllowed(transition.commit_text);
-            if (value_36 && TextFieldReplacementAllowed(props, selection.start, selection.end, transition.commit_text)) {
-                int32_t* value_37 = &(result.edit.start);
-                (*value_37) = selection.start;
-                int32_t* value_38 = &(result.edit.end);
-                (*value_38) = selection.end;
-                String* value_39 = &(result.edit.replacement);
-                (*value_39) = transition.commit_text;
-                bool* value_40 = &(result.edit.changed);
-                (*value_40) = true;
+            bool value_37 = TextFieldInputTextAllowed(transition.commit_text);
+            if (value_37 && TextFieldReplacementAllowed(props, selection.start, selection.end, transition.commit_text)) {
+                int32_t* value_38 = &(result.edit.start);
+                (*value_38) = selection.start;
+                int32_t* value_39 = &(result.edit.end);
+                (*value_39) = selection.end;
+                String* value_40 = &(result.edit.replacement);
+                (*value_40) = transition.commit_text;
+                bool* value_41 = &(result.edit.changed);
+                (*value_41) = true;
             }
         } else {
-            bool value_41 = ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL)) && !result.composition.active;
-            if (value_41 && !props.input.escape && command != 0) {
+            bool value_42 = ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL)) && !result.composition.active;
+            if (value_42 && !props.input.escape && command != 0) {
                 TextSelectionRange selection = TextSelectionRangeForLength(result.anchor, result.cursor, (int32_t)((int64_t)(props.value).length));
-                bool value_42 = !props.secure;
-                if (value_42) {
-                    bool value_43 = command != TextContextCommandCut();
-                    value_42 = (value_43 || !props.read_only);
+                bool value_43 = !props.secure;
+                if (value_43) {
+                    bool value_44 = command != TextContextCommandCut();
+                    value_43 = (value_44 || !props.read_only);
                 }
-                bool allow_copy = value_42;
+                bool allow_copy = value_43;
                 TextContextCommandDecision decision = TextEditCommandDecisionFor(command, selection.has_selection, true, true, (int32_t)((int64_t)(props.value).length) > 0, allow_copy, !props.read_only && !props.secure, !props.read_only);
                 if (decision.copy_selection) {
-                    bool* value_44 = &(result.clipboard_write);
-                    (*value_44) = true;
-                    String* value_45 = &(result.clipboard_text);
-                    (*value_45) = TextSpan(props.value, selection.start, (int32_t)((uint32_t)(selection.end) - (uint32_t)(selection.start)));
+                    bool* value_45 = &(result.clipboard_write);
+                    (*value_45) = true;
+                    String* value_46 = &(result.clipboard_text);
+                    (*value_46) = TextSpan(props.value, selection.start, (int32_t)((uint32_t)(selection.end) - (uint32_t)(selection.start)));
                 } else if (decision.copy_all) {
-                    bool* value_46 = &(result.clipboard_write);
-                    (*value_46) = true;
-                    String* value_47 = &(result.clipboard_text);
-                    (*value_47) = props.value;
+                    bool* value_47 = &(result.clipboard_write);
+                    (*value_47) = true;
+                    String* value_48 = &(result.clipboard_text);
+                    (*value_48) = props.value;
                 }
                 if (decision.paste && (int64_t)(props.input.paste_text).length == 0LL) {
-                    bool* value_48 = &(result.paste_without_text);
-                    (*value_48) = true;
+                    bool* value_49 = &(result.paste_without_text);
+                    (*value_49) = true;
                 } else {
-                    bool value_49 = decision.paste && TextFieldInputTextAllowed(props.input.paste_text);
-                    if (value_49 && TextFieldReplacementAllowed(props, selection.start, selection.end, props.input.paste_text)) {
-                        int32_t* value_50 = &(result.edit.start);
-                        (*value_50) = selection.start;
-                        int32_t* value_51 = &(result.edit.end);
-                        (*value_51) = selection.end;
-                        String* value_52 = &(result.edit.replacement);
-                        (*value_52) = props.input.paste_text;
-                        bool* value_53 = &(result.edit.changed);
-                        (*value_53) = true;
+                    bool value_50 = decision.paste && TextFieldInputTextAllowed(props.input.paste_text);
+                    if (value_50 && TextFieldReplacementAllowed(props, selection.start, selection.end, props.input.paste_text)) {
+                        int32_t* value_51 = &(result.edit.start);
+                        (*value_51) = selection.start;
+                        int32_t* value_52 = &(result.edit.end);
+                        (*value_52) = selection.end;
+                        String* value_53 = &(result.edit.replacement);
+                        (*value_53) = props.input.paste_text;
+                        bool* value_54 = &(result.edit.changed);
+                        (*value_54) = true;
                     } else if (!decision.paste && (decision.delete_selection || decision.clear_all)) {
-                        int32_t* value_54 = &(result.edit.start);
-                        (*value_54) = selection.start;
-                        int32_t* value_55 = &(result.edit.end);
-                        (*value_55) = selection.end;
+                        int32_t* value_55 = &(result.edit.start);
+                        (*value_55) = selection.start;
+                        int32_t* value_56 = &(result.edit.end);
+                        (*value_56) = selection.end;
                         if (decision.clear_all) {
-                            int32_t* value_56 = &(result.edit.start);
-                            (*value_56) = 0;
-                            int32_t* value_57 = &(result.edit.end);
-                            (*value_57) = (int32_t)((int64_t)(props.value).length);
+                            int32_t* value_57 = &(result.edit.start);
+                            (*value_57) = 0;
+                            int32_t* value_58 = &(result.edit.end);
+                            (*value_58) = (int32_t)((int64_t)(props.value).length);
                         }
-                        bool* value_58 = &(result.edit.changed);
-                        (*value_58) = result.edit.end > result.edit.start;
+                        bool* value_59 = &(result.edit.changed);
+                        (*value_59) = result.edit.end > result.edit.start;
                     }
                 }
             } else {
-                bool value_59 = !props.read_only && ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL));
-                if (value_59 && !result.composition.active && !props.input.escape) {
-                    Edit* value_60 = &(result.edit);
-                    (*value_60) = TextFieldEditFor(props, result.cursor, result.anchor);
+                bool value_60 = !props.read_only && ((CompositionPhase)(props.input.composition_event.phase)) == ((CompositionPhase)(0LL));
+                if (value_60 && !result.composition.active && !props.input.escape) {
+                    Edit* value_61 = &(result.edit);
+                    (*value_61) = TextFieldEditFor(props, result.cursor, result.anchor);
                 }
             }
         }
         if (result.edit.changed) {
-            int32_t* value_61 = &(result.cursor);
-            (*value_61) = (int32_t)((uint32_t)(result.edit.start) + (uint32_t)((int64_t)(result.edit.replacement).length));
-            int32_t* value_62 = &(result.anchor);
-            (*value_62) = result.cursor;
+            int32_t* value_62 = &(result.cursor);
+            (*value_62) = (int32_t)((uint32_t)(result.edit.start) + (uint32_t)((int64_t)(result.edit.replacement).length));
+            int32_t* value_63 = &(result.anchor);
+            (*value_63) = result.cursor;
             if (result.composition.active) {
-                CompositionState* value_63 = &(result.composition);
-                (*value_63) = (CompositionState){0};
-                bool* value_64 = &(result.composition_changed);
-                (*value_64) = true;
+                CompositionState* value_64 = &(result.composition);
+                (*value_64) = (CompositionState){0};
+                bool* value_65 = &(result.composition_changed);
+                (*value_65) = true;
             }
         }
     }
     TextRequest request = TextRequestTake(session, previous);
     if (request.pending && !props.disabled) {
         if (!request.replace) {
-            int32_t* value_65 = &(result.cursor);
-            (*value_65) = std_grapheme_Boundary(props.value, request.cursor);
-            int32_t* value_66 = &(result.anchor);
-            (*value_66) = std_grapheme_Boundary(props.value, request.anchor);
+            int32_t* value_66 = &(result.cursor);
+            (*value_66) = std_grapheme_Boundary(props.value, request.cursor);
+            int32_t* value_67 = &(result.anchor);
+            (*value_67) = std_grapheme_Boundary(props.value, request.anchor);
         } else {
-            bool value_67 = !props.read_only && ((int64_t)(request.value).length == 0LL || TextFieldInputTextAllowed(request.value));
-            if (value_67 && TextFieldReplacementAllowed(props, 0, (int32_t)((int64_t)(props.value).length), request.value)) {
+            bool value_68 = !props.read_only && ((int64_t)(request.value).length == 0LL || TextFieldInputTextAllowed(request.value));
+            if (value_68 && TextFieldReplacementAllowed(props, 0, (int32_t)((int64_t)(props.value).length), request.value)) {
                 TextRequestChange change = TextRequestChangeFor(props.value, request.value);
-                int32_t* value_68 = &(result.edit.start);
-                (*value_68) = change.start;
-                int32_t* value_69 = &(result.edit.end);
-                (*value_69) = change.end;
-                String* value_70 = &(result.edit.replacement);
-                (*value_70) = change.replacement;
-                bool* value_71 = &(result.edit.changed);
-                (*value_71) = change.changed;
-                int32_t* value_72 = &(result.cursor);
-                (*value_72) = request.cursor;
-                int32_t* value_73 = &(result.anchor);
-                (*value_73) = request.anchor;
+                int32_t* value_69 = &(result.edit.start);
+                (*value_69) = change.start;
+                int32_t* value_70 = &(result.edit.end);
+                (*value_70) = change.end;
+                String* value_71 = &(result.edit.replacement);
+                (*value_71) = change.replacement;
+                bool* value_72 = &(result.edit.changed);
+                (*value_72) = change.changed;
+                int32_t* value_73 = &(result.cursor);
+                (*value_73) = request.cursor;
+                int32_t* value_74 = &(result.anchor);
+                (*value_74) = request.anchor;
             }
         }
-        bool* value_74 = &(result.focused);
-        (*value_74) = true;
-        CompositionState* value_75 = &(result.composition);
-        (*value_75) = (CompositionState){0};
-        bool* value_76 = &(result.composition_changed);
-        (*value_76) = result.composition_changed || props.composition.active;
+        bool* value_75 = &(result.focused);
+        (*value_75) = true;
+        CompositionState* value_76 = &(result.composition);
+        (*value_76) = (CompositionState){0};
+        bool* value_77 = &(result.composition_changed);
+        (*value_77) = result.composition_changed || props.composition.active;
     }
     bool composing = result.composition.active && result.focused && !props.secure;
     String composition_prefix = StringView(NULL, 0);
@@ -596,8 +620,8 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
         preedit_width = GlyphWidth(result.composition.text, font, face.value.typeface);
         text_width = (int32_t)(((uint32_t)prefix_width + (uint32_t)preedit_width) + (uint32_t)(GlyphWidth(composition_suffix, font, face.value.typeface)));
         scroll = TextFieldScrollFor(props.bounds.x, props.bounds.width - clear_size, padding_x, text_width, result.scroll_x);
-        int32_t* value_77 = &(result.scroll_x);
-        (*value_77) = scroll.scroll;
+        int32_t* value_78 = &(result.scroll_x);
+        (*value_78) = scroll.scroll;
     }
     face = TextFieldFaceFor(props, result.focused);
     int32_t display_cursor = TextFieldDisplayByteFor(props.value, display, result.cursor, props.secure);
@@ -607,13 +631,13 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
     if (composing) {
         cursor_text_x = (int32_t)((uint32_t)prefix_width + (uint32_t)(GlyphWidth(TextSpan(result.composition.text, 0, result.composition.cursor), font, face.value.typeface)));
     }
-    int32_t* value_78 = &(result.scroll_x);
-    (*value_78) = TextFieldRevealScroll(result.scroll_x, scroll.max_scroll, scroll.clip_width, cursor_text_x, padding_x);
+    int32_t* value_79 = &(result.scroll_x);
+    (*value_79) = TextFieldRevealScroll(result.scroll_x, scroll.max_scroll, scroll.clip_width, cursor_text_x, padding_x);
     float opacity = StyleOpacityValue(face.value.fields, face.value.opacity);
     Rectangle bounds = props.bounds;
     if (TreeIsBuilding(session)) {
-        int32_t* value_79 = &(result.node);
-        (*value_79) = TreeSubmitCurrent(session, key, 9, bounds);
+        int32_t* value_80 = &(result.node);
+        (*value_80) = TreeSubmitCurrent(session, key, 9, bounds);
         if (result.node < 0) {
             return result;
         }
@@ -630,8 +654,8 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
         TreeSetStyleClass(session, result.node, props.class_name);
         TreeSetStyleId(session, result.node, props.id);
         TreeSetSelected(session, result.node, result.focused);
-        int32_t value_80 = std_grapheme_Boundary(props.value, result.cursor);
-        TreeSetTextValue(session, result.node, props.value, value_80, std_grapheme_Boundary(props.value, result.anchor), props.read_only, props.secure);
+        int32_t value_81 = std_grapheme_Boundary(props.value, result.cursor);
+        TreeSetTextValue(session, result.node, props.value, value_81, std_grapheme_Boundary(props.value, result.anchor), props.read_only, props.secure);
         text_host_TextHostPresent(session, result.node, props.value, result.cursor, result.anchor, props.secure, props.numeric, props.read_only, result.edit.changed);
     }
     PaintRoundedFill(session, result.node, bounds, face.value.radius, 12, ColorFromPacked(Opacity(face.value.background, opacity)));
@@ -646,11 +670,11 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
     }
     int32_t line_height = GlyphLineHeight(font, face.value.typeface);
     Rectangle text_bounds = bounds;
-    float* value_81 = &(text_bounds.width);
-    (*value_81) = (*value_81) - clear_size;
-    int32_t value_82 = TextFieldMinCursorHeight(scale);
-    int32_t value_83 = TextFieldCursorVerticalPadding(scale);
-    TextFieldPaint paint = TextFieldPaintFor(text_bounds, padding_x, result.scroll_x, font, line_height, value_82, value_83, TextFieldClipGuard(scale));
+    float* value_82 = &(text_bounds.width);
+    (*value_82) = (*value_82) - clear_size;
+    int32_t value_83 = TextFieldMinCursorHeight(scale);
+    int32_t value_84 = TextFieldCursorVerticalPadding(scale);
+    TextFieldPaint paint = TextFieldPaintFor(text_bounds, padding_x, result.scroll_x, font, line_height, value_83, value_84, TextFieldClipGuard(scale));
     String value_to_paint = display;
     uint32_t foreground = face.value.foreground;
     if (StringEqual(value_to_paint, StringLiteral("")) && !composing) {
@@ -666,8 +690,8 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
         int32_t right = (int32_t)((uint32_t)(paint.text_x) + (uint32_t)(GlyphCaret(display, last, font, face.value.typeface)));
         if (composing) {
             left = (int32_t)(((uint32_t)(paint.text_x) + (uint32_t)prefix_width) + (uint32_t)(GlyphWidth(TextSpan(result.composition.text, 0, result.composition.cursor), font, face.value.typeface)));
-            String value_84 = TextSpan(result.composition.text, 0, (int32_t)((uint32_t)(result.composition.cursor) + (uint32_t)(result.composition.selection_length)));
-            right = (int32_t)(((uint32_t)(paint.text_x) + (uint32_t)prefix_width) + (uint32_t)(GlyphWidth(value_84, font, face.value.typeface)));
+            String value_85 = TextSpan(result.composition.text, 0, (int32_t)((uint32_t)(result.composition.cursor) + (uint32_t)(result.composition.selection_length)));
+            right = (int32_t)(((uint32_t)(paint.text_x) + (uint32_t)prefix_width) + (uint32_t)(GlyphWidth(value_85, font, face.value.typeface)));
         }
         if (left > right) {
             int32_t swap = left;
@@ -683,97 +707,97 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
             right = clip_right;
         }
         if (right > left) {
-            Rectangle value_85 = (Rectangle){.x = (float)(left), .y = (float)(text_y), .width = (float)(((int32_t)((uint32_t)right - (uint32_t)left))), .height = (float)(line_height)};
-            PaintRoundedFill(session, result.node, value_85, (float)0.0, 1, ColorFromPacked(Opacity((uint32_t)(((uint32_t)(CurrentAccent()) & 4294967040u) | 136u), opacity)));
+            Rectangle value_86 = (Rectangle){.x = (float)(left), .y = (float)(text_y), .width = (float)(((int32_t)((uint32_t)right - (uint32_t)left))), .height = (float)(line_height)};
+            PaintRoundedFill(session, result.node, value_86, (float)0.0, 1, ColorFromPacked(Opacity((uint32_t)(((uint32_t)(CurrentAccent()) & 4294967040u) | 136u), opacity)));
         }
     }
     if (composing) {
         foreground = face.value.foreground;
         if (!StringEqual(composition_prefix, StringLiteral(""))) {
-            Color value_86 = ColorFromPacked(Opacity(foreground, opacity));
-            Vector2 value_87 = paint_queue_zi_default_85e272ac12b7f186();
-            PaintClippedLabel(session, result.node, composition_prefix, paint.text_x, text_y, font, value_86, paint.clip_bounds, StringLiteral(""), (float)0.0, value_87);
+            Color value_87 = ColorFromPacked(Opacity(foreground, opacity));
+            Vector2 value_88 = paint_queue_zi_default_85e272ac12b7f186();
+            PaintClippedLabel(session, result.node, composition_prefix, paint.text_x, text_y, font, value_87, paint.clip_bounds, StringLiteral(""), (float)0.0, value_88);
         }
         if (!StringEqual(result.composition.text, StringLiteral(""))) {
-            Color value_88 = ColorFromPacked(Opacity(foreground, opacity));
-            Vector2 value_89 = paint_queue_zi_default_85e272ac12b7f186();
-            PaintClippedLabel(session, result.node, result.composition.text, (int32_t)((uint32_t)(paint.text_x) + (uint32_t)prefix_width), text_y, font, value_88, paint.clip_bounds, StringLiteral(""), (float)0.0, value_89);
+            Color value_89 = ColorFromPacked(Opacity(foreground, opacity));
+            Vector2 value_90 = paint_queue_zi_default_85e272ac12b7f186();
+            PaintClippedLabel(session, result.node, result.composition.text, (int32_t)((uint32_t)(paint.text_x) + (uint32_t)prefix_width), text_y, font, value_89, paint.clip_bounds, StringLiteral(""), (float)0.0, value_90);
         }
         if (!StringEqual(composition_suffix, StringLiteral(""))) {
-            Color value_90 = ColorFromPacked(Opacity(foreground, opacity));
-            Vector2 value_91 = paint_queue_zi_default_85e272ac12b7f186();
-            PaintClippedLabel(session, result.node, composition_suffix, (int32_t)(((uint32_t)(paint.text_x) + (uint32_t)prefix_width) + (uint32_t)preedit_width), text_y, font, value_90, paint.clip_bounds, StringLiteral(""), (float)0.0, value_91);
+            Color value_91 = ColorFromPacked(Opacity(foreground, opacity));
+            Vector2 value_92 = paint_queue_zi_default_85e272ac12b7f186();
+            PaintClippedLabel(session, result.node, composition_suffix, (int32_t)(((uint32_t)(paint.text_x) + (uint32_t)prefix_width) + (uint32_t)preedit_width), text_y, font, value_91, paint.clip_bounds, StringLiteral(""), (float)0.0, value_92);
         }
         int32_t stroke = TextInputStrokeWidth(scale);
-        Rectangle value_92 = {0};
-        value_92.x = (float)(((int32_t)((uint32_t)(paint.text_x) + (uint32_t)prefix_width)));
-        int32_t value_93 = TextCompositionUnderlineY(text_y, line_height, stroke);
-        value_92.y = (float)(value_93);
-        int32_t value_94 = TextCompositionUnderlineEndX(0, preedit_width, stroke);
-        value_92.width = (float)(value_94);
-        value_92.height = (float)(stroke);
-        Rectangle underline = RectangleIntersection(value_92, paint.clip_bounds);
+        Rectangle value_93 = {0};
+        value_93.x = (float)(((int32_t)((uint32_t)(paint.text_x) + (uint32_t)prefix_width)));
+        int32_t value_94 = TextCompositionUnderlineY(text_y, line_height, stroke);
+        value_93.y = (float)(value_94);
+        int32_t value_95 = TextCompositionUnderlineEndX(0, preedit_width, stroke);
+        value_93.width = (float)(value_95);
+        value_93.height = (float)(stroke);
+        Rectangle underline = RectangleIntersection(value_93, paint.clip_bounds);
         if (underline.width > ((float)0.0) && underline.height > ((float)0.0)) {
             PaintRoundedFill(session, result.node, underline, (float)0.0, 1, ColorFromPacked(Opacity(face.value.focus, opacity)));
         }
     } else if (!StringEqual(value_to_paint, StringLiteral(""))) {
-        Color value_95 = ColorFromPacked(Opacity(foreground, opacity));
-        Vector2 value_96 = paint_queue_zi_default_85e272ac12b7f186();
-        PaintClippedLabel(session, result.node, value_to_paint, paint.text_x, text_y, font, value_95, paint.clip_bounds, StringLiteral(""), (float)0.0, value_96);
+        Color value_96 = ColorFromPacked(Opacity(foreground, opacity));
+        Vector2 value_97 = paint_queue_zi_default_85e272ac12b7f186();
+        PaintClippedLabel(session, result.node, value_to_paint, paint.text_x, text_y, font, value_96, paint.clip_bounds, StringLiteral(""), (float)0.0, value_97);
     }
     if (result.focused && !props.disabled) {
         int32_t x = (int32_t)((uint32_t)(paint.text_x) + (uint32_t)cursor_text_x);
         if (x >= (int32_t)SignedBits(FloatToInt(paint.clip_bounds.x, 32, 1), 32) && x <= (int32_t)SignedBits(FloatToInt((paint.clip_bounds.x + paint.clip_bounds.width), 32, 1), 32)) {
-            Rectangle value_97 = (Rectangle){.x = (float)(x), .y = (float)(paint.cursor_y), .width = (float)0.0, .height = (float)(paint.cursor_height)};
-            PaintLine(session, result.node, value_97, ColorFromPacked(Opacity(face.value.foreground, opacity)));
+            Rectangle value_98 = (Rectangle){.x = (float)(x), .y = (float)(paint.cursor_y), .width = (float)0.0, .height = (float)(paint.cursor_height)};
+            PaintLine(session, result.node, value_98, ColorFromPacked(Opacity(face.value.foreground, opacity)));
         }
     }
     if (clear_size > ((float)0.0)) {
         zir_2b2386d69a109fee_Props clear = {0};
         uint64_t field_key = key;
         if (result.node >= 0) {
-            TreeEntry value_98 = TreeSubmittedNodeAt(session, result.node);
-            field_key = value_98.key;
+            TreeEntry value_99 = TreeSubmittedNodeAt(session, result.node);
+            field_key = value_99.key;
         }
-        uint64_t* value_99 = &(clear.key);
-        (*value_99) = (uint64_t)(((uint64_t)field_key * UINT64_C(65599)) + UINT64_C(41));
-        Rectangle* value_100 = &(clear.bounds);
-        (*value_100) = (Rectangle){.x = (bounds.x + bounds.width) - clear_size, .y = bounds.y, .width = clear_size, .height = bounds.height};
+        uint64_t* value_100 = &(clear.key);
+        (*value_100) = (uint64_t)(((uint64_t)field_key * UINT64_C(65599)) + UINT64_C(41));
+        Rectangle* value_101 = &(clear.bounds);
+        (*value_101) = (Rectangle){.x = (bounds.x + bounds.width) - clear_size, .y = bounds.y, .width = clear_size, .height = bounds.height};
         if (result.node >= 0) {
-            TreeEntry value_101 = TreeSubmittedNodeAt(session, result.node);
-            Rectangle placed = value_101.bounds;
-            float* value_102 = &(clear.bounds.x);
-            (*value_102) = (*value_102) + (placed.x - bounds.x);
-            float* value_103 = &(clear.bounds.y);
-            (*value_103) = (*value_103) + (placed.y - bounds.y);
+            TreeEntry value_102 = TreeSubmittedNodeAt(session, result.node);
+            Rectangle placed = value_102.bounds;
+            float* value_103 = &(clear.bounds.x);
+            (*value_103) = (*value_103) + (placed.x - bounds.x);
+            float* value_104 = &(clear.bounds.y);
+            (*value_104) = (*value_104) + (placed.y - bounds.y);
         }
-        String* value_104 = &(clear.label);
-        (*value_104) = props.clear_label;
-        String* value_105 = &(clear.icon_shape);
-        (*value_105) = StringLiteral("S1.8rr:M6 6L18 18M18 6L6 18");
-        bool* value_106 = &(clear.icon_only);
-        (*value_106) = true;
-        bool* value_107 = &(clear.fit_content);
+        String* value_105 = &(clear.label);
+        (*value_105) = props.clear_label;
+        String* value_106 = &(clear.icon_shape);
+        (*value_106) = StringLiteral("S1.8rr:M6 6L18 18M18 6L6 18");
+        bool* value_107 = &(clear.icon_only);
         (*value_107) = true;
-        ButtonEmphasis* value_108 = &(clear.emphasis);
-        (*value_108) = (ButtonEmphasis)(3LL);
-        bool* value_109 = &(clear.disabled);
-        (*value_109) = props.disabled;
+        bool* value_108 = &(clear.fit_content);
+        (*value_108) = true;
+        ButtonEmphasis* value_109 = &(clear.emphasis);
+        (*value_109) = (ButtonEmphasis)(3LL);
+        bool* value_110 = &(clear.disabled);
+        (*value_110) = props.disabled;
         if (button_Draw(session, clear) != 0) {
-            Edit* value_110 = &(result.edit);
-            (*value_110) = (Edit){.start = 0, .end = (int32_t)((int64_t)(props.value).length), .replacement = StringLiteral(""), .changed = true};
-            int32_t* value_111 = &(result.cursor);
-            (*value_111) = 0;
-            int32_t* value_112 = &(result.anchor);
+            Edit* value_111 = &(result.edit);
+            (*value_111) = (Edit){.start = 0, .end = (int32_t)((int64_t)(props.value).length), .replacement = StringLiteral(""), .changed = true};
+            int32_t* value_112 = &(result.cursor);
             (*value_112) = 0;
-            int32_t* value_113 = &(result.scroll_x);
+            int32_t* value_113 = &(result.anchor);
             (*value_113) = 0;
-            bool* value_114 = &(result.composition_changed);
-            (*value_114) = result.composition.active;
-            CompositionState* value_115 = &(result.composition);
-            (*value_115) = (CompositionState){0};
-            bool* value_116 = &(result.focused);
-            (*value_116) = true;
+            int32_t* value_114 = &(result.scroll_x);
+            (*value_114) = 0;
+            bool* value_115 = &(result.composition_changed);
+            (*value_115) = result.composition.active;
+            CompositionState* value_116 = &(result.composition);
+            (*value_116) = (CompositionState){0};
+            bool* value_117 = &(result.focused);
+            (*value_117) = true;
             TreeFocusAt(session, previous);
             text_host_TextHostPresent(session, result.node, props.value, 0, 0, props.secure, props.numeric, props.read_only, true);
         }

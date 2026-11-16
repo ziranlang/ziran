@@ -18,6 +18,7 @@ struct Decoded {
 };
 bool std_utf8_Continuation(uint8_t byte);
 Decoded Decode(String text, int32_t at);
+bool Valid(String text);
 
 /* Small procedures other modules inline; std_utf8.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_STD_UTF8_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)

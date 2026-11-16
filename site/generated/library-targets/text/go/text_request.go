@@ -2,6 +2,7 @@
 package main
 
 // #import session
+// #import text_editing
 // #import tree
 // #import tree_input
 type TextBoundary func(string, int32) int32
@@ -36,7 +37,8 @@ var text_boundary TextBoundary
 var text_requests [9]PendingTextRequest
 func TextRequest_TextRequestUseBoundary(boundary TextBoundary) bool {
 	text_boundary = boundary
-	return true
+	var value_6 TextEditingSend = func(value_0 Session, value_1 int32, value_2 string, value_3 bool, value_4 int32, value_5 int32) bool { return TextRequest_TextRequestSend(value_0, value_1, value_2, value_3, value_4, value_5) }
+	return TextEditing_TextEditingUseRequests(value_6, func(value_7 Session) { TextRequest_TextRequestClear(value_7) })
 }
 
 func TextRequest_TextRequestSend(session Session, index int32, value string, replace bool, cursor int32, anchor int32) bool {

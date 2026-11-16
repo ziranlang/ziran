@@ -80,7 +80,7 @@ int RunSource(void)
         goto done;
     }
     report_stage("build");
-    bytes = ZxExecBuild(&merged, "playground", entry, (Slice){0}, &size);
+    bytes = ZxExecBuild(&merged, "playground", entry, (Slice){0}, 0, &size);
     if(bytes == NULL || (bundle = BundleOpenBytes(bytes, size)) == NULL)
         goto done;
     report_stage("run");

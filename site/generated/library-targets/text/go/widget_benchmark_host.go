@@ -58,16 +58,6 @@ func WidgetBenchmarkHost_MeasureGlyphLineHeight(font int32, typeface string) int
 	return font
 }
 
-func WidgetBenchmarkHost_ImageWidth(path string) int32 {
-	_ = path
-	return 0
-}
-
-func WidgetBenchmarkHost_ImageHeight(path string) int32 {
-	_ = path
-	return 0
-}
-
 func WidgetBenchmarkHost_RasterText(value string, x int32, y int32, font int32, color Color) {
 	paint_count++
 	text_count++

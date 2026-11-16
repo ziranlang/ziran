@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "image.h"
 #include "drawing_props.h"
 #include "font_metrics.h"
 #include "geometry.h"

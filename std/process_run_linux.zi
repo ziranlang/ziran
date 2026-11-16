@@ -23,12 +23,11 @@ using Vectors :: #import "vec"
 #scope_file
 libc :: #system_library "libc";
 ForkRaw :: () -> s32 #foreign libc "fork";
-Pipe2Raw :: (fds: *s32, flags: s32) -> s32 #foreign libc "pipe2";
 DupRaw :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
 CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
 ReadRaw :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
 WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
-OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 #foreign libc "open";
+OpenRaw :: (path: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "open";
 ExecRaw :: (path: *u8, arguments: *ProcessArgumentSlot) -> s32 #foreign libc "execvp";
 ExitRaw :: (code: s32) -> void #foreign libc "_exit";
 WaitRaw :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
@@ -37,11 +36,31 @@ ChangeDirectoryRaw :: (path: *u8) -> s32 #foreign libc "chdir";
 SetEnvironmentRaw :: (name: *u8, value: *u8, overwrite: s32) -> s32 #foreign libc "setenv";
 UnsetEnvironmentRaw :: (name: *u8) -> s32 #foreign libc "unsetenv";
 SessionRaw :: () -> s32 #foreign libc "setsid";
-ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
 SignalHandler :: #type (signal_number: s32) -> void #c_call;
 SignalRaw :: (signal_number: s32, handler: SignalHandler) -> SignalHandler #foreign libc "signal";
 
-CLOSE_ON_EXEC :: 524288;
+#if #defined(__APPLE__) {
+    // Darwin has no pipe2: both ends become close-on-exec before any fork.
+    PipeRaw :: (fds: *s32) -> s32 #foreign libc "pipe";
+    FcntlRaw :: (fd: s32, command: s32, value: ..any) -> s32 #foreign libc "fcntl";
+    Pipe2Raw :: (fds: *s32, flags: s32) -> s32 {
+        if PipeRaw(fds) != 0 { return -1 }
+        for end: 0..1 {
+            if FcntlRaw(fds[end], 2, 1) != 0 { CloseRaw(fds[0]); CloseRaw(fds[1]); return -1 }
+        }
+        return 0
+    }
+    ErrnoRaw :: () -> *s32 #foreign libc "__error";
+    CLOSE_ON_EXEC :: 16777216;
+    WRITE_TRUNCATE :: 1537;
+    WRITE_APPEND :: 521;
+} else {
+    Pipe2Raw :: (fds: *s32, flags: s32) -> s32 #foreign libc "pipe2";
+    ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
+    CLOSE_ON_EXEC :: 524288;
+    WRITE_TRUNCATE :: 577;
+    WRITE_APPEND :: 1089;
+}
 INTERRUPTED :: 4;
 
 #scope_export
@@ -182,14 +201,14 @@ Child :: (options: ProcessOptions, prepared: *Prepared, status: s32, capture: s3
     if !failed && capture >= 0 {
         if DupRaw(capture, 1) < 0 { failed = true }
     } else if !failed && prepared.output >= 0 {
-        flags: s32 = ifx options.append_output then 1089 else 577
+        flags: s32 = ifx options.append_output then WRITE_APPEND else WRITE_TRUNCATE
         fd := OpenRaw(At(prepared, prepared.output), flags | CLOSE_ON_EXEC, 420)
         if fd < 0 || DupRaw(fd, 1) < 0 { failed = true }
     }
     if !failed && options.merge_error {
         if DupRaw(1, 2) < 0 { failed = true }
     } else if !failed && prepared.error >= 0 {
-        fd := OpenRaw(At(prepared, prepared.error), 577 | CLOSE_ON_EXEC, 420)
+        fd := OpenRaw(At(prepared, prepared.error), WRITE_TRUNCATE | CLOSE_ON_EXEC, 420)
         if fd < 0 || DupRaw(fd, 2) < 0 { failed = true }
     }
     if !failed && prepared.directory >= 0 && ChangeDirectoryRaw(At(prepared, prepared.directory)) != 0 { failed = true }

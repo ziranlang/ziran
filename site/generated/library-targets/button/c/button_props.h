@@ -4,11 +4,10 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "image.h"
+#include "image_props.h"
 #include "control_props.h"
 #include "drawing_props.h"
 #include "geometry.h"
-#include "image_props.h"
 
 #ifdef __cplusplus
 extern "C" {

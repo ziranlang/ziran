@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include "session.h"
+#include "text_editing.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +19,7 @@ struct TextFocusFrameState {
 extern TextFocusFrameState text_focus_frames[9];
 void TextInputNoteFocused(Session session);
 void TextInputFocusFrameBegin(Session session);
+bool TextInputFocused(Session session);
 bool TextInputOwnerMatches(Session owner, Session session);
 
 #ifdef __cplusplus

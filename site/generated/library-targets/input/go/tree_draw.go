@@ -6,9 +6,9 @@ package main
 // #import session
 // #import tree
 // #import tree_input
-// #import text_request
-// #import text_input_platform
+// #import text_editing
 // #import text_selection_host
+// #import scroll_sampling
 type FrameEndResult struct {
 	Status FrameStatus
 	PaintUnchanged bool
@@ -56,7 +56,7 @@ func TreeDraw_BeginFrame(session Session, screen_key uint64, bounds Rectangle) F
 	(*value_5) = active_modifiers[slot]
 	frame_retained = Session_SessionFlagSet(frame_retained, slot, false)
 	TreeInput_TreeKeyboardRoute(session)
-	TextInputPlatform_TextInputFocusFrameBegin(session)
+	TextEditing_TextEditingFrameBegin(session)
 	PaintQueue_PaintClear(session)
 	var value_6 uint32 = frame_paint_unchanged
 	var value_7 int32 = Session_SessionIndex(session)
@@ -79,7 +79,7 @@ func TreeDraw_RetainFrame(session Session) bool {
 	}
 	var value_4 bool = value_2
 	if !value_4 {
-		var value_5 bool = TextInputPlatform_TextInputFocused(session)
+		var value_5 bool = TextEditing_TextEditingFocused(session)
 		value_4 = value_5
 	}
 	var value_6 bool = value_4
@@ -89,7 +89,7 @@ func TreeDraw_RetainFrame(session Session) bool {
 	}
 	var value_8 bool = value_6
 	if !value_8 {
-		var value_9 bool = ScrollDevice_ScrollDeviceMoving(session)
+		var value_9 bool = ScrollSampling_ScrollSampleMoving(session)
 		value_8 = value_9
 	}
 	var value_10 bool = value_8 || !(trees[slot]).Building || FrameStatus((trees[slot]).Error) != FrameStatus(0) || (trees[slot]).SubmittedCount != 1
@@ -299,6 +299,6 @@ func TreeDraw_CloseSession(session Session) bool {
 	Tree_TreeDispose(session)
 	PaintQueue_PaintDispose(session)
 	TreeInput_TreeInputReset(session)
-	TextRequest_TextRequestClear(session)
+	TextEditing_TextEditingClear(session)
 	return Session_SessionClose(session)
 }

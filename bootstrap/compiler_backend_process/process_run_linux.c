@@ -31,19 +31,6 @@ zir_f_eb6527159f8585fd_ForkRaw(void)
     return zir_foreign_zir_f_eb6527159f8585fd_ForkRaw();
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_Pipe2Raw_7c968992
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_Pipe2Raw_7c968992
-#ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_Pipe2Raw(int32_t* fds, int32_t flags) __asm__("_pipe2");
-#else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_Pipe2Raw(int32_t* fds, int32_t flags) __asm__("pipe2");
-#endif
-static int32_t
-zir_f_eb6527159f8585fd_Pipe2Raw(int32_t* fds, int32_t flags)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_Pipe2Raw(fds, flags);
-}
-#endif
 #ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_DupRaw_8536fc2b
 #define ZIR_FOREIGN_zir_f_eb6527159f8585fd_DupRaw_8536fc2b
 #ifdef __APPLE__
@@ -96,18 +83,14 @@ zir_f_eb6527159f8585fd_WriteRaw(int32_t fd, uint8_t* input, size_t count)
     return zir_foreign_zir_f_eb6527159f8585fd_WriteRaw(fd, input, count);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_OpenRaw_6d3762f4
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_OpenRaw_6d3762f4
+#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_OpenRaw_e4db28c4
+#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_OpenRaw_e4db28c4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_eb6527159f8585fd_OpenRaw(uint8_t* path, int32_t flags, int32_t mode) __asm__("_open");
+int32_t zir_foreign_zir_f_eb6527159f8585fd_OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("_open");
 #else
-int32_t zir_foreign_zir_f_eb6527159f8585fd_OpenRaw(uint8_t* path, int32_t flags, int32_t mode) __asm__("open");
+int32_t zir_foreign_zir_f_eb6527159f8585fd_OpenRaw(uint8_t* path, int32_t flags, ...) __asm__("open");
 #endif
-static int32_t
-zir_f_eb6527159f8585fd_OpenRaw(uint8_t* path, int32_t flags, int32_t mode)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_OpenRaw(path, flags, mode);
-}
+#define zir_f_eb6527159f8585fd_OpenRaw zir_foreign_zir_f_eb6527159f8585fd_OpenRaw
 #endif
 #ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ExecRaw_efd664fc
 #define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ExecRaw_efd664fc
@@ -213,19 +196,6 @@ zir_f_eb6527159f8585fd_SessionRaw(void)
     return zir_foreign_zir_f_eb6527159f8585fd_SessionRaw();
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ErrnoRaw_40ae2072
-#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ErrnoRaw_40ae2072
-#ifdef __APPLE__
-int32_t* zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw(void) __asm__("___errno_location");
-#else
-int32_t* zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw(void) __asm__("__errno_location");
-#endif
-static int32_t*
-zir_f_eb6527159f8585fd_ErrnoRaw(void)
-{
-    return zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw();
-}
-#endif
 #ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_SignalRaw_f23e3d88
 #define ZIR_FOREIGN_zir_f_eb6527159f8585fd_SignalRaw_f23e3d88
 #ifdef __APPLE__
@@ -237,6 +207,32 @@ static SignalHandler
 zir_f_eb6527159f8585fd_SignalRaw(int32_t signal_number, SignalHandler handler)
 {
     return zir_foreign_zir_f_eb6527159f8585fd_SignalRaw(signal_number, handler);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_Pipe2Raw_7c968992
+#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_Pipe2Raw_7c968992
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_eb6527159f8585fd_Pipe2Raw(int32_t* fds, int32_t flags) __asm__("_pipe2");
+#else
+int32_t zir_foreign_zir_f_eb6527159f8585fd_Pipe2Raw(int32_t* fds, int32_t flags) __asm__("pipe2");
+#endif
+static int32_t
+zir_f_eb6527159f8585fd_Pipe2Raw(int32_t* fds, int32_t flags)
+{
+    return zir_foreign_zir_f_eb6527159f8585fd_Pipe2Raw(fds, flags);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_eb6527159f8585fd_ErrnoRaw_40ae2072
+#define ZIR_FOREIGN_zir_f_eb6527159f8585fd_ErrnoRaw_40ae2072
+#ifdef __APPLE__
+int32_t* zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw(void) __asm__("___errno_location");
+#else
+int32_t* zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw(void) __asm__("__errno_location");
+#endif
+static int32_t*
+zir_f_eb6527159f8585fd_ErrnoRaw(void)
+{
+    return zir_foreign_zir_f_eb6527159f8585fd_ErrnoRaw();
 }
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
@@ -485,7 +481,7 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
             int64_t offset = value_2;
             value_3 = &(ZIRAN_VEC_INDEX((prepared->bytes).data, (prepared->bytes).count, offset));
         }
-        int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_3, 0, 0);
+        int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_3, 0, 0LL);
         bool value_5 = fd < 0;
         if (value_5 || zir_f_eb6527159f8585fd_DupRaw(fd, 0) < 0) {
             failed = true;
@@ -520,7 +516,7 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
                 int64_t offset = value_10;
                 value_11 = &(ZIRAN_VEC_INDEX((prepared->bytes).data, (prepared->bytes).count, offset));
             }
-            int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_11, (int32_t)((uint32_t)flags | 524288u), 420);
+            int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_11, (int32_t)((uint32_t)flags | 524288u), 420LL);
             bool value_13 = fd < 0;
             if (value_13 || zir_f_eb6527159f8585fd_DupRaw(fd, 1) < 0) {
                 failed = true;
@@ -546,7 +542,7 @@ process_run_linux_Child(ProcessOptions options, Prepared* prepared, int32_t stat
                 int64_t offset = value_17;
                 value_18 = &(ZIRAN_VEC_INDEX((prepared->bytes).data, (prepared->bytes).count, offset));
             }
-            int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_18, 524865, 420);
+            int32_t fd = zir_f_eb6527159f8585fd_OpenRaw(value_18, 524865, 420LL);
             bool value_20 = fd < 0;
             if (value_20 || zir_f_eb6527159f8585fd_DupRaw(fd, 2) < 0) {
                 failed = true;

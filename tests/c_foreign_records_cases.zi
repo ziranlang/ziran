@@ -1,0 +1,45 @@
+// Closed C graphs must retain types named only by emitted foreign signatures.
+#import "native_test"
+#import "check_support"
+#import "std/text_tools"
+#import "std/file_tree_linux"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "c-foreign-records-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    library := CheckPath(test.work, "library.zi")
+    app := CheckPath(test.work, "app.zi")
+    unused NativeWrite(*test, library, "lib :: #system_library \"libc\";\nRead :: (state: *State) -> s32 #foreign lib \"test_read\";\nResult :: () -> *Returned #foreign lib \"test_result\";\nDead :: (state: *DeadType) #foreign lib \"test_dead\";\nState :: struct { item: Nested }\nNested :: struct { value: s64 }\nReturned :: struct { value: s64 }\nDeadType :: struct { value: s64 }\nRun :: () -> s32 { unused Result(); return Read(null) }\n")
+    unused NativeWrite(*test, app, "#import \"library\"\nmain :: () -> s32 { return Run() }\n")
+    host := CheckPath(test.work, "host.c")
+    unused NativeWrite(*test, host, "#include <stdint.h>\nint32_t test_read(void *state) { return state ? 1 : 42; }\nvoid *test_result(void) { return 0; }\n")
+    object := CheckPath(test.work, "host.o")
+    host_compile := string.[NativeCompiler(), "-c", host, "-o", object]
+    unused NativeRun(*test, host_compile[:])
+    NativeSet(*test, "LDLIBS", object)
+    tools := PathParent(test.ziran)
+    saved := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", test.work, "-o", saved, app]
+    unused NativeRun(*test, save[:])
+    forms := string.[app, CheckPath(saved, "app.zir")]
+    for index: cast(s64)0..forms.count - 1 {
+        output := CheckPath(test.work, CheckConcat("c-", CheckNumber(index)))
+        generate := string.[CheckPath(tools, "zi2c"), "--exe", "--entry", "app:main", "--root", test.work, "-o", output, forms[index]]
+        unused NativeRun(*test, generate[:])
+        c := NativeRead(*test, CheckPath(output, "library.c"))
+        if !NativeAssert(*test, TextContains(c, "Nested") && TextContains(c, "State") &&
+            TextContains(c, "Returned") && !TextContains(c, "DeadType") && !TextContains(c, "test_dead"),
+            "foreign signature types were lost or an unreachable signature survived") { return 1 }
+        binary := CheckPath(output, "app")
+        compile := string.[NativeCompiler(), "-std=c11", "-Werror", CheckConcat("-I", CheckPath(test.repo, "include")),
+            CheckConcat("-I", output), CheckPath(output, "app.c"), CheckPath(output, "library.c"), host, "-o", binary]
+        unused NativeRun(*test, compile[:])
+        run := string.[binary]
+        unused NativeRun(*test, run[:], "", 42)
+        if test.failed { return 1 }
+    }
+    print("Closed C foreign signatures retain parameter/result records and nested fields, prune unused signatures, and run from source/saved IR\n")
+    return 0
+}

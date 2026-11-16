@@ -1714,6 +1714,26 @@ resolve_reachability:
         changed = 0;
         for(int m = 0; m < program->module_count; m++) {
             const ZirModule *module = &program->modules[m];
+            /* Foreign declarations live in imports, not the function graph.
+             * Every retained signature needs its types even if a caller only
+             * passes null, or discards the result. Use the same retention
+             * rule as the import copy below; unused signatures stay pruned. */
+            for(int i = 0; i < module->import_count; i++) {
+                const ZirImport *import = &module->imports[i];
+                if(import->kind != ZIR_IMPORT_EXTERN ||
+                   !(module->law_count || module->proof_count || import->is_using ||
+                     import_is_used(program, module, keep[m], keep, &uses,
+                                    keep_types, keep_defines, import) ||
+                     law_names_import(module, import)))
+                    continue;
+                memset(&buffers->signature, 0, sizeof(buffers->signature));
+                buffers->signature.args_text = KeepParameters(import->args);
+                if(!mark_type(program, module, import->return_type,
+                              keep_types, &changed) ||
+                   !mark_parameters(program, module, &buffers->signature,
+                                    keep_types, &changed))
+                    goto failed;
+            }
             for(int f = 0; f < module->function_count; f++) {
                 const ZirFunction *function = &module->functions[f];
                 if(!keep[m][f])

@@ -765,6 +765,19 @@ FrameLayout :: (state: *State, program: MachineProgram, limits: MachineLimits, f
             object.offset + object.size > 0 || -object.offset > frame.size - frame.outgoing_size {
             return Fail(state, .Frame, function_id)
         }
+        // A placed object takes its parent's frame space: it lies inside it.
+        if object.placed_in != 0 {
+            parent_at := cast(s64)function.stack_begin + cast(s64)object.placed_in - 1
+            if object.kind != .Value || object.placed_in < 0 || parent_at < cast(s64)function.stack_begin ||
+                parent_at >= cast(s64)function.stack_begin + cast(s64)function.stack_count {
+                return Fail(state, .Frame, function_id)
+            }
+            parent := program.stack_objects[parent_at]
+            if parent.function != function_id || parent.kind != .Value || parent.placed_in != 0 || object.placed_at < 0 ||
+                object.placed_at > parent.size || object.size > parent.size - object.placed_at ||
+                object.offset != parent.offset + object.placed_at { return Fail(state, .Frame, function_id) }
+            continue
+        }
         resident += 1
         if object.kind == .CalleeSave {
             bank := object.value / MachineBankWidth
@@ -792,7 +805,8 @@ FrameLayout :: (state: *State, program: MachineProgram, limits: MachineLimits, f
     if !VecResizeBounded(order, resident, limits.bytes) { return Fail(state, .Allocation, function_id) }
     at: s64 = 0
     for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
-        if MachineFrameResident(program.stack_objects[object_id].kind) { order[at] = object_id; at += 1 }
+        object := program.stack_objects[object_id]
+        if MachineFrameResident(object.kind) && object.placed_in == 0 { order[at] = object_id; at += 1 }
     }
     SortByOffset(program, order[:])
     if !Spend(state, resident) { return false }

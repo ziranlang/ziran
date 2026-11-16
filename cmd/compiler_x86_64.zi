@@ -254,6 +254,10 @@ LoopEnd :: (state: *State, begin: s64) {
 }
 
 CopyMemory :: (state: *State, destination: X86Operand, source: X86Operand, size: s64) -> bool {
+    // A member built where its parent keeps it is already in place.
+    if destination.kind == source.kind && destination.register == source.register &&
+        destination.displacement == source.displacement && destination.index == source.index &&
+        destination.shift == source.shift { return !state.writer.failed }
     offset: s64
     if Looped(size, destination, source) {
         scratch := MachineAbiScratchFloatRegister(state.program.target)

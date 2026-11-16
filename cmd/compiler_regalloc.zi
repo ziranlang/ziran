@@ -2004,12 +2004,19 @@ LayoutFrame :: (state: *Alloc, function: *MachineFunction) -> bool {
         for object_id: begin..finish - 1 {
             object := state.out.stack_objects[object_id]
             near := object.kind == .CalleeSave || object_id == mark || object_id == chain
-            if (pass == 0) != near || !MachineFrameResident(object.kind) { continue }
+            if (pass == 0) != near || !MachineFrameResident(object.kind) || object.placed_in != 0 { continue }
             if object.alignment > 16 { return Fail(state, .Frame, virtual = object.value) }
             size := ifx object.size > 0 then object.size else 1
             cursor = AlignUp(cursor + size, cast(s64)object.alignment)
             state.out.stack_objects[object_id].offset = -cursor
         }
+    }
+    // A placed object takes no frame space: it lies inside its parent.
+    for object_id: begin..finish - 1 {
+        object := state.out.stack_objects[object_id]
+        if object.placed_in == 0 { continue }
+        state.out.stack_objects[object_id].offset =
+            state.out.stack_objects[begin + object.placed_in - 1].offset + object.placed_at
     }
     outgoing: s64 = 0
     dynamic := false

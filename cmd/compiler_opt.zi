@@ -342,6 +342,66 @@ Signed :: (bits: u64, width: s32) -> s64 {
     return cast(s64)value
 }
 
+// The f32 pattern nearest the f64 pattern BITS, ties to even as the hardware
+// converts; false for a NaN, whose payload is left to run time.
+NarrowFloatBits :: (bits: u64, out: *u64) -> bool {
+    sign := (bits >> 63) << 31
+    exponent := cast(s64)((bits >> 52) & 0x7ff)
+    fraction := bits & 0xfffffffffffff
+    if exponent == 0x7ff {
+        if fraction != 0 { return false }
+        <<out = sign | 0x7f800000
+        return true
+    }
+    // Zero, or a subnormal far below any f32.
+    if exponent == 0 { <<out = sign; return true }
+    unbiased := exponent - 1023
+    if unbiased > 127 { <<out = sign | 0x7f800000; return true }
+    if unbiased >= -126 {
+        keep := fraction >> 29
+        rest := fraction & 0x1fffffff
+        if rest > 0x10000000 || rest == 0x10000000 && (keep & 1) == 1 { keep += 1 }
+        biased := unbiased + 127
+        if keep == 0x800000 { keep = 0; biased += 1 }
+        if biased >= 255 { <<out = sign | 0x7f800000; return true }
+        <<out = sign | (cast(u64)biased << 23) | keep
+        return true
+    }
+    // An f32 subnormal or zero: the 53-bit significand shifted down to units
+    // of 2^-149.
+    shift := -unbiased - 97
+    if shift > 54 { <<out = sign; return true }
+    full := (cast(u64)1 << 52) | fraction
+    keep := full >> cast(u64)shift
+    rest := full & ((cast(u64)1 << cast(u64)shift) - 1)
+    half := cast(u64)1 << cast(u64)(shift - 1)
+    if rest > half || rest == half && (keep & 1) == 1 { keep += 1 }
+    <<out = sign | keep
+    return true
+}
+
+// The f64 pattern of the f32 pattern BITS, exactly; false for a NaN.
+WidenFloatBits :: (bits: u64, out: *u64) -> bool {
+    sign := ((bits >> 31) & 1) << 63
+    exponent := (bits >> 23) & 0xff
+    fraction := bits & 0x7fffff
+    if exponent == 0xff {
+        if fraction != 0 { return false }
+        <<out = sign | 0x7ff0000000000000
+        return true
+    }
+    if exponent == 0 {
+        if fraction == 0 { <<out = sign; return true }
+        // A subnormal: shift its leading bit up to the implicit one.
+        shift: u64 = 0
+        while (fraction & 0x800000) == 0 { fraction = fraction << 1; shift += 1 }
+        <<out = sign | ((897 - shift) << 52) | ((fraction & 0x7fffff) << 29)
+        return true
+    }
+    <<out = sign | ((exponent + 896) << 52) | (fraction << 29)
+    return true
+}
+
 // A fixed-array global has its full extent before any use. Allocations have
 // a different pointer shape, so only the GlobalAddress marker is accepted.
 SafeConstantElement :: (program: LirProgram, function: LirFunction,
@@ -407,8 +467,20 @@ FoldInstruction :: (program: LirProgram, function: LirFunction,
             if source.is_signed && source.bits < 64 &&
                 (bits & (cast(u64)1 << cast(u64)(source.bits - 1))) != 0 { bits |= ~Mask(source.bits) }
             bits &= Mask(result_type.bits)
+        } else if source.kind == .Float && result_type.kind == .Float && source.bits == result_type.bits {
+            bits = first.bits
+        } else if source.kind == .Float && result_type.kind == .Float && source.bits == 64 && result_type.bits == 32 {
+            if !NarrowFloatBits(first.bits, *bits) { return .{} }
+        } else if source.kind == .Float && result_type.kind == .Float && source.bits == 32 && result_type.bits == 64 {
+            if !WidenFloatBits(first.bits & 0xffffffff, *bits) { return .{} }
         } else { return .{} }
         return .{known = true, type = result_type_id, bits = bits}
+    }
+    // Negating a float flips its sign bit, exactly as the hardware does.
+    if op == .Negate && first.known && result_type.kind == .Float &&
+        program.types[first.type].kind == .Float && program.types[first.type].bits == result_type.bits {
+        return .{known = true, type = result_type_id,
+            bits = first.bits ^ (cast(u64)1 << cast(u64)(result_type.bits - 1))}
     }
     if op == .Negate || op == .BitNot {
         if !first.known || result_type.kind != .Integer { return .{} }

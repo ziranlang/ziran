@@ -207,6 +207,7 @@ VirtualsAndStack :: (state: *VerifyState, program: MachineProgram) -> bool {
             object.alignment > 4096 || (object.alignment & (object.alignment - 1)) != 0 ||
             object.type < 0 || object.type >= program.types.count ||
             !Optional(object.origin, program.origins.count) { return Fail(state, .Stack, object.function) }
+        if object.placed_in != 0 && !PlacedWithin(program, object) { return Fail(state, .Stack, object.function) }
     }
     for global: program.globals {
         if !Spend(state, 1) || global.type < 0 || global.type >= program.types.count ||
@@ -254,6 +255,20 @@ VirtualsAndStack :: (state: *VerifyState, program: MachineProgram) -> bool {
         }
     }
     return true
+}
+
+// Whether the placed Value object OBJECT lies inside a Value object of its
+// own function that has a frame home of its own.
+PlacedWithin :: (program: MachineProgram, object: MachineStackObject) -> bool {
+    owner := program.functions[object.function]
+    first := cast(s64)owner.stack_begin
+    last := first + cast(s64)owner.stack_count
+    parent_at := first + cast(s64)object.placed_in - 1
+    if object.kind != .Value || object.placed_in < 0 || owner.stack_begin < 0 || owner.stack_count < 0 ||
+        last > program.stack_objects.count || parent_at < first || parent_at >= last { return false }
+    parent := program.stack_objects[parent_at]
+    return parent.function == object.function && parent.kind == .Value && parent.placed_in == 0 &&
+        object.placed_at >= 0 && object.placed_at <= parent.size && object.size <= parent.size - object.placed_at
 }
 
 Operand :: (state: *VerifyState, program: MachineProgram, function: MachineFunction,

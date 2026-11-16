@@ -55,6 +55,7 @@ AggregateLowering :: struct {
     fields: Vec(s32)
     alias: Vec(s32)
     stack_size: Vec(s64)
+    size: Vec(s64)
     pointer_to: Vec(s32)
 }
 
@@ -65,6 +66,7 @@ AggregateLoweringFree :: (lowering: *AggregateLowering) {
     VecFree(lowering.fields)
     VecFree(lowering.alias)
     VecFree(lowering.stack_size)
+    VecFree(lowering.size)
     VecFree(lowering.pointer_to)
 }
 
@@ -419,6 +421,19 @@ CreateVirtuals :: (state: *LowerState, function_id: s32) -> bool {
         if !plan.storage[owner] { owner = plan.root[value_id] }
         if owner == MachineNoId { continue }
         state.owner.virtuals[virtual_id].stack_object = state.owner.virtuals[function.virtual_begin + owner].stack_object
+    }
+    // A class built inside another's object lies inside it, taking no frame
+    // space of its own.
+    for value_id: cast(s64)0..source.values.count - 1 {
+        if plan.slot[value_id] != cast(s32)value_id || plan.place_root[value_id] == MachineNoId { continue }
+        child := state.owner.virtuals[function.virtual_begin + cast(s32)value_id].stack_object
+        parent := state.owner.virtuals[function.virtual_begin + plan.place_root[value_id]].stack_object
+        if child == MachineNoId || parent == MachineNoId { continue }
+        object := state.owner.stack_objects[child]
+        object.placed_in = parent - function.stack_begin + 1
+        object.placed_at = plan.place_at[value_id]
+        while object.alignment > 1 && object.placed_at % cast(s64)object.alignment != 0 { object.alignment = object.alignment / 2 }
+        state.owner.stack_objects[child] = object
     }
     if source.result != MachineNoId && state.owner.types[source.result].class == .Stack &&
         state.lir.types[source.result].kind != .Void {
@@ -1142,9 +1157,11 @@ AggregateTypes :: (state: *LowerState) -> bool {
     lowering := state.aggregates
     count := state.owner.types.count
     if !VecResizeBounded(lowering.stack_size, count, state.limits.bytes) ||
+        !VecResizeBounded(lowering.size, count, state.limits.bytes) ||
         !VecResizeBounded(lowering.pointer_to, count, state.limits.bytes) { return Fail(state, .Allocation) }
     for type: cast(s64)0..count - 1 {
         machine := state.owner.types[type]
+        lowering.size[type] = machine.size
         lowering.stack_size[type] = ifx machine.class == .Stack then machine.size else -1
         lowering.pointer_to[type] = MachineNoId
     }
@@ -1422,6 +1439,25 @@ RegisterClassValue :: (state: *LowerState, function: *MachineFunction, value: s3
     return class == .General || class == .Float
 }
 
+// An aggregate build whose members are all replaced before it is read emits
+// nothing, so its constant members lose that use and may go unloaded.
+DropCovered :: (state: *LowerState, source: LirFunction) -> bool {
+    for block: source.blocks {
+        for instruction: block.instructions {
+            if !Spend(state, 1) { return false }
+            if instruction.op != .Aggregate || instruction.result < 0 || !state.aggregates.plan.covered[instruction.result] {
+                continue
+            }
+            for operand: instruction.operands {
+                if operand < 0 || operand >= state.select.constant.count || !state.select.constant[operand] { continue }
+                if state.select.uses[operand] > 0 { state.select.uses[operand] -= 1 }
+                state.select.loaded[operand] = state.select.uses[operand] > state.select.folded[operand]
+            }
+        }
+    }
+    return true
+}
+
 // Each view that computes an address gets the virtual holding it; every other
 // view takes the virtual of the view whose address it shares.
 ViewAddresses :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
@@ -1528,6 +1564,8 @@ LowerInsert :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     lowering := state.aggregates
     view := lowering.plan.view[source.result]
     if view == .PutBack { return true }
+    // The member value was built where this view puts it.
+    if lowering.plan.built_in_place[source.result] { return true }
     if view != .Changed { return LowerAggregate(state, function, source, .AggregateInsert, 2) }
     instruction := BeginInstruction(state, .AggregateInsert, source.origin)
     if VirtualOperand(state, lowering.view_address[source.result], .Use) == MachineNoId ||
@@ -1568,6 +1606,7 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if Splits(state, source) { return true }
     // A forwarded extract stands for the value it reads.
     if source.op == .Extract && source.result >= 0 && state.aggregates.alias[source.result] != MachineNoId { return true }
+    if source.op == .Aggregate && state.aggregates.plan.covered[source.result] { return true }
     if source.op == .Aggregate { return LowerMove(state, function, source, .AggregateBuild) }
     if source.op == .Extract { return LowerExtract(state, function, source) }
     if source.op == .Insert { return LowerInsert(state, function, source) }
@@ -1616,7 +1655,7 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     // Views read and change members in place through x86-64 address
     // registers; other targets share storage only.
     problem := MachineAggregatePlanBuild(*state.aggregates.plan, state.lir, source, state.aggregates.stack_size[:],
-        state.target.arch == .X86_64, state.remaining, state.limits.bytes)
+        state.aggregates.size[:], state.target.arch == .X86_64, state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.aggregates.plan.work) { return false }
     if !VecResizeBounded(state.aggregates.alias, source.values.count, state.limits.bytes) { return Fail(state, .Allocation) }
@@ -1635,7 +1674,8 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     function = state.owner.functions[function_id]
     function.fuel_register = state.options.fuel && MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
     if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) ||
-        !FoldZeroElements(state, *function, source) || !ForwardExtracts(state, *function, source) { return false }
+        !FoldZeroElements(state, *function, source) || !DropCovered(state, source) ||
+        !ForwardExtracts(state, *function, source) { return false }
     ResolveAliasChains(state, *function)
     // A function that allocates keeps the frame arena's top at entry and
     // the head of its pointer chain in two frame words. Each `allocate` gets

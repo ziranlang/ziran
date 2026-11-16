@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 code builds a record member where its parent keeps it instead of in a temporary it then copies from: members of a nested literal, a member inserted into a built record, one replaced through a constant index and a call result used as a member take frame space inside the parent's, and a member that is also read, shared, updated afterwards or whose parent is read while it is built keeps its own. An aggregate build whose members are all replaced before it is read emits nothing, and the optimizer folds f64-to-f32 and f32-to-f64 constant conversions and float negations to the hardware's patterns (NaNs stay). A nested shadow-token builder shaped like Kryon's `DefaultShadows` shrinks from 1759 to 661 bytes of code. The machine IR gains placed stack objects (`placed_in`, `placed_at`), and the allocated verifier checks each lies inside its parent.
 ## [0.6.0] - 2026-11-16
 
 - Ziran is manually safe like C by default: native x86-64, AArch64 and ARMv7 code, Wasm, generated C and the checks Ziran writes into Go carry no defensive runtime checks, so pointers are addresses and indexes are raw. Build with `--checks` to get every bounds check, pointer token and trap as before, or write `#checks` at the top of a module, before a block or statement, or before one index or slice access to check exactly there. The ZX header records how a bundle was built. The portable engine stays checked.

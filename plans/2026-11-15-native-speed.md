@@ -728,3 +728,36 @@ for name in ['Records','Vectors','Sieve','Hash','Calls','Printing']:
 print('LOAD_END',open('/proc/loadavg').read().strip(),flush=True)
 PY
 ```
+
+## Nested aggregate construction (constructor lane)
+
+Implemented:
+`cmd/compiler_machine_aggregate.zi` plans, per class of aggregate values that
+lives in one block with exactly one use outside it, whether the class's frame
+object can lie inside its parent's: as an operand of an aggregate build, as
+the value of an insert that updates its source in place, or inserted through a
+changed view at a constant offset, provided nothing between its first
+definition and that use touches the parent's storage and nothing defines or
+uses the class after it. `MachineStackObject.placed_in/placed_at` carry the
+result, the frame layout gives such an object no space of its own, both
+verifiers check it lies inside a parent with a home, and x86-64 `CopyMemory`
+emits nothing for a copy onto the same memory. A second pass skips an
+aggregate build whose members are all replaced by constant-member in-place
+inserts before it is read. The optimizer folds f64/f32 conversions and float
+negations of constants to the hardware's patterns; NaNs stay.
+
+Measured on a repro shaped like Kryon's `DefaultShadows` (nested records and
+arrays of `float32` records built by literals and indexed replacement), code
+size 1759 bytes with the hello fold, 947 with placement and the skipped
+builds, 661 with folded constants, through `ziran bundle` (which optimizes).
+Retained tests: `tests/machine_place_cases.zi` (planner cases on hand-built
+LIR with frame verification, budget accounting and malformed placements),
+the nested-record program in `tests/machine_elf.sh`, and
+`tests/compiler_opt_float_cases.zi` (28 conversion/negation vectors).
+
+Open: a constant member still goes through a register (`mov r11d, imm32;
+movd xmm0, r11d; movss [m], xmm0`) where `mov dword [m], imm32` would do;
+a function's own returned record is still built in a frame object and copied
+to its hidden result address, and members built across blocks (a select's
+value) or inserted through a dynamic index are not placed; placement is
+x86-64 only (views are), so aarch64 and armv7 keep their copies.

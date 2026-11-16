@@ -19,6 +19,14 @@ using Vectors :: #import "std/vec"
 // memory; each of its values is a set of field values, so a loop-carried
 // header such as a vector's lives in registers.
 //
+// Placement: a member value built only to be put into a parent's storage is
+// built there. A class whose every definition and use lies in one block, with
+// exactly one use outside it, as the value of an aggregate build or of an
+// insert that updates its source in place, takes a frame object inside the
+// parent's at the member's offset, provided nothing between its first
+// definition and that use touches the parent's storage; the copy at the use
+// then moves a member onto itself and emits nothing.
+//
 // Views: an extract read only by extracts in its own block, while nothing
 // writes the storage it reads, is read in place through its address. One
 // that a single insert then changes and puts straight back where it came
@@ -40,9 +48,37 @@ MachineAggregatePlan :: struct {
     storage: Vec(bool)
     // Per value: a split record value, kept as one value per field.
     split: Vec(bool)
+    // Per representative: the representative of the class whose frame object
+    // its object lies inside (MachineNoId: one of its own) and the byte offset
+    // it starts at.
+    place_root: Vec(s32)
+    place_at: Vec(s64)
+    // Per value: for a view, the byte offset of the member it names inside its
+    // root's storage (-1 when not constant); for an insert of a view, whether
+    // its member value was built in place, so there is nothing to copy; for
+    // an aggregate build, whether every member is replaced before it is read,
+    // so building it emits nothing.
+    view_at: Vec(s64)
+    built_in_place: Vec(bool)
+    covered: Vec(bool)
     // Work spent by the last build.
     work: s64
-    // Scratch, reused across functions.
+    // Scratch, reused across functions. Per representative, for placement:
+    // the one block holding every definition and use of its class (-1 none
+    // yet, -2 several blocks or an edge), its first definition there, its
+    // uses outside the class and the last of them, the last instruction that
+    // defines or uses any of its values, whether the class owns a
+    // function parameter, and where it was placed.
+    class_block: Vec(s32)
+    class_first: Vec(s32)
+    class_outside: Vec(s32)
+    class_item: Vec(s32)
+    class_last: Vec(s32)
+    class_fixed: Vec(bool)
+    class_into: Vec(s32)
+    class_at: Vec(s64)
+    cover_root: Vec(s32)
+    cover_mask: Vec(u64)
     index: Vec(s32)
     parent: Vec(s32)
     representative: Vec(s32)
@@ -89,6 +125,8 @@ Context :: struct {
     function: LirFunction
     program: LirProgram
     stack_size: []s64
+    sizes: []s64
+    place_left: s64
     budget: s64
     bytes: s64
     problem: MachineProblem
@@ -733,22 +771,292 @@ Split :: (context: *Context) -> bool {
     return true
 }
 
+// ---------------------------------------------------------------------------
+// Placement
+
+// Work the scans of one function may spend per value beyond the linear passes
+// before it stops placing; placement only saves copies, so declining is sound.
+PlaceWork :: 64
+
+// The offset of member MEMBER in a value of LIR type TYPE, or -1. Records are
+// packed in declaration order, as the encoders lay them out.
+MemberAt :: (context: *Context, type: s32, member: s64) -> s64 {
+    shape := context.program.types[type]
+    if shape.kind == .Array {
+        if member < 0 || member >= shape.count || shape.element < 0 { return -1 }
+        size := context.sizes[shape.element]
+        return ifx size >= 0 then member * size else -1
+    }
+    if shape.kind != .Record || member < 0 || member >= cast(s64)shape.fields.count { return -1 }
+    at: s64 = 0
+    for field, index: shape.fields {
+        if cast(s64)index == member { return at }
+        size := context.sizes[field]
+        if size < 0 { return -1 }
+        at += size
+    }
+    return -1
+}
+
+// What MemberAt costs for a value of LIR type TYPE.
+MemberCost :: (context: *Context, type: s32) -> s64 {
+    return 1 + cast(s64)context.program.types[type].fields.count
+}
+
+// Spends COUNT of the work budget without failing: placement only saves
+// copies, so a scan that would run past the budget is declined instead.
+PlaceSpend :: (context: *Context, count: s64) -> bool {
+    if count < 0 || count > context.budget - context.plan.work { return false }
+    context.plan.work += count
+    return true
+}
+
+// Whether VALUE is read or written in the storage of class ROOT.
+Touches :: (context: *Context, value: s32, root: s32) -> bool {
+    if !Aggregate(context, value) { return false }
+    plan := context.plan
+    if MachineAggregateViewed(plan.view[value]) { return plan.root[value] == root }
+    return plan.slot[value] == root
+}
+
+Merge :: (plan: *MachineAggregatePlan, class: s32, block: s32) {
+    if plan.class_block[class] == -1 { plan.class_block[class] = block }
+    else if plan.class_block[class] != block { plan.class_block[class] = -2 }
+}
+
+// Where each class is defined and used: see the plan's class_ vectors.
+Classes :: (context: *Context) -> bool {
+    plan := context.plan
+    function := context.function
+    for parameter: function.blocks[function.entry].parameters {
+        if Aggregate(context, parameter) { plan.class_fixed[plan.slot[parameter]] = true }
+    }
+    for block, block_index: function.blocks {
+        home := cast(s32)block_index
+        if !Spend(context, block.instructions.count + block.parameters.count + 1) { return false }
+        for parameter: block.parameters {
+            if Aggregate(context, parameter) { plan.class_block[plan.slot[parameter]] = -2 }
+        }
+        for instruction, item: block.instructions {
+            if !Spend(context, instruction.operands.count + instruction.edges.count + 1) { return false }
+            result := instruction.result
+            if Aggregate(context, result) {
+                class := plan.slot[result]
+                Merge(plan, class, home)
+                if cast(s32)item < plan.class_first[class] { plan.class_first[class] = cast(s32)item }
+                if cast(s32)item > plan.class_last[class] { plan.class_last[class] = cast(s32)item }
+                if plan.split[result] || MachineAggregateViewed(plan.view[result]) { plan.class_block[class] = -2 }
+            }
+            for value, at: instruction.operands {
+                if !Aggregate(context, value) { continue }
+                class := plan.slot[value]
+                Merge(plan, class, home)
+                if cast(s32)item > plan.class_last[class] { plan.class_last[class] = cast(s32)item }
+                // An insert updating its source in place stays in the class.
+                if instruction.op == .Insert && at == 0 && Aggregate(context, result) && plan.slot[result] == class {
+                    continue
+                }
+                plan.class_outside[class] += 1
+                plan.class_item[class] = cast(s32)item
+            }
+            for edge: instruction.edges {
+                if !Spend(context, edge.arguments.count) { return false }
+                for argument: edge.arguments {
+                    if Aggregate(context, argument) { plan.class_block[plan.slot[argument]] = -2 }
+                }
+            }
+        }
+    }
+    return true
+}
+
+// Places the class of VALUE, used only by the instruction at ITEM of BLOCK as
+// the member at OFFSET of the value in class PARENT, inside PARENT's storage
+// when nothing between its first definition and ITEM touches that storage.
+// Reports whether it did; a scan past the work budget declines.
+TryPlace :: (context: *Context, block: s32, item: s32, value: s32, offset: s64, parent: s32) -> bool {
+    plan := context.plan
+    class := plan.slot[value]
+    size := context.sizes[TypeOf(context, value)]
+    first := plan.class_first[class]
+    if class == parent || offset < 0 || size <= 0 || plan.class_fixed[parent] ||
+        plan.class_block[class] != block || plan.class_outside[class] != 1 || plan.class_item[class] != item ||
+        plan.class_last[class] != item || plan.class_into[class] != MachineNoId || first >= item { return false }
+    instructions := context.function.blocks[block].instructions
+    context.place_left -= cast(s64)(item - first)
+    if context.place_left < 0 || !PlaceSpend(context, cast(s64)(item - first)) { return false }
+    for between: first..item - 1 {
+        other := instructions[between]
+        if Touches(context, other.result, parent) { return false }
+        for operand: other.operands { if Touches(context, operand, parent) { return false } }
+    }
+    plan.class_into[class] = parent
+    plan.class_at[class] = offset
+    if first < plan.class_first[parent] { plan.class_first[parent] = first }
+    return true
+}
+
+// Where each view lies in its root's storage, in program order: a read view
+// of a constant member lies at that member's offset from where its source
+// does, a changed view where its source does.
+ViewOffsets :: (context: *Context) -> bool {
+    plan := context.plan
+    for block: context.function.blocks {
+        if !Spend(context, block.instructions.count + 1) { return false }
+        for instruction: block.instructions {
+            result := instruction.result
+            if result < 0 { continue }
+            if plan.view[result] == .Read && instruction.op == .Extract && instruction.operands.count == 1 {
+                source := instruction.operands[0]
+                if !Spend(context, MemberCost(context, TypeOf(context, source))) { return false }
+                base: s64 = 0
+                if MachineAggregateViewed(plan.view[source]) { base = plan.view_at[source] }
+                member := MemberAt(context, TypeOf(context, source), cast(s64)instruction.immediate)
+                if base >= 0 && member >= 0 { plan.view_at[result] = base + member }
+            } else if plan.view[result] == .Changed && instruction.op == .Insert && instruction.operands.count >= 1 {
+                plan.view_at[result] = plan.view_at[instruction.operands[0]]
+            }
+        }
+    }
+    return true
+}
+
+// A member value's chain nests: each class names the class it lies in, so a
+// class's own storage is found by following them to one with a home.
+Flatten :: (context: *Context) -> bool {
+    plan := context.plan
+    count := cast(s32)context.function.values.count
+    for value: cast(s32)0..count - 1 {
+        if plan.slot[value] != value || plan.class_into[value] == MachineNoId { continue }
+        root := value
+        at: s64 = 0
+        steps: s32 = 0
+        while plan.class_into[root] != MachineNoId && steps <= count {
+            at += plan.class_at[root]
+            root = plan.class_into[root]
+            steps += 1
+        }
+        if !Spend(context, cast(s64)steps + 1) { return false }
+        if plan.class_into[root] != MachineNoId { continue }
+        plan.place_root[value] = root
+        plan.place_at[value] = at
+    }
+    return true
+}
+
+// Places member values inside the values that take them, in program order so
+// a member's own members are placed before it is.
+Place :: (context: *Context) -> bool {
+    plan := context.plan
+    function := context.function
+    if !Classes(context) || !ViewOffsets(context) { return false }
+    for block, block_index: function.blocks {
+        home := cast(s32)block_index
+        if !Spend(context, block.instructions.count + 1) { return false }
+        for instruction, item: block.instructions {
+            result := instruction.result
+            if !Aggregate(context, result) || plan.split[result] { continue }
+            // A member value inserted through a changed view's address goes
+            // where the view is, in its root's storage.
+            if plan.view[result] == .Changed {
+                if instruction.op != .Insert || instruction.operands.count != 2 ||
+                    !Aggregate(context, instruction.operands[1]) { continue }
+                if !Spend(context, MemberCost(context, TypeOf(context, instruction.operands[0]))) { return false }
+                at := plan.view_at[instruction.operands[0]]
+                member := MemberAt(context, TypeOf(context, instruction.operands[0]), cast(s64)instruction.immediate)
+                if at >= 0 && member >= 0 &&
+                    TryPlace(context, home, cast(s32)item, instruction.operands[1], at + member, plan.root[result]) {
+                    plan.built_in_place[result] = true
+                }
+                continue
+            }
+            if plan.view[result] != .None { continue }
+            parent := plan.slot[result]
+            if instruction.op == .Aggregate {
+                if !Spend(context, instruction.operands.count + 1) { return false }
+                shape := context.program.types[TypeOf(context, result)]
+                at: s64 = 0
+                for value, member: instruction.operands {
+                    offset := at
+                    if shape.kind == .Array {
+                        size := ifx shape.element >= 0 then context.sizes[shape.element] else -1
+                        offset = ifx size >= 0 then cast(s64)member * size else -1
+                    } else if cast(s64)member < cast(s64)shape.fields.count {
+                        size := context.sizes[shape.fields[member]]
+                        at = ifx size >= 0 && at >= 0 then at + size else -1
+                    } else { offset = -1 }
+                    if !Aggregate(context, value) { continue }
+                    unused TryPlace(context, home, cast(s32)item, value, offset, parent)
+                }
+            } else if instruction.op == .Insert && instruction.operands.count == 2 &&
+                Aggregate(context, instruction.operands[1]) && !plan.split[instruction.operands[0]] &&
+                plan.view[instruction.operands[0]] == .None && plan.slot[instruction.operands[0]] == parent {
+                if !Spend(context, MemberCost(context, TypeOf(context, result))) { return false }
+                unused TryPlace(context, home, cast(s32)item, instruction.operands[1],
+                    MemberAt(context, TypeOf(context, result), cast(s64)instruction.immediate), parent)
+            }
+        }
+    }
+    return Flatten(context)
+}
+
+// Marks the aggregate builds whose members are all replaced, one constant
+// member at a time by inserts that each take the only use of the value before
+// them and update it in place, before any read: building them emits nothing.
+Cover :: (context: *Context) -> bool {
+    plan := context.plan
+    for block: context.function.blocks {
+        if !Spend(context, block.instructions.count + 1) { return false }
+        for instruction: block.instructions {
+            result := instruction.result
+            if !Aggregate(context, result) || plan.split[result] || plan.view[result] != .None { continue }
+            members: s64
+            shape := context.program.types[TypeOf(context, result)]
+            if shape.kind == .Array { members = shape.count }
+            else if shape.kind == .Record { members = cast(s64)shape.fields.count }
+            if members < 1 || members > 64 { continue }
+            if instruction.op == .Aggregate {
+                if plan.uses[result] == 1 { plan.cover_root[result] = result; plan.cover_mask[result] = 0 }
+            } else if instruction.op == .Insert && instruction.operands.count == 2 {
+                source := instruction.operands[0]
+                if plan.cover_root[source] == MachineNoId || plan.uses[source] != 1 || plan.slot[result] != plan.slot[source] ||
+                    instruction.immediate >= cast(u64)members { continue }
+                mask := plan.cover_mask[source] | (cast(u64)1 << instruction.immediate)
+                plan.cover_root[result] = plan.cover_root[source]
+                plan.cover_mask[result] = mask
+                full := ifx members == 64 then ~cast(u64)0 else (cast(u64)1 << cast(u64)members) - 1
+                if mask == full { plan.covered[plan.cover_root[result]] = true }
+            }
+        }
+    }
+    return true
+}
+
 #scope_export
 
 // Plans FUNCTION of PROGRAM into PLAN. STACK_SIZE gives the size of each
-// stack-class type and -1 for the others; VIEWS also plans views. BUDGET bounds the work,
-// recorded in plan.work, and BYTES the element capacity of each scratch
-// vector.
+// stack-class type and -1 for the others, SIZES that of every type; VIEWS also
+// plans views and placement. BUDGET bounds the work, recorded in plan.work,
+// and BYTES the element capacity of each scratch vector.
 MachineAggregatePlanBuild :: (plan: *MachineAggregatePlan, program: LirProgram, function: LirFunction,
-    stack_size: []s64, views: bool, budget: s64, bytes: s64) -> MachineProblem {
+    stack_size: []s64, sizes: []s64, views: bool, budget: s64, bytes: s64) -> MachineProblem {
     plan.work = 0
     context := Context.{plan = plan, function = function, program = program, stack_size = stack_size,
-        budget = budget, bytes = bytes, problem = .None}
+        sizes = sizes, budget = budget, bytes = bytes, problem = .None}
     count := function.values.count
+    context.place_left = cast(s64)count * PlaceWork + 4096
     if !VecResizeBounded(plan.slot, count, bytes) || !VecResizeBounded(plan.view, count, bytes) ||
         !VecResizeBounded(plan.root, count, bytes) || !VecResizeBounded(plan.address, count, bytes) ||
         !VecResizeBounded(plan.storage, count, bytes) || !VecResizeBounded(plan.split, count, bytes) ||
         !VecResizeBounded(plan.index, count, bytes) ||
+        !VecResizeBounded(plan.place_root, count, bytes) || !VecResizeBounded(plan.place_at, count, bytes) ||
+        !VecResizeBounded(plan.class_block, count, bytes) || !VecResizeBounded(plan.class_first, count, bytes) ||
+        !VecResizeBounded(plan.class_outside, count, bytes) || !VecResizeBounded(plan.class_item, count, bytes) ||
+        !VecResizeBounded(plan.class_last, count, bytes) ||
+        !VecResizeBounded(plan.class_fixed, count, bytes) || !VecResizeBounded(plan.class_into, count, bytes) ||
+        !VecResizeBounded(plan.class_at, count, bytes) || !VecResizeBounded(plan.view_at, count, bytes) ||
+        !VecResizeBounded(plan.built_in_place, count, bytes) || !VecResizeBounded(plan.covered, count, bytes) ||
+        !VecResizeBounded(plan.cover_root, count, bytes) || !VecResizeBounded(plan.cover_mask, count, bytes) ||
         !VecResizeBounded(plan.home, count, bytes) || !VecResizeBounded(plan.read, count, bytes) ||
         !VecResizeBounded(plan.update, count, bytes) || !VecResizeBounded(plan.other, count, bytes) ||
         !VecResizeBounded(plan.uses, count, bytes) { return .Allocation }
@@ -760,6 +1068,21 @@ MachineAggregatePlanBuild :: (plan: *MachineAggregatePlan, program: LirProgram, 
         plan.address[value] = value
         plan.storage[value] = false
         plan.split[value] = false
+        plan.place_root[value] = MachineNoId
+        plan.place_at[value] = 0
+        plan.class_block[value] = -1
+        plan.class_first[value] = 2147483647
+        plan.class_outside[value] = 0
+        plan.class_item[value] = -1
+        plan.class_last[value] = -1
+        plan.class_fixed[value] = false
+        plan.class_into[value] = MachineNoId
+        plan.class_at[value] = 0
+        plan.view_at[value] = -1
+        plan.built_in_place[value] = false
+        plan.covered[value] = false
+        plan.cover_root[value] = MachineNoId
+        plan.cover_mask[value] = 0
         plan.home[value] = -1
         plan.read[value] = -1
         plan.update[value] = -1
@@ -769,6 +1092,7 @@ MachineAggregatePlanBuild :: (plan: *MachineAggregatePlan, program: LirProgram, 
     if !Storage(*context) || views && (!Views(*context) || !Addresses(*context) || !Split(*context)) {
         return context.problem
     }
+    if views && (!Place(*context) || !Cover(*context)) { return context.problem }
     // Views and split records live elsewhere, so only the rest take frame storage.
     for value: cast(s32)0..cast(s32)count - 1 {
         if Aggregate(*context, value) && !plan.split[value] &&
@@ -786,6 +1110,21 @@ MachineAggregatePlanFree :: (plan: *MachineAggregatePlan) {
     VecFree(plan.address)
     VecFree(plan.storage)
     VecFree(plan.split)
+    VecFree(plan.place_root)
+    VecFree(plan.place_at)
+    VecFree(plan.class_block)
+    VecFree(plan.class_first)
+    VecFree(plan.class_outside)
+    VecFree(plan.class_item)
+    VecFree(plan.class_last)
+    VecFree(plan.class_fixed)
+    VecFree(plan.class_into)
+    VecFree(plan.class_at)
+    VecFree(plan.view_at)
+    VecFree(plan.built_in_place)
+    VecFree(plan.covered)
+    VecFree(plan.cover_root)
+    VecFree(plan.cover_mask)
     VecFree(plan.index)
     VecFree(plan.parent)
     VecFree(plan.representative)

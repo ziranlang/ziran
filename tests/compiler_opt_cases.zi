@@ -5,6 +5,7 @@ using IR :: #import "compiler_lowered_ir"
 using Opt :: #import "compiler_opt"
 using Exec :: #import "compiler_exec"
 using Vectors :: #import "std/vec"
+using FloatFolds :: #import "compiler_opt_float_cases"
 
 OptInstruction :: (op: LirOp, result: s32, operands: []s32,
     symbol: s32 = -1, origin: s32 = 0) -> LirInstruction {
@@ -223,6 +224,8 @@ OptRegressionCases :: () -> s32 {
 }
 
 main :: (argc: s32, argv: **u8) -> s32 {
+    floats := OptFloatCases()
+    if floats != 0 { print("float fold case % failed\n", floats); return 1 }
     regression := OptRegressionCases()
     if regression != 0 {
         print("compiler optimizer regression failure %\n", regression)

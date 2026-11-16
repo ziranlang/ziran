@@ -207,6 +207,96 @@ ZI
 compile_native "$work/alias-elf" "$work" alias:Answer "$work/alias.zi"
 run_status "$work/alias-elf" 0
 
+# Members built where their parent keeps them: nested literals, one replaced
+# through a constant and a dynamic index, a call result as a member, a record
+# rebuilt from members of itself, and a loop-carried record. A member that
+# reads its parent while it is built must keep its own storage.
+cat > "$work/nested.zi" <<'ZI'
+Layer :: struct { blur: float32; offset_y: float32; spread: float32; opacity: float32 }
+Tokens :: struct { rest: Layer; raised: [2]Layer; floating: [2]Layer }
+Pair :: struct { a: s32; b: s32 }
+Box :: struct { first: Pair; second: Pair; third: Pair }
+
+MakePair :: (x: s32, y: s32) -> Pair { return Pair.{x, y} }
+
+BuildTokens :: (dark: bool, slot: s32) -> Tokens {
+    t: Tokens
+    if dark {
+        t.rest = Layer.{1.0, 2.0, 0.0, 0.5}
+        t.raised[0] = Layer.{8.0, 22.0, 0.0, 0.25}
+        t.floating[1] = Layer.{1.0, 3.0, -4.0, 0.125}
+    } else {
+        t.rest = Layer.{6.0, 18.0, 0.0, 0.0625}
+        t.raised[1] = Layer.{1.0, 3.0, 0.0, 0.5}
+        t.floating[0] = Layer.{12.0, 32.0, -4.0, 0.75}
+    }
+    t.floating[slot] = Layer.{9.0, 9.0, 9.0, 9.0}
+    return t
+}
+
+Same :: (a: Layer, blur: float32, offset_y: float32, spread: float32, opacity: float32) -> bool {
+    return a.blur == blur && a.offset_y == offset_y && a.spread == spread && a.opacity == opacity
+}
+
+Is :: (p: Pair, a: s32, b: s32) -> bool { return p.a == a && p.b == b }
+
+Take :: (p: Pair) -> s32 { return p.a * 10 + p.b }
+
+Rotate :: (steps: s32) -> Box {
+    box := Box.{Pair.{1, 2}, Pair.{3, 4}, Pair.{5, 6}}
+    for step: 0..steps - 1 {
+        box = Box.{box.second, box.third, Pair.{box.first.a + 10, box.first.b + 10}}
+    }
+    return box
+}
+
+#program_export
+Answer :: () -> s32 {
+    dark := BuildTokens(true, 0)
+    if !Same(dark.rest, 1.0, 2.0, 0.0, 0.5) { return 1 }
+    if !Same(dark.raised[0], 8.0, 22.0, 0.0, 0.25) { return 2 }
+    if !Same(dark.raised[1], 0.0, 0.0, 0.0, 0.0) { return 3 }
+    if !Same(dark.floating[0], 9.0, 9.0, 9.0, 9.0) { return 4 }
+    if !Same(dark.floating[1], 1.0, 3.0, -4.0, 0.125) { return 5 }
+    light := BuildTokens(false, 1)
+    if !Same(light.rest, 6.0, 18.0, 0.0, 0.0625) { return 6 }
+    if !Same(light.raised[0], 0.0, 0.0, 0.0, 0.0) { return 7 }
+    if !Same(light.raised[1], 1.0, 3.0, 0.0, 0.5) { return 8 }
+    if !Same(light.floating[0], 12.0, 32.0, -4.0, 0.75) { return 9 }
+    if !Same(light.floating[1], 9.0, 9.0, 9.0, 9.0) { return 10 }
+    box := Box.{Pair.{1, 2}, MakePair(3, 4), Pair.{5, 6}}
+    if !Is(box.first, 1, 2) || !Is(box.second, 3, 4) || !Is(box.third, 5, 6) { return 11 }
+    rotated := Rotate(3)
+    if !Is(rotated.first, 11, 12) || !Is(rotated.second, 13, 14) || !Is(rotated.third, 15, 16) { return 12 }
+    swapped := Box.{box.third, box.first, box.second}
+    if !Is(swapped.first, 5, 6) || !Is(swapped.second, 1, 2) || !Is(swapped.third, 3, 4) { return 13 }
+    box = Box.{box.third, box.first, box.second}
+    if !Is(box.first, 5, 6) || !Is(box.second, 1, 2) || !Is(box.third, 3, 4) { return 14 }
+    box.second = Pair.{box.first.a + 100, box.third.b}
+    if !Is(box.first, 5, 6) || !Is(box.second, 105, 4) || !Is(box.third, 3, 4) { return 15 }
+    shared := Pair.{7, 8}
+    both := Box.{shared, shared, Pair.{9, 10}}
+    if !Is(both.first, 7, 8) || !Is(both.second, 7, 8) || !Is(both.third, 9, 10) { return 16 }
+    both.first = Pair.{1, 1}
+    if !Is(shared, 7, 8) || !Is(both.second, 7, 8) { return 17 }
+    escaped := Pair.{20, 21}
+    both.third = escaped
+    if Take(escaped) != 221 || !Is(both.third, 20, 21) { return 18 }
+    both.third.a = 99
+    if !Is(escaped, 20, 21) || !Is(both.third, 99, 21) { return 19 }
+    pairs: [3]Pair
+    for index: 0..2 { pairs[index] = Pair.{cast(s32)index, cast(s32)index * 2} }
+    if !Is(pairs[0], 0, 0) || !Is(pairs[1], 1, 2) || !Is(pairs[2], 2, 4) { return 20 }
+    source := Pair.{30, 31}
+    box.first = source
+    source.a = 99
+    if !Is(box.first, 30, 31) { return 21 }
+    return 0
+}
+ZI
+compile_native "$work/nested-elf" "$work" nested:Answer "$work/nested.zi"
+run_status "$work/nested-elf" 0
+
 # A debug attachment gives map ranges source lines without changing a byte
 # of the executable.
 "$zi2zx" --debug --root "$work" --entry app:Answer -o "$work/app-debug.zx" "$work/app.zi"

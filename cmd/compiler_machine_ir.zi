@@ -132,6 +132,14 @@ MachineStackObject :: struct {
     offset: s64
     // Spill: the virtual it holds. CalleeSave: the saved physical register.
     value: s32
+    // A Value object built inside another Value object of its function (a
+    // member constructed where its parent keeps it): 1 + the parent's number
+    // among the function's stack objects, or 0 for an object with a frame
+    // home of its own, and the byte offset it starts at inside the parent.
+    // Allocation gives it no frame space: its offset is the parent's plus
+    // placed_at. The parent has a home of its own.
+    placed_in: s32
+    placed_at: s64
 }
 
 // One frame per function in the Allocated stage. The frame pointer is pushed

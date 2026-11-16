@@ -9,11 +9,16 @@ HttpsUrl :: (url: string) -> bool {
     return true
 }
 
-// Native HTTPS GET. curl owns TLS and redirects; the caller owns storage.
+// Native HTTPS GET. curl owns TLS and redirects; the caller owns storage
+// and passes a URL it trusts. GetHttpsCapped validates the URL and refuses
+// an oversized body.
 #program_export
 GetHttps :: (url: string, output: []u8) -> CaptureResult {
-    maximum := output.count - 1
-    return GetHttpsCapped(url, maximum, output)
+    arguments: [8]string = .{
+        "curl", "-fsSL", "--compressed", "--max-time", "20",
+        "-A", "Ziran/1.0", url
+    }
+    return CaptureOutput(arguments[:], output)
 }
 
 // Native HTTPS GET with an explicit body limit. A body over the limit is

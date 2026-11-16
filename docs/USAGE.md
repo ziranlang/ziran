@@ -1984,7 +1984,10 @@ libzstd interoperability and malformed/bounded-input verification.
 
 `std/binary.zi` reads little-endian numbers from byte text such as file or
 asset contents: `ReadU16LE`, `ReadU32LE`, `ReadS32LE` and `ReadF32LE` take
-the text and a byte offset, and a field that does not fit reads as zero.
+the text and a byte offset at any alignment and read the bytes there, as C
+does; the caller keeps the field inside the text. `TryReadU16LE` and the
+other `TryRead` forms refuse a negative, misaligned or short field with a
+named `BinaryReadFailure` instead.
 `Float32FromBits` and `Float64FromBits` turn IEEE 754 bit patterns into
 values with exact arithmetic, including subnormals, signed zeros, infinities
 and NaN, so native targets and portable bundles agree without reinterpreting

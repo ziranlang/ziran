@@ -1691,7 +1691,10 @@ libzstd interoperability and malformed/bounded-input verification.</p>
 <h3 id="binary-fields">Binary fields</h3>
 <p><code>std/binary.zi</code> reads little-endian numbers from byte text such as file or
 asset contents: <code>ReadU16LE</code>, <code>ReadU32LE</code>, <code>ReadS32LE</code> and <code>ReadF32LE</code> take
-the text and a byte offset, and a field that does not fit reads as zero.
+the text and a byte offset at any alignment and read the bytes there, as C
+does; the caller keeps the field inside the text. <code>TryReadU16LE</code> and the
+other <code>TryRead</code> forms refuse a negative, misaligned or short field with a
+named <code>BinaryReadFailure</code> instead.
 <code>Float32FromBits</code> and <code>Float64FromBits</code> turn IEEE 754 bit patterns into
 values with exact arithmetic, including subnormals, signed zeros, infinities
 and NaN, so native targets and portable bundles agree without reinterpreting

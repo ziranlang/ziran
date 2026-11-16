@@ -17,8 +17,10 @@ unchanged. Results stay correct; only defensive checks become optional.
 
 ## State
 
-Done: default output on native x86-64 and AArch64, Wasm, C and Ziran's own
-Go checks carries no defensive check; `--checks` builds today's checked
+Done: default output on native x86-64, AArch64 and ARMv7, Wasm, C and
+Ziran's own Go checks (SIMD gathers and helpers included) carries no
+defensive check, and the plain `Read*LE` readers and `GetHttps` no longer
+route through the validated forms; `--checks` builds today's checked
 program and the `.zx` header records it; `#checks` keeps checks at module,
 block, statement and access level (`tests/checks_granularity_cases.zi`); the
 guide documents manual safety (`docs/USAGE.md`, Checks). The portable engine
@@ -26,26 +28,18 @@ stays checked: it is the reference and test runner, and its pointer model is
 the address table.
 
 Kept everywhere: divide by zero and `INT_MIN / -1`, shift count, float
-conversion range, `unreachable`, fuel, the stack limit and the frame-arena
-limit. Whether shift and conversion become C-style undefined is an owner
+conversion range, `unreachable`, fuel and the frame-arena limit; the stack
+limit is kept for in-memory loading, while an unchecked ELF faults on deep
+recursion as C does. Whether shift and conversion become C-style undefined is an owner
 question.
 
 ## Open work
 
-- **ARMv7.** Native ARMv7 lowering keeps checked pointers: its encoder needs
-  the unchecked forms AArch64 has (frames on `arena_mark`, raw `Resize`, the
-  immediate element form, a nonzero member bound).
-- **SIMD gathers and Go helpers.** `zi_simd_gather_check` in C
-  (`include/ziran_simd.h`) and Go, and Go's `zi_simd_check` helpers, still
-  check by default.
 - **Go's own checks.** Ziran does not run `go build`; the Go toolchain
   removes its implicit bounds checks with `-gcflags=-B`.
-- **Std readers.** Plain `std/binary.zi` `Read*LE` and
-  `std/http_get_linux.zi` `GetHttps` still route through the validated
-  forms; audit callers that rely on a short read giving 0 before making them
-  plain.
-- **Device parity.** AArch64 unchecked `Resize` and frames have host encoder
-  coverage only; a Pixel parity run of default bundles confirms them.
+- **Device parity.** ARMv7 default bundles pass parity on the Moto; the
+  AArch64 default path has host encoder coverage only until a Pixel parity
+  run confirms it.
 - **Element types.** With `--checks`, native code does not check a pointer's
   element type on access (the engine does); the load-time verifier covers
   verified programs.

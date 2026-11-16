@@ -36,6 +36,12 @@ SelfTest :: () -> s32 {
     if !signed.is_ok || signed.value != cast(s32)-1071644672 {
         return 3
     }
+    // The plain readers read the same fields, and a misaligned one too.
+    if ReadF32LE(text, 0) != 1.0 || ReadU16LE(text, 8) != cast(u32)258 ||
+        ReadU32LE(text, 8) != cast(u32)4294836482 || ReadS32LE(text, 4) != cast(s32)-1071644672 ||
+        ReadU16LE(text, 9) != cast(u32)65025 || ReadU32LE(text, 7) != cast(u32)4261479104 {
+        return 8
+    }
     // Every invalid boundary is a named result, never substituted bytes.
     misaligned := TryReadU32LE(text, 9)
     negative := TryReadF32LE(text, -1)

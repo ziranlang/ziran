@@ -234,12 +234,14 @@ go_memory(Emitter *e, int child, int kind, int writable, char *out, size_t size)
     format(out, size, "%s[:]", text);
 }
 
-/* A Go load, store or gather helper name: _ptr marks pointer access. */
+/* A Go load, store or gather helper name: _ptr marks pointer access and
+ * _checked a slice access that keeps Ziran's bounds check. */
 static void
-go_name(const SimdOp *op, int kind, const char *types, char *out, size_t size)
+go_name(const SimdOp *op, int kind, int checked, const char *types, char *out, size_t size)
 {
-    format(out, size, "zi_%s%s_%s", op->snake,
-           kind == SIMD_MEMORY_POINTER ? "_ptr" : kind == SIMD_MEMORY_STRING ? "_string" : "", types);
+    format(out, size, "zi_%s%s%s_%s", op->snake,
+           kind == SIMD_MEMORY_POINTER ? "_ptr" : kind == SIMD_MEMORY_STRING ? "_string" : "",
+           checked && kind != SIMD_MEMORY_POINTER ? "_checked" : "", types);
 }
 
 /* Gather checks every index of a slice or array table first. */
@@ -271,13 +273,17 @@ c_gather(Emitter *e, const SimdOp *op, const int *children, const char *result,
         format(out, size, "%s((const void *)(%s), %s)", name, table, indices);
         return;
     }
+    /* A checked gather checks every index first. */
+    int checked = EmitChecksAt(e, children[1]);
     if(kind == SIMD_MEMORY_SLICE) {
-        line(e, "zi_simd_gather_check(&%s, %s, %d, %s.length);", indices,
-             lanes, index.is_signed, table);
+        if(checked)
+            line(e, "zi_simd_gather_check(&%s, %s, %d, %s.length);", indices,
+                 lanes, index.is_signed, table);
         format(out, size, "%s(%s.data, %s)", name, table, indices);
     } else {
-        line(e, "zi_simd_gather_check(&%s, %s, %d, %d);", indices,
-             lanes, index.is_signed, capacity);
+        if(checked)
+            line(e, "zi_simd_gather_check(&%s, %s, %d, %d);", indices,
+                 lanes, index.is_signed, capacity);
         format(out, size, "%s(%s, %s)", name, table, indices);
     }
 }
@@ -304,7 +310,7 @@ go_memory_call(Emitter *e, const SimdOp *op, const int *children, const char *re
         const char *index_type = VectorTypeHere(canonical(e->fn->exprs[children[1]].type), ZIR_GO);
         emit_expr(e, children[1], index_type, index, sizeof(buffers->index));
         format(buffers->piece, sizeof(buffers->piece), "%s_%s", index_type, result);
-        go_name(op, kind, buffers->piece, buffers->name, sizeof(buffers->name));
+        go_name(op, kind, EmitChecksAt(e, children[1]), buffers->piece, buffers->name, sizeof(buffers->name));
         format(out, size, "%s(%s, %s)", buffers->name, memory, index);
         e->pure = 0;
         return 0;
@@ -314,13 +320,13 @@ go_memory_call(Emitter *e, const SimdOp *op, const int *children, const char *re
         const char *vector = VectorTypeHere(canonical(e->fn->exprs[children[2]].type), ZIR_GO);
         emit_expr(e, children[2], e->fn->exprs[children[2]].type, buffers->text[0],
                   sizeof(buffers->text[0]));
-        go_name(op, kind, vector, buffers->name, sizeof(buffers->name));
+        go_name(op, kind, EmitChecksAt(e, children[1]), vector, buffers->name, sizeof(buffers->name));
         line(e, "%s(%s, int64(%s), %s)", buffers->name, memory, index, buffers->text[0]);
         out[0] = '\0';
         e->pure = 0;
         return 1;
     }
-    go_name(op, kind, result, buffers->name, sizeof(buffers->name));
+    go_name(op, kind, EmitChecksAt(e, children[1]), result, buffers->name, sizeof(buffers->name));
     format(out, size, "%s(%s, int64(%s))", buffers->name, memory, index);
     e->pure = 0;
     return 0;

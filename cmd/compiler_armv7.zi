@@ -1495,9 +1495,12 @@ AggregateBuild :: (state: *State) -> bool {
 // The address of element INDEX (a pair) of the COUNT-element array at
 // MEMORY in lr, the address scratch, after the bound check. r10 stays free
 // to reach the instruction's other frame operand however far it is.
-DynamicElement :: (state: *State, memory: V7Memory, index: s32, wide: bool, count: s64, size: s64) -> V7Memory {
-    CompareCount(state, index, wide, count)
-    TrapUnless(state, CondLo, MachineV7TrapPointer)
+DynamicElement :: (state: *State, memory: V7Memory, index: s32, wide: bool, count: s64, size: s64,
+    checked: bool) -> V7Memory {
+    if checked {
+        CompareCount(state, index, wide, count)
+        TrapUnless(state, CondLo, MachineV7TrapPointer)
+    }
     AddConstant(state, Link, memory.base, memory.displacement)
     MoveWord(state, Ip, cast(u32)size)
     // MLA lr, index, r12, lr.
@@ -1537,12 +1540,13 @@ AggregateExtract :: (state: *State) -> bool {
     } else {
         index := Register(state, 2, .Use)
         aggregate := state.program.types[TypeIdOf(state, source)]
-        if index == MachineNoId || aggregate.kind != .Array || aggregate.element < 0 || !DynamicScratch(state, 3) {
+        if index == MachineNoId || aggregate.kind != .Array || aggregate.element < 0 ||
+            !DynamicScratch(state, 3, aggregate.count) {
             return Fail(state, .Unsupported)
         }
         member = aggregate.element
         source_memory = DynamicElement(state, source_memory, index, Wide(TypeOf(state, OperandAt(state, 2))),
-            aggregate.count, state.program.types[member].size)
+            aggregate.count, state.program.types[member].size, DynamicChecked(state, 3))
         if state.diagnostic.problem != .None { return false }
     }
     size := state.program.types[member].size
@@ -1555,13 +1559,17 @@ AggregateExtract :: (state: *State) -> bool {
 
 // The address scratch, scratch and zero bound operands of a dynamic member
 // access starting at operand FIRST.
-DynamicScratch :: (state: *State, first: s32) -> bool {
+DynamicScratch :: (state: *State, first: s32, count: s64) -> bool {
     target := state.program.target
     bound := OperandAt(state, first + 2)
     return PhysicalScratch(OperandAt(state, first), .General, MachineAbiAddressScratchRegister(target), .Define) &&
         PhysicalScratch(OperandAt(state, first + 1), .General, MachineAbiScratchRegister(target), .Define) &&
-        bound.kind == .Immediate && bound.immediate == 0
+        bound.kind == .Immediate && bound.immediate <= cast(u64)count
 }
+
+// A dynamic member's bound: 0 keeps its check, any other is the no-check
+// form (proven, or a build without --checks).
+DynamicChecked :: (state: *State, first: s32) -> bool { return OperandAt(state, first + 2).immediate == 0 }
 
 // Inserts one member into a fresh copy of the aggregate.
 AggregateInsert :: (state: *State) -> bool {
@@ -1591,12 +1599,13 @@ AggregateInsert :: (state: *State) -> bool {
     } else {
         index := Register(state, 3, .Use)
         aggregate_type := state.program.types[TypeIdOf(state, aggregate)]
-        if index == MachineNoId || aggregate_type.kind != .Array || aggregate_type.element < 0 || !DynamicScratch(state, 4) {
+        if index == MachineNoId || aggregate_type.kind != .Array || aggregate_type.element < 0 ||
+            !DynamicScratch(state, 4, aggregate_type.count) {
             return Fail(state, .Unsupported)
         }
         member = aggregate_type.element
         member_memory = DynamicElement(state, destination_memory, index, Wide(TypeOf(state, OperandAt(state, 3))),
-            aggregate_type.count, state.program.types[member].size)
+            aggregate_type.count, state.program.types[member].size, DynamicChecked(state, 4))
         if state.diagnostic.problem != .None { return false }
     }
     member_size := state.program.types[member].size
@@ -2070,11 +2079,13 @@ FreePush :: (state: *State, entry: s32) {
 // chain.
 PointerFrameEnter :: (state: *State, function: MachineFunction) -> bool {
     mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
-    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
     if state.diagnostic.problem != .None { return false }
     PointerHeader(state)
     WordAccess(state, true, false, Temp, .{base = Ip, displacement = MachinePointerHeaderArenaTop})
     StoreWide(state, mark, Temp)
+    if !state.program.checks { return true }
+    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
+    if state.diagnostic.problem != .None { return false }
     DataImmediate(state, OpMov, false, Temp, 0, 0)
     StoreWide(state, chain, Temp)
     return true
@@ -2084,11 +2095,13 @@ PointerFrameEnter :: (state: *State, function: MachineFunction) -> bool {
 // Only pair 0 or d0 holds a live value, so r2 and r3 are free.
 PointerFrameLeave :: (state: *State, function: MachineFunction) -> bool {
     mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
-    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
     if state.diagnostic.problem != .None { return false }
     PointerHeader(state)
     WordAccess(state, true, false, Temp, mark)
     WordAccess(state, false, false, Temp, .{base = Ip, displacement = MachinePointerHeaderArenaTop})
+    if !state.program.checks { return true }
+    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
+    if state.diagnostic.problem != .None { return false }
     loop := state.writer.at
     WordAccess(state, true, false, Temp, chain)
     DataImmediate(state, OpCmp, true, 0, Temp, 0)
@@ -2168,6 +2181,17 @@ Resize :: (state: *State) -> bool {
     StoreScalar(state, .{base = StackPointer, displacement = 16}, 2, 8)
     MoveWord(state, Ip, cast(u32)element.size)
     StoreWide(state, .{base = StackPointer, displacement = 24}, Ip)
+    if !state.program.checks {
+        // Pair 0 holds the old block's address; the new one's (or null)
+        // comes back in pair 0.
+        StoreWide(state, .{base = StackPointer, displacement = 0}, 0)
+        CallVeneer(state, .RuntimeResize, 0)
+        WordAccess(state, true, false, Temp, .{base = StackPointer, displacement = 0})
+        DataImmediate(state, OpAdd, false, StackPointer, StackPointer, 32)
+        Data(state, OpMov, false, 0, 0, Temp)
+        DataImmediate(state, OpMov, false, 1, 0, 0)
+        return true
+    }
     // r10 = the old block's address (0 for a null token).
     Data(state, OpOrr, true, Temp, 0, 1)
     saved := Probe(state)
@@ -2480,7 +2504,7 @@ Return :: (state: *State) -> bool {
             }
         }
     }
-    if function.pointer_chain != 0 && !PointerFrameLeave(state, function) { return false }
+    if function.arena_mark != 0 && !PointerFrameLeave(state, function) { return false }
     if !CalleeSaves(state, true) { return false }
     Data(state, OpMov, false, StackPointer, 0, FramePointer)
     Pop(state, 0x9C00)
@@ -2595,7 +2619,7 @@ Prologue :: (state: *State) -> bool {
         TrapUnless(state, CondHs, MachineV7TrapStack)
     }
     if !CalleeSaves(state, false) { return false }
-    if function.pointer_chain != 0 && !PointerFrameEnter(state, function) { return false }
+    if function.arena_mark != 0 && !PointerFrameEnter(state, function) { return false }
     home := ResultHome(state, function)
     if state.diagnostic.problem != .None { return false }
     if home != MachineNoId {

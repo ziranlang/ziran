@@ -1,8 +1,8 @@
 // Little-endian numbers in byte text, such as file or asset contents, read
 // the same way on every native target and in the engine. Floats are
 // decoded from their IEEE 754 bits with exact arithmetic, so no target
-// reinterprets memory. TryRead names invalid offsets; the legacy Read helpers
-// retain their zero fallback for source-compatible, already-validated layouts.
+// reinterprets memory. TryRead names invalid offsets; the plain Read helpers
+// read the bytes at their offset, as in C, for layouts the caller validated.
 #import "math"
 #import "result"
 
@@ -108,18 +108,19 @@ TryReadF32LE :: (bytes: string, at: s32) -> Result(float64, BinaryReadFailure) {
     return result
 }
 
-// Compatibility readers for already-validated internal layouts. Untrusted
-// boundaries use the TryRead variants above so malformed input stays named.
+// Plain readers for layouts the caller has validated: the field's bytes at
+// AT, at any alignment. The caller keeps AT and the field inside BYTES, as
+// in C; untrusted boundaries use the TryRead forms above, which name
+// malformed input.
 #program_export
 ReadU16LE :: (bytes: string, at: s32) -> u32 {
-    value := TryReadU16LE(bytes, at)
-    return ifx value.is_ok then value.value else cast(u32)0
+    return cast(u32)bytes[at] | (cast(u32)bytes[at + 1] << cast(u32)8)
 }
 
 #program_export
 ReadU32LE :: (bytes: string, at: s32) -> u32 {
-    value := TryReadU32LE(bytes, at)
-    return ifx value.is_ok then value.value else cast(u32)0
+    return cast(u32)bytes[at] | (cast(u32)bytes[at + 1] << cast(u32)8) |
+        (cast(u32)bytes[at + 2] << cast(u32)16) | (cast(u32)bytes[at + 3] << cast(u32)24)
 }
 
 #program_export

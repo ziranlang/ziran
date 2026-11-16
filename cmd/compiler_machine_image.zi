@@ -70,13 +70,6 @@ MachinePointerHeaderBytes :: 48
 // Frame arena bytes, the engine's value-byte limit.
 MachinePointerArenaBytes :: 268435456
 
-// Whether native code for TARGET uses checked pointer tokens: a --checks
-// build, and every ARMv7 one until its encoder has the unchecked forms.
-// Lowering and the loader both decide by this.
-MachineChecked :: (checks: bool, target: TargetDescription) -> bool {
-    return checks || target.arch == .ArmV7
-}
-
 MachinePointerToken :: (slot: s64, version: s64, offset: s64) -> u64 {
     return (cast(u64)slot << cast(u64)MachinePointerSlotShift) |
         (cast(u64)version << cast(u64)MachinePointerVersionShift) | cast(u64)offset

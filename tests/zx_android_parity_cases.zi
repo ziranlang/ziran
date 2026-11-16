@@ -211,7 +211,11 @@ main :: (argc: s32, argv: **u8) -> s32 {
         item := cases[index]
         name := CheckConcat("case-", CheckNumber(index))
         bundle := CheckPath(folder, CheckConcat(name, ".zx"))
-        build := string.[zi2zx, "--root", item.root, "--module-path", std, "--entry", item.entry, "-o", bundle, item.file]
+        // A case that traps is built with --checks.
+        plain := string.[zi2zx, "--root", item.root, "--module-path", std, "--entry", item.entry, "-o", bundle, item.file]
+        checked := string.[zi2zx, "--checks", "--root", item.root, "--module-path", std, "--entry", item.entry,
+            "-o", bundle, item.file]
+        build := ifx item.traps then checked[:] else plain[:]
         unused NativeRun(*test, build[:])
         reference := string.[zi2zx, "run", "--backend", "engine", bundle]
         native := string.[zi2zx, "run", "--backend", "native", bundle]

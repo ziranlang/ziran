@@ -762,7 +762,7 @@ remember(const char *start, size_t length)
 typedef struct GoHelper {
     const SimdOp *op;
     ZirVector first, second;
-    int types, pointer, string;
+    int types, pointer, string, checked;
 } GoHelper;
 
 static int
@@ -800,6 +800,11 @@ parse_helper(const char *name, GoHelper *helper)
     if(length == 0 || length >= sizeof(snake) - 8) return 0;
     memcpy(snake, name + 3, length);
     snake[length] = '\0';
+    if(length > 8 && !strcmp(snake + length - 8, "_checked")) {
+        helper->checked = 1;
+        length -= 8;
+        snake[length] = '\0';
+    }
     if(length > 4 && !strcmp(snake + length - 4, "_ptr")) {
         helper->pointer = 1;
         snake[length - 4] = '\0';
@@ -817,7 +822,8 @@ parse_helper(const char *name, GoHelper *helper)
               helper->op->shape == SIMD_CONVERT || helper->op->shape == SIMD_GATHER;
     int memory = helper->op->shape == SIMD_LOAD || helper->op->shape == SIMD_STORE ||
                  helper->op->shape == SIMD_GATHER;
-    if(two != (helper->types == 2) || (helper->pointer && !memory)) return 0;
+    if(two != (helper->types == 2) || (helper->pointer && !memory) ||
+       (helper->checked && (!memory || helper->pointer))) return 0;
     if(!(helper->op->lanes & (1u << SimdLaneKind(&helper->first))) &&
        helper->op->shape != SIMD_REINTERPRET && helper->op->shape != SIMD_CONVERT &&
        helper->op->shape != SIMD_NARROW && helper->op->shape != SIMD_GATHER)
@@ -930,13 +936,13 @@ write_memory(FILE *out, const char *name, const GoHelper *helper)
     const char *memory = helper->pointer ? "p *" : "m []";
     if(helper->op->shape == SIMD_STORE) {
         fprintf(out, "\nfunc %s(%s%s, i int64, v %s) {\n", name, memory, lt, vt);
-        if(!helper->pointer) fprintf(out, "\tzi_simd_check(int64(len(m)), i, %d)\n", lanes);
+        if(helper->checked) fprintf(out, "\tzi_simd_check(int64(len(m)), i, %d)\n", lanes);
         fprintf(out, "\tcopy(%s, v[:%d])\n}\n", view, lanes);
         return;
     }
     fprintf(out, "\nfunc %s(%s%s, i int64) (v %s) {\n", name,
             helper->string ? "m " : memory, helper->string ? "string" : lt, vt);
-    if(!helper->pointer) fprintf(out, "\tzi_simd_check(int64(len(m)), i, %d)\n", lanes);
+    if(helper->checked) fprintf(out, "\tzi_simd_check(int64(len(m)), i, %d)\n", lanes);
     fprintf(out, "\tcopy(v[:%d], %s)\n\treturn v\n}\n", lanes, view);
 }
 
@@ -955,11 +961,11 @@ write_gather(FILE *out, const char *name, const GoHelper *helper)
                 result->lane_bits / 8);
         return;
     }
-    /* Every index is checked before any lane is read, as in C. */
-    fprintf(out, "\nfunc %s(t []%s, idx %s) (v %s) {\n"
-                 "\tfor l := range idx {\n\t\tzi_simd_gather_check(%s, int64(len(t)))\n\t}\n"
-                 "\tfor l := range v {\n\t\tv[l] = t[%s]\n\t}\n\treturn v\n}\n",
-            name, lt, go_type(index->name), go_type(result->name), read, read);
+    /* A checked gather checks every index before any lane is read, as in C. */
+    fprintf(out, "\nfunc %s(t []%s, idx %s) (v %s) {\n", name, lt, go_type(index->name), go_type(result->name));
+    if(helper->checked)
+        fprintf(out, "\tfor l := range idx {\n\t\tzi_simd_gather_check(%s, int64(len(t)))\n\t}\n", read);
+    fprintf(out, "\tfor l := range v {\n\t\tv[l] = t[%s]\n\t}\n\treturn v\n}\n", read);
 }
 
 /* A value helper's typed body, or NULL. */
@@ -1162,7 +1168,7 @@ write_helpers(const char *out_dir, const char *pkg, int check)
         SimdShape shape = helper.op->shape;
         if(shape == SIMD_LOAD || shape == SIMD_STORE || shape == SIMD_GATHER) {
             pointer |= helper.pointer;
-            checks |= !helper.pointer;
+            checks |= helper.checked;
             continue;
         }
         const GoSimdText *typed = typed_body(go_helpers[i]);

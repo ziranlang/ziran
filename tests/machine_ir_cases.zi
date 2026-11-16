@@ -171,6 +171,16 @@ FindOpcode :: (program: Machine.MachineProgram, opcode: Machine.MachineOpcode) -
     return -1
 }
 
+// Whether a compare's explicit flags are used by the branch right after it,
+// with no 0/1 value in between.
+FlagsBranch :: (program: Machine.MachineProgram) -> bool {
+    compare := FindOpcode(program, .Compare)
+    if compare < 0 || compare + 1 >= program.instructions.count { return false }
+    branch := program.instructions[compare + 1]
+    return branch.opcode == .Branch && branch.operand_count == 0 &&
+        branch.flags_use == program.instructions[compare].flags_def && FindOpcode(program, .SetCondition) < 0
+}
+
 // Every described target has exactly one registry row with an explicit
 // state, an Implemented row is one the machine lowerer accepts, and
 // preflight passes only Implemented rows with the requested features and
@@ -364,8 +374,7 @@ main :: () -> s32 {
         !Check(program.edges.count == 2 && program.copies.count == 2, "parallel block transfers") ||
         !Check(FindOpcode(program, .FloatAdd) >= 0 && FindOpcode(program, .AggregateBuild) >= 0,
             "float and aggregate selection") ||
-        !Check(FindOpcode(program, .Compare) >= 0 && FindOpcode(program, .SetCondition) >= 0,
-            "explicit flags lifetime") ||
+        !Check(FlagsBranch(program), "a compare's flags feed the branch right after it") ||
         !Check(program.types[2].kind == .Integer && program.types[2].is_signed && program.types[2].bits == 32 &&
             program.types[4].kind == .Float && program.types[4].bits == 32 &&
             program.types[6].fields_count == 2 && program.types[7].parameters_count == 1,
@@ -486,11 +495,11 @@ main :: () -> s32 {
     program.operands[operand_id].tied_to = 99
     if !Check(Verify.MachineVerify(program, limits).problem == .Operand, "bad tied operand") { return 1 }
     program.operands[operand_id] = saved_operand
-    set_id := FindOpcode(program, .SetCondition)
-    flags := program.instructions[set_id].flags_use
-    program.instructions[set_id].flags_use = -1
+    user := FindOpcode(program, .Branch)
+    flags := program.instructions[user].flags_use
+    program.instructions[user].flags_use = -1
     if !Check(Verify.MachineVerify(program, limits).problem == .Flags, "broken flags lifetime") { return 1 }
-    program.instructions[set_id].flags_use = flags
+    program.instructions[user].flags_use = flags
     saved_begin := program.calls[0].argument_begin
     program.calls[0].argument_begin = cast(s32)program.operands.count
     if !Check(Verify.MachineVerify(program, limits).problem == .Call, "bad call operand range") { return 1 }
@@ -526,11 +535,12 @@ main :: () -> s32 {
     if !Check(Verify.MachineVerify(program, limits).problem == .NativeWidth,
         "native-width mismatch") { return 1 }
     program.types[2].native_width = false
-    saved_instruction := program.instructions[set_id]
-    program.instructions[set_id].opcode = .Fuel
+    compare := FindOpcode(program, .Compare)
+    saved_instruction := program.instructions[compare]
+    program.instructions[compare].opcode = .Fuel
     if !Check(Verify.MachineVerify(program, limits).problem == .Fuel,
         "missing fuel facts") { return 1 }
-    program.instructions[set_id] = saved_instruction
+    program.instructions[compare] = saved_instruction
     saved_stack_virtual := program.virtuals[0]
     program.virtuals[0].class = .Stack
     program.virtuals[0].fixed_register = -1

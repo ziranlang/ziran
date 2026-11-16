@@ -8,7 +8,8 @@ using RegAlloc :: #import "compiler_regalloc"
 using Target :: #import "compiler_target"
 
 // Types: 0 void, 1 bool, 2 s64, 3 f64, 4 record {s64, s64}.
-// Constants: 0 = 0, 1 = 1, 2 = 7 (s64); 3 = 1.0, 4 = 2.0 (f64).
+// Constants: 0 = 0, 1 = 1, 2 = 7 (s64); 3 = 1.0, 4 = 2.0 (f64); 5 = 2^40 + 7 (s64), too wide
+// for an x86-64 immediate, so it stays in a register.
 TypeBool :: 1
 TypeInteger :: 2
 TypeFloat :: 3
@@ -89,8 +90,9 @@ LowerProgram :: (owner: *Machine.MachineOwner, functions: []Lir.LirFunction, ent
     types: [5]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
         .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Float, bits = 64},
         .{kind = .Record, fields = record_fields[:]}]
-    constants: [5]Lir.LirConstant = .[.{type = 2, bits = 0}, .{type = 2, bits = 1}, .{type = 2, bits = 7},
-        .{type = 3, bits = 0x3ff0000000000000}, .{type = 3, bits = 0x4000000000000000}]
+    constants: [6]Lir.LirConstant = .[.{type = 2, bits = 0}, .{type = 2, bits = 1}, .{type = 2, bits = 7},
+        .{type = 3, bits = 0x3ff0000000000000}, .{type = 3, bits = 0x4000000000000000},
+        .{type = 2, bits = 0x0000010000000007}]
     program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
         constants = constants[:], functions = functions, entry = entry}
     return Lower.MachineLower(owner, program, Target.TargetLinuxX64(), Machine.MachineDefaultOptions(),
@@ -108,7 +110,7 @@ PressureFixture :: (owner: *Machine.MachineOwner, count: s32, float: bool) -> Ma
     instructions[n] = Fuel(1); n += 1
     for index: 0..count - 1 {
         values[index] = type
-        instructions[n] = Constant(index, ifx float then 3 else 2); n += 1
+        instructions[n] = Constant(index, ifx float then 3 else 5); n += 1
     }
     accumulator: s32 = 0
     for index: 1..count - 1 {
@@ -231,7 +233,8 @@ RotateFixture :: (owner: *Machine.MachineOwner, width: s32, header_fuel: bool,
     header: [4]Lir.LirInstruction
     header_count: s64 = 0
     if header_fuel { header[header_count] = Fuel(1); header_count += 1 }
-    header[header_count] = Constant(zero, 0); header_count += 1
+    // A bound too wide to fold into the compare keeps a constant in the header.
+    header[header_count] = Constant(zero, 5); header_count += 1
     header[header_count] = Op(.Greater, condition, Two(storage[:], *at, counter, zero)); header_count += 1
     branch_edges: [2]Lir.LirEdge = .[.{block = 2}, .{block = 3}]
     header[header_count] = .{op = .Branch, result = -1, operands = One(storage[:], *at, condition), edges = branch_edges[:],
@@ -690,11 +693,12 @@ ArithmeticCases :: () -> bool {
         !Check(shift >= 0 && Operand(program, shift, 2).id == Rcx && Operand(program, shift, 0).id != Rcx &&
             Operand(program, shift, 0).id == Operand(program, shift, 1).id,
             "shift count is in RCX and the tied result avoids it") { return false }
+    // The compare's flags reach the branch it fuses with.
     compare := FindOpcode(program, .Compare)
-    set := FindOpcode(program, .SetCondition)
-    if !Check(compare >= 0 && set > compare && program.instructions[set].flags_use == program.instructions[compare].flags_def,
+    user := FindOpcode(program, .Branch)
+    if !Check(compare >= 0 && user > compare && program.instructions[user].flags_use == program.instructions[compare].flags_def,
         "flags lifetime survives allocation") { return false }
-    for between: compare + 1..set - 1 {
+    for between: compare + 1..user - 1 {
         if !Check(Allocated.MachineIsTransfer(program.instructions[between].opcode),
             "only flag-preserving transfers separate a compare from its consumer") { return false }
     }
@@ -733,10 +737,10 @@ ArithmeticCases :: () -> bool {
     if !Rejects(program, .Tie, "tied quotient and dividend share a register") { return false }
     program.operands[quotient_at] = quotient
     program.operands[quotient_at + 1] = dividend
-    flags := program.instructions[set].flags_use
-    program.instructions[set].flags_use = program.instructions[FindOpcode(program, .Fuel)].flags_def
+    flags := program.instructions[user].flags_use
+    program.instructions[user].flags_use = program.instructions[FindOpcode(program, .Fuel)].flags_def
     if !Rejects(program, .Flags, "flags consumer reads the wrong flags value") { return false }
-    program.instructions[set].flags_use = flags
+    program.instructions[user].flags_use = flags
     fuel := FindOpcode(program, .Fuel)
     fuel_flags := program.instructions[fuel].flags_def
     program.instructions[fuel].flags_def = -1

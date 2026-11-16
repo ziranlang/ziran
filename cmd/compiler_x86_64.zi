@@ -427,12 +427,6 @@ TrapUnless :: (state: *State, condition: s32, code: u64) {
     TrapSequence(state, code)
 }
 
-NextBlock :: (state: *State) -> s32 {
-    function := state.program.functions[state.function]
-    if state.block + 1 < function.block_begin + function.block_count { return state.block + 1 }
-    return MachineNoId
-}
-
 BlockTarget :: (state: *State, block: s32) -> s64 {
     return state.block_begin[block]
 }
@@ -557,24 +551,33 @@ MoveImmediate :: (state: *State) -> bool {
     return true
 }
 
+// destination = left OPCODE right, with destination tied to left; the right
+// operand is a register or a sign-extended 32-bit immediate.
 Binary :: (state: *State, opcode: MachineOpcode) -> bool {
     if !Count(state, 3) { return false }
     destination := Register(state, 0, .Define)
     left := Register(state, 1, .Use)
-    right := Register(state, 2, .Use)
-    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    immediate := OperandAt(state, 2)
+    constant := immediate.kind == .Immediate
+    right := ifx constant then MachineNoId else Register(state, 2, .Use)
+    if destination == MachineNoId || left == MachineNoId || !constant && right == MachineNoId { return false }
     if destination != left { return Fail(state, .Tie, OperandId(state, 0)) }
+    if constant && !X86Fits32(cast(s64)immediate.immediate) { return Fail(state, .Unsupported, OperandId(state, 2)) }
     type := TypeOf(state, OperandAt(state, 0))
     logical := opcode == .IntegerAnd || opcode == .IntegerOr || opcode == .IntegerXor
     if type.kind == .Bool && !logical || type.kind == .Function { return Fail(state, .Unsupported, OperandId(state, 0)) }
-    if opcode == .IntegerMultiply { X86Multiply(*state.writer, destination, right) }
-    else {
+    value := cast(s64)immediate.immediate
+    if opcode == .IntegerMultiply {
+        if constant { X86MultiplyImmediate(*state.writer, destination, destination, value) }
+        else { X86Multiply(*state.writer, destination, right) }
+    } else {
         code: u32 = X86Add
         if opcode == .IntegerSubtract { code = X86Subtract }
         if opcode == .IntegerAnd { code = X86And }
         if opcode == .IntegerOr { code = X86Or }
         if opcode == .IntegerXor { code = X86Xor }
-        X86Arithmetic(*state.writer, code, destination, right)
+        if constant { X86ArithmeticImmediate(*state.writer, code, destination, value) }
+        else { X86Arithmetic(*state.writer, code, destination, right) }
     }
     Normalize(state, destination, type)
     return true
@@ -705,10 +708,18 @@ Compare :: (state: *State) -> bool {
         X86FloatCompare(*state.writer, left, right, FloatSize(type))
         state.flags_float = true
     } else {
+        // The right operand is a register or a sign-extended 32-bit immediate.
         left := Register(state, 0, .Use)
-        right := Register(state, 1, .Use)
-        if left == MachineNoId || right == MachineNoId { return false }
-        X86Arithmetic(*state.writer, X86Compare, left, right)
+        if left == MachineNoId { return false }
+        immediate := OperandAt(state, 1)
+        if immediate.kind == .Immediate {
+            if !X86Fits32(cast(s64)immediate.immediate) { return Fail(state, .Unsupported, OperandId(state, 1)) }
+            X86CompareImmediate(*state.writer, left, cast(s64)immediate.immediate)
+        } else {
+            right := Register(state, 1, .Use)
+            if right == MachineNoId { return false }
+            X86Arithmetic(*state.writer, X86Compare, left, right)
+        }
         state.flags_float = false
     }
     state.flags_value = Current(state).flags_def
@@ -1111,8 +1122,13 @@ MemberMemory :: (state: *State, memory: X86Operand, type: s32, index: s32, copie
         X86CompareImmediate(*state.writer, dynamic, aggregate.count)
         TrapUnless(state, X86Below, MachineX64TrapReserved - 1)
     }
-    if size == 1 { X86Move(*state.writer, X86R11, dynamic) }
-    else { X86MultiplyImmediate(*state.writer, X86R11, dynamic, size) }
+    // A 1-, 2-, 4- or 8-byte element is addressed by scaling the index.
+    shift := X86ScaleShift(size)
+    if shift >= 0 {
+        <<result = X86Indexed(memory.register, dynamic, memory.displacement, shift)
+        return true
+    }
+    X86MultiplyImmediate(*state.writer, X86R11, dynamic, size)
     address := ifx copies then cast(s32)10 else X86R11
     X86Lea(*state.writer, address, X86Indexed(memory.register, X86R11, memory.displacement))
     <<result = X86At(address, 0)
@@ -1222,8 +1238,12 @@ ElementAddress :: (state: *State) -> bool {
         X86Arithmetic(*state.writer, X86Compare, high, count)
         TrapUnless(state, X86BelowEqual, MachineX64TrapReserved - 1)
     }
-    if size == 1 { X86Move(*state.writer, X86R11, low) }
-    else { X86MultiplyImmediate(*state.writer, X86R11, low, size) }
+    shift := X86ScaleShift(size)
+    if shift >= 0 {
+        X86Lea(*state.writer, destination, X86Indexed(base, low, 0, shift))
+        return true
+    }
+    X86MultiplyImmediate(*state.writer, X86R11, low, size)
     X86Lea(*state.writer, destination, X86Indexed(base, X86R11, 0))
     return true
 }
@@ -1615,8 +1635,24 @@ Call :: (state: *State) -> bool {
     return true
 }
 
+// Whether control falls from the current block into TARGET: it is the next
+// block, or each block before it is a lone jump to it, which emits nothing.
+Falls :: (state: *State, target: s32) -> bool {
+    function := state.program.functions[state.function]
+    end := function.block_begin + function.block_count
+    block := state.block + 1
+    while block < end && block != target {
+        lone := state.program.blocks[block]
+        if lone.instruction_count != 1 { return false }
+        jump := state.program.instructions[lone.instruction_begin]
+        if jump.opcode != .Jump || state.program.edges[jump.edge_begin].target != target { return false }
+        block += 1
+    }
+    return block == target
+}
+
 JumpTo :: (state: *State, target: s32) {
-    if target != NextBlock(state) { X86Jump32(*state.writer, BlockTarget(state, target)) }
+    if !Falls(state, target) { X86Jump32(*state.writer, BlockTarget(state, target)) }
 }
 
 Branch :: (state: *State) -> bool {
@@ -1635,10 +1671,9 @@ Branch :: (state: *State) -> bool {
     }
     taken := state.program.edges[instruction.edge_begin].target
     other := state.program.edges[instruction.edge_begin + 1].target
-    next := NextBlock(state)
-    if other == next {
+    if Falls(state, other) {
         X86JumpCondition32(*state.writer, condition, BlockTarget(state, taken))
-    } else if taken == next {
+    } else if Falls(state, taken) {
         X86JumpCondition32(*state.writer, condition ^ 1, BlockTarget(state, other))
     } else {
         X86JumpCondition32(*state.writer, condition, BlockTarget(state, taken))

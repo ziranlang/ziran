@@ -441,8 +441,10 @@ Instructions :: (state: *VerifyState, program: MachineProgram, limits: MachineLi
                             virtual = instruction.flags_use)
                     }
                 }
+                // A branch tests its one operand, or the flags of the compare before it.
                 if instruction.opcode == .Compare && instruction.flags_def == MachineNoId ||
-                    instruction.opcode == .SetCondition && instruction.flags_use == MachineNoId {
+                    instruction.opcode == .SetCondition && instruction.flags_use == MachineNoId ||
+                    instruction.opcode == .Branch && (instruction.flags_use == MachineNoId) != (instruction.operand_count == 1) {
                     return Fail(state, .Flags, cast(s32)function_id, block_id, instruction_id)
                 }
                 is_call := instruction.opcode == .CallDirect || instruction.opcode == .CallIndirect

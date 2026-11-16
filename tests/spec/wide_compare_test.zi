@@ -47,6 +47,31 @@ SignedMinimumLiteral :: () -> bool {
         high > cast(u64)0 && maximum > high
 }
 
+// Constants that native x86-64 code takes as immediates of a compare, add,
+// subtract, multiply or bitwise operation, at the edges of a sign-extended
+// 32-bit field and of narrow and unsigned types, through fused branches and
+// || / && joins. LIMIT is zero at run time.
+Immediates :: (limit: s64) -> bool {
+    high := limit + 2147483647
+    if !(high > 2147483646) || high >= 2147483648 || high - 2147483647 != limit { return false }
+    low := limit - 2147483648
+    if !(low < -2147483647) || low <= -2147483649 || low + 2147483648 != limit { return false }
+    if (limit * 7 + 3) * -5 != -15 || ((limit | 12) & 10) != 8 || (limit ^ -1) != -1 { return false }
+    narrow: s8 = cast(s8)(limit - 128)
+    if !(narrow < -127) || narrow != -128 || !(narrow <= -128) || narrow > -128 { return false }
+    byte: u8 = cast(u8)(limit + 200)
+    if !(byte > 199) || byte >= 201 || byte != 200 { return false }
+    word: u32 = cast(u32)limit + cast(u32)4294967295
+    if !(word > cast(u32)4294967294) || word != cast(u32)4294967295 || !(cast(u32)limit + cast(u32)5 < cast(u32)7) {
+        return false
+    }
+    flag := limit == 0
+    if flag != true || !flag || (limit > 5 || limit < -5) || !(limit >= 0 && limit <= 0) { return false }
+    count: s64
+    for i: 0..40 { if i % 3 == 0 || i > 37 && i != 39 { count += 1 } }
+    return count == 16
+}
+
 #program_export
 main :: () -> s32 {
     entries[0].unsigned = cast(u64)4294967296
@@ -70,6 +95,7 @@ main :: () -> s32 {
     if !BytesMatch() { return 5 }
     if !ZeroArrayPreservesRecord() { return 6 }
     if !SignedMinimumLiteral() { return 7 }
+    if !Immediates(cast(s64)next - 2) { return 8 }
     print("wide-compare-test-ok\n")
     return 0
 }

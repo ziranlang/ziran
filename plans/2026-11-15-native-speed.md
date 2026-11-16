@@ -383,6 +383,30 @@ outside fix 1: each compare becomes `cmp; setcc; movzx; test; jcc`, constants
 are moved into registers before use, jumps to the next block remain, and the
 per-iteration fuel decrement in memory stays enforced. Those belong to fix 6.
 
+## Status: fix 6, step 1 — compare, branch and immediate selection (2026-11-15, Omega)
+
+`cmd/compiler_machine_select.zi` plans x86-64 selection per LIR function
+before lowering: constants fitting a sign-extended 32-bit field become the
+right operand of integer compares and add/subtract/and/or/xor/multiply (a
+commutative left constant swaps places) and are not loaded when every use
+folds; a compare whose only use is the next branch branches on its flags; a
+jump into a block that only branches on its one parameter does that branch
+itself (constant: straight to the chosen edge; compare: on its flags), and a
+block every edge skips is lowered as unreachable. The encoder elides a jump
+when only lone jumps to the target lie between, and scales 1/2/4/8-byte
+element indices in the address instead of multiplying. MachineVerify now
+also rejects a branch that tests neither an operand nor flags.
+
+Receipt `bench/results/wasm-tier-omega-2026-11-15-scalar-select.json` (load
+16.0/15.6): native Sieve 65.9 → 57.8 µs, Records 32.2 → 20.1 µs, Hash 38.9
+→ 32.1 µs; zx engine Sieve 66.2 → 51.3, Records 29.2 → 23.1, Hash 40.4 → 31.3
+(C 10.8, 8.9, 22.4). Sieve's inner loop is 12 instructions (C: 5). Measured
+with fuel checks removed in a private build, fuel costs about 25% of Sieve and
+22% of Records: the per-iteration `sub qword [rip+fuel], 1` is a store-to-load
+chain. Next: keep a looping function's budget in a register (exact, synced
+at calls, returns and traps), then the direct-pointer store sequence, store
+immediates and loop-invariant address work in Hash.
+
 ## Status: fix 2 for Vectors (2026-11-15, Omega)
 
 Implemented in the new `cmd/compiler_x86_runtime.zi` (the ELF's runtime

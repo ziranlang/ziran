@@ -1,0 +1,244 @@
+using Lir :: #import "compiler_lowered_ir"
+using Machine :: #import "compiler_machine_ir"
+using Vectors :: #import "std/vec"
+
+// Instruction-selection facts for one LIR function on x86-64, planned before
+// machine lowering so integer code compares, branches and computes the way a
+// C compiler's would:
+//
+// - Immediates: a constant that fits a sign-extended 32-bit field becomes
+//   the right operand of the integer compare, add, subtract, and, or, xor or
+//   multiply that uses it; a commutative one takes a constant left operand
+//   by swapping. A constant whose every use is folded is never loaded.
+// - Fused branches: a compare whose only use is the branch right after it
+//   branches on its flags instead of making a 0/1 value to test.
+// - Threaded jumps: a jump to a block that does nothing but branch on its
+//   one parameter branches there itself: straight to the chosen target for a
+//   constant, on the flags of a compare just before the jump, or on the value.
+
+MachineSelectFold :: enum u8 { None; Right; Left }
+
+MachineSelectPlan :: struct {
+    // Per value: defined by a constant, its 64-bit register value, whether
+    // it still has a use that needs it loaded, and whether it is a compare
+    // whose flags its only user branches on.
+    constant: Vec(bool)
+    bits: Vec(u64)
+    loaded: Vec(bool)
+    fused: Vec(bool)
+    // Per instruction, numbered through the blocks in order: which operand of
+    // a binary operation or compare is an immediate.
+    fold: Vec(MachineSelectFold)
+    // Per block: the block its closing jump threads into, or -1, and whether
+    // every edge into it threads past it, so nothing reaches it.
+    thread: Vec(s32)
+    dead: Vec(bool)
+    // Scratch: edges into each block, and how many of them thread.
+    incoming: Vec(s32)
+    threaded: Vec(s32)
+    // Scratch: uses of each value, and how many of them fold.
+    uses: Vec(s32)
+    folded: Vec(s32)
+    work: s64
+}
+
+#scope_file
+
+Context :: struct {
+    plan: *MachineSelectPlan
+    program: LirProgram
+    function: LirFunction
+    budget: s64
+    problem: MachineProblem
+}
+
+Spend :: (context: *Context, count: s64) -> bool {
+    if count < 0 || count > context.budget - context.plan.work {
+        if context.problem == .None { context.problem = .Limit }
+        return false
+    }
+    context.plan.work += count
+    return true
+}
+
+TypeOf :: (context: *Context, value: s32) -> LirType {
+    return context.program.types[context.function.values[value]]
+}
+
+Scalar :: (type: LirType) -> bool { return type.kind == .Integer || type.kind == .Bool }
+
+// The value a register holds for constant BITS of TYPE: integers narrower
+// than 64 bits are sign- or zero-extended, bools are 0 or 1.
+Normalized :: (type: LirType, bits: u64) -> u64 {
+    if type.kind == .Bool { return bits & 1 }
+    if type.bits <= 0 || type.bits >= 64 { return bits }
+    width := cast(u64)type.bits
+    value := bits & ((cast(u64)1 << width) - 1)
+    if type.is_signed && (value >> (width - 1)) != 0 { value = value | ~((cast(u64)1 << width) - 1) }
+    return value
+}
+
+Fits32 :: (bits: u64) -> bool {
+    value := cast(s64)bits
+    return value >= -2147483648 && value <= 2147483647
+}
+
+Immediate :: (context: *Context, value: s32) -> bool {
+    return context.plan.constant[value] && Fits32(context.plan.bits[value])
+}
+
+Compare :: (op: LirOp) -> bool {
+    return op == .Equal || op == .NotEqual || op == .Less || op == .LessEqual || op == .Greater ||
+        op == .GreaterEqual
+}
+
+Commutative :: (op: LirOp) -> bool {
+    return op == .Add || op == .Multiply || op == .BitAnd || op == .BitOr || op == .BitXor
+}
+
+// Which operand of INSTRUCTION folds as an immediate.
+Fold :: (context: *Context, instruction: LirInstruction) -> MachineSelectFold {
+    op := instruction.op
+    if !Compare(op) && !Commutative(op) && op != .Subtract || instruction.operands.count != 2 {
+        return .None
+    }
+    left := instruction.operands[0]
+    right := instruction.operands[1]
+    if !Scalar(TypeOf(context, left)) { return .None }
+    if Immediate(context, right) { return .Right }
+    if Commutative(op) && Immediate(context, left) { return .Left }
+    return .None
+}
+
+Count :: (context: *Context) -> bool {
+    plan := context.plan
+    for block: context.function.blocks {
+        if !Spend(context, block.instructions.count) { return false }
+        for instruction: block.instructions {
+            for value: instruction.operands { plan.uses[value] += 1 }
+            for edge: instruction.edges {
+                plan.incoming[edge.block] += 1
+                for value: edge.arguments { plan.uses[value] += 1 }
+            }
+            result := instruction.result
+            if instruction.op == .Constant && result >= 0 && Scalar(TypeOf(context, result)) {
+                plan.constant[result] = true
+                plan.bits[result] = Normalized(TypeOf(context, result),
+                    context.program.constants[instruction.symbol].bits)
+            }
+        }
+    }
+    return true
+}
+
+// The block JUMP threads into: one that only branches on its one parameter,
+// used nowhere else, with edges that do not pass it on.
+ThreadTarget :: (context: *Context, jump: LirInstruction) -> s32 {
+    if jump.op != .Jump || jump.edges.count != 1 || jump.edges[0].arguments.count != 1 { return -1 }
+    target := jump.edges[0].block
+    block := context.function.blocks[target]
+    if target == context.function.entry || block.parameters.count != 1 || block.instructions.count != 1 {
+        return -1
+    }
+    parameter := block.parameters[0]
+    branch := block.instructions[0]
+    if branch.op != .Branch || branch.operands.count != 1 || branch.operands[0] != parameter ||
+        branch.edges.count != 2 || context.plan.uses[parameter] != 1 { return -1 }
+    for edge: branch.edges { for value: edge.arguments { if value == parameter { return -1 } } }
+    return target
+}
+
+// Whether the compare defining VALUE at ITEM of INSTRUCTIONS has its only use
+// right after it.
+Fusable :: (context: *Context, instructions: []LirInstruction, item: s64, value: s32) -> bool {
+    if item < 0 { return false }
+    compare := instructions[item]
+    return compare.result == value && Compare(compare.op) && context.plan.uses[value] == 1 &&
+        Scalar(TypeOf(context, compare.operands[0]))
+}
+
+Plan :: (context: *Context) -> bool {
+    plan := context.plan
+    at: s64 = 0
+    for block, block_index: context.function.blocks {
+        instructions := block.instructions
+        if !Spend(context, instructions.count) { return false }
+        for instruction, item: instructions {
+            fold := Fold(context, instruction)
+            plan.fold[at] = fold
+            if fold == .Right { plan.folded[instruction.operands[1]] += 1 }
+            if fold == .Left { plan.folded[instruction.operands[0]] += 1 }
+            at += 1
+            if instruction.op == .Branch && instruction.operands.count == 1 &&
+                Fusable(context, instructions, item - 1, instruction.operands[0]) {
+                plan.fused[instruction.operands[0]] = true
+            }
+        }
+        if instructions.count == 0 { continue }
+        jump := instructions[instructions.count - 1]
+        target := ThreadTarget(context, jump)
+        plan.thread[block_index] = target
+        if target < 0 { continue }
+        plan.threaded[target] += 1
+        argument := jump.edges[0].arguments[0]
+        if plan.constant[argument] { plan.folded[argument] += 1 }
+        else if Fusable(context, instructions, instructions.count - 2, argument) { plan.fused[argument] = true }
+    }
+    return true
+}
+
+#scope_export
+
+// Plans FUNCTION of PROGRAM into PLAN within BUDGET work, recorded in
+// plan.work, and BYTES elements per scratch vector. A plan that is not
+// ENABLED loads every used value and folds, fuses and threads nothing.
+MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, function: LirFunction,
+    enabled: bool, budget: s64, bytes: s64) -> MachineProblem {
+    plan.work = 0
+    context := Context.{plan = plan, program = program, function = function, budget = budget, problem = .None}
+    count := function.values.count
+    instructions: s64
+    for block: function.blocks { instructions += block.instructions.count }
+    if !VecResizeBounded(plan.constant, count, bytes) || !VecResizeBounded(plan.bits, count, bytes) ||
+        !VecResizeBounded(plan.loaded, count, bytes) || !VecResizeBounded(plan.fused, count, bytes) ||
+        !VecResizeBounded(plan.uses, count, bytes) || !VecResizeBounded(plan.folded, count, bytes) ||
+        !VecResizeBounded(plan.fold, instructions, bytes) ||
+        !VecResizeBounded(plan.thread, function.blocks.count, bytes) ||
+        !VecResizeBounded(plan.dead, function.blocks.count, bytes) ||
+        !VecResizeBounded(plan.incoming, function.blocks.count, bytes) ||
+        !VecResizeBounded(plan.threaded, function.blocks.count, bytes) { return .Allocation }
+    if !Spend(*context, count) { return context.problem }
+    for value: cast(s64)0..count - 1 {
+        plan.constant[value] = false
+        plan.bits[value] = 0
+        plan.fused[value] = false
+        plan.uses[value] = 0
+        plan.folded[value] = 0
+    }
+    for at: cast(s64)0..instructions - 1 { plan.fold[at] = .None }
+    for at: cast(s64)0..function.blocks.count - 1 {
+        plan.thread[at] = -1
+        plan.incoming[at] = 0
+        plan.threaded[at] = 0
+    }
+    if !Count(*context) || enabled && !Plan(*context) { return context.problem }
+    for value: cast(s64)0..count - 1 { plan.loaded[value] = !enabled || plan.uses[value] > plan.folded[value] }
+    for at: cast(s64)0..function.blocks.count - 1 {
+        plan.dead[at] = plan.threaded[at] > 0 && plan.threaded[at] == plan.incoming[at]
+    }
+    return .None
+}
+
+MachineSelectPlanFree :: (plan: *MachineSelectPlan) {
+    VecFree(plan.constant)
+    VecFree(plan.bits)
+    VecFree(plan.loaded)
+    VecFree(plan.fused)
+    VecFree(plan.fold)
+    VecFree(plan.thread)
+    VecFree(plan.dead)
+    VecFree(plan.incoming)
+    VecFree(plan.threaded)
+    VecFree(plan.uses)
+    VecFree(plan.folded)
+}

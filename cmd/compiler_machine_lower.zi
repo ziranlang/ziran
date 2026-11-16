@@ -5,6 +5,7 @@ using LirVerifyModule :: #import "compiler_lowered_verify"
 using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using MachineVerifyModule :: #import "compiler_machine_verify"
+using Select :: #import "compiler_machine_select"
 using Proven :: #import "compiler_lowered_proven"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
@@ -28,6 +29,14 @@ LowerState :: struct {
     proven: *LirProvenOwner
     frame_raw: *Vec(s32)
     aggregates: *AggregateLowering
+    // The selection plan of the function being lowered (see
+    // compiler_machine_select), the LIR block and instruction number being
+    // lowered, and the flags and condition of a compare whose branch follows.
+    select: *MachineSelectPlan
+    select_block: s32
+    select_at: s64
+    fused_flags: s32
+    fused_condition: MachineCondition
 }
 
 // The aggregate plan of the function being lowered (see
@@ -490,6 +499,8 @@ UnaryOpcode :: (op: LirOp, class: MachineRegisterClass) -> MachineOpcode {
 
 LowerConstant :: (state: *LowerState, function: *MachineFunction,
     source: LirInstruction, opcode: MachineOpcode) -> bool {
+    // A constant every use of which takes it as an immediate is not loaded.
+    if !state.select.loaded[source.result] { return true }
     instruction := BeginInstruction(state, opcode, source.origin)
     result := GlobalVirtual(state, function, source.result)
     if VirtualOperand(state, result, .Define) == MachineNoId { return false }
@@ -568,10 +579,21 @@ LowerUnary :: (state: *LowerState, function: *MachineFunction, source: LirInstru
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
+// The operand of an instruction the selection plan folds: the constant's
+// register value as an immediate, or the virtual.
+SelectedOperand :: (state: *LowerState, function: *MachineFunction, value: s32, immediate: bool,
+    fixed: s32 = MachineNoId) -> s32 {
+    if immediate { return ImmediateOperand(state, state.select.bits[value]) }
+    return VirtualOperand(state, GlobalVirtual(state, function, value), .Use, fixed)
+}
+
 LowerBinary :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    // A constant left operand of a commutative operation trades places.
+    fold := state.select.fold[state.select_at]
+    left_value := source.operands[ifx fold == .Left then 1 else 0]
+    right_value := source.operands[ifx fold == .Left then 0 else 1]
     result := GlobalVirtual(state, function, source.result)
-    left := GlobalVirtual(state, function, source.operands[0])
-    right := GlobalVirtual(state, function, source.operands[1])
+    left := GlobalVirtual(state, function, left_value)
     class := state.owner.virtuals[result].class
     opcode := BinaryOpcode(source.op, class)
     if opcode == .Invalid { return Fail(state, .Unsupported) }
@@ -591,14 +613,14 @@ LowerBinary :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     }
     if VirtualOperand(state, result, .Define, result_fixed, cast(s32)1) == MachineNoId ||
         VirtualOperand(state, left, .Use, left_fixed, cast(s32)0) == MachineNoId ||
-        VirtualOperand(state, right, .Use, right_fixed) == MachineNoId { return false }
+        SelectedOperand(state, function, right_value, fold != .None, right_fixed) == MachineNoId { return false }
     if clobber >= 0 && PhysicalOperand(state, clobber, .UseDefine) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
+// A compare makes a 0/1 value, or only flags when its branch follows.
 LowerCompare :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     left := GlobalVirtual(state, function, source.operands[0])
-    right := GlobalVirtual(state, function, source.operands[1])
     result := GlobalVirtual(state, function, source.result)
     flags := AddVirtual(state, .{class = .Flags, type = state.owner.virtuals[result].type,
         fixed_register = MachineNoId, stack_object = MachineNoId, origin = Origin(state, source.origin)})
@@ -607,8 +629,14 @@ LowerCompare :: (state: *LowerState, function: *MachineFunction, source: LirInst
     compare.flags_def = flags
     compare.condition = Condition(source.op)
     if VirtualOperand(state, left, .Use) == MachineNoId ||
-        VirtualOperand(state, right, .Use) == MachineNoId ||
-        FinishInstruction(state, compare) == MachineNoId { return false }
+        SelectedOperand(state, function, source.operands[1], state.select.fold[state.select_at] == .Right) ==
+            MachineNoId || FinishInstruction(state, compare) == MachineNoId { return false }
+    function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
+    if state.select.fused[source.result] {
+        state.fused_flags = flags
+        state.fused_condition = compare.condition
+        return true
+    }
     set := BeginInstruction(state, .SetCondition, source.origin)
     set.flags_use = flags
     set.condition = compare.condition
@@ -617,9 +645,7 @@ LowerCompare :: (state: *LowerState, function: *MachineFunction, source: LirInst
         PhysicalOperand(state, MachineAbiScratchRegister(state.target), .Define) == MachineNoId {
         return false
     }
-    if FinishInstruction(state, set) == MachineNoId { return false }
-    function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
-    return true
+    return FinishInstruction(state, set) != MachineNoId
 }
 
 LowerMove :: (state: *LowerState, function: *MachineFunction, source: LirInstruction,
@@ -939,8 +965,41 @@ LowerCall :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
     return true
 }
 
+// A branch on the flags of the compare just lowered, to EDGES.
+FlagsBranch :: (state: *LowerState, function: *MachineFunction, edges: []LirEdge, origin: s32) -> bool {
+    instruction := BeginInstruction(state, .Branch, origin)
+    instruction.flags_use = state.fused_flags
+    instruction.condition = state.fused_condition
+    return AddEdges(state, function, edges) && FinishInstruction(state, instruction) != MachineNoId
+}
+
+// A jump into a block that only branches on its parameter does that branch
+// itself: to the chosen edge for a constant, on the flags of the compare
+// before it, or on the value.
+LowerThreaded :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    target := state.select.thread[state.select_block]
+    branch := state.lir.functions[function.lir_function].blocks[target].instructions[0]
+    argument := source.edges[0].arguments[0]
+    if state.select.constant[argument] {
+        taken := ifx state.select.bits[argument] != 0 then cast(s64)0 else 1
+        instruction := BeginInstruction(state, .Jump, source.origin)
+        return AddEdges(state, function, branch.edges[taken:taken + 1]) &&
+            FinishInstruction(state, instruction) != MachineNoId
+    }
+    if state.select.fused[argument] { return FlagsBranch(state, function, branch.edges, source.origin) }
+    instruction := BeginInstruction(state, .Branch, source.origin)
+    return VirtualOperand(state, GlobalVirtual(state, function, argument), .Use) != MachineNoId &&
+        AddEdges(state, function, branch.edges) && FinishInstruction(state, instruction) != MachineNoId
+}
+
 LowerControl :: (state: *LowerState, function: *MachineFunction, source: LirInstruction,
     opcode: MachineOpcode) -> bool {
+    if opcode == .Jump && state.select.thread[state.select_block] >= 0 {
+        return LowerThreaded(state, function, source)
+    }
+    if opcode == .Branch && state.select.fused[source.operands[0]] {
+        return FlagsBranch(state, function, source.edges, source.origin)
+    }
     instruction := BeginInstruction(state, opcode, source.origin)
     for operand: source.operands {
         id := GlobalVirtual(state, function, operand)
@@ -1180,7 +1239,11 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     problem := MachineAggregatePlanBuild(*state.aggregates.plan, state.lir, source, state.aggregates.stack_size[:],
         state.target.arch == .X86_64, state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
-    if !Spend(state, state.aggregates.plan.work) || !CreateVirtuals(state, function_id) { return false }
+    if !Spend(state, state.aggregates.plan.work) { return false }
+    problem = MachineSelectPlanBuild(state.select, state.lir, source, state.target.arch == .X86_64,
+        state.remaining, state.limits.bytes)
+    if problem != .None { return Fail(state, problem) }
+    if !Spend(state, state.select.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
     if !ViewAddresses(state, *function, source) { return false }
     // A function that allocates keeps the frame arena's top at entry and
@@ -1218,12 +1281,22 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     }
     function.entry = function.block_begin + source.entry
     state.owner.functions[function_id] = function
+    state.select_at = 0
     for block_id: cast(s64)0..source.blocks.count - 1 {
         block_index := function.block_begin + cast(s32)block_id
         block := state.owner.blocks[block_index]
         block.instruction_begin = cast(s32)state.owner.instructions.count
-        for instruction: source.blocks[block_id].instructions {
-            if !LowerInstruction(state, *function, instruction) { return false }
+        state.select_block = cast(s32)block_id
+        if state.select.dead[block_id] {
+            // Every edge into it threads past it.
+            unreachable := BeginInstruction(state, .Unreachable, source.origin)
+            if FinishInstruction(state, unreachable) == MachineNoId { return false }
+            state.select_at += source.blocks[block_id].instructions.count
+        } else {
+            for instruction: source.blocks[block_id].instructions {
+                if !LowerInstruction(state, *function, instruction) { return false }
+                state.select_at += 1
+            }
         }
         block.instruction_count = cast(s32)state.owner.instructions.count - block.instruction_begin
         state.owner.blocks[block_index] = block
@@ -1320,6 +1393,9 @@ MachineLower :: (owner: *MachineOwner, program: LirProgram, target: TargetDescri
     aggregates: AggregateLowering
     defer AggregateLoweringFree(*aggregates)
     state.aggregates = *aggregates
+    select: MachineSelectPlan
+    defer MachineSelectPlanFree(*select)
+    state.select = *select
     if !CopyMetadata(*state) || !CopyTypes(*state) || !AggregateTypes(*state) || !AddFunctionRecords(*state) {
         result := Result(state)
         MachineFree(owner)

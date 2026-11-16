@@ -1,0 +1,136 @@
+using IR :: #import "compiler_lowered_ir"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+// A reachable natural loop with one latch and one unconditional entry edge.
+// Decline other shapes: no CFG normalization or speculative execution here.
+LirLoopPlan :: struct {
+    members: Vec(u8)
+    reached: Vec(u8)
+    header: s32
+    latch: s32
+    preheader: s32
+}
+
+LirLoopFree :: (plan: *LirLoopPlan) {
+    VecFree(plan.members)
+    VecFree(plan.reached)
+    plan.header = -1
+    plan.latch = -1
+    plan.preheader = -1
+}
+
+#scope_file
+Reach :: (function: LirFunction, stop: s32, reached: []u8, budget: *LirSsaBudget) -> bool {
+    for at: 0..reached.count - 1 { reached[at] = 0 }
+    reached[function.entry] = 1
+    changed := true
+    while changed {
+        changed = false
+        for b: 0..function.blocks.count - 1 {
+            if !LirSsaSpend(budget, 1) { return false }
+            if reached[b] == 0 || b == stop { continue }
+            block := function.blocks[b]
+            terminal := block.instructions[block.instructions.count - 1]
+            for edge: terminal.edges {
+                if !LirSsaSpend(budget, 1) { return false }
+                if edge.block != stop && reached[edge.block] == 0 {
+                    reached[edge.block] = 1
+                    changed = true
+                }
+            }
+        }
+    }
+    return true
+}
+
+#scope_export
+// Input must already pass LirVerify. False with no budget problem means the
+// header is outside the supported shape and the caller leaves it unchanged.
+LirLoopFind :: (plan: *LirLoopPlan, function: LirFunction, header: s32,
+    budget: *LirSsaBudget) -> bool {
+    plan.header = -1
+    plan.latch = -1
+    plan.preheader = -1
+    if function.external || header == function.entry || header < 0 || header >= function.blocks.count { return false }
+    count := function.blocks.count
+    if !LirSsaReserve(budget, count, 2) { return false }
+    if !VecResizeBounded(plan.members, count, count) || !VecResizeBounded(plan.reached, count, count) {
+        budget.problem = .Allocation
+        return false
+    }
+    if !LirSsaSpend(budget, count) { return false }
+    if !Reach(function, -1, plan.members[:], budget) { return false }
+    if plan.members[header] == 0 { return false }
+    if !Reach(function, header, plan.reached[:], budget) { return false }
+    // A backedge whose source cannot be reached without the header is
+    // dominated by it. Multiple latches and unreachable entries decline.
+    latch: s32 = -1
+    for b: 0..count - 1 {
+        if !LirSsaSpend(budget, 1) { return false }
+        block := function.blocks[b]
+        for edge: block.instructions[block.instructions.count - 1].edges {
+            if !LirSsaSpend(budget, 1) { return false }
+            if edge.block != header || plan.members[b] == 0 || plan.reached[b] != 0 { continue }
+            if latch >= 0 { return false }
+            latch = cast(s32)b
+        }
+    }
+    if latch < 0 { return false }
+    for at: 0..count - 1 { plan.members[at] = 0 }
+    plan.members[header] = 1
+    plan.members[latch] = 1
+    changed := true
+    while changed {
+        changed = false
+        for b: 0..count - 1 {
+            if !LirSsaSpend(budget, 1) { return false }
+            if plan.members[b] != 0 { continue }
+            block := function.blocks[b]
+            for edge: block.instructions[block.instructions.count - 1].edges {
+                if !LirSsaSpend(budget, 1) { return false }
+                if edge.block == header || plan.members[edge.block] == 0 { continue }
+                // A side entrance invalidates the natural-loop shape.
+                if plan.reached[b] != 0 { return false }
+                plan.members[b] = 1
+                changed = true
+            }
+        }
+    }
+    preheader: s32 = -1
+    for b: 0..count - 1 {
+        if !LirSsaSpend(budget, 1) { return false }
+        if plan.members[b] != 0 { continue }
+        block := function.blocks[b]
+        terminal := block.instructions[block.instructions.count - 1]
+        for edge: terminal.edges {
+            if !LirSsaSpend(budget, 1) { return false }
+            if edge.block != header { continue }
+            if preheader >= 0 || plan.reached[b] == 0 || terminal.op != .Jump || terminal.edges.count != 1 { return false }
+            preheader = cast(s32)b
+        }
+    }
+    if preheader < 0 { return false }
+    if !Reach(function, -1, plan.reached[:], budget) { return false }
+    for b: 0..count - 1 {
+        if !LirSsaSpend(budget, 1) { return false }
+        if plan.members[b] != 0 && plan.reached[b] == 0 { return false }
+    }
+    plan.header = header
+    plan.latch = latch
+    plan.preheader = preheader
+    return true
+}
+
+LirLoopDefinitions :: (function: LirFunction, homes: []s32, budget: *LirSsaBudget) -> bool {
+    if !LirSsaSpend(budget, homes.count) { return false }
+    for at: 0..homes.count - 1 { homes[at] = -1 }
+    for block, b: function.blocks {
+        if !LirSsaSpend(budget, block.parameters.count + block.instructions.count + 1) { return false }
+        for value: block.parameters { homes[value] = cast(s32)b }
+        for instruction: block.instructions {
+            if instruction.result >= 0 { homes[instruction.result] = cast(s32)b }
+        }
+    }
+    return true
+}

@@ -1,3 +1,4 @@
+using VectorEmit :: #import "compiler_vector_x86"
 using ABI :: #import "compiler_abi"
 using Allocated :: #import "compiler_machine_verify_allocated"
 using Bytes :: #import "compiler_x86_bytes"
@@ -2327,7 +2328,12 @@ Instruction :: (state: *State) -> bool {
     if !Spend(state, 1 + cast(s64)instruction.operand_count) { return false }
     if op == .Move || op == .Spill || op == .Reload { return Transfer(state, instruction) }
     ok := false
-    if op == .MoveImmediate { ok = MoveImmediate(state) }
+    if op == .VectorLoop {
+        ok = VectorX64Emit(*state.writer, state.program, instruction)
+        if !ok { return Fail(state, ifx state.writer.failed then .Limit else .Instruction) }
+        state.flags_value = -1
+    }
+    else if op == .MoveImmediate { ok = MoveImmediate(state) }
     else if op == .IntegerAdd || op == .IntegerSubtract || op == .IntegerMultiply ||
         op == .IntegerAnd || op == .IntegerOr || op == .IntegerXor { ok = Binary(state, op) }
     else if op == .FloatAdd || op == .FloatSubtract || op == .FloatMultiply ||
@@ -2668,7 +2674,11 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
         relocation_of = layout.relocation_of[:],
         function = MachineNoId, block = MachineNoId, instruction = MachineNoId,
         flags_value = MachineNoId}
-    if !Pass(*state) { return .{diagnostic = state.diagnostic, work = state.used} }
+    if !Pass(*state) {
+        // A declined form must never look like a successful empty image.
+        if state.diagnostic.problem == .None { unused Fail(*state, .Instruction) }
+        return .{diagnostic = state.diagnostic, work = state.used}
+    }
     measured := MachineX64Result.{diagnostic = state.diagnostic, code_bytes = state.writer.at,
         relocations = state.relocation_count, work = state.used}
     if output == null { return measured }

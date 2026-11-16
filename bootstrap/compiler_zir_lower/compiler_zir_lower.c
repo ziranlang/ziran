@@ -8125,6 +8125,7 @@ compiler_zir_lower_Select(AssemblyProgram* program, AssemblyFunction* function, 
     int32_t type = value_11;
     yes_value = compiler_zir_lower_Convert(program, function, yes_value, type, expression->span);
     int32_t yes_end = function->current;
+    AssemblyBinding* yes_bindings = compiler_zir_lower_Snapshot(program, function, count);
     compiler_zir_lower_Enter(function, no, before, count);
     int32_t no_value = 0;
     if (short_circuit == 2) {
@@ -8166,7 +8167,7 @@ compiler_zir_lower_Select(AssemblyProgram* program, AssemblyFunction* function, 
         return -1;
     }
     if (count != 0) {
-        zir_f_0fe5ce4064831140_memcpy((void*)(joined), (void*)(before), (size_t)(count) * sizeof(AssemblyBinding));
+        zir_f_0fe5ce4064831140_memcpy((void*)(joined), (void*)(yes_bindings), (size_t)(count) * sizeof(AssemblyBinding));
     }
     AssemblyBinding* value_21 = &(joined[count]);
     AssemblyBinding value_22 = {0};

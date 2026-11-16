@@ -1,3 +1,5 @@
+using Vectorizer :: #import "compiler_vectorize"
+using VectorForm :: #import "compiler_vector_form"
 using ABI :: #import "compiler_abi"
 using Aggregates :: #import "compiler_machine_aggregate"
 using Fields :: #import "compiler_machine_fields"
@@ -41,6 +43,11 @@ LowerState :: struct {
     select_at: s64
     fused_flags: s32
     fused_condition: MachineCondition
+    vector_header: s32
+    vector_iv: s32
+    vector_acc: s32
+    vector_iv_out: s32
+    vector_acc_out: s32
 }
 
 // The aggregate plan of the function being lowered (see
@@ -544,6 +551,10 @@ AddEdges :: (state: *LowerState, function: *MachineFunction, edges: []LirEdge) -
             }
             from := GlobalVirtual(state, function, source.arguments[at])
             to := GlobalVirtual(state, function, target.parameters[at])
+            if state.vector_header == source.block {
+                if parameter == state.vector_iv { from = state.vector_iv_out }
+                if parameter == state.vector_acc { from = state.vector_acc_out }
+            }
             if state.problem != .None || state.owner.virtuals[from].class != state.owner.virtuals[to].class {
                 return Fail(state, .Copy)
             }
@@ -1661,9 +1672,75 @@ Loops :: (source: LirFunction) -> bool {
     return false
 }
 
+// A field of an invariant aggregate is read before the prefix. Split
+// records already have exactly the field virtual we need.
+VectorInput :: (state: *LowerState, function: *MachineFunction, source: LirFunction,
+    reference: VectorReference) -> s32 {
+    if reference.field == 0 { return GlobalVirtual(state, function, reference.value) }
+    field := reference.field - 1
+    root := reference.value
+    if state.aggregates.plan.split[root] {
+        return state.aggregates.fields[state.aggregates.field_begin[root] + field]
+    }
+    type := state.lir.types[source.values[root]].fields[field]
+    result := AddVirtual(state, .{class = MachineAbiClass(state.lir, type), type = type,
+        fixed_register = -1, stack_object = -1, origin = -1})
+    instruction := BeginInstruction(state, .AggregateExtract, source.origin)
+    input := GlobalVirtual(state, function, root)
+    if MachineAggregateViewed(state.aggregates.plan.view[root]) { input = state.aggregates.view_address[root] }
+    if VirtualOperand(state, result, .Define) < 0 || VirtualOperand(state, input, .Use) < 0 ||
+        ImmediateOperand(state, cast(u64)field) < 0 || FinishInstruction(state, instruction) < 0 { return -1 }
+    return result
+}
+
+VectorPrefix :: (state: *LowerState, function: *MachineFunction, source: LirFunction, loop: VectorLoop) -> bool {
+    inputs := s32.[GlobalVirtual(state, function, loop.initial), GlobalVirtual(state, function, loop.limit),
+        -1, -1, -1, -1]
+    inputs[2] = GlobalVirtual(state, function, loop.seed)
+    // Map/copy loops without a scalar operand use a lane-typed zero seed.
+    if source.values[loop.seed] != loop.type {
+        inputs[2] = AddVirtual(state, .{class = MachineAbiClass(state.lir, loop.type), type = loop.type,
+            fixed_register = -1, stack_object = -1, origin = -1})
+        zero := BeginInstruction(state, .MoveImmediate, source.origin)
+        if VirtualOperand(state, inputs[2], .Define) < 0 || ImmediateOperand(state, 0,
+            MachineAbiClass(state.lir, loop.type)) < 0 { return false }
+        if MachineAbiClass(state.lir, loop.type) == .Float &&
+            PhysicalOperand(state, MachineAbiScratchRegister(state.target), .Define) < 0 { return false }
+        if FinishInstruction(state, zero) < 0 { return false }
+    }
+    inputs[3] = VectorInput(state, function, source, loop.source)
+    inputs[4] = VectorInput(state, function, source, loop.right)
+    inputs[5] = VectorInput(state, function, source, loop.destination)
+    for input: inputs { if input < 0 { return false } }
+    iv := AddVirtual(state, .{class = .General, type = source.values[loop.initial],
+        fixed_register = -1, stack_object = -1, origin = -1})
+    acc := AddVirtual(state, .{class = MachineAbiClass(state.lir, loop.type), type = loop.type,
+        fixed_register = -1, stack_object = -1, origin = -1})
+    instruction := BeginInstruction(state, .VectorLoop, source.origin)
+    if VirtualOperand(state, iv, .Define) < 0 || VirtualOperand(state, acc, .Define) < 0 { return false }
+    for input: inputs { if VirtualOperand(state, input, .Use) < 0 { return false } }
+    metadata := cast(u64)loop.operation
+    if loop.reduction { metadata |= VectorReduce }
+    if loop.fill { metadata |= VectorFill }
+    if loop.scalar_right { metadata |= VectorScalarRight }
+    if loop.inclusive { metadata |= VectorInclusive }
+    if ImmediateOperand(state, metadata) < 0 || FinishInstruction(state, instruction) < 0 { return false }
+    state.vector_header = loop.header; state.vector_iv = loop.induction; state.vector_acc = loop.accumulator
+    state.vector_iv_out = iv; state.vector_acc_out = acc
+    function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
+    return true
+}
+
 LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     source := state.lir.functions[function_id]
     if source.external { return true }
+    vectors: VectorPlan
+    defer VectorPlanFree(*vectors)
+    if state.target.arch == .X86_64 && !state.checks && !state.options.fuel {
+        vector_problem := VectorPlanBuild(*vectors, state.lir, source, state.remaining, state.limits.bytes)
+        if vector_problem != .None { return Fail(state, ifx vector_problem == .Allocation then .Allocation else .Limit) }
+        if !Spend(state, vectors.work) { return false }
+    }
     function := state.owner.functions[function_id]
     // Views read and change members in place through x86-64 address
     // registers; other targets share storage only.
@@ -1682,6 +1759,14 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
         state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.select.work) { return false }
+    // Prefix operands must also materialize constants that scalar selection
+    // would otherwise fold exclusively into immediates.
+    for at: 0..vectors.loops.count - 1 {
+        loop := vectors.loops[at]
+        state.select.loaded[loop.initial] = true
+        state.select.loaded[loop.limit] = true
+        state.select.loaded[loop.seed] = true
+    }
     problem = MachineFieldsPlanBuild(state.fields, source, *state.aggregates.plan, state.aggregates.stack_size[:],
         state.select.address_shift[:], x86 && !state.checks, state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
@@ -1738,6 +1823,9 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
         block_index := function.block_begin + cast(s32)position
         block := state.owner.blocks[block_index]
         block.instruction_begin = cast(s32)state.owner.instructions.count
+        state.vector_header = -1
+        state.vector_iv = -1
+        state.vector_acc = -1
         state.select_block = cast(s32)block_id
         state.select_at = state.select.start[block_id]
         if state.select.dead[block_id] {
@@ -1746,7 +1834,19 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
             if FinishInstruction(state, unreachable) == MachineNoId { return false }
             state.select_at += source.blocks[block_id].instructions.count
         } else {
-            for instruction: source.blocks[block_id].instructions {
+            for instruction, local: source.blocks[block_id].instructions {
+                // Insert before the comparison feeding a branch, so flag
+                // fusion and the original entry guard retain their order.
+                insert_at := source.blocks[block_id].instructions.count - 1
+                terminal := source.blocks[block_id].instructions[insert_at]
+                if terminal.op == .Branch { insert_at -= 1 }
+                if local == insert_at {
+                    for vector_index: 0..vectors.loops.count - 1 {
+                        loop := vectors.loops[vector_index]
+                        if loop.preheader == block_id && state.select.pass[loop.header] < 0 &&
+                            !VectorPrefix(state, *function, source, loop) { return false }
+                    }
+                }
                 if !LowerInstruction(state, *function, instruction) { return false }
                 state.select_at += 1
             }

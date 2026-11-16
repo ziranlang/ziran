@@ -1,0 +1,204 @@
+{
+  "repository": "ziranlang/ziran",
+  "observed_head": "898f58a5fb03295e9a0979355f4ac222de326e5c",
+  "source_state": "Uncommitted loop pass modules/hooks in shared canonical checkout; not an exact clean-commit validation.",
+  "host": "omega",
+  "learning": "off",
+  "build_queue": "HARMONY_BUILD_LOCAL=1",
+  "source_sha256": {
+    "cmd/compiler_opt.zi": "7bd23dbec7ff997d4ad184d1a979ec0677d85de1872017b77c7bad4c60db729e",
+    "cmd/compiler_opt_loop.zi": "31e8954e2a347af85b8a236b9a5dfd17aa020f4a15fbf8fef4197413363e545c",
+    "cmd/compiler_opt_layout.zi": "5e51232f841d31d320e4fc69df5cef701ce477b5a2705a2bfe6dea54ce8e54e9",
+    "cmd/compiler_opt_licm.zi": "8367251baac1da2663453aea2214c081b0d0fc7cf46f334158a501df67527272",
+    "cmd/compiler_opt_induction.zi": "fe9ba568743b837086846eba37ab43ae3ad496694af8f0fe5d582e7a4d20069a",
+    "tests/compiler_opt_cases.zi": "4dac18ffcf2a333d6d87eff22a93923d85527744b5ee7644d88e75dd83acfd5c",
+    "tests/compiler_opt_loop_cases.zi": "7785a5a9c0f60a514206be275c804ebb671d3c504c3b93c6c5004312deff70a6",
+    "tests/compiler_opt_layout_cases.zi": "14960145b491633ccc61bfd78b8b3269e10dfb7882798b29ea13155e1798fd9e",
+    "tests/compiler_opt_licm_cases.zi": "dcdf8339e93857a451ef6a3396d85ecfafee0f85b7fcb346b2836882448c872e",
+    "tests/compiler_opt_induction_cases.zi": "cae2b1e18fe8ae1d7d83b855a0ffdf58ca0b42b3cd303570d354ae15e77689bb",
+    "Makefile": "d3db96bf9267e386d5bcd5c6c78e944f5981fa20b20e0acc38ef457549e3aae8",
+    "assembly.mk": "f70abf06d7bcef4c8f583c7c47317e2a7cb55f916b55fded633f680e2f9e4d58"
+  },
+  "local_tests": [
+    {
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- build/bin/ziran run --target=c --root tests --module-path cmd --entry compiler_opt_layout_cases:OptLayoutCases tests/compiler_opt_layout_cases.zi",
+      "command_id": "b2d168ee8f68c3bb447915fdf3a3d8726e90",
+      "exit_code": 0
+    },
+    {
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- build/bin/ziran run --target=c --root tests --module-path cmd --entry compiler_opt_licm_cases:OptLicmCases tests/compiler_opt_licm_cases.zi",
+      "command_id": "635b9cde4f82239b09b3cef52f1e94acf256",
+      "exit_code": 0
+    },
+    {
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- sh -c 'build/bin/ziran check --root tests --module-path cmd tests/compiler_opt_induction_cases.zi && build/bin/ziran run --target=c --root tests --module-path cmd --entry compiler_opt_induction_cases:OptInductionCases tests/compiler_opt_induction_cases.zi'",
+      "command_id": "3898cabfebef8c2fe330c4d238a46de06f2f",
+      "exit_code": 0,
+      "coverage": "signed/unsigned 8/64-bit wrap, additive/subtractive and commuted recurrence, zero/one/many trips, early exits, fuel exhaustion, unsupported variant steps/cheap constants, integrated Copy/Rotate/Layout"
+    }
+  ],
+  "final_canonical_suite": {
+    "command": "sh backup/loop-omega-final-verify.sh",
+    "command_id": "c1abf6efc31cc99aa96838f2ab7d1f903be1",
+    "queue": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- sh",
+    "build": "make -j4 all build/bin/native-load-test build/bin/check-runner",
+    "suite": "make check",
+    "bootstrap": "make check-bootstrap",
+    "command_exit_code": 1,
+    "statuses": {
+      "build": 0,
+      "suite": 2,
+      "bootstrap": 0,
+      "fingerprints_before": 0,
+      "fingerprints_after": 0,
+      "source_snapshot": 0,
+      "guard": 1
+    },
+    "passed": 281,
+    "total": 282,
+    "executed": 282,
+    "reused": 0,
+    "seconds": 331.0,
+    "failures": {
+      "site_pages.sh": "stale modules.html and packages/webp.html; routed to owning site lane"
+    },
+    "guard": {
+      "source_unchanged": false,
+      "changed_paths": [
+        "scripts/site_library_targets.py",
+        "tests/c_foreign_records.sh",
+        "tests/c_foreign_records_cases.zi"
+      ],
+      "binaries_unchanged": true,
+      "head_before": "898f58a5fb03295e9a0979355f4ac222de326e5c",
+      "head_after": "225784c977ca61b3a1a6733dcd32c34c2ca33fe3",
+      "source_epoch_before": "40fda85e3f9f00185e063eeb3a4e0c2afa307b00f6f61d73f6045425b9bcea8b",
+      "source_epoch_after": "5a43f5379fe61de85410233c199c86b484625c7fa7a16d05069157815d39d89a"
+    },
+    "guarded_source_files": 3448,
+    "binary_sha256_lines": [
+      "e6bec4a88637e7549e3e556b59d61d1aaa17f290eaf32fb1cde520ec4a39340b  build/bin/ziran",
+      "549a9b9f3600255c4b8af83947661f92ec8db8a97d80d26392b1674a8bc59f27  build/bin/zi2c",
+      "6591187b3ef5421fb533e5ba1dba040edf7e61ad6cf4e778b35df287b97a4502  build/bin/zi2zx",
+      "17d075017f740dcce323c173d91521c25a477175984e57eb33ef57108133019a  build/bin/zx2wasm",
+      "63d32eb322c2baf1daa0173cbc91babd650e3148766867621b422bce716f60fe  build/bin/zx2native",
+      "5047b9bbef7904d1f39ca57e5d1c5c91b7da4e9cb29ab2295006ae46adb25336  build/bin/check-runner",
+      "2ad62de75a34b8fcec89bb6662fbe87a619492c0ff1549bc56a39d6d62b98ec8  build/libziran.a"
+    ],
+    "interpretation": "All compiler local tests and bootstrap pass together. The global source guard failed because a site generator changed and two unrelated new fixtures appeared; all existing compiler and compiler-test inputs and seven binaries stayed unchanged. Only stale site_pages fails. This is not an all-green full suite or clean-commit validation.",
+    "compiler_scoped_guard": {
+      "compiler_inputs_unchanged": true,
+      "existing_compiler_test_inputs_unchanged": true,
+      "binaries_unchanged": true,
+      "excluded_unrelated_changes": [
+        "scripts/site_library_targets.py",
+        "tests/c_foreign_records.sh",
+        "tests/c_foreign_records_cases.zi"
+      ],
+      "global_source_guard_passed": false,
+      "reason": "Only existing site generator changed and two unrelated test fixtures were added. No compiler, existing compiler test, or build-rule input changed. Global failed guard retained separately.",
+      "compiler_source_epoch": "ee64d521f4b3463c7b66814b3ec661932c92b8993ed388363a7bfd8830cc385a",
+      "guarded_files": 3447
+    }
+  },
+  "alpha_performance": "not measured; standard suite reserves host; no C-parity claim",
+  "ci": "not checked",
+  "fingerprint_note": "Final compiler-scoped inputs and seven compiler/library binaries stayed unchanged; global source guard failure and exact three unrelated changes retained honestly. Earlier fully immutable run retained separately.",
+  "canonical_refresh": {
+    "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- make -j4 all build/bin/native-load-test build/bin/check-runner",
+    "command_id": "c2283cb0dd0d4f2bb378b45c5031d0aeab2b",
+    "exit_code": 0
+  },
+  "integration_focused": [
+    {
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- sh tests/machine_ir.sh build/bin/ziran",
+      "command_id": "add58a0a974016c149e1ab5140220f8a6147",
+      "exit_code": 0,
+      "coverage": "returned record placement, result/frame verifier negatives, machine IR and x86 encoder"
+    },
+    {
+      "command": "build/bin/ziran run --target=c --root build/tests --module-path tests --module-path std build/tests/short_circuit_parity_probe.zi -- build/bin/ziran build/tests/short-circuit-parity",
+      "command_id": "e26a64f168e6c2af88f131771f627ad1dbc2",
+      "subcommand_exit_code": 0,
+      "enclosing_command_exit_code": 1,
+      "note": "Queued, display disabled, learning off, pinned Omega. Both retained ParityRun calls passed; enclosing command then failed because separate JSON scratch lacked an import. No compiler source correction was required for the scratch error.",
+      "coverage": "short-circuit and Vec: C/interpreter status and output, heap zero, bundle, native ELF, deterministic Wasm and Node"
+    },
+    {
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- build/bin/ziran run --target=c --root build/tests --module-path tests --module-path std build/tests/json_native_parity_probe.zi -- build/bin/ziran build/tests/json-native-parity",
+      "command_id": "b81e1cef08b9224cddcd2431ac34dd08c714",
+      "exit_code": 0,
+      "coverage": "actual retained JSON scan case66, native ELF and PE/Wine output/status match C; deterministic encoding and PE structure through existing Windows helpers"
+    }
+  ],
+  "shared_lane_diagnostic_suite": {
+    "reporting_task": "dca3b156130a4ecb0caba2476ca2169ebb2d",
+    "reported_command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check",
+    "reported_exec_session": 60039,
+    "reported_exit_code": 2,
+    "reported_passed": 280,
+    "reported_total": 281,
+    "reported_executed": 281,
+    "reported_reused": 0,
+    "reported_seconds": 294.7,
+    "reported_failure": "site_targets.sh: stale scripts/site_library_targets.py harness in existing generated library matrix",
+    "limitation": "No before-source or binary guards; Wasm C source changed during suite and passed its separate focused test afterward. Not final acceptance evidence."
+  },
+  "bootstrap_regeneration": {
+    "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- make update-bootstrap",
+    "command_id": "55a57170a4bcdae8c8ebcfe98194dedacdce",
+    "exit_code": 0,
+    "changed_files": [
+      "bootstrap/compiler_zir_lower/compiler_zir_lower.c"
+    ],
+    "reason": "Match final Select post-yes binding snapshot and joined edge repair."
+  },
+  "validation_stage": "Compiler inputs validated before checkpoint publication; unrelated dirty site, host and Wasm work is excluded from the compiler checkpoint.",
+  "prior_guarded_canonical_suite": {
+    "command": "sh backup/loop-omega-integrated-verify.sh",
+    "command_id": "693e7bc700330b3b82db86051b7c78116387",
+    "queue": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- sh",
+    "build": "make -j4 all build/bin/native-load-test build/bin/check-runner",
+    "suite": "make check",
+    "bootstrap": "make check-bootstrap",
+    "command_exit_code": 1,
+    "statuses": {
+      "build": 0,
+      "suite": 2,
+      "bootstrap": 0,
+      "fingerprints_before": 0,
+      "fingerprints_after": 0,
+      "source_snapshot": 0,
+      "guard": 0
+    },
+    "passed": 280,
+    "total": 282,
+    "executed": 282,
+    "reused": 0,
+    "seconds": 353.4,
+    "failures": {
+      "site_pages.sh": "stale modules.html and packages/webp.html; routed to owning site lane",
+      "site_targets.sh": "stale library harness scripts/site_library_targets.py; actual correctly pinned Alpha regeneration remains with Wasm widget lane"
+    },
+    "guard": {
+      "source_unchanged": true,
+      "changed_paths": [],
+      "binaries_unchanged": true,
+      "head_before": "898f58a5fb03295e9a0979355f4ac222de326e5c",
+      "head_after": "898f58a5fb03295e9a0979355f4ac222de326e5c",
+      "source_epoch_before": "d2a9f91a6093ebb37117cb5624346c8bca3876b483f546edfc54539dbac8a0f9",
+      "source_epoch_after": "d2a9f91a6093ebb37117cb5624346c8bca3876b483f546edfc54539dbac8a0f9"
+    },
+    "guarded_source_files": 3448,
+    "binary_sha256_lines": [
+      "e6bec4a88637e7549e3e556b59d61d1aaa17f290eaf32fb1cde520ec4a39340b  build/bin/ziran",
+      "549a9b9f3600255c4b8af83947661f92ec8db8a97d80d26392b1674a8bc59f27  build/bin/zi2c",
+      "7993791cef119064905770cca528232977d403c395e3ab8c2b090b8de18bca87  build/bin/zi2zx",
+      "17d075017f740dcce323c173d91521c25a477175984e57eb33ef57108133019a  build/bin/zx2wasm",
+      "30add2e384f204defd2a0464702557aeb192b0bfc2d4eea69060bb8c97123263  build/bin/zx2native",
+      "5047b9bbef7904d1f39ca57e5d1c5c91b7da4e9cb29ab2295006ae46adb25336  build/bin/check-runner",
+      "fef9fbd64daa9476378777aa958b12fe8b482ee525b11c4481185e356a6a6cf2  build/libziran.a"
+    ],
+    "interpretation": "All compiler local tests and bootstrap pass together. This is not an all-green full suite; two site artifact failures remain recorded."
+  }
+}

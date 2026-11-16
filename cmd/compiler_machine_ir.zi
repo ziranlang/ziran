@@ -50,6 +50,8 @@ MachineOpcode :: enum s32 {
     //     and accepts the instruction only where it covers the slot, version,
     //     liveness, WIDTH bytes and, for flag 1, writability.
     PointerDirect
+    // SSE2 strip-mined prefix; see compiler_vector_form. Native x86 only.
+    VectorLoop
 }
 
 MachineCondition :: enum s32 {

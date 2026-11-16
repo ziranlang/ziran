@@ -33,7 +33,41 @@ Early :: (stop: bool) -> s64 {
     return total
 }
 
+Header :: struct { count: s64; capacity: s64 }
+
+// Both the reserved path and several growth edges keep the live scalar
+// accumulator and the header correct. A returned snapshot must survive the
+// later count/capacity updates, and the owned vector escapes through a call.
+Remember :: (values: []s64, capacity: s64) -> Header {
+    return .{values.count, capacity}
+}
+
+Consume :: (values: Vec(s64), expected: s64) -> bool {
+    total: s64
+    for i: 0..values.count - 1 { total += values[i] }
+    return total == expected
+}
+
+ScalarGrowth :: (count: s64, reserve: bool) -> bool {
+    values: Vec(s64)
+    if reserve && !VecReserve(values, count) { return false }
+    saved := Remember(values[:], values.capacity)
+    total: s64
+    for i: 0..count - 1 {
+        value := i * 3 - 7
+        if !VecPush(values, value) { return false }
+        total += value
+    }
+    if values.count != count || values.capacity < count || saved.count != 0 { return false }
+    if reserve && values.capacity != saved.capacity { return false }
+    if !reserve && saved.capacity != 0 { return false }
+    return Consume(values, total)
+}
+
 main :: () -> s32 {
+    for count: s64.[0, 1, 8, 9, 16, 17, 65, 1000] {
+        if !ScalarGrowth(count, false) || !ScalarGrowth(count, true) { return 2 }
+    }
     pairs: Vec(Pair)
     for i: 0..19 { VecPush(pairs, Pair.{cast(s32)i, cast(s64)i * i}) }
     pairs[3].value = 1000

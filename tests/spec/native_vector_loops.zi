@@ -1,0 +1,172 @@
+// Counted loops remain separate from data generation and scalar fingerprints.
+Sum :: (values: []$T, seed: T) -> T {
+    result := seed
+    for i: 0..values.count - 1 { result += values[i] }
+    return result
+}
+And :: (values: []$T, seed: T) -> T {
+    result := seed
+    for i: 0..values.count - 1 { result &= values[i] }
+    return result
+}
+Or :: (values: []$T, seed: T) -> T {
+    result := seed
+    for i: 0..values.count - 1 { result |= values[i] }
+    return result
+}
+Xor :: (values: []$T, seed: T) -> T {
+    result := seed
+    for i: 0..values.count - 1 { result ^= values[i] }
+    return result
+}
+Minimum :: (values: []$T, seed: T) -> T {
+    result := seed
+    for i: 0..values.count - 1 { if values[i] < result { result = values[i] } }
+    return result
+}
+Maximum :: (values: []$T, seed: T) -> T {
+    result := seed
+    for i: 0..values.count - 1 { if values[i] > result { result = values[i] } }
+    return result
+}
+Copy :: (destination: []$T, source: []T) {
+    for i: 0..source.count - 1 { destination[i] = source[i] }
+}
+Fill :: (destination: []$T, value: T) {
+    for i: 0..destination.count - 1 { destination[i] = value }
+}
+Map :: (destination: []$T, left: []T, right: []T) {
+    for i: 0..destination.count - 1 { destination[i] = left[i] + right[i] }
+}
+Subtract :: (destination: []$T, left: []T, right: []T) {
+    for i: 0..destination.count - 1 { destination[i] = left[i] - right[i] }
+}
+Multiply :: (destination: []$T, left: []T, right: []T) {
+    for i: 0..destination.count - 1 { destination[i] = left[i] * right[i] }
+}
+Scale :: (destination: []$T, source: []T, scale: T) {
+    for i: 0..destination.count - 1 { destination[i] = source[i] * scale }
+}
+Fingerprint :: (values: []$T) -> u64 {
+    result: u64 = 0xcbf29ce484222325
+    for value: values { result = (result ^ cast(u64)value) * 0x100000001b3 }
+    return result
+}
+IntegerCases :: (seed: $T) {
+    a: [68]T
+    b: [68]T
+    c: [68]T
+    random: T = seed
+    for batch: 0..1 {
+        for n: 0..67 {
+            for i: 0..67 {
+                random = random * 13 + 97
+                a[i] = random
+                b[i] = random ^ seed
+                c[i] = seed
+            }
+            print("% % % % % % % %\n", size_of(T), n, Sum(a[0:n], seed),
+                And(a[0:n], seed), Or(a[0:n], seed), Xor(a[0:n], seed),
+                Minimum(a[0:n], seed), Maximum(a[0:n], seed))
+            Map(c[0:n], a[0:n], b[0:n]); print("%\n", Fingerprint(c[:]))
+            Subtract(c[0:n], a[0:n], b[0:n]); print("%\n", Fingerprint(c[:]))
+            Multiply(c[0:n], a[0:n], b[0:n]); print("%\n", Fingerprint(c[:]))
+            Scale(c[0:n], a[0:n], seed); print("%\n", Fingerprint(c[:]))
+            Copy(c[0:n], a[0:n]); print("%\n", Fingerprint(c[:]))
+            Fill(c[0:n], random); print("%\n", Fingerprint(c[:]))
+            Map(a[0:n], a[0:n], b[0:n]); print("%\n", Fingerprint(a[:]))
+            Copy(a[1:n + 1], a[0:n]); print("%\n", Fingerprint(a[:]))
+            Copy(b[0:n], b[1:n + 1]); print("%\n", Fingerprint(b[:]))
+        }
+    }
+}
+// Recover exact finite IEEE bits using powers of two; avoid text formatting.
+FloatBits32 :: (value: float32) -> u32 {
+    if value == 0.0 { return 0 }
+    number := value
+    sign: u32
+    if number < 0.0 { sign = 2147483648; number = -number }
+    exponent: u32 = 127
+    while number >= 2.0 { number /= 2.0; exponent += 1 }
+    while number < 1.0 { number *= 2.0; exponent -= 1 }
+    return sign | (exponent << 23) | cast(u32)((number - 1.0) * 8388608.0)
+}
+FloatFingerprint32 :: (values: []float32) -> u64 {
+    result: u64 = 0xcbf29ce484222325
+    for value: values { result = (result ^ cast(u64)FloatBits32(value)) * 0x100000001b3 }
+    return result
+}
+// Recover exact finite IEEE bits using powers of two; avoid text formatting.
+FloatBits64 :: (value: float64) -> u64 {
+    if value == 0.0 { return 0 }
+    number := value
+    sign: u64
+    if number < 0.0 { sign = 9223372036854775808; number = -number }
+    exponent: u64 = 1023
+    while number >= 2.0 { number /= 2.0; exponent += 1 }
+    while number < 1.0 { number *= 2.0; exponent -= 1 }
+    return sign | (exponent << 52) | cast(u64)((number - 1.0) * 4503599627370496.0)
+}
+FloatFingerprint64 :: (values: []float64) -> u64 {
+    result: u64 = 0xcbf29ce484222325
+    for value: values { result = (result ^ cast(u64)FloatBits64(value)) * 0x100000001b3 }
+    return result
+}
+FloatCases32 :: (seed: float32) {
+    a: [68]float32
+    b: [68]float32
+    c: [68]float32
+    for n: 0..67 {
+        for i: 0..67 {
+            a[i] = cast(float32)(cast(float64)(i - 34) / 13.0)
+            b[i] = cast(float32)(cast(float64)(i + 1) / 29.0)
+            c[i] = seed
+        }
+        Map(c[0:n], a[0:n], b[0:n]); print("% % %\n", n, FloatFingerprint32(c[:]), FloatBits32(c[67]))
+        Subtract(c[0:n], a[0:n], b[0:n]); print("%\n", FloatFingerprint32(c[:]))
+        Multiply(c[0:n], a[0:n], b[0:n]); print("%\n", FloatFingerprint32(c[:]))
+        Scale(c[0:n], a[0:n], seed); print("%\n", FloatFingerprint32(c[:]))
+        Copy(c[0:n], a[0:n]); print("%\n", FloatFingerprint32(c[:]))
+        Fill(c[0:n], seed); print("%\n", FloatFingerprint32(c[:]))
+    }
+    ordered: [4]float32 = .{1e20, 1.0, -1e20, 3.0}
+    print("ordered %\n", FloatBits32(Sum(ordered[:], seed - seed)))
+}
+FloatCases64 :: (seed: float64) {
+    a: [68]float64
+    b: [68]float64
+    c: [68]float64
+    for n: 0..67 {
+        for i: 0..67 {
+            a[i] = cast(float64)(cast(float64)(i - 34) / 13.0)
+            b[i] = cast(float64)(cast(float64)(i + 1) / 29.0)
+            c[i] = seed
+        }
+        Map(c[0:n], a[0:n], b[0:n]); print("% % %\n", n, FloatFingerprint64(c[:]), FloatBits64(c[67]))
+        Subtract(c[0:n], a[0:n], b[0:n]); print("%\n", FloatFingerprint64(c[:]))
+        Multiply(c[0:n], a[0:n], b[0:n]); print("%\n", FloatFingerprint64(c[:]))
+        Scale(c[0:n], a[0:n], seed); print("%\n", FloatFingerprint64(c[:]))
+        Copy(c[0:n], a[0:n]); print("%\n", FloatFingerprint64(c[:]))
+        Fill(c[0:n], seed); print("%\n", FloatFingerprint64(c[:]))
+    }
+    ordered: [4]float64 = .{1e20, 1.0, -1e20, 3.0}
+    print("ordered %\n", FloatBits64(Sum(ordered[:], seed - seed)))
+}
+CheckedSum :: (values: []u64) -> u64 {
+    result: u64
+    #checks {
+        for i: 0..values.count - 1 { result += values[i] }
+    }
+    return result
+}
+main :: () -> s32 {
+    IntegerCases(cast(u8)0x81); IntegerCases(cast(s8)-97)
+    IntegerCases(cast(u16)0x8001); IntegerCases(cast(s16)-32001)
+    IntegerCases(cast(u32)0x80000001); IntegerCases(cast(s32)-2147483601)
+    IntegerCases(cast(u64)0x8000000000000001); IntegerCases(cast(s64)-9223372036854775807)
+    FloatCases32(cast(float32)1.25); FloatCases64(cast(float64)-2.75)
+    guarded: [67]u64
+    Fill(guarded[:], cast(u64)17)
+    print("checked %\n", CheckedSum(guarded[:]))
+    return 0
+}

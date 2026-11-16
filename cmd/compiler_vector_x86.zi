@@ -1,0 +1,217 @@
+using Machine :: #import "compiler_machine_ir"
+using Form :: #import "compiler_vector_form"
+using Vectorizer :: #import "compiler_vectorize"
+using Bytes :: #import "compiler_x86_bytes"
+
+#scope_file
+Emitter :: struct { writer: *X86Writer; labels: [8]s64; fields: [24]s64; targets: [24]s32; count: s32 }
+Jump :: (e: *Emitter, label: s32, condition: s32 = -1) {
+    if e.count >= 24 { e.writer.failed = true; return }
+    if condition < 0 { X86Byte(e.writer, 233) } else {
+        X86Byte(e.writer, 15); X86Byte(e.writer, cast(u8)(128 + condition))
+    }
+    e.fields[e.count] = e.writer.at; e.targets[e.count] = label; e.count += 1
+    X86Little(e.writer, 0, 4)
+}
+Label :: (e: *Emitter, label: s32) { e.labels[label] = e.writer.at }
+Packed :: (w: *X86Writer, opcode: u32, a: s32, b: s32) { X86Encode(w, 102, false, opcode, 2, a, X86Direct(b)) }
+Move :: (w: *X86Writer, a: s32, b: s32) { Packed(w, 0x0f6f, a, b) }
+Shuffle :: (w: *X86Writer, a: s32, b: s32, mask: u8) {
+    X86Encode(w, 102, false, 0x0f70, 2, a, X86Direct(b), trailing = 1); X86Byte(w, mask)
+}
+Shift :: (w: *X86Writer, opcode: u32, extension: s32, a: s32, count: u8) {
+    X86Encode(w, 102, false, opcode, 2, extension, X86Direct(a), trailing = 1); X86Byte(w, count)
+}
+Broadcast :: (w: *X86Writer, a: s32, source: s32, bits: s32) {
+    X86GeneralToFloatBits(w, a, source, 8)
+    if bits == 8 { Packed(w, 0x0f60, a, a) }
+    if bits <= 16 { Packed(w, 0x0f61, a, a) }
+    Shuffle(w, a, a, ifx bits == 64 then cast(u8)0x44 else cast(u8)0)
+}
+SignXor :: (w: *X86Writer, register: s32) {
+    X86Encode(w, 102, false, 0x0fef, 2, register, X86At(X86Rsp, 240))
+}
+// xmm2 = lane-wise a > b. SSE2 qword comparisons compare high dwords
+// first and unsigned low dwords only when the high dwords are equal.
+Greater :: (w: *X86Writer, bits: s32, signed: bool) {
+    if bits == 64 {
+        Shuffle(w, 2, 0, 0xf5); Shuffle(w, 3, 1, 0xf5)
+        Move(w, 4, 2); Packed(w, 0x0f76, 4, 3)
+        if !signed { SignXor(w, 2); SignXor(w, 3) }
+        Packed(w, 0x0f66, 2, 3)
+        Shuffle(w, 3, 0, 0xa0); Shuffle(w, 5, 1, 0xa0)
+        SignXor(w, 3); SignXor(w, 5); Packed(w, 0x0f66, 3, 5)
+        Packed(w, 0x0fdb, 3, 4); Packed(w, 0x0feb, 2, 3)
+        return
+    }
+    Move(w, 2, 0); Move(w, 3, 1)
+    if !signed { SignXor(w, 2); SignXor(w, 3) }
+    opcode: u32 = 0x0f66
+    if bits == 8 { opcode = 0x0f64 }
+    if bits == 16 { opcode = 0x0f65 }
+    Packed(w, opcode, 2, 3)
+}
+// xmm0 op xmm1 -> xmm0; xmm2..5 are local scratch. Integer operations
+// compute the low lane bits, exactly matching wrapping scalar arithmetic.
+Combine :: (w: *X86Writer, op: VectorOperation, type: MachineType) {
+    bits := type.bits
+    if type.kind == .Float {
+        opcode: u32 = 0x0f58
+        if op == .Subtract { opcode = 0x0f5c }
+        if op == .Multiply { opcode = 0x0f59 }
+        X86Encode(w, ifx bits == 64 then cast(u8)102 else cast(u8)0, false, opcode, 2, 0, X86Direct(1))
+        return
+    }
+    if op == .Min || op == .Max {
+        Greater(w, bits, type.is_signed)
+        Move(w, 3, 0); Packed(w, 0x0fef, 3, 1); Packed(w, 0x0fdb, 3, 2)
+        if op == .Min { Packed(w, 0x0fef, 0, 3) } else {
+            Packed(w, 0x0fef, 1, 3); Move(w, 0, 1)
+        }
+        return
+    }
+    if op == .Multiply && bits >= 32 {
+        Move(w, 2, 0); Move(w, 3, 1)
+        if bits == 64 {
+            Shift(w, 0x0f73, 2, 2, 32); Shift(w, 0x0f73, 2, 3, 32)
+            Packed(w, 0x0ff4, 2, 1); Packed(w, 0x0ff4, 3, 0)
+            Packed(w, 0x0fd4, 2, 3); Shift(w, 0x0f73, 6, 2, 32)
+            Packed(w, 0x0ff4, 0, 1); Packed(w, 0x0fd4, 0, 2)
+        } else {
+            Shift(w, 0x0f73, 3, 2, 4); Shift(w, 0x0f73, 3, 3, 4)
+            Packed(w, 0x0ff4, 0, 1); Packed(w, 0x0ff4, 2, 3)
+            Shuffle(w, 0, 0, 0x88); Shuffle(w, 2, 2, 0x88); Packed(w, 0x0f62, 0, 2)
+        }
+        return
+    }
+    opcode: u32
+    if op == .Add {
+        opcode = 0x0ffc
+        if bits == 16 { opcode = 0x0ffd }; if bits == 32 { opcode = 0x0ffe }; if bits == 64 { opcode = 0x0fd4 }
+    }
+    if op == .Subtract {
+        opcode = 0x0ff8
+        if bits == 16 { opcode = 0x0ff9 }; if bits == 32 { opcode = 0x0ffa }; if bits == 64 { opcode = 0x0ffb }
+    }
+    if op == .Multiply { opcode = 0x0fd5 }
+    if op == .And { opcode = 0x0fdb }; if op == .Or { opcode = 0x0feb }; if op == .Xor { opcode = 0x0fef }
+    if opcode == 0 { w.failed = true; return }
+    Packed(w, opcode, 0, 1)
+}
+AliasGuard :: (e: *Emitter, source: s32, next_label: s32) {
+    w := e.writer
+    X86Move(w, 9, 7); X86Arithmetic(w, X86Subtract, 9, source)
+    Jump(e, next_label, X86Equal)
+    Jump(e, next_label + 1, X86AboveEqual)
+    X86Encode(w, 0, true, 0xf7, 1, 3, X86Direct(9))
+    Label(e, next_label + 1)
+    X86Arithmetic(w, X86Compare, 9, 10)
+    Jump(e, 0, X86Below)
+    Label(e, next_label)
+}
+
+#scope_export
+VectorX64Emit :: (writer: *X86Writer, program: MachineProgram, instruction: MachineInstruction) -> bool {
+    if !VectorLoopForm(program, instruction) { return false }
+    operands := program.operands[instruction.operand_begin:instruction.operand_begin + 9]
+    type := program.types[operands[1].type]
+    metadata := operands[8].immediate
+    op := cast(VectorOperation)(metadata & 255)
+    reduction := (metadata & VectorReduce) != 0
+    fill := (metadata & VectorFill) != 0
+    scalar_right := (metadata & VectorScalarRight) != 0
+    lanes := 128 / type.bits
+    shift := X86ScaleShift(type.size)
+    for at: 0..7 { if operands[at].kind != .Physical { return false } }
+    e := Emitter.{writer = writer}
+    // Save every register used internally, including XMMs on Windows. No
+    // calls, r14, r15, desktop state or ABI-visible scratch escape this form.
+    registers := s32.[0, 1, 2, 3, 6, 7, 8, 9, 10, 11]
+    X86ArithmeticImmediate(writer, X86Subtract, X86Rsp, 256)
+    for register, at: registers { X86Store(writer, X86At(X86Rsp, at * 8), register, 8) }
+    for at: 0..5 { X86VectorStore(writer, X86At(X86Rsp, 80 + at * 16), cast(s32)at) }
+    for at: 2..7 {
+        operand := operands[at]
+        if at == 4 && type.kind == .Float {
+            X86FloatStore(writer, X86At(X86Rsp, 176 + (at - 2) * 8), operand.id, type.size)
+        } else { X86Store(writer, X86At(X86Rsp, 176 + (at - 2) * 8), operand.id, 8) }
+    }
+    X86Load(writer, 0, X86At(X86Rsp, 176), 8, false)
+    X86Load(writer, 2, X86At(X86Rsp, 184), 8, false)
+    X86CompareImmediate(writer, 0, 0); Jump(*e, 0, X86Less)
+    X86Arithmetic(writer, X86Compare, 2, 0); Jump(*e, 0, X86LessEqual)
+    X86Arithmetic(writer, X86Subtract, 2, 0)
+    if (metadata & VectorInclusive) == 0 { X86ArithmeticImmediate(writer, X86Subtract, 2, 1) }
+    X86CompareImmediate(writer, 2, lanes); Jump(*e, 0, X86Below)
+    X86CompareImmediate(writer, 2, 2147483647); Jump(*e, 0, X86Above)
+    X86Load(writer, 6, X86At(X86Rsp, 200), 8, false)
+    X86Load(writer, 8, X86At(X86Rsp, 208), 8, false)
+    X86Load(writer, 7, X86At(X86Rsp, 216), 8, false)
+    if !reduction && !fill {
+        X86Lea(writer, 10, X86At(2, 1))
+        if shift > 0 { X86ShiftImmediate(writer, 4, 10, shift) }
+        AliasGuard(*e, 6, 2)
+        if op != .Copy && !scalar_right { AliasGuard(*e, 8, 4) }
+    }
+    mask: u64 = 0x8000000080000000
+    if type.bits == 8 { mask = 0x8080808080808080 }
+    if type.bits == 16 { mask = 0x8000800080008000 }
+    X86MoveImmediate(writer, 11, mask)
+    X86Store(writer, X86At(X86Rsp, 240), 11, 8); X86Store(writer, X86At(X86Rsp, 248), 11, 8)
+    X86Load(writer, 1, X86At(X86Rsp, 192), type.size, false)
+    if reduction {
+        X86VectorZero(writer, 0)
+        if op == .And { Packed(writer, 0x0f76, 0, 0) }
+        if op == .Min || op == .Max { Broadcast(writer, 0, 1, type.bits) }
+    }
+    Label(*e, 1)
+    if reduction {
+        X86VectorLoad(writer, 1, X86Indexed(6, 0, 0, shift)); Combine(writer, op, type)
+    } else {
+        if fill { Broadcast(writer, 0, 1, type.bits) } else {
+            X86VectorLoad(writer, 0, X86Indexed(6, 0, 0, shift))
+            if op != .Copy {
+                if scalar_right { Broadcast(writer, 1, 1, type.bits) } else {
+                    X86VectorLoad(writer, 1, X86Indexed(8, 0, 0, shift))
+                }
+                Combine(writer, op, type)
+            }
+        }
+        X86VectorStore(writer, X86Indexed(7, 0, 0, shift), 0)
+    }
+    X86ArithmeticImmediate(writer, X86Add, 0, lanes)
+    X86ArithmeticImmediate(writer, X86Subtract, 2, lanes)
+    X86CompareImmediate(writer, 2, lanes); Jump(*e, 1, X86AboveEqual)
+    X86Store(writer, X86At(X86Rsp, 176), 0, 8)
+    if reduction {
+        distance: s32 = 8
+        while distance >= type.size {
+            Move(writer, 1, 0); Shift(writer, 0x0f73, 3, 1, cast(u8)distance)
+            Combine(writer, op, type); distance /= 2
+        }
+        X86FloatToGeneralBits(writer, 0, 0, 8)
+        if op == .Add { X86Arithmetic(writer, X86Add, 0, 1) }
+        // rcx held the original seed throughout the vector loop.
+        if op == .And { X86Arithmetic(writer, X86And, 0, 1) }
+        if op == .Or { X86Arithmetic(writer, X86Or, 0, 1) }
+        if op == .Xor { X86Arithmetic(writer, X86Xor, 0, 1) }
+        X86Store(writer, X86At(X86Rsp, 192), 0, 8)
+    }
+    Label(*e, 0)
+    for at: 0..5 { X86VectorLoad(writer, cast(s32)at, X86At(X86Rsp, 80 + at * 16)) }
+    for register, at: registers { X86Load(writer, register, X86At(X86Rsp, at * 8), 8, false) }
+    X86Load(writer, operands[0].id, X86At(X86Rsp, 176), 8, true)
+    if type.kind == .Float { X86FloatLoad(writer, operands[1].id, X86At(X86Rsp, 192), type.size) } else {
+        X86Load(writer, operands[1].id, X86At(X86Rsp, 192), type.size, type.is_signed)
+    }
+    X86ArithmeticImmediate(writer, X86Add, X86Rsp, 256)
+    if writer.output.count > 0 {
+        for at: 0..e.count - 1 {
+            patch := <<writer
+            patch.at = e.fields[at]
+            X86Signed32(*patch, e.labels[e.targets[at]] - e.fields[at] - 4)
+            if patch.failed { writer.failed = true }
+        }
+    }
+    return !writer.failed
+}

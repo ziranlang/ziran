@@ -1,0 +1,98 @@
+// Expression joins must carry the bindings produced by the selected arm.
+// Compare repeated mutating calls with their ordinary nested-if equivalents,
+// including skipped calls, both boolean results, and snapshots across joins.
+#import "std/vec"
+
+Header :: struct { count: s64; capacity: s64 }
+Counter :: struct { calls: s64; value: s64 }
+
+Change :: (counter: *Counter, value: s64, answer: bool) -> bool {
+    counter.calls += 1
+    counter.value = value
+    return answer
+}
+
+And :: (flag: bool) -> bool {
+    values: Vec(s64)
+    nested: Vec(s64)
+    for round: 0..16 {
+        saved := Header.{values.count, values.capacity}
+        result := flag && VecPush(values, round * 3)
+        expected := false
+        if flag { expected = VecPush(nested, round * 3) }
+        if result != expected || values.count != nested.count { return false }
+        if saved.count != round * cast(s64)flag { return false }
+        if saved.capacity < saved.count || values.capacity < values.count { return false }
+        if flag && values[round] != nested[round] { return false }
+    }
+    // A false RHS still changes the vector binding.
+    failed := flag && !VecPush(values, 99)
+    expected := false
+    if flag { expected = !VecPush(nested, 99) }
+    return failed == expected && values.count == nested.count
+}
+
+Or :: (flag: bool) -> bool {
+    values: Vec(s64)
+    nested: Vec(s64)
+    for round: 0..16 {
+        saved := Header.{values.count, values.capacity}
+        result := flag || VecPush(values, round * 5)
+        expected := true
+        if !flag { expected = VecPush(nested, round * 5) }
+        if result != expected || values.count != nested.count { return false }
+        if saved.count != round * cast(s64)!flag { return false }
+        if saved.capacity < saved.count || values.capacity < values.count { return false }
+        if !flag && values[round] != nested[round] { return false }
+    }
+    failed := flag || !VecPush(values, 101)
+    expected := true
+    if !flag { expected = !VecPush(nested, 101) }
+    return failed == expected && values.count == nested.count
+}
+
+Conditional :: (flag: bool) -> bool {
+    values: Vec(s64)
+    nested: Vec(s64)
+    for round: 0..16 {
+        saved := values.count
+        result := ifx flag then VecPush(values, round) else VecPush(values, -round)
+        expected: bool
+        if flag { expected = VecPush(nested, round) }
+        else { expected = VecPush(nested, -round) }
+        if result != expected || saved != round || values.count != nested.count { return false }
+        if values[round] != nested[round] { return false }
+    }
+    return true
+}
+
+Pointers :: (flag: bool, answer: bool) -> bool {
+    counter: Counter
+    nested: Counter
+    for round: 0..8 {
+        saved := counter
+        a := flag && Change(*counter, round, answer)
+        b := false
+        if flag { b = Change(*nested, round, answer) }
+        if a != b || counter.calls != nested.calls || counter.value != nested.value { return false }
+        a = flag || Change(*counter, -round, answer)
+        b = true
+        if !flag { b = Change(*nested, -round, answer) }
+        if a != b || counter.calls != nested.calls || counter.value != nested.value { return false }
+        if saved.calls != round || counter.calls != round + 1 { return false }
+    }
+    return true
+}
+
+main :: () -> s32 {
+    for flag: bool.[false, true] {
+        if !And(flag) { return 1 }
+        if !Or(flag) { return 2 }
+        if !Conditional(flag) { return 3 }
+        for answer: bool.[false, true] {
+            if !Pointers(flag, answer) { return 4 }
+        }
+    }
+    print("short circuit bindings: and or conditional pointers\n")
+    return 0
+}

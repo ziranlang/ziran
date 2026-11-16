@@ -939,3 +939,56 @@ movd xmm0, r11d; movss [m], xmm0`) where `mov dword [m], imm32` would do;
 members built across blocks (a select's value) or inserted through a dynamic
 index are not placed; placement and result construction are x86-64 only
 (views are), so aarch64 and armv7 keep their copies.
+
+### Shared loop motion, induction and layout follow-up, 2026-11-16
+
+The follow-up implementation is present in the canonical checkout and has
+passed the guarded shared compiler integration. `compiler_opt_loop.zi` recognizes
+reachable natural loops with one dominated latch and one unconditional
+preheader, rejecting side entrances, multiple latches and unreachable members.
+`compiler_opt_licm.zi` hoists dependency-ordered, total scalar integer and
+boolean expressions to that preheader. It declines loads, calls, allocation,
+fuel, division, shifts and pointer-derived addresses. Moving only total pure
+operations preserves zero-trip behavior, traps and fuel ordering.
+
+`compiler_opt_induction.zi` replaces eligible invariant-scaled integer
+recurrences with a carried product, an initial product and a scaled step.
+Arithmetic keeps the original modular integer width; direct exit uses retain
+their SSA names until copy propagation. Variant steps, unsupported CFGs and
+cheap constant scales decline. `compiler_opt_layout.zi` puts short static
+continuations together, remapping block targets and function entries while
+preserving instructions, parameters, effects, origins and branch polarity.
+This is an unmeasured static heuristic, not profile feedback.
+
+The shared optimizer runs LICM and induction before rotation, propagates their
+copies, then lays out blocks before dead-code cleanup and compaction. Both
+engine and assembly generation lists include the modules. Each pass builds
+transient tables and serializes them before replacing borrowed owner storage.
+Own retained Ziran cases are imported by the existing compiler_opt entry point.
+Focused local tests pass for zero/one/many iterations, early exits, signed and
+unsigned 8/64-bit wraparound, reversed block storage, fuel exhaustion,
+idempotence, work limits and unsupported shapes. The induction cases also run
+the combined optimizer pipeline. The final pinned Omega gate rebuilds the
+canonical tools, executes all 282 retained local tests without reuse, and
+compares bootstrap output including Darwin. All compiler tests pass: 281/282
+tests pass in 331.0 seconds; the sole failure is stale site pages
+(modules.html and packages/webp.html). Bootstrap matches. All existing compiler
+and compiler-test inputs and seven compiler/library binaries stay unchanged.
+The global source guard fails because the site library generator changed and
+two unrelated foreign-record fixtures appeared during the run; those changes
+are excluded from the compiler checkpoint. The prior fully guarded 280/282
+run is also retained. The site failure remains with its owning lane; this is
+not an all-green full-suite or clean-commit validation claim.
+
+That checkpoint also includes the final short-circuit Select binding repair
+and its regenerated bootstrap C seed: the yes edge now preserves bindings
+after evaluating the selected expression. Retained cases cover executed and
+skipped &&/||, conditional branches, repeated joins, record mutation and Vec
+reserve. Focused parity passes C, interpreter (with zero live heap blocks),
+bundle, native ELF and deterministic Wasm. The native JSON scan regression
+also passes C, ELF and PE/Wine after the vector emitter omits its invalid
+zero-count byte-lane shift; declined encoder forms now return a diagnostic
+instead of success with an empty image. New loop passes, the closed scalar
+allocator repair and returned-record construction pass together in the
+canonical gate. No new Alpha timing or C-parity result is claimed for these
+passes. The tracked validation receipt records exact commands and limits.

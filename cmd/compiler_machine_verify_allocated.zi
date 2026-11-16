@@ -1,3 +1,4 @@
+using VectorForm :: #import "compiler_vector_form"
 using ABI :: #import "compiler_abi"
 using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
@@ -494,13 +495,16 @@ InstructionStructure :: (state: *State, program: MachineProgram, function_id: s3
     function := program.functions[function_id]
     block := program.blocks[block_id]
     instruction := program.instructions[instruction_id]
-    if instruction.opcode == .Invalid || cast(s32)instruction.opcode > cast(s32)MachineOpcode.PointerDirect ||
+    if instruction.opcode == .Invalid || cast(s32)instruction.opcode > cast(s32)MachineOpcode.VectorLoop ||
         !Range(instruction.operand_begin, instruction.operand_count, program.operands.count) ||
         !Range(instruction.edge_begin, instruction.edge_count, program.edges.count) ||
         !Optional(instruction.flags_use, program.virtuals.count) ||
         !Optional(instruction.flags_def, program.virtuals.count) ||
         !Optional(instruction.call, program.calls.count) ||
         !Optional(instruction.origin, program.origins.count) {
+        return Fail(state, .Instruction, function_id, block_id, instruction_id)
+    }
+    if instruction.opcode == .VectorLoop && !VectorLoopForm(program, instruction) {
         return Fail(state, .Instruction, function_id, block_id, instruction_id)
     }
     last := instruction_id == block.instruction_begin + block.instruction_count - 1

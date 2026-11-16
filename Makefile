@@ -220,7 +220,7 @@ obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # bootstrap compiler opens no bundle and has none.
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
-    compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt compiler_opt_ssa compiler_opt_rotate compiler_opt_inline compiler_learning compiler_learning_policy
+    compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt compiler_opt_ssa compiler_opt_rotate compiler_opt_loop compiler_opt_licm compiler_opt_induction compiler_opt_layout compiler_opt_inline compiler_learning compiler_learning_policy
 # The Wasm lowering of revision-28 ZX (cmd/zx2wasm/zx_wasm_lower.c) reads
 # the program through the same engine, under the same names.
 # The native loader's per-architecture veneers are zir_host_native_<arch>.c.
@@ -714,7 +714,7 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 	    -o $(PROOF_C) cmd/compiler_proof.zi
 	touch $@
 
-$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_inline.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi \
+$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_loop.zi cmd/compiler_opt_licm.zi cmd/compiler_opt_induction.zi cmd/compiler_opt_layout.zi cmd/compiler_opt_inline.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi \
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_lowered_ir.zi \
     cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \

@@ -2656,6 +2656,7 @@ Select :: (program: *AssemblyProgram, function: *AssemblyFunction, expression: *
     type := Type(program, function, expression.type, expression.span)
     yes_value = Convert(program, function, yes_value, type, expression.span)
     yes_end := function.current
+    yes_bindings := Snapshot(program, function, count)
     Enter(function, no, before, count)
     no_value: s32 = 0
     if short_circuit == 2 {
@@ -2669,7 +2670,7 @@ Select :: (program: *AssemblyProgram, function: *AssemblyFunction, expression: *
     joined := cast(*AssemblyBinding)Allocate(program, cast(usize)(count) + 1, size_of(AssemblyBinding))
     if program.failed != 0 { return -1 }
     if count != 0 {
-        memcpy(cast(*void)joined, cast(*void)before, cast(usize)(count) * size_of(AssemblyBinding))
+        memcpy(cast(*void)joined, cast(*void)yes_bindings, cast(usize)(count) * size_of(AssemblyBinding))
     }
     joined[count] = AssemblyBinding.{name = SVC.Keep(""), type = type, value = yes_value, storage_type = -1}
     join := Block(program, function, joined, count + 1)

@@ -1,0 +1,33 @@
+using IR :: #import "compiler_lowered_ir"
+using Loop :: #import "compiler_opt_loop"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+// The caller supplies a verified four-block counted-loop fixture. Exercise
+// analysis independently of the transformation and its serialized storage.
+OptLoopAnalysisCases :: (function: LirFunction) -> s32 {
+    plan: LirLoopPlan
+    defer LirLoopFree(*plan)
+    budget := LirSsaBudget.{work = 10000, bytes = 10000}
+    if !LirLoopFind(*plan, function, 2, *budget) || plan.header != 2 || plan.latch != 1 || plan.preheader != 3 { return 1 }
+    if plan.members[0] != 0 || plan.members[1] != 1 || plan.members[2] != 1 || plan.members[3] != 0 { return 2 }
+    homes: [9]s32
+    if !LirLoopDefinitions(function, homes[:], *budget) || homes[4] != 2 || homes[7] != 1 || homes[0] != 3 { return 3 }
+    if LirLoopFind(*plan, function, 3, *budget) || budget.problem != .None { return 4 }
+    tiny := LirSsaBudget.{work = 0, bytes = 10000}
+    if LirLoopFind(*plan, function, 2, *tiny) || tiny.problem != .Limit { return 5 }
+    again := LirSsaBudget.{work = 10000, bytes = 10000}
+    if !LirLoopFind(*plan, function, 2, *again) { return 6 }
+    // Two verified backedges from the same latch decline too.
+    body := function.blocks[1]
+    last := body.instructions.count - 1
+    saved := body.instructions[last]
+    condition := s32.[6]
+    edges := LirEdge.[saved.edges[0], saved.edges[0]]
+    body.instructions[last] = .{op = .Branch, result = -1, operands = condition[:], edges = edges[:], symbol = -1, origin = -1}
+    multiple := LirSsaBudget.{work = 10000, bytes = 10000}
+    supported := LirLoopFind(*plan, function, 2, *multiple)
+    body.instructions[last] = saved
+    if supported || multiple.problem != .None { return 7 }
+    return 0
+}

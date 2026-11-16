@@ -1,0 +1,322 @@
+using IR :: #import "compiler_lowered_ir"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+// Native strip mining of rotated block-argument SSA. Leave at least one
+// scalar iteration so the original exit still defines all live-out values.
+// Checks and finite fuel decline. NEON can consume this plan in a follow-up.
+VectorOperation :: enum s32 { Copy; Add; Subtract; Multiply; And; Or; Xor; Min; Max }
+VectorReference :: struct { value: s32; field: s32 }
+VectorLoop :: struct {
+    header: s32
+    preheader: s32
+    induction: s32
+    accumulator: s32
+    initial: s32
+    seed: s32
+    limit: s32
+    inclusive: bool
+    reduction: bool
+    fill: bool
+    scalar_right: bool
+    operation: VectorOperation
+    type: s32
+    source: VectorReference
+    right: VectorReference
+    destination: VectorReference
+}
+VectorPlan :: struct { loops: Vec(VectorLoop); work: s64; problem: LirSsaProblem }
+
+#scope_file
+Context :: struct {
+    program: LirProgram
+    function: LirFunction
+    budget: LirSsaBudget
+    homes: Vec(s32)
+    definitions: Vec(LirInstruction)
+    members: Vec(u8)
+    used: Vec(u8)
+    header: s32
+    preheader: s32
+    incoming: LirEdge
+    back: LirEdge
+    early_test: s32
+}
+Free :: (c: *Context) {
+    VecFree(c.homes); VecFree(c.definitions); VecFree(c.members); VecFree(c.used)
+}
+Op :: (op: LirOp) -> VectorOperation {
+    if op == .Add { return .Add }
+    if op == .Subtract { return .Subtract }
+    if op == .Multiply { return .Multiply }
+    if op == .BitAnd { return .And }
+    if op == .BitOr { return .Or }
+    if op == .BitXor { return .Xor }
+    return .Copy
+}
+// Invariant header parameters become their incoming values. Aggregate fields
+// are materialized once by native lowering before the prefix.
+Invariant :: (c: *Context, value: s32, depth: s32 = 0) -> VectorReference {
+    if depth > 16 || !LirSsaSpend(*c.budget, 1) || value < 0 { return .{value = -1} }
+    home := c.homes[value]
+    if home < 0 || c.members[home] == 0 { return .{value = value} }
+    head := c.function.blocks[c.header]
+    for parameter, at: head.parameters {
+        if parameter == value && c.back.arguments[at] == value {
+            return Invariant(c, c.incoming.arguments[at], depth + 1)
+        }
+    }
+    definition := c.definitions[value]
+    if definition.op == .Extract && definition.operands.count == 1 {
+        root := Invariant(c, definition.operands[0], depth + 1)
+        if root.value >= 0 && root.field == 0 {
+            c.used[value] = 1
+            return .{value = root.value, field = cast(s32)definition.immediate + 1}
+        }
+    }
+    return .{value = -1}
+}
+Constant :: (c: *Context, value: s32, bits: u64) -> bool {
+    definition := c.definitions[value]
+    return definition.op == .Constant && c.program.constants[definition.symbol].bits == bits
+}
+Address :: (c: *Context, address: s32, iv: s32, type: s32) -> VectorReference {
+    definition := c.definitions[address]
+    if definition.op != .ElementAddress || definition.checked || definition.operands.count < 2 || definition.operands.count > 3 ||
+        definition.operands[1] != iv { return .{value = -1} }
+    pointer := c.program.types[c.function.values[address]]
+    if pointer.kind != .Pointer || pointer.element != type { return .{value = -1} }
+    base := Invariant(c, definition.operands[0])
+    if base.value >= 0 {
+        c.used[address] = 1
+        if definition.operands.count == 3 && Invariant(c, definition.operands[2]).value < 0 { return .{value = -1} }
+    }
+    return base
+}
+Load :: (c: *Context, value: s32, iv: s32, type: s32) -> VectorReference {
+    definition := c.definitions[value]
+    if definition.op != .Load || definition.checked || definition.operands.count != 1 ||
+        c.function.values[value] != type { return .{value = -1} }
+    base := Address(c, definition.operands[0], iv, type)
+    if base.value >= 0 { c.used[value] = 1 }
+    return base
+}
+Shape :: (c: *Context, header: s32) -> bool {
+    c.header = header
+    c.preheader = -1
+    c.back = .{block = -1}
+    c.early_test = -1
+    if !LirSsaSpend(*c.budget, c.members.count + c.used.count) { return false }
+    for at: 0..c.members.count - 1 { c.members[at] = 0 }
+    for at: 0..c.used.count - 1 { c.used[at] = 0 }
+    at := header
+    for step: 0..c.function.blocks.count - 1 {
+        if !LirSsaSpend(*c.budget, 1) || c.members[at] != 0 { return false }
+        c.members[at] = 1
+        block := c.function.blocks[at]
+        last := block.instructions[block.instructions.count - 1]
+        if last.op == .Jump && last.edges.count == 1 {
+            if last.edges[0].block == header { return false }
+            at = last.edges[0].block
+            if c.function.blocks[at].parameters.count != 0 { return false }
+            continue
+        }
+        if last.op != .Branch || last.edges.count != 2 { return false }
+        back: s32 = -1
+        for edge, e: last.edges { if edge.block == header { back = cast(s32)e } }
+        if back < 0 {
+            test := c.definitions[last.operands[0]]
+            if c.early_test >= 0 || test.op != .Equal && test.op != .NotEqual { return false }
+            c.early_test = last.operands[0]
+            at = last.edges[ifx test.op == .Equal then 1 else 0].block
+            if c.function.blocks[at].parameters.count != 0 { return false }
+            continue
+        }
+        c.back = last.edges[back]
+        break
+    }
+    if c.back.block != header || c.back.arguments.count != c.function.blocks[header].parameters.count { return false }
+    for block, b: c.function.blocks {
+        if !LirSsaSpend(*c.budget, block.instructions.count + 1) { return false }
+        last := block.instructions[block.instructions.count - 1]
+        for edge: last.edges {
+            if c.members[edge.block] == 0 || c.members[b] != 0 { continue }
+            if edge.block != header || c.preheader >= 0 { return false }
+            c.preheader = cast(s32)b; c.incoming = edge
+        }
+    }
+    return c.preheader >= 0
+}
+Candidate :: (c: *Context, header: s32, out: *VectorLoop) -> bool {
+    if !Shape(c, header) { return false }
+    head := c.function.blocks[header]
+    iv: s32 = -1
+    initial: s32 = -1
+    next: s32 = -1
+    for parameter, p: head.parameters {
+        type := c.program.types[c.function.values[parameter]]
+        if type.kind != .Integer || type.bits != 64 || !type.is_signed { continue }
+        value := c.back.arguments[p]
+        inc := c.definitions[value]
+        if inc.op != .Add || inc.operands.count != 2 || inc.operands[0] != parameter ||
+            !Constant(c, inc.operands[1], 1) { continue }
+        if iv >= 0 { return false }
+        iv = parameter; initial = c.incoming.arguments[p]; next = value
+        c.used[value] = 1; c.used[inc.operands[1]] = 1
+    }
+    if iv < 0 { return false }
+    loop := VectorLoop.{header = header, preheader = c.preheader, induction = iv,
+        initial = initial, accumulator = -1, seed = -1, limit = -1,
+        source = .{value = -1}, right = .{value = -1}, destination = .{value = -1}}
+    for block, b: c.function.blocks {
+        if c.members[b] == 0 { continue }
+        last := block.instructions[block.instructions.count - 1]
+        if last.op != .Branch { continue }
+        if last.operands[0] == c.early_test { continue }
+        test := c.definitions[last.operands[0]]
+        if test.operands.count != 2 || test.operands[0] != next { return false }
+        bound := Invariant(c, test.operands[1])
+        if bound.value < 0 || bound.field != 0 { return false }
+        positive := last.edges[0].block == header
+        if positive && test.op != .Less && test.op != .LessEqual ||
+            !positive && test.op != .Greater && test.op != .GreaterEqual { return false }
+        loop.limit = bound.value
+        loop.inclusive = test.op == .LessEqual || test.op == .Greater
+        c.used[last.operands[0]] = 1
+    }
+    if loop.limit < 0 { return false }
+    // A prefix is speculative only with respect to the count guard. An
+    // unrelated entry condition must never cause memory effects early.
+    entry := c.function.blocks[c.preheader]
+    enter := entry.instructions[entry.instructions.count - 1]
+    if enter.op == .Branch {
+        // Lowering inserts immediately before the entry comparison. Require
+        // adjacency so every input is available and no intervening effect
+        // can be moved across the prefix. Other valid CFGs remain scalar.
+        if entry.instructions.count < 2 ||
+            entry.instructions[entry.instructions.count - 2].result != enter.operands[0] { return false }
+        guard := c.definitions[enter.operands[0]]
+        if guard.operands.count != 2 || guard.operands[0] != initial ||
+            guard.operands[1] != loop.limit { return false }
+        positive := enter.edges[0].block == header
+        expected: LirOp = ifx loop.inclusive then .LessEqual else .Less
+        inverse: LirOp = ifx loop.inclusive then .Greater else .GreaterEqual
+        if guard.op != (ifx positive then expected else inverse) { return false }
+    } else if enter.op != .Jump { return false }
+    if c.early_test >= 0 {
+        early := c.definitions[c.early_test]
+        if !loop.inclusive || early.operands.count != 2 || early.operands[0] != iv ||
+            Invariant(c, early.operands[1]).value != loop.limit { return false }
+        c.used[c.early_test] = 1
+    }
+    for parameter, p: head.parameters {
+        if parameter == iv || c.back.arguments[p] == parameter { continue }
+        if loop.accumulator >= 0 { return false }
+        loop.accumulator = parameter; loop.seed = c.incoming.arguments[p]
+        expression := c.definitions[c.back.arguments[p]]
+        operation := Op(expression.op)
+        if operation == .Copy || operation == .Subtract || operation == .Multiply ||
+            expression.operands.count != 2 { return false }
+        element := expression.operands[1]
+        if expression.operands[0] != parameter {
+            if expression.operands[1] != parameter { return false }
+            element = expression.operands[0]
+        }
+        loop.type = c.function.values[parameter]
+        if c.program.types[loop.type].kind != .Integer { return false }
+        loop.source = Load(c, element, iv, loop.type)
+        if loop.source.value < 0 { return false }
+        loop.operation = operation; loop.reduction = true
+        c.used[c.back.arguments[p]] = 1
+    }
+    stores: s64
+    if !loop.reduction {
+        for block, b: c.function.blocks {
+            if c.members[b] == 0 { continue }
+            for instruction: block.instructions {
+                if instruction.op != .Store { continue }
+                stores += 1
+                value := instruction.operands[1]
+                loop.type = c.function.values[value]
+                loop.destination = Address(c, instruction.operands[0], iv, loop.type)
+                if loop.destination.value < 0 { return false }
+                invariant := Invariant(c, value)
+                if invariant.value >= 0 && invariant.field == 0 {
+                    loop.fill = true; loop.seed = invariant.value; loop.operation = .Copy
+                    loop.source = loop.destination; loop.right = loop.destination
+                    continue
+                }
+                loop.source = Load(c, value, iv, loop.type)
+                if loop.source.value >= 0 { loop.operation = .Copy; continue }
+                expression := c.definitions[value]
+                operation := Op(expression.op)
+                if operation == .Copy || expression.operands.count != 2 { return false }
+                loop.operation = operation
+                loop.source = Load(c, expression.operands[0], iv, loop.type)
+                loop.right = Load(c, expression.operands[1], iv, loop.type)
+                if loop.source.value < 0 { return false }
+                if loop.right.value < 0 {
+                    invariant = Invariant(c, expression.operands[1])
+                    if invariant.value < 0 || invariant.field != 0 { return false }
+                    loop.seed = invariant.value; loop.scalar_right = true
+                }
+                c.used[value] = 1
+            }
+        }
+        if stores != 1 { return false }
+    }
+    lane := c.program.types[loop.type]
+    if lane.kind != .Integer && lane.kind != .Float ||
+        lane.bits != 8 && lane.bits != 16 && lane.bits != 32 && lane.bits != 64 ||
+        lane.kind == .Float && lane.bits < 32 || loop.operation == .Multiply && lane.bits == 8 ||
+        lane.kind == .Float && (loop.operation == .And || loop.operation == .Or || loop.operation == .Xor) { return false }
+    for block, b: c.function.blocks {
+        if c.members[b] == 0 { continue }
+        for instruction: block.instructions {
+            if instruction.checked { return false }
+            if instruction.op == .Jump || instruction.op == .Branch || instruction.op == .Fuel { continue }
+            if instruction.op == .Store { if loop.reduction { return false }; continue }
+            if instruction.result < 0 || c.used[instruction.result] == 0 { return false }
+        }
+    }
+    if loop.right.value < 0 { loop.right = loop.source }
+    if loop.destination.value < 0 { loop.destination = loop.source }
+    if loop.seed < 0 { loop.seed = initial }
+    <<out = loop
+    return true
+}
+
+#scope_export
+VectorPlanFree :: (plan: *VectorPlan) { VecFree(plan.loops); plan.work = 0; plan.problem = .None }
+VectorPlanBuild :: (plan: *VectorPlan, program: LirProgram, function: LirFunction,
+    work: s64, bytes: s64) -> LirSsaProblem {
+    VectorPlanFree(plan)
+    if program.checks || function.external { return .None }
+    c := Context.{program = program, function = function, budget = .{work = work, bytes = bytes}}
+    defer Free(*c)
+    count := function.values.count
+    if !LirSsaReserve(*c.budget, count, size_of(LirInstruction) + 5) ||
+        !LirSsaReserve(*c.budget, function.blocks.count, 1) { return c.budget.problem }
+    if !VecResize(c.homes, count) || !VecResize(c.definitions, count) ||
+        !VecResize(c.used, count) || !VecResize(c.members, function.blocks.count) { return .Allocation }
+    for at: 0..count - 1 { c.homes[at] = -1 }
+    for block, b: function.blocks {
+        if !LirSsaSpend(*c.budget, block.instructions.count + block.parameters.count) { break }
+        for parameter: block.parameters { c.homes[parameter] = cast(s32)b }
+        for instruction: block.instructions {
+            if instruction.result < 0 { continue }
+            c.homes[instruction.result] = cast(s32)b; c.definitions[instruction.result] = instruction
+        }
+    }
+    for block, b: function.blocks {
+        if c.budget.problem != .None { break }
+        if block.parameters.count == 0 { continue }
+        loop: VectorLoop
+        if Candidate(*c, cast(s32)b, *loop) {
+            if !LirSsaReserve(*c.budget, 1, size_of(VectorLoop)) { break }
+            if !VecPush(plan.loops, loop) { c.budget.problem = .Allocation; break }
+        }
+    }
+    plan.work = c.budget.used; plan.problem = c.budget.problem
+    return plan.problem
+}

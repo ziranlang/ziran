@@ -126,6 +126,94 @@ PressureFixture :: (owner: *Machine.MachineOwner, count: s32, float: bool) -> Ma
     return LowerProgram(owner, functions[:], 0)
 }
 
+// Parameters 1 and 2 coalesce, then each crosses a call that clobbers the
+// entire float/vector bank. The first parameter is the absorbed member.
+// Reverse layout also puts the representative's uses before that member's
+// definition in linear order, while control flow still visits it first.
+MergedSpillFixture :: (owner: *Machine.MachineOwner, reverse: bool) -> Machine.MachineResult {
+    storage: [32]s32
+    at: s64 = 0
+    callee_values: [1]s32 = .[TypeInteger]
+    callee_body: [3]Lir.LirInstruction = .[Fuel(1), Constant(0, 1), Return(One(storage[:], *at, 0))]
+    callee_blocks: [1]Lir.LirBlock = .[.{instructions = callee_body[:]}]
+    values: [7]s32 = .[TypeFloat, TypeFloat, TypeFloat, TypeFloat, TypeFloat, TypeInteger, TypeInteger]
+    first: s32 = ifx reverse then 2 else 1
+    second: s32 = ifx reverse then 1 else 2
+    entry_edges: [1]Lir.LirEdge = .[.{block = first, arguments = One(storage[:], *at, 0)}]
+    entry: [3]Lir.LirInstruction = .[Fuel(1), Constant(0, 3), Jump(entry_edges[:])]
+    first_parameters: [1]s32 = .[1]
+    first_edges: [1]Lir.LirEdge = .[.{block = second, arguments = One(storage[:], *at, 1)}]
+    first_body: [3]Lir.LirInstruction = .[Call(5, 0, storage[0:0], 1),
+        Op(.Add, 3, Two(storage[:], *at, 1, 1)), Jump(first_edges[:])]
+    second_parameters: [1]s32 = .[2]
+    second_body: [3]Lir.LirInstruction = .[Call(6, 0, storage[0:0], 1),
+        Op(.Add, 4, Two(storage[:], *at, 2, 3)), Return(One(storage[:], *at, 4))]
+    blocks: [3]Lir.LirBlock
+    blocks[0] = .{instructions = entry[:]}
+    blocks[first] = .{parameters = first_parameters[:], instructions = first_body[:]}
+    blocks[second] = .{parameters = second_parameters[:], instructions = second_body[:]}
+    functions: [2]Lir.LirFunction = .[
+        .{module = 0, name = "clobber", result = TypeInteger, values = callee_values[:],
+            blocks = callee_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "merged_spill", result = TypeFloat, values = values[:],
+            blocks = blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
+// Four scalar header fields circulate through three parameter sets. Only
+// the cold growth arm calls; the fast store and reduction must stay in
+// registers even though the growth block is between them in linear layout.
+ColdJoinFixture :: (owner: *Machine.MachineOwner, reverse: bool, swap: bool) -> Machine.MachineResult {
+    storage: [96]s32
+    at: s64 = 0
+    callee_values := s32.[TypeInteger]
+    callee_body := Lir.LirInstruction.[Fuel(1), Constant(0, 1), Return(One(storage[:], *at, 0))]
+    callee_blocks := Lir.LirBlock.[.{instructions = callee_body[:]}]
+    values: [23]s32
+    for index: 0..22 { values[index] = TypeFloat }
+    values[8] = TypeBool; values[9] = TypeInteger; values[22] = TypeBool
+    grow: s32 = ifx reverse then 4 else 2
+    store: s32 = 3
+    carry: s32 = ifx reverse then 2 else 4
+    entry_edges := Lir.LirEdge.[.{block = 1, arguments = Four(storage[:], *at, 0, 1, 2, 3)}]
+    entry := Lir.LirInstruction.[Fuel(1), Constant(0, 3), Constant(1, 3), Constant(2, 4),
+        Constant(3, 3), Jump(entry_edges[:])]
+    header_parameters := s32.[4, 5, 6, 7]
+    header_edges := Lir.LirEdge.[.{block = grow},
+        .{block = store, arguments = Four(storage[:], *at, 4, 5, 6, 7)}]
+    header := Lir.LirInstruction.[Fuel(1), Op(.GreaterEqual, 8, Two(storage[:], *at, 5, 6)),
+        .{op = .Branch, result = -1, operands = One(storage[:], *at, 8), edges = header_edges[:], symbol = -1, origin = -1}]
+    grow_edges := Lir.LirEdge.[.{block = store, arguments = Four(storage[:], *at, 4, 5, 6, 7)}]
+    growth := Lir.LirInstruction.[Call(9, 0, storage[0:0], 1), Jump(grow_edges[:])]
+    store_parameters := s32.[10, 11, 12, 13]
+    store_edges := Lir.LirEdge.[.{block = carry, arguments = Four(storage[:], *at, 10, 15, 12, 16)}]
+    storing := Lir.LirInstruction.[Constant(14, 3), Op(.Add, 15, Two(storage[:], *at, 11, 14)),
+        Op(.Add, 16, Two(storage[:], *at, 13, 10)), Jump(store_edges[:])]
+    carry_parameters := s32.[17, 18, 19, 20]
+    // A rotated backedge must not join the count and capacity groups just
+    // because its endpoints alone do not interfere: their earlier members
+    // are defined simultaneously in the header and store blocks.
+    carry_edges := Lir.LirEdge.[.{block = 1,
+        arguments = Four(storage[:], *at, 17, ifx swap then 19 else 18, ifx swap then 18 else 19, 20)},
+        .{block = 5}]
+    carrying := Lir.LirInstruction.[Constant(21, 4), Op(.Less, 22, Two(storage[:], *at, 18, 21)),
+        .{op = .Branch, result = -1, operands = One(storage[:], *at, 22), edges = carry_edges[:], symbol = -1, origin = -1}]
+    exit := Lir.LirInstruction.[Return(One(storage[:], *at, 20))]
+    blocks: [6]Lir.LirBlock
+    blocks[0] = .{instructions = entry[:]}
+    blocks[1] = .{parameters = header_parameters[:], instructions = header[:]}
+    blocks[grow] = .{instructions = growth[:]}
+    blocks[store] = .{parameters = store_parameters[:], instructions = storing[:]}
+    blocks[carry] = .{parameters = carry_parameters[:], instructions = carrying[:]}
+    blocks[5] = .{instructions = exit[:]}
+    functions := Lir.LirFunction.[
+        .{module = 0, name = "growth", result = TypeInteger, values = callee_values[:],
+            blocks = callee_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "scalar_header", result = TypeFloat, values = values[:],
+            blocks = blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
 // Seven integers and two floats live across a call to `identity`.
 CallsFixture :: (owner: *Machine.MachineOwner, callee_fuel: bool) -> Machine.MachineResult {
     storage: [64]s32
@@ -506,6 +594,102 @@ FloatCallForm :: (float_result: bool, message: string) -> bool {
     value := program.operands[operand]
     return Check(value.kind == .Physical && value.class == .Float && value.id == 0 &&
         value.fixed_register == 0, message)
+}
+
+MergedSpillCases :: () -> bool {
+    for reverse: 0..1 {
+        for vector: 0..1 {
+            owner: Machine.MachineOwner
+            defer Lower.MachineFree(*owner)
+            if !Lowered("merged spill", MergedSpillFixture(*owner, reverse != 0)) { return false }
+            view := Lower.MachineProgramView(*owner)
+            if vector != 0 {
+                for index: cast(s64)0..view.virtuals.count - 1 {
+                    if view.virtuals[index].class == .Float { view.virtuals[index].class = .Vector }
+                }
+                for index: cast(s64)0..view.operands.count - 1 {
+                    if view.operands[index].class == .Float { view.operands[index].class = .Vector }
+                }
+                for index: cast(s64)0..view.copies.count - 1 {
+                    if view.copies[index].class == .Float { view.copies[index].class = .Vector }
+                }
+            }
+            first := view.functions[1].virtual_begin + 1
+            second := first + 1
+            if !Allocate("merged spill", *owner) { return false }
+            program := Lower.MachineProgramView(*owner)
+            if !Allocated(program, "merged members spilled across calls verify") { return false }
+            first_reload := false
+            second_reload := false
+            first_slot: s32 = -1
+            second_slot: s32 = -1
+            for spill: program.spills {
+                object := program.stack_objects[spill.stack_object]
+                if !Check(object.value == spill.virtual, "merged spills retain their member's slot identity") { return false }
+                if spill.virtual == first {
+                    first_slot = spill.stack_object
+                    if program.instructions[spill.instruction].opcode == .Reload { first_reload = true }
+                }
+                if spill.virtual == second {
+                    second_slot = spill.stack_object
+                    if program.instructions[spill.instruction].opcode == .Reload { second_reload = true }
+                }
+            }
+            if !Check(first_reload && second_reload && first_slot >= 0 && second_slot >= 0 && first_slot != second_slot,
+                "both coalesced members reload from their own spill objects") { return false }
+        }
+    }
+    return true
+}
+
+ColdJoinCases :: () -> bool {
+    for mode: 0..3 {
+        reverse := (mode & 1) != 0
+        owner: Machine.MachineOwner
+        defer Lower.MachineFree(*owner)
+        if !Lowered("cold growth", ColdJoinFixture(*owner, reverse, (mode & 2) != 0)) ||
+            !Allocate("cold growth", *owner) { return false }
+        program := Lower.MachineProgramView(*owner)
+        if !Allocated(program, "multi-member cold growth joins verify") { return false }
+        growth: s32 = ifx reverse then 4 else 2
+        function := program.functions[1]
+        cold_spills: s32 = 0
+        for b: function.block_begin..function.block_begin + function.block_count - 1 {
+            block := program.blocks[b]
+            for i: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+                op := program.instructions[i].opcode
+                if op != .Spill && op != .Reload { continue }
+                if block.lir_block == growth { cold_spills += 1; continue }
+                if !Check(false, "scalar header and reduction have no spills outside growth") { return false }
+            }
+        }
+        if !Check(cold_spills > 0, "growth clobbers still preserve all live float fields") { return false }
+    }
+    return true
+}
+
+MergedSpillLimitCase :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered("merged spill work limit", MergedSpillFixture(*owner, false)) { return false }
+    before := Fingerprint(Lower.MachineProgramView(*owner))
+    limits := Machine.MachineDefaultLimits()
+    limits.work = 1
+    // Find a budget that admits the verified input; exhausting work during
+    // allocation or allocated verification must keep that input unchanged.
+    while limits.work <= 1048576 {
+        program := Lower.MachineProgramView(*owner)
+        if Verify.MachineVerify(program, limits).problem == .None &&
+            Allocated.MachineVerifyFuel(program, limits).problem == .None {
+            diagnostic := RegAlloc.RegAllocAllocate(*owner, Target.TargetLinuxX64(), limits)
+            if !Check(diagnostic.problem == .Limit, "merged allocation reports exhausted work without retry") ||
+                !Intact(*owner, before, "work exhaustion leaves merged input intact") { return false }
+            return Allocate("merged spill after work exhaustion", *owner) &&
+                Allocated(Lower.MachineProgramView(*owner), "merged allocation recovers with sufficient work")
+        }
+        limits.work *= 2
+    }
+    return Check(false, "merged spill input verifies within the test work bound")
 }
 
 PressureCases :: () -> bool {
@@ -1002,8 +1186,8 @@ VectorCases :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !PressureCases() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+    if !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
         !VectorCases() { return 1 }
-    print("register allocation: pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
+    print("register allocation: merged float/vector spills in both block orders, work limits, pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
     return 0
 }

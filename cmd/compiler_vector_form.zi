@@ -1,0 +1,43 @@
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+
+// VectorLoop: (next_index, next_seed) = prefix(index, bound, seed,
+// source, right, destination, flags). It preserves all physical registers
+// except its two explicit results and flags. Lane width comes from seed.
+VectorReduce :: 256
+VectorFill :: 512
+VectorScalarRight :: 1024
+VectorInclusive :: 2048
+
+VectorLoopForm :: (program: MachineProgram, instruction: MachineInstruction) -> bool {
+    if program.target.arch != .X86_64 || program.checks || instruction.operand_count != 9 ||
+        instruction.edge_count != 0 || instruction.call != -1 || instruction.flags_use != -1 ||
+        instruction.flags_def != -1 { return false }
+    operands := program.operands[instruction.operand_begin:instruction.operand_begin + 9]
+    metadata := operands[8]
+    if metadata.kind != .Immediate || metadata.role != .Use || metadata.immediate > 4095 ||
+        (metadata.immediate & 255) > 8 { return false }
+    for at: 0..7 {
+        operand := operands[at]
+        if operand.role != (ifx at < 2 then MachineOperandRole.Define else .Use) ||
+            operand.type < 0 || operand.type >= program.types.count { return false }
+        type := program.types[operand.type]
+        if at == 0 || at == 2 || at == 3 {
+            if type.kind != .Integer || type.bits != 64 || !type.is_signed { return false }
+        } else if at >= 5 {
+            if type.kind != .Pointer { return false }
+        } else {
+            if type.kind != .Integer && type.kind != .Float ||
+                type.bits != 8 && type.bits != 16 && type.bits != 32 && type.bits != 64 { return false }
+        }
+    }
+    if operands[0].type != operands[2].type || operands[2].type != operands[3].type ||
+        operands[1].type != operands[4].type { return false }
+    lane := program.types[operands[1].type]
+    op := metadata.immediate & 255
+    reduction := (metadata.immediate & VectorReduce) != 0
+    if reduction && (lane.kind != .Integer || op == 0 || op == 2 || op == 3) { return false }
+    if lane.kind == .Float && (lane.bits < 32 || op > 3) ||
+        lane.kind == .Integer && lane.bits == 8 && op == 3 { return false }
+    return true
+}

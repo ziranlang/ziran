@@ -36,7 +36,11 @@ Item :: struct {
     interval: s32
 }
 
-UsePos :: struct { position: s32; required: bool }
+UsePos :: struct { position: s32; required: bool; value: s32 }
+
+// Coalesced values share register intervals, but keep their SSA identities
+// and spill objects. A root's representative heads its member list.
+ValueStorage :: struct { next_member: s32; slot: s32 }
 
 Interval :: struct {
     value: s32
@@ -57,7 +61,6 @@ Interval :: struct {
     hint_value: s32
     hint_position: s32
     reason: MachineSpillReason
-    slot: s32
     incoming: bool
     internal: bool
 }
@@ -83,8 +86,6 @@ CopyMove :: struct {
 PendingEdge :: struct { block: s32; edge: s32; out_block: s32 }
 
 Alloc :: struct {
-    // Merge copy-related block parameters (see Coalesce).
-    coalesce: bool
     input: MachineProgram
     target: TargetDescription
     limits: MachineLimits
@@ -119,6 +120,7 @@ Alloc :: struct {
     gen: Vec(u64)
     kill: Vec(u64)
     root_of: Vec(s32)
+    value_storage: Vec(ValueStorage)
     intervals: Vec(Interval)
     uses: Vec(UsePos)
     use_fill: Vec(s32)
@@ -456,6 +458,7 @@ ResetFunction :: (state: *Alloc) -> bool {
         !VecResizeBounded(state.param_source, count, bound) || !VecResizeBounded(state.param_pred, count, bound) ||
         !VecResizeBounded(state.def_item, count, bound) || !VecResizeBounded(state.used, count, bound) ||
         !VecResizeBounded(state.root_of, count, bound) ||
+        !VecResizeBounded(state.value_storage, count, bound) ||
         !VecResizeBounded(state.live_in, blocks * state.words, bound) ||
         !VecResizeBounded(state.live_out, blocks * state.words, bound) ||
         !VecResizeBounded(state.gen, blocks * state.words, bound) ||
@@ -471,6 +474,7 @@ ResetFunction :: (state: *Alloc) -> bool {
         state.def_item[index] = MachineNoId
         state.used[index] = 0
         state.root_of[index] = MachineNoId
+        state.value_storage[index] = .{next_member = MachineNoId, slot = MachineNoId}
     }
     for index: cast(s64)0..state.live_in.count - 1 {
         state.live_in[index] = 0; state.live_out[index] = 0; state.gen[index] = 0; state.kill[index] = 0
@@ -768,7 +772,7 @@ NewInterval :: (state: *Alloc, value: s32, bank: s32, class: MachineRegisterClas
     if !VecPush(state.intervals, .{value = value, root = id, bank = bank, class = class, start = start, end = end,
         register = MachineNoId, use_begin = 0, use_count = 0, root_use_begin = 0, root_use_count = 0,
         next = MachineNoId, prev = MachineNoId, tie_from = MachineNoId, hint = MachineNoId,
-        hint_value = MachineNoId, hint_position = MachineNoId, reason = .Pressure, slot = MachineNoId}) {
+        hint_value = MachineNoId, hint_position = MachineNoId, reason = .Pressure}) {
         unused Fail(state, .Allocation)
         return MachineNoId
     }
@@ -787,6 +791,23 @@ Extend :: (state: *Alloc, root: s32, position: s32) {
 
 // Occurrences of root intervals in position order, counted (fill == false)
 // or written (fill == true).
+LiveOccurrences :: (state: *Alloc, block: s32, position: s32, out: bool, fill: bool) -> bool {
+    for word: cast(s64)0..state.words - 1 {
+        if !Spend(state, 1) { return false }
+        at := cast(s64)block * state.words + word
+        bits := ifx out then state.live_out[at] else state.live_in[at]
+        while bits != 0 {
+            if !Spend(state, 1) { return false }
+            bit: s32 = 0
+            while ((bits >> cast(u64)bit) & 1) == 0 { bit += 1 }
+            bits = bits & ~(cast(u64)1 << cast(u64)bit)
+            value := state.function.virtual_begin + cast(s32)(word * 64) + bit
+            if !Occur(state, value, position, false, fill) { return false }
+        }
+    }
+    return true
+}
+
 Occurrences :: (state: *Alloc, fill: bool) -> bool {
     program := state.input
     function := state.function
@@ -795,6 +816,7 @@ Occurrences :: (state: *Alloc, fill: bool) -> bool {
         item := state.items[index]
         position := cast(s32)index * 2
         if item.kind == .BlockStart {
+            if !LiveOccurrences(state, item.block, position, false, fill) { return false }
             for at: state.param_begin[item.block]..state.param_begin[item.block + 1] - 1 {
                 value := function.virtual_begin + state.param_list[at]
                 if !Occur(state, value, position, false, fill) { return false }
@@ -832,6 +854,8 @@ Occurrences :: (state: *Alloc, fill: bool) -> bool {
                     EffectiveFixed(program, instruction, local) != MachineNoId { continue }
                 if !Occur(state, operand.id, position + 1, true, fill) { return false }
             }
+            if cast(s32)index == state.block_end[item.block] &&
+                !LiveOccurrences(state, item.block, position + 1, true, fill) { return false }
         }
     }
     return true
@@ -847,8 +871,46 @@ Occur :: (state: *Alloc, value: s32, position: s32, required: bool, fill: bool) 
         return true
     }
     at := state.use_fill[root]
-    state.uses[at] = .{position = position, required = required}
+    state.uses[at] = .{position = position, required = required, value = value}
     state.use_fill[root] = at + 1
+    return true
+}
+
+// Give each live block its own part of a root interval. Layout gaps and cold
+// paths no longer reserve registers for a convex hull of unrelated live
+// regions. EdgeCopies reconciles the locations at actual control-flow edges.
+BlockIntervals :: (state: *Alloc, roots: s64) -> bool {
+    for root: cast(s64)0..roots - 1 {
+        it := state.intervals[root]
+        begin := it.root_use_begin
+        finish := begin + it.root_use_count
+        previous: s32 = MachineNoId
+        while begin < finish {
+            if !Spend(state, 1) { return false }
+            block := state.items[state.uses[begin].position / 2].block
+            end := begin + 1
+            while end < finish && state.items[state.uses[end].position / 2].block == block {
+                if !Spend(state, 1) { return false }
+                end += 1
+            }
+            from := state.uses[begin].position
+            to := state.uses[end - 1].position
+            current := cast(s32)root
+            if previous != MachineNoId {
+                current = NewInterval(state, it.value, it.bank, it.class, from, to)
+                if current == MachineNoId { return false }
+                state.intervals[current].root = cast(s32)root
+                state.intervals[current].prev = previous
+                state.intervals[previous].next = current
+            }
+            state.intervals[current].start = from
+            state.intervals[current].end = to
+            state.intervals[current].use_begin = begin
+            state.intervals[current].use_count = end - begin
+            previous = current
+            begin = end
+        }
+    }
     return true
 }
 
@@ -858,22 +920,38 @@ LiveInto :: (state: *Alloc, block: s32, local: s32) -> bool {
     return ((state.live_in[word] >> cast(u64)(local % 64)) & 1) != 0
 }
 
-// Copy coalescing: a block parameter whose value an edge copies into another
-// block's parameter shares that parameter's interval when neither is live
-// where the other is defined. They are SSA values, so they never hold
-// different values at once, and the copies between them cost nothing. A loop
-// counter passed around unchanged keeps one register. Each value joins at
-// most one pair; fixed, incoming and differently classed values stay apart.
-// Fills JOINED with each absorbed local's partner, or MachineNoId.
+// Every member of two parameter groups must be dead where a member of the
+// other is defined. Checking only the edge's endpoints would miss interference
+// introduced by earlier joins, including simultaneous loop parameters.
+Joinable :: (state: *Alloc, source: s32, destination: s32) -> bool {
+    a := state.function.virtual_begin + source
+    while a != MachineNoId {
+        b := state.function.virtual_begin + destination
+        local_a := Local(state, a)
+        block_a := state.param_block[local_a]
+        while b != MachineNoId {
+            if !Spend(state, 1) { return false }
+            local_b := Local(state, b)
+            block_b := state.param_block[local_b]
+            if block_a == block_b || LiveInto(state, block_a, local_b) || LiveInto(state, block_b, local_a) {
+                return false
+            }
+            b = state.value_storage[local_b].next_member
+        }
+        a = state.value_storage[local_a].next_member
+    }
+    return true
+}
+
+// Copy-related block parameters share a register interval when their member
+// groups do not interfere. Keep every member's SSA and spill-slot identity.
+// Fixed and incoming values stay apart. JOINED maps every absorbed local
+// directly to its group's representative global virtual, or MachineNoId.
 Coalesce :: (state: *Alloc, joined: *Vec(s32)) -> bool {
     program := state.input
     function := state.function
     if !VecResizeBounded(<<joined, cast(s64)function.virtual_count, state.limits.bytes) { return Fail(state, .Allocation) }
-    taken: Vec(bool)
-    defer VecFree(taken)
-    if !VecResizeBounded(taken, cast(s64)function.virtual_count, state.limits.bytes) { return Fail(state, .Allocation) }
-    for local: 0..function.virtual_count - 1 { (<<joined)[local] = MachineNoId; taken[local] = false }
-    if !state.coalesce { return true }
+    for local: 0..function.virtual_count - 1 { (<<joined)[local] = MachineNoId }
     for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
         block := program.blocks[block_id]
         if block.instruction_count == 0 { continue }
@@ -885,20 +963,36 @@ Coalesce :: (state: *Alloc, joined: *Vec(s32)) -> bool {
                 copy := program.copies[copy_id]
                 source := Local(state, copy.source)
                 destination := Local(state, copy.destination)
-                if source == destination || taken[source] || taken[destination] { continue }
                 source_block := state.param_block[source]
                 destination_block := state.param_block[destination]
-                if source_block == MachineNoId || destination_block == MachineNoId { continue }
+                // Parameters of the same block are defined simultaneously;
+                // their live-in bits are killed even when both are used.
+                if source_block == MachineNoId || destination_block == MachineNoId || source_block == destination_block { continue }
                 from := program.virtuals[copy.source]
                 into := program.virtuals[copy.destination]
                 if !RegisterClass(from.class) || from.class != into.class || from.fixed_register != MachineNoId ||
                     into.fixed_register != MachineNoId || source < function.parameter_count ||
                     destination < function.parameter_count || state.def_item[source] == MachineNoId ||
                     state.def_item[destination] == MachineNoId { continue }
-                if LiveInto(state, source_block, destination) || LiveInto(state, destination_block, source) { continue }
-                (<<joined)[source] = copy.destination
-                taken[source] = true
-                taken[destination] = true
+                if (<<joined)[source] != MachineNoId { source = Local(state, (<<joined)[source]) }
+                if (<<joined)[destination] != MachineNoId { destination = Local(state, (<<joined)[destination]) }
+                if source == destination { continue }
+                if !Joinable(state, source, destination) {
+                    if state.diagnostic.problem != .None { return false }
+                    continue
+                }
+                member := source
+                while true {
+                    if !Spend(state, 1) { return false }
+                    (<<joined)[member] = function.virtual_begin + destination
+                    next := state.value_storage[member].next_member
+                    if next == MachineNoId {
+                        state.value_storage[member].next_member = state.value_storage[destination].next_member
+                        break
+                    }
+                    member = Local(state, next)
+                }
+                state.value_storage[destination].next_member = function.virtual_begin + source
             }
         }
     }
@@ -926,34 +1020,16 @@ BuildIntervals :: (state: *Alloc) -> bool {
         state.root_of[local] = root
         if local < function.parameter_count && value.fixed_register == MachineNoId && definition == state.block_start[function.entry - function.block_begin] {
             state.intervals[root].incoming = true
-            state.intervals[root].slot = MapStack(state, value.stack_object)
+            state.value_storage[local].slot = MapStack(state, value.stack_object)
         }
     }
     for local: 0..function.virtual_count - 1 {
-        if joined[local] != MachineNoId { state.root_of[local] = state.root_of[Local(state, joined[local])] }
-    }
-    if !Occurrences(state, false) { return false }
-    for local_block: 0..function.block_count - 1 {
-        from := state.block_start[local_block] * 2
-        to := state.block_end[local_block] * 2 + 1
-        for word: cast(s64)0..state.words - 1 {
-            if !Spend(state, 1) { return false }
-            at := cast(s64)local_block * state.words + word
-            live_in := state.live_in[at]
-            live_out := state.live_out[at]
-            bits := live_in | live_out
-            while bits != 0 {
-                bit: s32 = 0
-                while ((bits >> cast(u64)bit) & 1) == 0 { bit += 1 }
-                bits = bits & ~(cast(u64)1 << cast(u64)bit)
-                local := cast(s32)(word * 64) + bit
-                root := state.root_of[local]
-                if root == MachineNoId { return Fail(state, .Undefined, virtual = function.virtual_begin + local) }
-                if ((live_in >> cast(u64)bit) & 1) != 0 { Extend(state, root, from) }
-                if ((live_out >> cast(u64)bit) & 1) != 0 { Extend(state, root, to) }
-            }
+        if joined[local] != MachineNoId {
+            partner := Local(state, joined[local])
+            state.root_of[local] = state.root_of[partner]
         }
     }
+    if !Occurrences(state, false) { return false }
     roots := state.intervals.count
     if !VecResizeBounded(state.use_fill, roots, state.limits.bytes) { return Fail(state, .Allocation) }
     total: s64 = 0
@@ -965,7 +1041,7 @@ BuildIntervals :: (state: *Alloc) -> bool {
         total += state.intervals[root].use_count
     }
     if !VecResizeBounded(state.uses, total, state.limits.bytes) { return Fail(state, .Allocation) }
-    if !Occurrences(state, true) { return false }
+    if !Occurrences(state, true) || !BlockIntervals(state, roots) { return false }
     // Tied-input copies become short internal intervals whose register the
     // tied result must reuse.
     for index: cast(s64)0..state.items.count - 1 {
@@ -977,8 +1053,8 @@ BuildIntervals :: (state: *Alloc) -> bool {
             cast(s32)index * 2 + 1, original * 2)
         if tie == MachineNoId { return false }
         begin := cast(s32)state.uses.count
-        if !VecPush(state.uses, .{position = cast(s32)index * 2 + 1, required = true}) ||
-            !VecPush(state.uses, .{position = original * 2, required = true}) { return Fail(state, .Allocation) }
+        if !VecPush(state.uses, .{position = cast(s32)index * 2 + 1, required = true, value = item.value}) ||
+            !VecPush(state.uses, .{position = original * 2, required = true, value = item.value}) { return Fail(state, .Allocation) }
         state.intervals[tie].use_begin = begin
         state.intervals[tie].use_count = 2
         state.intervals[tie].root_use_begin = begin
@@ -992,7 +1068,9 @@ BuildIntervals :: (state: *Alloc) -> bool {
         if result.kind == .Virtual {
             result_root := state.root_of[Local(state, result.id)]
             if result_root == MachineNoId { return Fail(state, .Tie, instruction = item.instruction, virtual = result.id) }
-            state.intervals[result_root].tie_from = tie
+            result_part := Covering(state, result_root, original * 2 + 1)
+            if result_part == MachineNoId { return Fail(state, .Tie, instruction = item.instruction, virtual = result.id) }
+            state.intervals[result_part].tie_from = tie
         }
     }
     // A block parameter prefers its first incoming copy source's register.
@@ -1208,6 +1286,9 @@ FixedBlocked :: (state: *Alloc, bank: s32, register: s32, position: s32) -> s32 
 HintRegister :: (state: *Alloc, interval: s32) -> s32 {
     it := state.intervals[interval]
     if it.hint != MachineNoId { return it.hint }
+    if it.prev != MachineNoId && state.intervals[it.prev].register != MachineNoId {
+        return state.intervals[it.prev].register
+    }
     if it.hint_value == MachineNoId { return MachineNoId }
     root := state.root_of[Local(state, it.hint_value)]
     if root == MachineNoId { return MachineNoId }
@@ -1395,7 +1476,7 @@ AssignSlots :: (state: *Alloc) -> bool {
     roots := state.intervals.count
     for index: cast(s64)0..roots - 1 {
         it := state.intervals[index]
-        if it.root != cast(s32)index || it.slot != MachineNoId { continue }
+        if it.root != cast(s32)index { continue }
         memory := false
         at := cast(s32)index
         while at != MachineNoId {
@@ -1403,18 +1484,26 @@ AssignSlots :: (state: *Alloc) -> bool {
             at = state.intervals[at].next
         }
         if !memory { continue }
-        value := program.virtuals[it.value]
-        size: s64 = 8
-        alignment: s32 = 8
-        if it.class == .Vector {
-            size = ifx program.types[value.type].size > 16 then program.types[value.type].size else 16
-            size = (size + 15) & ~cast(s64)15
-            alignment = 16
+        member := it.value
+        while member != MachineNoId {
+            if !Spend(state, 1) { return false }
+            local := Local(state, member)
+            if state.value_storage[local].slot == MachineNoId {
+                value := program.virtuals[member]
+                size: s64 = 8
+                alignment: s32 = 8
+                if it.class == .Vector {
+                    size = ifx program.types[value.type].size > 16 then program.types[value.type].size else 16
+                    size = (size + 15) & ~cast(s64)15
+                    alignment = 16
+                }
+                slot := OutStack(state, .{function = state.function_id, kind = .Spill, size = size, alignment = alignment,
+                    type = value.type, origin = value.origin, offset = 0, value = member})
+                if slot == MachineNoId { return false }
+                state.value_storage[local].slot = slot
+            }
+            member = state.value_storage[local].next_member
         }
-        slot := OutStack(state, .{function = state.function_id, kind = .Spill, size = size, alignment = alignment,
-            type = value.type, origin = value.origin, offset = 0, value = it.value})
-        if slot == MachineNoId { return false }
-        state.intervals[index].slot = slot
     }
     return true
 }
@@ -1430,23 +1519,35 @@ LocationRegister :: (state: *Alloc, root: s32, position: s32) -> s32 {
 
 ValueRoot :: (state: *Alloc, value: s32) -> s32 { return state.root_of[Local(state, value)] }
 
-LiveAtGap :: (state: *Alloc, interval: s32, item: s32) -> bool {
+ValueSlot :: (state: *Alloc, value: s32) -> s32 { return state.value_storage[Local(state, value)].slot }
+
+// Return the member whose value crosses this instruction gap. Hull intervals
+// can cross dead regions and a different member's definition, neither of
+// which requires a transfer of the representative value.
+LiveAtGap :: (state: *Alloc, interval: s32, item: s32) -> s32 {
     it := state.intervals[interval]
-    if it.internal { return true }
+    if it.internal { return it.value }
     block := state.items[item].block
-    local := Local(state, it.value)
     root := state.intervals[it.root]
-    defined := LiveIn(state, block, it.value) ||
-        state.def_item[local] != MachineNoId && state.items[state.def_item[local]].block == block &&
-        state.def_item[local] < item
-    if !defined { return false }
-    if LiveOut(state, block, it.value) { return true }
     limit := state.block_end[block] * 2 + 1
-    for at: root.root_use_begin..root.root_use_begin + root.root_use_count - 1 {
-        position := state.uses[at].position
-        if position >= item * 2 && position <= limit { return true }
+    value := root.value
+    while value != MachineNoId {
+        if !Spend(state, 1) { return MachineNoId }
+        local := Local(state, value)
+        defined := LiveIn(state, block, value) ||
+            state.def_item[local] != MachineNoId && state.items[state.def_item[local]].block == block &&
+            state.def_item[local] < item
+        if defined {
+            if LiveOut(state, block, value) { return value }
+            for at: root.root_use_begin..root.root_use_begin + root.root_use_count - 1 {
+                if !Spend(state, 1) { return MachineNoId }
+                use := state.uses[at]
+                if use.value == value && use.position >= item * 2 && use.position <= limit { return value }
+            }
+        }
+        value = state.value_storage[local].next_member
     }
-    return false
+    return MachineNoId
 }
 
 CollectBoundaries :: (state: *Alloc) -> bool {
@@ -1696,9 +1797,9 @@ ValueCopy :: (state: *Alloc, destination_value: s32, destination_position: s32, 
     from := state.intervals[source]
     reason := ifx to.register == MachineNoId then to.reason else from.reason
     return AddCopy(state, .{bank = to.bank, class = to.class, destination_register = to.register,
-        destination_slot = ifx to.register == MachineNoId then state.intervals[destination_root].slot else MachineNoId,
+        destination_slot = ifx to.register == MachineNoId then ValueSlot(state, destination_value) else MachineNoId,
         source_register = from.register,
-        source_slot = ifx from.register == MachineNoId then state.intervals[source_root].slot else MachineNoId,
+        source_slot = ifx from.register == MachineNoId then ValueSlot(state, source_value) else MachineNoId,
         destination_value = destination_value, source_value = source_value,
         type = state.input.virtuals[destination_value].type, reason = reason})
 }
@@ -1754,12 +1855,15 @@ GapMoves :: (state: *Alloc, item: s32) -> bool {
         child := state.boundaries[at].interval
         to := state.intervals[child]
         from := state.intervals[to.prev]
-        if to.register == from.register || !LiveAtGap(state, child, item) { continue }
-        slot := state.intervals[to.root].slot
+        if to.register == from.register { continue }
+        value := LiveAtGap(state, child, item)
+        if state.diagnostic.problem != .None { return false }
+        if value == MachineNoId { continue }
+        slot := ValueSlot(state, value)
         if !AddCopy(state, .{bank = to.bank, class = to.class, destination_register = to.register,
             destination_slot = ifx to.register == MachineNoId then slot else MachineNoId,
             source_register = from.register, source_slot = ifx from.register == MachineNoId then slot else MachineNoId,
-            destination_value = to.value, source_value = to.value, type = state.input.virtuals[to.value].type,
+            destination_value = value, source_value = value, type = state.input.virtuals[value].type,
             reason = ifx to.register == MachineNoId then to.reason else from.reason}) { return false }
     }
     // Boundary assignments at one instruction gap are parallel. Resolve the
@@ -1780,7 +1884,7 @@ ValueOperand :: (state: *Alloc, role: MachineOperandRole, value: s32, position: 
         if required {
             unused Fail(state, .Pressure, virtual = value); return MachineNoId
         }
-        return StackOperand(state, role, class, state.intervals[root].slot, value)
+        return StackOperand(state, role, class, ValueSlot(state, value), value)
     }
     type := state.input.virtuals[value].type
     return OutOperand(state, .{kind = .Physical, role = role, class = class, id = it.register, type = type,
@@ -1907,7 +2011,7 @@ RewriteItem :: (state: *Alloc, index: s32) -> bool {
         child := Covering(state, root, position + 1)
         if child == MachineNoId { return Fail(state, .Allocation, virtual = item.value) }
         register := state.intervals[child].register
-        return EmitTransfer(state, class, register, ifx register == MachineNoId then state.intervals[root].slot else MachineNoId,
+        return EmitTransfer(state, class, register, ifx register == MachineNoId then ValueSlot(state, item.value) else MachineNoId,
             item.value, item.physical, MachineNoId, item.value, ifx item.kind == .Parameter then .Parameter else state.intervals[child].reason)
     }
     child := Covering(state, root, position)
@@ -1919,7 +2023,7 @@ RewriteItem :: (state: *Alloc, index: s32) -> bool {
         if destination == MachineNoId { return Fail(state, .Tie, instruction = item.instruction, virtual = item.value) }
     }
     return EmitTransfer(state, class, destination, MachineNoId, item.value, source,
-        ifx source == MachineNoId then state.intervals[root].slot else MachineNoId, item.value, state.intervals[child].reason)
+        ifx source == MachineNoId then ValueSlot(state, item.value) else MachineNoId, item.value, state.intervals[child].reason)
 }
 
 EmitBlock :: (state: *Alloc, block_local: s32) -> bool {
@@ -2296,6 +2400,7 @@ FreeScratch :: (state: *Alloc) {
     VecFree(state.gen)
     VecFree(state.kill)
     VecFree(state.root_of)
+    VecFree(state.value_storage)
     VecFree(state.intervals)
     VecFree(state.uses)
     VecFree(state.use_fill)
@@ -2363,19 +2468,13 @@ RegAllocAllocate :: (owner: *MachineOwner, target: TargetDescription, limits: Ma
     if input.problem != .None { return input }
     fuel := MachineVerifyFuel(program, limits)
     if fuel.problem != .None { return fuel }
-    // Coalesced allocations are checked by the allocated verifier like any
-    // other; a program it rejects (a merged interval split where the merge
-    // does not hold) is allocated again without coalescing.
-    diagnostic = Attempt(owner, program, target, limits, true)
-    if diagnostic.problem != .None { diagnostic = Attempt(owner, program, target, limits, false) }
-    return diagnostic
+    return Attempt(owner, program, target, limits)
 }
 
 // One verified allocation of PROGRAM, published into OWNER only on success.
-Attempt :: (owner: *MachineOwner, program: MachineProgram, target: TargetDescription, limits: MachineLimits,
-    coalesce: bool) -> MachineDiagnostic {
+Attempt :: (owner: *MachineOwner, program: MachineProgram, target: TargetDescription, limits: MachineLimits) -> MachineDiagnostic {
     built: MachineOwner
-    state := Alloc.{input = program, target = target, limits = limits, out = *built, coalesce = coalesce,
+    state := Alloc.{input = program, target = target, limits = limits, out = *built,
         diagnostic = NoDiagnostic(), remaining = limits.work, function_id = MachineNoId, origin = MachineNoId}
     if !Run(*state) {
         FreeScratch(*state)

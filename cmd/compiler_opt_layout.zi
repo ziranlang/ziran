@@ -1,0 +1,161 @@
+using IR :: #import "compiler_lowered_ir"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+LirLayoutResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; functions: s64; blocks: s64; work: s64; scratch_bytes: s64 }
+
+#scope_file
+Exit :: (block: LirBlock) -> bool {
+    op := block.instructions[block.instructions.count - 1].op
+    return op == .Return || op == .Trap || op == .Unreachable
+}
+
+// Keep short continuations together and leave returns and allocation/call
+// paths behind them. This is a deterministic static order, not a profile.
+Cost :: (block: LirBlock, budget: *LirSsaBudget) -> s64 {
+    cost := block.instructions.count
+    if Exit(block) { cost += 1048576 }
+    for instruction: block.instructions {
+        if !LirSsaSpend(budget, 1) { return 0 }
+        if instruction.op == .Call || instruction.op == .CallIndirect ||
+            instruction.op == .HostCall || instruction.op == .Resize { cost += 32 }
+    }
+    return cost
+}
+
+Order :: (function: LirFunction, order: []s32, position: []s32,
+    costs: []s64, budget: *LirSsaBudget) -> bool {
+    for b: 0..function.blocks.count - 1 {
+        if !LirSsaSpend(budget, 1) { return false }
+        position[b] = -1
+        costs[b] = Cost(function.blocks[b], budget)
+        if budget.problem != .None { return false }
+    }
+    next := function.entry
+    for at: 0..function.blocks.count - 1 {
+        if next < 0 {
+            // Preserve source order between traces, placing exits last.
+            for b: 0..function.blocks.count - 1 {
+                if !LirSsaSpend(budget, 1) { return false }
+                if position[b] >= 0 { continue }
+                if next < 0 || Exit(function.blocks[next]) && !Exit(function.blocks[b]) { next = cast(s32)b }
+            }
+        }
+        order[at] = next
+        position[next] = cast(s32)at
+        block := function.blocks[next]
+        terminal := block.instructions[block.instructions.count - 1]
+        next = -1
+        for edge: terminal.edges {
+            if !LirSsaSpend(budget, 1) { return false }
+            candidate := edge.block
+            if position[candidate] >= 0 { continue }
+            if next < 0 || costs[candidate] < costs[next] { next = candidate }
+        }
+    }
+    return true
+}
+
+Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64,
+    order: []s32, position: []s32, limits: LirLimits, budget: *LirSsaBudget) -> LirCodecResult {
+    function := program.functions[fi]
+    count: s64
+    edge_count: s64
+    for block: function.blocks {
+        if !LirSsaSpend(budget, block.instructions.count + 1) { return .{} }
+        count += block.instructions.count
+        for instruction: block.instructions { edge_count += instruction.edges.count }
+    }
+    if !LirSsaReserve(budget, count, 112) || !LirSsaReserve(budget, edge_count, 24) ||
+        !LirSsaReserve(budget, function.blocks.count, 32) ||
+        !LirSsaReserve(budget, program.functions.count, 112) { return .{} }
+    instructions: Vec(LirInstruction)
+    edges: Vec(LirEdge)
+    blocks: Vec(LirBlock)
+    functions: Vec(LirFunction)
+    defer VecFree(instructions)
+    defer VecFree(edges)
+    defer VecFree(blocks)
+    defer VecFree(functions)
+    if !VecResizeBounded(instructions, count, count) || !VecResizeBounded(edges, edge_count, edge_count) ||
+        !VecResizeBounded(blocks, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(functions, program.functions.count, program.functions.count) {
+        budget.problem = .Allocation
+        return .{}
+    }
+    ip: s64
+    ep: s64
+    for at: 0..order.count - 1 {
+        block := function.blocks[order[at]]
+        begin := ip
+        for instruction: block.instructions {
+            if !LirSsaSpend(budget, instruction.edges.count + 1) { return .{} }
+            edge_begin := ep
+            for edge: instruction.edges {
+                edge.block = position[edge.block]
+                edges[ep] = edge
+                ep += 1
+            }
+            instruction.edges = edges[edge_begin:ep]
+            instructions[ip] = instruction
+            ip += 1
+        }
+        blocks[at] = .{parameters = block.parameters, instructions = instructions[begin:ip]}
+    }
+    for at: 0..functions.count - 1 { functions[at] = program.functions[at] }
+    function.blocks = blocks[:]
+    function.entry = position[function.entry]
+    functions[fi] = function
+    program.functions = functions[:]
+    empty: []u8
+    measured := LirWrite(program, empty)
+    if measured.problem != .None { return measured }
+    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
+    written := LirWrite(program, encoded[:])
+    if written.problem != .None { return written }
+    // No borrowed owner slice is used after the replacement.
+    return LirRead(storage, TextView(encoded[:]), limits)
+}
+
+#scope_export
+// Reorder blocks and remap edge targets together. Parameters, instructions,
+// effects, branch polarity and origins are unchanged. Verified input only.
+LirLayout :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLayoutResult {
+    result: LirLayoutResult
+    budget := LirSsaBudget.{work = work, bytes = limits.bytes}
+    count := LirReadProgram(storage).functions.count
+    for fi: 0..count - 1 {
+        budget.reserved = 0
+        program := LirReadProgram(storage)
+        function := program.functions[fi]
+        if !LirSsaSpend(*budget, 1) { break }
+        if function.external || function.blocks.count < 2 { continue }
+        blocks := function.blocks.count
+        if !LirSsaReserve(*budget, blocks, 16) { break }
+        order: Vec(s32)
+        position: Vec(s32)
+        costs: Vec(s64)
+        if !VecResizeBounded(order, blocks, blocks) || !VecResizeBounded(position, blocks, blocks) ||
+            !VecResizeBounded(costs, blocks, blocks) { budget.problem = .Allocation }
+        if budget.problem == .None && Order(function, order[:], position[:], costs[:], *budget) {
+            changed := false
+            for at: 0..blocks - 1 { if order[at] != at { changed = true } }
+            if changed {
+                result.codec = Rebuild(storage, program, fi, order[:], position[:], limits, *budget)
+                if budget.problem == .None && result.codec.problem == .None { result.functions += 1; result.blocks += blocks }
+            }
+        }
+        VecFree(order)
+        VecFree(position)
+        VecFree(costs)
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+        if budget.problem != .None || result.codec.problem != .None { break }
+    }
+    result.problem = budget.problem
+    result.work = budget.used
+    return result
+}

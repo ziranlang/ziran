@@ -1,0 +1,164 @@
+#import "native_test"
+#import "check_support"
+#import "std/text_tools"
+#import "std/file_tree_linux"
+#import "std/byte_text_linux"
+using IR :: #import "compiler_lowered_ir"
+using Link :: #import "compiler_exec_link"
+using Opt :: #import "compiler_opt"
+using Vectorizer :: #import "compiler_vectorize"
+using Machine :: #import "compiler_machine_ir"
+using Lower :: #import "compiler_machine_lower"
+using RegAlloc :: #import "compiler_regalloc"
+using Pipeline :: #import "compiler_machine_pipeline"
+using X64 :: #import "compiler_x86_64"
+using Target :: #import "compiler_target"
+using Verify :: #import "compiler_lowered_verify"
+using Vectors :: #import "std/vec"
+
+GuardPlacement :: (test: *NativeTest, program: LirProgram, function: LirFunction, loop: VectorLoop) -> bool {
+    entry := function.blocks[loop.preheader].instructions
+    code: Vec(LirInstruction)
+    defer VecFree(code)
+    effect: s32
+    for at: 0..entry.count - 2 {
+        if !VecPush(code, entry[at]) { return false }
+        if entry[at].effect > effect { effect = entry[at].effect }
+    }
+    // Valid LIR may have an instruction between the comparison and branch.
+    // The native prefix must decline instead of assuming adjacency.
+    if !VecPush(code, .{op = .Fuel, result = -1, symbol = -1, immediate = 1,
+        effect = effect + 1, origin = entry[entry.count - 1].origin}) ||
+        !VecPush(code, entry[entry.count - 1]) { return false }
+    function.blocks[loop.preheader].instructions = code[:]
+    defer { function.blocks[loop.preheader].instructions = entry }
+    verified := LirVerify(program, LirDefaultLimits())
+    if !NativeAssert(test, verified.problem == .None, CheckConcat(
+        "nonadjacent guard fixture is valid LIR: ", CheckNumber(cast(s32)verified.problem))) { return false }
+    plan: VectorPlan
+    defer VectorPlanFree(*plan)
+    if !NativeAssert(test, VectorPlanBuild(*plan, program, function, 10000000, 16777216) == .None,
+        "analyze nonadjacent entry guard") { return false }
+    for at: 0..plan.loops.count - 1 {
+        if !NativeAssert(test, plan.loops[at].header != loop.header,
+            "nonadjacent entry guard retains scalar loop") { return false }
+    }
+    return true
+}
+
+Inspect :: (test: *NativeTest, path: string, checked: bool, elf: string) -> bool {
+    data := NativeRead(test, path)
+    owner: ZxExecOwner
+    defer ZxExecReadFree(*owner)
+    read := ZxExecRead(*owner, data, LirDefaultLimits())
+    if !NativeAssert(test, read.problem == .None, "read vector fixture ZX") { return false }
+    optimized: LirOptOwner
+    defer LirOptFree(*optimized)
+    built := LirOptBuild(*optimized, ZxExecReadProgram(*owner), LirDefaultLimits(), LirOptDefaultOptions())
+    if !NativeAssert(test, built.problem == .None, "optimize vector fixture") { return false }
+    program := LirOptProgram(*optimized)
+    count: s64
+    operations: [9]s64
+    fills: s64
+    float_maps: s64
+    placement_tested: bool
+    plan: VectorPlan
+    defer VectorPlanFree(*plan)
+    for function: program.functions {
+        problem := VectorPlanBuild(*plan, program, function, 10000000, 16777216)
+        if !NativeAssert(test, problem == .None, "bounded vector analysis") { return false }
+        if function.name == "CheckedSum" && !NativeAssert(test, plan.loops.count == 0,
+            "#checks access retains scalar loop") { return false }
+        count += plan.loops.count
+        for at: 0..plan.loops.count - 1 {
+            loop := plan.loops[at]
+            entry := function.blocks[loop.preheader].instructions
+            if !checked && !placement_tested && entry[entry.count - 1].op == .Branch {
+                if !GuardPlacement(test, program, function, loop) { return false }
+                placement_tested = true
+            }
+            operations[cast(s32)loop.operation] += 1
+            if loop.fill { fills += 1 }
+            if program.types[loop.type].kind == .Float {
+                if !NativeAssert(test, !loop.reduction, "floating reductions retain scalar order") { return false }
+                float_maps += 1
+            }
+        }
+    }
+    if !checked {
+        if !NativeAssert(test, placement_tested, "entry guard placement negative coverage") { return false }
+        for op: 0..6 {
+            if !NativeAssert(test, operations[op] > 0, "copy/arithmetic/bitwise vector coverage") { return false }
+        }
+        if !NativeAssert(test, fills > 0 && float_maps > 0, "fill and floating map coverage") { return false }
+        for function: program.functions {
+            if function.external { continue }
+            limited := VectorPlanBuild(*plan, program, function, 0, 16777216)
+            if !NativeAssert(test, limited == .Limit, "vector analysis respects work budget") { return false }
+            break
+        }
+    }
+    machine: MachineOwner
+    defer MachineFree(*machine)
+    options := MachineDefaultOptions(); options.fuel = false; options.executable = true
+    lowered := MachineLower(*machine, program, TargetLinuxX64(), options, MachineDefaultLimits())
+    if !NativeAssert(test, lowered.problem == .None, CheckConcat("vector machine lowering: ", CheckNumber(cast(s32)lowered.problem))) { return false }
+    emitted: s64
+    for instruction: MachineProgramView(*machine).instructions { if instruction.opcode == .VectorLoop { emitted += 1 } }
+    print("vector plans=% machine prefixes=% checks=%\n", count, emitted, checked)
+    if !NativeAssert(test, ifx checked then count == 0 && emitted == 0 else count >= 4 && emitted == count,
+        "expected vector prefixes and checked scalar fallback") { return false }
+    if !checked {
+        allocated := RegAllocAllocate(*machine, TargetLinuxX64(), MachineDefaultLimits())
+        if !NativeAssert(test, allocated.problem == .None, "allocate vector fixture") { return false }
+        invalid_at: s32 = -1
+        for instruction: MachineProgramView(*machine).instructions {
+            if instruction.opcode == .VectorLoop { invalid_at = instruction.operand_begin + 8; break }
+        }
+        if !NativeAssert(test, invalid_at >= 0, "allocated vector fixture has a prefix") { return false }
+        saved := machine.operands[invalid_at].immediate
+        machine.operands[invalid_at].immediate = 255
+        rejected: MachineX64Owner
+        defer MachineX64Free(*rejected)
+        invalid := MachineX64Encode(MachineProgramView(*machine), MachineDefaultLimits(), *rejected)
+        machine.operands[invalid_at].immediate = saved
+        if !NativeAssert(test, invalid.problem != .None && !rejected.valid,
+            "invalid vector form must fail with a diagnostic and no image") { return false }
+    }
+    native: MachineNativeOwner
+    defer MachineNativeFree(*native)
+    encoded := MachineNativeBuild(program, TargetLinuxX64(), MachineDefaultLimits(), *native, MachineX64InitialFuel, .{})
+    if !NativeAssert(test, encoded.problem == .None,
+        CheckConcat("current-source vector encoder: ", CheckNumber(cast(s32)encoded.problem))) { return false }
+    if !NativeWrite(test, elf, TextFromBytes(native.image)) { return false }
+    executable := string.["chmod", "+x", elf]
+    unused NativeRun(test, executable[:])
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "vectorize-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    tools := TextDetach(TextCopy(PathParent(test.ziran)))
+    source := CheckPath(test.repo, "tests/spec/native_vector_loops.zi")
+    root := CheckPath(test.repo, "tests/spec")
+    for checked: 0..1 {
+        zx := CheckPath(test.work, CheckConcat("fixture", CheckConcat(CheckNumber(checked), ".zx")))
+        elf := CheckPath(test.work, CheckConcat("fixture", CheckConcat(CheckNumber(checked), ".native")))
+        lower := string.[CheckPath(tools, "zi2zx"), "--root", root, "--entry", "native_vector_loops:main", "-o", zx, source]
+        lower_checked := string.[CheckPath(tools, "zi2zx"), "--checks", "--root", root, "--entry", "native_vector_loops:main", "-o", zx, source]
+        unused NativeRun(*test, ifx checked == 1 then lower_checked[:] else lower[:])
+        if test.failed || !Inspect(*test, zx, checked == 1, elf) { return 1 }
+        reference_command := string.[test.ziran, "run", "--target=c", "--root", root, "--entry", "native_vector_loops:main", source]
+        reference := NativeRun(*test, reference_command[:])
+        native_command := string.[elf]
+        actual := NativeRun(*test, native_command[:])
+        if !NativeAssert(*test, actual.output == reference.output && actual.code == reference.code,
+            "SSE2 chunks and scalar remainders differ from C") { return 1 }
+    }
+    if test.failed { return 1 }
+    print("vectorizer: lengths 0-67, deterministic random data, C parity and checks fallback\n")
+    return 0
+}

@@ -1,12 +1,13 @@
 ASSEMBLY_C := $(BUILD_DIR)/compiler-assembly
-ASSEMBLY_MACHINE_SOURCES := cmd/compiler_target.zi cmd/compiler_machine_image.zi cmd/compiler_abi.zi cmd/compiler_machine_ir.zi \
+ASSEMBLY_MACHINE_SOURCES := cmd/compiler_vector_form.zi cmd/compiler_vectorize.zi cmd/compiler_vector_x86.zi \
+     cmd/compiler_target.zi cmd/compiler_machine_image.zi cmd/compiler_abi.zi cmd/compiler_machine_ir.zi \
     cmd/compiler_machine_verify.zi cmd/compiler_machine_aggregate.zi cmd/compiler_machine_fields.zi cmd/compiler_machine_select.zi cmd/compiler_machine_lower.zi \
     cmd/compiler_machine_verify_allocated.zi cmd/compiler_regalloc.zi cmd/compiler_x86_bytes.zi cmd/compiler_x86_64.zi cmd/compiler_x86_runtime.zi \
     cmd/compiler_x86_win64.zi cmd/compiler_x86_host.zi cmd/compiler_x86_image.zi \
     cmd/compiler_aarch64.zi cmd/compiler_armv7.zi \
     cmd/compiler_arm_bytes.zi \
     cmd/compiler_machine_elf.zi cmd/compiler_machine_pe.zi cmd/compiler_machine_pipeline.zi cmd/compiler_native_cache.zi
-ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_inline.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi $(ASSEMBLY_MACHINE_SOURCES)
+ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_loop.zi cmd/compiler_opt_licm.zi cmd/compiler_opt_induction.zi cmd/compiler_opt_layout.zi cmd/compiler_opt_inline.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi $(ASSEMBLY_MACHINE_SOURCES)
 
 ifneq ($(BOOTSTRAP),1)
 ifeq ($(NATIVE_HOST_ENABLED),1)
@@ -57,7 +58,8 @@ $(BUILD_DIR)/obj/assembly-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(BUILD_D
 # engine, including its own compiler_bundle symbols. Keep the native machine
 # pipeline in a separate relocatable object so linking libziran cannot pull in a
 # second copy of those public symbols from assembly-core.o.
-ASSEMBLY_NATIVE_MODULES := compiler_abi compiler_machine_image \
+ASSEMBLY_NATIVE_MODULES := compiler_vector_form compiler_vectorize compiler_vector_x86 compiler_opt_ssa \
+     compiler_abi compiler_machine_image \
     compiler_machine_ir compiler_machine_verify \
     compiler_machine_aggregate compiler_machine_fields compiler_machine_select compiler_machine_lower compiler_machine_verify_allocated compiler_regalloc \
     compiler_target compiler_learning compiler_learning_policy compiler_x86_bytes compiler_x86_64 compiler_x86_runtime compiler_aarch64 compiler_armv7 \

@@ -1,0 +1,165 @@
+using IR :: #import "compiler_lowered_ir"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Loop :: #import "compiler_opt_loop"
+using Vectors :: #import "std/vec"
+
+LirLicmResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; loops: s64; instructions: s64; work: s64; scratch_bytes: s64 }
+
+#scope_file
+Integer :: (program: LirProgram, type: s32) -> bool {
+    kind := program.types[type].kind
+    return kind == .Integer || kind == .Bool
+}
+
+// These operations are total: executing one on a zero-trip path cannot
+// introduce a trap, memory access, allocation or observable effect. In
+// particular, division, shifts, float conversions and addresses derived
+// from pointers are deliberately absent.
+Movable :: (program: LirProgram, function: LirFunction, instruction: LirInstruction) -> bool {
+    if instruction.result < 0 || instruction.effect != 0 || instruction.edges.count != 0 { return false }
+    op := instruction.op
+    if op == .Constant || op == .Null || op == .GlobalAddress || op == .FunctionAddress { return true }
+    if !Integer(program, function.values[instruction.result]) { return false }
+    for value: instruction.operands { if !Integer(program, function.values[value]) { return false } }
+    return op == .Add || op == .Subtract || op == .Multiply || op == .Negate ||
+        op == .BitAnd || op == .BitOr || op == .BitXor || op == .BitNot ||
+        op == .Equal || op == .NotEqual || op == .Less || op == .LessEqual ||
+        op == .Greater || op == .GreaterEqual || op == .Convert || op == .Bitcast
+}
+
+Select :: (program: LirProgram, function: LirFunction, plan: *LirLoopPlan,
+    homes: []s32, selected: []u8, hoisted: []LirInstruction, budget: *LirSsaBudget) -> s64 {
+    if !LirSsaSpend(budget, selected.count) { return -1 }
+    for at: 0..selected.count - 1 { selected[at] = 0 }
+    count: s64
+    changed := true
+    while changed {
+        changed = false
+        for block, b: function.blocks {
+            if !LirSsaSpend(budget, 1) { return -1 }
+            if plan.members[b] == 0 { continue }
+            for instruction: block.instructions {
+                if !LirSsaSpend(budget, instruction.operands.count + 1) { return -1 }
+                if instruction.result < 0 || selected[instruction.result] != 0 || !Movable(program, function, instruction) { continue }
+                invariant := true
+                for value: instruction.operands {
+                    home := homes[value]
+                    if home >= 0 && plan.members[home] != 0 && selected[value] == 0 { invariant = false }
+                }
+                if !invariant { continue }
+                hoisted[count] = instruction
+                count += 1
+                selected[instruction.result] = 1
+                changed = true
+            }
+        }
+    }
+    return count
+}
+
+Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64,
+    plan: *LirLoopPlan, selected: []u8, hoisted: []LirInstruction,
+    limits: LirLimits, budget: *LirSsaBudget) -> LirCodecResult {
+    function := program.functions[fi]
+    count: s64
+    for block: function.blocks {
+        if !LirSsaSpend(budget, 1) { return .{} }
+        count += block.instructions.count
+    }
+    if !LirSsaReserve(budget, count, 112) || !LirSsaReserve(budget, function.blocks.count, 32) ||
+        !LirSsaReserve(budget, program.functions.count, 112) { return .{} }
+    instructions: Vec(LirInstruction)
+    blocks: Vec(LirBlock)
+    functions: Vec(LirFunction)
+    defer VecFree(instructions)
+    defer VecFree(blocks)
+    defer VecFree(functions)
+    if !VecResizeBounded(instructions, count, count) || !VecResizeBounded(blocks, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(functions, program.functions.count, program.functions.count) {
+        budget.problem = .Allocation
+        return .{}
+    }
+    at: s64
+    for block, b: function.blocks {
+        begin := at
+        for instruction, i: block.instructions {
+            if !LirSsaSpend(budget, 1) { return .{} }
+            if b == plan.preheader && i == block.instructions.count - 1 {
+                if !LirSsaSpend(budget, hoisted.count) { return .{} }
+                for moved: hoisted { instructions[at] = moved; at += 1 }
+            }
+            if plan.members[b] != 0 && instruction.result >= 0 && selected[instruction.result] != 0 { continue }
+            instructions[at] = instruction
+            at += 1
+        }
+        blocks[b] = .{parameters = block.parameters, instructions = instructions[begin:at]}
+    }
+    for f: 0..functions.count - 1 {
+        if !LirSsaSpend(budget, 1) { return .{} }
+        functions[f] = program.functions[f]
+    }
+    function.blocks = blocks[:]
+    functions[fi] = function
+    program.functions = functions[:]
+    empty: []u8
+    measured := LirWrite(program, empty)
+    if measured.problem != .None { return measured }
+    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
+    written := LirWrite(program, encoded[:])
+    if written.problem != .None { return written }
+    // Borrowed program slices are no longer used after replacing the owner.
+    return LirRead(storage, TextView(encoded[:]), limits)
+}
+
+#scope_export
+// Verified input only. Hoist total scalar expressions through a unique
+// unconditional preheader, before rotation duplicates the loop test.
+LirLicm :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLicmResult {
+    result: LirLicmResult
+    budget := LirSsaBudget.{work = work, bytes = limits.bytes}
+    functions := LirReadProgram(storage).functions.count
+    for fi: 0..functions - 1 {
+        blocks := LirReadProgram(storage).functions[fi].blocks.count
+        for header: 0..blocks - 1 {
+            budget.reserved = 0
+            program := LirReadProgram(storage)
+            function := program.functions[fi]
+            if !LirSsaSpend(*budget, 1) { break }
+            if function.external { continue }
+            plan: LirLoopPlan
+            homes: Vec(s32)
+            selected: Vec(u8)
+            hoisted: Vec(LirInstruction)
+            supported := LirLoopFind(*plan, function, cast(s32)header, *budget)
+            if supported && LirSsaReserve(*budget, function.values.count, 117) {
+                if !VecResizeBounded(homes, function.values.count, function.values.count) ||
+                    !VecResizeBounded(selected, function.values.count, function.values.count) ||
+                    !VecResizeBounded(hoisted, function.values.count, function.values.count) { budget.problem = .Allocation }
+                if budget.problem == .None && LirLoopDefinitions(function, homes[:], *budget) {
+                    count := Select(program, function, *plan, homes[:], selected[:], hoisted[:], *budget)
+                    if count > 0 {
+                        result.codec = Rebuild(storage, program, fi, *plan, selected[:], hoisted[:count], limits, *budget)
+                        if budget.problem == .None && result.codec.problem == .None {
+                            result.loops += 1
+                            result.instructions += count
+                        }
+                    }
+                }
+            }
+            LirLoopFree(*plan)
+            VecFree(homes)
+            VecFree(selected)
+            VecFree(hoisted)
+            if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+            if budget.problem != .None || result.codec.problem != .None { break }
+        }
+        if budget.problem != .None || result.codec.problem != .None { break }
+    }
+    result.problem = budget.problem
+    result.work = budget.used
+    return result
+}

@@ -8,6 +8,9 @@ using Vectors :: #import "std/vec"
 using Rotation :: #import "compiler_opt_rotate_cases"
 using Inlining :: #import "compiler_opt_inline_cases"
 using FloatFolds :: #import "compiler_opt_float_cases"
+using LoopLayout :: #import "compiler_opt_layout_cases"
+using LicmCases :: #import "compiler_opt_licm_cases"
+using InductionCases :: #import "compiler_opt_induction_cases"
 
 OptInstruction :: (op: LirOp, result: s32, operands: []s32,
     symbol: s32 = -1, origin: s32 = 0) -> LirInstruction {
@@ -226,10 +229,16 @@ OptRegressionCases :: () -> s32 {
 }
 
 main :: (argc: s32, argv: **u8) -> s32 {
-    rotation := OptRotateCases()
-    if rotation != 0 { return rotation }
+    layout := OptLayoutCases()
+    if layout != 0 { return layout }
+    hoisting := OptLicmCases()
+    if hoisting != 0 { return hoisting }
+    induction := OptInductionCases()
+    if induction != 0 { return induction }
     inline_result := InlineCases()
     if inline_result != 0 { print("leaf inline case % failed\n", inline_result); return 1 }
+    rotation := OptRotateCases()
+    if rotation != 0 { return rotation }
     floats := OptFloatCases()
     if floats != 0 { print("float fold case % failed\n", floats); return 1 }
     regression := OptRegressionCases()

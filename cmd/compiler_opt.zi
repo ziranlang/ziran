@@ -3,6 +3,10 @@ using Verify :: #import "compiler_lowered_verify"
 using Codec :: #import "compiler_exec_serial"
 using Vectors :: #import "std/vec"
 using Rotate :: #import "compiler_opt_rotate"
+using LoopSSA :: #import "compiler_opt_ssa"
+using Licm :: #import "compiler_opt_licm"
+using Induction :: #import "compiler_opt_induction"
+using Layout :: #import "compiler_opt_layout"
 using Inline :: #import "compiler_opt_inline"
 #import "compiler_learning"
 
@@ -28,6 +32,9 @@ LirOptCounters :: struct {
     cfg: LirOptPassCounters
     compact: LirOptPassCounters
     rotate: LirOptPassCounters
+    licm: LirOptPassCounters
+    induction: LirOptPassCounters
+    layout: LirOptPassCounters
     inline_leaf: LirOptPassCounters
     input_functions: s64
     input_blocks: s64
@@ -310,6 +317,15 @@ CodecFailure :: (state: *OptState, result: LirCodecResult) -> bool {
         return Fail(state, .VerifyPass)
     }
     return Fail(state, .Codec)
+}
+
+SharedPassResult :: (state: *OptState, problem: LirSsaProblem,
+    codec: LirCodecResult, work: s64, scratch_bytes: s64) -> bool {
+    if !Spend(state, work) { return false }
+    if scratch_bytes > state.peak_scratch_bytes { state.peak_scratch_bytes = scratch_bytes }
+    if problem != .None { return Fail(state, ifx problem == .Allocation then .Allocation else .Limit) }
+    if codec.problem != .None { return CodecFailure(state, codec) }
+    return true
 }
 
 CloneProgram :: (state: *OptState, program: LirProgram, limits: LirLimits,
@@ -1950,6 +1966,18 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
     optimized = LirReadProgram(*owner.storage)
     ScratchReset(*state)
     if options.simplify_cfg {
+        hoisted := LirLicm(*owner.storage, limits, state.remaining)
+        state.counters.licm.runs += 1
+        state.counters.licm.instructions += hoisted.instructions
+        if !SharedPassResult(*state, hoisted.problem, hoisted.codec, hoisted.work, hoisted.scratch_bytes) ||
+            !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+        strength := LirInduction(*owner.storage, limits, state.remaining)
+        state.counters.induction.runs += 1
+        state.counters.induction.instructions += strength.products
+        if !SharedPassResult(*state, strength.problem, strength.codec, strength.work, strength.scratch_bytes) ||
+            !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+        optimized = LirReadProgram(*owner.storage)
+        if options.propagate_copies && !CopyPass(*state, optimized, limits) { LirOptFree(owner); return Result(state) }
         rotated := LirRotate(*owner.storage, limits, state.remaining)
         if !Spend(*state, rotated.work) { LirOptFree(owner); return Result(state) }
         if rotated.scratch_bytes > state.peak_scratch_bytes { state.peak_scratch_bytes = rotated.scratch_bytes }
@@ -1967,6 +1995,14 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         if options.propagate_copies && !CopyPass(*state, optimized, limits) {
             LirOptFree(owner); return Result(state)
         }
+        if !VerifyPass(*state, optimized, limits) { LirOptFree(owner); return Result(state) }
+        ordered := LirLayout(*owner.storage, limits, state.remaining)
+        state.counters.layout.runs += 1
+        state.counters.layout.blocks += ordered.blocks
+        if !SharedPassResult(*state, ordered.problem, ordered.codec, ordered.work, ordered.scratch_bytes) {
+            LirOptFree(owner); return Result(state)
+        }
+        optimized = LirReadProgram(*owner.storage)
         if !VerifyPass(*state, optimized, limits) { LirOptFree(owner); return Result(state) }
     }
     ScratchReset(*state)

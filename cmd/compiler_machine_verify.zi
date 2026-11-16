@@ -1,3 +1,4 @@
+using VectorForm :: #import "compiler_vector_form"
 using ABI :: #import "compiler_abi"
 using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
@@ -428,6 +429,9 @@ Instructions :: (state: *VerifyState, program: MachineProgram, limits: MachineLi
                         }
                         definitions[operand.id] = 1
                     }
+                }
+                if instruction.opcode == .VectorLoop && !VectorLoopForm(program, instruction) {
+                    return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
                 }
                 if instruction.opcode == .Allocate {
                     if instruction.operand_count < 1 || instruction.operand_count > 2 {

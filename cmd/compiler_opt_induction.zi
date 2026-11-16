@@ -1,0 +1,244 @@
+using IR :: #import "compiler_lowered_ir"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Loop :: #import "compiler_opt_loop"
+using Vectors :: #import "std/vec"
+
+LirInductionResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; products: s64; work: s64; scratch_bytes: s64 }
+
+#scope_file
+Product :: struct {
+    block: s32
+    instruction: s32
+    initial: s32
+    step: s32
+    scale: s32
+    advance: LirOp
+    origin: s32
+}
+
+Definition :: (function: LirFunction, value: s32, budget: *LirSsaBudget) -> LirInstruction {
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if !LirSsaSpend(budget, 1) { return .{} }
+            if instruction.result == value { return instruction }
+        }
+    }
+    return .{}
+}
+
+Outside :: (plan: *LirLoopPlan, homes: []s32, value: s32) -> bool {
+    home := homes[value]
+    return home < 0 || plan.members[home] == 0
+}
+
+Find :: (program: LirProgram, function: LirFunction, plan: *LirLoopPlan,
+    homes: []s32, budget: *LirSsaBudget) -> Product {
+    header := function.blocks[plan.header]
+    pre := function.blocks[plan.preheader]
+    initial := pre.instructions[pre.instructions.count - 1].edges[0].arguments
+    latch := function.blocks[plan.latch]
+    terminal := latch.instructions[latch.instructions.count - 1]
+    carried: []s32
+    for edge: terminal.edges { if edge.block == plan.header { carried = edge.arguments } }
+    for value, p: header.parameters {
+        if !LirSsaSpend(budget, 1) { return .{block = -1} }
+        type := program.types[function.values[value]]
+        if type.kind != .Integer { continue }
+        increment := Definition(function, carried[p], budget)
+        if budget.problem != .None { return .{block = -1} }
+        if increment.op != .Add && increment.op != .Subtract || increment.operands.count != 2 { continue }
+        step: s32 = -1
+        if increment.operands[0] == value { step = increment.operands[1] }
+        else if increment.op == .Add && increment.operands[1] == value { step = increment.operands[0] }
+        if step < 0 || !Outside(plan, homes, step) { continue }
+        for block, b: function.blocks {
+            if !LirSsaSpend(budget, 1) { return .{block = -1} }
+            if plan.members[b] == 0 { continue }
+            for instruction, i: block.instructions {
+                if !LirSsaSpend(budget, 1) { return .{block = -1} }
+                if instruction.op != .Multiply || function.values[instruction.result] != function.values[value] { continue }
+                scale: s32 = -1
+                if instruction.operands[0] == value { scale = instruction.operands[1] }
+                else if instruction.operands[1] == value { scale = instruction.operands[0] }
+                if scale < 0 || !Outside(plan, homes, scale) { continue }
+                // Constants that the encoder can scale in an address or a
+                // shift are cheaper without another carried register.
+                coefficient := Definition(function, scale, budget)
+                if budget.problem != .None { return .{block = -1} }
+                if coefficient.op == .Constant {
+                    bits := program.constants[coefficient.symbol].bits
+                    if bits == 0 || bits == 1 || bits == 2 || bits == 4 || bits == 8 { continue }
+                }
+                return .{block = cast(s32)b, instruction = cast(s32)i, initial = initial[p], step = step,
+                    scale = scale, advance = increment.op, origin = increment.origin}
+            }
+        }
+    }
+    return .{block = -1}
+}
+
+Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, plan: *LirLoopPlan,
+    product: Product, limits: LirLimits, budget: *LirSsaBudget) -> LirCodecResult {
+    function := program.functions[fi]
+    original := function.blocks[product.block].instructions[product.instruction]
+    count: s64 = 3
+    edge_count: s64
+    words: s64 = 12
+    for block: function.blocks {
+        if !LirSsaSpend(budget, block.instructions.count + 1) { return .{} }
+        count += block.instructions.count
+        words += block.parameters.count
+        for instruction: block.instructions {
+            edge_count += instruction.edges.count
+            words += instruction.operands.count
+            for edge: instruction.edges { words += edge.arguments.count }
+        }
+    }
+    value_count := function.values.count + 4
+    if value_count > limits.values || !LirSsaReserve(budget, count, 112) ||
+        !LirSsaReserve(budget, edge_count, 24) || !LirSsaReserve(budget, words, 4) ||
+        !LirSsaReserve(budget, value_count, 4) || !LirSsaReserve(budget, function.blocks.count, 32) ||
+        !LirSsaReserve(budget, program.functions.count, 112) {
+        if budget.problem == .None { budget.problem = .Limit }
+        return .{}
+    }
+    instructions: Vec(LirInstruction)
+    edges: Vec(LirEdge)
+    data: Vec(s32)
+    values: Vec(s32)
+    blocks: Vec(LirBlock)
+    functions: Vec(LirFunction)
+    defer VecFree(instructions)
+    defer VecFree(edges)
+    defer VecFree(data)
+    defer VecFree(values)
+    defer VecFree(blocks)
+    defer VecFree(functions)
+    if !VecResizeBounded(instructions, count, count) || !VecResizeBounded(edges, edge_count, edge_count) ||
+        !VecResizeBounded(data, words, words) || !VecResizeBounded(values, value_count, value_count) ||
+        !VecResizeBounded(blocks, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(functions, program.functions.count, program.functions.count) {
+        budget.problem = .Allocation
+        return .{}
+    }
+    phi := cast(s32)function.values.count
+    seed := phi + 1
+    delta := phi + 2
+    next := phi + 3
+    type := function.values[original.result]
+    for value, v: function.values { values[v] = value }
+    for v: function.values.count..value_count - 1 { values[v] = type }
+    ip: s64
+    ep: s64
+    wp: s64
+    for block, b: function.blocks {
+        parameter_start := wp
+        if !LirSsaSpend(budget, block.parameters.count + 1) { return .{} }
+        for value: block.parameters { data[wp] = value; wp += 1 }
+        if b == plan.header { data[wp] = phi; wp += 1 }
+        blocks[b].parameters = data[parameter_start:wp]
+        instruction_start := ip
+        for instruction, i: block.instructions {
+            if !LirSsaSpend(budget, instruction.operands.count + 1) { return .{} }
+            if i == block.instructions.count - 1 && b == plan.preheader {
+                data[wp] = product.initial; data[wp + 1] = product.scale
+                instructions[ip] = .{op = .Multiply, result = seed, operands = data[wp:wp + 2], symbol = -1, origin = original.origin}
+                ip += 1; wp += 2
+                data[wp] = product.step; data[wp + 1] = product.scale
+                instructions[ip] = .{op = .Multiply, result = delta, operands = data[wp:wp + 2], symbol = -1, origin = product.origin}
+                ip += 1; wp += 2
+            }
+            if i == block.instructions.count - 1 && b == plan.latch {
+                data[wp] = phi; data[wp + 1] = delta
+                instructions[ip] = .{op = product.advance, result = next, operands = data[wp:wp + 2], symbol = -1, origin = product.origin}
+                ip += 1; wp += 2
+            }
+            operand_start := wp
+            if b == product.block && i == product.instruction {
+                data[wp] = phi; wp += 1
+                instruction = .{op = .Bitcast, result = original.result, symbol = -1, origin = original.origin}
+            } else {
+                for value: instruction.operands { data[wp] = value; wp += 1 }
+            }
+            instruction.operands = data[operand_start:wp]
+            edge_start := ep
+            for edge: instruction.edges {
+                if !LirSsaSpend(budget, edge.arguments.count + 1) { return .{} }
+                argument_start := wp
+                for value: edge.arguments { data[wp] = value; wp += 1 }
+                if edge.block == plan.header {
+                    data[wp] = ifx b == plan.preheader then seed else next
+                    wp += 1
+                }
+                edge.arguments = data[argument_start:wp]
+                edges[ep] = edge
+                ep += 1
+            }
+            instruction.edges = edges[edge_start:ep]
+            instructions[ip] = instruction
+            ip += 1
+        }
+        blocks[b].instructions = instructions[instruction_start:ip]
+    }
+    function.blocks = blocks[:]
+    function.values = values[:]
+    for f: 0..functions.count - 1 {
+        if !LirSsaSpend(budget, 1) { return .{} }
+        functions[f] = program.functions[f]
+    }
+    functions[fi] = function
+    program.functions = functions[:]
+    empty: []u8
+    measured := LirWrite(program, empty)
+    if measured.problem != .None { return measured }
+    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
+    written := LirWrite(program, encoded[:])
+    if written.problem != .None { return written }
+    return LirRead(storage, TextView(encoded[:]), limits)
+}
+
+#scope_export
+// For a modular integer recurrence x' = x +/- step, carry x*scale using
+// p' = p +/- step*scale. Both seed and delta are computed once. The original
+// definition becomes an identity bitcast so every use, including exits,
+// keeps its SSA name until ordinary copy propagation removes the alias.
+LirInduction :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirInductionResult {
+    result: LirInductionResult
+    budget := LirSsaBudget.{work = work, bytes = limits.bytes}
+    functions := LirReadProgram(storage).functions.count
+    for fi: 0..functions - 1 {
+        blocks := LirReadProgram(storage).functions[fi].blocks.count
+        for header: 0..blocks - 1 {
+            budget.reserved = 0
+            program := LirReadProgram(storage)
+            function := program.functions[fi]
+            if !LirSsaSpend(*budget, 1) { break }
+            if function.external { continue }
+            plan: LirLoopPlan
+            homes: Vec(s32)
+            supported := LirLoopFind(*plan, function, cast(s32)header, *budget)
+            if supported && LirSsaReserve(*budget, function.values.count, 4) {
+                if !VecResizeBounded(homes, function.values.count, function.values.count) { budget.problem = .Allocation }
+                if budget.problem == .None && LirLoopDefinitions(function, homes[:], *budget) {
+                    product := Find(program, function, *plan, homes[:], *budget)
+                    if product.block >= 0 && budget.problem == .None {
+                        result.codec = Rebuild(storage, program, fi, *plan, product, limits, *budget)
+                        if result.codec.problem == .None && budget.problem == .None { result.products += 1 }
+                    }
+                }
+            }
+            LirLoopFree(*plan)
+            VecFree(homes)
+            if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+            if budget.problem != .None || result.codec.problem != .None { break }
+        }
+        if budget.problem != .None || result.codec.problem != .None { break }
+    }
+    result.problem = budget.problem
+    result.work = budget.used
+    return result
+}

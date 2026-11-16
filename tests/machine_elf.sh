@@ -81,7 +81,7 @@ grep -Fq 'Number of section headers:         0' "$work/hello.header"
 # Hello carries only what it reaches: one direct write, no output buffer,
 # terminal probe, formatter, fuel or stack check, and no page padding.
 hello_size=$(wc -c < "$work/hello.elf")
-if test "$hello_size" -gt 640 || grep -Fq truefalse "$work/hello.elf"; then
+if test "$hello_size" -gt 320 || grep -Fq truefalse "$work/hello.elf"; then
     echo "native hello grew to $hello_size bytes or carries unused runtime" >&2
     exit 1
 fi

@@ -213,6 +213,7 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     built: MachineNativeOwner
     options := MachineDefaultOptions()
     options.fuel = !emit_elf || fuel != MachineElfInitialFuel
+    options.executable = emit_elf
     lowered := MachineLower(*built.machine, lir, target, options, limits)
     if lowered.problem != .None {
         diagnostic := LowerDiagnostic(lowered)

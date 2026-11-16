@@ -477,16 +477,19 @@ headers, data follows the text a page higher, and an image with nothing
 writable has one LOAD. Hello: 576 bytes. machine_elf.sh now fails above
 640 bytes or with the bool formatter present.
 
-Left for hello, after the manual-safety switch lands: the checked resolve
-of the string (about 20 instructions, the pointer runtime, the RW segment
-and the trap stub) becomes one lea, leaving _start (4) + main (8) + the
-write loop with its partial-write, EINTR and failure handling (13).
-Landed since: a call its function returns at once is a tail jump
-(`leave; jmp`), and a function with no stack objects, no trap-capable
-instruction and no call but such a tail call has no frame, so once the
-resolve is gone hello's main is 4 instructions. Then tighten the retained
-bound to about 300 bytes. Frames stay wherever a trap or call could
-reach the loader's C handlers, which need the ABI's 16-byte alignment.
+Done with the unchecked default: hello is 254 bytes in one LOAD, with
+_start (4 instructions) and a frameless main (6) ending in a tail jump to
+the write loop (14 with its partial-write, EINTR and failure handling).
+A call its function returns at once is a tail jump, and a function with
+no stack objects, no trap-capable instruction and no call but such a
+tail call has no frame. Frames stay wherever a trap or call could reach
+the loader's C handlers, which need the ABI's 16-byte alignment. An
+unchecked executable checks its stack only for frames larger than the
+slack (so it cannot step past the guard page). Loaded code always checks,
+since an overflow there would take down its host. machine_elf.sh fails
+above 320 bytes. Left: main still materializes its zero index (`xor ecx,
+ecx; lea rsi, [rax+rcx]`); folding constant element indices into the
+address would make it 4.
 
 Compile time: MachineVerify's FuelFacts and CallsAndRelocations, the
 allocated verifier's call check and x86 BuildMachineImage's ImageOperand

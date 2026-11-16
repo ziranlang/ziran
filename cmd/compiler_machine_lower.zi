@@ -1462,7 +1462,8 @@ Finalize :: (state: *LowerState) {
         stack_objects = owner.stack_objects[:], relocations = owner.relocations[:],
         calls = owner.calls[:], entry = state.lir.entry, stage = .Virtual,
         frames = owner.frames[:], spills = owner.spills[:],
-        scratch_general = MachineNoId, scratch_float = MachineNoId, checks = state.checks}
+        scratch_general = MachineNoId, scratch_float = MachineNoId, checks = state.checks,
+        executable = state.options.executable}
 }
 
 Result :: (state: LowerState) -> MachineResult {

@@ -1863,13 +1863,21 @@ Frameless :: (program: MachineProgram, function_id: s32) -> bool {
         end := block.instruction_begin + block.instruction_count
         for at: block.instruction_begin..end - 1 {
             if TailCallAt(program, block_id, at) { continue }
-            if !PlainOpcode(program.instructions[at].opcode) { return false }
+            if !PlainInstruction(program, program.instructions[at]) { return false }
         }
     }
     return true
 }
 
-// Instructions that never trap, call or touch the frame.
+// Whether INSTRUCTION never traps, calls or touches the frame: a plain
+// opcode, or an element address whose bound needs no check.
+PlainInstruction :: (program: MachineProgram, instruction: MachineInstruction) -> bool {
+    if instruction.opcode == .ElementAddress {
+        return instruction.operand_count == 4 && program.operands[instruction.operand_begin + 3].kind == .Immediate
+    }
+    return PlainOpcode(instruction.opcode)
+}
+
 PlainOpcode :: (opcode: MachineOpcode) -> bool {
     return opcode == .Move || opcode == .MoveImmediate || opcode == .GlobalAddress || opcode == .FunctionAddress ||
         opcode == .IntegerAdd || opcode == .IntegerSubtract || opcode == .IntegerMultiply ||
@@ -2591,14 +2599,19 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
 
 #scope_export
 
-// Whether FUNCTION's prologue checks the stack limit: it calls Ziran code (or
-// the host, which may call back), or its frame is larger than the slack the
-// limit leaves.
+// Whether FUNCTION's prologue checks the stack limit: its frame is larger
+// than the slack the limit leaves, or it calls Ziran code (or the host,
+// which may call back) in loaded or checked code.
 MachineX64StackChecked :: (program: MachineProgram, function_id: s32) -> bool {
     if function_id < 0 || function_id >= program.functions.count { return false }
     function := program.functions[function_id]
     if function.calling != .Internal { return false }
     if function_id < program.frames.count && program.frames[function_id].size > MachineX64StackSlack { return true }
+    // An unchecked executable lets deep recursion fault on the guard page,
+    // as C does; a frame larger than the slack keeps its check, since it
+    // could step past the guard page. Loaded code always checks: an
+    // overflow there would take down its host.
+    if program.executable && !program.checks { return false }
     for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
         block := program.blocks[block_id]
         for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {

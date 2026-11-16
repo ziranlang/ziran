@@ -286,6 +286,9 @@ MachineProgram :: struct {
     // Built with --checks: data pointers are tokens checked at every access.
     // Otherwise a pointer is the address, as in C.
     checks: bool
+    // An AOT executable, which owns its process: built without checks, its
+    // deep recursion faults on the guard page as C's does.
+    executable: bool
 }
 
 MachineLimits :: struct {
@@ -332,6 +335,8 @@ MachineOptions :: struct {
     // Whether code charges fuel; an AOT executable with an unbounded budget
     // never runs out, so it carries no fuel checks.
     fuel: bool
+    // An AOT executable rather than code loaded into a host process.
+    executable: bool
 }
 
 MachineResult :: struct {

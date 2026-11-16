@@ -333,7 +333,11 @@ calling-convention, syscall, and exit details used by direct machine code.</p>
 produces a static no-libc executable with target-owned <code>write_all</code> and process
 exit. Its literal formatter supports strings/text views, bools, every fixed
 signed and unsigned integer width, and <code>%%</code>; floats and unavailable platform
-services fail with stable named diagnostics.</p>
+services fail with stable named diagnostics. <code>--platform windows</code> writes the
+same program as a PE32+ console <code>.exe</code> whose runtime calls kernel32
+(<code>GetStdHandle</code>, <code>WriteFile</code>, <code>ExitProcess</code>, and <code>VirtualAlloc</code>/<code>VirtualFree</code>
+for resizable storage) through its import table, importing only the functions
+the program needs; it runs under Wine.</p>
 <h2 id="generate-c-and-go-binaries">Generate C and Go binaries</h2>
 <p><code>ziran build FILE.zi</code> defaults to a direct native binary named after the source
 stem, composing <code>zi2zx</code> and host-target <code>zx2native</code>. Use <code>--target=zx</code>,

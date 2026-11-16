@@ -6,6 +6,7 @@
 #include "compiler_exec_link.h"
 #include "compiler_exec.h"
 #include "compiler_machine_ir.h"
+#include "compiler_machine_pe.h"
 #include "compiler_machine_pipeline.h"
 #include "compiler_opt.h"
 #include "compiler_target.h"
@@ -25,17 +26,19 @@
 static int
 assembly_usage(void)
 {
-    fputs("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android] [--emit elf|map|image] [--fuel N] -o FILE INPUT.zx\n"
+    fputs("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|image] [--fuel N] -o FILE INPUT.zx\n"
+          "elf writes the platform's executable: an ELF on Linux, a PE32+ .exe on Windows\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
-          "--fuel sets an ELF's starting fuel; it is unbounded by default, as for a bundle run\n"
+          "--fuel sets an executable's starting fuel; it is unbounded by default, as for a bundle run\n"
           "zx2native reads only decoded and verified ZX and uses only the no-fallback machine-IR path\n"
           "image is reserved for the relocatable in-memory image and is a named gap until that loader lands\n", stderr);
     return 2;
 }
 
-/* Validate the stable ARCH-OS row before reading input or opening output. The
- * current experimental writer owns only the Linux x86-64 entry, write_all and
- * exit_group veneer; accepting a described row must never imply a fallback. */
+/* Validate the stable ARCH-OS row before reading input or opening output. Only
+ * a row whose registry entry names an executable container (an ELF for
+ * x86_64-linux, a PE for x86_64-windows) has the process-entry, console and
+ * exit runtime; accepting a described row must never imply a fallback. */
 static int
 assembly_target_supported(const char *name, TargetDescription *native_target)
 {
@@ -58,7 +61,7 @@ assembly_target_supported(const char *name, TargetDescription *native_target)
     }
     if(!compiler_target_TargetExecutableNativeSupported(described.target)) {
         Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-platform-service-unavailable",
-            "assembly.gap.machine-platform-service-unavailable: selected target %s has no process-entry/write_all/exit_group veneer; no libc, host binding or alternate engine was selected",
+            "assembly.gap.machine-platform-service-unavailable: selected target %s has no executable writer or process-entry/write_all/exit runtime; no libc, host binding or alternate engine was selected",
             name);
         return 0;
     }
@@ -250,6 +253,47 @@ assembly_map_range(AssemblyNativeRange *ranges, int64_t capacity, int64_t *count
     return 1;
 }
 
+/* Where the executable container put the text and data: a PE on Windows, an
+ * ELF on Linux. Virtual addresses are the preferred ones; 0 without data. */
+typedef struct AssemblyImageFacts {
+    const char *target;
+    const char *kind;
+    const char *address_space;
+    const char *scope;
+    int64_t startup;
+    int64_t size;
+    int64_t text_offset;
+    uint64_t text_address;
+    int64_t text_size;
+    int64_t data_offset;
+    uint64_t data_address;
+    int64_t data_size;
+    int problem;
+} AssemblyImageFacts;
+
+static AssemblyImageFacts
+assembly_image_facts(MachineProgram machine, MachineX64Image encoded)
+{
+    if(machine.target.os == TargetOS_Windows) {
+        MachinePeResult pe = compiler_machine_pe_MachinePeEncode(machine, encoded, (Slice){0}, INT64_MAX);
+        return (AssemblyImageFacts){.target = "x86_64-windows", .kind = "aot-pe",
+            .address_space = "pe-virtual", .scope = "complete-pe", .startup = pe.startup_size,
+            .size = pe.size, .text_offset = pe.text_offset,
+            .text_address = MachinePeImageBase + (uint64_t)pe.text_rva, .text_size = pe.text_size,
+            .data_offset = pe.data_offset,
+            .data_address = pe.data_rva ? MachinePeImageBase + (uint64_t)pe.data_rva : 0,
+            .data_size = pe.data_size, .problem = pe.diagnostic.problem};
+    }
+    MachineElfResult elf = compiler_machine_elf_MachineElfEncode(machine, encoded, (Slice){0}, INT64_MAX);
+    return (AssemblyImageFacts){.target = "x86_64-linux", .kind = "aot-elf",
+        .address_space = "elf-virtual", .scope = "complete-elf", .startup = elf.startup_size,
+        .size = elf.size, .text_offset = elf.text_offset,
+        .text_address = MachineElfBase + (uint64_t)elf.text_offset, .text_size = elf.text_size,
+        .data_offset = elf.data_offset,
+        .data_address = elf.data_address ? MachineElfBase + (uint64_t)elf.data_address : 0,
+        .data_size = elf.data_size, .problem = elf.diagnostic.problem};
+}
+
 static int
 assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapSelection *selection,
              const MachineNativeOwner *owner, const unsigned char *bytes, int64_t size, int optimize)
@@ -266,15 +310,14 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
     }
     MachineProgram machine = owner->machine.program;
     MachineX64Image encoded = owner->encoded.image;
-    MachineElfResult image = compiler_machine_elf_MachineElfEncode(machine, encoded, (Slice){0},
-        INT64_MAX);
-    if(image.diagnostic.problem != MachineProblem_None) {
+    AssemblyImageFacts image = assembly_image_facts(machine, encoded);
+    if(image.problem != MachineProblem_None) {
         Diagnostic((ZirSourceSpan){0}, "assembly.encode", "cannot measure native machine image layout: problem=%d",
-            image.diagnostic.problem);
+            image.problem);
         return 0;
     }
     /* Text-relative coordinates start after the process entry stub. */
-    int64_t startup = image.startup_size;
+    int64_t startup = image.startup;
     if(bytes == NULL || size != image.size || machine.functions.length != encoded.functions.length ||
        machine.blocks.length != encoded.blocks.length || machine.instructions.length != encoded.instructions.length) {
         Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native map image does not match the encoded file size");
@@ -404,17 +447,17 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
         if(index == selection->function) extents[index].selected = 1;
         if(extents[index].selected) assembly_select_origin(program, functions[index].origin, selected_origins);
     }
-    fputs("{\"format\":\"ziran-native-map\",\"version\":1,\"target\":\"x86_64-linux\","
-          "\"coordinate\":\"text-relative\",\"variant\":\"x86-64-baseline\",\"abi\":\"ziran-internal\",", stream);
-    fprintf(stream, "\"optimization_request\":\"%s\",\"identity\":{\"algorithm\":\"sha256\",\"scope\":\"complete-elf\",\"digest\":\"%s\"},",
-        optimize ? "verified-basic" : "none", identity);
-    fputs("\"image\":{\"kind\":\"aot-elf\",\"address_space\":\"elf-virtual\",", stream);
+    fprintf(stream, "{\"format\":\"ziran-native-map\",\"version\":1,\"target\":\"%s\","
+          "\"coordinate\":\"text-relative\",\"variant\":\"x86-64-baseline\",\"abi\":\"ziran-internal\",", image.target);
+    fprintf(stream, "\"optimization_request\":\"%s\",\"identity\":{\"algorithm\":\"sha256\",\"scope\":\"%s\",\"digest\":\"%s\"},",
+        optimize ? "verified-basic" : "none", image.scope, identity);
+    fprintf(stream, "\"image\":{\"kind\":\"%s\",\"address_space\":\"%s\",", image.kind, image.address_space);
     fprintf(stream, "\"file_size\":%lld,\"text_file_offset\":%lld,\"text_virtual_address\":%llu,\"text_size\":%lld,"
         "\"data_file_offset\":%lld,\"data_virtual_address\":%llu,\"data_size\":%lld},\"selection\":",
         (long long)image.size, (long long)image.text_offset,
-        (unsigned long long)(MachineElfBase + image.text_offset),
+        (unsigned long long)image.text_address,
         (long long)image.text_size, (long long)image.data_offset,
-        (unsigned long long)(image.data_address ? MachineElfBase + image.data_address : 0),
+        (unsigned long long)image.data_address,
         (long long)image.data_size);
     if(filtered) {
         fprintf(stream, "{\"function_id\":%lld,\"block_id\":%lld,\"begin\":%lld,\"end\":%lld}",
@@ -538,7 +581,7 @@ main(int argc, char **argv)
        ((function_id != NULL || block_id != NULL || address_begin != NULL || address_end != NULL) &&
         strcmp(emit, "map")) ||
        (strcmp(target, "x86_64") && strcmp(target, "aarch64") && strcmp(target, "armv7")) ||
-       (strcmp(platform, "linux") && strcmp(platform, "android")) ||
+       (strcmp(platform, "linux") && strcmp(platform, "android") && strcmp(platform, "windows")) ||
        (strcmp(emit, "elf") && strcmp(emit, "map") && strcmp(emit, "image")))
         return assembly_usage();
     char target_row[64];
@@ -727,7 +770,7 @@ main(int argc, char **argv)
         goto done;
     }
     if(!strcmp(output, "-")) {
-        Diagnostic((ZirSourceSpan){0}, "assembly.output", "ELF output requires a file path");
+        Diagnostic((ZirSourceSpan){0}, "assembly.output", "executable output requires a file path");
         goto done;
     }
     /* The output's directory is made as needed. */

@@ -145,10 +145,11 @@ build/cache/process ports and the legacy deletions are committed. M4's first sli
 [target registry and preflight](07-architecture-and-platform-coverage.md#target-registry-and-preflight),
 lists every CPU/OS row with its gap-policy state; no row is Implemented yet,
 so every general registry selection fails preflight with
-`assembly.gap.target-unimplemented`. `zx2native` implements only
-`--target x86_64 --platform linux` through the machine-IR pipeline; other
-target rows fail with the stable native platform-service gap before input or
-output, and AArch64 encodes machine code but has no AOT ELF writer. The revision-28 container, frame-local
+`assembly.gap.target-unimplemented`. `zx2native` implements
+`--target x86_64 --platform linux` (ELF) and, as M5's first slice,
+`--platform windows` (PE32+ through kernel32) through the machine-IR pipeline;
+other target rows fail with the stable native platform-service gap before
+input or output, and AArch64 encodes machine code but has no AOT ELF writer. The revision-28 container, frame-local
 `Allocate`, local scalar address-taking and the pre-allocation machine-IR
 boundary are implemented. On Omega on 2026-11-15, with native as the
 linux-x86_64 default, a clean clone of master passes `make check-bootstrap` and

@@ -46,7 +46,7 @@ Implemented row passes. `ziran capabilities --json` prints the registry as
 | --- | --- | --- | --- | --- |
 | `x86_64-linux` | SysV | Gap | `assembly.gap.target-unimplemented` | M2–M3 |
 | `x86_64-android` | SysV | Gap | `assembly.gap.target-unimplemented` | M4 |
-| `x86_64-windows` | Win64 | Gap | `assembly.gap.target-unimplemented` | M5 |
+| `x86_64-windows` | Win64 (kernel32 boundary only) | Gap | `assembly.gap.target-unimplemented` | M5 |
 | `x86_64-macos` | Apple64 | Gap | `assembly.gap.target-unimplemented` | M5 |
 | `armv7-linux`, `armv7-android` | AAPCS32 | Gap | `assembly.gap.target-unimplemented` | M4 |
 | `aarch64-linux`, `aarch64-android` | AAPCS64 | Gap | `assembly.gap.target-unimplemented` | M4 |
@@ -59,10 +59,22 @@ allocation, encoding and opt-in ELF output exist, but the native ZX loader and
 runtime cutover are open, so that row stays a Gap until its M2–M3 gate passes; a partial stage
 such as `TargetMachineLoweringSupported` never implements a row. The
 `zx2native` is a separate opt-in tool. Its `--target ARCH --platform OS`
-selector currently implements only `x86_64` with `linux`; every other
+selector implements the rows whose registry entry names an `executable`
+container: `x86_64-linux` writes an ELF and `x86_64-windows` a PE32+ `.exe`
+([`compiler_machine_pe.zi`](../cmd/compiler_machine_pe.zi)). Both carry the
+same text, constants and data
+([`compiler_x86_image.zi`](../cmd/compiler_x86_image.zi)) and runtime
+([`compiler_x86_runtime.zi`](../cmd/compiler_x86_runtime.zi)), whose only
+per-OS parts are its primitives: Linux system calls, or kernel32 calls through
+the image's IAT with Win64 shadow space, 16-byte alignment and volatile
+registers ([`compiler_x86_win64.zi`](../cmd/compiler_x86_win64.zi)). Code
+inside the program keeps the Ziran-internal convention on both. The PE imports
+only what its runtime calls, is DYNAMIC_BASE/HIGH_ENTROPY_VA with base
+relocations for the pointer runtime's addresses and NX_COMPAT, and commits an
+8 MiB stack, so frames need no probes; it has no unwind data yet. Every other
 described row fails before input/output with
 `assembly.gap.machine-platform-service-unavailable` because it has no
-process-entry/`write_all`/`exit_group` veneer. Once a registry row
+executable writer or process-entry/`write_all`/exit runtime. Once a registry row
 is Implemented, a CPU feature it does not implement (including another
 family's, such as `neon` on x86-64) fails with `assembly.gap.cpu-feature`,
 and a missing OS service (`process-entry`, `executable-memory`, `threads`,

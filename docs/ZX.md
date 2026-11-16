@@ -177,7 +177,8 @@ The pipeline is source → `.zir` → linked and verified instructions → `.zx`
 The portable instruction engine runs the instructions on any platform. A
 supported direct target lowers the same verified instructions to machine code,
 applies the target ABI and platform veneers, and writes a platform binary;
-`zx2native --target x86_64 --platform linux --emit elf` is the Linux x86-64 row. Generated C and Go are
+`zx2native --target x86_64 --platform linux --emit elf` is the Linux x86-64 row, and
+`--platform windows` writes the Windows x86-64 row's PE32+ `.exe`. Generated C and Go are
 separate routes, never native fallback.
 
 The linker includes reachable code from ordinary libraries, Kryon only when

@@ -1,0 +1,340 @@
+using Machine :: #import "compiler_machine_ir"
+using Runtime :: #import "compiler_x86_runtime"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+using Win64 :: #import "compiler_x86_win64"
+using X64 :: #import "compiler_x86_64"
+using X64Image :: #import "compiler_x86_image"
+
+// Deterministic PE32+ console executable for Windows x86-64 with the
+// contents compiler_x86_image.zi lays out, carrying only what the program
+// uses. A 64-byte MS-DOS header whose e_lfanew points just past it, the PE
+// signature, the COFF and optional headers and its sections, at the smallest
+// file alignment (512 bytes), with sections on their own pages so each keeps
+// its protection:
+//
+//   * .text, read/execute: the entry stub, machine text and runtime;
+//   * .rdata, read-only: the read-only globals, one kernel32 import
+//     directory whose lookup and address tables name only the functions the
+//     image calls, and the base relocations;
+//   * .data, read/write, only when the program needs writable state: its
+//     stored bytes, and the zero fill as virtual size past them.
+//
+// Positions are RVAs. Code is rip-relative throughout, so the image is
+// DYNAMIC_BASE and HIGH_ENTROPY_VA with base relocations only for the
+// pointer runtime's absolute addresses (an empty block when it has none, so
+// the loader still rebases it), and NX_COMPAT. It asks for an 8 MiB stack
+// reserved and committed whole, so a frame larger than a page needs no stack
+// probe. No CRT, exports, TLS, resources, unwind or debug data.
+
+MachinePeImageBase :: 0x140000000
+MachinePeSectionAlignment :: 4096
+MachinePeFileAlignment :: 512
+MachinePeStackBytes :: 0x800000
+MachinePeTextRva :: 0x1000
+
+// File offsets and RVAs; both are 0 for .data when the image has none.
+MachinePeResult :: struct {
+    diagnostic: MachineDiagnostic
+    size: s64
+    text_offset: s64
+    text_rva: s64
+    text_size: s64
+    startup_size: s64
+    data_offset: s64
+    data_rva: s64
+    data_size: s64
+    // The kernel32 functions imported, as a MachineWin64ImportBit mask.
+    imports: u32
+}
+
+#scope_file
+
+DosHeaderSize :: 64
+FileHeader :: 68
+OptionalHeader :: 88
+OptionalHeaderSize :: 240
+SectionTable :: 328
+SectionHeaderSize :: 40
+HeadersSize :: 512
+ImportDescriptorSize :: 20
+KernelName :: "KERNEL32.dll"
+
+Section :: struct { rva: s64; size: s64; file: s64; raw: s64 }
+
+Layout :: struct {
+    image: MachineX64ImageLayout
+    imports: u32
+    import_count: s64
+    directory: s64
+    lookup: s64
+    address: s64
+    names: s64
+    dll: s64
+    relocations: s64
+    relocations_size: s64
+    text: Section
+    rdata: Section
+    data: Section
+    sections: s64
+    file_size: s64
+    image_size: s64
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Failure :: (problem: MachineProblem) -> MachinePeResult {
+    result := MachinePeResult.{diagnostic = NoDiagnostic()}
+    result.diagnostic.problem = problem
+    return result
+}
+
+Align :: (value: s64, alignment: s64) -> s64 {
+    return (value + alignment - 1) & ~(alignment - 1)
+}
+
+PutLittle :: (output: []u8, at: s64, value: u64, count: s32) {
+    for index: 0..count - 1 {
+        output[at + index] = cast(u8)((value >> cast(u64)(index * 8)) & 255)
+    }
+}
+
+PutText :: (output: []u8, at: s64, text: string) {
+    for index: cast(s64)0..text.count - 1 { output[at + index] = cast(u8)text[index] }
+}
+
+Imported :: (layout: Layout, which: s64) -> bool {
+    return (layout.imports & MachineWin64ImportBit(cast(MachineWin64Import)which)) != 0
+}
+
+// A hint/name entry: a zero hint, the name and its terminator, even-sized.
+NameSize :: (which: s64) -> s64 {
+    return Align(2 + MachineWin64ImportName(cast(MachineWin64Import)which).count + 1, 2)
+}
+
+// The base relocation blocks: one per page holding absolute fields, each
+// field an IMAGE_REL_BASED_DIR64 entry, and a zero entry pads a block to
+// four bytes; with no fields, one block of two zero entries. With an OUTPUT,
+// writes them at AT. Returns their size.
+Relocations :: (program: MachineProgram, image: MachineX64ImageLayout, output: []u8, at: s64) -> s64 {
+    count := MachineX64AbsoluteFieldCount(program, image)
+    if count == 0 {
+        if output.count != 0 { PutLittle(output, at + 4, 12, 4) }
+        return 12
+    }
+    size: s64 = 0
+    index: s64 = 0
+    while index < count {
+        page := MachineX64AbsoluteField(program, image, index) & ~cast(s64)4095
+        last := index
+        while last < count && (MachineX64AbsoluteField(program, image, last) & ~cast(s64)4095) == page { last += 1 }
+        block := 8 + Align(last - index, 2) * 2
+        if output.count != 0 {
+            PutLittle(output, at + size, cast(u64)page, 4)
+            PutLittle(output, at + size + 4, cast(u64)block, 4)
+            for entry: index..last - 1 {
+                field := MachineX64AbsoluteField(program, image, entry)
+                PutLittle(output, at + size + 8 + (entry - index) * 2, cast(u64)(0xa000 | (field & 4095)), 2)
+            }
+        }
+        size += block
+        index = last
+    }
+    return size
+}
+
+SectionAt :: (rva: s64, size: s64, file: s64, raw_bytes: s64) -> Section {
+    return .{rva = rva, size = size, file = file, raw = Align(raw_bytes, MachinePeFileAlignment)}
+}
+
+PeLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout) -> MachineDiagnostic {
+    image := *layout.image
+    image.os = .Windows
+    diagnostic := MachineX64ImageMeasure(program, encoded, image)
+    if diagnostic.problem != .None { return diagnostic }
+    image.text = MachinePeTextRva
+    diagnostic = MachineX64ImageText(program, encoded, image)
+    if diagnostic.problem != .None { return diagnostic }
+
+    // .rdata: constants, the import directory and its tables, names, then
+    // the base relocations. Data positions within a page do not depend on
+    // where the page-aligned data lands, so the relocations are measured
+    // before it is placed.
+    rdata := Align(image.text_end, MachinePeSectionAlignment)
+    image.constants = rdata
+    layout.imports = MachineX64RuntimeImports(image.needs.runtime)
+    for which: cast(s64)0..MachineWin64ImportCount - 1 {
+        if Imported(<<layout, which) { layout.import_count += 1 }
+    }
+    layout.directory = Align(rdata + image.constants_size, 8)
+    layout.lookup = layout.directory + 2 * ImportDescriptorSize
+    layout.address = layout.lookup + (layout.import_count + 1) * 8
+    layout.names = layout.address + (layout.import_count + 1) * 8
+    at := layout.names
+    slot := layout.address
+    for which: cast(s64)0..MachineWin64ImportCount - 1 {
+        if !Imported(<<layout, which) { continue }
+        image.imports.slots[which] = slot
+        slot += 8
+        at += NameSize(which)
+    }
+    layout.dll = at
+    layout.relocations = Align(layout.dll + KernelName.count + 1, 4)
+    empty: []u8
+    image.data = 0
+    layout.relocations_size = Relocations(program, <<image, empty, 0)
+    rdata_end := layout.relocations + layout.relocations_size
+    image.data = Align(rdata_end, MachinePeSectionAlignment)
+    // The image is laid out in memory by RVA before its sections are copied
+    // into the file; without data nothing is stored there.
+    image.data_file = ifx MachineX64ImageHasData(<<image) then image.data else 0
+
+    data := image.data_layout
+    layout.text = SectionAt(MachinePeTextRva, image.text_end - MachinePeTextRva, HeadersSize,
+        image.text_end - MachinePeTextRva)
+    layout.rdata = SectionAt(rdata, rdata_end - rdata, layout.text.file + layout.text.raw, rdata_end - rdata)
+    layout.sections = 2
+    layout.file_size = layout.rdata.file + layout.rdata.raw
+    layout.image_size = Align(rdata_end, MachinePeSectionAlignment)
+    if MachineX64ImageHasData(<<image) {
+        layout.sections = 3
+        layout.data = SectionAt(image.data, data.memory, layout.file_size, data.size)
+        layout.file_size = layout.data.file + layout.data.raw
+        layout.image_size = Align(image.data + data.memory, MachinePeSectionAlignment)
+    }
+    if layout.image_size > 2147483647 || layout.file_size > 2147483647 {
+        diagnostic.problem = .Limit
+        return diagnostic
+    }
+    return MachineX64ImageResolve(program, encoded, <<image)
+}
+
+// One kernel32 import descriptor, a null one after it, and the lookup and
+// address tables, which hold the same hint/name RVAs until the loader binds
+// the address table.
+WriteImports :: (layout: Layout, output: []u8) {
+    PutLittle(output, layout.directory, cast(u64)layout.lookup, 4)
+    PutLittle(output, layout.directory + 12, cast(u64)layout.dll, 4)
+    PutLittle(output, layout.directory + 16, cast(u64)layout.address, 4)
+    entry: s64 = 0
+    name := layout.names
+    for which: cast(s64)0..MachineWin64ImportCount - 1 {
+        if !Imported(layout, which) { continue }
+        PutLittle(output, layout.lookup + entry * 8, cast(u64)name, 8)
+        PutLittle(output, layout.address + entry * 8, cast(u64)name, 8)
+        PutText(output, name + 2, MachineWin64ImportName(cast(MachineWin64Import)which))
+        name += NameSize(which)
+        entry += 1
+    }
+    PutText(output, layout.dll, KernelName)
+}
+
+SectionHeader :: (output: []u8, index: s64, name: string, section: Section, characteristics: u64) {
+    at := SectionTable + index * SectionHeaderSize
+    PutText(output, at, name)
+    PutLittle(output, at + 8, cast(u64)section.size, 4)
+    PutLittle(output, at + 12, cast(u64)section.rva, 4)
+    PutLittle(output, at + 16, cast(u64)section.raw, 4)
+    PutLittle(output, at + 20, cast(u64)section.file, 4)
+    PutLittle(output, at + 36, characteristics, 4)
+}
+
+DataDirectory :: (output: []u8, index: s64, rva: s64, size: s64) {
+    at := OptionalHeader + 112 + index * 8
+    PutLittle(output, at, cast(u64)rva, 4)
+    PutLittle(output, at + 4, cast(u64)size, 4)
+}
+
+WriteHeaders :: (layout: Layout, output: []u8) {
+    // MS-DOS header: the signature and e_lfanew only.
+    output[0] = 77; output[1] = 90
+    PutLittle(output, 60, DosHeaderSize, 4)
+    PutText(output, DosHeaderSize, "PE")
+
+    // COFF: AMD64, its sections, an executable large-address-aware image.
+    PutLittle(output, FileHeader, 0x8664, 2)
+    PutLittle(output, FileHeader + 2, cast(u64)layout.sections, 2)
+    PutLittle(output, FileHeader + 16, OptionalHeaderSize, 2)
+    PutLittle(output, FileHeader + 18, 0x0022, 2)
+
+    // PE32+ optional header: a Windows 6.0 console subsystem image.
+    at := cast(s64)OptionalHeader
+    PutLittle(output, at, 0x20b, 2)
+    PutLittle(output, at + 4, cast(u64)layout.text.raw, 4)
+    PutLittle(output, at + 8, cast(u64)(layout.rdata.raw + layout.data.raw), 4)
+    PutLittle(output, at + 16, MachinePeTextRva, 4)
+    PutLittle(output, at + 20, MachinePeTextRva, 4)
+    PutLittle(output, at + 24, MachinePeImageBase, 8)
+    PutLittle(output, at + 32, MachinePeSectionAlignment, 4)
+    PutLittle(output, at + 36, MachinePeFileAlignment, 4)
+    PutLittle(output, at + 40, 6, 2)
+    PutLittle(output, at + 48, 6, 2)
+    PutLittle(output, at + 56, cast(u64)layout.image_size, 4)
+    PutLittle(output, at + 60, HeadersSize, 4)
+    PutLittle(output, at + 68, 3, 2)
+    // HIGH_ENTROPY_VA, DYNAMIC_BASE, NX_COMPAT, TERMINAL_SERVER_AWARE.
+    PutLittle(output, at + 70, 0x8160, 2)
+    PutLittle(output, at + 72, MachinePeStackBytes, 8)
+    PutLittle(output, at + 80, MachinePeStackBytes, 8)
+    PutLittle(output, at + 88, 0x100000, 8)
+    PutLittle(output, at + 96, 0x1000, 8)
+    PutLittle(output, at + 108, 16, 4)
+    DataDirectory(output, 1, layout.directory, 2 * ImportDescriptorSize)
+    DataDirectory(output, 5, layout.relocations, layout.relocations_size)
+    DataDirectory(output, 12, layout.address, (layout.import_count + 1) * 8)
+
+    SectionHeader(output, 0, ".text", layout.text, 0x60000020)
+    SectionHeader(output, 1, ".rdata", layout.rdata, 0x40000040)
+    if layout.sections == 3 { SectionHeader(output, 2, ".data", layout.data, 0xc0000040) }
+}
+
+CopySection :: (output: []u8, memory: []u8, section: Section, stored: s64) {
+    for index: cast(s64)0..stored - 1 { output[section.file + index] = memory[section.rva + index] }
+}
+
+// Lays the image out in memory by RVA, then copies its sections into the
+// file.
+Write :: (program: MachineProgram, encoded: MachineX64Image, layout: Layout, output: []u8, fuel: s64) -> MachineProblem {
+    memory_size := layout.rdata.rva + layout.rdata.size
+    if layout.sections == 3 { memory_size = layout.data.rva + layout.image.data_layout.size }
+    memory: Vec(u8)
+    defer VecFree(memory)
+    if !VecResizeBounded(memory, memory_size, memory_size) { return .Allocation }
+    if !MachineX64ImageWrite(program, encoded, layout.image, memory[:], MachinePeImageBase, fuel) {
+        return .Relocation
+    }
+    WriteImports(layout, memory[:])
+    unused Relocations(program, layout.image, memory[:], layout.relocations)
+    for index: cast(s64)0..output.count - 1 { output[index] = 0 }
+    WriteHeaders(layout, output)
+    CopySection(output, memory[:], layout.text, layout.text.size)
+    CopySection(output, memory[:], layout.rdata, layout.rdata.size)
+    if layout.sections == 3 { CopySection(output, memory[:], layout.data, layout.image.data_layout.size) }
+    return .None
+}
+
+#scope_export
+
+// Empty OUTPUT measures. A non-empty OUTPUT must have exactly the measured
+// length. Verification, complete relocation resolution and i32 range checks
+// all finish before the first output byte is changed.
+MachinePeEncode :: (program: MachineProgram, encoded: MachineX64Image, output: []u8,
+    fuel: s64 = MachineX64InitialFuel) -> MachinePeResult {
+    if fuel < 0 { return Failure(.Fuel) }
+    layout: Layout
+    diagnostic := PeLayout(program, encoded, *layout)
+    if diagnostic.problem != .None { return .{diagnostic = diagnostic} }
+    result := MachinePeResult.{diagnostic = diagnostic, size = layout.file_size,
+        text_offset = layout.text.file, text_rva = layout.text.rva, text_size = layout.text.size,
+        startup_size = layout.image.startup_size, data_offset = layout.data.file, data_rva = layout.data.rva,
+        data_size = layout.image.data_layout.size,
+        imports = layout.imports}
+    if output.count == 0 { return result }
+    if output.count != layout.file_size { return Failure(.Limit) }
+    problem := Write(program, encoded, layout, output, fuel)
+    if problem != .None { return Failure(problem) }
+    return result
+}

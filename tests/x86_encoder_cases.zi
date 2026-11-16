@@ -1088,7 +1088,7 @@ BuildNegative :: (b: *Builder, kind: NegativeKind) -> s32 {
         b.instructions[id] = instruction
     }
     if kind == .Stage { b.stage = .Virtual }
-    if kind == .Target { b.target = TargetDescribe(.X86_64, .Windows).target }
+    if kind == .Target { b.target = TargetDescribe(.X86_64, .MacOS).target }
     return id
 }
 

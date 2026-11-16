@@ -42,6 +42,10 @@ TargetRow :: struct {
     state: TargetState
     features: u64
     services: u64
+    // The standalone executable zx2native writes for the row ("elf" or
+    // "pe"), or empty. Like machine lowering, it is a partial stage and never
+    // implements the row on its own.
+    executable: string
     milestone: string
     note: string
 }
@@ -170,9 +174,12 @@ TargetValid :: (target: TargetDescription) -> bool {
         target.feature_mask == expected.feature_mask
 }
 
+// Code inside a program keeps the Ziran-internal convention on every x86-64
+// OS; Win64 appears only where a Windows runtime calls kernel32.
 TargetMachineLoweringSupported :: (target: TargetDescription) -> bool {
     if !TargetValid(target) { return false }
     if target.arch == .X86_64 && target.os == .Linux && target.abi == .SysV { return true }
+    if target.arch == .X86_64 && target.os == .Windows && target.abi == .Win64 { return true }
     if target.arch == .AArch64 && (target.os == .Linux || target.os == .Android) &&
         target.abi == .Aapcs64 { return true }
     if target.arch == .ArmV7 && (target.os == .Linux || target.os == .Android) &&
@@ -181,10 +188,9 @@ TargetMachineLoweringSupported :: (target: TargetDescription) -> bool {
 }
 
 // Executable native output is narrower than machine lowering: it also needs
-// the process-entry, write_all and exit-group runtime veneer for that row.
+// the row's container writer and its process-entry, console and exit runtime.
 TargetExecutableNativeSupported :: (target: TargetDescription) -> bool {
-    return TargetValid(target) && target.arch == .X86_64 && target.os == .Linux &&
-        target.abi == .SysV
+    return TargetMachineLoweringSupported(target) && TargetRowFor(target.arch, target.os).executable.count > 0
 }
 
 TargetArchName :: (arch: TargetArch) -> string {
@@ -328,7 +334,7 @@ TARGET_ROW_COUNT :: 12
 
 TargetRowAt :: (index: s32) -> TargetRow {
     if index == 0 {
-        return .{arch = .X86_64, os = .Linux, state = .Gap, milestone = "M2-M3",
+        return .{arch = .X86_64, os = .Linux, state = .Gap, executable = "elf", milestone = "M2-M3",
             note = "Machine IR stops before register allocation and encoding; the native ZX loader and runtime cutover are not implemented."}
     }
     if index == 1 {
@@ -336,8 +342,8 @@ TargetRowAt :: (index: s32) -> TargetRow {
             note = "No direct Android x86-64 executable, loader or API-level contract."}
     }
     if index == 2 {
-        return .{arch = .X86_64, os = .Windows, state = .Gap, milestone = "M5",
-            note = "No Win64 shadow-space, unwind or COFF output."}
+        return .{arch = .X86_64, os = .Windows, state = .Gap, executable = "pe", milestone = "M5",
+            note = "zx2native writes a PE32+ console executable whose runtime calls kernel32 through its IAT; no in-process loader, unwind data, files or clock."}
     }
     if index == 3 {
         return .{arch = .X86_64, os = .MacOS, state = .Gap, milestone = "M5",

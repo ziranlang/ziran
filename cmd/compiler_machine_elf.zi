@@ -1,56 +1,23 @@
-using Allocated :: #import "compiler_machine_verify_allocated"
-using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
-using Runtime :: #import "compiler_x86_runtime"
+using Target :: #import "compiler_target"
 using X64 :: #import "compiler_x86_64"
+using X64Image :: #import "compiler_x86_image"
 
 // Deterministic, sectionless Linux x86-64 ELF image for allocated machine IR,
-// carrying only what the program uses. The first PT_LOAD maps the file from
-// offset 0: the ELF headers, then (16-byte aligned) a Ziran-owned process
-// entry stub, the encoded machine text, the hard-trap stub when anything
-// traps, the runtime routines the program calls and its read-only data. It is
-// read/execute only. A second PT_LOAD exists only when the program needs
-// writable state: writable globals, the fuel counter, the last trap code, the
-// stack limit, the pointer runtime (its header, the pointer table with slot 0
-// and the globals' slots in the file and the rest zero fill, and the frame
-// arena), the heap's state and the console buffer, each only when used. Its
-// bytes follow the text in the file and map one page higher in memory, so
-// the two segments never share a page and the file needs no padding. It is
-// read/write but never executable.
-//
-// Process convention:
-//   * a void entry exits zero; a bool/integer entry exits with its low byte;
-//   * fuel starts at the requested budget; an unbounded budget, the
-//     default, is the same one a bundle run starts with, so such a program
-//     is built without fuel checks, and every MachineOpcode.Fuel debits it;
-//   * a hard trap stores its u32 MachineX64Trap* code and exits status 125;
-//   * when any function checks its stack, _start sets the stack limit
-//     MachineElfStackBytes below its own stack pointer, inside the default
-//     8 MiB process stack, so runaway recursion takes MachineX64TrapStack
-//     instead of faulting.
-// No dynamic linker, runtime, assembler or foreign object participates.
+// with the contents compiler_x86_image.zi lays out, carrying only what the
+// program uses. The first PT_LOAD maps the file from offset 0: the ELF
+// headers, then (16-byte aligned) the text and the read-only globals after
+// it. It is read/execute only. A second PT_LOAD exists only when the program
+// needs writable state. Its bytes follow the text in the file and map one
+// page higher in memory, so the two segments never share a page and the
+// file needs no padding. It is read/write but never executable. Positions are
+// virtual offsets from MachineElfBase. No dynamic linker, runtime, assembler
+// or foreign object participates.
 
 MachineElfBase :: 0x400000
 MachineElfPage :: 4096
 MachineElfHeaderSize :: 64
 MachineElfProgramHeaderSize :: 56
-// _start: the stack limit setup when used, a call per initializer, the entry
-// call, its status, then exit_group itself or, to flush buffered output, a
-// jump to the runtime's exit.
-MachineElfStackSetupSize :: 16
-MachineElfStackBytes :: 0x7c0000
-// Store the trap code, then exit with MachineElfTrapExitStatus.
-MachineElfTrapSize :: 16
-// The float formatter: position independent, with its naturally aligned SSE
-// constants 16-byte aligned when it starts 12 bytes past a boundary. It writes
-// its text through one call to the console's stdout_bytes.
-MachineElfFloatSize :: 768
-MachineElfFloatAlignment :: 12
-MachineElfFloatWriteField :: 0x2b3
-MachineElfFloat32Offset :: 704
-MachineElfFloat64Offset :: 718
-MachineElfInitialFuel :: 9223372036854775807
-MachineElfTrapExitStatus :: 125
 
 // File offsets, and the data segment's virtual offset from MachineElfBase
 // (both 0 without a data segment); a piece the image does not carry has
@@ -71,496 +38,21 @@ MachineElfResult :: struct {
 
 #scope_file
 
-// Offsets in the data segment, -1 for a piece the program does not use.
-DataLayout :: struct {
-    globals_size: s64
-    fuel: s64
-    trap_status: s64
-    stack_limit: s64
-    pointer_header: s64
-    table: s64
-    arena: s64
-    heap: s64
-    console: s64
-    // Bytes in the file, and in memory with the zero fill.
-    size: s64
-    memory: s64
-}
-
-// What the image references, which decides what the file carries.
-Needs :: struct {
-    runtime: MachineX64RuntimeUses
-    float: bool
-    fuel: bool
-    trap: bool
-    stack: bool
-    pointer: bool
-}
-
 Layout :: struct {
-    needs: Needs
-    // Program headers, and the file offset (and virtual offset) of _start.
+    image: MachineX64ImageLayout
     headers: s64
-    text_offset: s64
-    startup_size: s64
-    text_size: s64
     data_offset: s64
-    data_address: s64
     file_size: s64
-    // The trap stub, when anything traps.
-    trap_text: s64
-    // The emitted routines, then the float formatter when a program prints
-    // floats.
-    routines_text: s64
-    routines: MachineX64RuntimeEntries
-    float_text: s64
-    constants_text: s64
-    constants_size: s64
-    data: DataLayout
 }
 
-NoDiagnostic :: () -> MachineDiagnostic {
-    return .{problem = .None, function = MachineNoId, block = MachineNoId,
-        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
-}
-
-Failure :: (problem: MachineProblem, instruction: s32 = MachineNoId) -> MachineElfResult {
+Failure :: (problem: MachineProblem) -> MachineElfResult {
     return .{diagnostic = .{problem = problem, function = MachineNoId, block = MachineNoId,
-        instruction = instruction, operand = MachineNoId, virtual = MachineNoId}}
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}}
 }
 
 Align :: (value: s64, alignment: s64) -> s64 {
     return (value + alignment - 1) & ~(alignment - 1)
 }
-
-ValidAlignment :: (alignment: s32) -> bool {
-    return alignment > 0 && alignment <= MachineElfPage && (alignment & (alignment - 1)) == 0
-}
-
-DataMeasure :: (program: MachineProgram, needs: Needs, layout: *DataLayout) -> MachineDiagnostic {
-    at: s64 = 0
-    for global: program.globals {
-        if global.type < 0 || global.type >= program.types.count {
-            result := NoDiagnostic(); result.problem = .Unsupported; return result
-        }
-        if !global.writable { continue }
-        type := program.types[global.type]
-        if type.size <= 0 || type.size > 2147483647 || !ValidAlignment(type.alignment) {
-            result := NoDiagnostic(); result.problem = .Unsupported; return result
-        }
-        at = Align(at, type.alignment)
-        if at > 2147483647 - type.size {
-            result := NoDiagnostic(); result.problem = .Limit; return result
-        }
-        at += type.size
-    }
-    layout.globals_size = at
-    layout.fuel = -1; layout.trap_status = -1; layout.stack_limit = -1; layout.pointer_header = -1
-    layout.table = -1; layout.arena = -1; layout.heap = -1; layout.console = -1
-    // File bytes first: the fuel budget and the pointer runtime's header and
-    // the globals' table entries; everything after is zero fill.
-    if needs.fuel { layout.fuel = Align(at, 8); at = layout.fuel + 8 }
-    memory := at
-    if needs.pointer {
-        layout.pointer_header = Align(at, 8)
-        layout.table = Align(layout.pointer_header + MachinePointerHeaderBytes, MachinePointerEntryBytes)
-        slots := program.globals.count + 1
-        if slots > MachinePointerCapacity || layout.table > 2147483647 - slots * MachinePointerEntryBytes {
-            result := NoDiagnostic(); result.problem = .Limit; return result
-        }
-        at = layout.table + slots * MachinePointerEntryBytes
-        layout.arena = Align(layout.table + (MachinePointerCapacity + 1) * MachinePointerEntryBytes, 16)
-        memory = layout.arena + MachinePointerArenaBytes
-    }
-    layout.size = at
-    if needs.trap { layout.trap_status = Align(memory, 4); memory = layout.trap_status + 4 }
-    if needs.stack { layout.stack_limit = Align(memory, 8); memory = layout.stack_limit + 8 }
-    if needs.runtime.resize { layout.heap = Align(memory, 16); memory = layout.heap + MachineX64RuntimeHeapBytes }
-    if needs.runtime.buffered {
-        layout.console = Align(memory, 16)
-        memory = layout.console + MachineX64RuntimeConsoleBytes
-    }
-    layout.memory = memory
-    return NoDiagnostic()
-}
-
-GlobalsMeasure :: (program: MachineProgram, writable: bool, size: *s64) -> MachineDiagnostic {
-    at: s64 = 0
-    for global: program.globals {
-        if global.type < 0 || global.type >= program.types.count {
-            result := NoDiagnostic(); result.problem = .Unsupported; return result
-        }
-        if global.writable != writable { continue }
-        type := program.types[global.type]
-        if type.size <= 0 || type.size > 2147483647 || !ValidAlignment(type.alignment) {
-            result := NoDiagnostic(); result.problem = .Unsupported; return result
-        }
-        at = Align(at, type.alignment)
-        if at > 2147483647 - type.size {
-            result := NoDiagnostic(); result.problem = .Limit; return result
-        }
-        at += type.size
-    }
-    <<size = at
-    return NoDiagnostic()
-}
-
-GlobalOffset :: (program: MachineProgram, symbol: s32, writable: bool, offset: *s64) -> bool {
-    if symbol < 0 || symbol >= program.globals.count { return false }
-    if program.globals[symbol].writable != writable { return false }
-    at: s64 = 0
-    for index: cast(s64)0..program.globals.count - 1 {
-        global := program.globals[index]
-        if global.type < 0 || global.type >= program.types.count { return false }
-        if global.writable != writable { continue }
-        type := program.types[global.type]
-        if type.size <= 0 || !ValidAlignment(type.alignment) { return false }
-        at = Align(at, type.alignment)
-        if index == symbol { <<offset = at; return true }
-        at += type.size
-    }
-    return false
-}
-
-Relative32 :: (target: u64, addend: s64, field: u64, value: *s64) -> bool {
-    // Every address in this image is bounded below 2^32 and relocation addends
-    // are restricted to i32, so this subtraction cannot overflow s64.
-    if target > 0xffffffff || field > 0xffffffff ||
-        addend < -2147483648 || addend > 2147483647 { return false }
-    displacement := cast(s64)target + addend - cast(s64)field
-    if displacement < -2147483648 || displacement > 2147483647 { return false }
-    <<value = displacement
-    return true
-}
-
-TrapOpcode :: (opcode: MachineOpcode) -> bool {
-    return opcode == .IntegerDivide || opcode == .IntegerRemainder ||
-        opcode == .ShiftLeft || opcode == .ShiftRight || opcode == .AggregateExtract ||
-        opcode == .AggregateInsert || opcode == .ElementAddress ||
-        opcode == .Convert || opcode == .Fuel || opcode == .Trap || opcode == .Unreachable ||
-        PointerOpcode(opcode)
-}
-
-// Instructions whose sequences use the pointer runtime header.
-PointerOpcode :: (opcode: MachineOpcode) -> bool {
-    return opcode == .PointerResolve || opcode == .PointerCreate || opcode == .ArenaAllocate ||
-        opcode == .Resize
-}
-
-FunctionNameEqual :: (program: MachineProgram, symbol: s32, expected: string) -> bool {
-    if symbol < 0 || symbol >= program.functions.count { return false }
-    function := program.functions[symbol]
-    if function.name_offset < 0 || function.name_length != expected.count ||
-        function.name_offset > program.text.count - function.name_length { return false }
-    for index: cast(s64)0..expected.count - 1 {
-        if program.text[function.name_offset + index] != cast(u8)expected[index] { return false }
-    }
-    return true
-}
-
-// The image file offset of a platform service the runtime implements.
-PlatformTarget :: (program: MachineProgram, layout: Layout, symbol: s32, offset: *s64) -> bool {
-    routines := layout.routines
-    float := layout.text_offset + layout.float_text
-    if FunctionNameEqual(program, symbol, "ziran.platform.write_all") { <<offset = routines.write_all; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.signed") { <<offset = routines.print_signed; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.unsigned") { <<offset = routines.print_unsigned; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.bool") { <<offset = routines.print_bool; return true }
-    if layout.float_text == 0 { return false }
-    if FunctionNameEqual(program, symbol, "ziran.print.float32") { <<offset = float + MachineElfFloat32Offset; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.float64") { <<offset = float + MachineElfFloat64Offset; return true }
-    return false
-}
-
-// What the image references: fuel, traps, the stack limit, the pointer
-// runtime and each runtime routine. Standard output is buffered unless the
-// program's one console call runs at most once, which buffering cannot help.
-ImageNeeds :: (program: MachineProgram, image: MachineX64Image) -> Needs {
-    needs: Needs
-    consoles: s64 = 0
-    console_at: s32 = MachineNoId
-    for instruction: program.instructions {
-        if instruction.opcode == .Resize { needs.runtime.resize = true }
-    }
-    for relocation: image.relocations {
-        if relocation.kind == .FuelCounter { needs.fuel = true }
-        if relocation.kind == .TrapHandler { needs.trap = true }
-        if relocation.kind == .StackLimit { needs.stack = true }
-        if relocation.kind == .PointerRuntime { needs.pointer = true }
-        if relocation.kind != .PlatformService { continue }
-        consoles += 1
-        console_at = relocation.instruction
-        symbol := relocation.symbol
-        if FunctionNameEqual(program, symbol, "ziran.platform.write_all") { needs.runtime.write_all = true }
-        if FunctionNameEqual(program, symbol, "ziran.print.signed") { needs.runtime.signed = true }
-        if FunctionNameEqual(program, symbol, "ziran.print.unsigned") { needs.runtime.unsigned = true }
-        if FunctionNameEqual(program, symbol, "ziran.print.bool") { needs.runtime.print_bool = true }
-        if FunctionNameEqual(program, symbol, "ziran.print.float32") ||
-            FunctionNameEqual(program, symbol, "ziran.print.float64") {
-            needs.float = true
-            needs.runtime.stdout_bytes = true
-        }
-    }
-    // A refused resize traps through the stub.
-    if needs.runtime.resize { needs.trap = true }
-    needs.runtime.buffered = MachineX64RuntimeConsole(needs.runtime) && (consoles != 1 || !Once(program, console_at))
-    needs.runtime.exit = needs.trap || needs.runtime.buffered
-    return needs
-}
-
-// Whether INSTRUCTION runs at most once: it lies in the entry function, which
-// no call, address or initializer names and whose edges all lead to later
-// blocks.
-Once :: (program: MachineProgram, instruction: s32) -> bool {
-    if instruction < 0 || program.entry < 0 { return false }
-    entry := program.functions[program.entry]
-    inside := false
-    for block_id: entry.block_begin..entry.block_begin + entry.block_count - 1 {
-        block := program.blocks[block_id]
-        end := block.instruction_begin + block.instruction_count
-        if instruction >= block.instruction_begin && instruction < end { inside = true }
-        for at: block.instruction_begin..end - 1 {
-            item := program.instructions[at]
-            for edge: item.edge_begin..item.edge_begin + item.edge_count - 1 {
-                if program.edges[edge].target <= block_id { return false }
-            }
-            for local: 0..item.operand_count - 1 {
-                operand := program.operands[item.operand_begin + local]
-                if operand.kind == .Block && operand.id <= block_id { return false }
-            }
-        }
-    }
-    if !inside { return false }
-    for relocation: program.relocations {
-        if (relocation.kind == .FunctionCall || relocation.kind == .FunctionAddress) &&
-            relocation.symbol == program.entry { return false }
-    }
-    for initializer: program.initializers { if initializer == program.entry { return false } }
-    return true
-}
-
-// Rip-relative targets for the runtime, as virtual offsets from MachineElfBase.
-RuntimePlaces :: (layout: Layout) -> MachineX64RuntimePlaces {
-    return .{trap = layout.text_offset + layout.trap_text, heap = layout.data_address + layout.data.heap,
-        console = layout.data_address + layout.data.console}
-}
-
-StartupSize :: (program: MachineProgram, needs: Needs) -> s64 {
-    stack := ifx needs.stack then MachineElfStackSetupSize else 0
-    exit := ifx needs.runtime.buffered then 5 else 7
-    return stack + program.initializers.count * 5 + 7 + exit
-}
-
-// The data segment's start: aligned for every writable global and the
-// pointer table.
-DataAlignment :: (program: MachineProgram) -> s64 {
-    alignment: s64 = 64
-    for global: program.globals {
-        if global.writable && global.type >= 0 && global.type < program.types.count &&
-            cast(s64)program.types[global.type].alignment > alignment {
-            alignment = cast(s64)program.types[global.type].alignment
-        }
-    }
-    return alignment
-}
-
-ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout) -> MachineDiagnostic {
-    verified := MachineVerifyAllocated(program, MachineDefaultLimits())
-    if verified.problem != .None { return verified }
-    if program.target.arch != .X86_64 || program.target.os != .Linux || program.target.abi != .SysV {
-        result := NoDiagnostic(); result.problem = .UnsupportedTarget; return result
-    }
-    if program.entry < 0 || program.entry >= program.functions.count || image.entry != program.entry ||
-        image.code.count <= 0 || image.code.count > 2147483647 ||
-        image.functions.count != program.functions.count || image.blocks.count != program.blocks.count ||
-        image.instructions.count != program.instructions.count {
-        result := NoDiagnostic(); result.problem = .Relocation; return result
-    }
-    entry := program.functions[program.entry]
-    if entry.parameter_count != 0 || entry.result_type < 0 || entry.result_type >= program.types.count {
-        result := NoDiagnostic(); result.problem = .Unsupported; return result
-    }
-    result_type := program.types[entry.result_type]
-    if result_type.kind != .Void && result_type.kind != .Bool && result_type.kind != .Integer {
-        result := NoDiagnostic(); result.problem = .Unsupported; return result
-    }
-    for global: program.globals {
-        if !global.writable && global.constant < 0 {
-            result := NoDiagnostic(); result.problem = .Unsupported; return result
-        }
-        if global.constant >= 0 {
-            constant := program.constants[global.constant]
-            type := program.types[global.type]
-            if (constant.bytes_count == 0 && type.size > 8) ||
-                (constant.bytes_count != 0 && constant.bytes_count != type.size) {
-                result := NoDiagnostic(); result.problem = .Unsupported; return result
-            }
-        }
-    }
-    previous: s64 = 0
-    for function: image.functions {
-        if function.begin < previous || function.body < function.begin || function.end < function.body ||
-            function.end > image.code.count {
-            result := NoDiagnostic(); result.problem = .Relocation; return result
-        }
-        previous = function.end
-    }
-    for block: image.blocks {
-        if block < 0 || block > image.code.count {
-            result := NoDiagnostic(); result.problem = .Relocation; return result
-        }
-    }
-    for range: image.instructions {
-        if range.begin < 0 || range.end < range.begin || range.end > image.code.count {
-            result := NoDiagnostic(); result.problem = .Relocation; return result
-        }
-    }
-    layout.needs = ImageNeeds(program, image)
-    data_diagnostic := DataMeasure(program, layout.needs, *layout.data)
-    if data_diagnostic.problem != .None { return data_diagnostic }
-    constants_diagnostic := GlobalsMeasure(program, false, *layout.constants_size)
-    if constants_diagnostic.problem != .None { return constants_diagnostic }
-    layout.headers = ifx layout.data.memory > 0 then 2 else 1
-    layout.text_offset = Align(MachineElfHeaderSize + layout.headers * MachineElfProgramHeaderSize, 16)
-    layout.startup_size = StartupSize(program, layout.needs)
-    if layout.startup_size > 2147483647 - image.code.count {
-        result := NoDiagnostic(); result.problem = .Limit; return result
-    }
-    layout.trap_text = layout.startup_size + image.code.count
-    layout.routines_text = Align(layout.trap_text + ifx layout.needs.trap then MachineElfTrapSize else 0, 16)
-    // Measuring: data places are not known yet, and every rip field is 32-bit.
-    measuring: []u8
-    if !MachineX64RuntimeEmit(measuring, layout.text_offset + layout.routines_text,
-        layout.needs.runtime, RuntimePlaces(<<layout), *layout.routines) {
-        result := NoDiagnostic(); result.problem = .Limit; return result
-    }
-    end := layout.routines.end - layout.text_offset
-    if layout.needs.float {
-        layout.float_text = Align(end + 16 - MachineElfFloatAlignment, 16) - 16 + MachineElfFloatAlignment
-        end = layout.float_text + MachineElfFloatSize
-    }
-    layout.constants_text = Align(end, 16)
-    layout.text_size = layout.constants_text + layout.constants_size
-    if layout.text_size > 2147483647 - layout.text_offset - MachineElfPage {
-        result := NoDiagnostic(); result.problem = .Limit; return result
-    }
-    layout.data_offset = layout.text_offset + layout.text_size
-    layout.data_address = layout.data_offset
-    if layout.data.memory > 0 {
-        layout.data_offset = Align(layout.data_offset, DataAlignment(program))
-        layout.data_address = layout.data_offset + MachineElfPage
-    }
-    if layout.data_address > 2147483647 - layout.data.memory {
-        result := NoDiagnostic(); result.problem = .Limit; return result
-    }
-    layout.file_size = layout.data_offset + layout.data.size
-
-    // The encoder's own measuring pass must find exactly these relocations.
-    remeasured := MachineX64Measure(program, MachineDefaultLimits())
-    if remeasured.diagnostic.problem != .None || remeasured.relocations != image.relocations.count {
-        result := NoDiagnostic(); result.problem = .Relocation; return result
-    }
-    previous = -1
-    for relocation: image.relocations {
-        if relocation.instruction == MachineNoId {
-            // Only a prologue has relocations outside an instruction: its stack
-            // check, pointer frame and the load of a register step budget.
-            if relocation.offset <= previous || relocation.offset < 0 ||
-                relocation.offset > image.code.count - 4 ||
-                (relocation.kind != .StackLimit && relocation.kind != .TrapHandler &&
-                 relocation.kind != .PointerRuntime && relocation.kind != .FuelCounter) ||
-                relocation.symbol != 0 || relocation.addend != -4 ||
-                !InPrologue(program, image, relocation.offset) {
-                result := NoDiagnostic(); result.problem = .Relocation; return result
-            }
-            previous = relocation.offset
-            continue
-        }
-        if relocation.kind == .StackLimit ||
-            relocation.kind == .PointerRuntime &&
-                !PointerOpcode(program.instructions[relocation.instruction].opcode) &&
-                program.instructions[relocation.instruction].opcode != .Return ||
-            relocation.offset <= previous || relocation.offset < 0 ||
-            relocation.offset > image.code.count - 4 || relocation.instruction < 0 ||
-            relocation.instruction >= image.instructions.count ||
-            relocation.offset < image.instructions[relocation.instruction].begin ||
-            relocation.offset + 4 > image.instructions[relocation.instruction].end {
-            result := NoDiagnostic(); result.problem = .Relocation
-            result.instruction = relocation.instruction; return result
-        }
-        previous = relocation.offset
-        target: u64 = 0
-        if relocation.kind == .GlobalAddress || relocation.kind == .ConstantAddress {
-            readonly := relocation.kind == .ConstantAddress
-            if program.instructions[relocation.instruction].opcode != .GlobalAddress {
-                result := NoDiagnostic(); result.problem = .Relocation
-                result.instruction = relocation.instruction; return result
-            }
-            global_offset: s64 = 0
-            if !GlobalOffset(program, relocation.symbol, !readonly, *global_offset) {
-                result := NoDiagnostic(); result.problem = .Relocation
-                result.instruction = relocation.instruction; return result
-            }
-            if readonly {
-                target = cast(u64)(MachineElfBase + layout.text_offset + layout.constants_text + global_offset)
-            } else { target = cast(u64)(MachineElfBase + layout.data_address + global_offset) }
-        } else if relocation.kind == .FuelCounter && relocation.symbol == 0 {
-            // A fuel check, or where a register step budget is written back
-            // or reloaded: a call, a return or any trap.
-            target = cast(u64)(MachineElfBase + layout.data_address + layout.data.fuel)
-        } else if relocation.kind == .TrapHandler && relocation.symbol == 0 {
-            if !TrapOpcode(program.instructions[relocation.instruction].opcode) || relocation.addend != -4 {
-                result := NoDiagnostic(); result.problem = .Relocation
-                result.instruction = relocation.instruction; return result
-            }
-            target = cast(u64)(MachineElfBase + layout.text_offset + layout.trap_text)
-        } else if relocation.kind == .PlatformService {
-            if program.instructions[relocation.instruction].opcode != .CallDirect {
-                result := NoDiagnostic(); result.problem = .Relocation
-                result.instruction = relocation.instruction; return result
-            }
-            service_offset: s64 = 0
-            if !PlatformTarget(program, <<layout, relocation.symbol, *service_offset) {
-                result := NoDiagnostic(); result.problem = .Unsupported
-                result.instruction = relocation.instruction; return result
-            }
-            target = cast(u64)(MachineElfBase + service_offset)
-        } else if relocation.kind == .PointerRuntime && relocation.symbol == 0 {
-            target = cast(u64)(MachineElfBase + layout.data_address + layout.data.pointer_header)
-        } else if relocation.kind == .RuntimeResize && relocation.symbol == 0 {
-            if program.instructions[relocation.instruction].opcode != .Resize {
-                result := NoDiagnostic(); result.problem = .Relocation
-                result.instruction = relocation.instruction; return result
-            }
-            target = cast(u64)(MachineElfBase + layout.routines.resize)
-        } else {
-            result := NoDiagnostic(); result.problem = .Relocation
-            result.instruction = relocation.instruction; return result
-        }
-        field := cast(u64)(MachineElfBase + layout.text_offset + layout.startup_size + relocation.offset)
-        displacement: s64 = 0
-        if !Relative32(target, relocation.addend, field, *displacement) {
-            result := NoDiagnostic(); result.problem = .Relocation
-            result.instruction = relocation.instruction; return result
-        }
-    }
-    return NoDiagnostic()
-}
-
-// Whether a field at OFFSET lies inside the prologue of a function that
-// checks its stack or keeps checked frame storage.
-InPrologue :: (program: MachineProgram, image: MachineX64Image, offset: s64) -> bool {
-    for function_id: cast(s64)0..image.functions.count - 1 {
-        function := image.functions[function_id]
-        if offset >= function.begin && offset + 4 <= function.body {
-            return MachineX64StackChecked(program, cast(s32)function_id) ||
-                program.functions[function_id].arena_mark != 0 || program.functions[function_id].fuel_register
-        }
-    }
-    return false
-}
-
-Put8 :: (output: []u8, at: s64, value: u8) { output[at] = value }
 
 PutLittle :: (output: []u8, at: s64, value: u64, count: s32) {
     for index: 0..count - 1 {
@@ -568,114 +60,46 @@ PutLittle :: (output: []u8, at: s64, value: u64, count: s32) {
     }
 }
 
-PutRelative :: (output: []u8, at: s64, target: u64, addend: s64, field: u64) -> bool {
-    value: s64 = 0
-    if !Relative32(target, addend, field, *value) { return false }
-    PutLittle(output, at, cast(u64)value, 4)
-    return true
-}
+// The end of the text segment: the text, then the read-only globals.
+TextEnd :: (layout: Layout) -> s64 { return layout.image.constants + layout.image.constants_size }
 
-WriteFloatRuntime :: (output: []u8, at: s64) {
-first: [384]u8 = .[
-  0x53,0x66,0x48,0x0f,0x7e,0xc2,0x41,0x89,0xfb,0x31,0xc9,0x48,
-  0x81,0xec,0xc0,0x01,0x00,0x00,0x48,0x85,0xd2,0x79,0x11,0xc6,
-  0x44,0x24,0x30,0x2d,0x0f,0x57,0x05,0xc1,0x02,0x00,0x00,0xb9,
-  0x01,0x00,0x00,0x00,0xbe,0xff,0x07,0x00,0x00,0x48,0x89,0xd0,
-  0x8d,0x79,0x01,0x48,0xc1,0xe6,0x34,0x48,0xf7,0xd0,0x48,0x85,
-  0xf0,0x75,0x3f,0x49,0xb8,0xff,0xff,0xff,0xff,0xff,0xff,0x0f,
-  0x00,0x8d,0x41,0x02,0x8d,0x71,0x03,0x4c,0x85,0xc2,0x75,0x0a,
-  0x41,0xb1,0x69,0x41,0xb0,0x6e,0xb2,0x66,0xeb,0x08,0x41,0xb1,
-  0x6e,0x41,0xb0,0x61,0xb2,0x6e,0x48,0x63,0xff,0x48,0x98,0x44,
-  0x88,0x4c,0x0c,0x30,0x48,0x63,0xf6,0x44,0x88,0x44,0x3c,0x30,
-  0x88,0x54,0x04,0x30,0xeb,0x13,0x0f,0x57,0xc9,0x66,0x0f,0x2e,
-  0xc1,0x7a,0x14,0x75,0x12,0xc6,0x44,0x0c,0x30,0x30,0x48,0x63,
-  0xf7,0x48,0x8d,0x7c,0x24,0x30,0xe9,0x17,0x02,0x00,0x00,0xf2,
-  0x0f,0x11,0x04,0x24,0xdd,0x04,0x24,0x45,0x31,0xc0,0xd9,0x05,
-  0x48,0x02,0x00,0x00,0xd9,0xc9,0xdb,0xf1,0xd9,0xc1,0x72,0x09,
-  0xdd,0xd8,0xde,0xf1,0x41,0xff,0xc0,0xeb,0xe9,0xdd,0xda,0xd9,
-  0xc9,0xd9,0xe8,0xdb,0xf2,0x76,0x0b,0xd9,0xca,0xd8,0xc9,0xd9,
-  0xca,0x41,0xff,0xc8,0xeb,0xf1,0xdd,0xd8,0xbe,0x11,0x00,0x00,
-  0x00,0x45,0x85,0xdb,0x74,0x05,0xbe,0x09,0x00,0x00,0x00,0xd9,
-  0x7c,0x24,0x0e,0x41,0xb9,0x01,0x00,0x00,0x00,0x41,0xba,0x01,
-  0x00,0x00,0x00,0xbb,0x0a,0x00,0x00,0x00,0x66,0x8b,0x44,0x24,
-  0x0e,0x80,0xcc,0x0c,0x66,0x89,0x44,0x24,0x0c,0x4c,0x89,0x14,
-  0x24,0xdf,0x2c,0x24,0x4d,0x85,0xd2,0x79,0x06,0xd8,0x05,0xe1,
-  0x01,0x00,0x00,0xd9,0xc0,0xd8,0xcb,0xd8,0x05,0xdb,0x01,0x00,
-  0x00,0xd9,0x6c,0x24,0x0c,0xdf,0x3c,0x24,0xd9,0x6c,0x24,0x0e,
-  0x4d,0x6b,0xd2,0x0a,0x48,0x8b,0x04,0x24,0x4c,0x39,0xd0,0x72,
-  0x08,0x31,0xd2,0x41,0xff,0xc0,0x48,0xf7,0xf3,0x48,0x89,0x04,
-  0x24,0xdf,0x2c,0x24,0x48,0x85,0xc0,0x79,0x06,0xd8,0x05,0xa5,
-  0x01,0x00,0x00,0xde,0xf1,0x45,0x85,0xc0,0x7e,0x0d,0x31,0xd2,
-  0xff,0xc2,0xd8,0xc9,0x41,0x39,0xd0,0x75,0xf7,0xeb,0x0d,0x74,
-  0x0b,0x31,0xd2,0xd8,0xf1,0xff,0xca,0x41,0x39,0xd0,0x75,0xf7,
-  0x45,0x85,0xdb,0x74,0x11,0xd9,0x1c,0x24,0xf3,0x0f,0x10,0x14]
-second: [384]u8 = .[
-  0x24,0xf2,0x0f,0x5a,0xc8,0x0f,0x2e,0xd1,0xeb,0x0c,0xdd,0x1c,
-  0x24,0xf2,0x0f,0x10,0x0c,0x24,0x66,0x0f,0x2e,0xc8,0x7a,0x02,
-  0x74,0x12,0x41,0xff,0xc1,0x44,0x39,0xce,0x0f,0x8d,0x5f,0xff,
-  0xff,0xff,0xdd,0xd8,0xdd,0xd8,0xeb,0x04,0xdd,0xd8,0xdd,0xd8,
-  0x44,0x39,0xce,0x41,0xbb,0x0a,0x00,0x00,0x00,0x41,0x0f,0x4f,
-  0xf1,0x4c,0x8d,0x4c,0x24,0x18,0x44,0x8d,0x56,0xff,0x4d,0x63,
-  0xd2,0x31,0xd2,0x49,0xff,0xca,0x49,0xf7,0xf3,0x83,0xc2,0x30,
-  0x43,0x88,0x54,0x0a,0x01,0x41,0x83,0xfa,0xff,0x75,0xea,0x48,
-  0x63,0xc6,0x83,0xf8,0x01,0x74,0x11,0x41,0x80,0x7c,0x01,0xff,
-  0x30,0x48,0x8d,0x50,0xff,0x75,0x05,0x48,0x89,0xd0,0xeb,0xea,
-  0x31,0xf6,0x45,0x85,0xc0,0x41,0x89,0xc3,0x48,0x63,0xd1,0x4c,
-  0x8d,0x54,0x24,0x30,0x78,0x05,0x4c,0x01,0xd2,0xeb,0x54,0x48,
-  0x63,0xff,0xc6,0x44,0x14,0x30,0x30,0x83,0xc1,0x02,0x31,0xf6,
-  0xc6,0x44,0x3c,0x30,0x2e,0x44,0x89,0xc7,0x4c,0x01,0xd2,0xf7,
-  0xdf,0x48,0xff,0xc6,0x39,0xf7,0x7e,0x07,0xc6,0x44,0x32,0x01,
-  0x30,0xeb,0xf2,0x44,0x29,0xc1,0x31,0xd2,0xff,0xc9,0x48,0x89,
-  0xcf,0x4c,0x01,0xd1,0x41,0x8a,0x34,0x11,0x40,0x88,0x34,0x11,
-  0x48,0xff,0xc2,0x39,0xd0,0x7f,0xf1,0x44,0x01,0xdf,0xeb,0x54,
-  0x88,0x1c,0x32,0x48,0xff,0xc6,0x41,0x39,0xf0,0x7c,0x0c,0xb3,
-  0x30,0x39,0xf0,0x7e,0xef,0x41,0x8a,0x1c,0x31,0xeb,0xe9,0x41,
-  0x8d,0x50,0x01,0x44,0x01,0xc7,0x39,0xc2,0x7d,0x32,0x48,0x63,
-  0xff,0x44,0x01,0xc1,0x48,0x63,0xd2,0xc6,0x44,0x3c,0x30,0x2e,
-  0x8d,0x71,0x02,0x4c,0x01,0xd1,0x48,0xff,0xc1,0x39,0xd0,0x7e,
-  0x0d,0x41,0x8a,0x3c,0x11,0x48,0xff,0xc2,0x40,0x88,0x79,0x01,
-  0xeb,0xec,0x89,0xf0,0x44,0x29,0xc0,0x41,0x8d,0x7c,0x03,0xff,
-  0x48,0x63,0xf7,0x4c,0x89,0xd7,0xe8,0x1d,0xfd,0xff,0xff,0x48,
-  0x81,0xc4,0xc0,0x01,0x00,0x00,0x5b,0xc3,0xbf,0x01,0x00,0x00,
-  0x00,0xf3,0x0f,0x5a,0xc0,0xe9,0x32,0xfd,0xff,0xff,0x31,0xff,
-  0xe9,0x2b,0xfd,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x00,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-  0x00,0x00,0x20,0x41,0x00,0x00,0x80,0x5f,0x00,0x00,0x00,0x3f]
-    for index: cast(s64)0..first.count - 1 { output[at + index] = first[index] }
-    for index: cast(s64)0..second.count - 1 { output[at + first.count + index] = second[index] }
-}
-
-WriteGlobal :: (program: MachineProgram, symbol: s32, at: s64, output: []u8) -> bool {
-    global := program.globals[symbol]
-    if global.constant < 0 { return global.writable }
-    constant := program.constants[global.constant]
-    type := program.types[global.type]
-    if constant.bytes_count == 0 {
-        if type.size > 8 { return false }
-        PutLittle(output, at, constant.bits, cast(s32)type.size)
-        return true
+// The text right after the program headers, the read-only globals 16-byte
+// aligned after it, then the data.
+ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout) -> MachineDiagnostic {
+    image := *layout.image
+    image.os = .Linux
+    diagnostic := MachineX64ImageMeasure(program, encoded, image)
+    if diagnostic.problem != .None { return diagnostic }
+    layout.headers = ifx MachineX64ImageHasData(<<image) then 2 else 1
+    image.text = Align(MachineElfHeaderSize + layout.headers * MachineElfProgramHeaderSize, 16)
+    diagnostic = MachineX64ImageText(program, encoded, image)
+    if diagnostic.problem != .None { return diagnostic }
+    image.constants = Align(image.text_end, 16)
+    if TextEnd(<<layout) > 2147483647 - MachineElfPage {
+        diagnostic.problem = .Limit
+        return diagnostic
     }
-    if constant.bytes_count != type.size { return false }
-    for index: cast(s64)0..constant.bytes_count - 1 {
-        output[at + index] = program.data[constant.bytes_begin + index]
+    layout.data_offset = TextEnd(<<layout)
+    image.data = layout.data_offset
+    if layout.headers == 2 {
+        layout.data_offset = Align(layout.data_offset, MachineX64DataAlignment(program))
+        image.data = layout.data_offset + MachineElfPage
     }
-    return true
+    image.data_file = layout.data_offset
+    layout.file_size = layout.data_offset + image.data_layout.size
+    return MachineX64ImageResolve(program, encoded, <<image)
 }
 
-// The file offset of a data piece at OFFSET, or -1 when absent.
-DataAt :: (layout: Layout, offset: s64) -> s64 { return ifx offset < 0 then -1 else layout.data_offset + offset }
-
-Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, output: []u8, fuel: s64) -> bool {
+Write :: (program: MachineProgram, encoded: MachineX64Image, layout: Layout, output: []u8, fuel: s64) -> bool {
     for index: cast(s64)0..output.count - 1 { output[index] = 0 }
-    start := layout.text_offset
-    data := cast(u64)(MachineElfBase + layout.data_address)
+    image := layout.image
+    data := cast(u64)(MachineElfBase + image.data)
 
     // ELF64 little-endian ET_EXEC, x86-64, its program headers, no sections.
-    Put8(output, 0, 0x7f); Put8(output, 1, 69); Put8(output, 2, 76); Put8(output, 3, 70)
-    Put8(output, 4, 2); Put8(output, 5, 1); Put8(output, 6, 1)
+    output[0] = 0x7f; output[1] = 69; output[2] = 76; output[3] = 70
+    output[4] = 2; output[5] = 1; output[6] = 1
     PutLittle(output, 16, 2, 2); PutLittle(output, 18, 62, 2); PutLittle(output, 20, 1, 4)
-    PutLittle(output, 24, cast(u64)(MachineElfBase + start), 8)
+    PutLittle(output, 24, cast(u64)(MachineElfBase + image.text), 8)
     PutLittle(output, 32, MachineElfHeaderSize, 8)
     PutLittle(output, 52, MachineElfHeaderSize, 2)
     PutLittle(output, 54, MachineElfProgramHeaderSize, 2)
@@ -685,8 +109,8 @@ Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, outpu
     ph := cast(s64)MachineElfHeaderSize
     PutLittle(output, ph, 1, 4); PutLittle(output, ph + 4, 5, 4)
     PutLittle(output, ph + 16, MachineElfBase, 8); PutLittle(output, ph + 24, MachineElfBase, 8)
-    PutLittle(output, ph + 32, cast(u64)(start + layout.text_size), 8)
-    PutLittle(output, ph + 40, cast(u64)(start + layout.text_size), 8)
+    PutLittle(output, ph + 32, cast(u64)TextEnd(layout), 8)
+    PutLittle(output, ph + 40, cast(u64)TextEnd(layout), 8)
     PutLittle(output, ph + 48, MachineElfPage, 8)
 
     // RW PT_LOAD, a page above its file offset and never executable.
@@ -696,133 +120,15 @@ Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, outpu
         PutLittle(output, ph + 8, cast(u64)layout.data_offset, 8)
         PutLittle(output, ph + 16, data, 8)
         PutLittle(output, ph + 24, data, 8)
-        PutLittle(output, ph + 32, cast(u64)layout.data.size, 8)
-        PutLittle(output, ph + 40, cast(u64)layout.data.memory, 8)
+        PutLittle(output, ph + 32, cast(u64)image.data_layout.size, 8)
+        PutLittle(output, ph + 40, cast(u64)image.data_layout.memory, 8)
         PutLittle(output, ph + 48, MachineElfPage, 8)
     }
-
-    // _start: set the stack limit when checked (mov rax, rsp; sub rax,
-    // MachineElfStackBytes; mov [rip + limit], rax), call startup
-    // initializers in order, then machine entry; move (or clear) status; then
-    // exit_group, or the runtime's exit to flush buffered output first.
-    at := start
-    if layout.needs.stack {
-        Put8(output, at, 0x48); Put8(output, at + 1, 0x89); Put8(output, at + 2, 0xe0)
-        Put8(output, at + 3, 0x48); Put8(output, at + 4, 0x2d)
-        PutLittle(output, at + 5, MachineElfStackBytes, 4)
-        Put8(output, at + 9, 0x48); Put8(output, at + 10, 0x89); Put8(output, at + 11, 0x05)
-        limit := data + cast(u64)layout.data.stack_limit
-        if !PutRelative(output, at + 12, limit, -4, cast(u64)(MachineElfBase + at + 12)) { return false }
-        at += MachineElfStackSetupSize
-    }
-    for initializer: program.initializers {
-        Put8(output, at, 0xe8)
-        initializer_target := cast(u64)(MachineElfBase + start + layout.startup_size + image.functions[initializer].begin)
-        if !PutRelative(output, at + 1, initializer_target, -4, cast(u64)(MachineElfBase + at + 1)) { return false }
-        at += 5
-    }
-    Put8(output, at, 0xe8)
-    entry_target := cast(u64)(MachineElfBase + start + layout.startup_size + image.functions[program.entry].begin)
-    if !PutRelative(output, at + 1, entry_target, -4, cast(u64)(MachineElfBase + at + 1)) { return false }
-    result_type := program.types[program.functions[program.entry].result_type]
-    if result_type.kind == .Void { Put8(output, at + 5, 0x31); Put8(output, at + 6, 0xff) }
-    else { Put8(output, at + 5, 0x89); Put8(output, at + 6, 0xc7) }
-    at += 7
-    exit_address := cast(u64)(MachineElfBase + layout.routines.exit)
-    if layout.needs.runtime.buffered {
-        Put8(output, at, 0xe9)
-        if !PutRelative(output, at + 1, exit_address, -4, cast(u64)(MachineElfBase + at + 1)) { return false }
-    } else {
-        Put8(output, at, 0xb8); PutLittle(output, at + 1, 231, 4)
-        Put8(output, at + 5, 0x0f); Put8(output, at + 6, 0x05)
-    }
-
-    code_at := start + layout.startup_size
-    for index: cast(s64)0..image.code.count - 1 { output[code_at + index] = image.code[index] }
-
-    // trap_handler: store edi, then the runtime's exit with status 125.
-    if layout.needs.trap {
-        trap := start + layout.trap_text
-        Put8(output, trap, 0x89); Put8(output, trap + 1, 0x3d)
-        status := data + cast(u64)layout.data.trap_status
-        if !PutRelative(output, trap + 2, status, -4, cast(u64)(MachineElfBase + trap + 2)) { return false }
-        Put8(output, trap + 6, 0xbf); PutLittle(output, trap + 7, MachineElfTrapExitStatus, 4)
-        Put8(output, trap + 11, 0xe9)
-        if !PutRelative(output, trap + 12, exit_address, -4, cast(u64)(MachineElfBase + trap + 12)) { return false }
-    }
-
-    routines: MachineX64RuntimeEntries
-    if !MachineX64RuntimeEmit(output, start + layout.routines_text, layout.needs.runtime,
-        RuntimePlaces(layout), *routines) || routines.end != layout.routines.end { return false }
-    if layout.needs.float {
-        // The formatter's one write is a rel32 call to stdout_bytes.
-        float_at := start + layout.float_text
-        WriteFloatRuntime(output, float_at)
-        field := float_at + MachineElfFloatWriteField
-        if !PutRelative(output, field, cast(u64)(MachineElfBase + routines.stdout_bytes), -4,
-            cast(u64)(MachineElfBase + field)) { return false }
-    }
-
-    constants := cast(u64)(MachineElfBase + start + layout.constants_text)
-    for relocation: image.relocations {
-        target: u64 = 0
-        if relocation.kind == .GlobalAddress || relocation.kind == .ConstantAddress {
-            readonly := relocation.kind == .ConstantAddress
-            global_offset: s64 = 0
-            if !GlobalOffset(program, relocation.symbol, !readonly, *global_offset) { return false }
-            target = ifx readonly then constants + cast(u64)global_offset else data + cast(u64)global_offset
-        } else if relocation.kind == .FuelCounter {
-            target = data + cast(u64)layout.data.fuel
-        } else if relocation.kind == .TrapHandler {
-            target = cast(u64)(MachineElfBase + start + layout.trap_text)
-        } else if relocation.kind == .PlatformService {
-            service_offset: s64 = 0
-            if !PlatformTarget(program, layout, relocation.symbol, *service_offset) { return false }
-            target = cast(u64)(MachineElfBase + service_offset)
-        } else if relocation.kind == .RuntimeResize {
-            target = cast(u64)(MachineElfBase + layout.routines.resize)
-        } else if relocation.kind == .StackLimit {
-            target = data + cast(u64)layout.data.stack_limit
-        } else if relocation.kind == .PointerRuntime {
-            target = data + cast(u64)layout.data.pointer_header
-        } else { return false }
-        field_at := code_at + relocation.offset
-        if !PutRelative(output, field_at, target, relocation.addend, cast(u64)(MachineElfBase + field_at)) { return false }
-    }
-    for symbol: cast(s64)0..program.globals.count - 1 {
-        global := program.globals[symbol]
-        global_offset: s64 = 0
-        if !GlobalOffset(program, cast(s32)symbol, global.writable, *global_offset) { return false }
-        global_at := ifx global.writable then layout.data_offset + global_offset else start + layout.constants_text + global_offset
-        if !WriteGlobal(program, cast(s32)symbol, global_at, output) { return false }
-    }
-    if layout.data.fuel >= 0 { PutLittle(output, layout.data_offset + layout.data.fuel, cast(u64)fuel, 8) }
-    if layout.data.pointer_header < 0 { return true }
-    // Pointer runtime: an empty free list, the next slot after the globals,
-    // the arena, and live entries for slot 0 (empty, at address 0) and each
-    // global.
-    header := layout.data_offset + layout.data.pointer_header
-    PutLittle(output, header + MachinePointerHeaderUnused, cast(u64)(program.globals.count + 1), 8)
-    PutLittle(output, header + MachinePointerHeaderCapacity, MachinePointerCapacity, 8)
-    PutLittle(output, header + MachinePointerHeaderArenaTop, data + cast(u64)layout.data.arena, 8)
-    PutLittle(output, header + MachinePointerHeaderArenaLimit,
-        data + cast(u64)(layout.data.arena + MachinePointerArenaBytes), 8)
-    PutLittle(output, header + MachinePointerHeaderTable, data + cast(u64)layout.data.table, 8)
-    table := layout.data_offset + layout.data.table
-    PutLittle(output, table + MachinePointerEntryFlags, MachinePointerLive, 2)
-    for symbol: cast(s64)0..program.globals.count - 1 {
-        global := program.globals[symbol]
-        global_offset: s64 = 0
-        if !GlobalOffset(program, cast(s32)symbol, global.writable, *global_offset) { return false }
-        address := ifx global.writable then data + cast(u64)global_offset else constants + cast(u64)global_offset
-        entry := table + (symbol + 1) * MachinePointerEntryBytes
-        PutLittle(output, entry + MachinePointerEntryBase, address, 8)
-        PutLittle(output, entry + MachinePointerEntrySize, cast(u64)program.types[global.type].size, 8)
-        PutLittle(output, entry + MachinePointerEntryFlags,
-            ifx global.writable then cast(u64)(MachinePointerLive | MachinePointerWritable) else MachinePointerLive, 2)
-    }
-    return true
+    return MachineX64ImageWrite(program, encoded, image, output, MachineElfBase, fuel)
 }
+
+// The file offset of a data piece at OFFSET, or -1 when absent.
+DataAt :: (layout: Layout, offset: s64) -> s64 { return ifx offset < 0 then -1 else layout.data_offset + offset }
 
 #scope_export
 
@@ -830,19 +136,20 @@ Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, outpu
 // length. Verification, complete relocation resolution and i32 range checks
 // all finish before the first output byte is changed.
 MachineElfEncode :: (program: MachineProgram, encoded: MachineX64Image, output: []u8,
-    fuel: s64 = MachineElfInitialFuel) -> MachineElfResult {
+    fuel: s64 = MachineX64InitialFuel) -> MachineElfResult {
     if fuel < 0 { return Failure(.Fuel) }
     layout: Layout
-    diagnostic := ImageLayout(program, encoded, *layout)
+    diagnostic := ElfLayout(program, encoded, *layout)
     if diagnostic.problem != .None { return .{diagnostic = diagnostic} }
+    image := layout.image
+    data := image.data_layout
     // No data segment reports zero offsets.
-    data_offset := ifx layout.headers == 2 then layout.data_offset else 0
-    data_address := ifx layout.headers == 2 then layout.data_address else 0
-    result := MachineElfResult.{diagnostic = NoDiagnostic(), size = layout.file_size,
-        text_offset = layout.text_offset, text_size = layout.text_size, startup_size = layout.startup_size,
-        data_offset = data_offset, data_address = data_address, data_size = layout.data.size,
-        fuel_offset = DataAt(layout, layout.data.fuel), trap_status_offset = DataAt(layout, layout.data.trap_status),
-        pointer_offset = DataAt(layout, layout.data.pointer_header)}
+    result := MachineElfResult.{diagnostic = diagnostic, size = layout.file_size,
+        text_offset = image.text, text_size = TextEnd(layout) - image.text, startup_size = image.startup_size,
+        data_offset = ifx layout.headers == 2 then layout.data_offset else 0,
+        data_address = ifx layout.headers == 2 then image.data else 0, data_size = data.size,
+        fuel_offset = DataAt(layout, data.fuel), trap_status_offset = DataAt(layout, data.trap_status),
+        pointer_offset = DataAt(layout, data.pointer_header)}
     if output.count == 0 { return result }
     if output.count != layout.file_size { return Failure(.Limit) }
     if !Write(program, encoded, layout, output, fuel) { return Failure(.Relocation) }

@@ -6,7 +6,8 @@ using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 
-// Direct x86-64 encoder for allocated machine IR on Linux SysV. It consumes
+// Direct x86-64 encoder for allocated machine IR on Linux and Windows, whose
+// programs share the Ziran-internal convention. It consumes
 // only a program that passes MachineVerifyAllocated, which already rejects
 // call forms outside the target ABI and relocation addends the target cannot
 // hold, then checks
@@ -2518,7 +2519,7 @@ BuildMachineImage :: (program: MachineProgram, output: *MachineX64Owner,
 Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner) -> MachineX64Result {
     verified := MachineVerifyAllocated(program, limits)
     if verified.problem != .None { return .{diagnostic = verified} }
-    if program.target.arch != .X86_64 || program.target.os != .Linux || program.target.abi != .SysV {
+    if program.target.arch != .X86_64 || !TargetMachineLoweringSupported(program.target) {
         return Failure(.UnsupportedTarget)
     }
     layout: Layout

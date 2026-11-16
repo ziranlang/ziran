@@ -448,7 +448,7 @@ main :: () -> s32 {
     limited: Machine.MachineOwner
     if !Check(LowerFixture(*limited, target, instruction_limit).problem == .Limit,
         "instruction limit") { return 1 }
-    unsupported := Target.TargetDescribe(.X86_64, .Windows).target
+    unsupported := Target.TargetDescribe(.X86_64, .MacOS).target
     if !Check(LowerFixture(*limited, unsupported, limits).problem == .UnsupportedTarget,
         "unsupported target is explicit") { return 1 }
     invalid := target; invalid.pointer_bits = 32

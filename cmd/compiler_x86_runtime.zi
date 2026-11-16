@@ -1,9 +1,14 @@
 using Bytes :: #import "compiler_x86_bytes"
+using Target :: #import "compiler_target"
+using Win64 :: #import "compiler_x86_win64"
 
-// Runtime routines a Linux x86-64 native ELF carries, emitted with the x86
-// encoder, each only when the program calls it. Positions are image file
-// offsets: text and data are mapped congruently, so a rip-relative field
-// reaches any runtime state through its file offset.
+// Runtime routines a Linux or Windows x86-64 native executable carries,
+// emitted with the x86 encoder, each only when the program calls it.
+// Positions are virtual offsets in the image (from the ELF base, or PE RVAs),
+// so a rip-relative field reaches any runtime state through its position.
+// Only the primitives that reach the operating system differ: Linux makes
+// system calls, and Windows calls kernel32 through the image's import address
+// table (compiler_x86_win64.zi).
 //
 // Exit(edi = status) ends the process; _start and the trap handler end there,
 // so buffered output always reaches its descriptor first.
@@ -16,7 +21,9 @@ using Bytes :: #import "compiler_x86_bytes"
 // bytes and their order match direct writes. A program that writes once
 // writes directly, with no buffer and no terminal probe. Every write takes all
 // its bytes, repeating after a partial write or EINTR; a failed write exits
-// with status 125.
+// with status 125. Windows writes descriptor N to GetStdHandle(-10 - N) with
+// WriteFile and buffers standard output in whole buffers: telling a console
+// apart would take another import.
 //
 // Resize(rdi = data or null, rsi = old count, rdx = new count, rcx = element
 // size) -> rax: the new data, or null when freed or refused. A refused
@@ -29,6 +36,8 @@ using Bytes :: #import "compiler_x86_bytes"
 // larger block is its own mapping and grows or shrinks by mremap without a
 // copy. Bytes past the kept elements read as zero, as on the portable
 // engine: chunk and mapping bytes are fresh, and recycled bytes are cleared.
+// Windows maps with VirtualAlloc and has no mremap, so a large block that
+// changes size moves into a new mapping.
 
 MachineX64RuntimeSmall :: 1048576
 MachineX64RuntimeChunk :: 2097152
@@ -42,11 +51,13 @@ MachineX64RuntimeHeapBytes :: 192
 MachineX64RuntimeOutBytes :: 8192
 MachineX64RuntimeConsoleBytes :: 8208
 
-// What the routines use, as image file offsets.
+// What the routines use, as image positions, and the OS they call.
 MachineX64RuntimePlaces :: struct {
     trap: s64
     heap: s64
     console: s64
+    os: TargetOS
+    imports: MachineWin64Slots
 }
 
 MachineX64RuntimeUses :: struct {
@@ -99,6 +110,8 @@ R14 :: 14
 R15 :: 15
 TrapPointer :: 0xfffeffff
 TrapStorage :: 0xffff0007
+// One WriteFile asks for at most this many bytes, within its DWORD count.
+WriteChunk :: 0x40000000
 
 Label :: enum s32 {
     Resize; CheckOld; Checked; Null; Done; Size; InPlace; Take; Bump; Carve; Fill; Kept; Cleared
@@ -136,13 +149,39 @@ Clear :: (writer: *X86Writer, register: s32) {
     X86Encode(writer, 0, false, X86Xor, 1, register, X86Direct(register))
 }
 
+Windows :: (emitter: *Emitter) -> bool { return emitter.places.os == .Windows }
+
 Syscall :: (writer: *X86Writer, number: u64) {
     X86MoveImmediate32(writer, Rax, number)
     X86Byte(writer, 15); X86Byte(writer, 5)
 }
 
-// A system call result above -4096 is an error.
+// The kernel32 ENTRY, its arguments already in rcx, rdx, r8 and r9.
+Kernel32 :: (emitter: *Emitter, entry: MachineWin64Import) {
+    writer := *emitter.writer
+    X86Win64Frame(writer, 32)
+    X86Win64Call(writer, emitter.places.imports, entry)
+    X86Win64Unframe(writer)
+}
+
+// ExitProcess(ecx), which does not return.
+ProcessExit :: (emitter: *Emitter) {
+    writer := *emitter.writer
+    X86Win64Frame(writer, 32)
+    X86Win64Call(writer, emitter.places.imports, .ExitProcess)
+    X86Undefined(writer)
+}
+
+// test eax, eax.
+TestLow :: (writer: *X86Writer) { X86Encode(writer, 0, false, X86Test, 1, Rax, X86Direct(Rax)) }
+
+// A failed map: a system call result above -4096, or a null VirtualAlloc.
 JumpIfFailed :: (emitter: *Emitter, label: Label) {
+    if Windows(emitter) {
+        X86Arithmetic(*emitter.writer, X86Test, Rax, Rax)
+        JumpIf(emitter, X86Equal, label)
+        return
+    }
     X86CompareImmediate(*emitter.writer, Rax, -4096)
     JumpIf(emitter, X86Above, label)
 }
@@ -319,8 +358,8 @@ EmitResize :: (emitter: *Emitter) {
     X86Lea(writer, Rax, X86At(R10, MachineX64RuntimeHeader))
     Jump(emitter, .Done)
 
-    // Large: rbp = page-rounded total. A large block remaps; a null or
-    // small one moves into a new mapping, whose bytes are already zero.
+    // Large: rbp = page-rounded total. On Linux a large block remaps;
+    // anything else moves into a new mapping, whose bytes are already zero.
     Mark(emitter, .Large)
     X86MoveImmediate(writer, Rax, 0x400000000000)
     X86Arithmetic(writer, X86Compare, Rbx, Rax)
@@ -328,28 +367,7 @@ EmitResize :: (emitter: *Emitter) {
     X86Lea(writer, Rbp, X86At(Rbx, MachineX64RuntimeHeader + 4095))
     X86Encode(writer, 0, true, 129, 1, 4, X86Direct(Rbp), trailing = 4)
     X86Signed32(writer, -4096)
-    X86Arithmetic(writer, X86Test, R12, R12)
-    JumpIf(emitter, X86Equal, .NewMapping)
-    X86Load(writer, Rsi, X86At(R12, -32), 8, false)
-    X86MoveImmediate32(writer, Rax, MachineX64RuntimeSmall)
-    X86Arithmetic(writer, X86Compare, Rsi, Rax)
-    JumpIf(emitter, X86BelowEqual, .NewMapping)
-    X86Lea(writer, Rdi, X86At(R12, -MachineX64RuntimeHeader))
-    X86Move(writer, Rdx, Rbp)
-    X86MoveImmediate32(writer, R10, 1)
-    Syscall(writer, 25)
-    JumpIfFailed(emitter, .Null)
-    X86Move(writer, R10, Rax)
-    Header(writer)
-    // Bytes the old mapping held past the old count may be stale: clear
-    // them up to the smaller of the new count and the old mapping's end.
-    OldBytes(writer)
-    X86Lea(writer, Rdi, X86Indexed(R10, Rcx, MachineX64RuntimeHeader))
-    X86Lea(writer, Rdx, X86At(Rsi, -MachineX64RuntimeHeader))
-    Smaller(writer, Rdx, Rbx)
-    ClearTo(emitter, Rdx, .Remapped)
-    X86Lea(writer, Rax, X86At(R10, MachineX64RuntimeHeader))
-    Jump(emitter, .Done)
+    if !Windows(emitter) { EmitRemap(emitter) }
     Mark(emitter, .NewMapping)
     X86Move(writer, Rsi, Rbp)
     Call(emitter, .Map)
@@ -374,10 +392,20 @@ EmitResize :: (emitter: *Emitter) {
     X86Store(writer, X86Indexed(R9, R8, 0), Rax, 8)
     X86Return(writer)
     Mark(emitter, .Unmap)
-    X86Lea(writer, Rdi, X86At(Rdi, -MachineX64RuntimeHeader))
-    Syscall(writer, 11)
-    X86Arithmetic(writer, X86Test, Rax, Rax)
-    X86JumpCondition8(writer, X86NotEqual, 1)
+    if Windows(emitter) {
+        // VirtualFree(block, 0, MEM_RELEASE).
+        X86Lea(writer, Rcx, X86At(Rdi, -MachineX64RuntimeHeader))
+        Clear(writer, Rdx)
+        X86MoveImmediate32(writer, R8, 0x8000)
+        Kernel32(emitter, .VirtualFree)
+        TestLow(writer)
+        X86JumpCondition8(writer, X86Equal, 1)
+    } else {
+        X86Lea(writer, Rdi, X86At(Rdi, -MachineX64RuntimeHeader))
+        Syscall(writer, 11)
+        X86Arithmetic(writer, X86Test, Rax, Rax)
+        X86JumpCondition8(writer, X86NotEqual, 1)
+    }
     X86Return(writer)
     X86MoveImmediate32(writer, Rdi, TrapStorage)
     X86Call32(writer, emitter.places.trap)
@@ -385,18 +413,55 @@ EmitResize :: (emitter: *Emitter) {
 
     // Map(rsi = bytes) -> rax: fresh private zero pages, or an error.
     Mark(emitter, .Map)
-    Clear(writer, Rdi)
-    X86MoveImmediate32(writer, Rdx, 3)
-    X86MoveImmediate32(writer, R10, 34)
-    X86MoveImmediate(writer, R8, 0xffffffffffffffff)
-    Clear(writer, R9)
-    Syscall(writer, 9)
+    if Windows(emitter) {
+        // VirtualAlloc(null, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE).
+        Clear(writer, Rcx)
+        X86Move(writer, Rdx, Rsi)
+        X86MoveImmediate32(writer, R8, 0x3000)
+        X86MoveImmediate32(writer, R9, 4)
+        Kernel32(emitter, .VirtualAlloc)
+    } else {
+        Clear(writer, Rdi)
+        X86MoveImmediate32(writer, Rdx, 3)
+        X86MoveImmediate32(writer, R10, 34)
+        X86MoveImmediate(writer, R8, 0xffffffffffffffff)
+        Clear(writer, R9)
+        Syscall(writer, 9)
+    }
     X86Return(writer)
 
     Mark(emitter, .Trap)
     X86MoveImmediate32(writer, Rdi, TrapPointer)
     X86Call32(writer, emitter.places.trap)
     X86Undefined(writer)
+}
+
+// A large block grows or shrinks in place by mremap; a null or small one
+// moves into a new mapping.
+EmitRemap :: (emitter: *Emitter) {
+    writer := *emitter.writer
+    X86Arithmetic(writer, X86Test, R12, R12)
+    JumpIf(emitter, X86Equal, .NewMapping)
+    X86Load(writer, Rsi, X86At(R12, -32), 8, false)
+    X86MoveImmediate32(writer, Rax, MachineX64RuntimeSmall)
+    X86Arithmetic(writer, X86Compare, Rsi, Rax)
+    JumpIf(emitter, X86BelowEqual, .NewMapping)
+    X86Lea(writer, Rdi, X86At(R12, -MachineX64RuntimeHeader))
+    X86Move(writer, Rdx, Rbp)
+    X86MoveImmediate32(writer, R10, 1)
+    Syscall(writer, 25)
+    JumpIfFailed(emitter, .Null)
+    X86Move(writer, R10, Rax)
+    Header(writer)
+    // Bytes the old mapping held past the old count may be stale: clear
+    // them up to the smaller of the new count and the old mapping's end.
+    OldBytes(writer)
+    X86Lea(writer, Rdi, X86Indexed(R10, Rcx, MachineX64RuntimeHeader))
+    X86Lea(writer, Rdx, X86At(Rsi, -MachineX64RuntimeHeader))
+    Smaller(writer, Rdx, Rbx)
+    ClearTo(emitter, Rdx, .Remapped)
+    X86Lea(writer, Rax, X86At(R10, MachineX64RuntimeHeader))
+    Jump(emitter, .Done)
 }
 
 OutLength :: (emitter: *Emitter) -> X86Operand { return X86RipTarget(emitter.places.console) }
@@ -421,16 +486,61 @@ EmitExit :: (emitter: *Emitter, console: bool) {
         Call(emitter, .Flush)
         Pop(writer, Rdi)
     }
+    if Windows(emitter) {
+        // ExitProcess(the status's low byte), the status a Linux exit keeps.
+        X86Encode(writer, 0, false, 0x0fb6, 2, Rcx, X86Direct(Rdi), rm_byte = true)
+        ProcessExit(emitter)
+        return
+    }
     Syscall(writer, 231)
     X86Undefined(writer)
 }
 
-EmitConsole :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
+// WriteFile(GetStdHandle(-10 - fd), bytes, count, &written, null) until
+// every byte is written; rbx keeps the remaining count across the calls.
+EmitWindowsWrite :: (emitter: *Emitter) {
     writer := *emitter.writer
-    // WriteLoop(rdi = fd, rsi = bytes, rdx = count): every byte, or exit.
-    // Unbuffered, write_all is this loop itself.
-    if !uses.buffered { Mark(emitter, .WriteAll) }
+    X86Arithmetic(writer, X86Test, Rdx, Rdx)
+    JumpIf(emitter, X86Equal, .WriteDone)
+    X86Push(writer, Rbx)
+    X86Move(writer, Rbx, Rdx)
+    Mark(emitter, .WriteAgain)
+    X86MoveImmediate32(writer, Rcx, 0xfffffff6)
+    X86Encode(writer, 0, false, X86Subtract, 1, Rdi, X86Direct(Rcx))
+    Kernel32(emitter, .GetStdHandle)
+    X86Move(writer, Rcx, Rax)
+    X86Move(writer, Rdx, Rsi)
+    X86Move(writer, R8, Rbx)
+    X86MoveImmediate32(writer, Rax, WriteChunk)
+    Smaller(writer, R8, Rax)
+    // The written count lands at [rsp + 40], above the fifth argument.
+    X86Win64Frame(writer, 48)
+    X86Lea(writer, R9, X86At(X86Rsp, 40))
+    X86Encode(writer, 0, true, 199, 1, 0, X86At(X86Rsp, 32), trailing = 4)
+    X86Little(writer, 0, 4)
+    X86Win64Call(writer, emitter.places.imports, .WriteFile)
+    X86Load(writer, Rcx, X86At(X86Rsp, 40), 4, false)
+    X86Win64Unframe(writer)
+    TestLow(writer)
+    JumpIf(emitter, X86Equal, .WriteFail)
+    X86Arithmetic(writer, X86Test, Rcx, Rcx)
+    JumpIf(emitter, X86Equal, .WriteFail)
+    X86Arithmetic(writer, X86Add, Rsi, Rcx)
+    X86Arithmetic(writer, X86Subtract, Rbx, Rcx)
+    JumpIf(emitter, X86NotEqual, .WriteAgain)
+    Pop(writer, Rbx)
+    Mark(emitter, .WriteDone)
+    X86Return(writer)
+    Mark(emitter, .WriteFail)
+    X86MoveImmediate32(writer, Rcx, 125)
+    ProcessExit(emitter)
+}
+
+// WriteLoop(rdi = fd, rsi = bytes, rdx = count): every byte, or exit 125.
+EmitWrite :: (emitter: *Emitter) {
+    writer := *emitter.writer
     Mark(emitter, .WriteLoop)
+    if Windows(emitter) { EmitWindowsWrite(emitter); return }
     X86Arithmetic(writer, X86Test, Rdx, Rdx)
     JumpIf(emitter, X86Equal, .WriteDone)
     Mark(emitter, .WriteAgain)
@@ -448,6 +558,13 @@ EmitConsole :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
     X86MoveImmediate32(writer, Rdi, 125)
     Syscall(writer, 231)
     X86Undefined(writer)
+}
+
+EmitConsole :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
+    writer := *emitter.writer
+    // Unbuffered, write_all is the write loop itself.
+    if !uses.buffered { Mark(emitter, .WriteAll) }
+    EmitWrite(emitter)
     if uses.buffered { EmitBuffer(emitter, uses) } else if uses.signed || uses.unsigned || uses.print_bool || uses.stdout_bytes {
         // stdout_bytes(rdi = bytes, rsi = count), then Stdout(rsi, rdx = count).
         if uses.stdout_bytes {
@@ -494,23 +611,7 @@ EmitBuffer :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
         X86Move(writer, Rsi, Rdi)
     }
     Mark(emitter, .Stdout)
-    // The first write learns whether standard output is a terminal.
-    CompareByteAt(writer, OutMode(emitter), 0)
-    JumpIf(emitter, X86NotEqual, .Known)
-    X86Push(writer, Rsi); X86Push(writer, Rdx)
-    X86SubtractStack(writer, 64)
-    X86MoveImmediate32(writer, Rdi, 1)
-    X86MoveImmediate32(writer, Rsi, 0x5401)
-    X86Move(writer, Rdx, X86Rsp)
-    Syscall(writer, 16)
-    X86Encode(writer, 0, true, 131, 1, 0, X86Direct(X86Rsp), trailing = 1)
-    X86Byte(writer, 64)
-    X86MoveImmediate32(writer, Rcx, 2)
-    X86MoveImmediate32(writer, Rdx, 1)
-    X86Arithmetic(writer, X86Test, Rax, Rax)
-    X86Encode(writer, 0, false, 0x0f44, 2, Rcx, X86Direct(Rdx))
-    X86Store(writer, OutMode(emitter), Rcx, 1)
-    Pop(writer, Rdx); Pop(writer, Rsi)
+    if !Windows(emitter) { EmitTerminalMode(emitter) }
     Mark(emitter, .Known)
     X86Load(writer, Rax, OutLength(emitter), 8, false)
     X86MoveImmediate32(writer, Rcx, MachineX64RuntimeOutBytes)
@@ -549,6 +650,7 @@ EmitBuffer :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
     Mark(emitter, .Long)
     X86Byte(writer, 243); X86Byte(writer, 164)
     Mark(emitter, .Appended)
+    if Windows(emitter) { X86Return(writer); return }
     // A terminal gets each line once it ends.
     CompareByteAt(writer, OutMode(emitter), 1)
     JumpIf(emitter, X86NotEqual, .WriteDone)
@@ -558,6 +660,27 @@ EmitBuffer :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
     X86Byte(writer, 242); X86Byte(writer, 174)
     JumpIf(emitter, X86NotEqual, .WriteDone)
     Jump(emitter, .Flush)
+}
+
+// The first write learns whether standard output is a terminal.
+EmitTerminalMode :: (emitter: *Emitter) {
+    writer := *emitter.writer
+    CompareByteAt(writer, OutMode(emitter), 0)
+    JumpIf(emitter, X86NotEqual, .Known)
+    X86Push(writer, Rsi); X86Push(writer, Rdx)
+    X86SubtractStack(writer, 64)
+    X86MoveImmediate32(writer, Rdi, 1)
+    X86MoveImmediate32(writer, Rsi, 0x5401)
+    X86Move(writer, Rdx, X86Rsp)
+    Syscall(writer, 16)
+    X86Encode(writer, 0, true, 131, 1, 0, X86Direct(X86Rsp), trailing = 1)
+    X86Byte(writer, 64)
+    X86MoveImmediate32(writer, Rcx, 2)
+    X86MoveImmediate32(writer, Rdx, 1)
+    X86Arithmetic(writer, X86Test, Rax, Rax)
+    X86Encode(writer, 0, false, 0x0f44, 2, Rcx, X86Direct(Rdx))
+    X86Store(writer, OutMode(emitter), Rcx, 1)
+    Pop(writer, Rdx); Pop(writer, Rsi)
 }
 
 // The integer and bool formatters the program calls.
@@ -637,8 +760,21 @@ Emit :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
 
 #scope_export
 
+// The kernel32 functions a Windows image with USES calls, as a
+// MachineWin64ImportBit mask. The process always ends with ExitProcess.
+MachineX64RuntimeImports :: (uses: MachineX64RuntimeUses) -> u32 {
+    imports := MachineWin64ImportBit(.ExitProcess)
+    if MachineX64RuntimeConsole(uses) {
+        imports |= MachineWin64ImportBit(.GetStdHandle) | MachineWin64ImportBit(.WriteFile)
+    }
+    if uses.resize {
+        imports |= MachineWin64ImportBit(.VirtualAlloc) | MachineWin64ImportBit(.VirtualFree)
+    }
+    return imports
+}
+
 // Measures, then with a non-empty OUTPUT writes, the routines USES names at
-// file offset AT. Writing reproduces the measured positions exactly.
+// position AT. Writing reproduces the measured positions exactly.
 MachineX64RuntimeEmit :: (output: []u8, at: s64, uses: MachineX64RuntimeUses,
     places: MachineX64RuntimePlaces, entries: *MachineX64RuntimeEntries) -> bool {
     // One recorded position per label.

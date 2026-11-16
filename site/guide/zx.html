@@ -159,7 +159,8 @@ unreachable code executed, and the instruction where it did.</p>
 The portable instruction engine runs the instructions on any platform. A
 supported direct target lowers the same verified instructions to machine code,
 applies the target ABI and platform veneers, and writes a platform binary;
-<code>zx2native --target x86_64 --platform linux --emit elf</code> is the Linux x86-64 row. Generated C and Go are
+<code>zx2native --target x86_64 --platform linux --emit elf</code> is the Linux x86-64 row, and
+<code>--platform windows</code> writes the Windows x86-64 row's PE32+ <code>.exe</code>. Generated C and Go are
 separate routes, never native fallback.</p>
 <p>The linker includes reachable code from ordinary libraries, Kryon only when
 the program imports it. A non-UI command-line program is a first-class <code>.zx</code>;

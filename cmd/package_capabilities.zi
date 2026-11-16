@@ -98,6 +98,8 @@ PkgPrintAssemblyRow :: (row: Target.TargetRow) -> void {
     PkgPrintFeatureNames(row.features)
     PkgPrint(",\"services\":", false)
     PkgPrintServiceNames(row.services)
+    PkgPrint(",\"executable\":", false)
+    if row.executable.count == 0 { PkgPrint("null", false) } else { PkgJsonString(row.executable) }
     PkgPrint(",\"milestone\":", false)
     if row.milestone.count == 0 { PkgPrint("null", false) } else { PkgJsonString(row.milestone) }
     PkgPrint(",\"note\":", false)

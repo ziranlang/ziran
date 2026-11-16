@@ -1,0 +1,52 @@
+using Bytes :: #import "compiler_x86_bytes"
+
+// Win64 calls from a Windows x86-64 executable's runtime into kernel32,
+// through the import address table the PE writer lays out. The program
+// itself keeps the Ziran-internal register convention; only these calls
+// follow Win64: arguments in rcx, rdx, r8 and r9, then on the stack above 32
+// bytes of shadow space, rsp 16-byte aligned at the call, and rax, rcx, rdx,
+// r8-r11 and xmm0-xmm5 volatile. Every register the internal convention
+// preserves (rbx, rbp, r12-r15) is nonvolatile in Win64 too, and so are rdi
+// and rsi, so a runtime routine keeps its own contract across a call.
+
+// The kernel32 functions a runtime may call, in import order.
+MachineWin64Import :: enum s32 { ExitProcess; GetStdHandle; WriteFile; VirtualAlloc; VirtualFree }
+MachineWin64ImportCount :: 5
+
+// The image's IAT slot for each import, as a runtime position; a slot the
+// image does not import is never called.
+MachineWin64Slots :: struct { slots: [MachineWin64ImportCount]s64 }
+
+// Bits of an import mask.
+MachineWin64ImportBit :: (entry: MachineWin64Import) -> u32 {
+    return cast(u32)1 << cast(u32)entry
+}
+
+MachineWin64ImportName :: (entry: MachineWin64Import) -> string {
+    if entry == .ExitProcess { return "ExitProcess" }
+    if entry == .GetStdHandle { return "GetStdHandle" }
+    if entry == .WriteFile { return "WriteFile" }
+    if entry == .VirtualAlloc { return "VirtualAlloc" }
+    return "VirtualFree"
+}
+
+// An aligned call frame: push rbp; mov rbp, rsp; and rsp, -16; sub rsp,
+// BYTES. BYTES covers the shadow space, any stack arguments and scratch the
+// call writes, and keeps rsp aligned. Argument registers are untouched.
+X86Win64Frame :: (writer: *X86Writer, bytes: s64) {
+    X86Push(writer, X86Rbp)
+    X86Move(writer, X86Rbp, X86Rsp)
+    X86ArithmeticImmediate(writer, X86And, X86Rsp, -16)
+    X86SubtractStack(writer, bytes)
+}
+
+// call [rip + the IAT slot of ENTRY].
+X86Win64Call :: (writer: *X86Writer, slots: MachineWin64Slots, entry: MachineWin64Import) {
+    X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slots.slots[cast(s64)entry]))
+}
+
+// mov rsp, rbp; pop rbp: the frame ends; flags are unchanged.
+X86Win64Unframe :: (writer: *X86Writer) {
+    X86Move(writer, X86Rsp, X86Rbp)
+    X86Byte(writer, 93)
+}

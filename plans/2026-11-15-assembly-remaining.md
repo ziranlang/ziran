@@ -10,7 +10,12 @@ milestone order:
    from verified ZX already exists.
 2. **M5: objects, linker and foreign libraries.** Relocatable ELF, COFF and
    Mach-O, archive reading, the external C ABI and foreign libraries,
-   Windows/macOS ABIs and signing. Not started.
+   Windows/macOS ABIs and signing. The first slice is done: `zx2native
+   --platform windows` writes a PE32+ `.exe` whose parity programs match the
+   Linux ELFs under Wine (`tests/zx_windows_parity.sh`). Open for that row:
+   x64 unwind data (`.pdata`/`.xdata`), a console line mode (another import),
+   files and clock once ZX has platform services for them, a real Windows
+   host run, and an in-process loader.
 3. **M6: inspection and final cutover.** Unwind, debug and profiler mapping,
    then the owner's full before/after ZX comparison on Alpha's physical host.
 4. **Native code quality.** Warm native ZX is still 2.8× (scalar) and 1.5×

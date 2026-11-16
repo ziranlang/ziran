@@ -376,7 +376,11 @@ The opt-in `zx2native --target x86_64 --platform linux --emit elf` path is the f
 produces a static no-libc executable with target-owned `write_all` and process
 exit. Its literal formatter supports strings/text views, bools, every fixed
 signed and unsigned integer width, and `%%`; floats and unavailable platform
-services fail with stable named diagnostics.
+services fail with stable named diagnostics. `--platform windows` writes the
+same program as a PE32+ console `.exe` whose runtime calls kernel32
+(`GetStdHandle`, `WriteFile`, `ExitProcess`, and `VirtualAlloc`/`VirtualFree`
+for resizable storage) through its import table, importing only the functions
+the program needs; it runs under Wine.
 
 ## Generate C and Go binaries
 

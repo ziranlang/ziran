@@ -1,5 +1,6 @@
 using Elf :: #import "compiler_machine_elf"
 using Image :: #import "compiler_machine_image"
+using Pe :: #import "compiler_machine_pe"
 using Lir :: #import "compiler_lowered_ir"
 using Lower :: #import "compiler_machine_lower"
 using Machine :: #import "compiler_machine_ir"
@@ -7,11 +8,13 @@ using RegAlloc :: #import "compiler_regalloc"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 using X64 :: #import "compiler_x86_64"
+using X64Image :: #import "compiler_x86_image"
 using A64 :: #import "compiler_aarch64"
 using V7 :: #import "compiler_armv7"
 
-// Owner for one complete direct machine pipeline. The borrowed ELF view stays
-// valid until the next successful MachineNativeBuild or MachineNativeFree.
+// Owner for one complete direct machine pipeline. The borrowed executable
+// view stays valid until the next successful MachineNativeBuild or
+// MachineNativeFree.
 MachineNativeOwner :: struct {
     valid: bool
     image: []u8
@@ -19,7 +22,7 @@ MachineNativeOwner :: struct {
     encoded: MachineX64Owner
     encoded_a64: MachineA64Owner
     encoded_v7: MachineV7Owner
-    elf: Vec(u8)
+    executable: Vec(u8)
 }
 
 #scope_file
@@ -129,8 +132,21 @@ NativeExchange :: (owner: *MachineNativeOwner, built: *MachineNativeOwner) {
 
     MachineV7Exchange(*owner.encoded_v7, *built.encoded_v7)
 
-    VecSwap(owner.elf, built.elf)
+    VecSwap(owner.executable, built.executable)
     native_image := owner.image; owner.image = built.image; built.image = native_image
+}
+
+// The executable container's size, or its diagnostic: a PE on Windows, an
+// ELF on Linux. An empty OUTPUT measures.
+Encoded :: struct { diagnostic: MachineDiagnostic; size: s64 }
+
+ExecutableEncode :: (program: MachineProgram, image: MachineX64Image, output: []u8, fuel: s64) -> Encoded {
+    if program.target.os == .Windows {
+        pe := MachinePeEncode(program, image, output, fuel)
+        return .{diagnostic = pe.diagnostic, size = pe.size}
+    }
+    elf := MachineElfEncode(program, image, output, fuel)
+    return .{diagnostic = elf.diagnostic, size = elf.size}
 }
 
 // The SSA virtual an operand names in either stage.
@@ -190,7 +206,7 @@ MachineNativeFree :: (owner: *MachineNativeOwner) {
     MachineX64Free(*owner.encoded)
     MachineA64Free(*owner.encoded_a64)
     MachineV7Free(*owner.encoded_v7)
-    VecFree(owner.elf)
+    VecFree(owner.executable)
 }
 
 MachineNativeView :: (owner: *MachineNativeOwner) -> []u8 {
@@ -206,14 +222,14 @@ MachineCodeImageView :: (owner: *MachineNativeOwner) -> MachineImage {
 }
 
 // Transactional MachineLower -> RegAllocAllocate -> MachineX64Encode, with an
-// optional AOT ELF layout. A failure leaves OUTPUT unchanged.
+// optional AOT executable. A failure leaves OUTPUT unchanged.
 Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
-    output: *MachineNativeOwner, emit_elf: bool, fuel: s64) -> MachineDiagnostic {
+    output: *MachineNativeOwner, emit_executable: bool, fuel: s64) -> MachineDiagnostic {
     if output == null { return Problem(.Owner) }
     built: MachineNativeOwner
     options := MachineDefaultOptions()
-    options.fuel = !emit_elf || fuel != MachineElfInitialFuel
-    options.executable = emit_elf
+    options.fuel = !emit_executable || fuel != MachineX64InitialFuel
+    options.executable = emit_executable
     lowered := MachineLower(*built.machine, lir, target, options, limits)
     if lowered.problem != .None {
         diagnostic := LowerDiagnostic(lowered)
@@ -224,8 +240,8 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     program := MachineProgramView(*built.machine)
     if target.arch == .AArch64 || target.arch == .ArmV7 {
-        // Neither ARM target has an AOT ELF writer.
-        if emit_elf {
+        // Neither ARM target has an AOT executable writer.
+        if emit_executable {
             MachineNativeFree(*built)
             return Problem(.UnsupportedTarget)
         }
@@ -239,27 +255,27 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     }
     diagnostic = MachineX64Encode(program, limits, *built.encoded)
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
-    if emit_elf {
+    if emit_executable {
         image := MachineX64View(*built.encoded)
         empty: [0]u8
-        measured := MachineElfEncode(program, image, empty[:], fuel)
+        measured := ExecutableEncode(program, image, empty[:], fuel)
         if measured.diagnostic.problem != .None {
             MachineNativeFree(*built)
             return measured.diagnostic
         }
         if measured.size <= 0 || measured.size > limits.bytes ||
-            !VecResizeBounded(built.elf, measured.size, limits.bytes) {
+            !VecResizeBounded(built.executable, measured.size, limits.bytes) {
             MachineNativeFree(*built)
             return Problem(ifx measured.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
         }
-        written := MachineElfEncode(program, image, built.elf[:], fuel)
+        written := ExecutableEncode(program, image, built.executable[:], fuel)
         if written.diagnostic.problem != .None || written.size != measured.size {
             diagnostic = written.diagnostic
             if diagnostic.problem == .None { diagnostic = Problem(.Relocation) }
             MachineNativeFree(*built)
             return diagnostic
         }
-        built.image = built.elf[:]
+        built.image = built.executable[:]
     }
     built.valid = true
     NativeExchange(output, *built)
@@ -273,8 +289,9 @@ MachineCodeBuild :: (lir: LirProgram, target: TargetDescription, limits: Machine
 }
 
 // FUEL is the AOT executable's starting budget; the default is unbounded,
-// as for a bundle run.
+// as for a bundle run. The executable is an ELF on Linux and a PE on
+// Windows.
 MachineNativeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
-    output: *MachineNativeOwner, fuel: s64 = MachineElfInitialFuel) -> MachineDiagnostic {
+    output: *MachineNativeOwner, fuel: s64 = MachineX64InitialFuel) -> MachineDiagnostic {
     return Build(lir, target, limits, output, true, fuel)
 }

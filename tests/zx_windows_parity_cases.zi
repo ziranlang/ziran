@@ -1,0 +1,218 @@
+// Windows x86-64 parity for native executables. Every revision-28 parity
+// program (tests/zx_parity_list.zi) lowers to ZX once, and zx2native writes
+// it as a Linux ELF and as a Windows PE32+ .exe. The .exe runs under Wine
+// with a private prefix in build/ and no display, and must print what the
+// ELF prints and exit with its status, traps included. Both executables are
+// reproducible. Every .exe keeps W^X sections, is ASLR- and NX-ready, and
+// its base relocations reach only addresses inside its image; hello.exe
+// imports exactly GetStdHandle, WriteFile and ExitProcess, and a program
+// that prints nothing imports only ExitProcess.
+//
+// Wine is WINE, or wine on PATH. Without it the test is skipped, unless
+// WINDOWS_REQUIRED=1, as in CI.
+#import "native_test"
+#import "zx_parity_list"
+#import "check_cache"
+#import "check_support"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+Little :: (bytes: string, at: s64, count: s64) -> u64 {
+    value: u64 = 0
+    for index: cast(s64)0..count - 1 { value = value | (cast(u64)bytes[at + index] << cast(u64)(index * 8)) }
+    return value
+}
+
+PeFile :: struct { bytes: string; sections: s64; table: s64 }
+
+// The file offset of RVA inside a section's stored bytes, or -1.
+PeOffset :: (pe: PeFile, rva: u64) -> s64 {
+    for index: cast(s64)0..pe.sections - 1 {
+        at := pe.table + index * 40
+        address := Little(pe.bytes, at + 12, 4)
+        raw := Little(pe.bytes, at + 16, 4)
+        if rva >= address && rva < address + raw {
+            return cast(s64)(Little(pe.bytes, at + 20, 4) + rva - address)
+        }
+    }
+    return -1
+}
+
+PeName :: (pe: PeFile, at: s64) -> string {
+    end := at
+    while end >= 0 && end < pe.bytes.count && pe.bytes[end] != cast(u8)0 { end += 1 }
+    if at < 0 || end >= pe.bytes.count { return "" }
+    return pe.bytes[at:end]
+}
+
+// Checks PATH's PE32+ structure. A non-empty IMPORTS must be its exact
+// kernel32 import list, in order.
+PeCheck :: (test: *NativeTest, path: string, imports: []string) -> bool {
+    bytes, valid := ReadEntireFile(path)
+    if !NativeAssert(test, valid && bytes.count >= 512 && bytes[0] == cast(u8)77 && bytes[1] == cast(u8)90,
+        CheckConcat(path, ": not an MZ image")) { return false }
+    header := cast(s64)Little(bytes, 60, 4)
+    optional := header + 24
+    if !NativeAssert(test, header > 0 && header + 24 + 240 <= bytes.count &&
+        Little(bytes, header, 4) == 0x4550 && Little(bytes, header + 4, 2) == 0x8664 &&
+        Little(bytes, optional, 2) == 0x20b, CheckConcat(path, ": not a PE32+ AMD64 image")) { return false }
+    pe := PeFile.{bytes = bytes, sections = cast(s64)Little(bytes, header + 6, 2),
+        table = optional + cast(s64)Little(bytes, header + 20, 2)}
+    image_base := Little(bytes, optional + 24, 8)
+    image_size := Little(bytes, optional + 56, 4)
+    if !NativeAssert(test, (Little(bytes, optional + 70, 2) & 0x0160) == 0x0160,
+        CheckConcat(path, ": not DYNAMIC_BASE, HIGH_ENTROPY_VA and NX_COMPAT")) { return false }
+    for index: cast(s64)0..pe.sections - 1 {
+        flags := Little(bytes, pe.table + index * 40 + 36, 4)
+        if !NativeAssert(test, (flags & 0x20000000) == 0 || (flags & 0x80000000) == 0,
+            CheckConcat(path, ": a section is writable and executable")) { return false }
+    }
+
+    // One kernel32 descriptor; its lookup table names the imports.
+    descriptor := PeOffset(pe, Little(bytes, optional + 120, 4))
+    names: Vec(string)
+    if descriptor >= 0 {
+        dll := PeOffset(pe, Little(bytes, descriptor + 12, 4))
+        thunk := PeOffset(pe, Little(bytes, descriptor, 4))
+        if !NativeAssert(test, dll >= 0 && thunk >= 0 && PeName(pe, dll) == "KERNEL32.dll" &&
+            Little(bytes, descriptor + 32, 4) == 0, CheckConcat(path, ": not one kernel32 import descriptor")) { return false }
+        while Little(bytes, thunk, 8) != 0 {
+            entry := PeOffset(pe, Little(bytes, thunk, 8))
+            if !NativeAssert(test, entry >= 0, CheckConcat(path, ": an import name is outside the file")) { return false }
+            VecPush(names, PeName(pe, entry + 2))
+            thunk += 8
+        }
+    }
+    if imports.count > 0 {
+        same := names.count == imports.count
+        for index: cast(s64)0..names.count - 1 { same = same && names[index] == imports[index] }
+        if !NativeAssert(test, same, CheckConcat(path, CheckConcat(": imports ", TextDetach(TextJoin(names[:], ", "))))) {
+            return false
+        }
+    }
+
+    // A base relocation directory, even with no fixups, keeps the image
+    // rebased; every DIR64 fixup holds an address inside the image.
+    at := PeOffset(pe, Little(bytes, optional + 152, 4))
+    end := at + cast(s64)Little(bytes, optional + 156, 4)
+    if !NativeAssert(test, at >= 0 && end >= at + 8, CheckConcat(path, ": no base relocation directory")) { return false }
+    while at >= 0 && at < end {
+        page := Little(bytes, at, 4)
+        block := cast(s64)Little(bytes, at + 4, 4)
+        if !NativeAssert(test, block >= 8 && at + block <= end, CheckConcat(path, ": a malformed relocation block")) { return false }
+        for entry: cast(s64)0..(block - 8) / 2 - 1 {
+            value := Little(bytes, at + 8 + entry * 2, 2)
+            if (value >> cast(u64)12) == 0 { continue }
+            field := PeOffset(pe, page + (value & 4095))
+            target := ifx field >= 0 then Little(bytes, field, 8) else cast(u64)0
+            if !NativeAssert(test, (value >> cast(u64)12) == 10 && field >= 0 &&
+                target >= image_base && target < image_base + image_size,
+                CheckConcat(path, ": a base relocation is not an address inside the image")) { return false }
+        }
+        at += block
+    }
+    return true
+}
+
+// Writes ZX as a Linux ELF and twice as a Windows .exe, which must agree.
+Executables :: (test: *NativeTest, tools: string, zx: string, elf: string, exe: string) -> bool {
+    zx2native := CheckPath(tools, "zx2native")
+    again := CheckConcat(exe, ".again")
+    elf_build := string.[zx2native, "-o", elf, zx]
+    exe_build := string.[zx2native, "--target", "x86_64", "--platform", "windows", "-o", exe, zx]
+    repeat := string.[zx2native, "--target", "x86_64", "--platform", "windows", "-o", again, zx]
+    built := NativeInvoke(test, elf_build[:])
+    if !NativeAssert(test, built.code == 0, CheckConcat(zx, CheckConcat(": native ELF output failed: ", built.error))) { return false }
+    built = NativeInvoke(test, exe_build[:])
+    if !NativeAssert(test, built.code == 0, CheckConcat(zx, CheckConcat(": Windows output failed: ", built.error))) { return false }
+    unused NativeRun(test, repeat[:])
+    same := string.["cmp", "-s", exe, again]
+    return NativeAssert(test, NativeInvoke(test, same[:]).code == 0, CheckConcat(zx, ": one ZX gave two different .exe files"))
+}
+
+Excerpt :: (text: string) -> string { return text[0:ifx text.count > 300 then 300 else text.count] }
+
+// Runs EXE under Wine and ELF natively; they must print and exit alike.
+Agrees :: (test: *NativeTest, wine: string, label: string, elf: string, exe: string) -> NativeCommand {
+    native := string.[elf]
+    emulated := string.[wine, exe]
+    reference := NativeInvoke(test, native[:])
+    actual := NativeInvoke(test, emulated[:])
+    parts := string.[label, ": under Wine status ", CheckNumber(actual.code), " (Linux ", CheckNumber(reference.code),
+        "), output ", Excerpt(actual.output), ", errors ", Excerpt(actual.error)]
+    unused NativeAssert(test, actual.output == reference.output && actual.code == reference.code,
+        TextDetach(TextJoin(parts[:], "")))
+    return reference
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zx-windows-parity-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    selected := EnvironmentText("WINE")
+    wine := CheckExecutable(ifx selected != "" then selected else "wine")
+    if wine == "" {
+        print("SKIP: Windows parity needs Wine\n")
+        return ifx EnvironmentText("WINDOWS_REQUIRED") == "1" then 1 else 0
+    }
+    // A private prefix in build/, kept between runs; no display, Mono or
+    // Gecko.
+    prefix := CheckPath(test.repo, "build/wine-prefix")
+    NativeSet(*test, "WINEPREFIX", prefix)
+    NativeSet(*test, "WINEDEBUG", "-all")
+    NativeSet(*test, "WINEDLLOVERRIDES", "mscoree,mshtml=")
+    tools := TextDetach(TextCopy(PathParent(test.ziran)))
+    zi2zx := CheckPath(tools, "zi2zx")
+    std := CheckPath(test.repo, "std")
+
+    // A program that prints nothing exits with its status and imports only
+    // ExitProcess.
+    app := CheckPath(test.work, "app.zi")
+    app_zx := CheckPath(test.work, "app.zx")
+    unused NativeWrite(*test, app, "#program_export\nAnswer :: () -> s32 {\n    total: s64 = 0\n    for index: 0..6 { total += index }\n    return cast(s32)total + 21\n}\n")
+    quiet := string.[zi2zx, "--root", test.work, "--entry", "app:Answer", "-o", app_zx, app]
+    unused NativeRun(*test, quiet[:])
+    app_elf := CheckPath(test.work, "app.elf")
+    app_exe := CheckPath(test.work, "app.exe")
+    if test.failed || !Executables(*test, tools, app_zx, app_elf, app_exe) { return 1 }
+    exit_only := string.["ExitProcess"]
+    if !PeCheck(*test, app_exe, exit_only[:]) { return 1 }
+    quiet_run := Agrees(*test, wine, "app:Answer", app_elf, app_exe)
+    if !NativeAssert(*test, quiet_run.code == 42, "the quiet program did not exit 42") { return 1 }
+
+    cases := ParityCases(test.repo)
+    console := string.["ExitProcess", "GetStdHandle", "WriteFile"]
+    none: [0]string
+    for index: cast(s64)0..cases.count - 1 {
+        item := cases[index]
+        label := CheckConcat("case-", CheckNumber(index))
+        zx := CheckPath(test.work, CheckConcat(label, ".zx"))
+        elf := CheckPath(test.work, CheckConcat(label, ".elf"))
+        exe := CheckPath(test.work, CheckConcat(label, ".exe"))
+        // A trap case is built with --checks, as on every other route.
+        lower := string.[zi2zx, "--root", item.root, "-I", std, "--entry", item.entry, "-o", zx, item.file]
+        lower_checked := string.[zi2zx, "--checks", "--root", item.root, "-I", std, "--entry", item.entry,
+            "-o", zx, item.file]
+        unused NativeRun(*test, ifx item.traps then lower_checked[:] else lower[:])
+        if test.failed || !Executables(*test, tools, zx, elf, exe) { return 1 }
+        expected := ifx item.entry == "hello:main" then console[:] else none[:]
+        if !PeCheck(*test, exe, expected) { return 1 }
+        reference := Agrees(*test, wine, item.entry, elf, exe)
+        unused NativeAssert(*test, !item.traps || reference.code == 125,
+            CheckConcat(item.entry, ": an expected trap did not trap"))
+    }
+    server := CheckExecutable("wineserver")
+    if server != "" {
+        stop := string.[server, "-k"]
+        unused NativeInvoke(*test, stop[:])
+    }
+    if test.failed { return 1 }
+    version := string.[wine, "--version"]
+    print("Windows parity: % programs print and exit as their Linux native ELFs, as PE32+ executables under %",
+        cases.count + 1, NativeInvoke(*test, version[:]).output)
+    return 0
+}

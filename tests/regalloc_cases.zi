@@ -882,8 +882,8 @@ RotateCases :: () -> bool {
     target_owner: Machine.MachineOwner
     defer Lower.MachineFree(*target_owner)
     if !Lowered("target", RotateFixture(*target_owner, 3, true)) { return false }
-    windows := Target.TargetDescribe(.X86_64, .Windows).target
-    if !Check(RegAlloc.RegAllocAllocate(*target_owner, windows, Machine.MachineDefaultLimits()).problem == .UnsupportedTarget,
+    macos := Target.TargetDescribe(.X86_64, .MacOS).target
+    if !Check(RegAlloc.RegAllocAllocate(*target_owner, macos, Machine.MachineDefaultLimits()).problem == .UnsupportedTarget,
         "an unsupported target is explicit") { return false }
     small := Machine.MachineDefaultLimits()
     small.work = 50

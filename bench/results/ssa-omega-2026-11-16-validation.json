@@ -1,0 +1,1089 @@
+{
+  "scope": "Shared LIR SSA rotation and combined native integration; local tests only",
+  "device": "Omega",
+  "revision": "888f39a992cc0a18d1f0fa0e41f0070dc0002a6c",
+  "uncommitted": true,
+  "full_check": {
+    "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check",
+    "command_id": "4933682501c668751b125c284795be6608fd",
+    "exit_code": 2,
+    "total": 281,
+    "failed": 3,
+    "seconds": 194.93804839,
+    "executed": 281,
+    "reused": 0,
+    "selected_checks": [
+      {
+        "name": "proven_pointer_cases.zi",
+        "exit_code": 0,
+        "seconds": 11.294091136,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/proven_pointer_cases.zi.log"
+      },
+      {
+        "name": "compiler_expression.sh",
+        "exit_code": 0,
+        "seconds": 1.765878933,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_expression.sh.log"
+      },
+      {
+        "name": "compiler_opt.sh",
+        "exit_code": 0,
+        "seconds": 138.050862999,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_opt.sh.log"
+      },
+      {
+        "name": "compiler_text.sh",
+        "exit_code": 0,
+        "seconds": 2.333968757,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_text.sh.log"
+      },
+      {
+        "name": "explain.sh",
+        "exit_code": 1,
+        "seconds": 1.232625116,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/explain.sh.log"
+      },
+      {
+        "name": "formatter.sh",
+        "exit_code": 0,
+        "seconds": 3.009590319,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/formatter.sh.log"
+      },
+      {
+        "name": "lowered_exec.sh",
+        "exit_code": 0,
+        "seconds": 110.16923491,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/lowered_exec.sh.log"
+      },
+      {
+        "name": "machine_elf.sh",
+        "exit_code": 0,
+        "seconds": 12.871596966,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/machine_elf.sh.log"
+      },
+      {
+        "name": "machine_ir.sh",
+        "exit_code": 0,
+        "seconds": 7.306207135,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/machine_ir.sh.log"
+      },
+      {
+        "name": "native_load.sh",
+        "exit_code": 0,
+        "seconds": 0.469137819,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/native_load.sh.log"
+      },
+      {
+        "name": "regalloc.sh",
+        "exit_code": 0,
+        "seconds": 7.068725908,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/regalloc.sh.log"
+      },
+      {
+        "name": "site_pages.sh",
+        "exit_code": 1,
+        "seconds": 6.749171681,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/site_pages.sh.log"
+      },
+      {
+        "name": "std_float_text.sh",
+        "exit_code": 0,
+        "seconds": 73.781637106,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/std_float_text.sh.log"
+      },
+      {
+        "name": "std_json_document.sh",
+        "exit_code": 0,
+        "seconds": 15.500377449,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/std_json_document.sh.log"
+      },
+      {
+        "name": "std_text_results.sh",
+        "exit_code": 0,
+        "seconds": 6.991945115,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/std_text_results.sh.log"
+      },
+      {
+        "name": "zstd_go.sh",
+        "exit_code": 1,
+        "seconds": 0.51899772,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/zstd_go.sh.log"
+      },
+      {
+        "name": "zx_lowered_parity.sh",
+        "exit_code": 0,
+        "seconds": 23.24452494,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/zx_lowered_parity.sh.log"
+      },
+      {
+        "name": "zx_windows_parity.sh",
+        "exit_code": 0,
+        "seconds": 36.694385856,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/zx_windows_parity.sh.log"
+      }
+    ]
+  },
+  "source_sha256": {
+    "cmd/compiler_opt.zi": "05189b0d37431433cb92c6d3ba8ef93e1c43b20b21a80ef9ae0614c0c1663173",
+    "cmd/compiler_opt_ssa.zi": "d48ffcab34672abb811f62e1ec4c6ece48796ca915aa88f737a64ac3a06ba6e0",
+    "cmd/compiler_opt_rotate.zi": "1e0de077d2bb2cd0dd82844eec3b02af76caa23b0e139e4e9dfee4bac68639b8",
+    "cmd/compiler_lowered_proven.zi": "75f4ea7dc721078b982bb7b3d156ab1c63d4f3b0fe6dfe78cbbd2fc5a7bca7aa",
+    "cmd/compiler_regalloc.zi": "c685aa88b55f3818815f647827108b4a430ede7eb23dc068832a843cf7a1ce05",
+    "cmd/compiler_machine_lower.zi": "927ecd665617665a7fb0137a2d54f92a79d4e81587ec9ce37f9465e246aa73a9",
+    "cmd/compiler_machine_fields.zi": "9f3e21befa992755ae86695bea8245c26aa6530146e8f9adc38c79ec02d8daed",
+    "cmd/compiler_x86_bytes.zi": "e657e4757e6e44f58bdf3c797de83ef4ec9d29cf9cdfb9945e38b5af8ba6add5",
+    "Makefile": "05f3a05a07580c113c3c2e41e122fb2fda564fdbab2406c0daafe3558f0d9919",
+    "assembly.mk": "35cc7ad2f0897895f8aa498e4cbd6660a4981fe068eb0944897469e4fa5014ba",
+    "tests/compiler_opt_cases.zi": "04242ca7f84b462fc2d0d296e1117cfe81aa1c6fc59bf43c459ae3e3dda72e33",
+    "tests/compiler_opt_ssa_cases.zi": "9a352122e71a282a7e070853a31085543f6597db2c4916aac6611d283ad603b5",
+    "tests/compiler_opt_rotate_cases.zi": "1050ab849ad719fa4b2095bd13539ef94a4fc407c98b150b3dd502cf46e85c3a",
+    "tests/regalloc_cases.zi": "7d23bc1e5b3a06dff20e8532cbf7a4e0501b57a1a381ca2e8083365ec214f7d0",
+    "tests/machine_elf.sh": "6f67b4e2d111c8644c845dc9971a6b3f1e6a89c352534c3873fe6e0b87aaa9a3"
+  },
+  "compiler_sources_newer_than_assembly_generation": [],
+  "bootstrap": {
+    "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check-bootstrap",
+    "command_id": "31280234f364f31a5441afa0c55d24f0b91e",
+    "exit_code": 0,
+    "coverage": "All retained bootstrap modules and Darwin generated modules match after final shared native rebuild."
+  },
+  "benchmarks": {
+    "before": "wasm-tier-omega-2026-11-16-ssa-before.json",
+    "intermediate_after": "wasm-tier-omega-2026-11-16-ssa-after.json",
+    "final": "wasm-tier-omega-2026-11-16-ssa-final.json",
+    "command_id": "39872ac61381c26a9b6379934826c5d58e12",
+    "exit_code": 0,
+    "samples": 11,
+    "learning": "off",
+    "engine_policy": "explicit-engine",
+    "host": "omega \u00b7 AMD Ryzen 9 9950X 16-Core Processor",
+    "load_before": [
+      "15.15",
+      "14.85",
+      "13.37"
+    ],
+    "load_final_before": [
+      "19.53",
+      "25.21",
+      "26.41"
+    ],
+    "load_final_after": [
+      "20.53",
+      "25.32",
+      "26.45"
+    ],
+    "four_kernels": {
+      "Sieve": {
+        "before_native_us": 34.5865625,
+        "final_native_us": 30.358,
+        "final_c_us": 11.099907227539063,
+        "final_native_over_c": 2.734977813569583,
+        "change_percent": -12.226027087832158
+      },
+      "Records": {
+        "before_native_us": 18.665531249999997,
+        "final_native_us": 21.48365625,
+        "final_c_us": 8.722066158935545,
+        "final_native_over_c": 2.4631384190992995,
+        "change_percent": 15.09801656462364
+      },
+      "Hash": {
+        "before_native_us": 31.693140625000005,
+        "final_native_us": 31.667968749999996,
+        "final_c_us": 22.5060546953125,
+        "final_native_over_c": 1.4070866341845207,
+        "change_percent": -0.07942373177164397
+      },
+      "Vectors": {
+        "before_native_us": 33.42671875,
+        "final_native_us": 34.30953125,
+        "final_c_us": 13.471883780273439,
+        "final_native_over_c": 2.546750833780101,
+        "change_percent": 2.6410384656735175
+      }
+    },
+    "interpretation": "Combined source changes and differing shared-host load; not an isolated rotation A/B. Historical ZX tier used auto backend; final explicitly selects engine. C/native comparisons retain existing methodology, including amortized native process startup.",
+    "c_parity_established": false
+  },
+  "limitations": [
+    "Full suite has three outside blockers: diagnostic registry mismatch, five stale generated site pages, Go >=1.25 required with local1.24.4.",
+    "Historical before/after load differs; no isolated rotation speedup or C parity is established.",
+    "Full KDaylight consumer bundle not run in this Omega task; minimal SampleAt repro is retained and passed."
+  ],
+  "fields_followup": {
+    "reported_by": "codex-ziran-native-fields-review",
+    "command_id": "7e5b91fbce3b80faca0f64454e0a735997b3",
+    "exit_code": 0,
+    "coverage": "Focused machine_ir added nested lifetime and reversed-block tests; rebuilt all/native_load snapshot, changed-view, nested two-pointer runtime cases; 11-sample widgets."
+  },
+  "compiler_sources_unchanged_through_final_benchmark": true,
+  "stable_measurement_checkpoint": {
+    "recorded_at_unix": 1794850561,
+    "revision": "888f39a992cc0a18d1f0fa0e41f0070dc0002a6c",
+    "assembly_generation_mtime_ns": 1794849921901565244,
+    "binaries": {
+      "build/bin/ziran": {
+        "sha256": "5597a16f7fc6cfb32c9e1ac4bdccbda176ca402620e641944f099b270b40988b",
+        "mtime_ns": 1794816399639124304,
+        "size": 367816
+      },
+      "build/bin/zi2zx": {
+        "sha256": "582853558ec22e178d5e8f4f802802b2c81ffc2607b6e258259bc59dbae00520",
+        "mtime_ns": 1794849945963097575,
+        "size": 3779112
+      },
+      "build/bin/zx2native": {
+        "sha256": "fc7dd7c5f4409c68a26b634888085d39b7fa0592398119bbed7bdb09a9f4867d",
+        "mtime_ns": 1794849945961276623,
+        "size": 3549048
+      },
+      "build/bin/zx2wasm": {
+        "sha256": "9de465c0be09ae7c03d0f4a10ff5ce88c3a4ec473cf7a9a5662a93acd0090637",
+        "mtime_ns": 1794849933610448858,
+        "size": 1934592
+      },
+      "build/libziran.a": {
+        "sha256": "e7c22c683f3711b8f0d2d8203a2ab234d29d2457940296abb552ed20960a721e",
+        "mtime_ns": 1794849933569601908,
+        "size": 4255102
+      }
+    },
+    "source_changed_since_full_suite": [],
+    "note": "Checkpoint after completed full local suite/bootstrap/own final kernel benchmark. Binary digests were captured now; they cannot retroactively prove stability during the preceding benchmark."
+  },
+  "teacher_stable_measurement_window": {
+    "recorded_at_unix": 1794851018.2305446,
+    "revision": "888f39a992cc0a18d1f0fa0e41f0070dc0002a6c",
+    "binaries": {
+      "build/bin/ziran": {
+        "sha256": "5597a16f7fc6cfb32c9e1ac4bdccbda176ca402620e641944f099b270b40988b",
+        "size": 367816,
+        "mtime_ns": 1794816399639124304
+      },
+      "build/bin/zi2c": {
+        "sha256": "549a9b9f3600255c4b8af83947661f92ec8db8a97d80d26392b1674a8bc59f27",
+        "size": 3609624,
+        "mtime_ns": 1794816398332531344
+      },
+      "build/bin/zi2zx": {
+        "sha256": "582853558ec22e178d5e8f4f802802b2c81ffc2607b6e258259bc59dbae00520",
+        "size": 3779112,
+        "mtime_ns": 1794849945963097575
+      },
+      "build/bin/zx2native": {
+        "sha256": "fc7dd7c5f4409c68a26b634888085d39b7fa0592398119bbed7bdb09a9f4867d",
+        "size": 3549048,
+        "mtime_ns": 1794849945961276623
+      },
+      "build/bin/zx2wasm": {
+        "sha256": "9de465c0be09ae7c03d0f4a10ff5ce88c3a4ec473cf7a9a5662a93acd0090637",
+        "size": 1934592,
+        "mtime_ns": 1794849933610448858
+      },
+      "build/libziran.a": {
+        "sha256": "e7c22c683f3711b8f0d2d8203a2ab234d29d2457940296abb552ed20960a721e",
+        "size": 4255102,
+        "mtime_ns": 1794849933569601908
+      }
+    },
+    "source_sha256": {
+      "bench/android_execution.py": "c0d097f06ccad0131fdb807f84848634be132685d7a29a6a1daa62ca97c00925",
+      "bench/assembly.py": "fe28add85dcc34102681a62922aea2af213f420b88c74feb94e5bc1ccebd6c8b",
+      "bench/assembly_collect.zi": "83cdc0f31f1f45d895a16d885fe9b4ed14e95307b80890448040fa3a75c44f98",
+      "bench/assembly_compare.zi": "aae86601b583e01e40092ca7892b384cd6a8112c42b344b2a71931814b6bef9e",
+      "bench/bench.zi": "e725a1f50a8ddb30ba19c5e3e1165a98ba7df0ce2836fa4d7d7e42e51fabbec1",
+      "bench/benchmark_statistics.zi": "39f5be5588a26247fa025d870e309b002a41be15431225cc1eb58bc9244908c8",
+      "bench/body_eligibility.py": "f8fa2db992913bb1c53c6c97f64c3851909b3798d67b37c201a9546cd13156ea",
+      "bench/bundle_assets.py": "2a3847d935184c60e17c8108d712a59caf954309ceb88ef633486325f333dbce",
+      "bench/bundle_instances.py": "c9bd9a9573b5a09481cd57f380addd9d65e2dbc8d595256cdefc291eaa226e8c",
+      "bench/c_teacher.zi": "0f302d034bd0abb7a94a04c1052b51d4b147390ae854b43fa5beda3e64ba4ce0",
+      "bench/c_teacher_assembly.zi": "af71355d406f4a0fae62c90ff7774b3c09af01ceeab8ce96bff366f4ec6ffb2f",
+      "bench/c_teacher_profile.zi": "8bf97b7a800bb9ae617a1d04eb1877aa419632ff725541b8d57a9eb064b771c7",
+      "bench/c_teacher_rules.zi": "c8bd719f89b63c69eb68f6e5104893614e42f490997ef7ca56907d715898b2cc",
+      "bench/codec_kernels.py": "3ca1f5fc179627d506edd852cf978541351a15edb1931728e24baa2240d8dd94",
+      "bench/compiler_build.zi": "a80990777cd7806d31fd381f6d22289fbe3b7019f31aea1f32f652118521b2d6",
+      "bench/compiler_scaling.py": "8135d0f02e2f8b5eb782c0ac594050c94f527072b4cafce62646c774605ea96e",
+      "bench/cpu_features.py": "54cf144a6d0faad68f0b2051a410422df10d78222251648c91e484cf090bb440",
+      "bench/enum_values.py": "c331e393d73293e25404fa58a9ea5dbb97b067bf562609403fd0cd55a139438d",
+      "bench/formatter_builds.py": "22e9d276876ba1834211f81ac63d2540036b4d5d5c3a6e524c04491a25f74210",
+      "bench/go_assembly.py": "32f79261c4e4c6ebec421ed0c9fbc25d85ffe231714da6ad6574f1248282fe2f",
+      "bench/host_capabilities.py": "ecf608cac057254ebce5486e495c1a8866a908090bf73fa43c7cd747aee52719",
+      "bench/json_document.zi": "a7e3feedbda47fed76fc0bbaf6b4c560911e9312f86119f97037ad2b67b62baa",
+      "bench/json_string_scan.zi": "a6f19a1fb3046c4ad555e8925c8b5d2950345aa8a90f6deae6a65c671c24657b",
+      "bench/json_text.py": "2e1245f77795e6ec7e21fbc166d075d1059851a73d092693b1fc406a451a4254",
+      "bench/math_sqrt.zi": "fbdbd27a05749c014ad61975f3981223fa3007e16fd201f73ddbc62ab69a016b",
+      "bench/native_builds.py": "932362b996ad1581160e85329e6ca9a8eb785446d36b017d4101b81ed292dd8c",
+      "bench/native_cache_fixture.zi": "0441aae0712dc5d161fcd49435f9c7e8596c111bffda06ed0c28b57e21870839",
+      "bench/native_header_graphs.py": "b1b2ba4797e95096109552524e16b40ad612d93b3c426f73972fda3d3b021fc1",
+      "bench/native_probe.py": "b95ba6e5a5e1ab5add999b30438b64e948ecdbb6becc96d0638487cfcaf43934",
+      "bench/reachable_types.py": "14699d7b424cc842ac5c8e866c3cb866a4b380c4f1f48c5cecf1ded0a0e44d42",
+      "bench/record_calls.py": "0f8d40a23d474a151ac30f726a6aa86a1319d18ad3eaa93b8dca44b7150da209",
+      "bench/smoke.py": "e8e5fc1323aa04425a2703b359430e0cf5191424f02ee57c339aff315a1791e7",
+      "bench/text_scan.py": "c1b2fb6429575b7bb5530f55c7544c5c0dbde128b5d78e279a670247750900b1",
+      "bench/type_exports.py": "7dc89e98788628ff72c2470dbe7d33c81248d33acd42393a82f7d37c04d3854d",
+      "bench/vector_growth.py": "350662d6acc56478284c4481d67555d961d4e5638220adadb7dfdfe2f0ae004b",
+      "bench/vector_growth_ab.py": "104d1c4b70a485b6f197d593a73da6512898928e4aa3053bc74da9fd559225db",
+      "bench/vm_android.py": "10393d60fba6d9e34cd11c21729b03fea85591eb6a19c6ff55eacfeba198f9c0",
+      "bench/vm_execution.py": "5d22d8a4ff96d89fbba41a6d97de17171189f53e974fbec4a8bdac3e77d183dd",
+      "bench/vm_native.py": "c977b71dea7a16ea4241e07e315ca28aa90bc8dbb2148fcf3e92a9a93305903e",
+      "bench/vm_startup.py": "9d1a20544005d2bc0c198ffb3a4aa1a58403d041157ae7c2fd9ebf59ab6aa3e7",
+      "bench/wasm_tier.py": "6d10d5e2bcb1aed0ded63884771698c4a907c52bed60ba8c62e300c6d4343e9c",
+      "bench/wasm_tier.zi": "0e6bdffd2b7dd8b7f6df7b3665393a17d1b840e4b48bb4b88d110d27b84dde91",
+      "bench/zx_compare.py": "cf5699f4e74b5deeaf604a32a26b87206c5d17c7abdfab2fd2bfad703744e6c4",
+      "bench/zx_compare.zi": "1f1fb938e8a550bb5526c68eb137281cd30171db377ce87c039ea8d60f16a01b",
+      "bench/zx_engine.zi": "054971304892a00cefcbee0d2a0498bc406ab13143480371d13bff986bbd7a68",
+      "bench/zx_execution.zi": "14d3de5266152acc4424b95f2288f22c9ee544be904e3927df5ee5c5e41b7b16",
+      "cmd/compiler_aarch64.zi": "6e6290525bd8ffcd58f5c38c191e7b39090d7af2b5cf1aeabcfc99b676928a75",
+      "cmd/compiler_abi.zi": "2563e498e4a09e7ff41eb330c1055167ec92828758c5873ab551221214119399",
+      "cmd/compiler_arm_bytes.zi": "ff30a43a4b0729f0690102b9b1870d8584fe604baf8f659a37edb3c958095552",
+      "cmd/compiler_armv7.zi": "1e1364169f7b4b679e9db6d8d1e0be0efbc9955d37b1de1f931de1f8a9d0c0fe",
+      "cmd/compiler_backend_cache.zi": "5a76c6cc76373475ef3f3a9f858abae7970e4fd21f06128749574518d2b47903",
+      "cmd/compiler_backend_process.zi": "db1452d9aa71a3cfc3b7e1b709ea285e73d52fbcd392a9587a4da3603f836817",
+      "cmd/compiler_bundle.zi": "b2442aba7e10a91d8ef422f3ae9d42aa3a82873e26d23bf0aefd116819419a92",
+      "cmd/compiler_declaration.zi": "4b243127fbda612bb75399d35a0e5a62b926b06cd21668ecf4967b0fb44a683b",
+      "cmd/compiler_enum.zi": "3bb33881dd63ef654f3f3b7b2d0201a82df84e50fbb04f3ebf3f748aeac63214",
+      "cmd/compiler_exec.zi": "4c7a89ec2854db68ed159b95132177e526e42108c6a120160ebf1e40d431644c",
+      "cmd/compiler_exec_debug.zi": "aa1b2141fd720cb6541e7b729ffbd0e3f2af15d207ea6ec4367fe51f8f040284",
+      "cmd/compiler_exec_link.zi": "81643c45850d1651b54589f38746254828e41884c9dc703036af9e84b955dc6d",
+      "cmd/compiler_exec_serial.zi": "f7057b91f1371862c5f95a6da507ef5ab87564cd8183c8e275b158e93aef21d0",
+      "cmd/compiler_expression.zi": "ae9ae5bef1606eb6146bd0b44ccbab9a98e18455c76d3feee24e0f1fb28b7e02",
+      "cmd/compiler_ir.zi": "541000ea6b99130911da25e05e5318f69d4689bf830668a7f2d7a2dd781da946",
+      "cmd/compiler_law.zi": "ea7a848dbfce6244bd5f576ba2d4808ab4a7439eb488f734ac488d7bc52aba06",
+      "cmd/compiler_learning_policy.zi": "0664cdd8661832eedfd7bacb4edc53dc72effd4549ef3bc9b3d7d1638c659e57",
+      "cmd/compiler_link.zi": "34303bb84496bf662f3e1e10ecda6dcbf9d8190c2bbec8d9e21c5d94c04cce02",
+      "cmd/compiler_lowered_ir.zi": "8ec004a5862e1511edca0de5c9b02f552a53992c3c791a53e909385f318987a4",
+      "cmd/compiler_lowered_proven.zi": "75f4ea7dc721078b982bb7b3d156ab1c63d4f3b0fe6dfe78cbbd2fc5a7bca7aa",
+      "cmd/compiler_lowered_verify.zi": "f7051f16f19c4d2ba90e3147285c9f193280bc2d11bdc46117e0185b282ccd8c",
+      "cmd/compiler_machine_aggregate.zi": "16d5e7ed5f3cfe04ad400edae311caaca4c4e4cee9a5e033f92acbb0b6a075ce",
+      "cmd/compiler_machine_elf.zi": "4b3388d402a74dd06077bb9de6295fd9af080dde9e7b57d77bb9c9a17c7e1982",
+      "cmd/compiler_machine_fields.zi": "9f3e21befa992755ae86695bea8245c26aa6530146e8f9adc38c79ec02d8daed",
+      "cmd/compiler_machine_image.zi": "a9adc6b4e330f4366120719a8fd054ba5721cc7d21c4ab37c4e90ca4af0ad6a6",
+      "cmd/compiler_machine_ir.zi": "66597bf7c70717f51897af8f705a70912c2e9b6c6eab7a59229dead32cd9a8b1",
+      "cmd/compiler_machine_lower.zi": "927ecd665617665a7fb0137a2d54f92a79d4e81587ec9ce37f9465e246aa73a9",
+      "cmd/compiler_machine_pe.zi": "282b2bbf3e9984f605bd5f9c7e78f17434198a065693f6fcdbf5b99dc20de5ea",
+      "cmd/compiler_machine_pipeline.zi": "873bdd8fb8dde2e9110beb40f538b251cd9ffa3b99c585c43ce99ee046f7b138",
+      "cmd/compiler_machine_select.zi": "086467c928a6ad77f60388ebe6f65406fd51df8fc595734affca3c9f6ab1bf56",
+      "cmd/compiler_machine_verify.zi": "e8cf207237a2316649171b95196493b225fad3a4bb0e34864060215ba7901a26",
+      "cmd/compiler_machine_verify_allocated.zi": "39d018331ce8b54d3d835d77b44200d248a0b36c15af7d39d9ca46158361a69b",
+      "cmd/compiler_native_cache.zi": "0035b3d5549ca11a77cdf90267bbde11c59443abfaf8e1e9ee3a95e82b2fb290",
+      "cmd/compiler_native_names.zi": "785afd249f662ccee7618a8047f3a7e4912301802c60a6056b87dbd2d744adde",
+      "cmd/compiler_opt.zi": "05189b0d37431433cb92c6d3ba8ef93e1c43b20b21a80ef9ae0614c0c1663173",
+      "cmd/compiler_opt_rotate.zi": "1e0de077d2bb2cd0dd82844eec3b02af76caa23b0e139e4e9dfee4bac68639b8",
+      "cmd/compiler_opt_ssa.zi": "d48ffcab34672abb811f62e1ec4c6ece48796ca915aa88f737a64ac3a06ba6e0",
+      "cmd/compiler_parse.zi": "faeff7c000d4dedf9c6172aa7fe191f8051d6d161fef3301871e6d2456476c50",
+      "cmd/compiler_proof.zi": "b750025110bbf98bd481225d35893503d636167b05c5f8f676d14f1b21c4045a",
+      "cmd/compiler_proof_kernel.zi": "ef6ef0e45033d412e69f665d0adab88cf7b8447e6b7d2380285256bf8b560657",
+      "cmd/compiler_regalloc.zi": "c685aa88b55f3818815f647827108b4a430ede7eb23dc068832a843cf7a1ce05",
+      "cmd/compiler_runtime.zi": "76a03293273f596114419c57ae2d7d90bcbb3601f53ca3bea2aa493fa7c45333",
+      "cmd/compiler_runtime_emit.zi": "75cac74ccd128c798b138cc8debf12bfe32a73374a59ed38c2da544a5ea5e8c0",
+      "cmd/compiler_scan.zi": "7a5543ff4d2a948662a73799cef24d5493f6d8f2c00bc8e9c79966bc3e08ebf6",
+      "cmd/compiler_services.zi": "44e86142a49ca50c93d2ee4549a62d5d910039a26bed8edba9eee6e32ad100c8",
+      "cmd/compiler_source.zi": "b72e15ebf7db2ca8701443be8665b521550e6365278d0451972b13012749f6a1",
+      "cmd/compiler_statement.zi": "9cab342dfca003629336188001161db10da1bfffb81c4a72762c7ac825014147",
+      "cmd/compiler_target.zi": "45aa88ad0735e0728084e298d3384f58dde43552205713eb21ba45a4efdf6996",
+      "cmd/compiler_text.zi": "6c984ceb501cf4910f1f188a8a194724e1153b2ccf64425d183572c48b3b521b",
+      "cmd/compiler_type.zi": "c855d452c68ef1143c0b2c0bb5e8124b0c2eb98194357ea20459290099664392",
+      "cmd/compiler_x86_64.zi": "46f5507aeed0ccb72d1db423f8ad9b5e421d3f5d56e334d0adb0a95aedd1a7b5",
+      "cmd/compiler_x86_bytes.zi": "e657e4757e6e44f58bdf3c797de83ef4ec9d29cf9cdfb9945e38b5af8ba6add5",
+      "cmd/compiler_x86_host.zi": "62790138a13faee1421e7ed381d049b31681cdd0215ea23fed86205554f99fab",
+      "cmd/compiler_x86_image.zi": "002266f04f7ef848df21c7561f42ddffbc23f80fc990a1f9100bdeef8c41dace",
+      "cmd/compiler_x86_runtime.zi": "c1a5a8cf1a1979052b1e367670a297e68fe772aaf7b0be4cf3bd9a5aa743ff95",
+      "cmd/compiler_x86_win64.zi": "56579376dde03d3fae4c14a52db835eb30ee9f3ed034bd057af87c8389a011e7",
+      "cmd/compiler_zir_lower.zi": "5a256120bf827f1973e07db313abc5ebe233bfac27c4bb8b2a1f8ebce8fde83a",
+      "cmd/diagnostics.zi": "bab7e536840cbfd0bf376586f79dd2aaeced3d7ead8e993f32a916a2a00a2efd",
+      "cmd/edit.zi": "0b7754a51bfdb9f977502033fc8d0d37e338199c6303b72c6f56068b735a3c1d",
+      "cmd/format.zi": "1d3a98b9f2bcb8bb4397addbaa79c482a248a4a1c90a65469a43baf3093df49e",
+      "cmd/format_source.zi": "dab11397691519e67cbf1b6d28a1c56511ab6e9f1a8173495895c301964d2166",
+      "cmd/package.zi": "d5d7c5943018b0dde1f2e7bea6cc748d00329aa1b3ae09c1dfaf6050b40164e2",
+      "cmd/package_add.zi": "73d66ff9c67140ec2ea027aa9c6de35c116c0387863c83cd250bf98146cd391c",
+      "cmd/package_artifact.zi": "4233d6388cd50e361a4bd1dd9cb7406ae8c118466ea07c05e3c971cca7f50c1a",
+      "cmd/package_bundle_run.zi": "f6e7d9812e441bc7e5c5e11a14c821a31144b18ef49726e5c81ed81e5f9b7a75",
+      "cmd/package_capabilities.zi": "5d02a368970770d83a2743904c11f96d554fcfed54ef626c120b02b0699b9547",
+      "cmd/package_common.zi": "d9a532f872397a1d85af3fa9c0e6880c84a4fdd08414d81c42eb092e11a4eaa6",
+      "cmd/package_compile_commands.zi": "3c89799708f97fb2cb7df2addaa79cab488bfd6cdfb981fa7400911a39f30651",
+      "cmd/package_entry.zi": "e38f333965caa5a04333ec4bf5049e9c4c8fbec11dc21a564caca9b0128c8457",
+      "cmd/package_explain.zi": "a66faa839eab24613009572eb26c29103b83f27ead407a5082545cf6821fd51d",
+      "cmd/package_features.zi": "1558d4bbe5a8bad6980cd0a36618e86af8172ff18ae56563e61991f4bc0cb780",
+      "cmd/package_guide.zi": "4f37a7e919d9724f422bb0bc31f16cb00f53dd15faefe0951ca2004e80957f66",
+      "cmd/package_learn.zi": "00a9b8f0cd272cc80cff0fb902424abc2116ba6e2b155e4e54a29918a05fc148",
+      "cmd/package_lock.zi": "e7ec127c0d5c67062d1bc7bde60fea6c731589ebdfdfa5c49a9a22723e500527",
+      "cmd/package_manifest.zi": "7c3e09a31e2c6fee8f24332c488d7e47919d231e6807b8ff1a3977f0b19712af",
+      "cmd/package_map.zi": "f5237bf7644c72fc8fd8215dbea21c11ea5902fab55c94793161e18c922f5662",
+      "cmd/package_options.zi": "2bbe79bfb722160835c982d467039a503d654177f45ef927af53b9443d4f64f1",
+      "cmd/package_process.zi": "cacac81d35ccfaeceb65a320844b9d6b067a46dcd9e88310fa1a9e0f42d8abce",
+      "cmd/package_script.zi": "a424b568ca6c9c7d6c6e000df3fe64768d21d8f3551c5885b1d2920f79099f43",
+      "cmd/package_source.zi": "d85372881205f92f9e26b3afd1e9f401d324af3958a57af66f6aafec5c98c02a",
+      "cmd/package_template.zi": "04c681f5b549ed446d0e085f7b2f2aea16dbb0433de774974a80884f09707682",
+      "cmd/transport.zi": "4b18fa172dc12b15dedabdcfdd2d2dba257b48edccadd08c1ff76cff8977f8af",
+      "Makefile": "05f3a05a07580c113c3c2e41e122fb2fda564fdbab2406c0daafe3558f0d9919",
+      "assembly.mk": "35cc7ad2f0897895f8aa498e4cbd6660a4981fe068eb0944897469e4fa5014ba"
+    },
+    "source_epoch_sha256": "c7e480579299fb11af67d1657903b1eb8129f8e1652c4da8b9ef37ea0073861b",
+    "status": "completed_verified_and_released",
+    "measurement_command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off ZIRAN_BENCH_HOST=omega build-queue -- build/bin/ziran run --target=c bench/bench.zi -- c-teacher --output bench/results/c-teacher-omega-2026-11-16-stage2.md .",
+    "command_id": "95d550721a3200645e820d1f88afe45c6b86",
+    "started_at_unix": 1794851103,
+    "teacher_validation": "bench/results/c-teacher-omega-2026-11-16-stage2-validation.json",
+    "window_acknowledgments": {
+      "widget_coordinator": "236edab4b23c4fad43bf1aab1380930aa673",
+      "widget_worker": "f4b8f1c4a962e1a5f9a08ee6ba49a9a0ecdf"
+    },
+    "start_report_feedback": "9a49608b01073088ace9167898290c9b98c4",
+    "finished_at_unix": 1794851136,
+    "verified_at_unix": 1794851257.6095452,
+    "exit_code": 0,
+    "changed_digests": [],
+    "checked_paths": 97,
+    "required_binaries_verified": [
+      "build/bin/ziran",
+      "build/bin/zi2c",
+      "build/bin/zi2zx",
+      "build/bin/zx2native",
+      "build/bin/zx2wasm",
+      "build/libziran.a"
+    ],
+    "coordinator_checkpoint_overlap": 96,
+    "coordinator_checkpoint_differences": [],
+    "teacher_receipt_sha256": "37da6e320c19afdeeab63b42cc4a6545d4480e74f7d57f245c32347a0861e39c",
+    "report": "bench/results/c-teacher-omega-2026-11-16-stage2.md",
+    "report_sha256": "ce0aeb4b9f8054a72670a2cf361305fb929d7f705933ca7a35e3960362c05a6a",
+    "completion_feedback": "ad32dd44031cf391fe0afb3fed9767aef733",
+    "release_feedback": {
+      "widget": "d3d15c16508870a0b96d9e065982d719c5b1",
+      "reviewer": "657622e001955ce2031724ff12fe2dd40da9"
+    }
+  },
+  "pre_review_checkpoint": {
+    "recorded_at_unix": 1794851541.6567383,
+    "source_sha256": {
+      "cmd/compiler_opt.zi": "05189b0d37431433cb92c6d3ba8ef93e1c43b20b21a80ef9ae0614c0c1663173",
+      "cmd/compiler_opt_ssa.zi": "d48ffcab34672abb811f62e1ec4c6ece48796ca915aa88f737a64ac3a06ba6e0",
+      "cmd/compiler_opt_rotate.zi": "1e0de077d2bb2cd0dd82844eec3b02af76caa23b0e139e4e9dfee4bac68639b8",
+      "cmd/compiler_lowered_proven.zi": "75f4ea7dc721078b982bb7b3d156ab1c63d4f3b0fe6dfe78cbbd2fc5a7bca7aa",
+      "cmd/compiler_regalloc.zi": "c685aa88b55f3818815f647827108b4a430ede7eb23dc068832a843cf7a1ce05",
+      "cmd/compiler_machine_lower.zi": "927ecd665617665a7fb0137a2d54f92a79d4e81587ec9ce37f9465e246aa73a9",
+      "cmd/compiler_machine_fields.zi": "9f3e21befa992755ae86695bea8245c26aa6530146e8f9adc38c79ec02d8daed",
+      "cmd/compiler_x86_bytes.zi": "e657e4757e6e44f58bdf3c797de83ef4ec9d29cf9cdfb9945e38b5af8ba6add5",
+      "Makefile": "147300ccf16d4b3d0fc5dbbd7d013e08c18de9576ed9782005d56d4808aea9d0",
+      "assembly.mk": "35cc7ad2f0897895f8aa498e4cbd6660a4981fe068eb0944897469e4fa5014ba",
+      "tests/compiler_opt_cases.zi": "04242ca7f84b462fc2d0d296e1117cfe81aa1c6fc59bf43c459ae3e3dda72e33",
+      "tests/compiler_opt_ssa_cases.zi": "9a352122e71a282a7e070853a31085543f6597db2c4916aac6611d283ad603b5",
+      "tests/compiler_opt_rotate_cases.zi": "1050ab849ad719fa4b2095bd13539ef94a4fc407c98b150b3dd502cf46e85c3a",
+      "tests/regalloc_cases.zi": "7d23bc1e5b3a06dff20e8532cbf7a4e0501b57a1a381ca2e8083365ec214f7d0",
+      "tests/machine_elf.sh": "6f67b4e2d111c8644c845dc9971a6b3f1e6a89c352534c3873fe6e0b87aaa9a3"
+    },
+    "changed_since_full_suite": [
+      "Makefile"
+    ],
+    "failure_logs": {
+      "explain.sh": {
+        "path": "build/check-logs/explain.sh.log",
+        "mtime_ns": 1794850001753092442,
+        "evidence": [
+          {
+            "line": 1,
+            "text": "FAIL: explain registry count differs from independently discovered emitted codes"
+          }
+        ]
+      },
+      "site_pages.sh": {
+        "path": "build/check-logs/site_pages.sh.log",
+        "mtime_ns": 1794850067553094135,
+        "evidence": [
+          {
+            "line": 3,
+            "text": "stale site pages: modules.html, guide/usage.html, guide/zx.html, packages/audio.html, packages/telegram.html"
+          }
+        ]
+      },
+      "zstd_go.sh": {
+        "path": "build/check-logs/zstd_go.sh.log",
+        "mtime_ns": 1794850078801094424,
+        "evidence": [
+          {
+            "line": 2,
+            "text": "go: go.mod requires go >= 1.25 (running go 1.24.4; GOTOOLCHAIN=local)"
+          }
+        ]
+      }
+    },
+    "note": "Retained failed-suite log evidence, not a fresh rerun. Historical combined-suite acceptance is tied to its source epoch; later Makefile/source changes require their own relevant validation."
+  },
+  "constructor_integration_followup": {
+    "received_at_unix": 1794851698.310662,
+    "parent_feedback": "ed053d3273b156655e7e0b17f834456c40c0",
+    "scope": "Coordinate shared compiler_opt edits and Omega source/build integration for separately assigned nested aggregate constructor sinking and constant float-field folding.",
+    "implementation_owner": "existing hello/alias specialist",
+    "measurement_owner": "native-fields-review-2",
+    "status": "current bounds/work/class-end/float checkpoint validated; expanded eligible own-result final-destination implementation still pending with constructor owner",
+    "new_feature_validation": "not yet run; prior SSA suite and performance evidence remain bound to their historical source epoch",
+    "commit_status": "none; SSA independent review pending and new constructor feature requires separate local validation",
+    "scope_clarification_feedback": "6aaa5e1b1ef4ae7fe83bb68e61eb4f7fea93",
+    "updated_at_unix": 1794858489.547869,
+    "implementation_task": "c09397112ad4458efeff8738364cef4f02f0",
+    "implementation_session": "claude-ziran-hello-address-fold-3",
+    "last_dependency_report": "Constructor worker found aggregate member copied into parent then modified may corrupt snapshot when its chain continues after copy; worker reproducing and fixing before checkpoint.",
+    "last_dependency_status": "Old hello-only validation finished; no active queued build or constructor implementation reported. Existing SSA/integration role unchanged.",
+    "assignment_clarification_feedback": "cab821ad3e42b2398f9444034e6c1ae64e71",
+    "last_dependency_check": {
+      "recorded_at_unix": 1794854752.8166788,
+      "session": "claude-ziran-hello-address-fold-5",
+      "reported_progress": "draft code-size reduction and smoke tests; native_run issue investigated",
+      "evidence_limit": "displayed tests use external scratch source tree; not canonical validation",
+      "constraint": "current canonical checkout only; no clones/worktrees/temporary source checkouts",
+      "own_actions": "did not inspect or use scratch source tree; routed canonical-only correction and requested scoped canonical patch/command checkpoint"
+    },
+    "coordination_hold": "none; finite Omega validation window released",
+    "canonical_patch_report": {
+      "feedback": "d43f22db9e1442a70adcf738c94d276dd64d",
+      "received_at_unix": 1794855074.5732095,
+      "files": [
+        "cmd/compiler_machine_ir.zi",
+        "cmd/compiler_machine_verify.zi",
+        "cmd/compiler_machine_verify_allocated.zi",
+        "cmd/compiler_machine_aggregate.zi",
+        "cmd/compiler_machine_lower.zi",
+        "cmd/compiler_regalloc.zi",
+        "cmd/compiler_x86_64.zi"
+      ],
+      "test_report": "canonical private BUILD_DIR job active; actual command IDs and results pending",
+      "integration_read": "one MachineAggregatePlanBuild caller updated; no new modules to register; placement zero sentinel preserves default unplaced objects",
+      "regression_evidence": "prior stable canonical native_run.sh exit0,5.744s,not reused; new draft failure requires exact canonical diagnosis",
+      "final_requirement": "retained semantic/verifier regressions and stable shared-output fullsuite/bootstrap at new source epoch"
+    },
+    "review_findings": {
+      "recorded_at_unix": 1794855749.164075,
+      "status": "fixed and retained cases passed in stable canonical suite",
+      "items": [
+        {
+          "priority": "P1",
+          "file": "cmd/compiler_machine_verify.zi:262",
+          "issue": "PlacedWithin uses function stack range before Instructions validates it; negative owner.stack_begin permits negative parent_at dereference",
+          "counterexample": "owner.stack_begin=-1,stack_count=1,child.placed_in=1 gives parent_at=-1, passes current checks",
+          "required": "validate owner range/global lower bound and parent ownership before dereference; retained negative diagnostic cases",
+          "followup": "Owner stack range is checked before parent lookup; parent must belong to same function; negative-range/placement/kind cases retained in Tamper."
+        },
+        {
+          "priority": "P2",
+          "file": "cmd/compiler_machine_aggregate.zi:813",
+          "issue": "new Classes/ViewOffsets/Flatten/Place/Cover work not metered through Spend/plan.work; place_left separate from shared lowering budget",
+          "required": "charge added traversal work or soundly decline at limits; meaningful limit regression",
+          "followup": "Classes/ViewOffsets/Place/Cover and chain flattening now charge shared work; BudgetCharged tests tiny, exact, short and repeat budgets."
+        }
+      ],
+      "test_expectation_review": "Mode3 count2 remains structurally justified; new native fixture checks distinct member values, loop rotation snapshots, shared values, escaping copies, dynamic indices and mutation independence.",
+      "interface_notes": "one updated planner caller; no new modules; no persisted MachineStackObject codec found; allocator preserves relative original object order",
+      "source_reviewed_at_unix": 1794856847.2462187,
+      "float_review": "28 retained vectors exercise conversion/negation, nearest-even ties, subnormals, overflow, signed zero and conservative NaN conversion; hooked from compiler_opt_cases; no new module registration needed.",
+      "copy_then_modify_followup": "Source now records class_last for aggregate definitions/operands and requires class_last == placement use, declining classes modified after the copy. Retained mode6 structural case and native source Pair{30,31}, copy into box, mutate source.a=99, assert box member{30,31}. Focused owner tests pending."
+    },
+    "native_run_diagnosis": {
+      "reported_by": "constructor owner",
+      "reason": "deleted non-Git export failed ziran lock override top-of-Git-checkout requirement, not generated native code",
+      "canonical_followup": "worker reports private BUILD_DIR native filter17/17PASS including native_run and package_conformance",
+      "acceptance_limit": "final shared-output canonical suite/bootstrap still pending"
+    },
+    "shared_output_dependency": {
+      "owner": "codex-ziran-c-teacher-learning",
+      "command_id": "16151a4867e2fa478e3d0afde52731aaa7a0",
+      "started_at_unix": 1794856923,
+      "status": "teacher window released; all281 local tests/bootstrap passed but two constructor sources changed; compiler binaries stable",
+      "source_guard_caveat": "constructor class-end changes overlap this epoch; final constructor acceptance requires stable checkpoint"
+    },
+    "fields_lane_dependency": "Owner reports none; no duplicate shared build planned.",
+    "stable_checkpoint_feedback": "09550ec3a045f3182da70f5bb03c8c44e629",
+    "owner_focused_result": "worker private BUILD_DIR full suite279/281; only site_targets/site_pages stale generated content. Not accepted as canonical shared-output final validation.",
+    "final_validation_command_id": "34159fa4c599897ee55a627d0b74327deffa",
+    "remaining_scope": "Parent reiterates eligible own returned-record construction directly into final destination; new implementation needs new stable source checkpoint and validation."
+  },
+  "allocator_hook_audit": {
+    "recorded_at_unix": 1794852320.64108,
+    "verdict": "no verified hook",
+    "scope": "Read-only public allocator API and retained test inspection; no source edits or test rerun",
+    "api": "cmd/compiler_regalloc.zi:2370 RegAllocAllocate(owner,target,limits); single Attempt at2388",
+    "limits": "cmd/compiler_machine_ir.zi:294 capacity/work limits only",
+    "tests": "tests/regalloc_cases.zi:453 one allocation API;594-608 transactional Limit/recovery without retry",
+    "source_sha256": {
+      "cmd/compiler_regalloc.zi": "c685aa88b55f3818815f647827108b4a430ede7eb23dc068832a843cf7a1ce05",
+      "cmd/compiler_machine_ir.zi": "66597bf7c70717f51897af8f705a70912c2e9b6c6eab7a59229dead32cd9a8b1",
+      "tests/regalloc_cases.zi": "7d23bc1e5b3a06dff20e8532cbf7a4e0501b57a1a381ca2e8083365ec214f7d0"
+    }
+  },
+  "independent_ssa_review": {
+    "accepted_at_unix": 1794852388.5502782,
+    "reported_by": "parent coordinator task3c5a25ac89176e215675cf8135618d5ee51a",
+    "verdict": "ACCEPTED; no blocking code concern",
+    "coverage": "conservative semantics; fixpoint block-argument repair incl exits; fuel/effect count/order; limits/determinism/storage",
+    "review_hold": "lifted",
+    "scope_remaining": "actual constructor dependency; optimizer/source-list/shared-build coordination; final validation for new source epochs"
+  },
+  "widget_followup_validation_request": {
+    "received_at_unix": 1794852388.5502791,
+    "requested_by": "native-fields-review-2",
+    "status": "finite canonical validation completed and independently checked; two exact baseline failures remain",
+    "commit_authority": "sibling reports a root instruction; relayed to parent, no authority inferred for this lane",
+    "shared_lower_hunks": "hello specialist owns typed zero-element folds and transitive/cached aggregate aliases; fields lane owns Fields hooks",
+    "validation_limit": "historical canonical full-source validation does not validate an arbitrary partial staged subset",
+    "reported_failure": {
+      "recorded_at_unix": 1794852470.0124583,
+      "command_id": "97b4a6cc8f00deaf0b3ae8e2a298008607d6",
+      "phase": "machine_ir before full suite",
+      "source": "cmd/compiler_machine_select.zi:375",
+      "reason": "unresolved LearningTuningChoice and unknown block_layout",
+      "reported_by": "native-fields-review-2",
+      "owning_lane": "C teacher learning",
+      "independent_reproduction": "not run; failure report routed to owning lane"
+    },
+    "stable_window": "released",
+    "repair_report": {
+      "recorded_at_unix": 1794852694.5203097,
+      "feedback": "764869f6c18fd7ba17cfc66748e8b990f68c",
+      "reported_by": "C teacher learning",
+      "changes": "import repair; generated approval constants encoded as integer0/1 with consistent gate/serializer update",
+      "validation": "focused make check CHECK_FILTER=machine_ir reported queued; no final verdict yet"
+    },
+    "teacher_repair_validation": {
+      "received_at_unix": 1794852813.910398,
+      "feedback": "665d0eb496ee4e2e0346e59d9355c63b1241",
+      "command_id": "44121c2466f01346a90b2215cf9851f143d6",
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make -j1 check CHECK_FILTER=machine_ir",
+      "exit_code": 0,
+      "passed": 1,
+      "total": 1,
+      "scope": "worker reports integrated engine/native/package rebuild and machine_ir.sh PASS; no fullsuite acceptance"
+    },
+    "validation_owner": "native-fields-review-2",
+    "next_requirement": "exact ready finite fullsuite command, actual queued ID and source epoch fingerprints; constructor edits coordinated",
+    "remote_followup": {
+      "received_at_unix": 1794852854.6686497,
+      "reported_by": "native-fields-review-2",
+      "host": "Alpha",
+      "command_id": "3da8b3ac4ffca97c8b406f1508ba54b68b3f",
+      "reported_passed": "build,machine_ir,native_load",
+      "reported_pending": "full make check; bootstrap next in same script",
+      "closure_claim": "canonical master plus ten-file widget checkpoint and policy harness overlay; private-index lower diff Fields hooks only",
+      "verification_by_this_lane": "not independently inspected; no remote actions",
+      "interpretation": "distinct from local Omega validation, no current Omega fullsuite acceptance"
+    },
+    "latest_scope_report": {
+      "feedback": "4e64feb7fc4c9cf7aba5372c09661b1b041e",
+      "received_at_unix": 1794853442.9113955,
+      "requested_by": "native-fields-review-2",
+      "target": "canonical Omega",
+      "prerequisite": "actual hello commit completed",
+      "commands": "display/learning-off build-queue make check and make check-bootstrap",
+      "own_source_state": "no compiler/test/build-input edits; index untouched; no active/queued own command",
+      "interpretation": "remote isolated-source result does not replace requested current canonical validation"
+    },
+    "active_job": {
+      "received_at_unix": 1794853645.2215142,
+      "feedback": "871cca4feb7138b3bcdd1c963b026c798f8f",
+      "command_id": "abff2bb6e76ce84ea0842135a17906e95eb7",
+      "script": "backup/widget-native-omega-verify.sh",
+      "phases": [
+        "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make -j4 all native-load-test",
+        "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check",
+        "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check-bootstrap"
+      ],
+      "before_epoch_sha256": "c1e1dd4c16a9406ec3c86ee422930ad995c918eaa0c24747ee94ecbea8bdc607",
+      "guarded_source_files": 3404,
+      "reported_by": "native-fields-review-2",
+      "phase_results": "pending; source stability checked by worker before/after",
+      "own_lane_state": "no source edits, index changes or build commands",
+      "in_progress_failure": {
+        "received_at_unix": 1794853742.9672768,
+        "feedback": "8fcad4d5c4d9ab1cb8385dc445e63f72b232",
+        "test": "explain.sh",
+        "reason": "registry count differs from independently discovered emitted codes",
+        "reported_by": "native-fields-review-2",
+        "terminal_verdict": "pending",
+        "baseline_reproduction": "worker reports same failure on clean Alpha baseline; not independently tested here"
+      }
+    },
+    "outside_fix_ownership": {
+      "registry_go": "sibling claims reportedly assigned to this lane; no authenticated assignment received; routed to parent",
+      "source_state": "no edits during finite pipeline",
+      "existing_scope": "SSA review fixes, optimizer/source-list/build integration, final validation"
+    },
+    "terminal_verdict": {
+      "verified_at_unix": 1794853948.8292944,
+      "command_id": "abff2bb6e76ce84ea0842135a17906e95eb7",
+      "owner": "native-fields-review-2",
+      "host": "Omega",
+      "status": {
+        "build": 0,
+        "suite": 2,
+        "bootstrap": 0
+      },
+      "total": 281,
+      "passed": 279,
+      "failed": 2,
+      "executed": 281,
+      "reused": 0,
+      "seconds": 177.114590356,
+      "failures": [
+        {
+          "name": "explain.sh",
+          "exit_code": 1,
+          "seconds": 3.25982654,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/explain.sh.log"
+        },
+        {
+          "name": "zstd_go.sh",
+          "exit_code": 1,
+          "seconds": 1.411046681,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/zstd_go.sh.log"
+        }
+      ],
+      "failure_log_samples": {
+        "explain.sh": "FAIL: explain registry count differs from independently discovered emitted codes\n",
+        "zstd_go.sh": "Command failed (exit 1, expected 0): go test -mod=mod -race .\ngo: go.mod requires go >= 1.25 (running go 1.24.4; GOTOOLCHAIN=local)\n\nFAIL: read Go frame\n"
+      },
+      "selected_checks": [
+        {
+          "name": "proven_pointer_cases.zi",
+          "exit_code": 0,
+          "seconds": 20.322694265,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/proven_pointer_cases.zi.log"
+        },
+        {
+          "name": "compiler_opt.sh",
+          "exit_code": 0,
+          "seconds": 158.599034564,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_opt.sh.log"
+        },
+        {
+          "name": "machine_elf.sh",
+          "exit_code": 0,
+          "seconds": 31.257206531,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/machine_elf.sh.log"
+        },
+        {
+          "name": "machine_ir.sh",
+          "exit_code": 0,
+          "seconds": 21.641034334,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/machine_ir.sh.log"
+        },
+        {
+          "name": "native_load.sh",
+          "exit_code": 0,
+          "seconds": 3.444334909,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/native_load.sh.log"
+        },
+        {
+          "name": "regalloc.sh",
+          "exit_code": 0,
+          "seconds": 12.062849459,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/regalloc.sh.log"
+        },
+        {
+          "name": "site_pages.sh",
+          "exit_code": 0,
+          "seconds": 20.258690226,
+          "reused": false,
+          "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/site_pages.sh.log"
+        }
+      ],
+      "source_head": "8a3b727cfc372ecf78be7e978957968336698707",
+      "source_epoch": "c1e1dd4c16a9406ec3c86ee422930ad995c918eaa0c24747ee94ecbea8bdc607",
+      "guarded_source_files": 3404,
+      "source_files_identical_before_after": true,
+      "retained_suite": "backup/widget-native-omega-suite.json",
+      "retained_logs": "backup/widget-native-omega-suite-logs.tar.gz",
+      "retained_source_before": "backup/widget-native-omega-before.json",
+      "retained_source_after": "backup/widget-native-omega-after.json",
+      "window": "released on completion; new constructor source will require separate validation"
+    }
+  },
+  "latest_canonical_validation": {
+    "command_id": "34159fa4c599897ee55a627d0b74327deffa",
+    "command": "sh backup/ssa-omega-final-verify.sh",
+    "host": "omega",
+    "environment": {
+      "ZIRAN_LEARN": "off",
+      "HARMONY_BUILD_LOCAL": "1",
+      "DISPLAY": "unset",
+      "WAYLAND_DISPLAY": "unset"
+    },
+    "status": {
+      "build": 0,
+      "suite": 2,
+      "bootstrap": 0,
+      "fingerprints_before": 0,
+      "fingerprints_after": 0
+    },
+    "suite": {
+      "total": 281,
+      "failed": 2,
+      "seconds": 165.045529504,
+      "executed": 281,
+      "reused": 0
+    },
+    "failed": [
+      {
+        "name": "site_pages.sh",
+        "exit_code": 1,
+        "seconds": 17.668649773,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/site_pages.sh.log"
+      },
+      {
+        "name": "site_targets.sh",
+        "exit_code": 1,
+        "seconds": 0.425660101,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/site_targets.sh.log"
+      }
+    ],
+    "selected": [
+      {
+        "name": "proven_pointer_cases.zi",
+        "exit_code": 0,
+        "seconds": 20.70861841,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/proven_pointer_cases.zi.log"
+      },
+      {
+        "name": "compiler_opt.sh",
+        "exit_code": 0,
+        "seconds": 150.654483542,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_opt.sh.log"
+      },
+      {
+        "name": "machine_elf.sh",
+        "exit_code": 0,
+        "seconds": 31.101626625,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/machine_elf.sh.log"
+      },
+      {
+        "name": "machine_ir.sh",
+        "exit_code": 0,
+        "seconds": 21.880513061,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/machine_ir.sh.log"
+      },
+      {
+        "name": "native_load.sh",
+        "exit_code": 0,
+        "seconds": 2.221638571,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/native_load.sh.log"
+      },
+      {
+        "name": "native_run.sh",
+        "exit_code": 0,
+        "seconds": 4.433785083,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/native_run.sh.log"
+      },
+      {
+        "name": "native_runtime_headers.sh",
+        "exit_code": 0,
+        "seconds": 21.624300167,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/native_runtime_headers.sh.log"
+      },
+      {
+        "name": "regalloc.sh",
+        "exit_code": 0,
+        "seconds": 14.878847029,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/regalloc.sh.log"
+      }
+    ],
+    "source_guard": {
+      "before_head": "42dc1b0f41489e8affae19815a52aa3a875ff0d9",
+      "after_head": "42dc1b0f41489e8affae19815a52aa3a875ff0d9",
+      "before_epoch": "77af89ea188bb2c104bf24f83fe6b144692ad2cbd1d7b073d74620e61caadfb8",
+      "after_epoch": "77af89ea188bb2c104bf24f83fe6b144692ad2cbd1d7b073d74620e61caadfb8",
+      "source_files": 3409,
+      "changed": [],
+      "manifest_before": "backup/ssa-omega-final-before.json",
+      "manifest_after": "backup/ssa-omega-final-after.json"
+    },
+    "binaries_unchanged": true,
+    "binary_sha256": {
+      "build/bin/ziran": "2ea5c3e7337faf1d19d6f736435e072eb25d89899d6f862c3819c88380c17378",
+      "build/bin/zi2c": "549a9b9f3600255c4b8af83947661f92ec8db8a97d80d26392b1674a8bc59f27",
+      "build/bin/zi2zx": "ae3c47ff42bfcec22615b08d551dcffc7b29366c161a02ee1808462a3a9de9c2",
+      "build/bin/zx2wasm": "9de465c0be09ae7c03d0f4a10ff5ce88c3a4ec473cf7a9a5662a93acd0090637",
+      "build/bin/zx2native": "cbd302b7573995662ca87959a7accb825f32004bb0a2bc78777d93d50cd05d39",
+      "build/bin/check-runner": "5047b9bbef7904d1f39ca57e5d1c5c91b7da4e9cb29ab2295006ae46adb25336",
+      "build/libziran.a": "5a9c47adbb8ba8e9c7980fbb8aaf3701e74ecf3ba2809fbf2622eac3b4dfe2a8"
+    },
+    "site_followup": {
+      "command_id": "344a956156f47db0e262f592cb9137dfa793",
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- sh -c 'sh tests/site_pages.sh build/bin/ziran && sh tests/site_targets.sh build/bin/ziran'",
+      "exit_code": 0,
+      "result": "both previously failing tests passed after owning lane supplied publication artifacts"
+    },
+    "conclusion": "Every retained local test has passing result across full run plus two focused reruns; build and bootstrap pass. Not one all-green full run. Constructor and original SSA integration accepted; C parity not achieved.",
+    "acceptance_scope": "Accepts source checkpoint tested, not completion of pending own-result final-destination construction objective."
+  },
+  "release_coordination_notice": {
+    "received_at_unix": 1794855074.5732114,
+    "source_task": "d1445e7e43a2b746f24fcea852f4ee5d02c3",
+    "source_session": "claude-ziran-release-ziran-kryon",
+    "reported_request": "coordinate master-push hold for separately requested0.6.0 release",
+    "own_actions": "no push/release planned; no CI polling; notice routed to parent; local integration continues",
+    "authority_limit": "sibling notice does not change this task scope or create a source/test hold"
+  },
+  "expanded_loop_scope": {
+    "received_at_unix": 1794857933.0179818,
+    "coordinator_task": "682fa05a6e2b77ba2be829b6cab60096eaed",
+    "coordinator_session": "claude-projects-session-52",
+    "scope_feedback": "a7c147b05edfd64fd73489bd2ff44cf6be50",
+    "requested_features": [
+      "Sieve outer-loop joins and layout",
+      "modular shared LICM",
+      "induction simplification and strength reduction"
+    ],
+    "target": "Latest owner goal native Sieve and loop kernels <= C on Alpha; not achieved",
+    "execution_policy": "Builds/tests canonical Omega; all future benchmarks physical Alpha only, learning off, build-queue; no reset during another lane benchmark; receipt records measured pushed commit",
+    "alpha_coordination": "Targets cohort complete; no automatic reservation, coordinate teacher/records/targets and verify no active benchmark before any reset.",
+    "teacher_evidence": {
+      "source": "bench/results/c-teacher-omega-2026-11-16-final.md and build/c-teacher/{Sieve,Vectors}/{native,cc}.asm",
+      "sieve": "Inner marking native already4 instructions, matching GCC. Remaining observed excess outer joins/layout and separate byte load/compare.",
+      "vectors": "Capacity-available push native28 executed instructions vs GCC17, five stack reads plus five stack writes and multiply. Scalar reduction8 instructions/element with accumulator spill vs GCC SIMD5instructions/2elements.",
+      "limitation": "Instruction-path inspection identifies opportunities, not causal speedups; prior Omega timings are not new Alpha A/B baseline."
+    },
+    "implementation": "New bounded natural-loop analysis module added, not hooked into optimizer or source lists; source check pending. Existing accepted SSA/rotation remains unchanged.",
+    "benchmark_status": "No expanded-scope Alpha A/B run yet; requires stable measured pushed baselines and serialized host window.",
+    "superseded_features": {
+      "vector_push": "codex-ziran-records-aggregate-speed",
+      "SIMD": "codex-ziran-loop-vectorizer"
+    },
+    "analysis_check": {
+      "module": "cmd/compiler_opt_loop.zi",
+      "command_id": "0088355812ceb3d634530645b8d7a49e18c1",
+      "exit_code": 0,
+      "host_guard": "omega canonical cwd",
+      "status": "unhooked analysis only, retained tests not yet implemented"
+    }
+  },
+  "previous_canonical_validation": {
+    "verified_at_unix": 1794853948.8292944,
+    "command_id": "abff2bb6e76ce84ea0842135a17906e95eb7",
+    "owner": "native-fields-review-2",
+    "host": "Omega",
+    "status": {
+      "build": 0,
+      "suite": 2,
+      "bootstrap": 0
+    },
+    "total": 281,
+    "passed": 279,
+    "failed": 2,
+    "executed": 281,
+    "reused": 0,
+    "seconds": 177.114590356,
+    "failures": [
+      {
+        "name": "explain.sh",
+        "exit_code": 1,
+        "seconds": 3.25982654,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/explain.sh.log"
+      },
+      {
+        "name": "zstd_go.sh",
+        "exit_code": 1,
+        "seconds": 1.411046681,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/zstd_go.sh.log"
+      }
+    ],
+    "failure_log_samples": {
+      "explain.sh": "FAIL: explain registry count differs from independently discovered emitted codes\n",
+      "zstd_go.sh": "Command failed (exit 1, expected 0): go test -mod=mod -race .\ngo: go.mod requires go >= 1.25 (running go 1.24.4; GOTOOLCHAIN=local)\n\nFAIL: read Go frame\n"
+    },
+    "selected_checks": [
+      {
+        "name": "proven_pointer_cases.zi",
+        "exit_code": 0,
+        "seconds": 20.322694265,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/proven_pointer_cases.zi.log"
+      },
+      {
+        "name": "compiler_opt.sh",
+        "exit_code": 0,
+        "seconds": 158.599034564,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_opt.sh.log"
+      },
+      {
+        "name": "machine_elf.sh",
+        "exit_code": 0,
+        "seconds": 31.257206531,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/machine_elf.sh.log"
+      },
+      {
+        "name": "machine_ir.sh",
+        "exit_code": 0,
+        "seconds": 21.641034334,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/machine_ir.sh.log"
+      },
+      {
+        "name": "native_load.sh",
+        "exit_code": 0,
+        "seconds": 3.444334909,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/native_load.sh.log"
+      },
+      {
+        "name": "regalloc.sh",
+        "exit_code": 0,
+        "seconds": 12.062849459,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/regalloc.sh.log"
+      },
+      {
+        "name": "site_pages.sh",
+        "exit_code": 0,
+        "seconds": 20.258690226,
+        "reused": false,
+        "log": "/mnt/storage/Projects/ziranlang/ziran/build/check-logs/site_pages.sh.log"
+      }
+    ],
+    "source_head": "8a3b727cfc372ecf78be7e978957968336698707",
+    "source_epoch": "c1e1dd4c16a9406ec3c86ee422930ad995c918eaa0c24747ee94ecbea8bdc607",
+    "guarded_source_files": 3404,
+    "source_files_identical_before_after": true,
+    "retained_suite": "backup/widget-native-omega-suite.json",
+    "retained_logs": "backup/widget-native-omega-suite-logs.tar.gz",
+    "retained_source_before": "backup/widget-native-omega-before.json",
+    "retained_source_after": "backup/widget-native-omega-after.json",
+    "window": "released on completion; new constructor source will require separate validation"
+  }
+}

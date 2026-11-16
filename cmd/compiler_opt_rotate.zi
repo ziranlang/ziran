@@ -1,0 +1,275 @@
+using IR :: #import "compiler_lowered_ir"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+LirRotateResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; loops: s64; work: s64; scratch_bytes: s64 }
+
+#scope_file
+// Only short nontrapping tests are duplicated. Fuel stays in its original
+// order relative to the test, and is executed once per original header visit.
+TestOp :: (op: LirOp) -> bool {
+    return op == .Constant || op == .Null || op == .Equal || op == .NotEqual ||
+        op == .Less || op == .LessEqual || op == .Greater || op == .GreaterEqual || op == .Fuel
+}
+
+Reach :: (function: LirFunction, start: s32, stop: s32, seen: []u8, budget: *LirSsaBudget) -> bool {
+    for at: 0..seen.count - 1 { seen[at] = 0 }
+    seen[start] = 1
+    changed := true
+    while changed {
+        changed = false
+        if !LirSsaSpend(budget, function.blocks.count) { return false }
+        for b: 0..function.blocks.count - 1 {
+            if seen[b] == 0 || b == stop { continue }
+            block := function.blocks[b]
+            terminal := block.instructions[block.instructions.count - 1]
+            for edge: terminal.edges {
+                if !LirSsaSpend(budget, 1) { return false }
+                if edge.block != stop && seen[edge.block] == 0 { seen[edge.block] = 1; changed = true }
+            }
+        }
+    }
+    return true
+}
+
+Latch :: (function: LirFunction, header: s32, seen: []u8, budget: *LirSsaBudget) -> s32 {
+    block := function.blocks[header]
+    if header == function.entry || block.parameters.count == 0 || block.instructions.count > 8 { return -1 }
+    test := block.instructions[block.instructions.count - 1]
+    if test.op != .Branch || test.edges.count != 2 { return -1 }
+    for at: 0..block.instructions.count - 2 { if !TestOp(block.instructions[at].op) { return -1 } }
+    if !Reach(function, function.entry, header, seen, budget) { return -1 }
+    latch: s32 = -1
+    initial := false
+    for b: 0..function.blocks.count - 1 {
+        if !LirSsaSpend(budget, 1) { return -1 }
+        terminal := function.blocks[b].instructions[function.blocks[b].instructions.count - 1]
+        for edge: terminal.edges {
+            if !LirSsaSpend(budget, 1) { return -1 }
+            if edge.block != header { continue }
+            if seen[b] != 0 { initial = true; continue }
+            if latch >= 0 || b == header || terminal.op != .Jump { return -1 }
+            latch = cast(s32)b
+        }
+    }
+    if !initial || latch < 0 { return -1 }
+    // Exactly one successor returns to the header. It must have no side
+    // entrance; the header remains an entry guard after rotation.
+    body: s32 = -1
+    for edge: test.edges {
+        if edge.block == header { return -1 }
+        if !Reach(function, edge.block, header, seen, budget) { return -1 }
+        if seen[latch] != 0 {
+            if body >= 0 { return -1 }
+            body = edge.block
+        }
+    }
+    if body < 0 { return -1 }
+    if !Reach(function, function.entry, body, seen, budget) { return -1 }
+    if seen[latch] != 0 { return -1 }
+    for b: 0..function.blocks.count - 1 {
+        if b == header || seen[b] == 0 { continue }
+        terminal := function.blocks[b].instructions[function.blocks[b].instructions.count - 1]
+        for edge: terminal.edges { if edge.block == body { return -1 } }
+    }
+    return latch
+}
+
+Rename :: (plan: *LirSsaPlan, definitions: []s32, next: []s32,
+    block: s64, header: s32, clone: bool, value: s32) -> s32 {
+    at := LirSsaIndex(definitions, value)
+    if at < 0 { return value }
+    if clone { return next[at] }
+    if block == header { return value }
+    return LirSsaRename(plan, definitions, block, value)
+}
+
+Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, header: s32,
+    latch: s32, limits: LirLimits, budget: *LirSsaBudget) -> LirCodecResult {
+    function := program.functions[fi]
+    head := function.blocks[header]
+    tail := function.blocks[latch]
+    jump := tail.instructions[tail.instructions.count - 1]
+    definitions: Vec(s32)
+    next: Vec(s32)
+    defer VecFree(definitions)
+    defer VecFree(next)
+    width := head.parameters.count
+    for instruction: head.instructions { if instruction.result >= 0 { width += 1 } }
+    if !LirSsaReserve(budget, width, 8) { return .{} }
+    if !VecResizeBounded(definitions, width, width) || !VecResizeBounded(next, width, width) {
+        budget.problem = .Allocation; return .{}
+    }
+    at: s64
+    for value: head.parameters { definitions[at] = value; at += 1 }
+    for instruction: head.instructions { if instruction.result >= 0 { definitions[at] = instruction.result; at += 1 } }
+    plan: LirSsaPlan
+    defer LirSsaFree(*plan)
+    if !LirSsaPlanBuild(*plan, function, header, definitions[:], budget) { return .{} }
+    value_count := plan.values + width - head.parameters.count
+    instructions_count: s64 = head.instructions.count - 1
+    edges_count: s64 = 1
+    words: s64
+    for block: function.blocks {
+        instructions_count += block.instructions.count
+        words += block.parameters.count
+        for instruction: block.instructions {
+            words += instruction.operands.count
+            edges_count += instruction.edges.count
+            for edge: instruction.edges { words += edge.arguments.count }
+        }
+    }
+    for instruction: head.instructions {
+        words += instruction.operands.count
+        for edge: instruction.edges { words += edge.arguments.count }
+    }
+    words += function.blocks.count * width + (edges_count + 2) * width
+    if value_count > limits.values || instructions_count > limits.instructions ||
+        !LirSsaReserve(budget, value_count, 4) || !LirSsaReserve(budget, instructions_count, 112) ||
+        !LirSsaReserve(budget, edges_count, 24) || !LirSsaReserve(budget, words, 4) ||
+        !LirSsaReserve(budget, function.blocks.count, 32) ||
+        !LirSsaReserve(budget, program.functions.count, 112) { budget.problem = .Limit; return .{} }
+    values: Vec(s32)
+    instructions: Vec(LirInstruction)
+    edges: Vec(LirEdge)
+    data: Vec(s32)
+    blocks: Vec(LirBlock)
+    functions: Vec(LirFunction)
+    defer VecFree(values)
+    defer VecFree(instructions)
+    defer VecFree(edges)
+    defer VecFree(data)
+    defer VecFree(blocks)
+    defer VecFree(functions)
+    if !VecResizeBounded(values, value_count, value_count) ||
+        !VecResizeBounded(instructions, instructions_count, instructions_count) ||
+        !VecResizeBounded(edges, edges_count, edges_count) ||
+        !VecResizeBounded(data, words, words) ||
+        !VecResizeBounded(blocks, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(functions, program.functions.count, program.functions.count) {
+        budget.problem = .Allocation; return .{}
+    }
+    for v: 0..function.values.count - 1 { values[v] = function.values[v] }
+    for b: 0..function.blocks.count - 1 {
+        for d: 0..width - 1 {
+            name := LirSsaName(*plan, b, d)
+            if name >= 0 { values[name] = function.values[definitions[d]] }
+        }
+    }
+    for d: 0..head.parameters.count - 1 {
+        next[d] = LirSsaRename(*plan, definitions[:], latch, jump.edges[0].arguments[d])
+    }
+    for d: head.parameters.count..width - 1 {
+        next[d] = cast(s32)(plan.values + d - head.parameters.count)
+        values[next[d]] = function.values[definitions[d]]
+    }
+    ip: s64
+    ep: s64
+    wp: s64
+    for b: 0..function.blocks.count - 1 {
+        block := function.blocks[b]
+        parameter_start := wp
+        for value: block.parameters { data[wp] = value; wp += 1 }
+        for d: 0..width - 1 {
+            name := LirSsaName(*plan, b, d)
+            if name >= 0 { data[wp] = name; wp += 1 }
+        }
+        blocks[b].parameters = data[parameter_start:wp]
+        instruction_start := ip
+        count := block.instructions.count
+        if b == latch { count += head.instructions.count - 1 }
+        effect: s32
+        for i: 0..count - 1 {
+            clone := b == latch && i >= block.instructions.count - 1
+            instruction: LirInstruction
+            if clone { instruction = head.instructions[i - block.instructions.count + 1] }
+            else { instruction = block.instructions[i] }
+            if !LirSsaSpend(budget, 1 + width * (instruction.operands.count + 1)) { return .{} }
+            if clone && instruction.result >= 0 {
+                instruction.result = next[LirSsaIndex(definitions[:], instruction.result)]
+            }
+            operand_start := wp
+            for value: instruction.operands {
+                data[wp] = Rename(*plan, definitions[:], next[:], b, header, clone, value)
+                wp += 1
+            }
+            instruction.operands = data[operand_start:wp]
+            edge_start := ep
+            for edge: instruction.edges {
+                argument_start := wp
+                for value: edge.arguments {
+                    data[wp] = Rename(*plan, definitions[:], next[:], b, header, clone, value)
+                    wp += 1
+                }
+                if !LirSsaSpend(budget, width * (edge.arguments.count + 1)) { return .{} }
+                for d: 0..width - 1 {
+                    if LirSsaName(*plan, edge.block, d) < 0 { continue }
+                    data[wp] = Rename(*plan, definitions[:], next[:], b, header, clone, definitions[d])
+                    wp += 1
+                }
+                edges[ep] = .{block = edge.block, arguments = data[argument_start:wp]}
+                ep += 1
+            }
+            instruction.edges = edges[edge_start:ep]
+            if LirEffectful(instruction.op) { effect += 1; instruction.effect = effect }
+            else { instruction.effect = 0 }
+            instructions[ip] = instruction
+            ip += 1
+        }
+        blocks[b].instructions = instructions[instruction_start:ip]
+    }
+    function.blocks = blocks[:]
+    function.values = values[:]
+    for f: 0..program.functions.count - 1 { functions[f] = program.functions[f] }
+    functions[fi] = function
+    rebuilt := program
+    rebuilt.functions = functions[:]
+    // Serialize while all borrowed input and transient tables still exist;
+    // only LirRead may replace the owner's storage after serialization.
+    empty: []u8
+    measured := LirWrite(rebuilt, empty)
+    if measured.problem != .None { return measured }
+    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
+    written := LirWrite(rebuilt, encoded[:])
+    if written.problem != .None { return written }
+    return LirRead(storage, TextView(encoded[:]), limits)
+}
+
+#scope_export
+// The shared optimizer owns storage and supplies its remaining work budget.
+// Each successful rebuild is verified by the codec before replacing it.
+LirRotate :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirRotateResult {
+    result: LirRotateResult
+    budget := LirSsaBudget.{work = work, bytes = limits.bytes}
+    functions := LirReadProgram(storage).functions.count
+    for fi: 0..functions - 1 {
+        block_count := LirReadProgram(storage).functions[fi].blocks.count
+        for h: 0..block_count - 1 {
+            budget.reserved = 0
+            if !LirSsaSpend(*budget, 1) { break }
+            program := LirReadProgram(storage)
+            function := program.functions[fi]
+            if function.external || function.blocks.count == 0 { continue }
+            seen: Vec(u8)
+            if !LirSsaReserve(*budget, function.blocks.count, 1) { break }
+            if !VecResizeBounded(seen, function.blocks.count, function.blocks.count) { budget.problem = .Allocation; break }
+            latch := Latch(function, cast(s32)h, seen[:], *budget)
+            VecFree(seen)
+            if budget.problem != .None { break }
+            if latch < 0 { continue }
+            result.codec = Rebuild(storage, program, fi, cast(s32)h, latch, limits, *budget)
+            if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+            if budget.problem == .Unsupported { budget.problem = .None; continue }
+            if budget.problem != .None || result.codec.problem != .None { break }
+            result.loops += 1
+        }
+        if budget.problem != .None || result.codec.problem != .None { break }
+    }
+    result.problem = budget.problem
+    result.work = budget.used
+    return result
+}

@@ -1,0 +1,47 @@
+using IR :: #import "compiler_lowered_ir"
+using SSA :: #import "compiler_opt_ssa"
+using Verify :: #import "compiler_lowered_verify"
+
+// Test the SSA analysis separately from rotation: a diamond merges a direct
+// use with a forwarding path, followed by a use at the exit. No loop required.
+OptSsaCases :: () -> s32 {
+    defs := s32.[0]
+    use := s32.[0]
+    add := s32.[0, 0]
+    condition := s32.[1]
+    parameters := s32.[0, 1]
+    parameter_types := s32.[1, 2]
+    e0 := LirEdge.[.{block = 1}, .{block = 2}]
+    e1 := LirEdge.[.{block = 3}]
+    i0 := LirInstruction.[.{symbol = -1, result = -1, op = .Branch, operands = condition[:], edges = e0[:]}]
+    i1 := LirInstruction.[.{symbol = -1, result = 2, op = .Add, operands = add[:]}, .{symbol = -1, result = -1, op = .Jump, edges = e1[:]}]
+    i2 := LirInstruction.[.{symbol = -1, result = -1, op = .Jump, edges = e1[:]}]
+    i3 := LirInstruction.[.{symbol = -1, result = -1, op = .Return, operands = use[:]}]
+    blocks := LirBlock.[.{parameters = parameters[:], instructions = i0[:]}, .{instructions = i1[:]},
+        .{instructions = i2[:]}, .{instructions = i3[:]}]
+    values := s32.[1, 2, 1]
+    function := LirFunction.{module = 0, name = "diamond", parameters = parameter_types[:],
+        result = 1, values = values[:], blocks = blocks[:], entry = 0}
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1}]
+    modules := string.["ssa"]
+    sources := string.["ssa.zi"]
+    origins := LirOrigin.[.{file = 0, line = 1, column = 1, begin = 0, end = 1, parent = -1}]
+    functions := LirFunction.[function]
+    program := LirProgram.{version = LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], origins = origins[:], functions = functions[:], entry = -1}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 4 }
+    plan: LirSsaPlan
+    defer LirSsaFree(*plan)
+    budget := LirSsaBudget.{work = 10000, bytes = 10000}
+    if !LirSsaPlanBuild(*plan, function, 0, defs[:], *budget) || plan.values != 6 ||
+        LirSsaName(*plan, 0, 0) != -1 || LirSsaName(*plan, 1, 0) != 3 ||
+        LirSsaName(*plan, 2, 0) != 4 || LirSsaName(*plan, 3, 0) != 5 ||
+        LirSsaRename(*plan, defs[:], 2, 0) != 4 || LirSsaRename(*plan, defs[:], 2, 99) != 99 { return 1 }
+    tiny := LirSsaBudget.{work = 10000, bytes = 1}
+    if LirSsaPlanBuild(*plan, function, 0, defs[:], *tiny) || tiny.problem != .Limit { return 2 }
+    // A definition unavailable on the entry path cannot be repaired by
+    // manufacturing an incoming argument.
+    budget = .{work = 10000, bytes = 10000}
+    if LirSsaPlanBuild(*plan, function, 1, defs[:], *budget) || budget.problem != .Unsupported { return 3 }
+    return 0
+}

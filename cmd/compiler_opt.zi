@@ -2,6 +2,7 @@ using IR :: #import "compiler_lowered_ir"
 using Verify :: #import "compiler_lowered_verify"
 using Codec :: #import "compiler_exec_serial"
 using Vectors :: #import "std/vec"
+using Rotate :: #import "compiler_opt_rotate"
 using Inline :: #import "compiler_opt_inline"
 #import "compiler_learning"
 
@@ -26,6 +27,7 @@ LirOptCounters :: struct {
     dead: LirOptPassCounters
     cfg: LirOptPassCounters
     compact: LirOptPassCounters
+    rotate: LirOptPassCounters
     inline_leaf: LirOptPassCounters
     input_functions: s64
     input_blocks: s64
@@ -1946,6 +1948,27 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         return Result(state)
     }
     optimized = LirReadProgram(*owner.storage)
+    ScratchReset(*state)
+    if options.simplify_cfg {
+        rotated := LirRotate(*owner.storage, limits, state.remaining)
+        if !Spend(*state, rotated.work) { LirOptFree(owner); return Result(state) }
+        if rotated.scratch_bytes > state.peak_scratch_bytes { state.peak_scratch_bytes = rotated.scratch_bytes }
+        state.counters.rotate.runs += 1
+        state.counters.rotate.blocks += rotated.loops
+        if rotated.problem != .None {
+            state.problem = ifx rotated.problem == .Allocation then .Allocation else .Limit
+            LirOptFree(owner); return Result(state)
+        }
+        if rotated.codec.problem != .None {
+            unused CodecFailure(*state, rotated.codec)
+            LirOptFree(owner); return Result(state)
+        }
+        optimized = LirReadProgram(*owner.storage)
+        if options.propagate_copies && !CopyPass(*state, optimized, limits) {
+            LirOptFree(owner); return Result(state)
+        }
+        if !VerifyPass(*state, optimized, limits) { LirOptFree(owner); return Result(state) }
+    }
     ScratchReset(*state)
     if options.eliminate_dead && !DeadPass(*state, optimized, limits) {
         LirOptFree(owner)

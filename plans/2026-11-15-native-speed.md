@@ -551,6 +551,170 @@ Remaining per kernel after that, from objdump of the current build:
   forwarding blocks the layout puts out of order, and outer-loop copy moves
   that tie hints would remove.
 
+### Canonical SSA implementation and integration, 2026-11-16
+
+Final canonical Omega integration includes the constructor fixes. With
+learning and displays disabled and `HARMONY_BUILD_LOCAL=1`, the queued
+`make -j4 all build/bin/native-load-test build/bin/check-runner` and
+`make check-bootstrap` pass. `make check` executes all 281 local tests without
+reuse in 165.0 seconds: 279 pass, and only `site_targets.sh` and
+`site_pages.sh` fail because the publication lane's new receipt has not
+arrived. After that lane supplies its artifacts, both tests pass locally with
+`env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- sh -c 'sh tests/site_pages.sh build/bin/ziran && sh tests/site_targets.sh build/bin/ziran'`.
+Thus every retained test has a passing local result across the full run and
+the two focused reruns; this is not a claim of one all-green full run.
+All 3,409 guarded source files, HEAD, and seven compiler/library fingerprints
+are identical before and after the full run. Optimizer, pointer proofs,
+allocator, machine IR/ELF and native load/run tests pass together. The earlier
+registry and Go-toolchain failures are resolved in this later environment.
+The validation receipt retains both epochs and the exact follow-up command.
+Independent review accepted SSA repair including exits, fuel/effect ordering,
+limits, determinism, and owner-storage handling without a blocking finding.
+Constructor bounds, work-budget and copy-then-modify findings now have fixes
+and retained tests, accepted by this integration run. This covers that source
+checkpoint; constructing eligible own returned records directly in the final
+result destination remains with the constructor lane and needs a new stable
+validation after implementation. The C-parity goal remains unmet.
+
+The subsequent scope is Sieve outer-loop joins/layout, modular shared LICM
+and induction-variable simplification. Vectors push/register work and SIMD
+belong to separate lanes. The latest owner choice requires all future
+benchmarks on physical Alpha, one at a time through its queue, with the
+measured pushed commit retained; builds and tests stay on Omega. Historical
+Omega measurements below retain their original policy and limitations.
+
+The implementation in the current checkout is a separate pair of modules:
+`compiler_opt_ssa.zi` plans live block arguments backwards from uses, stopping
+at the defining header; `compiler_opt_rotate.zi` rebuilds those arguments and
+uses, then replaces the unique latch jump with the header test. Direct uses
+at normal and early exits get arguments too. The entry guard remains, Fuel
+keeps its execution order and origin, and effect numbers are recomputed per
+block. New transient tables are serialized before replacing LirReadOwner
+storage. Unsupported tests, side entrances and multiple latches decline.
+Nested loops are supported. The shared optimizer runs this after CFG cleanup,
+then propagates copies and eliminates dead instructions. Engine and assembly
+generation dependencies include both modules.
+
+Retained tests are imported by the existing compiler_opt entry point:
+`compiler_opt_ssa_cases.zi` tests SSA planning independently, and
+`compiler_opt_rotate_cases.zi` tests zero/one/many iterations, nested loops,
+early exits, branch polarity, swapped parameters, direct header uses, Fuel
+limits and CFG guards. A rotated array fixture requires a retained bound for
+the safe loop and a kept check for an overrun and a signed wrapping increment.
+The integrated allocator repair is included in the local results below.
+
+The range-proof regression is a genuine loss of precision: the rotated body
+parameter widens before its latch comparison, and overflow-safe arithmetic
+then loses both endpoints. The proof now tries finite thresholds from the
+function's integer literals before infinity. Each widened interval still
+encloses the incoming interval; crossing the threshold widens to infinity.
+Arithmetic's overflow and wrap checks are unchanged. A source-only probe of
+the same saved rotated array bundle restores all seven index proofs (five
+before the repair). The complete independent SSA/rotation cases, including
+the safe/overrun/wrap cases, pass with:
+`env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- build/bin/ziran run --target=c --root tests --module-path cmd --entry compiler_opt_rotate_cases:OptRotateCases tests/compiler_opt_rotate_cases.zi`.
+The later shared suite above validates this repair.
+
+Earlier local validation, superseded by the integration result above:
+
+- `env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check`:
+  276/280. Optimizer and allocator suites pass. Rotation exposes a range-proof
+  regression in proven_pointer_cases (two array accesses lose their direct
+  proof). Other failures: explain registry mismatch, stale site pages, and
+  zstd_go needing Go 1.25 while the local toolchain is 1.24.4. No tests skipped.
+- `env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check-bootstrap`:
+  passes; all retained bootstrap modules match.
+
+Omega was explicitly selected by the coordinator for this comparison,
+superseding the older Alpha benchmark preference for this task. Both full
+six-kernel runs use learning off, 11 samples and the existing symmetric
+inclusive 1.5xIQR policy, retaining raw samples, exclusions and artifact hashes:
+`bench/results/wasm-tier-omega-2026-11-16-ssa-before.json` and
+`bench/results/wasm-tier-omega-2026-11-16-ssa-after.json`.
+
+| Kernel | Native before (us) | Native after (us) |
+| --- | ---: | ---: |
+| Sieve | 34.587 | 36.301 |
+| Records | 18.666 | 25.013 |
+| Hash | 31.693 | 31.165 |
+| Vectors | 33.427 | 41.009 |
+
+All measured checksums and output match. Load rose from about 15 to 26-34;
+the after build includes merged spill repair as well as rotation. These runs
+do not isolate a rotation speedup, and do not establish C parity. The proof
+regression and remaining integration failures must be resolved before commit.
+
+A later focused `make check CHECK_FILTER=compiler_opt` rebuild picked up
+concurrent native-lowering changes. The expanded SSA/nested/Fuel fixtures pass,
+but its existing source/saved bundle run is now rejected with
+`assembly.gap.machine-unsupported` at FixtureCases (function 1, block 4,
+instruction 119). This was reported to the machine-lowering owner; the prior
+276/280 run is not final validation for that newer shared tree.
+
+After the typed fold and alias-chain repair, the next full local
+`env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check`
+rebuild finishes at 269/281 (281 executed, zero reused). The optimizer suite
+passes its structural rotation/SSA/Fuel cases and source/saved C, Go and bundle
+runs; proven_pointer_cases passes the restored native/Wasm bounds proofs;
+regalloc passes the merged float/vector and work-limit cases; machine_elf
+passes hello's four-instruction assertion and the retained SampleAt alias case.
+Eight broader native Undefined failures and one native parity failure remain:
+compiler_expression, compiler_text, formatter, std_float_text, std_text_results,
+std_json_document, lowered_exec, zx_windows_parity and zx_lowered_parity. These
+were routed to the native-lowering owner. The other failures remain explain's
+registry mismatch, stale site pages and the missing Go 1.25 toolchain. The
+current feature set remains uncommitted; this is not a successful full suite.
+The subsequent exact
+`env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- make check-bootstrap`
+passes for every retained module and the Darwin generated modules.
+
+The next complete shared rebuild and full local `make check`, with the cached
+split-field aliases normalized and `compiler_machine_fields` registered in
+both assembly lists, finishes at **278/281** (281 executed, zero reused,
+194.9 seconds). Every previous native Undefined/parity regression is resolved.
+The shared optimizer, native/Wasm pointer proofs, allocator, machine IR/ELF and
+native embedding suites pass together. Three outside blockers remain:
+`explain.sh` has an emitted-code registry count mismatch; `site_pages.sh`
+finds five stale generated pages; `zstd_go.sh` requires Go 1.25 while the local
+toolchain is 1.24.4 with GOTOOLCHAIN=local. No tests were skipped. Final widget
+regressions and the final Omega benchmark follow this run; this is not a claim
+that the entire local suite passes or that native performance has C parity.
+
+Final registered-source validation: the subsequent `make check-bootstrap`
+passes every retained bootstrap and Darwin module. The fields review's added
+nested lifetime and reversed-block tests pass, as do the rebuilt native-load
+snapshot/changed-view/two-pointer cases. All three widget kernels complete
+their 11-sample run. Those are follow-up results, not a replacement full suite.
+
+The final exact kernel command is:
+`env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- python3 bench/wasm_tier.py --samples 11 --label 'Omega integrated SSA rotation, proofs, spills, typed fold and fields; learning off' --output bench/results/wasm-tier-omega-2026-11-16-ssa-final.json`.
+It succeeds for all six kernels, verifies every checksum/output, explicitly
+selects the instruction engine, and retains all raw samples and symmetric
+inclusive 1.5xIQR exclusions. The four requested kernels are:
+
+| Kernel | Native baseline (us) | Final native (us) | Final C (us) | Native/C |
+| --- | ---: | ---: | ---: | ---: |
+| Sieve | 34.587 | 30.358 | 11.100 | 2.73 |
+| Records | 18.666 | 21.484 | 8.722 | 2.46 |
+| Hash | 31.693 | 31.668 | 22.506 | 1.41 |
+| Vectors | 33.427 | 34.310 | 13.472 | 2.55 |
+
+Final Omega load is 19.53-20.53 versus about 15 at baseline. The final build
+includes SSA rotation, proof thresholds, merged spills, typed zero-index
+fold/alias repair, immediate encoding and read-only aggregate fields. This is
+a combined-source comparison, not an isolated rotation A/B. Sieve improves
+12.2%; Records regresses 15.1%; Hash is nearly unchanged; Vectors regresses
+2.6%. **The requested C gap is not closed 100%.** The existing native harness
+also includes process startup amortized across 32 calls. Historical ZX rows
+used Auto; final ZX rows explicitly select the engine. These do not change
+the stated C/native sample policy.
+
+`bench/results/ssa-omega-2026-11-16-validation.json` retains the full local
+suite summary, selected results, command receipts, final bootstrap result,
+source fingerprints and benchmark comparison. Compiler sources are unchanged
+between assembly generation, suite completion and the final benchmark. No
+commit, push, release or installation was performed by this task.
+
 ## Hello and compile time (2026-11-16, Omega)
 
 Target: native hello in about 8-12 instructions and a few hundred bytes,

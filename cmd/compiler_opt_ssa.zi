@@ -1,0 +1,124 @@
+using IR :: #import "compiler_lowered_ir"
+using Vectors :: #import "std/vec"
+
+// A bounded, pruned block-argument repair plan. Definitions are available at
+// the end of `source`; each other block gets a fresh name only when the value
+// is live there. The caller rebuilds parameters, uses and incoming arguments
+// together, then verifies the resulting program before publishing it.
+LirSsaProblem :: enum s32 { None; Limit; Allocation; Unsupported }
+LirSsaBudget :: struct { work: s64; bytes: s64; used: s64; reserved: s64; problem: LirSsaProblem }
+LirSsaPlan :: struct { names: Vec(s32); values: s64; width: s64 }
+
+LirSsaSpend :: (budget: *LirSsaBudget, work: s64) -> bool {
+    if work < 0 || work > budget.work { budget.problem = .Limit; return false }
+    budget.work -= work
+    budget.used += work
+    return true
+}
+
+LirSsaReserve :: (budget: *LirSsaBudget, count: s64, width: s64) -> bool {
+    if count < 0 || width < 1 || count > 2147483647 ||
+        count > (budget.bytes - budget.reserved) / width {
+        budget.problem = .Limit
+        return false
+    }
+    budget.reserved += count * width
+    return true
+}
+
+LirSsaFree :: (plan: *LirSsaPlan) { VecFree(plan.names); plan.values = 0; plan.width = 0 }
+
+LirSsaIndex :: (definitions: []s32, value: s32) -> s64 {
+    for at: 0..definitions.count - 1 { if definitions[at] == value { return at } }
+    return -1
+}
+
+LirSsaName :: (plan: *LirSsaPlan, block: s64, definition: s64) -> s32 {
+    return plan.names[block * plan.width + definition]
+}
+
+LirSsaRename :: (plan: *LirSsaPlan, definitions: []s32, block: s64, value: s32) -> s32 {
+    at := LirSsaIndex(definitions, value)
+    if at < 0 { return value }
+    name := LirSsaName(plan, block, at)
+    return ifx name < 0 then value else name
+}
+
+LirSsaPlanBuild :: (plan: *LirSsaPlan, function: LirFunction, source: s32,
+    definitions: []s32, budget: *LirSsaBudget) -> bool {
+    LirSsaFree(plan)
+    plan.width = definitions.count
+    plan.values = function.values.count
+    if source < 0 || source >= function.blocks.count || definitions.count == 0 {
+        budget.problem = .Unsupported
+        return false
+    }
+    if function.blocks.count > 2147483647 / definitions.count {
+        budget.problem = .Limit
+        return false
+    }
+    count := function.blocks.count * definitions.count
+    if !LirSsaReserve(budget, count, 4) { return false }
+    if !VecResizeBounded(plan.names, count, count) { budget.problem = .Allocation; return false }
+    if !LirSsaSpend(budget, count) { return false }
+    for at: 0..count - 1 { plan.names[at] = -1 }
+    for block_index: 0..function.blocks.count - 1 {
+        if block_index == source { continue }
+        for instruction: function.blocks[block_index].instructions {
+            if !LirSsaSpend(budget, 1 + definitions.count * instruction.operands.count) { return false }
+            for value: instruction.operands {
+                at := LirSsaIndex(definitions, value)
+                if at >= 0 { plan.names[block_index * plan.width + at] = 0 }
+            }
+            for edge: instruction.edges {
+                if !LirSsaSpend(budget, 1 + definitions.count * edge.arguments.count) { return false }
+                for value: edge.arguments {
+                    at := LirSsaIndex(definitions, value)
+                    if at >= 0 { plan.names[block_index * plan.width + at] = 0 }
+                }
+            }
+        }
+    }
+    // Propagate liveness backwards, stopping at the defining block. This also
+    // repairs direct uses at normal/early exits, rather than assuming that all
+    // uses are dominated by the new loop body.
+    changed := true
+    while changed {
+        changed = false
+        for block_index: 0..function.blocks.count - 1 {
+            if !LirSsaSpend(budget, 1) { return false }
+            if block_index == source { continue }
+            for instruction: function.blocks[block_index].instructions {
+                if !LirSsaSpend(budget, 1) { return false }
+                for edge: instruction.edges {
+                    if edge.block == source { continue }
+                    if !LirSsaSpend(budget, plan.width) { return false }
+                    for at: 0..plan.width - 1 {
+                        if LirSsaName(plan, edge.block, at) >= 0 && LirSsaName(plan, block_index, at) < 0 {
+                            plan.names[block_index * plan.width + at] = 0
+                            changed = true
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // A live-in at entry would require an unavailable value. Decline even for
+    // unreachable or irreducible input rather than inventing an argument.
+    if function.entry != source {
+        for at: 0..plan.width - 1 {
+            if LirSsaName(plan, function.entry, at) >= 0 { budget.problem = .Unsupported; return false }
+        }
+    }
+    for block_index: 0..function.blocks.count - 1 {
+        for at: 0..plan.width - 1 {
+            if !LirSsaSpend(budget, 1) { return false }
+            if LirSsaName(plan, block_index, at) >= 0 {
+                if plan.values >= 2147483647 { budget.problem = .Limit; return false }
+                plan.names[block_index * plan.width + at] = cast(s32)plan.values
+                plan.values += 1
+            }
+        }
+    }
+    return true
+}

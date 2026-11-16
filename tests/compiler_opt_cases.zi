@@ -5,6 +5,7 @@ using IR :: #import "compiler_lowered_ir"
 using Opt :: #import "compiler_opt"
 using Exec :: #import "compiler_exec"
 using Vectors :: #import "std/vec"
+using Rotation :: #import "compiler_opt_rotate_cases"
 using Inlining :: #import "compiler_opt_inline_cases"
 using FloatFolds :: #import "compiler_opt_float_cases"
 
@@ -225,6 +226,8 @@ OptRegressionCases :: () -> s32 {
 }
 
 main :: (argc: s32, argv: **u8) -> s32 {
+    rotation := OptRotateCases()
+    if rotation != 0 { return rotation }
     inline_result := InlineCases()
     if inline_result != 0 { print("leaf inline case % failed\n", inline_result); return 1 }
     floats := OptFloatCases()

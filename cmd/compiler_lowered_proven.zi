@@ -125,13 +125,10 @@ Unknown :: () -> LirProvenPointer { return .{root = .Unknown, symbol = LirNoId} 
 
 // The value of an integer constant VALUE when it is defined by one, read
 // with the constant's signedness.
-ConstantInteger :: (program: LirProgram, function: LirFunction, definition: []s64,
-    value: s32, result: *s64) -> bool {
-    if value < 0 || value >= definition.count || definition[value] < 0 { return false }
-    block := definition[value] >> 32
-    at := definition[value] & 4294967295
-    source := function.blocks[block].instructions[at]
+LiteralInteger :: (program: LirProgram, function: LirFunction, source: LirInstruction, result: *s64) -> bool {
     if source.op != .Constant || source.symbol < 0 || source.symbol >= program.constants.count { return false }
+    value := source.result
+    if value < 0 || value >= function.values.count { return false }
     type_id := function.values[value]
     if type_id < 0 || type_id >= program.types.count { return false }
     type := program.types[type_id]
@@ -148,6 +145,14 @@ ConstantInteger :: (program: LirProgram, function: LirFunction, definition: []s6
     if bits > cast(u64)Infinite { return false }
     <<result = cast(s64)bits
     return true
+}
+
+ConstantInteger :: (program: LirProgram, function: LirFunction, definition: []s64,
+    value: s32, result: *s64) -> bool {
+    if value < 0 || value >= definition.count || definition[value] < 0 { return false }
+    block := definition[value] >> 32
+    at := definition[value] & 4294967295
+    return LiteralInteger(program, function, function.blocks[block].instructions[at], result)
 }
 
 // FACT moved by at most INDEX elements of SIZE bytes: the room left, or
@@ -387,6 +392,8 @@ Flow :: struct {
     in_high: Vec(s64)
     work_low: Vec(s64)
     work_high: Vec(s64)
+    widen_low: s64
+    widen_high: s64
     changed: bool
     narrowing: bool
 }
@@ -419,13 +426,26 @@ FlowInit :: (state: *ProvenState, program: LirProgram, function: LirFunction, fl
     flow.blocks = function.blocks.count
     flow.edges = 0
     flow.narrowing = false
+    flow.widen_low = 0
+    flow.widen_high = 0
     if flow.blocks < 1 || function.entry < 0 || function.entry >= flow.blocks { return false }
     for block: function.blocks {
         for instruction: block.instructions {
             if !Spend(state, 1) { return false }
             flow.edges += instruction.edges.count
+            literal: s64
+            if LiteralInteger(program, function, instruction, *literal) {
+                if literal < flow.widen_low { flow.widen_low = literal }
+                if literal > flow.widen_high { flow.widen_high = literal }
+            }
         }
     }
+    // Finite widening thresholds retain loop bounds after rotation moves
+    // the comparison to the latch. Each threshold still encloses the
+    // incoming interval; an interval that crosses it widens to infinity.
+    // Adjacent values cover strict comparisons and the final increment.
+    if flow.widen_low > NegativeInfinite { flow.widen_low -= 1 }
+    if flow.widen_high < Infinite { flow.widen_high += 1 }
     if flow.values > 0 && (flow.edges > RangeCellLimit / flow.values || flow.blocks > RangeCellLimit / flow.values) {
         return false
     }
@@ -702,16 +722,20 @@ WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, f
         flow.in_low[parameter] = joined.low
         flow.in_high[parameter] = joined.high
     }
-    // Widening: a loop header's parameter whose bound moved since the
-    // header's last visit becomes unbounded on that side, so loops settle in
-    // a bounded number of rounds. Every value a loop changes passes through a
+    // Widening: a moving bound first reaches a finite literal threshold,
+    // then infinity, so loops settle in a bounded number of rounds.
+    // Every value a loop changes passes through a
     // header parameter; values defined before the loop keep their bounds.
     previous := block_index * flow.values
     if flow.loop_header[block_index] != 0 && !flow.narrowing && flow.seen[block_index] != 0 {
         for value: block.parameters {
             if value < 0 || value >= flow.values { continue }
-            if flow.in_low[value] < flow.previous_low[previous + value] { flow.in_low[value] = NegativeInfinite }
-            if flow.in_high[value] > flow.previous_high[previous + value] { flow.in_high[value] = Infinite }
+            if flow.in_low[value] < flow.previous_low[previous + value] {
+                flow.in_low[value] = ifx flow.in_low[value] >= flow.widen_low then flow.widen_low else NegativeInfinite
+            }
+            if flow.in_high[value] > flow.previous_high[previous + value] {
+                flow.in_high[value] = ifx flow.in_high[value] <= flow.widen_high then flow.widen_high else Infinite
+            }
         }
     }
     flow.seen[block_index] = 1

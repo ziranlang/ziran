@@ -1,0 +1,282 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Rotate :: #import "compiler_opt_rotate"
+using Exec :: #import "compiler_exec"
+using Opt :: #import "compiler_opt"
+using Proven :: #import "compiler_lowered_proven"
+using Vectors :: #import "std/vec"
+using SsaCases :: #import "compiler_opt_ssa_cases"
+
+#scope_file
+Execute :: (program: LirProgram, fuel: s64 = 100000) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    limits := LirExecDefaultLimits()
+    limits.fuel = fuel
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, limits, 811, *instance)
+    if opened.problem != .None { return opened }
+    arguments: [0]LirExecArgument
+    return LirExecCall(*instance, 0, arguments[:])
+}
+
+Fixture :: (iterations: s64, early: bool, guard: s32, reversed: bool, swapped: bool) -> s32 {
+    unsupported := guard != 0
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1}]
+    constants := LirConstant.[.{type = 1, bits = 0}, .{type = 1, bits = 1},
+        .{type = 1, bits = cast(u64)iterations}, .{type = 1, bits = 2}]
+    modules := string.["rotate"]
+    sources := string.["rotate.zi"]
+    origins := LirOrigin.[.{file = 0, line = 1, column = 1, begin = 0, end = 1, parent = -1},
+        .{file = 0, line = 2, column = 1, begin = 1, end = 2, parent = -1},
+        .{file = 0, line = 3, column = 1, begin = 2, end = 3, parent = -1},
+        .{file = 0, line = 4, column = 1, begin = 3, end = 4, parent = -1}]
+    // Body and latch use header definitions directly, as after CopyPass.
+    // The common exit also directly reads the header accumulator.
+    values := s32.[1, 1, 1, 1, 1, 1, 2, 1, 1, 2]
+    hp := s32.[4, 5]
+    initial := s32.[0, 0]
+    cmp := s32.[4, 2]
+    add := s32.[5, 4]
+    inc := s32.[4, 1]
+    args := s32.[8, 7]
+    if swapped { hp[0] = 5; hp[1] = 4; args[0] = 7; args[1] = 8 }
+    ret := s32.[5]
+    cond := s32.[6]
+    early_cond := s32.[9]
+    early_cmp := s32.[4, 3]
+    entry_edges := LirEdge.[.{block = 1, arguments = initial[:]}]
+    header_edges := LirEdge.[.{block = 2}, .{block = 4}]
+    if reversed { header_edges[0].block = 4; header_edges[1].block = 2 }
+    body_edges := LirEdge.[.{block = 4}, .{block = 3}]
+    latch_edges := LirEdge.[.{block = 1, arguments = args[:]}]
+    entry := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 0}, .{op = .Constant, result = 1, symbol = 1},
+        .{op = .Constant, result = 2, symbol = 2}, .{op = .Constant, result = 3, symbol = 3},
+        .{symbol = -1, op = .Jump, result = -1, edges = entry_edges[:]}]
+    header := LirInstruction.[.{symbol = -1, op = .Fuel, result = -1, effect = 1, immediate = 3},
+        .{symbol = -1, op = ifx reversed then .GreaterEqual else .Less, result = 6, operands = cmp[:]},
+        .{symbol = -1, op = .Branch, result = -1, operands = cond[:], edges = header_edges[:]}]
+    body := LirInstruction.[.{symbol = -1, op = .Fuel, result = -1, effect = 1, immediate = 5},
+        .{symbol = -1, op = .Add, result = 7, operands = add[:]},
+        .{symbol = -1, op = .Equal, result = 9, operands = early_cmp[:]},
+        .{symbol = -1, op = .Branch, result = -1, operands = early_cond[:], edges = body_edges[:]}]
+    if !early { early_cmp[1] = 2 }
+    latch := LirInstruction.[.{symbol = -1, op = .Fuel, result = -1, effect = 1, immediate = 7},
+        .{symbol = -1, op = .Add, result = 8, operands = inc[:]}, .{symbol = -1, op = .Jump, result = -1, edges = latch_edges[:]}]
+    exit := LirInstruction.[.{symbol = -1, op = .Return, result = -1, operands = ret[:]}]
+    header[0].origin = 1
+    body[0].origin = 2
+    latch[0].origin = 3
+    if guard == 1 {
+        // A second backedge must leave the shape unchanged. A zero bound
+        // makes this deliberately unsupported CFG executable too.
+        body_edges[0] = .{block = 1, arguments = hp[:]}
+        constants[2].bits = 0
+    }
+    blocks := LirBlock.[.{instructions = entry[:]}, .{parameters = hp[:], instructions = header[:]},
+        .{instructions = body[:]}, .{instructions = latch[:]}, .{instructions = exit[:]}]
+    // Even a pure but unapproved header instruction must decline unchanged.
+    extended_values := s32.[1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1]
+    extended_header := LirInstruction.[.{symbol = -1, op = .Add, result = 10, operands = inc[:]},
+        header[0], header[1], header[2]]
+    if guard == 2 { blocks[1].instructions = extended_header[:] }
+    functions := LirFunction.[.{module = 0, name = "loop", result = 1, values = values[:], blocks = blocks[:], entry = 0, origin = 0}]
+    if guard == 2 { functions[0].values = extended_values[:] }
+    program := LirProgram.{version = LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], constants = constants[:], origins = origins[:], functions = functions[:], entry = 0}
+    diagnostic := LirVerify(program, LirDefaultLimits())
+    if diagnostic.problem != .None { print("rotate input % b=% i=% v=%\n", cast(s32)diagnostic.problem, diagnostic.block, diagnostic.instruction, diagnostic.value); return 1 }
+    before := Execute(program)
+    if before.problem != .None { return 2 }
+    definitions := s32.[4, 5, 6]
+    plan: LirSsaPlan
+    defer LirSsaFree(*plan)
+    budget := LirSsaBudget.{work = 100000, bytes = 100000}
+    if !LirSsaPlanBuild(*plan, functions[0], 1, definitions[:], *budget) ||
+        LirSsaName(*plan, 2, 0) < 0 || LirSsaName(*plan, 3, 0) < 0 ||
+        LirSsaName(*plan, 4, 1) < 0 || LirSsaName(*plan, 1, 0) >= 0 { return 3 }
+    tiny: LirSsaBudget
+    if LirSsaPlanBuild(*plan, functions[0], 1, definitions[:], *tiny) || tiny.problem != .Limit { return 4 }
+    empty: []u8
+    measured := LirWrite(program, empty)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !VecResize(bytes, measured.size) || LirWrite(program, bytes[:]).problem != .None { return 5 }
+    owner: LirReadOwner
+    defer LirReadFree(*owner)
+    if LirRead(*owner, TextView(bytes[:]), LirDefaultLimits()).problem != .None { return 6 }
+    rotated := LirRotate(*owner, LirDefaultLimits(), 1000000)
+    if rotated.problem != .None || rotated.codec.problem != .None || rotated.loops != (ifx unsupported then 0 else 1) {
+        print("rotation problem=% codec=% loops=% verify=% b=% i=% v=%\n", cast(s32)rotated.problem, cast(s32)rotated.codec.problem, rotated.loops,
+            cast(s32)rotated.codec.diagnostic.problem, rotated.codec.diagnostic.block, rotated.codec.diagnostic.instruction, rotated.codec.diagnostic.value)
+        return 7
+    }
+    output := LirReadProgram(*owner)
+    if LirVerify(output, LirDefaultLimits()).problem != .None { return 8 }
+    after := Execute(output)
+    if after.problem != before.problem || after.value.bits != before.value.bits { return 9 }
+    if !unsupported {
+        f := output.functions[0]
+        tail := f.blocks[3].instructions
+        if tail[tail.count - 1].op != .Branch || f.blocks[2].parameters.count == 0 ||
+            f.blocks[4].parameters.count == 0 || tail[tail.count - 3].op != .Fuel || tail[tail.count - 3].effect != 2 { return 10 }
+        for fuel: 0..120 {
+            limited_before := Execute(program, fuel)
+            limited_after := Execute(output, fuel)
+            if limited_before.problem != limited_after.problem || limited_before.origin != limited_after.origin ||
+                limited_before.fuel_remaining != limited_after.fuel_remaining { return 11 }
+        }
+        optimized: LirOptOwner
+        defer LirOptFree(*optimized)
+        built := LirOptBuild(*optimized, program, LirDefaultLimits(), LirOptDefaultOptions())
+        if built.problem != .None { return 12 }
+        final := Execute(LirOptProgram(*optimized))
+        if final.problem != .None || final.value.bits != before.value.bits { return 13 }
+    }
+    return 0
+}
+
+Nested :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1}]
+    constants := LirConstant.[.{type = 1, bits = 0}, .{type = 1, bits = 1}, .{type = 1, bits = 3}]
+    modules := string.["nested"]
+    sources := string.["nested.zi"]
+    origins := LirOrigin.[.{file = 0, line = 1, column = 1, begin = 0, end = 1, parent = -1}]
+    values := s32.[1, 1, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 1]
+    outer := s32.[3, 4]
+    inner := s32.[6, 7]
+    init := s32.[0, 0]
+    inner_init := s32.[0, 4]
+    outer_cmp := s32.[3, 2]
+    inner_cmp := s32.[6, 2]
+    oc := s32.[5]
+    ic := s32.[8]
+    ji := s32.[6, 1]
+    si := s32.[7, 3]
+    sj := s32.[10, 6]
+    oi := s32.[3, 1]
+    inner_next := s32.[9, 11]
+    outer_next := s32.[12, 7]
+    ret := s32.[4]
+    e0 := LirEdge.[.{block = 1, arguments = init[:]}]
+    e1 := LirEdge.[.{block = 2}, .{block = 6}]
+    e2 := LirEdge.[.{block = 3, arguments = inner_init[:]}]
+    e3 := LirEdge.[.{block = 4}, .{block = 5}]
+    e4 := LirEdge.[.{block = 3, arguments = inner_next[:]}]
+    e5 := LirEdge.[.{block = 1, arguments = outer_next[:]}]
+    i0 := LirInstruction.[.{op = .Constant, result = 0, symbol = 0}, .{op = .Constant, result = 1, symbol = 1},
+        .{op = .Constant, result = 2, symbol = 2}, .{op = .Jump, symbol = -1, result = -1, edges = e0[:]}]
+    i1 := LirInstruction.[.{op = .Fuel, symbol = -1, result = -1, effect = 1, immediate = 1},
+        .{op = .Less, symbol = -1, result = 5, operands = outer_cmp[:]}, .{op = .Branch, symbol = -1, result = -1, operands = oc[:], edges = e1[:]}]
+    i2 := LirInstruction.[.{op = .Jump, symbol = -1, result = -1, edges = e2[:]}]
+    i3 := LirInstruction.[.{op = .Fuel, symbol = -1, result = -1, effect = 1, immediate = 1},
+        .{op = .Less, symbol = -1, result = 8, operands = inner_cmp[:]}, .{op = .Branch, symbol = -1, result = -1, operands = ic[:], edges = e3[:]}]
+    i4 := LirInstruction.[.{op = .Add, symbol = -1, result = 9, operands = ji[:]}, .{op = .Add, symbol = -1, result = 10, operands = si[:]},
+        .{op = .Add, symbol = -1, result = 11, operands = sj[:]}, .{op = .Jump, symbol = -1, result = -1, edges = e4[:]}]
+    i5 := LirInstruction.[.{op = .Add, symbol = -1, result = 12, operands = oi[:]}, .{op = .Jump, symbol = -1, result = -1, edges = e5[:]}]
+    i6 := LirInstruction.[.{op = .Return, symbol = -1, result = -1, operands = ret[:]}]
+    blocks := LirBlock.[.{instructions = i0[:]}, .{parameters = outer[:], instructions = i1[:]}, .{instructions = i2[:]},
+        .{parameters = inner[:], instructions = i3[:]}, .{instructions = i4[:]}, .{instructions = i5[:]}, .{instructions = i6[:]}]
+    functions := LirFunction.[.{module = 0, name = "nested", result = 1, values = values[:], blocks = blocks[:], entry = 0, origin = 0}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], constants = constants[:], origins = origins[:], functions = functions[:], entry = 0}
+    before := Execute(program)
+    if before.problem != .None || before.value.bits != 18 { return 20 }
+    owner: LirOptOwner
+    defer LirOptFree(*owner)
+    built := LirOptBuild(*owner, program, LirDefaultLimits(), LirOptDefaultOptions())
+    if built.problem != .None || built.counters.rotate.blocks != 2 { return 21 }
+    output := LirOptProgram(*owner)
+    after := Execute(output)
+    if LirVerify(output, LirDefaultLimits()).problem != .None || after.problem != .None || after.value.bits != 18 { return 22 }
+    return 0
+}
+
+// A rotated latch must keep the body's induction bounds. The unsafe
+// variants also cover an inclusive overrun and a wrapping increment.
+BoundedIndex :: (mode: s32) -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true},
+        .{kind = .Bool, bits = 1}, .{kind = .Array, element = 1, count = 8}]
+    constants := LirConstant.[.{type = 1, bits = 0}, .{type = 1, bits = 1}, .{type = 1, bits = 8}]
+    if mode == 1 { constants[2].bits = 9 }
+    if mode == 2 { constants[0].bits = 1; constants[1].bits = 9223372036854775807 }
+    modules := string.["rotate"]
+    sources := string.["rotate.zi"]
+    origins := LirOrigin.[.{file = 0, line = 1, column = 1, begin = 0, end = 1, parent = -1}]
+    values := s32.[1, 1, 1, 3, 1, 2, 1, 1]
+    array := s32.[0, 0, 0, 0, 0, 0, 0, 0]
+    param := s32.[4]
+    initial := s32.[0]
+    compare := s32.[4, 2]
+    condition := s32.[5]
+    extract := s32.[3, 4]
+    increment := s32.[4, 1]
+    next := s32.[7]
+    ret := s32.[0]
+    e0 := LirEdge.[.{block = 1, arguments = initial[:]}]
+    e1 := LirEdge.[.{block = 2}, .{block = 3}]
+    e2 := LirEdge.[.{block = 1, arguments = next[:]}]
+    i0 := LirInstruction.[.{op = .Constant, result = 0, symbol = 0}, .{op = .Constant, result = 1, symbol = 1},
+        .{op = .Constant, result = 2, symbol = 2}, .{op = .Aggregate, result = 3, symbol = -1, operands = array[:]},
+        .{op = .Jump, result = -1, symbol = -1, edges = e0[:]}]
+    i1 := LirInstruction.[.{op = .Less, result = 5, symbol = -1, operands = compare[:]},
+        .{op = .Branch, result = -1, symbol = -1, operands = condition[:], edges = e1[:]}]
+    i2 := LirInstruction.[.{op = .Extract, result = 6, symbol = -1, operands = extract[:]},
+        .{op = .Add, result = 7, symbol = -1, operands = increment[:]},
+        .{op = .Jump, result = -1, symbol = -1, edges = e2[:]}]
+    i3 := LirInstruction.[.{op = .Return, result = -1, symbol = -1, operands = ret[:]}]
+    blocks := LirBlock.[.{instructions = i0[:]}, .{parameters = param[:], instructions = i1[:]},
+        .{instructions = i2[:]}, .{instructions = i3[:]}]
+    functions := LirFunction.[.{module = 0, name = "bounded", result = 1, values = values[:], blocks = blocks[:], entry = 0}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], sources = sources[:], origins = origins[:],
+        types = types[:], constants = constants[:], functions = functions[:], entry = 0, checks = true}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 30 }
+    before := Execute(program)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    empty: []u8
+    measured := LirWrite(program, empty)
+    if !VecResize(bytes, measured.size) || LirWrite(program, bytes[:]).problem != .None { return 31 }
+    owner: LirReadOwner
+    defer LirReadFree(*owner)
+    if LirRead(*owner, TextView(bytes[:]), LirDefaultLimits()).problem != .None { return 32 }
+    rotated := LirRotate(*owner, LirDefaultLimits(), 100000)
+    if rotated.problem != .None || rotated.codec.problem != .None || rotated.loops != 1 { return 33 }
+    output := LirReadProgram(*owner)
+    facts: LirProvenOwner
+    defer LirProvenFree(*facts)
+    proved := LirProvenBuild(*facts, output, LirDefaultLimits())
+    if proved.problem != .None || LirProvenIndex(*facts, 0, 6) != (mode == 0) { return 34 }
+    after := Execute(output)
+    if before.problem != after.problem || (before.problem == .None) != (mode == 0) { return 35 }
+    return 0
+}
+
+#scope_export
+OptRotateCases :: () -> s32 {
+    ssa := OptSsaCases()
+    if ssa != 0 { print("SSA case failure=%\n", ssa); return ssa }
+    nested := Nested()
+    if nested != 0 { print("nested rotation failure=%\n", nested); return nested }
+    for mode: 0..2 {
+        bounded := BoundedIndex(cast(s32)mode)
+        if bounded != 0 { print("rotated bounds mode=% failure=%\n", mode, bounded); return bounded }
+    }
+    for iterations: 0..7 {
+        for mode: 0..5 {
+            guard: s32
+            if mode == 2 { guard = 1 }
+            if mode == 4 { guard = 2 }
+            result := Fixture(iterations, mode == 1, guard, mode == 3, mode == 5)
+            if result != 0 { print("rotate case n=% mode=% failure=%\n", iterations, mode, result); return result }
+        }
+    }
+    print("compiler optimizer: SSA repair and loop rotation local tests passed\n")
+    return 0
+}

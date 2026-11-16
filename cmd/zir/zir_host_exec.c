@@ -1224,6 +1224,59 @@ exec_to_image(ExecHosts *hosts, ExecImage *image, int node_id, int32_t type, con
     return 1;
 }
 
+/* Compare value contents, not image offsets: encoding a nested view may
+ * place its unchanged elements elsewhere in the new image. */
+static int
+exec_same_image_value(const ExecBundle *bundle, int node_id, int32_t type,
+                       const unsigned char *left, int64_t left_size, int64_t left_at,
+                       const unsigned char *right, int64_t right_size, int64_t right_at, int depth)
+{
+    const ExecNode *node = &bundle->nodes[node_id];
+    const LirType *shape = exec_type(bundle, type);
+    int64_t width = exec_size(bundle, type);
+    if(depth > EXEC_DEPTH || width < 0 || left_at < 0 || right_at < 0 ||
+       left_at > left_size || right_at > right_size ||
+       width > left_size - left_at || width > right_size - right_at) return 0;
+    if(node->class == NODE_SCALAR || node->class == NODE_POINTER)
+        return memcmp(left + left_at, right + right_at, (size_t)width) == 0;
+    if(node->class == NODE_RECORD) {
+        if(shape->kind != LirTypeKind_Record || shape->fields.length != node->field_count) return 0;
+        int64_t offset = 0;
+        for(int at = 0; at < node->field_count; at++) {
+            int32_t field = ((const int32_t *)shape->fields.data)[at];
+            if(!exec_same_image_value(bundle, node->field_nodes[at], field,
+                left, left_size, left_at + offset, right, right_size, right_at + offset, depth + 1)) return 0;
+            offset += exec_size(bundle, field);
+        }
+        return 1;
+    }
+    if(node->class == NODE_ARRAY) {
+        if(shape->kind != LirTypeKind_Array) return 0;
+        int64_t element = exec_size(bundle, shape->element);
+        for(int64_t at = 0; at < shape->count; at++)
+            if(!exec_same_image_value(bundle, node->child, shape->element,
+                left, left_size, left_at + at * element,
+                right, right_size, right_at + at * element, depth + 1)) return 0;
+        return 1;
+    }
+    if((node->class != NODE_STRING && node->class != NODE_SLICE) || width != 16) return 0;
+    int32_t element = exec_view_element(bundle, type);
+    int64_t element_width = element >= 0 ? exec_size(bundle, element) : 0;
+    if(element_width <= 0) return 0;
+    uint64_t a = exec_read(left + left_at, 8), b = exec_read(right + right_at, 8);
+    uint64_t count = exec_read(left + left_at + 8, 8);
+    if(count != exec_read(right + right_at + 8, 8) || a > (uint64_t)left_size ||
+       b > (uint64_t)right_size || count > (uint64_t)((left_size - (int64_t)a) / element_width) ||
+       count > (uint64_t)((right_size - (int64_t)b) / element_width)) return 0;
+    if(node->class == NODE_STRING)
+        return memcmp(left + a, right + b, (size_t)count) == 0;
+    for(uint64_t at = 0; at < count; at++)
+        if(!exec_same_image_value(bundle, node->child, element,
+            left, left_size, (int64_t)(a + at * (uint64_t)element_width),
+            right, right_size, (int64_t)(b + at * (uint64_t)element_width), depth + 1)) return 0;
+    return 1;
+}
+
 /* The new image of a []T argument the host may have changed, appended to
  * hosts->back: the image it was given with each element written again, as
  * the semantic VM copies a host's slice elements back. */
@@ -1311,7 +1364,14 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
     for(size_t at = 0; at < count; at++)
         if(bundle->nodes[host->parameters[at]].class == NODE_SLICE) {
             if(!exec_copy_back(hosts, host->parameters[at], &arguments[at], &values[at], &backs[at])) goto done;
-            arguments[at].changed = 1;
+            /* Reading a slice does not change its elements. In particular,
+             * a view inside an element needs no copy-back when the host kept
+             * it intact. Report only images that actually differ. */
+            size_t size = hosts->back.length - backs[at];
+            arguments[at].changed = !exec_same_image_value(bundle, host->parameters[at], arguments[at].type,
+                arguments[at].bytes, (int64_t)arguments[at].size, 0,
+                hosts->back.bytes + backs[at], (int64_t)size, 0, 0);
+            if(!arguments[at].changed) hosts->back.length = backs[at];
         }
     const LirFunction *declared = &((const LirFunction *)bundle->program.functions.data)[host->function];
     int32_t type = declared->result;

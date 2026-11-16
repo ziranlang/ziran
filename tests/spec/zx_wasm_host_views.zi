@@ -1,0 +1,38 @@
+// A read-only host call with strings inside slice elements must work on both engines.
+host_api :: #system_library "host_api";
+Node :: struct {
+    value: s32
+    children: []Node
+}
+Grow :: (tree: Node) -> Node #foreign host_api;
+Label :: struct { name: string; weight: s32; tags: []string }
+InspectRows :: (rows: []Label, marks: []u8) -> s32 #foreign host_api;
+labels: [2]Label;
+tags: [2]string = .["alpha", "beta"];
+tree: Node;
+leaves: [2]Node;
+ring: [1]Node;
+#program_export
+Answer :: () -> s32 {
+    labels[0] = Label.{"left", 2, tags[0:1]}
+    labels[1] = Label.{"right", 3, tags[1:2]}
+    marks: [4]u8
+    if InspectRows(labels[:], marks[1:3]) != 5 { return 8 }
+    if marks[0] != 0 || marks[1] != 88 || marks[2] != 89 || marks[3] != 0 { return 10 }
+    if labels[0].name != "left" || labels[1].name != "right" || labels[0].weight != 2 || labels[1].weight != 3 { return 9 }
+    if labels[0].tags.count != 1 || labels[1].tags.count != 1 || labels[0].tags[0] != "alpha" || labels[1].tags[0] != "beta" { return 11 }
+    leaves[0].value = 2
+    leaves[1].value = 3
+    tree.value = 1
+    tree.children = leaves[:]
+    tree = Grow(tree)
+    if tree.value != 6 || tree.children.count != 2 { return 1 }
+    if tree.children[0].value != 100 || tree.children[1].children.count != 1 { return 2 }
+    return tree.children[1].children[0].value
+}
+#program_export
+Cycle :: () -> s32 {
+    ring[0].value = 1
+    ring[0].children = ring[:]
+    return Grow(ring[0]).value
+}

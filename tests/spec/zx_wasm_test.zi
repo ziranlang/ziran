@@ -28,8 +28,137 @@ Pair :: struct {
     tag: u8
 }
 
+ConstructorViews :: () -> bool {
+    partial := Point.{x = 17}
+    snapshot := partial
+    partial.x = 31
+    swapped := Point.{x = snapshot.y, y = snapshot.x}
+    nested := Pair.{a = Point.{x = swapped.y, y = 23}, tag = 5}
+    return partial.x == 31 && partial.y == 0 && snapshot.x == 17 && snapshot.y == 0 &&
+           swapped.x == 0 && nested.a.x == 17 && nested.a.y == 23 && nested.tag == 5
+}
+
+// Members built where their parent keeps them: call results, nested
+// constructors and returned values. A member that reads the parent it
+// replaces, or a call given the parent, must still see the old contents.
+Layer :: struct { offset: float32; blur: float32; spread: float32; alpha: float32 }
+Layers :: struct { rest: Layer; raised: [2]Layer }
+Tokens :: struct { dark: bool; layers: Layers; corner: Pair; series: [3]u32 }
+member_tokens: Tokens;
+member_ready: bool;
+MakeLayers :: (dark: bool) -> Layers {
+    layers: Layers
+    layers.rest = Layer.{1.0, 2.0, 0.0, 0.25}
+    if dark { layers.raised[0] = Layer.{8.0, 22.0, 0.0, 0.5} }
+    else { layers.raised[1] = Layer.{6.0, 18.0, 0.0, 0.75} }
+    return layers
+}
+MakeCorner :: (seed: Pair) -> Pair { return Pair.{a = Point.{x = seed.a.y, y = seed.a.x}, tag = seed.tag + 1} }
+MakeTokens :: (dark: bool) -> Tokens {
+    tokens: Tokens
+    tokens.dark = dark
+    tokens.layers = MakeLayers(dark)
+    tokens.corner = MakeCorner(Pair.{a = Point.{x = 3, y = 4}, tag = 6})
+    tokens.series = .{cast(u32)7, cast(u32)8, cast(u32)9}
+    return tokens
+}
+CurrentTokens :: () -> Tokens {
+    if !member_ready { return MakeTokens(false) }
+    return member_tokens
+}
+MemberPlaces :: () -> bool {
+    first := CurrentTokens()
+    if first.dark || first.layers.rest.alpha != 0.25 || first.layers.raised[1].blur != 18.0 ||
+       first.layers.raised[0].blur != 0.0 || first.corner.a.x != 4 || first.corner.a.y != 3 ||
+       first.corner.tag != 7 || first.series[2] != 9 { return false }
+    member_tokens = MakeTokens(true)
+    member_ready = true
+    second := CurrentTokens()
+    if !second.dark || second.layers.raised[0].alpha != 0.5 || second.layers.raised[1].alpha != 0.0 { return false }
+    // The replacement reads the member it replaces.
+    second.corner = MakeCorner(second.corner)
+    if second.corner.a.x != 3 || second.corner.a.y != 4 || second.corner.tag != 8 { return false }
+    second.corner = Pair.{a = Point.{x = second.corner.a.y, y = second.corner.a.x}, tag = second.corner.tag}
+    if second.corner.a.x != 4 || second.corner.a.y != 3 || second.corner.tag != 8 { return false }
+    second.layers.raised[1] = second.layers.raised[0]
+    second.layers.raised[0] = Layer.{second.layers.raised[1].blur, second.layers.rest.blur, 1.0, 0.125}
+    if second.layers.raised[0].offset != 22.0 || second.layers.raised[0].blur != 2.0 ||
+       second.layers.raised[1].offset != 8.0 { return false }
+    // A parent made after its member, and also kept as a snapshot.
+    inner := Point.{x = 5, y = 6}
+    outer: Pair
+    kept := outer
+    outer.a = inner
+    if outer.a.x != 5 || outer.a.y != 6 || kept.a.x != 0 || kept.a.y != 0 { return false }
+    // Members chosen by a condition join in the block that stores them,
+    // including one that reads the member it replaces.
+    joined: Pair
+    joined.a = ifx second.dark then MixPoints(inner, outer.a) else Point.{x = 1, y = 2}
+    if joined.a.x != 11 || joined.a.y != 11 { return false }
+    joined.a = ifx second.dark then MixPoints(joined.a, inner) else joined.a
+    if joined.a.x != 17 || joined.a.y != 16 { return false }
+    member_ready = false
+    return member_tokens.dark && member_tokens.corner.tag == 7 && CurrentTokens().series[0] == 7
+}
+
+// Pointer-backed aggregate member reads must preserve snapshots across
+// stores, calls, block edges and nested extracts. Independent pointers must
+// retain distinct bases even when their aggregate frame slots coalesce.
+FieldRecord :: struct { padding: [32768]s32; value: s32 }
+field_left: FieldRecord;
+field_right: FieldRecord;
+FieldRead :: (record: *FieldRecord) -> s32 { return record.value }
+FieldPair :: (left: *FieldRecord, right: *FieldRecord, index: s64) -> s32 {
+    return left.padding[index] + right.padding[index] + left.value + right.value
+}
+FieldWrite :: () { field_left.value = 23 }
+FieldByValue :: (record: FieldRecord) -> FieldRecord {
+    record.value += 3
+    return record
+}
+FieldNestedByValue :: (record: FieldRecord) -> s32 {
+    record.padding[42] += 4
+    return record.padding[42]
+}
+FieldObserve :: (record: FieldRecord, alias: *FieldRecord) -> s32 {
+    alias.value = 29
+    return record.value
+}
+FieldSnapshot :: (record: *FieldRecord, choose: bool) -> s32 {
+    snapshot := <<record
+    record.value = 19
+    if choose { return snapshot.value }
+    return snapshot.padding[42]
+}
+FieldViews :: () -> bool {
+    field_left.value = 7
+    field_right.value = 5
+    field_left.padding[42] = 3
+    field_right.padding[42] = 10
+    if FieldRead(*field_left) != 7 || FieldPair(*field_left, *field_right, 42) != 25 { return false }
+    argument := field_left
+    changed_parameter := FieldByValue(argument)
+    if changed_parameter.value != 10 || argument.value != 7 || field_left.value != 7 { return false }
+    if FieldNestedByValue(argument) != 7 || argument.padding[42] != 3 { return false }
+    if FieldObserve(field_left, *field_left) != 7 || field_left.value != 29 { return false }
+    field_left.value = 7
+    snapshot := field_left
+    nested := snapshot.padding
+    field_left.padding[42] = 17
+    if nested[42] != 3 { return false }
+    call_snapshot := field_left
+    FieldWrite()
+    if call_snapshot.value != 7 || field_left.value != 23 { return false }
+    if FieldSnapshot(*field_left, true) != 23 { return false }
+    if FieldSnapshot(*field_left, false) != 17 { return false }
+    changed := field_left
+    changed.padding[42] = 31
+    return changed.padding[42] == 31 && field_left.padding[42] == 17
+}
+
 #program_export
 Answer :: () -> s64 {
+    if !FieldViews() || !ConstructorViews() || !MemberPlaces() { return -1 }
     total: s64 = 0
 
     u: u16 = 65535

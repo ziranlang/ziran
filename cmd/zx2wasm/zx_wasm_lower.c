@@ -791,8 +791,10 @@ typedef struct Fn {
      * slot. */
     Addr *view;
     int64_t *view_root;
-    /* An insert of a view back where it was read: nothing to do. */
+    /* An insert of a view back where it was read, or an unused constructor. */
     unsigned char *elided;
+    /* Initial members overwritten along a single-use insert chain. */
+    unsigned char **omitted;
     int64_t *alloca_slot;
     int64_t frame;
     int64_t scratch;
@@ -1009,7 +1011,8 @@ offset_fits(Fn *fn, int64_t offset)
 static void
 copy_fixed(Fn *fn, Addr destination, Addr source, int64_t size)
 {
-    if(size <= 0)
+    if(size <= 0 || (destination.kind == source.kind && destination.local == source.local &&
+                     destination.offset == source.offset))
         return;
     if(size > 64 || !offset_fits(fn, destination.offset + size) || !offset_fits(fn, source.offset + size)) {
         push_full(fn, destination);
@@ -1503,6 +1506,99 @@ same_member(const LirInstruction *left, int64_t left_fixed, const LirInstruction
     return left->immediate == right->immediate;
 }
 
+/* A load used only for member reads can borrow its pointer instead of
+ * materializing the whole record. Track nested extracts too: a read after
+ * any possible memory effect needs the original snapshot. This deliberately
+ * stays within one block and keeps checked loads and escaping values. */
+static int
+plan_load_views(Fn *fn, const unsigned char *aggregate)
+{
+    int64_t count = fn->function->values.length;
+    size_t items = (size_t)(count ? count : 1);
+    int32_t *root = malloc(items * sizeof(*root));
+    int64_t *home = malloc(items * sizeof(*home)), *stamp = calloc(items, sizeof(*stamp));
+    unsigned char *valid = calloc(items, 1), *used = calloc(items, 1);
+    int ok = root != NULL && home != NULL && stamp != NULL && valid != NULL && used != NULL;
+    if(!ok) {
+        DiagnosticOutOfMemory();
+        fn->lower->failed = 1;
+        goto done;
+    }
+    for(int64_t value = 0; value < count; value++) root[value] = -1;
+    const LirBlock *blocks = fn->function->blocks.data;
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            int32_t value = instruction->result;
+            if(instruction->op == LirOp_Load && value_valid(fn, value) && aggregate[value] &&
+               instruction->operands.length == 1 && !instruction->checked) {
+                root[value] = value;
+                home[value] = block;
+                valid[value] = 1;
+            }
+        }
+    }
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        int64_t version = 0;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            int32_t result = instruction->result;
+            if(value_valid(fn, result) && root[result] == result) stamp[result] = version;
+            const int32_t *operands = instruction->operands.data;
+            for(int64_t at = 0; at < instruction->operands.length; at++) {
+                int32_t value = operands[at];
+                if(!value_valid(fn, value) || root[value] < 0) continue;
+                int32_t base = root[value];
+                if(instruction->op != LirOp_Extract || at != 0 || home[base] != block || stamp[base] != version) {
+                    valid[base] = 0;
+                    continue;
+                }
+                used[base] = 1;
+                if(value_valid(fn, result) && aggregate[result] && fn->view[result].kind >= 0)
+                    root[result] = base;
+            }
+            const LirEdge *edges = instruction->edges.data;
+            for(int64_t edge = 0; edge < instruction->edges.length; edge++) {
+                const int32_t *arguments = edges[edge].arguments.data;
+                for(int64_t at = 0; at < edges[edge].arguments.length; at++)
+                    if(value_valid(fn, arguments[at]) && root[arguments[at]] >= 0)
+                        valid[root[arguments[at]]] = 0;
+            }
+            switch(instruction->op) {
+            case LirOp_Store: case LirOp_Copy: case LirOp_Zero: case LirOp_Resize:
+            case LirOp_Allocate: case LirOp_Call: case LirOp_CallIndirect:
+            case LirOp_HostCall: case LirOp_Insert: version++; break;
+            default: break;
+            }
+        }
+    }
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            int32_t value = instruction->result;
+            if(instruction->op != LirOp_Load || !value_valid(fn, value) ||
+               root[value] != value || !valid[value] || !used[value]) continue;
+            int32_t pointer = ((const int32_t *)instruction->operands.data)[0];
+            int64_t slot = fn->value_slot[value];
+            fn->view[value] = (Addr){ADDR_LOCAL, (uint32_t)fn->value_local[pointer], 0};
+            fn->view_root[value] = -1 - value;
+            for(int64_t nested = 0; nested < count; nested++) {
+                if(fn->view[nested].kind != ADDR_FRAME || fn->view_root[nested] != slot) continue;
+                fn->view[nested].kind = ADDR_LOCAL;
+                fn->view[nested].local = (uint32_t)fn->value_local[pointer];
+                fn->view[nested].offset -= slot;
+                fn->view_root[nested] = -1 - value;
+            }
+        }
+    }
+done:
+    free(root); free(home); free(stamp); free(valid); free(used);
+    return ok;
+}
+
 /* Views: an aggregate extract read only by extracts in its own block,
  * while nothing writes the slot it reads from, is read in place there
  * instead of copied out. One that a single insert then changes, put back
@@ -1637,6 +1733,453 @@ plan_views(Fn *fn, const unsigned char *aggregate)
 done:
     free(home); free(read); free(update); free(other); free(uses); free(writes);
     return ok && !fn->lower->failed;
+}
+
+/* Change a coalesced frame slot's base without disturbing the offsets of
+ * its nested read views. Dynamic views compute their address at the extract. */
+static void
+place_slot(Fn *fn, const unsigned char *aggregate, int64_t slot, Addr place)
+{
+    for(int64_t value = 0; value < fn->function->values.length; value++) {
+        if(!aggregate[value]) continue;
+        if(fn->view[value].kind < 0 && fn->value_slot[value] == slot) {
+            fn->view[value] = place;
+            fn->view_root[value] = slot;
+        } else if(fn->view[value].kind == ADDR_FRAME && fn->view_root[value] == slot) {
+            fn->view[value].kind = place.kind;
+            fn->view[value].local = place.local;
+            fn->view[value].offset += place.offset - slot;
+        }
+    }
+}
+
+/* Arguments are caller-owned SSA snapshots. A parameter whose coalesced
+ * slot is never written can borrow that snapshot for this call. Aggregate
+ * results with a single destination class can be built in the caller's
+ * result area; calls always keep their result separate from their inputs. */
+static void
+plan_call_places(Fn *fn, const unsigned char *aggregate)
+{
+    const LirBlock *blocks = fn->function->blocks.data;
+    const LirBlock *entry = &blocks[fn->function->entry];
+    const int32_t *parameters = entry->parameters.data;
+    uint32_t first = type_aggregate(fn->lower, fn->function->result) ? 1 : 0;
+    for(int64_t at = 0; at < entry->parameters.length; at++) {
+        int32_t parameter = parameters[at];
+        if(!aggregate[parameter]) continue;
+        int64_t slot = fn->value_slot[parameter];
+        int written = 0;
+        for(int64_t block = 0; block < fn->block_count && !written; block++) {
+            const int32_t *inputs = blocks[block].parameters.data;
+            for(int64_t input = 0; input < blocks[block].parameters.length; input++) {
+                int32_t value = inputs[input];
+                if(value != parameter && aggregate[value] && fn->value_slot[value] == slot) written = 1;
+            }
+            const LirInstruction *instructions = blocks[block].instructions.data;
+            for(int64_t item = 0; item < blocks[block].instructions.length && !written; item++) {
+                int32_t value = instructions[item].result;
+                if(value_valid(fn, value) && aggregate[value] && fn->value_slot[value] == slot &&
+                   fn->view[value].kind < 0) written = 1;
+            }
+        }
+        if(!written) place_slot(fn, aggregate, slot, (Addr){ADDR_LOCAL, first + (uint32_t)at, 0});
+    }
+    if(!first) return;
+    int64_t slot = -1;
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            if(instruction->op != LirOp_Return || instruction->operands.length != 1) continue;
+            int32_t value = ((const int32_t *)instruction->operands.data)[0];
+            if(!aggregate[value] || fn->view[value].kind >= 0 ||
+               (slot >= 0 && slot != fn->value_slot[value])) return;
+            slot = fn->value_slot[value];
+        }
+    }
+    if(slot < 0) return;
+    /* Loads and extracts use view[] to mean an elided read, whereas a
+     * constructor still writes its destination. Keep read results in their
+     * own slots so placement cannot turn a required snapshot into a view. */
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            int32_t value = instruction->result;
+            if((instruction->op == LirOp_Load || instruction->op == LirOp_Extract) &&
+               value_valid(fn, value) && aggregate[value] && fn->value_slot[value] == slot) return;
+        }
+    }
+    place_slot(fn, aggregate, slot, (Addr){ADDR_LOCAL, fn->result_address, 0});
+}
+
+/* Constructor fields overwritten before any other use need no initial
+ * store. Follow only single-use, fixed-member inserts: a snapshot, extract
+ * or block argument ends the chain. Prune nested constructors whose only
+ * uses were those omitted stores, keeping calls and checked operations. */
+static int
+plan_initial_stores(Fn *fn)
+{
+    int64_t count = fn->function->values.length;
+    size_t items = (size_t)(count ? count : 1);
+    const LirInstruction **definitions = calloc(items, sizeof(*definitions));
+    const LirInstruction **only = calloc(items, sizeof(*only));
+    int64_t *uses = calloc(items, sizeof(*uses));
+    int32_t *queue = malloc(items * sizeof(*queue));
+    fn->omitted = calloc(items, sizeof(*fn->omitted));
+    int ok = definitions != NULL && only != NULL && uses != NULL && queue != NULL && fn->omitted != NULL;
+    if(!ok) goto failed;
+    const LirBlock *blocks = fn->function->blocks.data;
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            if(value_valid(fn, instruction->result)) definitions[instruction->result] = instruction;
+            const int32_t *operands = instruction->operands.data;
+            for(int64_t at = 0; at < instruction->operands.length; at++) {
+                int32_t value = operands[at];
+                if(value_valid(fn, value)) only[value] = ++uses[value] == 1 ? instruction : NULL;
+            }
+            const LirEdge *edges = instruction->edges.data;
+            for(int64_t edge = 0; edge < instruction->edges.length; edge++) {
+                const int32_t *arguments = edges[edge].arguments.data;
+                for(int64_t at = 0; at < edges[edge].arguments.length; at++) {
+                    int32_t value = arguments[at];
+                    if(value_valid(fn, value)) { uses[value]++; only[value] = NULL; }
+                }
+            }
+        }
+    }
+    for(int64_t value = 0; value < count; value++) {
+        const LirInstruction *definition = definitions[value];
+        if(definition == NULL || definition->op != LirOp_Aggregate) continue;
+        int32_t current = (int32_t)value;
+        for(int64_t walk = 0; walk < count && uses[current] == 1 && only[current] != NULL; walk++) {
+            const LirInstruction *use = only[current];
+            const int32_t *operands = use->operands.data;
+            if(use->op != LirOp_Insert || use->operands.length != 2 || operands[0] != current ||
+               use->immediate < 0 || use->immediate >= definition->operands.length ||
+               !value_valid(fn, use->result)) break;
+            if(fn->omitted[value] == NULL) {
+                fn->omitted[value] = calloc((size_t)definition->operands.length, 1);
+                if(fn->omitted[value] == NULL) { ok = 0; goto failed; }
+            }
+            fn->omitted[value][use->immediate] = 1;
+            current = use->result;
+        }
+        if(fn->omitted[value] != NULL) {
+            const int32_t *operands = definition->operands.data;
+            for(int64_t at = 0; at < definition->operands.length; at++)
+                if(fn->omitted[value][at] && value_valid(fn, operands[at])) uses[operands[at]]--;
+        }
+    }
+    {
+        int64_t head = 0, tail = 0;
+        for(int64_t value = 0; value < count; value++)
+            if(uses[value] == 0 && definitions[value] != NULL && definitions[value]->op == LirOp_Aggregate) {
+                fn->elided[value] = 1;
+                queue[tail++] = (int32_t)value;
+            }
+        while(head < tail) {
+            int32_t value = queue[head++];
+            const LirInstruction *definition = definitions[value];
+            const int32_t *operands = definition->operands.data;
+            for(int64_t at = 0; at < definition->operands.length; at++) {
+                int32_t source = operands[at];
+                if((fn->omitted[value] != NULL && fn->omitted[value][at]) || !value_valid(fn, source)) continue;
+                if(--uses[source] == 0 && !fn->elided[source] && definitions[source] != NULL &&
+                   definitions[source]->op == LirOp_Aggregate) {
+                    fn->elided[source] = 1;
+                    queue[tail++] = source;
+                }
+            }
+        }
+    }
+failed:
+    if(!ok) { DiagnosticOutOfMemory(); fn->lower->failed = 1; }
+    free(definitions); free(only); free(uses); free(queue);
+    return ok;
+}
+
+/* The storage a value occupies: its frame slot, or the root of the place
+ * it views. Results placed for the caller use MEMBER_RESULT_ROOT. */
+#define MEMBER_RESULT_ROOT INT64_MIN
+
+static int64_t
+storage_root(Fn *fn, int32_t value)
+{
+    return fn->view[value].kind >= 0 ? fn->view_root[value] : fn->value_slot[value];
+}
+
+static int
+same_place(Addr left, Addr right)
+{
+    return left.kind == right.kind && left.local == right.local && left.offset == right.offset;
+}
+
+/* Checks instructions [from, to) of one block before a member class moves
+ * into `root`. Class values may only feed in-place inserts of the class
+ * (counted in *chained) or, when `join` names a block, argument `parameter`
+ * of an edge there (counted in *tails). No other instruction may read the
+ * root's storage or define a value living in it. */
+static int
+member_range(Fn *fn, const LirInstruction *instructions, int64_t from, int64_t to, int32_t class, int64_t root,
+             const unsigned char *aggregate, const int32_t *rep, int64_t join, int64_t parameter,
+             int64_t *chained, int64_t *tails)
+{
+    for(int64_t item = from; item < to; item++) {
+        const LirInstruction *between = &instructions[item];
+        int32_t result = between->result;
+        if(value_valid(fn, result) && aggregate[result] && rep[result] != class && storage_root(fn, result) == root)
+            return 0;
+        const int32_t *inputs = between->operands.data;
+        for(int64_t at = 0; at < between->operands.length; at++) {
+            int32_t value = inputs[at];
+            if(!value_valid(fn, value) || !aggregate[value]) continue;
+            if(rep[value] == class) {
+                if(between->op != LirOp_Insert || at != 0 || !value_valid(fn, result) || rep[result] != class)
+                    return 0;
+                (*chained)++;
+            } else if(storage_root(fn, value) == root) {
+                return 0;
+            }
+        }
+        const LirEdge *edges = between->edges.data;
+        for(int64_t edge = 0; edge < between->edges.length; edge++) {
+            const int32_t *arguments = edges[edge].arguments.data;
+            for(int64_t at = 0; at < edges[edge].arguments.length; at++) {
+                int32_t value = arguments[at];
+                if(!value_valid(fn, value) || !aggregate[value]) continue;
+                if(rep[value] == class) {
+                    if(join < 0 || edges[edge].block != join || at != parameter)
+                        return 0;
+                    (*tails)++;
+                } else if(storage_root(fn, value) == root) {
+                    return 0;
+                }
+            }
+        }
+    }
+    return 1;
+}
+
+/* Builds a member where its parent keeps it, as native code does. A class
+ * of values (a constructor or call and the inserts that update it in place)
+ * whose last value only fills one member of a parent, by an in-place insert
+ * or the parent's constructor, or is the return value, is written at that
+ * destination directly. The whole class lives in the block before that use,
+ * and nothing in between reads the destination's storage, so writing early
+ * is unobservable. Loads and extracts keep their own slots, because a view
+ * on them means an elided read; a returned load instead reads from its
+ * pointer, so the return copies once. */
+static int
+plan_member_places(Fn *fn, const unsigned char *aggregate, const int32_t *rep)
+{
+    if(fn->async)
+        return 1;
+    int64_t count = fn->function->values.length;
+    size_t items = (size_t)(count ? count : 1);
+    const LirInstruction **definition = calloc(items, sizeof(*definition));
+    int64_t *uses = calloc(items, sizeof(*uses)), *home = malloc(items * sizeof(*home));
+    int64_t *position = malloc(items * sizeof(*position));
+    int32_t *next = malloc(items * sizeof(*next)), *head = malloc(items * sizeof(*head));
+    int ok = definition != NULL && uses != NULL && home != NULL && position != NULL && next != NULL && head != NULL;
+    if(!ok) {
+        DiagnosticOutOfMemory();
+        fn->lower->failed = 1;
+        goto done;
+    }
+    for(int64_t value = 0; value < count; value++) {
+        head[value] = next[value] = -1;
+        home[value] = position[value] = -1;
+    }
+    for(int64_t value = count - 1; value >= 0; value--)
+        if(aggregate[value]) {
+            next[value] = head[rep[value]];
+            head[rep[value]] = (int32_t)value;
+        }
+    const LirBlock *blocks = fn->function->blocks.data;
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t item = 0; item < blocks[block].instructions.length; item++) {
+            const LirInstruction *instruction = &instructions[item];
+            if(value_valid(fn, instruction->result)) {
+                definition[instruction->result] = instruction;
+                home[instruction->result] = block;
+                position[instruction->result] = item;
+            }
+            const int32_t *operands = instruction->operands.data;
+            for(int64_t at = 0; at < instruction->operands.length; at++)
+                if(value_valid(fn, operands[at])) uses[operands[at]]++;
+            const LirEdge *edges = instruction->edges.data;
+            for(int64_t edge = 0; edge < instruction->edges.length; edge++) {
+                const int32_t *arguments = edges[edge].arguments.data;
+                for(int64_t at = 0; at < edges[edge].arguments.length; at++)
+                    if(value_valid(fn, arguments[at])) uses[arguments[at]]++;
+            }
+        }
+    }
+    int returns_aggregate = type_aggregate(fn->lower, fn->function->result);
+    for(int64_t block = 0; block < fn->block_count; block++) {
+        const LirInstruction *instructions = blocks[block].instructions.data;
+        for(int64_t use = 0; use < blocks[block].instructions.length; use++) {
+            const LirInstruction *instruction = &instructions[use];
+            const int32_t *operands = instruction->operands.data;
+            int32_t members[64];
+            Addr places[64];
+            int64_t roots[64];
+            int64_t candidates = 0;
+            if(instruction->op == LirOp_Insert && instruction->operands.length == 2) {
+                int32_t base = operands[0], member = operands[1], result = instruction->result;
+                int64_t offset;
+                int32_t member_type;
+                if(!value_valid(fn, base) || !value_valid(fn, member) || !value_valid(fn, result) ||
+                   !aggregate[base] || !aggregate[member] || rep[base] == rep[member] ||
+                   !same_place(addr_of_slot(fn, result), addr_of_slot(fn, base)) ||
+                   storage_root(fn, result) != storage_root(fn, base) || storage_root(fn, result) < 0 ||
+                   !member_offset(fn, value_type(fn, base), instruction->immediate, &offset, &member_type))
+                    continue;
+                places[0] = addr_of_slot(fn, result);
+                places[0].offset += offset;
+                roots[0] = storage_root(fn, result);
+                members[candidates++] = member;
+            } else if(instruction->op == LirOp_Aggregate && value_valid(fn, instruction->result) &&
+                      aggregate[instruction->result] && storage_root(fn, instruction->result) >= 0) {
+                int32_t result = instruction->result;
+                for(int64_t at = 0; at < instruction->operands.length && candidates < 64; at++) {
+                    int32_t member = operands[at];
+                    int64_t offset;
+                    int32_t member_type;
+                    if(!value_valid(fn, member) || !aggregate[member] || rep[member] == rep[result] ||
+                       !member_offset(fn, value_type(fn, result), (uint64_t)at, &offset, &member_type))
+                        continue;
+                    places[candidates] = addr_of_slot(fn, result);
+                    places[candidates].offset += offset;
+                    roots[candidates] = storage_root(fn, result);
+                    members[candidates++] = member;
+                }
+            } else if(instruction->op == LirOp_Return && returns_aggregate && instruction->operands.length == 1 &&
+                      value_valid(fn, operands[0]) && aggregate[operands[0]] && fn->view[operands[0]].kind < 0) {
+                int32_t member = operands[0];
+                const LirInstruction *loaded = definition[member];
+                /* A returned load reads from its pointer: one copy. */
+                if(loaded != NULL && loaded->op == LirOp_Load) {
+                    int32_t pointer = loaded->operands.length == 1 ? ((const int32_t *)loaded->operands.data)[0] : -1;
+                    if(!fn->lower->program->checks && !loaded->checked && uses[member] == 1 &&
+                       home[member] == block && position[member] == use - 1 &&
+                       head[rep[member]] == member && next[member] < 0 &&
+                       value_valid(fn, pointer) && value_scalar(fn, pointer) && fn->value_local[pointer] >= 0) {
+                        fn->view[member] = (Addr){ADDR_LOCAL, (uint32_t)fn->value_local[pointer], 0};
+                        fn->view_root[member] = -1 - member;
+                    }
+                    continue;
+                }
+                places[0] = (Addr){ADDR_LOCAL, fn->result_address, 0};
+                roots[0] = MEMBER_RESULT_ROOT;
+                members[candidates++] = member;
+            }
+            for(int64_t candidate = 0; candidate < candidates; candidate++) {
+                int32_t member = members[candidate];
+                Addr place = places[candidate];
+                int64_t root = roots[candidate];
+                if(fn->view[member].kind >= 0 || uses[member] != 1 || !offset_fits(fn, place.offset))
+                    continue;
+                int32_t class = rep[member];
+                int64_t slot = fn->value_slot[member], first = use, size = 0, join = -1, outside = 0;
+                const int32_t *parameters = blocks[block].parameters.data;
+                int good = 1;
+                for(int32_t value = head[class]; value >= 0 && good; value = next[value]) {
+                    const LirInstruction *defined = definition[value];
+                    const int32_t *inputs = defined != NULL ? defined->operands.data : NULL;
+                    size++;
+                    good = fn->view[value].kind < 0 && !fn->elided[value] && (value == member || uses[value] == 1);
+                    if(!good)
+                        break;
+                    if(defined == NULL) {
+                        /* One parameter of this block may join the values
+                         * its predecessors build. */
+                        int64_t found = -1;
+                        for(int64_t at = 0; at < blocks[block].parameters.length; at++)
+                            if(parameters[at] == value) found = at;
+                        good = found >= 0 && join < 0;
+                        join = found;
+                        continue;
+                    }
+                    good = defined->op == LirOp_Aggregate || defined->op == LirOp_Call ||
+                           defined->op == LirOp_CallIndirect ||
+                           (defined->op == LirOp_Insert && defined->operands.length >= 2 &&
+                            value_valid(fn, inputs[0]) && rep[inputs[0]] == class);
+                    if(good && home[value] == block) {
+                        good = position[value] < use;
+                        if(position[value] < first) first = position[value];
+                    } else {
+                        outside++;
+                    }
+                }
+                if(!good || (outside > 0 && join < 0))
+                    continue;
+                /* Members already built inside this class move with it,
+                 * so they start its range too. */
+                for(int64_t value = 0; value < count && good; value++)
+                    if(aggregate[value] && fn->view[value].kind == ADDR_FRAME && fn->view_root[value] == slot) {
+                        good = join < 0 && home[value] == block && position[value] < use;
+                        if(good && position[value] < first) first = position[value];
+                    }
+                int64_t chained = 0, tails = 0;
+                if(good && join >= 0) {
+                    /* Each edge here is its block's only edge and carries a
+                     * class value built in that block; the parameter exists
+                     * from this block's start. */
+                    int64_t covered = 0;
+                    first = 0;
+                    for(int64_t from = 0; from < fn->block_count && good; from++) {
+                        const LirInstruction *code = blocks[from].instructions.data;
+                        int64_t length = blocks[from].instructions.length, start = length, enters = 0;
+                        for(int64_t item = 0; item < length; item++) {
+                            const LirEdge *edges = code[item].edges.data;
+                            for(int64_t edge = 0; edge < code[item].edges.length; edge++)
+                                if(edges[edge].block == block)
+                                    enters = enters >= 0 && item == length - 1 && code[item].edges.length == 1 ? 1 : -1;
+                        }
+                        if(enters == 0)
+                            continue;
+                        const LirEdge *edge = code[length - 1].edges.data;
+                        good = enters > 0 && from != block && edge->arguments.length > join;
+                        if(!good)
+                            break;
+                        int32_t argument = ((const int32_t *)edge->arguments.data)[join];
+                        good = value_valid(fn, argument) && rep[argument] == class && home[argument] == from;
+                        for(int32_t value = head[class]; value >= 0 && good; value = next[value])
+                            if(definition[value] != NULL && home[value] == from) {
+                                covered++;
+                                if(position[value] < start) start = position[value];
+                            }
+                        good = good && member_range(fn, code, start, length, class, root, aggregate, rep,
+                                                    block, join, &chained, &tails);
+                    }
+                    good = good && covered == outside;
+                }
+                good = good && member_range(fn, instructions, first, use, class, root, aggregate, rep,
+                                            -1, -1, &chained, &tails);
+                if(!good || chained + tails != size - 1)
+                    continue;
+                for(int64_t value = 0; value < count; value++)
+                    if(aggregate[value] && fn->view[value].kind == ADDR_FRAME && fn->view_root[value] == slot) {
+                        fn->view[value].kind = place.kind;
+                        fn->view[value].local = place.local;
+                        fn->view[value].offset += place.offset - slot;
+                        fn->view_root[value] = root;
+                    }
+                for(int32_t value = head[class]; value >= 0; value = next[value]) {
+                    fn->view[value] = place;
+                    fn->view_root[value] = root;
+                }
+            }
+        }
+    }
+done:
+    free(definition); free(uses); free(home); free(position); free(next); free(head);
+    return ok;
 }
 
 static void lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int64_t slot);
@@ -2126,7 +2669,8 @@ lower_aggregate(Fn *fn, const LirInstruction *instruction)
     for(int64_t index = 0; index < instruction->operands.length; index++) {
         Addr place = base;
         place.offset += at;
-        store_value(fn, place, operands[index]);
+        if(fn->omitted[instruction->result] == NULL || !fn->omitted[instruction->result][index])
+            store_value(fn, place, operands[index]);
         at += type_size(fn->lower, value_type(fn, operands[index]));
     }
 }
@@ -2222,6 +2766,7 @@ lower_memory(Fn *fn, const LirInstruction *instruction)
     if(instruction->op == LirOp_Load) {
         if(!operand_count(fn, instruction, 1, 1)) return;
         if(!value_scalar(fn, operands[0])) { WasmGap(fn->lower, "wasm.gap.load", "address is not a pointer value"); return; }
+        if(fn->view[instruction->result].kind >= 0) return;
         load_value(fn, (Addr){ADDR_LOCAL, (uint32_t)fn->value_local[operands[0]], 0}, instruction->result);
         return;
     }
@@ -2640,6 +3185,7 @@ lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int6
 {
     Lower *lower = fn->lower;
     fn->instruction = instruction;
+    if(value_valid(fn, instruction->result) && fn->elided[instruction->result]) return;
     const int32_t *operands = instruction->operands.data;
     const LirEdge *edges = instruction->edges.data;
     switch(instruction->op) {
@@ -3087,6 +3633,20 @@ lower_function(Lower *lower, int64_t index, Buf *output)
         if(aggregate[value] && rep[value] != value)
             fn.value_slot[value] = fn.value_slot[rep[value]];
     if(!plan_views(&fn, aggregate)) goto done;
+    if(!lower->program->checks && !plan_load_views(&fn, aggregate)) goto done;
+    plan_call_places(&fn, aggregate);
+    if(!plan_member_places(&fn, aggregate, rep)) goto done;
+    if(!plan_initial_stores(&fn)) goto done;
+    /* Borrowed loads, parameters and results need no stack reservation.
+     * Keep offsets stable, but discard unused trailing slots; a procedure
+     * whose aggregates all live elsewhere then needs no frame at all. */
+    fn.frame = 0;
+    for(int64_t value = 0; value < value_count; value++) {
+        if(!aggregate[value]) continue;
+        Addr place = addr_of_slot(&fn, (int32_t)value);
+        int64_t end = place.offset + type_size(lower, values[value]);
+        if(place.kind == ADDR_FRAME && end > fn.frame) fn.frame = end;
+    }
     for(int64_t value = 0; value < value_count; value++)
         fn.proven[value] = compiler_lowered_proven_LirProvenIndex(&lower->proven, index, (int32_t)value);
     int64_t at = 0;
@@ -3289,6 +3849,9 @@ done:
     free(fn.view);
     free(fn.view_root);
     free(fn.elided);
+    if(fn.omitted != NULL)
+        for(int64_t value = 0; value < value_count; value++) free(fn.omitted[value]);
+    free(fn.omitted);
     free(fn.proven);
     free(fn.alloca_slot);
     free(aggregate);

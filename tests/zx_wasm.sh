@@ -315,36 +315,8 @@ ZI
     "$zi2zx" --root "$work" --entry state:Main -o "$work/state.zx" "$work/state.zi"
     # A record that holds itself through a slice crosses both ways; one
     # that holds itself stops at the nesting bound.
-    cat >"$work/tree.zi" <<'ZI'
-host_api :: #system_library "host_api";
-Node :: struct {
-    value: s32
-    children: []Node
-}
-Grow :: (tree: Node) -> Node #foreign host_api;
-tree: Node;
-leaves: [2]Node;
-ring: [1]Node;
-#program_export
-Answer :: () -> s32 {
-    leaves[0].value = 2
-    leaves[1].value = 3
-    tree.value = 1
-    tree.children = leaves[:]
-    tree = Grow(tree)
-    if tree.value != 6 || tree.children.count != 2 { return 1 }
-    if tree.children[0].value != 100 || tree.children[1].children.count != 1 { return 2 }
-    return tree.children[1].children[0].value
-}
-#program_export
-Cycle :: () -> s32 {
-    ring[0].value = 1
-    ring[0].children = ring[:]
-    return Grow(ring[0]).value
-}
-ZI
-    "$ziran" bundle --root "$work" --entry tree:Answer -o "$work/tree.zx" "$work/tree.zi"
-    "$ziran" bundle --root "$work" --entry tree:Cycle -o "$work/cycle.zx" "$work/tree.zi"
+    "$ziran" bundle --root "$repo/tests/spec" --entry zx_wasm_host_views:Answer -o "$work/tree.zx" "$repo/tests/spec/zx_wasm_host_views.zi"
+    "$ziran" bundle --root "$repo/tests/spec" --entry zx_wasm_host_views:Cycle -o "$work/cycle.zx" "$repo/tests/spec/zx_wasm_host_views.zi"
     cat >"$work/tier.c" <<'C'
 #include "ziran_host.h"
 #include "zir_zx_wasm_platform.h"
@@ -403,6 +375,22 @@ static int call(void *context, const char *module, const char *function,
         result->kind = HOST_INTEGER; result->integer = 7;
     } else if(!strcmp(function, "AddHost")) {
         result->kind = HOST_INTEGER; result->integer = args[0].integer + 1000;
+    } else if(!strcmp(function, "InspectRows")) {
+        if(count != 2 || args[0].kind != HOST_SLICE || args[0].length != 2 ||
+           args[1].kind != HOST_SLICE || args[1].length != 2) return 0;
+        long long sum = 0;
+        const char *names[2] = {"left", "right"};
+        for(size_t at = 0; at < 2; at++) {
+            const HostValue *row = &args[0].elements[at];
+            if(row->kind != HOST_RECORD || row->field_count != 3) return 0;
+            const HostValue *name = &row->fields[0].value;
+            if(name->kind != HOST_STRING || name->length != strlen(names[at]) ||
+               memcmp(name->data, names[at], name->length)) return 0;
+            sum += row->fields[1].value.integer;
+        }
+        for(size_t at = 0; at < 2; at++)
+            args[1].elements[at].bits = (uint64_t)(args[1].elements[at].integer = 88 + (int64_t)at);
+        result->kind = HOST_INTEGER; result->integer = sum;
     } else if(!strcmp(function, "Grow")) {
         /* The given tree's sum over leaves 100 and 200, the second with a
          * leaf 7 of its own. */
@@ -468,9 +456,12 @@ static void scenario(const char *engine, BundleBackendPolicy policy,
     BundleInstanceClose(moved);
     BundleInstanceClose(beside);
     BundleInstanceClose(first);
-    HostBinding grow = {.module = "tree", .function = "Grow", .call = call};
-    BundleInstance *grown = BundleInstantiateWithOptions(tree, &grow, 1, &options);
-    BundleInstance *ring = BundleInstantiateWithOptions(cycle, &grow, 1, &options);
+    HostBinding forest[2] = {
+        {.module = "zx_wasm_host_views", .function = "Grow", .call = call},
+        {.module = "zx_wasm_host_views", .function = "InspectRows", .call = call},
+    };
+    BundleInstance *grown = BundleInstantiateWithOptions(tree, forest, 2, &options);
+    BundleInstance *ring = BundleInstantiateWithOptions(cycle, forest, 2, &options);
     long long spent = -1;
     int has = 0, cycled = ring != NULL && BundleInstanceRun(ring, &spent, &has);
     printf("%s tree %lld cycle %s\n", engine, run(grown), cycled ? "ran" : "failed");

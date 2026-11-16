@@ -185,7 +185,7 @@ build/assembly_scalar || status=$?
 test "$status" -eq 42
 SH
 
-objdump -d --adjust-vma=-0x400078 build/assembly_scalar \
+objdump -D -b binary -m i386:x86-64 --start-address=0x80 --adjust-vma=-0x80 build/assembly_scalar \
     > build/assembly_scalar.disasm
 ```
 
@@ -197,8 +197,10 @@ write inspection data to standard output; ELF output requires a file path.
 `--diagnostics=json` includes structured diagnostic codes.
 
 Maps report actual ELF file/text/data sizes, file offsets and virtual addresses
-in `image`. Scalar images retain the 120-byte text offset; global images use
-two program headers and a 176-byte text offset. Use the reported
+in `image`. An image with no writable state has one program header and a
+128-byte text offset; one with globals, fuel, traps or buffered output has
+two and a 176-byte text offset, and its data follows the text in the file,
+mapped one page higher. Use the reported
 `text_virtual_address` rather than the scalar example's fixed adjustment when
 disassembling another image. Reported addresses describe the linked AOT ELF,
 not an observed running process or a future relocatable/JIT code allocation.

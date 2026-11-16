@@ -9,12 +9,14 @@ using Bytes :: #import "compiler_x86_bytes"
 // so buffered output always reaches its descriptor first.
 //
 // Console: write_all(rdi = fd, rsi = bytes, rdx = count) and the integer and
-// bool formatters. Standard output collects in MachineX64RuntimeOutBytes of
-// buffer, written when it fills, when a terminal sees a newline (as C's line
-// buffering does; other descriptors get whole buffers), before any write to
-// another descriptor, and at exit, so the bytes and their order match direct
-// writes. Every write takes all its bytes, repeating after a partial write or
-// EINTR; a failed write exits with status 125.
+// bool formatters, each only when called. Buffered, standard output collects
+// in MachineX64RuntimeOutBytes of buffer, written when it fills, when a
+// terminal sees a newline (as C's line buffering does; other descriptors get
+// whole buffers), before any write to another descriptor, and at exit, so the
+// bytes and their order match direct writes. A program that writes once
+// writes directly, with no buffer and no terminal probe. Every write takes all
+// its bytes, repeating after a partial write or EINTR; a failed write exits
+// with status 125.
 //
 // Resize(rdi = data or null, rsi = old count, rdx = new count, rcx = element
 // size) -> rax: the new data, or null when freed or refused. A refused
@@ -49,7 +51,20 @@ MachineX64RuntimePlaces :: struct {
 
 MachineX64RuntimeUses :: struct {
     resize: bool
-    console: bool
+    // Exit, for the trap stub or to flush buffered output.
+    exit: bool
+    // The console entries called, and whether standard output is buffered.
+    write_all: bool
+    signed: bool
+    unsigned: bool
+    print_bool: bool
+    stdout_bytes: bool
+    buffered: bool
+}
+
+// Whether USES calls any console entry.
+MachineX64RuntimeConsole :: (uses: MachineX64RuntimeUses) -> bool {
+    return uses.write_all || uses.signed || uses.unsigned || uses.print_bool || uses.stdout_bytes
 }
 
 // Entry offsets of the emitted routines and the end of their code.
@@ -410,9 +425,11 @@ EmitExit :: (emitter: *Emitter, console: bool) {
     X86Undefined(writer)
 }
 
-EmitConsole :: (emitter: *Emitter) {
+EmitConsole :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
     writer := *emitter.writer
     // WriteLoop(rdi = fd, rsi = bytes, rdx = count): every byte, or exit.
+    // Unbuffered, write_all is this loop itself.
+    if !uses.buffered { Mark(emitter, .WriteAll) }
     Mark(emitter, .WriteLoop)
     X86Arithmetic(writer, X86Test, Rdx, Rdx)
     JumpIf(emitter, X86Equal, .WriteDone)
@@ -431,7 +448,23 @@ EmitConsole :: (emitter: *Emitter) {
     X86MoveImmediate32(writer, Rdi, 125)
     Syscall(writer, 231)
     X86Undefined(writer)
+    if uses.buffered { EmitBuffer(emitter, uses) } else if uses.signed || uses.unsigned || uses.print_bool || uses.stdout_bytes {
+        // stdout_bytes(rdi = bytes, rsi = count), then Stdout(rsi, rdx = count).
+        if uses.stdout_bytes {
+            Mark(emitter, .StdoutBytes)
+            X86Move(writer, Rdx, Rsi)
+            X86Move(writer, Rsi, Rdi)
+        }
+        Mark(emitter, .Stdout)
+        X86MoveImmediate32(writer, Rdi, 1)
+        Jump(emitter, .WriteLoop)
+    }
+    EmitFormatters(emitter, uses)
+}
 
+// Buffered standard output: Flush, write_all, stdout_bytes and Stdout.
+EmitBuffer :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
+    writer := *emitter.writer
     // Flush: the buffered bytes go out and the buffer empties.
     Mark(emitter, .Flush)
     X86Load(writer, Rdx, OutLength(emitter), 8, false)
@@ -444,18 +477,22 @@ EmitConsole :: (emitter: *Emitter) {
     Jump(emitter, .WriteLoop)
 
     // write_all: another descriptor first takes what standard output holds.
-    Mark(emitter, .WriteAll)
-    X86CompareImmediate(writer, Rdi, 1)
-    JumpIf(emitter, X86Equal, .Stdout)
-    X86Push(writer, Rdi); X86Push(writer, Rsi); X86Push(writer, Rdx)
-    Call(emitter, .Flush)
-    Pop(writer, Rdx); Pop(writer, Rsi); Pop(writer, Rdi)
-    Jump(emitter, .WriteLoop)
+    if uses.write_all {
+        Mark(emitter, .WriteAll)
+        X86CompareImmediate(writer, Rdi, 1)
+        JumpIf(emitter, X86Equal, .Stdout)
+        X86Push(writer, Rdi); X86Push(writer, Rsi); X86Push(writer, Rdx)
+        Call(emitter, .Flush)
+        Pop(writer, Rdx); Pop(writer, Rsi); Pop(writer, Rdi)
+        Jump(emitter, .WriteLoop)
+    }
 
     // stdout_bytes(rdi = bytes, rsi = count), then Stdout(rsi, rdx = count).
-    Mark(emitter, .StdoutBytes)
-    X86Move(writer, Rdx, Rsi)
-    X86Move(writer, Rsi, Rdi)
+    if uses.stdout_bytes {
+        Mark(emitter, .StdoutBytes)
+        X86Move(writer, Rdx, Rsi)
+        X86Move(writer, Rsi, Rdi)
+    }
     Mark(emitter, .Stdout)
     // The first write learns whether standard output is a terminal.
     CompareByteAt(writer, OutMode(emitter), 0)
@@ -521,18 +558,45 @@ EmitConsole :: (emitter: *Emitter) {
     X86Byte(writer, 242); X86Byte(writer, 174)
     JumpIf(emitter, X86NotEqual, .WriteDone)
     Jump(emitter, .Flush)
+}
 
+// The integer and bool formatters the program calls.
+EmitFormatters :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
+    writer := *emitter.writer
     // Signed and unsigned integers in decimal, digits by a reciprocal
-    // multiply, written as one fragment.
-    Mark(emitter, .Signed)
-    Clear(writer, R9)
-    X86Arithmetic(writer, X86Test, Rdi, Rdi)
-    JumpIf(emitter, X86NotSign, .Format)
-    X86Group3(writer, 3, Rdi)
-    X86MoveImmediate32(writer, R9, 1)
-    Jump(emitter, .Format)
-    Mark(emitter, .Unsigned)
-    Clear(writer, R9)
+    // multiply, written as one fragment; r9 says whether to add a sign.
+    if uses.signed {
+        Mark(emitter, .Signed)
+        Clear(writer, R9)
+        X86Arithmetic(writer, X86Test, Rdi, Rdi)
+        JumpIf(emitter, X86NotSign, .Format)
+        X86Group3(writer, 3, Rdi)
+        X86MoveImmediate32(writer, R9, 1)
+        if uses.unsigned { Jump(emitter, .Format) }
+    }
+    if uses.unsigned {
+        Mark(emitter, .Unsigned)
+        Clear(writer, R9)
+    }
+    if uses.signed || uses.unsigned { EmitFormat(emitter) }
+    if uses.print_bool {
+        Mark(emitter, .Bool)
+        X86Lea(writer, Rsi, X86RipTarget(At(emitter, .True)))
+        X86MoveImmediate32(writer, Rdx, 4)
+        X86Encode(writer, 0, false, 132, 1, Rdi, X86Direct(Rdi), reg_byte = true, rm_byte = true)
+        JumpIf(emitter, X86NotEqual, .Stdout)
+        X86Lea(writer, Rsi, X86RipTarget(At(emitter, .True) + 4))
+        X86MoveImmediate32(writer, Rdx, 5)
+        Jump(emitter, .Stdout)
+        Mark(emitter, .True)
+        text := "truefalse"
+        for index: cast(s64)0..text.count - 1 { X86Byte(writer, cast(u8)text[index]) }
+    }
+}
+
+// Format(rdi = magnitude, r9 = negative): the digits, then one Stdout write.
+EmitFormat :: (emitter: *Emitter) {
+    writer := *emitter.writer
     Mark(emitter, .Format)
     X86SubtractStack(writer, 40)
     X86Lea(writer, Rsi, X86At(X86Rsp, 32))
@@ -563,23 +627,11 @@ EmitConsole :: (emitter: *Emitter) {
     X86Encode(writer, 0, true, 131, 1, 0, X86Direct(X86Rsp), trailing = 1)
     X86Byte(writer, 40)
     X86Return(writer)
-
-    Mark(emitter, .Bool)
-    X86Lea(writer, Rsi, X86RipTarget(At(emitter, .True)))
-    X86MoveImmediate32(writer, Rdx, 4)
-    X86Encode(writer, 0, false, 132, 1, Rdi, X86Direct(Rdi), reg_byte = true, rm_byte = true)
-    JumpIf(emitter, X86NotEqual, .Stdout)
-    X86Lea(writer, Rsi, X86RipTarget(At(emitter, .True) + 4))
-    X86MoveImmediate32(writer, Rdx, 5)
-    Jump(emitter, .Stdout)
-    Mark(emitter, .True)
-    text := "truefalse"
-    for index: cast(s64)0..text.count - 1 { X86Byte(writer, cast(u8)text[index]) }
 }
 
 Emit :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
-    EmitExit(emitter, uses.console)
-    if uses.console { EmitConsole(emitter) }
+    if uses.exit { EmitExit(emitter, uses.buffered) }
+    if MachineX64RuntimeConsole(uses) { EmitConsole(emitter, uses) }
     if uses.resize { EmitResize(emitter) }
 }
 

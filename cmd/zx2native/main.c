@@ -266,8 +266,6 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
     }
     MachineProgram machine = owner->machine.program;
     MachineX64Image encoded = owner->encoded.image;
-    /* Text-relative coordinates start after the process entry stub. */
-    int64_t startup = compiler_machine_elf_MachineElfStartupBytes(machine);
     MachineElfResult image = compiler_machine_elf_MachineElfEncode(machine, encoded, (Slice){0},
         INT64_MAX);
     if(image.diagnostic.problem != MachineProblem_None) {
@@ -275,6 +273,8 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
             image.diagnostic.problem);
         return 0;
     }
+    /* Text-relative coordinates start after the process entry stub. */
+    int64_t startup = image.startup_size;
     if(bytes == NULL || size != image.size || machine.functions.length != encoded.functions.length ||
        machine.blocks.length != encoded.blocks.length || machine.instructions.length != encoded.instructions.length) {
         Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native map image does not match the encoded file size");
@@ -414,7 +414,7 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
         (long long)image.size, (long long)image.text_offset,
         (unsigned long long)(MachineElfBase + image.text_offset),
         (long long)image.text_size, (long long)image.data_offset,
-        (unsigned long long)(MachineElfBase + image.data_offset),
+        (unsigned long long)(image.data_address ? MachineElfBase + image.data_address : 0),
         (long long)image.data_size);
     if(filtered) {
         fprintf(stream, "{\"function_id\":%lld,\"block_id\":%lld,\"begin\":%lld,\"end\":%lld}",

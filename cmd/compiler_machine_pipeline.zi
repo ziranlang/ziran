@@ -211,7 +211,9 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     output: *MachineNativeOwner, emit_elf: bool, fuel: s64) -> MachineDiagnostic {
     if output == null { return Problem(.Owner) }
     built: MachineNativeOwner
-    lowered := MachineLower(*built.machine, lir, target, MachineDefaultOptions(), limits)
+    options := MachineDefaultOptions()
+    options.fuel = !emit_elf || fuel != MachineElfInitialFuel
+    lowered := MachineLower(*built.machine, lir, target, options, limits)
     if lowered.problem != .None {
         diagnostic := LowerDiagnostic(lowered)
         MachineNativeFree(*built)

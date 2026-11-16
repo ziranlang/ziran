@@ -901,7 +901,13 @@ Spills :: (state: *State, program: MachineProgram, limits: MachineLimits) -> boo
 // Fuel checks are charged on every cycle of the control-flow graph and on
 // entry to every function that a call can reach, before any call in that
 // entry block. This is the native form of the portable fuel checkpoints.
+// A program built without fuel (an unbounded executable) has neither checks
+// nor counter references.
 FuelPlacement :: (state: *State, program: MachineProgram, limits: MachineLimits) -> bool {
+    fueled := false
+    for relocation: program.relocations { if relocation.kind == .FuelCounter { fueled = true; break } }
+    for instruction: program.instructions { if fueled { break }; fueled = instruction.opcode == .Fuel }
+    if !fueled { return true }
     counters: Vec(u8)
     defer VecFree(counters)
     entry_fuel: Vec(u8)

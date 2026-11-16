@@ -103,7 +103,7 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
     if !NativeAssert(test, (segments == 1 || segments == 2) && binary.count >= 64 + cast(s64)segments * 56 &&
         text_offset >= 64 + cast(s64)segments * 56 && ElfWord(binary, 64, 4) == 1 && ElfWord(binary, 68, 4) == 5 &&
         ElfWord(binary, 72, 8) == 0 && ElfWord(binary, 112, 8) > 0 &&
-        cast(u64)text_offset % ElfWord(binary, 112, 8) == 0 &&
+        ElfWord(binary, 112, 8) == 4096 && text_offset % 16 == 0 &&
         text_address == cast(s64)ElfWord(binary, 80, 8) + text_offset &&
         CheckField(*document, image, "kind") == "aot-elf" && CheckField(*document, image, "address_space") == "elf-virtual" &&
         CheckInteger(*document, image, "file_size") == binary.count &&
@@ -115,7 +115,7 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
         return NativeAssert(test, ElfWord(binary, 120, 4) == 1 && ElfWord(binary, 124, 4) == 6 &&
             CheckInteger(*document, image, "data_file_offset") == cast(s64)ElfWord(binary, 128, 8) &&
             CheckInteger(*document, image, "data_virtual_address") == cast(s64)ElfWord(binary, 136, 8) &&
-            data_size > 0 && data_size == cast(s64)ElfWord(binary, 152, 8),
+            data_size == cast(s64)ElfWord(binary, 152, 8) && ElfWord(binary, 160, 8) > 0,
             "global images must have a separate nonexecutable RW data extent")
     }
     return NativeAssert(test, data_size == 0 && CheckInteger(*document, image, "data_file_offset") == 0 &&

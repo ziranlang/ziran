@@ -2503,8 +2503,9 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
 
 #scope_export
 
-// Whether FUNCTION's prologue checks the stack limit: it calls, or its frame
-// is larger than the slack the limit leaves.
+// Whether FUNCTION's prologue checks the stack limit: it calls Ziran code (or
+// the host, which may call back), or its frame is larger than the slack the
+// limit leaves.
 MachineX64StackChecked :: (program: MachineProgram, function_id: s32) -> bool {
     if function_id < 0 || function_id >= program.functions.count { return false }
     function := program.functions[function_id]
@@ -2513,8 +2514,11 @@ MachineX64StackChecked :: (program: MachineProgram, function_id: s32) -> bool {
     for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
         block := program.blocks[block_id]
         for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
-            opcode := program.instructions[instruction_id].opcode
-            if opcode == .CallDirect || opcode == .CallIndirect { return true }
+            // A runtime service never calls back, so it cannot recurse.
+            instruction := program.instructions[instruction_id]
+            if instruction.opcode == .CallIndirect { return true }
+            if instruction.opcode == .CallDirect && (instruction.call < 0 || instruction.call >= program.calls.count ||
+                program.calls[instruction.call].calling != .Platform) { return true }
         }
     }
     return false

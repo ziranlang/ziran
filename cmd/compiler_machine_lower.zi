@@ -1318,7 +1318,7 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Call || source.op == .CallIndirect || source.op == .HostCall {
         return LowerCall(state, function, source)
     }
-    if source.op == .Fuel { return LowerControl(state, function, source, .Fuel) }
+    if source.op == .Fuel { return !state.options.fuel || LowerControl(state, function, source, .Fuel) }
     if source.op == .Trap { return LowerControl(state, function, source, .Trap) }
     if source.op == .Jump { return LowerControl(state, function, source, .Jump) }
     if source.op == .Branch { return LowerControl(state, function, source, .Branch) }
@@ -1353,7 +1353,7 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.select.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
-    function.fuel_register = MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
+    function.fuel_register = state.options.fuel && MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
     if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) { return false }
     // A function that allocates keeps the frame arena's top at entry and
     // the head of its pointer chain in two frame words. Each `allocate` gets

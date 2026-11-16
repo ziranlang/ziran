@@ -456,6 +456,42 @@ Remaining per kernel after that, from objdump of the current build:
   forwarding blocks the layout puts out of order, and outer-loop copy moves
   that tie hints would remove.
 
+## Hello and compile time (2026-11-16, Omega)
+
+Target: native hello in about 8-12 instructions and a few hundred bytes,
+carrying no runtime it does not reach. Before: 8,352 bytes, 213
+instructions in 814 bytes of text, two page-aligned LOADs with 300 MB of
+RW memory. Main had a stack check, a fuel check and a full checked
+resolve of the constant string. Write_all went through the buffered path
+(TCGETS probe, 8 KB copy, newline scan, flush), and the integer and bool
+formatters were carried unused. The retained hello size test (text under
+200 bytes) went away with the old direct backend in 931fed4c, so nothing
+caught the regression.
+
+Landed: the ELF writer emits each data piece, the trap stub and each
+console routine only when referenced. An unbounded executable (the
+default) has no fuel checks, and only functions that call Ziran code or
+the host check the stack. A program whose one console call runs once (in
+an acyclic entry nothing else calls) writes directly. Text follows the
+headers, data follows the text a page higher, and an image with nothing
+writable has one LOAD. Hello: 576 bytes. machine_elf.sh now fails above
+640 bytes or with the bool formatter present.
+
+Left for hello, after the manual-safety switch lands: the checked resolve
+of the string (about 20 instructions, the pointer runtime, the RW segment
+and the trap stub) becomes one lea, leaving _start (4) + main (8) + the
+write loop with its partial-write, EINTR and failure handling (13).
+Then frame omission for frameless functions and a tail jump to the write
+(main to 4 instructions), and tighten the retained bound to about 300
+bytes.
+
+Compile time: MachineVerify's FuelFacts and CallsAndRelocations, the
+allocated verifier's call check and x86 BuildMachineImage's ImageOperand
+each rescanned every relocation per instruction, call or reference. Now
+one pass each: the 28.7 MB unicode_conformance bundle compiles natively
+in 7.4 s instead of 81 s. AArch64 and ARMv7 ImageOperand still have the
+quadratic loop; reported to their lanes.
+
 ## Status: fix 2 for Vectors (2026-11-15, Omega)
 
 Implemented in the new `cmd/compiler_x86_runtime.zi` (the ELF's runtime

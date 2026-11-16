@@ -326,6 +326,9 @@ MachineDiagnostic :: struct {
 
 MachineOptions :: struct {
     preserve_origins: bool
+    // Whether code charges fuel; an AOT executable with an unbounded budget
+    // never runs out, so it carries no fuel checks.
+    fuel: bool
 }
 
 MachineResult :: struct {
@@ -376,7 +379,7 @@ MachineDefaultLimits :: () -> MachineLimits {
 }
 
 MachineDefaultOptions :: () -> MachineOptions {
-    return .{preserve_origins = true}
+    return .{preserve_origins = true, fuel = true}
 }
 
 // PROGRAM's relocations by instruction: the first of each instruction's, and

@@ -31,6 +31,13 @@ Equal :: (left: []u8, right: []u8) -> bool {
     return true
 }
 
+// A finite budget, so the fixture keeps its fuel check: an unbounded one, the
+// default, builds without fuel.
+TestFuel :: 1000000
+
+// How far the data segment maps above its file offset.
+DataShift :: (layout: Elf.MachineElfResult) -> s64 { return layout.data_address - layout.data_offset }
+
 Instruction :: (op: Lir.LirOp, result: s32 = -1) -> Lir.LirInstruction {
     return .{op = op, result = result, symbol = -1, origin = -1}
 }
@@ -83,7 +90,7 @@ BuildTarget :: (owner: *Pipeline.MachineNativeOwner, target: Target.TargetDescri
     program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
         constants = constants[:], globals = globals[:], initializers = initializers,
         functions = functions[:], entry = 1}
-    return Pipeline.MachineNativeBuild(program, target, limits, owner)
+    return Pipeline.MachineNativeBuild(program, target, limits, owner, TestFuel)
 }
 
 StartupInitializers :: () -> bool {
@@ -96,15 +103,13 @@ StartupInitializers :: () -> bool {
     bytes := Pipeline.MachineNativeView(*owner)
     empty: [0]u8
     layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
-    initializer_target := cast(s64)(0x400000 + layout.text_offset + Elf.MachineElfStartupSize + 5 +
+    initializer_target := cast(s64)(0x400000 + layout.text_offset + layout.startup_size +
         owner.encoded.image.functions[0].begin)
-    // _start first sets the stack limit (mov rax, rsp; sub rax, imm32;
-    // mov [rip + limit], rax), then calls the initializer.
-    field := cast(s64)(0x400000 + layout.text_offset + 17)
-    result := Check(bytes[layout.text_offset] == 0x48 && bytes[layout.text_offset + 1] == 0x89 &&
-        bytes[layout.text_offset + 2] == 0xe0 && bytes[layout.text_offset + 4] == 0x2d &&
-        bytes[layout.text_offset + 16] == 0xe8 &&
-        Signed32(bytes, layout.text_offset + 17) == initializer_target - 4 - field,
+    // No function checks its stack, so _start sets no limit and first calls
+    // the initializer, then the entry.
+    field := cast(s64)(0x400000 + layout.text_offset + 1)
+    result := Check(bytes[layout.text_offset] == 0xe8 && bytes[layout.text_offset + 5] == 0xe8 &&
+        Signed32(bytes, layout.text_offset + 1) == initializer_target - 4 - field,
         "startup calls the initializer before entry")
     image := Pipeline.MachineCodeImageView(*owner)
     result = result && Check(image.initializers.count == 1 && image.initializers[0] == 0,
@@ -167,11 +172,16 @@ Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
         machine_image.code.bytes.count == owner.encoded.image.code.count &&
         machine_image.global_offsets.count == owner.machine.program.globals.count,
         "pipeline publishes the target-neutral machine image") { return false }
-    if !Check(bytes.count > 8192, "image has headers, text and data") ||
+    empty: [0]u8
+    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    if !Check(measured.diagnostic.problem == .None && measured.size == bytes.count,
+        "measure matches published write") { return false }
+    if !Check(bytes.count == measured.data_offset + measured.data_size && measured.text_offset == 176 &&
+            measured.data_offset >= measured.text_offset + measured.text_size, "headers, text, then data, unpadded") ||
         !Check(Little(bytes, 0, 4) == 0x464c457f, "ELF magic") ||
         !Check(bytes[4] == 2 && bytes[5] == 1 && bytes[6] == 1, "ELF64 little-endian identity") ||
         !Check(Little(bytes, 16, 2) == 2 && Little(bytes, 18, 2) == 62, "ET_EXEC x86-64") ||
-        !Check(Little(bytes, 24, 8) == 0x401000, "fixed process entry") ||
+        !Check(Little(bytes, 24, 8) == cast(u64)(0x400000 + measured.text_offset), "process entry starts the text") ||
         !Check(Little(bytes, 32, 8) == 64 && Little(bytes, 54, 2) == 56 &&
             Little(bytes, 56, 2) == 2, "exact program header table") ||
         !Check(Little(bytes, 64, 4) == 1 && Little(bytes, 68, 4) == 5 &&
@@ -180,21 +190,16 @@ Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
             Little(bytes, 120 + 48, 8) == 4096, "RW non-executable load segment") {
         return false
     }
-    empty: [0]u8
-    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
-    if !Check(measured.diagnostic.problem == .None && measured.size == bytes.count,
-        "measure matches published write") ||
-        !Check(Little(bytes, 120 + 8, 8) == cast(u64)measured.data_offset &&
-            Little(bytes, 120 + 16, 8) == cast(u64)(0x400000 + measured.data_offset),
-            "data file and virtual offsets") ||
-        !Check(Little(bytes, measured.fuel_offset, 8) == Elf.MachineElfInitialFuel,
-            "deterministic initial fuel") ||
-        !Check(Little(bytes, measured.trap_status_offset, 4) == 0, "clear trap status") {
+    if !Check(Little(bytes, 120 + 8, 8) == cast(u64)measured.data_offset &&
+            Little(bytes, 120 + 16, 8) == cast(u64)(0x400000 + measured.data_address) &&
+            DataShift(measured) == 4096, "data maps one page above its file offset") ||
+        !Check(Little(bytes, measured.fuel_offset, 8) == TestFuel, "deterministic initial fuel") ||
+        !Check(measured.trap_status_offset >= measured.data_offset + measured.data_size, "trap status is zero fill") {
         return false
     }
     storage: [16384]u8
     written := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image,
-        storage[0:measured.size])
+        storage[0:measured.size], TestFuel)
     return Check(written.diagnostic.problem == .None && written.size == measured.size &&
         Equal(bytes, storage[0:measured.size]), "exact repeated measure/write bytes")
 }
@@ -212,16 +217,15 @@ Relocations :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     saw_global := false; saw_fuel := false; saw_trap := false
     for relocation: owner.encoded.image.relocations {
         target: s64 = 0
-        if relocation.kind == .PointerRuntime { target = 0x400000 + layout.pointer_offset; saw_global = true }
-        else if relocation.kind == .GlobalAddress { target = 0x400000 + layout.data_offset; saw_global = true }
-        else if relocation.kind == .FuelCounter { target = 0x400000 + layout.fuel_offset; saw_fuel = true }
+        shift := DataShift(layout)
+        if relocation.kind == .PointerRuntime { target = 0x400000 + layout.pointer_offset + shift; saw_global = true }
+        else if relocation.kind == .GlobalAddress { target = 0x400000 + layout.data_address; saw_global = true }
+        else if relocation.kind == .FuelCounter { target = 0x400000 + layout.fuel_offset + shift; saw_fuel = true }
         else if relocation.kind == .TrapHandler {
-            target = 0x400000 + layout.text_offset + Elf.MachineElfStartupSize +
-                owner.encoded.image.code.count
+            target = 0x400000 + layout.text_offset + layout.startup_size + owner.encoded.image.code.count
             saw_trap = true
         } else { return Check(false, "unsupported relocation escaped") }
-        field_file := layout.text_offset + Elf.MachineElfStartupSize +
-            owner.machine.program.initializers.count * 5 + relocation.offset
+        field_file := layout.text_offset + layout.startup_size + relocation.offset
         field_virtual := 0x400000 + field_file
         if !Check(Signed32(bytes, field_file) == target + relocation.addend - field_virtual,
             "checked PC-relative relocation value") { return false }
@@ -282,10 +286,14 @@ Preservation :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     after = Pipeline.MachineNativeView(owner)
     empty: [0]u8
     measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
-    // The read-only global's pointer slot is live and not writable, so a
-    // store through it traps.
-    table := cast(s64)Little(after, measured.pointer_offset + Image.MachinePointerHeaderTable, 8) - 0x400000
-    flags := Little(after, table + Image.MachinePointerEntryBytes + Image.MachinePointerEntryFlags, 2)
+    // When the program resolves pointers at all, the read-only global's
+    // pointer slot is live and not writable, so a store through it traps.
+    flags: u64 = Image.MachinePointerLive
+    if measured.pointer_offset >= 0 {
+        table := cast(s64)Little(after, measured.pointer_offset + Image.MachinePointerHeaderTable, 8) - 0x400000 -
+            DataShift(measured)
+        flags = Little(after, table + Image.MachinePointerEntryBytes + Image.MachinePointerEntryFlags, 2)
+    }
     if !Check(measured.diagnostic.problem == .None && !owner.machine.program.globals[0].writable &&
         flags == Image.MachinePointerLive, "read-only global has a read-only pointer slot") { return false }
     machine_image := Pipeline.MachineCodeImageView(owner)
@@ -304,7 +312,7 @@ Fingerprint :: (bytes: []u8) -> u64 {
 
 TransactionalView :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     before := Pipeline.MachineNativeView(owner)
-    if !Check(before.count > 8192, "transaction starts with a nonempty native view") { return false }
+    if !Check(before.count > 0, "transaction starts with a nonempty native view") { return false }
     before_count := before.count
     before_fingerprint := Fingerprint(before)
     if !Check(Build(owner).problem == .None, "successful transactional replacement") { return false }

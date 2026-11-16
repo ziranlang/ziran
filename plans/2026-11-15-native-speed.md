@@ -501,6 +501,16 @@ both in compiler_regalloc.zi:
 Tightening the hint check alone would let two intervals hold one register
 and break spilling and splitting.
 
+Landed (b): Coalesce merges a block parameter into the parameter an edge
+copies it into when neither is live where the other is defined, sharing
+one root interval. Sieve's composite path is now `jne` straight to the
+increment block: 31 -> 24 us at load 13-16, Records 18 -> 15 with layout,
+Hash and Vectors unchanged. A merged interval that gets split can leave a
+slot holding the other value (Vectors' allocation tripped the allocated
+verifier), so RegAllocAllocate allocates once more without coalescing
+whenever the verifier rejects the result. Spill and split handling for
+merged roots is still to do, so that the retry is never needed.
+
 Loop rotation, the SSA pass: a new module, cmd/compiler_opt_rotate.zi,
 with its own tests, run in the shared LIR optimizer before native and
 Wasm lowering. For a loop header H whose only work is a compare and branch

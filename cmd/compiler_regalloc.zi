@@ -83,6 +83,8 @@ CopyMove :: struct {
 PendingEdge :: struct { block: s32; edge: s32; out_block: s32 }
 
 Alloc :: struct {
+    // Merge copy-related block parameters (see Coalesce).
+    coalesce: bool
     input: MachineProgram
     target: TargetDescription
     limits: MachineLimits
@@ -850,13 +852,69 @@ Occur :: (state: *Alloc, value: s32, position: s32, required: bool, fill: bool) 
     return true
 }
 
+// Whether LOCAL is live into BLOCK.
+LiveInto :: (state: *Alloc, block: s32, local: s32) -> bool {
+    word := cast(s64)block * state.words + cast(s64)(local / 64)
+    return ((state.live_in[word] >> cast(u64)(local % 64)) & 1) != 0
+}
+
+// Copy coalescing: a block parameter whose value an edge copies into another
+// block's parameter shares that parameter's interval when neither is live
+// where the other is defined. They are SSA values, so they never hold
+// different values at once, and the copies between them cost nothing. A loop
+// counter passed around unchanged keeps one register. Each value joins at
+// most one pair; fixed, incoming and differently classed values stay apart.
+// Fills JOINED with each absorbed local's partner, or MachineNoId.
+Coalesce :: (state: *Alloc, joined: *Vec(s32)) -> bool {
+    program := state.input
+    function := state.function
+    if !VecResizeBounded(<<joined, cast(s64)function.virtual_count, state.limits.bytes) { return Fail(state, .Allocation) }
+    taken: Vec(bool)
+    defer VecFree(taken)
+    if !VecResizeBounded(taken, cast(s64)function.virtual_count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for local: 0..function.virtual_count - 1 { (<<joined)[local] = MachineNoId; taken[local] = false }
+    if !state.coalesce { return true }
+    for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+        block := program.blocks[block_id]
+        if block.instruction_count == 0 { continue }
+        terminator := program.instructions[block.instruction_begin + block.instruction_count - 1]
+        for edge_id: terminator.edge_begin..terminator.edge_begin + terminator.edge_count - 1 {
+            if !Spend(state, 1) { return false }
+            edge := program.edges[edge_id]
+            for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
+                copy := program.copies[copy_id]
+                source := Local(state, copy.source)
+                destination := Local(state, copy.destination)
+                if source == destination || taken[source] || taken[destination] { continue }
+                source_block := state.param_block[source]
+                destination_block := state.param_block[destination]
+                if source_block == MachineNoId || destination_block == MachineNoId { continue }
+                from := program.virtuals[copy.source]
+                into := program.virtuals[copy.destination]
+                if !RegisterClass(from.class) || from.class != into.class || from.fixed_register != MachineNoId ||
+                    into.fixed_register != MachineNoId || source < function.parameter_count ||
+                    destination < function.parameter_count || state.def_item[source] == MachineNoId ||
+                    state.def_item[destination] == MachineNoId { continue }
+                if LiveInto(state, source_block, destination) || LiveInto(state, destination_block, source) { continue }
+                (<<joined)[source] = copy.destination
+                taken[source] = true
+                taken[destination] = true
+            }
+        }
+    }
+    return true
+}
+
 BuildIntervals :: (state: *Alloc) -> bool {
     program := state.input
     function := state.function
+    joined: Vec(s32)
+    defer VecFree(joined)
+    if !Coalesce(state, *joined) { return false }
     for local: 0..function.virtual_count - 1 {
         value_id := function.virtual_begin + local
         value := program.virtuals[value_id]
-        if !RegisterClass(value.class) { continue }
+        if !RegisterClass(value.class) || joined[local] != MachineNoId { continue }
         definition := state.def_item[local]
         if definition == MachineNoId {
             if state.used[local] != 0 { return Fail(state, .Undefined, virtual = value_id) }
@@ -870,6 +928,9 @@ BuildIntervals :: (state: *Alloc) -> bool {
             state.intervals[root].incoming = true
             state.intervals[root].slot = MapStack(state, value.stack_object)
         }
+    }
+    for local: 0..function.virtual_count - 1 {
+        if joined[local] != MachineNoId { state.root_of[local] = state.root_of[Local(state, joined[local])] }
     }
     if !Occurrences(state, false) { return false }
     for local_block: 0..function.block_count - 1 {
@@ -2286,8 +2347,19 @@ RegAllocAllocate :: (owner: *MachineOwner, target: TargetDescription, limits: Ma
     if input.problem != .None { return input }
     fuel := MachineVerifyFuel(program, limits)
     if fuel.problem != .None { return fuel }
+    // Coalesced allocations are checked by the allocated verifier like any
+    // other; a program it rejects (a merged interval split where the merge
+    // does not hold) is allocated again without coalescing.
+    diagnostic = Attempt(owner, program, target, limits, true)
+    if diagnostic.problem != .None { diagnostic = Attempt(owner, program, target, limits, false) }
+    return diagnostic
+}
+
+// One verified allocation of PROGRAM, published into OWNER only on success.
+Attempt :: (owner: *MachineOwner, program: MachineProgram, target: TargetDescription, limits: MachineLimits,
+    coalesce: bool) -> MachineDiagnostic {
     built: MachineOwner
-    state := Alloc.{input = program, target = target, limits = limits, out = *built,
+    state := Alloc.{input = program, target = target, limits = limits, out = *built, coalesce = coalesce,
         diagnostic = NoDiagnostic(), remaining = limits.work, function_id = MachineNoId, origin = MachineNoId}
     if !Run(*state) {
         FreeScratch(*state)
@@ -2306,5 +2378,5 @@ RegAllocAllocate :: (owner: *MachineOwner, target: TargetDescription, limits: Ma
     Exchange(owner, *built)
     Publish(owner, target, program.entry, state.scratch[0], state.scratch[1], program.checks, program.executable)
     Release(*built)
-    return diagnostic
+    return NoDiagnostic()
 }

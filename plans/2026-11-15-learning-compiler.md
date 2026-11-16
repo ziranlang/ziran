@@ -49,7 +49,22 @@ replacement for that plan. Always re-read the newest receipt before comparing.
 Recording already exists: `ziran learn on|off|status` (`cmd/package_learn.zi`,
 documented in `docs/ZX.md`), on by default, deduplicated by SHA-256 and capped.
 Benchmarks run through `bench/bench.zi`, which sets `ZIRAN_LEARN=off`; every new
-recording hook must keep honoring that switch.
+recording hook must keep honoring that switch. Records are filed per ZX format
+(`zx<R>-lir<S>/`) and each carries a `.record.json` naming the exact compiler
+(SHA-256 of `zx2native` and `zi2zx`), source, entry and time, so compiler
+upgrades and ZX revisions never mix: step 2 and later read only the current
+format and group machine code by compiler. A ZX revision bump leaves older
+folders unreadable to the new tools; their `source` lets a program be rebuilt.
+
+The ZX byte format is fully specified (`ASSEMBLY/zx-executable-format.md` for
+the container, `ASSEMBLY/lowered-format.md` for the instruction payload), but
+the meaning of each instruction is not: 25 of the 46 `LirOp` opcodes are named
+nowhere in the docs, and `execution-contract.md` covers them only by category.
+A per-opcode reference (operands, types, traps, effects) is what step 2's
+equivalence checking needs as its written ground truth.
+
+The owner's `ziran` must be reinstalled (`make install-user`) whenever the
+recorder changes; the 14:44 install on 2026-11-15 had no `learn` at all.
 
 ### 1. Record more of real use
 
@@ -72,6 +87,25 @@ tested on random inputs, then checked with the proof kernel
 (`cmd/compiler_proof_kernel.zi`) or differential tests. Accepted windows become
 a report of proposed rewrite rules for review, never automatic compiler edits.
 It runs only when started, through build-queue.
+
+Owner, 2026-11-16: "maybe even make proper mathematical proofs that allow us to
+self write improvement eventually when we have a way to verify result pixel by
+pixel mechanic by mechanic". The acceptance ladder, strongest first:
+
+- Proven rewrite rules: a window and its replacement are equal for every input,
+  proved by `cmd/compiler_proof_kernel.zi` (itself checked in `proofs/*.lean`).
+  A proven rule may enter the compiler without review of its logic; only its
+  speed still needs an Alpha receipt. This is the self-improving loop.
+- Learned decisions (inline, unroll, spill): every option is legal and the
+  verifier checks the result, so a policy can only change speed.
+- Whole-program replay for what cannot be proved: run the old and new build of
+  a real program with recorded input, fixed seeds and fixed time, and compare
+  every frame's pixels and every step's state. Equality on those inputs, not a
+  proof; it needs deterministic replay and Kryon off-screen frame capture.
+
+Proofs scale to rules, blocks and single functions, not to the whole compiler;
+per-program translation validation (`cmd/compiler_machine_verify_allocated.zi`
+is a first step) is the route past that. The model never has the final say.
 
 ### 3. Learned cost model
 

@@ -381,13 +381,13 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if wasm_build || native_build {
         output: string = ""
         output_index: s32 = -1
+        source: string = ""
         index = 0
         while index + 1 < count {
             if child[index] == "-o" { output = child[index + 1]; output_index = index + 1 }
             index += 1
         }
         if native_build {
-            source: string = ""
             for part: arguments {
                 if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") { source = part }
             }
@@ -442,7 +442,13 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
                 "--platform", "linux", "--emit", "elf", "-o", output, verified]
             code = PkgRun(native[:], "", names[0:environment], values[0:environment])
             if code == 0 {
-                LearnRecord(tool_directory, verified, output, PkgHostNativeTarget,
+                learn_entry := ""
+                index = 0
+                while index + 1 < count {
+                    if child[index] == "--entry" { learn_entry = child[index + 1] }
+                    index += 1
+                }
+                LearnRecord(tool_directory, verified, output, PkgHostNativeTarget, source, learn_entry,
                     names[0:environment], values[0:environment])
             }
         }

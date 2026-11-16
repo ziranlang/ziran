@@ -482,7 +482,8 @@ PACKAGE_SOURCES := cmd/package_artifact.zi cmd/package.zi cmd/package_entry.zi c
     cmd/package_capabilities.zi cmd/package_features.zi cmd/package_explain.zi cmd/package_learn.zi cmd/package_common.zi cmd/compiler_target.zi \
     cmd/package_manifest.zi cmd/package_source.zi cmd/package_lock.zi cmd/package_map.zi cmd/package_options.zi cmd/package_compile_commands.zi cmd/package_template.zi \
     std/byte_text_linux.zi std/c_string.zi std/file_linux.zi std/number_text.zi \
-    std/json_scan.zi std/toml_document.zi std/utf8.zi std/text.zi std/vec.zi VERSION
+    std/json_scan.zi std/json_quote.zi std/json_bytes.zi std/simd.zi std/date_time_linux.zi std/date_time_types.zi \
+    std/toml_document.zi std/utf8.zi std/text.zi std/vec.zi VERSION
 # Generated files are listed when the ziran recipe expands, after generation.
 PACKAGE_OBJECTS = $(patsubst $(PACKAGE_C)/%.c,$(BUILD_DIR)/obj/package-c/%.o,$(wildcard $(PACKAGE_C)/*.c))
 

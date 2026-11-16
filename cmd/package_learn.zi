@@ -2,6 +2,9 @@
 #import "byte_text_linux"
 #import "file_linux"
 #import "number_text"
+#import "json_quote"
+Clock :: #import "date_time_linux"
+CompilerVersion :: #import "version"
 
 // `ziran learn on|off|status`: a corpus of the programs this machine builds to
 // native code, kept as training data for improving Ziran's machine code.
@@ -13,19 +16,28 @@
 //
 // The corpus is content addressed, so rebuilding a program writes nothing:
 //
-//     programs/<ZX sha256>/program.zx
-//     programs/<ZX sha256>/<target>-<ELF sha256>.elf       machine code
-//     programs/<ZX sha256>/<target>-<ELF sha256>.map.json  per-instruction ranges
-//     programs/<ZX sha256>/<target>-<ELF sha256>.lir       lowered input
+//     <format>/<ZX sha256>/program.zx
+//     <format>/<ZX sha256>/<target>-<ELF sha256>.elf          machine code
+//     <format>/<ZX sha256>/<target>-<ELF sha256>.map.json     per-instruction ranges
+//     <format>/<ZX sha256>/<target>-<ELF sha256>.lir          lowered input
+//     <format>/<ZX sha256>/<target>-<ELF sha256>.record.json  who made it, when
 //
-// A compiler that emits different machine code for the same program adds a
-// second ELF beside the first, giving before/after pairs. Benchmark receipts
-// name their artifacts by the same SHA-256 digests.
+// <format> is `zx<R>-lir<S>`: the bundle's container revision and instruction
+// schema, read from the recorded bundle itself. Tools read only their own
+// revision, so a format change starts a new folder and never mixes programs the
+// current tools cannot read into the ones they can. The record names the exact
+// compiler (the SHA-256 of zx2native and zi2zx and the Ziran version), the
+// source and entry it was built from, and the Unix time; it is written last, so
+// its presence marks a complete record. A compiler that emits different machine
+// code for the same program adds a second record beside the first, giving
+// before/after pairs. Benchmark receipts name artifacts by the same digests.
 
 #scope_file
 LEARN_USAGE :: "usage: ziran learn on [--limit-mb N] | ziran learn off | ziran learn status";
 LEARN_DEFAULT_LIMIT_MB :: 1024;
 LEARN_MAX_FILE :: 16777216;
+LEARN_MAX_TOOL :: 268435456;
+LEARN_RECORD :: ".record.json";
 MEGABYTE :: 1048576;
 
 LearnSettings :: struct {
@@ -142,23 +154,96 @@ LearnSetBytes :: (directory: string, bytes: s64) -> bool {
     return PkgWriteAtomic(PkgJoin(directory, "/bytes"), PkgJoin(LearnNumber(bytes), "\n"))
 }
 
+// A little-endian field of a recorded file, or -1 past its end. Offsets above
+// 2^32 never occur: recorded files are capped far below that.
+LearnU32 :: (bytes: string, at: s64) -> s64 {
+    if at < 0 || at + 4 > cast(s64)bytes.count { return -1 }
+    return cast(s64)bytes[at] + cast(s64)bytes[at + 1] * 256 +
+        cast(s64)bytes[at + 2] * 65536 + cast(s64)bytes[at + 3] * 16777216
+}
+
+LearnU64 :: (bytes: string, at: s64) -> s64 {
+    if LearnU32(bytes, at + 4) != 0 { return -1 }
+    return LearnU32(bytes, at)
+}
+
+// `zx<R>-lir<S>` from the ZX header's revision (offset 4) and the instruction
+// payload's schema (offset 8 of section kind 2), as ASSEMBLY/zx-executable-format.md
+// and ASSEMBLY/lowered-format.md lay them out. Empty when either is missing.
+LearnFormat :: (zx: string) -> string {
+    if zx.count < 64 || zx[0:2] != "ZX" || zx[2] != cast(u8)0 || zx[3] != cast(u8)0 { return "" }
+    revision := LearnU32(zx, 4)
+    sections := LearnU32(zx, 32)
+    directory := LearnU64(zx, 48)
+    if revision <= 0 || sections <= 0 || directory < 64 { return "" }
+    index: s64 = 0
+    while index < sections {
+        entry := directory + index * 32
+        if LearnU32(zx, entry) == 2 {
+            payload := LearnU64(zx, entry + 8)
+            if payload < 0 || payload + 12 > cast(s64)zx.count || zx[payload:payload + 4] != "ZLIR" { return "" }
+            schema := LearnU32(zx, payload + 8)
+            if schema <= 0 { return "" }
+            return PkgJoin3("zx", LearnNumber(revision), PkgJoin("-lir", LearnNumber(schema)))
+        }
+        index += 1
+    }
+    return ""
+}
+
+LearnToolDigest :: (tool_directory: string, name: string) -> string {
+    tool := PkgReadLimited(PkgJoin3(tool_directory, "/", name), LEARN_MAX_TOOL)
+    if !tool.valid { return "" }
+    return PkgDigest(tool.text)
+}
+
+LearnField :: (name: string, value: string) -> string {
+    quoted := JsonQuote(value)
+    if quoted.count == 0 { return "" }
+    return PkgJoin3(",\"", name, PkgJoin("\":", quoted))
+}
+
+// One JSON line naming what made a record. Empty when a tool cannot be read.
+LearnRecordText :: (tool_directory: string, format: string, target: string,
+    source: string, entry: string) -> string {
+    native := LearnToolDigest(tool_directory, "zx2native")
+    portable := LearnToolDigest(tool_directory, "zi2zx")
+    if native.count == 0 || portable.count == 0 { return "" }
+    path := PkgCanonical(source)
+    if path.count == 0 { path = source }
+    fields: [8]string = .[LearnField("format", format), LearnField("target", target),
+        LearnField("platform", "linux"), LearnField("ziran", CompilerVersion.Version),
+        LearnField("zx2native_sha256", native), LearnField("zi2zx_sha256", portable),
+        LearnField("source", path), LearnField("entry", entry)]
+    text := ""
+    for field: fields {
+        if field.count == 0 { return "" }
+        text = PkgJoin(text, field)
+    }
+    return PkgJoin3("{", text[1:], PkgJoin3(",\"recorded_unix\":", LearnNumber(Clock.UnixNow()), "}\n"))
+}
+
 LearnStore :: (tool_directory: string, program: string, elf: string, target: string,
-    settings: LearnSettings, names: []string, values: []string) -> LearnOutcome {
+    source: string, entry: string, settings: LearnSettings, names: []string, values: []string) -> LearnOutcome {
     directory := LearnDirectory()
     if directory.count == 0 { return .Failed }
     zx := PkgReadLimited(program, LEARN_MAX_FILE)
     if !zx.valid { return .Failed }
     native := PkgReadLimited(elf, LEARN_MAX_FILE)
     if !native.valid { return .Failed }
+    format := LearnFormat(zx.text)
     zx_digest := PkgDigest(zx.text)
     elf_digest := PkgDigest(native.text)
-    if zx_digest.count == 0 || elf_digest.count == 0 { return .Failed }
-    folder := PkgJoin3(directory, "/programs/", zx_digest)
+    if format.count == 0 || zx_digest.count == 0 || elf_digest.count == 0 { return .Failed }
+    folder := PkgJoin3(directory, "/", PkgJoin3(format, "/", zx_digest))
     stem := PkgJoin3(folder, "/", PkgJoin3(target, "-", elf_digest))
     elf_copy := PkgJoin(stem, ".elf")
-    if PathExists(elf_copy) { return .Present }
+    record := PkgJoin(stem, LEARN_RECORD)
+    if PathExists(record) { return .Present }
     stored := LearnStoredBytes(directory)
     if stored >= settings.limit_mb * MEGABYTE { return .Full }
+    record_text := LearnRecordText(tool_directory, format, target, source, entry)
+    if record_text.count == 0 { return .Failed }
     if !PkgMkdirs(folder) { return .Failed }
     added: s64 = 0
     zx_copy := PkgJoin(folder, "/program.zx")
@@ -178,13 +263,14 @@ LearnStore :: (tool_directory: string, program: string, elf: string, target: str
         unused RemoveFile(lir)
         return .Failed
     }
-    // The ELF is written last: its presence marks a complete record.
-    if !PkgWriteAtomic(elf_copy, native.text) {
+    // The record is written last: its presence marks a complete record.
+    if !PkgWriteAtomic(elf_copy, native.text) || !PkgWriteAtomic(record, record_text) {
         unused RemoveFile(map)
         unused RemoveFile(lir)
+        unused RemoveFile(elf_copy)
         return .Failed
     }
-    added += cast(s64)native.text.count + LearnFileSize(map) + LearnFileSize(lir)
+    added += cast(s64)native.text.count + cast(s64)record_text.count + LearnFileSize(map) + LearnFileSize(lir)
     unused LearnSetBytes(directory, LearnStoredBytes(directory) + added)
     return .Recorded
 }
@@ -195,9 +281,9 @@ LearnName :: (entry: DirectoryEntry) -> string {
 
 LearnDots :: (name: string) -> bool { return name == "." || name == ".." }
 
-LearnCount :: (directory: string) -> LearnTotals {
+// The programs and complete records of one format folder.
+LearnCountFormat :: (programs: string) -> LearnTotals {
     totals: LearnTotals
-    programs := PkgJoin(directory, "/programs")
     cursor := OpenDirectory(programs)
     if !cursor.valid { return totals }
     while true {
@@ -214,10 +300,37 @@ LearnCount :: (directory: string) -> LearnTotals {
             if !file.valid { break }
             leaf := LearnName(file)
             if LearnDots(leaf) || LearnContains(leaf, ".tmp.") { continue }
-            if PkgEndsWith(leaf, ".elf") { totals.records += 1 }
+            if PkgEndsWith(leaf, LEARN_RECORD) { totals.records += 1 }
             totals.bytes += LearnFileSize(PkgJoin3(folder, "/", leaf))
         }
         unused CloseDirectory(*files)
+    }
+    unused CloseDirectory(*cursor)
+    return totals
+}
+
+LearnIsFormat :: (name: string) -> bool {
+    return name.count > 2 && name[0:2] == "zx" && LearnContains(name, "-lir")
+}
+
+// Every format folder's totals; with REPORT, one status line per format.
+LearnCount :: (directory: string, report: bool) -> LearnTotals {
+    totals: LearnTotals
+    cursor := OpenDirectory(directory)
+    if !cursor.valid { return totals }
+    while true {
+        entry := NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        name := LearnName(entry)
+        if !LearnIsFormat(name) { continue }
+        format := LearnCountFormat(PkgJoin3(directory, "/", name))
+        totals.programs += format.programs
+        totals.records += format.records
+        totals.bytes += format.bytes
+        if report {
+            PkgPrint(PkgJoin3("  ", name, PkgJoin3(": ", LearnNumber(format.programs),
+                PkgJoin3(" programs, ", LearnNumber(format.records), " records\n"))), false)
+        }
     }
     unused CloseDirectory(*cursor)
     return totals
@@ -251,11 +364,12 @@ LearnStatus :: () -> s32 {
         PkgPrint("corpus: unavailable (set HOME or ZIRAN_LEARN_DIR)\n", false)
         return 0
     }
-    totals := LearnCount(directory)
+    totals := LearnCount(directory, false)
     if totals.programs > 0 { unused LearnSetBytes(directory, totals.bytes) }
     PkgPrint(PkgJoin3("corpus: ", directory, "\n"), false)
     PkgPrint(PkgJoin3("programs: ", LearnNumber(totals.programs),
         PkgJoin3(", machine-code records: ", LearnNumber(totals.records), "\n")), false)
+    unused LearnCount(directory, true)
     used := PkgJoin(LearnNumber((totals.bytes + MEGABYTE - 1) / MEGABYTE), " MB")
     if totals.bytes < MEGABYTE { used = PkgJoin(LearnNumber((totals.bytes + 1023) / 1024), " KB") }
     size := PkgJoin3("size: ", used, PkgJoin3(" of ", LearnNumber(current.limit_mb), " MB"))
@@ -305,10 +419,10 @@ Learn :: (arguments: []string) -> s32 {
 // changes the build's result or output: a failed record leaves a last-error
 // note and a full corpus stops growing, both reported by `ziran learn status`.
 LearnRecord :: (tool_directory: string, program: string, elf: string, target: string,
-    names: []string, values: []string) {
+    source: string, entry: string, names: []string, values: []string) {
     settings := LearnCurrent()
     if !settings.enabled { return }
-    outcome := LearnStore(tool_directory, program, elf, target, settings, names, values)
+    outcome := LearnStore(tool_directory, program, elf, target, source, entry, settings, names, values)
     directory := LearnDirectory()
     if directory.count == 0 { return }
     failure := PkgJoin(directory, "/last-error")

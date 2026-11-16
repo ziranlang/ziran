@@ -6,16 +6,21 @@
 using Vectors :: #import "std/vec"
 
 #scope_file
-// Machine-code records (ELF copies) across the whole corpus.
+// Complete machine-code records across every format folder of the corpus.
 Records :: (corpus: string) -> s64 {
-    programs := CheckPath(corpus, "programs")
-    folders: Vec(string)
-    if !ListDirectory(programs, *folders) { return 0 }
+    formats: Vec(string)
+    if !ListDirectory(corpus, *formats) { return 0 }
     total: s64 = 0
-    for folder: folders {
-        files: Vec(string)
-        if !ListDirectory(CheckPath(programs, folder), *files) { continue }
-        for file: files { if TextHasSuffix(file, ".elf") { total += 1 } }
+    for format: formats {
+        if !TextHasPrefix(format, "zx") { continue }
+        programs := CheckPath(corpus, format)
+        folders: Vec(string)
+        if !ListDirectory(programs, *folders) { continue }
+        for folder: folders {
+            files: Vec(string)
+            if !ListDirectory(CheckPath(programs, folder), *files) { continue }
+            for file: files { if TextHasSuffix(file, ".record.json") { total += 1 } }
+        }
     }
     return total
 }
@@ -49,9 +54,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
     NativeUnset(*test, "ZIRAN_LEARN")
     if !Build(*test, root, "hello") { return 1 }
     if !NativeAssert(*test, Records(corpus) == 1, "a default native build was not recorded") { return 1 }
+    formats: Vec(string)
+    if !NativeAssert(*test, ListDirectory(corpus, *formats), "cannot list the corpus") { return 1 }
+    format := ""
+    for name: formats { if TextHasPrefix(name, "zx") { format = name } }
+    if !NativeAssert(*test, TextHasPrefix(format, "zx") && TextContains(format, "-lir"),
+        "the record is not filed under its zx<R>-lir<S> format") { return 1 }
     programs: Vec(string)
-    if !NativeAssert(*test, ListDirectory(CheckPath(corpus, "programs"), *programs) && programs.count == 1, "missing program folder") { return 1 }
-    folder := CheckPath(CheckPath(corpus, "programs"), programs[0])
+    if !NativeAssert(*test, ListDirectory(CheckPath(corpus, format), *programs) && programs.count == 1, "missing program folder") { return 1 }
+    folder := CheckPath(CheckPath(corpus, format), programs[0])
     files: Vec(string)
     if !NativeAssert(*test, ListDirectory(folder, *files), "cannot list the record") { return 1 }
     map := ""
@@ -60,7 +71,19 @@ main :: (argc: s32, argv: **u8) -> s32 {
         TextContains(NativeRead(*test, map), "ziran-native-map"), "the record lacks its program or machine map") { return 1 }
     lir := TextReplace(map, ".map.json", ".lir")
     if !NativeAssert(*test, IsFile(lir) && TextHasPrefix(NativeRead(*test, lir), "lir "), "the record lacks its lowered input") { return 1 }
+    record := TextDetach(TextReplace(map, ".map.json", ".record.json"))
+    made := NativeRead(*test, record)
+    if !NativeAssert(*test, TextContains(made, CheckConcat("\"format\":\"", CheckConcat(format, "\""))) &&
+        NativeIdentifierAfter(made, "\"zx2native_sha256\":\"").count == 64 &&
+        NativeIdentifierAfter(made, "\"zi2zx_sha256\":\"").count == 64 &&
+        TextContains(made, "\"ziran\":\"") && TextContains(made, "\"entry\":\"hello:main\"") &&
+        TextContains(made, "/src/hello.zi\"") && NativeIdentifierAfter(made, "\"recorded_unix\":").count > 0,
+        CheckConcat("the record does not name its compiler and source:\n", made)) { return 1 }
 
+    // The record is written last; a record without it is incomplete and redone.
+    if !NativeAssert(*test, RemoveFile(record), "cannot remove the record") { return 1 }
+    if !Build(*test, root, "hello") { return 1 }
+    if !NativeAssert(*test, Records(corpus) == 1 && IsFile(record), "an incomplete record was not redone") { return 1 }
     if !Build(*test, root, "hello") { return 1 }
     if !NativeAssert(*test, Records(corpus) == 1, "rebuilding the same program recorded it twice") { return 1 }
     off := string.["learn", "off"]
@@ -77,11 +100,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
     report := PackageCommand(*test, root, status[:])
     if !NativeAssert(*test, TextContains(report, "recording: on") && !TextContains(report, "(default)") &&
         TextContains(report, "programs: 2, machine-code records: 2") &&
+        TextContains(report, CheckConcat(CheckConcat("  ", format), ": 2 programs, 2 records")) &&
         TextContains(report, "of 64 MB"), CheckConcat("unexpected status:\n", report)) { return 1 }
 
     // A record that cannot be written stays out of the build's output.
     broken := CheckPath(root, "broken")
-    if !NativeWrite(*test, CheckPath(broken, "programs"), "not a folder\n") { return 1 }
+    if !NativeWrite(*test, CheckPath(broken, format), "not a folder\n") { return 1 }
     NativeSet(*test, "ZIRAN_LEARN_DIR", broken)
     quiet := string.["build", "--root", CheckPath(root, "src"), "-o", CheckPath(root, "three"), CheckPath(root, "src/three.zi")]
     output := PackageCommand(*test, root, quiet[:])
@@ -93,6 +117,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     bad := string.["learn", "on", "--limit-mb", "0"]
     unused PackageCommand(*test, root, bad[:], false)
     if test.failed { return 1 }
-    print("Learning corpus: on by default, records each new native build once, and honors off, ZIRAN_LEARN and the size cap\n")
+    print("Learning corpus: on by default, records each new native build once under its ZX format with its compiler, and honors off, ZIRAN_LEARN and the size cap\n")
     return 0
 }

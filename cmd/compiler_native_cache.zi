@@ -228,12 +228,6 @@ NativeCacheDecodeChecked :: (bytes: []u8, key: NativeCacheDigest,
     return .None
 }
 
-// Compatibility wrapper for the C host while it only needs hit or miss. The
-// checked entry point above remains the diagnostic contract and test surface.
-NativeCacheDecode :: (bytes: []u8, key: NativeCacheDigest, owner: *NativeCacheOwner) -> bool {
-    return NativeCacheDecodeChecked(bytes, key, owner) == .None
-}
-
 DecodePayload :: (payload: []u8, owner: *NativeCacheOwner) -> bool {
     reader := Reader.{bytes = payload}
     image := *owner.image

@@ -36,7 +36,7 @@ typedef struct __type_838711075b90279a __type_838711075b90279a;
 typedef struct Job Job;
 typedef struct SlotOutput SlotOutput;
 typedef struct PendingOutput PendingOutput;
-typedef struct zir_11d78336af193e23_Results__string__bool zir_11d78336af193e23_Results__string__bool;
+typedef struct zir_8a167d86ad221008_Results__string__bool zir_8a167d86ad221008_Results__string__bool;
 typedef struct Results__pu8__bool Results__pu8__bool;
 typedef struct DiagnosticSpan DiagnosticSpan;
 typedef struct PollRecord PollRecord;
@@ -82,7 +82,7 @@ struct PendingOutput {
     __type_838711075b90279a output;
 };
 
-struct zir_11d78336af193e23_Results__string__bool {
+struct zir_8a167d86ad221008_Results__string__bool {
     String value_0;
     bool value_1;
 };
@@ -142,7 +142,7 @@ struct __type_6f55d821d15c8cbf {
     int64_t capacity;
 };
 #endif
-extern __type_c53c2d7c4913dc02 zir_g_d21daeeb4e28fdcc;
+extern __type_c53c2d7c4913dc02 zir_g_b176900cac1241ec;
 #ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_SysconfByName_6b580cc2
 #define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_SysconfByName_6b580cc2
 #ifdef __APPLE__
@@ -535,23 +535,20 @@ zir_f_1cd1ecb166af98b1_DiagnosticTargetForeign(DiagnosticSpan span, uint8_t* cod
 #endif
 int32_t compiler_backend_process_WorkerLimit(void);
 int32_t compiler_backend_process_BuildLock(String directory);
-void compiler_backend_process_ReleaseTextVector(__type_c53c2d7c4913dc02* values);
 void compiler_backend_process_ReleasePointerVector(__type_21092c8252d3dcaa* values);
 Job compiler_backend_process_StartJob(Slice commands, bool capture, bool report_error);
-bool compiler_backend_process_PollJob(Job* job);
 bool compiler_backend_process_WaitJob(Job* job);
 void compiler_backend_process_FreeJob(Job* job);
 bool compiler_backend_process_TextStartsWith(String value, String prefix);
 bool compiler_backend_process_TextEndsWith(String value, String suffix);
 bool compiler_backend_process_TextContains(String value, String piece);
 String compiler_backend_process_PathName(String value);
-zir_11d78336af193e23_Results__string__bool compiler_backend_process_PathJoin(String left, String right);
-zir_11d78336af193e23_Results__string__bool compiler_backend_process_PathSuffix(String value, String suffix);
+zir_8a167d86ad221008_Results__string__bool compiler_backend_process_PathJoin(String left, String right);
+zir_8a167d86ad221008_Results__string__bool compiler_backend_process_PathSuffix(String value, String suffix);
 void compiler_backend_process_ReleaseOwnedText(String value);
 uint8_t* compiler_backend_process_AllocateText(String value);
 String compiler_backend_process_CText(uint8_t* value);
 void compiler_backend_process_FreePointers(__type_21092c8252d3dcaa values);
-void compiler_backend_process_FreeCStrings(__type_21092c8252d3dcaa values);
 bool compiler_backend_process_PrepareArguments(Slice arguments, __type_21092c8252d3dcaa* pointers);
 bool compiler_backend_process_WordsInto(String value, __type_21092c8252d3dcaa* output);
 bool compiler_backend_process_EnvironmentWords(String name, __type_21092c8252d3dcaa* output);

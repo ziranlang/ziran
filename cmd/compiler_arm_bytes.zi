@@ -5,8 +5,6 @@
 // sizes agree exactly. Field helpers range-check before masking: an
 // out-of-range immediate fails the writer instead of silently truncating.
 
-// A64 and ARM instructions are four-byte units written little-endian.
-ArmInstrBytes :: 4
 ArmStackAlign :: 16
 
 ArmWriter :: struct {
@@ -46,25 +44,11 @@ ArmFitsSigned :: (value: s64, bits: s32) -> bool {
     return value >= min && value <= max
 }
 
-ArmFitsUnsigned :: (value: s64, bits: s32) -> bool {
-    if bits <= 0 || bits >= 64 { return false }
-    if value < 0 { return false }
-    if bits < 63 { return value < cast(s64)((cast(u64)1) << cast(u64)bits) }
-    return true
-}
-
 // The two's-complement VALUE truncated to BITS after a checked range test.
 // A value outside the signed range fails the writer and returns zero, so an
 // encoding can use the result unconditionally once the writer is clean.
 ArmField :: (writer: *ArmWriter, value: s64, bits: s32) -> u64 {
     if !ArmFitsSigned(value, bits) { writer.failed = true; return 0 }
-    mask := (cast(u64)1 << cast(u64)bits) - 1
-    return cast(u64)value & mask
-}
-
-// Same contract for an unsigned immediate field.
-ArmUField :: (writer: *ArmWriter, value: s64, bits: s32) -> u64 {
-    if !ArmFitsUnsigned(value, bits) { writer.failed = true; return 0 }
     mask := (cast(u64)1 << cast(u64)bits) - 1
     return cast(u64)value & mask
 }

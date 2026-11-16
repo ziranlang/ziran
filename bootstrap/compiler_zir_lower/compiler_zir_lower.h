@@ -401,12 +401,6 @@ typedef struct __type_a179548355995a8b __type_a179548355995a8b;
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-#ifndef ZIRAN_CONCRETE_FORWARD___type_acea6d5c8953a3a7
-#define ZIRAN_CONCRETE_FORWARD___type_acea6d5c8953a3a7
-typedef struct __type_acea6d5c8953a3a7 __type_acea6d5c8953a3a7;
-#endif
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
 #ifndef ZIRAN_CONCRETE_FORWARD___type_965802081a090cda
 #define ZIRAN_CONCRETE_FORWARD___type_965802081a090cda
 typedef struct __type_965802081a090cda __type_965802081a090cda;
@@ -836,17 +830,6 @@ struct __type_a179548355995a8b {
 #endif
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
-#ifndef ZIRAN_CONCRETE___type_acea6d5c8953a3a7
-#define ZIRAN_CONCRETE___type_acea6d5c8953a3a7
-
-struct __type_acea6d5c8953a3a7 {
-    LirGlobal* data;
-    int32_t count;
-    int32_t capacity;
-};
-#endif
-#endif
-#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
 #ifndef ZIRAN_CONCRETE___type_965802081a090cda
 #define ZIRAN_CONCRETE___type_965802081a090cda
 
@@ -885,8 +868,6 @@ Slice compiler_zir_lower_S32Items(int32_t* data, int64_t count);
 Slice compiler_zir_lower_StringItems(String* data, int64_t count);
 Slice compiler_zir_lower_LirTypeItems(LirType* data, int64_t count);
 Slice compiler_zir_lower_LirConstantItems(LirConstant* data, int64_t count);
-Slice compiler_zir_lower_LirGlobalItems(LirGlobal* data, int64_t count);
-Slice compiler_zir_lower_LirFunctionItems(LirFunction* data, int64_t count);
 Slice compiler_zir_lower_LirOriginItems(LirOrigin* data, int64_t count);
 AssemblyProgram* AssemblyLower(ZirProgram* source, uint8_t* module_name, uint8_t* function_name);
 LirProgram* AssemblyView(AssemblyProgram* program);

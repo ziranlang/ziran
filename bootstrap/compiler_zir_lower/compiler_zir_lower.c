@@ -601,7 +601,6 @@ static void compiler_zir_lower_ForeignCall(AssemblyProgram* program, uint8_t* na
 static int32_t compiler_zir_lower_Spend(AssemblyProgram* program, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static void* compiler_zir_lower_Allocate(AssemblyProgram* program, size_t count, size_t width) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_Push(AssemblyProgram* program, RawVector* vector, size_t width, void* value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushU8(AssemblyProgram* program, __type_a179548355995a8b* vector, uint8_t value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushS32(AssemblyProgram* program, __type_0c8c2c2a7dfdc73a* vector, int32_t value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushString(AssemblyProgram* program, __type_5a6f11963c9bea0f* vector, String value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_54c6b18f653132c8* vector, LirType value) ZIRAN_MAYBE_UNUSED;
@@ -624,11 +623,9 @@ static bool compiler_zir_lower_PushBlock(AssemblyProgram* program, __type_67ee55
 static bool compiler_zir_lower_PushBinding(AssemblyProgram* program, __type_dd536e055506338b* vector, AssemblyBinding value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushZeroSlot(AssemblyProgram* program, __type_745e0b4796abfa08* vector, AssemblyZeroSlot value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_9059301564cb61cc* vector, ZirFunction* value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushLirGlobal(AssemblyProgram* program, __type_acea6d5c8953a3a7* vector, LirGlobal value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_ace813280a8878e0* vector, LirInstruction value) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_LirEdgeItems(LirEdge* data, int64_t count) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_LirInstructionItems(LirInstruction* data, int64_t count) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_LirBlockItems(LirBlock* data, int64_t count) ZIRAN_MAYBE_UNUSED;
 static LirType* compiler_zir_lower_TypeAt(AssemblyProgram* program, int32_t identity) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_PointerType(AssemblyProgram* program, int32_t element, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_VecElement(AssemblyProgram* program, int32_t identity) ZIRAN_MAYBE_UNUSED;
@@ -636,7 +633,6 @@ static int32_t compiler_zir_lower_OwnsStorage(AssemblyProgram* program, int32_t 
 static int32_t compiler_zir_lower_StringType(AssemblyProgram* program, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static ZirParameter* compiler_zir_lower_ParameterAt(ZirParameters* parameters, int32_t index) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* name, ZirSourceSpan span, int32_t depth) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_zir_lower_SourceType(AssemblyProgram* program, AssemblyFunction* function, uint8_t* name, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_ViewElement(AssemblyProgram* program, int32_t identity) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_IndexableElement(AssemblyProgram* program, int32_t identity) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_SourceVec(AssemblyFunction* function, uint8_t* name) ZIRAN_MAYBE_UNUSED;
@@ -1034,30 +1030,6 @@ compiler_zir_lower_LirConstantItems(LirConstant* data, int64_t count)
 }
 
 Slice
-compiler_zir_lower_LirGlobalItems(LirGlobal* data, int64_t count)
-{
-    Slice result = {0};
-    SliceParts* parts = (SliceParts*)(&(result));
-    void** value_0 = &(parts->data);
-    (*value_0) = (void*)(data);
-    int64_t* value_1 = &(parts->length);
-    (*value_1) = count;
-    return result;
-}
-
-Slice
-compiler_zir_lower_LirFunctionItems(LirFunction* data, int64_t count)
-{
-    Slice result = {0};
-    SliceParts* parts = (SliceParts*)(&(result));
-    void** value_0 = &(parts->data);
-    (*value_0) = (void*)(data);
-    int64_t* value_1 = &(parts->length);
-    (*value_1) = count;
-    return result;
-}
-
-Slice
 compiler_zir_lower_LirOriginItems(LirOrigin* data, int64_t count)
 {
     Slice result = {0};
@@ -1279,12 +1251,6 @@ compiler_zir_lower_Push(AssemblyProgram* program, RawVector* vector, size_t widt
     int32_t* value_2 = &(vector->count);
     (*value_2) = (int32_t)((uint32_t)((*value_2)) + 1u);
     return true;
-}
-
-static bool
-compiler_zir_lower_PushU8(AssemblyProgram* program, __type_a179548355995a8b* vector, uint8_t value)
-{
-    return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(uint8_t), (void*)(&(value)));
 }
 
 static bool
@@ -1531,12 +1497,6 @@ compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_9059301564cb61cc* 
 }
 
 static bool
-compiler_zir_lower_PushLirGlobal(AssemblyProgram* program, __type_acea6d5c8953a3a7* vector, LirGlobal value)
-{
-    return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirGlobal), (void*)(&(value)));
-}
-
-static bool
 compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_ace813280a8878e0* vector, LirInstruction value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirInstruction), (void*)(&(value)));
@@ -1556,18 +1516,6 @@ compiler_zir_lower_LirEdgeItems(LirEdge* data, int64_t count)
 
 static Slice
 compiler_zir_lower_LirInstructionItems(LirInstruction* data, int64_t count)
-{
-    Slice result = {0};
-    SliceParts* parts = (SliceParts*)(&(result));
-    void** value_0 = &(parts->data);
-    (*value_0) = (void*)(data);
-    int64_t* value_1 = &(parts->length);
-    (*value_1) = count;
-    return result;
-}
-
-static Slice
-compiler_zir_lower_LirBlockItems(LirBlock* data, int64_t count)
 {
     Slice result = {0};
     SliceParts* parts = (SliceParts*)(&(result));
@@ -2619,12 +2567,6 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         return -1;
     }
     return identity;
-}
-
-static int32_t
-compiler_zir_lower_SourceType(AssemblyProgram* program, AssemblyFunction* function, uint8_t* name, ZirSourceSpan span)
-{
-    return compiler_zir_lower_TypeIn(program, function->module, name, span, 0);
 }
 
 static int32_t

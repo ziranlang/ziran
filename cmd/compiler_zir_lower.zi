@@ -439,22 +439,6 @@ LirConstantItems :: (data: *LIR.LirConstant, count: s64) -> []LIR.LirConstant {
     return result
 }
 
-LirGlobalItems :: (data: *LIR.LirGlobal, count: s64) -> []LIR.LirGlobal {
-    result: []LIR.LirGlobal
-    parts := cast(*SliceParts)(*result)
-    parts.data = cast(*void)data
-    parts.length = count
-    return result
-}
-
-LirFunctionItems :: (data: *LIR.LirFunction, count: s64) -> []LIR.LirFunction {
-    result: []LIR.LirFunction
-    parts := cast(*SliceParts)(*result)
-    parts.data = cast(*void)data
-    parts.length = count
-    return result
-}
-
 LirOriginItems :: (data: *LIR.LirOrigin, count: s64) -> []LIR.LirOrigin {
     result: []LIR.LirOrigin
     parts := cast(*SliceParts)(*result)
@@ -573,10 +557,6 @@ Push :: (program: *AssemblyProgram, vector: *RawVector, width: usize, value: *vo
     if value != null { memcpy(destination, value, width) }
     vector.count += 1
     return true
-}
-
-PushU8 :: (program: *AssemblyProgram, vector: *Vector(u8), value: u8) -> bool {
-    return Push(program, cast(*RawVector)vector, size_of(u8), cast(*void)*value)
 }
 
 PushS32 :: (program: *AssemblyProgram, vector: *Vector(s32), value: s32) -> bool {
@@ -706,10 +686,6 @@ PushProbe :: (program: *AssemblyProgram, vector: *Vector(*IR.ZirFunction), value
     return Push(program, cast(*RawVector)vector, size_of(*IR.ZirFunction), cast(*void)*value)
 }
 
-PushLirGlobal :: (program: *AssemblyProgram, vector: *Vector(LIR.LirGlobal), value: LIR.LirGlobal) -> bool {
-    return Push(program, cast(*RawVector)vector, size_of(LIR.LirGlobal), cast(*void)*value)
-}
-
 PushInstruction :: (program: *AssemblyProgram, vector: *Vector(LIR.LirInstruction), value: LIR.LirInstruction) -> bool {
     return Push(program, cast(*RawVector)vector, size_of(LIR.LirInstruction), cast(*void)*value)
 }
@@ -724,14 +700,6 @@ LirEdgeItems :: (data: *LIR.LirEdge, count: s64) -> []LIR.LirEdge {
 
 LirInstructionItems :: (data: *LIR.LirInstruction, count: s64) -> []LIR.LirInstruction {
     result: []LIR.LirInstruction
-    parts := cast(*SliceParts)(*result)
-    parts.data = cast(*void)data
-    parts.length = count
-    return result
-}
-
-LirBlockItems :: (data: *LIR.LirBlock, count: s64) -> []LIR.LirBlock {
-    result: []LIR.LirBlock
     parts := cast(*SliceParts)(*result)
     parts.data = cast(*void)data
     parts.length = count
@@ -1094,11 +1062,6 @@ TypeIn :: (program: *AssemblyProgram, module: *IR.ZirModule, name: *u8,
     }
     if program.failed != 0 { return -1 }
     return identity
-}
-
-SourceType :: (program: *AssemblyProgram, function: *AssemblyFunction, name: *u8,
-               span: IR.ZirSourceSpan) -> s32 {
-    return TypeIn(program, function.module, name, span, 0)
 }
 
 #scope_file

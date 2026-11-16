@@ -62,13 +62,6 @@ BuildLock :: (directory: string) -> s32 {
     return descriptor
 }
 
-ReleaseTextVector :: (values: *Vectors.Vec(string)) {
-    owned: Vectors.Vec(string)
-    VecSwap(owned, <<values)
-    for value: owned { ReleaseOwnedText(value) }
-    VecFree(owned)
-}
-
 ReleasePointerVector :: (values: *Vectors.Vec(*u8)) {
     owned: Vectors.Vec(*u8)
     VecSwap(owned, <<values)
@@ -117,26 +110,6 @@ StartJob :: (commands: []string, capture: bool, report_error: bool) -> Job {
     result.process = process
     result.descriptor = ifx capture then pipes[0] else -1
     return result
-}
-PollJob :: (job: *Job) -> bool {
-    if job.finished { return true }
-    if job.descriptor >= 0 {
-        poller: PollRecord = .{job.descriptor, 1, 0}
-        ready := PollRaw(*poller, 1, 0)
-        if ready < 0 {
-            if ErrnoValue() == 4 { return false }
-            CloseDescriptor(job.descriptor); job.descriptor = -1; job.ok = false
-        } else if ready > 0 {
-            if !ReadJobOutput(job) { job.ok = false }
-        }
-    }
-    if job.descriptor < 0 {
-        status: s32 = 0
-        waited := WaitRaw(job.process, *status, 1)
-        if waited == job.process { FinishStatus(job, status); return true }
-        if waited < 0 && ErrnoValue() != 4 { job.finished = true; job.ok = false; return true }
-    }
-    return false
 }
 WaitJob :: (job: *Job) -> bool {
     while job.descriptor >= 0 {
@@ -224,11 +197,6 @@ CText :: (value: *u8) -> string {
 }
 
 FreePointers :: (values: Vectors.Vec(*u8)) {
-    for value: values[:] { FreeRaw(cast(*void)value) }
-    VecFree(values)
-}
-
-FreeCStrings :: (values: Vectors.Vec(*u8)) {
     for value: values[:] { FreeRaw(cast(*void)value) }
     VecFree(values)
 }

@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "host": "alpha",
+  "virtualization": "none",
+  "learning": "off",
+  "checks": false,
+  "started_unix": 1794863300,
+  "baseline_revision": "96c23c7de6bc622225a916dfce18bff04486ba2b",
+  "target_revision": "36e6caf9643d82b58434f11aad507da79f895922",
+  "commands": [
+    {
+      "command": [
+        "make",
+        "-B",
+        "-j2",
+        "all"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "wasm-tier",
+        "--samples",
+        "11",
+        "--label",
+        "c-teacher-alpha-before",
+        "--output",
+        "bench/results/c-teacher-alpha-before.json"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "library-targets",
+        "--project",
+        "/home/wao/Projects/kryonlabs/kryon",
+        "--manifest",
+        "/home/wao/Projects/kryonlabs/kryon/tests/widget_benchmarks.json",
+        "--samples",
+        "11"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "c-teacher",
+        "--output",
+        "bench/results/c-teacher-alpha-2026-11-16-before.md"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "git",
+        "fetch",
+        "origin",
+        "master"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "make",
+        "-j2",
+        "all"
+      ],
+      "code": 2
+    },
+    {
+      "command": [
+        "make",
+        "-B",
+        "-j2",
+        "all"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "wasm-tier",
+        "--samples",
+        "11",
+        "--label",
+        "c-teacher-alpha-after",
+        "--output",
+        "bench/results/c-teacher-alpha-after.json"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "library-targets",
+        "--project",
+        "/home/wao/Projects/kryonlabs/kryon",
+        "--manifest",
+        "/home/wao/Projects/kryonlabs/kryon/tests/widget_benchmarks.json",
+        "--samples",
+        "11"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "c-teacher",
+        "--output",
+        "bench/results/c-teacher-alpha-2026-11-16-after.md"
+      ],
+      "code": 0
+    }
+  ],
+  "stages": {
+    "before": {
+      "revision": "96c23c7de6bc622225a916dfce18bff04486ba2b",
+      "tools": {
+        "build/bin/ziran": "dd24f284ee21f1217a245b608a1a33b1632fcdbc0ce8938a963e35dcfa3d4f29",
+        "build/bin/zi2c": "2e21cbdd222519dc2f54993721c5168719b0340fc00d4271c4ca101dd8300152",
+        "build/bin/zi2go": "0628df64c2fc17eee1fb64d73e8182906cb559123668a0e648023b8adf1c34d9",
+        "build/bin/zi2zir": "0bea673e4df7d9d8446e179564e60ebab8be739839b6b1047d9a7a8f56f55bd7",
+        "build/bin/zi2zx": "eb47203a4eef36585fcca75340e026e86b2fd34895b22c8dda342e127f956c00",
+        "build/bin/zx2native": "c1cf0932e45b017e8fbc90bb935966c4e67dbd4e700e22ecd52e0346597e1433",
+        "build/bin/zx2wasm": "f621cdbae99ed4abf839861905eba2c22a18839a7c18c3da3d4f7e41bc05ba75",
+        "build/libziran.a": "fdc99f231806aeed93dd1079625cb7e15903051beda4a34d040c22a3d01b4344"
+      },
+      "tools_unchanged": true,
+      "source_files": 1811,
+      "source_epoch_sha256": "e8065511e450ff5bd6cc5c6bc4fc19122d6c2c6de7b3f58fa6d2d57fb3b27297",
+      "changed_sources": []
+    },
+    "after": {
+      "revision": "36e6caf9643d82b58434f11aad507da79f895922",
+      "tools": {
+        "build/bin/ziran": "6f2433eefc3721145be0a6527a77156067b45e78f092d9c8c3e08c40b69c2e39",
+        "build/bin/zi2c": "2e21cbdd222519dc2f54993721c5168719b0340fc00d4271c4ca101dd8300152",
+        "build/bin/zi2go": "0628df64c2fc17eee1fb64d73e8182906cb559123668a0e648023b8adf1c34d9",
+        "build/bin/zi2zir": "0bea673e4df7d9d8446e179564e60ebab8be739839b6b1047d9a7a8f56f55bd7",
+        "build/bin/zi2zx": "50f84b648068e97d7e7ded2937f8cc4400edf5ba9a9b113f61e280275972777f",
+        "build/bin/zx2native": "3e4ce36573c6bc0857b3a571e10088c24464093b5d08a1a7369a1af0cc75891f",
+        "build/bin/zx2wasm": "f621cdbae99ed4abf839861905eba2c22a18839a7c18c3da3d4f7e41bc05ba75",
+        "build/libziran.a": "9d160e94e3a009ad9881171570ae3aa720e4e5b380bebfc79dfa185831158b4e"
+      },
+      "tools_unchanged": true,
+      "source_files": 1819,
+      "source_epoch_sha256": "68b334fd8ed3cc79bc3fc23efb0c5d8a448116fa6f5300f310423034b97a22d8",
+      "changed_sources": []
+    }
+  },
+  "complete": true,
+  "preparation_retry": "Prior attempts rolled back. Kryon --project selected pinned v0.5 despite current launcher; use temporary ignored local toolchain override and verify selected compiler path. Rebuild baseline completely and regenerate widget IR.",
+  "standard_before_sha256": "283ab41156a967162e807d9dedd78aec2a1b54f7fc05f6543fb57784fa2db19b",
+  "widget_selected_toolchain_before": "/home/wao/Projects/ziranlang/ziran",
+  "verified_compiler_source_files": 336,
+  "kryon_configuration_restored": true,
+  "standard_after_sha256": "283ab41156a967162e807d9dedd78aec2a1b54f7fc05f6543fb57784fa2db19b",
+  "standard_unchanged": true,
+  "finished_unix": 1794863723,
+  "recovered_attempts": [
+    {
+      "error": "command failed: make",
+      "rolled_back": true,
+      "reason": "Restored archive timestamps left generated engine files stale; force a complete target rebuild."
+    }
+  ],
+  "recovery_command_start_index": 6,
+  "widget_selected_toolchain_after": "/home/wao/Projects/ziranlang/ziran"
+}

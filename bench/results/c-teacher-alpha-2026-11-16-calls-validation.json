@@ -1,0 +1,14 @@
+{
+  "baseline_receipt": "bench/results/c-teacher-alpha-six-before.json",
+  "baseline_original_receipt": "bench/results/wasm-tier-targets-2026-11-16.json",
+  "after_receipt": "bench/results/c-teacher-alpha-six-after.json",
+  "meaning": "Calls is folded Fib(20); this control measures wrapper/startup, not recursive-call performance.",
+  "complete": true,
+  "five_fresh_baseline_native_artifacts_match_historical_six": true,
+  "harness_original_sha256": "aaa48e7b68a238e20c33ac07762269f6ab3dce251aa463b0d95c098da0ec9044",
+  "harness_control_sha256": "10f6981cb077a700e1dc15b5b4009eb5c039ef3c0528479df770060f26207dcc",
+  "calls_native_artifact_unchanged": true,
+  "tools_unchanged": true,
+  "harness_restored": true,
+  "finished_unix": 1794863895
+}

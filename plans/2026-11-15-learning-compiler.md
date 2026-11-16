@@ -27,6 +27,13 @@ Owner, verbatim: "analyze the assembly c genrates leran form it to improve natie
   and after each finite measurement. Preserve raw disassembly, native map
   identity, C parity, SIGPROF IP counts and zero-sample uncertainty. Compare
   the kernel and warm-widget receipts separately from sampled startup costs.
+- Verify the actual compiler selected by each project before collecting widget
+  evidence. Resolve `ziran pkg path ziran`, hash that selected toolchain, and
+  reject a mismatch with report metadata. A current launcher can dispatch to an
+  older project pin; use explicit local overrides for controlled comparisons.
+  Regenerate checked IR in a fresh output directory and preserve prior output
+  for diagnosis. Add the selected-toolchain check to the shared site harness,
+  using the Alpha checkpoint as a regression fixture.
 - Turn ranked candidates into general transformations. Keep allocation,
   aggregate work with the records lane; keep SSA, loop rotation, LICM,
   induction variables and strength reduction with the loop lane, vector push

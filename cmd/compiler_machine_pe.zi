@@ -1,3 +1,4 @@
+using Host :: #import "compiler_x86_host"
 using Machine :: #import "compiler_machine_ir"
 using Runtime :: #import "compiler_x86_runtime"
 using Target :: #import "compiler_target"
@@ -14,8 +15,8 @@ using X64Image :: #import "compiler_x86_image"
 // its protection:
 //
 //   * .text, read/execute: the entry stub, machine text and runtime;
-//   * .rdata, read-only: the read-only globals, one kernel32 import
-//     directory whose lookup and address tables name only the functions the
+//   * .rdata, read-only: the read-only globals, kernel32 and host DLL import
+//     descriptors whose lookup and address tables name only the functions the
 //     image calls, and the base relocations;
 //   * .data, read/write, only when the program needs writable state: its
 //     stored bytes, and the zero fill as virtual size past them.
@@ -26,6 +27,12 @@ using X64Image :: #import "compiler_x86_image"
 // the loader still rebases it), and NX_COMPAT. It asks for an 8 MiB stack
 // reserved and committed whole, so a frame larger than a page needs no stack
 // probe. No CRT, exports, TLS, resources, unwind or debug data.
+
+// Registered DLL names and their named capabilities in function order.
+MachinePeHosts :: struct {
+    libraries: []string
+    imports: []MachineX64HostImport
+}
 
 MachinePeImageBase :: 0x140000000
 MachinePeSectionAlignment :: 4096
@@ -64,6 +71,8 @@ Section :: struct { rva: s64; size: s64; file: s64; raw: s64 }
 
 Layout :: struct {
     image: MachineX64ImageLayout
+    libraries: []string
+    thunks: s64
     imports: u32
     import_count: s64
     directory: s64
@@ -150,9 +159,11 @@ SectionAt :: (rva: s64, size: s64, file: s64, raw_bytes: s64) -> Section {
     return .{rva = rva, size = size, file = file, raw = Align(raw_bytes, MachinePeFileAlignment)}
 }
 
-PeLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout) -> MachineDiagnostic {
+PeLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachinePeHosts, layout: *Layout) -> MachineDiagnostic {
     image := *layout.image
     image.os = .Windows
+    image.hosts = hosts.imports
+    layout.libraries = hosts.libraries
     diagnostic := MachineX64ImageMeasure(program, encoded, image)
     if diagnostic.problem != .None { return diagnostic }
     image.text = MachinePeTextRva
@@ -170,9 +181,10 @@ PeLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout)
         if Imported(<<layout, which) { layout.import_count += 1 }
     }
     layout.directory = Align(rdata + image.constants_size, 8)
-    layout.lookup = layout.directory + 2 * ImportDescriptorSize
-    layout.address = layout.lookup + (layout.import_count + 1) * 8
-    layout.names = layout.address + (layout.import_count + 1) * 8
+    layout.thunks = layout.import_count + 1 + hosts.imports.count + hosts.libraries.count
+    layout.lookup = layout.directory + (2 + hosts.libraries.count) * ImportDescriptorSize
+    layout.address = layout.lookup + layout.thunks * 8
+    layout.names = layout.address + layout.thunks * 8
     at := layout.names
     slot := layout.address
     for which: cast(s64)0..MachineWin64ImportCount - 1 {
@@ -182,7 +194,35 @@ PeLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout)
         at += NameSize(which)
     }
     layout.dll = at
-    layout.relocations = Align(layout.dll + KernelName.count + 1, 4)
+    at = layout.dll + KernelName.count + 1
+    slot += 8 // kernel32's terminating thunk
+    for host: hosts.imports {
+        if host.library < 0 || host.library >= hosts.libraries.count {
+            diagnostic.problem = .Relocation; return diagnostic
+        }
+    }
+    for library: cast(s64)0..hosts.libraries.count - 1 {
+        name := hosts.libraries[library]
+        if name.count == 0 || name.count > 4096 { diagnostic.problem = .Unsupported; return diagnostic }
+        for byte: name {
+            if byte < cast(u8)32 || byte == #char "/" || byte == #char "\\" || byte == #char ":" {
+                diagnostic.problem = .Unsupported; return diagnostic
+            }
+        }
+        for index: cast(s64)0..hosts.imports.count - 1 {
+            host := hosts.imports[index]
+            if host.library != library { continue }
+            function := program.functions[host.function]
+            if function.name_length <= 0 { diagnostic.problem = .Relocation; return diagnostic }
+            hosts.imports[index].slot = slot
+            slot += 8
+            at = Align(at, 2)
+            at += Align(2 + function.name_length + 1, 2)
+        }
+        slot += 8
+        at += name.count + 1
+    }
+    layout.relocations = Align(at, 4)
     empty: []u8
     image.data = 0
     layout.relocations_size = Relocations(program, <<image, empty, 0)
@@ -212,10 +252,10 @@ PeLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout)
     return MachineX64ImageResolve(program, encoded, <<image)
 }
 
-// One kernel32 import descriptor, a null one after it, and the lookup and
+// Kernel32 and host DLL descriptors, a null one after them, and the lookup and
 // address tables, which hold the same hint/name RVAs until the loader binds
 // the address table.
-WriteImports :: (layout: Layout, output: []u8) {
+WriteImports :: (program: MachineProgram, layout: Layout, output: []u8) {
     PutLittle(output, layout.directory, cast(u64)layout.lookup, 4)
     PutLittle(output, layout.directory + 12, cast(u64)layout.dll, 4)
     PutLittle(output, layout.directory + 16, cast(u64)layout.address, 4)
@@ -230,6 +270,29 @@ WriteImports :: (layout: Layout, output: []u8) {
         entry += 1
     }
     PutText(output, layout.dll, KernelName)
+    lookup := layout.lookup + (layout.import_count + 1) * 8
+    address := layout.address + (layout.import_count + 1) * 8
+    name = layout.dll + KernelName.count + 1
+    for library: cast(s64)0..layout.libraries.count - 1 {
+        descriptor := layout.directory + (library + 1) * ImportDescriptorSize
+        PutLittle(output, descriptor, cast(u64)lookup, 4)
+        PutLittle(output, descriptor + 16, cast(u64)address, 4)
+        for host: layout.image.hosts {
+            if host.library != library { continue }
+            function := program.functions[host.function]
+            symbol := program.text[function.name_offset:function.name_offset + function.name_length]
+            name = Align(name, 2)
+            PutLittle(output, lookup, cast(u64)name, 8)
+            PutLittle(output, address, cast(u64)name, 8)
+            for index: cast(s64)0..symbol.count - 1 { output[name + 2 + index] = symbol[index] }
+            name += Align(2 + symbol.count + 1, 2)
+            lookup += 8; address += 8
+        }
+        lookup += 8; address += 8
+        PutLittle(output, descriptor + 12, cast(u64)name, 4)
+        PutText(output, name, layout.libraries[library])
+        name += layout.libraries[library].count + 1
+    }
 }
 
 SectionHeader :: (output: []u8, index: s64, name: string, section: Section, characteristics: u64) {
@@ -282,9 +345,9 @@ WriteHeaders :: (layout: Layout, output: []u8) {
     PutLittle(output, at + 88, 0x100000, 8)
     PutLittle(output, at + 96, 0x1000, 8)
     PutLittle(output, at + 108, 16, 4)
-    DataDirectory(output, 1, layout.directory, 2 * ImportDescriptorSize)
+    DataDirectory(output, 1, layout.directory, (2 + layout.libraries.count) * ImportDescriptorSize)
     DataDirectory(output, 5, layout.relocations, layout.relocations_size)
-    DataDirectory(output, 12, layout.address, (layout.import_count + 1) * 8)
+    DataDirectory(output, 12, layout.address, layout.thunks * 8)
 
     SectionHeader(output, 0, ".text", layout.text, 0x60000020)
     SectionHeader(output, 1, ".rdata", layout.rdata, 0x40000040)
@@ -306,7 +369,7 @@ Write :: (program: MachineProgram, encoded: MachineX64Image, layout: Layout, out
     if !MachineX64ImageWrite(program, encoded, layout.image, memory[:], MachinePeImageBase, fuel) {
         return .Relocation
     }
-    WriteImports(layout, memory[:])
+    WriteImports(program, layout, memory[:])
     unused Relocations(program, layout.image, memory[:], layout.relocations)
     for index: cast(s64)0..output.count - 1 { output[index] = 0 }
     WriteHeaders(layout, output)
@@ -322,10 +385,10 @@ Write :: (program: MachineProgram, encoded: MachineX64Image, layout: Layout, out
 // length. Verification, complete relocation resolution and i32 range checks
 // all finish before the first output byte is changed.
 MachinePeEncode :: (program: MachineProgram, encoded: MachineX64Image, output: []u8,
-    fuel: s64 = MachineX64InitialFuel) -> MachinePeResult {
+    fuel: s64 = MachineX64InitialFuel, hosts: MachinePeHosts = .{}) -> MachinePeResult {
     if fuel < 0 { return Failure(.Fuel) }
     layout: Layout
-    diagnostic := PeLayout(program, encoded, *layout)
+    diagnostic := PeLayout(program, encoded, hosts, *layout)
     if diagnostic.problem != .None { return .{diagnostic = diagnostic} }
     result := MachinePeResult.{diagnostic = diagnostic, size = layout.file_size,
         text_offset = layout.text.file, text_rva = layout.text.rva, text_size = layout.text.size,
@@ -337,4 +400,80 @@ MachinePeEncode :: (program: MachineProgram, encoded: MachineX64Image, output: [
     problem := Write(program, encoded, layout, output, fuel)
     if problem != .None { return Failure(problem) }
     return result
+}
+
+#scope_file
+
+// Bounded inspection of direct named exports in an AMD64 PE32+ DLL. This
+// reads the file; it never loads or executes a candidate host library.
+Inside :: (at: u64, size: u64, count: s64) -> bool {
+    return at <= cast(u64)count && size <= cast(u64)count - at
+}
+
+Read :: (bytes: []u8, at: s64, count: s64) -> u64 {
+    result: u64 = 0
+    for index: cast(s64)0..count - 1 {
+        result |= cast(u64)bytes[at + index] << cast(u64)(index * 8)
+    }
+    return result
+}
+
+RvaOffset :: (bytes: []u8, table: s64, sections: s64, rva: u64, size: u64,
+    executable: bool = false) -> s64 {
+    for index: cast(s64)0..sections - 1 {
+        at := table + index * 40
+        base := Read(bytes, at + 12, 4)
+        raw := Read(bytes, at + 16, 4)
+        if rva < base || rva - base > raw || size > raw - (rva - base) { continue }
+        offset := Read(bytes, at + 20, 4) + rva - base
+        if !Inside(offset, size, bytes.count) { return -1 }
+        if executable && (Read(bytes, at + 36, 4) & 0x20000000) == 0 { return -1 }
+        return cast(s64)offset
+    }
+    return -1
+}
+
+#scope_export
+
+MachinePeLibraryDefines :: (library: []u8, name: string) -> bool {
+    if library.count < 64 || name.count == 0 || library[0] != 77 || library[1] != 90 { return false }
+    header := Read(library, 60, 4)
+    if !Inside(header, 24, library.count) { return false }
+    at := cast(s64)header
+    optional := at + 24
+    optional_size := cast(s64)Read(library, at + 20, 2)
+    if Read(library, at, 4) != 0x4550 || Read(library, at + 4, 2) != 0x8664 ||
+        (Read(library, at + 22, 2) & 0x2000) == 0 || optional_size < 120 ||
+        !Inside(cast(u64)optional, cast(u64)optional_size, library.count) ||
+        Read(library, optional, 2) != 0x20b || Read(library, optional + 108, 4) < 1 { return false }
+    sections := cast(s64)Read(library, at + 6, 2)
+    table := optional + optional_size
+    if !Inside(cast(u64)table, cast(u64)sections * 40, library.count) { return false }
+    export_rva := Read(library, optional + 112, 4)
+    directory := RvaOffset(library, table, sections, export_rva, 40)
+    if export_rva == 0 || directory < 0 { return false }
+    functions := Read(library, directory + 20, 4)
+    count := cast(s64)Read(library, directory + 24, 4)
+    addresses := RvaOffset(library, table, sections, Read(library, directory + 28, 4), functions * 4)
+    names := RvaOffset(library, table, sections, Read(library, directory + 32, 4), cast(u64)count * 4)
+    ordinals := RvaOffset(library, table, sections, Read(library, directory + 36, 4), cast(u64)count * 2)
+    if addresses < 0 || names < 0 || ordinals < 0 { return false }
+    for index: cast(s64)0..count - 1 {
+        position := RvaOffset(library, table, sections, Read(library, names + index * 4, 4), cast(u64)name.count + 1)
+        if position < 0 { continue }
+        same := library[position + name.count] == 0
+        for byte: cast(s64)0..name.count - 1 {
+            same = same && library[position + byte] == cast(u8)name[byte]
+        }
+        if !same { continue }
+        ordinal := Read(library, ordinals + index * 2, 2)
+        if ordinal >= functions { return false }
+        address := Read(library, addresses + cast(s64)ordinal * 4, 4)
+        // Forwarders require resolving another DLL; only direct function
+        // exports are providers here. Zero entries and data are not callable.
+        export_size := Read(library, optional + 116, 4)
+        if address == 0 || address >= export_rva && address - export_rva < export_size { return false }
+        return RvaOffset(library, table, sections, address, 1, true) >= 0
+    }
+    return false
 }

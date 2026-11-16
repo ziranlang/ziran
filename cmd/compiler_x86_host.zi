@@ -1,13 +1,14 @@
 using Bytes :: #import "compiler_x86_bytes"
 using Machine :: #import "compiler_machine_ir"
+using Win64 :: #import "compiler_x86_win64"
 
-// Host capabilities a Linux x86-64 executable imports from a host library by
+// Host capabilities an x86-64 Linux or Windows executable imports by
 // name, as a C program links a host's symbols: for
 // `OpenHost :: (title: string, width: s32, height: s32) -> bool #foreign host_api;`
 // the C target declares `bool OpenHost(String title, int32_t width,
 // int32_t height);`, and the executable calls the library's `OpenHost` the
 // same way. The program keeps its own convention. One veneer per capability
-// moves the arguments to the System V C ABI, calls through the capability's
+// moves the arguments to the platform C ABI, calls through the capability's
 // slot, which the dynamic linker fills, and returns the result the way the
 // program keeps it:
 //
@@ -20,12 +21,14 @@ using Machine :: #import "compiler_machine_ir"
 //   * the result is void, a bool, an integer, a pointer or a float, widened
 //     the way the program keeps it.
 //
+// Windows uses positional registers/stack slots and aligned record copies
+// (WindowsArguments below); Linux uses the System V classification above.
 // Anything else, such as a larger record, an array, a record holding a float,
 // a record result or more than six INTEGER or eight SSE arguments, has no
 // veneer, and MachineX64HostSupported says so before anything is laid out.
 // The registers the program preserves across a call (rbx, rbp, r12-r15) are
 // the ones the C ABI preserves, and the program calls with rsp 16-byte
-// aligned, so the veneer needs no frame of its own beyond rbp.
+// aligned. Windows reserves shadow space and scratch for argument moves.
 
 // One imported capability: the program's function, the library that
 // provides it, its parameter and result types, and where its veneer starts,
@@ -36,6 +39,8 @@ MachineX64HostImport :: struct {
     parameters: []s32
     result: s32
     veneer: s64
+    // Windows IAT slot (RVA); ELF slots are laid out in the data segment.
+    slot: s64
 }
 
 #scope_file
@@ -156,12 +161,88 @@ ResultSupported :: (program: MachineProgram, result: s32) -> bool {
     return kind == .Void || kind == .Float || Scalar(kind)
 }
 
+// Windows gives each parameter one positional slot. Snapshot the program's
+// scalar registers before rearranging them, so mixed arguments cannot
+// overwrite a later source. Records remain in the caller's stack area;
+// Win64 passes an eight-byte record by value and a sixteen-byte record by
+// a pointer to an aligned copy owned by this call.
+WindowsArguments :: (program: MachineProgram, host: MachineX64HostImport,
+    writer: *X86Writer, emit: bool) -> bool {
+    general: s32 = 0
+    floats: s32 = 0
+    records: s64 = 0
+    for id: host.parameters {
+        if !ValidType(program, id) { return false }
+        type := program.types[id]
+        if Scalar(type.kind) { general += 1 }
+        else if type.kind == .Float { floats += 1 }
+        else {
+            if Words(program, type) == 0 { return false }
+            if type.size == 16 { records += 1 }
+        }
+    }
+    if general > GeneralArgumentCount || floats > FloatArgumentCount { return false }
+    outgoing := RoundEight(ifx host.parameters.count > 4 then host.parameters.count * 8 else cast(s64)32)
+    snapshots := outgoing
+    copies := (snapshots + 112 + 15) & ~cast(s64)15
+    frame := (copies + records * 16 + 15) & ~cast(s64)15
+    // Larger call frames need stack probing, which this veneer does not emit.
+    if frame >= 4096 { return false }
+    if !emit { return true }
+    X86Win64Frame(writer, frame)
+    for index: 0..general - 1 {
+        X86Store(writer, X86At(X86Rsp, snapshots + cast(s64)index * 8), GeneralArgument(index), 8)
+    }
+    for index: 0..floats - 1 {
+        X86FloatStore(writer, X86At(X86Rsp, snapshots + 48 + cast(s64)index * 8), index, 8)
+    }
+    general = 0
+    floats = 0
+    stack: s64 = 0
+    for index: cast(s64)0..host.parameters.count - 1 {
+        type := program.types[host.parameters[index]]
+        floating := type.kind == .Float
+        if floating {
+            source := X86At(X86Rsp, snapshots + 48 + cast(s64)floats * 8)
+            if index < 4 { X86FloatLoad(writer, cast(s32)index, source, type.size) }
+            else { X86Load(writer, Rax, source, 8, false) }
+            floats += 1
+        } else if Scalar(type.kind) {
+            X86Load(writer, Rax, X86At(X86Rsp, snapshots + cast(s64)general * 8), 8, false)
+            Widen(writer, Rax, type, false)
+            general += 1
+        } else {
+            if type.size == 8 { X86Load(writer, Rax, X86At(Rbp, 16 + stack), 8, false) }
+            else {
+                for word: cast(s64)0..1 {
+                    X86Load(writer, Rax, X86At(Rbp, 16 + stack + word * 8), 8, false)
+                    X86Store(writer, X86At(X86Rsp, copies + word * 8), Rax, 8)
+                }
+                X86Lea(writer, Rax, X86At(X86Rsp, copies))
+                copies += 16
+            }
+            stack += RoundEight(type.size)
+        }
+        if index >= 4 { X86Store(writer, X86At(X86Rsp, index * 8), Rax, 8) }
+        else if !floating {
+            destination: s32 = 1
+            if index == 1 { destination = 2 }
+            if index == 2 { destination = 8 }
+            if index == 3 { destination = 9 }
+            X86Move(writer, destination, Rax)
+        }
+    }
+    return true
+}
+
 #scope_export
 
 // Whether IMPORT's signature has a veneer.
 MachineX64HostSupported :: (program: MachineProgram, host: MachineX64HostImport) -> bool {
     measure: X86Writer
-    return ResultSupported(program, host.result) && Arguments(program, host, *measure, false)
+    if !ResultSupported(program, host.result) { return false }
+    if program.target.os == .Windows { return WindowsArguments(program, host, *measure, false) }
+    return Arguments(program, host, *measure, false)
 }
 
 // IMPORT's veneer at the writer's position, calling through the slot at
@@ -171,6 +252,14 @@ MachineX64HostSupported :: (program: MachineProgram, host: MachineX64HostImport)
 MachineX64HostVeneer :: (writer: *X86Writer, program: MachineProgram, host: MachineX64HostImport,
     slot: s64) -> bool {
     if !MachineX64HostSupported(program, host) { return false }
+    if program.target.os == .Windows {
+        if !WindowsArguments(program, host, writer, true) { return false }
+        X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slot))
+        Widen(writer, Rax, program.types[host.result], true)
+        X86Win64Unframe(writer)
+        X86Return(writer)
+        return !writer.failed
+    }
     X86Push(writer, Rbp)
     X86Move(writer, Rbp, X86Rsp)
     if !Arguments(program, host, writer, true) { return false }

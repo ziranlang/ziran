@@ -1071,7 +1071,16 @@ runs. Bools, integers, pointers and floats cross, and records of one or two
 8-byte integers or pointers such as <code>string</code> and slices; a capability no
 library defines stops <code>zx2native</code> at <code>assembly.gap.machine-host</code>, and one with
 another signature at <code>assembly.gap.machine-host-abi</code>. A program with no host
-capabilities stays a static executable with no dynamic linker.
+capabilities stays a static executable with no dynamic linker.</p>
+<p>With <code>--target x86_64 --platform windows</code>, <code>zx2native</code> selects named function
+exports from registered AMD64 PE32+ DLLs and writes PE imports. Registrations
+still contain absolute paths on the build machine; the executable imports each
+DLL by its filename. Deploy those DLLs beside the executable or on the Windows
+DLL search path. The call veneer uses Win64 positional argument registers,
+shadow space and stack arguments, including aligned copies for <code>string</code> and
+slice arguments. Scalar returns are supported; record returns, other record
+layouts, forwarded DLL exports and call frames needing stack probes report a
+gap. Missing providers and unsupported signatures never select another engine.
 Use <code>#scope_file</code>, <code>#scope_module</code>, and <code>#scope_export</code> to change the
 visibility of following declarations.</p>
 <h2 id="multiline-strings">Multiline strings</h2>

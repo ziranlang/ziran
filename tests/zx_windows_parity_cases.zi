@@ -148,6 +148,90 @@ Agrees :: (test: *NativeTest, wine: string, label: string, elf: string, exe: str
     return reference
 }
 
+// Real named DLL imports, two providers, Win64 register/stack placement,
+// aggregate arguments, floating results and narrow signed/unsigned results.
+WindowsHosts :: (test: *NativeTest, tools: string, wine: string) -> bool {
+    selected := EnvironmentText("WIN64_CC")
+    cc := CheckExecutable(ifx selected != "" then selected else "x86_64-w64-mingw32-gcc")
+    if cc == "" {
+        print("SKIP: Windows host DLL test needs MinGW\n")
+        return EnvironmentText("WINDOWS_REQUIRED") != "1"
+    }
+    source := CheckPath(test.work, "host.c")
+    unused NativeWrite(test, source, "#include <stdint.h>\n#include <stdbool.h>\ntypedef struct { const char *data; int64_t length; } Text;\nstatic int32_t state;\n__declspec(dllexport) bool ZxWindowOpenHost(Text title, int32_t w, int32_t h) { return title.length == 7 && title.data[0] == 'p' && title.data[6] == 't' && w == 123 && h == 234; }\n__declspec(dllexport) int64_t Scalars(int8_t a, uint8_t b, int32_t c, uint32_t d, int64_t e, int64_t f) { return a == -3 && b == 250 && c == -30000 && d == 4000000000u && e == 5000000000LL && f == -6000000000LL ? 42 : 0; }\n__declspec(dllexport) double Mixed(int32_t a, float b, Text t, double c, int32_t e, float f) { return a == 17 && b == 1.5f && t.length == 7 && t.data[1] == 'e' && c == 2.25 && e == 23 && f == 3.5f ? 42.5 : 0; }\n__declspec(dllexport) int8_t Narrow(void) { return -7; }\n__declspec(dllexport) uint8_t Unsigned(void) { return 250; }\n__declspec(dllexport) void Note(int32_t n) { state = n; }\n__declspec(dllexport) int32_t Counter(void) { return state; }\n__declspec(dllexport) Text Bad(void) { Text t = {0}; return t; }\n")
+    dll := CheckPath(test.work, "host.dll")
+    compile := string.[cc, "-shared", "-O2", source, "-o", dll]
+    unused NativeRun(test, compile[:])
+    second := CheckPath(test.work, "second.c")
+    unused NativeWrite(test, second, "__declspec(dllexport) int Second(void) { return 19; }\n__declspec(dllexport) int Counter(void) { return 99; }\n")
+    dll2 := CheckPath(test.work, "second.dll")
+    compile2 := string.[cc, "-shared", "-O2", second, "-o", dll2]
+    unused NativeRun(test, compile2[:])
+    if test.failed { return false }
+    registrations := CheckPath(test.work, "hosts")
+    unused NativeWrite(test, CheckPath(registrations, "a.library"), CheckConcat(dll, "\n"))
+    unused NativeWrite(test, CheckPath(registrations, "b.library"), CheckConcat(dll2, "\n"))
+    // Invalid candidates must be inspected as bytes, never loaded, and skipped.
+    unused NativeWrite(test, CheckPath(test.work, "invalid.dll"), "MZ\n")
+    unused NativeWrite(test, CheckPath(registrations, "0.library"), CheckConcat(CheckPath(test.work, "invalid.dll"), "\n"))
+    NativeSet(test, "ZIRAN_HOST_PATH", registrations)
+    app := CheckPath(test.work, "hosted.zi")
+    declarations := "api :: #system_library \"host_api\";\nZxWindowOpenHost :: (title: string, width: s32, height: s32) -> bool #foreign api;\nScalars :: (a: s8, b: u8, c: s32, d: u32, e: s64, f: s64) -> s64 #foreign api;\nMixed :: (a: s32, b: float32, t: string, c: float64, e: s32, f: float32) -> float64 #foreign api;\nNarrow :: () -> s8 #foreign api;\nUnsigned :: () -> u8 #foreign api;\nNote :: (n: s32) #foreign api;\nCounter :: () -> s32 #foreign api;\nSecond :: () -> s32 #foreign api;\n"
+    unused NativeWrite(test, app, CheckConcat(declarations, "main :: () -> s32 {\ntitle := \"pe-host\"\nNote(23)\nif !ZxWindowOpenHost(title, 123, 234) || Scalars(-3, 250, -30000, 4000000000, 5000000000, -6000000000) != 42 || Mixed(17, 1.5, title, 2.25, 23, 3.5) != 42.5 || Narrow() != -7 || Unsigned() != 250 || Second() != 19 || Counter() != 23 { return 1 }\nprint(\"Windows host DLL imports passed\\n\")\nreturn 0\n}\n"))
+    zx := CheckPath(test.work, "hosted.zx")
+    lower := string.[CheckPath(tools, "zi2zx"), "--root", test.work, "--entry", "hosted:main", "-o", zx, app]
+    unused NativeRun(test, lower[:])
+    if test.failed { return false }
+    exe := CheckPath(test.work, "hosted.exe")
+    build := string.[CheckPath(tools, "zx2native"), "--target", "x86_64", "--platform", "windows", "-o", exe, zx]
+    unused NativeRun(test, build[:])
+    if test.failed { return false }
+    execute := string.[wine, exe]
+    unused NativeExpect(test, execute[:], "Windows host DLL imports passed\n")
+    if test.failed { return false }
+    // Exact DLL groups and terminating descriptor; import symbols must use
+    // names rather than ordinals, and every IAT slot starts as its name RVA.
+    bytes := NativeRead(test, exe)
+    optional := cast(s64)Little(bytes, 60, 4) + 24
+    pe := PeFile.{bytes = bytes, sections = cast(s64)Little(bytes, optional - 18, 2), table = optional + 240}
+    descriptor := PeOffset(pe, Little(bytes, optional + 120, 4))
+    libraries := string.["KERNEL32.dll", "host.dll", "second.dll", ""]
+    for index: cast(s64)0..libraries.count - 1 {
+        record := descriptor + index * 20
+        dll_name := Little(bytes, record + 12, 4)
+        if libraries[index] == "" {
+            if !NativeAssert(test, dll_name == 0 && Little(bytes, record, 4) == 0, "missing terminating import descriptor") { return false }
+            continue
+        }
+        if !NativeAssert(test, PeName(pe, PeOffset(pe, dll_name)) == libraries[index], "incorrect host DLL import grouping") { return false }
+        lookup := PeOffset(pe, Little(bytes, record, 4))
+        address := PeOffset(pe, Little(bytes, record + 16, 4))
+        while Little(bytes, lookup, 8) != 0 {
+            rva := Little(bytes, lookup, 8)
+            if !NativeAssert(test, Little(bytes, address, 8) == rva && PeOffset(pe, rva) >= 0,
+                "DLL import is not a hint/name RVA in both tables") { return false }
+            lookup += 8; address += 8
+        }
+        if !NativeAssert(test, Little(bytes, address, 8) == 0, "unterminated IAT") { return false }
+    }
+    // The map measures the same PE with the same linked hosts.
+    map_command := string.[CheckPath(tools, "zx2native"), "--platform", "windows", "--emit", "map", "-o", CheckPath(test.work, "hosted.map"), zx]
+    unused NativeRun(test, map_command[:])
+    again := CheckPath(test.work, "again.exe")
+    repeat := string.[CheckPath(tools, "zx2native"), "--platform", "windows", "-o", again, zx]
+    unused NativeRun(test, repeat[:])
+    if !NativeAssert(test, NativeSameFile(exe, again), "DLL-linked PE is not deterministic") { return false }
+    // An unavailable provider errors before opening output; no engine fallback.
+    NativeSet(test, "ZIRAN_HOST_PATH", CheckPath(test.work, "missing-hosts"))
+    unused NativeReject(test, build[:], "assembly.gap.machine-host")
+    if !NativeAssert(test, NativeSameFile(exe, again), "host gap modified the executable") { return false }
+    NativeSet(test, "ZIRAN_HOST_PATH", registrations)
+    unused NativeWrite(test, app, "api :: #system_library \"host_api\";\nPair :: struct { a: s64; b: s64 }\nBad :: () -> Pair #foreign api;\nmain :: () -> s32 { value := Bad(); return cast(s32)value.a }\n")
+    unused NativeRun(test, lower[:])
+    unused NativeReject(test, build[:], "assembly.gap.machine-host-abi")
+    return NativeAssert(test, NativeSameFile(exe, again), "ABI gap modified the executable") && !test.failed
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "zx-windows-parity-")
@@ -205,12 +289,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
         unused NativeAssert(*test, !item.traps || reference.code == 125,
             CheckConcat(item.entry, ": an expected trap did not trap"))
     }
+    unused NativeAssert(*test, WindowsHosts(*test, tools, wine), "Windows external hosts failed")
     server := CheckExecutable("wineserver")
     if server != "" {
         stop := string.[server, "-k"]
         unused NativeInvoke(*test, stop[:])
     }
     if test.failed { return 1 }
+    print("Windows named DLL hosts: two providers, Win64 scalar/record/float arguments, IAT/map/determinism and explicit gaps passed\n")
     version := string.[wine, "--version"]
     print("Windows parity: % programs print and exit as their Linux native ELFs, as PE32+ executables under %",
         cases.count + 1, NativeInvoke(*test, version[:]).output)

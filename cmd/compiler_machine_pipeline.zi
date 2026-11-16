@@ -144,9 +144,8 @@ Encoded :: struct { diagnostic: MachineDiagnostic; size: s64 }
 ExecutableEncode :: (program: MachineProgram, image: MachineX64Image, output: []u8, fuel: s64,
     hosts: MachineElfHosts) -> Encoded {
     if program.target.os == .Windows {
-        // A PE imports only kernel32.
-        if hosts.imports.count > 0 { return .{diagnostic = Problem(.Unsupported)} }
-        pe := MachinePeEncode(program, image, output, fuel)
+        pe := MachinePeEncode(program, image, output, fuel,
+            .{libraries = hosts.libraries, imports = hosts.imports})
         return .{diagnostic = pe.diagnostic, size = pe.size}
     }
     elf := MachineElfEncode(program, image, output, fuel, hosts)
@@ -347,6 +346,21 @@ MachineNativeElfLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: M
     if result.diagnostic.problem == .None {
         empty: [0]u8
         result = MachineElfEncode(program, MachineX64View(*owner.encoded), empty[:], MachineX64InitialFuel,
+            .{libraries = links.libraries, imports = imports[:]})
+    }
+    VecFree(imports)
+    return result
+}
+
+// The Windows PE layout measured with the same linked hosts as its executable.
+MachineNativePeLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: MachineHostLinks) -> MachinePeResult {
+    program := owner.machine.program
+    imports: Vec(MachineX64HostImport)
+    result: MachinePeResult
+    result.diagnostic = HostImports(lir, program, links, *imports)
+    if result.diagnostic.problem == .None {
+        empty: []u8
+        result = MachinePeEncode(program, MachineX64View(*owner.encoded), empty, MachineX64InitialFuel,
             .{libraries = links.libraries, imports = imports[:]})
     }
     VecFree(imports)

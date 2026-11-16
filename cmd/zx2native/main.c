@@ -29,7 +29,7 @@ assembly_usage(void)
 {
     fputs("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|image] [--fuel N] -o FILE INPUT.zx\n"
           "elf writes the platform's executable: an ELF on Linux, a PE32+ .exe on Windows\n"
-          "a Linux x86-64 ELF links its host capabilities from the registered host libraries\n"
+          "x86-64 Linux ELF and Windows PE link capabilities from registered host libraries\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
           "--fuel sets an executable's starting fuel; it is unbounded by default, as for a bundle run\n"
           "zx2native reads only decoded and verified ZX and uses only the no-fallback machine-IR path\n"
@@ -300,14 +300,15 @@ assembly_hosts_load(AssemblyHosts *hosts)
 }
 #endif
 
-/* Every host capability of PROGRAM needs a library that defines it, and only
- * a Linux x86-64 ELF links one; everything else is a gap. Platform services
+/* Every host capability of PROGRAM needs a library that defines it. Linux
+ * ELF and Windows PE on x86-64 link them; other rows are gaps. Platform services
  * are lowered by the machine pipeline itself. Fills HOSTS->links. */
 static int
 assembly_machine_hosts(const LirProgram *program, TargetDescription target, AssemblyHosts *hosts)
 {
     const LirFunction *functions = program->functions.data;
-    int linking = target.arch == TargetArch_X86_64 && target.os == TargetOS_Linux;
+    int linking = target.arch == TargetArch_X86_64 &&
+        (target.os == TargetOS_Linux || target.os == TargetOS_Windows);
     int loaded = 0;
     for(int64_t index = 0; index < program->functions.length; index++) {
         if(!functions[index].external || ZxPlatformService(program, index) != ZX_SERVICE_NONE) continue;
@@ -325,20 +326,27 @@ assembly_machine_hosts(const LirProgram *program, TargetDescription target, Asse
         }
         size_t provider = 0;
         while(linking && provider < hosts->count &&
-              !compiler_machine_elf_MachineElfLibraryDefines(
-                  (Slice){hosts->libraries[provider].bytes, (int64_t)hosts->libraries[provider].size}, name))
+              !(target.os == TargetOS_Windows ? compiler_machine_pe_MachinePeLibraryDefines(
+                  (Slice){hosts->libraries[provider].bytes, (int64_t)hosts->libraries[provider].size}, name) :
+                compiler_machine_elf_MachineElfLibraryDefines(
+                  (Slice){hosts->libraries[provider].bytes, (int64_t)hosts->libraries[provider].size}, name)))
             provider++;
         if(!linking || provider == hosts->count) {
             Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-host", linking ?
-                "assembly.gap.machine-host: machine ELF does not implement host capability %.*s: no registered host library defines it; no alternate engine was selected" :
-                "assembly.gap.machine-host: machine ELF does not implement host capability %.*s; no alternate engine was selected",
-                (int)name.length, name.data);
+                "assembly.gap.machine-host: machine %s does not implement host capability %.*s: no registered host library defines it; no alternate engine was selected" :
+                "assembly.gap.machine-host: machine %s does not implement host capability %.*s; no alternate engine was selected",
+                target.os == TargetOS_Windows ? "PE" : "ELF", (int)name.length, name.data);
             return 1;
         }
         AssemblyHostLibrary *library = &hosts->libraries[provider];
         if(library->linked < 0) {
             library->linked = (int32_t)hosts->links.libraries.length;
-            hosts->paths[library->linked] = (String){library->path, strlen(library->path)};
+            const char *path = library->path;
+            if(target.os == TargetOS_Windows) {
+                const char *slash = strrchr(path, '/');
+                if(slash) path = slash + 1;
+            }
+            hosts->paths[library->linked] = (String){(char *)path, strlen(path)};
             hosts->links.libraries = (Slice){hosts->paths, hosts->links.libraries.length + 1};
         }
         hosts->providers[index] = library->linked;
@@ -349,14 +357,14 @@ assembly_machine_hosts(const LirProgram *program, TargetDescription target, Asse
 
 /* A host capability whose parameters or result the C ABI veneer cannot carry. */
 static void
-assembly_host_abi_gap(const LirProgram *program, int32_t function)
+assembly_host_abi_gap(const LirProgram *program, int32_t function, TargetDescription target)
 {
     String name = function >= 0 && function < program->functions.length ?
         ((const LirFunction *)program->functions.data)[function].name : (String){"?", 1};
     Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-host-abi",
-        "assembly.gap.machine-host-abi: machine ELF cannot pass host capability %.*s's parameters or result through the C ABI: "
+        "assembly.gap.machine-host-abi: machine %s cannot pass host capability %.*s's parameters or result through the C ABI: "
         "only bool, integer, pointer and float values and records of one or two 8-byte integers or pointers cross it; "
-        "no alternate engine was selected", (int)name.length, name.data);
+        "no alternate engine was selected", target.os == TargetOS_Windows ? "PE" : "ELF", (int)name.length, name.data);
 }
 
 static void
@@ -478,7 +486,8 @@ assembly_image_facts(const LirProgram *program, const MachineNativeOwner *owner,
     MachineProgram machine = owner->machine.program;
     MachineX64Image encoded = owner->encoded.image;
     if(machine.target.os == TargetOS_Windows) {
-        MachinePeResult pe = compiler_machine_pe_MachinePeEncode(machine, encoded, (Slice){0}, INT64_MAX);
+        MachinePeResult pe = compiler_machine_pipeline_MachineNativePeLayout(*program,
+            (MachineNativeOwner *)owner, links);
         return (AssemblyImageFacts){.target = "x86_64-windows", .kind = "aot-pe",
             .address_space = "pe-virtual", .scope = "complete-pe", .startup = pe.startup_size,
             .size = pe.size, .text_offset = pe.text_offset,
@@ -950,7 +959,7 @@ main(int argc, char **argv)
             *view, native_target, compiler_machine_ir_MachineDefaultLimits(),
             &machine_owner, elf_fuel, hosts.links);
         if(diagnostic.problem == MachineProblem_HostAbi) {
-            assembly_host_abi_gap(view, diagnostic.function);
+            assembly_host_abi_gap(view, diagnostic.function, native_target);
             goto done;
         }
         if(diagnostic.problem != MachineProblem_None) {

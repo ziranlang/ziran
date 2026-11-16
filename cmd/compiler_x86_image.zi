@@ -389,6 +389,7 @@ HostIndex :: (hosts: []MachineX64HostImport, function: s32) -> s64 {
 
 // The position of the INDEX-th import's slot.
 HostSlot :: (layout: MachineX64ImageLayout, index: s64) -> s64 {
+    if Windows(layout) { return layout.hosts[index].slot }
     return layout.data + layout.data_layout.host_slots + index * 8
 }
 
@@ -667,7 +668,7 @@ MachineX64ImageMeasure :: (program: MachineProgram, image: MachineX64Image,
     hosts_diagnostic := HostsMeasure(program, layout.hosts)
     if hosts_diagnostic.problem != .None { return hosts_diagnostic }
     layout.needs = ImageNeeds(program, image)
-    data_diagnostic := DataMeasure(program, layout.needs, layout.hosts.count, *layout.data_layout)
+    data_diagnostic := DataMeasure(program, layout.needs, ifx Windows(<<layout) then cast(s64)0 else layout.hosts.count, *layout.data_layout)
     if data_diagnostic.problem != .None { return data_diagnostic }
     return GlobalsMeasure(program, false, *layout.constants_size)
 }

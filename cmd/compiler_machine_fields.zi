@@ -1,0 +1,142 @@
+using Aggregates :: #import "compiler_machine_aggregate"
+using Lir :: #import "compiler_lowered_ir"
+using Machine :: #import "compiler_machine_ir"
+using Vectors :: #import "std/vec"
+
+// An aggregate load used only to read members need not copy the aggregate.
+// This view aliases program memory: every eventual read, including reads
+// through nested views, must precede any possible write or call.
+MachineFieldsPlan :: struct {
+    pointer: Vec(s32)
+    work: s64
+    root: Vec(s32)
+    home: Vec(s32)
+    stamp: Vec(s64)
+    valid: Vec(bool)
+    used: Vec(bool)
+}
+
+MachineFieldsPlanFree :: (plan: *MachineFieldsPlan) {
+    VecFree(plan.pointer)
+    VecFree(plan.root)
+    VecFree(plan.home)
+    VecFree(plan.stamp)
+    VecFree(plan.valid)
+    VecFree(plan.used)
+}
+
+#scope_file
+
+Write :: (op: LirOp) -> bool {
+    return op == .Store || op == .Copy || op == .Zero || op == .Resize ||
+        op == .Allocate || op == .Call || op == .CallIndirect || op == .HostCall || op == .Insert
+}
+
+Spend :: (plan: *MachineFieldsPlan, count: s64, budget: s64) -> bool {
+    if count < 0 || count > budget - plan.work { return false }
+    plan.work += count
+    return true
+}
+
+#scope_export
+
+MachineFieldsPlanBuild :: (plan: *MachineFieldsPlan, function: LirFunction,
+    aggregates: *MachineAggregatePlan, stack_size: []s64, address_shift: []s32,
+    enabled: bool, budget: s64, bytes: s64) -> MachineProblem {
+    count := function.values.count
+    plan.work = 0
+    if !VecResizeBounded(plan.pointer, count, bytes) { return .Allocation }
+    if !Spend(plan, count, budget) { return .Limit }
+    for value: cast(s64)0..count - 1 { plan.pointer[value] = MachineNoId }
+    if !enabled { return .None }
+    if !VecResizeBounded(plan.root, count, bytes) || !VecResizeBounded(plan.home, count, bytes) ||
+        !VecResizeBounded(plan.stamp, count, bytes) || !VecResizeBounded(plan.valid, count, bytes) ||
+        !VecResizeBounded(plan.used, count, bytes) { return .Allocation }
+    for value: cast(s64)0..count - 1 {
+        plan.root[value] = MachineNoId
+        plan.home[value] = MachineNoId
+        plan.stamp[value] = 0
+        plan.valid[value] = false
+        plan.used[value] = false
+    }
+    // Discover roots before uses, including blocks listed before their
+    // defining block. A use outside the load's block keeps its snapshot.
+    for block, home: function.blocks {
+        if !Spend(plan, block.instructions.count, budget) { return .Limit }
+        for instruction: block.instructions {
+            value := instruction.result
+            if instruction.op != .Load || value < 0 || instruction.operands.count != 1 ||
+                stack_size[function.values[value]] <= 0 { continue }
+            pointer := instruction.operands[0]
+            // A selected memory operand has no standalone address virtual.
+            if address_shift[pointer] >= 0 { continue }
+            plan.root[value] = value
+            plan.pointer[value] = pointer
+            plan.home[value] = cast(s32)home
+            plan.valid[value] = true
+        }
+    }
+    for block, home: function.blocks {
+        stamp: s64
+        for instruction: block.instructions {
+            if !Spend(plan, 1 + instruction.operands.count, budget) { return .Limit }
+            result := instruction.result
+            if result >= 0 && plan.pointer[result] >= 0 { plan.stamp[result] = stamp }
+            for value, operand: instruction.operands {
+                root := plan.root[value]
+                if root < 0 { continue }
+                if instruction.op != .Extract || operand != 0 || plan.home[root] != cast(s32)home ||
+                    plan.stamp[root] != stamp {
+                    plan.valid[root] = false
+                    continue
+                }
+                plan.used[root] = true
+                // A member copied out now owns a snapshot. A member read
+                // in place extends the lifetime of this memory view.
+                if aggregates.view[result] == .Read { plan.root[result] = root }
+            }
+            for edge: instruction.edges {
+                if !Spend(plan, edge.arguments.count, budget) { return .Limit }
+                for value: edge.arguments {
+                    root := plan.root[value]
+                    if root >= 0 { plan.valid[root] = false }
+                }
+            }
+            if Write(instruction.op) { stamp += 1 }
+        }
+    }
+    any := false
+    for value: cast(s32)0..cast(s32)count - 1 {
+        if plan.pointer[value] < 0 { continue }
+        if !plan.valid[value] || !plan.used[value] { plan.pointer[value] = MachineNoId; continue }
+        aggregates.view[value] = .Read
+        aggregates.root[value] = value
+        aggregates.address[value] = value
+        any = true
+    }
+    if !any { return .None }
+    if !Spend(plan, count * 2, budget) { return .Limit }
+    // Old address sharing referred to frame slots, which can now stand for
+    // different memory bases. Recompute read addresses; an in-place insert
+    // still shares the address of the view it changes.
+    for value: cast(s32)0..cast(s32)count - 1 {
+        if aggregates.view[value] == .Read { aggregates.address[value] = value }
+        aggregates.storage[value] = false
+    }
+    for block: function.blocks {
+        if !Spend(plan, block.instructions.count, budget) { return .Limit }
+        for instruction: block.instructions {
+            value := instruction.result
+            if value >= 0 && aggregates.view[value] == .Changed {
+                aggregates.address[value] = instruction.operands[0]
+            }
+        }
+    }
+    for value: cast(s32)0..cast(s32)count - 1 {
+        if stack_size[function.values[value]] >= 0 && !aggregates.split[value] &&
+            (aggregates.view[value] == .None || aggregates.view[value] == .PutBack) {
+            aggregates.storage[aggregates.slot[value]] = true
+        }
+    }
+    return .None
+}

@@ -93,6 +93,7 @@ void NativeInstanceClose(NativeInstance *instance) { (void)instance; }
 #include <link.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -1319,12 +1320,39 @@ native_stack_limit(void)
 {
     uintptr_t here = (uintptr_t)__builtin_frame_address(0);
     uintptr_t floor = here > NATIVE_STACK_MAXIMUM ? here - NATIVE_STACK_MAXIMUM : 0;
-    pthread_attr_t attributes;
+    /* pthread_getattr_np may scan /proc for the main thread. Keep only one
+     * range per thread, never an instance limit: the depth cap above must
+     * still follow each entry's frame. A switched/alternate stack misses.
+     * Linux derives the main stack's bottom from RLIMIT_STACK, which hosts
+     * may reduce between entries, so validate that inexpensive value too.
+     * Failed queries and fallback limits are deliberately not cached. */
+    static _Thread_local struct {
+        uintptr_t bottom;
+        size_t size;
+        rlim_t stack_size;
+    } cached;
+    struct rlimit resource;
+    int have_resource = getrlimit(RLIMIT_STACK, &resource) == 0;
     void *low = NULL;
     size_t size = 0;
-    if(pthread_getattr_np(pthread_self(), &attributes) == 0) {
-        if(pthread_attr_getstack(&attributes, &low, &size) != 0) low = NULL;
-        pthread_attr_destroy(&attributes);
+    if(have_resource && cached.size != 0 && cached.stack_size == resource.rlim_cur &&
+       here > cached.bottom && here - cached.bottom <= cached.size) {
+        low = (void *)cached.bottom;
+        size = cached.size;
+    } else {
+        pthread_attr_t attributes;
+        /* Invalidate even on failure, including a changed resource limit. */
+        cached.size = 0;
+        if(pthread_getattr_np(pthread_self(), &attributes) == 0) {
+            if(pthread_attr_getstack(&attributes, &low, &size) != 0) low = NULL;
+            pthread_attr_destroy(&attributes);
+        }
+        if(have_resource && low != NULL && size > NATIVE_STACK_RESERVE &&
+           here > (uintptr_t)low && here - (uintptr_t)low <= size) {
+            cached.bottom = (uintptr_t)low;
+            cached.stack_size = resource.rlim_cur;
+            cached.size = size;
+        }
     }
     uintptr_t bottom = (uintptr_t)low;
     if(low != NULL && size > NATIVE_STACK_RESERVE && here > bottom + NATIVE_STACK_RESERVE &&

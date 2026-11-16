@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Native code reads individual fields of large records without copying the whole record when snapshot semantics permit it, and repeated native calls reuse validated thread stack bounds.
+
 - Native x86-64 code addresses an element at a constant zero index as its base without computing it: the `Hello, World!` executable's `main` is four machine instructions instead of six, and a record built from a field of another record no longer names an eliminated virtual.
 - `zx2native` writes a Linux x86-64 executable for a program that calls host capabilities: it links each capability by name from a registered host library (a `NAME.library` file beside the `.host` players `ziran run` dispatches to, in `ZIRAN_HOST_PATH` or `~/.local/share/ziran/hosts`), with the C ABI the C target declares for it, so a host library built from Ziran through the C target serves both. The ELF names the system dynamic linker and each library, and one System V veneer per capability calls it; bools, integers, pointers, floats, strings and slices cross. A capability no registered library defines is still `assembly.gap.machine-host`, now naming that, and one whose parameters or result the veneer cannot carry is `assembly.gap.machine-host-abi`; a program with no host capabilities stays static. Kryon's `examples/window.zi` lowers to an executable of under 2 KB that opens its window through Kryon's desktop host library.
 - Native register allocation gives a block parameter and the parameter it is copied into one register when neither is live where the other is defined, so a loop counter passed around unchanged costs no moves. Sieve drops from about 31 to 24 µs on Omega. An allocation the allocated-code verifier rejects is redone without this.

@@ -1,5 +1,6 @@
 using ABI :: #import "compiler_abi"
 using Aggregates :: #import "compiler_machine_aggregate"
+using Fields :: #import "compiler_machine_fields"
 using Lir :: #import "compiler_lowered_ir"
 using LirVerifyModule :: #import "compiler_lowered_verify"
 using Image :: #import "compiler_machine_image"
@@ -31,6 +32,7 @@ LowerState :: struct {
     proven: *LirProvenOwner
     frame_raw: *Vec(s32)
     aggregates: *AggregateLowering
+    fields: *MachineFieldsPlan
     // The selection plan of the function being lowered (see
     // compiler_machine_select), the LIR block and instruction number being
     // lowered, and the flags and condition of a compare whose branch follows.
@@ -1570,7 +1572,15 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Extract { return LowerExtract(state, function, source) }
     if source.op == .Insert { return LowerInsert(state, function, source) }
     if source.op == .Allocate { return LowerAllocate(state, function, source) }
-    if source.op == .Load { return LowerMemory(state, function, source, .Load) }
+    if source.op == .Load {
+        if state.fields.pointer[source.result] >= 0 {
+            instruction := BeginInstruction(state, .Move, source.origin)
+            return VirtualOperand(state, state.aggregates.view_address[source.result], .Define) != MachineNoId &&
+                VirtualOperand(state, GlobalVirtual(state, function, state.fields.pointer[source.result]), .Use) != MachineNoId &&
+                FinishInstruction(state, instruction) != MachineNoId
+        }
+        return LowerMemory(state, function, source, .Load)
+    }
     if source.op == .Store { return LowerMemory(state, function, source, .Store) }
     if source.op == .Copy { return LowerMemory(state, function, source, .Copy) }
     if source.op == .Zero { return LowerMemory(state, function, source, .Zero) }
@@ -1617,7 +1627,11 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     problem = MachineSelectPlanBuild(state.select, state.lir, source, x86, x86 && !state.checks,
         state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
-    if !Spend(state, state.select.work) || !CreateVirtuals(state, function_id) { return false }
+    if !Spend(state, state.select.work) { return false }
+    problem = MachineFieldsPlanBuild(state.fields, source, *state.aggregates.plan, state.aggregates.stack_size[:],
+        state.select.address_shift[:], x86 && !state.checks, state.remaining, state.limits.bytes)
+    if problem != .None { return Fail(state, problem) }
+    if !Spend(state, state.fields.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
     function.fuel_register = state.options.fuel && MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
     if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) ||
@@ -1779,6 +1793,9 @@ MachineLower :: (owner: *MachineOwner, program: LirProgram, target: TargetDescri
     aggregates: AggregateLowering
     defer AggregateLoweringFree(*aggregates)
     state.aggregates = *aggregates
+    fields: MachineFieldsPlan
+    defer MachineFieldsPlanFree(*fields)
+    state.fields = *fields
     select: MachineSelectPlan
     defer MachineSelectPlanFree(*select)
     state.select = *select

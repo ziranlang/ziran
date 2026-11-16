@@ -5,6 +5,7 @@ using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using Verify :: #import "compiler_machine_verify"
 using Target :: #import "compiler_target"
+using FieldsCases :: #import "machine_fields_cases"
 
 Check :: (condition: bool, message: string) -> bool {
     if condition { return true }
@@ -341,6 +342,7 @@ MachineImageContract :: (target: Target.TargetDescription) -> bool {
 }
 
 main :: () -> s32 {
+    if !FieldsCases.MachineFieldsCases() { return 1 }
     target := Target.TargetLinuxX64()
     if !Check(Target.TargetValid(target), "Linux x86-64 target is valid") ||
         !Check(target.allocatable_general == 0xffcf && target.reserved_general == 0x30,

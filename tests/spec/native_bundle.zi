@@ -6,6 +6,49 @@ Label :: (round: s64) -> string #foreign host_api;
 
 count: s64;
 
+FieldRecord :: struct { padding: [32768]s32; value: s32 }
+field_left: FieldRecord;
+field_right: FieldRecord;
+FieldRead :: (record: *FieldRecord) -> s32 { return record.value }
+FieldPair :: (left: *FieldRecord, right: *FieldRecord) -> s32 { return left.value + right.value }
+FieldNestedPair :: (left: *FieldRecord, right: *FieldRecord, index: s64) -> s32 {
+    return left.padding[index] + right.padding[index]
+}
+FieldChanged :: (source: *FieldRecord, index: s64) -> s32 {
+    before := source.value
+    value := <<source
+    value.padding[index] = 31
+    return before + value.padding[index]
+}
+FieldWrite :: () { field_left.value = 23 }
+
+// Large memory-backed records may be read by field, but a value captured
+// before an aliasing write or a call must keep its original contents.
+#program_export
+Fields :: () -> s32 {
+    field_left.value = 7
+    field_right.value = 5
+    field_left.padding[42] = 3
+    field_right.padding[42] = 10
+    nested_pair := FieldNestedPair(*field_left, *field_right, 42)
+    changed := FieldChanged(*field_left, 42)
+    nested_snapshot := field_left
+    inner := nested_snapshot.padding
+    field_left.padding[42] = 17
+    before_nested := inner[42]
+    read := FieldRead(*field_left)
+    pair := FieldPair(*field_left, *field_right)
+    snapshot := field_left
+    field_left.value = 11
+    before := snapshot.value
+    call_snapshot := field_left
+    FieldWrite()
+    after_call := call_snapshot.value
+    if nested_pair != 13 || changed != 38 || before_nested != 3 || field_left.padding[42] != 17 { return 2 }
+    if read != 7 || pair != 12 || before != 7 || after_call != 11 || field_left.value != 23 { return 1 }
+    return 42
+}
+
 #program_export
 Answer :: () -> s32 { return 42 }
 

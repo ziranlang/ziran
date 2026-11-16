@@ -1,6 +1,6 @@
 ASSEMBLY_C := $(BUILD_DIR)/compiler-assembly
 ASSEMBLY_MACHINE_SOURCES := cmd/compiler_target.zi cmd/compiler_machine_image.zi cmd/compiler_abi.zi cmd/compiler_machine_ir.zi \
-    cmd/compiler_machine_verify.zi cmd/compiler_machine_aggregate.zi cmd/compiler_machine_select.zi cmd/compiler_machine_lower.zi \
+    cmd/compiler_machine_verify.zi cmd/compiler_machine_aggregate.zi cmd/compiler_machine_fields.zi cmd/compiler_machine_select.zi cmd/compiler_machine_lower.zi \
     cmd/compiler_machine_verify_allocated.zi cmd/compiler_regalloc.zi cmd/compiler_x86_bytes.zi cmd/compiler_x86_64.zi cmd/compiler_x86_runtime.zi \
     cmd/compiler_x86_win64.zi cmd/compiler_x86_host.zi cmd/compiler_x86_image.zi \
     cmd/compiler_aarch64.zi cmd/compiler_armv7.zi \
@@ -59,7 +59,7 @@ $(BUILD_DIR)/obj/assembly-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(BUILD_D
 # second copy of those public symbols from assembly-core.o.
 ASSEMBLY_NATIVE_MODULES := compiler_abi compiler_machine_image \
     compiler_machine_ir compiler_machine_verify \
-    compiler_machine_aggregate compiler_machine_select compiler_machine_lower compiler_machine_verify_allocated compiler_regalloc \
+    compiler_machine_aggregate compiler_machine_fields compiler_machine_select compiler_machine_lower compiler_machine_verify_allocated compiler_regalloc \
     compiler_target compiler_x86_bytes compiler_x86_64 compiler_x86_runtime compiler_aarch64 compiler_armv7 \
     compiler_x86_win64 compiler_x86_host compiler_x86_image \
     compiler_arm_bytes \

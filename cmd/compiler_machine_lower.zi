@@ -45,6 +45,11 @@ LowerState :: struct {
 AggregateLowering :: struct {
     plan: MachineAggregatePlan
     view_address: Vec(s32)
+    // Per value of a split record, where its field virtuals start in fields;
+    // per value, the field virtual an extract of a split record stands for.
+    field_begin: Vec(s32)
+    fields: Vec(s32)
+    alias: Vec(s32)
     stack_size: Vec(s64)
     pointer_to: Vec(s32)
 }
@@ -52,6 +57,9 @@ AggregateLowering :: struct {
 AggregateLoweringFree :: (lowering: *AggregateLowering) {
     MachineAggregatePlanFree(*lowering.plan)
     VecFree(lowering.view_address)
+    VecFree(lowering.field_begin)
+    VecFree(lowering.fields)
+    VecFree(lowering.alias)
     VecFree(lowering.stack_size)
     VecFree(lowering.pointer_to)
 }
@@ -397,13 +405,15 @@ CreateVirtuals :: (state: *LowerState, function_id: s32) -> bool {
         if AddVirtual(state, .{class = class, type = type, fixed_register = MachineNoId,
             stack_object = stack, origin = MachineNoId}) == MachineNoId { return false }
     }
-    // The rest of a class shares it; a class of views alone names its root's.
+    // The rest of a class shares it; a class of views alone names its root's,
+    // and a split record, held in its field registers, has none.
     for value_id: cast(s64)0..source.values.count - 1 {
         virtual_id := function.virtual_begin + cast(s32)value_id
         if state.owner.virtuals[virtual_id].class != .Stack ||
             state.owner.virtuals[virtual_id].stack_object != MachineNoId { continue }
         owner := plan.slot[value_id]
         if !plan.storage[owner] { owner = plan.root[value_id] }
+        if owner == MachineNoId { continue }
         state.owner.virtuals[virtual_id].stack_object = state.owner.virtuals[function.virtual_begin + owner].stack_object
     }
     if source.result != MachineNoId && state.owner.types[source.result].class == .Stack &&
@@ -440,6 +450,10 @@ CreateVirtuals :: (state: *LowerState, function_id: s32) -> bool {
 
 GlobalVirtual :: (state: *LowerState, function: *MachineFunction, local: s32) -> s32 {
     if local < 0 || local >= function.virtual_count { Fail(state, .Virtual); return MachineNoId }
+    // An extract of a split record is the field virtual itself.
+    if local < state.aggregates.alias.count && state.aggregates.alias[local] != MachineNoId {
+        return state.aggregates.alias[local]
+    }
     return function.virtual_begin + local
 }
 
@@ -453,6 +467,18 @@ AddEdges :: (state: *LowerState, function: *MachineFunction, edges: []LirEdge) -
         if source.arguments.count != target.parameters.count { return Fail(state, .Edge) }
         copy_begin := cast(s32)state.owner.copies.count
         for at: cast(s64)0..source.arguments.count - 1 {
+            // A split record parameter takes each field separately.
+            parameter := target.parameters[at]
+            if state.aggregates.plan.split[parameter] {
+                into := cast(s64)state.aggregates.field_begin[parameter]
+                out := cast(s64)state.aggregates.field_begin[source.arguments[at]]
+                for field: cast(s64)0..state.lir.types[source_function.values[parameter]].fields.count - 1 {
+                    destination := state.aggregates.fields[into + field]
+                    if AddCopy(state, .{destination = destination, source = state.aggregates.fields[out + field],
+                        class = state.owner.virtuals[destination].class}) == MachineNoId { return false }
+                }
+                continue
+            }
             from := GlobalVirtual(state, function, source.arguments[at])
             to := GlobalVirtual(state, function, target.parameters[at])
             if state.problem != .None || state.owner.virtuals[from].class != state.owner.virtuals[to].class {
@@ -462,7 +488,7 @@ AddEdges :: (state: *LowerState, function: *MachineFunction, edges: []LirEdge) -
                 class = state.owner.virtuals[from].class}) == MachineNoId { return false }
         }
         if AddEdge(state, .{target = function.block_begin + source.block, copy_begin = copy_begin,
-            copy_count = cast(s32)source.arguments.count}) == MachineNoId { return false }
+            copy_count = cast(s32)state.owner.copies.count - copy_begin}) == MachineNoId { return false }
     }
     return true
 }
@@ -1075,6 +1101,73 @@ AddressVirtual :: (state: *LowerState, function: *MachineFunction, element: s32)
     return address
 }
 
+// Split records: each value gets one virtual per field. A block parameter's
+// are fresh, a build's are its operands', an insert's its source's with one
+// replaced, and an extract stands for its field's; walked in reverse
+// postorder, so every value's fields exist before its uses.
+SplitFields :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
+    lowering := state.aggregates
+    plan := *lowering.plan
+    count := source.values.count
+    if !VecResizeBounded(lowering.field_begin, count, state.limits.bytes) || !VecResize(lowering.fields, 0) {
+        return Fail(state, .Allocation)
+    }
+    any := false
+    for value: cast(s32)0..cast(s32)count - 1 {
+        lowering.field_begin[value] = MachineNoId
+        if !plan.split[value] { continue }
+        any = true
+        lowering.field_begin[value] = cast(s32)lowering.fields.count
+        for field: state.lir.types[source.values[value]].fields {
+            if !VecPush(lowering.fields, MachineNoId) { return Fail(state, .Allocation) }
+        }
+    }
+    if !any { return true }
+    for block: source.blocks {
+        for parameter: block.parameters {
+            if !plan.split[parameter] { continue }
+            begin := cast(s64)lowering.field_begin[parameter]
+            for field, at: state.lir.types[source.values[parameter]].fields {
+                virtual := AddVirtual(state, .{class = state.owner.types[field].class, type = field,
+                    fixed_register = MachineNoId, stack_object = MachineNoId, origin = MachineNoId})
+                if virtual == MachineNoId { return false }
+                lowering.fields[begin + at] = virtual
+            }
+        }
+    }
+    function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
+    for block: plan.order {
+        for instruction: source.blocks[block].instructions {
+            if !Spend(state, 1) { return false }
+            result := instruction.result
+            if instruction.op == .Extract && instruction.operands.count == 1 && plan.split[instruction.operands[0]] {
+                lowering.alias[result] = lowering.fields[cast(s64)lowering.field_begin[instruction.operands[0]] +
+                    cast(s64)instruction.immediate]
+                continue
+            }
+            if result < 0 || !plan.split[result] { continue }
+            begin := cast(s64)lowering.field_begin[result]
+            if instruction.op == .Aggregate {
+                for operand, at: instruction.operands { lowering.fields[begin + at] = GlobalVirtual(state, function, operand) }
+            } else {
+                from := cast(s64)lowering.field_begin[instruction.operands[0]]
+                for at: cast(s64)0..state.lir.types[source.values[result]].fields.count - 1 {
+                    lowering.fields[begin + at] = lowering.fields[from + at]
+                }
+                lowering.fields[begin + cast(s64)instruction.immediate] = GlobalVirtual(state, function, instruction.operands[1])
+            }
+        }
+    }
+    return true
+}
+
+// Whether SOURCE builds, changes or reads a split record, which emits nothing.
+Splits :: (state: *LowerState, source: LirInstruction) -> bool {
+    plan := *state.aggregates.plan
+    if source.op == .Extract { return source.operands.count == 1 && plan.split[source.operands[0]] }
+    return (source.op == .Aggregate || source.op == .Insert) && source.result >= 0 && plan.split[source.result]
+}
+
 // Each view that computes an address gets the virtual holding it; every other
 // view takes the virtual of the view whose address it shares.
 ViewAddresses :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
@@ -1209,6 +1302,7 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
         source.op == .Greater || source.op == .GreaterEqual { return LowerCompare(state, function, source) }
     if source.op == .Convert { return LowerMove(state, function, source, .Convert) }
     if source.op == .Bitcast { return LowerMove(state, function, source, .Bitcast) }
+    if Splits(state, source) { return true }
     if source.op == .Aggregate { return LowerMove(state, function, source, .AggregateBuild) }
     if source.op == .Extract { return LowerExtract(state, function, source) }
     if source.op == .Insert { return LowerInsert(state, function, source) }
@@ -1252,13 +1346,15 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
         state.target.arch == .X86_64, state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.aggregates.plan.work) { return false }
+    if !VecResizeBounded(state.aggregates.alias, source.values.count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..source.values.count - 1 { state.aggregates.alias[at] = MachineNoId }
     problem = MachineSelectPlanBuild(state.select, state.lir, source, state.target.arch == .X86_64,
         state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.select.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
     function.fuel_register = MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
-    if !ViewAddresses(state, *function, source) { return false }
+    if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) { return false }
     // A function that allocates keeps the frame arena's top at entry and
     // the head of its pointer chain in two frame words. Each `allocate` gets
     // its raw-storage virtual up front, so a direct access in any block it

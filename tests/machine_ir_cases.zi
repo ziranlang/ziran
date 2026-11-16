@@ -372,8 +372,9 @@ main :: () -> s32 {
             "direct and indirect call constraints") ||
         !Check(program.relocations.count == 2, "function address and direct call relocations") ||
         !Check(program.edges.count == 2 && program.copies.count == 2, "parallel block transfers") ||
-        !Check(FindOpcode(program, .FloatAdd) >= 0 && FindOpcode(program, .AggregateBuild) >= 0,
-            "float and aggregate selection") ||
+        !Check(FindOpcode(program, .FloatAdd) >= 0 && FindOpcode(program, .AggregateBuild) < 0 &&
+            program.stack_objects.count == 0,
+            "float selection, and a small record read in place splits into its scalars") ||
         !Check(FlagsBranch(program), "a compare's flags feed the branch right after it") ||
         !Check(program.types[2].kind == .Integer && program.types[2].is_signed && program.types[2].bits == 32 &&
             program.types[4].kind == .Float && program.types[4].bits == 32 &&
@@ -541,13 +542,20 @@ main :: () -> s32 {
     if !Check(Verify.MachineVerify(program, limits).problem == .Fuel,
         "missing fuel facts") { return 1 }
     program.instructions[compare] = saved_instruction
-    saved_stack_virtual := program.virtuals[0]
-    program.virtuals[0].class = .Stack
-    program.virtuals[0].fixed_register = -1
-    program.virtuals[0].stack_object = -1
-    if !Check(Verify.MachineVerify(program, limits).problem == .Stack,
-        "missing stack facts") { return 1 }
-    program.virtuals[0] = saved_stack_virtual
+    // The split record's value has no frame object, and a stack operand
+    // naming it is rejected.
+    split_value := program.functions[1].virtual_begin + 7
+    returned: s32 = -1
+    for index: program.blocks[program.functions[1].block_begin].instruction_begin..cast(s32)program.instructions.count - 1 {
+        if returned < 0 && program.instructions[index].opcode == .Return { returned = program.instructions[index].operand_begin }
+    }
+    saved_returned := program.operands[returned]
+    program.operands[returned].class = .Stack
+    program.operands[returned].id = split_value
+    if !Check(program.virtuals[split_value].class == .Stack && program.virtuals[split_value].stack_object == -1 &&
+        Verify.MachineVerify(program, limits).problem == .Stack,
+        "a stack operand needs its value's frame object") { return 1 }
+    program.operands[returned] = saved_returned
 
     Lower.MachineFree(*owner)
     Lower.MachineFree(*owner)

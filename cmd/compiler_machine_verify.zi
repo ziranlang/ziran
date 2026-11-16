@@ -240,8 +240,10 @@ VirtualsAndStack :: (state: *VerifyState, program: MachineProgram) -> bool {
         if value.type < 0 || value.type >= program.types.count {
             return Fail(state, .Virtual, virtual = cast(s32)index)
         }
+        // A stack value no instruction names (a split record) has no object;
+        // operands and copies check that the ones they name do.
         if value.class == .Stack {
-            if value.stack_object < 0 || value.stack_object >= program.stack_objects.count {
+            if value.stack_object < MachineNoId || value.stack_object >= program.stack_objects.count {
                 return Fail(state, .Stack, virtual = cast(s32)index)
             }
         } else if value.stack_object != MachineNoId {
@@ -266,6 +268,10 @@ Operand :: (state: *VerifyState, program: MachineProgram, function: MachineFunct
         if operand.id < function.virtual_begin || operand.id >= function.virtual_begin + function.virtual_count ||
             program.virtuals[operand.id].class != operand.class {
             return Fail(state, .Virtual, function.lir_function, instruction = instruction_id,
+                operand = operand_id, virtual = operand.id)
+        }
+        if operand.class == .Stack && program.virtuals[operand.id].stack_object == MachineNoId {
+            return Fail(state, .Stack, function.lir_function, instruction = instruction_id,
                 operand = operand_id, virtual = operand.id)
         }
     } else if operand.kind == .Physical {
@@ -319,7 +325,9 @@ Edges :: (state: *VerifyState, program: MachineProgram, function: MachineFunctio
             if copy.source < function.virtual_begin || copy.source >= function.virtual_begin + function.virtual_count ||
                 copy.destination < function.virtual_begin || copy.destination >= function.virtual_begin + function.virtual_count ||
                 !ClassValid(copy.class) || program.virtuals[copy.source].class != copy.class ||
-                program.virtuals[copy.destination].class != copy.class {
+                program.virtuals[copy.destination].class != copy.class ||
+                copy.class == .Stack && (program.virtuals[copy.source].stack_object == MachineNoId ||
+                    program.virtuals[copy.destination].stack_object == MachineNoId) {
                 return Fail(state, .Copy, function.lir_function, instruction = instruction_id)
             }
             for earlier: edge.copy_begin..copy_id - 1 {

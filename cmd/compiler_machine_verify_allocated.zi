@@ -349,9 +349,6 @@ FunctionTables :: (state: *State, program: MachineProgram) -> bool {
                 value.type < 0 || value.type >= program.types.count {
                 return Fail(state, .Virtual, id, virtual = value_id)
             }
-            if value.class == .Stack && !InFunction(value.stack_object, function.stack_begin, function.stack_count) {
-                return Fail(state, .Stack, id, virtual = value_id)
-            }
             if value.stack_object != MachineNoId && !InFunction(value.stack_object, function.stack_begin, function.stack_count) {
                 return Fail(state, .Stack, id, virtual = value_id)
             }

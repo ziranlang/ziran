@@ -268,17 +268,17 @@ RotateFixture :: (owner: *Machine.MachineOwner, width: s32, header_fuel: bool,
     return LowerProgram(owner, functions[:], -1)
 }
 
-// Two record block parameters swapped on every back-edge.
+// Two record block parameters swapped on every back-edge. The records come
+// in as parameters, so they stay in memory instead of splitting into scalars.
 SwapRecordsFixture :: (owner: *Machine.MachineOwner) -> Machine.MachineResult {
     storage: [48]s32
     at: s64 = 0
     values: [13]s32 = .[TypeInteger, TypeRecord, TypeRecord, TypeRecord, TypeRecord, TypeInteger, TypeInteger,
         TypeBool, TypeInteger, TypeInteger, TypeInteger, TypeInteger, TypeInteger]
-    parameters: [1]s32 = .[TypeInteger]
-    entry_parameters: [1]s32 = .[0]
+    parameters: [3]s32 = .[TypeInteger, TypeRecord, TypeRecord]
+    entry_parameters: [3]s32 = .[0, 1, 2]
     entry_edges: [1]Lir.LirEdge = .[.{block = 1, arguments = Three(storage[:], *at, 1, 2, 0)}]
-    entry: [4]Lir.LirInstruction = .[Fuel(1), Op(.Aggregate, 1, Two(storage[:], *at, 0, 0)),
-        Op(.Aggregate, 2, Two(storage[:], *at, 0, 0)), Jump(entry_edges[:])]
+    entry: [2]Lir.LirInstruction = .[Fuel(1), Jump(entry_edges[:])]
     header_parameters: [3]s32 = .[3, 4, 5]
     branch_edges: [2]Lir.LirEdge = .[.{block = 2}, .{block = 3}]
     header: [4]Lir.LirInstruction = .[Fuel(1), Constant(6, 0), Op(.Greater, 7, Two(storage[:], *at, 5, 6)),
@@ -752,12 +752,6 @@ ArithmeticCases :: () -> bool {
     program.types[TypeInteger].size = 4
     if !Rejects(program, .NativeWidth, "allocated native-width mismatch") { return false }
     program.types[TypeInteger] = saved_type
-    saved_virtual := program.virtuals[0]
-    program.virtuals[0].class = .Stack
-    program.virtuals[0].fixed_register = -1
-    program.virtuals[0].stack_object = -1
-    if !Rejects(program, .Stack, "allocated missing stack facts") { return false }
-    program.virtuals[0] = saved_virtual
     jump := FindOpcode(program, .Jump)
     edge := program.instructions[jump].edge_begin
     program.edges[edge].copy_count = 1
@@ -908,18 +902,18 @@ FrameCases :: () -> bool {
         !Check(program.frames[0].incoming_size == 16 && program.frames[1].incoming_size == 16,
             "aggregate and eighth-integer incoming arguments sit above the return address") ||
         !Check(program.frames[2].outgoing_size == 0, "no stack arguments leave no outgoing area") { return false }
-    aggregate := false
+    split := true
     first: s64 = -1
     second: s64 = -1
     for index: cast(s64)0..program.stack_objects.count - 1 {
         object := program.stack_objects[index]
-        if object.function == 2 && object.kind == .Value && object.size == 16 { aggregate = object.offset < 0 && object.offset % 8 == 0 }
+        if object.function == 2 && object.kind == .Value { split = false }
         if object.function == 1 && object.kind == .IncomingArgument {
             if !Check(object.offset == 16 || object.offset == 24, "incoming stack arguments follow parameter order") { return false }
             if first < 0 { first = index } else { second = index }
         }
     }
-    if !Check(aggregate, "aggregate value lives in an aligned frame object") ||
+    if !Check(split, "a record only read by field splits into registers, with no frame object") ||
         !Check(first >= 0 && second >= 0, "two integers arrive on the stack") { return false }
     // Incoming stack homes in another order than the parameters are rejected.
     first_offset := program.stack_objects[first].offset
@@ -937,7 +931,12 @@ FrameCases :: () -> bool {
     defer Lower.MachineFree(*stacked)
     if !Lowered("stack calls", FrameFixture(*stacked, true)) || !Allocate("stack calls", *stacked) { return false }
     stacked_program := Lower.MachineProgramView(*stacked)
+    aggregate := false
+    for object: stacked_program.stack_objects {
+        if object.function == 2 && object.kind == .Value && object.size == 16 { aggregate = object.offset < 0 && object.offset % 8 == 0 }
+    }
     if !Allocated(stacked_program, "stack call allocation verifies") ||
+        !Check(aggregate, "a record passed to a call lives in an aligned frame object") ||
         !Check(stacked_program.calls[0].stack_argument_bytes == 16 &&
             stacked_program.calls[1].stack_argument_bytes == 16 &&
             stacked_program.frames[2].outgoing_size == 16,

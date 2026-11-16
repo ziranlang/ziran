@@ -433,6 +433,15 @@ verifier no longer mistakes spill slot 11 for the r11 scratch register when
 it tracks a parked cycle value. Private timing on Omega: Sieve 59.6 → 47.1
 µs, Records 18.9 → 17.5 µs, Hash unchanged (C 12.2, 8.8, 22.5).
 
+Landed (step 3, split records): a record of up to eight scalar fields that
+is only built, changed and read by constant member and passed between
+blocks becomes one virtual per field, so loop-carried headers and small
+records live in registers and take no frame slot; the machine verifiers
+no longer require a frame object for a stack value no operand or copy
+names. Vectors does not move (56 → 61 µs privately at load 17, inside
+noise): its per-element checked resolves dominate, which the manual-safety
+lane turns off by default.
+
 Remaining per kernel after that, from objdump of the current build:
 - Sieve inner loop (12 instructions, C 5): the direct frame store goes
   `lea token; mov r9d, 1; mov r11d, tok; mov rsi, base; add rsi, r11; mov [rsi],

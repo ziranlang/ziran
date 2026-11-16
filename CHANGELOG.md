@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 code keeps a looping function's step budget in r15 (stored at calls, returns and traps) and checks it at a loop header with one fall-through compare. A small record of scalar fields that is only built, changed and read by member and passed between blocks is held as one register value per field, with no frame slot. On Omega, Sieve drops from 59.6 to 47.1 µs natively.
 - On linux-armv7, Android included, `ziran run app.zx`, `zi2zx run` and the embedding API run bundles as native code by default. The Moto e6 play (armeabi-v7a, Android 9) prints the engine's output for all 72 parity programs natively and from the native cache (`make android-parity ANDROID_ARCH=armv7 ANDROID_API=28 ANDROID_SERIAL=…`, `bench/results/zx-android-parity-moto-2026-11-16.json`), and Kryon's ZX player runs its bundle natively there. On both ARM targets host calls return records, and copies and zeroing of 64 bytes or more run a loop, so code size no longer grows with record size.
 - Native code encodes for ARMv7 (A32) on Linux and Android: general values live in register pairs (r0:r1 … r12:lr), 64-bit divides and int64/float conversions call loader helpers through a `RuntimeHelper` relocation, addresses are MOVW/MOVT halves, and all 72 parity programs encode; `armv7_encoder` cases pin the A32 words against the NDK assembler.
 

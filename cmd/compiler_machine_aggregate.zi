@@ -14,6 +14,11 @@ using Vectors :: #import "std/vec"
 // instruction's aggregate operands conflict with its result, except the
 // source of an insert.
 //
+// Split records: a small record of scalar fields that is only built,
+// changed and read by constant member and passed between blocks never needs
+// memory; each of its values is a set of field values, so a loop-carried
+// header such as a vector's lives in registers.
+//
 // Views: an extract read only by extracts in its own block, while nothing
 // writes the storage it reads, is read in place through its address. One
 // that a single insert then changes and puts straight back where it came
@@ -33,6 +38,8 @@ MachineAggregatePlan :: struct {
     root: Vec(s32)
     address: Vec(s32)
     storage: Vec(bool)
+    // Per value: a split record value, kept as one value per field.
+    split: Vec(bool)
     // Work spent by the last build.
     work: s64
     // Scratch, reused across functions.
@@ -643,6 +650,89 @@ Addresses :: (context: *Context) -> bool {
     return true
 }
 
+// ---------------------------------------------------------------------------
+// Split records
+
+MaximumSplitFields :: 8
+
+// Whether TYPE is a record of at most MaximumSplitFields scalar fields.
+Splittable :: (context: *Context, type: s32) -> bool {
+    record := context.program.types[type]
+    if record.kind != .Record || record.fields.count == 0 || record.fields.count > MaximumSplitFields { return false }
+    for field: record.fields {
+        if context.stack_size[field] >= 0 || context.program.types[field].kind == .Void { return false }
+    }
+    return true
+}
+
+// Clears VALUE from the split set, reporting whether it was in it.
+Unsplit :: (plan: *MachineAggregatePlan, value: s32) -> bool {
+    if value < 0 || !plan.split[value] { return false }
+    plan.split[value] = false
+    return true
+}
+
+// Values a split record can be: built, changed by constant member or a
+// parameter of a reachable block other than the entry, used only by constant
+// extracts and inserts and as edge arguments, with every insert and edge
+// joining two split values.
+Split :: (context: *Context) -> bool {
+    plan := context.plan
+    function := context.function
+    any := false
+    for block, block_index: function.blocks {
+        if !Spend(context, block.instructions.count + block.parameters.count) { return false }
+        reached := plan.position[block_index] >= 0
+        if reached && block_index != cast(s64)function.entry {
+            for parameter: block.parameters {
+                if Splittable(context, TypeOf(context, parameter)) { plan.split[parameter] = true; any = true }
+            }
+        }
+        for instruction: block.instructions {
+            result := instruction.result
+            if !reached || result < 0 || !Splittable(context, TypeOf(context, result)) { continue }
+            if instruction.op == .Aggregate || instruction.op == .Insert && instruction.operands.count == 2 {
+                plan.split[result] = true
+                any = true
+            }
+        }
+    }
+    if !any { return true }
+    for block, block_index: function.blocks {
+        reached := plan.position[block_index] >= 0
+        for instruction: block.instructions {
+            for value, at: instruction.operands {
+                constant := instruction.operands.count == ifx instruction.op == .Extract then cast(s64)1 else 2
+                if reached && at == 0 && constant && (instruction.op == .Extract || instruction.op == .Insert) { continue }
+                unused Unsplit(plan, value)
+            }
+            if !reached { for edge: instruction.edges { for value: edge.arguments { unused Unsplit(plan, value) } } }
+        }
+    }
+    changed := true
+    while changed {
+        changed = false
+        for block: function.blocks {
+            if !Spend(context, block.instructions.count) { return false }
+            for instruction: block.instructions {
+                if instruction.op == .Insert && instruction.operands.count == 2 && instruction.result >= 0 {
+                    source := instruction.operands[0]
+                    if plan.split[source] != plan.split[instruction.result] &&
+                        (Unsplit(plan, source) || Unsplit(plan, instruction.result)) { changed = true }
+                }
+                for edge: instruction.edges {
+                    parameters := function.blocks[edge.block].parameters
+                    for argument, at: edge.arguments {
+                        if plan.split[argument] != plan.split[parameters[at]] &&
+                            (Unsplit(plan, argument) || Unsplit(plan, parameters[at])) { changed = true }
+                    }
+                }
+            }
+        }
+    }
+    return true
+}
+
 #scope_export
 
 // Plans FUNCTION of PROGRAM into PLAN. STACK_SIZE gives the size of each
@@ -657,7 +747,8 @@ MachineAggregatePlanBuild :: (plan: *MachineAggregatePlan, program: LirProgram, 
     count := function.values.count
     if !VecResizeBounded(plan.slot, count, bytes) || !VecResizeBounded(plan.view, count, bytes) ||
         !VecResizeBounded(plan.root, count, bytes) || !VecResizeBounded(plan.address, count, bytes) ||
-        !VecResizeBounded(plan.storage, count, bytes) || !VecResizeBounded(plan.index, count, bytes) ||
+        !VecResizeBounded(plan.storage, count, bytes) || !VecResizeBounded(plan.split, count, bytes) ||
+        !VecResizeBounded(plan.index, count, bytes) ||
         !VecResizeBounded(plan.home, count, bytes) || !VecResizeBounded(plan.read, count, bytes) ||
         !VecResizeBounded(plan.update, count, bytes) || !VecResizeBounded(plan.other, count, bytes) ||
         !VecResizeBounded(plan.uses, count, bytes) { return .Allocation }
@@ -668,15 +759,20 @@ MachineAggregatePlanBuild :: (plan: *MachineAggregatePlan, program: LirProgram, 
         plan.root[value] = MachineNoId
         plan.address[value] = value
         plan.storage[value] = false
+        plan.split[value] = false
         plan.home[value] = -1
         plan.read[value] = -1
         plan.update[value] = -1
         plan.other[value] = -1
         plan.uses[value] = 0
     }
-    if !Storage(*context) || views && (!Views(*context) || !Addresses(*context)) { return context.problem }
+    if !Storage(*context) || views && (!Views(*context) || !Addresses(*context) || !Split(*context)) {
+        return context.problem
+    }
+    // Views and split records live elsewhere, so only the rest take frame storage.
     for value: cast(s32)0..cast(s32)count - 1 {
-        if Aggregate(*context, value) && (plan.view[value] == .None || plan.view[value] == .PutBack) {
+        if Aggregate(*context, value) && !plan.split[value] &&
+            (plan.view[value] == .None || plan.view[value] == .PutBack) {
             plan.storage[plan.slot[value]] = true
         }
     }
@@ -689,6 +785,7 @@ MachineAggregatePlanFree :: (plan: *MachineAggregatePlan) {
     VecFree(plan.root)
     VecFree(plan.address)
     VecFree(plan.storage)
+    VecFree(plan.split)
     VecFree(plan.index)
     VecFree(plan.parent)
     VecFree(plan.representative)

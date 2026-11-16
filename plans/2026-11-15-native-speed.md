@@ -407,6 +407,44 @@ chain. Next: keep a looping function's budget in a register (exact, synced
 at calls, returns and traps), then the direct-pointer store sequence, store
 immediates and loop-invariant address work in Hash.
 
+### Fix 6, step 2 findings — fuel and trap layout (not landed)
+
+A register step budget (r15 in looping x86-64 functions: loaded after the
+prologue, stored before internal/host calls, returns and every trap,
+reloaded after calls; patch kept outside the tree) gave no speedup alone on
+Omega: Sieve 52/53 µs either way. The cost is not the memory chain but the
+`jae` every inline check takes to skip its trap sequence: each loop pays two
+taken branches (that and the back edge). Private experiment, 3×15 runs:
+
+| Kernel | inline trap | register fuel + one out-of-line fuel stub | no fuel at all |
+| --- | ---: | ---: | ---: |
+| Sieve | 50.5–53.7 | 39.4–42.3 | 37.5–39.8 |
+| Hash | 26.6–28.9 | 27.1–28.3 | 25.9–27.6 |
+| Records | 17.9–19.2 | 17.3–18.9 | 16.8–17.3 |
+
+So the next landing is: fuel checks that fall through (`sub r15, n; jb stub`)
+with the stub placed just before the loop header's label and covered by the
+fuel instruction's own range, so trap reports keep their instruction and
+line without host changes; a predecessor that would fall into the header
+jumps over the stub instead. The first attempt in the shared tree made
+Wurm's native SessionOpen trap with code 1 (a jump landing inside a trap
+sequence past its `mov edi`) and was reverted; it must pass that path and the
+full suite before landing.
+
+Remaining per kernel after that, from objdump of the current build:
+- Sieve inner loop (12 instructions, C 5): the direct frame store goes
+  `lea token; mov r9d, 1; mov r11d, tok; mov rsi, base; add rsi, r11; mov [rsi],
+  r9b`. `mov byte [base + j], 1` needs PointerDirect to fold a proven element
+  index into the address and Store to take an immediate value, both of which
+  MachineVerify's CheckedMemory must then accept.
+- Hash byte loop: the text token, a zero-index element, the global address
+  and the 64-bit prime are recomputed every iteration (loop-invariant code
+  motion), plus a dead count constant the proven element no longer uses.
+- Records per particle (~33 instructions, C 19): reloads of x and y just
+  stored (the changed view's value can be forwarded), jumps through
+  forwarding blocks the layout puts out of order, and outer-loop copy moves
+  that tie hints would remove.
+
 ## Status: fix 2 for Vectors (2026-11-15, Omega)
 
 Implemented in the new `cmd/compiler_x86_runtime.zi` (the ELF's runtime

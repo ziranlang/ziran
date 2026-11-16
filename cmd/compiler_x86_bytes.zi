@@ -6,14 +6,10 @@
 X86Rax :: 0
 X86Rcx :: 1
 X86Rdx :: 2
-X86Rbx :: 3
 X86Rsp :: 4
 X86Rbp :: 5
-X86Rsi :: 6
 X86Rdi :: 7
 X86R11 :: 11
-X86R12 :: 12
-X86R13 :: 13
 
 // Condition codes in encoding order (the low nibble of Jcc/SETcc).
 X86Below :: 2
@@ -22,7 +18,6 @@ X86Equal :: 4
 X86NotEqual :: 5
 X86BelowEqual :: 6
 X86Above :: 7
-X86Sign :: 8
 X86NotSign :: 9
 X86Parity :: 10
 X86NotParity :: 11

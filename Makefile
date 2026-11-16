@@ -15,8 +15,11 @@ ZIRAN_DEFINES ?= $(if $(DARWIN_TARGET),--define __APPLE__ --define $(if $(findst
 PACKAGE_LIBS ?= $(if $(DARWIN_TARGET),,-lcrypto) -lm
 # Linux before glibc 2.34 keeps POSIX threads and the dynamic loader in
 # separate libraries. The portable runtime uses both, including through TCC.
-# Android keeps __android_log_print, which diagnostics use, in liblog.
-RUNTIME_LIBS ?= -lm $(if $(findstring linux,$(TARGET_MACHINE)),-pthread -ldl) $(if $(findstring android,$(TARGET_MACHINE)),-llog)
+# Android keeps __android_log_print, which diagnostics use, in liblog, and
+# its NDK links no GNU build ID unless asked; the native code cache keys by it.
+# (A variable, because the comma in -Wl, would end the $(if).)
+ANDROID_LINK_FLAGS := -llog -Wl,--build-id=sha1
+RUNTIME_LIBS ?= -lm $(if $(findstring linux,$(TARGET_MACHINE)),-pthread -ldl) $(if $(findstring android,$(TARGET_MACHINE)),$(ANDROID_LINK_FLAGS))
 CFLAGS ?= -O2
 override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
 # Kept names and texts (KeepName, KeepText) are shared and immutable, so

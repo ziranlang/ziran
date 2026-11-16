@@ -6,7 +6,7 @@
 #include "compiler_text.h"
 #ifndef ZIRAN_HELPER_ZiDivU64
 #define ZIRAN_HELPER_ZiDivU64
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiDivU64(a, b) __extension__ ({ uint64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a / __zi_b; })
 #else
 static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {

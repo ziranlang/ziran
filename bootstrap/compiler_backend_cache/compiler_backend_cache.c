@@ -7,7 +7,7 @@
 #include "compiler_backend_cache.h"
 #ifndef ZIRAN_HELPER_ZiShl32
 #define ZIRAN_HELPER_ZiShl32
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiShl32(a, s, w) __extension__ ({ uint32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); (uint32_t)(__zi_a << __zi_s); })
 #else
 static inline uint32_t ZiShl32(uint32_t a, uint64_t s, int w) {
@@ -19,7 +19,7 @@ static inline uint32_t ZiShl32(uint32_t a, uint64_t s, int w) {
 
 #ifndef ZIRAN_HELPER_ZiShrU32
 #define ZIRAN_HELPER_ZiShrU32
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiShrU32(a, s, w) __extension__ ({ uint32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a >> __zi_s; })
 #else
 static inline uint32_t ZiShrU32(uint32_t a, uint64_t s, int w) {
@@ -31,7 +31,7 @@ static inline uint32_t ZiShrU32(uint32_t a, uint64_t s, int w) {
 
 #ifndef ZIRAN_HELPER_ZiShrU64
 #define ZIRAN_HELPER_ZiShrU64
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiShrU64(a, s, w) __extension__ ({ uint64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a >> __zi_s; })
 #else
 static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {

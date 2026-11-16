@@ -27,7 +27,7 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 
 #ifndef ZIRAN_HELPER_ZiDivS64
 #define ZIRAN_HELPER_ZiDivS64
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiDivS64(a, b, min) __extension__ ({ int64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? (__zi_a == (min) ? __zi_a : -__zi_a) : __zi_a / __zi_b; })
 #else
 static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
@@ -40,7 +40,7 @@ static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
 
 #ifndef ZIRAN_HELPER_ZiRemS64
 #define ZIRAN_HELPER_ZiRemS64
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiRemS64(a, b) __extension__ ({ int64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? 0 : __zi_a % __zi_b; })
 #else
 static inline int64_t ZiRemS64(int64_t a, int64_t b) {

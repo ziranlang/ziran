@@ -8,7 +8,7 @@
 #undef ZIRAN_COMPILER_RUNTIME_EMIT_H_PRIVATE
 #ifndef ZIRAN_HELPER_ZiShrU64
 #define ZIRAN_HELPER_ZiShrU64
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiShrU64(a, s, w) __extension__ ({ uint64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a >> __zi_s; })
 #else
 static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {

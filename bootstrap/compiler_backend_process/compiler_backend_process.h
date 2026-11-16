@@ -597,7 +597,7 @@ uint8_t* compiler_backend_process_ProfileName(String name);
 #include "zir_bounds.h"
 #ifndef ZIRAN_HELPER_ZiShrS32
 #define ZIRAN_HELPER_ZiShrS32
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiShrS32(a, s, w) __extension__ ({ int32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a < 0 ? ~(~__zi_a >> __zi_s) : __zi_a >> __zi_s; })
 #else
 static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {

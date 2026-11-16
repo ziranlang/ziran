@@ -5,7 +5,7 @@
 #include "compiler_type.h"
 #ifndef ZIRAN_HELPER_ZiDivS64
 #define ZIRAN_HELPER_ZiDivS64
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiDivS64(a, b, min) __extension__ ({ int64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? (__zi_a == (min) ? __zi_a : -__zi_a) : __zi_a / __zi_b; })
 #else
 static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {

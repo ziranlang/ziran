@@ -1054,7 +1054,24 @@ including strings inside records, arrays, slices, and mutable slice updates.
 A host can reuse its result buffers on its next call; saved strings retain
 their bytes for as long as the program uses them, including across instance
 runs. Returned fields and elements must remain valid until that next call.
-Opaque pointer results still refer to host-owned storage.
+Opaque pointer results still refer to host-owned storage.</p>
+<p>A Linux x86-64 executable from <code>zx2native</code> links its host capabilities from
+host libraries by name, the way the C target's program does: for
+<code>Open :: (title: string, width: s32) -&gt; bool #foreign host_api;</code> the C target
+declares <code>bool Open(String title, int32_t width);</code>, and a shared library that
+defines <code>Open</code> with that signature, such as one built from Ziran with
+<code>#program_export</code> through the C target, serves both. A host registers a
+library with a <code>NAME.library</code> file holding its absolute path, beside the
+<code>NAME.host</code> players <code>ziran run</code> dispatches to: in <code>ZIRAN_HOST_PATH</code>'s
+directories, or <code>$XDG_DATA_HOME/ziran/hosts</code> (<code>~/.local/share/ziran/hosts</code>)
+and then <code>$XDG_DATA_DIRS</code> with <code>/ziran/hosts</code>. Each capability links from the
+first registered library that defines it; the executable names that library
+and the system's dynamic linker, which binds every capability before <code>main</code>
+runs. Bools, integers, pointers and floats cross, and records of one or two
+8-byte integers or pointers such as <code>string</code> and slices; a capability no
+library defines stops <code>zx2native</code> at <code>assembly.gap.machine-host</code>, and one with
+another signature at <code>assembly.gap.machine-host-abi</code>. A program with no host
+capabilities stays a static executable with no dynamic linker.
 Use <code>#scope_file</code>, <code>#scope_module</code>, and <code>#scope_export</code> to change the
 visibility of following declarations.</p>
 <h2 id="multiline-strings">Multiline strings</h2>

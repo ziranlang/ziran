@@ -478,6 +478,17 @@ goes through an allocator edge block (`mov rsi, rcx; jmp`) because the
 count lives in different registers on the two sides: copy coalescing is
 next.
 
+Copy coalescing (tried 2026-11-16): Sieve's outer-loop count parameter in
+b9 already hints at the header count's register (rcx), its first incoming
+source, but gets rsi, so the common composite path keeps a `mov rsi, rcx;
+jmp` edge block and b9 a `mov rcx, rsi`. Preferring a loop-carried
+parameter as the hint changed nothing. The block is register availability:
+the copy at b9's end is both the parameter's last use and the header
+count's definition at one position, so rcx reads as taken. Coalescing a
+copy's source and destination when the source dies at the copy has to
+happen in the linear-scan core (ScanBank's free_until at interval
+boundaries, or a coalescing step before allocation), not in the hints.
+
 Loop rotation cannot be done while lowering: the optimized LIR has dropped
 the loop body's block parameters, so the body names the header's
 parameters directly, and a test copied to the bottom would branch back

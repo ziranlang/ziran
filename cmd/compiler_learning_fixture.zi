@@ -1,0 +1,60 @@
+// Generate runtime-input parity cases for the closed rewrite vocabulary.
+// Constants remain literal in each branch so the native instruction selector
+// actually exercises the immediate-multiply rule being certified.
+#import "std/number_text"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+LearningFixtureFactor :: (index: s64) -> s64 {
+    if index < 30 { return cast(s64)(cast(u64)1 << cast(u64)(index + 1)) }
+    if index == 30 { return 2 }
+    if index == 31 { return 3 }
+    if index == 32 { return 5 }
+    return 9
+}
+
+LearningFixtureSource :: () -> string {
+    source: Vec(u8)
+    BuilderAppend(source, "Emit :: (x: u64, factor: s64) {\n")
+    for index: 0..33 {
+        digits: [32]u8
+        literal := FormatInteger(LearningFixtureFactor(index), digits[:])
+        BuilderAppend(source, "    if factor == "); BuilderAppend(source, literal)
+        BuilderAppend(source, " { print(\"% % % % % % % %\\n\", ")
+        types := string.["u64", "s64", "u32", "s32", "u16", "s16", "u8", "s8"]
+        for type_index: 0..7 {
+            if type_index > 0 { BuilderAppend(source, ", ") }
+            type := types[type_index]
+            BuilderAppend(source, "cast("); BuilderAppend(source, type)
+            BuilderAppend(source, ")(cast("); BuilderAppend(source, type)
+            BuilderAppend(source, ")x * cast("); BuilderAppend(source, type)
+            BuilderAppend(source, ")"); BuilderAppend(source, literal); BuilderAppend(source, ")")
+        }
+        BuilderAppend(source, "); return }\n")
+    }
+    BuilderAppend(source, "}\nmain :: () -> s32 {\n    factors := s64.[")
+    for index: 0..33 {
+        if index > 0 { BuilderAppend(source, ", ") }
+        digits: [32]u8
+        BuilderAppend(source, FormatInteger(LearningFixtureFactor(index), digits[:]))
+    }
+    BuilderAppend(source, #string FIXTURE
+]
+    edges := u64.[0, 1, 127, 128, 255, 256, 32767, 32768, 65535, 65536,
+        2147483647, 2147483648, 4294967295, 4294967296, 9223372036854775807,
+        9223372036854775808, 18446744073709551615]
+    for factor: factors {
+        for value: edges { Emit(value, factor) }
+        random: u64 = 521288629
+        for iteration: 0..2047 {
+            random = random ^ (random << 13)
+            random = random ^ (random >> 7)
+            random = random ^ (random << 17)
+            Emit(random, factor)
+        }
+    }
+    return 0
+}
+FIXTURE)
+    return TextDetach(BuilderFinish(source))
+}

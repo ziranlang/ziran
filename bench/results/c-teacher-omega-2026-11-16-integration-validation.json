@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "host": "omega",
+  "learning": "off",
+  "checks": "manual-safety default; test-specific assertions retained",
+  "github_ci": "not checked",
+  "local_tests": [
+    {
+      "receipt": "16151a4867e2fa478e3d0afde52731aaa7a0",
+      "revision": "42dc1b0f41489e8affae19815a52aa3a875ff0d9",
+      "suite": "make -j1 check",
+      "code": 0,
+      "passed": 281,
+      "total": 281,
+      "bootstrap_code": 0,
+      "source_guard": "two concurrent constructor files changed; compiler binaries unchanged"
+    },
+    {
+      "receipt": "34159fa4c599897ee55a627d0b74327deffa",
+      "suite": "constructor canonical build, check and check-bootstrap",
+      "build_code": 0,
+      "bootstrap_code": 0,
+      "passed": 279,
+      "total": 281,
+      "source_guard": "3409 guarded inputs and seven compiler identities unchanged",
+      "failed": [
+        "site_pages.sh: missing targets receipt",
+        "site_targets.sh: Publish one measured host"
+      ]
+    },
+    {
+      "receipt": "8382856e6704249164010f4a322be36d05e9",
+      "revision": "efefbb1f40dacbd00972b41126bc26ef5349463e",
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off HARMONY_BUILD_LOCAL=1 build-queue -- sh -c 'sh tests/site_pages.sh build/bin/ziran && sh tests/site_targets.sh build/bin/ziran'",
+      "code": 0,
+      "result": "Both prior publication-data failures resolved; pages, matrices, hashes, samples and independent artifact oracles passed."
+    }
+  ],
+  "learning_verification": {
+    "receipt": "d001bab87cfb730312d572c86d3128929bc9",
+    "differential_output_lines": 70210,
+    "retained_zx_parity": "passed"
+  },
+  "offline_calibration": {
+    "receipt": "e5cffefb436f30c04174e17009bdec81bc1a",
+    "c_optimization": "-O2",
+    "deterministic_training_repeat": "byte-identical",
+    "selected_policy": 1,
+    "leaf_operations": 0,
+    "same_artifacts": "Both leaf settings produce identical artifacts for all six kernels."
+  }
+}

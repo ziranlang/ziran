@@ -29,7 +29,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     cases := string.["package_self_import", "package_batch_paths", "package_unborn", "package_pin", "package_native_links",
         "package_transitive_add", "package_override_graph", "package_artifacts", "package_generated_modules", "package_resolution",
         "package_bridges", "package_tooling", "package_wide_exports", "package_templates", "package_cache_repair", "package_diagnostics",
-        "package_learn"]
+        "package_learn", "package_learn_tuning"]
     for index: cast(s64)0..cases.count - 1 {
         if local_only && index >= 5 { break }
         name := cases[index]

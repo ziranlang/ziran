@@ -1,0 +1,139 @@
+// Deterministic offline policy scoring. Times are integer nanoseconds, joined
+// by the caller to verified corpus artifacts before they reach this module.
+#import "compiler_learning_policy"
+#import "std/sort"
+using Vectors :: #import "std/vec"
+
+LearningSamples :: struct { valid: bool; median_twice: s64; excluded: Vec(s64) }
+LearningObservation :: struct {
+    workload: string
+    input: string
+    artifact: string
+    host: string
+    source_epoch: string
+    policy: LearningTuning
+    bytes: s64
+    native_ns: []s64
+    c_ns: []s64
+}
+LearningSelection :: struct { valid: bool; policy: LearningTuning; score: float64; bytes: s64 }
+
+// Inclusive interpolated quartiles, symmetric 1.5 IQR fences. Quartiles are
+// scaled by four, fences by eight, so no floating-point rounding changes the
+// excluded indices. Keep the caller's raw ordering untouched.
+LearningAnalyze :: (samples: []s64) -> LearningSamples {
+    result: LearningSamples
+    if samples.count < 11 || samples.count > 4096 { return .{} }
+    sorted: Vec(s64)
+    defer VecFree(sorted)
+    for sample: samples {
+        if sample <= 0 || sample > 1000000000000 { return .{} }
+        if !VecPush(sorted, sample) { return .{} }
+    }
+    Sort(VecSlice(sorted, 0, sorted.count))
+    first := sorted.count - 1
+    third := first * 3
+    q1 := sorted[first / 4] * (4 - first % 4) + sorted[(first + 3) / 4] * (first % 4)
+    q3 := sorted[third / 4] * (4 - third % 4) + sorted[(third + 3) / 4] * (third % 4)
+    lower := 2 * q1 - 3 * (q3 - q1)
+    upper := 2 * q3 + 3 * (q3 - q1)
+    for index: 0..samples.count - 1 {
+        if samples[index] * 8 < lower || samples[index] * 8 > upper {
+            if !VecPush(result.excluded, index) { VecFree(result.excluded); return .{} }
+        }
+    }
+    kept: Vec(s64)
+    defer VecFree(kept)
+    for sample: sorted {
+        if sample * 8 >= lower && sample * 8 <= upper {
+            if !VecPush(kept, sample) { VecFree(result.excluded); return .{} }
+        }
+    }
+    if kept.count < 3 { VecFree(result.excluded); return .{} }
+    result.median_twice = kept[(kept.count - 1) / 2] + kept[kept.count / 2]
+    result.valid = true
+    return result
+}
+
+LearningPolicyId :: (policy: LearningTuning) -> s32 {
+    return ifx LearningTuningValid(policy) then policy.leaf_operations * 2 + policy.block_layout else -1
+}
+
+// Compare policies over exactly the same workload set. Sort workload names so
+// summation and tie breaking never depend on receipt/corpus traversal order.
+LearningSelect :: (observations: []LearningObservation) -> LearningSelection {
+    result: LearningSelection
+    if observations.count == 0 || observations.count > 1024 { return .{} }
+    workloads: Vec(string)
+    defer VecFree(workloads)
+    for observation: observations {
+        if observation.workload.count == 0 || observation.input.count != 64 || observation.host.count == 0 ||
+            observation.source_epoch.count != 64 || observation.bytes <= 0 || LearningPolicyId(observation.policy) < 0 {
+            return .{}
+        }
+        if observation.host != observations[0].host || observation.source_epoch != observations[0].source_epoch { return .{} }
+        for other: observations {
+            if other.workload == observation.workload && other.input != observation.input { return .{} }
+        }
+        native := LearningAnalyze(observation.native_ns)
+        c := LearningAnalyze(observation.c_ns)
+        valid := native.valid && c.valid
+        VecFree(native.excluded); VecFree(c.excluded)
+        if !valid { return .{} }
+        found := false
+        for workload: workloads { if workload == observation.workload { found = true; break } }
+        if !found && !VecPush(workloads, observation.workload) { return .{} }
+    }
+    SortText(VecSlice(workloads, 0, workloads.count))
+    for policy_id: cast(s32)0..cast(s32)3 {
+        score: float64
+        bytes: s64
+        complete := true
+        for workload: workloads {
+            at: s64 = -1
+            reference: s64 = -1
+            for index: 0..observations.count - 1 {
+                observation := observations[index]
+                if observation.workload != workload { continue }
+                if reference < 0 { reference = index }
+                if LearningPolicyId(observation.policy) == policy_id {
+                    if at >= 0 { return .{} }
+                    at = index
+                }
+            }
+            if at < 0 { complete = false; break }
+            row := observations[at]
+            baseline := observations[reference]
+            if row.input != baseline.input || row.host != baseline.host || row.source_epoch != baseline.source_epoch {
+                return .{}
+            }
+            // One common host and compiler source epoch for the whole search.
+            if row.host != observations[0].host || row.source_epoch != observations[0].source_epoch { return .{} }
+            // Equal emitted bytes are one experiment, regardless of policy.
+            // Reuse the lowest policy's timing pair so repeated measurements
+            // of identical code cannot manufacture a tuning win from noise.
+            timing_index := at
+            if row.artifact.count == 64 {
+                for index: 0..observations.count - 1 {
+                    other := observations[index]
+                    if other.workload == row.workload && other.artifact == row.artifact &&
+                        LearningPolicyId(other.policy) < LearningPolicyId(observations[timing_index].policy) { timing_index = index }
+                }
+            }
+            native := LearningAnalyze(observations[timing_index].native_ns)
+            c := LearningAnalyze(observations[timing_index].c_ns)
+            defer VecFree(native.excluded)
+            defer VecFree(c.excluded)
+            if !native.valid || !c.valid || row.bytes > 9223372036854775807 - bytes { return .{} }
+            score += cast(float64)native.median_twice / cast(float64)c.median_twice
+            bytes += row.bytes
+        }
+        if !complete { continue }
+        if !result.valid || score < result.score || score == result.score &&
+            (bytes < result.bytes || bytes == result.bytes && policy_id < LearningPolicyId(result.policy)) {
+            result = .{valid = true, policy = .{leaf_operations = policy_id / 2,
+                block_layout = policy_id % 2, unroll_factor = 1}, score = score, bytes = bytes}
+        }
+    }
+    return result
+}

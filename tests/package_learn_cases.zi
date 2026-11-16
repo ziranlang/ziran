@@ -117,6 +117,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
     bad := string.["learn", "on", "--limit-mb", "0"]
     unused PackageCommand(*test, root, bad[:], false)
     if test.failed { return 1 }
+    // Unknown teacher semantics cannot overwrite an existing approved table.
+    proposal := CheckPath(root, "proposal.json")
+    table := CheckPath(root, "approved.zi")
+    if !NativeWrite(*test, proposal, "{\"schema_version\":99}") ||
+        !NativeWrite(*test, table, "keep this table\n") { return 1 }
+    reject := string.["learn", "verify", "--candidates", proposal, "--repo", test.repo, "--output", table]
+    unused PackageCommand(*test, root, reject[:], false)
+    if !NativeAssert(*test, NativeRead(*test, table) == "keep this table\n", "a rejected teacher proposal replaced the table") { return 1 }
     print("Learning corpus: on by default, records each new native build once under its ZX format with its compiler, and honors off, ZIRAN_LEARN and the size cap\n")
     return 0
 }

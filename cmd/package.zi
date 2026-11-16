@@ -846,7 +846,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "features" { return Features(arguments[1:]) }
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }
-    if command == "learn" { return Learn(arguments[1:]) }
+    if command == "learn" { return Learn(arguments[1:], launcher) }
     if command == "add" { return Add(launcher, arguments[1:]) }
     separator: s32 = PkgAfterSeparator(arguments)
     script_flags: []string = arguments[0:ScriptArgumentEnd(arguments)]

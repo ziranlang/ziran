@@ -1,0 +1,220 @@
+// Offline calibration of the bounded leaf pass. Run through bench/bench.zi.
+// Uses the teacher's long, checksum-checking kernel wrappers and generated C.
+#import, file "../cmd/compiler_exec_link.zi";
+#import, file "../cmd/compiler_opt.zi";
+#import, file "../cmd/compiler_lowered_ir.zi";
+#import, file "../cmd/compiler_bundle.zi";
+#import, file "../cmd/compiler_learning.zi";
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+#import "std/vec"
+
+#scope_file
+Join :: (a: string, b: string) -> string { parts := string.[a, b]; return TextDetach(TextJoin(parts[:], "")) }
+Number :: (n: s64) -> string { digits: [32]u8; return Join("", FormatInteger(n, digits[:])) }
+Capture :: (arguments: []string) -> (text: string, code: s32) {
+    run: ProcessRun
+    options := ProcessOptions.{arguments = arguments, capture_output = true, merge_error = true}
+    if !RunProcess(options, *run) { return "cannot start child", 127 }
+    return TextDetach(BuilderFinish(run.output)), run.code
+}
+Require :: (arguments: []string) -> bool {
+    text, code := Capture(arguments)
+    if code != 0 { print("calibration failed (%): %\n%\n", code, TextJoin(arguments, " "), text); return false }
+    return true
+}
+Digest :: (path: string) -> string {
+    command := string.["sha256sum", "--", path]
+    text, code := Capture(command[:])
+    return ifx code == 0 && text.count >= 64 then text[:64] else ""
+}
+TextField :: (document: *JsonDocument, root: s32, key: string, value: string) {
+    JsonSet(document, root, key, JsonNewStringCopy(document, value))
+}
+Policy :: (document: *JsonDocument, row: s32, leaf: s32) {
+    policy := JsonNewObject(document)
+    JsonSet(document, row, "policy", policy)
+    JsonSet(document, policy, "leaf_operations", JsonNewInteger(document, leaf))
+    JsonSet(document, policy, "unroll_factor", JsonNewInteger(document, 1))
+    JsonSet(document, policy, "block_layout", JsonNewInteger(document, 1))
+    JsonSet(document, policy, "allocation", JsonNewInteger(document, 0))
+}
+
+// Clone/verify and vary only the leaf pass. The canonical input has already
+// passed the ordinary optimizer; running other passes again would confound it.
+Variant :: (source: string, output: string, leaf: s32) -> bool {
+    bytes, found := ReadEntireFile(source)
+    if !found { return false }
+    decoded: ZxExecOwner
+    defer ZxExecReadFree(*decoded)
+    if ZxExecRead(*decoded, bytes, LirDefaultLimits()).problem != .None || decoded.assets != 0 { return false }
+    if ZxExecReadProgram(*decoded).checks { return false }
+    optimized: LirOptOwner
+    defer LirOptFree(*optimized)
+    options := LirOptOptions.{maximum_rounds = 1, inline_leaf_operations = leaf}
+    result := LirOptBuild(*optimized, ZxExecReadProgram(*decoded), LirDefaultLimits(), options)
+    if result.problem != .None { return false }
+    program := LirOptProgram(*optimized)
+    assets: [0]Asset
+    empty: []u8
+    measured := ZxExecWrite(program, assets[:], empty, TextView(decoded.interface[:]))
+    if measured.problem != .None { return false }
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !VecResize(encoded, measured.size) { return false }
+    written := ZxExecWrite(program, assets[:], encoded[:], TextView(decoded.interface[:]))
+    if written.problem != .None || written.size != measured.size { return false }
+    print("leaf=% inlined_calls=% source=%\n", leaf, result.counters.inline_leaf.instructions, source)
+    return WriteEntireFile(output, TextView(encoded[:]))
+}
+Time :: (executable: string) -> s64 {
+    command := string.[executable]
+    options := ProcessOptions.{arguments = command[:], output_path = "/dev/null", error_path = "/dev/null"}
+    run: ProcessRun
+    start := MonotonicNanoseconds()
+    if !RunProcess(options, *run) || run.code != 42 { return -1 }
+    return MonotonicNanoseconds() - start
+}
+Record :: (corpus: string, bundle: string, elf: string, original: string, compiler: string) -> string {
+    format := Join("zx", Join(Number(ExecutableVersionNumber()), Join("-lir", Number(LirVersion))))
+    zx_digest := Digest(bundle)
+    native_digest := Digest(elf)
+    relative := Join(format, Join("/", Join(zx_digest, Join("/x86_64-", native_digest))))
+    stem := Join(corpus, Join("/", relative))
+    folder := PathParent(stem)
+    if !CreateDirectories(folder) { return "" }
+    copy_zx := string.["cp", "--", bundle, Join(folder, "/program.zx")]
+    copy_elf := string.["cp", "--", elf, Join(stem, ".elf")]
+    map := string.["build/bin/zx2native", "--emit", "map", "-o", Join(stem, ".map.json"), bundle]
+    if !Require(copy_zx[:]) || !Require(copy_elf[:]) || !Require(map[:]) { return "" }
+    document: JsonDocument
+    defer JsonReset(*document)
+    root := JsonNewObject(*document)
+    TextField(*document, root, "format", format)
+    TextField(*document, root, "target", "x86_64")
+    TextField(*document, root, "platform", "linux")
+    TextField(*document, root, "zx2native_sha256", compiler)
+    TextField(*document, root, "input_sha256", original)
+    TextField(*document, root, "producer", "c-teacher-tune")
+    if !WriteEntireFile(Join(stem, ".record.json"), JsonWrite(*document, root, JsonCompactStyle())) { return "" }
+    return Join(relative, ".record.json")
+}
+Epoch :: (work: string) -> string {
+    // Hash the source inventory too: exact tool identities alone cannot detect
+    // edits awaiting a rebuild. Include untracked learning modules explicitly.
+    command := string.["git", "ls-files", "cmd", "std", "Makefile", "assembly.mk", "bench"]
+    inventory, code := Capture(command[:])
+    if code != 0 { return "" }
+    paths := TextLines(inventory)
+    defer VecFree(paths)
+    text: Vec(u8)
+    for path: paths {
+        if path == "" || TextHasPrefix(path, "bench/results/") { continue }
+        hash := Digest(path)
+        if hash.count != 64 { VecFree(text); return "" }
+        BuilderAppend(text, path); BuilderAppend(text, hash)
+    }
+    extra := string.["build/bin/zi2c", "build/bin/zi2zx", "build/bin/zx2native",
+        "cmd/compiler_opt_inline.zi", "cmd/compiler_learning.zi", "cmd/compiler_learning_policy.zi",
+        "cmd/compiler_learning_table.zi", "bench/c_teacher_tuning.zi"]
+    for path: extra {
+        hash := Digest(path)
+        if hash.count != 64 { VecFree(text); return "" }
+        BuilderAppend(text, path); BuilderAppend(text, hash)
+    }
+    receipt := Join(work, "/source-epoch")
+    return ifx WriteEntireFile(receipt, BuilderFinish(text)) then Digest(receipt) else ""
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    output: string; corpus: string
+    if argc != 5 { print("usage: c-teacher-tune --output FILE --corpus DIR\n"); return 1 }
+    for index: cast(s32)1..argc - 1 {
+        value := TextFromCString(argv[index])
+        if value == "--output" && index + 1 < argc { output = TextFromCString(argv[index + 1]) }
+        if value == "--corpus" && index + 1 < argc { corpus = TextFromCString(argv[index + 1]) }
+    }
+    if output == "" || corpus == "" || EnvironmentText("ZIRAN_LEARN") != "off" { return 1 }
+    policy := LearningTuningChoice()
+    if policy.leaf_operations != 0 || policy.block_layout != 1 {
+        print("calibration needs the baseline leaf/layout table and freshly prepared teacher inputs\n"); return 1
+    }
+    work := "build/c-teacher/tuning"
+    if !CreateDirectories(work) || !CreateDirectories(corpus) { return 1 }
+    epoch := Epoch(work)
+    compiler := Digest("build/bin/zx2native")
+    host := string.["hostname"]
+    hostname, host_code := Capture(host[:])
+    if epoch.count != 64 || compiler.count != 64 || host_code != 0 { return 1 }
+    document: JsonDocument
+    defer JsonReset(*document)
+    root := JsonNewObject(*document)
+    JsonSet(*document, root, "schema_version", JsonNewInteger(*document, 1))
+    JsonSet(*document, root, "checks", JsonNewBool(*document, false))
+    TextField(*document, root, "target", "x86_64-linux")
+    TextField(*document, root, "learning", "off")
+    TextField(*document, root, "host", TextTrim(hostname))
+    TextField(*document, root, "source_epoch_sha256", epoch)
+    TextField(*document, root, "method", "paired process wall time; 1024 checksum-checked kernel calls; includes startup; 11 samples")
+    rows := JsonNewArray(*document)
+    JsonSet(*document, root, "measurements", rows)
+    names := string.["Sieve", "Records", "Hash", "Vectors", "Calls", "Printing"]
+    for name: names {
+        folder := Join(work, Join("/", name))
+        if !CreateDirectories(folder) { return 1 }
+        original := Join("build/c-teacher/", Join(name, ".zx"))
+        source := Join("build/c-teacher/teacher_", Join(name, ".zi"))
+        reference_folder := Join(folder, "/c")
+        reference := Join(reference_folder, Join("/teacher_", name))
+        c := string.["env", "CFLAGS=-O2", "build/bin/zi2c", "--exe", "--root", "build/c-teacher", "--module-path", "bench", "--module-path", "std",
+            "--entry", Join("teacher_", Join(name, ":main")), "-o", reference_folder, source]
+        if !Require(c[:]) { return 1 }
+        for leaf: cast(s32)0..cast(s32)1 {
+            bundle := Join(folder, Join("/policy-", Join(Number(leaf), ".zx")))
+            native := Join(folder, Join("/policy-", Number(leaf)))
+            if !Variant(original, bundle, leaf) { return 1 }
+            encode := string.["build/bin/zx2native", "-o", native, bundle]
+            if !Require(encode[:]) { return 1 }
+            record := Record(corpus, bundle, native, Digest(original), compiler)
+            if record == "" || Time(native) <= 0 || Time(reference) <= 0 { return 1 }
+            row := JsonNewObject(*document)
+            unused JsonAppend(*document, rows, row)
+            TextField(*document, row, "workload", name)
+            TextField(*document, row, "input_sha256", Digest(original))
+            TextField(*document, row, "zx_sha256", Digest(bundle))
+            TextField(*document, row, "native_sha256", Digest(native))
+            TextField(*document, row, "compiler_sha256", compiler)
+            TextField(*document, row, "corpus_record", record)
+            TextField(*document, row, "checksum", "42"); TextField(*document, row, "c_checksum", "42")
+            file := OpenRead(native)
+            if !file.valid { return 1 }
+            JsonSet(*document, row, "code_bytes", JsonNewInteger(*document, FileSize(file)))
+            CloseFile(file)
+            Policy(*document, row, leaf)
+            ns := JsonNewArray(*document); cs := JsonNewArray(*document)
+            JsonSet(*document, row, "native_ns", ns); JsonSet(*document, row, "c_ns", cs)
+            for sample: 0..10 {
+                // Alternate native/reference order to reduce drift bias.
+                n: s64; ctime: s64
+                if sample % 2 == 0 { n = Time(native); ctime = Time(reference) }
+                else { ctime = Time(reference); n = Time(native) }
+                if n <= 0 || ctime <= 0 { return 1 }
+                unused JsonAppend(*document, ns, JsonNewInteger(*document, n))
+                unused JsonAppend(*document, cs, JsonNewInteger(*document, ctime))
+            }
+        }
+    }
+    if Epoch(work) != epoch || Digest("build/bin/zx2native") != compiler { print("compiler/source changed; calibration rejected\n"); return 1 }
+    if !WriteEntireFile(output, JsonWrite(*document, root, JsonPythonStyle(2))) { return 1 }
+    print("Saved measured leaf policies: %, corpus %\n", output, corpus)
+    return 0
+}

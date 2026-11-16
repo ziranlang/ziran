@@ -1,0 +1,254 @@
+// Offline policy selection from measured, checksum-verified corpus artifacts.
+#import "package_common"
+#import "compiler_learning_policy"
+#import "compiler_learning_tuning"
+using Bundle :: #import "compiler_bundle"
+using IR :: #import "compiler_lowered_ir"
+#import "std/json_document"
+#import "std/file_linux"
+#import "std/number_text"
+#import "std/text_tools"
+#import "std/vec"
+
+#scope_file
+USAGE :: "usage: ziran learn train --measurements FILE --table FILE --verification FILE --output FILE";
+Field :: (document: *JsonDocument, node: s32, name: string) -> string {
+    return TextDetach(JsonString(document, JsonMember(document, node, name)))
+}
+Integer :: (document: *JsonDocument, node: s32, name: string) -> s64 {
+    value, valid := JsonInteger(document, JsonMember(document, node, name))
+    return ifx valid then value else -1
+}
+Number :: (value: s64) -> string { digits: [32]u8; return PkgJoin("", FormatInteger(value, digits[:])) }
+Digest :: (path: string) -> string {
+    arguments := string.["sha256sum", "--", path]
+    result := PkgCapture(arguments[:], "")
+    return ifx result.code == 0 && result.text.count >= 64 then result.text[:64] else ""
+}
+Relative :: (path: string) -> bool {
+    if path.count == 0 || path[0] == cast(u8)47 { return false }
+    parts := TextSplit(path, "/")
+    defer VecFree(parts)
+    for part: parts { if part == "." || part == ".." || part.count == 0 { return false } }
+    return true
+}
+FileBytes :: (path: string) -> s64 {
+    file := OpenRead(path)
+    if !file.valid { return -1 }
+    size := FileSize(file)
+    CloseFile(file)
+    return size
+}
+
+// Corpus records identify artifacts through their names, rather than mutable
+// source paths. Validate the current format, exact native compiler, ZX and ELF
+// digests, and the map's complete-ELF identity before accepting a timing row.
+Artifact :: (row: s32, document: *JsonDocument, corpus: string) -> bool {
+    relative := Field(document, row, "corpus_record")
+    suffix := ".record.json"
+    if !Relative(relative) || !TextHasSuffix(relative, suffix) { return false }
+    path := PkgJoin3(corpus, "/", relative)
+    record := PkgReadLimited(path, 8192)
+    metadata: JsonDocument
+    defer JsonReset(*metadata)
+    if !record.valid || !JsonRead(*metadata, record.text) { return false }
+    format := PkgJoin3("zx", Number(ExecutableVersionNumber()), PkgJoin("-lir", Number(LirVersion)))
+    if Field(*metadata, metadata.root, "format") != format ||
+        Field(*metadata, metadata.root, "target") != "x86_64" ||
+        Field(*metadata, metadata.root, "platform") != "linux" ||
+        Field(*metadata, metadata.root, "input_sha256").count != 64 ||
+        Field(*metadata, metadata.root, "input_sha256") != Field(document, row, "input_sha256") ||
+        Field(*metadata, metadata.root, "zx2native_sha256") != Field(document, row, "compiler_sha256") { return false }
+    stem := path[:path.count - suffix.count]
+    elf := PkgJoin(stem, ".elf")
+    parent := TextFindLast(path, "/")
+    if parent < 0 { return false }
+    zx := PkgJoin(path[:parent], "/program.zx")
+    native_digest := Field(document, row, "native_sha256")
+    zx_digest := Field(document, row, "zx_sha256")
+    portable := PkgReadLimited(zx, 16777216)
+    if !portable.valid { return false }
+    assets: [0]Asset
+    decoded := ExecutableDecode(portable.text, assets[:])
+    if decoded.problem != .None || decoded.program.count < 12 || decoded.program[:4] != "ZLIR" { return false }
+    schema: u64
+    for byte: 0..3 { schema |= cast(u64)decoded.program[8 + byte] << cast(u64)(byte * 8) }
+    if schema != cast(u64)LirVersion || native_digest.count != 64 || zx_digest.count != 64 ||
+        Digest(elf) != native_digest || PkgDigest(portable.text) != zx_digest ||
+        FileBytes(elf) != Integer(document, row, "code_bytes") { return false }
+    // Map metadata precedes the large ranges array. Read only that bounded
+    // prefix; old/unknown map layouts fail closed instead of loading megabytes.
+    command := string.["head", "-c", "4096", PkgJoin(stem, ".map.json")]
+    prefix := PkgCapture(command[:], "")
+    cut := TextFind(prefix.text, ",\"ranges\":")
+    if prefix.code != 0 || cut < 0 || !JsonRead(*metadata, PkgJoin(prefix.text[:cut], "}")) { return false }
+    identity := JsonMember(*metadata, metadata.root, "identity")
+    return Field(*metadata, metadata.root, "format") == "ziran-native-map" &&
+        Field(*metadata, metadata.root, "target") == "x86_64-linux" &&
+        Field(*metadata, identity, "algorithm") == "sha256" &&
+        Field(*metadata, identity, "scope") == "complete-elf" &&
+        Field(*metadata, identity, "digest") == native_digest
+}
+
+ReadSelection :: (document: *JsonDocument, corpus: string) -> LearningSelection {
+    if Integer(document, document.root, "schema_version") != 1 ||
+        Field(document, document.root, "target") != "x86_64-linux" ||
+        Field(document, document.root, "learning") != "off" ||
+        JsonKindOf(document, JsonMember(document, document.root, "checks")) != .False { return .{} }
+    host := Field(document, document.root, "host")
+    epoch := Field(document, document.root, "source_epoch_sha256")
+    measurements := JsonMember(document, document.root, "measurements")
+    count := JsonCount(document, measurements)
+    if JsonKindOf(document, measurements) != .Array || count < 2 || count > 128 { return .{} }
+    samples: Vec(s64)
+    defer VecFree(samples)
+    // Fill storage completely before borrowing slices into observation rows.
+    for index: cast(s32)0..count - 1 {
+        row := JsonElement(document, measurements, index)
+        keys := string.["native_ns", "c_ns"]
+        for key: keys {
+            array := JsonMember(document, row, key)
+            size := JsonCount(document, array)
+            if JsonKindOf(document, array) != .Array || size < 11 || size > 4096 { return .{} }
+            for sample: cast(s32)0..size - 1 {
+                value, valid := JsonInteger(document, JsonElement(document, array, sample))
+                if !valid || !VecPush(samples, value) { return .{} }
+            }
+        }
+    }
+    observations: Vec(LearningObservation)
+    defer VecFree(observations)
+    offset: s64
+    for index: cast(s32)0..count - 1 {
+        row := JsonElement(document, measurements, index)
+        if Field(document, row, "checksum").count == 0 ||
+            Field(document, row, "checksum") != Field(document, row, "c_checksum") || !Artifact(row, document, corpus) { return .{} }
+        policy := JsonMember(document, row, "policy")
+        selected := LearningTuning.{leaf_operations = cast(s32)Integer(document, policy, "leaf_operations"),
+            unroll_factor = cast(s32)Integer(document, policy, "unroll_factor"),
+            block_layout = cast(s32)Integer(document, policy, "block_layout"),
+            allocation = cast(s32)Integer(document, policy, "allocation")}
+        if !LearningTuningValid(selected) { return .{} }
+        // Reject out-of-range integers before narrowing can turn them legal.
+        keys := string.["leaf_operations", "unroll_factor", "block_layout", "allocation"]
+        for key: keys { if Integer(document, policy, key) < 0 || Integer(document, policy, key) > 1 { return .{} } }
+        native_count := JsonCount(document, JsonMember(document, row, "native_ns"))
+        c_count := JsonCount(document, JsonMember(document, row, "c_ns"))
+        observation := LearningObservation.{workload = Field(document, row, "workload"),
+            input = Field(document, row, "input_sha256"), artifact = Field(document, row, "native_sha256"), host = host, source_epoch = epoch,
+            policy = selected, bytes = Integer(document, row, "code_bytes"),
+            native_ns = VecSlice(samples, offset, offset + native_count), c_ns = VecSlice(samples, offset + native_count, offset + native_count + c_count)}
+        if !VecPush(observations, observation) { return .{} }
+        offset += native_count + c_count
+    }
+    return LearningSelect(VecSlice(observations, 0, observations.count))
+}
+
+// Rewrite only the four policy constants in an already verified rule table.
+// Proposal data can never supply optimizer source or alter enabled rules.
+PolicyTable :: (table: string, policy: LearningTuning, evidence: string) -> string {
+    lines := TextLines(table)
+    defer VecFree(lines)
+    output: Vec(u8)
+    mask: s32
+    for line: lines {
+        key: string; value: s32; bit: s32
+        if TextHasPrefix(line, "LearningLeafOperations :: ") { key = "LearningLeafOperations"; value = policy.leaf_operations; bit = 1 }
+        else if TextHasPrefix(line, "LearningUnrollFactor :: ") { key = "LearningUnrollFactor"; value = policy.unroll_factor; bit = 2 }
+        else if TextHasPrefix(line, "LearningBlockLayout :: ") { key = "LearningBlockLayout"; value = policy.block_layout; bit = 4 }
+        else if TextHasPrefix(line, "LearningAllocation :: ") { key = "LearningAllocation"; value = policy.allocation; bit = 8 }
+        else if TextHasPrefix(line, "LearningTuningEvidence :: ") { continue }
+        if bit != 0 {
+            if (mask & bit) != 0 { VecFree(output); return "" }
+            mask |= bit
+            BuilderAppend(output, key); BuilderAppend(output, " :: "); BuilderAppend(output, Number(value))
+        } else { BuilderAppend(output, line) }
+        BuilderAppend(output, "\n")
+    }
+    if mask != 15 { VecFree(output); return "" }
+    BuilderAppend(output, PkgJoin3("LearningTuningEvidence :: \"", evidence, "\"\n"))
+    return TextDetach(BuilderFinish(output))
+}
+
+// Raw samples stay in the digest-bound input. Save every excluded index and
+// median too, so table selection can be audited without rerunning a benchmark.
+Receipt :: (input: *JsonDocument, selection: LearningSelection, evidence: string, table: string) -> string {
+    document: JsonDocument
+    defer JsonReset(*document)
+    root := JsonNewObject(*document)
+    JsonSet(*document, root, "schema_version", JsonNewInteger(*document, 1))
+    JsonSet(*document, root, "selected_policy", JsonNewInteger(*document, LearningPolicyId(selection.policy)))
+    JsonSet(*document, root, "measurements_sha256", JsonNewStringCopy(*document, evidence))
+    JsonSet(*document, root, "table_sha256", JsonNewStringCopy(*document, PkgDigest(table)))
+    JsonSet(*document, root, "method", JsonNewStringCopy(*document,
+        "symmetric inclusive-quartile 1.5 IQR; equal artifacts share lowest-policy timings; ties by bytes then policy ID"))
+    rows := JsonNewArray(*document)
+    JsonSet(*document, root, "observations", rows)
+    measurements := JsonMember(input, input.root, "measurements")
+    for index: cast(s32)0..JsonCount(input, measurements) - 1 {
+        source := JsonElement(input, measurements, index)
+        row := JsonNewObject(*document)
+        unused JsonAppend(*document, rows, row)
+        JsonSet(*document, row, "workload", JsonNewStringCopy(*document, Field(input, source, "workload")))
+        JsonSet(*document, row, "native_sha256", JsonNewStringCopy(*document, Field(input, source, "native_sha256")))
+        keys := string.["native_ns", "c_ns"]
+        for key: keys {
+            values: Vec(s64)
+            array := JsonMember(input, source, key)
+            for at: cast(s32)0..JsonCount(input, array) - 1 {
+                value, valid := JsonInteger(input, JsonElement(input, array, at))
+                if !valid || !VecPush(values, value) { VecFree(values); return "" }
+            }
+            statistics := LearningAnalyze(values[:])
+            VecFree(values)
+            if !statistics.valid { VecFree(statistics.excluded); return "" }
+            entry := JsonNewObject(*document)
+            JsonSet(*document, row, key, entry)
+            JsonSet(*document, entry, "median_twice", JsonNewInteger(*document, statistics.median_twice))
+            excluded := JsonNewArray(*document)
+            JsonSet(*document, entry, "excluded_indices", excluded)
+            for at: statistics.excluded { unused JsonAppend(*document, excluded, JsonNewInteger(*document, at)) }
+            VecFree(statistics.excluded)
+        }
+    }
+    return TextDetach(JsonWrite(*document, root, JsonPythonStyle(2)))
+}
+
+#scope_export
+LearnTune :: (arguments: []string, corpus: string) -> s32 {
+    measurements: string; table: string; verification: string; output: string
+    index: s64 = 1
+    while index < cast(s64)arguments.count {
+        if index + 1 >= cast(s64)arguments.count { return PkgFail(USAGE) }
+        flag := arguments[index]; value := arguments[index + 1]
+        if flag == "--measurements" && measurements.count == 0 { measurements = value }
+        else if flag == "--table" && table.count == 0 { table = value }
+        else if flag == "--verification" && verification.count == 0 { verification = value }
+        else if flag == "--output" && output.count == 0 { output = value }
+        else { return PkgFail(USAGE) }
+        index += 2
+    }
+    if measurements.count == 0 || table.count == 0 || verification.count == 0 || output.count == 0 || corpus.count == 0 { return PkgFail(USAGE) }
+    timings := PkgReadLimited(measurements, 16777216)
+    approved := PkgReadLimited(table, 65536)
+    certificate := PkgReadLimited(verification, 8192)
+    document: JsonDocument
+    defer JsonReset(*document)
+    if !approved.valid || !certificate.valid || !JsonRead(*document, certificate.text) ||
+        Integer(*document, document.root, "schema_version") != 1 ||
+        JsonKindOf(*document, JsonMember(*document, document.root, "verified")) != .True ||
+        Field(*document, document.root, "table_sha256") != PkgDigest(approved.text) {
+        return PkgFail("rule table lacks its matching verification certificate")
+    }
+    if !timings.valid || !JsonRead(*document, timings.text) { return PkgFail("cannot read policy measurements") }
+    selected := ReadSelection(*document, corpus)
+    if !selected.valid { return PkgFail("unverified, incomplete or incompatible policy measurements; table unchanged") }
+    generated := PolicyTable(approved.text, selected.policy, PkgDigest(timings.text))
+    if generated.count == 0 { return PkgFail("cannot generate policy table") }
+    receipt := Receipt(*document, selected, PkgDigest(timings.text), generated)
+    if receipt.count == 0 || !PkgWriteAtomic(PkgJoin(output, ".training.json"), receipt) { return PkgFail("cannot write training receipt; table unchanged") }
+    if !PkgWriteAtomic(output, generated) { return PkgFail("cannot write policy table") }
+    PkgPrint(PkgJoin3("Selected deterministic policy ", Number(LearningPolicyId(selected.policy)),
+        " from checksum-verified current-format corpus timings; rebuild and run parity before promotion.\n"), false)
+    return 0
+}

@@ -2,6 +2,8 @@
 // (no output buffer) or writes into a buffer sized by a previous measure. Both
 // modes run the same calls, so measured and written sizes agree exactly; no
 // instruction's length depends on a displacement value.
+#import "compiler_learning"
+#import "compiler_learning_policy"
 
 X86Rax :: 0
 X86Rcx :: 1
@@ -203,8 +205,44 @@ X86Multiply :: (writer: *X86Writer, destination: s32, source: s32) {
 }
 
 X86MultiplyImmediate :: (writer: *X86Writer, destination: s32, source: s32, value: s64) {
+    // Both forms sign-extend the immediate to 64 bits and set identical
+    // flags. Keep the full imm32 form when sign extension would differ.
+    if X86Fits8(value) {
+        X86Encode(writer, 0, true, 107, 1, destination, X86Direct(source), trailing = 1)
+        X86Little(writer, cast(u64)value, 1)
+        return
+    }
     X86Encode(writer, 0, true, 105, 1, destination, X86Direct(source), trailing = 4)
     X86Signed32(writer, value)
+}
+
+// Integer value multiplication with dead flags. Machine integer arithmetic
+// normalizes the result after this operation; no carry/overflow flag escapes
+// it. Keep this separate from the flag-preserving IMUL encoder above.
+X86MultiplyValue :: (writer: *X86Writer, destination: s32, source: s32, value: s64) {
+    if value == 1 {
+        if destination != source { X86Move(writer, destination, source) }
+        return
+    }
+    rule := LearningRuleForFactor(value)
+    if LearningRuleEnabled(rule) && rule == .MultiplyScaledAdd && source != X86Rsp {
+        shift: s32
+        if value == 3 { shift = 1 }
+        if value == 5 { shift = 2 }
+        if value == 9 { shift = 3 }
+        X86Lea(writer, destination, X86Indexed(source, source, 0, shift))
+        return
+    }
+    if LearningRuleEnabled(rule) && rule == .MultiplyPower && destination == source {
+        power := cast(u64)value
+        if (power & (power - 1)) == 0 {
+            shift: s32
+            while power > 1 { power = power >> 1; shift += 1 }
+            X86ShiftImmediate(writer, 4, destination, shift)
+            return
+        }
+    }
+    X86MultiplyImmediate(writer, destination, source, value)
 }
 
 // F7 group: 2 not, 3 neg, 6 div, 7 idiv.

@@ -5,6 +5,7 @@ using IR :: #import "compiler_lowered_ir"
 using Opt :: #import "compiler_opt"
 using Exec :: #import "compiler_exec"
 using Vectors :: #import "std/vec"
+using Inlining :: #import "compiler_opt_inline_cases"
 using FloatFolds :: #import "compiler_opt_float_cases"
 
 OptInstruction :: (op: LirOp, result: s32, operands: []s32,
@@ -224,6 +225,8 @@ OptRegressionCases :: () -> s32 {
 }
 
 main :: (argc: s32, argv: **u8) -> s32 {
+    inline_result := InlineCases()
+    if inline_result != 0 { print("leaf inline case % failed\n", inline_result); return 1 }
     floats := OptFloatCases()
     if floats != 0 { print("float fold case % failed\n", floats); return 1 }
     regression := OptRegressionCases()

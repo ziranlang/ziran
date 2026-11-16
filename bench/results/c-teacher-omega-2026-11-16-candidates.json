@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "native_sha256": "9978ae84253c8a66826459bd18f3379aa9b73784caf6e1942727fc5bffbfe82e",
+  "zx_sha256": "5c47cb8218aeed347661abe511c183dca5e1278e852b5791595e3dcbe7f4b75e",
+  "c_sha256": "c77c158bdc0e61b8c246fb0fb2efd8e62a5f537c6e0ef7fc7e573b897bd6d311",
+  "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+  "candidates": [
+    {
+      "rule": "x86-multiply-constant",
+      "function": "tree_input_SecondaryPointerSample",
+      "factor": 3,
+      "native": "imul r11,rax,0x3",
+      "teacher": "lea rdx,[rax+rax*2]",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "tree_TreeRead",
+      "factor": 65536,
+      "native": "imul r11,rcx,0x10000",
+      "teacher": "shl r8,0x10",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "cursor_CursorHoverFrameStart",
+      "factor": 16,
+      "native": "imul r11,rax,0x10",
+      "teacher": "shl rdx,0x4",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "paint_queue_SnapshotTextJoin",
+      "factor": 512,
+      "native": "imul r11,rdi,0x200",
+      "teacher": "shl rax,0x9",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "tree_TreeStoreLabel",
+      "factor": 65536,
+      "native": "imul r11,r9,0x10000",
+      "teacher": "shl rdx,0x10",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "contextmenu_Draw",
+      "factor": 16,
+      "native": "imul r11,rax,0x10",
+      "teacher": "shl rbx,0x4",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "cursor_CursorHoverFrameCommit",
+      "factor": 16,
+      "native": "imul r11,rax,0x10",
+      "teacher": "shl rax,0x4",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "svg_icon_behavior_PaintSvgIcon",
+      "factor": 5,
+      "native": "imul r11,r14,0x5",
+      "teacher": "lea rdx,[r12+r12*4]",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "svg_icon_behavior_SvgIconTexture",
+      "factor": 5,
+      "native": "imul r11,rcx,0x5",
+      "teacher": "lea rcx,[rcx+rcx*4]",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "svg_icon_behavior_SvgIconCells",
+      "factor": 5,
+      "native": "imul r11,rcx,0x5",
+      "teacher": "lea rsi,[rcx+rcx*4]",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "svg_shape_ShapeCoverEdges",
+      "factor": 16,
+      "native": "imul r11,rcx,0x10",
+      "teacher": "shl r12,0x4",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    },
+    {
+      "rule": "x86-multiply-constant",
+      "function": "svg_shape_ShapeAddEdge",
+      "factor": 16,
+      "native": "imul r11,rdx,0x10",
+      "teacher": "shl rdx,0x4",
+      "precondition": "integer-modulo-width; flags-dead; no-memory",
+      "verified": false
+    }
+  ]
+}

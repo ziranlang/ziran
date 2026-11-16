@@ -1,0 +1,132 @@
+// SIGPROF sampling of a private child, Linux x86-64. Install ITIMER_PROF at
+// exec's first stop, restore its instruction and registers, and then sample
+// unchanged code. No signal handler or runtime is added to the measured ELF.
+#import "std/c_string"
+using Vectors :: #import "std/vec"
+
+#scope_file
+libc_teacher :: #system_library "libc";
+Ptrace :: (request: s64, pid: s32, address: u64, data: u64) -> s64 #foreign libc_teacher "ptrace";
+Fork :: () -> s32 #foreign libc_teacher "fork";
+Exec :: (path: *u8, arguments: **u8) -> s32 #foreign libc_teacher "execv";
+Exit :: (code: s32) -> void #foreign libc_teacher "_exit";
+WaitPid :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc_teacher "waitpid";
+Kill :: (pid: s32, number: s32) -> s32 #foreign libc_teacher "kill";
+Open :: (path: *u8, flags: s32) -> s32 #foreign libc_teacher "open";
+Dup :: (from: s32, to: s32) -> s32 #foreign libc_teacher "dup2";
+Close :: (fd: s32) -> s32 #foreign libc_teacher "close";
+Errno :: () -> *s32 #foreign libc_teacher "__errno_location";
+Registers :: struct { words: [27]u64 }
+
+Wait :: (pid: s32, status: *s32) -> bool {
+    while true {
+        if WaitPid(pid, status, 0) == pid { return true }
+        if Errno()[0] != 4 { return false }
+    }
+}
+
+Trace :: (request: s64, pid: s32, address: u64, data: u64) -> bool {
+    error := Errno()
+    error[0] = 0
+    result := Ptrace(request, pid, address, data)
+    return result != -1 || Errno()[0] == 0
+}
+
+#scope_export
+TeacherSample :: struct { address: u64; count: s64 }
+TeacherProfile :: struct {
+    samples: Vec(TeacherSample)
+    total: s64
+    runs: s64
+    valid: bool
+    exit_code: s32
+}
+
+TeacherSampleRun :: (path: string, profile: *TeacherProfile) -> bool {
+    cpath: [4096]u8
+    sink: [16]u8
+    if !CopyCString(path, cpath[:]) || !CopyCString("/dev/null", sink[:]) { return false }
+    arguments: [2]*u8 = .[*cpath[0], null]
+    pid := Fork()
+    if pid < 0 { return false }
+    if pid == 0 {
+        fd := Open(*sink[0], 1)
+        if fd < 0 { Exit(120); return false }
+        unused Dup(fd, 1); unused Dup(fd, 2); unused Close(fd)
+        if !Trace(0, 0, 0, 0) { Exit(121); return false }
+        unused Exec(*cpath[0], *arguments[0])
+        Exit(122)
+        return false
+    }
+    reaped := false
+    status: s32
+    defer {
+        if !reaped {
+            // Confirm this PID is still our unreaped child before signaling.
+            pending := WaitPid(pid, *status, 1)
+            if pending == 0 || pending == pid && (status & 255) == 127 {
+                unused Kill(pid, 9)
+                unused Wait(pid, *status)
+            }
+        }
+    }
+    if !Wait(pid, *status) { return false }
+    if (status & 255) != 127 { reaped = true; return false }
+    // EXITKILL ensures a stopped child cannot outlive a failed tracer.
+    if !Trace(16896, pid, 0, 1048576) { return false }
+    saved: Registers
+    if !Trace(12, pid, 0, cast(u64)*saved) { return false }
+    ip := saved.words[16]
+    error := Errno()
+    error[0] = 0
+    original := Ptrace(1, pid, ip, 0)
+    if original == -1 && Errno()[0] != 0 { return false }
+    // syscall is two bytes; single-step it with setitimer(ITIMER_PROF).
+    patched := (cast(u64)original & ~cast(u64)65535) | 1295
+    if !Trace(4, pid, ip, patched) { return false }
+    timer := saved.words[19] - 128
+    values: [4]u64 = .[0, 1000, 0, 1000]
+    for index: 0..3 { if !Trace(5, pid, timer + cast(u64)index * 8, values[index]) { return false } }
+    registers := saved
+    registers.words[10] = 38
+    registers.words[14] = 2
+    registers.words[13] = timer
+    registers.words[12] = 0
+    if !Trace(13, pid, 0, cast(u64)*registers) || !Trace(9, pid, 0, 0) || !Wait(pid, *status) { return false }
+    if (status & 255) != 127 || !Trace(12, pid, 0, cast(u64)*registers) || registers.words[10] != 0 { return false }
+    if !Trace(4, pid, ip, cast(u64)original) || !Trace(13, pid, 0, cast(u64)*saved) || !Trace(7, pid, 0, 0) { return false }
+    while Wait(pid, *status) {
+        if (status & 127) == 0 {
+            reaped = true
+            profile.exit_code = (status >> 8) & 255
+            profile.runs += 1
+            return true
+        }
+        if (status & 255) != 127 { reaped = true; return false }
+        signal_number := (status >> 8) & 255
+        if signal_number == 27 {
+            if !Trace(12, pid, 0, cast(u64)*registers) { return false }
+            address := registers.words[16]
+            found := false
+            for index: 0..profile.samples.count - 1 {
+                if profile.samples[index].address == address { profile.samples[index].count += 1; found = true; break }
+            }
+            if !found { unused VecPush(profile.samples, TeacherSample.{address = address, count = 1}) }
+            profile.total += 1
+            signal_number = 0
+        }
+        if !Trace(7, pid, 0, cast(u64)signal_number) { return false }
+    }
+    return false
+}
+
+TeacherSampleProgram :: (path: string, expected: s32) -> TeacherProfile {
+    profile: TeacherProfile
+    valid := true
+    for run: 0..29 {
+        if !TeacherSampleRun(path, *profile) || profile.exit_code != expected { valid = false; break }
+        if profile.total >= 150 { break }
+    }
+    profile.valid = valid
+    return profile
+}

@@ -1,0 +1,32 @@
+// Runtime input values exercise C/native multiplication selection at every
+// integer width, including truncation, sign extension and wraparound.
+Emit :: (x: u64) {
+    print("% % % % % % % %\n", x * 2, x * 3, x * 5, x * 9, x * 8, x * 32, x * 128, x * 1073741824)
+    a := cast(u8)x
+    b := cast(u16)x
+    c := cast(u32)x
+    print("% % % % % %\n", cast(u8)(a * 3), cast(u8)(a * 32),
+        cast(u16)(b * 5), cast(u16)(b * 128), cast(u32)(c * 9), cast(u32)(c * 1073741824))
+    d := cast(s8)x
+    e := cast(s16)x
+    f := cast(s32)x
+    print("% % % % % %\n", cast(s8)(d * 3), cast(s8)(d * 32),
+        cast(s16)(e * 5), cast(s16)(e * 128), cast(s32)(f * 9), cast(s32)(f * 1073741824))
+    // Both ends of the imm8 range, and the adjacent imm32 values.
+    print("% % % %\n", x * cast(u64)-128, x * cast(u64)127, x * cast(u64)-129, x * cast(u64)128)
+}
+
+main :: () -> s32 {
+    boundaries := u64.[0, 1, 127, 128, 255, 256, 32767, 32768, 65535, 65536,
+        2147483647, 2147483648, 4294967295, 4294967296, 9223372036854775807,
+        9223372036854775808, 18446744073709551615]
+    for value: boundaries { Emit(value) }
+    random: u64 = 521288629
+    for iteration: 0..2047 {
+        random = (random ^ (random << 13))
+        random = (random ^ (random >> 7))
+        random = (random ^ (random << 17))
+        Emit(random)
+    }
+    return 0
+}

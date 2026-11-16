@@ -1,0 +1,22 @@
+// Ordinary compilation consults this checked-in table only. No corpus,
+// settings, files, clock or online search participates in code generation.
+#import "compiler_learning_policy"
+#import "compiler_learning_table"
+
+LearningTableValid :: () -> bool {
+    return LearningTableVersion == LearningPolicyVersion && LearningVerifierVersion == 1 &&
+        LearningTableTarget == "x86_64" && LearningTableEvidence.count == 64 && LearningTableFixture.count == 64
+}
+
+LearningRuleEnabled :: (rule: LearningRule) -> bool {
+    if !LearningTableValid() { return false }
+    return rule == .MultiplyPower && LearningMultiplyPower == 1 || rule == .MultiplyScaledAdd && LearningMultiplyScaledAdd == 1
+}
+
+LearningTuningChoice :: () -> LearningTuning {
+    baseline := LearningTuning.{unroll_factor = 1, block_layout = 1}
+    if !LearningTableValid() { return baseline }
+    selected := LearningTuning.{leaf_operations = LearningLeafOperations, unroll_factor = LearningUnrollFactor,
+        block_layout = LearningBlockLayout, allocation = LearningAllocation}
+    return ifx LearningTuningValid(selected) then selected else baseline
+}

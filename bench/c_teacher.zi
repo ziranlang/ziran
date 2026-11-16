@@ -1,0 +1,407 @@
+// Compare generated C with the native pipeline using identical checked input.
+// Run only through bench/bench.zi; all compilation and sampling shares its
+// learning-off environment and the caller's build-queue reservation.
+#import "c_teacher_assembly"
+#import "c_teacher_profile"
+#import "c_teacher_rules"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#scope_file
+Case :: struct { name: string; bundle: string; cdir: string; symbol: string; header: string; expected: s32; printing: bool; checksum: string }
+Finding :: struct { workload: string; compiler: string; name: string; native: TeacherMetrics; teacher: TeacherMetrics; samples: s64; total: s64; score: s64 }
+
+Join :: (a: string, b: string) -> string { parts := string.[a, b]; return TextDetach(TextJoin(parts[:], "")) }
+Number :: (n: s64) -> string { bytes: [32]u8; return Join("", FormatInteger(n, bytes[:])) }
+Field :: (d: *JsonDocument, node: s32, key: string) -> string { return TextDetach(JsonString(d, JsonMember(d, node, key))) }
+Integer :: (d: *JsonDocument, node: s32, key: string) -> s64 { n, ok := JsonInteger(d, JsonMember(d, node, key)); return ifx ok then n else -1 }
+Capture :: (args: []string) -> (text: string, code: s32) {
+    run: ProcessRun
+    options: ProcessOptions = .{arguments = args, capture_output = true, merge_error = true}
+    if !RunProcess(options, *run) { return "could not start child", 127 }
+    return TextDetach(BuilderFinish(run.output)), run.code
+}
+Require :: (args: []string) -> bool {
+    text, code := Capture(args)
+    if code != 0 { print("command failed (%): %\n%\n", code, TextJoin(args, " "), text); return false }
+    return true
+}
+Sources :: (directory: string, suffix: string, files: *Vec(string)) {
+    names: Vec(string)
+    if !ListDirectory(directory, *names) { return }
+    for name: names {
+        path := TextDetach(JoinPath(directory, name))
+        if IsDirectory(path) { Sources(path, suffix, files) }
+        else if TextHasSuffix(path, suffix) { unused VecPush(files.*, path) }
+    }
+}
+Hash :: (path: string) -> string {
+    command := string.["sha256sum", path]
+    text, code := Capture(command[:])
+    return ifx code == 0 && text.count >= 64 then text[:64] else "unavailable"
+}
+Clang :: () -> string {
+    candidates := string.["clang", "clang-22", "clang-21", "clang-20", "clang-19", "clang-18", "clang-17"]
+    for candidate: candidates {
+        command := string.[candidate, "--version"]
+        version, code := Capture(command[:])
+        if code == 0 { return candidate }
+    }
+    return ""
+}
+Metrics :: (m: TeacherMetrics) -> string {
+    values := s64.[m.instructions, m.loop_instructions, m.back_edges, m.stack_reads, m.stack_writes,
+        m.memory, m.indexed, m.branches, m.forward_branches, m.calls, m.vectors, m.multiplies, m.divides, m.shifts, m.loop_constants]
+    parts: Vec(string)
+    for value: values { unused VecPush(parts, Number(value)) }
+    return TextDetach(TextJoin(VecSlice(parts, 0, parts.count), "/"))
+}
+Patterns :: (n: TeacherMetrics, c: TeacherMetrics) -> string {
+    patterns: Vec(string)
+    if n.stack_reads + n.stack_writes > c.stack_reads + c.stack_writes { unused VecPush(patterns, "stack traffic (regalloc/aggregate lane)") }
+    if n.branches > c.branches { unused VecPush(patterns, "branch layout/loop rotation (SSA lane)") }
+    if n.calls > c.calls { unused VecPush(patterns, "calls/inlining candidates") }
+    if n.multiplies + n.divides > c.multiplies + c.divides { unused VecPush(patterns, "strength reduction candidates") }
+    if n.loop_constants > c.loop_constants { unused VecPush(patterns, "loop constants/LICM candidates") }
+    if c.vectors > n.vectors { unused VecPush(patterns, "vector idioms (inspect scalar SSE uses)") }
+    if n.memory > c.memory { unused VecPush(patterns, "memory/address folding candidates") }
+    return TextDetach(TextJoin(VecSlice(patterns, 0, patterns.count), "; "))
+}
+
+SaveProfile :: (path: string, profile: *TeacherProfile, digest: string) -> bool {
+    document: JsonDocument
+    defer JsonReset(*document)
+    root := JsonNewObject(*document)
+    JsonSet(*document, root, "artifact_sha256", JsonNewStringCopy(*document, digest))
+    JsonSet(*document, root, "samples", JsonNewInteger(*document, profile.total))
+    JsonSet(*document, root, "runs", JsonNewInteger(*document, profile.runs))
+    ips := JsonNewArray(*document)
+    JsonSet(*document, root, "ips", ips)
+    for sample: profile.samples {
+        ip := JsonNewObject(*document)
+        JsonSet(*document, ip, "address", JsonNewInteger(*document, cast(s64)sample.address))
+        JsonSet(*document, ip, "count", JsonNewInteger(*document, sample.count))
+        unused JsonAppend(*document, ips, ip)
+    }
+    return WriteEntireFile(path, TextDetach(JsonWrite(*document, root, JsonPythonStyle(2))))
+}
+Append :: (text: *Vec(u8), value: string) { BuilderAppend(text.*, value) }
+Line :: (text: *Vec(u8), value: string) { Append(text, value); Append(text, "\n") }
+Row :: (text: *Vec(u8), cells: []string) {
+    Append(text, "| "); Append(text, TextDetach(TextJoin(cells, " | "))); Line(text, " |")
+}
+LoopSummary :: (code: []TeacherInstruction, begin: s64, end: s64, base: s64, profile: *TeacherProfile) -> string {
+    loops := TeacherLoops(code, begin, end)
+    best: TeacherLoop
+    best_samples: s64 = -1
+    for loop: loops {
+        samples: s64
+        for sample: profile.samples {
+            if sample.address >= cast(u64)(base + loop.begin) && sample.address <= cast(u64)(base + loop.end) { samples += sample.count }
+        }
+        if samples > best_samples || samples == best_samples && loop.instructions > best.instructions {
+            best = loop; best_samples = samples
+        }
+    }
+    if best_samples < 0 { return "none" }
+    parts := string.[Number(best.begin), "..", Number(best.end), ": ", Number(best.instructions), " instructions, ", Number(best_samples), " samples"]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+Bindings :: (arguments: *Vec(string)) -> bool {
+    text, found := ReadEntireFile("build/site-library-targets/sources/widget_benchmarks.json")
+    document: JsonDocument
+    defer JsonReset(*document)
+    if !found || !JsonRead(*document, text) { return false }
+    bindings := JsonMember(*document, document.root, "bindings")
+    if JsonKindOf(*document, bindings) != .Array { return false }
+    for index: cast(s32)0..JsonCount(*document, bindings) - 1 {
+        binding := TeacherIRBinding(JsonString(*document, JsonElement(*document, bindings, index)))
+        if binding == "" { return false }
+        unused VecPush(arguments.*, "--bind")
+        unused VecPush(arguments.*, binding)
+    }
+    return true
+}
+
+// Reuse the scenario harness's checked IR, including its ordinary library
+// bindings, rather than teaching this tool anything about widget internals.
+GenerateC :: (item: Case, directory: string) -> bool {
+    if item.name == "Hello" { return true }
+    arguments: Vec(string)
+    root := ifx item.header == "wasm_tier.h" then "bench" else "build/site-library-targets/ir"
+    module := ifx item.header == "wasm_tier.h" then "wasm_tier" else "widget_benchmarks"
+    entry := ifx item.header == "wasm_tier.h" then item.name else Join(item.name, "Case")
+    flags := string.["build/bin/zi2c", "--no-main", "--root", root, "--module-path", "std", "--entry",
+        Join(module, Join(":", entry)), "-o", directory]
+    for flag: flags { unused VecPush(arguments, flag) }
+    if root == "bench" { unused VecPush(arguments, "bench/wasm_tier.zi") }
+    else {
+        if !Bindings(*arguments) { return false }
+        Sources(root, ".zir", *arguments)
+    }
+    return Require(VecSlice(arguments, 0, arguments.count))
+}
+
+Compare :: (item: Case, compiler: string, work: string, report: *Vec(u8), findings: *Vec(Finding)) -> bool {
+    directory := TextDetach(JoinPath(work, item.name))
+    if !CreateDirectories(directory) { return false }
+    generated := TextDetach(JoinPath(directory, "c"))
+    if !GenerateC(item, generated) { return false }
+    cdir := ifx item.name == "Hello" then item.cdir else generated
+    native := TextDetach(JoinPath(directory, "native"))
+    mapfile := TextDetach(JoinPath(directory, "native.map.json"))
+    native_command := string.["build/bin/zx2native", "-o", native, item.bundle]
+    map_command := string.["build/bin/zx2native", "--emit", "map", "-o", mapfile, item.bundle]
+    if !Require(native_command[:]) || !Require(map_command[:]) { return false }
+    maptext, read := ReadEntireFile(mapfile)
+    map: JsonDocument
+    defer JsonReset(*map)
+    if !read || !JsonRead(*map, maptext) { return false }
+    identity := JsonMember(*map, map.root, "identity")
+    if Field(*map, identity, "digest") != Hash(native) { print("native map identity mismatch for %\n", item.name); return false }
+    image := JsonMember(*map, map.root, "image")
+    offset := Integer(*map, image, "text_file_offset")
+    size := Integer(*map, image, "text_size")
+    base := Integer(*map, image, "text_virtual_address")
+    raw := TextDetach(JoinPath(directory, "text.bin"))
+    extract_command := string.["dd", Join("if=", native), Join("of=", raw), "bs=65536", "iflag=skip_bytes,count_bytes",
+        Join("skip=", Number(offset)), Join("count=", Number(size)), "status=none"]
+    if offset < 0 || size <= 0 || !Require(extract_command[:]) { return false }
+    native_dump := string.["objdump", "-D", "-b", "binary", "-m", "i386:x86-64", "-M", "intel", "--no-show-raw-insn", raw]
+    ntext, ncode := Capture(native_dump[:])
+    if ncode != 0 { return false }
+    unused WriteEntireFile(JoinPath(directory, "native.asm"), ntext)
+    executable := TextDetach(JoinPath(directory, compiler))
+    arguments: Vec(string)
+    flags := string.[compiler, "-O2", "-std=c11"]
+    for flag: flags { unused VecPush(arguments, flag) }
+    matrix_flags := string.["-DMATRIX_NATIVE", Join("-I", cdir),
+        Join("-DMATRIX_HEADER=\"", Join(item.header, "\"")), Join("-DMATRIX_ENTRY=", item.symbol)]
+    if item.header != "" { for flag: matrix_flags { unused VecPush(arguments, flag) } }
+    if item.header != "" { unused VecPush(arguments, "bench/site_target_host.c") }
+    if item.printing { unused VecPush(arguments, "-DMATRIX_VOID") }
+    Sources(cdir, ".c", *arguments)
+    link_flags := string.["-lm", "-o", executable]
+    for flag: link_flags { unused VecPush(arguments, flag) }
+    if !Require(VecSlice(arguments, 0, arguments.count)) { return false }
+    parity_command := string.[executable, "-", item.checksum, "3"]
+    parity, parity_code := Capture(parity_command[:])
+    if parity_code != 0 { print("C checksum parity failed for %/%: %\n", item.name, compiler, parity); return false }
+    unused WriteEntireFile(JoinPath(directory, Join(compiler, ".parity.json")), parity)
+    c_dump := string.["objdump", "-d", "-M", "intel", "--no-show-raw-insn", executable]
+    ctext, ccode := Capture(c_dump[:])
+    if ccode != 0 { return false }
+    unused WriteEntireFile(JoinPath(directory, Join(compiler, ".asm")), ctext)
+    // Sampling is diagnostic, never a benchmark timing. Short programs may
+    // yield no ticks; report unknown instead of inventing a time share.
+    profile := TeacherSampleProgram(native, item.expected)
+    if !profile.valid { print("sampling failed for %\n", item.name); return false }
+    if !SaveProfile(JoinPath(directory, Join(compiler, ".profile.json")), *profile, Hash(native)) { return false }
+    Line(report, Join("\n## ", Join(item.name, Join(" / ", compiler))))
+    Line(report, Join("Native SHA-256: ", Hash(native)))
+    Line(report, Join("C SHA-256: ", Hash(executable)))
+    Line(report, Join("ZX SHA-256: ", Hash(item.bundle)))
+    version_command := string.[compiler, "--version"]
+    compiler_version, version_code := Capture(version_command[:])
+    version_end := TextFind(compiler_version, "\n")
+    if version_end >= 0 { compiler_version = compiler_version[:version_end] }
+    Line(report, Join("Compiler: ", compiler_version))
+    Line(report, Join("SIGPROF samples/runs: ", Join(Number(profile.total), Join("/", Number(profile.runs)))))
+    Line(report, "\n| Function | Native metrics | C metrics | Samples | Native loop with most samples (text offsets) |\n| --- | --- | --- | ---: | --- |")
+    ninst := TeacherInstructions(ntext)
+    cinst := TeacherInstructions(ctext)
+    symbol_command := string.["nm", "-S", "-n", "--defined-only", executable]
+    symbol_text, symbol_code := Capture(symbol_command[:])
+    if symbol_code != 0 { return false }
+    symbols := TeacherSizedSymbols(symbol_text)
+    proposals: JsonDocument
+    defer JsonReset(*proposals)
+    proposal_root := JsonNewObject(*proposals)
+    JsonSet(*proposals, proposal_root, "schema_version", JsonNewInteger(*proposals, 1))
+    JsonSet(*proposals, proposal_root, "native_sha256", JsonNewStringCopy(*proposals, Hash(native)))
+    JsonSet(*proposals, proposal_root, "zx_sha256", JsonNewStringCopy(*proposals, Hash(item.bundle)))
+    JsonSet(*proposals, proposal_root, "c_sha256", JsonNewStringCopy(*proposals, Hash(executable)))
+    JsonSet(*proposals, proposal_root, "compiler", JsonNewStringCopy(*proposals, compiler_version))
+    proposal_rules := JsonNewArray(*proposals)
+    JsonSet(*proposals, proposal_root, "candidates", proposal_rules)
+    functions := JsonMember(*map, map.root, "functions")
+    for index: cast(s32)0..JsonCount(*map, functions) - 1 {
+        function := JsonElement(*map, functions, index)
+        begin := Integer(*map, function, "begin")
+        end := Integer(*map, function, "end")
+        if begin < 0 || end <= begin { continue }
+        name := Field(*map, function, "name")
+        module := Field(*map, function, "module")
+        mangled := Join(module, Join("_", name))
+        found := false
+        cbegin: s64
+        cend: s64
+        cmetrics: TeacherMetrics
+        for symbol: symbols {
+            if symbol.name == mangled || name != "main" && symbol.name == name {
+                cmetrics = TeacherMeasure(VecSlice(cinst, 0, cinst.count), symbol.begin, symbol.end)
+                cbegin = symbol.begin; cend = symbol.end
+                found = true; break
+            }
+        }
+        native_metrics := TeacherMeasure(VecSlice(ninst, 0, ninst.count), begin, end)
+        samples: s64
+        for sample: profile.samples {
+            if sample.address >= cast(u64)(base + begin) && sample.address < cast(u64)(base + end) { samples += sample.count }
+        }
+        cname := ifx found then Metrics(cmetrics) else "absent (inline/dead/renamed unknown)"
+        cells := string.[mangled, Metrics(native_metrics), cname, Number(samples),
+            LoopSummary(VecSlice(ninst, 0, ninst.count), begin, end, base, *profile)]
+        Row(report, cells[:])
+        if found {
+            rules := TeacherMineRewrites(VecSlice(ninst, 0, ninst.count), begin, end,
+                VecSlice(cinst, 0, cinst.count), cbegin, cend)
+            for rule: rules {
+                proposal := JsonNewObject(*proposals)
+                JsonSet(*proposals, proposal, "rule", JsonNewStringCopy(*proposals, "x86-multiply-constant"))
+                JsonSet(*proposals, proposal, "function", JsonNewStringCopy(*proposals, mangled))
+                JsonSet(*proposals, proposal, "factor", JsonNewInteger(*proposals, rule.factor))
+                JsonSet(*proposals, proposal, "native", JsonNewStringCopy(*proposals, rule.native))
+                JsonSet(*proposals, proposal, "teacher", JsonNewStringCopy(*proposals, rule.teacher))
+                JsonSet(*proposals, proposal, "precondition", JsonNewStringCopy(*proposals, "integer-modulo-width; flags-dead; no-memory"))
+                JsonSet(*proposals, proposal, "verified", JsonNewBool(*proposals, false))
+                unused JsonAppend(*proposals, proposal_rules, proposal)
+            }
+        }
+        if found && native_metrics.instructions > cmetrics.instructions {
+            delta := native_metrics.instructions - cmetrics.instructions
+            // Ranking is a proxy, not estimated cycles. Weight excess code by
+            // observed function samples; unsampled functions rank last.
+            score := ifx profile.total > 0 then samples * 100000 * delta / (native_metrics.instructions * profile.total) else 0
+            unused VecPush(findings.*, Finding.{workload = item.name, compiler = compiler, name = mangled,
+                native = native_metrics, teacher = cmetrics, samples = samples, total = profile.total, score = score})
+        }
+    }
+    return WriteEntireFile(JoinPath(directory, Join(compiler, ".candidates.json")),
+        TextDetach(JsonWrite(*proposals, proposal_root, JsonPythonStyle(2))))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    output := "bench/results/c-teacher-omega.md"
+    if argc == 3 && TextFromCString(argv[1]) == "--output" { output = TextFromCString(argv[2]) }
+    else if argc != 1 { print("c_teacher.zi [--output REPORT.md]\nPrepare wasm-tier and library-targets through bench/bench.zi first.\n"); return 2 }
+    work := "build/c-teacher"
+    if !CreateDirectories(work) { return 1 }
+    cases: Vec(Case)
+    kernel_names := string.["Sieve", "Records", "Hash", "Vectors", "Calls", "Printing"]
+    for name: kernel_names {
+        wrapper_path := Join("build/wasm-tier/native_", Join(name, ".zi"))
+        wrapper, found := ReadEntireFile(wrapper_path)
+        if !found { print("prepare wasm-tier first: missing %\n", wrapper_path); return 1 }
+        wrapper = TextDetach(TextReplace(wrapper, "0..31", "0..1023"))
+        checksum_at := TextFind(wrapper, "checksum != ")
+        result := "0"
+        if checksum_at >= 0 {
+            at := checksum_at + 12
+            end := TextFind(wrapper, " {", at)
+            checksum, ok := TextInteger(wrapper[at:end])
+            if !ok { return 1 }
+            result = Number(checksum / 32)
+            wrapper = TextDetach(TextReplace(wrapper, Join("checksum != ", Number(checksum)), Join("checksum != ", Number(checksum * 32))))
+        }
+        teacher_source := TextDetach(JoinPath(work, Join("teacher_", Join(name, ".zi"))))
+        bundle := TextDetach(JoinPath(work, Join(name, ".zx")))
+        if !WriteEntireFile(teacher_source, wrapper) { return 1 }
+        build_command := string.["build/bin/zi2zx", "--root", work, "--module-path", "bench", "--module-path", "std",
+            "--entry", Join("teacher_", Join(name, ":main")), "-o", bundle, teacher_source]
+        if !Require(build_command[:]) { return 1 }
+        unused VecPush(cases, Case.{name = name, bundle = bundle,
+            cdir = "build/wasm-tier/c", symbol = Join("wasm_tier_", name), header = "wasm_tier.h", expected = 42, printing = name == "Printing", checksum = result})
+    }
+    widget_cases := string.["Button", "Text", "Input"]
+    widget_ids := string.["button", "text", "input"]
+    for index: 0..2 {
+        folder := Join("build/site-library-targets/", widget_ids[index])
+        module := Join("teacher_", widget_cases[index])
+        source := TextDetach(JoinPath(work, Join(module, ".zi")))
+        bundle := TextDetach(JoinPath(work, Join(module, ".zx")))
+        body := string.["Widget :: #import \"widget_benchmarks\";\n#program_export\nmain :: () -> s32 {\n",
+            "    for iteration: 0..2047 { if Widget.", widget_cases[index], "Case() != 0 { return 1 } }\n    return 0\n}\n"]
+        if !WriteEntireFile(source, TextDetach(TextJoin(body[:], ""))) { return 1 }
+        command: Vec(string)
+        flags := string.["build/bin/zi2zx", "--root", work, "--module-path", "build/site-library-targets/ir", "--module-path", "std",
+            "--entry", Join(module, ":main"), "-o", bundle]
+        for flag: flags { unused VecPush(command, flag) }
+        if !Bindings(*command) { return 1 }
+        unused VecPush(command, source)
+        Sources("build/site-library-targets/ir", ".zir", *command)
+        if !Require(VecSlice(command, 0, command.count)) { return 1 }
+        unused VecPush(cases, Case.{name = widget_cases[index], bundle = bundle,
+            cdir = Join(folder, "/c"), symbol = Join(widget_cases[index], "Case"), header = "widget_benchmarks.h", checksum = "0"})
+    }
+    hello_bundle := string.["build/bin/zi2zx", "--root", "examples", "--module-path", "std", "--entry", "hello:main", "-o", "build/c-teacher/hello.zx", "examples/hello.zi"]
+    hello_c := string.["build/bin/zi2c", "--root", "examples", "--module-path", "std", "-o", "build/c-teacher/hello-c", "examples/hello.zi"]
+    if !Require(hello_bundle[:]) || !Require(hello_c[:]) { return 1 }
+    unused VecPush(cases, Case.{name = "Hello", bundle = "build/c-teacher/hello.zx", cdir = "build/c-teacher/hello-c",
+        symbol = "hello_main", header = "hello.h", printing = true, checksum = "0"})
+    report: Vec(u8)
+    revision_command := string.["git", "rev-parse", "HEAD"]
+    revision, code := Capture(revision_command[:])
+    Line(*report, "# C teacher: native assembly comparison")
+    Line(*report, Join("\nBase revision: ", TextTrim(revision)))
+    host_command := string.["hostname"]
+    host, host_code := Capture(host_command[:])
+    if host_code != 0 { return 1 }
+    Line(*report, Join("Host: ", TextTrim(host)))
+    tool_names := string.["build/bin/zi2c", "build/bin/zi2zx", "build/bin/zx2native"]
+    tool_hashes: Vec(string)
+    for tool: tool_names {
+        digest := Hash(tool)
+        unused VecPush(tool_hashes, digest)
+        Line(*report, Join(tool, Join(" SHA-256: ", digest)))
+    }
+    Line(*report, "Learning off. Generated C compiled with -O2; native compiled from verified ZX. Function extents come from the native map; C symbols match module_name or exported name exactly. Absent symbols are not evidence of inlining. Metrics: instructions/loop-union/back-edges/stack-reads/stack-writes/memory/indexed/branches/forward-branches/calls/vector-register-uses/mul/div/shifts/loop-immediate-or-PC-relative candidates. Stack traffic includes locals and saves. Vector-register uses include scalar floating point. Loop constants are LICM candidates, not proven invariants. Back edges describe loop bodies, not execution frequency. SIGPROF uses a 1ms CPU timer, at most 30 runs; zero samples means unknown time share. Sampling includes process startup and runtime. Ranking weights relative instruction excess by observed function samples; it predicts neither cycles nor speedup.")
+    findings: Vec(Finding)
+    clang := Clang()
+    failures: s64
+    for item: cases {
+        if !Compare(item, "cc", work, *report, *findings) {
+            Line(*report, Join("\nINCOMPLETE: comparison failed for ", item.name))
+            failures += 1
+            continue
+        }
+        if clang != "" && !Compare(item, clang, work, *report, *findings) {
+            Line(*report, Join("\nINCOMPLETE: clang comparison failed for ", item.name))
+            failures += 1
+        }
+    }
+    ranked: Vec(u8)
+    Line(*ranked, "\n## Ranked C wins\n\n| Workload/compiler/function | Weighted excess | Function samples/total (estimated CPU share) | Patterns to inspect | Native | C |\n| --- | ---: | ---: | --- | --- | --- |")
+    for index: 1..findings.count - 1 {
+        at := index
+        while at > 0 && findings[at].score > findings[at - 1].score {
+            swap := findings[at]; findings[at] = findings[at - 1]; findings[at - 1] = swap; at -= 1
+        }
+    }
+    for finding: findings {
+        identity := string.[finding.workload, finding.compiler, finding.name]
+        share := ifx finding.total > 0 then Join(Number(finding.samples * 100 / finding.total), "%") else "unknown"
+        cells := string.[TextDetach(TextJoin(identity[:], "/")), Number(finding.score),
+            Join(Number(finding.samples), Join("/", Join(Number(finding.total), Join(" ", share)))),
+            Patterns(finding.native, finding.teacher), Metrics(finding.native), Metrics(finding.teacher)]
+        Row(*ranked, cells[:])
+    }
+    Append(*report, TextDetach(BuilderFinish(ranked)))
+    for index: 0..tool_names.count - 1 {
+        if Hash(tool_names[index]) != tool_hashes[index] {
+            Line(*report, Join("INCOMPLETE: compiler changed during comparison: ", tool_names[index]))
+            failures += 1
+        }
+    }
+    if !WriteEntireFile(output, TextDetach(BuilderFinish(report))) { return 1 }
+    print("C teacher: % workloads, % ranked function comparisons, % failed; %\n", cases.count, findings.count, failures, output)
+    return ifx failures == 0 then 0 else 1
+}

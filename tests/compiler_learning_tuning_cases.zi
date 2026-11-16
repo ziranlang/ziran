@@ -1,0 +1,45 @@
+#import, file "../cmd/compiler_learning_tuning.zi";
+#import, file "../cmd/compiler_learning_policy.zi";
+#import "std/vec"
+
+LearningTuningCases :: () -> s32 {
+    samples := s64.[1000, 10, 10, 10, 10, 10, 10, 10, 10, 10, 1]
+    statistics := LearningAnalyze(samples[:])
+    defer VecFree(statistics.excluded)
+    if !statistics.valid || statistics.median_twice != 20 || statistics.excluded.count != 2 ||
+        statistics.excluded[0] != 0 || statistics.excluded[1] != 10 { return 1 }
+    too_few := LearningAnalyze(samples[:10])
+    defer VecFree(too_few.excluded)
+    if too_few.valid { return 2 }
+    c := s64.[100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
+    fast := s64.[200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
+    slow := s64.[400, 400, 400, 400, 400, 400, 400, 400, 400, 400, 400]
+    digest := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    rows := LearningObservation.[
+        .{workload = "b", input = digest, host = "omega", source_epoch = digest,
+            policy = .{unroll_factor = 1, block_layout = 1}, bytes = 100, native_ns = slow[:], c_ns = c[:]},
+        .{workload = "a", input = digest, host = "omega", source_epoch = digest,
+            policy = .{leaf_operations = 1, unroll_factor = 1, block_layout = 1}, bytes = 90, native_ns = fast[:], c_ns = c[:]},
+        .{workload = "a", input = digest, host = "omega", source_epoch = digest,
+            policy = .{unroll_factor = 1, block_layout = 1}, bytes = 100, native_ns = slow[:], c_ns = c[:]},
+        .{workload = "b", input = digest, host = "omega", source_epoch = digest,
+            policy = .{leaf_operations = 1, unroll_factor = 1, block_layout = 1}, bytes = 90, native_ns = fast[:], c_ns = c[:]}]
+    selected := LearningSelect(rows[:])
+    if !selected.valid || selected.score != 4.0 || selected.bytes != 180 || LearningPolicyId(selected.policy) != 3 { return 3 }
+    incomplete := LearningSelect(rows[:3])
+    if !incomplete.valid || LearningPolicyId(incomplete.policy) != 1 { return 4 }
+    rows[3].host = "other-host"
+    if LearningSelect(rows[:]).valid { return 5 }
+    rows[3].host = "omega"
+    rows[3].policy.unroll_factor = 2
+    if LearningSelect(rows[:]).valid { return 6 }
+    rows[3].policy.unroll_factor = 1
+    for index: 0..rows.count - 1 { rows[index].artifact = digest }
+    selected = LearningSelect(rows[:])
+    if !selected.valid || LearningPolicyId(selected.policy) != 3 { return 7 }
+    // Equal bytes also tie at the same size; lowest policy wins despite noise.
+    rows[1].bytes = 100; rows[3].bytes = 100
+    selected = LearningSelect(rows[:])
+    if !selected.valid || LearningPolicyId(selected.policy) != 1 { return 8 }
+    return 0
+}

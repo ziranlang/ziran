@@ -1,0 +1,49 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Inline :: #import "compiler_opt_inline"
+
+InlineCases :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64}]
+    modules := string.["inline"]
+    constants := LirConstant.[.{type = 1, bits = 3}, .{type = 1, bits = 5}]
+    values := s32.[1, 1, 1]
+    parameters := s32.[1, 1]
+    arguments := s32.[0, 1]
+    returned := s32.[2]
+    caller_code := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 0, origin = -1},
+        .{op = .Constant, result = 1, symbol = 1, origin = -1},
+        .{op = .Call, result = 2, operands = arguments[:], symbol = 1, effect = 1, origin = -1},
+        .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}]
+    callee_arguments := s32.[0, 1]
+    entry_parameters := s32.[0, 1]
+    callee_code := LirInstruction.[
+        .{op = .Add, result = 2, operands = callee_arguments[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}]
+    caller_blocks := LirBlock.[.{instructions = caller_code[:]}]
+    callee_blocks := LirBlock.[.{parameters = entry_parameters[:], instructions = callee_code[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "main", result = 1, values = values[:], blocks = caller_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "add", parameters = parameters[:], result = 1, values = values[:], blocks = callee_blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 1 }
+    disabled := LirInlineLeaves(program, 0, 1000)
+    if disabled.calls != 0 || caller_code[2].op != .Call { return 2 }
+    limited := LirInlineLeaves(program, 1, 0)
+    if !limited.limited || caller_code[2].op != .Call { return 3 }
+    // A trapping operator is never a leaf candidate.
+    program.functions[1].blocks[0].instructions[0].op = .Divide
+    rejected := LirInlineLeaves(program, 1, 1000)
+    if rejected.calls != 0 || caller_code[2].op != .Call { return 4 }
+    program.functions[1].blocks[0].instructions[0].op = .Subtract
+    // Reverse parameters to catch operand-renaming mistakes.
+    program.functions[1].blocks[0].instructions[0].operands[0] = 1
+    program.functions[1].blocks[0].instructions[0].operands[1] = 0
+    inlined := LirInlineLeaves(program, 1, 1000)
+    if inlined.limited || inlined.calls != 1 || caller_code[2].op != .Subtract ||
+        caller_code[2].effect != 0 || caller_code[2].operands[0] != 1 ||
+        caller_code[2].operands[1] != 0 || caller_code[2].result != 2 { return 5 }
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 6 }
+    return 0
+}

@@ -1,0 +1,66 @@
+#import, file "../bench/c_teacher_assembly.zi";
+#import, file "../bench/c_teacher_rules.zi";
+#import, file "../cmd/compiler_learning_policy.zi";
+#import, file "../cmd/compiler_learning_fixture.zi";
+#import "std/text_tools"
+#import "compiler_learning_tuning_cases"
+#import "std/vec"
+
+#program_export
+main :: () -> s32 {
+    tuning := LearningTuningCases()
+    if tuning != 0 { print("learning tuning case % failed\n", tuning); return 1 }
+    text := #string ASM
+0000000000000010 <demo_Loop>:
+  10: mov rax,QWORD PTR [rsp+0x8]
+  15: mov rcx,0x7
+  1a: mov BYTE PTR [rdi+rax*2],0x1
+  20: add rax,0x1
+  24: cmp rax,rcx
+  27: jl 0x1a <demo_Loop+0xa>
+  29: jne 15 <demo_Loop+0x5>
+  2b: mov QWORD PTR [rbp-0x8],rax
+  30: call 50 <demo_Leaf>
+  35: ret
+0000000000000050 <demo_Leaf>:
+  50: mov eax,0x1
+  55: ret
+ASM;
+    instructions := TeacherInstructions(text)
+    symbols := TeacherSymbols(text)
+    if instructions.count != 12 || symbols.count != 2 || symbols[0].end != 80 { return 1 }
+    metrics := TeacherMeasure(VecSlice(instructions, 0, instructions.count), 16, 80)
+    if metrics.instructions != 10 || metrics.back_edges != 2 || metrics.loop_instructions != 6 ||
+        metrics.stack_reads != 1 || metrics.stack_writes != 1 || metrics.calls != 1 ||
+        metrics.indexed != 1 || metrics.branches != 2 || metrics.loop_constants != 3 { return 2 }
+    loops := TeacherLoops(VecSlice(instructions, 0, instructions.count), 16, 80)
+    if loops.count != 2 || loops[0].begin != 26 || loops[0].end != 39 || loops[0].instructions != 4 { return 9 }
+    value, valid := TeacherHex("7fffffffffffffff")
+    if !valid || value != 9223372036854775807 { return 3 }
+    value, valid = TeacherHex("8000000000000000")
+    if valid { return 4 }
+    value, valid = TeacherHex("not-code")
+    if valid { return 5 }
+    empty := TeacherInstructions("a file header\n 00: (bad)\n xyz: ret\n")
+    if empty.count != 0 { return 6 }
+    sized := TeacherSizedSymbols("00000010 00000003 T real_fn\n00000020 00000000 T empty_fn\n00000030 00000004 D data\n")
+    if sized.count != 1 || sized[0].begin != 16 || sized[0].end != 19 { return 7 }
+    if TeacherIRBinding("library/metrics:Width=host:Width") != "metrics:Width=host:Width" ||
+        TeacherIRBinding("plain:Read=other/path:Write") != "plain:Read=path:Write" ||
+        TeacherIRBinding("invalid") != "" { return 8 }
+    if TeacherLeaFactor("rax,[rdx+rdx*2]") != 3 || TeacherLeaFactor("rax,[rdx+rcx*2]") != 0 ||
+        TeacherLeaFactor("rax,[rdx+rdx*2+0x8]") != 0 { return 10 }
+    native := TeacherInstructions("10: imul rax,rax,0x20\n20: imul rbx,rbx,0x3\n30: ret\n")
+    teacher := TeacherInstructions("50: shl rdx,0x5\n60: lea rcx,[rdi+rdi*2]\n70: ret\n")
+    rules := TeacherMineRewrites(VecSlice(native, 0, native.count), 16, 49,
+        VecSlice(teacher, 0, teacher.count), 80, 113)
+    if rules.count != 2 || rules[0].factor != 32 || rules[1].factor != 3 { return 11 }
+    if LearningRuleForFactor(7) != .None || LearningRuleForFactor(-3) != .None ||
+        !LearningCheckFamily(.MultiplyPower) || !LearningCheckFamily(.MultiplyScaledAdd) ||
+        LearningCheckFamily(.None) { return 12 }
+    source := LearningFixtureSource()
+    if source != LearningFixtureSource() || !TextContains(source, "cast(s8)x * cast(s8)1073741824") ||
+        !TextContains(source, "for iteration: 0..2047") { return 13 }
+    print("C teacher: function boundaries, loops, candidates, rewrite semantics and deterministic parity fixture\n")
+    return 0
+}

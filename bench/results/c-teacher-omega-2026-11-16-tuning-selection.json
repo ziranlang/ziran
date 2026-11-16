@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "selected_policy": 1,
+  "measurements_sha256": "33dd0c8bc432d50c22f02c3b21245a85ea59c0cbe3c8bc06563ebc165c3876c7",
+  "table_sha256": "a4cae8ab1d24b99da61655f0e9f75a4590a0a32ab4c4bffafcbc2c2ede9acb96",
+  "method": "symmetric inclusive-quartile 1.5 IQR; equal artifacts share lowest-policy timings; ties by bytes then policy ID",
+  "observations": [
+    {
+      "workload": "Sieve",
+      "native_sha256": "81468f46fa5939aeec5abd2c18b72fb884295ee84ea0190e788663fed0d10ae9",
+      "native_ns": {
+        "median_twice": 39545946,
+        "excluded_indices": []
+      },
+      "c_ns": {
+        "median_twice": 24655152,
+        "excluded_indices": [
+          4,
+          8
+        ]
+      }
+    },
+    {
+      "workload": "Sieve",
+      "native_sha256": "81468f46fa5939aeec5abd2c18b72fb884295ee84ea0190e788663fed0d10ae9",
+      "native_ns": {
+        "median_twice": 39633286,
+        "excluded_indices": [
+          5
+        ]
+      },
+      "c_ns": {
+        "median_twice": 25287510,
+        "excluded_indices": []
+      }
+    },
+    {
+      "workload": "Records",
+      "native_sha256": "6653d136d7d21aaafb92a9255befdf5d125e49adebec03b7965a551c76753db8",
+      "native_ns": {
+        "median_twice": 30094488,
+        "excluded_indices": []
+      },
+      "c_ns": {
+        "median_twice": 19479634,
+        "excluded_indices": []
+      }
+    },
+    {
+      "workload": "Records",
+      "native_sha256": "6653d136d7d21aaafb92a9255befdf5d125e49adebec03b7965a551c76753db8",
+      "native_ns": {
+        "median_twice": 29809390,
+        "excluded_indices": []
+      },
+      "c_ns": {
+        "median_twice": 19531824,
+        "excluded_indices": [
+          9
+        ]
+      }
+    },
+    {
+      "workload": "Hash",
+      "native_sha256": "4875728741b927cad36d216942e1dc4bfeb809d2d05daf6ad7539f792b89798c",
+      "native_ns": {
+        "median_twice": 47833720,
+        "excluded_indices": [
+          3
+        ]
+      },
+      "c_ns": {
+        "median_twice": 48473046,
+        "excluded_indices": []
+      }
+    },
+    {
+      "workload": "Hash",
+      "native_sha256": "4875728741b927cad36d216942e1dc4bfeb809d2d05daf6ad7539f792b89798c",
+      "native_ns": {
+        "median_twice": 48218448,
+        "excluded_indices": []
+      },
+      "c_ns": {
+        "median_twice": 48523308,
+        "excluded_indices": []
+      }
+    },
+    {
+      "workload": "Vectors",
+      "native_sha256": "533cfc39d0908267889f1c8501bfe4cb4d3f850aa08cbaaf69c17104b6b3a1a6",
+      "native_ns": {
+        "median_twice": 58869962,
+        "excluded_indices": [
+          1
+        ]
+      },
+      "c_ns": {
+        "median_twice": 28103656,
+        "excluded_indices": [
+          6,
+          7
+        ]
+      }
+    },
+    {
+      "workload": "Vectors",
+      "native_sha256": "533cfc39d0908267889f1c8501bfe4cb4d3f850aa08cbaaf69c17104b6b3a1a6",
+      "native_ns": {
+        "median_twice": 56032874,
+        "excluded_indices": []
+      },
+      "c_ns": {
+        "median_twice": 28565534,
+        "excluded_indices": []
+      }
+    },
+    {
+      "workload": "Calls",
+      "native_sha256": "c5a6038ad354524756fc02ba8750c8bee956f625548574f176e01eda8d9a88b9",
+      "native_ns": {
+        "median_twice": 413148,
+        "excluded_indices": [
+          2
+        ]
+      },
+      "c_ns": {
+        "median_twice": 12276466,
+        "excluded_indices": []
+      }
+    },
+    {
+      "workload": "Calls",
+      "native_sha256": "c5a6038ad354524756fc02ba8750c8bee956f625548574f176e01eda8d9a88b9",
+      "native_ns": {
+        "median_twice": 391418,
+        "excluded_indices": []
+      },
+      "c_ns": {
+        "median_twice": 12022737,
+        "excluded_indices": [
+          8
+        ]
+      }
+    },
+    {
+      "workload": "Printing",
+      "native_sha256": "99f953bd85ed52e718ff319f8e0bcf118b3257dba3a5949bc12020526d3aff4b",
+      "native_ns": {
+        "median_twice": 3686464,
+        "excluded_indices": []
+      },
+      "c_ns": {
+        "median_twice": 10149236,
+        "excluded_indices": []
+      }
+    },
+    {
+      "workload": "Printing",
+      "native_sha256": "99f953bd85ed52e718ff319f8e0bcf118b3257dba3a5949bc12020526d3aff4b",
+      "native_ns": {
+        "median_twice": 3805102,
+        "excluded_indices": []
+      },
+      "c_ns": {
+        "median_twice": 10331054,
+        "excluded_indices": []
+      }
+    }
+  ]
+}

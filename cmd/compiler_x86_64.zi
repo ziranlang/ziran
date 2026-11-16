@@ -603,7 +603,7 @@ Binary :: (state: *State, opcode: MachineOpcode) -> bool {
     if type.kind == .Bool && !logical || type.kind == .Function { return Fail(state, .Unsupported, OperandId(state, 0)) }
     value := cast(s64)immediate.immediate
     if opcode == .IntegerMultiply {
-        if constant { X86MultiplyImmediate(*state.writer, destination, destination, value) }
+        if constant { X86MultiplyValue(*state.writer, destination, destination, value) }
         else { X86Multiply(*state.writer, destination, right) }
     } else {
         code: u32 = X86Add

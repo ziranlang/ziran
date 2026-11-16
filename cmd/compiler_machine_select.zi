@@ -1,6 +1,7 @@
 using Lir :: #import "compiler_lowered_ir"
 using Machine :: #import "compiler_machine_ir"
 using Vectors :: #import "std/vec"
+#import "compiler_learning"
 
 // Instruction-selection facts for one LIR function on x86-64, planned before
 // machine lowering so integer code compares, branches and computes the way a
@@ -372,7 +373,7 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
     for at: cast(s64)0..function.blocks.count - 1 {
         plan.dead[at] = plan.threaded[at] > 0 && plan.threaded[at] == plan.incoming[at]
     }
-    Layout(plan, function, enabled)
+    Layout(plan, function, enabled && LearningTuningChoice().block_layout == 1)
     return .None
 }
 

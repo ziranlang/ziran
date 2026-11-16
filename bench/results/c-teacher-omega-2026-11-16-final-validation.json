@@ -1,0 +1,78 @@
+{
+  "started_unix": 1794856923,
+  "revision": "42dc1b0f41489e8affae19815a52aa3a875ff0d9",
+  "commands": [
+    {
+      "command": [
+        "make",
+        "-j1",
+        "check"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "make",
+        "-j1",
+        "check-bootstrap"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "wasm-tier",
+        "--samples",
+        "11",
+        "--label",
+        "c-teacher-final",
+        "--output",
+        "bench/results/c-teacher-omega-final.json"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "library-targets",
+        "--project",
+        "/mnt/storage/Projects/kryonlabs/kryon",
+        "--manifest",
+        "/mnt/storage/Projects/kryonlabs/kryon/tests/widget_benchmarks.json",
+        "--samples",
+        "11"
+      ],
+      "code": 0
+    },
+    {
+      "command": [
+        "build/bin/ziran",
+        "run",
+        "--target=c",
+        "bench/bench.zi",
+        "--",
+        "c-teacher",
+        "--output",
+        "bench/results/c-teacher-omega-2026-11-16-final.md"
+      ],
+      "code": 0
+    }
+  ],
+  "changed": [
+    "cmd/compiler_machine_aggregate.zi",
+    "tests/machine_place_cases.zi"
+  ],
+  "finished_unix": 1794857182,
+  "complete": false,
+  "source_files": 1056,
+  "start_epoch_sha256": "d1189e0d940d29b38732e3f6ba42344977b296d1369f10cf5c663f9671082574",
+  "end_epoch_sha256": "76ce23f6965ad9660265dd485aaf17fee1e3a52457918f76f8b191efcf10fdde"
+}

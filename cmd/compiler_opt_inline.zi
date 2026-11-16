@@ -1,0 +1,87 @@
+// Bounded scalar leaf inlining. Reuse the call's operand storage; no new values,
+// blocks or allocations are needed. General CFG inlining belongs in a separate
+// pass with its own growth budget.
+using IR :: #import "compiler_lowered_ir"
+
+LirInlineResult :: struct { work: s64; calls: s64; limited: bool }
+
+#scope_file
+Scalar :: (program: LirProgram, type: s32) -> bool {
+    return type >= 0 && type < program.types.count &&
+        (program.types[type].kind == .Integer || program.types[type].kind == .Bool)
+}
+Operation :: (op: LirOp) -> bool {
+    return op == .Add || op == .Subtract || op == .Multiply || op == .Negate ||
+        op == .BitAnd || op == .BitOr || op == .BitXor || op == .BitNot ||
+        op == .Equal || op == .NotEqual || op == .Less || op == .LessEqual ||
+        op == .Greater || op == .GreaterEqual || op == .Convert || op == .Bitcast
+}
+Parameter :: (parameters: []s32, value: s32) -> s64 {
+    for at: 0..parameters.count - 1 { if parameters[at] == value { return at } }
+    return -1
+}
+Leaf :: (program: LirProgram, call: LirInstruction) -> (instruction: LirInstruction, valid: bool) {
+    if call.result < 0 || call.symbol < 0 || call.symbol >= program.functions.count { return .{}, false }
+    function := program.functions[call.symbol]
+    if function.external || function.variadic || function.calling != .Portable ||
+        function.blocks.count != 1 || function.entry != 0 || !Scalar(program, function.result) { return .{}, false }
+    block := function.blocks[0]
+    if block.instructions.count != 2 || block.parameters.count != call.operands.count { return .{}, false }
+    operation := block.instructions[0]
+    terminal := block.instructions[1]
+    if !Operation(operation.op) || operation.effect != 0 || operation.operands.count > 2 ||
+        operation.operands.count > call.operands.count || terminal.op != .Return ||
+        terminal.operands.count != 1 || terminal.operands[0] != operation.result { return .{}, false }
+    for value: operation.operands {
+        if Parameter(block.parameters, value) < 0 || !Scalar(program, function.values[value]) { return .{}, false }
+    }
+    return operation, true
+}
+
+#scope_export
+// PROGRAM must have passed LirVerify. On budget exhaustion the caller discards
+// its private clone, as for every other optimizer pass.
+LirInlineLeaves :: (program: LirProgram, maximum_operations: s32, budget: s64) -> LirInlineResult {
+    result: LirInlineResult
+    if maximum_operations != 1 { return result }
+    for function: program.functions {
+        for block: function.blocks {
+            for at: 0..block.instructions.count - 1 {
+                if result.work >= budget { result.limited = true; return result }
+                result.work += 1
+                call := block.instructions[at]
+                if call.op != .Call { continue }
+                cost := cast(s64)call.operands.count * 3 + 1
+                if cost > budget - result.work { result.limited = true; return result }
+                result.work += cost
+                operation, valid := Leaf(program, call)
+                if !valid { continue }
+                callee := program.functions[call.symbol]
+                mapped: [2]s32
+                for operand: 0..operation.operands.count - 1 {
+                    parameter := Parameter(callee.blocks[0].parameters, operation.operands[operand])
+                    mapped[operand] = call.operands[parameter]
+                }
+                for operand: 0..operation.operands.count - 1 { call.operands[operand] = mapped[operand] }
+                call.operands = call.operands[:operation.operands.count]
+                call.op = operation.op
+                call.immediate = operation.immediate
+                call.symbol = operation.symbol
+                call.alignment = operation.alignment
+                call.checked = operation.checked
+                call.effect = 0
+                block.instructions[at] = call
+                result.calls += 1
+            }
+            effect: s32
+            for at: 0..block.instructions.count - 1 {
+                if result.work >= budget { result.limited = true; return result }
+                result.work += 1
+                if LirEffectful(block.instructions[at].op) {
+                    effect += 1; block.instructions[at].effect = effect
+                } else { block.instructions[at].effect = 0 }
+            }
+        }
+    }
+    return result
+}

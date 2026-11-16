@@ -1,0 +1,121 @@
+// Synthetic timing values test selection, never claim a measured speed gain.
+#import "native_test"
+#import "check_support"
+#import "std/vec"
+#import "std/json_document"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+#import, file "../cmd/compiler_bundle.zi";
+#import, file "../cmd/compiler_lowered_ir.zi";
+
+TextField :: (document: *JsonDocument, root: s32, key: string, value: string) {
+    JsonSet(document, root, key, JsonNewStringCopy(document, value))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "learning-tuning-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    tools := PathParent(test.ziran)
+    source := CheckPath(test.work, "probe.zi")
+    zx := CheckPath(test.work, "probe.zx")
+    native := CheckPath(test.work, "probe.elf")
+    if !NativeWrite(*test, source, "main :: () -> s32 { return 7 }\n") { return 1 }
+    lower := string.[CheckPath(tools, "zi2zx"), "--root", test.work,
+        "--entry", "probe:main", "-o", zx, source]
+    encode := string.[CheckPath(tools, "zx2native"), "-o", native, zx]
+    unused NativeRun(*test, lower[:]); unused NativeRun(*test, encode[:])
+    if test.failed { return 1 }
+    digest := CheckHash(native)
+    zx_digest := CheckHash(zx)
+    compiler := CheckHash(CheckPath(tools, "zx2native"))
+    format := CheckConcat("zx", CheckConcat(CheckNumber(ExecutableVersionNumber()), CheckConcat("-lir", CheckNumber(LirVersion))))
+    corpus := CheckPath(test.work, "corpus")
+    folder := CheckPath(CheckPath(corpus, format), zx_digest)
+    stem := CheckPath(folder, CheckConcat("x86_64-", digest))
+    if !CreateDirectories(folder) { return 1 }
+    copy_zx := string.["cp", zx, CheckPath(folder, "program.zx")]
+    copy_elf := string.["cp", native, CheckConcat(stem, ".elf")]
+    map := string.[CheckPath(tools, "zx2native"), "--emit", "map", "-o", CheckConcat(stem, ".map.json"), zx]
+    unused NativeRun(*test, copy_zx[:]); unused NativeRun(*test, copy_elf[:]); unused NativeRun(*test, map[:])
+    if test.failed { return 1 }
+    record := CheckConcat(stem, ".record.json")
+    metadata: JsonDocument
+    defer JsonReset(*metadata)
+    record_root := JsonNewObject(*metadata)
+    TextField(*metadata, record_root, "format", format)
+    TextField(*metadata, record_root, "target", "x86_64")
+    TextField(*metadata, record_root, "platform", "linux")
+    TextField(*metadata, record_root, "zx2native_sha256", compiler)
+    TextField(*metadata, record_root, "input_sha256", zx_digest)
+    record_text := TextDetach(JsonWrite(*metadata, record_root, JsonCompactStyle()))
+    if !NativeWrite(*test, record, record_text) { return 1 }
+    relative := CheckConcat(format, CheckConcat("/", CheckConcat(zx_digest, CheckConcat("/x86_64-", CheckConcat(digest, ".record.json")))))
+    file := OpenRead(native)
+    if !file.valid { return 1 }
+    bytes := FileSize(file)
+    CloseFile(file)
+    epoch := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    document: JsonDocument
+    defer JsonReset(*document)
+    root := JsonNewObject(*document)
+    JsonSet(*document, root, "schema_version", JsonNewInteger(*document, 1))
+    JsonSet(*document, root, "checks", JsonNewBool(*document, false))
+    TextField(*document, root, "target", "x86_64-linux")
+    TextField(*document, root, "learning", "off")
+    TextField(*document, root, "host", "fixture")
+    TextField(*document, root, "source_epoch_sha256", epoch)
+    rows := JsonNewArray(*document)
+    JsonSet(*document, root, "measurements", rows)
+    for index: 0..1 {
+        row := JsonNewObject(*document)
+        unused JsonAppend(*document, rows, row)
+        TextField(*document, row, "workload", "probe")
+        TextField(*document, row, "zx_sha256", zx_digest)
+        TextField(*document, row, "input_sha256", zx_digest)
+        TextField(*document, row, "native_sha256", digest)
+        TextField(*document, row, "compiler_sha256", compiler)
+        TextField(*document, row, "checksum", "7")
+        TextField(*document, row, "c_checksum", "7")
+        TextField(*document, row, "corpus_record", relative)
+        JsonSet(*document, row, "code_bytes", JsonNewInteger(*document, bytes))
+        native_times := JsonNewArray(*document)
+        c_times := JsonNewArray(*document)
+        JsonSet(*document, row, "native_ns", native_times)
+        JsonSet(*document, row, "c_ns", c_times)
+        for sample: 0..10 {
+            unused JsonAppend(*document, native_times, JsonNewInteger(*document, ifx index == 0 then 400 else 200))
+            unused JsonAppend(*document, c_times, JsonNewInteger(*document, 100))
+        }
+        policy := JsonNewObject(*document)
+        JsonSet(*document, row, "policy", policy)
+        JsonSet(*document, policy, "leaf_operations", JsonNewInteger(*document, index))
+        JsonSet(*document, policy, "unroll_factor", JsonNewInteger(*document, 1))
+        JsonSet(*document, policy, "block_layout", JsonNewInteger(*document, 1))
+        JsonSet(*document, policy, "allocation", JsonNewInteger(*document, 0))
+    }
+    measured := CheckPath(test.work, "timings.json")
+    table := CheckPath(test.work, "table.zi")
+    certificate := CheckPath(test.work, "certificate.json")
+    output := CheckPath(test.work, "selected.zi")
+    approved := "LearningLeafOperations :: 0\nLearningUnrollFactor :: 1\nLearningBlockLayout :: 1\nLearningAllocation :: 0\n"
+    if !NativeWrite(*test, measured, JsonWrite(*document, root, JsonCompactStyle())) || !NativeWrite(*test, table, approved) { return 1 }
+    JsonReset(*metadata)
+    certificate_root := JsonNewObject(*metadata)
+    JsonSet(*metadata, certificate_root, "schema_version", JsonNewInteger(*metadata, 1))
+    JsonSet(*metadata, certificate_root, "verified", JsonNewBool(*metadata, true))
+    TextField(*metadata, certificate_root, "table_sha256", CheckHash(table))
+    if !NativeWrite(*test, certificate, JsonWrite(*metadata, certificate_root, JsonCompactStyle())) { return 1 }
+    NativeSet(*test, "ZIRAN_LEARN_DIR", corpus)
+    command := string.[test.ziran, "learn", "train", "--measurements", measured, "--table", table, "--verification", certificate, "--output", output]
+    if NativeInvoke(*test, command[:], "", 600000).code != 0 { return 1 }
+    selected := NativeRead(*test, output)
+    if !TextContains(selected, "LearningLeafOperations :: 0\n") || NativeInvoke(*test, command[:], "", 600000).code != 0 ||
+        NativeRead(*test, output) != selected { return 2 }
+    if !NativeWrite(*test, record, TextReplace(record_text, compiler, epoch)) { return 1 }
+    if NativeInvoke(*test, command[:], "", 600000).code == 0 || NativeRead(*test, output) != selected { return 3 }
+    print("Offline tuning: corpus identities, compiler mismatch rejection, deterministic choice and unchanged table on rejection\n")
+    return 0
+}

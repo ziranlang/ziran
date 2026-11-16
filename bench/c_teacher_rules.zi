@@ -1,0 +1,59 @@
+// Mine candidates only. Matching two assembly idioms proves nothing about
+// program equivalence; the learning verifier must certify their semantics.
+#import "c_teacher_assembly"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+TeacherRewrite :: struct { factor: s64; native: string; teacher: string }
+
+TeacherLeaFactor :: (operands: string) -> s64 {
+    left := TextFind(operands, "[")
+    right := TextFind(operands, "]")
+    if left < 0 || right < left { return 0 }
+    body := operands[left + 1:right]
+    plus := TextFind(body, "+")
+    if plus <= 0 { return 0 }
+    base := body[:plus]
+    index := body[plus + 1:]
+    star := TextFind(index, "*")
+    if star < 0 { return ifx base == index then 2 else 0 }
+    if index[:star] != base { return 0 }
+    scale, valid := TeacherHex(index[star + 1:])
+    if !valid || scale != 1 && scale != 2 && scale != 4 && scale != 8 { return 0 }
+    return 1 + scale
+}
+
+TeacherIdiomFactor :: (instruction: TeacherInstruction) -> s64 {
+    if instruction.mnemonic == "lea" { return TeacherLeaFactor(instruction.operands) }
+    parts := TextSplit(instruction.operands, ",")
+    if parts.count != 2 { return 0 }
+    if instruction.mnemonic == "add" && TextTrim(parts[0]) == TextTrim(parts[1]) { return 2 }
+    if instruction.mnemonic != "shl" && instruction.mnemonic != "sal" { return 0 }
+    shift, valid := TeacherHex(TextTrim(parts[1]))
+    if !valid || shift < 1 || shift > 30 { return 0 }
+    return cast(s64)(cast(u64)1 << cast(u64)shift)
+}
+
+TeacherMineRewrites :: (native: []TeacherInstruction, begin: s64, end: s64,
+    teacher: []TeacherInstruction, cbegin: s64, cend: s64) -> Vec(TeacherRewrite) {
+    result: Vec(TeacherRewrite)
+    for instruction: native {
+        if instruction.address < begin || instruction.address >= end || instruction.mnemonic != "imul" { continue }
+        operands := TextSplit(instruction.operands, ",")
+        if operands.count != 3 { continue }
+        factor, valid := TeacherHex(TextTrim(operands[2]))
+        if !valid || factor < 2 { continue }
+        duplicate := false
+        for rule: result { if rule.factor == factor { duplicate = true; break } }
+        if duplicate { continue }
+        for candidate: teacher {
+            if candidate.address < cbegin || candidate.address >= cend || TeacherIdiomFactor(candidate) != factor { continue }
+            n := string.[instruction.mnemonic, " ", instruction.operands]
+            c := string.[candidate.mnemonic, " ", candidate.operands]
+            unused VecPush(result, TeacherRewrite.{factor = factor,
+                native = TextDetach(TextJoin(n[:], "")), teacher = TextDetach(TextJoin(c[:], ""))})
+            break
+        }
+    }
+    return result
+}

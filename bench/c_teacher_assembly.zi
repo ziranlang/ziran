@@ -1,0 +1,194 @@
+// Structural observations, never equivalence proofs. Addresses are normalized
+// by the caller: ELF virtual addresses for C, text-relative addresses for ZX.
+#import "std/text_tools"
+#import "std/byte_text_linux"
+using Vectors :: #import "std/vec"
+
+TeacherInstruction :: struct {
+    address: s64
+    mnemonic: string
+    operands: string
+}
+
+TeacherFunction :: struct {
+    name: string
+    begin: s64
+    end: s64
+}
+
+TeacherLoop :: struct { begin: s64; end: s64; instructions: s64 }
+
+// Checked IR export uses the leaf module name. Apply the same mapping to
+// each qualified side of a manifest binding; retain the function spelling.
+TeacherIRBinding :: (binding: string) -> string {
+    sides := TextSplit(binding, "=")
+    flattened: Vec(string)
+    for side: sides {
+        colon := TextFind(side, ":")
+        if colon < 0 { return "" }
+        slash := TextFindLast(side[:colon], "/")
+        unused VecPush(flattened, side[slash + 1:])
+    }
+    if flattened.count != 2 { return "" }
+    return TextDetach(TextJoin(VecSlice(flattened, 0, flattened.count), "="))
+}
+
+TeacherMetrics :: struct {
+    instructions: s64
+    loop_instructions: s64
+    back_edges: s64
+    stack_reads: s64
+    stack_writes: s64
+    memory: s64
+    indexed: s64
+    branches: s64
+    forward_branches: s64
+    calls: s64
+    vectors: s64
+    multiplies: s64
+    divides: s64
+    shifts: s64
+    loop_constants: s64
+}
+
+TeacherHex :: (text: string) -> (value: s64, valid: bool) {
+    if TextHasPrefix(text, "0x") { text = text[2:] }
+    value: s64
+    digits: s64
+    for byte: text {
+        digit: s64 = -1
+        if byte >= 48 && byte <= 57 { digit = cast(s64)byte - 48 }
+        if byte >= 97 && byte <= 102 { digit = cast(s64)byte - 87 }
+        if byte >= 65 && byte <= 70 { digit = cast(s64)byte - 55 }
+        if digit < 0 || value > 576460752303423487 { return 0, false }
+        value = value * 16 + digit
+        digits += 1
+    }
+    return value, digits > 0
+}
+
+// objdump --no-show-raw-insn -M intel. Ignore symbol headings, data and
+// diagnostic lines; never count a wrapped instruction byte line as code.
+TeacherInstructions :: (text: string) -> Vec(TeacherInstruction) {
+    result: Vec(TeacherInstruction)
+    lines := TextLines(text)
+    for raw: lines {
+        line := TextTrim(raw)
+        colon := TextFind(line, ":")
+        if colon <= 0 { continue }
+        address, valid := TeacherHex(line[:colon])
+        if !valid { continue }
+        body := TextTrim(line[colon + 1:])
+        at: s64
+        while at < body.count && !TextIsSpace(body[at]) { at += 1 }
+        if at == 0 { continue }
+        mnemonic := body[:at]
+        if mnemonic == "(bad)" || mnemonic[0] == 46 { continue }
+        unused VecPush(result, TeacherInstruction.{address = address, mnemonic = mnemonic,
+            operands = TextTrim(body[at:])})
+    }
+    return result
+}
+
+TeacherSymbols :: (text: string) -> Vec(TeacherFunction) {
+    result: Vec(TeacherFunction)
+    lines := TextLines(text)
+    for raw: lines {
+        line := TextTrim(raw)
+        left := TextFind(line, " <")
+        right := TextFind(line, ">:")
+        if left <= 0 || right <= left { continue }
+        address, valid := TeacherHex(line[:left])
+        if !valid { continue }
+        if result.count > 0 { result[result.count - 1].end = address }
+        unused VecPush(result, TeacherFunction.{name = line[left + 2:right], begin = address, end = 9223372036854775807})
+    }
+    return result
+}
+
+// nm -S -n --defined-only gives real symbol sizes, excluding alignment
+// padding and adjacent functions. Zero-sized/untyped symbols stay unmatched.
+TeacherSizedSymbols :: (text: string) -> Vec(TeacherFunction) {
+    result: Vec(TeacherFunction)
+    lines := TextLines(text)
+    for line: lines {
+        pieces := TextSplit(TextTrim(line), " ")
+        fields: Vec(string)
+        for piece: pieces { if piece != "" { unused VecPush(fields, piece) } }
+        if fields.count != 4 || fields[2] != "T" && fields[2] != "t" { continue }
+        address, address_ok := TeacherHex(fields[0])
+        size, size_ok := TeacherHex(fields[1])
+        if !address_ok || !size_ok || size <= 0 || size > 9223372036854775807 - address { continue }
+        unused VecPush(result, TeacherFunction.{name = fields[3], begin = address, end = address + size})
+    }
+    return result
+}
+
+TeacherBranch :: (instruction: TeacherInstruction) -> bool {
+    return TextHasPrefix(instruction.mnemonic, "j") || instruction.mnemonic == "loop"
+}
+
+TeacherTarget :: (instruction: TeacherInstruction) -> (address: s64, valid: bool) {
+    at: s64
+    while at < instruction.operands.count && !TextIsSpace(instruction.operands[at]) { at += 1 }
+    return TeacherHex(instruction.operands[:at])
+}
+
+TeacherLoops :: (code: []TeacherInstruction, begin: s64, end: s64) -> Vec(TeacherLoop) {
+    result: Vec(TeacherLoop)
+    for instruction: code {
+        if instruction.address < begin || instruction.address >= end || !TeacherBranch(instruction) { continue }
+        target, valid := TeacherTarget(instruction)
+        if !valid || target < begin || target > instruction.address { continue }
+        count: s64
+        for member: code { if member.address >= target && member.address <= instruction.address { count += 1 } }
+        unused VecPush(result, TeacherLoop.{begin = target, end = instruction.address, instructions = count})
+    }
+    return result
+}
+
+TeacherMeasure :: (code: []TeacherInstruction, begin: s64, end: s64) -> TeacherMetrics {
+    result: TeacherMetrics
+    // Count the union of loop intervals; nested loops must not inflate the
+    // static instruction count. Back edges are candidates, not hotness data.
+    loops := TeacherLoops(code, begin, end)
+    result.back_edges = loops.count
+    for instruction: code {
+        if instruction.address < begin || instruction.address >= end { continue }
+        result.instructions += 1
+        loop := false
+        for candidate: loops {
+            if instruction.address >= candidate.begin && instruction.address <= candidate.end { loop = true }
+        }
+        if loop { result.loop_instructions += 1 }
+        operands := instruction.operands
+        memory := TextContains(operands, "[")
+        if memory {
+            result.memory += 1
+            if TextContains(operands, "*") || TextContains(operands, "+r") || TextContains(operands, "+e") { result.indexed += 1 }
+            // Stack references include locals, saved registers and spills.
+            // They cannot be identified as allocator spills from assembly alone.
+            if TextContains(operands, "[rsp") || TextContains(operands, "[rbp") {
+                comma := TextFind(operands, ",")
+                bracket := TextFind(operands, "[")
+                if comma >= 0 && bracket < comma && instruction.mnemonic != "cmp" && instruction.mnemonic != "test" && instruction.mnemonic != "lea" {
+                    result.stack_writes += 1
+                } else if instruction.mnemonic != "lea" { result.stack_reads += 1 }
+            }
+        }
+        if TeacherBranch(instruction) {
+            result.branches += 1
+            target, valid := TeacherTarget(instruction)
+            if valid && target > instruction.address { result.forward_branches += 1 }
+        }
+        if instruction.mnemonic == "call" { result.calls += 1 }
+        if TextContains(operands, "xmm") || TextContains(operands, "ymm") || TextContains(operands, "zmm") { result.vectors += 1 }
+        if instruction.mnemonic == "imul" || instruction.mnemonic == "mul" { result.multiplies += 1 }
+        if instruction.mnemonic == "idiv" || instruction.mnemonic == "div" { result.divides += 1 }
+        if instruction.mnemonic == "shl" || instruction.mnemonic == "shr" || instruction.mnemonic == "sar" { result.shifts += 1 }
+        if loop && (TextContains(operands, ",0x") || instruction.mnemonic == "lea" && TextContains(operands, "[rip")) {
+            result.loop_constants += 1
+        }
+    }
+    return result
+}

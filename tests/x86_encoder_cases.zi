@@ -4,6 +4,7 @@ using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 using X64 :: #import "compiler_x86_64"
+using Encoding :: #import "compiler_x86_bytes"
 
 // Local tests for the direct x86-64 machine-IR encoder. Programs are built
 // in the Allocated stage by hand, checked against MachineVerifyAllocated, and
@@ -1168,8 +1169,38 @@ Negatives :: () -> bool {
     return Check(!kept.valid && view.code.count == 0 && view.entry == -1, "repeated cleanup")
 }
 
+ImmediateMultiplication :: () -> bool {
+    values := s64.[-129, -128, -1, 0, 127, 128]
+    expected := string.["4d 69 c8 7f ff ff ff", "4d 6b c8 80", "4d 6b c8 ff",
+        "4d 6b c8 00", "4d 6b c8 7f", "4d 69 c8 80 00 00 00"]
+    for index: 0..values.count - 1 {
+        output: [16]u8
+        writer := Encoding.X86Writer.{output = output[:], limit = output.count}
+        Encoding.X86MultiplyImmediate(*writer, R9, R8, values[index])
+        if !Check(!writer.failed, "multiply immediate encoder") ||
+            !Bytes(output[:], 0, writer.at, expected[index], "sign-extended multiply boundary") { return false }
+        measured := Encoding.X86Writer.{limit = output.count}
+        Encoding.X86MultiplyImmediate(*measured, R9, R8, values[index])
+        if !Check(!measured.failed && measured.at == writer.at, "multiply immediate measure/write parity") { return false }
+    }
+    factors := s64.[1, 2, 3, 5, 9, 8, 32, -1]
+    idioms := string.["", "4f 8d 04 00", "4f 8d 04 40", "4f 8d 04 80", "4f 8d 04 c0",
+        "49 c1 e0 03", "49 c1 e0 05", "4d 6b c0 ff"]
+    for index: 0..factors.count - 1 {
+        output: [16]u8
+        writer := Encoding.X86Writer.{output = output[:], limit = output.count}
+        Encoding.X86MultiplyValue(*writer, R8, R8, factors[index])
+        if !Check(!writer.failed, "multiply value encoder") ||
+            !Bytes(output[:], 0, writer.at, idioms[index], "dead-flag multiply idiom") { return false }
+        measured := Encoding.X86Writer.{limit = output.count}
+        Encoding.X86MultiplyValue(*measured, R8, R8, factors[index])
+        if !Check(!measured.failed && measured.at == writer.at, "multiply value measure/write parity") { return false }
+    }
+    return true
+}
+
 main :: () -> s32 {
-    if !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
+    if !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
     print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, packed aggregates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of invalid call forms and addends, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

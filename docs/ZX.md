@@ -61,6 +61,22 @@ corpus (1024 MB by default), `ziran learn status` shows its size and each
 format's programs and records, `ZIRAN_LEARN=on|off` overrides the switch and
 `ZIRAN_LEARN_DIR=DIR` moves the corpus.
 
+`ziran learn verify --candidates FILE --repo DIR --output FILE` validates the
+C teacher's closed integer rewrite proposals against generated C, boundary and
+deterministic random inputs, and the retained parity fixtures. A disagreement
+leaves the table unchanged. `bench/bench.zi -- c-teacher` produces the assembly
+comparison, sampled rankings and candidate files.
+
+`ziran learn train --measurements FILE --table FILE --verification FILE
+--output FILE` selects implemented policies from paired timing receipts joined
+to current-format corpus artifacts. It checks the compiler, ZX, ELF and native
+map identities, equal C/native checksums, learning-off measurements, common
+host and source epoch. It retains symmetric 1.5×IQR filtering and deterministic
+size/policy tie breaking. Unsupported unroll and allocation choices are refused.
+Review the generated source table, rebuild and run parity before checking it in.
+Normal builds use only the versioned table in `cmd/compiler_learning_table.zi`;
+recording and offline training never change a running compiler's policy.
+
 Use `ziran run app.zx` for both console and graphical programs. The linker
 includes the reachable code of imported modules, including a UI library.
 Platform effects such as windows and input are supplied by an installed runtime

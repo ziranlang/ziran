@@ -2,6 +2,8 @@ using IR :: #import "compiler_lowered_ir"
 using Verify :: #import "compiler_lowered_verify"
 using Codec :: #import "compiler_exec_serial"
 using Vectors :: #import "std/vec"
+using Inline :: #import "compiler_opt_inline"
+#import "compiler_learning"
 
 LirOptProblem :: enum s32 {
     None; Owner; Options; VerifyInput; VerifyPass; Limit; Allocation; Codec
@@ -24,6 +26,7 @@ LirOptCounters :: struct {
     dead: LirOptPassCounters
     cfg: LirOptPassCounters
     compact: LirOptPassCounters
+    inline_leaf: LirOptPassCounters
     input_functions: s64
     input_blocks: s64
     input_values: s64
@@ -40,6 +43,7 @@ LirOptOptions :: struct {
     eliminate_dead: bool
     simplify_cfg: bool
     maximum_rounds: s32
+    inline_leaf_operations: s32
 }
 
 LirOptOwner :: struct {
@@ -1857,7 +1861,7 @@ Result :: (state: OptState) -> LirOptResult {
 #scope_export
 LirOptDefaultOptions :: () -> LirOptOptions {
     return .{fold_constants = true, propagate_copies = true, eliminate_dead = true,
-        simplify_cfg = true, maximum_rounds = 8}
+        simplify_cfg = true, maximum_rounds = 8, inline_leaf_operations = LearningTuningChoice().leaf_operations}
 }
 
 LirOptFree :: (owner: *LirOptOwner) {
@@ -1883,7 +1887,8 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         state.problem = .Limit
         return Result(state)
     }
-    if options.maximum_rounds < 1 || options.maximum_rounds > 64 {
+    if options.maximum_rounds < 1 || options.maximum_rounds > 64 ||
+        options.inline_leaf_operations < 0 || options.inline_leaf_operations > 1 {
         LirOptFree(owner)
         state.problem = .Options
         return Result(state)
@@ -1904,6 +1909,15 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
     }
     owner.valid = false
     owner.program = .{version = LirVersion, entry = LirNoId}
+    if options.inline_leaf_operations > 0 {
+        inlined := LirInlineLeaves(LirReadProgram(*owner.storage), options.inline_leaf_operations, state.remaining)
+        if !Spend(*state, inlined.work) || inlined.limited {
+            unused Fail(*state, .Limit); LirOptFree(owner); return Result(state)
+        }
+        state.counters.inline_leaf.runs += 1
+        state.counters.inline_leaf.instructions += inlined.calls
+        if !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+    }
     ScratchReset(*state)
     if options.fold_constants && !FoldPass(*state, owner, limits, options) {
         LirOptFree(owner)

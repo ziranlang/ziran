@@ -42,8 +42,8 @@ BENCH_ENVIRONMENT: [9]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DB
     "SESSION_MANAGER", "XDG_SESSION_ID", "XDG_SESSION_TYPE", "ZIRAN_PROFILE", "ZIRAN_LEARN=off"];
 
 // Files in bench/ that a registered benchmark builds or imports.
-SUPPORT_FILES: [7]string = .["bench.zi", "benchmark_statistics.zi", "codec_kernels.py", "json_document.zi",
-    "math_sqrt.zi", "native_cache_fixture.zi", "wasm_tier.zi"];
+SUPPORT_FILES: [10]string = .["bench.zi", "benchmark_statistics.zi", "codec_kernels.py", "json_document.zi",
+    "math_sqrt.zi", "native_cache_fixture.zi", "wasm_tier.zi", "c_teacher_assembly.zi", "c_teacher_profile.zi", "c_teacher_rules.zi"];
 
 Add :: (list: *Vec(Benchmark), name: string, file: string, runner: Runner, place: Place, summary: string) {
     unused VecPush(list.*, Benchmark.{.name = name, .file = file, .runner = runner, .place = place, .summary = summary})
@@ -59,6 +59,8 @@ Registry :: () -> Vec(Benchmark) {
     Add(*list, "bundle-assets", "bench/bundle_assets.py", .Python, .Host, "checked resource loading with real bundles")
     Add(*list, "bundle-instances", "bench/bundle_instances.py", .Python, .Host, "bundle loading and fresh-instance costs")
     Add(*list, "compiler-build", "bench/compiler_build.zi", .Ziran, .Host, "full native compiler rebuild")
+    Add(*list, "c-teacher", "bench/c_teacher.zi", .Ziran, .Host, "generated C versus native assembly and SIGPROF")
+    Add(*list, "c-teacher-tune", "bench/c_teacher_tuning.zi", .Ziran, .Host, "offline leaf policies against generated C")
     Add(*list, "compiler-kernels", "bench/compiler_kernel_benchmarks.sh", .Shell, .Host, "timed compiler and codec kernels")
     Add(*list, "compiler-scaling", "bench/compiler_scaling.py", .Python, .Host, "module graphs and generic specialization")
     Add(*list, "cpu-features", "bench/cpu_features.py", .Python, .Host, "CPU-selected assembly against fallbacks")
@@ -85,7 +87,7 @@ Registry :: () -> Vec(Benchmark) {
     Add(*list, "vm-execution", "bench/vm_execution.py", .Python, .Host, "verified engine execution")
     Add(*list, "vm-native", "bench/vm_native.py", .Python, .Host, "engine workloads against generated C and Go")
     Add(*list, "vm-startup", "bench/vm_startup.py", .Python, .Host, "checked loading and engine preparation")
-    Add(*list, "wasm-tier", "bench/wasm_tier.py", .Python, .Host, "native and Wasm against the engine and C")
+    Add(*list, "wasm-tier", "bench/wasm_tier.py", .Python, .Host, "native/Wasm kernels; --standard adds independent C/Go references")
     Add(*list, "zx-compare", "bench/zx_compare.zi", .Ziran, .Host, "ZX runtime comparison cohorts")
     Add(*list, "zx-compare-devices", "bench/zx_compare.py", .Python, .Device, "ZX comparison on Alpha or a USB phone")
     Add(*list, "zx-engine", "bench/zx_engine.zi", .Ziran, .Host, "instruction engine against the C target")

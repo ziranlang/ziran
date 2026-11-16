@@ -16,55 +16,77 @@ smaller. A learner proposes changes and keeps what passes; it never needs to
 understand English. Nothing learned reaches the compiler without passing the
 verifier and the tests.
 
-## Current baseline (where machine learning can help)
+Owner, verbatim: "analyze the assembly c genrates leran form it to improve natiev assembyl to we have some machine lerlanig or leraning stuff maybe we can enhance it to leran to improve everytihng".
 
-Alpha physical host, `bench/results/wasm-tier-alpha-2026-11-15-records.json`,
-revision `77a7ef04`, 2026-11-15T23:27Z, median of 11 samples after 1.5×IQR.
+## Open work
 
-| Kernel | C ms | Native ELF ms | Native/C |
-| --- | ---: | ---: | ---: |
-| Sieve | .0336 | .1432 | 4.3 |
-| Records | .0130 | .0611 | 4.7 |
-| Hash | .0282 | .1041 | 3.7 |
-| Vectors | .0376 | .9677 | 25.8 |
-| Calls | .0111 | .0067 | 0.6 (constant-folded) |
-| Printing | .0098 | .3294 | 33.8 |
+### Remaining C teacher work (2026-11-16)
 
-Records went from 297× C to 4.7× today. The open native-speed lanes own the
-remaining Vectors and Printing gaps, which are structural compiler work. The
-learner is a parallel track for the remaining 5–20% and for code size, not a
-replacement for that plan. Always re-read the newest receipt before comparing.
+- Keep future teacher comparisons on a fixed compiler/source epoch. Guard
+  launcher, zi2c, zi2zx, zx2native, zx2wasm, libziran and harness digests before
+  and after each finite measurement. Preserve raw disassembly, native map
+  identity, C parity, SIGPROF IP counts and zero-sample uncertainty. Compare
+  the kernel and warm-widget receipts separately from sampled startup costs.
+- Turn ranked candidates into general transformations. Keep allocation,
+  aggregate work with the records lane; keep SSA, loop rotation, LICM,
+  induction variables and strength reduction with the loop lane, vector push
+  with the records lane, and SIMD reduction with the vectorizer lane, following
+  the parent's updated assignment. Keep widget/host calls with the
+  widget lane. Use the teacher's selected scalar idioms and bounded leaf
+  inliner as the starting point for further measured, parity-covered work.
+- Extend `ziran learn` mining beyond constant multiplication. Mine bounded native
+  machine/LIR windows paired with C idioms from current-format corpus records,
+  grouped by exact compiler and target. A shorter sequence is a proposal,
+  never proof. Match widths, signedness, live flags, memory effects, traps and
+  register constraints; reject unknown semantics and every disagreement.
+  Acceptance requires proof or deterministic edge/random input differential
+  execution against generated C plus the retained parity fixtures. The closed
+  multiply families already have this gate; widen the vocabulary only with
+  explicit semantics and new parity fixtures. Bind every future candidate to
+  the corpus ZX, ELF, map and exact compiler identities.
+- Harden promotion of the versioned Ziran source table. Record each rule's
+  semantic preconditions and verifier/test identity. Unknown table versions,
+  targets or unsupported rule IDs fail closed. Compilation reads only the
+  checked-in table, with no corpus, clock, random source or online training;
+  `ZIRAN_LEARN=off` disables recording; explicit offline verify/train commands
+  remain available and cannot alter the compiler already running.
+- Extend measured selection beyond the first bounded leaf calibration: unroll
+  choices, block layout and allocation policies. The six-kernel leaf comparison
+  emitted identical artifacts at thresholds zero and one, so the learned table
+  retains threshold zero. Recalibrate after SSA exposes eligible source-level
+  leaves. Join corpus artifacts to
+  checksum-verified timing receipts by digest; compare on one host with the
+  same input and compiler, retain raw samples and symmetric 1.5×IQR exclusions,
+  and break ties deterministically by size then policy ID. Treat identical
+  native artifacts as one experiment so timing noise cannot select a policy.
+  `ziran learn train` already validates corpus identities and writes deterministic
+  source plus an exclusion receipt; add more measured legal strategies. Keep correctness
+  verification independent of speed scores. Serialize the selected choices
+  into the same reviewed source table; never load a mutable user policy during
+  ordinary compilation. Scalar leaf inlining and block layout have consumers;
+  measure both settings before changing the baseline. Reject unroll factors
+  other than one and allocation policies other than zero until their owning
+  passes expose alternate, parity-covered legal strategies. The current
+  allocator has exactly one verified strategy; never revive its removed retry
+  path as a tuning choice. Use integer-nanosecond samples and exact interpolated
+  quartiles so filtering does not depend on floating-point rounding.
+- Keep future before/after measurements on physical Alpha, following the
+  parent's updated host instruction, through `build-queue` and `bench/bench.zi`
+  with learning off. Serialize Alpha benchmarks across lanes and never reset
+  its checkout during another lane's run. Record the measured pushed revision,
+  source/artifact digests and raw samples. Builds and local tests stay on Omega.
+  Revalidate integrated changes with parity, `make check` and
+  `make check-bootstrap`; a source change during a run requires a new
+  checkpoint for that change. Commit only each lane's hunks after local
+  validation, then push; preserve the shared index and other lanes' edits.
 
-## Hardware
-
-- Alpha: NVIDIA RTX 5060 Ti, 16 GB, driver 595.99.02, idle. The CUDA toolkit
-  (`nvcc`) is not installed. Alpha has 15 GB RAM, often about 5 GB free, and it
-  is also the benchmark host: training must not run while a benchmark is
-  measuring, or it adds noise to the receipts.
-- Omega: 32 cores, 30 GB RAM. Corpus processing and CPU search run here.
-- Ziran has no GPU backend yet (`#parallel_gpu` is a named gap on every target).
-
-## Steps
-
-Recording already exists: `ziran learn on|off|status` (`cmd/package_learn.zi`,
-documented in `docs/ZX.md`), on by default, deduplicated by SHA-256 and capped.
-Benchmarks run through `bench/bench.zi`, which sets `ZIRAN_LEARN=off`; every new
-recording hook must keep honoring that switch. Records are filed per ZX format
-(`zx<R>-lir<S>/`) and each carries a `.record.json` naming the exact compiler
-(SHA-256 of `zx2native` and `zi2zx`), source, entry and time, so compiler
-upgrades and ZX revisions never mix: step 2 and later read only the current
-format and group machine code by compiler. A ZX revision bump leaves older
-folders unreadable to the new tools; their `source` lets a program be rebuilt.
-
-The ZX byte format is fully specified (`ASSEMBLY/zx-executable-format.md` for
-the container, `ASSEMBLY/lowered-format.md` for the instruction payload), but
-the meaning of each instruction is not: 25 of the 46 `LirOp` opcodes are named
-nowhere in the docs, and `execution-contract.md` covers them only by category.
-A per-opcode reference (operands, types, traps, effects) is what step 2's
-equivalence checking needs as its written ground truth.
-
-The owner's `ziran` must be reinstalled (`make install-user`) whenever the
-recorder changes; the 14:44 install on 2026-11-15 had no `learn` at all.
+Keep future corpus work on current `zx<R>-lir<S>` records and exact compiler
+identities. A format upgrade must not reinterpret older records; use their
+source/entry metadata to rebuild them. Extend the per-opcode execution contract
+before widening the learner's semantic vocabulary. Every new recording hook
+must honor `ZIRAN_LEARN=off`; benchmark timing must never perform recording.
+Update the owner's installed launcher when changes to recording/training are
+accepted, and verify that installation independently of builds and pushes.
 
 ### 1. Record more of real use
 

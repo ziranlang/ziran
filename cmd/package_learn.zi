@@ -5,6 +5,8 @@
 #import "json_quote"
 Clock :: #import "date_time_linux"
 CompilerVersion :: #import "version"
+#import "package_learn_teacher"
+#import "package_learn_tuning"
 
 // `ziran learn on|off|status`: a corpus of the programs this machine builds to
 // native code, kept as training data for improving Ziran's machine code.
@@ -33,7 +35,7 @@ CompilerVersion :: #import "version"
 // before/after pairs. Benchmark receipts name artifacts by the same digests.
 
 #scope_file
-LEARN_USAGE :: "usage: ziran learn on [--limit-mb N] | ziran learn off | ziran learn status";
+LEARN_USAGE :: "usage: ziran learn on [--limit-mb N] | off | status | verify --candidates FILE --repo DIR --output FILE | train --measurements FILE --table FILE --verification FILE --output FILE";
 LEARN_DEFAULT_LIMIT_MB :: 1024;
 LEARN_MAX_FILE :: 16777216;
 LEARN_MAX_TOOL :: 268435456;
@@ -205,16 +207,16 @@ LearnField :: (name: string, value: string) -> string {
 
 // One JSON line naming what made a record. Empty when a tool cannot be read.
 LearnRecordText :: (tool_directory: string, format: string, target: string,
-    source: string, entry: string) -> string {
+    source: string, entry: string, input: string) -> string {
     native := LearnToolDigest(tool_directory, "zx2native")
     portable := LearnToolDigest(tool_directory, "zi2zx")
     if native.count == 0 || portable.count == 0 { return "" }
     path := PkgCanonical(source)
     if path.count == 0 { path = source }
-    fields: [8]string = .[LearnField("format", format), LearnField("target", target),
+    fields: [9]string = .[LearnField("format", format), LearnField("target", target),
         LearnField("platform", "linux"), LearnField("ziran", CompilerVersion.Version),
         LearnField("zx2native_sha256", native), LearnField("zi2zx_sha256", portable),
-        LearnField("source", path), LearnField("entry", entry)]
+        LearnField("source", path), LearnField("entry", entry), LearnField("input_sha256", input)]
     text := ""
     for field: fields {
         if field.count == 0 { return "" }
@@ -242,7 +244,7 @@ LearnStore :: (tool_directory: string, program: string, elf: string, target: str
     if PathExists(record) { return .Present }
     stored := LearnStoredBytes(directory)
     if stored >= settings.limit_mb * MEGABYTE { return .Full }
-    record_text := LearnRecordText(tool_directory, format, target, source, entry)
+    record_text := LearnRecordText(tool_directory, format, target, source, entry, zx_digest)
     if record_text.count == 0 { return .Failed }
     if !PkgMkdirs(folder) { return .Failed }
     added: s64 = 0
@@ -383,9 +385,11 @@ LearnStatus :: () -> s32 {
 #scope_export
 LearnUsage :: () -> string { return PkgJoin(LEARN_USAGE, "\n") }
 
-Learn :: (arguments: []string) -> s32 {
+Learn :: (arguments: []string, launcher: string = "") -> s32 {
     if arguments.count == 0 { return PkgFail(LEARN_USAGE) }
     action := arguments[0]
+    if action == "verify" { return LearnTeacher(arguments, launcher) }
+    if action == "train" { return LearnTune(arguments, LearnDirectory()) }
     if action == "status" {
         if arguments.count != 1 { return PkgFail(LEARN_USAGE) }
         return LearnStatus()

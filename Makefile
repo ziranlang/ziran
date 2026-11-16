@@ -220,7 +220,7 @@ obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # bootstrap compiler opens no bundle and has none.
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
-    compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt
+    compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt compiler_opt_inline compiler_learning compiler_learning_policy
 # The Wasm lowering of revision-28 ZX (cmd/zx2wasm/zx_wasm_lower.c) reads
 # the program through the same engine, under the same names.
 # The native loader's per-architecture veneers are zir_host_native_<arch>.c.
@@ -483,10 +483,10 @@ $(BIN_DIR):
 PACKAGE_C := $(BUILD_DIR)/package-c
 PACKAGE_SOURCES := cmd/package_artifact.zi cmd/package.zi cmd/package_entry.zi cmd/package_process.zi cmd/package_script.zi cmd/package_bundle_run.zi cmd/diagnostics.zi \
     cmd/package_add.zi cmd/package_guide.zi \
-    cmd/package_capabilities.zi cmd/package_features.zi cmd/package_explain.zi cmd/package_learn.zi cmd/package_common.zi cmd/compiler_target.zi \
+    cmd/package_capabilities.zi cmd/package_features.zi cmd/package_explain.zi cmd/package_learn.zi cmd/package_learn_teacher.zi cmd/package_learn_tuning.zi cmd/compiler_learning_tuning.zi cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi std/sort.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_fixture.zi cmd/package_common.zi cmd/compiler_target.zi \
     cmd/package_manifest.zi cmd/package_source.zi cmd/package_lock.zi cmd/package_map.zi cmd/package_options.zi cmd/package_compile_commands.zi cmd/package_template.zi \
-    std/byte_text_linux.zi std/c_string.zi std/file_linux.zi std/number_text.zi \
-    std/json_scan.zi std/json_quote.zi std/json_bytes.zi std/simd.zi std/date_time_linux.zi std/date_time_types.zi \
+    std/byte_text_linux.zi std/c_string.zi std/file_linux.zi std/number_text.zi std/process_run_linux.zi \
+    std/json_scan.zi std/json_quote.zi std/json_bytes.zi std/json_document.zi std/float_text.zi std/text_tools.zi std/simd.zi std/date_time_linux.zi std/date_time_types.zi \
     std/toml_document.zi std/utf8.zi std/text.zi std/vec.zi VERSION
 # Generated files are listed when the ziran recipe expands, after generation.
 PACKAGE_OBJECTS = $(patsubst $(PACKAGE_C)/%.c,$(BUILD_DIR)/obj/package-c/%.o,$(wildcard $(PACKAGE_C)/*.c))
@@ -714,7 +714,7 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 	    -o $(PROOF_C) cmd/compiler_proof.zi
 	touch $@
 
-$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi \
+$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_inline.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi \
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_lowered_ir.zi \
     cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \

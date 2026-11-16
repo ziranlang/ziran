@@ -3,12 +3,13 @@
 #import "file_linux"
 #import "number_text"
 
-// `ziran learn on|off|status`: an opt-in corpus of the programs this machine
-// builds to native code, kept as training data for improving Ziran's machine
-// code. Recording is off by default; while it is off a native build reads
-// one small settings file and nothing else. ZIRAN_LEARN=on|off overrides the
-// saved switch for one command or session, and ZIRAN_LEARN_DIR moves the
-// corpus.
+// `ziran learn on|off|status`: a corpus of the programs this machine builds to
+// native code, kept as training data for improving Ziran's machine code.
+// Recording is on by default; `ziran learn off` saves the opposite, and then a
+// native build reads one small settings file and nothing else. ZIRAN_LEARN=on|off
+// overrides the saved switch for one command or session (bench/bench.zi sets it
+// off for every benchmark), and ZIRAN_LEARN_DIR moves the corpus. Recording
+// never prints during a build; `ziran learn status` reports a failed record.
 //
 // The corpus is content addressed, so rebuilding a program writes nothing:
 //
@@ -67,10 +68,11 @@ LearnDirectory :: () -> string {
     return PkgJoin(base, "/ziran/learn")
 }
 
-// The saved switch: a line `on` enables recording and `limit_mb=N` caps the
-// corpus. A missing or unreadable file means off with the default cap.
+// The saved switch: a line `off` stops recording and `limit_mb=N` caps the
+// corpus. A missing or unreadable file means on with the default cap.
 LearnSaved :: () -> LearnSettings {
     settings: LearnSettings
+    settings.enabled = true
     settings.limit_mb = LEARN_DEFAULT_LIMIT_MB
     path := LearnSettingsPath()
     if path.count == 0 { return settings }
@@ -83,6 +85,7 @@ LearnSaved :: () -> LearnSettings {
         while end < cast(s64)text.count && text[end] != cast(u8)10 { end += 1 }
         line := PkgTrim(text[at:end])
         if line == "on" { settings.enabled = true }
+        if line == "off" { settings.enabled = false }
         if line.count > 9 && line[0:9] == "limit_mb=" {
             value, count := IntegerPrefix(line[9:])
             if count == cast(s64)line.count - 9 && value > 0 { settings.limit_mb = value }
@@ -168,7 +171,9 @@ LearnStore :: (tool_directory: string, program: string, elf: string, target: str
     map_command: [10]string = .[PkgJoin3(tool_directory, "/", "zx2native"), "--target", target,
         "--platform", "linux", "--emit", "map", "-o", map, program]
     lir_command: [6]string = .[PkgJoin3(tool_directory, "/", "zi2zx"), "--emit", "lir", "-o", lir, program]
-    if PkgRun(map_command[:], "", names, values) != 0 || PkgRun(lir_command[:], "", names, values) != 0 {
+    // Captured, so a failed record never adds to the build's own output.
+    if PkgCaptureEnv(map_command[:], "", names, values).code != 0 ||
+       PkgCaptureEnv(lir_command[:], "", names, values).code != 0 {
         unused RemoveFile(map)
         unused RemoveFile(lir)
         return .Failed
@@ -235,6 +240,8 @@ LearnStatus :: () -> s32 {
     state := "off"
     if current.enabled { state = "on" }
     line := PkgJoin3("recording: ", state, "")
+    settings_path := LearnSettingsPath()
+    if settings_path.count == 0 || !PathExists(settings_path) { line = PkgJoin(line, " (default)") }
     override := PkgGetenv("ZIRAN_LEARN")
     if override.count > 0 && saved.enabled != current.enabled {
         line = PkgJoin3(line, " (ZIRAN_LEARN=", PkgJoin(override, ")"))
@@ -254,6 +261,8 @@ LearnStatus :: () -> s32 {
     size := PkgJoin3("size: ", used, PkgJoin3(" of ", LearnNumber(current.limit_mb), " MB"))
     if totals.bytes >= current.limit_mb * MEGABYTE { size = PkgJoin(size, " (full: new builds are not recorded)") }
     PkgPrint(PkgJoin(size, "\n"), false)
+    failure := PkgReadLimited(PkgJoin(directory, "/last-error"), 8192)
+    if failure.valid && failure.text.count > 0 { PkgPrint(PkgJoin("last error: ", failure.text), false) }
     return 0
 }
 
@@ -293,14 +302,19 @@ Learn :: (arguments: []string) -> s32 {
 }
 
 // Saves one verified native build when recording is on. Recording never
-// changes the build's result; a failed record prints one line, and a full
-// corpus is reported by `ziran learn status` rather than on every build.
+// changes the build's result or output: a failed record leaves a last-error
+// note and a full corpus stops growing, both reported by `ziran learn status`.
 LearnRecord :: (tool_directory: string, program: string, elf: string, target: string,
     names: []string, values: []string) {
     settings := LearnCurrent()
     if !settings.enabled { return }
     outcome := LearnStore(tool_directory, program, elf, target, settings, names, values)
+    directory := LearnDirectory()
+    if directory.count == 0 { return }
+    failure := PkgJoin(directory, "/last-error")
     if outcome == .Failed {
-        PkgPrint("ziran learn: this build was not recorded; run ziran learn status\n", true)
+        if PkgMkdirs(directory) { unused PkgWriteAtomic(failure, PkgJoin3("could not record ", elf, "\n")) }
+    } else if outcome == .Recorded && PathExists(failure) {
+        unused RemoveFile(failure)
     }
 }

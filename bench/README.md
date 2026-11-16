@@ -1,31 +1,46 @@
 # Runtime and compiler benchmarks
 
+Every benchmark runs through one entry point, from the repository root:
+
+```sh
+build/bin/ziran run --target=c bench/bench.zi -- list
+build/bin/ziran run --target=c bench/bench.zi -- NAME [DRIVER ARGUMENTS]
+build/bin/ziran run --target=c bench/bench.zi -- --local NAME --validate ...
+```
+
+`bench/bench.zi` names every driver, gives each the same environment (no
+display or desktop-session variables, no `ZIRAN_PROFILE`, and `ZIRAN_LEARN=off`
+so the learning corpus never records during a benchmark) and refuses to measure
+a host benchmark anywhere but the physical host named by `ZIRAN_BENCH_HOST`,
+`alpha` by default. `--local` is for measurement-free modes. A new driver is
+registered in `bench/bench.zi`; `tests/bench_entry.sh` fails while one is not.
+The per-benchmark commands below are the driver arguments; prefix each with
+the entry point instead of running the driver directly.
+
 Run benchmark builds and measurements on Alpha's physical host, as requested
-by the owner on 2026-11-11. The commands below run from the canonical Ziran
-repository on Alpha, using the managed direct-host transfer and build route
-documented in Harmony's `docs/ALPHA_BUILDS.md`. Reject virtualized execution.
-If Alpha is unavailable, wait rather than running the
+by the owner on 2026-11-11, from the canonical Ziran repository there.
+Reject virtualized execution. If Alpha is unavailable, wait rather than running the
 benchmark on the current desktop. Record the host in every report and collect
 both sides of a comparison on the same host; retained desktop results keep
 their original provenance.
 
 Timed compiler/codec kernels are an explicit benchmark command, outside
-`make check`: `build-queue -- sh bench/compiler_kernel_benchmarks.sh` on Alpha.
+`make check`: `build/bin/ziran run --target=c bench/bench.zi -- compiler-kernels` on Alpha.
 Routine tests still validate benchmark statistics and command interfaces.
 
 ## JSON and UTF-8 workloads
 
-On Alpha, run `python3 bench/json_text.py --samples 11` to build and measure
+On Alpha, run `build/bin/ziran run --target=c bench/bench.zi -- json-text --samples 11` to build and measure
 the six Ziran programs in `bench/json_text/`. Each timed batch verifies its
 result. The website retains generated artifacts, raw samples and compiler
 diagnostics for unsupported targets in `site/generated/json-text/`.
 The qualified Alpha snapshot is retained in `bench/results/json-text/alpha-matrix.json`.
-Use `python3 bench/json_text.py --check` to validate that snapshot without timing it.
+Use `build/bin/ziran run --target=c bench/bench.zi -- --local json-text --check` to validate that snapshot without timing it.
 
 ## Portable ZX execution
 
 ```sh
-build-queue -- build/bin/ziran run --target=c bench/zx_execution.zi
+build/bin/ziran run --target=c bench/bench.zi -- zx-execution
 ```
 
 This Ziran script measures every unchanged portable bundle in the published
@@ -38,7 +53,7 @@ Library workloads live upstream. The website's generic library harness accepts
 Kryon's manifest without adding widget behavior to Ziran:
 
 ```sh
-build-queue -- python3 scripts/site_library_targets.py \
+build/bin/ziran run --target=c bench/bench.zi -- library-targets \
   --project ../../kryonlabs/kryon \
   --manifest ../../kryonlabs/kryon/tests/widget_benchmarks.json --samples 9
 ```
@@ -56,9 +71,7 @@ strict raw schema consumed by `assembly_compare.zi`. Local plan validation is
 measurement-free:
 
 ```sh
-build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY \
-  build/bin/ziran run --target=c --root bench --module-path . \
-  bench/assembly_collect.zi -- --validate PLAN.json
+build/bin/ziran run --target=c bench/bench.zi -- --local assembly-collect --validate PLAN.json
 ```
 
 Run `PLAN.json OUTPUT.json` instead only in the canonical checkout on Alpha's
@@ -83,9 +96,7 @@ the driver, helper, control and library sources, the fixture artifact hashes,
 and the copied M0 TinyCC summary:
 
 ```sh
-build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY \
-  build/bin/ziran run --target=c --root bench --module-path . \
-  bench/zx_compare.zi -- --engine --native-cold --native-warm --aot \
+build/bin/ziran run --target=c bench/bench.zi -- zx-compare --engine --native-cold --native-warm --aot \
   --c-control --m0-receipts bench/results --samples 9
 ```
 
@@ -100,7 +111,7 @@ the Alpha physical-host attestation gate for receipts that claim it.
 ## Fresh compiler rebuild
 
 ```sh
-build-queue -- build/bin/ziran run --target=c bench/compiler_build.zi
+build/bin/ziran run --target=c bench/bench.zi -- compiler-build
 ```
 
 This times `make -B -jN all` at the normal `build/` paths: all native Ziran
@@ -127,7 +138,7 @@ modules' C before the final tools are built with the normal `CFLAGS=-O2`.
 ## Complete native builds
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/native_builds.py \
+build/bin/ziran run --target=c bench/bench.zi -- native-builds \
   --out build/benchmarks/native-builds
 ```
 
@@ -190,7 +201,7 @@ while retaining separate translation units and the existing worker limit.
 For a complete build of the formatter application itself:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/formatter_builds.py \
+build/bin/ziran run --target=c bench/bench.zi -- formatter-builds \
   --before-bin-dir PATH/TO/PRESERVED/bin \
   --out build/benchmarks/native-programs/formatter
 ```
@@ -271,7 +282,7 @@ Preserve `ziran`, `zi2zir`, `zi2c` and `zi2zx` together before changing the
 compiler, then run:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/body_eligibility.py \
+build/bin/ziran run --target=c bench/bench.zi -- body-eligibility \
   --before-bin-dir build/body-eligibility/before \
   --out build/benchmarks/body-eligibility
 ```
@@ -299,7 +310,7 @@ Before changing the runtime, preserve `zi2zir`, `zi2zx` and `libziran.a` togethe
 in a stable baseline directory. Then run:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_execution.py \
+build/bin/ziran run --target=c bench/bench.zi -- vm-execution \
   --before-dir build/vm-execution/before --out build/benchmarks/vm-execution
 ```
 
@@ -328,7 +339,7 @@ hashes and expected results alongside the existing raw timing receipts.
 To calibrate these same workloads against generated native C and Go:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_native.py \
+build/bin/ziran run --target=c bench/bench.zi -- vm-native \
   --vm-results build/benchmarks/vm-execution \
   --out build/benchmarks/vm-native
 ```
@@ -356,7 +367,7 @@ Prepare matched Ziran source/saved-IR C and Go programs, handwritten C/Go
 controls, and a portable engine fixture for one Android ABI:
 
 ```sh
-python3 bench/android_execution.py prepare \
+build/bin/ziran run --target=c bench/bench.zi -- android-execution prepare \
   --out build/benchmarks/android-device/execution \
   --ndk "$ANDROID_NDK_HOME" --abi armeabi-v7a
 ```
@@ -365,7 +376,7 @@ Run the measurement stage on the host that owns the device's ADB connection,
 passing its exact serial:
 
 ```sh
-python3 bench/android_execution.py run \
+build/bin/ziran run --target=c bench/bench.zi -- android-execution run \
   --out build/benchmarks/android-device/execution --serial DEVICE_SERIAL
 ```
 
@@ -386,13 +397,13 @@ not establish Go-like compilation speed on Android.
 To compare the same seven portable workloads across saved VM libraries:
 
 ```sh
-python3 bench/vm_android.py prepare \
+build/bin/ziran run --target=c bench/bench.zi -- vm-android prepare \
   --vm-results build/benchmarks/vm-execution \
   --out build/benchmarks/vm-json/android \
   --ndk "$ANDROID_NDK_HOME" --abi armeabi-v7a \
   --library before PATH/TO/BASELINE/libziran.a \
   --library after build/bundle-runtime/android-armeabi-v7a/libziran.a
-python3 bench/vm_android.py run \
+build/bin/ziran run --target=c bench/bench.zi -- vm-android run \
   --out build/benchmarks/vm-json/android --serial DEVICE_SERIAL --cpu 0
 ```
 
@@ -413,7 +424,7 @@ establish gains on another.
 ## CPU-selected assembly
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/cpu_features.py \
+build/bin/ziran run --target=c bench/bench.zi -- cpu-features \
   --out build/benchmarks/cpu-features
 ```
 
@@ -446,7 +457,7 @@ and removing inactive outputs.
 ## Native Go assembly bridges
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/go_assembly.py \
+build/bin/ziran run --target=c bench/bench.zi -- go-assembly \
   --before-bin-dir build/go-assembly/before/bin \
   --out build/go-assembly/benchmark
 ```
@@ -476,7 +487,7 @@ that its binaries and build outputs are inactive.
 Host embedding has a separate capability-scaling benchmark:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/host_capabilities.py \
+build/bin/ziran run --target=c bench/bench.zi -- host-capabilities \
   --before-dir build/host-capabilities/before --out build/benchmarks/host-capabilities
 ```
 
@@ -494,7 +505,7 @@ For the public embedding API, compare one checked `BundleOpen` followed by
 independent `BundleInstantiate`/run/close operations:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/bundle_instances.py \
+build/bin/ziran run --target=c bench/bench.zi -- bundle-instances \
   --before-dir build/bundle-runtime/before --out build/benchmarks/bundle-instances
 ```
 
@@ -513,7 +524,7 @@ sum oracles, verifies source/saved bundle identity, and runs the comparison
 below. For example:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/enum_values.py \
+build/bin/ziran run --target=c bench/bench.zi -- enum-values \
   --before-dir build/compiler-check/before --out build/benchmarks/enum-values
 ```
 
@@ -535,7 +546,7 @@ For example, using fixtures generated by `compiler_scaling.py` with its default
 16 fields:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_startup.py \
+build/bin/ziran run --target=c bench/bench.zi -- vm-startup \
   --before-dir build/vm-performance/before \
   --out build/vm-performance/comparison \
   --case modules128 \
@@ -572,7 +583,7 @@ receipts and remove inactive outputs before reusing the stable output path.
 ## Assembly and portable fallback
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/assembly.py \
+build/bin/ziran run --target=c bench/bench.zi -- assembly \
   --out build/benchmarks/assembly
 ```
 
@@ -597,7 +608,7 @@ For compiler scaling, module graphs, generic specialization, and source/saved
 IR validation, run:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/compiler_scaling.py \
+build/bin/ziran run --target=c bench/bench.zi -- compiler-scaling \
   --out build/benchmarks/compiler-scaling --sizes 8 32 128
 ```
 
@@ -643,7 +654,7 @@ From the repository root, build the current toolchain and run:
 
 ```sh
 env -u DISPLAY -u WAYLAND_DISPLAY make -j4 all
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/smoke.py
+build/bin/ziran run --target=c bench/bench.zi -- smoke
 ```
 
 The script creates a new directory under `build/benchmarks/` with `metadata.json`,
@@ -673,7 +684,7 @@ real applications.
 For a second workload that grows a `Vec(s32)` and then scans it, run:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vector_growth.py
+build/bin/ziran run --target=c bench/bench.zi -- vector-growth
 ```
 
 This measures source and saved-IR checks and emissions to C, Go, and
@@ -690,7 +701,7 @@ records, generics, larger module graphs, or real applications.
 For a record-value and call workload over a fixed `[32]Point` table, run:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/record_calls.py
+build/bin/ziran run --target=c bench/bench.zi -- record-calls
 ```
 
 Each round updates all records through a checked `Mix(Point, Point, s32, s32)`
@@ -710,7 +721,7 @@ binary hashes.
 For a UTF-8 scanning workload over `aé中🙂`, run:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/text_scan.py
+build/bin/ziran run --target=c bench/bench.zi -- text-scan
 ```
 
 The text has 10 bytes and 4 Unicode scalar values; every runtime sample must

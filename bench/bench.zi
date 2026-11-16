@@ -1,0 +1,240 @@
+#!/usr/bin/env -S ziran run --target=c
+// The one entry point for Ziran's benchmarks. From the repository root:
+//
+//     build/bin/ziran run --target=c bench/bench.zi -- list
+//     build/bin/ziran run --target=c bench/bench.zi -- NAME [DRIVER ARGUMENTS]
+//     build/bin/ziran run --target=c bench/bench.zi -- --local NAME [DRIVER ARGUMENTS]
+//     build/bin/ziran run --target=c bench/bench.zi -- check
+//
+// Every benchmark gets the same environment: no display or desktop-session
+// variables, no ZIRAN_PROFILE, and ZIRAN_LEARN=off, so the learning corpus
+// never records while something is measured. A host benchmark measures only
+// on a physical host named by ZIRAN_BENCH_HOST (`alpha` by default); `--local`
+// skips that check for measurement-free modes such as `--validate` or
+// `--check`. A device benchmark measures on a phone, and a report reads saved
+// receipts, so neither checks the host. `check` verifies that every driver in
+// bench/ is registered here and that the shared environment applies.
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/process_run_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#scope_file
+libc_bench :: #system_library "libc";
+FlushAll :: (stream: *void) -> s32 #foreign libc_bench "fflush";
+
+Runner :: enum u8 { Ziran :: 0; Python :: 1; Shell :: 2; }
+Place :: enum u8 { Host :: 0; Device :: 1; Report :: 2; }
+
+Benchmark :: struct {
+    name: string
+    file: string
+    runner: Runner
+    place: Place
+    summary: string
+}
+
+// A bare name removes the variable from the driver's environment.
+BENCH_ENVIRONMENT: [9]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS",
+    "SESSION_MANAGER", "XDG_SESSION_ID", "XDG_SESSION_TYPE", "ZIRAN_PROFILE", "ZIRAN_LEARN=off"];
+
+// Files in bench/ that a registered benchmark builds or imports.
+SUPPORT_FILES: [7]string = .["bench.zi", "benchmark_statistics.zi", "codec_kernels.py", "json_document.zi",
+    "math_sqrt.zi", "native_cache_fixture.zi", "wasm_tier.zi"];
+
+Add :: (list: *Vec(Benchmark), name: string, file: string, runner: Runner, place: Place, summary: string) {
+    unused VecPush(list.*, Benchmark.{.name = name, .file = file, .runner = runner, .place = place, .summary = summary})
+}
+
+Registry :: () -> Vec(Benchmark) {
+    list: Vec(Benchmark)
+    Add(*list, "android-execution", "bench/android_execution.py", .Python, .Device, "cross-built kernels on one Android device")
+    Add(*list, "assembly", "bench/assembly.py", .Python, .Host, "assembly, portable fallback, C, Go and the ZX engine")
+    Add(*list, "assembly-collect", "bench/assembly_collect.zi", .Ziran, .Host, "strict assembly comparison receipts")
+    Add(*list, "assembly-compare", "bench/assembly_compare.zi", .Ziran, .Report, "compare collected assembly receipts")
+    Add(*list, "body-eligibility", "bench/body_eligibility.py", .Python, .Host, "paired checking with output identity")
+    Add(*list, "bundle-assets", "bench/bundle_assets.py", .Python, .Host, "checked resource loading with real bundles")
+    Add(*list, "bundle-instances", "bench/bundle_instances.py", .Python, .Host, "bundle loading and fresh-instance costs")
+    Add(*list, "compiler-build", "bench/compiler_build.zi", .Ziran, .Host, "full native compiler rebuild")
+    Add(*list, "compiler-kernels", "bench/compiler_kernel_benchmarks.sh", .Shell, .Host, "timed compiler and codec kernels")
+    Add(*list, "compiler-scaling", "bench/compiler_scaling.py", .Python, .Host, "module graphs and generic specialization")
+    Add(*list, "cpu-features", "bench/cpu_features.py", .Python, .Host, "CPU-selected assembly against fallbacks")
+    Add(*list, "enum-values", "bench/enum_values.py", .Python, .Host, "enum-heavy checks and portable loading")
+    Add(*list, "formatter-builds", "bench/formatter_builds.py", .Python, .Host, "complete builds of the formatter")
+    Add(*list, "go-assembly", "bench/go_assembly.py", .Python, .Host, "Go assembly bridges against pure Go and C")
+    Add(*list, "host-capabilities", "bench/host_capabilities.py", .Python, .Host, "host-capability enumeration and calls")
+    Add(*list, "json-document", "bench/json_document.sh", .Shell, .Host, "direct JSON parser")
+    Add(*list, "json-string-scan", "bench/json_string_scan.zi", .Ziran, .Host, "JSON string scanning")
+    Add(*list, "json-text", "bench/json_text.py", .Python, .Host, "JSON and UTF-8 workloads on every target")
+    Add(*list, "library-targets", "scripts/site_library_targets.py", .Python, .Host, "a library's workloads on the site targets")
+    Add(*list, "math-sqrt", "bench/math_sqrt.sh", .Shell, .Host, "std/math square root")
+    Add(*list, "native-builds", "bench/native_builds.py", .Python, .Host, "complete native builds against C and Go")
+    Add(*list, "native-header-graphs", "bench/native_header_graphs.py", .Python, .Host, "native builds with a dense record ABI")
+    Add(*list, "native-probe", "bench/native_probe.py", .Python, .Host, "native builds with interleaved probes")
+    Add(*list, "reachable-types", "bench/reachable_types.py", .Python, .Host, "qualified type-graph lookup")
+    Add(*list, "record-calls", "bench/record_calls.py", .Python, .Host, "record values and calls across backends")
+    Add(*list, "smoke", "bench/smoke.py", .Python, .Host, "cross-target smoke, startup included")
+    Add(*list, "text-scan", "bench/text_scan.py", .Python, .Host, "UTF-8 scanning across backends")
+    Add(*list, "type-exports", "bench/type_exports.py", .Python, .Host, "local and re-exported types")
+    Add(*list, "vector-growth", "bench/vector_growth.py", .Python, .Host, "vector growth across backends")
+    Add(*list, "vector-growth-ab", "bench/vector_growth_ab.py", .Python, .Host, "two vector-growth binaries, shuffled")
+    Add(*list, "vm-android", "bench/vm_android.py", .Python, .Device, "saved engine libraries on one Android device")
+    Add(*list, "vm-execution", "bench/vm_execution.py", .Python, .Host, "verified engine execution")
+    Add(*list, "vm-native", "bench/vm_native.py", .Python, .Host, "engine workloads against generated C and Go")
+    Add(*list, "vm-startup", "bench/vm_startup.py", .Python, .Host, "checked loading and engine preparation")
+    Add(*list, "wasm-tier", "bench/wasm_tier.py", .Python, .Host, "native and Wasm against the engine and C")
+    Add(*list, "zx-compare", "bench/zx_compare.zi", .Ziran, .Host, "ZX runtime comparison cohorts")
+    Add(*list, "zx-compare-devices", "bench/zx_compare.py", .Python, .Device, "ZX comparison on Alpha or a USB phone")
+    Add(*list, "zx-engine", "bench/zx_engine.zi", .Ziran, .Host, "instruction engine against the C target")
+    Add(*list, "zx-execution", "bench/zx_execution.zi", .Ziran, .Host, "warm execution of the matrix's bundles")
+    return list
+}
+
+Concat :: (left: string, right: string) -> string {
+    parts: [2]string = .[left, right]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+Pad :: (text: string, width: s64) -> string {
+    spaces := "                        "
+    if text.count >= width || width > spaces.count { return text }
+    return Concat(text, spaces[0:width - text.count])
+}
+
+PlaceName :: (place: Place) -> string {
+    if place == .Device { return "device" }
+    if place == .Report { return "report" }
+    return "host"
+}
+
+Find :: (list: []Benchmark, name: string) -> s64 {
+    for index: cast(s64)0..list.count - 1 { if list[index].name == name { return index } }
+    return -1
+}
+
+Capture :: (arguments: []string, directory: string) -> (output: string, code: s32) {
+    options: ProcessOptions = .{arguments = arguments, directory = directory, environment = BENCH_ENVIRONMENT[:],
+        capture_output = true, merge_error = true}
+    run: ProcessRun
+    if !RunProcess(options, *run) { return "", 127 }
+    return TextDetach(TextCopy(TextTrim(BuilderFinish(run.output)))), run.code
+}
+
+HostName :: () -> string {
+    text, found := ReadEntireFile("/proc/sys/kernel/hostname")
+    return ifx found then TextDetach(TextCopy(TextTrim(text))) else "unknown"
+}
+
+Virtualization :: () -> string {
+    command: [1]string = .["systemd-detect-virt"]
+    output, code := Capture(command[:], "")
+    if code == 127 { return "unavailable" }
+    return ifx output != "" then output else "none"
+}
+
+List :: (list: []Benchmark) -> s32 {
+    print("benchmarks (run with: build/bin/ziran run --target=c bench/bench.zi -- NAME [ARGS])\n")
+    for item: list { print("  % % %\n", Pad(item.name, 21), Pad(PlaceName(item.place), 6), item.summary) }
+    return 0
+}
+
+Registered :: (list: []Benchmark, file: string) -> bool {
+    for item: list { if item.file == file { return true } }
+    for support: SUPPORT_FILES { if Concat("bench/", support) == file { return true } }
+    return false
+}
+
+IsDriver :: (repo: string, name: string) -> bool {
+    if TextHasSuffix(name, ".py") || TextHasSuffix(name, ".sh") { return true }
+    if !TextHasSuffix(name, ".zi") { return false }
+    text, found := ReadEntireFile(TextDetach(JoinPath(JoinPath(repo, "bench"), name)))
+    return found && (TextHasPrefix(text, "main ::") || TextContains(text, "\nmain ::"))
+}
+
+Check :: (repo: string, list: []Benchmark) -> s32 {
+    failures: s64 = 0
+    for item: list {
+        if !IsFile(TextDetach(JoinPath(repo, item.file))) { print("missing driver for %: %\n", item.name, item.file); failures += 1 }
+    }
+    names: Vec(string)
+    if !ListDirectory(TextDetach(JoinPath(repo, "bench")), *names) { print("cannot list bench/\n"); return 1 }
+    for name: names {
+        if IsDriver(repo, name) && !Registered(list, Concat("bench/", name)) {
+            print("bench/% is a driver that bench/bench.zi does not register\n", name)
+            failures += 1
+        }
+    }
+    probe: [3]string = .["sh", "-c",
+        "test \"$ZIRAN_LEARN\" = off && test -z \"${DISPLAY+set}${WAYLAND_DISPLAY+set}${ZIRAN_PROFILE+set}\""]
+    probe_output, code := Capture(probe[:], repo)
+    if code != 0 { print("the shared benchmark environment did not apply: %\n", probe_output); failures += 1 }
+    if failures > 0 { return 1 }
+    print("bench entry: % benchmarks registered, every driver covered, shared environment applied\n", list.count)
+    return 0
+}
+
+Run :: (repo: string, item: Benchmark, extra: []string, local: bool) -> s32 {
+    host := HostName()
+    virtualization := Virtualization()
+    required := EnvironmentText("ZIRAN_BENCH_HOST")
+    if required == "" { required = "alpha" }
+    if item.place == .Host && !local {
+        physical := virtualization == "none" || virtualization == "container-other"
+        if host != required || !physical {
+            print("% measures only on the physical host %; this is % (virtualization %).\n", item.name, required, host, virtualization)
+            print("Run it there, or pass --local before the name for a measurement-free mode.\n")
+            return 2
+        }
+    }
+    command: Vec(string)
+    if item.runner == .Ziran {
+        ziran := TextDetach(JoinPath(repo, "build/bin/ziran"))
+        if !IsFile(ziran) { print("build the toolchain first: make\n"); return 2 }
+        prefix := string.[ziran, "run", "--target=c", "--root", TextDetach(JoinPath(repo, "bench")), "--module-path", repo,
+            TextDetach(JoinPath(repo, item.file)), "--"]
+        for part: prefix { unused VecPush(command, part) }
+    } else {
+        interpreter := ifx item.runner == .Python then "python3" else "sh"
+        unused VecPush(command, interpreter)
+        unused VecPush(command, TextDetach(JoinPath(repo, item.file)))
+    }
+    for part: extra { unused VecPush(command, part) }
+    mode := ifx local then "local, not a measurement" else PlaceName(item.place)
+    print("benchmark % on % (virtualization %, %)\n", item.name, host, virtualization, mode)
+    options: ProcessOptions = .{arguments = VecSlice(command, 0, command.count), directory = repo,
+        environment = BENCH_ENVIRONMENT[:]}
+    // The header reaches the terminal before anything the driver prints.
+    unused FlushAll(null)
+    run: ProcessRun
+    if !RunProcess(options, *run) { print("cannot start %\n", item.file); return 2 }
+    return run.code
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    repo := PathParent(PathParent(EnvironmentText("ZIRAN_SCRIPT_FILE")))
+    if repo == "" || !IsFile(TextDetach(JoinPath(repo, "bench/bench.zi"))) { repo = ResolvePath(".") }
+    if !IsFile(TextDetach(JoinPath(repo, "bench/bench.zi"))) { print("run from the Ziran repository\n"); return 2 }
+    registry := Registry()
+    list := VecSlice(registry, 0, registry.count)
+    index: s32 = 1
+    local := false
+    if index < argc && TextFromCString(argv[index]) == "--local" { local = true; index += 1 }
+    if index >= argc { return List(list) }
+    name := TextFromCString(argv[index])
+    if name == "list" || name == "--help" || name == "-h" { return List(list) }
+    if name == "check" { return Check(repo, list) }
+    found := Find(list, name)
+    if found < 0 {
+        print("unknown benchmark: % (bench/bench.zi -- list shows them)\n", name)
+        return 2
+    }
+    extra: Vec(string)
+    index += 1
+    while index < argc { unused VecPush(extra, TextFromCString(argv[index])); index += 1 }
+    return Run(repo, list[found], VecSlice(extra, 0, extra.count), local)
+}

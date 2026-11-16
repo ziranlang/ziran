@@ -38,9 +38,11 @@ against that key and its SHA-256 digest before it is used, and a damaged entry
 is removed and rebuilt. `ZIRAN_NATIVE_CACHE=DIR` uses another directory and
 `ZIRAN_NATIVE_CACHE=off` turns the cache off.
 
-`ziran learn on` keeps a corpus of the programs `ziran build FILE.zi` compiles
-to native code, as training data for improving Ziran's machine code; it is off
-by default and `ziran learn off` stops it. Each new build stores its verified
+`ziran build FILE.zi` keeps a corpus of the programs it compiles to native code,
+as training data for improving Ziran's machine code. It is on by default,
+`ziran learn off` stops it and `ziran learn on` resumes it; benchmarks run
+through `bench/bench.zi` never record. Recording never prints during a build;
+`ziran learn status` reports a record that failed. Each new build stores its verified
 `.zx`, ELF, `zx2native --emit map` ranges and lowered input once under
 `$XDG_DATA_HOME/ziran/learn` (or `~/.local/share/ziran/learn`), named by their
 SHA-256 digests, so a rebuild writes nothing and a compiler that emits different

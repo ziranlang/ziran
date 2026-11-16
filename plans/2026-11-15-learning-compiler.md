@@ -47,15 +47,20 @@ replacement for that plan. Always re-read the newest receipt before comparing.
 ## Steps
 
 Recording already exists: `ziran learn on|off|status` (`cmd/package_learn.zi`,
-documented in `docs/ZX.md`), off by default, deduplicated by SHA-256 and capped.
+documented in `docs/ZX.md`), on by default, deduplicated by SHA-256 and capped.
+Benchmarks run through `bench/bench.zi`, which sets `ZIRAN_LEARN=off`; every new
+recording hook must keep honoring that switch.
 
 ### 1. Record more of real use
 
 - `ziran run FILE.zi` on the native backend (runs through `zi2zx run` without a
   saved ELF today).
-- Direct `zx2native` calls from `bench/` harnesses. Benchmark receipts already
-  name each artifact by `artifact_sha256`, so timings join to corpus records by
-  digest without changing the receipt format.
+- Direct `zx2native` and `zi2zx run` calls outside benchmarks (`make check`,
+  scripts). Benchmark receipts already name each artifact by `artifact_sha256`,
+  so timings join to corpus records by digest without recording during a run.
+- Move driver-specific host gates (for example `bench/zx_compare.zi`'s
+  `HARMONY_ALPHA_*` attestation) onto `bench/bench.zi`'s Ziran host check, so
+  no benchmark depends on Harmony variables.
 - A Harmony settings switch that runs `ziran learn on|off` on Omega and Alpha,
   inline in the existing settings modal (owner rule: no new screens).
 

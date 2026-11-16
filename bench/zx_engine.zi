@@ -4,7 +4,7 @@
 // and each run is a fresh process, startup included. Raw samples stay in run
 // order; symmetric 1.5xIQR fences (benchmark_statistics) pick the median.
 //
-// ziran run --target=c --root bench bench/zx_engine.zi -- OUT HOST COMMIT LABEL SAMPLES ZI2ASM \
+// ziran run --target=c --root bench bench/zx_engine.zi -- OUT HOST COMMIT LABEL SAMPLES ZI2ZX \
 //     NAME ZX C_EXECUTABLE [NAME ZX C_EXECUTABLE ...]
 #import "benchmark_statistics"
 #import "std/byte_text_linux"

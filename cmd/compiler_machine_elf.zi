@@ -1,6 +1,7 @@
 using Allocated :: #import "compiler_machine_verify_allocated"
 using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
+using Runtime :: #import "compiler_x86_runtime"
 using X64 :: #import "compiler_x86_64"
 
 // Deterministic, sectionless Linux x86-64 ELF image for allocated machine IR.
@@ -9,7 +10,8 @@ using X64 :: #import "compiler_x86_64"
 // The second PT_LOAD contains zero-initialized globals, the fuel counter, the
 // last trap code, the stack limit and the pointer runtime: its header, the
 // pointer table (slot 0 and the globals' slots in the file, the rest zero
-// fill) and the frame arena. It is read/write but never executable.
+// fill), the frame arena and the heap's state. It is read/write but never
+// executable.
 //
 // Process convention:
 //   * a void entry exits zero; a bool/integer entry exits with its low byte;
@@ -32,14 +34,16 @@ MachineElfTextOffset :: 4096
 MachineElfStartupSize :: 30
 MachineElfStackBytes :: 0x7c0000
 MachineElfTrapSize :: 20
-MachineElfRuntimeSize :: 1335
+// The console blob: write_all, the integer and bool formatters and the exit
+// they take when a write fails. The float formatter blob follows it.
+MachineElfConsoleSize :: 267
+MachineElfFloatSize :: 812
 MachineElfWriteAllOffset :: 0
 MachineElfUnsignedOffset :: 0x2d
 MachineElfSignedOffset :: 0x6a
 MachineElfBoolOffset :: 0xc3
-MachineElfResizeOffset :: 0x10b
-MachineElfFloat32Offset :: 0x4f7
-MachineElfFloat64Offset :: 0x505
+MachineElfFloat32Offset :: 748
+MachineElfFloat64Offset :: 762
 MachineElfInitialFuel :: 9223372036854775807
 MachineElfTrapExitStatus :: 125
 
@@ -65,6 +69,7 @@ DataLayout :: struct {
     pointer_header: s64
     table: s64
     arena: s64
+    heap: s64
     // Bytes in the file, and in memory with the zero fill.
     size: s64
     memory: s64
@@ -76,7 +81,11 @@ Layout :: struct {
     data_offset: s64
     file_size: s64
     trap_text: s64
-    runtime_text: s64
+    // The console and float blobs, then the emitted routines.
+    console_text: s64
+    float_text: s64
+    routines_text: s64
+    routines: MachineX64RuntimeEntries
     constants_text: s64
     constants_size: s64
     data: DataLayout
@@ -132,7 +141,8 @@ DataMeasure :: (program: MachineProgram, layout: *DataLayout) -> MachineDiagnost
     }
     layout.size = layout.table + slots * MachinePointerEntryBytes
     layout.arena = Align(layout.table + (MachinePointerCapacity + 1) * MachinePointerEntryBytes, 16)
-    layout.memory = layout.arena + MachinePointerArenaBytes
+    layout.heap = Align(layout.arena + MachinePointerArenaBytes, 16)
+    layout.memory = layout.heap + MachineX64RuntimeHeapBytes
     return NoDiagnostic()
 }
 
@@ -210,14 +220,30 @@ FunctionNameEqual :: (program: MachineProgram, symbol: s32, expected: string) ->
     return true
 }
 
-PlatformOffset :: (program: MachineProgram, symbol: s32, offset: *s64) -> bool {
-    if FunctionNameEqual(program, symbol, "ziran.platform.write_all") { <<offset = MachineElfWriteAllOffset; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.signed") { <<offset = MachineElfSignedOffset; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.unsigned") { <<offset = MachineElfUnsignedOffset; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.bool") { <<offset = MachineElfBoolOffset; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.float32") { <<offset = MachineElfFloat32Offset; return true }
-    if FunctionNameEqual(program, symbol, "ziran.print.float64") { <<offset = MachineElfFloat64Offset; return true }
+// The text offset of a platform service the runtime implements.
+PlatformOffset :: (program: MachineProgram, layout: Layout, symbol: s32, offset: *s64) -> bool {
+    console := layout.console_text
+    float := layout.float_text
+    if FunctionNameEqual(program, symbol, "ziran.platform.write_all") { <<offset = console + MachineElfWriteAllOffset; return true }
+    if FunctionNameEqual(program, symbol, "ziran.print.signed") { <<offset = console + MachineElfSignedOffset; return true }
+    if FunctionNameEqual(program, symbol, "ziran.print.unsigned") { <<offset = console + MachineElfUnsignedOffset; return true }
+    if FunctionNameEqual(program, symbol, "ziran.print.bool") { <<offset = console + MachineElfBoolOffset; return true }
+    if FunctionNameEqual(program, symbol, "ziran.print.float32") { <<offset = float + MachineElfFloat32Offset; return true }
+    if FunctionNameEqual(program, symbol, "ziran.print.float64") { <<offset = float + MachineElfFloat64Offset; return true }
     return false
+}
+
+// The runtime routines the program's instructions call.
+RuntimeUses :: (program: MachineProgram) -> MachineX64RuntimeUses {
+    uses: MachineX64RuntimeUses
+    for instruction: program.instructions {
+        if instruction.opcode == .Resize { uses.resize = true }
+    }
+    return uses
+}
+
+RuntimePlaces :: (layout: Layout) -> MachineX64RuntimePlaces {
+    return .{trap = MachineElfTextOffset + layout.trap_text, heap = layout.data_offset + layout.data.heap}
 }
 
 StartupSize :: (program: MachineProgram) -> s64 {
@@ -284,12 +310,17 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
         result := NoDiagnostic(); result.problem = .Limit; return result
     }
     layout.trap_text = layout.startup_size + image.code.count
-    // The runtime blob is position independent, but its embedded float section
-    // starts 523 bytes in and contains naturally aligned SSE constants. Start
-    // the runtime five bytes beyond the next text boundary so that section is
-    // 16-byte aligned without rewriting its internal relative references.
-    layout.runtime_text = Align(layout.trap_text + MachineElfTrapSize, 16) + 5
-    layout.constants_text = Align(layout.runtime_text + MachineElfRuntimeSize, 16)
+    // Both blobs are position independent; the float blob holds naturally
+    // aligned SSE constants, so it starts on a 16-byte boundary.
+    layout.console_text = Align(layout.trap_text + MachineElfTrapSize, 16)
+    layout.float_text = Align(layout.console_text + MachineElfConsoleSize, 16)
+    layout.routines_text = Align(layout.float_text + MachineElfFloatSize, 16)
+    measuring: []u8
+    if !MachineX64RuntimeEmit(measuring, MachineElfTextOffset + layout.routines_text, RuntimeUses(program),
+        RuntimePlaces(<<layout), *layout.routines) {
+        result := NoDiagnostic(); result.problem = .Limit; return result
+    }
+    layout.constants_text = Align(layout.routines.end - MachineElfTextOffset, 16)
     layout.text_size = layout.constants_text + layout.constants_size
     if layout.text_size > 2147483647 - MachineElfTextOffset {
         result := NoDiagnostic(); result.problem = .Limit; return result
@@ -367,11 +398,11 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
                 result.instruction = relocation.instruction; return result
             }
             service_offset: s64 = 0
-            if !PlatformOffset(program, relocation.symbol, *service_offset) {
+            if !PlatformOffset(program, <<layout, relocation.symbol, *service_offset) {
                 result := NoDiagnostic(); result.problem = .Unsupported
                 result.instruction = relocation.instruction; return result
             }
-            target = cast(u64)(MachineElfBase + MachineElfTextOffset + layout.runtime_text + service_offset)
+            target = cast(u64)(MachineElfBase + MachineElfTextOffset + service_offset)
         } else if relocation.kind == .PointerRuntime && relocation.symbol == 0 {
             target = cast(u64)(MachineElfBase + layout.data_offset + layout.data.pointer_header)
         } else if relocation.kind == .RuntimeResize && relocation.symbol == 0 {
@@ -379,7 +410,7 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
                 result := NoDiagnostic(); result.problem = .Relocation
                 result.instruction = relocation.instruction; return result
             }
-            target = cast(u64)(MachineElfBase + MachineElfTextOffset + layout.runtime_text + MachineElfResizeOffset)
+            target = cast(u64)(MachineElfBase + layout.routines.resize)
         } else {
             result := NoDiagnostic(); result.problem = .Relocation
             result.instruction = relocation.instruction; return result
@@ -422,8 +453,8 @@ PutRelative :: (output: []u8, at: s64, target: u64, addend: s64, field: u64) -> 
     return true
 }
 
-WriteRuntime :: (output: []u8, at: s64) {
-bytes: [523]u8 = .[
+WriteConsole :: (output: []u8, at: s64) {
+bytes: [267]u8 = .[
   0x48,0x85,0xd2,0x74,0x27,0xb8,0x01,0x00,0x00,0x00,0x0f,0x05,
   0x48,0x83,0xf8,0xfc,0x74,0xf3,0x48,0x85,0xc0,0x0f,0x88,0xe2,
   0x00,0x00,0x00,0x48,0x85,0xc0,0x0f,0x84,0xd9,0x00,0x00,0x00,
@@ -446,28 +477,7 @@ bytes: [523]u8 = .[
   0x04,0x65,0xba,0x05,0x00,0x00,0x00,0xbf,0x01,0x00,0x00,0x00,
   0x48,0x89,0xe6,0xe8,0x00,0x00,0x00,0x00,0x48,0x83,0xc4,0x18,
   0xc3,0xbf,0x7d,0x00,0x00,0x00,0xb8,0xe7,0x00,0x00,0x00,0x0f,
-  0x05,0x0f,0x0b,0x53,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,
-  0x49,0x89,0xfc,0x49,0x89,0xf5,0x49,0x89,0xd6,0x49,0x89,0xcf,
-  0x4d,0x85,0xe4,0x75,0x07,0x4d,0x85,0xed,0x75,0xd3,0xeb,0x19,
-  0x49,0x81,0x7c,0x24,0xd0,0x58,0x5a,0x00,0x00,0x75,0xc6,0x4d,
-  0x39,0x6c,0x24,0xd8,0x75,0xbf,0x4d,0x39,0x7c,0x24,0xe0,0x75,
-  0xb8,0x4d,0x85,0xf6,0x75,0x22,0x4d,0x85,0xe4,0x74,0x16,0x49,
-  0x8d,0x7c,0x24,0xd0,0x49,0x8b,0x74,0x24,0xf8,0xb8,0x0b,0x00,
-  0x00,0x00,0x0f,0x05,0x48,0x85,0xc0,0x75,0x98,0x31,0xc0,0xe9,
-  0x95,0x00,0x00,0x00,0x4c,0x89,0xf0,0x49,0xf7,0xe7,0x48,0x85,
-  0xd2,0x0f,0x85,0x84,0x00,0x00,0x00,0x48,0x89,0xc3,0x48,0x83,
-  0xc0,0x30,0x72,0x7b,0x48,0x89,0xc6,0x31,0xff,0xba,0x03,0x00,
-  0x00,0x00,0x41,0xba,0x22,0x00,0x00,0x00,0x49,0xc7,0xc0,0xff,
-  0xff,0xff,0xff,0x45,0x31,0xc9,0xb8,0x09,0x00,0x00,0x00,0x0f,
-  0x05,0x48,0x85,0xc0,0x78,0x55,0x48,0xc7,0x00,0x58,0x5a,0x00,
-  0x00,0x4c,0x89,0x70,0x08,0x4c,0x89,0x78,0x10,0x48,0x89,0x58,
-  0x18,0x48,0x89,0x70,0x28,0x48,0x8d,0x58,0x30,0x4d,0x85,0xe4,
-  0x74,0x30,0x4c,0x89,0xe9,0x4c,0x39,0xf1,0x49,0x0f,0x47,0xce,
-  0x49,0x0f,0xaf,0xcf,0x4c,0x89,0xe6,0x48,0x89,0xdf,0xf3,0xa4,
-  0x49,0x8d,0x7c,0x24,0xd0,0x49,0x8b,0x74,0x24,0xf8,0xb8,0x0b,
-  0x00,0x00,0x00,0x0f,0x05,0x48,0x85,0xc0,0x0f,0x85,0x03,0xff,
-  0xff,0xff,0x48,0x89,0xd8,0xeb,0x02,0x31,0xc0,0x41,0x5f,0x41,
-  0x5e,0x41,0x5d,0x41,0x5c,0x5b,0xc3]
+  0x05,0x0f,0x0b]
     for index: cast(s64)0..bytes.count - 1 { output[at + index] = bytes[index] }
 }
 
@@ -637,17 +647,20 @@ Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, outpu
     Put8(output, trap + 16, 0x0f); Put8(output, trap + 17, 0x05)
     Put8(output, trap + 18, 0x0f); Put8(output, trap + 19, 0x0b)
 
-    runtime := start + layout.runtime_text
-    WriteRuntime(output, runtime)
-    WriteFloatRuntime(output, runtime + 523)
-    runtime_address := cast(u64)(MachineElfBase + runtime)
-    // The source blob's three formatter calls are ordinary rel32 calls to the
+    console := start + layout.console_text
+    WriteConsole(output, console)
+    WriteFloatRuntime(output, start + layout.float_text)
+    console_address := cast(u64)(MachineElfBase + console)
+    // The console blob's three formatter calls are ordinary rel32 calls to its
     // write_all veneer. They stay position independent in the final image.
     call_fields: [3]s64 = .[0x61, 0xba, 0xf4]
     for field_offset: call_fields {
-        if !PutRelative(output, runtime + field_offset, runtime_address, -4,
-            cast(u64)(MachineElfBase + runtime + field_offset)) { return false }
+        if !PutRelative(output, console + field_offset, console_address, -4,
+            cast(u64)(MachineElfBase + console + field_offset)) { return false }
     }
+    routines: MachineX64RuntimeEntries
+    if !MachineX64RuntimeEmit(output, start + layout.routines_text, RuntimeUses(program),
+        RuntimePlaces(layout), *routines) || routines.end != layout.routines.end { return false }
 
     for relocation: image.relocations {
         target: u64 = 0
@@ -665,10 +678,10 @@ Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, outpu
             target = cast(u64)(MachineElfBase + MachineElfTextOffset + layout.trap_text)
         } else if relocation.kind == .PlatformService {
             service_offset: s64 = 0
-            if !PlatformOffset(program, relocation.symbol, *service_offset) { return false }
-            target = cast(u64)(MachineElfBase + MachineElfTextOffset + layout.runtime_text + service_offset)
+            if !PlatformOffset(program, layout, relocation.symbol, *service_offset) { return false }
+            target = cast(u64)(MachineElfBase + MachineElfTextOffset + service_offset)
         } else if relocation.kind == .RuntimeResize {
-            target = cast(u64)(MachineElfBase + MachineElfTextOffset + layout.runtime_text + MachineElfResizeOffset)
+            target = cast(u64)(MachineElfBase + layout.routines.resize)
         } else if relocation.kind == .StackLimit {
             target = stack_limit
         } else if relocation.kind == .PointerRuntime {

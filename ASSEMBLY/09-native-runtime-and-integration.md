@@ -26,6 +26,10 @@ initial Linux x86-64 console contract uses a static executable with its own
 `_start`, no libc/CRT/dynamic linker, `write` syscall 1 through a `write_all`
 loop that handles partial progress and `EINTR`, and `exit_group` syscall 231
 rather than syscall 60. That opt-in AOT slice is implemented and executed.
+Its resize runtime, emitted with the x86 encoder
+([`compiler_x86_runtime.zi`](../cmd/compiler_x86_runtime.zi)), recycles freed
+blocks through power-of-two size classes instead of mapping and unmapping each
+growth; a block over 1 MiB is its own mapping and grows by `mremap`.
 
 Native ZX loading on linux-x86_64 ([`zir_host_native.c`](../cmd/zir/zir_host_native.c))
 compiles the bundle's verified program with the same machine pipeline, copies

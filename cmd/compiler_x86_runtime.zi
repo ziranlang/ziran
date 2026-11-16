@@ -1,0 +1,384 @@
+using Bytes :: #import "compiler_x86_bytes"
+
+// Runtime routines a Linux x86-64 native ELF carries, emitted with the x86
+// encoder, each only when the program calls it. Positions are image file
+// offsets: text and data are mapped congruently, so a rip-relative field
+// reaches any runtime state through its file offset.
+//
+// Resize(rdi = data or null, rsi = old count, rdx = new count, rcx = element
+// size) -> rax: the new data, or null when freed or refused. A refused
+// request (an overflowing size, no memory) leaves the old block live. It
+// preserves rbx, rbp and r12-r15. Every block starts with a 32-byte header:
+// total bytes, free-list link, count and element size. A total up to
+// MachineX64RuntimeSmall is a power-of-two class carved from a chunk and
+// recycled through that class's free list, so steady growth and freeing do
+// not reach the kernel; a block that keeps its class keeps its place. A
+// larger block is its own mapping and grows or shrinks by mremap without a
+// copy. Bytes past the kept elements read as zero, as on the portable
+// engine: chunk and mapping bytes are fresh, and recycled bytes are cleared.
+
+MachineX64RuntimeSmall :: 1048576
+MachineX64RuntimeChunk :: 2097152
+MachineX64RuntimeHeader :: 32
+// Free-list heads for classes 0..20, then the chunk's top and limit.
+MachineX64RuntimeHeapTop :: 168
+MachineX64RuntimeHeapLimit :: 176
+MachineX64RuntimeHeapBytes :: 192
+
+// What the routines use, as image file offsets.
+MachineX64RuntimePlaces :: struct {
+    trap: s64
+    heap: s64
+}
+
+MachineX64RuntimeUses :: struct {
+    resize: bool
+}
+
+// Entry offsets of the emitted routines and the end of their code.
+MachineX64RuntimeEntries :: struct {
+    resize: s64
+    end: s64
+}
+
+#scope_file
+
+Rax :: 0
+Rcx :: 1
+Rdx :: 2
+Rbx :: 3
+Rbp :: 5
+Rsi :: 6
+Rdi :: 7
+R8 :: 8
+R9 :: 9
+R10 :: 10
+R11 :: 11
+R12 :: 12
+R13 :: 13
+R14 :: 14
+R15 :: 15
+TrapPointer :: 0xfffeffff
+TrapStorage :: 0xffff0007
+
+Label :: enum s32 {
+    Resize; CheckOld; Checked; Null; Done; Size; InPlace; Take; Bump; Carve; Fill; Kept; Cleared
+    Released; Large; Remapped; NewMapping; Release; Unmap; Map; Trap
+}
+LabelCount :: 21
+
+Emitter :: struct {
+    writer: X86Writer
+    places: MachineX64RuntimePlaces
+    // Positions the measuring pass recorded; writing starts where it did.
+    labels: [LabelCount]s64
+}
+
+Mark :: (emitter: *Emitter, label: Label) { emitter.labels[cast(s64)label] = emitter.writer.at }
+
+At :: (emitter: *Emitter, label: Label) -> s64 { return emitter.labels[cast(s64)label] }
+
+JumpIf :: (emitter: *Emitter, condition: s32, label: Label) {
+    X86JumpCondition32(*emitter.writer, condition, At(emitter, label))
+}
+
+Jump :: (emitter: *Emitter, label: Label) { X86Jump32(*emitter.writer, At(emitter, label)) }
+
+Call :: (emitter: *Emitter, label: Label) { X86Call32(*emitter.writer, At(emitter, label)) }
+
+Pop :: (writer: *X86Writer, register: s32) {
+    if register >= 8 { X86Byte(writer, 65) }
+    X86Byte(writer, cast(u8)(88 + (register & 7)))
+}
+
+Clear :: (writer: *X86Writer, register: s32) {
+    X86Encode(writer, 0, false, X86Xor, 1, register, X86Direct(register))
+}
+
+Syscall :: (writer: *X86Writer, number: u64) {
+    X86MoveImmediate32(writer, Rax, number)
+    X86Byte(writer, 15); X86Byte(writer, 5)
+}
+
+// A system call result above -4096 is an error.
+JumpIfFailed :: (emitter: *Emitter, label: Label) {
+    X86CompareImmediate(*emitter.writer, Rax, -4096)
+    JumpIf(emitter, X86Above, label)
+}
+
+// cmp [BASE + DISPLACEMENT], REGISTER.
+CompareAt :: (writer: *X86Writer, base: s32, displacement: s64, register: s32) {
+    X86Encode(writer, 0, true, X86Compare, 1, register, X86At(base, displacement))
+}
+
+// cmova DESTINATION, SOURCE after `cmp destination, source`: the smaller.
+Smaller :: (writer: *X86Writer, destination: s32, source: s32) {
+    X86Arithmetic(writer, X86Compare, destination, source)
+    X86Encode(writer, 0, true, 0x0f47, 2, destination, X86Direct(source))
+}
+
+Heap :: (emitter: *Emitter, register: s32) {
+    X86Lea(*emitter.writer, register, X86RipTarget(emitter.places.heap))
+}
+
+// rcx = old count * element size, the bytes the old block holds.
+OldBytes :: (writer: *X86Writer) {
+    X86Move(writer, Rcx, R13)
+    X86Multiply(writer, Rcx, R15)
+}
+
+// Clears bytes [rcx, LIMIT) of the data, rdi pointing at byte rcx.
+ClearTo :: (emitter: *Emitter, limit: s32, skip: Label) {
+    writer := *emitter.writer
+    X86Arithmetic(writer, X86Compare, Rcx, limit)
+    JumpIf(emitter, X86AboveEqual, skip)
+    X86Group3(writer, 3, Rcx)
+    X86Arithmetic(writer, X86Add, Rcx, limit)
+    Clear(writer, Rax)
+    X86Byte(writer, 243); X86Byte(writer, 170)
+    Mark(emitter, skip)
+}
+
+// r8 = the offset of class rcx's free-list head.
+ListOffset :: (writer: *X86Writer) {
+    X86Move(writer, R8, Rcx)
+    X86ShiftImmediate(writer, 4, R8, 3)
+}
+
+// The block header at r10: total rbp, count r14, element size r15.
+Header :: (writer: *X86Writer) {
+    X86Store(writer, X86At(R10, 0), Rbp, 8)
+    X86Store(writer, X86At(R10, 16), R14, 8)
+    X86Store(writer, X86At(R10, 24), R15, 8)
+}
+
+EmitResize :: (emitter: *Emitter) {
+    writer := *emitter.writer
+    saved: [6]s32 = .[Rbx, Rbp, R12, R13, R14, R15]
+    Mark(emitter, .Resize)
+    for register: saved { X86Push(writer, register) }
+    X86Move(writer, R12, Rdi)
+    X86Move(writer, R13, Rsi)
+    X86Move(writer, R14, Rdx)
+    X86Move(writer, R15, Rcx)
+    // Null has no elements; any other block must be the one its count and
+    // element size describe.
+    X86Arithmetic(writer, X86Test, R12, R12)
+    JumpIf(emitter, X86NotEqual, .CheckOld)
+    X86Arithmetic(writer, X86Test, R13, R13)
+    JumpIf(emitter, X86NotEqual, .Trap)
+    Jump(emitter, .Checked)
+    Mark(emitter, .CheckOld)
+    CompareAt(writer, R12, -16, R13)
+    JumpIf(emitter, X86NotEqual, .Trap)
+    CompareAt(writer, R12, -8, R15)
+    JumpIf(emitter, X86NotEqual, .Trap)
+    Mark(emitter, .Checked)
+    X86Arithmetic(writer, X86Test, R14, R14)
+    JumpIf(emitter, X86NotEqual, .Size)
+    X86Arithmetic(writer, X86Test, R12, R12)
+    JumpIf(emitter, X86Equal, .Null)
+    X86Move(writer, Rdi, R12)
+    Call(emitter, .Release)
+    Mark(emitter, .Null)
+    Clear(writer, Rax)
+    Mark(emitter, .Done)
+    index := saved.count - 1
+    while index >= 0 { Pop(writer, saved[index]); index -= 1 }
+    X86Return(writer)
+
+    // rbx = the new byte count; an overflowing product is refused.
+    Mark(emitter, .Size)
+    X86Move(writer, Rax, R14)
+    X86Group3(writer, 4, R15)
+    JumpIf(emitter, X86Below, .Null)
+    X86Move(writer, Rbx, Rax)
+    X86MoveImmediate32(writer, Rax, MachineX64RuntimeSmall - MachineX64RuntimeHeader)
+    X86Arithmetic(writer, X86Compare, Rbx, Rax)
+    JumpIf(emitter, X86Above, .Large)
+
+    // Small: class k = max(6, bit length of total - 1), rbp = 1 << k.
+    X86Lea(writer, Rcx, X86At(Rbx, MachineX64RuntimeHeader - 1))
+    X86Encode(writer, 0, true, 0x0fbd, 2, Rcx, X86Direct(Rcx))
+    X86Encode(writer, 0, false, 255, 1, 0, X86Direct(Rcx))
+    X86MoveImmediate32(writer, Rax, 6)
+    X86Encode(writer, 0, false, X86Compare, 1, Rax, X86Direct(Rcx))
+    X86Encode(writer, 0, false, 0x0f42, 2, Rcx, X86Direct(Rax))
+    X86MoveImmediate32(writer, Rbp, 1)
+    X86ShiftCl(writer, 4, Rbp)
+    X86Arithmetic(writer, X86Test, R12, R12)
+    JumpIf(emitter, X86Equal, .Take)
+    CompareAt(writer, R12, -32, Rbp)
+    JumpIf(emitter, X86NotEqual, .Take)
+    // Same class: the block stays; growth clears the bytes it exposes.
+    X86Store(writer, X86At(R12, -16), R14, 8)
+    OldBytes(writer)
+    X86Lea(writer, Rdi, X86Indexed(R12, Rcx, 0))
+    ClearTo(emitter, Rbx, .InPlace)
+    X86Move(writer, Rax, R12)
+    Jump(emitter, .Done)
+
+    // A recycled block of class k (r11 = 1: clear it), else rbp bytes
+    // carved from the chunk, a new chunk when it has too few left.
+    Mark(emitter, .Take)
+    Heap(emitter, R9)
+    ListOffset(writer)
+    X86Load(writer, R10, X86Indexed(R9, R8, 0), 8, false)
+    X86Arithmetic(writer, X86Test, R10, R10)
+    JumpIf(emitter, X86Equal, .Bump)
+    X86Load(writer, Rax, X86At(R10, 8), 8, false)
+    X86Store(writer, X86Indexed(R9, R8, 0), Rax, 8)
+    X86MoveImmediate32(writer, R11, 1)
+    Jump(emitter, .Fill)
+    Mark(emitter, .Bump)
+    X86Load(writer, R10, X86At(R9, MachineX64RuntimeHeapTop), 8, false)
+    X86Load(writer, Rax, X86At(R9, MachineX64RuntimeHeapLimit), 8, false)
+    X86Arithmetic(writer, X86Subtract, Rax, R10)
+    X86Arithmetic(writer, X86Compare, Rax, Rbp)
+    JumpIf(emitter, X86AboveEqual, .Carve)
+    X86MoveImmediate32(writer, Rsi, MachineX64RuntimeChunk)
+    Call(emitter, .Map)
+    JumpIfFailed(emitter, .Null)
+    Heap(emitter, R9)
+    X86Move(writer, R10, Rax)
+    X86Lea(writer, Rax, X86At(Rax, MachineX64RuntimeChunk))
+    X86Store(writer, X86At(R9, MachineX64RuntimeHeapLimit), Rax, 8)
+    Mark(emitter, .Carve)
+    X86Lea(writer, Rax, X86Indexed(R10, Rbp, 0))
+    X86Store(writer, X86At(R9, MachineX64RuntimeHeapTop), Rax, 8)
+    Clear(writer, R11)
+
+    // r10 = the new block, rbp its total, r11 whether to clear it: keep the
+    // old elements that fit, clear the rest, then give the old block back.
+    Mark(emitter, .Fill)
+    Header(writer)
+    X86Lea(writer, Rdi, X86At(R10, MachineX64RuntimeHeader))
+    Clear(writer, Rcx)
+    X86Arithmetic(writer, X86Test, R12, R12)
+    JumpIf(emitter, X86Equal, .Kept)
+    OldBytes(writer)
+    Smaller(writer, Rcx, Rbx)
+    X86Move(writer, Rdx, Rcx)
+    X86Move(writer, Rsi, R12)
+    X86Byte(writer, 243); X86Byte(writer, 164)
+    X86Move(writer, Rcx, Rdx)
+    Mark(emitter, .Kept)
+    X86Arithmetic(writer, X86Test, R11, R11)
+    JumpIf(emitter, X86Equal, .Cleared)
+    ClearTo(emitter, Rbx, .Cleared)
+    X86Arithmetic(writer, X86Test, R12, R12)
+    JumpIf(emitter, X86Equal, .Released)
+    X86Push(writer, R10)
+    X86Push(writer, R10)
+    X86Move(writer, Rdi, R12)
+    Call(emitter, .Release)
+    Pop(writer, R10)
+    Pop(writer, R10)
+    Mark(emitter, .Released)
+    X86Lea(writer, Rax, X86At(R10, MachineX64RuntimeHeader))
+    Jump(emitter, .Done)
+
+    // Large: rbp = page-rounded total. A large block remaps; a null or
+    // small one moves into a new mapping, whose bytes are already zero.
+    Mark(emitter, .Large)
+    X86MoveImmediate(writer, Rax, 0x400000000000)
+    X86Arithmetic(writer, X86Compare, Rbx, Rax)
+    JumpIf(emitter, X86AboveEqual, .Null)
+    X86Lea(writer, Rbp, X86At(Rbx, MachineX64RuntimeHeader + 4095))
+    X86Encode(writer, 0, true, 129, 1, 4, X86Direct(Rbp), trailing = 4)
+    X86Signed32(writer, -4096)
+    X86Arithmetic(writer, X86Test, R12, R12)
+    JumpIf(emitter, X86Equal, .NewMapping)
+    X86Load(writer, Rsi, X86At(R12, -32), 8, false)
+    X86MoveImmediate32(writer, Rax, MachineX64RuntimeSmall)
+    X86Arithmetic(writer, X86Compare, Rsi, Rax)
+    JumpIf(emitter, X86BelowEqual, .NewMapping)
+    X86Lea(writer, Rdi, X86At(R12, -MachineX64RuntimeHeader))
+    X86Move(writer, Rdx, Rbp)
+    X86MoveImmediate32(writer, R10, 1)
+    Syscall(writer, 25)
+    JumpIfFailed(emitter, .Null)
+    X86Move(writer, R10, Rax)
+    Header(writer)
+    // Bytes the old mapping held past the old count may be stale: clear
+    // them up to the smaller of the new count and the old mapping's end.
+    OldBytes(writer)
+    X86Lea(writer, Rdi, X86Indexed(R10, Rcx, MachineX64RuntimeHeader))
+    X86Lea(writer, Rdx, X86At(Rsi, -MachineX64RuntimeHeader))
+    Smaller(writer, Rdx, Rbx)
+    ClearTo(emitter, Rdx, .Remapped)
+    X86Lea(writer, Rax, X86At(R10, MachineX64RuntimeHeader))
+    Jump(emitter, .Done)
+    Mark(emitter, .NewMapping)
+    X86Move(writer, Rsi, Rbp)
+    Call(emitter, .Map)
+    JumpIfFailed(emitter, .Null)
+    X86Move(writer, R10, Rax)
+    Clear(writer, R11)
+    Jump(emitter, .Fill)
+
+    // Release(rdi = data): a small block joins its class's free list; a
+    // large one is unmapped.
+    Mark(emitter, .Release)
+    X86Load(writer, Rsi, X86At(Rdi, -32), 8, false)
+    X86MoveImmediate32(writer, Rax, MachineX64RuntimeSmall)
+    X86Arithmetic(writer, X86Compare, Rsi, Rax)
+    JumpIf(emitter, X86Above, .Unmap)
+    X86Encode(writer, 0, true, 0x0fbd, 2, Rcx, X86Direct(Rsi))
+    Heap(emitter, R9)
+    ListOffset(writer)
+    X86Load(writer, Rax, X86Indexed(R9, R8, 0), 8, false)
+    X86Store(writer, X86At(Rdi, -24), Rax, 8)
+    X86Lea(writer, Rax, X86At(Rdi, -MachineX64RuntimeHeader))
+    X86Store(writer, X86Indexed(R9, R8, 0), Rax, 8)
+    X86Return(writer)
+    Mark(emitter, .Unmap)
+    X86Lea(writer, Rdi, X86At(Rdi, -MachineX64RuntimeHeader))
+    Syscall(writer, 11)
+    X86Arithmetic(writer, X86Test, Rax, Rax)
+    X86JumpCondition8(writer, X86NotEqual, 1)
+    X86Return(writer)
+    X86MoveImmediate32(writer, Rdi, TrapStorage)
+    X86Call32(writer, emitter.places.trap)
+    X86Undefined(writer)
+
+    // Map(rsi = bytes) -> rax: fresh private zero pages, or an error.
+    Mark(emitter, .Map)
+    Clear(writer, Rdi)
+    X86MoveImmediate32(writer, Rdx, 3)
+    X86MoveImmediate32(writer, R10, 34)
+    X86MoveImmediate(writer, R8, 0xffffffffffffffff)
+    Clear(writer, R9)
+    Syscall(writer, 9)
+    X86Return(writer)
+
+    Mark(emitter, .Trap)
+    X86MoveImmediate32(writer, Rdi, TrapPointer)
+    X86Call32(writer, emitter.places.trap)
+    X86Undefined(writer)
+}
+
+Emit :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
+    if uses.resize { EmitResize(emitter) }
+}
+
+#scope_export
+
+// Measures, then with a non-empty OUTPUT writes, the routines USES names at
+// file offset AT. Writing reproduces the measured positions exactly.
+MachineX64RuntimeEmit :: (output: []u8, at: s64, uses: MachineX64RuntimeUses,
+    places: MachineX64RuntimePlaces, entries: *MachineX64RuntimeEntries) -> bool {
+    // One recorded position per label.
+    if cast(s64)Label.Trap + 1 != LabelCount { return false }
+    measure: Emitter
+    measure.writer = .{at = at, limit = 9223372036854775807}
+    measure.places = places
+    Emit(*measure, uses)
+    if measure.writer.failed { return false }
+    <<entries = .{resize = measure.labels[cast(s64)Label.Resize], end = measure.writer.at}
+    if output.count == 0 { return true }
+    write := measure
+    write.writer = .{output = output, at = at, limit = output.count}
+    Emit(*write, uses)
+    return !write.writer.failed && write.writer.at == measure.writer.at
+}

@@ -1768,10 +1768,12 @@ PointerEntry :: (state: *State) {
     X86Encode(*state.writer, 0, true, 3, 1, PointerScratch, X86At(X86R11, MachinePointerHeaderTable))
 }
 
-// PointerResolve raw, token, width, r10, flags: checks the slot, version,
+// PointerResolve raw, token, width, r10, flags: checks the version,
 // liveness (and writability for flag 1) and offset + width <= size, then
-// raw = base + offset. Slot 0 is a live empty entry, so null resolves only
-// for zero width.
+// raw = base + offset. A token's slot bits name an entry of the table in
+// every runtime, which maps all MachinePointerCapacity + 1 of them and never
+// makes the last one live, so the slot itself needs no bound check. Slot 0
+// is a live empty entry, so null resolves only for zero width.
 PointerResolve :: (state: *State) -> bool {
     if !Count(state, 5) { return false }
     destination := Register(state, 0, .Define)
@@ -1789,25 +1791,22 @@ PointerResolve :: (state: *State) -> bool {
     PointerHeader(state)
     X86Move(writer, PointerScratch, token)
     X86ShiftImmediate(writer, 5, PointerScratch, MachinePointerSlotShift)
-    X86Encode(writer, 0, true, 59, 1, PointerScratch, X86At(X86R11, MachinePointerHeaderCapacity))
-    TrapUnless(state, X86Below, MachineX64TrapPointer)
     PointerEntry(state)
-    // r11 = version bits of the token; compare with the entry's version.
+    // The entry's version and flags word, xor the token's version and the
+    // flags the access needs, is zero in every bit that matters.
+    required: u64 = MachinePointerLive
+    if (flags.immediate & 1) != 0 { required = MachinePointerLive | MachinePointerWritable }
+    required = required << cast(u64)((MachinePointerEntryFlags - MachinePointerEntryVersion) * 8)
     X86Move(writer, X86R11, token)
     X86ShiftImmediate(writer, 5, X86R11, MachinePointerVersionShift)
     X86Encode(writer, 0, false, 0x81, 1, 4, X86Direct(X86R11))
     X86Little(writer, MachinePointerVersionMask, 4)
-    X86Encode(writer, 102, false, 59, 1, X86R11, X86At(PointerScratch, MachinePointerEntryVersion))
+    X86Encode(writer, 0, false, 0x81, 1, 1, X86Direct(X86R11))
+    X86Little(writer, required, 4)
+    X86Encode(writer, 0, false, 0x33, 1, X86R11, X86At(PointerScratch, MachinePointerEntryVersion))
+    X86Encode(writer, 0, false, 0xf7, 1, 0, X86Direct(X86R11))
+    X86Little(writer, 0xffff | required, 4)
     TrapUnless(state, X86Equal, MachineX64TrapPointer)
-    required: u64 = MachinePointerLive
-    if (flags.immediate & 1) != 0 { required = MachinePointerLive | MachinePointerWritable }
-    for bit: 0..1 {
-        mask := cast(u64)1 << cast(u64)bit
-        if (required & mask) == 0 { continue }
-        X86Encode(writer, 0, false, 0xf6, 1, 0, X86At(PointerScratch, MachinePointerEntryFlags))
-        X86Byte(writer, cast(u8)mask)
-        TrapUnless(state, X86NotEqual, MachineX64TrapPointer)
-    }
     // r11 = offset + width, at most the entry's size.
     X86Load(writer, X86R11, X86Direct(token), 4, false)
     if width.kind == .Immediate {

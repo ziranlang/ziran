@@ -236,6 +236,25 @@ compile_native "$work/float-print" "$work" float_print_gap:Answer "$work/float_p
 "$work/float-print" > "$work/float-print.out"
 printf '0.1\n' | cmp - "$work/float-print.out"
 
+# Growth moves a vector through recycled heap blocks. An element pointer
+# taken before the growth traps even after another vector reuses its block.
+cat > "$work/stale.zi" <<'ZI'
+#import "vec"
+#program_export
+Answer :: () -> s32 {
+    values: Vec(s64)
+    VecPush(values, 1)
+    first := *values[0]
+    for i: 0..99 { VecPush(values, cast(s64)i) }
+    other: Vec(s64)
+    VecPush(other, 5)
+    return cast(s32)<<first
+}
+ZI
+"$zi2zx" --root "$work" --module-path "$repo/std" --entry stale:Answer -o "$work/stale.zx" "$work/stale.zi"
+"$zx2native" -o "$work/stale-elf" "$work/stale.zx"
+run_status "$work/stale-elf" 125
+
 # The native path also rejects an arbitrary host capability with its
 # stable platform-service diagnostic and leaves an existing output untouched.
 cat > "$work/native_host_gap.zi" <<'ZI'

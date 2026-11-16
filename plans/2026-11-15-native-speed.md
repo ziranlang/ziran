@@ -383,6 +383,50 @@ outside fix 1: each compare becomes `cmp; setcc; movzx; test; jcc`, constants
 are moved into registers before use, jumps to the next block remain, and the
 per-iteration fuel decrement in memory stays enforced. Those belong to fix 6.
 
+## Status: fix 2 for Vectors (2026-11-15, Omega)
+
+Implemented in the new `cmd/compiler_x86_runtime.zi` (the ELF's runtime
+routines, emitted with the x86 encoder; the resize part of the old byte blob
+is gone), `cmd/compiler_machine_elf.zi` (layout: the routines a program calls,
+the heap state after the frame arena) and `cmd/compiler_x86_64.zi`
+(`PointerResolve`).
+
+- Resize: blocks carry a 32-byte header (total, free-list link, count,
+  element size). Totals up to 1 MiB are power-of-two classes carved from
+  2 MiB chunks and recycled through one free list per class; a block that
+  keeps its class stays in place. Larger blocks are their own mappings and
+  grow or shrink with `mremap`. Bytes past the kept elements read zero: chunk
+  and mapping bytes are fresh, recycled ones are cleared (`New(T)` relies on
+  it). Refusal (overflow, no memory) still leaves the old block live, and the
+  slot sequence in `Resize`/`ResizeSlots` is unchanged, so every successful
+  resize retires the old token even when the address stays.
+- Resolve: the slot bound check is gone (the ELF and the in-process loader map
+  all `MachinePointerCapacity + 1` entries and `CreateSlot` never makes the
+  last one live); version, liveness and writability are one xor and test.
+  This also speeds the zx engine, which runs the same code.
+
+Receipts: `bench/results/wasm-tier-omega-2026-11-15-speed-before.json` (HEAD
+c9b088cb, load 8.94/12.03) and `...-speed-vectors.json` (this change, load
+8.83/11.70), 11 samples on Omega. µs per call:
+
+| Vectors | C | zx engine | native | Wasm |
+| --- | ---: | ---: | ---: | ---: |
+| before | 13.14 | 81.43 | 379.87 | 27.71 |
+| after | 13.72 | 64.46 | 69.27 | 28.64 |
+
+Startup-free (1024 calls per process) the kernel went from 353 to 58 µs. The
+1.5× C target is not met. SIGPROF samples of the 58 µs build: 49% push loop,
+37% sum loop, 12% resize and the runtime. Per element the push path still runs
+about 55 instructions against C's five: the checked resolve of the element
+address (19), two `cmp; setcc; movzx; test; jcc` compare materializations
+(fix 6, the records-aggregate lane), the index check `count < count + 1`, the
+Vec header kept in its frame slot (load data and count, store count back) and
+the fuel decrement. The sum loop resolves every element too. What remains in
+this lane's reach: resolving a loop-invariant vector view once before a loop
+with no call or resize (needs a verifier-visible view instruction) and
+dropping fuel sites when an ELF's budget is unbounded (measured 1-12% per
+kernel by patching them out).
+
 ## Document verification and publication
 
 Only this document is in scope for writes. Static inspection used receipt hash

@@ -3,6 +3,9 @@
 // capacity and drops what it removes, growing again inside the capacity gives
 // zeros rather than the old elements, and a negative request changes nothing.
 // VecResizeBounded also refuses a count or a held capacity above its maximum.
+// Churn and Large drive the native heap: repeated growth through every
+// small class and past the small-block limit, freeing and reuse, keep every
+// element, and recycled storage reads as zero.
 #import "vec"
 
 Row :: struct {
@@ -14,7 +17,50 @@ Grow :: (values: *Vec(s64), count: s64) -> bool {
     return VecResize(values.*, count)
 }
 
+Cells :: struct { cells: [12]s64 }
+
+// Rounds of growth, shrinking, regrowth and freeing that reuse each other's
+// blocks; New after a freed dirty block of its size still reads zero.
+Churn :: () -> s64 {
+    total: s64
+    for round: 0..5 {
+        values: Vec(s64)
+        for i: 0..999 { VecPush(values, i * (round + 1)) }
+        for i: 0..999 { total += values[i] }
+        unused VecResize(values, 10)
+        unused VecResize(values, 2000)
+        for i: 10..1999 { total += values[i] * 1000 }
+        total += values[9]
+        VecFree(values)
+        small: Vec(s64)
+        for i: 0..9 { VecPush(small, 99) }
+        VecFree(small)
+        boxed := New(Cells)
+        for i: 0..11 { total += boxed.cells[i] * 100000 }
+        boxed.cells[11] = 5
+        free(boxed)
+    }
+    return total
+}
+
+// A vector past the small-block limit grows in place of its mapping, keeps
+// its elements and reads zero where it regrows.
+Large :: () -> s64 {
+    values: Vec(s64)
+    for i: 0..299999 { VecPush(values, i) }
+    total: s64
+    for i: 0..299999 { total += values[i] }
+    unused VecResize(values, 5)
+    unused VecResize(values, 700000)
+    for i: 5..699999 { total += values[i] * 7 }
+    values[699999] = 3
+    total += values[4] + values[699999]
+    VecFree(values)
+    return total
+}
+
 main :: () -> s32 {
+    print("heap % %\n", Churn(), Large())
     values: Vec(s64)
     a := VecResize(values, 4)
     first := values.capacity

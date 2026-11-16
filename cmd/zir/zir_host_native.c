@@ -174,6 +174,10 @@ struct NativeInstance {
     void *entry;
     int has_result;
     int terminal;
+    /* Built with --checks: pointers are tokens of the slot table. */
+    int checked;
+    /* The read-only constants beside the code. */
+    unsigned char *constants;
     /* Steps as the engine counts them: a limit from instantiation is one
      * allowance for initializers and every run (cumulative); a limit set
      * later bounds each run on its own. 0 is unbounded. */
@@ -1252,41 +1256,55 @@ native_create(void *context, const void *address, size_t bytes)
     return (slot << MachinePointerSlotShift) | ((uint64_t)slots[slot].version << MachinePointerVersionShift);
 }
 
-/* The header, slot 0 (live and empty at address 0) and a slot per global. */
-static int
-native_pointers_open(NativeInstance *instance, MachineImage image, const unsigned char *constants)
+/* Global AT's bytes: a writable global in the instance's data, a read-only
+ * one in the constants beside the code. NULL when the image has no place
+ * for it. */
+static unsigned char *
+native_global_bytes(const NativeInstance *instance, MachineImage image, int64_t at)
 {
-    size_t table = (size_t)(MachinePointerCapacity + 1) * MachinePointerEntryBytes;
+    const int64_t *offsets = instance->code->globals[at].writable ?
+        image.global_offsets.data : image.constant_offsets.data;
+    int64_t length = instance->code->globals[at].writable ?
+        image.global_offsets.length : image.constant_offsets.length;
+    if(at >= length || offsets[at] < 0) return NULL;
+    unsigned char *base = instance->code->globals[at].writable ? instance->data : instance->constants;
+    return base + offsets[at];
+}
+
+/* The header and frame arena; with --checks also slot 0 (live and empty at
+ * address 0), a slot per global, and the host bridge's token resolver.
+ * Without it a pointer is the address and hosts take it as it is. */
+static int
+native_pointers_open(NativeInstance *instance, MachineImage image, unsigned char *constants)
+{
+    instance->checked = ((const LirProgram *)ExecBundleProgram(instance->bundle))->checks;
+    instance->constants = constants;
+    size_t table = instance->checked ? (size_t)(MachinePointerCapacity + 1) * MachinePointerEntryBytes : 0;
     if(!ZirNativeReserve(table + MachinePointerArenaBytes, &instance->pointers)) return 0;
     instance->pointer_header = instance->data + image.pointer_offset;
     unsigned char *base = instance->pointers.address;
-    const NativeCacheGlobal *globals = instance->code->globals;
-    int64_t global_count = instance->code->global_count;
-    int64_t *global_offsets = image.global_offsets.data;
-    int64_t *constant_offsets = image.constant_offsets.data;
-    if(global_count + 1 >= MachinePointerCapacity) return 0;
-    native_set_header(instance, MachinePointerHeaderFree, 0);
-    native_set_header(instance, MachinePointerHeaderUnused, (uint64_t)global_count + 1);
-    native_set_header(instance, MachinePointerHeaderCapacity, MachinePointerCapacity);
     native_set_header(instance, MachinePointerHeaderArenaTop, (uint64_t)(uintptr_t)(base + table));
     native_set_header(instance, MachinePointerHeaderArenaLimit,
                       (uint64_t)(uintptr_t)(base + table + MachinePointerArenaBytes));
+    int64_t global_count = instance->code->global_count;
+    if(global_count + 1 >= MachinePointerCapacity) return 0;
+    for(int64_t at = 0; at < global_count; at++) {
+        if(native_global_bytes(instance, image, at) == NULL) return 0;
+        instance->global_bytes += (size_t)instance->code->globals[at].size;
+    }
+    if(!instance->checked) return 1;
+    native_set_header(instance, MachinePointerHeaderFree, 0);
+    native_set_header(instance, MachinePointerHeaderUnused, (uint64_t)global_count + 1);
+    native_set_header(instance, MachinePointerHeaderCapacity, MachinePointerCapacity);
     native_set_header(instance, MachinePointerHeaderTable, (uint64_t)(uintptr_t)base);
     NativeSlot *slots = native_slots(instance);
     slots[0].flags = MachinePointerLive;
     for(int64_t at = 0; at < global_count; at++) {
         NativeSlot *entry = &slots[at + 1];
-        if(globals[at].writable) {
-            if(at >= image.global_offsets.length || global_offsets[at] < 0) return 0;
-            entry->base = (uint64_t)(uintptr_t)(instance->data + global_offsets[at]);
-            entry->flags = MachinePointerLive | MachinePointerWritable;
-        } else {
-            if(at >= image.constant_offsets.length || constant_offsets[at] < 0) return 0;
-            entry->base = (uint64_t)(uintptr_t)(constants + constant_offsets[at]);
-            entry->flags = MachinePointerLive;
-        }
-        entry->size = (uint64_t)globals[at].size;
-        instance->global_bytes += (size_t)entry->size;
+        entry->base = (uint64_t)(uintptr_t)native_global_bytes(instance, image, at);
+        entry->flags = instance->code->globals[at].writable ?
+            MachinePointerLive | MachinePointerWritable : MachinePointerLive;
+        entry->size = (uint64_t)instance->code->globals[at].size;
     }
     ExecHostsNativePointers(instance->hosts, native_resolve, native_create, instance);
     return 1;
@@ -1606,6 +1624,7 @@ native_state_bytes(NativeInstance *instance, size_t index, const char **module, 
     if(!ExecBundleStateAt(instance->bundle, index, module, name, type, &global) ||
        global < 0 || (uint64_t)global + 1 >= MachinePointerCapacity)
         return NULL;
+    if(!instance->checked) return native_global_bytes(instance, instance->code->image, global);
     return (unsigned char *)(uintptr_t)native_slots(instance)[global + 1].base;
 }
 

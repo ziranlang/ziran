@@ -554,7 +554,7 @@ InPrologue :: (program: MachineProgram, image: MachineX64Image, offset: s64) -> 
         function := image.functions[function_id]
         if offset >= function.begin && offset + 4 <= function.body {
             return MachineX64StackChecked(program, cast(s32)function_id) ||
-                program.functions[function_id].pointer_chain != 0 || program.functions[function_id].fuel_register
+                program.functions[function_id].arena_mark != 0 || program.functions[function_id].fuel_register
         }
     }
     return false

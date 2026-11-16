@@ -13,7 +13,7 @@ for form in source saved; do
     input=tests/spec/json_string_scan_test.zi
     if test "$form" = saved; then input="$work/ir/json_string_scan_test.zir"; fi
     output="$work/$form-c"
-    "$ziran" build --target=c --root tests/spec --module-path std -o "$output" "$input"
+    "$ziran" build --target=c --checks --root tests/spec --module-path std -o "$output" "$input"
     printf '%s\n' '#include "json_string_scan_test.h"' 'int main(void) { return NativeMain(); }' > "$output/entry.c"
     for compiler in cc clang; do
         command -v "$compiler" >/dev/null || continue
@@ -25,7 +25,7 @@ for form in source saved; do
     "$ziran" bundle --root tests/spec --module-path std --entry json_string_scan_test:SelfTest -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
     output="$work/$form-go"
-    "$ziran" build --target=go --pkg main --root tests/spec --module-path std -o "$output" "$input"
+    "$ziran" build --target=go --checks --pkg main --root tests/spec --module-path std -o "$output" "$input"
     printf '%s\n' 'package main' 'func main() { if JsonStringScanTest_NativeMain() != 0 { panic("JSON SIMD string scan differs") } }' > "$output/main.go"
     GO111MODULE=off GOMAXPROCS=2 GOFLAGS=-p=2 go run "$output"/*.go
     for name in InvalidNegative InvalidEnd InvalidLowEnd InvalidWideEnd; do
@@ -36,7 +36,7 @@ for form in source saved; do
         printf '%s\n' 'package main' "func main() { JsonStringScanTest_$name() }" > "$output/main.go"
         if GO111MODULE=off GOMAXPROCS=2 GOFLAGS=-p=2 go run "$output"/*.go > "$work/bounds.log" 2>&1; then echo 'Go string SIMD bounds not enforced'; exit 1; fi
         grep -q 'SIMD access .*out of bounds' "$work/bounds.log"
-        "$ziran" bundle --root tests/spec --module-path std --entry "json_string_scan_test:$name" -o "$work/bounds.zx" "$input"
+        "$ziran" bundle --checks --root tests/spec --module-path std --entry "json_string_scan_test:$name" -o "$work/bounds.zx" "$input"
         if "$ziran" run "$work/bounds.zx" > "$work/bounds.log" 2>&1; then echo 'bundle string SIMD bounds not enforced'; exit 1; fi
         grep -q 'out of bounds' "$work/bounds.log"
     done

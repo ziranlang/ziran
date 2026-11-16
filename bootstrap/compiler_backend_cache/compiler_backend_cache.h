@@ -429,7 +429,7 @@ compiler_backend_cache_FileFind_ziran_inline(BuildCache* cache, String path, boo
             int64_t range_last_1 = (int64_t)((uint64_t)(cache->candidates.count) - UINT64_C(1));
             int64_t index = range_first_1;
             if (index <= range_last_1) for (;;) {
-                if (StringEqual((ZIRAN_VEC_INDEX((cache->candidates).data, (cache->candidates).count, index)).path, path)) {
+                if (StringEqual(((cache->candidates).data[index]).path, path)) {
                     return index;
                 }
                 if (index == range_last_1) {
@@ -444,7 +444,7 @@ compiler_backend_cache_FileFind_ziran_inline(BuildCache* cache, String path, boo
             int64_t range_last_8 = (int64_t)((uint64_t)(cache->files.count) - UINT64_C(1));
             int64_t index = range_first_8;
             if (index <= range_last_8) for (;;) {
-                if (StringEqual((ZIRAN_VEC_INDEX((cache->files).data, (cache->files).count, index)).path, path)) {
+                if (StringEqual(((cache->files).data[index]).path, path)) {
                     return index;
                 }
                 if (index == range_last_8) {
@@ -520,14 +520,13 @@ compiler_backend_cache_ReadInteger_ziran_inline(Slice bytes, int64_t* offset, ui
     }
     uint32_t value = 0;
     for (int64_t index = 0LL; index <= 3LL; index++) {
-        uint8_t value_2 = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)((int64_t)((uint64_t)(*(offset)) + (uint64_t)index)))];
-        uint32_t value_3 = ZiShl32((uint32_t)(value_2), (uint64_t)((uint32_t)(((int64_t)(UINT64_C(8) * (uint64_t)index)))), 32);
-        value = (uint32_t)((uint32_t)value | (uint32_t)value_3);
+        uint32_t value_2 = ZiShl32((uint32_t)(((uint8_t *)bytes.data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))]), (uint64_t)((uint32_t)(((int64_t)(UINT64_C(8) * (uint64_t)index)))), 32);
+        value = (uint32_t)((uint32_t)value | (uint32_t)value_2);
     }
-    int64_t* value_4 = &((*(offset)));
-    (*value_4) = (int64_t)((uint64_t)((*value_4)) + UINT64_C(4));
-    uint32_t* value_5 = &((*(output)));
-    (*value_5) = value;
+    int64_t* value_3 = &((*(offset)));
+    (*value_3) = (int64_t)((uint64_t)((*value_3)) + UINT64_C(4));
+    uint32_t* value_4 = &((*(output)));
+    (*value_4) = value;
     return true;
 }
 
@@ -541,11 +540,10 @@ compiler_backend_cache_ReadDigest_ziran_inline(Slice bytes, int64_t* offset, Dig
     }
     for (int64_t index = 0LL; index <= 31LL; index++) {
         uint8_t* value_2 = &(output->bytes[index]);
-        uint8_t value_3 = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)((int64_t)((uint64_t)(*(offset)) + (uint64_t)index)))];
-        (*value_2) = value_3;
+        (*value_2) = ((uint8_t *)bytes.data)[((int64_t)((uint64_t)(*(offset)) + (uint64_t)index))];
     }
-    int64_t* value_4 = &((*(offset)));
-    (*value_4) = (int64_t)((uint64_t)((*value_4)) + UINT64_C(32));
+    int64_t* value_3 = &((*(offset)));
+    (*value_3) = (int64_t)((uint64_t)((*value_3)) + UINT64_C(32));
     return true;
 }
 

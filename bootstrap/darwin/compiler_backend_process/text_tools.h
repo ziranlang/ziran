@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "zir_slice.h"
 #include "vec.h"
 
@@ -69,7 +68,6 @@ Text text_tools_TextHex(Slice bytes);
 #include "zir_vec.h"
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 static inline int64_t text_tools_TextFind_ziran_inline(String text, String needle, int64_t from);
 #define text_tools_TextFind(...) text_tools_TextFind_ziran_inline(__VA_ARGS__)
 static inline int64_t text_tools_TextFindLast_ziran_inline(String text, String needle);
@@ -95,7 +93,7 @@ text_tools_TextFind_ziran_inline(String text, String needle, int64_t from)
     int64_t at = from;
     while (at <= last) {
         int64_t index = 0LL;
-        while (index < (int64_t)(needle).length && (uint8_t)ZIRAN_INDEX(text.data, text.length, ((int64_t)((uint64_t)at + (uint64_t)index))) == (uint8_t)ZIRAN_INDEX(needle.data, needle.length, index)) {
+        while (index < (int64_t)(needle).length && (uint8_t)text.data[((int64_t)((uint64_t)at + (uint64_t)index))] == (uint8_t)needle.data[index]) {
             index = (int64_t)((uint64_t)index + UINT64_C(1));
         }
         if (index == (int64_t)(needle).length) {
@@ -112,7 +110,7 @@ text_tools_TextFindLast_ziran_inline(String text, String needle)
     int64_t at = (int64_t)((uint64_t)((int64_t)(text).length) - (uint64_t)((int64_t)(needle).length));
     while (at >= 0LL) {
         int64_t index = 0LL;
-        while (index < (int64_t)(needle).length && (uint8_t)ZIRAN_INDEX(text.data, text.length, ((int64_t)((uint64_t)at + (uint64_t)index))) == (uint8_t)ZIRAN_INDEX(needle.data, needle.length, index)) {
+        while (index < (int64_t)(needle).length && (uint8_t)text.data[((int64_t)((uint64_t)at + (uint64_t)index))] == (uint8_t)needle.data[index]) {
             index = (int64_t)((uint64_t)index + UINT64_C(1));
         }
         if (index == (int64_t)(needle).length) {

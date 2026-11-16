@@ -25,12 +25,18 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
     zx2wasm := CheckPath(tools, "zx2wasm")
     zx2native := CheckPath(tools, "zx2native")
     std := CheckPath(test.repo, "std")
+    // A trap case is built with --checks on every route.
     lower := string.[zi2zx, "--root", item.root, "-I", std, "--entry", item.entry,
         "-o", lowered, item.file]
-    unused NativeRun(test, lower[:])
+    lower_checked := string.[zi2zx, "--checks", "--root", item.root, "-I", std, "--entry", item.entry,
+        "-o", lowered, item.file]
+    unused NativeRun(test, ifx item.traps then lower_checked[:] else lower[:])
     if test.failed { return }
-    c_run := string.[test.ziran, "run", "--target=c", "--root", item.root, "--module-path", std,
+    c_plain := string.[test.ziran, "run", "--target=c", "--root", item.root, "--module-path", std,
         "--entry", item.entry, item.file]
+    c_checked := string.[test.ziran, "run", "--target=c", "--checks", "--root", item.root, "--module-path", std,
+        "--entry", item.entry, item.file]
+    c_run := ifx item.traps then c_checked[:] else c_plain[:]
     interpreter := string.[zi2zx, "run", "--heap-report", "--work", "4000000000", "--fuel", "4000000000",
         "--addresses", "2097151", "--frames", "100000", lowered]
     reference := NativeInvoke(test, c_run[:])
@@ -40,7 +46,7 @@ ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string,
             CheckConcat(item.entry, ": an expected trap did not trap on both routes")) { return }
         // The bundle traps natively with the named gap, and the ELF exits
         // with the interpreter's trap status.
-        trap_bundle := string.[zi2zx, "--root", item.root, "--module-path", std,
+        trap_bundle := string.[zi2zx, "--checks", "--root", item.root, "--module-path", std,
             "--entry", item.entry, "-o", bundled, item.file]
         unused NativeRun(test, trap_bundle[:])
         if test.failed { return }

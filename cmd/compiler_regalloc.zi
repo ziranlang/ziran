@@ -2110,7 +2110,8 @@ Release :: (owner: *MachineOwner) {
     VecFree(owner.spills)
 }
 
-Publish :: (owner: *MachineOwner, target: TargetDescription, entry: s32, scratch_general: s32, scratch_float: s32) {
+Publish :: (owner: *MachineOwner, target: TargetDescription, entry: s32, scratch_general: s32, scratch_float: s32,
+    checks: bool) {
     owner.program = .{version = MachineVersion, target = target,
         text = owner.text[:], sources = owner.sources[:], origins = owner.origins[:],
         types = owner.types[:], type_ids = owner.type_ids[:], data = owner.data[:],
@@ -2119,7 +2120,8 @@ Publish :: (owner: *MachineOwner, target: TargetDescription, entry: s32, scratch
         instructions = owner.instructions[:], operands = owner.operands[:], edges = owner.edges[:],
         copies = owner.copies[:], stack_objects = owner.stack_objects[:], relocations = owner.relocations[:],
         calls = owner.calls[:], entry = entry, stage = .Allocated, frames = owner.frames[:],
-        spills = owner.spills[:], scratch_general = scratch_general, scratch_float = scratch_float}
+        spills = owner.spills[:], scratch_general = scratch_general, scratch_float = scratch_float,
+        checks = checks}
     owner.valid = true
 }
 
@@ -2292,7 +2294,7 @@ RegAllocAllocate :: (owner: *MachineOwner, target: TargetDescription, limits: Ma
         Release(*built)
         return state.diagnostic
     }
-    Publish(*built, target, program.entry, state.scratch[0], state.scratch[1])
+    Publish(*built, target, program.entry, state.scratch[0], state.scratch[1], program.checks)
     verified := MachineVerifyAllocated(built.program, limits)
     if verified.problem != .None {
         located := InputLocation(*state, verified)
@@ -2302,7 +2304,7 @@ RegAllocAllocate :: (owner: *MachineOwner, target: TargetDescription, limits: Ma
     }
     FreeScratch(*state)
     Exchange(owner, *built)
-    Publish(owner, target, program.entry, state.scratch[0], state.scratch[1])
+    Publish(owner, target, program.entry, state.scratch[0], state.scratch[1], program.checks)
     Release(*built)
     return diagnostic
 }

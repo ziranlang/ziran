@@ -193,9 +193,9 @@ if grep -q 'shapes_Twice' "$out/shapes.c"; then
     echo 'shapes.c defines a procedure the program never reaches' >&2
     exit 1
 fi
-grep -q 'BoundsCheck' "$out/zir_bounds.h"
-if grep -q 'EmptyArrayIndex\|/\*@' "$out/zir_bounds.h"; then
-    echo 'zir_bounds.h carries a helper the program never calls' >&2
+# A default build checks no index, so it carries no bounds header.
+if test -e "$out/zir_bounds.h"; then
+    echo 'a default build carries zir_bounds.h' >&2
     exit 1
 fi
 echo 'An imported module registers itself from its initializer; unimported modules are absent'

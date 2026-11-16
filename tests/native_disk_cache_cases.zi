@@ -147,7 +147,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
 
     // A trap in code read from disk still names its function.
     trap := CheckPath(test.work, "trap.zx")
-    trap_build := string.[tool, "--root", spec, "--module-path", std, "--entry", "std_string_bad:main",
+    trap_build := string.[tool, "--checks", "--root", spec, "--module-path", std, "--entry", "std_string_bad:main",
         "-o", trap, CheckPath(spec, "std_string_bad.zi")]
     unused NativeRun(*test, trap_build[:])
     trap_cache := CheckPath(test.work, "trap-cache")

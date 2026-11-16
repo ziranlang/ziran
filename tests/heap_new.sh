@@ -66,7 +66,8 @@ ZI
 run_fails() {
     name=$1
     cat > "$work/$name.zi"
-    "$ziran" bundle --root "$work" --entry "$name:main" -o "$work/$name.zx" "$work/$name.zi"
+    # Use after free and double free trap in a --checks build.
+    "$ziran" bundle --checks --root "$work" --entry "$name:main" -o "$work/$name.zx" "$work/$name.zi"
     if "$ziran" run "$work/$name.zx" > "$work/$name.out" 2>&1; then
         echo "$name: ran" >&2
         exit 1

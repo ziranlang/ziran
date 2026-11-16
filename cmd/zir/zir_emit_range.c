@@ -2894,9 +2894,16 @@ callers_prove(const Emitter *e, ProofKind kind, int index, int base, int64_t n)
 }
 
 int
+EmitChecks(const Emitter *e)
+{
+    return e->module != NULL && e->module->checks;
+}
+
+int
 IndexInRange(const Emitter *e, int index, int64_t count)
 {
-    return index_in_range_here(e, index, count) || callers_prove(e, PROVE_IN_RANGE, index, -1, count);
+    return !EmitChecks(e) || index_in_range_here(e, index, count) ||
+        callers_prove(e, PROVE_IN_RANGE, index, -1, count);
 }
 
 static int
@@ -3020,13 +3027,15 @@ index_below_count_here(const Emitter *e, int index, int base)
 int
 IndexBelowCount(const Emitter *e, int index, int base)
 {
-    return index_below_count_here(e, index, base) || callers_prove(e, PROVE_BELOW_COUNT, index, base, 1);
+    return !EmitChecks(e) || index_below_count_here(e, index, base) ||
+        callers_prove(e, PROVE_BELOW_COUNT, index, base, 1);
 }
 
 int
 RunBelowCount(const Emitter *e, int index, int64_t run, int base)
 {
-    return run_below_count_here(e, index, run, base) || callers_prove(e, PROVE_RUN, index, base, run);
+    return !EmitChecks(e) || run_below_count_here(e, index, run, base) ||
+        callers_prove(e, PROVE_RUN, index, base, run);
 }
 
 static int
@@ -3076,6 +3085,7 @@ SliceRangeInRange(const Emitter *e, int index, int capacity)
     const ZirExpr *expr;
     Range endpoint;
     int64_t run;
+    if(!EmitChecks(e)) return 1;
     if(f == NULL || f->fn != e->fn || e->target != ZIR_C || index < 0 ||
        e->fn->exprs[index].kind != ZIR_EXPR_SLICE)
         return 0;

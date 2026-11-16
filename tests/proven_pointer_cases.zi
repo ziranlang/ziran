@@ -136,12 +136,12 @@ Tampered :: (test: *NativeTest, path: string) -> bool {
         "the restored program does not verify")
 }
 
-// Builds SOURCE (written to NAME.zi unless it is a path) to a bundle.
+// Builds SOURCE (written to NAME.zi unless it is a path) to a --checks bundle.
 Bundle :: (test: *NativeTest, tools: string, root: string, name: string, source: string) -> string {
     file := CheckPath(root, CheckConcat(name, ".zi"))
     if source != "" && !NativeWrite(test, file, source) { return "" }
     bundle := CheckPath(test.work, CheckConcat(name, ".zx"))
-    command := string.[CheckPath(tools, "zi2zx"), "--root", root, "--module-path", CheckPath(test.repo, "std"),
+    command := string.[CheckPath(tools, "zi2zx"), "--checks", "--root", root, "--module-path", CheckPath(test.repo, "std"),
         "--entry", CheckConcat(name, ":main"), "-o", bundle, file]
     unused NativeRun(test, command[:])
     return bundle

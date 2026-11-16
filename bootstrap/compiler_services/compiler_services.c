@@ -204,7 +204,7 @@ compiler_services_Diagnose__overload_2(ZirSourceSpan span, String code, String m
     for (int64_t i = 0LL; i <= 2LL; i++) {
         if (at < 4095LL) {
             Slice value_0 = {text, 4096};
-            compiler_ir_CopyText(SliceRange(value_0, (int64_t)at, (int64_t)4096LL, sizeof(uint8_t)), (parts)[i]);
+            compiler_ir_CopyText(SliceRangeAt(value_0, (int64_t)at, (int64_t)4096LL, sizeof(uint8_t)), (parts)[i]);
             at = (int64_t)((uint64_t)at + (uint64_t)((int64_t)(parts[i]).length));
         }
     }

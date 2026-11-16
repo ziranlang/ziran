@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "zir_slice.h"
 
 #ifdef __cplusplus
@@ -454,7 +453,6 @@ bool compiler_ir_CopyText(Slice output, String text);
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_IR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 static inline bool compiler_ir_CopyText_ziran_inline(Slice output, String text);
 #define compiler_ir_CopyText(...) compiler_ir_CopyText_ziran_inline(__VA_ARGS__)
 
@@ -474,9 +472,9 @@ compiler_ir_CopyText_ziran_inline(Slice output, String text)
         int64_t range_last_8 = (int64_t)((uint64_t)length - UINT64_C(1));
         int64_t i = range_first_8;
         if (i <= range_last_8) for (;;) {
-            uint8_t* value_0 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)i)]);
-            (*value_0) = (uint8_t)ZIRAN_INDEX(text.data, text.length, i);
-            if ((uint8_t)ZIRAN_INDEX(text.data, text.length, i) == 0) {
+            uint8_t* value_0 = &(((uint8_t *)output.data)[i]);
+            (*value_0) = (uint8_t)text.data[i];
+            if ((uint8_t)text.data[i] == 0) {
                 clean = false;
             }
             if (i == range_last_8) {
@@ -485,7 +483,7 @@ compiler_ir_CopyText_ziran_inline(Slice output, String text)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    uint8_t* value_1 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)length)]);
+    uint8_t* value_1 = &(((uint8_t *)output.data)[length]);
     (*value_1) = 0;
     return clean;
 }

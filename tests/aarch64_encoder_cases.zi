@@ -104,7 +104,7 @@ Apply :: (b: *Builder, mode: Mode, owner: *A64.MachineA64Owner, limits: MachineL
         instructions = b.instructions[:], operands = b.operands[:], edges = b.edges[:],
         stack_objects = b.stack_objects[:], relocations = b.relocations[:], calls = b.calls[:],
         entry = b.entry, stage = b.stage, frames = b.frames[:], spills = b.spills[:],
-        scratch_general = 15, scratch_float = 31}
+        scratch_general = 15, scratch_float = 31, checks = true}  // the fixture's pointers are tokens
     if mode == .Verify { return .{diagnostic = MachineVerifyAllocated(program, limits)} }
     if mode == .Validate { return .{diagnostic = A64.MachineA64Validate(program, limits)} }
     if mode == .Measure { return A64.MachineA64Measure(program, limits) }

@@ -9,7 +9,7 @@ TextUntilNul(Slice buffer)
     while (index < (int64_t)(buffer).length) {
         if (((uint8_t *)buffer.data)[index] == 0) {
             Slice value_0 = buffer;
-            Slice value_1 = SliceRange(value_0, (int64_t)0LL, (int64_t)index, sizeof(uint8_t));
+            Slice value_1 = SliceRangeAt(value_0, (int64_t)0LL, (int64_t)index, sizeof(uint8_t));
             return StringView((const char *)(value_1).data, (size_t)(value_1).length);
         }
         index = (int64_t)((uint64_t)index + UINT64_C(1));

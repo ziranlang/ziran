@@ -1579,12 +1579,13 @@ AggregateExtract :: (state: *State) -> bool {
             scratch_address.id != MachineAbiAddressScratchRegister(state.program.target) ||
             scratch_copy.kind != .Physical || scratch_copy.role != .Define ||
             scratch_copy.id != MachineAbiScratchRegister(state.program.target) ||
-            immediate.kind != .Immediate || immediate.immediate != 0 {
+            immediate.kind != .Immediate || immediate.immediate > cast(u64)aggregate.count {
             return Fail(state, .Unsupported)
         }
         member = aggregate.element
+        // A nonzero bound is the no-check form.
         source_memory = DynamicElement(state, source_memory, index, aggregate.count,
-            state.program.types[member].size)
+            state.program.types[member].size, immediate.immediate == 0)
         if state.diagnostic.problem != .None { return false }
     }
     size := state.program.types[member].size
@@ -1597,17 +1598,20 @@ AggregateExtract :: (state: *State) -> bool {
 }
 
 // The address of element INDEX of the COUNT-element array at MEMORY, after
-// the bound check. It is built in the encoder-internal x17, which neither the
+// the bound check when CHECKED. It is built in the encoder-internal x17, which neither the
 // index nor a value can occupy and which loads and stores that rebase a far
 // frame displacement through x16 leave alone; x16 holds the element SIZE.
-DynamicElement :: (state: *State, memory: A64Memory, index: s32, count: s64, size: s64) -> A64Memory {
-    if count >= 0 && count <= 4095 {
-        SubsImmediate(state, index, count, 1)
-    } else {
-        MoveImmediate(state, 16, cast(u64)count, 1)
-        CompareRegister(state, index, 16, true, 1)
+DynamicElement :: (state: *State, memory: A64Memory, index: s32, count: s64, size: s64,
+    checked: bool) -> A64Memory {
+    if checked {
+        if count >= 0 && count <= 4095 {
+            SubsImmediate(state, index, count, 1)
+        } else {
+            MoveImmediate(state, 16, cast(u64)count, 1)
+            CompareRegister(state, index, 16, true, 1)
+        }
+        TrapUnless(state, 3, MachineA64TrapReserved - 1)
     }
-    TrapUnless(state, 3, MachineA64TrapReserved - 1)
     ComputeAddress(state, 17, memory.base, memory.displacement)
     if size == 1 {
         AddSubRegister(state, 17, 17, index, false, 1)
@@ -1659,12 +1663,12 @@ AggregateInsert :: (state: *State) -> bool {
             scratch_address.id != MachineAbiAddressScratchRegister(state.program.target) ||
             scratch_copy.kind != .Physical || scratch_copy.role != .Define ||
             scratch_copy.id != MachineAbiScratchRegister(state.program.target) ||
-            index.kind != .Immediate || index.immediate != 0 {
+            index.kind != .Immediate || index.immediate > cast(u64)aggregate_type.count {
             return Fail(state, .Unsupported)
         }
         member = aggregate_type.element
         member_memory = DynamicElement(state, destination_memory, dynamic_index, aggregate_type.count,
-            state.program.types[member].size)
+            state.program.types[member].size, index.immediate == 0)
         if state.diagnostic.problem != .None { return false }
     }
     member_size := state.program.types[member].size
@@ -1733,6 +1737,8 @@ ElementAddress :: (state: *State) -> bool {
             if state.diagnostic.problem != .None { return false }
         }
         TrapUnless(state, 3, MachineA64TrapReserved - 1)
+    } else if instruction.operand_count == 4 && OperandAt(state, 3).kind == .Immediate {
+        // The no-check form: proven, or a build without --checks.
     } else if instruction.operand_count == 4 {
         count := Register(state, 3, .Use)
         if count == MachineNoId { return false }
@@ -2116,24 +2122,29 @@ HeapSlot :: (state: *State) {
 // chain. x10, x16 and x17 are free at entry.
 PointerFrameEnter :: (state: *State, function: MachineFunction) -> bool {
     mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
-    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
     if state.diagnostic.problem != .None { return false }
     PointerHeader(state)
     A64Load(state, PointerScratch, .{base = 17, displacement = MachinePointerHeaderArenaTop}, 8, false)
     A64Store(state, mark, PointerScratch, 8)
+    if !state.program.checks { return true }
+    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
+    if state.diagnostic.problem != .None { return false }
     A64Store(state, chain, 31, 8)
     return true
 }
 
-// Before returning: give back the arena and end every slot on the chain.
-// Only x0 or v0 holds a live value here; x9-x14, x16 and x17 are free.
+// Before returning: give back the arena and, with --checks, end every slot
+// on the chain. Only x0 or v0 holds a live value here; x9-x14, x16 and x17
+// are free.
 PointerFrameLeave :: (state: *State, function: MachineFunction) -> bool {
     mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
-    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
     if state.diagnostic.problem != .None { return false }
     PointerHeader(state)
     A64Load(state, PointerScratch, mark, 8, false)
     A64Store(state, .{base = 17, displacement = MachinePointerHeaderArenaTop}, PointerScratch, 8)
+    if !state.program.checks { return true }
+    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
+    if state.diagnostic.problem != .None { return false }
     loop := state.writer.at
     A64Load(state, PointerScratch, chain, 8, false)
     saved := Probe(state)
@@ -2226,6 +2237,20 @@ Resize :: (state: *State) -> bool {
     Emit(state, 0xA9BF13E3)
     Emit(state, 0xA9BF1BE5)
     Emit(state, 0xA9BF23E7)
+    if !state.program.checks {
+        // x10 is the old block's address; x0 becomes the new one's.
+        MoveRegister(state, 0, 10, 1)
+        MoveRegister(state, 1, 11, 1)
+        MoveRegister(state, 2, 12, 1)
+        MoveImmediate(state, 3, cast(u64)element.size, 1)
+        Relocate(state, .RuntimeResize, 0, -4, state.writer.at)
+        Branch(state, state.writer.at, true)
+        Emit(state, 0xA8C123E7)
+        Emit(state, 0xA8C11BE5)
+        Emit(state, 0xA8C113E3)
+        Emit(state, 0xA8C10BE1)
+        return true
+    }
     // x10 is the old block's token: unless null it must name a live heap
     // block at offset 0, and x10 becomes the block's address. Its slot ends
     // only once the runtime has freed or moved the block; a request that
@@ -2583,7 +2608,7 @@ Return :: (state: *State) -> bool {
         }
     }
     function := state.program.functions[state.function]
-    if function.pointer_chain != 0 && !PointerFrameLeave(state, function) { return false }
+    if function.arena_mark != 0 && !PointerFrameLeave(state, function) { return false }
     if !CalleeSaves(state, true) { return false }
     size := ReservedSize(state.program.frames[state.function])
     if size < 0 { return Fail(state, .Frame) }
@@ -2688,7 +2713,7 @@ Prologue :: (state: *State) -> bool {
         TrapUnless(state, 2, MachineA64TrapStack)
     }
     if !CalleeSaves(state, false) { return false }
-    if function.pointer_chain != 0 && !PointerFrameEnter(state, function) { return false }
+    if function.arena_mark != 0 && !PointerFrameEnter(state, function) { return false }
     result_addresses: s32
     for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
         object := state.program.stack_objects[object_id]

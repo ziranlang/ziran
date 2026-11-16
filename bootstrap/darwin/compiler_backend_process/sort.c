@@ -31,17 +31,17 @@ sort_TextSiftDown(Slice values, int64_t root, int64_t end)
     int64_t parent = root;
     while ((int64_t)(((uint64_t)parent * UINT64_C(2)) + UINT64_C(1)) < end) {
         int64_t child = (int64_t)(((uint64_t)parent * UINT64_C(2)) + UINT64_C(1));
-        if ((int64_t)((uint64_t)child + UINT64_C(1)) < end && sort_TextBefore(((String *)values.data)[SliceIndex(values, (int64_t)child)], ((String *)values.data)[SliceIndex(values, (int64_t)((int64_t)((uint64_t)child + UINT64_C(1))))])) {
+        if ((int64_t)((uint64_t)child + UINT64_C(1)) < end && sort_TextBefore(((String *)values.data)[child], ((String *)values.data)[((int64_t)((uint64_t)child + UINT64_C(1)))])) {
             child = (int64_t)((uint64_t)child + UINT64_C(1));
         }
-        bool value_0 = sort_TextBefore(((String *)values.data)[SliceIndex(values, (int64_t)parent)], ((String *)values.data)[SliceIndex(values, (int64_t)child)]);
+        bool value_0 = sort_TextBefore(((String *)values.data)[parent], ((String *)values.data)[child]);
         if (!value_0) {
             return;
         }
-        String saved = ((String *)values.data)[SliceIndex(values, (int64_t)parent)];
-        String* value_1 = &(((String *)values.data)[SliceIndex(values, (int64_t)parent)]);
-        (*value_1) = ((String *)values.data)[SliceIndex(values, (int64_t)child)];
-        String* value_2 = &(((String *)values.data)[SliceIndex(values, (int64_t)child)]);
+        String saved = ((String *)values.data)[parent];
+        String* value_1 = &(((String *)values.data)[parent]);
+        (*value_1) = ((String *)values.data)[child];
+        String* value_2 = &(((String *)values.data)[child]);
         (*value_2) = saved;
         parent = child;
     }
@@ -58,10 +58,10 @@ sort_SortText(Slice values)
     int64_t end = (int64_t)(values).length;
     while (end > 1LL) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        String saved = ((String *)values.data)[SliceIndex(values, (int64_t)0)];
-        String* value_0 = &(((String *)values.data)[SliceIndex(values, (int64_t)0)]);
-        (*value_0) = ((String *)values.data)[SliceIndex(values, (int64_t)end)];
-        String* value_1 = &(((String *)values.data)[SliceIndex(values, (int64_t)end)]);
+        String saved = ((String *)values.data)[0];
+        String* value_0 = &(((String *)values.data)[0]);
+        (*value_0) = ((String *)values.data)[end];
+        String* value_1 = &(((String *)values.data)[end]);
         (*value_1) = saved;
         sort_TextSiftDown(values, 0LL, end);
     }

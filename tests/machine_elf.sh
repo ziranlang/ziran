@@ -242,8 +242,9 @@ compile_native "$work/float-print" "$work" float_print_gap:Answer "$work/float_p
 "$work/float-print" > "$work/float-print.out"
 printf '0.1\n' | cmp - "$work/float-print.out"
 
-# Growth moves a vector through recycled heap blocks. An element pointer
-# taken before the growth traps even after another vector reuses its block.
+# Growth moves a vector through recycled heap blocks. Built with --checks, an
+# element pointer taken before the growth traps even after another vector
+# reuses its block.
 cat > "$work/stale.zi" <<'ZI'
 #import "vec"
 #program_export
@@ -257,7 +258,7 @@ Answer :: () -> s32 {
     return cast(s32)<<first
 }
 ZI
-"$zi2zx" --root "$work" --module-path "$repo/std" --entry stale:Answer -o "$work/stale.zx" "$work/stale.zi"
+"$zi2zx" --checks --root "$work" --module-path "$repo/std" --entry stale:Answer -o "$work/stale.zx" "$work/stale.zi"
 "$zx2native" -o "$work/stale-elf" "$work/stale.zx"
 run_status "$work/stale-elf" 125
 

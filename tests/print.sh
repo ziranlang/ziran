@@ -232,7 +232,8 @@ if script --version 2>/dev/null | grep -q util-linux; then
     script -qec "$work/lines.elf" /dev/null | tr -d '\r' > "$work/lines.tty"
     cmp "$work/lines.expected" "$work/lines.tty"
 fi
-"$zi2zx" --root "$work" --entry lines:Trapped -o "$work/trapped.zx" "$work/lines.zi"
+# An out-of-range read traps in a --checks build, after the buffered output.
+"$zi2zx" --checks --root "$work" --entry lines:Trapped -o "$work/trapped.zx" "$work/lines.zi"
 "$zx2native" -o "$work/trapped.elf" "$work/trapped.zx"
 set +e
 "$work/trapped.elf" > "$work/trapped.out"

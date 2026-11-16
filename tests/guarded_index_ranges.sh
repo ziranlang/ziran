@@ -255,7 +255,7 @@ for input in source saved; do
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 42
     for name in $faults; do
-        "$ziran" bundle --root "$root" --entry "app:Run$name" \
+        "$ziran" bundle --checks --root "$root" --entry "app:Run$name" \
             -o "$work/fault.zx" "$module"
         if timeout 60 "$ziran" run "$work/fault.zx" > /dev/null 2>&1; then
             echo "$name read outside its slice in a bundle" >&2
@@ -264,7 +264,7 @@ for input in source saved; do
     done
 
     output=$work/c-$input
-    "$ziran" build --target=c --root "$root" -o "$output" "$module"
+    "$ziran" build --target=c --checks --root "$root" -o "$output" "$module"
     cat > "$output/main.c" <<'C'
 #include <stdlib.h>
 #include "app.h"

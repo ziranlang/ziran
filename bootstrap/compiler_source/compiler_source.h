@@ -140,7 +140,7 @@ compiler_source_NormalizeRecordSeparators_ziran_inline(Slice body, bool split_co
     bool quoted = false;
     int32_t nesting = 0;
     while (at < (int64_t)(body).length) {
-        uint8_t byte = ((uint8_t *)body.data)[SliceIndex(body, (int64_t)at)];
+        uint8_t byte = ((uint8_t *)body.data)[at];
         if (quoted) {
             if (byte == 92 && (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(body).length) {
                 at = (int64_t)((uint64_t)at + UINT64_C(1));
@@ -154,7 +154,7 @@ compiler_source_NormalizeRecordSeparators_ziran_inline(Slice body, bool split_co
         } else if (byte == 93 || byte == 41) {
             nesting = (int32_t)((uint32_t)nesting - 1u);
         } else if (nesting == 0 && (byte == 59 || (split_commas && byte == 44))) {
-            uint8_t* value_0 = &(((uint8_t *)body.data)[SliceIndex(body, (int64_t)at)]);
+            uint8_t* value_0 = &(((uint8_t *)body.data)[at]);
             (*value_0) = 10;
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));

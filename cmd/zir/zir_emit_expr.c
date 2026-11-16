@@ -437,13 +437,14 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
         emit_expr(e, third, "s64", buffers->high, sizeof(buffers->high));
         fresh(e, view);
         if(e->target == ZIR_GO) {
-            line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > %s.Count { panic(\"slice range out of bounds\") }",
-                 buffers->low, buffers->high, buffers->low, buffers->high, buffers->vector);
+            if(EmitChecks(e))
+                line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > %s.Count { panic(\"slice range out of bounds\") }",
+                     buffers->low, buffers->high, buffers->low, buffers->high, buffers->vector);
             format(out, size, "%s.Data[%s:%s]", buffers->vector, buffers->low, buffers->high);
         } else {
             line(e, "Slice %s = {(%s).data, (%s).count};", view, buffers->vector,
                  buffers->vector);
-            format(out, size, "SliceRange(%s, %s, %s, sizeof(*(%s).data))",
+            format(out, size, "%s(%s, %s, %s, sizeof(*(%s).data))", EmitChecks(e) ? "SliceRange" : "SliceRangeAt",
                    view, buffers->low, buffers->high, buffers->vector);
         }
         e->pure = 1;
@@ -1331,11 +1332,13 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 line(e, "%s := %s", view, buffers->source);
                 if(!buffers->low[0]) copy_text(buffers->low, sizeof(buffers->low), "0");
                 if(!buffers->high[0]) format(buffers->high, sizeof(buffers->high), "int64(len(%s))", view);
-                line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
-                e->indent++;
-                line(e, "panic(\"string range out of bounds\")");
-                e->indent--;
-                line(e, "}");
+                if(EmitChecks(e)) {
+                    line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
+                    e->indent++;
+                    line(e, "panic(\"string range out of bounds\")");
+                    e->indent--;
+                    line(e, "}");
+                }
                 pure = base_pure && low_pure && high_pure;
                 format(buffers->result, sizeof(buffers->result), "%s[%s:%s]", view, buffers->low, buffers->high);
                 break;
@@ -1371,12 +1374,13 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                     format(buffers->high, sizeof(buffers->high), "%s.length", view);
             }
             if(e->target == ZIR_GO) {
-                line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) { panic(\"string range out of bounds\") }",
-                     buffers->low, buffers->high, buffers->low, buffers->high, view);
+                if(EmitChecks(e))
+                    line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) { panic(\"string range out of bounds\") }",
+                         buffers->low, buffers->high, buffers->low, buffers->high, view);
                 format(buffers->result, sizeof(buffers->result), "%s[%s:%s]", view, buffers->low, buffers->high);
             } else {
-                format(buffers->result, sizeof(buffers->result), "StringRange(%s, (int64_t)%s, (int64_t)%s)",
-                       view, buffers->low, buffers->high);
+                format(buffers->result, sizeof(buffers->result), "%s(%s, (int64_t)%s, (int64_t)%s)",
+                       EmitChecks(e) ? "StringRange" : "StringRangeAt", view, buffers->low, buffers->high);
             }
             break;
         }
@@ -1410,11 +1414,13 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                (low_constant && high_constant && low_bits > high_bits)) {
                 fresh(e, view);
                 line(e, "%s := %s[:]", view, buffers->source);
-                line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
-                e->indent++;
-                line(e, "panic(\"slice range out of bounds\")");
-                e->indent--;
-                line(e, "}");
+                if(EmitChecks(e)) {
+                    line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
+                    e->indent++;
+                    line(e, "panic(\"slice range out of bounds\")");
+                    e->indent--;
+                    line(e, "}");
+                }
                 format(buffers->result, sizeof(buffers->result), "%s[%s:%s:%s]", view, buffers->low, buffers->high, buffers->high);
                 break;
             }
@@ -1472,11 +1478,13 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         if(e->target == ZIR_GO) {
             /* A bound keeps its own integer type, such as s32, and Go
              * compares only equal types, so the check widens each. */
-            line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
-            e->indent++;
-            line(e, "panic(\"slice range out of bounds\")");
-            e->indent--;
-            line(e, "}");
+            if(EmitChecks(e)) {
+                line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
+                e->indent++;
+                line(e, "panic(\"slice range out of bounds\")");
+                e->indent--;
+                line(e, "}");
+            }
             format(buffers->result, sizeof(buffers->result), "%s[%s:%s:%s]", view, buffers->low, buffers->high, buffers->high);
         } else {
             const char *scalar = TargetType(element, e->target);
@@ -1521,8 +1529,11 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         int fixed_array = ArrayElementType(base_type, NULL, 0, &capacity);
         if(VecElementType(e->module, base_type, NULL, 0) &&
            e->target == ZIR_C) {
-            format(buffers->result, sizeof(buffers->result),
-                   "ZIRAN_VEC_INDEX((%s).data, (%s).count, %s)", buffers->a, buffers->a, buffers->b);
+            if(EmitChecks(e))
+                format(buffers->result, sizeof(buffers->result),
+                       "ZIRAN_VEC_INDEX((%s).data, (%s).count, %s)", buffers->a, buffers->a, buffers->b);
+            else
+                format(buffers->result, sizeof(buffers->result), "(%s).data[%s]", buffers->a, buffers->b);
         } else if(VecElementType(e->module, base_type, NULL, 0)) {
             format(buffers->result, sizeof(buffers->result), "(%s).Data[%s]", buffers->a, buffers->b);
         } else if(SliceElementType(base_type, NULL, 0)) {
@@ -1538,7 +1549,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 format(buffers->result, sizeof(buffers->result), "(uint8_t)%s.data[%s]", buffers->a, buffers->b);
             else
                 format(buffers->result, sizeof(buffers->result), "(uint8_t)ZIRAN_INDEX(%s.data, %s.length, %s)", buffers->a, buffers->a, buffers->b);
-        } else if(e->target == ZIR_C &&
+        } else if(e->target == ZIR_C && EmitChecks(e) &&
                   fixed_array && capacity == 0) {
             format(buffers->result, sizeof(buffers->result), "ZIRAN_EMPTY_INDEX(%s, %s)", buffers->a, buffers->b);
         } else if(e->target == ZIR_C && fixed_array && capacity > 0 &&

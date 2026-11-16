@@ -212,7 +212,7 @@ Answer :: () -> s32 {
     return handle.*
 }
 EOF
-"$ziran" bundle --root "$work" --entry unsupported:Answer \
+"$ziran" bundle --checks --root "$work" --entry unsupported:Answer \
     -o "$work/unsupported.zx" "$work/unsupported.zi"
 "$host_test" "$work/unsupported.zx" dereference 2> "$work/unsupported.err"
 grep -Fq 'problem=pointer' "$work/unsupported.err"

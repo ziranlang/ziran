@@ -842,7 +842,7 @@ MachineVerify :: (program: MachineProgram, limits: MachineLimits) -> MachineDiag
     if !Counts(*state, program, limits) || !Metadata(*state, program) ||
         !VirtualsAndStack(*state, program) || !Instructions(*state, program, limits) ||
         !CallsAndRelocations(*state, program, limits) || !FuelFacts(*state, program, limits) ||
-        !CheckedMemory(*state, program, limits) { return state.diagnostic }
+        program.checks && !CheckedMemory(*state, program, limits) { return state.diagnostic }
     if !Optional(program.entry, program.functions.count) ||
         program.entry != MachineNoId && program.functions[program.entry].calling != .Internal {
         Fail(*state, .Function)

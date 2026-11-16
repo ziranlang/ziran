@@ -4,7 +4,7 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
+#include <stdlib.h>
 #include "zir_slice.h"
 #include "file.h"
 #include "vec.h"
@@ -574,7 +574,7 @@ uint8_t* compiler_backend_process_ProfileName(String name);
 #include "zir_vec.h"
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
+#include <stdlib.h>
 #ifndef ZIRAN_HELPER_ZiShrS32
 #define ZIRAN_HELPER_ZiShrS32
 #if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
@@ -603,18 +603,18 @@ compiler_backend_process_SortPaths_ziran_inline(__type_21092c8252d3dcaa* values)
         int64_t range_last_0 = (int64_t)((uint64_t)(values->count) - UINT64_C(1));
         int64_t at = range_first_0;
         if (at <= range_last_0) for (;;) {
-            uint8_t* value = ZIRAN_VEC_INDEX((*(values)).data, (*(values)).count, at);
+            uint8_t* value = (*(values)).data[at];
             int64_t before = (int64_t)((uint64_t)at - UINT64_C(1));
             while (true) {
                 bool value_0 = before >= 0LL;
                 if (value_0) {
                     String value_1 = compiler_backend_process_CText(value);
-                    bool value_2 = compiler_backend_process_PathBefore(value_1, compiler_backend_process_CText(ZIRAN_VEC_INDEX((*(values)).data, (*(values)).count, before)));
+                    bool value_2 = compiler_backend_process_PathBefore(value_1, compiler_backend_process_CText((*(values)).data[before]));
                     value_0 = value_2;
                 }
                 if (!value_0) { break; }
                 uint8_t** value_3 = &(ZIRAN_VEC_INDEX(((*(values))).data, ((*(values))).count, ((int64_t)((uint64_t)before + UINT64_C(1)))));
-                (*value_3) = ZIRAN_VEC_INDEX((*(values)).data, (*(values)).count, before);
+                (*value_3) = (*(values)).data[before];
                 before = (int64_t)((uint64_t)before - UINT64_C(1));
             }
             uint8_t** value_4 = &(ZIRAN_VEC_INDEX(((*(values))).data, ((*(values))).count, ((int64_t)((uint64_t)before + UINT64_C(1)))));
@@ -642,8 +642,8 @@ compiler_backend_process_PathBefore_ziran_inline(String left, String right)
         int64_t range_last_1 = (int64_t)((uint64_t)count - UINT64_C(1));
         int64_t at = range_first_1;
         if (at <= range_last_1) for (;;) {
-            if ((uint8_t)ZIRAN_INDEX(left.data, left.length, at) != (uint8_t)ZIRAN_INDEX(right.data, right.length, at)) {
-                return (uint8_t)ZIRAN_INDEX(left.data, left.length, at) < (uint8_t)ZIRAN_INDEX(right.data, right.length, at);
+            if ((uint8_t)left.data[at] != (uint8_t)right.data[at]) {
+                return (uint8_t)left.data[at] < (uint8_t)right.data[at];
             }
             if (at == range_last_1) {
                 break;

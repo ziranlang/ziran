@@ -11,6 +11,8 @@ using Bundle :: #import "compiler_bundle"
 
 #scope_file
 native_execution: bool;
+// The trap cases build with --checks: index traps exist only there.
+checked_builds: bool;
 
 #scope_export
 ElfWord :: (binary: string, at: s64, width: s64) -> u64 {
@@ -126,7 +128,8 @@ Compile :: (test: *NativeTest, compiler: string, source: string, entry: string, 
     if emit == "elf" || emit == "map" {
         wire := CheckConcat(output, ".zx")
         lower := string.[compiler, "--root", PathParent(source), "--entry", entry, "-o", wire, source]
-        unused NativeRun(test, lower[:])
+        checked := string.[compiler, "--checks", "--root", PathParent(source), "--entry", entry, "-o", wire, source]
+        unused NativeRun(test, ifx checked_builds then checked[:] else lower[:])
         if test.failed { return false }
         native := CheckPath(PathParent(compiler), "zx2native")
         if emit == "map" {
@@ -139,7 +142,8 @@ Compile :: (test: *NativeTest, compiler: string, source: string, entry: string, 
         return !test.failed
     }
     arguments := string.[compiler, "--root", PathParent(source), "--entry", entry, "--emit", emit, "-o", output, source]
-    unused NativeRun(test, arguments[:])
+    checked := string.[compiler, "--checks", "--root", PathParent(source), "--entry", entry, "--emit", emit, "-o", output, source]
+    unused NativeRun(test, ifx checked_builds then checked[:] else arguments[:])
     return !test.failed
 }
 
@@ -431,7 +435,9 @@ Exercise :: (test: *NativeTest, compiler: string, name: string, source: string, 
     entry := CheckConcat(name, ":Answer")
     if native_execution {
         reference := string.[test.ziran, "run", "--target=c", "--root", test.work, "--entry", entry, input]
-        unused NativeRun(test, reference[:], "", ifx reference_exit < 0 then expected else reference_exit)
+        checked := string.[test.ziran, "run", "--target=c", "--checks", "--root", test.work, "--entry", entry, input]
+        unused NativeRun(test, ifx checked_builds then checked[:] else reference[:], "",
+            ifx reference_exit < 0 then expected else reference_exit)
         if test.failed { return false }
     }
     binary := CheckPath(test.work, name)
@@ -585,6 +591,7 @@ OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
         "Answer :: () -> s32 { values: [2]s32; index: u64 = 4294967296; unused values[index]; return 42 }\n",
         "Answer :: () -> s32 { values: [0]s32; index: s64; unused values[index]; return 42 }\n",
         "zero: s32; Bad :: () -> s32 { return 9 / zero }; Answer :: () -> s32 { values: [1]s32; index: s32 = 2; values[index] = Bad(); return 42 }\n"]
+    checked_builds = true
     for index: 0..trap_names.count - 1 {
         name := trap_names[index]
         if !Exercise(test, compiler, name, trap_sources[index], 125, 134) { return false }
@@ -610,6 +617,7 @@ OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
         }
         if test.failed { return false }
     }
+    checked_builds = false
     return true
 }
 

@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "zir_slice.h"
 #include "file_linux.h"
 #include "vec.h"
@@ -80,7 +79,6 @@ bool file_WriteEntireFile(String path, String text);
 #include "zir_vec.h"
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 static inline bool file_FilePathText_ziran_inline(String text);
 #define file_FilePathText(...) file_FilePathText_ziran_inline(__VA_ARGS__)
 
@@ -89,7 +87,7 @@ file_FilePathText_ziran_inline(String text)
 {
     int64_t at = 0LL;
     while (at < (int64_t)(text).length) {
-        uint8_t first = (uint8_t)ZIRAN_INDEX(text.data, text.length, at);
+        uint8_t first = (uint8_t)text.data[at];
         if (first < 128) {
             at = (int64_t)((uint64_t)at + UINT64_C(1));
             continue;
@@ -117,7 +115,7 @@ file_FilePathText_ziran_inline(String text)
         }
         int64_t index = 1LL;
         while (index <= count) {
-            uint8_t part = (uint8_t)ZIRAN_INDEX(text.data, text.length, ((int64_t)((uint64_t)at + (uint64_t)index)));
+            uint8_t part = (uint8_t)text.data[((int64_t)((uint64_t)at + (uint64_t)index))];
             if (part < 128 || part > 191) {
                 return false;
             }

@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "zir_slice.h"
 
 #ifdef __cplusplus
@@ -66,7 +65,6 @@ int32_t compiler_text_HexDigit(uint8_t byte);
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_TEXT_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 static inline bool compiler_text_SpaceByte_ziran_inline(uint8_t byte);
 #define compiler_text_SpaceByte(...) compiler_text_SpaceByte_ziran_inline(__VA_ARGS__)
 static inline bool compiler_text_IdentifierByte_ziran_inline(uint8_t byte);
@@ -96,7 +94,7 @@ static inline int64_t
 compiler_text_SkipSpace_ziran_inline(String source, int64_t at, bool inline_only)
 {
     while (at < (int64_t)(source).length) {
-        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
+        uint8_t byte = (uint8_t)source.data[at];
         if (inline_only) {
             if (byte != 32 && byte != 9) {
                 break;
@@ -124,7 +122,7 @@ compiler_text_BlockHeaderEnd_ziran_inline(String source)
     while (true) {
         bool value_0 = end > 0LL;
         if (value_0) {
-            uint8_t value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            uint8_t value_1 = (uint8_t)source.data[((int64_t)((uint64_t)end - UINT64_C(1)))];
             bool value_2 = false;
             {
                 uint8_t byte = value_1;
@@ -135,13 +133,13 @@ compiler_text_BlockHeaderEnd_ziran_inline(String source)
         if (!value_0) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
-    if (end > 0LL && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))) == 123) {
+    if (end > 0LL && (uint8_t)source.data[((int64_t)((uint64_t)end - UINT64_C(1)))] == 123) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     while (true) {
         bool value_4 = end > 0LL;
         if (value_4) {
-            uint8_t value_5 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            uint8_t value_5 = (uint8_t)source.data[((int64_t)((uint64_t)end - UINT64_C(1)))];
             bool value_6 = false;
             {
                 uint8_t byte = value_5;
@@ -172,7 +170,7 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
             if (upper && byte >= 97 && byte <= 122) {
                 byte = (uint8_t)((uint32_t)byte - 32u);
             }
-            uint8_t* value_0 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)]);
+            uint8_t* value_0 = &(((uint8_t *)output.data)[used]);
             (*value_0) = byte;
             used = (int64_t)((uint64_t)used + UINT64_C(1));
             upper = false;
@@ -181,24 +179,23 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
         }
     }
     if (used == 0LL && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
-        uint8_t* value_1 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)]);
+        uint8_t* value_1 = &(((uint8_t *)output.data)[used]);
         (*value_1) = 88;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
     if (used > 0LL && ((uint8_t *)output.data)[0] >= 48 && ((uint8_t *)output.data)[0] <= 57 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
         int64_t index = used;
         while (index > 0LL) {
-            uint8_t* value_2 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)]);
-            uint8_t value_3 = ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)((uint64_t)index - UINT64_C(1))))];
-            (*value_2) = value_3;
+            uint8_t* value_2 = &(((uint8_t *)output.data)[index]);
+            (*value_2) = ((uint8_t *)output.data)[((int64_t)((uint64_t)index - UINT64_C(1)))];
             index = (int64_t)((uint64_t)index - UINT64_C(1));
         }
-        uint8_t* value_4 = &(((uint8_t *)output.data)[0]);
-        (*value_4) = 77;
+        uint8_t* value_3 = &(((uint8_t *)output.data)[0]);
+        (*value_3) = 77;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
-    uint8_t* value_5 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)]);
-    (*value_5) = 0;
+    uint8_t* value_4 = &(((uint8_t *)output.data)[used]);
+    (*value_4) = 0;
     return used;
 }
 

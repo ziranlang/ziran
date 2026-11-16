@@ -2,7 +2,6 @@
 #define ZIRAN_ENVIRONMENT_LINUX_H_SOURCE 1
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "environment_linux.h"
 #include "c_string.h"
 #include "byte_text_linux.h"
@@ -33,7 +32,7 @@ environment_linux_BoundedHostText(uint8_t* value, Slice output)
     (*value_3) = true;
     String* value_4 = &(result.value);
     Slice value_5 = output;
-    (*value_4) = TextFromBytes(SliceRange(value_5, (int64_t)0LL, (int64_t)index, sizeof(uint8_t)));
+    (*value_4) = TextFromBytes(SliceRangeAt(value_5, (int64_t)0LL, (int64_t)index, sizeof(uint8_t)));
     return result;
 }
 
@@ -79,7 +78,7 @@ EnvironmentRange(String name, int64_t minimum, int64_t maximum, Slice input)
         return result;
     }
     int64_t at = 0LL;
-    bool negative = (uint8_t)ZIRAN_INDEX(text.value.data, text.value.length, 0) == 45;
+    bool negative = (uint8_t)text.value.data[0] == 45;
     if (negative) {
         at = 1LL;
     }
@@ -97,7 +96,7 @@ EnvironmentRange(String name, int64_t minimum, int64_t maximum, Slice input)
     }
     uint64_t limit = value_3;
     while (at < (int64_t)(text.value).length) {
-        uint8_t byte = (uint8_t)ZIRAN_INDEX(text.value.data, text.value.length, at);
+        uint8_t byte = (uint8_t)text.value.data[at];
         if (byte < 48 || byte > 57) {
             EnvironmentFailure* value_4 = &(result.error);
             (*value_4) = EnvironmentFailure_NotNumber;
@@ -159,7 +158,7 @@ ArgumentRead(int32_t argc, uint8_t** argv, int32_t index, Slice output)
     (*value_4) = true;
     String* value_5 = &(result.value);
     Slice value_6 = output;
-    (*value_5) = TextFromBytes(SliceRange(value_6, (int64_t)0LL, (int64_t)at, sizeof(uint8_t)));
+    (*value_5) = TextFromBytes(SliceRangeAt(value_6, (int64_t)0LL, (int64_t)at, sizeof(uint8_t)));
     return result;
 }
 

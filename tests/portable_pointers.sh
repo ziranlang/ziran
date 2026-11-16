@@ -68,7 +68,7 @@ Answer :: () -> s32 {
     return <<p;
 }
 ZI
-"$ziran" bundle --root "$work" --entry dangling:Answer -o "$work/dangling.zx" "$work/dangling.zi"
+"$ziran" bundle --checks --root "$work" --entry dangling:Answer -o "$work/dangling.zx" "$work/dangling.zi"
 if "$ziran" run "$work/dangling.zx" > "$work/dangling.out" 2>&1; then
     echo 'a pointer at a returned local was read' >&2
     exit 1

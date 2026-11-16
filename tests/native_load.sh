@@ -15,8 +15,14 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER
 export HARMONY_DESKTOP_RECOVERY=0
 
-for entry in Answer Spin Overflow Bump Long Trapper Retain Dangling Grow AfterFree FreeTwice PastEnd; do
+for entry in Answer Spin Overflow Bump Long Trapper Retain Grow; do
     "$zi2zx" --root "$repo/tests/spec" -I "$repo/std" --entry "native_bundle:$entry" \
+        -o "$work/$entry.zx" "$repo/tests/spec/native_bundle.zi"
+done
+# The pointer-trap bundles are built with --checks: without it pointers are
+# raw, as in C, and nothing traps.
+for entry in Dangling AfterFree FreeTwice PastEnd; do
+    "$zi2zx" --checks --root "$repo/tests/spec" -I "$repo/std" --entry "native_bundle:$entry" \
         -o "$work/$entry.zx" "$repo/tests/spec/native_bundle.zi"
 done
 "$zi2zx" --debug --root "$repo/tests/spec" --entry native_bundle:Trapper \

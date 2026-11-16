@@ -320,7 +320,11 @@ for input in source saved; do
         done
     done
     grep -q 'zi_add_sat_s16x8(' "$output/app.c"
-    grep -q 'zi_simd_at(' "$output/app.c"
+    # Without --checks a SIMD memory access is raw: no checked helper.
+    if grep -q 'zi_simd_at(' "$output/app.c"; then
+        echo "a default C build checks SIMD memory accesses" >&2
+        exit 1
+    fi
     # The program's copy of the operations header keeps only the helpers it
     # calls, which the builds above compiled.
     grep -q 'ZI_N(add_sat_s16x8)' "$output/ziran_simd_ops.h"
@@ -469,7 +473,7 @@ if test -n "${ANDROID_NDK_HOME:-}"; then
     done
 fi
 
-# A slice access outside the data stops the program.
+# With --checks a slice access outside the data stops the program.
 cat > "$work/outside.zi" <<'ZI'
 Simd :: #import "simd"
 main :: () {
@@ -478,7 +482,7 @@ main :: () {
     print("%\n", Simd.Lane(v, 0))
 }
 ZI
-"$ziran" build --target=c --entry outside:main --root "$work" -o "$work/outside" "$work/outside.zi"
+"$ziran" build --target=c --checks --entry outside:main --root "$work" -o "$work/outside" "$work/outside.zi"
 printf '#include "outside.h"\nint main(void) { outside_main(); return 0; }\n' > "$work/outside/main.c"
 "${CC:-cc}" -std=c11 -Wno-psabi -O2 -I"$work/outside" "$work/outside"/*.c -o "$work/outside/app"
 if "$work/outside/app" 2> "$work/outside.err"; then
@@ -487,7 +491,7 @@ if "$work/outside/app" 2> "$work/outside.err"; then
 fi
 grep -q "out of bounds" "$work/outside.err"
 if command -v go >/dev/null 2>&1; then
-    "$ziran" build --target=go --pkg main --entry outside:main --exe --root "$work" \
+    "$ziran" build --target=go --checks --pkg main --entry outside:main --exe --root "$work" \
         -o "$work/outside-go" "$work/outside.zi"
     if (cd "$work/outside-go" && GO111MODULE=off go run ./*.go) 2> "$work/outside-go.err"; then
         echo "an out-of-bounds SIMD load ran on Go" >&2
@@ -495,7 +499,7 @@ if command -v go >/dev/null 2>&1; then
     fi
     grep -q "out of bounds" "$work/outside-go.err"
 fi
-"$ziran" bundle --root "$work" --entry outside:main -o "$work/outside.zx" "$work/outside.zi"
+"$ziran" bundle --checks --root "$work" --entry outside:main -o "$work/outside.zx" "$work/outside.zi"
 if "$ziran" run "$work/outside.zx" 2> "$work/outside-zx.err"; then
     echo "an out-of-bounds SIMD load ran in a bundle" >&2
     exit 1

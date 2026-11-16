@@ -120,7 +120,7 @@ LowerFixture :: (owner: *Machine.MachineOwner, target: Target.TargetDescription,
 }
 
 LowerAllocateFixture :: (owner: *Machine.MachineOwner, target: Target.TargetDescription,
-    limits: Machine.MachineLimits) -> Machine.MachineResult {
+    limits: Machine.MachineLimits, checks: bool = true) -> Machine.MachineResult {
     modules: [1]string = .["machine-allocate"]
     types: [3]Lir.LirType = .[.{kind = .Void},
         .{kind = .Integer, bits = 32, is_signed = true}, .{kind = .Pointer, element = 1}]
@@ -141,7 +141,7 @@ LowerAllocateFixture :: (owner: *Machine.MachineOwner, target: Target.TargetDesc
     functions: [1]Lir.LirFunction = .[.{module = 0, name = "allocate-each-execution",
         result = 0, values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
     program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
-        constants = constants[:], functions = functions[:], entry = 0}
+        constants = constants[:], functions = functions[:], entry = 0, checks = checks}
     return Lower.MachineLower(owner, program, target, Machine.MachineDefaultOptions(), limits)
 }
 
@@ -403,9 +403,9 @@ main :: () -> s32 {
             allocated.diagnostic.instruction, allocated.diagnostic.operand,
             allocated.diagnostic.virtual)
     }
-    // Every execution of an allocate takes fresh frame arena bytes, stores
-    // the initial value through their address and names them with a new
-    // pointer slot on the frame's chain, kept in two frame words.
+    // With --checks every execution of an allocate takes fresh frame arena
+    // bytes, stores the initial value through their address and names them
+    // with a new pointer slot on the frame's chain, kept in two frame words.
     allocate_program := Lower.MachineProgramView(*allocate_owner)
     allocate_id := FindOpcode(allocate_program, .ArenaAllocate)
     store_id := FindOpcode(allocate_program, .Store)
@@ -431,6 +431,18 @@ main :: () -> s32 {
     if !Check(Verify.MachineVerify(allocate_program, limits).problem == .Virtual,
         "a value defined twice is rejected") { return 1 }
     allocate_program.operands[token].id = token_value
+    // Without --checks the arena bytes' address is the pointer: no slot, no
+    // chain, one frame word for the arena mark.
+    raw_owner: Machine.MachineOwner
+    raw := LowerAllocateFixture(*raw_owner, target, limits, checks = false)
+    raw_program := Lower.MachineProgramView(*raw_owner)
+    raw_function := raw_program.functions[0]
+    raw_allocate := FindOpcode(raw_program, .ArenaAllocate)
+    if !Check(raw.problem == .None && raw_allocate >= 0 && FindOpcode(raw_program, .Store) > raw_allocate &&
+            FindOpcode(raw_program, .PointerCreate) < 0 && FindOpcode(raw_program, .PointerResolve) < 0 &&
+            raw_program.stack_objects.count == 1 && raw_function.arena_mark != 0 &&
+            raw_function.pointer_chain == 0,
+            "an unchecked allocation is arena storage named by its address") { return 1 }
 
     instruction_limit := limits; instruction_limit.instructions = 1
     limited: Machine.MachineOwner

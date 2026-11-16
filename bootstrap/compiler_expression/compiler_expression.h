@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "compiler_scan.h"
 #include "compiler_source.h"
 #include "compiler_text.h"
@@ -41,19 +40,18 @@ StatementExpression compiler_expression_StatementParts(String source, StatementK
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_EXPRESSION_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 static inline int32_t compiler_expression_CharacterByte_ziran_inline(String literal);
 #define compiler_expression_CharacterByte(...) compiler_expression_CharacterByte_ziran_inline(__VA_ARGS__)
 
 static inline int32_t
 compiler_expression_CharacterByte_ziran_inline(String literal)
 {
-    bool value_0 = (int64_t)(literal).length == 3LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2) == 34;
-    if (value_0 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) < 128) {
+    bool value_0 = (int64_t)(literal).length == 3LL && (uint8_t)literal.data[0] == 34 && (uint8_t)literal.data[2] == 34;
+    if (value_0 && (uint8_t)literal.data[1] < 128) {
         return (int32_t)((uint8_t)literal.data[1]);
     }
-    bool value_1 = (int64_t)(literal).length == 4LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) == 92;
-    if (value_1 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 3) == 34) {
+    bool value_1 = (int64_t)(literal).length == 4LL && (uint8_t)literal.data[0] == 34 && (uint8_t)literal.data[1] == 92;
+    if (value_1 && (uint8_t)literal.data[3] == 34) {
         uint8_t escape = (uint8_t)literal.data[2];
         if (escape == 48) {
             return 0;
@@ -75,8 +73,8 @@ compiler_expression_CharacterByte_ziran_inline(String literal)
         }
         return -1;
     }
-    bool value_2 = (int64_t)(literal).length == 6LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) == 92;
-    if (value_2 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2) == 120 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 5) == 34) {
+    bool value_2 = (int64_t)(literal).length == 6LL && (uint8_t)literal.data[0] == 34 && (uint8_t)literal.data[1] == 92;
+    if (value_2 && (uint8_t)literal.data[2] == 120 && (uint8_t)literal.data[5] == 34) {
         int32_t high = compiler_text_HexDigit((uint8_t)literal.data[3]);
         int32_t low = compiler_text_HexDigit((uint8_t)literal.data[4]);
         if (high >= 0 && low >= 0) {

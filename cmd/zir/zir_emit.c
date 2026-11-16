@@ -1972,7 +1972,8 @@ native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT], ZirS
     static const struct { const char *name; size_t length; unsigned include; } uses[] = {
         RUNTIME_USE("BoundsCheck", NATIVE_BOUNDS), RUNTIME_USE("EmptyArrayIndex", NATIVE_BOUNDS),
         RUNTIME_USE("ZIRAN_INDEX", NATIVE_BOUNDS), RUNTIME_USE("ZIRAN_EMPTY_INDEX", NATIVE_BOUNDS),
-        RUNTIME_USE("StringRange", NATIVE_STRING), RUNTIME_USE("StringEqual", NATIVE_STRING),
+        RUNTIME_USE("StringRange", NATIVE_STRING), RUNTIME_USE("StringRangeAt", NATIVE_STRING),
+        RUNTIME_USE("StringEqual", NATIVE_STRING),
         RUNTIME_USE("print_float", NATIVE_STRING),
         RUNTIME_USE("printf", NATIVE_STDIO), RUNTIME_USE("fwrite", NATIVE_STDIO), RUNTIME_USE("stdout", NATIVE_STDIO),
         RUNTIME_USE("calloc", NATIVE_STDLIB), RUNTIME_USE("free", NATIVE_STDLIB), RUNTIME_USE("abort", NATIVE_STDLIB),

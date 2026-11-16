@@ -48,9 +48,10 @@ TempSuccess :: (test: *NativeTest, input: string, root: string, label: string) -
 }
 
 TempDeadPointers :: (test: *NativeTest, input: string, root: string, label: string) -> bool {
+    // A dead pointer traps in a --checks build.
     entry := "temp_arena_spec:DeadAfterReset"
     bundle := CheckPath(test.work, CheckConcat(label, "-dead.zx"))
-    build := string.[test.ziran, "bundle", "--entry", entry, "--root", root, "-o", bundle, input]
+    build := string.[test.ziran, "bundle", "--checks", "--entry", entry, "--root", root, "-o", bundle, input]
     unused NativeRun(test, build[:])
     tools := PathParent(test.ziran)
     backends := string.["engine", "native"]

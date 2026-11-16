@@ -2022,14 +2022,14 @@ lower_convert(Fn *fn, const LirInstruction *instruction)
 
 /* Leaves the byte offset `index * size` as i32 on the stack after checking
  * index < count; index and count are integer values or count is constant.
- * An index the shared facts prove below every count it can meet needs no
- * check. */
+ * A build without --checks, or an index the shared facts prove below every
+ * count it can meet, needs no check. */
 static void
 checked_index(Fn *fn, int32_t index, int32_t count_value, int64_t count_constant, int64_t size)
 {
     int32_t owner = fn->instruction && fn->instruction->result >= 0 &&
         fn->instruction->result < fn->function->values.length ? fn->instruction->result : -1;
-    if(owner >= 0 && fn->proven && fn->proven[owner]) {
+    if(!fn->lower->program->checks || (owner >= 0 && fn->proven && fn->proven[owner])) {
         get_i64(fn, index, 0);
         if(size != 1) { i64_const(fn, size); op(fn, 0x7e); }
         op(fn, 0xa7);
@@ -2188,19 +2188,21 @@ lower_address(Fn *fn, const LirInstruction *instruction)
         set(fn, instruction->result);
         return;
     }
-    /* Slice: low <= high <= count; a null base needs all zero; an empty
-     * slice keeps its base. */
+    /* Slice: with --checks low <= high <= count and a null base needs all
+     * zero; an empty slice keeps its base. */
     uint32_t low = fn_temp(fn, W_I64, 0), high = fn_temp(fn, W_I64, 1);
     get_i64(fn, operands[1], 0); local_set(fn, low);
     get_i64(fn, operands[2], 0); local_set(fn, high);
-    local_get(fn, low); local_get(fn, high); op(fn, 0x56); /* low > high */
-    local_get(fn, high); get_i64(fn, operands[3], 0); op(fn, 0x56); /* high > count */
-    op(fn, 0x72);
-    get(fn, operands[0]); op(fn, 0x45);
-    get_i64(fn, operands[3], 0); op(fn, 0x50); op(fn, 0x45); /* count != 0 */
-    op(fn, 0x71);
-    op(fn, 0x72);
-    trap_if(fn);
+    if(fn->lower->program->checks) {
+        local_get(fn, low); local_get(fn, high); op(fn, 0x56); /* low > high */
+        local_get(fn, high); get_i64(fn, operands[3], 0); op(fn, 0x56); /* high > count */
+        op(fn, 0x72);
+        get(fn, operands[0]); op(fn, 0x45);
+        get_i64(fn, operands[3], 0); op(fn, 0x50); op(fn, 0x45); /* count != 0 */
+        op(fn, 0x71);
+        op(fn, 0x72);
+        trap_if(fn);
+    }
     get(fn, operands[0]);
     local_get(fn, low);
     if(size != 1) { i64_const(fn, size); op(fn, 0x7e); }
@@ -3418,8 +3420,9 @@ emit_free(Lower *lower, Buf *output)
 /* resize(pointer, old_count, new_count, element_size) -> pointer, the
  * interpreter's rules: null with count 0 allocates, count 0 frees, the
  * first min(old, new) elements stay and the rest is zero, and a request
- * memory cannot hold gives null with the old block intact. Only a live
- * program block's own pointer with its exact count may be resized. */
+ * memory cannot hold gives null with the old block intact. With --checks
+ * only a live program block's own pointer with its exact count may be
+ * resized. */
 static void
 emit_resize(Lower *lower, Buf *output)
 {
@@ -3431,11 +3434,13 @@ emit_resize(Lower *lower, Buf *output)
     uint32_t moved = fn_local(&fn, W_I32), limit = fn_local(&fn, W_I32);
     local_get(&fn, 0);
     op(&fn, 0x04); op(&fn, 0x40);
-    check_block(&fn, 0, BLOCK_PROGRAM);
+    if(lower->program->checks) check_block(&fn, 0, BLOCK_PROGRAM);
     block_header(&fn, 0); local_set(&fn, header);
-    local_get(&fn, header); memarg(&fn, 0x29, 8); local_get(&fn, 1); op(&fn, 0x52); trap_if(&fn);
-    op(&fn, 0x05);
-    local_get(&fn, 1); i64_const(&fn, 0); op(&fn, 0x52); trap_if(&fn);
+    if(lower->program->checks) {
+        local_get(&fn, header); memarg(&fn, 0x29, 8); local_get(&fn, 1); op(&fn, 0x52); trap_if(&fn);
+        op(&fn, 0x05);
+        local_get(&fn, 1); i64_const(&fn, 0); op(&fn, 0x52); trap_if(&fn);
+    }
     end(&fn);
     local_get(&fn, 2); op(&fn, 0x50);
     if_begin(&fn);

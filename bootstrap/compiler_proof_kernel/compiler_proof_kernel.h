@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -141,7 +140,6 @@ int32_t compiler_proof_kernel_Rewrite(ProofKernel* k, int32_t goal, int32_t from
 #include "zir_vec.h"
 #include <stdint.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
 static inline int32_t compiler_proof_kernel_TypeAdd_ziran_inline(ProofKernel* k, ProofType type);
 #define compiler_proof_kernel_TypeAdd(...) compiler_proof_kernel_TypeAdd_ziran_inline(__VA_ARGS__)
 
@@ -153,7 +151,7 @@ compiler_proof_kernel_TypeAdd_ziran_inline(ProofKernel* k, ProofType type)
         int32_t range_last_0 = (int32_t)((uint32_t)(k->type_count) - 1u);
         int32_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
-            ProofType known = ZIRAN_INDEX(k->types, 32, i);
+            ProofType known = (k->types)[i];
             if (known.width == type.width && known.is_unsigned == type.is_unsigned && known.identity == type.identity) {
                 return i;
             }
@@ -168,7 +166,7 @@ compiler_proof_kernel_TypeAdd_ziran_inline(ProofKernel* k, ProofType type)
         (*value_0) = true;
         return -1;
     }
-    ProofType* value_1 = &(ZIRAN_INDEX(k->types, sizeof(k->types) / sizeof(k->types[0]), k->type_count));
+    ProofType* value_1 = &(k->types[k->type_count]);
     (*value_1) = type;
     int32_t* value_2 = &(k->type_count);
     (*value_2) = (int32_t)((uint32_t)((*value_2)) + 1u);

@@ -283,6 +283,9 @@ MachineProgram :: struct {
     // Allocated stage: registers reserved for transfers through memory.
     scratch_general: s32
     scratch_float: s32
+    // Built with --checks: data pointers are tokens checked at every access.
+    // Otherwise a pointer is the address, as in C.
+    checks: bool
 }
 
 MachineLimits :: struct {

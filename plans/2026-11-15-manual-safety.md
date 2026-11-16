@@ -15,32 +15,33 @@ opt-in for the whole build, a module, a block or statement, or one access.
 With checks on, today's traps, named diagnostics and hostile-twin tests are
 unchanged. Results stay correct; only defensive checks become optional.
 
-## Inventory: every defensive check today
+## State
 
-| Where | What it checks | Default after this plan |
-| --- | --- | --- |
-| `cmd/compiler_machine_lower.zi` `LowerResolve`, `LowerMemory`, `LowerBytesEqual`, platform-service arguments in `LowerCall` | Emits `PointerResolve` before every load, store, zero, byte compare and service pointer | Not emitted; the pointer is the address |
-| `LowerAllocate` | `ArenaAllocate` + `PointerCreate` (slot on the frame chain) | Arena bytes only; the raw address is the pointer |
-| `LowerElement`, `ProvenBound`, `ViewAddress`, `MemberOperands` | Index checked unless `compiler_lowered_proven.zi` proves it | Unchecked operand forms (the existing proven forms) |
-| `cmd/compiler_x86_64.zi` `PointerResolve`, `PointerDirect`, `PointerCreate`, `CreateSlot`, `RetireSlot`, `PointerFrameEnter/Leave/Step` | Slot, version, liveness, writability, extent; chain retirement at `Return` | Unreachable unless checked; frame enter/leave keep only the arena mark |
-| x86 `Resize` → `CheckHeapSlot`, `ResizeSlots`, `RetireToken`, `HeapSlot` | Old block is a live heap slot at offset 0; retire and re-slot | Raw pointer in, raw pointer out |
-| x86 `ElementAddress`, `MemberMemory` index compare + `TrapReserved - 1` | Index below count, subview `low <= high <= count` | Selected only by the checked operand forms |
-| `cmd/compiler_aarch64.zi` (same procedures, lines ~1577–2230) | Same as x86 | Same as x86 |
-| `cmd/compiler_machine_verify.zi` `CheckedMemory` (+ `CheckedAddress`, `DirectProven`, `DirectRoom`, `ResolvedView`) | Every access goes through a resolve or a proven direct base | Obligation only for a checked program |
-| `cmd/compiler_lowered_proven.zi` | Facts that remove checks | Built only when something is checked |
-| `cmd/compiler_machine_image.zi`, `cmd/compiler_machine_elf.zi`, `cmd/zir/zir_host_native.c` (`native_pointers_open`, `native_resolve`, slot table) | Pointer table, globals as constant tokens | Table only for a checked image; arena kept |
-| `cmd/zir/zir_host_exec.c` `native_resolve` / `native_create` | Host views resolved from tokens; returned views get read-only slots | Not installed: raw addresses cross (the NULL-resolver path) |
-| `cmd/zx2wasm/zx_wasm_lower.c` `checked_index`, view checks | Index and view compare + `unreachable` | Off unless checked; Wasm's own sandbox stays |
-| `include/zir_bounds.h` `ZIRAN_INDEX`, `ZIRAN_EMPTY_INDEX`; `include/zir_slice.h` `SliceIndex`, `SliceRange`; emitters `cmd/zir/zir_emit_expr.c`, `zir_emit_value.c` | Index and range checks with `abort()` | Plain `base[index]`, `SliceRangeAt`; checked helpers only where asked |
-| Go (`cmd/zi2go`) | Go's own implicit bounds checks | `-gcflags=-B` on Ziran's `go build`; explicit checks only where asked |
-| `std/binary.zi` `ReadU16LE`… via `TryRead*`; `std/http_get_linux.zi` `GetHttps` via `GetHttpsCapped` | Validation forced on plain readers | Plain readers are plain; `TryRead*`, `*Capped`, `Validate*` stay opt-in |
-| Portable engine `cmd/compiler_exec.zi` | Address-table tokens, liveness, extent, element type | Stays checked: it is the reference and test runner, and its pointer model is the table |
+Stages a and b are done: default output on native x86-64 and AArch64, Wasm,
+C and Ziran's own Go checks carries no defensive check, and `--checks` builds
+today's checked program (tokens, every bounds check, the traps and the
+hostile-twin tests). The ZX header flag records it. The portable engine stays
+checked: it is the reference and test runner, and its pointer model is the
+address table.
 
 Kept everywhere: divide by zero and `INT_MIN / -1`, shift count, float
 conversion range, `unreachable`, fuel, the stack limit and the frame-arena
 limit. They define results or bound resources rather than guard memory.
-Whether shift and conversion become C-style undefined is an owner question,
-not part of this plan.
+Whether shift and conversion become C-style undefined is an owner question.
+
+Still checked by default (open):
+
+- SIMD gathers: `zi_simd_gather_check` in C (`include/ziran_simd.h`) and Go,
+  and Go's `zi_simd_check` helpers.
+- Go's own implicit bounds checks: Ziran does not run `go build`; the Go
+  toolchain removes them with `-gcflags=-B`. Unchecked Go indexing through
+  `unsafe` is possible but not planned.
+- Wasm host-boundary checks on returned views and block limits: these guard
+  the module against its host, not program bugs.
+- Plain `std/binary.zi` `Read*LE` and `std/http_get_linux.zi` `GetHttps`
+  still route through the validated forms (stage f).
+- AArch64 unchecked `Resize` and frames have encoder coverage only through
+  the checked fixture; device parity runs on the Pixel lane.
 
 ## Design
 
@@ -75,12 +76,11 @@ Representation:
   front end from the directive scope.
 - LIR instructions gain `checked: bool` (element address, view address,
   dynamic extract/insert). The program gains `checks: bool`.
-- ZX revision 29 records both: a header flag (the build was `--checks`) and
-  the per-instruction bit. `zir-inspect` prints the flag. The native loader,
-  `zx2native`, `zx2wasm` and the engine read them; native builds the pointer
-  table only for a checked bundle.
-- `MachineProgram.checks` gates `CheckedMemory` and token lowering;
-  per-instruction bits select checked element forms.
+- The LIR codec's header flag 1 records a `--checks` build (done); the
+  per-instruction bit joins the instruction encoding in stage c. The native
+  loader builds the pointer table only for a checked bundle (done).
+- `MachineProgram.checks` gates `CheckedMemory` and token lowering (done);
+  per-instruction bits select checked element forms (stage c).
 
 ## The `.zx` tension
 
@@ -93,23 +93,13 @@ bundle is checked only if built with `--checks`).
 
 ## Stages (each pushed)
 
-a. **Switch.** `--checks` on `ziran build|run|bundle|test`, `zi2zx`, `zi2c`,
-   `zi2go`; `LirProgram.checks`, ZX revision 29 header flag, read by
-   `zx2native`, the native loader, `zx2wasm`, engine. C and Go output take the
-   flag. Default off; behavior unchanged except where (b) lands.
-b. **Native unchecked.** Off: raw pointers, no resolve/create/retire/slot
-   table, raw `Resize`, unchecked element forms, `CheckedMemory` skipped,
-   no host resolver. Delete what only the default path reached; keep the
-   checked path for `--checks`. Wasm, C and Go defaults in the same stage.
-   Benchmark before and after (all six kernels, Omega, 11 samples).
 c. **Granularity.** Front-end `#checks` (module, block/statement, access),
    ZIR/LIR/ZX bits, native, Wasm and C honor per-access checks; Go emits an
    explicit compare where asked.
-d. **Tests.** Trap and hostile-twin cases (`proven_pointer`, `native_run`
-   pointer fixtures, `zx_lowered_parity`, bounds cases) run with `--checks`.
-   New cases: default native output has no `shr 0x2c`/resolve sequence and no
-   index trap; default C has no `ZIRAN_INDEX`/`SliceIndex`; each `#checks`
-   level adds checks exactly where asked.
+d. **Tests.** New cases: default native output has no resolve sequence and
+   no index trap; each `#checks` level adds checks exactly where asked. (The
+   trap and hostile-twin cases already build with `--checks`; the default C
+   build's lack of checks is in `tests/default_bounds.sh`.)
 e. **Docs and site.** `docs/LAWS.md`, `USAGE.md`, `ZX.md`,
    `IMPLEMENTATION_STATUS.md`, site guide: Ziran is manually safe like C;
    checks are opt-in. No page calls Ziran memory-safe.

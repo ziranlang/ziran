@@ -2,7 +2,6 @@
 #define ZIRAN_COMPILER_IR_H_SOURCE 1
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #define ZIRAN_COMPILER_IR_H_PRIVATE 1
 #include "compiler_ir.h"
 #undef ZIRAN_COMPILER_IR_H_PRIVATE
@@ -42,11 +41,11 @@ String
 compiler_ir_BufferText(Slice buffer)
 {
     int64_t length = 0LL;
-    while (length < (int64_t)(buffer).length && ((uint8_t *)buffer.data)[SliceIndex(buffer, (int64_t)length)] != 0) {
+    while (length < (int64_t)(buffer).length && ((uint8_t *)buffer.data)[length] != 0) {
         length = (int64_t)((uint64_t)length + UINT64_C(1));
     }
     Slice value_0 = buffer;
-    Slice value_1 = SliceRange(value_0, (int64_t)0LL, (int64_t)length, sizeof(uint8_t));
+    Slice value_1 = SliceRangeAt(value_0, (int64_t)0LL, (int64_t)length, sizeof(uint8_t));
     return StringView((const char *)(value_1).data, (size_t)(value_1).length);
 }
 
@@ -66,9 +65,9 @@ compiler_ir_CopyText(Slice output, String text)
         int64_t range_last_8 = (int64_t)((uint64_t)length - UINT64_C(1));
         int64_t i = range_first_8;
         if (i <= range_last_8) for (;;) {
-            uint8_t* value_0 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)i)]);
-            (*value_0) = (uint8_t)ZIRAN_INDEX(text.data, text.length, i);
-            if ((uint8_t)ZIRAN_INDEX(text.data, text.length, i) == 0) {
+            uint8_t* value_0 = &(((uint8_t *)output.data)[i]);
+            (*value_0) = (uint8_t)text.data[i];
+            if ((uint8_t)text.data[i] == 0) {
                 clean = false;
             }
             if (i == range_last_8) {
@@ -77,7 +76,7 @@ compiler_ir_CopyText(Slice output, String text)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    uint8_t* value_1 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)length)]);
+    uint8_t* value_1 = &(((uint8_t *)output.data)[length]);
     (*value_1) = 0;
     return clean;
 }

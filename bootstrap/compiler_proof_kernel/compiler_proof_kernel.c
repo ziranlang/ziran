@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
+#include <stdlib.h>
 #include "zir_vec.h"
 #define ZIRAN_COMPILER_PROOF_KERNEL_H_PRIVATE 1
 #include "compiler_proof_kernel.h"
@@ -126,7 +126,7 @@ compiler_proof_kernel_SameFactors(Monomial* x, Monomial* y)
         int32_t range_last_3 = (int32_t)((uint32_t)(x->degree) - 1u);
         int32_t i = range_first_3;
         if (i <= range_last_3) for (;;) {
-            if (ZIRAN_INDEX(x->factors, 64, i) != ZIRAN_INDEX(y->factors, 64, i)) {
+            if ((x->factors)[i] != (y->factors)[i]) {
                 return false;
             }
             if (i == range_last_3) {
@@ -188,14 +188,14 @@ compiler_proof_kernel_PolyAdd(ProofKernel* k, Polynomial* p, Monomial* m, uint64
             }
             if (compiler_proof_kernel_SameFactors(&(ZIRAN_VEC_INDEX((p->terms).data, (p->terms).count, i)), m)) {
                 uint64_t* value_10 = &((ZIRAN_VEC_INDEX((p->terms).data, (p->terms).count, i)).coefficient);
-                uint64_t value_11 = (uint64_t)((uint64_t)((ZIRAN_VEC_INDEX((p->terms).data, (p->terms).count, i)).coefficient) + (uint64_t)coefficient);
-                (*value_10) = (uint64_t)((uint64_t)value_11 & (uint64_t)mask);
-                uint64_t value_12 = (ZIRAN_VEC_INDEX((p->terms).data, (p->terms).count, i)).coefficient;
+                uint64_t value_11 = (uint64_t)(((uint64_t)(((p->terms).data[i]).coefficient) + (uint64_t)coefficient) & (uint64_t)mask);
+                (*value_10) = value_11;
+                uint64_t value_12 = ((p->terms).data[i]).coefficient;
                 if (value_12 == 0ULL) {
                     int64_t* value_13 = &(p->count);
                     (*value_13) = (int64_t)((uint64_t)((*value_13)) - UINT64_C(1));
                     Monomial* value_14 = &(ZIRAN_VEC_INDEX((p->terms).data, (p->terms).count, i));
-                    (*value_14) = ZIRAN_VEC_INDEX((p->terms).data, (p->terms).count, p->count);
+                    (*value_14) = (p->terms).data[p->count];
                 }
                 return true;
             }
@@ -272,13 +272,13 @@ compiler_proof_kernel_Product(ProofKernel* k, Polynomial* out, Polynomial* a, Po
                         int32_t range_last_13 = (int32_t)((uint32_t)(m.degree) - 1u);
                         int32_t n = range_first_13;
                         if (n <= range_last_13) for (;;) {
-                            if (yi == y->degree || (xi < x->degree && ZIRAN_INDEX(x->factors, 64, xi) <= ZIRAN_INDEX(y->factors, 64, yi))) {
-                                int32_t* value_3 = &(ZIRAN_INDEX(m.factors, sizeof(m.factors) / sizeof(m.factors[0]), n));
-                                (*value_3) = ZIRAN_INDEX(x->factors, 64, xi);
+                            if (yi == y->degree || (xi < x->degree && (x->factors)[xi] <= (y->factors)[yi])) {
+                                int32_t* value_3 = &(m.factors[n]);
+                                (*value_3) = (x->factors)[xi];
                                 xi = (int32_t)((uint32_t)xi + 1u);
                             } else {
-                                int32_t* value_4 = &(ZIRAN_INDEX(m.factors, sizeof(m.factors) / sizeof(m.factors[0]), n));
-                                (*value_4) = ZIRAN_INDEX(y->factors, 64, yi);
+                                int32_t* value_4 = &(m.factors[n]);
+                                (*value_4) = (y->factors)[yi];
                                 yi = (int32_t)((uint32_t)yi + 1u);
                             }
                             if (n == range_last_13) {
@@ -332,11 +332,11 @@ compiler_proof_kernel_Normalize(ProofKernel* k, int32_t id, Polynomial* out, int
     if (value_1) {
         return false;
     }
-    ProofTerm t = ZIRAN_INDEX(k->terms, 4096, id);
+    ProofTerm t = (k->terms)[id];
     if (t.type == 0) {
         return false;
     }
-    uint32_t value_7 = (ZIRAN_INDEX(k->types, sizeof(k->types) / sizeof(k->types[0]), t.type)).width;
+    uint32_t value_7 = (k->types[t.type]).width;
     uint64_t value_8 = 0;
     {
         uint32_t width = value_7;
@@ -435,12 +435,11 @@ compiler_proof_kernel_Normalize(ProofKernel* k, int32_t id, Polynomial* out, int
         if (i <= range_last_30) for (;;) {
             if (((ProofOp)(t.op)) == ProofOp_Sub) {
                 uint64_t* value_24 = &((ZIRAN_VEC_INDEX((b.terms).data, (b.terms).count, i)).coefficient);
-                uint64_t value_25 = (uint64_t)(UINT64_C(0) - (uint64_t)((ZIRAN_VEC_INDEX((b.terms).data, (b.terms).count, i)).coefficient));
-                (*value_24) = value_25;
+                (*value_24) = (uint64_t)(UINT64_C(0) - (uint64_t)(((b.terms).data[i]).coefficient));
             }
-            bool value_26 = compiler_proof_kernel_PolyAdd(k, out, &(ZIRAN_VEC_INDEX((b.terms).data, (b.terms).count, i)), mask);
-            if (!value_26) {
-                bool value_27 = false;
+            bool value_25 = compiler_proof_kernel_PolyAdd(k, out, &(ZIRAN_VEC_INDEX((b.terms).data, (b.terms).count, i)), mask);
+            if (!value_25) {
+                bool value_26 = false;
                 free((b).terms.data);
                 (b).terms.data = NULL;
                 (b).terms.capacity = 0;
@@ -449,7 +448,7 @@ compiler_proof_kernel_Normalize(ProofKernel* k, int32_t id, Polynomial* out, int
                 (a).terms.data = NULL;
                 (a).terms.capacity = 0;
                 (a).terms.count = 0;
-                return value_27;
+                return value_26;
             }
             if (i == range_last_30) {
                 break;
@@ -457,7 +456,7 @@ compiler_proof_kernel_Normalize(ProofKernel* k, int32_t id, Polynomial* out, int
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    bool value_28 = true;
+    bool value_27 = true;
     free((b).terms.data);
     (b).terms.data = NULL;
     (b).terms.capacity = 0;
@@ -466,7 +465,7 @@ compiler_proof_kernel_Normalize(ProofKernel* k, int32_t id, Polynomial* out, int
     (a).terms.data = NULL;
     (a).terms.capacity = 0;
     (a).terms.count = 0;
-    return value_28;
+    return value_27;
 }
 
 static int32_t
@@ -477,7 +476,7 @@ compiler_proof_kernel_OrderId(ProofKernel* k, Order* o, int32_t id, bool ring)
         int32_t range_last_0 = (int32_t)((uint32_t)(o->count) - 1u);
         int32_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
-            if (compiler_proof_kernel_Equal(k, ZIRAN_INDEX(o->ids, 64, i), id, ring)) {
+            if (compiler_proof_kernel_Equal(k, (o->ids)[i], id, ring)) {
                 return i;
             }
             if (i == range_last_0) {
@@ -491,9 +490,9 @@ compiler_proof_kernel_OrderId(ProofKernel* k, Order* o, int32_t id, bool ring)
         (*value_0) = true;
         return -1;
     }
-    int32_t* value_1 = &(ZIRAN_INDEX(o->ids, sizeof(o->ids) / sizeof(o->ids[0]), o->count));
+    int32_t* value_1 = &(o->ids[o->count]);
     (*value_1) = id;
-    uint8_t* value_2 = &(ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), o->count), sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), o->count)) / sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), o->count)[0]), o->count));
+    uint8_t* value_2 = &(o->edges[o->count][o->count]);
     (*value_2) = 1;
     int32_t* value_3 = &(o->count);
     (*value_3) = (int32_t)((uint32_t)((*value_3)) + 1u);
@@ -503,8 +502,8 @@ compiler_proof_kernel_OrderId(ProofKernel* k, Order* o, int32_t id, bool ring)
 static void
 compiler_proof_kernel_Edge(Order* o, int32_t a, int32_t b, uint8_t strength)
 {
-    if (a >= 0 && b >= 0 && ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), 64, b) < strength) {
-        uint8_t* value_0 = &(ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)) / sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)[0]), b));
+    if (a >= 0 && b >= 0 && (o->edges[a])[b] < strength) {
+        uint8_t* value_0 = &(o->edges[a][b]);
         (*value_0) = strength;
     }
 }
@@ -512,7 +511,7 @@ compiler_proof_kernel_Edge(Order* o, int32_t a, int32_t b, uint8_t strength)
 static void
 compiler_proof_kernel_OrderFact(ProofKernel* k, Order* o, int32_t id, bool truth, bool ring)
 {
-    ProofTerm t = ZIRAN_INDEX(k->terms, 4096, id);
+    ProofTerm t = (k->terms)[id];
     if (((ProofOp)(t.op)) == ProofOp_Not) {
         compiler_proof_kernel_OrderFact(k, o, t.a, !truth, ring);
         return;
@@ -523,7 +522,7 @@ compiler_proof_kernel_OrderFact(ProofKernel* k, Order* o, int32_t id, bool truth
         ProofOp op = (ProofOp)(value_0);
         value_1 = op == ProofOp_Eq || op == ProofOp_Lt || op == ProofOp_Le;
     }
-    if (!value_1 || (ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), t.a)).type == 0) {
+    if (!value_1 || (k->terms[t.a]).type == 0) {
         return;
     }
     int32_t a = compiler_proof_kernel_OrderId(k, o, t.a, ring);
@@ -548,8 +547,8 @@ compiler_proof_kernel_OrderFact(ProofKernel* k, Order* o, int32_t id, bool truth
                 int32_t a = value_5;
                 int32_t b = value_6;
                 uint8_t strength = strict;
-                if (a >= 0 && b >= 0 && ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), 64, b) < strength) {
-                    uint8_t* value_8 = &(ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)) / sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)[0]), b));
+                if (a >= 0 && b >= 0 && (o->edges[a])[b] < strength) {
+                    uint8_t* value_8 = &(o->edges[a][b]);
                     (*value_8) = strength;
                 }
             }
@@ -563,8 +562,8 @@ compiler_proof_kernel_OrderFact(ProofKernel* k, Order* o, int32_t id, bool truth
                 int32_t a = value_10;
                 int32_t b = value_11;
                 uint8_t strength = value_12;
-                if (a >= 0 && b >= 0 && ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), 64, b) < strength) {
-                    uint8_t* value_14 = &(ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)) / sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)[0]), b));
+                if (a >= 0 && b >= 0 && (o->edges[a])[b] < strength) {
+                    uint8_t* value_14 = &(o->edges[a][b]);
                     (*value_14) = strength;
                 }
             }
@@ -578,8 +577,8 @@ compiler_proof_kernel_OrderFact(ProofKernel* k, Order* o, int32_t id, bool truth
             int32_t a = value_16;
             int32_t b = value_17;
             uint8_t strength = 1;
-            if (a >= 0 && b >= 0 && ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), 64, b) < strength) {
-                uint8_t* value_19 = &(ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)) / sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)[0]), b));
+            if (a >= 0 && b >= 0 && (o->edges[a])[b] < strength) {
+                uint8_t* value_19 = &(o->edges[a][b]);
                 (*value_19) = strength;
             }
         }
@@ -591,15 +590,15 @@ compiler_proof_kernel_OrderFact(ProofKernel* k, Order* o, int32_t id, bool truth
             int32_t a = value_21;
             int32_t b = value_22;
             uint8_t strength = 1;
-            if (a >= 0 && b >= 0 && ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), 64, b) < strength) {
-                uint8_t* value_24 = &(ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)) / sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)[0]), b));
+            if (a >= 0 && b >= 0 && (o->edges[a])[b] < strength) {
+                uint8_t* value_24 = &(o->edges[a][b]);
                 (*value_24) = strength;
             }
         }
     } else if (o->diseq_count < 128) {
-        int32_t* value_25 = &(ZIRAN_INDEX(o->diseq, sizeof(o->diseq) / sizeof(o->diseq[0]), o->diseq_count)[0]);
+        int32_t* value_25 = &(o->diseq[o->diseq_count][0]);
         (*value_25) = a;
-        int32_t* value_26 = &(ZIRAN_INDEX(o->diseq, sizeof(o->diseq) / sizeof(o->diseq[0]), o->diseq_count)[1]);
+        int32_t* value_26 = &(o->diseq[o->diseq_count][1]);
         (*value_26) = b;
         int32_t* value_27 = &(o->diseq_count);
         (*value_27) = (int32_t)((uint32_t)((*value_27)) + 1u);
@@ -615,14 +614,14 @@ compiler_proof_kernel_DecideOrder(ProofKernel* k, int32_t goal, bool ring)
         int32_t range_last_1 = (int32_t)((uint32_t)(k->fact_count) - 1u);
         int32_t i = range_first_1;
         if (i <= range_last_1) for (;;) {
-            compiler_proof_kernel_OrderFact(k, &(o), (ZIRAN_INDEX(k->facts, sizeof(k->facts) / sizeof(k->facts[0]), i)).term, (ZIRAN_INDEX(k->facts, sizeof(k->facts) / sizeof(k->facts[0]), i)).truth, ring);
+            compiler_proof_kernel_OrderFact(k, &(o), (k->facts[i]).term, (k->facts[i]).truth, ring);
             if (i == range_last_1) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    ProofTerm t = ZIRAN_INDEX(k->terms, 4096, goal);
+    ProofTerm t = (k->terms)[goal];
     int32_t a = -1;
     int32_t b = -1;
     ProofOp value_0 = (ProofOp)((ProofOp)(t.op));
@@ -645,12 +644,12 @@ compiler_proof_kernel_DecideOrder(ProofKernel* k, int32_t goal, bool ring)
                 int32_t range_last_12 = (int32_t)((uint32_t)(o.count) - 1u);
                 int32_t j = range_first_12;
                 if (j <= range_last_12) for (;;) {
-                    ProofTerm x = ZIRAN_INDEX(k->terms, 4096, ZIRAN_INDEX(o.ids, 64, i));
-                    ProofTerm y = ZIRAN_INDEX(k->terms, 4096, ZIRAN_INDEX(o.ids, 64, j));
+                    ProofTerm x = (k->terms)[(o.ids)[i]];
+                    ProofTerm y = (k->terms)[(o.ids)[j]];
                     if (x.type == y.type && x.type != 0 && ((ProofOp)(x.op)) == ProofOp_Const && ((ProofOp)(y.op)) == ProofOp_Const) {
                         uint64_t value_3 = x.value;
                         uint64_t value_4 = y.value;
-                        ProofType value_5 = ZIRAN_INDEX(k->types, 32, x.type);
+                        ProofType value_5 = (k->types)[x.type];
                         int32_t value_6 = 0;
                         {
                             uint64_t a = value_3;
@@ -701,8 +700,8 @@ compiler_proof_kernel_DecideOrder(ProofKernel* k, int32_t goal, bool ring)
                                 int32_t a = i;
                                 int32_t b = j;
                                 uint8_t strength = value_15;
-                                if (a >= 0 && b >= 0 && ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), 64, b) < strength) {
-                                    uint8_t* value_17 = &(ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)) / sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)[0]), b));
+                                if (a >= 0 && b >= 0 && (o->edges[a])[b] < strength) {
+                                    uint8_t* value_17 = &(o->edges[a][b]);
                                     (*value_17) = strength;
                                 }
                             }
@@ -750,23 +749,22 @@ compiler_proof_kernel_DecideOrder(ProofKernel* k, int32_t goal, bool ring)
                         if (!value_19) {
                             break;
                         }
-                        if (ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), i), 64, m) != 0 && ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), m), 64, j) != 0) {
+                        if ((o.edges[i])[m] != 0 && (o.edges[m])[j] != 0) {
                             Order* value_23 = &(o);
-                            bool value_24 = ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), i), 64, m) == 2 || ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), m), 64, j) == 2;
-                            uint8_t value_25 = 0;
-                            if (value_24) {
-                                value_25 = 2;
+                            uint8_t value_24 = 0;
+                            if ((o.edges[i])[m] == 2 || (o.edges[m])[j] == 2) {
+                                value_24 = 2;
                             } else {
-                                value_25 = 1;
+                                value_24 = 1;
                             }
                             {
                                 Order* o = value_23;
                                 int32_t a = i;
                                 int32_t b = j;
-                                uint8_t strength = value_25;
-                                if (a >= 0 && b >= 0 && ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), 64, b) < strength) {
-                                    uint8_t* value_27 = &(ZIRAN_INDEX(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a), sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)) / sizeof(ZIRAN_INDEX(o->edges, sizeof(o->edges) / sizeof(o->edges[0]), a)[0]), b));
-                                    (*value_27) = strength;
+                                uint8_t strength = value_24;
+                                if (a >= 0 && b >= 0 && (o->edges[a])[b] < strength) {
+                                    uint8_t* value_26 = &(o->edges[a][b]);
+                                    (*value_26) = strength;
                                 }
                             }
                         }
@@ -790,9 +788,9 @@ compiler_proof_kernel_DecideOrder(ProofKernel* k, int32_t goal, bool ring)
         int32_t range_last_38 = (int32_t)((uint32_t)(o.count) - 1u);
         int32_t i = range_first_38;
         if (i <= range_last_38) for (;;) {
-            if (ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), i), 64, i) == 2) {
-                bool* value_28 = &(result.impossible);
-                (*value_28) = true;
+            if ((o.edges[i])[i] == 2) {
+                bool* value_27 = &(result.impossible);
+                (*value_27) = true;
             }
             if (i == range_last_38) {
                 break;
@@ -805,11 +803,11 @@ compiler_proof_kernel_DecideOrder(ProofKernel* k, int32_t goal, bool ring)
         int32_t range_last_43 = (int32_t)((uint32_t)(o.diseq_count) - 1u);
         int32_t i = range_first_43;
         if (i <= range_last_43) for (;;) {
-            int32_t x = (ZIRAN_INDEX(o.diseq, sizeof(o.diseq) / sizeof(o.diseq[0]), i))[0];
-            int32_t y = (ZIRAN_INDEX(o.diseq, sizeof(o.diseq) / sizeof(o.diseq[0]), i))[1];
-            if (ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), x), 64, y) != 0 && ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), y), 64, x) != 0) {
-                bool* value_29 = &(result.impossible);
-                (*value_29) = true;
+            int32_t x = (o.diseq[i])[0];
+            int32_t y = (o.diseq[i])[1];
+            if ((o.edges[x])[y] != 0 && (o.edges[y])[x] != 0) {
+                bool* value_28 = &(result.impossible);
+                (*value_28) = true;
             }
             if (i == range_last_43) {
                 break;
@@ -820,30 +818,30 @@ compiler_proof_kernel_DecideOrder(ProofKernel* k, int32_t goal, bool ring)
     if (a < 0 || b < 0) {
         return result;
     }
-    uint8_t forward = ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), a), 64, b);
-    uint8_t backward = ZIRAN_INDEX(ZIRAN_INDEX(o.edges, sizeof(o.edges) / sizeof(o.edges[0]), b), 64, a);
+    uint8_t forward = (o.edges[a])[b];
+    uint8_t backward = (o.edges[b])[a];
     if (((ProofOp)(t.op)) == ProofOp_Eq) {
         if (forward != 0 && backward != 0) {
-            int32_t* value_30 = &(result.truth);
-            (*value_30) = 1;
+            int32_t* value_29 = &(result.truth);
+            (*value_29) = 1;
         } else if (forward == 2 || backward == 2) {
-            int32_t* value_31 = &(result.truth);
-            (*value_31) = 0;
+            int32_t* value_30 = &(result.truth);
+            (*value_30) = 0;
         }
     } else if (((ProofOp)(t.op)) == ProofOp_Lt) {
         if (forward == 2) {
-            int32_t* value_32 = &(result.truth);
-            (*value_32) = 1;
+            int32_t* value_31 = &(result.truth);
+            (*value_31) = 1;
         } else if (backward != 0) {
-            int32_t* value_33 = &(result.truth);
-            (*value_33) = 0;
+            int32_t* value_32 = &(result.truth);
+            (*value_32) = 0;
         }
     } else if (forward != 0) {
-        int32_t* value_34 = &(result.truth);
-        (*value_34) = 1;
+        int32_t* value_33 = &(result.truth);
+        (*value_33) = 1;
     } else if (backward == 2) {
-        int32_t* value_35 = &(result.truth);
-        (*value_35) = 0;
+        int32_t* value_34 = &(result.truth);
+        (*value_34) = 0;
     }
     return result;
 }
@@ -874,7 +872,7 @@ compiler_proof_kernel_Truth(ProofKernel* k, int32_t id, bool ring, bool order, i
     if (value_1) {
         return -1;
     }
-    ProofTerm t = ZIRAN_INDEX(k->terms, 4096, id);
+    ProofTerm t = (k->terms)[id];
     if (t.type != 0) {
         return -1;
     }
@@ -886,9 +884,9 @@ compiler_proof_kernel_Truth(ProofKernel* k, int32_t id, bool ring, bool order, i
         int32_t range_last_10 = (int32_t)((uint32_t)(k->fact_count) - 1u);
         int32_t i = range_first_10;
         if (i <= range_last_10) for (;;) {
-            if ((ZIRAN_INDEX(k->facts, sizeof(k->facts) / sizeof(k->facts[0]), i)).term == id) {
+            if ((k->facts[i]).term == id) {
                 int32_t value_7 = 0;
-                if ((ZIRAN_INDEX(k->facts, sizeof(k->facts) / sizeof(k->facts[0]), i)).truth) {
+                if ((k->facts[i]).truth) {
                     value_7 = 1;
                 }
                 return value_7;
@@ -967,8 +965,8 @@ compiler_proof_kernel_Truth(ProofKernel* k, int32_t id, bool ring, bool order, i
         }
         return value_16;
     }
-    ProofTerm a = ZIRAN_INDEX(k->terms, 4096, t.a);
-    ProofTerm b = ZIRAN_INDEX(k->terms, 4096, t.b);
+    ProofTerm a = (k->terms)[t.a];
+    ProofTerm b = (k->terms)[t.b];
     if (((ProofOp)(t.op)) == ProofOp_Eq && a.type == 0 && b.type == 0) {
         int32_t x = compiler_proof_kernel_Truth(k, t.a, ring, order, (int32_t)((uint32_t)depth + 1u));
         int32_t y = compiler_proof_kernel_Truth(k, t.b, ring, order, (int32_t)((uint32_t)depth + 1u));
@@ -993,7 +991,7 @@ compiler_proof_kernel_Truth(ProofKernel* k, int32_t id, bool ring, bool order, i
         if (a.type != 0) {
             uint64_t value_20 = a.value;
             uint64_t value_21 = b.value;
-            ProofType value_22 = ZIRAN_INDEX(k->types, 32, a.type);
+            ProofType value_22 = (k->types)[a.type];
             int32_t value_23 = 0;
             {
                 uint64_t a = value_20;
@@ -1078,7 +1076,7 @@ compiler_proof_kernel_Reduce(ProofKernel* k, int32_t id, bool ring, bool order, 
     if (value_1) {
         return -1;
     }
-    ProofTerm t = ZIRAN_INDEX(k->terms, 4096, id);
+    ProofTerm t = (k->terms)[id];
     if (((ProofOp)(t.op)) == ProofOp_Const || ((ProofOp)(t.op)) == ProofOp_Var) {
         return id;
     }
@@ -1124,23 +1122,22 @@ compiler_proof_kernel_Reduce(ProofKernel* k, int32_t id, bool ring, bool order, 
         ProofOp op = (ProofOp)(value_13);
         value_14 = op == ProofOp_Add || op == ProofOp_Sub || op == ProofOp_Mul;
     }
-    bool value_16 = value_14 && ((ProofOp)((ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), a)).op)) == ProofOp_Const;
-    if (value_16 && ((ProofOp)((ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), b)).op)) == ProofOp_Const) {
-        uint64_t x = (ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), a)).value;
-        uint64_t y = (ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), b)).value;
-        uint64_t value_17 = 0;
+    if (value_14 && ((ProofOp)((k->terms[a]).op)) == ProofOp_Const && ((ProofOp)((k->terms[b]).op)) == ProofOp_Const) {
+        uint64_t x = (k->terms[a]).value;
+        uint64_t y = (k->terms[b]).value;
+        uint64_t value_16 = 0;
         if (((ProofOp)(t.op)) == ProofOp_Add) {
-            value_17 = (uint64_t)((uint64_t)x + (uint64_t)y);
+            value_16 = (uint64_t)((uint64_t)x + (uint64_t)y);
         } else {
-            uint64_t value_18 = 0;
+            uint64_t value_17 = 0;
             if (((ProofOp)(t.op)) == ProofOp_Sub) {
-                value_18 = (uint64_t)((uint64_t)x - (uint64_t)y);
+                value_17 = (uint64_t)((uint64_t)x - (uint64_t)y);
             } else {
-                value_18 = (uint64_t)((uint64_t)x * (uint64_t)y);
+                value_17 = (uint64_t)((uint64_t)x * (uint64_t)y);
             }
-            value_17 = value_18;
+            value_16 = value_17;
         }
-        uint64_t value = value_17;
+        uint64_t value = value_16;
         return compiler_proof_kernel_Node(k, ProofOp_Const, t.type, -1, -1, -1, value);
     }
     return compiler_proof_kernel_Node(k, (ProofOp)(t.op), t.type, a, b, c, t.value);
@@ -1171,12 +1168,12 @@ compiler_proof_kernel_Atom(ProofKernel* k, int32_t id, bool ring, bool order, in
     if (value_0) {
         return -1;
     }
-    ProofTerm t = ZIRAN_INDEX(k->terms, 4096, id);
+    ProofTerm t = (k->terms)[id];
     if (t.type != 0 || compiler_proof_kernel_Truth(k, id, ring, order, 0) >= 0) {
         return -1;
     }
     bool value_6 = ((ProofOp)(t.op)) == ProofOp_Var || ((ProofOp)(t.op)) == ProofOp_Lt || ((ProofOp)(t.op)) == ProofOp_Le;
-    if (value_6 || (((ProofOp)(t.op)) == ProofOp_Eq && (ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), t.a)).type != 0)) {
+    if (value_6 || (((ProofOp)(t.op)) == ProofOp_Eq && (k->terms[t.a]).type != 0)) {
         return id;
     }
     int32_t a = compiler_proof_kernel_Atom(k, t.a, ring, order, (int32_t)((uint32_t)depth + 1u));
@@ -1241,13 +1238,13 @@ compiler_proof_kernel_CloseGoal(ProofKernel* k, int32_t goal, bool ring, bool or
         if (i <= range_last_5) for (;;) {
             int32_t* value_7 = &(k->fact_count);
             (*value_7) = i;
-            int32_t known = compiler_proof_kernel_Truth(k, (ZIRAN_INDEX(k->facts, sizeof(k->facts) / sizeof(k->facts[0]), i)).term, ring, order, 0);
+            int32_t known = compiler_proof_kernel_Truth(k, (k->facts[i]).term, ring, order, 0);
             int32_t* value_8 = &(k->fact_count);
             (*value_8) = saved;
             bool value_9 = known >= 0;
             if (value_9) {
                 int32_t value_10 = 0;
-                if ((ZIRAN_INDEX(k->facts, sizeof(k->facts) / sizeof(k->facts[0]), i)).truth) {
+                if ((k->facts[i]).truth) {
                     value_10 = 1;
                 }
                 value_9 = (known != value_10);
@@ -1289,12 +1286,12 @@ compiler_proof_kernel_CloseGoal(ProofKernel* k, int32_t goal, bool ring, bool or
     if (split < 0) {
         return false;
     }
-    ProofFact* value_14 = &(ZIRAN_INDEX(k->facts, sizeof(k->facts) / sizeof(k->facts[0]), saved));
+    ProofFact* value_14 = &(k->facts[saved]);
     (*value_14) = (ProofFact){.term = split, .truth = true};
     int32_t* value_15 = &(k->fact_count);
     (*value_15) = (int32_t)((uint32_t)((*value_15)) + 1u);
     bool yes = compiler_proof_kernel_CloseGoal(k, goal, ring, order, cases, (int32_t)((uint32_t)depth + 1u));
-    bool* value_16 = &((ZIRAN_INDEX(k->facts, sizeof(k->facts) / sizeof(k->facts[0]), saved)).truth);
+    bool* value_16 = &((k->facts[saved]).truth);
     (*value_16) = false;
     bool no = yes && compiler_proof_kernel_CloseGoal(k, goal, ring, order, cases, (int32_t)((uint32_t)depth + 1u));
     int32_t* value_17 = &(k->fact_count);
@@ -1327,7 +1324,7 @@ compiler_proof_kernel_TypeAdd(ProofKernel* k, ProofType type)
         int32_t range_last_0 = (int32_t)((uint32_t)(k->type_count) - 1u);
         int32_t i = range_first_0;
         if (i <= range_last_0) for (;;) {
-            ProofType known = ZIRAN_INDEX(k->types, 32, i);
+            ProofType known = (k->types)[i];
             if (known.width == type.width && known.is_unsigned == type.is_unsigned && known.identity == type.identity) {
                 return i;
             }
@@ -1342,7 +1339,7 @@ compiler_proof_kernel_TypeAdd(ProofKernel* k, ProofType type)
         (*value_0) = true;
         return -1;
     }
-    ProofType* value_1 = &(ZIRAN_INDEX(k->types, sizeof(k->types) / sizeof(k->types[0]), k->type_count));
+    ProofType* value_1 = &(k->types[k->type_count]);
     (*value_1) = type;
     int32_t* value_2 = &(k->type_count);
     (*value_2) = (int32_t)((uint32_t)((*value_2)) + 1u);
@@ -1374,7 +1371,7 @@ compiler_proof_kernel_Node(ProofKernel* k, ProofOp op, int32_t type, int32_t a, 
     if (op == ProofOp_Const) {
         uint64_t value_5 = 0;
         if (type != 0) {
-            uint32_t value_6 = (ZIRAN_INDEX(k->types, sizeof(k->types) / sizeof(k->types[0]), type)).width;
+            uint32_t value_6 = (k->types[type]).width;
             uint64_t value_7 = 0;
             {
                 uint32_t width = value_6;
@@ -1400,7 +1397,7 @@ compiler_proof_kernel_Node(ProofKernel* k, ProofOp op, int32_t type, int32_t a, 
         int32_t range_last_11 = (int32_t)((uint32_t)(k->count) - 1u);
         int32_t i = range_first_11;
         if (i <= range_last_11) for (;;) {
-            ProofTerm t = ZIRAN_INDEX(k->terms, 4096, i);
+            ProofTerm t = (k->terms)[i];
             if (((ProofOp)(t.op)) == op && t.type == type && t.a == a && t.b == b && t.c == c && t.value == bits) {
                 return i;
             }
@@ -1415,7 +1412,7 @@ compiler_proof_kernel_Node(ProofKernel* k, ProofOp op, int32_t type, int32_t a, 
         (*value_9) = true;
         return -1;
     }
-    ProofTerm* value_10 = &(ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), k->count));
+    ProofTerm* value_10 = &(k->terms[k->count]);
     (*value_10) = term;
     int32_t* value_11 = &(k->count);
     (*value_11) = (int32_t)((uint32_t)((*value_11)) + 1u);
@@ -1451,8 +1448,8 @@ compiler_proof_kernel_Equal(ProofKernel* k, int32_t a, int32_t b, bool ring)
     if (a == b) {
         return true;
     }
-    int32_t type = (ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), a)).type;
-    if (type != (ZIRAN_INDEX(k->terms, sizeof(k->terms) / sizeof(k->terms[0]), b)).type || !ring || type == 0) {
+    int32_t type = (k->terms[a]).type;
+    if (type != (k->terms[b]).type || !ring || type == 0) {
         return false;
     }
     Polynomial x = {0};
@@ -1513,8 +1510,8 @@ compiler_proof_kernel_Equal(ProofKernel* k, int32_t a, int32_t b, bool ring)
                         (x).terms.count = 0;
                         return value_16;
                     }
-                    uint64_t value_17 = (ZIRAN_VEC_INDEX((x.terms).data, (x.terms).count, i)).coefficient;
-                    uint64_t value_18 = (ZIRAN_VEC_INDEX((y.terms).data, (y.terms).count, j)).coefficient;
+                    uint64_t value_17 = ((x.terms).data[i]).coefficient;
+                    uint64_t value_18 = ((y.terms).data[j]).coefficient;
                     bool value_19 = value_17 == value_18;
                     if (value_19 && compiler_proof_kernel_SameFactors(&(ZIRAN_VEC_INDEX((x.terms).data, (x.terms).count, i)), &(ZIRAN_VEC_INDEX((y.terms).data, (y.terms).count, j)))) {
                         found = true;
@@ -1591,7 +1588,7 @@ compiler_proof_kernel_Rewrite(ProofKernel* k, int32_t goal, int32_t from, int32_
     if (compiler_proof_kernel_Equal(k, goal, from, true)) {
         return to;
     }
-    ProofTerm t = ZIRAN_INDEX(k->terms, 4096, goal);
+    ProofTerm t = (k->terms)[goal];
     if (((ProofOp)(t.op)) == ProofOp_Const || ((ProofOp)(t.op)) == ProofOp_Var) {
         return goal;
     }

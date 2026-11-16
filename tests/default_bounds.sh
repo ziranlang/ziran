@@ -66,17 +66,25 @@ for input in source saved; do
         root=$work/ir
         module=$root/bounds.zir
     fi
+    # By default indexes are raw, as in C: the generated C checks nothing.
+    plain=$work/$input-plain
+    "$ziran" build --target=c --root "$root" -o "$plain" "$module"
+    if grep -q 'ZIRAN_INDEX\|BoundsCheck\|SliceIndex\|StringRange(' "$plain"/*.c ||
+        test -e "$plain/zir_bounds.h"; then
+        echo "a default C build checks an index" >&2
+        exit 1
+    fi
+    # With --checks every access is checked, whatever the C compiler's
+    # optimization or assertion settings.
     output=$work/$input-c
-    "$ziran" build --target=c --root "$root" \
+    "$ziran" build --target=c --checks --root "$root" \
         -o "$output" "$module"
     compiler=${CC:-cc}
     standard=c99
     suffix=c
     cp "$work/main.c" "$output/main.$suffix"
-    # Match release optimization and disabled assertions. There is no
-    # opt-in bounds flag: the language must guard these accesses itself.
     "$compiler" -std="$standard" -O2 -DNDEBUG -I"$output" \
         "$output"/*.$suffix -o "$output/program"
     "$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" bounds "$output/program"
 done
-echo 'default release bounds: fixed arrays, record writes, text and wide indices checked'
+echo 'bounds: raw by default; with --checks fixed arrays, record writes, text and wide indices checked'

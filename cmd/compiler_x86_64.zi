@@ -1353,6 +1353,13 @@ Resize :: (state: *State) -> bool {
     element := state.program.types[pointer_type.element]
     if element.size < 0 || element.size > 2147483647 { return Fail(state, .Unsupported) }
     writer := *state.writer
+    if !state.program.checks {
+        // rdi is the old block's address; rax becomes the new one's.
+        X86MoveImmediate(writer, X86Rcx, cast(u64)element.size)
+        X86Call32(writer, state.writer.at + 5)
+        Relocate(state, .RuntimeResize, 0, -4, state.writer.at - 4)
+        return true
+    }
     // rdi is the old block's token: unless null it must name a live heap
     // block at offset 0, and rdi becomes the block's address. Its slot ends
     // only once the runtime has freed or moved the block; a request that
@@ -1815,7 +1822,7 @@ Return :: (state: *State) -> bool {
 Epilogue :: (state: *State) -> bool {
     function := state.program.functions[state.function]
     FuelStore(state)
-    if function.pointer_chain != 0 && !PointerFrameLeave(state, function) { return false }
+    if function.arena_mark != 0 && !PointerFrameLeave(state, function) { return false }
     if !CalleeSaves(state, true) { return false }
     if !state.frameless { X86Leave(*state.writer) }
     return true
@@ -2144,31 +2151,36 @@ RetireSlot :: (state: *State) {
     X86Store(writer, X86At(X86R11, MachinePointerHeaderFree), PointerScratch, 8)
 }
 
-// A function with frame storage: save the arena top and start an empty
-// chain. r10 and r11 are free at entry.
+// A function with frame storage: save the arena top and, with --checks,
+// start an empty chain. r10 and r11 are free at entry.
 PointerFrameEnter :: (state: *State, function: MachineFunction) -> bool {
     mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
-    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
     if state.diagnostic.problem != .None { return false }
     writer := *state.writer
     PointerHeader(state)
     X86Load(writer, PointerScratch, X86At(X86R11, MachinePointerHeaderArenaTop), 8, false)
     X86Store(writer, mark, PointerScratch, 8)
+    if !state.program.checks { return true }
+    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
+    if state.diagnostic.problem != .None { return false }
     X86Encode(writer, 0, true, 0xc7, 1, 0, chain)
     X86Little(writer, 0, 4)
     return true
 }
 
-// Before returning: give back the arena and end every slot on the chain.
-// Only rax holds a live value here; rcx, rdx, r10 and r11 are free.
+// Before returning: give back the arena and, with --checks, end every slot
+// on the chain. Only rax holds a live value here; rcx, rdx, r10 and r11 are
+// free.
 PointerFrameLeave :: (state: *State, function: MachineFunction) -> bool {
     mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
-    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
     if state.diagnostic.problem != .None { return false }
     writer := *state.writer
     PointerHeader(state)
     X86Load(writer, PointerScratch, mark, 8, false)
     X86Store(writer, X86At(X86R11, MachinePointerHeaderArenaTop), PointerScratch, 8)
+    if !state.program.checks { return true }
+    chain := StackMemory(state, function.stack_begin + function.pointer_chain - 1, MachineNoId)
+    if state.diagnostic.problem != .None { return false }
     loop := state.writer.at
     X86Load(writer, PointerScratch, chain, 8, false)
     X86Arithmetic(writer, X86Test, PointerScratch, PointerScratch)
@@ -2261,7 +2273,7 @@ Prologue :: (state: *State) -> bool {
         TrapUnless(state, X86AboveEqual, MachineX64TrapStack)
     }
     if !CalleeSaves(state, false) { return false }
-    if function.pointer_chain != 0 && !PointerFrameEnter(state, function) { return false }
+    if function.arena_mark != 0 && !PointerFrameEnter(state, function) { return false }
     if state.fuel_register {
         FuelCounter(state, false)
         state.fuel_live = true

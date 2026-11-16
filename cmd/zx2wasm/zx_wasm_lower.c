@@ -2029,7 +2029,8 @@ checked_index(Fn *fn, int32_t index, int32_t count_value, int64_t count_constant
 {
     int32_t owner = fn->instruction && fn->instruction->result >= 0 &&
         fn->instruction->result < fn->function->values.length ? fn->instruction->result : -1;
-    if(!fn->lower->program->checks || (owner >= 0 && fn->proven && fn->proven[owner])) {
+    int checked = fn->lower->program->checks || (fn->instruction && fn->instruction->checked);
+    if(!checked || (owner >= 0 && fn->proven && fn->proven[owner])) {
         get_i64(fn, index, 0);
         if(size != 1) { i64_const(fn, size); op(fn, 0x7e); }
         op(fn, 0xa7);
@@ -2193,7 +2194,7 @@ lower_address(Fn *fn, const LirInstruction *instruction)
     uint32_t low = fn_temp(fn, W_I64, 0), high = fn_temp(fn, W_I64, 1);
     get_i64(fn, operands[1], 0); local_set(fn, low);
     get_i64(fn, operands[2], 0); local_set(fn, high);
-    if(fn->lower->program->checks) {
+    if(fn->lower->program->checks || instruction->checked) {
         local_get(fn, low); local_get(fn, high); op(fn, 0x56); /* low > high */
         local_get(fn, high); get_i64(fn, operands[3], 0); op(fn, 0x56); /* high > count */
         op(fn, 0x72);

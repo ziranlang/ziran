@@ -1,0 +1,165 @@
+// Ziran is manually safe like C: a build without --checks carries no
+// defensive check, and `#checks` keeps them exactly where it is written, at
+// four levels: a module, a block, a statement and one access. Each entry
+// reads past a four-element array. Native code, Wasm and C trap for the
+// marked reads and nowhere else; the default ELF has no pointer resolve and
+// the default C no index check, while a --checks build has both.
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+
+GRANULARITY_APP :: #string ZI
+#import "strict"
+values: [4]s64;
+Plain :: (index: s64) -> s64 { return values[index] }
+Access :: (index: s64) -> s64 { return #checks values[index] }
+Precise :: (index: s64) -> s64 { return #checks values[0] + values[index] }
+Statement :: (index: s64) -> s64 {
+    #checks x := values[index]
+    return x
+}
+Block :: (index: s64) -> s64 {
+    total: s64 = 0
+    #checks {
+        total += values[index]
+    }
+    return total + values[index]
+}
+#program_export
+RunPlain :: () -> s64 { return Plain(9) }
+#program_export
+RunAccess :: () -> s64 { return Access(9) }
+#program_export
+RunPrecise :: () -> s64 { return Precise(9) }
+#program_export
+RunStatement :: () -> s64 { return Statement(9) }
+#program_export
+RunBlock :: () -> s64 { return Block(9) }
+#program_export
+RunModule :: () -> s64 { return StrictRead(9) }
+ZI
+
+GRANULARITY_STRICT :: #string ZI
+#checks
+table: [4]s64;
+#program_export
+StrictRead :: (index: s64) -> s64 { return table[index] }
+ZI
+
+GRANULARITY_PLAIN :: #string ZI
+values: [4]s64;
+#program_export
+Read :: (index: s64) -> s64 { return values[index] }
+#program_export
+Byte :: (text: string, index: s64) -> u8 { return text[index] }
+#program_export
+Part :: (text: string, low: s64, high: s64) -> string { return text[low:high] }
+ZI
+
+// Whether ENTRY traps on every route, as its `#checks` asks, or runs.
+Route :: (test: *NativeTest, tools: string, root: string, entry: string, traps: bool) -> bool {
+    source := CheckPath(root, "app.zi")
+    bundle := CheckPath(test.work, CheckConcat(entry, ".zx"))
+    build := string.[CheckPath(tools, "zi2zx"), "--root", root, "--entry", CheckConcat("app:", entry), "-o", bundle, source]
+    unused NativeRun(test, build[:])
+    native := string.[CheckPath(tools, "zi2zx"), "run", "--backend", "native", bundle]
+    native_result := NativeInvoke(test, native[:])
+    wasm := CheckPath(test.work, CheckConcat(entry, ".wasm"))
+    lower := string.[CheckPath(tools, "zx2wasm"), "-o", wasm, bundle]
+    unused NativeRun(test, lower[:])
+    node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), wasm]
+    wasm_result := NativeInvoke(test, node[:])
+    output := CheckPath(test.work, CheckConcat(entry, "-c"))
+    c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", CheckConcat("app:", entry),
+        "--root", root, "-o", output, source]
+    unused NativeRun(test, c_build[:])
+    c_run := string.[CheckPath(output, "app")]
+    c_result := NativeInvoke(test, c_run[:])
+    if test.failed { return false }
+    if traps {
+        return NativeAssert(test, native_result.code != 0 && TextContains(native_result.error, "out of bounds"),
+                CheckConcat(entry, " did not trap natively")) &&
+            NativeAssert(test, wasm_result.code != 0, CheckConcat(entry, " did not trap as Wasm")) &&
+            NativeAssert(test, c_result.code == 134 && TextContains(c_result.error, "out of bounds"),
+                CheckConcat(entry, " did not abort in C"))
+    }
+    return NativeAssert(test, native_result.code == 0, CheckConcat(entry, " was checked natively")) &&
+        NativeAssert(test, wasm_result.code == 0, CheckConcat(entry, " was checked as Wasm")) &&
+        NativeAssert(test, c_result.code == 0, CheckConcat(entry, " was checked in C"))
+}
+
+// The number of 64-bit right shifts by 44, the slot read that starts every
+// pointer resolve, in the x86-64 ELF of the pointer fixture.
+Resolves :: (test: *NativeTest, tools: string, checks: bool) -> s64 {
+    spec := CheckPath(test.repo, "tests/spec")
+    label := ifx checks then "pointers-checked" else "pointers"
+    bundle := CheckPath(test.work, CheckConcat(label, ".zx"))
+    elf := CheckPath(test.work, CheckConcat(label, ".elf"))
+    plain := string.[CheckPath(tools, "zi2zx"), "--root", spec, "--entry", "zx_lowered_pointers:main", "--opt",
+        "-o", bundle, CheckPath(spec, "zx_lowered_pointers.zi")]
+    checked := string.[CheckPath(tools, "zi2zx"), "--checks", "--root", spec, "--entry", "zx_lowered_pointers:main",
+        "--opt", "-o", bundle, CheckPath(spec, "zx_lowered_pointers.zi")]
+    unused NativeRun(test, ifx checks then checked[:] else plain[:])
+    native := string.[CheckPath(tools, "zx2native"), "--target", "x86_64", "--platform", "linux", "--emit", "elf",
+        "-o", elf, bundle]
+    unused NativeRun(test, native[:])
+    dump := string.["objdump", "-D", "-b", "binary", "-m", "i386:x86-64", elf]
+    listing := NativeRun(test, dump[:])
+    if test.failed { return -1 }
+    count: s64 = 0
+    at: s64 = 0
+    while true {
+        found := TextFind(listing.output[at:], "shr ")
+        if found < 0 { break }
+        line_end := TextFind(listing.output[at + found:], "\n")
+        line := ifx line_end < 0 then listing.output[at + found:] else listing.output[at + found:at + found + line_end]
+        if TextContains(line, "$0x2c,") { count += 1 }
+        at += found + 4
+    }
+    return count
+}
+
+// Whether the C of the plain program, with runtime indexes and a range,
+// checks any of them.
+CChecks :: (test: *NativeTest, root: string, checks: bool) -> bool {
+    output := CheckPath(test.work, ifx checks then "c-checked" else "c-plain")
+    source := CheckPath(root, "plain.zi")
+    plain := string.[test.ziran, "build", "--target=c", "--root", root, "-o", output, source]
+    checked := string.[test.ziran, "build", "--target=c", "--checks", "--root", root, "-o", output, source]
+    unused NativeRun(test, ifx checks then checked[:] else plain[:])
+    text := NativeRead(test, CheckPath(output, "plain.c"))
+    return TextContains(text, "ZIRAN_INDEX") || TextContains(text, "SliceIndex") ||
+        TextContains(text, "SliceRange(") || TextContains(text, "StringRange(")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "checks-granularity-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    tools := PathParent(test.ziran)
+    root := CheckPath(test.work, "app")
+    plain_root := CheckPath(test.work, "plain")
+    if !NativeWrite(*test, CheckPath(root, "app.zi"), GRANULARITY_APP) ||
+        !NativeWrite(*test, CheckPath(root, "strict.zi"), GRANULARITY_STRICT) ||
+        !NativeWrite(*test, CheckPath(plain_root, "plain.zi"), GRANULARITY_PLAIN) { return 1 }
+    raw := string.["Plain", "Precise"]
+    checked := string.["Access", "Statement", "Block", "Module"]
+    for entry: raw {
+        if !Route(*test, tools, root, CheckConcat("Run", entry), false) { return 1 }
+    }
+    for entry: checked {
+        if !Route(*test, tools, root, CheckConcat("Run", entry), true) { return 1 }
+    }
+    plain_resolves := Resolves(*test, tools, false)
+    checked_resolves := Resolves(*test, tools, true)
+    if test.failed ||
+        !NativeAssert(*test, plain_resolves == 0, "a default x86-64 build resolves a pointer") ||
+        !NativeAssert(*test, checked_resolves > 0, "a --checks x86-64 build resolves no pointer") ||
+        !NativeAssert(*test, !CChecks(*test, plain_root, false), "a default C build checks an index") ||
+        !NativeAssert(*test, CChecks(*test, plain_root, true), "a --checks C build checks no index") { return 1 }
+    print("checks: default native/Wasm/C raw; #checks module, block, statement and access trap only where written; --checks resolves % pointers\n",
+        checked_resolves)
+    return 0
+}

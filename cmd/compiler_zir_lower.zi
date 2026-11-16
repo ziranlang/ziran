@@ -315,6 +315,8 @@ AssemblyLoop :: struct {
 AssemblyFunction :: struct {
     module: *IR.ZirModule
     source: *IR.ZirFunction
+    // Lowering a `#checks` access: its bounded instructions keep their checks.
+    checking: bool
     import: *IR.ZirImport
     result: LIR.LirFunction
     blocks: Vector(AssemblyBlock)
@@ -1165,6 +1167,11 @@ Emit :: (program: *AssemblyProgram, function: *AssemblyFunction, op: LIR.LirOp, 
         operands = S32Items(copy, cast(s64)count),
         symbol = symbol, origin = Origin(program, span)}
     if op == LirOp.Fuel { instruction.immediate = 1 }
+    if (op == LirOp.ElementAddress || op == LirOp.Extract || op == LirOp.Insert) &&
+        program.source.checks == 0 &&
+        (function.checking || function.module != null && function.module.checks != 0) {
+        instruction.checked = true
+    }
     block := BlockAt(function, function.current)
     if LIR.LirEffectful(op) {
         block.effect += 1
@@ -2155,7 +2162,18 @@ Addressable :: (program: *AssemblyProgram, function: *AssemblyFunction, index: s
     return 0
 }
 
+// The address of expression INDEX, keeping its checks under `#checks`.
 Address :: (program: *AssemblyProgram, function: *AssemblyFunction, index: s32, depth: s32) -> s32 {
+    saved := function.checking
+    if index >= 0 && index < function.source.expr_count && function.source.exprs[index].checked != 0 {
+        function.checking = true
+    }
+    result := AddressOf(program, function, index, depth)
+    function.checking = saved
+    return result
+}
+
+AddressOf :: (program: *AssemblyProgram, function: *AssemblyFunction, index: s32, depth: s32) -> s32 {
     if program.failed != 0 { return -1 }
     if index < 0 || index >= function.source.expr_count {
         return Fail(program, function.source.span, "invalid checked address expression")
@@ -4507,7 +4525,12 @@ VectorCall :: (program: *AssemblyProgram, function: *AssemblyFunction,
 // drop at scope exit frees nothing.
 Expression :: (program: *AssemblyProgram, function: *AssemblyFunction, root: s32,
                depth: s32) -> s32 {
+    saved := function.checking
+    if root >= 0 && root < function.source.expr_count && function.source.exprs[root].checked != 0 {
+        function.checking = true
+    }
     value := ExpressionValue(program, function, root, depth)
+    function.checking = saved
     if program.failed != 0 || value < 0 || root < 0 ||
        root >= function.source.expr_count || function.source.exprs[root].is_move == 0 {
         return value
@@ -7809,6 +7832,7 @@ PrintLir :: (view: *LIR.LirProgram, output: *void) -> s32 {
                 PrintSigned(output, cast(s64)ip.effect)
                 PrintText(output, SVC.Keep(" origin=o"))
                 PrintSigned(output, cast(s64)ip.origin)
+                if ip.checked { PrintText(output, SVC.Keep(" checked")) }
                 fputc_raw(10, output)
                 instruction += 1
             }

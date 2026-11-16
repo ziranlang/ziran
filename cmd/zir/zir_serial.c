@@ -211,7 +211,7 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 65u
+#define ZIR_FORMAT_VERSION 66u
 /* Memory a reader may spend on one program's records and on the text its
  * strings stand for. Writers charge the same, so every program written can
  * be read back; this budget, not a count or length cap, bounds saved IR. */
@@ -249,11 +249,12 @@ static const Field statement_fields[] = {
     {offsetof(ZirStmt, name), ZIR_NAME_MAX, FIELD_STATEMENT_NAME},
     NAME_FIELD(ZirStmt, type), STRING_FIELD(ZirStmt, assignment_op),
     INTEGER_FIELD(ZirStmt, is_parallel), INTEGER_FIELD(ZirStmt, is_gpu),
+    INTEGER_FIELD(ZirStmt, checks),
     SPAN_FIELD(ZirStmt, span)
 };
 static const Field expression_fields[] = {
     INTEGER_FIELD(ZirExpr, kind), INTEGER_FIELD(ZirExpr, is_function_value),
-    INTEGER_FIELD(ZirExpr, is_this),
+    INTEGER_FIELD(ZirExpr, is_this), INTEGER_FIELD(ZirExpr, checked),
     NAME_FIELD(ZirExpr, slot_type),
     NAME_FIELD(ZirExpr, name), NAME_FIELD(ZirExpr, argument_name),
     INTEGER_FIELD(ZirExpr, argument_index), STRING_FIELD(ZirExpr, op),
@@ -442,7 +443,7 @@ default_signature_valid(const ZirFunction *function)
 }
 static const Field module_fields[] = {
     STRING_FIELD(ZirModule, name), STRING_FIELD(ZirModule, source_path),
-    SPAN_FIELD(ZirModule, span)
+    SPAN_FIELD(ZirModule, span), INTEGER_FIELD(ZirModule, checks)
 };
 
 /* The signature's version stays four fixed bytes, so every reader can name
@@ -1727,6 +1728,7 @@ validate_program(const ZirProgram *program)
                      expression->third != -1 ||
                      expression->first_child != -1)) ||
                    (expression->is_this != 0 && expression->is_this != 1) ||
+                   (expression->checked != 0 && expression->checked != 1) ||
                    (expression->is_this &&
                     expression->kind != ZIR_EXPR_IDENT &&
                     expression->kind != ZIR_EXPR_CALL) ||

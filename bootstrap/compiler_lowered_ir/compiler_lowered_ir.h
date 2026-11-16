@@ -124,6 +124,7 @@ struct LirInstruction {
     uint32_t alignment;
     int32_t effect;
     int32_t origin;
+    bool checked;
 };
 
 struct LirBlock {

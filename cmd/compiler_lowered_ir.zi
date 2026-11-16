@@ -48,6 +48,9 @@ LirInstruction :: struct {
     alignment: u32
     effect: s32
     origin: s32
+    // Under `#checks` (or in a module marked with it): an element address,
+    // extract or insert keeps its bounds check in a build without --checks.
+    checked: bool
 }
 
 LirBlock :: struct { parameters: []s32; instructions: []LirInstruction }

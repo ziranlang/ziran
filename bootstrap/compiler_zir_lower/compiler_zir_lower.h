@@ -2,6 +2,7 @@
 #ifndef ZIRAN_COMPILER_ZIR_LOWER_H
 #define ZIRAN_COMPILER_ZIR_LOWER_H
 
+#include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
 #include "compiler_ir.h"
@@ -613,6 +614,7 @@ struct __type_745e0b4796abfa08 {
 struct AssemblyFunction {
     ZirModule* module;
     ZirFunction* source;
+    bool checking;
     ZirImport* import;
     LirFunction result;
     __type_67ee5567ed548753 blocks;

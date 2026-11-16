@@ -1085,7 +1085,7 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
                ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, &capacity) &&
                capacity > 0 && IndexInRange(e, expr->right, capacity))
                 format(out, size, "%s[%s]", base, buffers->index);
-            else if(e->target == ZIR_C && EmitChecks(e) &&
+            else if(e->target == ZIR_C && EmitChecksAt(e, expr->right) &&
                ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, NULL))
                 format(out, size, "ZIRAN_INDEX(%s, sizeof(%s) / sizeof(%s[0]), %s)",
                        base, base, base, buffers->index);

@@ -143,6 +143,7 @@ struct ZirStmt {
     int32_t is_using;
     int32_t is_parallel;
     int32_t is_gpu;
+    int32_t checks;
     const char * text;
     int32_t is_else;
     int32_t loop_id;
@@ -167,6 +168,7 @@ struct ZirExpr {
     ZirExprKind kind;
     int32_t is_function_value;
     int32_t is_this;
+    int32_t checked;
     int32_t is_global_value;
     int32_t is_move;
     int32_t text_owned;

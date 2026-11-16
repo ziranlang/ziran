@@ -51,60 +51,64 @@ compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, 
         return -1;
     }
     Parser p = {.fn = fn, .module = module, .span = span, .source = text, .expected_type = expected_type, .stmt_index = stmt_index, .expand_defaults = expand_defaults, .span_cursor = span};
+    if (stmt_index >= 0 && stmt_index < fn->stmt_count && (fn->stmts[stmt_index]).checks != 0) {
+        int32_t* value_2 = &(p.checks);
+        (*value_2) = 1;
+    }
     int32_t initial = fn->expr_count;
-    Parser* value_2 = &(p);
+    Parser* value_3 = &(p);
     {
-        Parser* p = value_2;
-        Scan* value_4 = &(p->token);
-        Scan value_5 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-        (*value_4) = value_5;
-        int64_t value_6 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-        if (value_6 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-            bool* value_7 = &(p->failed);
-            (*value_7) = true;
+        Parser* p = value_3;
+        Scan* value_5 = &(p->token);
+        Scan value_6 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+        (*value_5) = value_6;
+        int64_t value_7 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+        if (value_7 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+            bool* value_8 = &(p->failed);
+            (*value_8) = true;
         }
     }
     int32_t result = compiler_parse_ParseBinary(&(p), 1);
-    Parser* value_8 = &(p);
-    String value_9 = StringLiteral(";");
-    bool value_10 = false;
+    Parser* value_9 = &(p);
+    String value_10 = StringLiteral(";");
+    bool value_11 = false;
     {
-        Parser* p = value_8;
-        String wanted = value_9;
-        Parser* value_12 = p;
-        String value_13 = StringView(NULL, 0);
+        Parser* p = value_9;
+        String wanted = value_10;
+        Parser* value_13 = p;
+        String value_14 = StringView(NULL, 0);
         {
-            Parser* p = value_12;
-            String value_15 = p->source;
-            value_13 = StringRangeAt(value_15, (int64_t)p->token.begin, (int64_t)p->token.end);
+            Parser* p = value_13;
+            String value_16 = p->source;
+            value_14 = StringRangeAt(value_16, (int64_t)p->token.begin, (int64_t)p->token.end);
         }
-        if (!StringEqual(value_13, wanted)) {
-            value_10 = false;
-            goto value_11;
+        if (!StringEqual(value_14, wanted)) {
+            value_11 = false;
+            goto value_12;
         }
-        Parser* value_16 = p;
+        Parser* value_17 = p;
         {
-            Parser* p = value_16;
-            Scan* value_18 = &(p->token);
-            Scan value_19 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-            (*value_18) = value_19;
-            int64_t value_20 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-            if (value_20 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                bool* value_21 = &(p->failed);
-                (*value_21) = true;
+            Parser* p = value_17;
+            Scan* value_19 = &(p->token);
+            Scan value_20 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+            (*value_19) = value_20;
+            int64_t value_21 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+            if (value_21 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                bool* value_22 = &(p->failed);
+                (*value_22) = true;
             }
         }
-        value_10 = true;
-    value_11: ;
+        value_11 = true;
+    value_12: ;
     }
-    (void)value_10;
+    (void)value_11;
     if (!p.failed && ((TokenKind)(p.token.kind)) == ((TokenKind)(0)) && result >= 0) {
         return result;
     }
-    int32_t* value_22 = &(fn->expr_count);
-    (*value_22) = initial;
-    ZirExpr* value_23 = compiler_services_AddExpr(fn, (ZirExprKind)(0), text, span);
-    if (value_23 == ((void *)0)) {
+    int32_t* value_23 = &(fn->expr_count);
+    (*value_23) = initial;
+    ZirExpr* value_24 = compiler_services_AddExpr(fn, (ZirExprKind)(0), text, span);
+    if (value_24 == ((void *)0)) {
         return -1;
     }
     return (int32_t)((uint32_t)(fn->expr_count) - 1u);
@@ -356,6 +360,10 @@ compiler_parse_Node(Parser* p, ZirExprKind kind, int64_t start, String name, Str
     (*value_14) = left;
     int32_t* value_15 = &(node->right);
     (*value_15) = right;
+    if (p->checks > 0) {
+        int32_t* value_16 = &(node->checked);
+        (*value_16) = 1;
+    }
     return (int32_t)((uint32_t)(p->fn->expr_count) - 1u);
 }
 
@@ -1518,7 +1526,7 @@ compiler_parse_ParsePrefix(Parser* p)
         return -1;
     }
     Parser* value_8 = p;
-    String value_9 = StringLiteral("#this");
+    String value_9 = StringLiteral("#checks");
     bool value_10 = false;
     {
         Parser* p = value_8;
@@ -1550,1622 +1558,1665 @@ compiler_parse_ParsePrefix(Parser* p)
     value_11: ;
     }
     if (value_10) {
-        if ((int64_t)(scope).length == 0LL) {
-            compiler_services_Fatal(p->span, StringLiteral("parse.this"), StringLiteral("#this requires a procedure or type scope"));
-        }
-        result = compiler_parse_Node(p, (ZirExprKind)(1), start, scope, StringLiteral(""), -1, -1);
-        if (result >= 0) {
-            int32_t* value_22 = &((p->fn->exprs[result]).is_this);
-            (*value_22) = 1;
-        }
+        int32_t* value_22 = &(p->checks);
+        (*value_22) = (int32_t)((uint32_t)((*value_22)) + 1u);
+        result = compiler_parse_ParsePrefix(p);
+        int32_t* value_23 = &(p->checks);
+        (*value_23) = (int32_t)((uint32_t)((*value_23)) - 1u);
+        int32_t* value_24 = &(p->depth);
+        (*value_24) = (int32_t)((uint32_t)((*value_24)) - 1u);
+        return result;
     } else {
-        Parser* value_23 = p;
-        String value_24 = StringView(NULL, 0);
+        Parser* value_25 = p;
+        String value_26 = StringLiteral("#this");
+        bool value_27 = false;
         {
-            Parser* p = value_23;
-            String value_26 = p->source;
-            value_24 = StringRangeAt(value_26, (int64_t)p->token.begin, (int64_t)p->token.end);
-        }
-        if (StringEqual(value_24, StringLiteral("#caller_location"))) {
-            compiler_services_Fatal(p->span, StringLiteral("parse.caller_location"), StringLiteral("#caller_location is only valid as a parameter default"));
-        } else {
-            Parser* value_27 = p;
-            String value_28 = StringLiteral("#compile_time");
-            bool value_29 = false;
+            Parser* p = value_25;
+            String wanted = value_26;
+            Parser* value_29 = p;
+            String value_30 = StringView(NULL, 0);
             {
-                Parser* p = value_27;
-                String wanted = value_28;
-                Parser* value_31 = p;
-                String value_32 = StringView(NULL, 0);
-                {
-                    Parser* p = value_31;
-                    String value_34 = p->source;
-                    value_32 = StringRangeAt(value_34, (int64_t)p->token.begin, (int64_t)p->token.end);
-                }
-                if (!StringEqual(value_32, wanted)) {
-                    value_29 = false;
-                    goto value_30;
-                }
-                Parser* value_35 = p;
-                {
-                    Parser* p = value_35;
-                    Scan* value_37 = &(p->token);
-                    Scan value_38 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                    (*value_37) = value_38;
-                    int64_t value_39 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                    if (value_39 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                        bool* value_40 = &(p->failed);
-                        (*value_40) = true;
-                    }
-                }
-                value_29 = true;
-            value_30: ;
+                Parser* p = value_29;
+                String value_32 = p->source;
+                value_30 = StringRangeAt(value_32, (int64_t)p->token.begin, (int64_t)p->token.end);
             }
-            if (value_29) {
-                result = compiler_parse_Node(p, (ZirExprKind)(17), start, StringLiteral(""), StringLiteral(""), -1, -1);
-            } else {
-                Parser* value_41 = p;
-                String value_42 = StringLiteral("#procedure_name");
-                bool value_43 = false;
-                {
-                    Parser* p = value_41;
-                    String wanted = value_42;
-                    Parser* value_45 = p;
-                    String value_46 = StringView(NULL, 0);
-                    {
-                        Parser* p = value_45;
-                        String value_48 = p->source;
-                        value_46 = StringRangeAt(value_48, (int64_t)p->token.begin, (int64_t)p->token.end);
-                    }
-                    if (!StringEqual(value_46, wanted)) {
-                        value_43 = false;
-                        goto value_44;
-                    }
-                    Parser* value_49 = p;
-                    {
-                        Parser* p = value_49;
-                        Scan* value_51 = &(p->token);
-                        Scan value_52 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                        (*value_51) = value_52;
-                        int64_t value_53 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                        if (value_53 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                            bool* value_54 = &(p->failed);
-                            (*value_54) = true;
-                        }
-                    }
-                    value_43 = true;
-                value_44: ;
+            if (!StringEqual(value_30, wanted)) {
+                value_27 = false;
+                goto value_28;
+            }
+            Parser* value_33 = p;
+            {
+                Parser* p = value_33;
+                Scan* value_35 = &(p->token);
+                Scan value_36 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                (*value_35) = value_36;
+                int64_t value_37 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                if (value_37 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                    bool* value_38 = &(p->failed);
+                    (*value_38) = true;
                 }
-                if (value_43) {
-                    if ((int64_t)(scope).length == 0LL) {
-                        compiler_services_Fatal(p->span, StringLiteral("parse.procedure_name"), StringLiteral("#procedure_name() requires a procedure scope"));
-                    }
-                    Parser* value_55 = p;
-                    String value_56 = StringLiteral("(");
+            }
+            value_27 = true;
+        value_28: ;
+        }
+        if (value_27) {
+            if ((int64_t)(scope).length == 0LL) {
+                compiler_services_Fatal(p->span, StringLiteral("parse.this"), StringLiteral("#this requires a procedure or type scope"));
+            }
+            result = compiler_parse_Node(p, (ZirExprKind)(1), start, scope, StringLiteral(""), -1, -1);
+            if (result >= 0) {
+                int32_t* value_39 = &((p->fn->exprs[result]).is_this);
+                (*value_39) = 1;
+            }
+        } else {
+            Parser* value_40 = p;
+            String value_41 = StringView(NULL, 0);
+            {
+                Parser* p = value_40;
+                String value_43 = p->source;
+                value_41 = StringRangeAt(value_43, (int64_t)p->token.begin, (int64_t)p->token.end);
+            }
+            if (StringEqual(value_41, StringLiteral("#caller_location"))) {
+                compiler_services_Fatal(p->span, StringLiteral("parse.caller_location"), StringLiteral("#caller_location is only valid as a parameter default"));
+            } else {
+                Parser* value_44 = p;
+                String value_45 = StringLiteral("#compile_time");
+                bool value_46 = false;
+                {
+                    Parser* p = value_44;
+                    String wanted = value_45;
+                    Parser* value_48 = p;
+                    String value_49 = StringView(NULL, 0);
                     {
-                        Parser* p = value_55;
-                        String wanted = value_56;
-                        Parser* value_58 = p;
-                        String value_59 = wanted;
-                        bool value_60 = false;
+                        Parser* p = value_48;
+                        String value_51 = p->source;
+                        value_49 = StringRangeAt(value_51, (int64_t)p->token.begin, (int64_t)p->token.end);
+                    }
+                    if (!StringEqual(value_49, wanted)) {
+                        value_46 = false;
+                        goto value_47;
+                    }
+                    Parser* value_52 = p;
+                    {
+                        Parser* p = value_52;
+                        Scan* value_54 = &(p->token);
+                        Scan value_55 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                        (*value_54) = value_55;
+                        int64_t value_56 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                        if (value_56 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                            bool* value_57 = &(p->failed);
+                            (*value_57) = true;
+                        }
+                    }
+                    value_46 = true;
+                value_47: ;
+                }
+                if (value_46) {
+                    result = compiler_parse_Node(p, (ZirExprKind)(17), start, StringLiteral(""), StringLiteral(""), -1, -1);
+                } else {
+                    Parser* value_58 = p;
+                    String value_59 = StringLiteral("#procedure_name");
+                    bool value_60 = false;
+                    {
+                        Parser* p = value_58;
+                        String wanted = value_59;
+                        Parser* value_62 = p;
+                        String value_63 = StringView(NULL, 0);
                         {
-                            Parser* p = value_58;
-                            String wanted = value_59;
-                            if (!StringEqual(compiler_parse_Token(p), wanted)) {
-                                value_60 = false;
-                                goto value_61;
-                            }
-                            compiler_parse_Advance(p);
-                            value_60 = true;
-                        value_61: ;
+                            Parser* p = value_62;
+                            String value_65 = p->source;
+                            value_63 = StringRangeAt(value_65, (int64_t)p->token.begin, (int64_t)p->token.end);
                         }
-                        if (!value_60) {
-                            bool* value_62 = &(p->failed);
-                            (*value_62) = true;
+                        if (!StringEqual(value_63, wanted)) {
+                            value_60 = false;
+                            goto value_61;
                         }
-                    }
-                    Parser* value_63 = p;
-                    String value_64 = StringLiteral(")");
-                    {
-                        Parser* p = value_63;
-                        String wanted = value_64;
                         Parser* value_66 = p;
-                        String value_67 = wanted;
-                        bool value_68 = false;
                         {
                             Parser* p = value_66;
-                            String wanted = value_67;
-                            if (!StringEqual(compiler_parse_Token(p), wanted)) {
-                                value_68 = false;
-                                goto value_69;
-                            }
-                            compiler_parse_Advance(p);
-                            value_68 = true;
-                        value_69: ;
-                        }
-                        if (!value_68) {
-                            bool* value_70 = &(p->failed);
-                            (*value_70) = true;
-                        }
-                    }
-                    result = compiler_parse_Node(p, (ZirExprKind)(4), start, StringLiteral(""), StringLiteral(""), -1, -1);
-                    uint8_t buffer[256] = {0};
-                    uint8_t* value_71 = &(buffer[0]);
-                    (*value_71) = 34;
-                    {
-                        int64_t range_first_35 = 0LL;
-                        int64_t range_last_35 = (int64_t)((uint64_t)((int64_t)(scope).length) - UINT64_C(1));
-                        int64_t i = range_first_35;
-                        if (i <= range_last_35) for (;;) {
-                            uint8_t* value_72 = &(buffer[((int64_t)((uint64_t)i + UINT64_C(1)))]);
-                            (*value_72) = (uint8_t)scope.data[i];
-                            if (i == range_last_35) {
-                                break;
-                            }
-                            i = (int64_t)((uint64_t)i + UINT64_C(1));
-                        }
-                    }
-                    uint8_t* value_73 = &(buffer[((int64_t)((uint64_t)((int64_t)(scope).length) + UINT64_C(1)))]);
-                    (*value_73) = 34;
-                    if (result >= 0) {
-                        const char ** value_74 = &((p->fn->exprs[result]).text);
-                        Slice value_75 = {buffer, 256};
-                        Slice value_76 = SliceRangeAt(value_75, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(scope).length) + UINT64_C(2))), sizeof(uint8_t));
-                        Slice value_77 = value_76;
-                        uint8_t* value_78 = compiler_services_Keep(StringView((const char *)(value_77).data, (size_t)(value_77).length));
-                        (*value_74) = (const char *)(value_78);
-                    }
-                } else {
-                    Parser* value_79 = p;
-                    String value_80 = StringLiteral("#char");
-                    bool value_81 = false;
-                    {
-                        Parser* p = value_79;
-                        String wanted = value_80;
-                        Parser* value_83 = p;
-                        String value_84 = StringView(NULL, 0);
-                        {
-                            Parser* p = value_83;
-                            String value_86 = p->source;
-                            value_84 = StringRangeAt(value_86, (int64_t)p->token.begin, (int64_t)p->token.end);
-                        }
-                        if (!StringEqual(value_84, wanted)) {
-                            value_81 = false;
-                            goto value_82;
-                        }
-                        Parser* value_87 = p;
-                        {
-                            Parser* p = value_87;
-                            Scan* value_89 = &(p->token);
-                            Scan value_90 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                            (*value_89) = value_90;
-                            int64_t value_91 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                            if (value_91 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                bool* value_92 = &(p->failed);
-                                (*value_92) = true;
+                            Scan* value_68 = &(p->token);
+                            Scan value_69 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                            (*value_68) = value_69;
+                            int64_t value_70 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                            if (value_70 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                bool* value_71 = &(p->failed);
+                                (*value_71) = true;
                             }
                         }
-                        value_81 = true;
-                    value_82: ;
+                        value_60 = true;
+                    value_61: ;
                     }
-                    if (value_81) {
-                        Parser* value_93 = p;
-                        String value_94 = StringView(NULL, 0);
-                        {
-                            Parser* p = value_93;
-                            String value_96 = p->source;
-                            value_94 = StringRangeAt(value_96, (int64_t)p->token.begin, (int64_t)p->token.end);
+                    if (value_60) {
+                        if ((int64_t)(scope).length == 0LL) {
+                            compiler_services_Fatal(p->span, StringLiteral("parse.procedure_name"), StringLiteral("#procedure_name() requires a procedure scope"));
                         }
-                        int32_t byte = compiler_expression_CharacterByte(value_94);
-                        if (((TokenKind)(p->token.kind)) != ((TokenKind)(4)) || byte < 0) {
-                            compiler_services_Fatal(p->span, StringLiteral("parse.jai_char"), StringLiteral("#char requires a one-byte string literal"));
-                        }
-                        Parser* value_97 = p;
+                        Parser* value_72 = p;
+                        String value_73 = StringLiteral("(");
                         {
-                            Parser* p = value_97;
-                            Scan* value_99 = &(p->token);
-                            Scan value_100 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                            (*value_99) = value_100;
-                            int64_t value_101 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                            if (value_101 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                bool* value_102 = &(p->failed);
-                                (*value_102) = true;
+                            Parser* p = value_72;
+                            String wanted = value_73;
+                            Parser* value_75 = p;
+                            String value_76 = wanted;
+                            bool value_77 = false;
+                            {
+                                Parser* p = value_75;
+                                String wanted = value_76;
+                                if (!StringEqual(compiler_parse_Token(p), wanted)) {
+                                    value_77 = false;
+                                    goto value_78;
+                                }
+                                compiler_parse_Advance(p);
+                                value_77 = true;
+                            value_78: ;
+                            }
+                            if (!value_77) {
+                                bool* value_79 = &(p->failed);
+                                (*value_79) = true;
                             }
                         }
-                        result = compiler_parse_Node(p, (ZirExprKind)(2), start, StringLiteral(""), StringLiteral(""), -1, -1);
-                        uint8_t digits[4] = {0};
+                        Parser* value_80 = p;
+                        String value_81 = StringLiteral(")");
+                        {
+                            Parser* p = value_80;
+                            String wanted = value_81;
+                            Parser* value_83 = p;
+                            String value_84 = wanted;
+                            bool value_85 = false;
+                            {
+                                Parser* p = value_83;
+                                String wanted = value_84;
+                                if (!StringEqual(compiler_parse_Token(p), wanted)) {
+                                    value_85 = false;
+                                    goto value_86;
+                                }
+                                compiler_parse_Advance(p);
+                                value_85 = true;
+                            value_86: ;
+                            }
+                            if (!value_85) {
+                                bool* value_87 = &(p->failed);
+                                (*value_87) = true;
+                            }
+                        }
+                        result = compiler_parse_Node(p, (ZirExprKind)(4), start, StringLiteral(""), StringLiteral(""), -1, -1);
+                        uint8_t buffer[256] = {0};
+                        uint8_t* value_88 = &(buffer[0]);
+                        (*value_88) = 34;
+                        {
+                            int64_t range_first_42 = 0LL;
+                            int64_t range_last_42 = (int64_t)((uint64_t)((int64_t)(scope).length) - UINT64_C(1));
+                            int64_t i = range_first_42;
+                            if (i <= range_last_42) for (;;) {
+                                uint8_t* value_89 = &(buffer[((int64_t)((uint64_t)i + UINT64_C(1)))]);
+                                (*value_89) = (uint8_t)scope.data[i];
+                                if (i == range_last_42) {
+                                    break;
+                                }
+                                i = (int64_t)((uint64_t)i + UINT64_C(1));
+                            }
+                        }
+                        uint8_t* value_90 = &(buffer[((int64_t)((uint64_t)((int64_t)(scope).length) + UINT64_C(1)))]);
+                        (*value_90) = 34;
                         if (result >= 0) {
-                            const char ** value_103 = &((p->fn->exprs[result]).text);
-                            Slice value_104 = {digits, 4};
-                            Slice value_105 = {digits, 4};
-                            int64_t value_106 = compiler_parse_Decimal(value_105, (int64_t)(byte));
-                            Slice value_107 = SliceRangeAt(value_104, (int64_t)0LL, (int64_t)value_106, sizeof(uint8_t));
-                            uint8_t* value_108 = compiler_services_Keep(StringView((const char *)(value_107).data, (size_t)(value_107).length));
-                            (*value_103) = (const char *)(value_108);
+                            const char ** value_91 = &((p->fn->exprs[result]).text);
+                            Slice value_92 = {buffer, 256};
+                            Slice value_93 = SliceRangeAt(value_92, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(scope).length) + UINT64_C(2))), sizeof(uint8_t));
+                            Slice value_94 = value_93;
+                            uint8_t* value_95 = compiler_services_Keep(StringView((const char *)(value_94).data, (size_t)(value_94).length));
+                            (*value_91) = (const char *)(value_95);
                         }
                     } else {
-                        Parser* value_109 = p;
-                        String value_110 = StringView(NULL, 0);
+                        Parser* value_96 = p;
+                        String value_97 = StringLiteral("#char");
+                        bool value_98 = false;
                         {
-                            Parser* p = value_109;
-                            String value_112 = p->source;
-                            value_110 = StringRangeAt(value_112, (int64_t)p->token.begin, (int64_t)p->token.end);
+                            Parser* p = value_96;
+                            String wanted = value_97;
+                            Parser* value_100 = p;
+                            String value_101 = StringView(NULL, 0);
+                            {
+                                Parser* p = value_100;
+                                String value_103 = p->source;
+                                value_101 = StringRangeAt(value_103, (int64_t)p->token.begin, (int64_t)p->token.end);
+                            }
+                            if (!StringEqual(value_101, wanted)) {
+                                value_98 = false;
+                                goto value_99;
+                            }
+                            Parser* value_104 = p;
+                            {
+                                Parser* p = value_104;
+                                Scan* value_106 = &(p->token);
+                                Scan value_107 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                (*value_106) = value_107;
+                                int64_t value_108 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                if (value_108 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                    bool* value_109 = &(p->failed);
+                                    (*value_109) = true;
+                                }
+                            }
+                            value_98 = true;
+                        value_99: ;
                         }
-                        bool value_113 = StringEqual(value_110, StringLiteral("ifx"));
-                        if (!value_113) {
+                        if (value_98) {
+                            Parser* value_110 = p;
+                            String value_111 = StringView(NULL, 0);
+                            {
+                                Parser* p = value_110;
+                                String value_113 = p->source;
+                                value_111 = StringRangeAt(value_113, (int64_t)p->token.begin, (int64_t)p->token.end);
+                            }
+                            int32_t byte = compiler_expression_CharacterByte(value_111);
+                            if (((TokenKind)(p->token.kind)) != ((TokenKind)(4)) || byte < 0) {
+                                compiler_services_Fatal(p->span, StringLiteral("parse.jai_char"), StringLiteral("#char requires a one-byte string literal"));
+                            }
                             Parser* value_114 = p;
-                            String value_115 = StringView(NULL, 0);
                             {
                                 Parser* p = value_114;
-                                String value_117 = p->source;
-                                value_115 = StringRangeAt(value_117, (int64_t)p->token.begin, (int64_t)p->token.end);
-                            }
-                            value_113 = (StringEqual(value_115, StringLiteral("#ifx")));
-                        }
-                        if (value_113) {
-                            String op = StringLiteral("ifx");
-                            Parser* value_118 = p;
-                            String value_119 = StringView(NULL, 0);
-                            {
-                                Parser* p = value_118;
-                                String value_121 = p->source;
-                                value_119 = StringRangeAt(value_121, (int64_t)p->token.begin, (int64_t)p->token.end);
-                            }
-                            if (StringEqual(value_119, StringLiteral("#ifx"))) {
-                                op = StringLiteral("#ifx");
-                            }
-                            Parser* value_122 = p;
-                            {
-                                Parser* p = value_122;
-                                Scan* value_124 = &(p->token);
-                                Scan value_125 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                (*value_124) = value_125;
-                                int64_t value_126 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                if (value_126 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                    bool* value_127 = &(p->failed);
-                                    (*value_127) = true;
+                                Scan* value_116 = &(p->token);
+                                Scan value_117 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                (*value_116) = value_117;
+                                int64_t value_118 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                if (value_118 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                    bool* value_119 = &(p->failed);
+                                    (*value_119) = true;
                                 }
                             }
-                            int32_t condition = compiler_parse_ParseBinary(p, 2);
-                            Parser* value_128 = p;
-                            String value_129 = StringLiteral("then");
-                            bool value_130 = false;
+                            result = compiler_parse_Node(p, (ZirExprKind)(2), start, StringLiteral(""), StringLiteral(""), -1, -1);
+                            uint8_t digits[4] = {0};
+                            if (result >= 0) {
+                                const char ** value_120 = &((p->fn->exprs[result]).text);
+                                Slice value_121 = {digits, 4};
+                                Slice value_122 = {digits, 4};
+                                int64_t value_123 = compiler_parse_Decimal(value_122, (int64_t)(byte));
+                                Slice value_124 = SliceRangeAt(value_121, (int64_t)0LL, (int64_t)value_123, sizeof(uint8_t));
+                                uint8_t* value_125 = compiler_services_Keep(StringView((const char *)(value_124).data, (size_t)(value_124).length));
+                                (*value_120) = (const char *)(value_125);
+                            }
+                        } else {
+                            Parser* value_126 = p;
+                            String value_127 = StringView(NULL, 0);
                             {
-                                Parser* p = value_128;
-                                String wanted = value_129;
-                                Parser* value_132 = p;
-                                String value_133 = StringView(NULL, 0);
+                                Parser* p = value_126;
+                                String value_129 = p->source;
+                                value_127 = StringRangeAt(value_129, (int64_t)p->token.begin, (int64_t)p->token.end);
+                            }
+                            bool value_130 = StringEqual(value_127, StringLiteral("ifx"));
+                            if (!value_130) {
+                                Parser* value_131 = p;
+                                String value_132 = StringView(NULL, 0);
                                 {
-                                    Parser* p = value_132;
-                                    String value_135 = p->source;
-                                    value_133 = StringRangeAt(value_135, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                    Parser* p = value_131;
+                                    String value_134 = p->source;
+                                    value_132 = StringRangeAt(value_134, (int64_t)p->token.begin, (int64_t)p->token.end);
                                 }
-                                if (!StringEqual(value_133, wanted)) {
-                                    value_130 = false;
-                                    goto value_131;
-                                }
-                                Parser* value_136 = p;
+                                value_130 = (StringEqual(value_132, StringLiteral("#ifx")));
+                            }
+                            if (value_130) {
+                                String op = StringLiteral("ifx");
+                                Parser* value_135 = p;
+                                String value_136 = StringView(NULL, 0);
                                 {
-                                    Parser* p = value_136;
-                                    Scan* value_138 = &(p->token);
-                                    Scan value_139 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                    (*value_138) = value_139;
-                                    int64_t value_140 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                    if (value_140 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                        bool* value_141 = &(p->failed);
-                                        (*value_141) = true;
+                                    Parser* p = value_135;
+                                    String value_138 = p->source;
+                                    value_136 = StringRangeAt(value_138, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                }
+                                if (StringEqual(value_136, StringLiteral("#ifx"))) {
+                                    op = StringLiteral("#ifx");
+                                }
+                                Parser* value_139 = p;
+                                {
+                                    Parser* p = value_139;
+                                    Scan* value_141 = &(p->token);
+                                    Scan value_142 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                    (*value_141) = value_142;
+                                    int64_t value_143 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                    if (value_143 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                        bool* value_144 = &(p->failed);
+                                        (*value_144) = true;
                                     }
                                 }
-                                value_130 = true;
-                            value_131: ;
-                            }
-                            (void)value_130;
-                            int32_t selected = compiler_parse_ParseBinary(p, 1);
-                            Parser* value_142 = p;
-                            String value_143 = StringLiteral(";");
-                            bool value_144 = false;
-                            {
-                                Parser* p = value_142;
-                                String wanted = value_143;
-                                Parser* value_146 = p;
-                                String value_147 = StringView(NULL, 0);
+                                int32_t condition = compiler_parse_ParseBinary(p, 2);
+                                Parser* value_145 = p;
+                                String value_146 = StringLiteral("then");
+                                bool value_147 = false;
                                 {
-                                    Parser* p = value_146;
-                                    String value_149 = p->source;
-                                    value_147 = StringRangeAt(value_149, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                }
-                                if (!StringEqual(value_147, wanted)) {
-                                    value_144 = false;
-                                    goto value_145;
-                                }
-                                Parser* value_150 = p;
-                                {
-                                    Parser* p = value_150;
-                                    Scan* value_152 = &(p->token);
-                                    Scan value_153 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                    (*value_152) = value_153;
-                                    int64_t value_154 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                    if (value_154 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                        bool* value_155 = &(p->failed);
-                                        (*value_155) = true;
+                                    Parser* p = value_145;
+                                    String wanted = value_146;
+                                    Parser* value_149 = p;
+                                    String value_150 = StringView(NULL, 0);
+                                    {
+                                        Parser* p = value_149;
+                                        String value_152 = p->source;
+                                        value_150 = StringRangeAt(value_152, (int64_t)p->token.begin, (int64_t)p->token.end);
                                     }
+                                    if (!StringEqual(value_150, wanted)) {
+                                        value_147 = false;
+                                        goto value_148;
+                                    }
+                                    Parser* value_153 = p;
+                                    {
+                                        Parser* p = value_153;
+                                        Scan* value_155 = &(p->token);
+                                        Scan value_156 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                        (*value_155) = value_156;
+                                        int64_t value_157 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                        if (value_157 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                            bool* value_158 = &(p->failed);
+                                            (*value_158) = true;
+                                        }
+                                    }
+                                    value_147 = true;
+                                value_148: ;
                                 }
-                                value_144 = true;
-                            value_145: ;
-                            }
-                            (void)value_144;
-                            Parser* value_156 = p;
-                            String value_157 = StringLiteral("else");
-                            {
-                                Parser* p = value_156;
-                                String wanted = value_157;
+                                (void)value_147;
+                                int32_t selected = compiler_parse_ParseBinary(p, 1);
                                 Parser* value_159 = p;
-                                String value_160 = wanted;
+                                String value_160 = StringLiteral(";");
                                 bool value_161 = false;
                                 {
                                     Parser* p = value_159;
                                     String wanted = value_160;
-                                    if (!StringEqual(compiler_parse_Token(p), wanted)) {
+                                    Parser* value_163 = p;
+                                    String value_164 = StringView(NULL, 0);
+                                    {
+                                        Parser* p = value_163;
+                                        String value_166 = p->source;
+                                        value_164 = StringRangeAt(value_166, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                    }
+                                    if (!StringEqual(value_164, wanted)) {
                                         value_161 = false;
                                         goto value_162;
                                     }
-                                    compiler_parse_Advance(p);
+                                    Parser* value_167 = p;
+                                    {
+                                        Parser* p = value_167;
+                                        Scan* value_169 = &(p->token);
+                                        Scan value_170 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                        (*value_169) = value_170;
+                                        int64_t value_171 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                        if (value_171 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                            bool* value_172 = &(p->failed);
+                                            (*value_172) = true;
+                                        }
+                                    }
                                     value_161 = true;
                                 value_162: ;
                                 }
-                                if (!value_161) {
-                                    bool* value_163 = &(p->failed);
-                                    (*value_163) = true;
-                                }
-                            }
-                            int32_t alternative = compiler_parse_ParseBinary(p, 1);
-                            result = compiler_parse_Node(p, (ZirExprKind)(14), start, StringLiteral(""), op, condition, selected);
-                            if (result >= 0) {
-                                int32_t* value_164 = &((p->fn->exprs[result]).third);
-                                (*value_164) = alternative;
-                            }
-                        } else {
-                            Parser* value_165 = p;
-                            String value_166 = StringView(NULL, 0);
-                            {
-                                Parser* p = value_165;
-                                String value_168 = p->source;
-                                value_166 = StringRangeAt(value_168, (int64_t)p->token.begin, (int64_t)p->token.end);
-                            }
-                            if (StringEqual(value_166, StringLiteral("sizeof"))) {
-                                Parser* value_169 = p;
-                                String value_170 = StringLiteral("sizeof is not Jai syntax; use size_of(Type)");
+                                (void)value_161;
+                                Parser* value_173 = p;
+                                String value_174 = StringLiteral("else");
                                 {
-                                    Parser* p = value_169;
-                                    String message = value_170;
-                                    compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
-                                }
-                            } else {
-                                Parser* value_172 = p;
-                                String value_173 = StringLiteral("size_of");
-                                bool value_174 = false;
-                                {
-                                    Parser* p = value_172;
-                                    String wanted = value_173;
+                                    Parser* p = value_173;
+                                    String wanted = value_174;
                                     Parser* value_176 = p;
-                                    String value_177 = StringView(NULL, 0);
+                                    String value_177 = wanted;
+                                    bool value_178 = false;
                                     {
                                         Parser* p = value_176;
-                                        String value_179 = p->source;
-                                        value_177 = StringRangeAt(value_179, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                    }
-                                    if (!StringEqual(value_177, wanted)) {
-                                        value_174 = false;
-                                        goto value_175;
-                                    }
-                                    Parser* value_180 = p;
-                                    {
-                                        Parser* p = value_180;
-                                        Scan* value_182 = &(p->token);
-                                        Scan value_183 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                        (*value_182) = value_183;
-                                        int64_t value_184 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                        if (value_184 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                            bool* value_185 = &(p->failed);
-                                            (*value_185) = true;
+                                        String wanted = value_177;
+                                        if (!StringEqual(compiler_parse_Token(p), wanted)) {
+                                            value_178 = false;
+                                            goto value_179;
                                         }
+                                        compiler_parse_Advance(p);
+                                        value_178 = true;
+                                    value_179: ;
                                     }
-                                    value_174 = true;
-                                value_175: ;
+                                    if (!value_178) {
+                                        bool* value_180 = &(p->failed);
+                                        (*value_180) = true;
+                                    }
                                 }
-                                if (value_174) {
+                                int32_t alternative = compiler_parse_ParseBinary(p, 1);
+                                result = compiler_parse_Node(p, (ZirExprKind)(14), start, StringLiteral(""), op, condition, selected);
+                                if (result >= 0) {
+                                    int32_t* value_181 = &((p->fn->exprs[result]).third);
+                                    (*value_181) = alternative;
+                                }
+                            } else {
+                                Parser* value_182 = p;
+                                String value_183 = StringView(NULL, 0);
+                                {
+                                    Parser* p = value_182;
+                                    String value_185 = p->source;
+                                    value_183 = StringRangeAt(value_185, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                }
+                                if (StringEqual(value_183, StringLiteral("sizeof"))) {
                                     Parser* value_186 = p;
-                                    String value_187 = StringLiteral("(");
+                                    String value_187 = StringLiteral("sizeof is not Jai syntax; use size_of(Type)");
                                     {
                                         Parser* p = value_186;
-                                        String wanted = value_187;
-                                        Parser* value_189 = p;
-                                        String value_190 = wanted;
-                                        bool value_191 = false;
-                                        {
-                                            Parser* p = value_189;
-                                            String wanted = value_190;
-                                            if (!StringEqual(compiler_parse_Token(p), wanted)) {
-                                                value_191 = false;
-                                                goto value_192;
-                                            }
-                                            compiler_parse_Advance(p);
-                                            value_191 = true;
-                                        value_192: ;
-                                        }
-                                        if (!value_191) {
-                                            bool* value_193 = &(p->failed);
-                                            (*value_193) = true;
-                                        }
+                                        String message = value_187;
+                                        compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
                                     }
-                                    int64_t type_start = p->token.begin;
-                                    int32_t nested = 0;
-                                    while (((TokenKind)(p->token.kind)) != ((TokenKind)(0))) {
-                                        Parser* value_194 = p;
-                                        String value_195 = StringView(NULL, 0);
-                                        {
-                                            Parser* p = value_194;
-                                            String value_197 = p->source;
-                                            value_195 = StringRangeAt(value_197, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                        }
-                                        if (((StringEqual(value_195, StringLiteral(")"))) && nested == 0)) {
-                                            break;
-                                        }
-                                        Parser* value_198 = p;
-                                        String value_199 = StringView(NULL, 0);
-                                        {
-                                            Parser* p = value_198;
-                                            String value_201 = p->source;
-                                            value_199 = StringRangeAt(value_201, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                        }
-                                        if ((StringEqual(value_199, StringLiteral("(")))) {
-                                            nested = (int32_t)((uint32_t)nested + 1u);
-                                        }
-                                        Parser* value_202 = p;
-                                        String value_203 = StringView(NULL, 0);
-                                        {
-                                            Parser* p = value_202;
-                                            String value_205 = p->source;
-                                            value_203 = StringRangeAt(value_205, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                        }
-                                        if ((StringEqual(value_203, StringLiteral(")")))) {
-                                            nested = (int32_t)((uint32_t)nested - 1u);
-                                        }
-                                        Parser* value_206 = p;
-                                        {
-                                            Parser* p = value_206;
-                                            Scan* value_208 = &(p->token);
-                                            Scan value_209 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                            (*value_208) = value_209;
-                                            int64_t value_210 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                            if (value_210 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                bool* value_211 = &(p->failed);
-                                                (*value_211) = true;
-                                            }
-                                        }
-                                    }
-                                    Parser* value_212 = p;
-                                    String value_213 = StringView(NULL, 0);
-                                    {
-                                        Parser* p = value_212;
-                                        int64_t start = type_start;
-                                        int64_t end = p->token.begin;
-                                        if (start < 0LL || end < start || (int64_t)((uint64_t)end - (uint64_t)start) >= 128LL) {
-                                            bool* value_215 = &(p->failed);
-                                            (*value_215) = true;
-                                            value_213 = StringLiteral("");
-                                            goto value_214;
-                                        }
-                                        String value_216 = p->source;
-                                        String value_217 = StringRangeAt(value_216, (int64_t)start, (int64_t)end);
-                                        String value_218 = StringView(NULL, 0);
-                                        {
-                                            String source = value_217;
-                                            SourceRange range = compiler_text_TrimRange(source);
-                                            value_218 = StringRangeAt(source, (int64_t)range.begin, (int64_t)range.end);
-                                        }
-                                        value_213 = value_218;
-                                    value_214: ;
-                                    }
-                                    String type = value_213;
-                                    Parser* value_220 = p;
-                                    String value_221 = StringLiteral(")");
-                                    {
-                                        Parser* p = value_220;
-                                        String wanted = value_221;
-                                        Parser* value_223 = p;
-                                        String value_224 = wanted;
-                                        bool value_225 = false;
-                                        {
-                                            Parser* p = value_223;
-                                            String wanted = value_224;
-                                            if (!StringEqual(compiler_parse_Token(p), wanted)) {
-                                                value_225 = false;
-                                                goto value_226;
-                                            }
-                                            compiler_parse_Advance(p);
-                                            value_225 = true;
-                                        value_226: ;
-                                        }
-                                        if (!value_225) {
-                                            bool* value_227 = &(p->failed);
-                                            (*value_227) = true;
-                                        }
-                                    }
-                                    result = compiler_parse_Node(p, (ZirExprKind)(13), start, type, StringLiteral(""), -1, -1);
                                 } else {
-                                    Parser* value_228 = p;
-                                    String value_229 = StringLiteral("cast");
-                                    bool value_230 = false;
+                                    Parser* value_189 = p;
+                                    String value_190 = StringLiteral("size_of");
+                                    bool value_191 = false;
                                     {
-                                        Parser* p = value_228;
-                                        String wanted = value_229;
-                                        Parser* value_232 = p;
-                                        String value_233 = StringView(NULL, 0);
+                                        Parser* p = value_189;
+                                        String wanted = value_190;
+                                        Parser* value_193 = p;
+                                        String value_194 = StringView(NULL, 0);
                                         {
-                                            Parser* p = value_232;
-                                            String value_235 = p->source;
-                                            value_233 = StringRangeAt(value_235, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                            Parser* p = value_193;
+                                            String value_196 = p->source;
+                                            value_194 = StringRangeAt(value_196, (int64_t)p->token.begin, (int64_t)p->token.end);
                                         }
-                                        if (!StringEqual(value_233, wanted)) {
-                                            value_230 = false;
-                                            goto value_231;
+                                        if (!StringEqual(value_194, wanted)) {
+                                            value_191 = false;
+                                            goto value_192;
                                         }
-                                        Parser* value_236 = p;
+                                        Parser* value_197 = p;
                                         {
-                                            Parser* p = value_236;
-                                            Scan* value_238 = &(p->token);
-                                            Scan value_239 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                            (*value_238) = value_239;
-                                            int64_t value_240 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                            if (value_240 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                bool* value_241 = &(p->failed);
-                                                (*value_241) = true;
+                                            Parser* p = value_197;
+                                            Scan* value_199 = &(p->token);
+                                            Scan value_200 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                            (*value_199) = value_200;
+                                            int64_t value_201 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                            if (value_201 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                bool* value_202 = &(p->failed);
+                                                (*value_202) = true;
                                             }
                                         }
-                                        value_230 = true;
-                                    value_231: ;
+                                        value_191 = true;
+                                    value_192: ;
                                     }
-                                    if (value_230) {
-                                        Parser* value_242 = p;
-                                        String value_243 = StringLiteral("(");
+                                    if (value_191) {
+                                        Parser* value_203 = p;
+                                        String value_204 = StringLiteral("(");
                                         {
-                                            Parser* p = value_242;
-                                            String wanted = value_243;
-                                            Parser* value_245 = p;
-                                            String value_246 = wanted;
-                                            bool value_247 = false;
+                                            Parser* p = value_203;
+                                            String wanted = value_204;
+                                            Parser* value_206 = p;
+                                            String value_207 = wanted;
+                                            bool value_208 = false;
                                             {
-                                                Parser* p = value_245;
-                                                String wanted = value_246;
+                                                Parser* p = value_206;
+                                                String wanted = value_207;
                                                 if (!StringEqual(compiler_parse_Token(p), wanted)) {
-                                                    value_247 = false;
-                                                    goto value_248;
+                                                    value_208 = false;
+                                                    goto value_209;
                                                 }
                                                 compiler_parse_Advance(p);
-                                                value_247 = true;
-                                            value_248: ;
+                                                value_208 = true;
+                                            value_209: ;
                                             }
-                                            if (!value_247) {
-                                                bool* value_249 = &(p->failed);
-                                                (*value_249) = true;
+                                            if (!value_208) {
+                                                bool* value_210 = &(p->failed);
+                                                (*value_210) = true;
                                             }
                                         }
                                         int64_t type_start = p->token.begin;
-                                        Parser* value_250 = p;
-                                        String value_251 = StringView(NULL, 0);
-                                        {
-                                            Parser* p = value_250;
-                                            String value_253 = p->source;
-                                            value_251 = StringRangeAt(value_253, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                        }
-                                        if (StringEqual(value_251, StringLiteral("char"))) {
-                                            Parser* value_254 = p;
-                                            String value_255 = StringLiteral("non-Jai primitive type spelling: char");
+                                        int32_t nested = 0;
+                                        while (((TokenKind)(p->token.kind)) != ((TokenKind)(0))) {
+                                            Parser* value_211 = p;
+                                            String value_212 = StringView(NULL, 0);
                                             {
-                                                Parser* p = value_254;
-                                                String message = value_255;
-                                                compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
+                                                Parser* p = value_211;
+                                                String value_214 = p->source;
+                                                value_212 = StringRangeAt(value_214, (int64_t)p->token.begin, (int64_t)p->token.end);
                                             }
-                                        }
-                                        while (true) {
-                                            bool value_257 = ((TokenKind)(p->token.kind)) != ((TokenKind)(0));
-                                            bool value_258 = value_257;
-                                            if (value_258) {
-                                                Parser* value_259 = p;
-                                                String value_260 = StringView(NULL, 0);
-                                                {
-                                                    Parser* p = value_259;
-                                                    String value_262 = p->source;
-                                                    value_260 = StringRangeAt(value_262, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                }
-                                                value_258 = (!StringEqual(value_260, StringLiteral(")")));
+                                            if (((StringEqual(value_212, StringLiteral(")"))) && nested == 0)) {
+                                                break;
                                             }
-                                            if (!value_258) { break; }
-                                            Parser* value_263 = p;
+                                            Parser* value_215 = p;
+                                            String value_216 = StringView(NULL, 0);
                                             {
-                                                Parser* p = value_263;
-                                                Scan* value_265 = &(p->token);
-                                                Scan value_266 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                (*value_265) = value_266;
-                                                int64_t value_267 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                if (value_267 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                    bool* value_268 = &(p->failed);
-                                                    (*value_268) = true;
+                                                Parser* p = value_215;
+                                                String value_218 = p->source;
+                                                value_216 = StringRangeAt(value_218, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                            }
+                                            if ((StringEqual(value_216, StringLiteral("(")))) {
+                                                nested = (int32_t)((uint32_t)nested + 1u);
+                                            }
+                                            Parser* value_219 = p;
+                                            String value_220 = StringView(NULL, 0);
+                                            {
+                                                Parser* p = value_219;
+                                                String value_222 = p->source;
+                                                value_220 = StringRangeAt(value_222, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                            }
+                                            if ((StringEqual(value_220, StringLiteral(")")))) {
+                                                nested = (int32_t)((uint32_t)nested - 1u);
+                                            }
+                                            Parser* value_223 = p;
+                                            {
+                                                Parser* p = value_223;
+                                                Scan* value_225 = &(p->token);
+                                                Scan value_226 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                (*value_225) = value_226;
+                                                int64_t value_227 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                if (value_227 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                    bool* value_228 = &(p->failed);
+                                                    (*value_228) = true;
                                                 }
                                             }
                                         }
-                                        Parser* value_269 = p;
-                                        String value_270 = StringView(NULL, 0);
+                                        Parser* value_229 = p;
+                                        String value_230 = StringView(NULL, 0);
                                         {
-                                            Parser* p = value_269;
+                                            Parser* p = value_229;
                                             int64_t start = type_start;
                                             int64_t end = p->token.begin;
                                             if (start < 0LL || end < start || (int64_t)((uint64_t)end - (uint64_t)start) >= 128LL) {
-                                                bool* value_272 = &(p->failed);
-                                                (*value_272) = true;
-                                                value_270 = StringLiteral("");
-                                                goto value_271;
+                                                bool* value_232 = &(p->failed);
+                                                (*value_232) = true;
+                                                value_230 = StringLiteral("");
+                                                goto value_231;
                                             }
-                                            String value_273 = p->source;
-                                            String value_274 = StringRangeAt(value_273, (int64_t)start, (int64_t)end);
-                                            String value_275 = StringView(NULL, 0);
+                                            String value_233 = p->source;
+                                            String value_234 = StringRangeAt(value_233, (int64_t)start, (int64_t)end);
+                                            String value_235 = StringView(NULL, 0);
                                             {
-                                                String source = value_274;
+                                                String source = value_234;
                                                 SourceRange range = compiler_text_TrimRange(source);
-                                                value_275 = StringRangeAt(source, (int64_t)range.begin, (int64_t)range.end);
+                                                value_235 = StringRangeAt(source, (int64_t)range.begin, (int64_t)range.end);
                                             }
-                                            value_270 = value_275;
-                                        value_271: ;
+                                            value_230 = value_235;
+                                        value_231: ;
                                         }
-                                        String type = value_270;
-                                        Parser* value_277 = p;
-                                        bool value_278 = false;
+                                        String type = value_230;
+                                        Parser* value_237 = p;
+                                        String value_238 = StringLiteral(")");
                                         {
-                                            Parser* p = value_277;
-                                            String name = type;
-                                            if ((int64_t)(name).length >= 128LL) {
-                                                value_278 = false;
-                                                goto value_279;
-                                            }
-                                            String value_280 = name;
-                                            bool value_281 = false;
+                                            Parser* p = value_237;
+                                            String wanted = value_238;
+                                            Parser* value_240 = p;
+                                            String value_241 = wanted;
+                                            bool value_242 = false;
                                             {
-                                                String name = value_280;
-                                                bool value_283 = StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize"));
-                                                value_281 = value_283 || StringEqual(name, StringLiteral("usize")) || (!StringEqual(name, StringLiteral("integer")) && compiler_type_ScalarByteWidth(name) > 0);
-                                            }
-                                            bool value_284 = value_281;
-                                            if (!value_284) {
-                                                bool value_285 = p->module != ((void *)0);
-                                                bool value_286 = value_285;
-                                                if (value_286) {
-                                                    ZirType* value_287 = compiler_services_FindType(p->module, name, (void *)0);
-                                                    value_286 = (value_287 != ((void *)0));
-                                                }
-                                                value_284 = value_286;
-                                            }
-                                            value_278 = value_284;
-                                        value_279: ;
-                                        }
-                                        if (!value_278 && ((int64_t)(type).length == 0LL || ((uint8_t)type.data[0] != 91 && (uint8_t)type.data[0] != 42))) {
-                                            bool* value_288 = &(p->failed);
-                                            (*value_288) = true;
-                                        }
-                                        Parser* value_289 = p;
-                                        String value_290 = StringLiteral(")");
-                                        {
-                                            Parser* p = value_289;
-                                            String wanted = value_290;
-                                            Parser* value_292 = p;
-                                            String value_293 = wanted;
-                                            bool value_294 = false;
-                                            {
-                                                Parser* p = value_292;
-                                                String wanted = value_293;
+                                                Parser* p = value_240;
+                                                String wanted = value_241;
                                                 if (!StringEqual(compiler_parse_Token(p), wanted)) {
-                                                    value_294 = false;
-                                                    goto value_295;
+                                                    value_242 = false;
+                                                    goto value_243;
                                                 }
                                                 compiler_parse_Advance(p);
-                                                value_294 = true;
-                                            value_295: ;
+                                                value_242 = true;
+                                            value_243: ;
                                             }
-                                            if (!value_294) {
-                                                bool* value_296 = &(p->failed);
-                                                (*value_296) = true;
+                                            if (!value_242) {
+                                                bool* value_244 = &(p->failed);
+                                                (*value_244) = true;
                                             }
                                         }
-                                        int32_t right = compiler_parse_ParsePrefix(p);
-                                        result = compiler_parse_Node(p, (ZirExprKind)(11), start, type, StringLiteral(""), -1, right);
+                                        result = compiler_parse_Node(p, (ZirExprKind)(13), start, type, StringLiteral(""), -1, -1);
                                     } else {
-                                        Parser* value_297 = p;
-                                        String value_298 = StringView(NULL, 0);
+                                        Parser* value_245 = p;
+                                        String value_246 = StringLiteral("cast");
+                                        bool value_247 = false;
                                         {
-                                            Parser* p = value_297;
-                                            String value_300 = p->source;
-                                            value_298 = StringRangeAt(value_300, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                        }
-                                        bool value_301 = StringEqual(value_298, StringLiteral("++"));
-                                        if (!value_301) {
-                                            Parser* value_302 = p;
-                                            String value_303 = StringView(NULL, 0);
+                                            Parser* p = value_245;
+                                            String wanted = value_246;
+                                            Parser* value_249 = p;
+                                            String value_250 = StringView(NULL, 0);
                                             {
-                                                Parser* p = value_302;
-                                                String value_305 = p->source;
-                                                value_303 = StringRangeAt(value_305, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                Parser* p = value_249;
+                                                String value_252 = p->source;
+                                                value_250 = StringRangeAt(value_252, (int64_t)p->token.begin, (int64_t)p->token.end);
                                             }
-                                            value_301 = (StringEqual(value_303, StringLiteral("--")));
+                                            if (!StringEqual(value_250, wanted)) {
+                                                value_247 = false;
+                                                goto value_248;
+                                            }
+                                            Parser* value_253 = p;
+                                            {
+                                                Parser* p = value_253;
+                                                Scan* value_255 = &(p->token);
+                                                Scan value_256 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                (*value_255) = value_256;
+                                                int64_t value_257 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                if (value_257 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                    bool* value_258 = &(p->failed);
+                                                    (*value_258) = true;
+                                                }
+                                            }
+                                            value_247 = true;
+                                        value_248: ;
                                         }
-                                        if (value_301) {
+                                        if (value_247) {
+                                            Parser* value_259 = p;
+                                            String value_260 = StringLiteral("(");
+                                            {
+                                                Parser* p = value_259;
+                                                String wanted = value_260;
+                                                Parser* value_262 = p;
+                                                String value_263 = wanted;
+                                                bool value_264 = false;
+                                                {
+                                                    Parser* p = value_262;
+                                                    String wanted = value_263;
+                                                    if (!StringEqual(compiler_parse_Token(p), wanted)) {
+                                                        value_264 = false;
+                                                        goto value_265;
+                                                    }
+                                                    compiler_parse_Advance(p);
+                                                    value_264 = true;
+                                                value_265: ;
+                                                }
+                                                if (!value_264) {
+                                                    bool* value_266 = &(p->failed);
+                                                    (*value_266) = true;
+                                                }
+                                            }
+                                            int64_t type_start = p->token.begin;
+                                            Parser* value_267 = p;
+                                            String value_268 = StringView(NULL, 0);
+                                            {
+                                                Parser* p = value_267;
+                                                String value_270 = p->source;
+                                                value_268 = StringRangeAt(value_270, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                            }
+                                            if (StringEqual(value_268, StringLiteral("char"))) {
+                                                Parser* value_271 = p;
+                                                String value_272 = StringLiteral("non-Jai primitive type spelling: char");
+                                                {
+                                                    Parser* p = value_271;
+                                                    String message = value_272;
+                                                    compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
+                                                }
+                                            }
+                                            while (true) {
+                                                bool value_274 = ((TokenKind)(p->token.kind)) != ((TokenKind)(0));
+                                                bool value_275 = value_274;
+                                                if (value_275) {
+                                                    Parser* value_276 = p;
+                                                    String value_277 = StringView(NULL, 0);
+                                                    {
+                                                        Parser* p = value_276;
+                                                        String value_279 = p->source;
+                                                        value_277 = StringRangeAt(value_279, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                    }
+                                                    value_275 = (!StringEqual(value_277, StringLiteral(")")));
+                                                }
+                                                if (!value_275) { break; }
+                                                Parser* value_280 = p;
+                                                {
+                                                    Parser* p = value_280;
+                                                    Scan* value_282 = &(p->token);
+                                                    Scan value_283 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                    (*value_282) = value_283;
+                                                    int64_t value_284 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                    if (value_284 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                        bool* value_285 = &(p->failed);
+                                                        (*value_285) = true;
+                                                    }
+                                                }
+                                            }
+                                            Parser* value_286 = p;
+                                            String value_287 = StringView(NULL, 0);
+                                            {
+                                                Parser* p = value_286;
+                                                int64_t start = type_start;
+                                                int64_t end = p->token.begin;
+                                                if (start < 0LL || end < start || (int64_t)((uint64_t)end - (uint64_t)start) >= 128LL) {
+                                                    bool* value_289 = &(p->failed);
+                                                    (*value_289) = true;
+                                                    value_287 = StringLiteral("");
+                                                    goto value_288;
+                                                }
+                                                String value_290 = p->source;
+                                                String value_291 = StringRangeAt(value_290, (int64_t)start, (int64_t)end);
+                                                String value_292 = StringView(NULL, 0);
+                                                {
+                                                    String source = value_291;
+                                                    SourceRange range = compiler_text_TrimRange(source);
+                                                    value_292 = StringRangeAt(source, (int64_t)range.begin, (int64_t)range.end);
+                                                }
+                                                value_287 = value_292;
+                                            value_288: ;
+                                            }
+                                            String type = value_287;
+                                            Parser* value_294 = p;
+                                            bool value_295 = false;
+                                            {
+                                                Parser* p = value_294;
+                                                String name = type;
+                                                if ((int64_t)(name).length >= 128LL) {
+                                                    value_295 = false;
+                                                    goto value_296;
+                                                }
+                                                String value_297 = name;
+                                                bool value_298 = false;
+                                                {
+                                                    String name = value_297;
+                                                    bool value_300 = StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize"));
+                                                    value_298 = value_300 || StringEqual(name, StringLiteral("usize")) || (!StringEqual(name, StringLiteral("integer")) && compiler_type_ScalarByteWidth(name) > 0);
+                                                }
+                                                bool value_301 = value_298;
+                                                if (!value_301) {
+                                                    bool value_302 = p->module != ((void *)0);
+                                                    bool value_303 = value_302;
+                                                    if (value_303) {
+                                                        ZirType* value_304 = compiler_services_FindType(p->module, name, (void *)0);
+                                                        value_303 = (value_304 != ((void *)0));
+                                                    }
+                                                    value_301 = value_303;
+                                                }
+                                                value_295 = value_301;
+                                            value_296: ;
+                                            }
+                                            if (!value_295 && ((int64_t)(type).length == 0LL || ((uint8_t)type.data[0] != 91 && (uint8_t)type.data[0] != 42))) {
+                                                bool* value_305 = &(p->failed);
+                                                (*value_305) = true;
+                                            }
                                             Parser* value_306 = p;
-                                            String value_307 = StringLiteral("Jai has no increment or decrement operators; use += 1 or -= 1");
+                                            String value_307 = StringLiteral(")");
                                             {
                                                 Parser* p = value_306;
-                                                String message = value_307;
-                                                compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
-                                            }
-                                        } else {
-                                            Parser* value_309 = p;
-                                            String value_310 = StringLiteral("<<");
-                                            bool value_311 = false;
-                                            {
-                                                Parser* p = value_309;
-                                                String wanted = value_310;
-                                                Parser* value_313 = p;
-                                                String value_314 = StringView(NULL, 0);
+                                                String wanted = value_307;
+                                                Parser* value_309 = p;
+                                                String value_310 = wanted;
+                                                bool value_311 = false;
                                                 {
-                                                    Parser* p = value_313;
-                                                    String value_316 = p->source;
-                                                    value_314 = StringRangeAt(value_316, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                }
-                                                if (!StringEqual(value_314, wanted)) {
-                                                    value_311 = false;
-                                                    goto value_312;
-                                                }
-                                                Parser* value_317 = p;
-                                                {
-                                                    Parser* p = value_317;
-                                                    Scan* value_319 = &(p->token);
-                                                    Scan value_320 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                    (*value_319) = value_320;
-                                                    int64_t value_321 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                    if (value_321 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                        bool* value_322 = &(p->failed);
-                                                        (*value_322) = true;
+                                                    Parser* p = value_309;
+                                                    String wanted = value_310;
+                                                    if (!StringEqual(compiler_parse_Token(p), wanted)) {
+                                                        value_311 = false;
+                                                        goto value_312;
                                                     }
+                                                    compiler_parse_Advance(p);
+                                                    value_311 = true;
+                                                value_312: ;
                                                 }
-                                                value_311 = true;
-                                            value_312: ;
+                                                if (!value_311) {
+                                                    bool* value_313 = &(p->failed);
+                                                    (*value_313) = true;
+                                                }
                                             }
-                                            if (value_311) {
-                                                int32_t right = compiler_parse_ParsePrefix(p);
-                                                result = compiler_parse_Node(p, (ZirExprKind)(7), start, StringLiteral(""), StringLiteral("*"), -1, right);
-                                            } else {
+                                            int32_t right = compiler_parse_ParsePrefix(p);
+                                            result = compiler_parse_Node(p, (ZirExprKind)(11), start, type, StringLiteral(""), -1, right);
+                                        } else {
+                                            Parser* value_314 = p;
+                                            String value_315 = StringView(NULL, 0);
+                                            {
+                                                Parser* p = value_314;
+                                                String value_317 = p->source;
+                                                value_315 = StringRangeAt(value_317, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                            }
+                                            bool value_318 = StringEqual(value_315, StringLiteral("++"));
+                                            if (!value_318) {
+                                                Parser* value_319 = p;
+                                                String value_320 = StringView(NULL, 0);
+                                                {
+                                                    Parser* p = value_319;
+                                                    String value_322 = p->source;
+                                                    value_320 = StringRangeAt(value_322, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                }
+                                                value_318 = (StringEqual(value_320, StringLiteral("--")));
+                                            }
+                                            if (value_318) {
                                                 Parser* value_323 = p;
-                                                String value_324 = StringView(NULL, 0);
+                                                String value_324 = StringLiteral("Jai has no increment or decrement operators; use += 1 or -= 1");
                                                 {
                                                     Parser* p = value_323;
-                                                    String value_326 = p->source;
-                                                    value_324 = StringRangeAt(value_326, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                    String message = value_324;
+                                                    compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
                                                 }
-                                                bool value_327 = StringEqual(value_324, StringLiteral("+"));
-                                                if (!value_327) {
-                                                    Parser* value_328 = p;
-                                                    String value_329 = StringView(NULL, 0);
+                                            } else {
+                                                Parser* value_326 = p;
+                                                String value_327 = StringLiteral("<<");
+                                                bool value_328 = false;
+                                                {
+                                                    Parser* p = value_326;
+                                                    String wanted = value_327;
+                                                    Parser* value_330 = p;
+                                                    String value_331 = StringView(NULL, 0);
                                                     {
-                                                        Parser* p = value_328;
-                                                        String value_331 = p->source;
-                                                        value_329 = StringRangeAt(value_331, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                        Parser* p = value_330;
+                                                        String value_333 = p->source;
+                                                        value_331 = StringRangeAt(value_333, (int64_t)p->token.begin, (int64_t)p->token.end);
                                                     }
-                                                    value_327 = (StringEqual(value_329, StringLiteral("-")));
-                                                }
-                                                bool value_332 = value_327;
-                                                if (!value_332) {
-                                                    Parser* value_333 = p;
-                                                    String value_334 = StringView(NULL, 0);
-                                                    {
-                                                        Parser* p = value_333;
-                                                        String value_336 = p->source;
-                                                        value_334 = StringRangeAt(value_336, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                    if (!StringEqual(value_331, wanted)) {
+                                                        value_328 = false;
+                                                        goto value_329;
                                                     }
-                                                    value_332 = (StringEqual(value_334, StringLiteral("!")));
-                                                }
-                                                bool value_337 = value_332;
-                                                if (!value_337) {
-                                                    Parser* value_338 = p;
-                                                    String value_339 = StringView(NULL, 0);
+                                                    Parser* value_334 = p;
                                                     {
-                                                        Parser* p = value_338;
-                                                        String value_341 = p->source;
-                                                        value_339 = StringRangeAt(value_341, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                    }
-                                                    value_337 = (StringEqual(value_339, StringLiteral("~")));
-                                                }
-                                                bool value_342 = value_337;
-                                                if (!value_342) {
-                                                    Parser* value_343 = p;
-                                                    String value_344 = StringView(NULL, 0);
-                                                    {
-                                                        Parser* p = value_343;
-                                                        String value_346 = p->source;
-                                                        value_344 = StringRangeAt(value_346, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                    }
-                                                    value_342 = (StringEqual(value_344, StringLiteral("*")));
-                                                }
-                                                if (value_342) {
-                                                    Parser* value_347 = p;
-                                                    String value_348 = StringView(NULL, 0);
-                                                    {
-                                                        Parser* p = value_347;
-                                                        String value_350 = p->source;
-                                                        value_348 = StringRangeAt(value_350, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                    }
-                                                    String value_351 = StringView(NULL, 0);
-                                                    {
-                                                        String operator = value_348;
-                                                        if (StringEqual(operator, StringLiteral("*"))) {
-                                                            value_351 = StringLiteral("&");
-                                                            goto value_352;
-                                                        }
-                                                        if (StringEqual(operator, StringLiteral("+"))) {
-                                                            value_351 = StringLiteral("+");
-                                                            goto value_352;
-                                                        }
-                                                        if (StringEqual(operator, StringLiteral("-"))) {
-                                                            value_351 = StringLiteral("-");
-                                                            goto value_352;
-                                                        }
-                                                        if (StringEqual(operator, StringLiteral("!"))) {
-                                                            value_351 = StringLiteral("!");
-                                                            goto value_352;
-                                                        }
-                                                        value_351 = StringLiteral("~");
-                                                    value_352: ;
-                                                    }
-                                                    String op = value_351;
-                                                    Parser* value_353 = p;
-                                                    {
-                                                        Parser* p = value_353;
-                                                        Scan* value_355 = &(p->token);
-                                                        Scan value_356 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                        (*value_355) = value_356;
-                                                        int64_t value_357 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                        if (value_357 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                            bool* value_358 = &(p->failed);
-                                                            (*value_358) = true;
+                                                        Parser* p = value_334;
+                                                        Scan* value_336 = &(p->token);
+                                                        Scan value_337 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                        (*value_336) = value_337;
+                                                        int64_t value_338 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                        if (value_338 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                            bool* value_339 = &(p->failed);
+                                                            (*value_339) = true;
                                                         }
                                                     }
+                                                    value_328 = true;
+                                                value_329: ;
+                                                }
+                                                if (value_328) {
                                                     int32_t right = compiler_parse_ParsePrefix(p);
-                                                    result = compiler_parse_Node(p, (ZirExprKind)(7), start, StringLiteral(""), op, -1, right);
+                                                    result = compiler_parse_Node(p, (ZirExprKind)(7), start, StringLiteral(""), StringLiteral("*"), -1, right);
                                                 } else {
-                                                    Parser* value_359 = p;
-                                                    String value_360 = StringView(NULL, 0);
+                                                    Parser* value_340 = p;
+                                                    String value_341 = StringView(NULL, 0);
                                                     {
-                                                        Parser* p = value_359;
-                                                        String value_362 = p->source;
-                                                        value_360 = StringRangeAt(value_362, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                        Parser* p = value_340;
+                                                        String value_343 = p->source;
+                                                        value_341 = StringRangeAt(value_343, (int64_t)p->token.begin, (int64_t)p->token.end);
                                                     }
-                                                    if (StringEqual(value_360, StringLiteral("&"))) {
-                                                        Parser* value_363 = p;
-                                                        String value_364 = StringLiteral("C-style address-of is not valid Jai syntax; use *value");
+                                                    bool value_344 = StringEqual(value_341, StringLiteral("+"));
+                                                    if (!value_344) {
+                                                        Parser* value_345 = p;
+                                                        String value_346 = StringView(NULL, 0);
                                                         {
-                                                            Parser* p = value_363;
-                                                            String message = value_364;
-                                                            compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
+                                                            Parser* p = value_345;
+                                                            String value_348 = p->source;
+                                                            value_346 = StringRangeAt(value_348, (int64_t)p->token.begin, (int64_t)p->token.end);
                                                         }
-                                                    } else {
-                                                        Parser* value_366 = p;
-                                                        String value_367 = StringLiteral("(");
-                                                        bool value_368 = false;
+                                                        value_344 = (StringEqual(value_346, StringLiteral("-")));
+                                                    }
+                                                    bool value_349 = value_344;
+                                                    if (!value_349) {
+                                                        Parser* value_350 = p;
+                                                        String value_351 = StringView(NULL, 0);
                                                         {
-                                                            Parser* p = value_366;
-                                                            String wanted = value_367;
-                                                            Parser* value_370 = p;
-                                                            String value_371 = StringView(NULL, 0);
-                                                            {
-                                                                Parser* p = value_370;
-                                                                String value_373 = p->source;
-                                                                value_371 = StringRangeAt(value_373, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                            }
-                                                            if (!StringEqual(value_371, wanted)) {
-                                                                value_368 = false;
+                                                            Parser* p = value_350;
+                                                            String value_353 = p->source;
+                                                            value_351 = StringRangeAt(value_353, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                        }
+                                                        value_349 = (StringEqual(value_351, StringLiteral("!")));
+                                                    }
+                                                    bool value_354 = value_349;
+                                                    if (!value_354) {
+                                                        Parser* value_355 = p;
+                                                        String value_356 = StringView(NULL, 0);
+                                                        {
+                                                            Parser* p = value_355;
+                                                            String value_358 = p->source;
+                                                            value_356 = StringRangeAt(value_358, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                        }
+                                                        value_354 = (StringEqual(value_356, StringLiteral("~")));
+                                                    }
+                                                    bool value_359 = value_354;
+                                                    if (!value_359) {
+                                                        Parser* value_360 = p;
+                                                        String value_361 = StringView(NULL, 0);
+                                                        {
+                                                            Parser* p = value_360;
+                                                            String value_363 = p->source;
+                                                            value_361 = StringRangeAt(value_363, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                        }
+                                                        value_359 = (StringEqual(value_361, StringLiteral("*")));
+                                                    }
+                                                    if (value_359) {
+                                                        Parser* value_364 = p;
+                                                        String value_365 = StringView(NULL, 0);
+                                                        {
+                                                            Parser* p = value_364;
+                                                            String value_367 = p->source;
+                                                            value_365 = StringRangeAt(value_367, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                        }
+                                                        String value_368 = StringView(NULL, 0);
+                                                        {
+                                                            String operator = value_365;
+                                                            if (StringEqual(operator, StringLiteral("*"))) {
+                                                                value_368 = StringLiteral("&");
                                                                 goto value_369;
                                                             }
-                                                            Parser* value_374 = p;
-                                                            {
-                                                                Parser* p = value_374;
-                                                                Scan* value_376 = &(p->token);
-                                                                Scan value_377 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                (*value_376) = value_377;
-                                                                int64_t value_378 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                if (value_378 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                    bool* value_379 = &(p->failed);
-                                                                    (*value_379) = true;
-                                                                }
+                                                            if (StringEqual(operator, StringLiteral("+"))) {
+                                                                value_368 = StringLiteral("+");
+                                                                goto value_369;
                                                             }
-                                                            value_368 = true;
+                                                            if (StringEqual(operator, StringLiteral("-"))) {
+                                                                value_368 = StringLiteral("-");
+                                                                goto value_369;
+                                                            }
+                                                            if (StringEqual(operator, StringLiteral("!"))) {
+                                                                value_368 = StringLiteral("!");
+                                                                goto value_369;
+                                                            }
+                                                            value_368 = StringLiteral("~");
                                                         value_369: ;
                                                         }
-                                                        if (value_368) {
-                                                            Parser* value_380 = p;
-                                                            Parser* value_381 = p;
-                                                            String value_382 = StringView(NULL, 0);
-                                                            {
-                                                                Parser* p = value_381;
-                                                                String value_384 = p->source;
-                                                                value_382 = StringRangeAt(value_384, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                        String op = value_368;
+                                                        Parser* value_370 = p;
+                                                        {
+                                                            Parser* p = value_370;
+                                                            Scan* value_372 = &(p->token);
+                                                            Scan value_373 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                            (*value_372) = value_373;
+                                                            int64_t value_374 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                            if (value_374 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                bool* value_375 = &(p->failed);
+                                                                (*value_375) = true;
                                                             }
-                                                            bool value_385 = false;
+                                                        }
+                                                        int32_t right = compiler_parse_ParsePrefix(p);
+                                                        result = compiler_parse_Node(p, (ZirExprKind)(7), start, StringLiteral(""), op, -1, right);
+                                                    } else {
+                                                        Parser* value_376 = p;
+                                                        String value_377 = StringView(NULL, 0);
+                                                        {
+                                                            Parser* p = value_376;
+                                                            String value_379 = p->source;
+                                                            value_377 = StringRangeAt(value_379, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                        }
+                                                        if (StringEqual(value_377, StringLiteral("&"))) {
+                                                            Parser* value_380 = p;
+                                                            String value_381 = StringLiteral("C-style address-of is not valid Jai syntax; use *value");
                                                             {
                                                                 Parser* p = value_380;
-                                                                String name = value_382;
-                                                                if ((int64_t)(name).length >= 128LL) {
+                                                                String message = value_381;
+                                                                compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
+                                                            }
+                                                        } else {
+                                                            Parser* value_383 = p;
+                                                            String value_384 = StringLiteral("(");
+                                                            bool value_385 = false;
+                                                            {
+                                                                Parser* p = value_383;
+                                                                String wanted = value_384;
+                                                                Parser* value_387 = p;
+                                                                String value_388 = StringView(NULL, 0);
+                                                                {
+                                                                    Parser* p = value_387;
+                                                                    String value_390 = p->source;
+                                                                    value_388 = StringRangeAt(value_390, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                }
+                                                                if (!StringEqual(value_388, wanted)) {
                                                                     value_385 = false;
                                                                     goto value_386;
                                                                 }
-                                                                String value_387 = name;
-                                                                bool value_388 = false;
+                                                                Parser* value_391 = p;
                                                                 {
-                                                                    String name = value_387;
-                                                                    bool value_390 = StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize"));
-                                                                    value_388 = value_390 || StringEqual(name, StringLiteral("usize")) || (!StringEqual(name, StringLiteral("integer")) && compiler_type_ScalarByteWidth(name) > 0);
-                                                                }
-                                                                bool value_391 = value_388;
-                                                                if (!value_391) {
-                                                                    bool value_392 = p->module != ((void *)0);
-                                                                    bool value_393 = value_392;
-                                                                    if (value_393) {
-                                                                        ZirType* value_394 = compiler_services_FindType(p->module, name, (void *)0);
-                                                                        value_393 = (value_394 != ((void *)0));
+                                                                    Parser* p = value_391;
+                                                                    Scan* value_393 = &(p->token);
+                                                                    Scan value_394 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                    (*value_393) = value_394;
+                                                                    int64_t value_395 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                    if (value_395 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                        bool* value_396 = &(p->failed);
+                                                                        (*value_396) = true;
                                                                     }
-                                                                    value_391 = value_393;
                                                                 }
-                                                                value_385 = value_391;
+                                                                value_385 = true;
                                                             value_386: ;
                                                             }
-                                                            bool value_395 = value_385;
-                                                            if (!value_395) {
-                                                                Parser* value_396 = p;
-                                                                String value_397 = StringView(NULL, 0);
+                                                            if (value_385) {
+                                                                Parser* value_397 = p;
+                                                                Parser* value_398 = p;
+                                                                String value_399 = StringView(NULL, 0);
                                                                 {
-                                                                    Parser* p = value_396;
-                                                                    String value_399 = p->source;
-                                                                    value_397 = StringRangeAt(value_399, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                    Parser* p = value_398;
+                                                                    String value_401 = p->source;
+                                                                    value_399 = StringRangeAt(value_401, (int64_t)p->token.begin, (int64_t)p->token.end);
                                                                 }
-                                                                value_395 = (StringEqual(value_397, StringLiteral("[")));
-                                                            }
-                                                            bool typed = value_395;
-                                                            bool value_400 = typed;
-                                                            bool value_401 = value_400;
-                                                            if (value_401) {
-                                                                Parser* value_402 = p;
-                                                                String value_403 = StringView(NULL, 0);
+                                                                bool value_402 = false;
                                                                 {
-                                                                    Parser* p = value_402;
-                                                                    String value_405 = p->source;
-                                                                    value_403 = StringRangeAt(value_405, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                                }
-                                                                value_401 = (!StringEqual(value_403, StringLiteral(".")));
-                                                            }
-                                                            bool value_406 = value_401;
-                                                            bool value_407 = value_406 && !StringEqual(compiler_parse_Following(p, 1), StringLiteral("."));
-                                                            bool value_408 = value_407;
-                                                            bool value_409 = value_408;
-                                                            if (value_409) {
-                                                                bool value_410 = compiler_parse_ArrayLiteralAhead(p);
-                                                                value_409 = !value_410;
-                                                            }
-                                                            if (value_409) {
-                                                                Parser* value_411 = p;
-                                                                String value_412 = StringLiteral("C-style cast or literal is not valid Jai syntax; use cast(Type) value or Type.{...}");
-                                                                {
-                                                                    Parser* p = value_411;
-                                                                    String message = value_412;
-                                                                    compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
-                                                                }
-                                                            }
-                                                            result = compiler_parse_ParseBinary(p, 1);
-                                                            Parser* value_414 = p;
-                                                            String value_415 = StringLiteral(")");
-                                                            {
-                                                                Parser* p = value_414;
-                                                                String wanted = value_415;
-                                                                Parser* value_417 = p;
-                                                                String value_418 = wanted;
-                                                                bool value_419 = false;
-                                                                {
-                                                                    Parser* p = value_417;
-                                                                    String wanted = value_418;
-                                                                    if (!StringEqual(compiler_parse_Token(p), wanted)) {
-                                                                        value_419 = false;
-                                                                        goto value_420;
+                                                                    Parser* p = value_397;
+                                                                    String name = value_399;
+                                                                    if ((int64_t)(name).length >= 128LL) {
+                                                                        value_402 = false;
+                                                                        goto value_403;
                                                                     }
-                                                                    compiler_parse_Advance(p);
-                                                                    value_419 = true;
-                                                                value_420: ;
-                                                                }
-                                                                if (!value_419) {
-                                                                    bool* value_421 = &(p->failed);
-                                                                    (*value_421) = true;
-                                                                }
-                                                            }
-                                                            bool value_422 = !typed;
-                                                            bool value_423 = value_422;
-                                                            if (value_423) {
-                                                                Parser* value_424 = p;
-                                                                String value_425 = StringView(NULL, 0);
-                                                                {
-                                                                    Parser* p = value_424;
-                                                                    String value_427 = p->source;
-                                                                    value_425 = StringRangeAt(value_427, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                                }
-                                                                value_423 = (StringEqual(value_425, StringLiteral("{")));
-                                                            }
-                                                            if (value_423) {
-                                                                Parser* value_428 = p;
-                                                                String value_429 = StringLiteral("C-style literal is not valid Jai syntax; use Type.{...}");
-                                                                {
-                                                                    Parser* p = value_428;
-                                                                    String message = value_429;
-                                                                    compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
-                                                                }
-                                                            }
-                                                        } else {
-                                                            Parser* value_431 = p;
-                                                            String value_432 = StringLiteral(".");
-                                                            bool value_433 = false;
-                                                            {
-                                                                Parser* p = value_431;
-                                                                String wanted = value_432;
-                                                                Parser* value_435 = p;
-                                                                String value_436 = StringView(NULL, 0);
-                                                                {
-                                                                    Parser* p = value_435;
-                                                                    String value_438 = p->source;
-                                                                    value_436 = StringRangeAt(value_438, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                                }
-                                                                if (!StringEqual(value_436, wanted)) {
-                                                                    value_433 = false;
-                                                                    goto value_434;
-                                                                }
-                                                                Parser* value_439 = p;
-                                                                {
-                                                                    Parser* p = value_439;
-                                                                    Scan* value_441 = &(p->token);
-                                                                    Scan value_442 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                    (*value_441) = value_442;
-                                                                    int64_t value_443 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                    if (value_443 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                        bool* value_444 = &(p->failed);
-                                                                        (*value_444) = true;
-                                                                    }
-                                                                }
-                                                                value_433 = true;
-                                                            value_434: ;
-                                                            }
-                                                            if (value_433) {
-                                                                Parser* value_445 = p;
-                                                                String value_446 = StringView(NULL, 0);
-                                                                {
-                                                                    Parser* p = value_445;
-                                                                    String value_448 = p->source;
-                                                                    value_446 = StringRangeAt(value_448, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                                }
-                                                                if (StringEqual(value_446, StringLiteral("{"))) {
-                                                                    result = compiler_parse_ParseInitializer(p, start, StringLiteral(""), StringLiteral("{"), StringLiteral("}"));
-                                                                } else {
-                                                                    Parser* value_449 = p;
-                                                                    String value_450 = StringView(NULL, 0);
+                                                                    String value_404 = name;
+                                                                    bool value_405 = false;
                                                                     {
-                                                                        Parser* p = value_449;
-                                                                        String value_452 = p->source;
-                                                                        value_450 = StringRangeAt(value_452, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                        String name = value_404;
+                                                                        bool value_407 = StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize"));
+                                                                        value_405 = value_407 || StringEqual(name, StringLiteral("usize")) || (!StringEqual(name, StringLiteral("integer")) && compiler_type_ScalarByteWidth(name) > 0);
                                                                     }
-                                                                    bool value_453 = StringEqual(value_450, StringLiteral("["));
-                                                                    if (value_453) {
-                                                                        String value_454 = p->expected_type;
-                                                                        bool value_455 = false;
-                                                                        {
-                                                                            String name = value_454;
-                                                                            String value_457 = StringView(NULL, 0);
-                                                                            {
-                                                                                String text = name;
-                                                                                if ((int64_t)(text).length >= 128LL) {
-                                                                                    value_457 = StringRangeAt(text, (int64_t)0LL, (int64_t)127LL);
-                                                                                    goto value_458;
-                                                                                }
-                                                                                value_457 = text;
-                                                                            value_458: ;
-                                                                            }
-                                                                            ElementType value_459 = compiler_type_ArrayElement(value_457);
-                                                                            value_455 = value_459.valid;
+                                                                    bool value_408 = value_405;
+                                                                    if (!value_408) {
+                                                                        bool value_409 = p->module != ((void *)0);
+                                                                        bool value_410 = value_409;
+                                                                        if (value_410) {
+                                                                            ZirType* value_411 = compiler_services_FindType(p->module, name, (void *)0);
+                                                                            value_410 = (value_411 != ((void *)0));
                                                                         }
-                                                                        value_453 = value_455;
+                                                                        value_408 = value_410;
                                                                     }
-                                                                    if (value_453) {
-                                                                        result = compiler_parse_ParseInitializer(p, start, p->expected_type, StringLiteral("["), StringLiteral("]"));
-                                                                    } else if (((TokenKind)(p->token.kind)) != ((TokenKind)(1))) {
-                                                                        bool* value_460 = &(p->failed);
-                                                                        (*value_460) = true;
-                                                                    } else {
-                                                                        uint8_t buffer[256] = {0};
-                                                                        Slice value_461 = {buffer, 256};
-                                                                        Slice value_462 = value_461;
-                                                                        Parser* value_463 = p;
-                                                                        String value_464 = StringView(NULL, 0);
-                                                                        {
-                                                                            Parser* p = value_463;
-                                                                            String value_466 = p->source;
-                                                                            value_464 = StringRangeAt(value_466, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                    value_402 = value_408;
+                                                                value_403: ;
+                                                                }
+                                                                bool value_412 = value_402;
+                                                                if (!value_412) {
+                                                                    Parser* value_413 = p;
+                                                                    String value_414 = StringView(NULL, 0);
+                                                                    {
+                                                                        Parser* p = value_413;
+                                                                        String value_416 = p->source;
+                                                                        value_414 = StringRangeAt(value_416, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                    }
+                                                                    value_412 = (StringEqual(value_414, StringLiteral("[")));
+                                                                }
+                                                                bool typed = value_412;
+                                                                bool value_417 = typed;
+                                                                bool value_418 = value_417;
+                                                                if (value_418) {
+                                                                    Parser* value_419 = p;
+                                                                    String value_420 = StringView(NULL, 0);
+                                                                    {
+                                                                        Parser* p = value_419;
+                                                                        String value_422 = p->source;
+                                                                        value_420 = StringRangeAt(value_422, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                    }
+                                                                    value_418 = (!StringEqual(value_420, StringLiteral(".")));
+                                                                }
+                                                                bool value_423 = value_418;
+                                                                bool value_424 = value_423 && !StringEqual(compiler_parse_Following(p, 1), StringLiteral("."));
+                                                                bool value_425 = value_424;
+                                                                bool value_426 = value_425;
+                                                                if (value_426) {
+                                                                    bool value_427 = compiler_parse_ArrayLiteralAhead(p);
+                                                                    value_426 = !value_427;
+                                                                }
+                                                                if (value_426) {
+                                                                    Parser* value_428 = p;
+                                                                    String value_429 = StringLiteral("C-style cast or literal is not valid Jai syntax; use cast(Type) value or Type.{...}");
+                                                                    {
+                                                                        Parser* p = value_428;
+                                                                        String message = value_429;
+                                                                        compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
+                                                                    }
+                                                                }
+                                                                result = compiler_parse_ParseBinary(p, 1);
+                                                                Parser* value_431 = p;
+                                                                String value_432 = StringLiteral(")");
+                                                                {
+                                                                    Parser* p = value_431;
+                                                                    String wanted = value_432;
+                                                                    Parser* value_434 = p;
+                                                                    String value_435 = wanted;
+                                                                    bool value_436 = false;
+                                                                    {
+                                                                        Parser* p = value_434;
+                                                                        String wanted = value_435;
+                                                                        if (!StringEqual(compiler_parse_Token(p), wanted)) {
+                                                                            value_436 = false;
+                                                                            goto value_437;
                                                                         }
-                                                                        String name = compiler_parse_QualifiedName(value_462, StringLiteral(""), value_464, 128LL);
-                                                                        if ((int64_t)(name).length == 0LL) {
-                                                                            bool* value_467 = &(p->failed);
-                                                                            (*value_467) = true;
-                                                                        }
-                                                                        Parser* value_468 = p;
-                                                                        {
-                                                                            Parser* p = value_468;
-                                                                            Scan* value_470 = &(p->token);
-                                                                            Scan value_471 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                            (*value_470) = value_471;
-                                                                            int64_t value_472 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                            if (value_472 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                bool* value_473 = &(p->failed);
-                                                                                (*value_473) = true;
-                                                                            }
-                                                                        }
-                                                                        if (!p->failed) {
-                                                                            result = compiler_parse_Node(p, (ZirExprKind)(1), start, name, StringLiteral(""), -1, -1);
-                                                                        }
+                                                                        compiler_parse_Advance(p);
+                                                                        value_436 = true;
+                                                                    value_437: ;
+                                                                    }
+                                                                    if (!value_436) {
+                                                                        bool* value_438 = &(p->failed);
+                                                                        (*value_438) = true;
+                                                                    }
+                                                                }
+                                                                bool value_439 = !typed;
+                                                                bool value_440 = value_439;
+                                                                if (value_440) {
+                                                                    Parser* value_441 = p;
+                                                                    String value_442 = StringView(NULL, 0);
+                                                                    {
+                                                                        Parser* p = value_441;
+                                                                        String value_444 = p->source;
+                                                                        value_442 = StringRangeAt(value_444, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                    }
+                                                                    value_440 = (StringEqual(value_442, StringLiteral("{")));
+                                                                }
+                                                                if (value_440) {
+                                                                    Parser* value_445 = p;
+                                                                    String value_446 = StringLiteral("C-style literal is not valid Jai syntax; use Type.{...}");
+                                                                    {
+                                                                        Parser* p = value_445;
+                                                                        String message = value_446;
+                                                                        compiler_services_Fatal(p->span, StringLiteral("parse.jai_syntax"), message);
                                                                     }
                                                                 }
                                                             } else {
-                                                                Parser* value_474 = p;
-                                                                String value_475 = StringView(NULL, 0);
+                                                                Parser* value_448 = p;
+                                                                String value_449 = StringLiteral(".");
+                                                                bool value_450 = false;
                                                                 {
-                                                                    Parser* p = value_474;
-                                                                    String value_477 = p->source;
-                                                                    value_475 = StringRangeAt(value_477, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                    Parser* p = value_448;
+                                                                    String wanted = value_449;
+                                                                    Parser* value_452 = p;
+                                                                    String value_453 = StringView(NULL, 0);
+                                                                    {
+                                                                        Parser* p = value_452;
+                                                                        String value_455 = p->source;
+                                                                        value_453 = StringRangeAt(value_455, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                    }
+                                                                    if (!StringEqual(value_453, wanted)) {
+                                                                        value_450 = false;
+                                                                        goto value_451;
+                                                                    }
+                                                                    Parser* value_456 = p;
+                                                                    {
+                                                                        Parser* p = value_456;
+                                                                        Scan* value_458 = &(p->token);
+                                                                        Scan value_459 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                        (*value_458) = value_459;
+                                                                        int64_t value_460 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                        if (value_460 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                            bool* value_461 = &(p->failed);
+                                                                            (*value_461) = true;
+                                                                        }
+                                                                    }
+                                                                    value_450 = true;
+                                                                value_451: ;
                                                                 }
-                                                                if (StringEqual(value_475, StringLiteral("["))) {
-                                                                    int64_t type_start = p->token.begin;
-                                                                    while (true) {
-                                                                        Parser* value_478 = p;
-                                                                        String value_479 = StringView(NULL, 0);
+                                                                if (value_450) {
+                                                                    Parser* value_462 = p;
+                                                                    String value_463 = StringView(NULL, 0);
+                                                                    {
+                                                                        Parser* p = value_462;
+                                                                        String value_465 = p->source;
+                                                                        value_463 = StringRangeAt(value_465, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                    }
+                                                                    if (StringEqual(value_463, StringLiteral("{"))) {
+                                                                        result = compiler_parse_ParseInitializer(p, start, StringLiteral(""), StringLiteral("{"), StringLiteral("}"));
+                                                                    } else {
+                                                                        Parser* value_466 = p;
+                                                                        String value_467 = StringView(NULL, 0);
                                                                         {
-                                                                            Parser* p = value_478;
-                                                                            String value_481 = p->source;
-                                                                            value_479 = StringRangeAt(value_481, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                            Parser* p = value_466;
+                                                                            String value_469 = p->source;
+                                                                            value_467 = StringRangeAt(value_469, (int64_t)p->token.begin, (int64_t)p->token.end);
                                                                         }
-                                                                        if (!(StringEqual(value_479, StringLiteral("[")) && !p->failed)) { break; }
-                                                                        Parser* value_482 = p;
-                                                                        {
-                                                                            Parser* p = value_482;
-                                                                            Scan* value_484 = &(p->token);
-                                                                            Scan value_485 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                            (*value_484) = value_485;
-                                                                            int64_t value_486 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                            if (value_486 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                bool* value_487 = &(p->failed);
-                                                                                (*value_487) = true;
-                                                                            }
-                                                                        }
-                                                                        Parser* value_488 = p;
-                                                                        String value_489 = StringView(NULL, 0);
-                                                                        {
-                                                                            Parser* p = value_488;
-                                                                            String value_491 = p->source;
-                                                                            value_489 = StringRangeAt(value_491, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                                        }
-                                                                        if (StringEqual(value_489, StringLiteral("]"))) {
-                                                                            bool* value_492 = &(p->failed);
-                                                                            (*value_492) = true;
-                                                                        }
-                                                                        Parser* value_493 = p;
-                                                                        {
-                                                                            Parser* p = value_493;
-                                                                            Scan* value_495 = &(p->token);
-                                                                            Scan value_496 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                            (*value_495) = value_496;
-                                                                            int64_t value_497 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                            if (value_497 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                bool* value_498 = &(p->failed);
-                                                                                (*value_498) = true;
-                                                                            }
-                                                                        }
-                                                                        Parser* value_499 = p;
-                                                                        String value_500 = StringLiteral("]");
-                                                                        {
-                                                                            Parser* p = value_499;
-                                                                            String wanted = value_500;
-                                                                            Parser* value_502 = p;
-                                                                            String value_503 = wanted;
-                                                                            bool value_504 = false;
+                                                                        bool value_470 = StringEqual(value_467, StringLiteral("["));
+                                                                        if (value_470) {
+                                                                            String value_471 = p->expected_type;
+                                                                            bool value_472 = false;
                                                                             {
-                                                                                Parser* p = value_502;
-                                                                                String wanted = value_503;
-                                                                                if (!StringEqual(compiler_parse_Token(p), wanted)) {
-                                                                                    value_504 = false;
-                                                                                    goto value_505;
+                                                                                String name = value_471;
+                                                                                String value_474 = StringView(NULL, 0);
+                                                                                {
+                                                                                    String text = name;
+                                                                                    if ((int64_t)(text).length >= 128LL) {
+                                                                                        value_474 = StringRangeAt(text, (int64_t)0LL, (int64_t)127LL);
+                                                                                        goto value_475;
+                                                                                    }
+                                                                                    value_474 = text;
+                                                                                value_475: ;
                                                                                 }
-                                                                                compiler_parse_Advance(p);
-                                                                                value_504 = true;
-                                                                            value_505: ;
+                                                                                ElementType value_476 = compiler_type_ArrayElement(value_474);
+                                                                                value_472 = value_476.valid;
                                                                             }
-                                                                            if (!value_504) {
-                                                                                bool* value_506 = &(p->failed);
-                                                                                (*value_506) = true;
+                                                                            value_470 = value_472;
+                                                                        }
+                                                                        if (value_470) {
+                                                                            result = compiler_parse_ParseInitializer(p, start, p->expected_type, StringLiteral("["), StringLiteral("]"));
+                                                                        } else if (((TokenKind)(p->token.kind)) != ((TokenKind)(1))) {
+                                                                            bool* value_477 = &(p->failed);
+                                                                            (*value_477) = true;
+                                                                        } else {
+                                                                            uint8_t buffer[256] = {0};
+                                                                            Slice value_478 = {buffer, 256};
+                                                                            Slice value_479 = value_478;
+                                                                            Parser* value_480 = p;
+                                                                            String value_481 = StringView(NULL, 0);
+                                                                            {
+                                                                                Parser* p = value_480;
+                                                                                String value_483 = p->source;
+                                                                                value_481 = StringRangeAt(value_483, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                            }
+                                                                            String name = compiler_parse_QualifiedName(value_479, StringLiteral(""), value_481, 128LL);
+                                                                            if ((int64_t)(name).length == 0LL) {
+                                                                                bool* value_484 = &(p->failed);
+                                                                                (*value_484) = true;
+                                                                            }
+                                                                            Parser* value_485 = p;
+                                                                            {
+                                                                                Parser* p = value_485;
+                                                                                Scan* value_487 = &(p->token);
+                                                                                Scan value_488 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                (*value_487) = value_488;
+                                                                                int64_t value_489 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                if (value_489 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                    bool* value_490 = &(p->failed);
+                                                                                    (*value_490) = true;
+                                                                                }
+                                                                            }
+                                                                            if (!p->failed) {
+                                                                                result = compiler_parse_Node(p, (ZirExprKind)(1), start, name, StringLiteral(""), -1, -1);
                                                                             }
                                                                         }
                                                                     }
-                                                                    if (((TokenKind)(p->token.kind)) != ((TokenKind)(1))) {
-                                                                        bool* value_507 = &(p->failed);
-                                                                        (*value_507) = true;
-                                                                    }
-                                                                    Parser* value_508 = p;
+                                                                } else {
+                                                                    Parser* value_491 = p;
+                                                                    String value_492 = StringView(NULL, 0);
                                                                     {
-                                                                        Parser* p = value_508;
-                                                                        Scan* value_510 = &(p->token);
-                                                                        Scan value_511 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                        (*value_510) = value_511;
-                                                                        int64_t value_512 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                        if (value_512 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                            bool* value_513 = &(p->failed);
-                                                                            (*value_513) = true;
-                                                                        }
+                                                                        Parser* p = value_491;
+                                                                        String value_494 = p->source;
+                                                                        value_492 = StringRangeAt(value_494, (int64_t)p->token.begin, (int64_t)p->token.end);
                                                                     }
-                                                                    Parser* value_514 = p;
-                                                                    String value_515 = StringView(NULL, 0);
-                                                                    {
-                                                                        Parser* p = value_514;
-                                                                        String value_517 = p->source;
-                                                                        value_515 = StringRangeAt(value_517, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                                    }
-                                                                    bool value_518 = StringEqual(value_515, StringLiteral(".")) && ((TokenKind)(p->token.kind)) != ((TokenKind)(0));
-                                                                    if (value_518 && !StringEqual(compiler_parse_Following(p, 1), StringLiteral("["))) {
-                                                                        Parser* value_519 = p;
-                                                                        {
-                                                                            Parser* p = value_519;
-                                                                            Scan* value_521 = &(p->token);
-                                                                            Scan value_522 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                            (*value_521) = value_522;
-                                                                            int64_t value_523 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                            if (value_523 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                bool* value_524 = &(p->failed);
-                                                                                (*value_524) = true;
+                                                                    if (StringEqual(value_492, StringLiteral("["))) {
+                                                                        int64_t type_start = p->token.begin;
+                                                                        while (true) {
+                                                                            Parser* value_495 = p;
+                                                                            String value_496 = StringView(NULL, 0);
+                                                                            {
+                                                                                Parser* p = value_495;
+                                                                                String value_498 = p->source;
+                                                                                value_496 = StringRangeAt(value_498, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                            }
+                                                                            if (!(StringEqual(value_496, StringLiteral("[")) && !p->failed)) { break; }
+                                                                            Parser* value_499 = p;
+                                                                            {
+                                                                                Parser* p = value_499;
+                                                                                Scan* value_501 = &(p->token);
+                                                                                Scan value_502 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                (*value_501) = value_502;
+                                                                                int64_t value_503 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                if (value_503 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                    bool* value_504 = &(p->failed);
+                                                                                    (*value_504) = true;
+                                                                                }
+                                                                            }
+                                                                            Parser* value_505 = p;
+                                                                            String value_506 = StringView(NULL, 0);
+                                                                            {
+                                                                                Parser* p = value_505;
+                                                                                String value_508 = p->source;
+                                                                                value_506 = StringRangeAt(value_508, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                            }
+                                                                            if (StringEqual(value_506, StringLiteral("]"))) {
+                                                                                bool* value_509 = &(p->failed);
+                                                                                (*value_509) = true;
+                                                                            }
+                                                                            Parser* value_510 = p;
+                                                                            {
+                                                                                Parser* p = value_510;
+                                                                                Scan* value_512 = &(p->token);
+                                                                                Scan value_513 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                (*value_512) = value_513;
+                                                                                int64_t value_514 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                if (value_514 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                    bool* value_515 = &(p->failed);
+                                                                                    (*value_515) = true;
+                                                                                }
+                                                                            }
+                                                                            Parser* value_516 = p;
+                                                                            String value_517 = StringLiteral("]");
+                                                                            {
+                                                                                Parser* p = value_516;
+                                                                                String wanted = value_517;
+                                                                                Parser* value_519 = p;
+                                                                                String value_520 = wanted;
+                                                                                bool value_521 = false;
+                                                                                {
+                                                                                    Parser* p = value_519;
+                                                                                    String wanted = value_520;
+                                                                                    if (!StringEqual(compiler_parse_Token(p), wanted)) {
+                                                                                        value_521 = false;
+                                                                                        goto value_522;
+                                                                                    }
+                                                                                    compiler_parse_Advance(p);
+                                                                                    value_521 = true;
+                                                                                value_522: ;
+                                                                                }
+                                                                                if (!value_521) {
+                                                                                    bool* value_523 = &(p->failed);
+                                                                                    (*value_523) = true;
+                                                                                }
                                                                             }
                                                                         }
                                                                         if (((TokenKind)(p->token.kind)) != ((TokenKind)(1))) {
-                                                                            bool* value_525 = &(p->failed);
-                                                                            (*value_525) = true;
+                                                                            bool* value_524 = &(p->failed);
+                                                                            (*value_524) = true;
                                                                         }
-                                                                        Parser* value_526 = p;
+                                                                        Parser* value_525 = p;
                                                                         {
-                                                                            Parser* p = value_526;
-                                                                            Scan* value_528 = &(p->token);
-                                                                            Scan value_529 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                            (*value_528) = value_529;
-                                                                            int64_t value_530 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                            if (value_530 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                bool* value_531 = &(p->failed);
-                                                                                (*value_531) = true;
+                                                                            Parser* p = value_525;
+                                                                            Scan* value_527 = &(p->token);
+                                                                            Scan value_528 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                            (*value_527) = value_528;
+                                                                            int64_t value_529 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                            if (value_529 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                bool* value_530 = &(p->failed);
+                                                                                (*value_530) = true;
                                                                             }
                                                                         }
-                                                                    }
-                                                                    Parser* value_532 = p;
-                                                                    String value_533 = StringView(NULL, 0);
-                                                                    {
-                                                                        Parser* p = value_532;
-                                                                        int64_t start = type_start;
-                                                                        int64_t end = p->token.begin;
-                                                                        if (start < 0LL || end < start || (int64_t)((uint64_t)end - (uint64_t)start) >= 128LL) {
-                                                                            bool* value_535 = &(p->failed);
-                                                                            (*value_535) = true;
-                                                                            value_533 = StringLiteral("");
-                                                                            goto value_534;
-                                                                        }
-                                                                        String value_536 = p->source;
-                                                                        String value_537 = StringRangeAt(value_536, (int64_t)start, (int64_t)end);
-                                                                        String value_538 = StringView(NULL, 0);
+                                                                        Parser* value_531 = p;
+                                                                        String value_532 = StringView(NULL, 0);
                                                                         {
-                                                                            String source = value_537;
-                                                                            SourceRange range = compiler_text_TrimRange(source);
-                                                                            value_538 = StringRangeAt(source, (int64_t)range.begin, (int64_t)range.end);
+                                                                            Parser* p = value_531;
+                                                                            String value_534 = p->source;
+                                                                            value_532 = StringRangeAt(value_534, (int64_t)p->token.begin, (int64_t)p->token.end);
                                                                         }
-                                                                        value_533 = value_538;
-                                                                    value_534: ;
-                                                                    }
-                                                                    String type = value_533;
-                                                                    bool value_540 = !p->failed;
-                                                                    bool value_541 = value_540;
-                                                                    if (value_541) {
-                                                                        Parser* value_542 = p;
-                                                                        String value_543 = StringView(NULL, 0);
-                                                                        {
-                                                                            Parser* p = value_542;
-                                                                            String value_545 = p->source;
-                                                                            value_543 = StringRangeAt(value_545, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                                        }
-                                                                        value_541 = (StringEqual(value_543, StringLiteral(".")));
-                                                                    }
-                                                                    bool value_546 = value_541;
-                                                                    bool value_547 = value_546 && StringEqual(compiler_parse_Following(p, 1), StringLiteral("["));
-                                                                    bool value_548 = value_547;
-                                                                    bool value_549 = value_548;
-                                                                    if (value_549) {
-                                                                        bool value_550 = false;
-                                                                        {
-                                                                            String name = type;
-                                                                            String value_552 = StringView(NULL, 0);
+                                                                        bool value_535 = StringEqual(value_532, StringLiteral(".")) && ((TokenKind)(p->token.kind)) != ((TokenKind)(0));
+                                                                        if (value_535 && !StringEqual(compiler_parse_Following(p, 1), StringLiteral("["))) {
+                                                                            Parser* value_536 = p;
                                                                             {
-                                                                                String text = name;
-                                                                                if ((int64_t)(text).length >= 128LL) {
-                                                                                    value_552 = StringRangeAt(text, (int64_t)0LL, (int64_t)127LL);
-                                                                                    goto value_553;
-                                                                                }
-                                                                                value_552 = text;
-                                                                            value_553: ;
-                                                                            }
-                                                                            ElementType value_554 = compiler_type_ArrayElement(value_552);
-                                                                            value_550 = value_554.valid;
-                                                                        }
-                                                                        value_549 = value_550;
-                                                                    }
-                                                                    if (value_549) {
-                                                                        Parser* value_555 = p;
-                                                                        {
-                                                                            Parser* p = value_555;
-                                                                            Scan* value_557 = &(p->token);
-                                                                            Scan value_558 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                            (*value_557) = value_558;
-                                                                            int64_t value_559 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                            if (value_559 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                bool* value_560 = &(p->failed);
-                                                                                (*value_560) = true;
-                                                                            }
-                                                                        }
-                                                                        result = compiler_parse_TypedArray(p, start, type);
-                                                                    } else {
-                                                                        bool* value_561 = &(p->failed);
-                                                                        (*value_561) = true;
-                                                                    }
-                                                                } else {
-                                                                    ZirExprKind kind = (ZirExprKind)((ZirExprKind)(1));
-                                                                    if (original_kind == ((TokenKind)(2))) {
-                                                                        kind = (ZirExprKind)(2);
-                                                                    } else if (original_kind == ((TokenKind)(3))) {
-                                                                        kind = (ZirExprKind)(3);
-                                                                    } else if (original_kind == ((TokenKind)(4))) {
-                                                                        kind = (ZirExprKind)(4);
-                                                                    } else if (original_kind == ((TokenKind)(5))) {
-                                                                        compiler_services_Fatal(p->span, StringLiteral("parse.jai_char"), StringLiteral("single-quoted character literals are not valid Jai syntax; use #char \"x\""));
-                                                                    } else if (original_kind != ((TokenKind)(1))) {
-                                                                        bool* value_562 = &(p->failed);
-                                                                        (*value_562) = true;
-                                                                        int32_t* value_563 = &(p->depth);
-                                                                        (*value_563) = (int32_t)((uint32_t)((*value_563)) - 1u);
-                                                                        return -1;
-                                                                    }
-                                                                    Parser* value_564 = p;
-                                                                    {
-                                                                        Parser* p = value_564;
-                                                                        Scan* value_566 = &(p->token);
-                                                                        Scan value_567 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                        (*value_566) = value_567;
-                                                                        int64_t value_568 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                        if (value_568 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                            bool* value_569 = &(p->failed);
-                                                                            (*value_569) = true;
-                                                                        }
-                                                                    }
-                                                                    bool value_570 = kind == ((ZirExprKind)(1));
-                                                                    bool value_571 = value_570;
-                                                                    if (value_571) {
-                                                                        Parser* value_572 = p;
-                                                                        String value_573 = StringView(NULL, 0);
-                                                                        {
-                                                                            Parser* p = value_572;
-                                                                            String value_575 = p->source;
-                                                                            value_573 = StringRangeAt(value_575, (int64_t)p->token.begin, (int64_t)p->token.end);
-                                                                        }
-                                                                        value_571 = (StringEqual(value_573, StringLiteral(".")));
-                                                                    }
-                                                                    if (value_571) {
-                                                                        String following = compiler_parse_Following(p, 1);
-                                                                        if (StringEqual(following, StringLiteral("{"))) {
-                                                                            Parser* value_576 = p;
-                                                                            bool value_577 = false;
-                                                                            {
-                                                                                Parser* p = value_576;
-                                                                                String name = original;
-                                                                                if ((int64_t)(name).length >= 128LL || p->module == ((void *)0)) {
-                                                                                    value_577 = false;
-                                                                                    goto value_578;
-                                                                                }
-                                                                                ZirType* record = compiler_services_FindType(p->module, name, (void *)0);
-                                                                                value_577 = record != ((void *)0) && record->is_enum == 0;
-                                                                            value_578: ;
-                                                                            }
-                                                                            if (!value_577) {
-                                                                                bool* value_579 = &(p->failed);
-                                                                                (*value_579) = true;
-                                                                            }
-                                                                            Parser* value_580 = p;
-                                                                            {
-                                                                                Parser* p = value_580;
-                                                                                Scan* value_582 = &(p->token);
-                                                                                Scan value_583 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                                (*value_582) = value_583;
-                                                                                int64_t value_584 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                                if (value_584 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                    bool* value_585 = &(p->failed);
-                                                                                    (*value_585) = true;
+                                                                                Parser* p = value_536;
+                                                                                Scan* value_538 = &(p->token);
+                                                                                Scan value_539 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                (*value_538) = value_539;
+                                                                                int64_t value_540 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                if (value_540 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                    bool* value_541 = &(p->failed);
+                                                                                    (*value_541) = true;
                                                                                 }
                                                                             }
-                                                                            result = compiler_parse_ParseInitializer(p, start, original, StringLiteral("{"), StringLiteral("}"));
+                                                                            if (((TokenKind)(p->token.kind)) != ((TokenKind)(1))) {
+                                                                                bool* value_542 = &(p->failed);
+                                                                                (*value_542) = true;
+                                                                            }
+                                                                            Parser* value_543 = p;
+                                                                            {
+                                                                                Parser* p = value_543;
+                                                                                Scan* value_545 = &(p->token);
+                                                                                Scan value_546 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                (*value_545) = value_546;
+                                                                                int64_t value_547 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                if (value_547 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                    bool* value_548 = &(p->failed);
+                                                                                    (*value_548) = true;
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        Parser* value_549 = p;
+                                                                        String value_550 = StringView(NULL, 0);
+                                                                        {
+                                                                            Parser* p = value_549;
+                                                                            int64_t start = type_start;
+                                                                            int64_t end = p->token.begin;
+                                                                            if (start < 0LL || end < start || (int64_t)((uint64_t)end - (uint64_t)start) >= 128LL) {
+                                                                                bool* value_552 = &(p->failed);
+                                                                                (*value_552) = true;
+                                                                                value_550 = StringLiteral("");
+                                                                                goto value_551;
+                                                                            }
+                                                                            String value_553 = p->source;
+                                                                            String value_554 = StringRangeAt(value_553, (int64_t)start, (int64_t)end);
+                                                                            String value_555 = StringView(NULL, 0);
+                                                                            {
+                                                                                String source = value_554;
+                                                                                SourceRange range = compiler_text_TrimRange(source);
+                                                                                value_555 = StringRangeAt(source, (int64_t)range.begin, (int64_t)range.end);
+                                                                            }
+                                                                            value_550 = value_555;
+                                                                        value_551: ;
+                                                                        }
+                                                                        String type = value_550;
+                                                                        bool value_557 = !p->failed;
+                                                                        bool value_558 = value_557;
+                                                                        if (value_558) {
+                                                                            Parser* value_559 = p;
+                                                                            String value_560 = StringView(NULL, 0);
+                                                                            {
+                                                                                Parser* p = value_559;
+                                                                                String value_562 = p->source;
+                                                                                value_560 = StringRangeAt(value_562, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                            }
+                                                                            value_558 = (StringEqual(value_560, StringLiteral(".")));
+                                                                        }
+                                                                        bool value_563 = value_558;
+                                                                        bool value_564 = value_563 && StringEqual(compiler_parse_Following(p, 1), StringLiteral("["));
+                                                                        bool value_565 = value_564;
+                                                                        bool value_566 = value_565;
+                                                                        if (value_566) {
+                                                                            bool value_567 = false;
+                                                                            {
+                                                                                String name = type;
+                                                                                String value_569 = StringView(NULL, 0);
+                                                                                {
+                                                                                    String text = name;
+                                                                                    if ((int64_t)(text).length >= 128LL) {
+                                                                                        value_569 = StringRangeAt(text, (int64_t)0LL, (int64_t)127LL);
+                                                                                        goto value_570;
+                                                                                    }
+                                                                                    value_569 = text;
+                                                                                value_570: ;
+                                                                                }
+                                                                                ElementType value_571 = compiler_type_ArrayElement(value_569);
+                                                                                value_567 = value_571.valid;
+                                                                            }
+                                                                            value_566 = value_567;
+                                                                        }
+                                                                        if (value_566) {
+                                                                            Parser* value_572 = p;
+                                                                            {
+                                                                                Parser* p = value_572;
+                                                                                Scan* value_574 = &(p->token);
+                                                                                Scan value_575 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                (*value_574) = value_575;
+                                                                                int64_t value_576 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                if (value_576 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                    bool* value_577 = &(p->failed);
+                                                                                    (*value_577) = true;
+                                                                                }
+                                                                            }
+                                                                            result = compiler_parse_TypedArray(p, start, type);
                                                                         } else {
-                                                                            bool value_586 = StringEqual(following, StringLiteral("["));
-                                                                            bool value_587 = value_586;
-                                                                            if (value_587) {
-                                                                                Parser* value_588 = p;
-                                                                                bool value_589 = false;
+                                                                            bool* value_578 = &(p->failed);
+                                                                            (*value_578) = true;
+                                                                        }
+                                                                    } else {
+                                                                        ZirExprKind kind = (ZirExprKind)((ZirExprKind)(1));
+                                                                        if (original_kind == ((TokenKind)(2))) {
+                                                                            kind = (ZirExprKind)(2);
+                                                                        } else if (original_kind == ((TokenKind)(3))) {
+                                                                            kind = (ZirExprKind)(3);
+                                                                        } else if (original_kind == ((TokenKind)(4))) {
+                                                                            kind = (ZirExprKind)(4);
+                                                                        } else if (original_kind == ((TokenKind)(5))) {
+                                                                            compiler_services_Fatal(p->span, StringLiteral("parse.jai_char"), StringLiteral("single-quoted character literals are not valid Jai syntax; use #char \"x\""));
+                                                                        } else if (original_kind != ((TokenKind)(1))) {
+                                                                            bool* value_579 = &(p->failed);
+                                                                            (*value_579) = true;
+                                                                            int32_t* value_580 = &(p->depth);
+                                                                            (*value_580) = (int32_t)((uint32_t)((*value_580)) - 1u);
+                                                                            return -1;
+                                                                        }
+                                                                        Parser* value_581 = p;
+                                                                        {
+                                                                            Parser* p = value_581;
+                                                                            Scan* value_583 = &(p->token);
+                                                                            Scan value_584 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                            (*value_583) = value_584;
+                                                                            int64_t value_585 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                            if (value_585 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                bool* value_586 = &(p->failed);
+                                                                                (*value_586) = true;
+                                                                            }
+                                                                        }
+                                                                        bool value_587 = kind == ((ZirExprKind)(1));
+                                                                        bool value_588 = value_587;
+                                                                        if (value_588) {
+                                                                            Parser* value_589 = p;
+                                                                            String value_590 = StringView(NULL, 0);
+                                                                            {
+                                                                                Parser* p = value_589;
+                                                                                String value_592 = p->source;
+                                                                                value_590 = StringRangeAt(value_592, (int64_t)p->token.begin, (int64_t)p->token.end);
+                                                                            }
+                                                                            value_588 = (StringEqual(value_590, StringLiteral(".")));
+                                                                        }
+                                                                        if (value_588) {
+                                                                            String following = compiler_parse_Following(p, 1);
+                                                                            if (StringEqual(following, StringLiteral("{"))) {
+                                                                                Parser* value_593 = p;
+                                                                                bool value_594 = false;
                                                                                 {
-                                                                                    Parser* p = value_588;
+                                                                                    Parser* p = value_593;
                                                                                     String name = original;
-                                                                                    if ((int64_t)(name).length >= 128LL) {
-                                                                                        value_589 = false;
-                                                                                        goto value_590;
+                                                                                    if ((int64_t)(name).length >= 128LL || p->module == ((void *)0)) {
+                                                                                        value_594 = false;
+                                                                                        goto value_595;
                                                                                     }
-                                                                                    String value_591 = name;
-                                                                                    bool value_592 = false;
-                                                                                    {
-                                                                                        String name = value_591;
-                                                                                        bool value_594 = StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize"));
-                                                                                        value_592 = value_594 || StringEqual(name, StringLiteral("usize")) || (!StringEqual(name, StringLiteral("integer")) && compiler_type_ScalarByteWidth(name) > 0);
-                                                                                    }
-                                                                                    bool value_595 = value_592;
-                                                                                    if (!value_595) {
-                                                                                        bool value_596 = p->module != ((void *)0);
-                                                                                        bool value_597 = value_596;
-                                                                                        if (value_597) {
-                                                                                            ZirType* value_598 = compiler_services_FindType(p->module, name, (void *)0);
-                                                                                            value_597 = (value_598 != ((void *)0));
-                                                                                        }
-                                                                                        value_595 = value_597;
-                                                                                    }
-                                                                                    value_589 = value_595;
-                                                                                value_590: ;
+                                                                                    ZirType* record = compiler_services_FindType(p->module, name, (void *)0);
+                                                                                    value_594 = record != ((void *)0) && record->is_enum == 0;
+                                                                                value_595: ;
                                                                                 }
-                                                                                value_587 = value_589;
-                                                                            }
-                                                                            if (value_587) {
-                                                                                Parser* value_599 = p;
+                                                                                if (!value_594) {
+                                                                                    bool* value_596 = &(p->failed);
+                                                                                    (*value_596) = true;
+                                                                                }
+                                                                                Parser* value_597 = p;
                                                                                 {
-                                                                                    Parser* p = value_599;
-                                                                                    Scan* value_601 = &(p->token);
-                                                                                    Scan value_602 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                                    (*value_601) = value_602;
-                                                                                    int64_t value_603 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                                    if (value_603 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                        bool* value_604 = &(p->failed);
-                                                                                        (*value_604) = true;
+                                                                                    Parser* p = value_597;
+                                                                                    Scan* value_599 = &(p->token);
+                                                                                    Scan value_600 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                    (*value_599) = value_600;
+                                                                                    int64_t value_601 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                    if (value_601 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                        bool* value_602 = &(p->failed);
+                                                                                        (*value_602) = true;
                                                                                     }
                                                                                 }
-                                                                                result = compiler_parse_TypedArray(p, start, original);
+                                                                                result = compiler_parse_ParseInitializer(p, start, original, StringLiteral("{"), StringLiteral("}"));
                                                                             } else {
-                                                                                Scan value_605 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                                if (((TokenKind)(value_605.kind)) == ((TokenKind)(1)) && StringEqual(compiler_parse_Following(p, 2), StringLiteral("."))) {
-                                                                                    uint8_t buffer[256] = {0};
-                                                                                    Slice value_606 = {buffer, 256};
-                                                                                    String qualified = compiler_parse_QualifiedName(value_606, original, following, 128LL);
-                                                                                    String opener = compiler_parse_Following(p, 3);
-                                                                                    bool value_607 = (int64_t)(qualified).length > 0LL;
-                                                                                    bool value_608 = value_607;
-                                                                                    if (value_608) {
-                                                                                        Parser* value_609 = p;
-                                                                                        bool value_610 = false;
-                                                                                        {
-                                                                                            Parser* p = value_609;
-                                                                                            String name = qualified;
-                                                                                            if ((int64_t)(name).length >= 128LL) {
-                                                                                                value_610 = false;
-                                                                                                goto value_611;
-                                                                                            }
-                                                                                            String value_612 = name;
-                                                                                            bool value_613 = false;
-                                                                                            {
-                                                                                                String name = value_612;
-                                                                                                bool value_615 = StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize"));
-                                                                                                value_613 = value_615 || StringEqual(name, StringLiteral("usize")) || (!StringEqual(name, StringLiteral("integer")) && compiler_type_ScalarByteWidth(name) > 0);
-                                                                                            }
-                                                                                            bool value_616 = value_613;
-                                                                                            if (!value_616) {
-                                                                                                bool value_617 = p->module != ((void *)0);
-                                                                                                bool value_618 = value_617;
-                                                                                                if (value_618) {
-                                                                                                    ZirType* value_619 = compiler_services_FindType(p->module, name, (void *)0);
-                                                                                                    value_618 = (value_619 != ((void *)0));
-                                                                                                }
-                                                                                                value_616 = value_618;
-                                                                                            }
-                                                                                            value_610 = value_616;
-                                                                                        value_611: ;
+                                                                                bool value_603 = StringEqual(following, StringLiteral("["));
+                                                                                bool value_604 = value_603;
+                                                                                if (value_604) {
+                                                                                    Parser* value_605 = p;
+                                                                                    bool value_606 = false;
+                                                                                    {
+                                                                                        Parser* p = value_605;
+                                                                                        String name = original;
+                                                                                        if ((int64_t)(name).length >= 128LL) {
+                                                                                            value_606 = false;
+                                                                                            goto value_607;
                                                                                         }
-                                                                                        value_608 = value_610;
+                                                                                        String value_608 = name;
+                                                                                        bool value_609 = false;
+                                                                                        {
+                                                                                            String name = value_608;
+                                                                                            bool value_611 = StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize"));
+                                                                                            value_609 = value_611 || StringEqual(name, StringLiteral("usize")) || (!StringEqual(name, StringLiteral("integer")) && compiler_type_ScalarByteWidth(name) > 0);
+                                                                                        }
+                                                                                        bool value_612 = value_609;
+                                                                                        if (!value_612) {
+                                                                                            bool value_613 = p->module != ((void *)0);
+                                                                                            bool value_614 = value_613;
+                                                                                            if (value_614) {
+                                                                                                ZirType* value_615 = compiler_services_FindType(p->module, name, (void *)0);
+                                                                                                value_614 = (value_615 != ((void *)0));
+                                                                                            }
+                                                                                            value_612 = value_614;
+                                                                                        }
+                                                                                        value_606 = value_612;
+                                                                                    value_607: ;
                                                                                     }
-                                                                                    if (value_608 && (StringEqual(opener, StringLiteral("[")) || StringEqual(opener, StringLiteral("{")))) {
-                                                                                        Parser* value_620 = p;
-                                                                                        {
-                                                                                            Parser* p = value_620;
-                                                                                            Scan* value_622 = &(p->token);
-                                                                                            Scan value_623 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                                            (*value_622) = value_623;
-                                                                                            int64_t value_624 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                                            if (value_624 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                                bool* value_625 = &(p->failed);
-                                                                                                (*value_625) = true;
-                                                                                            }
+                                                                                    value_604 = value_606;
+                                                                                }
+                                                                                if (value_604) {
+                                                                                    Parser* value_616 = p;
+                                                                                    {
+                                                                                        Parser* p = value_616;
+                                                                                        Scan* value_618 = &(p->token);
+                                                                                        Scan value_619 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                        (*value_618) = value_619;
+                                                                                        int64_t value_620 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                        if (value_620 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                            bool* value_621 = &(p->failed);
+                                                                                            (*value_621) = true;
                                                                                         }
-                                                                                        Parser* value_626 = p;
-                                                                                        {
-                                                                                            Parser* p = value_626;
-                                                                                            Scan* value_628 = &(p->token);
-                                                                                            Scan value_629 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                                            (*value_628) = value_629;
-                                                                                            int64_t value_630 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                                            if (value_630 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                                bool* value_631 = &(p->failed);
-                                                                                                (*value_631) = true;
-                                                                                            }
-                                                                                        }
-                                                                                        Parser* value_632 = p;
-                                                                                        {
-                                                                                            Parser* p = value_632;
-                                                                                            Scan* value_634 = &(p->token);
-                                                                                            Scan value_635 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
-                                                                                            (*value_634) = value_635;
-                                                                                            int64_t value_636 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
-                                                                                            if (value_636 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
-                                                                                                bool* value_637 = &(p->failed);
-                                                                                                (*value_637) = true;
-                                                                                            }
-                                                                                        }
-                                                                                        if (StringEqual(opener, StringLiteral("["))) {
-                                                                                            result = compiler_parse_TypedArray(p, start, qualified);
-                                                                                        } else {
-                                                                                            Parser* value_638 = p;
-                                                                                            bool value_639 = false;
+                                                                                    }
+                                                                                    result = compiler_parse_TypedArray(p, start, original);
+                                                                                } else {
+                                                                                    Scan value_622 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                    if (((TokenKind)(value_622.kind)) == ((TokenKind)(1)) && StringEqual(compiler_parse_Following(p, 2), StringLiteral("."))) {
+                                                                                        uint8_t buffer[256] = {0};
+                                                                                        Slice value_623 = {buffer, 256};
+                                                                                        String qualified = compiler_parse_QualifiedName(value_623, original, following, 128LL);
+                                                                                        String opener = compiler_parse_Following(p, 3);
+                                                                                        bool value_624 = (int64_t)(qualified).length > 0LL;
+                                                                                        bool value_625 = value_624;
+                                                                                        if (value_625) {
+                                                                                            Parser* value_626 = p;
+                                                                                            bool value_627 = false;
                                                                                             {
-                                                                                                Parser* p = value_638;
+                                                                                                Parser* p = value_626;
                                                                                                 String name = qualified;
-                                                                                                if ((int64_t)(name).length >= 128LL || p->module == ((void *)0)) {
-                                                                                                    value_639 = false;
-                                                                                                    goto value_640;
+                                                                                                if ((int64_t)(name).length >= 128LL) {
+                                                                                                    value_627 = false;
+                                                                                                    goto value_628;
                                                                                                 }
-                                                                                                ZirType* record = compiler_services_FindType(p->module, name, (void *)0);
-                                                                                                value_639 = record != ((void *)0) && record->is_enum == 0;
-                                                                                            value_640: ;
+                                                                                                String value_629 = name;
+                                                                                                bool value_630 = false;
+                                                                                                {
+                                                                                                    String name = value_629;
+                                                                                                    bool value_632 = StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize"));
+                                                                                                    value_630 = value_632 || StringEqual(name, StringLiteral("usize")) || (!StringEqual(name, StringLiteral("integer")) && compiler_type_ScalarByteWidth(name) > 0);
+                                                                                                }
+                                                                                                bool value_633 = value_630;
+                                                                                                if (!value_633) {
+                                                                                                    bool value_634 = p->module != ((void *)0);
+                                                                                                    bool value_635 = value_634;
+                                                                                                    if (value_635) {
+                                                                                                        ZirType* value_636 = compiler_services_FindType(p->module, name, (void *)0);
+                                                                                                        value_635 = (value_636 != ((void *)0));
+                                                                                                    }
+                                                                                                    value_633 = value_635;
+                                                                                                }
+                                                                                                value_627 = value_633;
+                                                                                            value_628: ;
                                                                                             }
-                                                                                            if (!value_639) {
-                                                                                                bool* value_641 = &(p->failed);
-                                                                                                (*value_641) = true;
+                                                                                            value_625 = value_627;
+                                                                                        }
+                                                                                        if (value_625 && (StringEqual(opener, StringLiteral("[")) || StringEqual(opener, StringLiteral("{")))) {
+                                                                                            Parser* value_637 = p;
+                                                                                            {
+                                                                                                Parser* p = value_637;
+                                                                                                Scan* value_639 = &(p->token);
+                                                                                                Scan value_640 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                                (*value_639) = value_640;
+                                                                                                int64_t value_641 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                                if (value_641 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                                    bool* value_642 = &(p->failed);
+                                                                                                    (*value_642) = true;
+                                                                                                }
+                                                                                            }
+                                                                                            Parser* value_643 = p;
+                                                                                            {
+                                                                                                Parser* p = value_643;
+                                                                                                Scan* value_645 = &(p->token);
+                                                                                                Scan value_646 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                                (*value_645) = value_646;
+                                                                                                int64_t value_647 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                                if (value_647 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                                    bool* value_648 = &(p->failed);
+                                                                                                    (*value_648) = true;
+                                                                                                }
+                                                                                            }
+                                                                                            Parser* value_649 = p;
+                                                                                            {
+                                                                                                Parser* p = value_649;
+                                                                                                Scan* value_651 = &(p->token);
+                                                                                                Scan value_652 = compiler_scan_NextToken(p->source, p->token.end, 1, 1);
+                                                                                                (*value_651) = value_652;
+                                                                                                int64_t value_653 = (int64_t)((uint64_t)(p->token.end) - (uint64_t)(p->token.begin));
+                                                                                                if (value_653 >= 4096LL && ((TokenKind)(p->token.kind)) != ((TokenKind)(4))) {
+                                                                                                    bool* value_654 = &(p->failed);
+                                                                                                    (*value_654) = true;
+                                                                                                }
+                                                                                            }
+                                                                                            if (StringEqual(opener, StringLiteral("["))) {
+                                                                                                result = compiler_parse_TypedArray(p, start, qualified);
                                                                                             } else {
-                                                                                                result = compiler_parse_ParseInitializer(p, start, qualified, StringLiteral("{"), StringLiteral("}"));
+                                                                                                Parser* value_655 = p;
+                                                                                                bool value_656 = false;
+                                                                                                {
+                                                                                                    Parser* p = value_655;
+                                                                                                    String name = qualified;
+                                                                                                    if ((int64_t)(name).length >= 128LL || p->module == ((void *)0)) {
+                                                                                                        value_656 = false;
+                                                                                                        goto value_657;
+                                                                                                    }
+                                                                                                    ZirType* record = compiler_services_FindType(p->module, name, (void *)0);
+                                                                                                    value_656 = record != ((void *)0) && record->is_enum == 0;
+                                                                                                value_657: ;
+                                                                                                }
+                                                                                                if (!value_656) {
+                                                                                                    bool* value_658 = &(p->failed);
+                                                                                                    (*value_658) = true;
+                                                                                                } else {
+                                                                                                    result = compiler_parse_ParseInitializer(p, start, qualified, StringLiteral("{"), StringLiteral("}"));
+                                                                                                }
                                                                                             }
                                                                                         }
                                                                                     }
                                                                                 }
                                                                             }
                                                                         }
-                                                                    }
-                                                                    if (result < 0 && !p->failed) {
-                                                                        String name = StringLiteral("");
-                                                                        if (kind == ((ZirExprKind)(1))) {
-                                                                            name = original;
+                                                                        if (result < 0 && !p->failed) {
+                                                                            String name = StringLiteral("");
+                                                                            if (kind == ((ZirExprKind)(1))) {
+                                                                                name = original;
+                                                                            }
+                                                                            result = compiler_parse_Node(p, kind, start, name, StringLiteral(""), -1, -1);
                                                                         }
-                                                                        result = compiler_parse_Node(p, kind, start, name, StringLiteral(""), -1, -1);
                                                                     }
                                                                 }
                                                             }
@@ -3184,8 +3235,8 @@ compiler_parse_ParsePrefix(Parser* p)
         }
     }
     result = compiler_parse_ParsePostfix(p, start, result);
-    int32_t* value_642 = &(p->depth);
-    (*value_642) = (int32_t)((uint32_t)((*value_642)) - 1u);
+    int32_t* value_659 = &(p->depth);
+    (*value_659) = (int32_t)((uint32_t)((*value_659)) - 1u);
     return result;
 }
 

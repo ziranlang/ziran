@@ -16,6 +16,7 @@ ParseExpression :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: string,
     p: Parser = .{fn = fn, module = module, span = span, source = text,
         expected_type = expected_type, stmt_index = stmt_index,
         expand_defaults = expand_defaults, span_cursor = span}
+    if stmt_index >= 0 && stmt_index < fn.stmt_count && fn.stmts[stmt_index].checks != 0 { p.checks = 1 }
     initial := fn.expr_count
     Advance(*p)
     result := ParseBinary(*p, 1)
@@ -42,6 +43,8 @@ Parser :: struct {
     token: Scan.Scan
     span_offset: s64
     span_cursor: IR.ZirSourceSpan
+    // Inside `#checks`: index and slice accesses keep their checks.
+    checks: s32
 }
 
 Token :: (p: *Parser) -> string { return p.source[p.token.begin:p.token.end] }
@@ -110,6 +113,9 @@ Node :: (p: *Parser, kind: IR.ZirExprKind, start: s64, name: string, op: string,
     unused IR.CopyText(node.op[:], op)
     node.left = left
     node.right = right
+    // Under `#checks` every node is marked, so an access and its operands
+    // keep their checks in a build without --checks.
+    if p.checks > 0 { node.checked = 1 }
     return p.fn.expr_count - 1
 }
 // A kept name, cut to the IR's name size.
@@ -371,7 +377,14 @@ ParsePrefix :: (p: *Parser) -> s32 {
         p.depth -= 1
         return -1
     }
-    if Take(p, "#this") {
+    if Take(p, "#checks") {
+        // `#checks a[i]`: the access that follows keeps its checks.
+        p.checks += 1
+        result = ParsePrefix(p)
+        p.checks -= 1
+        p.depth -= 1
+        return result
+    } else if Take(p, "#this") {
         if scope.count == 0 { Services.Fatal(p.span, "parse.this", "#this requires a procedure or type scope") }
         result = Node(p, IR.ZirExprKind.IDENT, start, scope, "", -1, -1)
         if result >= 0 { p.fn.exprs[result].is_this = 1 }

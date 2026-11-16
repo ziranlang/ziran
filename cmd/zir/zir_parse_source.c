@@ -47,8 +47,18 @@ typedef struct ParseSourceBuffers {
     char expanded[ZIR_TEXT_MAX];
     ZirModule run_scope;
     char parallel_text[SOURCE_LINE_MAX * 2];
+    char checks_text[SOURCE_LINE_MAX * 2];
     char using_path_text[SOURCE_LINE_MAX * 2];
 } ParseSourceBuffers;
+
+/* Statements from FIRST on are under `#checks` when CHECKS is set. */
+static void
+mark_checks(ZirFunction *fn, int first, int checks)
+{
+    if(fn == NULL || !checks) return;
+    for(int index = first; index < fn->stmt_count; index++)
+        fn->stmts[index].checks = 1;
+}
 
 enum { LOGICAL_LINE_MIN = SOURCE_LINE_MAX * 4 };
 
@@ -221,6 +231,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int body_mactive[8];
     int body_mparent_active[8];
     int body_mcount = 0;
+    /* The depths at which open `#checks { ... }` blocks began. */
+    int checks_depth[64];
+    int checks_count = 0;
     int in_block_comment = 0;
     int program_export = 0;
     int program_export_line = 0;
@@ -919,6 +932,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                    strcmp(t, "#scope_export") == 0)) {
             scope_public = strcmp(t, "#scope_export") == 0;
             scope_file = strcmp(t, "#scope_file") == 0;
+            continue;
+        } else if(mode == TOP && strcmp(t, "#checks") == 0) {
+            /* Every access in the module keeps its defensive checks. */
+            module->checks = 1;
             continue;
         } else if(mode == TOP && program_export &&
                   !looks_like_function_header(t)) {
@@ -1776,6 +1793,25 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 snprintf(buffers->parallel_text, sizeof(buffers->parallel_text), "%s", after);
                 t = trim(buffers->parallel_text);
             }
+            /* `#checks` before a block or a statement keeps the defensive
+             * checks of the accesses in it; a block ends at its brace. */
+            while(checks_count > 0 && depth <= checks_depth[checks_count - 1])
+                checks_count--;
+            int statement_checks = checks_count > 0;
+            if(starts_word(t, "#checks")) {
+                const char *after = skip_ws(t + strlen("#checks"));
+                if(*after == '\0')
+                    die_at(Span(buffers->rel, line_no, 1),
+                           "#checks needs a block or a statement after it");
+                if(*after == '{') {
+                    if(checks_count >= 64)
+                        die_at(Span(buffers->rel, line_no, 1), "too many nested #checks blocks");
+                    checks_depth[checks_count++] = depth;
+                }
+                statement_checks = 1;
+                snprintf(buffers->checks_text, sizeof(buffers->checks_text), "%s", after);
+                t = trim(buffers->checks_text);
+            }
             bck = parse_cond_start(t, &bcnd);
             /* A part split from a one-line runtime `if a { } else { }` is
              * never the region's compile-time else, even when its runtime
@@ -1911,6 +1947,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     die_at(Span(buffers->rel, line_no, 1),
                            "using needs a record binding");
                 int brace_delta = net_block_braces(t);
+                int first_statement = fn != NULL ? fn->stmt_count : 0;
                 char block_callee[ZIR_NAME_MAX];
                 char block_name[ZIR_NAME_MAX];
                 if(looks_like_non_jai_control(t, "guard"))
@@ -1965,6 +2002,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         free(pieces);
                         if(piece_count > 0) {
                             uses_formatting = 1;
+                            mark_checks(fn, first_statement, statement_checks);
                             depth += brace_delta;
                             if(depth < 0)
                                 depth = 0;
@@ -1997,12 +2035,14 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                                                buffers->binding_line, span) == NULL)
                                 die("out of memory binding several results");
                         }
+                        mark_checks(fn, first_statement, statement_checks);
                         depth += brace_delta;
                         if(depth < 0)
                             depth = 0;
                         continue;
                     }
                     ZirStmt *statement = FunctionAddStmt(fn, kind, t, span);
+                    mark_checks(fn, first_statement, statement_checks);
                     if(statement != NULL && parallel_for) {
                         if(kind != ZIR_STMT_FOR)
                             die_at(span, "#parallel requires a for region");

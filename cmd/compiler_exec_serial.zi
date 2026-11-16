@@ -159,6 +159,12 @@ WriteCore :: (writer: *Writer, program: LirProgram) {
         flags: u32
         if function.external { flags |= 1 }
         if function.variadic { flags |= 2 }
+        // Function flag 4: each instruction carries a flags word (1: checked).
+        checked_function := false
+        for block: function.blocks {
+            for instruction: block.instructions { if instruction.checked { checked_function = true } }
+        }
+        if checked_function { flags |= 4 }
         U32(writer, flags)
         S32s(writer, function.values)
         Count(writer, function.blocks.count)
@@ -179,6 +185,7 @@ WriteCore :: (writer: *Writer, program: LirProgram) {
                 U32(writer, instruction.alignment)
                 S32(writer, instruction.effect)
                 S32(writer, instruction.origin)
+                if checked_function { U32(writer, ifx instruction.checked then cast(u32)1 else 0) }
             }
         }
         S32(writer, function.entry)
@@ -656,15 +663,18 @@ DecodeCore :: (decoder: *Decoder) {
                 alignment := DecodeU32(decoder)
                 effect := DecodeS32(decoder)
                 origin := DecodeS32(decoder)
+                checked: u32
+                if (flags & cast(u32)4) != 0 { checked = DecodeU32(decoder) }
                 if decoder.cursor.problem != .None { return }
-                if raw_op > cast(u32)LirOp.Resize { DecodeFail(decoder, .Field) }
+                if raw_op > cast(u32)LirOp.Resize || checked > 1 { DecodeFail(decoder, .Field) }
                 if decoder.mode == ModeViews {
                     operands := VecSlice(decoder.owner.operands,
                         operands_span.at, operands_span.at + operands_span.count)
                     decoder.owner.instructions[instruction_start + instruction_offset] = .{
                         op = cast(LirOp)raw_op, result = instruction_result, operands = operands,
                         edges = VecSlice(decoder.owner.edges, edge_start, edge_start + edge_count), immediate = immediate,
-                        symbol = symbol, alignment = alignment, effect = effect, origin = origin}
+                        symbol = symbol, alignment = alignment, effect = effect, origin = origin,
+                        checked = checked == 1}
                 }
             }
             if decoder.mode == ModeViews {
@@ -679,7 +689,7 @@ DecodeCore :: (decoder: *Decoder) {
         function_origin := DecodeS32(decoder)
         if decoder.cursor.problem != .None { return }
         if raw_calling > cast(u32)LirCalling.Host { DecodeFail(decoder, .Field) }
-        if flags > cast(u32)3 { DecodeFail(decoder, .Flags) }
+        if flags > cast(u32)7 { DecodeFail(decoder, .Flags) }
         if decoder.mode == ModeViews {
             name := TextView(VecSlice(decoder.owner.text_bytes, name_span.at, name_span.at + name_span.count))
             parameters := VecSlice(decoder.owner.function_parameters,

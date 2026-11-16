@@ -103,6 +103,7 @@ ZirStmt :: struct {
     is_using: s32  // template namespace activation; lowered in checked bodies
     is_parallel: s32  // `#parallel for` region; serial lowering, checked rules
     is_gpu: s32  // `#parallel_gpu for` region; pointers rejected pre-offload
+    checks: s32  // under `#checks`: its accesses keep their defensive checks
     text: *u8 #c "const char *"  // shared and immutable: assign KeepText(...)
     is_else: s32  // checked branch role; source text is diagnostic only
     loop_id: s32  // checked loop identity for named control flow
@@ -121,6 +122,7 @@ ZirExpr :: struct {
     kind: ZirExprKind
     is_function_value: s32  // declaration bound to an expected slot signature
     is_this: s32  // #this resolves to the enclosing procedure despite shadowing
+    checked: s32  // parsed under `#checks`: its accesses keep their checks
     is_global_value: s32  // in-memory only: identifier/call bound to a global
     is_move: s32  // in-memory only: a checked owned binding is consumed here
     text_owned: s32  // in-memory only: a Text call result its owner keeps

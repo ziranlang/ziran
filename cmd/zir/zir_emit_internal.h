@@ -261,10 +261,11 @@ int IndexBelowCount(const Emitter *e, int index, int base);
 /* Whether the run elements from index provably lie inside the slice or
  * string that identifier base names: 0 <= index, index + run <= count. */
 int RunBelowCount(const Emitter *e, int index, int64_t run, int base);
-/* Whether the module's accesses keep their defensive checks (--checks or
- * #checks). Without them the range predicates hold for every access, so
- * indexes and ranges are raw, as in C. */
-int EmitChecks(const Emitter *e);
+/* Whether expression EXPR keeps its defensive checks: its module is
+ * --checks or #checks, or it was parsed under #checks. Without them the
+ * range predicates hold for every access, so indexes and ranges are raw, as
+ * in C. */
+int EmitChecksAt(const Emitter *e, int expr);
 /* Whether the C view of slice expression index, base[low:high] of a fixed
  * array of capacity elements or of a slice when capacity < 0, provably keeps
  * 0 <= low <= high <= count. */

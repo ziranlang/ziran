@@ -745,7 +745,7 @@ LowerDirect :: (state: *LowerState, function: *MachineFunction, token: s32, base
 // index check: ElementAddress result, base, index, bound.
 LowerElement :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
     bound: s64
-    if !state.checks && source.operands.count >= 2 && source.operands.count <= 4 {
+    if !state.checks && !source.checked && source.operands.count >= 2 && source.operands.count <= 4 {
         // Unchecked: the no-check form at base + index (a subview's low);
         // its bound only records the shape.
         bound = 1
@@ -898,6 +898,16 @@ LowerResize :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     if instruction_id == MachineNoId { return false }
     return AddRelocation(state, .{instruction = instruction_id, operand = runtime,
         kind = .RuntimeResize, symbol = 0})
+}
+
+// Whether some instruction of PROGRAM is under `#checks`.
+AnyChecked :: (program: LirProgram) -> bool {
+    for function: program.functions {
+        for block: function.blocks {
+            for instruction: block.instructions { if instruction.checked { return true } }
+        }
+    }
+    return false
 }
 
 RoundEight :: (value: s64) -> s64 {
@@ -1205,7 +1215,7 @@ ViewAddresses :: (state: *LowerState, function: *MachineFunction, source: LirFun
 // The bound the shared facts prove the dynamic index of SOURCE below, so
 // x86-64 code needs no check for it, or 0.
 ProvenBound :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> s64 {
-    if !state.checks {
+    if !state.checks && !source.checked {
         // Unchecked: the no-check form, with the array's count as its bound.
         aggregate := state.owner.types[state.owner.virtuals[GlobalVirtual(state, function, source.operands[0])].type]
         return ifx aggregate.kind == .Array && aggregate.count > 0 then aggregate.count else 0
@@ -1520,7 +1530,8 @@ MachineLower :: (owner: *MachineOwner, program: LirProgram, target: TargetDescri
     // check.
     proven: LirProvenOwner
     defer LirProvenFree(*proven)
-    if state.checks { unused LirProvenBuild(*proven, program, LirDefaultLimits()) }
+    // The facts remove checks, so they matter only where some are kept.
+    if state.checks || AnyChecked(program) { unused LirProvenBuild(*proven, program, LirDefaultLimits()) }
     state.proven = *proven
     frame_raw: Vec(s32)
     defer VecFree(frame_raw)

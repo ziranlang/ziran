@@ -33,6 +33,7 @@ struct Parser {
     Scan token;
     int64_t span_offset;
     ZirSourceSpan span_cursor;
+    int32_t checks;
 };
 #endif
 int32_t compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected_type, int32_t stmt_index, bool expand_defaults);

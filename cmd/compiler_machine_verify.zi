@@ -471,7 +471,28 @@ Instructions :: (state: *VerifyState, program: MachineProgram, limits: MachineLi
     return true
 }
 
-CallsAndRelocations :: (state: *VerifyState, program: MachineProgram) -> bool {
+CallsAndRelocations :: (state: *VerifyState, program: MachineProgram, limits: MachineLimits) -> bool {
+    // Relocations first, so a malformed one is reported as such.
+    if !Spend(state, 2 * program.relocations.count) { return false }
+    for relocation_id: cast(s64)0..program.relocations.count - 1 {
+        relocation := program.relocations[relocation_id]
+        if relocation.instruction < 0 || relocation.instruction >= program.instructions.count ||
+            relocation.operand < 0 || relocation.operand >= program.operands.count ||
+            !RelocationKindValid(relocation.kind) {
+            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
+        }
+        instruction := program.instructions[relocation.instruction]
+        if relocation.operand < instruction.operand_begin ||
+            relocation.operand >= instruction.operand_begin + instruction.operand_count ||
+            !RelocationSymbolValid(program, relocation) ||
+            !RelocationFormValid(program, relocation) ||
+            !MachineAbiRelocationAddend(program.target, relocation.kind, relocation.addend) {
+            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
+        }
+    }
+    references: Vec(s32)
+    defer VecFree(references)
+    if !MachineCallReferences(program, *references, limits.bytes) { return Fail(state, .Allocation) }
     for call_id: cast(s64)0..program.calls.count - 1 {
         if !Spend(state, 1) { return false }
         call := program.calls[call_id]
@@ -495,55 +516,31 @@ CallsAndRelocations :: (state: *VerifyState, program: MachineProgram) -> bool {
               call.result_operand >= instruction.operand_begin + instruction.operand_count)) {
             return Fail(state, .Call, instruction = call.instruction)
         }
-        references: s32
-        for relocation: program.relocations {
-            if relocation.instruction != call.instruction { continue }
-            if !RelocationKindValid(relocation.kind) {
-                return Fail(state, .Relocation, instruction = relocation.instruction,
-                    operand = relocation.operand)
-            }
-            expected := call.calling == .Host && relocation.kind == .HostCapability ||
-                call.calling == .Platform && relocation.kind == .PlatformService ||
-                call.calling == .Internal && !call.indirect && relocation.kind == .FunctionCall
-            if expected { references += 1 }
-        }
-        if call.indirect && references != 0 || !call.indirect && references != 1 {
+        if call.indirect && references[call_id] != 0 || !call.indirect && references[call_id] != 1 {
             return Fail(state, .Call, instruction = call.instruction)
-        }
-    }
-    for relocation_id: cast(s64)0..program.relocations.count - 1 {
-        if !Spend(state, 1) { return false }
-        relocation := program.relocations[relocation_id]
-        if relocation.instruction < 0 || relocation.instruction >= program.instructions.count ||
-            relocation.operand < 0 || relocation.operand >= program.operands.count ||
-            !RelocationKindValid(relocation.kind) {
-            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
-        }
-        instruction := program.instructions[relocation.instruction]
-        if relocation.operand < instruction.operand_begin ||
-            relocation.operand >= instruction.operand_begin + instruction.operand_count ||
-            !RelocationSymbolValid(program, relocation) ||
-            !RelocationFormValid(program, relocation) ||
-            !MachineAbiRelocationAddend(program.target, relocation.kind, relocation.addend) {
-            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
         }
     }
     return true
 }
 
-FuelFacts :: (state: *VerifyState, program: MachineProgram) -> bool {
+// Every fuel check has exactly one counter relocation, and nothing else has
+// one; the relocations were range-checked before.
+FuelFacts :: (state: *VerifyState, program: MachineProgram, limits: MachineLimits) -> bool {
+    counters: Vec(s32)
+    defer VecFree(counters)
+    if !Spend(state, program.relocations.count + program.instructions.count) { return false }
+    if !VecResizeBounded(counters, program.instructions.count, limits.bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..counters.count - 1 { counters[at] = 0 }
+    for relocation: program.relocations {
+        if relocation.kind == .FuelCounter { counters[relocation.instruction] += 1 }
+    }
     for instruction_id: cast(s64)0..program.instructions.count - 1 {
-        if !Spend(state, 1) { return false }
         instruction := program.instructions[instruction_id]
-        counters: s32
-        for relocation: program.relocations {
-            if relocation.instruction == instruction_id && relocation.kind == .FuelCounter { counters += 1 }
-        }
         if instruction.opcode == .Fuel {
-            if counters != 1 || instruction.operand_count != 2 || instruction.flags_def == MachineNoId {
+            if counters[instruction_id] != 1 || instruction.operand_count != 2 || instruction.flags_def == MachineNoId {
                 return Fail(state, .Fuel, instruction = cast(s32)instruction_id)
             }
-        } else if counters != 0 {
+        } else if counters[instruction_id] != 0 {
             return Fail(state, .Fuel, instruction = cast(s32)instruction_id)
         }
     }
@@ -844,7 +841,7 @@ MachineVerify :: (program: MachineProgram, limits: MachineLimits) -> MachineDiag
     }
     if !Counts(*state, program, limits) || !Metadata(*state, program) ||
         !VirtualsAndStack(*state, program) || !Instructions(*state, program, limits) ||
-        !CallsAndRelocations(*state, program) || !FuelFacts(*state, program) ||
+        !CallsAndRelocations(*state, program, limits) || !FuelFacts(*state, program, limits) ||
         !CheckedMemory(*state, program, limits) { return state.diagnostic }
     if !Optional(program.entry, program.functions.count) ||
         program.entry != MachineNoId && program.functions[program.entry].calling != .Internal {

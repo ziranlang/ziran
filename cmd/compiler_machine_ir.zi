@@ -378,3 +378,56 @@ MachineDefaultLimits :: () -> MachineLimits {
 MachineDefaultOptions :: () -> MachineOptions {
     return .{preserve_origins = true}
 }
+
+// PROGRAM's relocations by instruction: the first of each instruction's, and
+// after each the next of the same instruction, in program order, so a lookup
+// scans only one instruction's relocations.
+MachineRelocationIndex :: struct {
+    first: Vec(s32)
+    next: Vec(s32)
+}
+
+MachineRelocationIndexBuild :: (index: *MachineRelocationIndex, program: MachineProgram, bytes: s64) -> bool {
+    if !VecResizeBounded(index.first, program.instructions.count, bytes) ||
+        !VecResizeBounded(index.next, program.relocations.count, bytes) { return false }
+    for at: cast(s64)0..index.first.count - 1 { index.first[at] = MachineNoId }
+    at := program.relocations.count - 1
+    while at >= 0 {
+        instruction := program.relocations[at].instruction
+        index.next[at] = MachineNoId
+        if instruction >= 0 && instruction < program.instructions.count {
+            index.next[at] = index.first[instruction]
+            index.first[instruction] = cast(s32)at
+        }
+        at -= 1
+    }
+    return true
+}
+
+MachineRelocationIndexFree :: (index: *MachineRelocationIndex) {
+    VecFree(index.first)
+    VecFree(index.next)
+}
+
+// Whether a relocation of KIND is the symbol reference CALL's instruction
+// carries: its host capability, platform service or direct callee.
+MachineCallReference :: (call: MachineCall, kind: MachineRelocationKind) -> bool {
+    return call.calling == .Host && kind == .HostCapability ||
+        call.calling == .Platform && kind == .PlatformService ||
+        call.calling == .Internal && !call.indirect && kind == .FunctionCall
+}
+
+// Counts each call's symbol references among PROGRAM's relocations into
+// REFERENCES in one pass; false when the counts would exceed BYTES.
+MachineCallReferences :: (program: MachineProgram, references: *Vec(s32), bytes: s64) -> bool {
+    if !VecResizeBounded(<<references, program.calls.count, bytes) { return false }
+    for at: cast(s64)0..program.calls.count - 1 { (<<references)[at] = 0 }
+    for relocation: program.relocations {
+        if relocation.instruction < 0 || relocation.instruction >= program.instructions.count { continue }
+        call := program.instructions[relocation.instruction].call
+        if call < 0 || call >= program.calls.count || program.calls[call].instruction != relocation.instruction ||
+            !MachineCallReference(program.calls[call], relocation.kind) { continue }
+        (<<references)[call] += 1
+    }
+    return true
+}

@@ -556,10 +556,34 @@ Instructions :: (state: *State, program: MachineProgram) -> bool {
     return true
 }
 
-CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
+CallsAndRelocations :: (state: *State, program: MachineProgram, limits: MachineLimits) -> bool {
     target := program.target
     general_abi := MachineBankCallerSaved(target, 0)
     float_abi := MachineBankCallerSaved(target, 1)
+    // Relocations first, so a malformed one is reported as such.
+    for relocation_id: cast(s64)0..program.relocations.count - 1 {
+        if !Spend(state, 1) { return false }
+        relocation := program.relocations[relocation_id]
+        if relocation.instruction < 0 || relocation.instruction >= program.instructions.count ||
+            !RelocationKindValid(relocation.kind) {
+            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
+        }
+        instruction := program.instructions[relocation.instruction]
+        if relocation.operand < instruction.operand_begin ||
+            relocation.operand >= instruction.operand_begin + instruction.operand_count {
+            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
+        }
+        operand := program.operands[relocation.operand]
+        if !RelocationSymbolValid(program, relocation) || !RelocationFormValid(program, relocation) ||
+            relocation.kind == .FuelCounter && relocation.operand != instruction.operand_begin + 1 ||
+            !MachineAbiRelocationAddend(target, relocation.kind, relocation.addend) {
+            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
+        }
+    }
+    references: Vec(s32)
+    defer VecFree(references)
+    if !Spend(state, program.relocations.count) { return false }
+    if !MachineCallReferences(program, *references, limits.bytes) { return Fail(state, .Allocation) }
     for call_id: cast(s64)0..program.calls.count - 1 {
         if !Spend(state, 1) { return false }
         call := program.calls[call_id]
@@ -580,19 +604,7 @@ CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
             call.stack_argument_bytes < 0 {
             return Fail(state, .Call, instruction = call.instruction)
         }
-        references: s32
-        for relocation: program.relocations {
-            if relocation.instruction != call.instruction { continue }
-            if !RelocationKindValid(relocation.kind) {
-                return Fail(state, .Relocation, instruction = relocation.instruction,
-                    operand = relocation.operand)
-            }
-            expected := call.calling == .Host && relocation.kind == .HostCapability ||
-                call.calling == .Platform && relocation.kind == .PlatformService ||
-                call.calling == .Internal && !call.indirect && relocation.kind == .FunctionCall
-            if expected { references += 1 }
-        }
-        if call.indirect && references != 0 || !call.indirect && references != 1 {
+        if call.indirect && references[call_id] != 0 || !call.indirect && references[call_id] != 1 {
             return Fail(state, .Call, instruction = call.instruction)
         }
         // Calls clobber the full ABI caller-saved set, which overlaps the
@@ -605,25 +617,6 @@ CallsAndRelocations :: (state: *State, program: MachineProgram) -> bool {
             (call.clobber_float & ~MachineBankLimit(target, 1)) != 0 ||
             (call.clobber_vector & ~MachineBankLimit(target, MachineRegisterBank(target, .Vector))) != 0 {
             return Fail(state, .Clobber, instruction = call.instruction)
-        }
-    }
-    for relocation_id: cast(s64)0..program.relocations.count - 1 {
-        if !Spend(state, 1) { return false }
-        relocation := program.relocations[relocation_id]
-        if relocation.instruction < 0 || relocation.instruction >= program.instructions.count ||
-            !RelocationKindValid(relocation.kind) {
-            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
-        }
-        instruction := program.instructions[relocation.instruction]
-        if relocation.operand < instruction.operand_begin ||
-            relocation.operand >= instruction.operand_begin + instruction.operand_count {
-            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
-        }
-        operand := program.operands[relocation.operand]
-        if !RelocationSymbolValid(program, relocation) || !RelocationFormValid(program, relocation) ||
-            relocation.kind == .FuelCounter && relocation.operand != instruction.operand_begin + 1 ||
-            !MachineAbiRelocationAddend(target, relocation.kind, relocation.addend) {
-            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
         }
     }
     return true
@@ -1300,7 +1293,7 @@ MachineVerifyAllocated :: (program: MachineProgram, limits: MachineLimits) -> Ma
     if !TargetMachineLoweringSupported(program.target) { unused Fail(*state, .UnsupportedTarget); return state.diagnostic }
     if !Counts(*state, program, limits) || !Metadata(*state, program) || !FunctionTables(*state, program) ||
         !Instructions(*state, program) { return state.diagnostic }
-    if !CallsAndRelocations(*state, program) || !CallForms(*state, program) || !Spills(*state, program, limits) ||
+    if !CallsAndRelocations(*state, program, limits) || !CallForms(*state, program) || !Spills(*state, program, limits) ||
         !FuelPlacement(*state, program, limits) { return state.diagnostic }
     for function_id: cast(s64)0..program.functions.count - 1 {
         if program.functions[function_id].calling != .Internal { continue }

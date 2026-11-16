@@ -2309,12 +2309,17 @@ ImageRelocationKind :: (kind: MachineX64RelocationKind) -> Image.MachineRelocati
     return .Invalid
 }
 
-ImageOperand :: (program: MachineProgram, relocation: MachineX64Relocation,
+ImageOperand :: (program: MachineProgram, index: *MachineRelocationIndex, relocation: MachineX64Relocation,
     kind: Image.MachineRelocationKind) -> s32 {
-    for source: program.relocations {
-        if source.instruction != relocation.instruction || source.symbol != relocation.symbol { continue }
-        if cast(s32)source.kind == cast(s32)kind ||
-            kind == .RuntimeTrap && source.kind != .Invalid { return source.operand }
+    if relocation.instruction < 0 || relocation.instruction >= index.first.count { return MachineNoId }
+    at := index.first[relocation.instruction]
+    while at != MachineNoId {
+        source := program.relocations[at]
+        if source.symbol == relocation.symbol &&
+            (cast(s32)source.kind == cast(s32)kind || kind == .RuntimeTrap && source.kind != .Invalid) {
+            return source.operand
+        }
+        at = index.next[at]
     }
     return MachineNoId
 }
@@ -2379,13 +2384,16 @@ BuildMachineImage :: (program: MachineProgram, output: *MachineX64Owner,
     for index: cast(s64)0..program.initializers.count - 1 {
         owner.initializers[index] = program.initializers[index]
     }
+    sources: MachineRelocationIndex
+    defer MachineRelocationIndexFree(*sources)
+    if !MachineRelocationIndexBuild(*sources, program, limits.bytes) { return false }
     for index: cast(s64)0..output.relocations.count - 1 {
         relocation := output.relocations[index]
         kind := ImageRelocationKind(relocation.kind)
         if kind == .Invalid { return false }
         owner.relocations[index] = .{section = .Code, offset = relocation.offset, width = 4,
             instruction = relocation.instruction,
-            operand = ImageOperand(program, relocation, kind), kind = kind,
+            operand = ImageOperand(program, *sources, relocation, kind), kind = kind,
             symbol = relocation.symbol, addend = relocation.addend}
     }
     stack_bytes: s64 = 16

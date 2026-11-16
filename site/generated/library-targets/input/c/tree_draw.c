@@ -8,8 +8,7 @@
 #include "session.h"
 #include "tree.h"
 #include "tree_input.h"
-#include "text_request.h"
-#include "text_input_platform.h"
+#include "text_editing.h"
 uint32_t frame_retained = {0};
 uint32_t frame_input_changed = {0};
 Session frame_owners[9] = {0};
@@ -60,7 +59,7 @@ BeginFrame(Session session, uint64_t screen_key, Rectangle bounds)
     (*value_8) = (active_modifiers)[slot];
     frame_retained = session_SessionFlagSet(frame_retained, slot, false);
     TreeKeyboardRoute(session);
-    TextInputFocusFrameBegin(session);
+    text_editing_TextEditingFrameBegin(session);
     PaintClear(session);
     uint32_t value_9 = frame_paint_unchanged;
     int32_t value_10 = SessionIndex(session);

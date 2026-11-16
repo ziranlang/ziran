@@ -2,6 +2,7 @@
 package main
 
 // #import session
+// #import text_editing
 // TextInputPlatformHost bridges '#foreign host_api' declarations to the embedding Go program.
 type TextInputPlatformHost interface {
 	SetPlatformTextKeyboardVisible(Session Session, Visible bool)
@@ -49,16 +50,18 @@ func TextInputPlatform_TextInputNoteFocused(session Session) {
 	if !value_0 {
 		return
 	}
+	var value_2 TextEditingSession = func(value_1 Session) { TextInputPlatform_TextInputFocusFrameBegin(value_1) }
+	TextEditing_TextEditingUseFocus(value_2, func(value_3 Session) bool { return TextInputPlatform_TextInputFocused(value_3) })
 	index := Session_SessionIndex(session)
-	var value_1 bool = TextInputPlatform_TextInputOwnerMatches((text_focus_frames[index]).Owner, session)
-	if !value_1 {
-		value_2 := &(text_focus_frames[index])
-		(*value_2) = TextFocusFrameState{}
-		value_3 := &((text_focus_frames[index]).Owner)
-		(*value_3) = session
+	var value_4 bool = TextInputPlatform_TextInputOwnerMatches((text_focus_frames[index]).Owner, session)
+	if !value_4 {
+		value_5 := &(text_focus_frames[index])
+		(*value_5) = TextFocusFrameState{}
+		value_6 := &((text_focus_frames[index]).Owner)
+		(*value_6) = session
 	}
-	value_4 := &((text_focus_frames[index]).Building)
-	(*value_4) = true
+	value_7 := &((text_focus_frames[index]).Building)
+	(*value_7) = true
 }
 
 func TextInputPlatform_TextInputFocusFrameBegin(session Session) {

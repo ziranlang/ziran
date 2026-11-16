@@ -1167,6 +1167,35 @@ TreeSetPopup(Session session, int32_t index)
     (*value_1) = false;
 }
 
+String
+TreeTextRange(Session session, int32_t index, int32_t first, int32_t last, Slice output)
+{
+    bool value_0 = SessionValid(session);
+    if (!value_0 || index < 0 || index >= TreeCount(session)) {
+        return StringLiteral("");
+    }
+    int32_t slot = session.slot;
+    NodeCore value_1 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed).count, index);
+    int32_t semantic = value_1.semantic_index;
+    if (semantic < 0) {
+        return StringLiteral("");
+    }
+    SemanticData data = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_semantics).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_semantics).count, semantic);
+    if (data.secure || first < 0 || last < first || (int64_t)(last) > data.text_length || (int64_t)(((int32_t)((uint32_t)last - (uint32_t)first))) > (int64_t)(output).length) {
+        return StringLiteral("");
+    }
+    int32_t byte = 0;
+    while (byte < (int32_t)((uint32_t)last - (uint32_t)first)) {
+        uint8_t* value_2 = &(((uint8_t *)output.data)[byte]);
+        uint8_t value_3 = ZIRAN_VEC_INDEX(((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_text).data, ((ZIRAN_INDEX(trees, sizeof(trees) / sizeof(trees[0]), slot)).committed_text).count, ((int64_t)(((uint64_t)(data.text_offset) + (uint64_t)(first)) + (uint64_t)(byte))));
+        (*value_2) = value_3;
+        byte = (int32_t)((uint32_t)byte + 1u);
+    }
+    Slice value_4 = output;
+    Slice value_5 = SliceRange(value_4, (int64_t)0, (int64_t)byte, sizeof(uint8_t));
+    return StringView((const char *)(value_5).data, (size_t)(value_5).length);
+}
+
 void
 TreeSetTextValue(Session session, int32_t index, String value, int32_t cursor, int32_t anchor, bool read_only, bool secure)
 {

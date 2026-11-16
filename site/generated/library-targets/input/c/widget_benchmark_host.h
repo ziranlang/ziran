@@ -21,8 +21,6 @@ int64_t widget_benchmark_host_WidgetPaintChecksum(void);
 void widget_benchmark_host_RecordBounds(Rectangle bounds);
 int32_t MeasureGlyphWidth(String value, int32_t font, String typeface);
 int32_t MeasureGlyphLineHeight(int32_t font, String typeface);
-int32_t ImageWidth(String path);
-int32_t ImageHeight(String path);
 void RasterText(String value, int32_t x, int32_t y, int32_t font, Color color);
 void RasterTextClipped(String value, int32_t x, int32_t y, int32_t font, Color color, Rectangle clip);
 void RasterRoundedRectangle(Rectangle bounds, float radius, int32_t segments, Color color);

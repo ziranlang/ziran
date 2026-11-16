@@ -32,8 +32,8 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 #include "focus.h"
 #include "font_metrics.h"
 #include "geometry.h"
-#include "icon.h"
 #include "image_behavior.h"
+#include "image_lookup.h"
 #include "paint_queue.h"
 #include "style.h"
 #include "style_sheet.h"
@@ -358,7 +358,7 @@ PaintButtonForNode(Session session, int32_t node, zir_2b2386d69a109fee_Props pro
     }
     zir_a62ab5d98ba48716_Props icon_image = props.image;
     if (StringEqual(icon_image.asset_path, StringLiteral("")) && icon_image.texture.id == 0 && props.icon_type != 0) {
-        icon_image = ImageForIcon(props.icon_type, bounds, props.label);
+        icon_image = image_lookup_IconLookupImage(props.icon_type, bounds, props.label);
     }
     bool has_shape = !StringEqual(props.icon_shape, StringLiteral(""));
     bool has_image = !StringEqual(icon_image.asset_path, StringLiteral("")) || icon_image.texture.id != 0 || has_shape;
@@ -376,7 +376,7 @@ PaintButtonForNode(Session session, int32_t node, zir_2b2386d69a109fee_Props pro
         zir_a62ab5d98ba48716_Props image = icon_image;
         Rectangle* value_5 = &(image.bounds);
         (*value_5) = (Rectangle){.x = bounds.x + content.icon_x, .y = bounds.y + content.icon_y, .width = content.icon_size, .height = content.icon_size};
-        Texture2D texture = ImageTextureFor(image);
+        Texture2D texture = image_lookup_ImageLookupTexture(image);
         uint32_t tint_color = 4294967295;
         if (image.tint != 0) {
             tint_color = image.tint;

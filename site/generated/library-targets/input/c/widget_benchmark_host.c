@@ -92,20 +92,6 @@ MeasureGlyphLineHeight(int32_t font, String typeface)
     return font;
 }
 
-int32_t
-ImageWidth(String path)
-{
-    (void)path;
-    return 0;
-}
-
-int32_t
-ImageHeight(String path)
-{
-    (void)path;
-    return 0;
-}
-
 void
 RasterText(String value, int32_t x, int32_t y, int32_t font, Color color)
 {

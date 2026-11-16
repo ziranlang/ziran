@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#include "zir_slice.h"
 #include "text_field_props.h"
 #include "button.h"
 #include "text.h"
@@ -43,6 +44,7 @@ int32_t TextFieldByteAfter(String value, int32_t codepoints);
 bool TextFieldInputTextAllowed(String value);
 bool TextFieldReplacementAllowed(zir_e3d05ce257aa07f3_Props props, int32_t start, int32_t end, String replacement);
 int32_t TextFieldCursorAtX(String value, int32_t x, int32_t font, String typeface);
+String TextFieldSecureDisplay(String value, String explicit_display, Slice mask);
 int32_t TextFieldDisplayByteFor(String value, String display, int32_t cursor, bool secure);
 Edit TextFieldEditFor(zir_e3d05ce257aa07f3_Props props, int32_t cursor, int32_t anchor);
 Result textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props);

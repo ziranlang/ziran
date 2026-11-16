@@ -177,6 +177,27 @@ func Textfield_TextFieldCursorAtX(value string, x int32, font int32, typeface st
 	return nearest
 }
 
+func Textfield_TextFieldSecureDisplay(value string, explicit_display string, mask []uint8) string {
+	if explicit_display != "" {
+		return explicit_display
+	}
+	var value_0 int32 = Textfield_TextFieldCodepoints(value)
+	count := int64(value_0)
+	if count > int64(len(mask)) {
+		count = int64(len(mask))
+	}
+	var index int64 = 0
+	for index < count {
+		value_1 := &(mask[index])
+		(*value_1) = 42
+		index++
+	}
+	if int64(0) < 0 || int64(count) < int64(0) || int64(count) > int64(len(mask)) {
+		panic("slice range out of bounds")
+	}
+	return string(mask[0:count:count])
+}
+
 func Textfield_TextFieldDisplayByteFor(value string, display string, cursor int32, secure bool) int32 {
 	cursor = TextInput_TextCursorForLength(cursor, int32(int64(len(value))))
 	if !secure {
@@ -302,8 +323,10 @@ func Textfield_TextFieldCore(session Session, props zir_e3d05ce257aa07f3_Props) 
 		}
 	}
 	display := props.Value
+	var secure_mask [256]uint8
+	_ = secure_mask
 	if props.Secure {
-		display = props.DisplayValue
+		display = Textfield_TextFieldSecureDisplay(props.Value, props.DisplayValue, secure_mask[0:256:256])
 	}
 	text_width := FontMetrics_GlyphWidth(display, font, face.Value.Typeface)
 	scroll := TextInput_TextFieldScrollFor(props.Bounds.X, props.Bounds.Width - clear_size, padding_x, text_width, result.ScrollX)

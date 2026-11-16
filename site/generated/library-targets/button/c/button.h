@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "button_props.h"
-#include "image.h"
+#include "image_props.h"
 #include "theme.h"
 #include "session.h"
 #include "card_behavior.h"
@@ -15,8 +15,8 @@
 #include "focus.h"
 #include "font_metrics.h"
 #include "geometry.h"
-#include "icon.h"
 #include "image_behavior.h"
+#include "image_lookup.h"
 #include "paint_queue.h"
 #include "style.h"
 #include "style_sheet.h"

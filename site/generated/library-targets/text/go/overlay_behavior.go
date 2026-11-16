@@ -12,16 +12,17 @@ func OverlayBehavior_DismissibleOverlayPolicyFor(released bool, release_consumed
 	var policy DismissibleOverlayPolicy = DismissibleOverlayPolicy{}
 	value_0 := &(policy.Tapped)
 	(*value_0) = released && !release_consumed
-	if released && !release_consumed && !dismiss_disabled && !pointer_inside {
-		value_1 := &(policy.Closed)
-		(*value_1) = true
-		value_2 := &(policy.OutsideReleased)
+	value_1 := &(policy.ReleaseConsumed)
+	(*value_1) = release_consumed
+	if released && !release_consumed {
+		value_2 := &(policy.ReleaseConsumed)
 		(*value_2) = true
-		value_3 := &(policy.ReleaseConsumed)
-		(*value_3) = true
-		return policy
+		if !dismiss_disabled && !pointer_inside {
+			value_3 := &(policy.Closed)
+			(*value_3) = true
+			value_4 := &(policy.OutsideReleased)
+			(*value_4) = true
+		}
 	}
-	value_4 := &(policy.ReleaseConsumed)
-	(*value_4) = release_consumed
 	return policy
 }

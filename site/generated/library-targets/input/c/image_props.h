@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
+#include "zir_slice.h"
 #include "drawing_props.h"
 #include "geometry.h"
 
@@ -22,7 +23,9 @@ enum {
 };
 
 struct ImageMesh {
-    uint8_t _unused;
+    int32_t columns;
+    int32_t rows;
+    Slice points;
 };
 
 struct zir_a62ab5d98ba48716_Props {
@@ -33,9 +36,17 @@ struct zir_a62ab5d98ba48716_Props {
     Vector2 origin;
     float rotation;
     ImageFit fit;
+    int32_t class_name;
+    int32_t id;
+    float radius;
     Texture2D texture;
     uint32_t tint;
+    uint64_t key;
     bool smooth;
+    ImageMesh mesh;
+    Slice clip_polygon;
+    String preview_path;
+    Vector2 full_size;
 };
 
 #ifdef __cplusplus

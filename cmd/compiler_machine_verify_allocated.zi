@@ -1172,7 +1172,10 @@ Transfer :: (state: *State, program: MachineProgram, function_id: s32, block_id:
                 pending = true
             }
             current[to] = moved
-            if destination.id == program.scratch_general && destination.class != .Stack && source.kind == .Physical {
+            // Parking copies a register into the scratch register itself; a
+            // spill slot that happens to share its number does not park.
+            if destination.kind == .Physical && destination.id == program.scratch_general &&
+                destination.class != .Stack && source.kind == .Physical {
                 parked_location = from
             }
             continue

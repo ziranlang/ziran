@@ -1233,6 +1233,15 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     return Fail(state, .Unsupported)
 }
 
+// Whether FUNCTION charges fuel outside its entry block: at a loop header.
+Loops :: (source: LirFunction) -> bool {
+    for block, block_index: source.blocks {
+        if block_index == cast(s64)source.entry { continue }
+        for instruction: block.instructions { if instruction.op == .Fuel { return true } }
+    }
+    return false
+}
+
 LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     source := state.lir.functions[function_id]
     if source.external { return true }
@@ -1248,6 +1257,7 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.select.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
+    function.fuel_register = MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
     if !ViewAddresses(state, *function, source) { return false }
     // A function that allocates keeps the frame arena's top at entry and
     // the head of its pointer chain in two frame words. Each `allocate` gets

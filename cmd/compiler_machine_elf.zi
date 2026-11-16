@@ -352,11 +352,12 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
     previous = -1
     for relocation: image.relocations {
         if relocation.instruction == MachineNoId {
-            // Only a checked prologue has relocations outside an instruction.
+            // Only a prologue has relocations outside an instruction: its stack
+            // check, pointer frame and the load of a register step budget.
             if relocation.offset <= previous || relocation.offset < 0 ||
                 relocation.offset > image.code.count - 4 ||
                 (relocation.kind != .StackLimit && relocation.kind != .TrapHandler &&
-                 relocation.kind != .PointerRuntime) ||
+                 relocation.kind != .PointerRuntime && relocation.kind != .FuelCounter) ||
                 relocation.symbol != 0 || relocation.addend != -4 ||
                 !InPrologue(program, image, relocation.offset) {
                 result := NoDiagnostic(); result.problem = .Relocation; return result
@@ -394,10 +395,8 @@ ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout
                     layout.constants_text + global_offset)
             } else { target = cast(u64)(MachineElfBase + layout.data_offset + global_offset) }
         } else if relocation.kind == .FuelCounter && relocation.symbol == 0 {
-            if program.instructions[relocation.instruction].opcode != .Fuel {
-                result := NoDiagnostic(); result.problem = .Relocation
-                result.instruction = relocation.instruction; return result
-            }
+            // A fuel check, or where a register step budget is written back
+            // or reloaded: a call, a return or any trap.
             target = cast(u64)(MachineElfBase + layout.data_offset + layout.data.fuel)
         } else if relocation.kind == .TrapHandler && relocation.symbol == 0 {
             if !TrapOpcode(program.instructions[relocation.instruction].opcode) || relocation.addend != -4 {
@@ -445,7 +444,7 @@ InPrologue :: (program: MachineProgram, image: MachineX64Image, offset: s64) -> 
         function := image.functions[function_id]
         if offset >= function.begin && offset + 4 <= function.body {
             return MachineX64StackChecked(program, cast(s32)function_id) ||
-                program.functions[function_id].pointer_chain != 0
+                program.functions[function_id].pointer_chain != 0 || program.functions[function_id].fuel_register
         }
     }
     return false

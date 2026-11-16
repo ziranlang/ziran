@@ -134,6 +134,10 @@ State :: struct {
     flags_float: bool
     // Above zero while a block is emitted only to measure its length.
     suppress: s32
+    // The function keeps its step budget in the fuel register, and the
+    // prologue has loaded it.
+    fuel_register: bool
+    fuel_live: bool
 }
 
 NoDiagnostic :: () -> MachineDiagnostic {
@@ -413,7 +417,22 @@ ConditionCode :: (condition: MachineCondition, signed: bool) -> s32 {
     return MachineNoId
 }
 
+// The step budget of a function keeping it in the fuel register goes to, or
+// comes back from, the instance counter: stored before calls and returns and
+// on every trap, reloaded after calls.
+FuelCounter :: (state: *State, store: bool) {
+    register := MachineAbiFuelRegister(state.program.target)
+    if store { X86Store(*state.writer, X86RipRelocated(), register, 8) }
+    else { X86Load(*state.writer, register, X86RipRelocated(), 8, false) }
+    Relocate(state, .FuelCounter, 0, -4, state.writer.at - 4)
+}
+
+FuelStore :: (state: *State) { if state.fuel_live { FuelCounter(state, true) } }
+
+FuelReload :: (state: *State) { if state.fuel_live { FuelCounter(state, false) } }
+
 TrapSequence :: (state: *State, code: u64) {
+    FuelStore(state)
     X86MoveImmediate32(*state.writer, X86Rdi, code)
     X86Byte(*state.writer, 232)
     Relocate(state, .TrapHandler, 0, -4, state.writer.at)
@@ -422,12 +441,19 @@ TrapSequence :: (state: *State, code: u64) {
 }
 
 // Continues past an inline trap when CONDITION holds.
+// A trap that first writes back a register step budget, mov [rip + fuel],
+// r15, is that many bytes longer.
+FuelStoreBytes :: 7
+
 TrapUnless :: (state: *State, condition: s32, code: u64) {
-    X86JumpCondition8(*state.writer, condition, MachineX64TrapSize)
+    X86JumpCondition8(*state.writer, condition, MachineX64TrapSize + ifx state.fuel_live then FuelStoreBytes else 0)
     TrapSequence(state, code)
 }
 
+// Where jumps enter BLOCK: its first byte, or past the fuel trap placed at
+// the block's start.
 BlockTarget :: (state: *State, block: s32) -> s64 {
+    if FuelStub(state, block) { return state.block_begin[block] + MachineX64TrapSize + FuelStoreBytes }
     return state.block_begin[block]
 }
 
@@ -1500,6 +1526,20 @@ Fuel :: (state: *State) -> bool {
     if id == MachineNoId { return false }
     symbol := state.program.relocations[id].symbol
     value := cast(s64)amount.immediate
+    if state.fuel_register {
+        // The budget is in the fuel register: subtract there, trap on borrow.
+        register := MachineAbiFuelRegister(state.program.target)
+        if value <= 2147483647 { X86ArithmeticImmediate(*state.writer, X86Subtract, register, value) }
+        else {
+            X86MoveImmediate(*state.writer, X86R11, amount.immediate)
+            X86Arithmetic(*state.writer, X86Subtract, register, X86R11)
+        }
+        block := state.program.blocks[state.block]
+        if FuelStub(state, state.block) && state.instruction == block.instruction_begin {
+            X86JumpCondition32(*state.writer, X86Below, state.instruction_begin[state.instruction])
+        } else { TrapUnless(state, X86AboveEqual, MachineX64TrapFuel) }
+        return true
+    }
     trailing: s64 = 0
     if value <= 2147483647 {
         trailing = ifx X86Fits8(value) then cast(s64)1 else 4
@@ -1612,8 +1652,13 @@ Call :: (state: *State) -> bool {
     if target == MachineNoId { return Fail(state, .Call) }
     if indirect && result_address && state.program.operands[target].id == X86Rax { return Fail(state, .Constraint, target) }
     if result_address { X86Lea(*state.writer, X86Rax, result_destination) }
+    // Another function or the host may spend the step budget; a platform
+    // service never does.
+    synced := call.calling != .Platform
+    if synced { FuelStore(state) }
     if indirect {
         X86CallRegister(*state.writer, state.program.operands[target].id)
+        FuelReload(state)
         return true
     }
     machine_kind := MachineRelocationKind.FunctionCall
@@ -1632,12 +1677,25 @@ Call :: (state: *State) -> bool {
         X86Call32(*state.writer, state.writer.at + 5)
         Relocate(state, image_kind, state.program.operands[target].id, -4, state.writer.at - 4)
     }
+    if synced { FuelReload(state) }
     return true
+}
+
+// Whether BLOCK, past the first of its function, starts with the fuel check
+// of a function keeping its budget in the fuel register. Its trap then opens
+// the block, inside that check's range, and jumps enter past it, so a loop
+// header spends no taken branch on it.
+FuelStub :: (state: *State, block: s32) -> bool {
+    if !state.fuel_register || block == state.program.functions[state.function].block_begin { return false }
+    first := state.program.blocks[block]
+    return first.instruction_count > 0 && state.program.instructions[first.instruction_begin].opcode == .Fuel
 }
 
 // Whether control falls from the current block into TARGET: it is the next
 // block, or each block before it is a lone jump to it, which emits nothing.
+// A fuel trap before TARGET's label must be jumped over.
 Falls :: (state: *State, target: s32) -> bool {
+    if FuelStub(state, target) { return false }
     function := state.program.functions[state.function]
     end := function.block_begin + function.block_count
     block := state.block + 1
@@ -1736,6 +1794,7 @@ Return :: (state: *State) -> bool {
         }
     }
     function := state.program.functions[state.function]
+    FuelStore(state)
     if function.pointer_chain != 0 && !PointerFrameLeave(state, function) { return false }
     if !CalleeSaves(state, true) { return false }
     X86Leave(*state.writer)
@@ -2129,6 +2188,10 @@ Prologue :: (state: *State) -> bool {
     }
     if !CalleeSaves(state, false) { return false }
     if function.pointer_chain != 0 && !PointerFrameEnter(state, function) { return false }
+    if state.fuel_register {
+        FuelCounter(state, false)
+        state.fuel_live = true
+    }
     result_addresses: s32
     for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
         object := state.program.stack_objects[object_id]
@@ -2162,17 +2225,26 @@ Pass :: (state: *State) -> bool {
                 !Place(state, state.function_end, function_index) { return false }
             continue
         }
+        state.fuel_register = function.fuel_register
+        state.fuel_live = false
         if !Spend(state, 1) || !Place(state, state.function_begin, function_index) || !Prologue(state) { return false }
         if state.writer.failed { return Fail(state, .Limit) }
         for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
             state.block = block_id
             state.instruction = MachineNoId
             state.flags_value = MachineNoId
-            if !Spend(state, 1) || !Place(state, state.block_begin, block_id) { return false }
             block := program.blocks[block_id]
+            if !Spend(state, 1) || !Place(state, state.block_begin, block_id) { return false }
+            stub := FuelStub(state, block_id)
+            if stub {
+                state.instruction = block.instruction_begin
+                if !Place(state, state.instruction_begin, block.instruction_begin) { return false }
+                TrapSequence(state, MachineX64TrapFuel)
+            }
             for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
                 state.instruction = instruction_id
-                if !Place(state, state.instruction_begin, instruction_id) || !Instruction(state) { return false }
+                if !(stub && instruction_id == block.instruction_begin) &&
+                    !Place(state, state.instruction_begin, instruction_id) || !Instruction(state) { return false }
                 if state.writer.failed { return Fail(state, .Limit) }
                 if !Place(state, state.instruction_end, instruction_id) { return false }
             }

@@ -1922,6 +1922,8 @@ LayoutFrame :: (state: *Alloc, function: *MachineFunction) -> bool {
             if Bit(state.callee_saved[bank], operand.id) { saved[bank] = saved[bank] | (cast(u64)1 << cast(u64)operand.id) }
         }
     }
+    fuel := MachineAbiFuelRegister(state.target)
+    if function.fuel_register && fuel >= 0 { saved[0] = saved[0] | (cast(u64)1 << cast(u64)fuel) }
     float_bank := MachineRegisterBank(state.target, .Float)
     for bank: cast(s32)0..1 {
         for register: cast(s32)0..63 {
@@ -2016,11 +2018,17 @@ AllocateFunction :: (state: *Alloc, function_id: s32) -> bool {
             state.out.stack_objects[value.stack_object].value = value_id
         }
     }
-    if !CollectParameters(state) || !BuildItems(state) || !Liveness(state) || !BuildIntervals(state) ||
-        !BuildFixed(state) { return false }
+    // A function keeping its step budget in the fuel register gives no value it.
+    general := state.masks[0]
+    fuel := MachineAbiFuelRegister(state.target)
+    if function.fuel_register && fuel >= 0 { state.masks[0] = general & ~(cast(u64)1 << cast(u64)fuel) }
+    allocated := CollectParameters(state) && BuildItems(state) && Liveness(state) && BuildIntervals(state) &&
+        BuildFixed(state)
     for bank: cast(s32)0..MachineBankCount - 1 {
-        if !ScanBank(state, bank) { return false }
+        if allocated && !ScanBank(state, bank) { allocated = false }
     }
+    state.masks[0] = general
+    if !allocated { return false }
     if !AssignSlots(state) || !CollectBoundaries(state) { return false }
     output := function
     output.block_begin = state.block_out_begin

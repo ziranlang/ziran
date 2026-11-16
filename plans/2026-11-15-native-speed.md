@@ -422,14 +422,16 @@ taken branches (that and the back edge). Private experiment, 3×15 runs:
 | Hash | 26.6–28.9 | 27.1–28.3 | 25.9–27.6 |
 | Records | 17.9–19.2 | 17.3–18.9 | 16.8–17.3 |
 
-So the next landing is: fuel checks that fall through (`sub r15, n; jb stub`)
-with the stub placed just before the loop header's label and covered by the
-fuel instruction's own range, so trap reports keep their instruction and
-line without host changes; a predecessor that would fall into the header
-jumps over the stub instead. The first attempt in the shared tree made
-Wurm's native SessionOpen trap with code 1 (a jump landing inside a trap
-sequence past its `mov edi`) and was reverted; it must pass that path and the
-full suite before landing.
+Landed (step 2): looping x86-64 functions keep their step budget in r15 and
+a loop header's fuel check falls through (`sub r15, n; jb stub`); the stub
+opens the header block inside the check's own range, jumps enter past it,
+and a predecessor that would fall into the header jumps over it, so trap
+reports keep their instruction and line. The first shared-tree attempt made
+Wurm's native SessionOpen trap with code 1 (a trap skip still sized for the
+12-byte sequence) and was reverted before this version. The allocated
+verifier no longer mistakes spill slot 11 for the r11 scratch register when
+it tracks a parked cycle value. Private timing on Omega: Sieve 59.6 → 47.1
+µs, Records 18.9 → 17.5 µs, Hash unchanged (C 12.2, 8.8, 22.5).
 
 Remaining per kernel after that, from objdump of the current build:
 - Sieve inner loop (12 instructions, C 5): the direct frame store goes

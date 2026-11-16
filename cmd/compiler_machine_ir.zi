@@ -214,6 +214,10 @@ MachineFunction :: struct {
     // of the function's pointer slot chain.
     arena_mark: s32
     pointer_chain: s32
+    // A function that loops keeps its step budget in the target's fuel
+    // register (MachineAbiFuelRegister) instead of the instance counter,
+    // writing it back wherever another function or the host may read it.
+    fuel_register: bool
 }
 
 MachineOrigin :: struct {

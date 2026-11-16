@@ -138,6 +138,10 @@ State :: struct {
     // prologue has loaded it.
     fuel_register: bool
     fuel_live: bool
+    // The function has no frame (no push rbp / leave), and the return after
+    // a tail call, already left, emits nothing.
+    frameless: bool
+    tail_returned: bool
 }
 
 NoDiagnostic :: () -> MachineDiagnostic {
@@ -1653,9 +1657,11 @@ Call :: (state: *State) -> bool {
     if indirect && result_address && state.program.operands[target].id == X86Rax { return Fail(state, .Constraint, target) }
     if result_address { X86Lea(*state.writer, X86Rax, result_destination) }
     // Another function or the host may spend the step budget; a platform
-    // service never does.
+    // service never does. A tail call stores it as it leaves.
+    tail := !indirect && state.program.functions[state.function].pointer_chain == 0 &&
+        TailCallAt(state.program, state.block, state.instruction)
     synced := call.calling != .Platform
-    if synced { FuelStore(state) }
+    if synced && !tail { FuelStore(state) }
     if indirect {
         X86CallRegister(*state.writer, state.program.operands[target].id)
         FuelReload(state)
@@ -1671,13 +1677,18 @@ Call :: (state: *State) -> bool {
         image_kind = .HostCapability
     }
     if Relocation(state, machine_kind, target, true) == MachineNoId { return false }
+    if tail {
+        if !Epilogue(state) { return false }
+        state.tail_returned = true
+    }
     if call.calling == .Internal {
-        X86Call32(*state.writer, FunctionTarget(state, state.program.operands[target].id))
+        address := FunctionTarget(state, state.program.operands[target].id)
+        if tail { X86Jump32(*state.writer, address) } else { X86Call32(*state.writer, address) }
     } else {
-        X86Call32(*state.writer, state.writer.at + 5)
+        if tail { X86Jump32(*state.writer, state.writer.at + 5) } else { X86Call32(*state.writer, state.writer.at + 5) }
         Relocate(state, image_kind, state.program.operands[target].id, -4, state.writer.at - 4)
     }
-    if synced { FuelReload(state) }
+    if synced && !tail { FuelReload(state) }
     return true
 }
 
@@ -1757,6 +1768,7 @@ CalleeSaves :: (state: *State, restore: bool) -> bool {
 }
 
 Return :: (state: *State) -> bool {
+    if state.tail_returned { state.tail_returned = false; return true }
     instruction := Current(state)
     if instruction.operand_count > 1 { return Fail(state, .Unsupported) }
     if instruction.operand_count == 1 {
@@ -1793,13 +1805,73 @@ Return :: (state: *State) -> bool {
             }
         }
     }
+    if !Epilogue(state) { return false }
+    X86Return(*state.writer)
+    return true
+}
+
+// Leaves the frame before a return or a tail call: the step budget goes back
+// to memory, the pointer frame and callee-saved registers are restored.
+Epilogue :: (state: *State) -> bool {
     function := state.program.functions[state.function]
     FuelStore(state)
     if function.pointer_chain != 0 && !PointerFrameLeave(state, function) { return false }
     if !CalleeSaves(state, true) { return false }
-    X86Leave(*state.writer)
-    X86Return(*state.writer)
+    if !state.frameless { X86Leave(*state.writer) }
     return true
+}
+
+// Whether the direct call at AT is its function's last act: the next
+// instruction of its block returns the call's register result (or nothing),
+// and it passes nothing on the stack and returns nothing in memory. It then
+// leaves the frame and jumps, and the callee returns to this function's
+// caller with the stack as a direct call would leave it.
+TailCallAt :: (program: MachineProgram, block_id: s32, at: s32) -> bool {
+    instruction := program.instructions[at]
+    block := program.blocks[block_id]
+    if instruction.opcode != .CallDirect || instruction.call < 0 || instruction.call >= program.calls.count ||
+        at + 1 >= block.instruction_begin + block.instruction_count { return false }
+    call := program.calls[instruction.call]
+    returned := program.instructions[at + 1]
+    if call.stack_argument_bytes != 0 || returned.opcode != .Return { return false }
+    if call.result_operand != MachineNoId && program.operands[call.result_operand].class == .Stack { return false }
+    if returned.operand_count == 0 { return true }
+    if call.result_operand == MachineNoId || returned.operand_count != 1 { return false }
+    result := program.operands[call.result_operand]
+    value := program.operands[returned.operand_begin]
+    return result.kind == .Physical && value.kind == .Physical && result.class == value.class && result.id == value.id
+}
+
+// Whether FUNCTION needs no frame: nothing of it lives on the stack, it
+// checks no stack limit, keeps no step budget in a register and runs only
+// instructions that cannot trap, calling nothing except a tail call, so
+// no callee or trap handler ever sees its stack.
+Frameless :: (program: MachineProgram, function_id: s32) -> bool {
+    function := program.functions[function_id]
+    if function.calling != .Internal || function.stack_count != 0 || function.pointer_chain != 0 ||
+        function.fuel_register || function_id >= program.frames.count || program.frames[function_id].size != 0 ||
+        MachineX64StackChecked(program, function_id) { return false }
+    for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+        block := program.blocks[block_id]
+        end := block.instruction_begin + block.instruction_count
+        for at: block.instruction_begin..end - 1 {
+            if TailCallAt(program, block_id, at) { continue }
+            if !PlainOpcode(program.instructions[at].opcode) { return false }
+        }
+    }
+    return true
+}
+
+// Instructions that never trap, call or touch the frame.
+PlainOpcode :: (opcode: MachineOpcode) -> bool {
+    return opcode == .Move || opcode == .MoveImmediate || opcode == .GlobalAddress || opcode == .FunctionAddress ||
+        opcode == .IntegerAdd || opcode == .IntegerSubtract || opcode == .IntegerMultiply ||
+        opcode == .IntegerNegate || opcode == .IntegerAnd || opcode == .IntegerOr || opcode == .IntegerXor ||
+        opcode == .IntegerNot || opcode == .FloatAdd || opcode == .FloatSubtract || opcode == .FloatMultiply ||
+        opcode == .FloatDivide || opcode == .FloatNegate || opcode == .Compare || opcode == .SetCondition ||
+        opcode == .Bitcast || opcode == .Load || opcode == .Store || opcode == .Copy || opcode == .Zero ||
+        opcode == .FieldAddress || opcode == .PointerDirect || opcode == .Jump || opcode == .Branch ||
+        opcode == .Return
 }
 
 Trap :: (state: *State) -> bool {
@@ -2177,8 +2249,10 @@ Prologue :: (state: *State) -> bool {
     function := state.program.functions[state.function]
     if frame.dynamic_allocation || frame.callee_saved_float != 0 { return Fail(state, .Frame) }
     if frame.size < 0 || frame.size > 2147483647 { return Fail(state, .Frame) }
-    X86Push(*state.writer, X86Rbp)
-    X86Move(*state.writer, X86Rbp, X86Rsp)
+    if !state.frameless {
+        X86Push(*state.writer, X86Rbp)
+        X86Move(*state.writer, X86Rbp, X86Rsp)
+    }
     if frame.size > 0 { X86SubtractStack(*state.writer, frame.size) }
     if MachineX64StackChecked(state.program, state.function) {
         // cmp rsp, [rip + limit]; continue at or above it.
@@ -2227,6 +2301,8 @@ Pass :: (state: *State) -> bool {
         }
         state.fuel_register = function.fuel_register
         state.fuel_live = false
+        state.frameless = Frameless(program, cast(s32)function_index)
+        state.tail_returned = false
         if !Spend(state, 1) || !Place(state, state.function_begin, function_index) || !Prologue(state) { return false }
         if state.writer.failed { return Fail(state, .Limit) }
         for block_id: function.block_begin..function.block_begin + function.block_count - 1 {

@@ -754,8 +754,9 @@ Basics :: () -> bool {
         !Check(image.entry == ids.answer, "image entry") { return false }
 
     answer := image.functions[ids.answer]
-    if !Bytes(image.code, answer.begin, answer.end, "55 48 89 e5 b8 2a 00 00 00 c9 c3", "whole answer function") ||
-        !Check(answer.body == answer.begin + 4, "frameless prologue") { return false }
+    // A function that cannot trap and keeps nothing on the stack needs no frame.
+    if !Bytes(image.code, answer.begin, answer.end, "b8 2a 00 00 00 c3", "whole answer function") ||
+        !Check(answer.body == answer.begin, "frameless function has no prologue") { return false }
 
     expected_arithmetic: [10]string = .["48 01 f7", "4d 29 c8", "4c 0f af c7", "4c 21 c7", "48 09 ca",
         "48 31 d7", "48 f7 df", "49 f7 d1", "4d 89 ca", "48 89 f8"]
@@ -801,7 +802,9 @@ Basics :: () -> bool {
         !Instruction(image, ids.branch_ops[3], "e9 05 00 00 00", "forward jump") ||
         !Instruction(image, ids.branch_ops[4], "", "same-register move") ||
         !Instruction(image, ids.branch_ops[5], "", "jump to next block") ||
-        !Check(branch.end - branch.begin == 39, "branch function size") { return false }
+        !Check(branch.end - branch.begin == 34 && branch.body == branch.begin, "frameless branch function size") {
+        return false
+    }
     if !Instruction(image, ids.branch2_ops[0], "48 85 ff 0f 85 11 00 00 00 e9 0c 00 00 00", "two-way branch") ||
         !Instruction(image, ids.branch2_ops[1], TRAP_UNREACHABLE, "unreachable trap") ||
         !Instruction(image, ids.branch2_ops[2], "c9 c3", "void return") { return false }

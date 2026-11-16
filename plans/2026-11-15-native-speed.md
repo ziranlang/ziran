@@ -481,9 +481,12 @@ Left for hello, after the manual-safety switch lands: the checked resolve
 of the string (about 20 instructions, the pointer runtime, the RW segment
 and the trap stub) becomes one lea, leaving _start (4) + main (8) + the
 write loop with its partial-write, EINTR and failure handling (13).
-Then frame omission for frameless functions and a tail jump to the write
-(main to 4 instructions), and tighten the retained bound to about 300
-bytes.
+Landed since: a call its function returns at once is a tail jump
+(`leave; jmp`), and a function with no stack objects, no trap-capable
+instruction and no call but such a tail call has no frame, so once the
+resolve is gone hello's main is 4 instructions. Then tighten the retained
+bound to about 300 bytes. Frames stay wherever a trap or call could
+reach the loader's C handlers, which need the ABI's 16-byte alignment.
 
 Compile time: MachineVerify's FuelFacts and CallsAndRelocations, the
 allocated verifier's call check and x86 BuildMachineImage's ImageOperand

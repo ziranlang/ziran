@@ -21,9 +21,9 @@ static inline size_t BoundsCheck(size_t length, uint64_t index,
 }
 #define ZIRAN_INDEX(base, length, index) \
     ((base)[BoundsCheck((size_t)(length), (uint64_t)(index), #base)])
-/* Compilers that never inline, such as TinyCC and unoptimized GCC, check in
- * place rather than call. */
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+/* Unoptimized GCC and Clang never inline, so they check in place rather
+ * than call. */
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #undef ZIRAN_INDEX
 #define ZIRAN_INDEX(base, length, index) \
     ((base)[__extension__ ({ uint64_t __zi_index = (uint64_t)(index); \

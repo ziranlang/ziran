@@ -48,6 +48,7 @@ def build(project, manifest_path, samples, revision=None):
     module = source.stem
     ziran = base.REPO / 'build/bin/ziran'
     env = platforms.environment()
+    env["ZIRAN_LEARN"] = "off"
     OUTPUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
     ir = WORK / 'ir'
@@ -98,14 +99,18 @@ def build(project, manifest_path, samples, revision=None):
                                            sorted(p for p in (base.REPO / 'cmd/zir').iterdir() if p.suffix in ('.c', '.h'))}},
             'harnesses': {p: base.sha(base.REPO / p) for p in
                           ['scripts/site_library_targets.py', 'scripts/site_target_platforms.py', 'scripts/benchmark_samples.py',
-                           'bench/site_target_host.c', 'bench/site_target_host.go']}, 'examples': []}
+                           'bench/site_target_host.c', 'bench/site_target_host.go', 'bench/site_target_backend.h']}, 'examples': []}
     runner = WORK / 'zx-runner'
-    # The runner's Auto policy runs ZX as native code on Linux x86-64 and
-    # AArch64; a native gap fails instantiation and never falls back to the
+    # Explicit Native policy runs ZX as machine code; a native gap fails
+    # instantiation and never falls back to the
     # instruction engine, so a completed measurement is a native one.
     assert platform.system() == 'Linux' and platform.machine() in ('x86_64', 'aarch64'), 'native ZX needs Linux x86-64 or AArch64'
-    platforms.runtime_build('cc', base.REPO / 'build/libziran.a', runner)
+    platforms.runtime_build('cc', base.REPO / 'build/libziran.a', runner,
+                            ['-include', base.REPO / 'bench/site_target_backend.h',
+                             '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_NATIVE'])
     data['zx_backend'] = 'native'
+    data['checks'] = False
+    data['learning'] = env.get('ZIRAN_LEARN', 'unknown')
     for case in manifest['cases']:
         row = {**case, 'module': module, 'stdout': '', 'targets': {}}
         entry = f'{module}:{case["entry"]}'
@@ -162,6 +167,16 @@ def render(data, write=False):
                         f'{base.format_time(cell["measurement"]["execution_ms"])}</strong></a></td>' for cell in row['targets'].values())
         rows.append(f'<tr><th scope="row">{html.escape(row["title"])}</th>{cells}</tr>')
     content = '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Desktop widget comparison"><table class="target-matrix library-matrix"><caption class="sr-only">Desktop widget scenarios compiled to C, Go and ZX run as native code</caption><thead><tr><th scope="col">Two-frame scenario</th><th scope="col">C<small>cc -O2</small></th><th scope="col">Go<small>native</small></th><th scope="col">ZX<small>native</small></th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
+    content += (f'<p class="matrix-footnote">Median warm time on {html.escape(data["hostname"])} · '
+                f'{html.escape(data["host"])} · {html.escape(data["measured_at"])}. '
+                f'{data["samples"]} batches with symmetric 1.5×IQR outliers excluded. '
+                'Loading, compilation and initialization are excluded; sessions are retained between calls. '
+                f'Checks {"off" if data.get("checks") is False else "not recorded"}; '
+                f'learning {html.escape(data.get("learning", "not recorded"))}. '
+                'Open a cell to download its actual compiler output. '
+                '<a href="generated/library-targets/matrix.json">Raw measurements and exclusions</a> · '
+                '<a href="generated/library-targets/sources.zip">Source fixtures</a> · '
+                '<a href="generated/library-targets/checked-ir.zip">Complete ZIR</a></p>')
     page = base.SITE / 'targets.html'
     original = page.read_text()
     result = re.sub(r'(?s)(<!-- generated:' + MARKER + r' -->).*?(<!-- /generated:' + MARKER + r' -->)', lambda m: m[1] + '\n' + content + '\n' + m[2], original)

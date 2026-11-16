@@ -28,7 +28,7 @@ static inline uint64_t FloatToInt(double x, int w, int sign) {
 
 #ifndef ZIRAN_HELPER_ZiRemS32
 #define ZIRAN_HELPER_ZiRemS32
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZiRemS32(a, b) __extension__ ({ int32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? 0 : __zi_a % __zi_b; })
 #else
 static inline int32_t ZiRemS32(int32_t a, int32_t b) {

@@ -446,7 +446,7 @@ PaintButtonForNode(Session session, int32_t node, zir_2b2386d69a109fee_Props pro
             y = (int32_t)SignedBits(FloatToInt((bounds.y + content.text_y), 32, 1), 32);
         }
         Color value_7 = ColorFromPacked(Opacity(face.foreground, opacity));
-        Vector2 value_8 = paint_queue_zi_default_85e272ac12b7f186();
+        Vector2 value_8 = paint_queue_zi_default_7a97e54d75f71213();
         PaintClippedLabel(session, node, props.label, x, y, font, value_7, bounds, StringLiteral(""), (float)0.0, value_8);
         if (detail.y > ((float)0.0)) {
             int32_t value_9 = font;
@@ -462,7 +462,7 @@ PaintButtonForNode(Session session, int32_t node, zir_2b2386d69a109fee_Props pro
             value_11: ;
             }
             Color value_12 = ColorFromPacked(Opacity(face.foreground, opacity * ((float)0.7)));
-            Vector2 value_13 = paint_queue_zi_default_85e272ac12b7f186();
+            Vector2 value_13 = paint_queue_zi_default_7a97e54d75f71213();
             PaintClippedLabel(session, node, props.detail, x, (int32_t)((uint32_t)y + (uint32_t)label_height), value_10, value_12, bounds, StringLiteral(""), (float)0.0, value_13);
         }
     }

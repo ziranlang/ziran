@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include <stdlib.h>
-#include "zir_slice.h"
 #include "drawing_props.h"
 #include "geometry.h"
 
@@ -28,7 +27,6 @@ void RasterRoundedRectangle(Rectangle bounds, float radius, int32_t segments, Co
 void RasterRoundedRectangleOutline(Rectangle bounds, float radius, int32_t segments, float width, Color color);
 void RasterLine(Rectangle line, Color color);
 void RasterImage(String path, uint32_t texture_id, Rectangle source, Rectangle destination, Rectangle clip, Vector2 origin, float rotation, float radius, Color tint);
-void RasterImageMesh(String path, uint32_t texture_id, Rectangle source, Slice points, int32_t columns, int32_t rows, Rectangle clip, Color tint);
 void RasterTextRotated(String value, int32_t x, int32_t y, int32_t font, Color color, Rectangle clip, Vector2 origin, float rotation, Rectangle outer_clip, bool outer_clipped, bool emphasis, bool italic);
 
 /* Small procedures other modules inline; widget_benchmark_host.c defines them. */

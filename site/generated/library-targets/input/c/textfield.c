@@ -402,7 +402,7 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
             int32_t count = TextFieldCodepoints(TextSpan(display, 0, selected));
             selected = std_grapheme_Boundary(props.value, TextFieldByteAfter(props.value, count));
         }
-        if (drag.started || activated) {
+        if (drag.started || (activated && !drag.ended)) {
             int32_t* value_20 = &(result.anchor);
             (*value_20) = selected;
         }
@@ -715,17 +715,17 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
         foreground = face.value.foreground;
         if (!StringEqual(composition_prefix, StringLiteral(""))) {
             Color value_87 = ColorFromPacked(Opacity(foreground, opacity));
-            Vector2 value_88 = paint_queue_zi_default_85e272ac12b7f186();
+            Vector2 value_88 = paint_queue_zi_default_7a97e54d75f71213();
             PaintClippedLabel(session, result.node, composition_prefix, paint.text_x, text_y, font, value_87, paint.clip_bounds, StringLiteral(""), (float)0.0, value_88);
         }
         if (!StringEqual(result.composition.text, StringLiteral(""))) {
             Color value_89 = ColorFromPacked(Opacity(foreground, opacity));
-            Vector2 value_90 = paint_queue_zi_default_85e272ac12b7f186();
+            Vector2 value_90 = paint_queue_zi_default_7a97e54d75f71213();
             PaintClippedLabel(session, result.node, result.composition.text, (int32_t)((uint32_t)(paint.text_x) + (uint32_t)prefix_width), text_y, font, value_89, paint.clip_bounds, StringLiteral(""), (float)0.0, value_90);
         }
         if (!StringEqual(composition_suffix, StringLiteral(""))) {
             Color value_91 = ColorFromPacked(Opacity(foreground, opacity));
-            Vector2 value_92 = paint_queue_zi_default_85e272ac12b7f186();
+            Vector2 value_92 = paint_queue_zi_default_7a97e54d75f71213();
             PaintClippedLabel(session, result.node, composition_suffix, (int32_t)(((uint32_t)(paint.text_x) + (uint32_t)prefix_width) + (uint32_t)preedit_width), text_y, font, value_91, paint.clip_bounds, StringLiteral(""), (float)0.0, value_92);
         }
         int32_t stroke = TextInputStrokeWidth(scale);
@@ -742,7 +742,7 @@ textfield_TextFieldCore(Session session, zir_e3d05ce257aa07f3_Props props)
         }
     } else if (!StringEqual(value_to_paint, StringLiteral(""))) {
         Color value_96 = ColorFromPacked(Opacity(foreground, opacity));
-        Vector2 value_97 = paint_queue_zi_default_85e272ac12b7f186();
+        Vector2 value_97 = paint_queue_zi_default_7a97e54d75f71213();
         PaintClippedLabel(session, result.node, value_to_paint, paint.text_x, text_y, font, value_96, paint.clip_bounds, StringLiteral(""), (float)0.0, value_97);
     }
     if (result.focused && !props.disabled) {

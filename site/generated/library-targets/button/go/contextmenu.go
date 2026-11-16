@@ -301,7 +301,7 @@ func Contextmenu_ContextMenuLevel(session Session, props zir_bc889c92ea67167a_Pr
 				}
 				label_width := FontMetrics_GlyphWidth(item.Label, Dpi_ScalePixels(18, props.Scale), "")
 				var value_12 int32 = Dpi_ScalePixels(18, props.Scale)
-				var value_13 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+				var value_13 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 				PaintQueue_PaintClippedLabel(session, node, item.Label, int32(floatToInt(float64((cell.X + ((cell.Width - float32(label_width)) * 0.5))), 32, true)), int32(floatToInt(float64((cell.Y + ((cell.Height - float32(inline_height)) * 0.5))), 32, true)), value_12, color, cell, "", 0.0, value_13)
 			}
 			var value_14 float32 = left
@@ -394,7 +394,7 @@ func Contextmenu_ContextMenuLevel(session Session, props zir_bc889c92ea67167a_Pr
 					}
 				}
 				var value_40 int32 = Dpi_ScalePixels(14, props.Scale)
-				var value_41 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+				var value_41 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 				PaintQueue_PaintClippedLabel(session, node, item.Label, int32(floatToInt(float64(panel.X), 32, true)) + text_left, text_top, value_40, color, row, "", 0.0, value_41)
 				if item.Accelerator != "" {
 					accelerator_color := secondary
@@ -409,14 +409,14 @@ func Contextmenu_ContextMenuLevel(session Session, props zir_bc889c92ea67167a_Pr
 					}
 					var value_44 int32 = right - FontMetrics_GlyphWidth(item.Accelerator, Dpi_ScalePixels(14, props.Scale), "")
 					var value_45 int32 = Dpi_ScalePixels(14, props.Scale)
-					var value_46 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+					var value_46 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 					PaintQueue_PaintClippedLabel(session, node, item.Accelerator, value_44, text_top, value_45, accelerator_color, row, "", 0.0, value_46)
 				}
 				if opens {
 					arrow := FontMetrics_GlyphWidth("›", Dpi_ScalePixels(14, props.Scale), "")
 					var value_47 int32 = (int32(floatToInt(float64((panel.X + panel.Width)), 32, true)) - Dpi_ScalePixels(12, props.Scale)) - arrow
 					var value_48 int32 = Dpi_ScalePixels(14, props.Scale)
-					var value_49 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+					var value_49 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 					PaintQueue_PaintClippedLabel(session, node, "›", value_47, text_top, value_48, color, row, "", 0.0, value_49)
 				}
 			}

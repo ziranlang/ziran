@@ -825,26 +825,44 @@ func PaintQueue_EmitLabel(command PaintCommand) {
 	}
 }
 
-func PaintQueue_EmitImage(command PaintCommand) {
-	if command.Clip.Width > 0.0 && command.Clip.Height > 0.0 {
-		emitting_texture = command.Texture
-		emitting_smooth = command.Smooth
-		if command.ImageClipCount > 0 {
-			emitting_image_polygon = command.MeshPoints
-		}
-		if PaintQueue_PaintMeshPointCount(command.MeshColumns, command.MeshRows) > 0 {
-			WidgetBenchmarkHost_RasterImageMesh(command.AssetPath, uint32(command.TextureId), command.Source, command.MeshPoints, int32(command.MeshColumns), int32(command.MeshRows), command.Clip, command.Color)
-		} else {
-			WidgetBenchmarkHost_RasterImage(command.AssetPath, uint32(command.TextureId), command.Source, command.Bounds, command.Clip, command.Origin, float32(command.Rotation), float32(command.Radius), command.Color)
-		}
-		value_0 := &(emitting_texture.ID)
-		(*value_0) = 0
-		emitting_smooth = false
-		if int64(0) < 0 || int64(0) < int64(0) || int64(0) > int64(len(emitting_image_polygon)) {
-			panic("slice range out of bounds")
-		}
-		emitting_image_polygon = emitting_image_polygon[0:0:0]
+func PaintQueue_EmitImageBegin(command PaintCommand) bool {
+	if command.Clip.Width <= 0.0 || command.Clip.Height <= 0.0 {
+		return false
 	}
+	emitting_texture = command.Texture
+	emitting_smooth = command.Smooth
+	if command.ImageClipCount > 0 {
+		emitting_image_polygon = command.MeshPoints
+	}
+	return true
+}
+
+func PaintQueue_EmitImageEnd() {
+	value_0 := &(emitting_texture.ID)
+	(*value_0) = 0
+	emitting_smooth = false
+	if int64(0) < 0 || int64(0) < int64(0) || int64(0) > int64(len(emitting_image_polygon)) {
+		panic("slice range out of bounds")
+	}
+	emitting_image_polygon = emitting_image_polygon[0:0:0]
+}
+
+func PaintQueue_EmitImage(command PaintCommand) {
+	var value_0 bool = PaintQueue_EmitImageBegin(command)
+	if !value_0 {
+		return
+	}
+	WidgetBenchmarkHost_RasterImage(command.AssetPath, uint32(command.TextureId), command.Source, command.Bounds, command.Clip, command.Origin, float32(command.Rotation), float32(command.Radius), command.Color)
+	PaintQueue_EmitImageEnd()
+}
+
+func PaintQueue_EmitImageMesh(command PaintCommand) {
+	var value_0 bool = PaintQueue_EmitImageBegin(command)
+	if !value_0 {
+		return
+	}
+	WidgetBenchmarkHost_RasterImageMesh(command.AssetPath, uint32(command.TextureId), command.Source, command.MeshPoints, int32(command.MeshColumns), int32(command.MeshRows), command.Clip, command.Color)
+	PaintQueue_EmitImageEnd()
 }
 
 func PaintQueue_ClipLabel(command PaintCommand, geometry NodeGeometry) PaintCommand {
@@ -1376,7 +1394,7 @@ func PaintQueue_PaintImageMesh(session Session, node int32, asset_path string, t
 	(*value_13) = rows
 	value_14 := &(command.Data.MeshPoints)
 	(*value_14) = points
-	var emit PaintEmitter = func(value_15 PaintCommand) { PaintQueue_EmitImage(value_15) }
+	var emit PaintEmitter = func(value_15 PaintCommand) { PaintQueue_EmitImageMesh(value_15) }
 	value_16 := &(command.Emit)
 	(*value_16) = emit
 	var clip_for PaintClipper = func(value_17 PaintCommand, value_18 NodeGeometry) PaintCommand { return PaintQueue_ClipImage(value_17, value_18) }
@@ -2530,7 +2548,7 @@ func PaintQueue_PaintElevationForRole(session Session, node int32, bounds Rectan
 	}
 }
 
-func PaintQueue_ZiDefault85e272ac12b7f186() Vector2 {
+func PaintQueue_ZiDefault7a97e54d75f71213() Vector2 {
 	return Vector2{}
 }
 

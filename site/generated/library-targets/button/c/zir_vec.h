@@ -19,7 +19,7 @@ ZirVecIndex(int64_t count, int64_t index)
 
 #define ZIRAN_VEC_INDEX(data, count, index) \
     ((data)[ZirVecIndex((int64_t)(count), (int64_t)(index))])
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define ZirVecIndex(count, index) __extension__ ({ \
         int64_t __zi_vec_count = (count), __zi_vec_index = (index); \
         if((uint64_t)__zi_vec_index >= (uint64_t)__zi_vec_count) \

@@ -149,18 +149,6 @@ RasterImage(String path, uint32_t texture_id, Rectangle source, Rectangle destin
 }
 
 void
-RasterImageMesh(String path, uint32_t texture_id, Rectangle source, Slice points, int32_t columns, int32_t rows, Rectangle clip, Color tint)
-{
-    widget_benchmark_host_RecordBounds(source);
-    int64_t value_0 = (int64_t)(((uint64_t)(((uint64_t)((int64_t)(path).length) + (uint64_t)(texture_id)) + (uint64_t)(((int32_t)((uint32_t)columns + (uint32_t)rows)))) + (uint64_t)((int64_t)SignedBits(FloatToInt(clip.width, 64, 1), 64))) + (uint64_t)(tint.a));
-    paint_checksum = (int64_t)((uint64_t)paint_checksum + (uint64_t)value_0);
-    for (int64_t it_index = 0LL; it_index < (int64_t)(points).length; it_index++) {
-        Vector2 point = ((Vector2 *)points.data)[it_index];
-        paint_checksum = (int64_t)((uint64_t)paint_checksum + (uint64_t)((int64_t)SignedBits(FloatToInt((point.x + point.y), 64, 1), 64)));
-    }
-}
-
-void
 RasterTextRotated(String value, int32_t x, int32_t y, int32_t font, Color color, Rectangle clip, Vector2 origin, float rotation, Rectangle outer_clip, bool outer_clipped, bool emphasis, bool italic)
 {
     RasterTextClipped(value, x, y, font, color, clip);

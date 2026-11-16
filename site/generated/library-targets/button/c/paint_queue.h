@@ -281,7 +281,6 @@ extern uint32_t paint_snapshots_valid;
 extern uint32_t frame_paint_unchanged;
 extern PaintRecorder paint_recorder;
 void RasterImage(String asset_path, uint32_t texture_id, Rectangle source, Rectangle destination, Rectangle clip, Vector2 origin, float rotation, float radius, Color tint);
-void RasterImageMesh(String asset_path, uint32_t texture_id, Rectangle source, Slice points, int32_t columns, int32_t rows, Rectangle clip, Color tint);
 PaintTextRange paint_queue_KeepShortPaintBytes(int32_t slot, String value);
 PaintTextRange paint_queue_KeepMediumPaintBytes(int32_t slot, String value);
 PaintTextRange paint_queue_KeepLongPaintBytes(int32_t slot, String value);
@@ -309,6 +308,8 @@ void paint_queue_EmitLine(PaintCommand command);
 void paint_queue_EmitRoundedFill(PaintCommand command);
 void paint_queue_EmitRoundedOutline(PaintCommand command);
 void paint_queue_EmitLabel(PaintCommand command);
+bool paint_queue_EmitImageBegin(PaintCommand command);
+void paint_queue_EmitImageEnd(void);
 void paint_queue_EmitImage(PaintCommand command);
 PaintCommand paint_queue_ClipLabel(PaintCommand command, NodeGeometry geometry);
 PaintCommand paint_queue_ClipShape(PaintCommand command, NodeGeometry geometry);
@@ -329,7 +330,7 @@ String paint_queue_SnapshotTextRead(int32_t slot, bool values, int64_t start, in
 bool paint_queue_SnapshotTextJoin(int32_t slot, bool values, int64_t start, int64_t count, __type_838711075b90279a* joined);
 bool paint_queue_PaintSnapshotEmit(Session session);
 void PaintFlush(Session session);
-Vector2 paint_queue_zi_default_85e272ac12b7f186(void);
+Vector2 paint_queue_zi_default_7a97e54d75f71213(void);
 PaintTextRange paint_queue___zi_spec_9308732530dd822f(__type_494ea4ad55fe9fdb* blocks, int32_t slot, int64_t count, int32_t capacity);
 void paint_queue___zi_spec_27099373fae5fe98(__type_494ea4ad55fe9fdb* blocks);
 PaintTextRange paint_queue___zi_spec_27a25ba88f17713a(__type_5b77e2bb45c14992* blocks, int32_t slot, int64_t count, int32_t capacity);
@@ -369,6 +370,8 @@ static inline float paint_queue_ShapeSquareRoot_ziran_inline(float value);
 #define paint_queue_ShapeSquareRoot(...) paint_queue_ShapeSquareRoot_ziran_inline(__VA_ARGS__)
 static inline float paint_queue_ShapeCornerInset_ziran_inline(float radius, float dy);
 #define paint_queue_ShapeCornerInset(...) paint_queue_ShapeCornerInset_ziran_inline(__VA_ARGS__)
+static inline bool paint_queue_EmitImageBegin_ziran_inline(PaintCommand command);
+#define paint_queue_EmitImageBegin(...) paint_queue_EmitImageBegin_ziran_inline(__VA_ARGS__)
 static inline PaintCommand paint_queue_ClipLabel_ziran_inline(PaintCommand command, NodeGeometry geometry);
 #define paint_queue_ClipLabel(...) paint_queue_ClipLabel_ziran_inline(__VA_ARGS__)
 static inline PaintCommand paint_queue_ClipShape_ziran_inline(PaintCommand command, NodeGeometry geometry);
@@ -625,6 +628,20 @@ paint_queue_ShapeCornerInset_ziran_inline(float radius, float dy)
         return radius;
     }
     return radius - paint_queue_ShapeSquareRoot((radius * radius) - (dy * dy));
+}
+
+static inline bool
+paint_queue_EmitImageBegin_ziran_inline(PaintCommand command)
+{
+    if (command.clip.width <= ((float)0.0) || command.clip.height <= ((float)0.0)) {
+        return false;
+    }
+    emitting_texture = command.texture;
+    emitting_smooth = command.smooth;
+    if (command.image_clip_count > 0) {
+        emitting_image_polygon = command.mesh_points;
+    }
+    return true;
 }
 
 static inline PaintCommand

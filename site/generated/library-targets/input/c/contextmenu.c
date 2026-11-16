@@ -326,7 +326,7 @@ contextmenu_ContextMenuLevel(Session session, zir_bc889c92ea67167a_Props props, 
                 int32_t value_12 = (int32_t)SignedBits(FloatToInt((cell.x + ((cell.width - (float)(label_width)) * ((float)0.5))), 32, 1), 32);
                 int32_t value_13 = (int32_t)SignedBits(FloatToInt((cell.y + ((cell.height - (float)(inline_height)) * ((float)0.5))), 32, 1), 32);
                 int32_t value_14 = ScalePixels(18, props.scale);
-                Vector2 value_15 = paint_queue_zi_default_85e272ac12b7f186();
+                Vector2 value_15 = paint_queue_zi_default_7a97e54d75f71213();
                 PaintClippedLabel(session, node, item.label, value_12, value_13, value_14, color, cell, StringLiteral(""), (float)0.0, value_15);
             }
             float value_16 = left;
@@ -413,7 +413,7 @@ contextmenu_ContextMenuLevel(Session session, zir_bc889c92ea67167a_Props props, 
                     }
                 }
                 int32_t value_42 = ScalePixels(14, props.scale);
-                Vector2 value_43 = paint_queue_zi_default_85e272ac12b7f186();
+                Vector2 value_43 = paint_queue_zi_default_7a97e54d75f71213();
                 PaintClippedLabel(session, node, item.label, (int32_t)((uint32_t)((int32_t)SignedBits(FloatToInt(panel.x, 32, 1), 32)) + (uint32_t)text_left), text_top, value_42, color, row, StringLiteral(""), (float)0.0, value_43);
                 if (!StringEqual(item.accelerator, StringLiteral(""))) {
                     Color accelerator_color = secondary;
@@ -428,14 +428,14 @@ contextmenu_ContextMenuLevel(Session session, zir_bc889c92ea67167a_Props props, 
                     }
                     int32_t value_46 = (int32_t)((uint32_t)right - (uint32_t)(GlyphWidth(item.accelerator, ScalePixels(14, props.scale), StringLiteral(""))));
                     int32_t value_47 = ScalePixels(14, props.scale);
-                    Vector2 value_48 = paint_queue_zi_default_85e272ac12b7f186();
+                    Vector2 value_48 = paint_queue_zi_default_7a97e54d75f71213();
                     PaintClippedLabel(session, node, item.accelerator, value_46, text_top, value_47, accelerator_color, row, StringLiteral(""), (float)0.0, value_48);
                 }
                 if (opens) {
                     int32_t arrow = GlyphWidth(StringLiteral("\342\200\272"), ScalePixels(14, props.scale), StringLiteral(""));
                     int32_t value_49 = (int32_t)(((uint32_t)((int32_t)SignedBits(FloatToInt((panel.x + panel.width), 32, 1), 32)) - (uint32_t)(ScalePixels(12, props.scale))) - (uint32_t)arrow);
                     int32_t value_50 = ScalePixels(14, props.scale);
-                    Vector2 value_51 = paint_queue_zi_default_85e272ac12b7f186();
+                    Vector2 value_51 = paint_queue_zi_default_7a97e54d75f71213();
                     PaintClippedLabel(session, node, StringLiteral("\342\200\272"), value_49, text_top, value_50, color, row, StringLiteral(""), (float)0.0, value_51);
                 }
             }

@@ -348,7 +348,7 @@ func Textfield_TextFieldCore(session Session, props zir_e3d05ce257aa07f3_Props) 
 			count := Textfield_TextFieldCodepoints(Text_TextSpan(display, 0, selected))
 			selected = StdGrapheme_Boundary(props.Value, Textfield_TextFieldByteAfter(props.Value, count))
 		}
-		if drag.Started || activated {
+		if drag.Started || (activated && !drag.Ended) {
 			value_18 := &(result.Anchor)
 			(*value_18) = selected
 		}
@@ -688,17 +688,17 @@ func Textfield_TextFieldCore(session Session, props zir_e3d05ce257aa07f3_Props) 
 		foreground = face.Value.Foreground
 		if composition_prefix != "" {
 			var value_90 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
-			var value_91 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+			var value_91 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 			PaintQueue_PaintClippedLabel(session, result.Node, composition_prefix, paint.TextX, text_y, font, value_90, paint.ClipBounds, "", 0.0, value_91)
 		}
 		if result.Composition.Text != "" {
 			var value_92 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
-			var value_93 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+			var value_93 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 			PaintQueue_PaintClippedLabel(session, result.Node, result.Composition.Text, paint.TextX + prefix_width, text_y, font, value_92, paint.ClipBounds, "", 0.0, value_93)
 		}
 		if composition_suffix != "" {
 			var value_94 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
-			var value_95 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+			var value_95 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 			PaintQueue_PaintClippedLabel(session, result.Node, composition_suffix, (paint.TextX + prefix_width) + preedit_width, text_y, font, value_94, paint.ClipBounds, "", 0.0, value_95)
 		}
 		stroke := TextInput_TextInputStrokeWidth(scale)
@@ -715,7 +715,7 @@ func Textfield_TextFieldCore(session Session, props zir_e3d05ce257aa07f3_Props) 
 		}
 	} else if value_to_paint != "" {
 		var value_99 Color = DrawingProps_ColorFromPacked(Surface_Opacity(foreground, opacity))
-		var value_100 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+		var value_100 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 		PaintQueue_PaintClippedLabel(session, result.Node, value_to_paint, paint.TextX, text_y, font, value_99, paint.ClipBounds, "", 0.0, value_100)
 	}
 	if result.Focused && !props.Disabled {

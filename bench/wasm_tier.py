@@ -56,7 +56,9 @@ def build(cc):
     header = generated / 'wasm_tier.h'
     sources = sorted(generated.rglob('*.c'))
     runner = WORK / 'zx-runner'
-    platforms.runtime_build(cc, ROOT / 'build/libziran.a', runner)
+    platforms.runtime_build(cc, ROOT / 'build/libziran.a', runner,
+                            ['-include', ROOT / 'bench/site_target_backend.h',
+                             '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_ENGINE'])
     kernels = []
     for name in KERNELS:
         bundle, module = WORK / (name + '.zx'), WORK / (name + '.wasm')
@@ -145,6 +147,7 @@ def main():
     arguments = parser.parse_args()
     if not 3 <= arguments.samples <= 31:
         parser.error('--samples must be between 3 and 31')
+    os.environ['ZIRAN_LEARN'] = 'off'
     cc = os.environ.get('CC', 'cc')
     kernels = build(cc)
     before = loadavg()
@@ -153,6 +156,11 @@ def main():
             'virtualization': subprocess.run(['systemd-detect-virt'], capture_output=True, text=True).stdout.strip(),
             'measured_at': datetime.now(timezone.utc).isoformat(), 'samples': arguments.samples,
             'revision': base.git('rev-parse', 'HEAD'),
+            'checks': False, 'learning': 'off',
+            'engine_policy': 'explicit-engine',
+            'harness_sha256': {name: base.sha(ROOT / name) for name in
+                               ('bench/wasm_tier.py', 'bench/site_target_host.c',
+                                'bench/site_target_backend.h', 'scripts/site_target_node.cjs')},
             'compiler_dirty': bool(base.git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
             'loadavg_before': before, 'loadavg_after': loadavg(),
             'runtimes': {'c': 'C · cc -O2', 'zx': 'ZX · instruction engine',

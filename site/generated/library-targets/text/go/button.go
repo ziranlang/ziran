@@ -393,12 +393,12 @@ func Button_PaintButtonForNode(session Session, node int32, props zir_2b2386d69a
 			y = int32(floatToInt(float64((bounds.Y + content.TextY)), 32, true))
 		}
 		var value_4 Color = DrawingProps_ColorFromPacked(Surface_Opacity(face.Foreground, opacity))
-		var value_5 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+		var value_5 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 		PaintQueue_PaintClippedLabel(session, node, props.Label, x, y, font, value_4, bounds, "", 0.0, value_5)
 		if detail.Y > 0.0 {
 			var value_6 int32 = Button_ButtonDetailFont(font)
 			var value_7 Color = DrawingProps_ColorFromPacked(Surface_Opacity(face.Foreground, opacity * 0.7))
-			var value_8 Vector2 = PaintQueue_ZiDefault85e272ac12b7f186()
+			var value_8 Vector2 = PaintQueue_ZiDefault7a97e54d75f71213()
 			PaintQueue_PaintClippedLabel(session, node, props.Detail, x, y + label_height, value_6, value_7, bounds, "", 0.0, value_8)
 		}
 	}

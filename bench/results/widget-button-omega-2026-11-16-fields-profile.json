@@ -1,0 +1,72 @@
+{
+  "samples": 749,
+  "period_ms": 1,
+  "warm_ms": 3000,
+  "checks": 0,
+  "machine_checks": 0,
+  "host_capabilities": 0,
+  "tree_is_building_bytes": 108,
+  "top_functions": [
+    [
+      "DefaultTheme",
+      95
+    ],
+    [
+      "SessionIndex",
+      82
+    ],
+    [
+      "DefaultShadows",
+      77
+    ],
+    [
+      "LightPalette",
+      25
+    ],
+    [
+      "DefaultMetrics",
+      25
+    ],
+    [
+      "SubmitButton",
+      22
+    ],
+    [
+      "outside JIT",
+      22
+    ],
+    [
+      "QueuePaint",
+      19
+    ],
+    [
+      "TreeSubmit",
+      15
+    ],
+    [
+      "DefaultMotion",
+      14
+    ],
+    [
+      "__zi_spec_9308732530dd822f",
+      14
+    ],
+    [
+      "DefaultFonts",
+      13
+    ],
+    [
+      "PendingPaintAt",
+      12
+    ],
+    [
+      "ButtonCase",
+      12
+    ],
+    [
+      "ButtonInstalledFaceFor",
+      11
+    ]
+  ],
+  "diagnostic_note": "Existing instrumented native loader object relinked against current libziran.a; diagnostic samples and code shape only. Main timing receipt uses unmodified current loader."
+}

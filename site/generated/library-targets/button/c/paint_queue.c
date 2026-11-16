@@ -761,43 +761,44 @@ paint_queue_EmitLabel(PaintCommand command)
     }
 }
 
+bool
+paint_queue_EmitImageBegin(PaintCommand command)
+{
+    if (command.clip.width <= ((float)0.0) || command.clip.height <= ((float)0.0)) {
+        return false;
+    }
+    emitting_texture = command.texture;
+    emitting_smooth = command.smooth;
+    if (command.image_clip_count > 0) {
+        emitting_image_polygon = command.mesh_points;
+    }
+    return true;
+}
+
+void
+paint_queue_EmitImageEnd(void)
+{
+    uint32_t* value_0 = &(emitting_texture.id);
+    (*value_0) = 0;
+    emitting_smooth = false;
+    Slice value_1 = emitting_image_polygon;
+    emitting_image_polygon = SliceRange(value_1, (int64_t)0, (int64_t)0LL, sizeof(Vector2));
+}
+
 void
 paint_queue_EmitImage(PaintCommand command)
 {
-    if (command.clip.width > ((float)0.0) && command.clip.height > ((float)0.0)) {
-        emitting_texture = command.texture;
-        emitting_smooth = command.smooth;
-        if (command.image_clip_count > 0) {
-            emitting_image_polygon = command.mesh_points;
-        }
-        int32_t value_0 = command.mesh_columns;
-        int32_t value_1 = command.mesh_rows;
-        int64_t value_2 = 0;
-        {
-            int32_t columns = value_0;
-            int32_t rows = value_1;
-            if (columns < 2 || rows < 2) {
-                value_2 = 0LL;
-                goto value_3;
-            }
-            int64_t count = (int64_t)((uint64_t)(columns) * (uint64_t)(rows));
-            if (count > 4096LL) {
-                value_2 = 0LL;
-                goto value_3;
-            }
-            value_2 = count;
-        value_3: ;
-        }
-        if (value_2 > 0LL) {
-            RasterImageMesh(command.asset_path, command.texture_id, command.source, command.mesh_points, command.mesh_columns, command.mesh_rows, command.clip, command.color);
-        } else {
-            RasterImage(command.asset_path, command.texture_id, command.source, command.bounds, command.clip, command.origin, command.rotation, command.radius, command.color);
-        }
-        uint32_t* value_4 = &(emitting_texture.id);
-        (*value_4) = 0;
+    bool value_0 = paint_queue_EmitImageBegin(command);
+    if (!value_0) {
+        return;
+    }
+    RasterImage(command.asset_path, command.texture_id, command.source, command.bounds, command.clip, command.origin, command.rotation, command.radius, command.color);
+    {
+        uint32_t* value_2 = &(emitting_texture.id);
+        (*value_2) = 0;
         emitting_smooth = false;
-        Slice value_5 = emitting_image_polygon;
-        emitting_image_polygon = SliceRange(value_5, (int64_t)0, (int64_t)0LL, sizeof(Vector2));
+        Slice value_3 = emitting_image_polygon;
+        emitting_image_polygon = SliceRange(value_3, (int64_t)0, (int64_t)0LL, sizeof(Vector2));
     }
 }
 
@@ -1034,12 +1035,12 @@ paint_queue_QueuePaint(Session session, QueuedPaint* command, String value, Stri
     }
 }
 
-static void number_paint_queue_slot_32_16(void *context, PaintCommand slot_arg_0)
+static void number_paint_queue_slot_34_16(void *context, PaintCommand slot_arg_0)
 {
     (void)context;
     paint_queue_EmitLine(slot_arg_0);
 }
-static PaintCommand number_paint_queue_slot_32_26(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
+static PaintCommand number_paint_queue_slot_34_26(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
 {
     (void)context;
     return paint_queue_ClipShape(slot_arg_0, slot_arg_1);
@@ -1056,14 +1057,14 @@ PaintLine(Session session, int32_t node, Rectangle bounds, Color color)
     (*value_2) = bounds;
     Color* value_3 = &(command.data.color);
     (*value_3) = color;
-    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_32_16};
+    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_34_16};
     PaintEmitter* value_4 = &(command.emit);
     (*value_4) = emit;
     bool* value_5 = &(command.has_emitter);
     (*value_5) = true;
     bool* value_6 = &(command.builtin_emitter);
     (*value_6) = true;
-    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_32_26};
+    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_34_26};
     PaintClipper* value_7 = &(command.clip_for);
     (*value_7) = clip_for;
     bool* value_8 = &(command.clips);
@@ -1071,12 +1072,12 @@ PaintLine(Session session, int32_t node, Rectangle bounds, Color color)
     paint_queue_QueuePaint(session, &(command), StringLiteral(""), StringLiteral(""));
 }
 
-static void number_paint_queue_slot_33_24(void *context, PaintCommand slot_arg_0)
+static void number_paint_queue_slot_35_24(void *context, PaintCommand slot_arg_0)
 {
     (void)context;
     paint_queue_EmitRoundedFill(slot_arg_0);
 }
-static PaintCommand number_paint_queue_slot_33_34(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
+static PaintCommand number_paint_queue_slot_35_34(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
 {
     (void)context;
     return paint_queue_ClipShape(slot_arg_0, slot_arg_1);
@@ -1097,14 +1098,14 @@ PaintRoundedFill(Session session, int32_t node, Rectangle bounds, float radius, 
     (*value_4) = segments;
     Color* value_5 = &(command.data.color);
     (*value_5) = color;
-    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_33_24};
+    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_35_24};
     PaintEmitter* value_6 = &(command.emit);
     (*value_6) = emit;
     bool* value_7 = &(command.has_emitter);
     (*value_7) = true;
     bool* value_8 = &(command.builtin_emitter);
     (*value_8) = true;
-    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_33_34};
+    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_35_34};
     PaintClipper* value_9 = &(command.clip_for);
     (*value_9) = clip_for;
     bool* value_10 = &(command.clips);
@@ -1112,12 +1113,12 @@ PaintRoundedFill(Session session, int32_t node, Rectangle bounds, float radius, 
     paint_queue_QueuePaint(session, &(command), StringLiteral(""), StringLiteral(""));
 }
 
-static void number_paint_queue_slot_34_28(void *context, PaintCommand slot_arg_0)
+static void number_paint_queue_slot_36_28(void *context, PaintCommand slot_arg_0)
 {
     (void)context;
     paint_queue_EmitRoundedOutline(slot_arg_0);
 }
-static PaintCommand number_paint_queue_slot_34_38(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
+static PaintCommand number_paint_queue_slot_36_38(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
 {
     (void)context;
     return paint_queue_ClipShape(slot_arg_0, slot_arg_1);
@@ -1140,14 +1141,14 @@ PaintRoundedOutline(Session session, int32_t node, Rectangle bounds, float radiu
     (*value_5) = line_width;
     Color* value_6 = &(command.data.color);
     (*value_6) = color;
-    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_34_28};
+    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_36_28};
     PaintEmitter* value_7 = &(command.emit);
     (*value_7) = emit;
     bool* value_8 = &(command.has_emitter);
     (*value_8) = true;
     bool* value_9 = &(command.builtin_emitter);
     (*value_9) = true;
-    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_34_38};
+    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_36_38};
     PaintClipper* value_10 = &(command.clip_for);
     (*value_10) = clip_for;
     bool* value_11 = &(command.clips);
@@ -1155,12 +1156,12 @@ PaintRoundedOutline(Session session, int32_t node, Rectangle bounds, float radiu
     paint_queue_QueuePaint(session, &(command), StringLiteral(""), StringLiteral(""));
 }
 
-static void number_paint_queue_slot_35_36(void *context, PaintCommand slot_arg_0)
+static void number_paint_queue_slot_37_36(void *context, PaintCommand slot_arg_0)
 {
     (void)context;
     paint_queue_EmitLabel(slot_arg_0);
 }
-static PaintCommand number_paint_queue_slot_35_37(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
+static PaintCommand number_paint_queue_slot_37_37(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
 {
     (void)context;
     return paint_queue_ClipLabel(slot_arg_0, slot_arg_1);
@@ -1187,8 +1188,8 @@ PaintClippedLabel(Session session, int32_t node, String value, int32_t x, int32_
     (*value_7) = origin;
     Rectangle* value_8 = &(command.data.clip);
     (*value_8) = clip;
-    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_35_36};
-    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_35_37};
+    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_37_36};
+    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_37_37};
     PaintEmitter* value_9 = &(command.emit);
     (*value_9) = emit;
     PaintClipper* value_10 = &(command.clip_for);
@@ -1210,12 +1211,12 @@ PaintImage(Session session, int32_t node, String asset_path, uint32_t texture_id
     paint_queue_PaintImageWithPolygon(session, node, asset_path, texture_id, source, destination, clip, origin, rotation, radius, tint, texture, smooth, SliceRangeAt(value_0, (int64_t)0, (int64_t)0LL, sizeof(Vector2)));
 }
 
-static void number_paint_queue_slot_37_66(void *context, PaintCommand slot_arg_0)
+static void number_paint_queue_slot_39_66(void *context, PaintCommand slot_arg_0)
 {
     (void)context;
     paint_queue_EmitImage(slot_arg_0);
 }
-static PaintCommand number_paint_queue_slot_37_67(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
+static PaintCommand number_paint_queue_slot_39_67(void *context, PaintCommand slot_arg_0, NodeGeometry slot_arg_1)
 {
     (void)context;
     return paint_queue_ClipImage(slot_arg_0, slot_arg_1);
@@ -1260,8 +1261,8 @@ paint_queue_PaintImageWithPolygon(Session session, int32_t node, String asset_pa
     (*value_14) = (int32_t)((int64_t)(clip_polygon).length);
     Slice* value_15 = &(command.data.mesh_points);
     (*value_15) = clip_polygon;
-    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_37_66};
-    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_37_67};
+    PaintEmitter emit = (PaintEmitter){NULL, number_paint_queue_slot_39_66};
+    PaintClipper clip_for = (PaintClipper){NULL, number_paint_queue_slot_39_67};
     PaintEmitter* value_16 = &(command.emit);
     (*value_16) = emit;
     PaintClipper* value_17 = &(command.clip_for);
@@ -1676,7 +1677,7 @@ PaintFlush(Session session)
 }
 
 Vector2
-paint_queue_zi_default_85e272ac12b7f186(void)
+paint_queue_zi_default_7a97e54d75f71213(void)
 {
     return (Vector2){0};
 }

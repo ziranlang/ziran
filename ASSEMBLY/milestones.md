@@ -124,7 +124,7 @@ a named gap, and nothing falls back to the engine. A browser with the Wasm
 provider runs the Wasm tier and other CPUs the engine. The old VM and TinyCC
 measurements survive as the M0 baseline receipts.
 
-Tier-0 check elision (2026-11-15, plans/2026-11-15-trust-tiers.md steps
+Tier-0 check elision (2026-11-15, trust-tier steps
 0-2): `cmd/compiler_lowered_proven.zi` computes, once per verified program,
 each pointer's root (a global, or an `allocate` in the same function) and the
 fixed-array indices an interval analysis proves in range. x86-64 lowering

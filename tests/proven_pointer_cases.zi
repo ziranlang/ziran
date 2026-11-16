@@ -1,4 +1,4 @@
-// Tier-0 check elision (plans/2026-11-15-trust-tiers.md, steps 0 to 2). The
+// Tier-0 check elision for checked builds. The
 // shared LIR facts let x86-64 code reach a global or a frame record directly
 // instead of resolving its token, with the machine verifier re-deriving each
 // such access, and let Wasm skip index checks the same intervals prove. This

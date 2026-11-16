@@ -45,8 +45,8 @@ limit and resizable storage. A trap returns through `longjmp`, prints a
 attachment) source line, and ends that instance; nothing restarts on the
 engine.
 
-Native data pointers are checked as the engine checks them
-([plan](../plans/2026-11-15-native-checked-pointers.md)). A pointer is a
+With checks on, native data pointers are checked as the engine checks them
+([plan](../plans/2026-11-15-manual-safety.md)). A pointer is a
 token naming a slot of the instance's pointer table, version and offset; every
 load, store, byte comparison and platform-service argument resolves it
 against a live slot of the same version, within its size and, for writes,

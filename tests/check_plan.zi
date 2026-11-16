@@ -78,7 +78,8 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
         for argument: command { VecPush(result, argument) }
         return result
     }
-    if name == "native_backend_policy" || name == "x86_encoder" || name == "aarch64_encoder" {
+    if name == "native_backend_policy" || name == "x86_encoder" || name == "aarch64_encoder" ||
+        name == "armv7_encoder" {
         VecPush(result, CheckPath(bin, "ziran"))
         VecPush(result, "run")
         VecPush(result, "--target=c")
@@ -88,10 +89,10 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
             VecPush(result, "--module-path")
             VecPush(result, CheckPath(tests, "../cmd"))
             VecPush(result, CheckPath(tests, "x86_encoder_cases.zi"))
-        } else if name == "aarch64_encoder" {
+        } else if name == "aarch64_encoder" || name == "armv7_encoder" {
             VecPush(result, "--module-path")
             VecPush(result, CheckPath(tests, "../cmd"))
-            VecPush(result, CheckPath(tests, "aarch64_encoder_cases.zi"))
+            VecPush(result, CheckPath(tests, CheckConcat(name, "_cases.zi")))
         } else {
             VecPush(result, CheckPath(tests, "native_backend_policy_cases.zi"))
         }
@@ -162,6 +163,9 @@ DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) 
     }
     if TextContains("aarch64_encoder", filter) {
         VecPush(checks, CheckCase.{.name = "aarch64_encoder", .cost = 2})
+    }
+    if TextContains("armv7_encoder", filter) {
+        VecPush(checks, CheckCase.{.name = "armv7_encoder", .cost = 2})
     }
     if TextContains("bundle-link-test", filter) { VecPush(checks, CheckCase.{.name = "bundle-link-test"}) }
     if TextContains("artifact_consumer_cases.zi", filter) {

@@ -8,6 +8,7 @@ using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 using X64 :: #import "compiler_x86_64"
 using A64 :: #import "compiler_aarch64"
+using V7 :: #import "compiler_armv7"
 
 // Owner for one complete direct machine pipeline. The borrowed ELF view stays
 // valid until the next successful MachineNativeBuild or MachineNativeFree.
@@ -17,6 +18,7 @@ MachineNativeOwner :: struct {
     machine: MachineOwner
     encoded: MachineX64Owner
     encoded_a64: MachineA64Owner
+    encoded_v7: MachineV7Owner
     elf: Vec(u8)
 }
 
@@ -125,6 +127,8 @@ NativeExchange :: (owner: *MachineNativeOwner, built: *MachineNativeOwner) {
     VecSwap(owner.encoded_a64.machine_image.initializers, built.encoded_a64.machine_image.initializers)
     VecSwap(owner.encoded_a64.machine_image.relocations, built.encoded_a64.machine_image.relocations)
 
+    MachineV7Exchange(*owner.encoded_v7, *built.encoded_v7)
+
     VecSwap(owner.elf, built.elf)
     native_image := owner.image; owner.image = built.image; built.image = native_image
 }
@@ -185,6 +189,7 @@ MachineNativeFree :: (owner: *MachineNativeOwner) {
     MachineFree(*owner.machine)
     MachineX64Free(*owner.encoded)
     MachineA64Free(*owner.encoded_a64)
+    MachineV7Free(*owner.encoded_v7)
     VecFree(owner.elf)
 }
 
@@ -196,6 +201,7 @@ MachineNativeView :: (owner: *MachineNativeOwner) -> []u8 {
 MachineCodeImageView :: (owner: *MachineNativeOwner) -> MachineImage {
     if owner == null || !owner.valid { return .{version = MachineImageVersion, entry = MachineNoId} }
     if owner.encoded_a64.valid { return MachineA64MachineView(*owner.encoded_a64) }
+    if owner.encoded_v7.valid { return MachineV7MachineView(*owner.encoded_v7) }
     return MachineX64MachineView(*owner.encoded)
 }
 
@@ -214,13 +220,14 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     diagnostic := RegAllocAllocate(*built.machine, target, limits)
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     program := MachineProgramView(*built.machine)
-    if target.arch == .AArch64 {
-        // AArch64 has no AOT ELF writer.
+    if target.arch == .AArch64 || target.arch == .ArmV7 {
+        // Neither ARM target has an AOT ELF writer.
         if emit_elf {
             MachineNativeFree(*built)
             return Problem(.UnsupportedTarget)
         }
-        diagnostic = MachineA64Encode(program, limits, *built.encoded_a64)
+        if target.arch == .ArmV7 { diagnostic = MachineV7Encode(program, limits, *built.encoded_v7) }
+        else { diagnostic = MachineA64Encode(program, limits, *built.encoded_a64) }
         if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
         built.valid = true
         NativeExchange(output, *built)

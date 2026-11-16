@@ -888,8 +888,8 @@ RotateCases :: () -> bool {
     target_owner: Machine.MachineOwner
     defer Lower.MachineFree(*target_owner)
     if !Lowered("target", RotateFixture(*target_owner, 3, true)) { return false }
-    armv7 := Target.TargetDescribe(.ArmV7, .Linux).target
-    if !Check(RegAlloc.RegAllocAllocate(*target_owner, armv7, Machine.MachineDefaultLimits()).problem == .UnsupportedTarget,
+    windows := Target.TargetDescribe(.X86_64, .Windows).target
+    if !Check(RegAlloc.RegAllocAllocate(*target_owner, windows, Machine.MachineDefaultLimits()).problem == .UnsupportedTarget,
         "an unsupported target is explicit") { return false }
     small := Machine.MachineDefaultLimits()
     small.work = 50

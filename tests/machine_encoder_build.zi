@@ -1,0 +1,414 @@
+// Shared builder for the machine-IR encoder cases (aarch64_encoder_cases.zi,
+// armv7_encoder_cases.zi): programs are built by hand in the Allocated
+// stage with a fixed set of types, then encoded and compared byte for byte.
+using Allocated :: #import "compiler_machine_verify_allocated"
+using Image :: #import "compiler_machine_image"
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+VOID :: 0
+BOOL :: 1
+S64 :: 2
+U64 :: 3
+S32 :: 4
+U32 :: 5
+S16 :: 6
+U16 :: 7
+S8 :: 8
+U8 :: 9
+POINTER :: 10
+FUNCTION :: 11
+F64 :: 12
+RECORD :: 13
+RECORD_POINTER :: 14
+
+Builder :: struct {
+    text: Vec(u8)
+    types: Vec(MachineType)
+    type_ids: Vec(s32)
+    globals: Vec(MachineGlobal)
+    functions: Vec(MachineFunction)
+    blocks: Vec(MachineBlock)
+    virtuals: Vec(MachineVirtual)
+    instructions: Vec(MachineInstruction)
+    operands: Vec(MachineOperand)
+    edges: Vec(MachineEdge)
+    stack_objects: Vec(MachineStackObject)
+    relocations: Vec(MachineRelocation)
+    calls: Vec(MachineCall)
+    frames: Vec(MachineFrame)
+    spills: Vec(MachineSpill)
+    function: s32
+    block: s32
+    flags: s32
+    entry: s32
+    stage: MachineStage
+    target: TargetDescription
+}
+
+
+BuilderFree :: (b: *Builder) {
+    VecFree(b.text)
+    VecFree(b.types)
+    VecFree(b.type_ids)
+    VecFree(b.globals)
+    VecFree(b.functions)
+    VecFree(b.blocks)
+    VecFree(b.virtuals)
+    VecFree(b.instructions)
+    VecFree(b.operands)
+    VecFree(b.edges)
+    VecFree(b.stack_objects)
+    VecFree(b.relocations)
+    VecFree(b.calls)
+    VecFree(b.frames)
+    VecFree(b.spills)
+}
+
+AddType :: (b: *Builder, kind: MachineTypeKind, class: MachineRegisterClass, bits: s32, signed: bool, size: s64) {
+    alignment: s32 = 1
+    if size >= 8 { alignment = 8 } else if size >= 1 { alignment = cast(s32)size }
+    unused VecPush(b.types, .{kind = kind, class = class, bits = bits, is_signed = signed, size = size,
+        alignment = alignment, element = -1, result = -1})
+}
+
+Setup :: (b: *Builder, target: TargetDescription) {
+    b.function = -1
+    b.block = -1
+    b.flags = -1
+    b.entry = -1
+    b.stage = .Allocated
+    b.target = target
+    AddType(b, .Void, .Stack, 0, false, 0)
+    AddType(b, .Bool, .General, 1, false, 1)
+    AddType(b, .Integer, .General, 64, true, 8)
+    AddType(b, .Integer, .General, 64, false, 8)
+    AddType(b, .Integer, .General, 32, true, 4)
+    AddType(b, .Integer, .General, 32, false, 4)
+    AddType(b, .Integer, .General, 16, true, 2)
+    AddType(b, .Integer, .General, 16, false, 2)
+    AddType(b, .Integer, .General, 8, true, 1)
+    AddType(b, .Integer, .General, 8, false, 1)
+    AddType(b, .Pointer, .General, 64, false, 8)
+    AddType(b, .Function, .General, 64, false, 8)
+    AddType(b, .Float, .Float, 64, false, 8)
+    record_fields := cast(s32)b.type_ids.count
+    unused VecPush(b.type_ids, U8)
+    unused VecPush(b.type_ids, S64)
+    unused VecPush(b.types, .{kind = .Record, class = .Stack, size = 16, alignment = 8,
+        fields_begin = record_fields, fields_count = 2, element = -1, result = -1})
+    unused VecPush(b.types, .{kind = .Pointer, class = .General, bits = 64, is_signed = false,
+        size = 8, alignment = 8, element = RECORD, result = -1})
+    unused VecPush(b.globals, .{type = S64, constant = -1, writable = true})
+}
+
+Begin :: (b: *Builder, name: string) -> s32 {
+    id := cast(s32)b.functions.count
+    offset := cast(s32)b.text.count
+    for byte: name { unused VecPush(b.text, byte) }
+    unused VecPush(b.functions, .{lir_function = id, name_offset = offset, name_length = cast(s32)name.count,
+        block_begin = cast(s32)b.blocks.count, virtual_begin = cast(s32)b.virtuals.count,
+        stack_begin = cast(s32)b.stack_objects.count, result_type = S64, calling = .Internal,
+        entry = cast(s32)b.blocks.count, origin = -1})
+    b.function = id
+    return id
+}
+
+Parameter :: (b: *Builder, type: s32, register: s32) -> s32 {
+    id := cast(s32)b.virtuals.count
+    class := b.types[type].class
+    unused VecPush(b.virtuals, .{class = class, type = type, fixed_register = register, stack_object = -1, origin = -1})
+    function := b.functions[b.function]
+    function.parameter_count += 1
+    b.functions[b.function] = function
+    return id
+}
+
+Value :: (b: *Builder, type: s32) -> s32 {
+    id := cast(s32)b.virtuals.count
+    unused VecPush(b.virtuals, .{class = b.types[type].class, type = type, fixed_register = -1,
+        stack_object = -1, origin = -1})
+    return id
+}
+
+FlagsValue :: (b: *Builder) -> s32 {
+    id := cast(s32)b.virtuals.count
+    unused VecPush(b.virtuals, .{class = .Flags, type = VOID, fixed_register = -1, stack_object = -1, origin = -1})
+    return id
+}
+
+Object :: (b: *Builder, kind: MachineStackKind, size: s64, offset: s64, value: s32, type: s32) -> s32 {
+    id := cast(s32)b.stack_objects.count
+    alignment: s32 = 1
+    if size >= 8 { alignment = 8 } else if size >= 1 { alignment = cast(s32)size }
+    unused VecPush(b.stack_objects, .{function = b.function, kind = kind, size = size, alignment = alignment,
+        type = type, origin = -1, offset = offset, value = value})
+    return id
+}
+
+Blocks :: (b: *Builder, count: s32) -> s32 {
+    first := cast(s32)b.blocks.count
+    for index: 0..count - 1 {
+        unused VecPush(b.blocks, .{function = b.function, lir_block = -1,
+            instruction_begin = cast(s32)b.instructions.count})
+    }
+    return first
+}
+
+Enter :: (b: *Builder, block: s32) {
+    record := b.blocks[block]
+    record.instruction_begin = cast(s32)b.instructions.count
+    b.blocks[block] = record
+    b.block = block
+    b.flags = -1
+}
+
+End :: (b: *Builder, size: s64, outgoing: s64 = 0) {
+    function := b.functions[b.function]
+    function.block_count = cast(s32)b.blocks.count - function.block_begin
+    function.virtual_count = cast(s32)b.virtuals.count - function.virtual_begin
+    function.stack_count = cast(s32)b.stack_objects.count - function.stack_begin
+    b.functions[b.function] = function
+    saved: u64 = 0
+    for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
+        object := b.stack_objects[object_id]
+        if object.kind == .CalleeSave { saved = saved | (cast(u64)1 << cast(u64)object.value) }
+    }
+    unused VecPush(b.frames, .{function = b.function, size = size, alignment = 16, outgoing_size = outgoing,
+        callee_saved_general = saved})
+}
+
+Open :: (b: *Builder, opcode: MachineOpcode) -> MachineInstruction {
+    return .{opcode = opcode, operand_begin = cast(s32)b.operands.count, edge_begin = cast(s32)b.edges.count,
+        flags_use = -1, flags_def = -1, call = -1, origin = -1}
+}
+
+Close :: (b: *Builder, instruction: MachineInstruction) -> s32 {
+    instruction.operand_count = cast(s32)b.operands.count - instruction.operand_begin
+    instruction.edge_count = cast(s32)b.edges.count - instruction.edge_begin
+    id := cast(s32)b.instructions.count
+    unused VecPush(b.instructions, instruction)
+    block := b.blocks[b.block]
+    block.instruction_count += 1
+    b.blocks[b.block] = block
+    return id
+}
+
+Operand :: (b: *Builder, operand: MachineOperand) -> s32 {
+    id := cast(s32)b.operands.count
+    unused VecPush(b.operands, operand)
+    return id
+}
+
+Physical :: (b: *Builder, register: s32, role: MachineOperandRole, value: s32) -> s32 {
+    class := MachineRegisterClass.General
+    type: s32 = -1
+    if value >= 0 { class = b.virtuals[value].class; type = b.virtuals[value].type }
+    return Operand(b, .{kind = .Physical, role = role, class = class, id = register, type = type,
+        fixed_register = -1, tied_to = -1, value = value})
+}
+
+Immediate :: (b: *Builder, value: u64) -> s32 {
+    return Operand(b, .{kind = .Immediate, role = .Use, class = .General, id = -1, type = -1,
+        fixed_register = -1, tied_to = -1, immediate = value, value = -1})
+}
+
+Symbol :: (b: *Builder, kind: MachineOperandKind, id: s32) -> s32 {
+    return Operand(b, .{kind = kind, role = .Use, class = .General, id = id, type = -1,
+        fixed_register = -1, tied_to = -1, value = -1})
+}
+
+Slot :: (b: *Builder, object: s32, role: MachineOperandRole, value: s32) -> s32 {
+    class := MachineRegisterClass.Stack
+    if value >= 0 { class = b.virtuals[value].class }
+    return Operand(b, .{kind = .StackObject, role = role, class = class, id = object, type = -1,
+        fixed_register = -1, tied_to = -1, value = value})
+}
+
+Edge :: (b: *Builder, target: s32) {
+    unused VecPush(b.edges, .{target = target})
+}
+
+Constant :: (b: *Builder, register: s32, value: s32, bits: u64) -> s32 {
+    instruction := Open(b, .MoveImmediate)
+    unused Physical(b, register, .Define, value)
+    unused Immediate(b, bits)
+    return Close(b, instruction)
+}
+
+Two :: (b: *Builder, opcode: MachineOpcode, destination: s32, result: s32, source: s32, input: s32) -> s32 {
+    instruction := Open(b, opcode)
+    unused Physical(b, destination, .Define, result)
+    unused Physical(b, source, .Use, input)
+    return Close(b, instruction)
+}
+
+Three :: (b: *Builder, opcode: MachineOpcode, destination: s32, result: s32,
+    left: s32, left_value: s32, right: s32, right_value: s32) -> s32 {
+    instruction := Open(b, opcode)
+    unused Physical(b, destination, .Define, result)
+    unused Physical(b, left, .Use, left_value)
+    unused Physical(b, right, .Use, right_value)
+    return Close(b, instruction)
+}
+
+// AArch64 divides take three arbitrary registers and guard the divisor
+// inline, so no fixed dividend or clobber operand exists.
+Divide :: (b: *Builder, opcode: MachineOpcode, destination: s32, result: s32,
+    left: s32, left_value: s32, right: s32, right_value: s32) -> s32 {
+    instruction := Open(b, opcode)
+    unused Physical(b, destination, .Define, result)
+    unused Physical(b, left, .Use, left_value)
+    unused Physical(b, right, .Use, right_value)
+    return Close(b, instruction)
+}
+
+Store :: (b: *Builder, address: s32, pointer: s32, source: s32, value: s32) -> s32 {
+    instruction := Open(b, .Store)
+    unused Physical(b, address, .Use, pointer)
+    unused Physical(b, source, .Use, value)
+    return Close(b, instruction)
+}
+
+Compare :: (b: *Builder, left: s32, left_value: s32, right: s32, right_value: s32, condition: MachineCondition) -> s32 {
+    instruction := Open(b, .Compare)
+    b.flags = FlagsValue(b)
+    instruction.flags_def = b.flags
+    instruction.condition = condition
+    unused Physical(b, left, .Use, left_value)
+    unused Physical(b, right, .Use, right_value)
+    return Close(b, instruction)
+}
+
+SetCondition :: (b: *Builder, destination: s32, result: s32, condition: MachineCondition) -> s32 {
+    instruction := Open(b, .SetCondition)
+    instruction.flags_use = b.flags
+    instruction.condition = condition
+    unused Physical(b, destination, .Define, result)
+    return Close(b, instruction)
+}
+
+Return :: (b: *Builder, register: s32, value: s32) -> s32 {
+    instruction := Open(b, .Return)
+    if register >= 0 { unused Physical(b, register, .Use, value) }
+    return Close(b, instruction)
+}
+
+Jump :: (b: *Builder, target: s32) -> s32 {
+    instruction := Open(b, .Jump)
+    Edge(b, target)
+    return Close(b, instruction)
+}
+
+BranchOn :: (b: *Builder, register: s32, value: s32, taken: s32, other: s32) -> s32 {
+    instruction := Open(b, .Branch)
+    unused Physical(b, register, .Use, value)
+    Edge(b, taken)
+    Edge(b, other)
+    return Close(b, instruction)
+}
+
+// A flags branch keeps its recorded condition; the encoder inverts the raw
+// condition whenever the fall-through edge is the taken one.
+BranchFlags :: (b: *Builder, condition: MachineCondition, taken: s32, other: s32) -> s32 {
+    instruction := Open(b, .Branch)
+    instruction.flags_use = b.flags
+    instruction.condition = condition
+    Edge(b, taken)
+    Edge(b, other)
+    return Close(b, instruction)
+}
+
+Fuel :: (b: *Builder, amount: u64) -> s32 {
+    instruction := Open(b, .Fuel)
+    b.flags = FlagsValue(b)
+    instruction.flags_def = b.flags
+    unused Immediate(b, amount)
+    counter := Immediate(b, 0)
+    id := Close(b, instruction)
+    unused VecPush(b.relocations, .{instruction = id, operand = counter, kind = .FuelCounter, symbol = 0})
+    return id
+}
+
+Trap :: (b: *Builder, code: u64) -> s32 {
+    instruction := Open(b, .Trap)
+    unused Immediate(b, code)
+    return Close(b, instruction)
+}
+
+Unreachable :: (b: *Builder) -> s32 {
+    return Close(b, Open(b, .Unreachable))
+}
+
+SpillTo :: (b: *Builder, object: s32, register: s32, value: s32) -> s32 {
+    instruction := Open(b, .Spill)
+    unused Slot(b, object, .Define, value)
+    unused Physical(b, register, .Use, value)
+    id := Close(b, instruction)
+    unused VecPush(b.spills, .{function = b.function, instruction = id, virtual = value, stack_object = object,
+        register = register, reason = .Pressure, origin = -1})
+    return id
+}
+
+ReloadFrom :: (b: *Builder, register: s32, object: s32, value: s32) -> s32 {
+    instruction := Open(b, .Reload)
+    unused Physical(b, register, .Define, value)
+    unused Slot(b, object, .Use, value)
+    id := Close(b, instruction)
+    unused VecPush(b.spills, .{function = b.function, instruction = id, virtual = value, stack_object = object,
+        register = register, reason = .Pressure, origin = -1})
+    return id
+}
+
+AddressOf :: (b: *Builder, opcode: MachineOpcode, destination: s32, result: s32, symbol: s32, addend: s64) -> s32 {
+    instruction := Open(b, opcode)
+    unused Physical(b, destination, .Define, result)
+    operand := Symbol(b, ifx opcode == .GlobalAddress then MachineOperandKind.Global else .Function, symbol)
+    id := Close(b, instruction)
+    kind := ifx opcode == .GlobalAddress then MachineRelocationKind.GlobalAddress else MachineRelocationKind.FunctionAddress
+    unused VecPush(b.relocations, .{instruction = id, operand = operand, kind = kind, symbol = symbol, addend = addend})
+    return id
+}
+
+
+Report :: (label: string, diagnostic: MachineDiagnostic) {
+    print("%: problem % function % block % instruction % operand % virtual %\n", label,
+        cast(s32)diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
+        diagnostic.operand, diagnostic.virtual)
+}
+
+Nibble :: (byte: u8) -> s32 {
+    if byte >= 48 && byte <= 57 { return cast(s32)byte - 48 }
+    if byte >= 97 && byte <= 102 { return cast(s32)byte - 87 }
+    return -1
+}
+
+// Compares CODE[BEGIN:END] with space-separated lowercase hex bytes.
+Bytes :: (code: []u8, begin: s64, end: s64, hex: string, message: string) -> bool {
+    at := begin
+    index: s64 = 0
+    ok := begin >= 0 && end <= code.count && begin <= end
+    while ok && index < hex.count {
+        if hex[index] == 32 { index += 1; continue }
+        high := Nibble(hex[index])
+        low := ifx index + 1 < hex.count then Nibble(hex[index + 1]) else -1
+        if high < 0 || low < 0 || at >= end || cast(s32)code[at] != high * 16 + low { ok = false; break }
+        at += 1
+        index += 2
+    }
+    if ok && at == end { return true }
+    print("encoder local test failed: % bytes (expected %, encoded", message, hex)
+    if begin >= 0 && end <= code.count {
+        for position: begin..end - 1 { print(" %", cast(s32)code[position]) }
+    }
+    print(")\n")
+    return false
+}
+
+
+Words :: (code: []u8, at: s64) -> u32 {
+    return cast(u32)code[at] | (cast(u32)code[at + 1] << 8) |
+        (cast(u32)code[at + 2] << 16) | (cast(u32)code[at + 3] << 24)
+}
+

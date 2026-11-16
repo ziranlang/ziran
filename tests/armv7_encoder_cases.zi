@@ -1,0 +1,208 @@
+using Allocated :: #import "compiler_machine_verify_allocated"
+using Image :: #import "compiler_machine_image"
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+using V7 :: #import "compiler_armv7"
+#import "machine_encoder_build"
+
+// Local tests for the direct ARMv7 machine-IR encoder. Registers are pairs
+// (P0 = r0:r1, P1 = r2:r3); expected words come from assembling the same
+// A32 sequences with the NDK's clang. Veneer calls keep a zero BL field the
+// loader patches.
+
+P0 :: 0
+P1 :: 1
+
+PROLOGUE :: "00 5c 2d e9 0d b0 a0 e1"
+EPILOGUE :: "0b d0 a0 e1 00 9c bd e8"
+
+Check :: (condition: bool, message: string) -> bool {
+    if condition { return true }
+    print("armv7 encoder local test failed: %\n", message)
+    return false
+}
+
+Mode :: enum s32 { Verify; Encode }
+
+Apply :: (b: *Builder, mode: Mode, owner: *V7.MachineV7Owner, limits: MachineLimits) -> MachineDiagnostic {
+    program := MachineProgram.{version = MachineVersion, target = b.target, text = b.text[:], types = b.types[:],
+        type_ids = b.type_ids[:],
+        globals = b.globals[:], functions = b.functions[:], blocks = b.blocks[:], virtuals = b.virtuals[:],
+        instructions = b.instructions[:], operands = b.operands[:], edges = b.edges[:],
+        stack_objects = b.stack_objects[:], relocations = b.relocations[:], calls = b.calls[:],
+        entry = b.entry, stage = b.stage, frames = b.frames[:], spills = b.spills[:],
+        scratch_general = 5, scratch_float = 7}
+    if mode == .Verify { return MachineVerifyAllocated(program, limits) }
+    return V7.MachineV7Encode(program, limits, owner)
+}
+
+Instruction :: (image: V7.MachineV7Image, id: s32, hex: string, message: string) -> bool {
+    range := image.instructions[id]
+    return Bytes(image.code, range.begin, range.end, hex, message)
+}
+
+Ids :: struct {
+    answer: s32
+    add: s32
+    multiply: s32
+    shift: s32
+    subtract: s32
+    widen: s32
+    compare: s32
+    fuel: s32
+    divide: s32
+}
+
+Build :: (b: *Builder, ids: *Ids) {
+    Setup(b, Target.TargetDescribe(.ArmV7, .Linux).target)
+    ids.answer = Begin(b, "answer")
+    answer := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    unused Constant(b, P0, answer, 42)
+    unused Return(b, P0, answer)
+    End(b, 0)
+
+    // 64-bit pair arithmetic and a 64-bit shift.
+    unused Begin(b, "pairs")
+    a := Parameter(b, S64, P0); c := Parameter(b, S64, P1)
+    sum := Value(b, S64); product := Value(b, S64); shifted := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    ids.add = Three(b, .IntegerAdd, P0, sum, P0, a, P1, c)
+    ids.multiply = Three(b, .IntegerMultiply, P0, product, P0, sum, P1, c)
+    ids.shift = Three(b, .ShiftLeft, P0, shifted, P0, product, P1, c)
+    unused Return(b, P0, shifted)
+    End(b, 0)
+
+    // 32-bit words and a signed widening.
+    unused Begin(b, "words")
+    x := Parameter(b, S32, P0); y := Parameter(b, S32, P1)
+    difference := Value(b, S32); wide := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    ids.subtract = Three(b, .IntegerSubtract, P0, difference, P0, x, P1, y)
+    ids.widen = Two(b, .Convert, P0, wide, P0, difference)
+    unused Return(b, P0, wide)
+    End(b, 0)
+
+    // A signed 64-bit compare branches on SUBS/SBCS flags.
+    unused Begin(b, "branch")
+    l := Parameter(b, S64, P0); r := Parameter(b, S64, P1)
+    first := Blocks(b, 3)
+    Enter(b, first)
+    ids.compare = Compare(b, P0, l, P1, r, .Less)
+    unused BranchFlags(b, .Less, first + 1, first + 2)
+    Enter(b, first + 1)
+    unused Return(b, P0, l)
+    Enter(b, first + 2)
+    unused Return(b, P0, l)
+    End(b, 0)
+
+    unused Begin(b, "fuel")
+    Enter(b, Blocks(b, 1))
+    ids.fuel = Fuel(b, 1)
+    unused Return(b, -1, -1)
+    End(b, 0)
+
+    // Division calls a runtime helper with its operands at sp.
+    unused Begin(b, "divide")
+    dividend := Parameter(b, S64, P0); divisor := Parameter(b, S64, P1)
+    quotient := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    ids.divide = Divide(b, .IntegerDivide, P0, quotient, P0, dividend, P1, divisor)
+    unused Return(b, P0, quotient)
+    End(b, 0)
+    b.entry = ids.answer
+}
+
+Basics :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    ids: Ids
+    Build(*b, *ids)
+    limits := MachineDefaultLimits()
+    verified := Apply(*b, .Verify, null, limits)
+    if verified.problem != .None { Report("armv7 allocated verifier", verified); return false }
+    owner: V7.MachineV7Owner
+    defer V7.MachineV7Free(*owner)
+    encoded := Apply(*b, .Encode, *owner, limits)
+    if encoded.problem != .None { Report("armv7 encode", encoded); return false }
+    image := V7.MachineV7View(*owner)
+    answer := image.functions[ids.answer]
+    if !Bytes(image.code, answer.begin, answer.body, PROLOGUE, "prologue") ||
+        !Bytes(image.code, answer.body, answer.end, "2a 00 a0 e3 00 10 a0 e3 0b d0 a0 e1 00 9c bd e8",
+            "constant pair and epilogue") ||
+        !Instruction(image, ids.add, "02 00 90 e0 03 10 a1 e0", "pair add") ||
+        !Instruction(image, ids.multiply,
+            "90 c2 8e e0 90 e3 2e e0 91 e2 2e e0 0c 00 a0 e1 0e 10 a0 e1", "pair multiply") ||
+        !Instruction(image, ids.shift,
+            "00 00 53 e3 40 00 52 03 03 00 00 3a 03 00 00 e3 ff 0f 4f e3 00 00 00 eb f0 00 f0 e7 20 c0 62 e2 20 e0 52 e2 11 12 a0 e1 30 1c 81 e1 10 1e 81 e1 10 02 a0 e1",
+            "checked pair shift") ||
+        !Instruction(image, ids.subtract, "02 00 40 e0", "word subtract") ||
+        !Instruction(image, ids.widen, "c0 1f a0 e1", "signed widening") ||
+        !Instruction(image, ids.compare, "02 c0 50 e0 03 c0 d1 e0", "signed pair compare") ||
+        !Instruction(image, ids.fuel,
+            "00 a0 00 e3 00 a0 40 e3 00 c0 9a e5 04 e0 9a e5 01 c0 5c e2 00 e0 de e2 00 c0 8a e5 04 e0 8a e5 03 00 00 2a 04 00 00 e3 ff 0f 4f e3 00 00 00 eb f0 00 f0 e7",
+            "64-bit fuel") ||
+        !Instruction(image, ids.divide,
+            "03 c0 92 e1 03 00 00 1a 02 00 00 e3 ff 0f 4f e3 00 00 00 eb f0 00 f0 e7 10 d0 4d e2 00 00 8d e5 04 10 8d e5 08 20 8d e5 0c 30 8d e5 00 00 00 eb 00 00 9d e5 04 10 9d e5 10 d0 8d e2",
+            "helper division") { return false }
+    // Relocations: the fuel counter as MOVW/MOVT halves and BLs to veneers
+    // with the A32 pc offset.
+    fuel_at := image.instructions[ids.fuel].begin
+    halves := 0
+    helpers := 0
+    traps := 0
+    for relocation: image.relocations {
+        if relocation.kind == .FuelCounter {
+            if !Check(relocation.offset == fuel_at + relocation.addend * 2 && (relocation.addend == 0 || relocation.addend == 2),
+                "fuel halves") { return false }
+            halves += 1
+        } else if relocation.kind == .RuntimeHelper {
+            if !Check(relocation.symbol == cast(s32)MachineHelper.DivideSigned && relocation.addend == -8,
+                "helper relocation") { return false }
+            helpers += 1
+        } else if relocation.kind == .TrapHandler {
+            if !Check(relocation.addend == -8, "trap relocation") { return false }
+            traps += 1
+        }
+    }
+    machine := V7.MachineV7MachineView(*owner)
+    widths_ok := true
+    for relocation: machine.relocations {
+        if relocation.kind == .RuntimeHelper || relocation.kind == .RuntimeTrap { widths_ok = widths_ok && relocation.width == 4 }
+        if relocation.kind == .FuelCounter { widths_ok = widths_ok && relocation.width == 2 }
+    }
+    return Check(halves == 2 && helpers == 1 && traps == 3, "relocation counts") &&
+        Check(widths_ok, "image relocation widths") &&
+        Check(machine.target.arch == .ArmV7 && machine.fuel_offset >= 0 && machine.pointer_offset > 0,
+            "image layout")
+}
+
+// A tie that does not hold and a target the encoder does not serve are
+// rejected before any output.
+Negatives :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b, Target.TargetDescribe(.ArmV7, .Linux).target)
+    unused Begin(*b, "untied")
+    a := Parameter(*b, S64, P0); c := Parameter(*b, S64, P1)
+    sum := Value(*b, S64)
+    Enter(*b, Blocks(*b, 1))
+    unused Three(*b, .IntegerAdd, P1, sum, P0, a, P1, c)
+    unused Return(*b, -1, -1)
+    End(*b, 0)
+    b.entry = 0
+    owner: V7.MachineV7Owner
+    defer V7.MachineV7Free(*owner)
+    untied := Apply(*b, .Encode, *owner, MachineDefaultLimits())
+    if !Check(untied.problem != .None && !owner.valid, "an untied add is rejected") { return false }
+    b.target = Target.TargetDescribe(.AArch64, .Linux).target
+    foreign := Apply(*b, .Encode, *owner, MachineDefaultLimits())
+    return Check(foreign.problem != .None && !owner.valid, "another target is rejected")
+}
+
+main :: () -> s32 {
+    if !Basics() || !Negatives() { return 1 }
+    print("armv7 encoder: exact A32 words for pair and word arithmetic, checked shifts, signed pair compares, 64-bit fuel, helper division, relocation fields and rejection of untied and foreign programs local tests passed\n")
+    return 0
+}

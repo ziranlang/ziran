@@ -827,9 +827,11 @@ LowerBytesEqual :: (state: *LowerState, function: *MachineFunction, source: LirI
             return false
         }
     }
+    // A target with fewer spare registers ends its clobber list early.
     for at: cast(s64)0..2 {
-        if PhysicalOperand(state, MachineAbiFormClobberRegister(state.target, .BytesEqual,
-            cast(s32)at), .Define) == MachineNoId { return false }
+        clobber := MachineAbiFormClobberRegister(state.target, .BytesEqual, cast(s32)at)
+        if clobber < 0 { break }
+        if PhysicalOperand(state, clobber, .Define) == MachineNoId { return false }
     }
     return FinishInstruction(state, instruction) != MachineNoId
 }
@@ -846,8 +848,9 @@ LowerResize :: (state: *LowerState, function: *MachineFunction, source: LirInstr
         }
     }
     for at: cast(s64)0..7 {
-        if PhysicalOperand(state, MachineAbiFormClobberRegister(state.target, .Resize,
-            cast(s32)at), .Define) == MachineNoId { return false }
+        clobber := MachineAbiFormClobberRegister(state.target, .Resize, cast(s32)at)
+        if clobber < 0 { break }
+        if PhysicalOperand(state, clobber, .Define) == MachineNoId { return false }
     }
     runtime := ImmediateOperand(state, 0)
     if runtime == MachineNoId { return false }

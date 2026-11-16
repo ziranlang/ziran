@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Native code encodes for ARMv7 (A32) on Linux and Android: general values live in register pairs (r0:r1 … r12:lr), 64-bit divides and int64/float conversions call loader helpers through a `RuntimeHelper` relocation, addresses are MOVW/MOVT halves, and all 72 parity programs encode; `armv7_encoder` cases pin the A32 words against the NDK assembler.
+
 ## [0.5.0] - 2026-11-16
 
 - ZX runs as native code by default on Linux x86-64 and AArch64, Android included: `ziran run app.zx`, `zi2zx run`, the embedding API and Kryon's players run a bundle's verified program as native code in W^X memory. Stray and freed pointers, double free, out-of-range indices, read-only stores and runaway recursion trap; a native gap is a named error and nothing falls back to the engine. `--backend engine` picks the portable instruction engine.

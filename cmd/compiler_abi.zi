@@ -79,6 +79,13 @@ MachineAbiArgumentRegister :: (target: TargetDescription, class: MachineRegister
         if (class == .General || class == .Float) && ordinal < 8 { return ordinal }
         return -1
     }
+    if target.arch == .ArmV7 {
+        // Generated functions pass general arguments in pairs 0 and 1
+        // (r0:r1, r2:r3) and floats in d0-d5; d7 is the float scratch.
+        if class == .General && ordinal < 2 { return ordinal }
+        if class == .Float && ordinal < 6 { return ordinal }
+        return -1
+    }
     if class == .General {
         registers: [6]s32 = .[cast(s32)X64Register.Rdi, cast(s32)X64Register.Rsi,
             cast(s32)X64Register.Rdx, cast(s32)X64Register.Rcx,
@@ -91,7 +98,7 @@ MachineAbiArgumentRegister :: (target: TargetDescription, class: MachineRegister
 
 MachineAbiResultRegister :: (target: TargetDescription, class: MachineRegisterClass) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }
-    if target.arch == .AArch64 {
+    if target.arch == .AArch64 || target.arch == .ArmV7 {
         if class == .General || class == .Float { return 0 }
         return -1
     }
@@ -105,9 +112,10 @@ MachineAbiResultRegister :: (target: TargetDescription, class: MachineRegisterCl
 // divisor, leaving the quotient in RAX and clobbering RDX, and shifts by CL.
 MachineAbiFixedRegister :: (target: TargetDescription, use: MachineAbiFixedUse) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }
-    if target.arch == .AArch64 {
-        // SDIV/UDIV and the variable-shift forms take arbitrary registers;
-        // divide-by-zero and range traps are encoded inline per target.
+    if target.arch == .AArch64 || target.arch == .ArmV7 {
+        // Divides and variable shifts take arbitrary registers (ARMv7 divides
+        // through a runtime helper); divide-by-zero and range traps are
+        // encoded inline per target.
         return -1
     }
     if use == .DivideDividend || use == .DivideResult { return cast(s32)X64Register.Rax }
@@ -128,9 +136,9 @@ MachineAbiCallRegisterClass :: (target: TargetDescription, class: MachineRegiste
 // addresses and the fuel counter carry no addend.
 MachineAbiRelocationAddend :: (target: TargetDescription, kind: MachineRelocationKind, addend: s64) -> bool {
     if !TargetMachineLoweringSupported(target) { return false }
-    if target.arch == .AArch64 {
-        // Addresses materialize as MOVZ/MOVK halfwords; symbolic addends
-        // beyond the field itself are not carried per halfword relocation.
+    if target.arch == .AArch64 || target.arch == .ArmV7 {
+        // Addresses materialize as MOVZ/MOVK or MOVW/MOVT halfwords;
+        // symbolic addends beyond the field are not carried per halfword.
         return addend == 0
     }
     if kind == .GlobalAddress || kind == .ConstantAddress {
@@ -145,6 +153,11 @@ MachineAbiCallGeneralClobbers :: (target: TargetDescription) -> u64 {
         // x0-x17 are caller-saved. x18 is the platform register and is
         // reserved from allocation, so calls never need to declare it.
         return 0x3ffff
+    }
+    if target.arch == .ArmV7 {
+        // Pairs 0 and 1 (r0-r3) and pair 5 (r12, lr) are caller-saved;
+        // pairs 2-4 (r4-r9) are callee-saved.
+        return 0x23
     }
     return (cast(u64)1 << cast(u64)X64Register.Rax) |
         (cast(u64)1 << cast(u64)X64Register.Rcx) |
@@ -163,6 +176,10 @@ MachineAbiCallFloatClobbers :: (target: TargetDescription) -> u64 {
         // v0-v7 and v16-v31 are caller-saved; the low halves of v8-v15 are
         // callee-saved.
         return 0xffff00ff
+    }
+    if target.arch == .ArmV7 {
+        // d0-d7 are caller-saved, d8-d15 callee-saved.
+        return 0xff
     }
     return 0xffff
 }
@@ -186,6 +203,7 @@ MachineAbiForm :: enum s32 { Invalid; BytesEqual; Resize }
 MachineAbiIndirectCallRegister :: (target: TargetDescription) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }
     if target.arch == .AArch64 { return 9 }
+    if target.arch == .ArmV7 { return 4 }
     return cast(s32)X64Register.R10
 }
 
@@ -194,12 +212,15 @@ MachineAbiIndirectCallRegister :: (target: TargetDescription) -> s32 {
 // the same numbering because x11 carries no cross-instruction role.
 MachineAbiScratchRegister :: (target: TargetDescription) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }
+    if target.arch == .ArmV7 { return 1 }
     return 11
 }
 
 // The address scratch of dynamic aggregate and element addressing.
 MachineAbiAddressScratchRegister :: (target: TargetDescription) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }
+    // ARMv7 pair 5 (r12, lr) is its bank scratch and never holds a value.
+    if target.arch == .ArmV7 { return 5 }
     return 10
 }
 
@@ -207,6 +228,7 @@ MachineAbiAddressScratchRegister :: (target: TargetDescription) -> s32 {
 MachineAbiScratchFloatRegister :: (target: TargetDescription) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }
     if target.arch == .AArch64 { return 31 }
+    if target.arch == .ArmV7 { return 7 }
     return 15
 }
 
@@ -219,6 +241,12 @@ MachineAbiFormFixedRegister :: (target: TargetDescription, form: MachineAbiForm,
         // Byte-compare and resize loops run on x10-x13 with x14-x16 spare.
         if form == .BytesEqual && index < 4 { return 10 + index }
         if form == .Resize && index < 3 { return 10 + index }
+        return -1
+    }
+    if target.arch == .ArmV7 {
+        // Byte compare on pairs 0-3; resize on pairs 0-2.
+        if form == .BytesEqual && index < 4 { return index }
+        if form == .Resize && index < 3 { return index }
         return -1
     }
     if form == .BytesEqual {
@@ -249,6 +277,13 @@ MachineAbiFormClobberRegister :: (target: TargetDescription, form: MachineAbiFor
             clobbers: [8]s32 = .[13, 14, 15, 16, 17, 9, 10, 11]
             if index < clobbers.count { return clobbers[index] }
         }
+        return -1
+    }
+    if target.arch == .ArmV7 {
+        // The forms consume their count inputs; resize calls the runtime
+        // through a veneer that keeps every register.
+        if form == .BytesEqual && index < 3 { return index + 1 }
+        if form == .Resize && index < 2 { return index + 1 }
         return -1
     }
     if form == .BytesEqual {

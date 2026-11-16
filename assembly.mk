@@ -2,7 +2,7 @@ ASSEMBLY_C := $(BUILD_DIR)/compiler-assembly
 ASSEMBLY_MACHINE_SOURCES := cmd/compiler_target.zi cmd/compiler_machine_image.zi cmd/compiler_abi.zi cmd/compiler_machine_ir.zi \
     cmd/compiler_machine_verify.zi cmd/compiler_machine_aggregate.zi cmd/compiler_machine_select.zi cmd/compiler_machine_lower.zi \
     cmd/compiler_machine_verify_allocated.zi cmd/compiler_regalloc.zi cmd/compiler_x86_bytes.zi cmd/compiler_x86_64.zi cmd/compiler_x86_runtime.zi \
-    cmd/compiler_aarch64.zi \
+    cmd/compiler_aarch64.zi cmd/compiler_armv7.zi \
     cmd/compiler_arm_bytes.zi \
     cmd/compiler_machine_elf.zi cmd/compiler_machine_pipeline.zi cmd/compiler_native_cache.zi
 ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi $(ASSEMBLY_MACHINE_SOURCES)
@@ -58,7 +58,7 @@ $(BUILD_DIR)/obj/assembly-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(BUILD_D
 ASSEMBLY_NATIVE_MODULES := compiler_abi compiler_machine_image \
     compiler_machine_ir compiler_machine_verify \
     compiler_machine_aggregate compiler_machine_select compiler_machine_lower compiler_machine_verify_allocated compiler_regalloc \
-    compiler_target compiler_x86_bytes compiler_x86_64 compiler_x86_runtime compiler_aarch64 \
+    compiler_target compiler_x86_bytes compiler_x86_64 compiler_x86_runtime compiler_aarch64 compiler_armv7 \
     compiler_arm_bytes \
     compiler_machine_elf \
     compiler_machine_pipeline \

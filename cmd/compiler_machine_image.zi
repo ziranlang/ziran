@@ -24,7 +24,21 @@ MachineRelocationKind :: enum s32 {
     StackLimit
     // The instance's pointer runtime header (MachinePointerHeader*).
     PointerRuntime
+    // A runtime helper (MachineHelper, the symbol) for an operation a 32-bit
+    // target has no instruction for. The call passes its operands and gets
+    // its result in 16 bytes at the stack pointer; every register but the
+    // link register is kept.
+    RuntimeHelper
 }
+
+// The runtime helpers: 64-bit divide and remainder (a divisor of -1 wraps,
+// as SDIV does) and conversions between 64-bit integers and floats.
+MachineHelper :: enum s32 {
+    DivideSigned; DivideUnsigned; RemainderSigned; RemainderUnsigned
+    SignedToF64; UnsignedToF64; SignedToF32; UnsignedToF32
+    F64ToSigned; F64ToUnsigned; F32ToSigned; F32ToUnsigned
+}
+MachineHelperCount :: 12
 
 // Checked pointer tokens: slot in bits 63..44, version in 43..32, byte offset
 // in 31..0. Slot 0 is never live, so a null pointer always traps.
@@ -157,7 +171,7 @@ KindValid :: (kind: MachineRelocationKind) -> bool {
     return kind == .FunctionAddress || kind == .FunctionCall || kind == .GlobalAddress ||
         kind == .FuelCounter || kind == .ConstantAddress || kind == .RuntimeTrap ||
         kind == .PlatformService || kind == .HostCapability || kind == .EntryPoint || kind == .RuntimeResize ||
-        kind == .StackLimit || kind == .PointerRuntime
+        kind == .StackLimit || kind == .PointerRuntime || kind == .RuntimeHelper
 }
 
 OffsetTable :: (offsets: []s64, section: MachineSection, optional: bool) -> bool {
@@ -194,6 +208,7 @@ SymbolValid :: (image: MachineImage, relocation: MachineRelocation) -> bool {
     if relocation.kind == .RuntimeResize { return symbol == 0 }
     if relocation.kind == .StackLimit { return symbol == 0 && image.stack_limit_offset >= 0 }
     if relocation.kind == .PointerRuntime { return symbol == 0 && image.pointer_offset > 0 }
+    if relocation.kind == .RuntimeHelper { return symbol >= 0 && symbol < MachineHelperCount }
     if relocation.kind == .PlatformService { return symbol >= 0 && symbol < image.platform_symbols }
     if relocation.kind == .HostCapability { return symbol >= 0 && symbol < image.host_symbols }
     return false

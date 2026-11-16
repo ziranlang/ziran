@@ -96,14 +96,19 @@ Describe :: (arch: TargetArch, os: TargetOS) -> TargetResult {
         else if os == .MacOS { target.abi = .Apple64 }
         else { return .{problem = .Combination} }
     } else if arch == .ArmV7 {
+        // LIR values are mostly 64 bits (s64, pointers, function values),
+        // so machine code allocates ARM registers in pairs: pair n is
+        // (r2n, r2n+1) for n < 5 and pair 5 is (r12, lr). r10 is the
+        // encoder's own temporary and r11 the frame pointer. Floats are
+        // d0-d15, the VFPv3-D16 floor of armeabi-v7a.
         target.pointer_bits = 32
-        target.general_registers = 16
-        target.float_registers = 32
+        target.general_registers = 6
+        target.float_registers = 16
         target.vector_registers = 16
         target.float_vector_overlap = true
-        target.allocatable_general = 0x1fff
-        target.reserved_general = 0xe000
-        target.allocatable_float = 0xffffffff
+        target.allocatable_general = 0x3f
+        target.reserved_general = 0
+        target.allocatable_float = 0xffff
         target.allocatable_vector = 0xffff
         if os == .Linux || os == .Android { target.abi = .Aapcs32 }
         else { return .{problem = .Combination} }
@@ -170,6 +175,8 @@ TargetMachineLoweringSupported :: (target: TargetDescription) -> bool {
     if target.arch == .X86_64 && target.os == .Linux && target.abi == .SysV { return true }
     if target.arch == .AArch64 && (target.os == .Linux || target.os == .Android) &&
         target.abi == .Aapcs64 { return true }
+    if target.arch == .ArmV7 && (target.os == .Linux || target.os == .Android) &&
+        target.abi == .Aapcs32 { return true }
     return false
 }
 
@@ -338,11 +345,11 @@ TargetRowAt :: (index: s32) -> TargetRow {
     }
     if index == 4 {
         return .{arch = .ArmV7, os = .Linux, state = .Gap, milestone = "M4",
-            note = "No ARMv7 instruction selection or encoding."}
+            note = "A32 machine encoding is implemented; native loading is pending."}
     }
     if index == 5 {
         return .{arch = .ArmV7, os = .Android, state = .Gap, milestone = "M4",
-            note = "No ARMv7 instruction selection or encoding; the USB Moto row needs device evidence."}
+            note = "A32 machine encoding is implemented; native loading and USB Moto device evidence are pending."}
     }
     if index == 6 {
         return .{arch = .AArch64, os = .Linux, state = .Gap, milestone = "M4",

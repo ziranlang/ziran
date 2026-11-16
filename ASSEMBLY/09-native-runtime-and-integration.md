@@ -34,9 +34,10 @@ and at exit, so its bytes and their order match direct writes. Its resize runtim
 blocks through power-of-two size classes instead of mapping and unmapping each
 growth; a block over 1 MiB is its own mapping and grows by `mremap`.
 
-Native ZX loading on linux-x86_64 and linux-aarch64
+Native ZX loading on linux-x86_64, linux-aarch64 and linux-armv7
 ([`zir_host_native.c`](../cmd/zir/zir_host_native.c), with each architecture's
-veneers and relocation fields in `zir_host_native_<arch>.c`)
+veneers and relocation fields in `zir_host_native_<arch>.c`; ARMv7's also
+hold the 64-bit divide and int64/float conversion helpers A32 lacks)
 compiles the bundle's verified program with the same machine pipeline, copies
 the image into RW pages, resolves its relocations against the instance's own
 data, host veneers, trap stub and resize runtime, and only then makes the code

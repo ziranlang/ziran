@@ -154,9 +154,9 @@ partially implemented.
 
 Canonical descriptions exist for maintained x86-64, ARMv7, AArch64, and wasm32
 OS combinations so later allocation and backend work shares one target model.
-A valid description is not an implementation claim. ARMv7, AArch64, wasm32,
-Windows, macOS, Android, and WASI currently fail machine lowering with
-`UnsupportedTarget`.
+A valid description is not an implementation claim. Linux and Android x86-64,
+AArch64 and ARMv7 lower, allocate and encode; wasm32, Windows, macOS and WASI
+fail machine lowering with `UnsupportedTarget`.
 
 ## Register allocation
 
@@ -245,6 +245,41 @@ encoder does not implement is a hard diagnostic, never another engine.
 Still required: the full SysV call ABI, external ABI classification, relocatable
 objects/linking, unwind/debug information, native ZX loading, the remaining
 target matrix, and physical-Alpha performance validation.
+
+### ARMv7 (A32)
+
+`compiler_armv7.zi` encodes for armv7a Linux and Android. LIR is
+target-neutral: pointers and function values are 8-byte slots and `s64` is
+the common integer, while the pipeline keeps one physical register per
+virtual. ARMv7 therefore describes its general bank as register pairs, so
+allocation, verification and lowering stay as they are:
+
+- Pair n is (r2n, r2n+1) for n = 0..4; pair 5 is (r12, lr), the bank scratch,
+  so r12 and lr are free inside any instruction and lr is saved by every
+  prologue. r10 is the encoder's temporary and the base it rebases a frame
+  slot beyond A32's 4 KiB reach into; r11 is the frame pointer. Calls clobber
+  pairs 0, 1 and 5; pairs 2-4 (r4-r9) are callee-saved.
+- A value of 32 bits or less lives in the even register, a 64-bit value in
+  both, low word first. Raw machine addresses are 32-bit. Floats are d0-d15
+  (VFPv3-D16), f32 in s(2n); d0-d7 are caller-saved, d7 the float scratch.
+- Between generated functions: general arguments in pairs 0 and 1, floats in
+  d0-d5, the rest on the stack in 8-byte slots; results in pair 0 or d0; the
+  record-result address in r10. Indirect calls BLX pair 4. The entry widens a
+  narrower result into r1 for its C caller. Generated code reaches C only
+  through the loader's veneers, so softfp never meets it.
+- 64-bit arithmetic is pair sequences. 64-bit divide and remainder and
+  int64/float conversions call loader helpers through a `RuntimeHelper`
+  relocation (symbol = `MachineHelper`), operands and result at sp; the
+  helper and resize veneers keep every register but lr. Addresses are
+  MOVW/MOVT relocation halves (addend 0 and 2); calls and veneers are BL.
+- A dynamic element's address goes in lr (the address scratch), leaving r10
+  for the instruction's other frame operand, and the frame layout puts the
+  pointer runtime's arena mark and chain beside the callee saves, so those
+  sequences never rebase.
+- Copies and zeroing of 64 bytes or more run a word loop (r10 and lr walk
+  the two sides, r0 counts and is kept at sp meanwhile), as AArch64 runs a
+  16-byte q31 loop and x86-64 an xmm15 loop, so code size does not grow
+  with record size.
 
 ## Direct native code versus generated-code exporters
 

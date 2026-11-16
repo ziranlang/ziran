@@ -225,7 +225,7 @@ ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_veri
 # the program through the same engine, under the same names.
 # The native loader's per-architecture veneers are zir_host_native_<arch>.c.
 HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir/zir_host_native.c cmd/zir/zir_host_native_x86_64.c \
-    cmd/zir/zir_host_native_aarch64.c cmd/zx2wasm/zx_wasm_lower.c
+    cmd/zir/zir_host_native_aarch64.c cmd/zir/zir_host_native_armv7.c cmd/zx2wasm/zx_wasm_lower.c
 ENGINE_NAMES := $(ENGINE_C)/engine_names.h
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=
@@ -862,28 +862,33 @@ check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-c
 zx-wasm-test: all
 	env -u DISPLAY -u WAYLAND_DISPLAY tests/zx_wasm.sh $(BIN_DIR)/ziran
 
-# Native ZX on an Android AArch64 device. android-aarch64 cross-builds
-# libziran.a and zi2zx with the NDK; the compilers that run during that build
-# are this host's. android-parity runs the revision-28 parity bundles on
-# ANDROID_SERIAL, on its engine and natively, against this host's engine and
-# writes ANDROID_PARITY_RECEIPT. ANDROID_ADB_HOST is the ssh destination
-# whose adb reaches the device, or empty for this host's adb.
+# Native ZX on an Android device: ANDROID_ARCH is aarch64 or armv7.
+# android-build cross-builds libziran.a and zi2zx with the NDK for
+# ANDROID_API; the compilers that run during that build are this host's.
+# android-parity runs the revision-28 parity bundles on ANDROID_SERIAL, on
+# its engine and natively, against this host's engine and writes
+# ANDROID_PARITY_RECEIPT. ANDROID_ADB_HOST is the ssh destination whose adb
+# reaches the device, or empty for this host's adb.
 ANDROID_NDK ?= $(ANDROID_NDK_HOME)
+ANDROID_ARCH ?= aarch64
 ANDROID_API ?= 33
 ANDROID_SERIAL ?=
 ANDROID_ADB_HOST ?=
-ANDROID_BUILD_DIR ?= $(BUILD_DIR)/android-aarch64
+ANDROID_BUILD_DIR ?= $(BUILD_DIR)/android-$(ANDROID_ARCH)
 ANDROID_PARITY_RECEIPT ?= $(BUILD_DIR)/android-parity.json
 ANDROID_TOOLCHAIN = $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin
+ANDROID_TRIPLE_aarch64 = aarch64-linux-android
+ANDROID_TRIPLE_armv7 = armv7a-linux-androideabi
 ANDROID_OUT = $(abspath $(ANDROID_BUILD_DIR))
-.PHONY: android-aarch64 android-parity
-android-aarch64: $(BIN_DIR)/zi2c
+.PHONY: android-build android-parity
+android-build: $(BIN_DIR)/zi2c
 	@test -n "$(ANDROID_NDK)" || { echo 'set ANDROID_NDK or ANDROID_NDK_HOME' >&2; exit 1; }
-	$(MAKE) BUILD_DIR=$(ANDROID_OUT) CC=$(ANDROID_TOOLCHAIN)/aarch64-linux-android$(ANDROID_API)-clang \
+	@test -n "$(ANDROID_TRIPLE_$(ANDROID_ARCH))" || { echo 'ANDROID_ARCH is aarch64 or armv7' >&2; exit 1; }
+	$(MAKE) BUILD_DIR=$(ANDROID_OUT) CC=$(ANDROID_TOOLCHAIN)/$(ANDROID_TRIPLE_$(ANDROID_ARCH))$(ANDROID_API)-clang \
 	    AR=$(ANDROID_TOOLCHAIN)/llvm-ar OBJCOPY=$(ANDROID_TOOLCHAIN)/llvm-objcopy \
 	    GEN_ZI2C=$(abspath $(BIN_DIR)/zi2c) $(ANDROID_OUT)/libziran.a $(ANDROID_OUT)/bin/zi2zx
 
-android-parity: $(BIN_DIR)/ziran $(BIN_DIR)/zi2zx android-aarch64
+android-parity: $(BIN_DIR)/ziran $(BIN_DIR)/zi2zx android-build
 	@test -n "$(ANDROID_SERIAL)" || { echo 'set ANDROID_SERIAL' >&2; exit 1; }
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/ziran run --target=c --root tests tests/zx_android_parity_cases.zi -- \
 	    $(abspath $(BIN_DIR)/ziran) '' $(ANDROID_OUT)/bin '$(ANDROID_SERIAL)' '$(ANDROID_ADB_HOST)' $(ANDROID_PARITY_RECEIPT)

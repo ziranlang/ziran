@@ -571,10 +571,10 @@ AtOffset :: (memory: V7Memory, offset: s64) -> V7Memory {
 }
 
 // A memory operand whose displacement fits RANGE, rebasing into r10 when it
-// does not. A base already in r10 must not need rebasing.
-Reachable :: (state: *State, memory: V7Memory, range: s64) -> V7Memory {
+// does not. A base in r10, or a stored VALUE in r10, must not need rebasing.
+Reachable :: (state: *State, memory: V7Memory, range: s64, value: s32) -> V7Memory {
     if memory.displacement >= -range && memory.displacement <= range { return memory }
-    if memory.base == Temp { unused Fail(state, .Frame); return memory }
+    if memory.base == Temp || value == Temp { unused Fail(state, .Frame); return memory }
     AddConstant(state, Temp, memory.base, memory.displacement)
     return .{base = Temp, displacement = 0}
 }
@@ -582,7 +582,7 @@ Reachable :: (state: *State, memory: V7Memory, range: s64) -> V7Memory {
 // One LDR/STR (word, or byte with BYTE) of RT at MEMORY.
 WordAccess :: (state: *State, load: bool, byte: bool, rt: s32, memory: V7Memory) {
     if state.diagnostic.problem != .None { return }
-    at := Reachable(state, memory, 4095)
+    at := Reachable(state, memory, 4095, ifx load then MachineNoId else rt)
     offset := at.displacement
     word := cast(u64)0xE5000000 | (cast(u64)at.base << 16) | (cast(u64)rt << 12)
     if offset >= 0 { word = word | cast(u64)0x800000 | cast(u64)offset }
@@ -596,7 +596,7 @@ WordAccess :: (state: *State, load: bool, byte: bool, rt: s32, memory: V7Memory)
 // 0xF0 signed halfword).
 HalfAccess :: (state: *State, load: bool, op: u64, rt: s32, memory: V7Memory) {
     if state.diagnostic.problem != .None { return }
-    at := Reachable(state, memory, 255)
+    at := Reachable(state, memory, 255, ifx load then MachineNoId else rt)
     offset := at.displacement
     magnitude := cast(u64)(ifx offset < 0 then -offset else offset)
     word := cast(u64)0xE1400000 | op | (cast(u64)at.base << 16) | (cast(u64)rt << 12) |
@@ -612,7 +612,7 @@ HalfAccess :: (state: *State, load: bool, op: u64, rt: s32, memory: V7Memory) {
 LoadScalar :: (state: *State, pair: s32, memory: V7Memory, size: s64, signed: bool) {
     low := Low(pair)
     if size == 8 {
-        at := Reachable(state, memory, 4091)
+        at := Reachable(state, memory, 4091, MachineNoId)
         if at.base == low {
             WordAccess(state, true, false, High(pair), AtOffset(at, 4))
             WordAccess(state, true, false, low, at)
@@ -631,7 +631,7 @@ LoadScalar :: (state: *State, pair: s32, memory: V7Memory, size: s64, signed: bo
 StoreScalar :: (state: *State, memory: V7Memory, pair: s32, size: s64) {
     low := Low(pair)
     if size == 8 {
-        at := Reachable(state, memory, 4091)
+        at := Reachable(state, memory, 4091, MachineNoId)
         WordAccess(state, false, false, low, at)
         WordAccess(state, false, false, High(pair), AtOffset(at, 4))
     } else if size == 4 { WordAccess(state, false, false, low, memory) }
@@ -643,7 +643,7 @@ StoreScalar :: (state: *State, memory: V7Memory, pair: s32, size: s64) {
 // Floats move through r12/lr: VLDR and VSTR need word alignment, which
 // packed records do not give.
 LoadFloat :: (state: *State, vd: s32, memory: V7Memory, size: s64) {
-    at := Reachable(state, memory, 4091)
+    at := Reachable(state, memory, 4091, MachineNoId)
     WordAccess(state, true, false, Ip, at)
     if size == 8 {
         WordAccess(state, true, false, Link, AtOffset(at, 4))
@@ -652,20 +652,81 @@ LoadFloat :: (state: *State, vd: s32, memory: V7Memory, size: s64) {
 }
 
 StoreFloat :: (state: *State, memory: V7Memory, vm: s32, size: s64) {
-    at := Reachable(state, memory, 4091)
+    at := Reachable(state, memory, 4091, MachineNoId)
     if size == 8 {
-        DoubleToGeneral(state, Ip, Link, vm)
+        // A dynamic element's address is in lr, and then nothing was rebased.
+        high: s32 = ifx at.base == Link then Temp else Link
+        DoubleToGeneral(state, Ip, high, vm)
         WordAccess(state, false, false, Ip, at)
-        WordAccess(state, false, false, Link, AtOffset(at, 4))
+        WordAccess(state, false, false, high, AtOffset(at, 4))
     } else {
         SingleToGeneral(state, Ip, vm)
         WordAccess(state, false, false, Ip, at)
     }
 }
 
+// RD = MEMORY's address with ADD/SUB immediates only, so no scratch
+// register is needed however far the displacement is.
+AddressInto :: (state: *State, rd: s32, memory: V7Memory) {
+    value := memory.displacement
+    if value < -2147483647 || value > 2147483647 { unused Fail(state, .Frame); return }
+    magnitude := cast(u64)(ifx value < 0 then -value else value)
+    op: s32 = ifx value < 0 then OpSub else OpAdd
+    if magnitude == 0 {
+        if rd != memory.base { Move(state, rd, memory.base) }
+        return
+    }
+    source := memory.base
+    while magnitude != 0 {
+        shift: u64 = 0
+        while ((magnitude >> shift) & 3) == 0 { shift += 2 }
+        chunk := magnitude & (cast(u64)0xff << shift)
+        DataImmediate(state, op, false, rd, source, cast(u32)chunk)
+        source = rd
+        magnitude = magnitude & ~chunk
+    }
+}
+
+// Copies and zeroing of at least LoopBytes run a word loop: r10 walks the
+// source, lr the destination and r0 (kept at sp meanwhile) counts the
+// words; the last 0-3 bytes follow unrolled. Shorter ones are unrolled.
+LoopBytes :: 64
+
+// lr = DESTINATION's address and, for a copy, r10 = SOURCE's (first, as a
+// dynamic element's base is lr), then r0 is saved and holds SIZE / 4.
+LoopSetup :: (state: *State, destination: V7Memory, source: V7Memory, copy: bool, size: s64) -> bool {
+    if copy {
+        if destination.base == Temp { return Fail(state, .Unsupported) }
+        AddressInto(state, Temp, source)
+    }
+    AddressInto(state, Link, destination)
+    // str r0, [sp, #-8]!
+    Emit(state, 0xE52D0008)
+    MoveWord(state, 0, cast(u32)(size / 4))
+    return state.diagnostic.problem == .None
+}
+
+// subs r0, r0, #1; bne BEGIN; ldr r0, [sp], #8.
+LoopEnd :: (state: *State, begin: s64) {
+    DataImmediate(state, OpSub, true, 0, 0, 1)
+    Branch(state, begin, cond = CondNe)
+    Emit(state, 0xE49D0008)
+}
+
 // Copies SIZE bytes through r12, a word, half or byte at a time.
 CopyMemory :: (state: *State, destination: V7Memory, source: V7Memory, size: s64) -> bool {
     offset: s64
+    if size >= LoopBytes {
+        if !LoopSetup(state, destination, source, true, size) { return false }
+        begin := state.writer.at
+        // ldr r12, [r10], #4; str r12, [lr], #4.
+        Emit(state, 0xE49AC004)
+        Emit(state, 0xE48EC004)
+        LoopEnd(state, begin)
+        offset = size & ~cast(s64)3
+        source = .{base = Temp, displacement = -offset}
+        destination = .{base = Link, displacement = -offset}
+    }
     while offset < size {
         remaining := size - offset
         if remaining >= 4 {
@@ -687,8 +748,17 @@ CopyMemory :: (state: *State, destination: V7Memory, source: V7Memory, size: s64
 }
 
 ZeroMemory :: (state: *State, destination: V7Memory, size: s64) -> bool {
-    DataImmediate(state, OpMov, false, Ip, 0, 0)
     offset: s64
+    if size >= LoopBytes {
+        if !LoopSetup(state, destination, destination, false, size) { return false }
+        DataImmediate(state, OpMov, false, Ip, 0, 0)
+        begin := state.writer.at
+        // str r12, [lr], #4.
+        Emit(state, 0xE48EC004)
+        LoopEnd(state, begin)
+        offset = size & ~cast(s64)3
+        destination = .{base = Link, displacement = -offset}
+    } else { DataImmediate(state, OpMov, false, Ip, 0, 0) }
     while offset < size {
         remaining := size - offset
         if remaining >= 4 { WordAccess(state, false, false, Ip, AtOffset(destination, offset)); offset += 4 }
@@ -1423,16 +1493,17 @@ AggregateBuild :: (state: *State) -> bool {
 }
 
 // The address of element INDEX (a pair) of the COUNT-element array at
-// MEMORY in r10, after the bound check.
+// MEMORY in lr, the address scratch, after the bound check. r10 stays free
+// to reach the instruction's other frame operand however far it is.
 DynamicElement :: (state: *State, memory: V7Memory, index: s32, wide: bool, count: s64, size: s64) -> V7Memory {
     CompareCount(state, index, wide, count)
     TrapUnless(state, CondLo, MachineV7TrapPointer)
-    AddConstant(state, Temp, memory.base, memory.displacement)
+    AddConstant(state, Link, memory.base, memory.displacement)
     MoveWord(state, Ip, cast(u32)size)
-    // MLA r10, index, r12, r10.
-    Emit(state, cast(u32)(cast(u64)0xE0200090 | (cast(u64)Temp << 16) | (cast(u64)Temp << 12) |
+    // MLA lr, index, r12, lr.
+    Emit(state, cast(u32)(cast(u64)0xE0200090 | (cast(u64)Link << 16) | (cast(u64)Link << 12) |
         (cast(u64)Ip << 8) | cast(u64)Low(index)))
-    return .{base = Temp, displacement = 0}
+    return .{base = Link, displacement = 0}
 }
 
 // Flags for an unsigned compare of the index in PAIR (WIDE for 64 bits)
@@ -2214,7 +2285,10 @@ Call :: (state: *State) -> bool {
         operand := state.program.operands[id]
         if id == call.result_operand {
             if operand.class == .Stack {
-                if call.calling != .Internal || operand.kind != .StackObject || operand.role != .Define {
+                // A host call's record result lands at the address its
+                // veneer saves, as an internal callee's does.
+                if (call.calling != .Internal && call.calling != .Host) ||
+                    operand.kind != .StackObject || operand.role != .Define {
                     return Fail(state, .Unsupported, id)
                 }
                 result_destination = StackMemory(state, operand.id, id)
@@ -2397,6 +2471,13 @@ Return :: (state: *State) -> bool {
             value := Register(state, 0, .Use)
             if value == MachineNoId { return false }
             if value != MachineAbiResultRegister(state.program.target, .General) { return Fail(state, .Constraint, OperandId(state, 0)) }
+            // The entry's C caller reads r0:r1 as one 64-bit result, so a
+            // narrower one is extended into r1; internal callers read r0.
+            type := TypeOf(state, operand)
+            if state.function == state.program.entry && !Wide(type) {
+                if Signed(type) { DataShift(state, OpMov, false, 1, 0, 0, 2, 31) }
+                else { DataImmediate(state, OpMov, false, 1, 0, 0) }
+            }
         }
     }
     if function.pointer_chain != 0 && !PointerFrameLeave(state, function) { return false }

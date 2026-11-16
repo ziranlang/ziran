@@ -232,14 +232,16 @@ struct BundleInstance {
  * gap from the loader. */
 #if defined(__aarch64__) && defined(__linux__)
 #define NATIVE_PLATFORM_BACKEND BUNDLE_EXECUTION_NATIVE_AARCH64
+#elif defined(__arm__) && defined(__linux__)
+#define NATIVE_PLATFORM_BACKEND BUNDLE_EXECUTION_NATIVE_ARMV7
 #else
 #define NATIVE_PLATFORM_BACKEND BUNDLE_EXECUTION_NATIVE_X86_64
 #endif
 
 /* Auto is a platform decision, never a per-bundle probe: a web runtime that
- * installed the wasm provider runs bundles on it; linux-x86_64 and
- * linux-aarch64 (Android included), which have a native backend, run native
- * code, and a bundle native code cannot run fails instead of moving to
+ * installed the wasm provider runs bundles on it; linux-x86_64,
+ * linux-aarch64 and linux-armv7 (Android included), which have a native
+ * backend, run native code, and a bundle native code cannot run fails instead of moving to
  * another engine; every other host, including 64-bit and JSPI web runtimes
  * such as the playground's, runs the instruction engine. */
 static BundleExecutionBackend
@@ -248,7 +250,7 @@ auto_platform_backend(void)
 #if defined(__EMSCRIPTEN__)
     if(ZxWasmPlatformActive() != NULL)
         return BUNDLE_EXECUTION_WASM;
-#elif (defined(__x86_64__) || defined(__aarch64__)) && defined(__linux__)
+#elif (defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)) && defined(__linux__)
     return NATIVE_PLATFORM_BACKEND;
 #endif
     return BUNDLE_EXECUTION_ENGINE;

@@ -1931,11 +1931,17 @@ LayoutFrame :: (state: *Alloc, function: *MachineFunction) -> bool {
         }
     }
     finish := cast(s32)state.out.stack_objects.count
+    // The pointer runtime's arena mark and chain come first, then the callee
+    // saves, so the short displacements of every target reach them however
+    // large the locals after them are.
+    mark: s32 = ifx function.arena_mark != 0 then begin + function.arena_mark - 1 else MachineNoId
+    chain: s32 = ifx function.pointer_chain != 0 then begin + function.pointer_chain - 1 else MachineNoId
     cursor: s64 = 0
     for pass: 0..1 {
         for object_id: begin..finish - 1 {
             object := state.out.stack_objects[object_id]
-            if (pass == 0) != (object.kind == .CalleeSave) || !MachineFrameResident(object.kind) { continue }
+            near := object.kind == .CalleeSave || object_id == mark || object_id == chain
+            if (pass == 0) != near || !MachineFrameResident(object.kind) { continue }
             if object.alignment > 16 { return Fail(state, .Frame, virtual = object.value) }
             size := ifx object.size > 0 then object.size else 1
             cursor = AlignUp(cursor + size, cast(s64)object.alignment)

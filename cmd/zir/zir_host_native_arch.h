@@ -3,9 +3,9 @@
  *
  * zir_host_native.c is target-neutral: it compiles and caches images, maps
  * and relocates them, and bridges host calls through NativeAbiFrame. One
- * file per architecture (zir_host_native_x86_64.c, zir_host_native_aarch64.c)
- * writes the veneers generated code calls into C, patches relocated fields
- * and names the CPU for the code cache.
+ * file per architecture (zir_host_native_x86_64.c, zir_host_native_aarch64.c,
+ * zir_host_native_armv7.c) writes the veneers generated code calls into C,
+ * patches relocated fields and names the CPU for the code cache.
  */
 #ifndef ZIR_HOST_NATIVE_ARCH_H
 #define ZIR_HOST_NATIVE_ARCH_H
@@ -13,12 +13,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Integer argument registers: SysV x86-64 passes six, AAPCS64 eight. Both
- * pass eight float and vector arguments. */
+/* Argument registers of generated code: SysV x86-64 passes six integers,
+ * AAPCS64 eight, and ARMv7 two 64-bit pairs (r0:r1, r2:r3); floats go in
+ * eight registers, or d0-d5 on ARMv7. */
 #if defined(__aarch64__)
 #define NATIVE_ABI_GENERAL 8
+#define NATIVE_ABI_FLOAT 8
+#elif defined(__arm__)
+#define NATIVE_ABI_GENERAL 2
+#define NATIVE_ABI_FLOAT 6
 #else
 #define NATIVE_ABI_GENERAL 6
+#define NATIVE_ABI_FLOAT 8
 #endif
 
 /* What a host veneer saves at a call, the input of the typed bridge. */
@@ -29,8 +35,8 @@ typedef struct NativeAbiFrame {
     const unsigned char *stack;
     /* A float result's bits, which the veneer returns in the float register. */
     uint64_t floating_result;
-    /* rax on x86-64 and x8 on AArch64 at the call: the caller's destination
-     * for a record or array result. */
+    /* rax on x86-64, x8 on AArch64 and r10 on ARMv7 at the call: the
+     * caller's destination for a record or array result. */
     unsigned char *result_address;
 } NativeAbiFrame;
 
@@ -81,6 +87,13 @@ native_stub_u64(NativeStub *out, uint64_t value)
 int ZirNativeHostVeneer(NativeStub *out, const NativeVeneerCalls *calls, int32_t function);
 int ZirNativeTrapVeneer(NativeStub *out, const NativeVeneerCalls *calls);
 int ZirNativeResizeVeneer(NativeStub *out, const NativeVeneerCalls *calls);
+
+/* ARMv7 only, whose images call runtime helpers (MachineHelper) for 64-bit
+ * divides and int64/float conversions: the veneer keeps every register but
+ * lr and passes the 16 bytes at the caller's sp to helper HELPER. */
+#if defined(__arm__)
+int ZirNativeHelperVeneer(NativeStub *out, const NativeVeneerCalls *calls, int32_t helper);
+#endif
 
 /* Stores TARGET in the relocated field at FIELD as its WIDTH and ADDEND
  * describe it; 0 when the field is not the expected form or TARGET is out

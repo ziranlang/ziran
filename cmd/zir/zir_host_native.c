@@ -1,6 +1,6 @@
 /*
- * zir_host_native.c - native execution of verified ZX on linux-x86_64 and
- * linux-aarch64, Android included.
+ * zir_host_native.c - native execution of verified ZX on linux-x86_64,
+ * linux-aarch64 and linux-armv7, Android included.
  *
  * The machine pipeline compiles the bundle's verified program once per
  * content, CPU and backend. Each instance copies that image into RW pages,
@@ -26,10 +26,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(ZIRAN_NO_ENGINE) || !(defined(__x86_64__) || defined(__aarch64__)) || !defined(__linux__)
+#if defined(ZIRAN_NO_ENGINE) || !(defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)) || \
+    !defined(__linux__)
 
 static const char native_unavailable[] =
-    "assembly.gap.target-unimplemented: native ZX runs only on linux-x86_64 and linux-aarch64; "
+    "assembly.gap.target-unimplemented: native ZX runs only on linux-x86_64, linux-aarch64 and "
+    "linux-armv7; "
     "no alternate engine was selected";
 
 const NativeBundleCode *
@@ -156,7 +158,8 @@ typedef struct NativeBlock {
     const struct NativeInstance *owner;
 } NativeBlock;
 
-_Static_assert(sizeof(NativeBlock) % 16 == 0, "block data alignment");
+/* Block data keeps calloc's alignment. */
+_Static_assert(sizeof(NativeBlock) % _Alignof(max_align_t) == 0, "block data alignment");
 
 struct NativeInstance {
     const NativeBundleCode *code;
@@ -214,10 +217,17 @@ native_target(void)
 {
 #if defined(__x86_64__)
     return compiler_target_TargetLinuxX64();
-#elif defined(__ANDROID__)
-    return compiler_target_TargetDescribe(TargetArch_AArch64, TargetOS_Android).target;
 #else
-    return compiler_target_TargetDescribe(TargetArch_AArch64, TargetOS_Linux).target;
+#if defined(__aarch64__)
+    TargetArch arch = TargetArch_AArch64;
+#else
+    TargetArch arch = TargetArch_ArmV7;
+#endif
+#if defined(__ANDROID__)
+    return compiler_target_TargetDescribe(arch, TargetOS_Android).target;
+#else
+    return compiler_target_TargetDescribe(arch, TargetOS_Linux).target;
+#endif
 #endif
 }
 
@@ -815,10 +825,14 @@ native_trap_site_in(const NativeInstance *instance, const MachineNativeOwner *ow
     MachineX64Image image = owner->encoded.image;
     const MachineX64Function *extents = image.functions.data;
     const MachineX64Range *ranges = image.instructions.data;
-#else
+#elif defined(__aarch64__)
     MachineA64Image image = owner->encoded_a64.image;
     const MachineA64Function *extents = image.functions.data;
     const MachineA64Range *ranges = image.instructions.data;
+#else
+    MachineV7Image image = owner->encoded_v7.image;
+    const MachineV7Function *extents = image.functions.data;
+    const MachineV7Range *ranges = image.instructions.data;
 #endif
     MachineProgram program = owner->machine.program;
     uintptr_t base = (uintptr_t)instance->arena.address;
@@ -982,7 +996,7 @@ native_arguments(NativeInstance *instance, int32_t function,
         int64_t width = native_type_size(program, type, 0);
         if(width < 0) goto failed;
         arguments[at].type = type;
-        if(shape->kind == LirTypeKind_Float && floating < 8) {
+        if(shape->kind == LirTypeKind_Float && floating < NATIVE_ABI_FLOAT) {
             memcpy(&arguments[at].bits, frame->floating[floating++],
                    (size_t)width);
         } else if(shape->kind != LirTypeKind_Array &&
@@ -1437,6 +1451,9 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
         goto failed;
     MachineRelocation *relocations = image.relocations.data;
     size_t stub_at = (size_t)image.code.bytes.length;
+#if defined(__arm__)
+    size_t helper_at[MachineHelperCount] = {0};
+#endif
     for(int64_t at = 0; at < image.relocations.length; at++) {
         MachineRelocation relocation = relocations[at];
         if(relocation.section != MachineSectionKind_Code || relocation.offset < 0 ||
@@ -1483,6 +1500,19 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
                offsets[symbol] < 0 || offsets[symbol] >= image.code.bytes.length)
                 goto failed;
             target = (uintptr_t)(base + offsets[symbol]);
+#if defined(__arm__)
+        } else if(relocation.kind == MachineRelocationKind_RuntimeHelper) {
+            /* One veneer per helper, in the first stub slot it needs. */
+            int32_t helper = relocation.symbol;
+            if(helper < 0 || helper >= MachineHelperCount) goto failed;
+            if(helper_at[helper] == 0) {
+                NativeStub helper_stub = {base + stub_at, 0, NATIVE_HOST_STUB_SIZE, 0};
+                if(!ZirNativeHelperVeneer(&helper_stub, &calls, helper)) goto failed;
+                helper_at[helper] = stub_at;
+                stub_at += NATIVE_HOST_STUB_SIZE;
+            }
+            target = (uintptr_t)(base + helper_at[helper]);
+#endif
         } else if(relocation.kind == MachineRelocationKind_HostCapability ||
                   relocation.kind == MachineRelocationKind_PlatformService) {
             NativeStub host_stub = {base + stub_at, 0, NATIVE_HOST_STUB_SIZE, 0};

@@ -9,12 +9,13 @@ ASSEMBLY_SOURCES := cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compil
 
 ifneq ($(BOOTSTRAP),1)
 ifeq ($(NATIVE_HOST_ENABLED),1)
-# Only this object reads the generated assembly headers. A target-specific
+# Only these objects read the generated assembly headers. A target-specific
 # CFLAGS would also reach the prerequisites make builds for it, zi2c among
 # them, where the set's own math.h and vec.h would shadow the real ones;
 # `private` prevents that but needs GNU Make 3.82, and macOS ships 3.81.
-$(call obj,cmd/zir/zir_host_native.c)_CFLAGS += -I$(ASSEMBLY_C)
-$(call obj,cmd/zir/zir_host_native.c): $(ASSEMBLY_C)/.generated
+$(foreach source,cmd/zir/zir_host_native.c cmd/zir/zir_host_native_armv7.c,\
+    $(eval $(call obj,$(source))_CFLAGS += -I$(ASSEMBLY_C)))
+$(call obj,cmd/zir/zir_host_native.c cmd/zir/zir_host_native_armv7.c): $(ASSEMBLY_C)/.generated
 endif
 endif
 

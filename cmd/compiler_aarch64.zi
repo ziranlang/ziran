@@ -440,20 +440,9 @@ UnscaledFits :: (displacement: s64) -> bool {
 }
 
 // Rebases a memory operand into x16 when neither the scaled nor the
-// unscaled offset form can express its displacement: copy the base register
-// with ADD, then fold the displacement in with ADD/SUB immediate steps of
-// at most 4095.
+// unscaled offset form can express its displacement.
 AddressInto :: (state: *State, base: s32, displacement: s64) {
-    if state.diagnostic.problem != .None { return }
-    AddSubImmediate(state, 16, base, 0, false, 1)
-    subtract := displacement < 0
-    value := ifx subtract then -displacement else displacement
-    if value > 0x40000000 { unused Fail(state, .Frame); return }
-    while value > 0 {
-        step := ifx value > 4095 then cast(s64)4095 else value
-        AddSubImmediate(state, 16, 16, step, subtract, 1)
-        value -= step
-    }
+    ComputeAddress(state, 16, base, displacement)
 }
 
 // One integer load or store whose displacement fits the scaled or unscaled
@@ -571,11 +560,41 @@ A64FloatStore :: (state: *State, memory: A64Memory, rt: s32, size: s64) {
         state.diagnostic.problem == .None { unused Fail(state, .Unsupported) }
 }
 
-// Copies SIZE bytes between two frame-relative locations through the bank
-// scratch x15, widening each step to 8, 4, 2 or 1 bytes.
+// Copies and zeroing of at least LoopBytes run a loop over 16-byte chunks:
+// x16 walks the source, x17 the destination and x15 counts, then the tail
+// follows unrolled. The source address is computed first, since a dynamic
+// element's base is x17.
+LoopBytes :: 64
+
+LoopSetup :: (state: *State, destination: A64Memory, source: A64Memory, copy: bool, size: s64) -> s64 {
+    if copy { ComputeAddress(state, 16, source.base, source.displacement) }
+    ComputeAddress(state, 17, destination.base, destination.displacement)
+    chunks := size & ~cast(s64)15
+    MoveImmediate(state, 15, cast(u64)(chunks / 16), 1)
+    return chunks
+}
+
+// subs x15, x15, #1; b.ne BEGIN.
+LoopEnd :: (state: *State, begin: s64) {
+    SubsImmediateInto(state, 15, 15, 1, 1)
+    BranchCondition(state, begin, 1)
+}
+
+// Copies SIZE bytes through the bank scratch x15, widening each step to 8,
+// 4, 2 or 1 bytes; LoopBytes or more first run the q31 loop.
 CopyMemory :: (state: *State, destination: A64Memory, source: A64Memory,
     size: s64) -> bool {
     offset: s64
+    if size >= LoopBytes {
+        offset = LoopSetup(state, destination, source, true, size)
+        begin := state.writer.at
+        // ldr q31, [x16], #16; str q31, [x17], #16.
+        Emit(state, 0x3CC1061F)
+        Emit(state, 0x3C81063F)
+        LoopEnd(state, begin)
+        source = .{base = 16, displacement = -offset}
+        destination = .{base = 17, displacement = -offset}
+    }
     while offset < size {
         remaining := size - offset
         width: s64 = 1
@@ -595,6 +614,14 @@ CopyMemory :: (state: *State, destination: A64Memory, source: A64Memory,
 // the zero register in load/store forms, so no scratch register is needed.
 ZeroMemory :: (state: *State, destination: A64Memory, size: s64) -> bool {
     offset: s64
+    if size >= LoopBytes {
+        offset = LoopSetup(state, destination, destination, false, size)
+        begin := state.writer.at
+        // stp xzr, xzr, [x17], #16.
+        Emit(state, 0xA8817E3F)
+        LoopEnd(state, begin)
+        destination = .{base = 17, displacement = -offset}
+    }
     while offset < size {
         remaining := size - offset
         width: s64 = 1
@@ -1337,21 +1364,27 @@ Convert :: (state: *State, opcode: MachineOpcode) -> bool {
     return true
 }
 
-// Computes BASE plus DISPLACEMENT into RD: copy the base register with one
-// ADD, then fold the displacement in with ADD/SUBTRACT immediate steps of
-// at most 4095. Register 31 reads the stack pointer in this form, so both
-// frame and stack bases copy correctly.
+// RD = BASE + DISPLACEMENT without a scratch register: ADD/SUB immediates,
+// 4095 << 12 at a time and then the low 12 bits. Register 31 reads the stack
+// pointer in this form, so both frame and stack bases work.
 ComputeAddress :: (state: *State, rd: s32, base: s32, displacement: s64) {
     if state.diagnostic.problem != .None { return }
-    AddSubImmediate(state, rd, base, 0, false, 1)
     subtract := displacement < 0
     value := ifx subtract then -displacement else displacement
     if value > 0x40000000 { unused Fail(state, .Frame); return }
-    while value > 0 {
-        step := ifx value > 4095 then cast(s64)4095 else value
-        AddSubImmediate(state, rd, rd, step, subtract, 1)
-        value -= step
+    source := base
+    high := value >> 12
+    while high > 0 {
+        step := ifx high > 4095 then cast(s64)4095 else high
+        // ADD/SUB rd, source, #step, LSL #12.
+        word := cast(u64)0x91400000 | (cast(u64)step << 10) | (cast(u64)source << 5) | (cast(u64)rd & 31)
+        if subtract { word = word | cast(u64)0x40000000 }
+        Emit(state, cast(u32)word)
+        source = rd
+        high -= step
     }
+    low := value & 4095
+    if low > 0 || source == base { AddSubImmediate(state, rd, source, low, subtract, 1) }
 }
 
 // Loads through a pointer held in a register. Stack destinations copy the
@@ -2343,7 +2376,10 @@ Call :: (state: *State) -> bool {
         operand := state.program.operands[id]
         if id == call.result_operand {
             if operand.class == .Stack {
-                if call.calling != .Internal || operand.kind != .StackObject || operand.role != .Define {
+                // A host call's record result lands at the address its
+                // veneer saves, as an internal callee's does.
+                if (call.calling != .Internal && call.calling != .Host) ||
+                    operand.kind != .StackObject || operand.role != .Define {
                     return Fail(state, .Unsupported, id)
                 }
                 result_destination = StackMemory(state, operand.id, id)

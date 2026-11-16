@@ -52,6 +52,7 @@ Ids :: struct {
     compare: s32
     fuel: s32
     divide: s32
+    copy: s32
 }
 
 Build :: (b: *Builder, ids: *Ids) {
@@ -111,6 +112,24 @@ Build :: (b: *Builder, ids: *Ids) {
     ids.divide = Divide(b, .IntegerDivide, P0, quotient, P0, dividend, P1, divisor)
     unused Return(b, P0, quotient)
     End(b, 0)
+
+    // A 72-byte record moves between frame objects through the word loop.
+    unused Begin(b, "copy")
+    bytes := cast(s32)b.types.count
+    unused VecPush(b.types, .{kind = .Array, class = .Stack, size = 72, alignment = 8, element = U8, count = 72,
+        result = -1})
+    source := Value(b, bytes); target := Value(b, bytes)
+    from := Object(b, .Local, 72, -80, source, bytes)
+    to := Object(b, .Local, 72, -160, target, bytes)
+    b.virtuals[source].stack_object = from
+    b.virtuals[target].stack_object = to
+    Enter(b, Blocks(b, 1))
+    copy := Open(b, .Move)
+    unused Slot(b, to, .Define, target)
+    unused Slot(b, from, .Use, source)
+    ids.copy = Close(b, copy)
+    unused Return(b, -1, -1)
+    End(b, 160)
     b.entry = ids.answer
 }
 
@@ -145,7 +164,10 @@ Basics :: () -> bool {
             "64-bit fuel") ||
         !Instruction(image, ids.divide,
             "03 c0 92 e1 03 00 00 1a 02 00 00 e3 ff 0f 4f e3 00 00 00 eb f0 00 f0 e7 10 d0 4d e2 00 00 8d e5 04 10 8d e5 08 20 8d e5 0c 30 8d e5 00 00 00 eb 00 00 9d e5 04 10 9d e5 10 d0 8d e2",
-            "helper division") { return false }
+            "helper division") ||
+        !Instruction(image, ids.copy,
+            "50 a0 4b e2 a0 e0 4b e2 08 00 2d e5 12 00 a0 e3 04 c0 9a e4 04 c0 8e e4 01 00 50 e2 fb ff ff 1a 08 00 9d e4",
+            "looped record copy") { return false }
     // Relocations: the fuel counter as MOVW/MOVT halves and BLs to veneers
     // with the A32 pc offset.
     fuel_at := image.instructions[ids.fuel].begin
@@ -203,6 +225,6 @@ Negatives :: () -> bool {
 
 main :: () -> s32 {
     if !Basics() || !Negatives() { return 1 }
-    print("armv7 encoder: exact A32 words for pair and word arithmetic, checked shifts, signed pair compares, 64-bit fuel, helper division, relocation fields and rejection of untied and foreign programs local tests passed\n")
+    print("armv7 encoder: exact A32 words for pair and word arithmetic, checked shifts, signed pair compares, 64-bit fuel, helper division, looped record copies, relocation fields and rejection of untied and foreign programs local tests passed\n")
     return 0
 }

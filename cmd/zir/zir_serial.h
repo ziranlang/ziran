@@ -10,8 +10,6 @@ int ProgramWrite(const ZirProgram *program, FILE *out);
  * plain blocks. Measurement allocates no payload buffer; both calls borrow an
  * immutable checked program and report the exact number of serialized bytes.
  * Measure first; write the same unchanged program after successful measurement. */
-int ProgramMeasurePortable(const ZirProgram *program, size_t *size);
-int ProgramWritePortable(const ZirProgram *program, FILE *out, size_t *size);
 ZirProgram *ProgramRead(FILE *in, const char *path);
 int PathIsIR(const char *path);
 ZirProgram *ProgramLoad(const char *path, const char *root);

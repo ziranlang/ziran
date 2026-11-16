@@ -24,7 +24,7 @@ typedef enum FieldKind {
     FIELD_INTEGER,
     FIELD_STATEMENT_KIND, /* high flag bit announces optional block metadata */
     FIELD_STATEMENT_NAME, /* shares storage with optional block annotation */
-    FIELD_STATEMENT_TEXT, /* portable output normalizes native blocks to { */
+    FIELD_STATEMENT_TEXT,
     FIELD_FUNCTION_ASSEMBLY, /* procedure variants; hosts decide whether they run */
     FIELD_ASSEMBLY_TEXT,
     /* An expression's text: a slice of one of its function's statements,
@@ -93,7 +93,7 @@ typedef struct Writer {
     unsigned char *block;
     size_t used;
     size_t bytes;
-    int portable, measure;
+    int measure;
     /* Strings written so far, found through an open-addressed hash of
      * first-use indexes plus one; and the previous span. */
     SerialString *strings;
@@ -970,9 +970,8 @@ source_offset(StatementCursor *cursor, const char *text, const ZirSourceSpan *st
 }
 
 static const char *
-saved_statement_text(const Writer *out, const ZirStmt *statement)
+saved_statement_text(const ZirStmt *statement)
 {
-    if(out->portable && StatementHasAssembly(statement)) return "{";
     return statement->text ? statement->text : "";
 }
 
@@ -1061,7 +1060,7 @@ write_expression_text(Writer *out, const ZirExpr *expression)
             int owner = candidates[c];
             if(owner < 0 || owner >= function->stmt_count || (c == 1 && owner == candidates[0])) continue;
             const ZirStmt *statement = &function->stmts[owner];
-            const char *saved = saved_statement_text(out, statement);
+            const char *saved = saved_statement_text(statement);
             size_t saved_size = cursor_length(&out->cursor, saved, statement->span.line);
             if(saved_size > INT32_MAX || size > saved_size) continue;
             int64_t base = source_offset(&out->cursor, saved, &statement->span, &expression->span);
@@ -1175,17 +1174,15 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
                   fields[i].kind == FIELD_STATEMENT_TEXT || fields[i].kind == FIELD_FUNCTION_ASSEMBLY) {
             /* Source text has no field limit: a long literal keeps it all. */
             const char *text = *(const char *const *)value;
-            if(fields[i].kind == FIELD_ASSEMBLY_TEXT &&
-               (out->portable || !StatementHasAssembly(record)))
+            if(fields[i].kind == FIELD_ASSEMBLY_TEXT && !StatementHasAssembly(record))
                 continue;
-            if(out->portable && fields[i].kind == FIELD_STATEMENT_TEXT && StatementHasAssembly(record)) text = "{";
             size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : SIZE_MAX;
             if(!write_string(out, text ? text : "", limit))
                 return 0;
         } else if(fields[i].kind == FIELD_STATEMENT_KIND) {
             const ZirStmt *statement = record;
             uint32_t kind = (uint32_t)statement->kind;
-            if(!out->portable && StatementHasAssembly(statement)) {
+            if(StatementHasAssembly(statement)) {
                 kind |= ASSEMBLY_BLOCK_FLAG;
             }
             if(!write_u32(out, kind)) return 0;
@@ -1792,36 +1789,6 @@ ProgramWrite(const ZirProgram *program, FILE *out)
     writer_free_strings(&writer);
     free(writer.block);
     ProfileEnd("ir.write", started);
-    return result;
-}
-
-int
-ProgramMeasurePortable(const ZirProgram *program, size_t *size)
-{
-    if(size == NULL) return 0;
-    *size = 0;
-    Writer writer = {.portable = 1, .measure = 1};
-    uint64_t started = ProfileStart();
-    int result = write_program(program, &writer, 1);
-    writer_free_strings(&writer);
-    ProfileEnd("ir.measure.portable", started);
-    if(result) *size = writer.bytes;
-    return result;
-}
-
-int
-ProgramWritePortable(const ZirProgram *program, FILE *out, size_t *size)
-{
-    if(size == NULL || out == NULL) return 0;
-    *size = 0;
-    Writer writer = {.out = out, .block = malloc(SERIAL_BLOCK), .portable = 1};
-    /* Bundle writing has just measured and validated this immutable graph. */
-    uint64_t started = ProfileStart();
-    int result = writer.block != NULL && write_program(program, &writer, 0);
-    ProfileEnd("ir.write", started);
-    if(result) *size = writer.bytes;
-    writer_free_strings(&writer);
-    free(writer.block);
     return result;
 }
 

@@ -1711,22 +1711,6 @@ atom_range(const RangeFacts *f, int atom, int at, Range *out)
     return binding_range(f, atom, at, 1, out);
 }
 
-static int
-poly_range(const RangeFacts *f, const Poly *p, int at, Range *out)
-{
-    Range sum = p->k;
-    for(int i = 0; i < p->count; i++) {
-        Range term = {p->term[i].coef, p->term[i].coef}, atom;
-        for(int a = 0; a < p->term[i].degree; a++)
-            if(!atom_range(f, p->term[i].atom[a], at, &atom) || !range_multiply(term, atom, &term))
-                return 0;
-        if(!add_range(sum, term, 0, &sum))
-            return 0;
-    }
-    *out = sum;
-    return 1;
-}
-
 /* The least value of p at statement at, or with upper its greatest, when
  * no term's range overflows and that end of their sum does not; 0 when that
  * end is not known. With nonnegative terms, first + 1 + second has a least

@@ -2,20 +2,6 @@
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 
-static int run_guards;
-
-void
-EmitRunGuards(int enabled)
-{
-    run_guards = enabled != 0;
-}
-
-int
-EmitRunGuardsEnabled(void)
-{
-    return run_guards;
-}
-
 static void emit_sequence(Emitter *e,int begin,int end);
 static int emit_switch(Emitter *e, int declaration, int end);
 
@@ -404,7 +390,7 @@ parallel_shared_storage(Emitter *e, int while_index, const char *ctx, char *out,
 static int
 gpu_region_dispatch(Emitter *e, const ParallelRegion *region, const char *ctx)
 {
-    if(run_guards || e->target != ZIR_C || !e->fn->stmts[region->while_index].is_gpu)
+    if(e->target != ZIR_C || !e->fn->stmts[region->while_index].is_gpu)
         return 0;
     struct {
         ParallelRegion full;
@@ -593,8 +579,6 @@ emit_parallel_worker(Emitter *e, const ZirFunction *fn,
     fprintf(e->out, "    struct %s_ctx *%s = "
             "(struct %s_ctx *)%s;\n", region->worker, context,
             region->worker, opaque);
-    if(run_guards)
-        line(e, "ZIR_BUDGET();");
     copy_text(mapped, sizeof(mapped), scalar ? scalar : "int64_t");
     line(e, "%s %s = %s->start;", mapped, region->first, context);
     line(e, "%s %s = %s->end;", mapped, region->last, context);
@@ -670,7 +654,7 @@ EmitParallelWorkers(FILE *out, const ZirModule *module,
         ParallelRegion region;
         if(!parallel_region_at(fn, i, &region))
             continue;
-        if(fn->stmts[i].is_gpu && region.forward && !run_guards)
+        if(fn->stmts[i].is_gpu && region.forward)
             gpu_region_note(out, module, fn, &region);
         if(!region.forward) {
             fprintf(out, "/* ziran: reverse #parallel region keeps serial "
@@ -984,68 +968,6 @@ literal_operand(const ZirFunction *fn, int index, int64_t *value)
     return 1;
 }
 
-/* The iterations of the counting loop at while (its counter declared just
- * before it) when its bounds are literals and nothing but its step changes
- * the counter or leaves it early, so the native tier can charge them all
- * as it starts. */
-static int
-counted_iterations(const ZirFunction *fn, int loop, int close, int64_t *count)
-{
-    const ZirStmt *st = &fn->stmts[loop], *counter = &fn->stmts[loop - 1];
-    int64_t first, last;
-    if(loop < 1 || counter->kind != ZIR_STMT_DECL || counter->expr_root < 0 ||
-       st->expr_root < 0 || strcmp(canonical(counter->type), "s64") != 0 ||
-       !literal_operand(fn, counter->expr_root, &first))
-        return 0;
-    const ZirExpr *condition = &fn->exprs[st->expr_root];
-    if(condition->kind != ZIR_EXPR_BINARY || condition->op == NULL ||
-       fn->exprs[condition->left].kind != ZIR_EXPR_IDENT ||
-       strcmp(fn->exprs[condition->left].name, counter->name) != 0 ||
-       !literal_operand(fn, condition->right, &last))
-        return 0;
-    /* A pointer to the counter could change it out of sight. */
-    for(int x = 0; x < fn->expr_count; x++)
-        if(fn->exprs[x].kind == ZIR_EXPR_UNARY && fn->exprs[x].op != NULL &&
-           !strcmp(fn->exprs[x].op, "&") && fn->exprs[fn->exprs[x].right].kind == ZIR_EXPR_IDENT &&
-           !strcmp(fn->exprs[fn->exprs[x].right].name, counter->name))
-            return 0;
-    int down = 0, steps = 0;
-    for(int s = loop + 1; s < close; s++) {
-        const ZirStmt *body = &fn->stmts[s];
-        if(body->kind == ZIR_STMT_DECL && !strcmp(body->name, counter->name))
-            return 0;
-        if(body->kind != ZIR_STMT_ASSIGN || body->lhs_root < 0 ||
-           fn->exprs[body->lhs_root].kind != ZIR_EXPR_IDENT ||
-           strcmp(fn->exprs[body->lhs_root].name, counter->name) != 0)
-            continue;
-        int64_t one;
-        if(body->for_step != st->loop_id || body->expr_root < 0 ||
-           !literal_operand(fn, body->expr_root, &one) || one != 1)
-            return 0;
-        if(!strcmp(body->assignment_op, "-="))
-            down = 1;
-        else if(strcmp(body->assignment_op, "+=") != 0)
-            return 0;
-        steps++;
-    }
-    if(steps != 1 || loop_leaves_early(fn, loop, loop + 1, close))
-        return 0;
-    const char *op = condition->op;
-    if(!down && !strcmp(op, "<="))
-        *count = last - first + 1;
-    else if(!down && !strcmp(op, "<"))
-        *count = last - first;
-    else if(down && !strcmp(op, ">="))
-        *count = first - last + 1;
-    else if(down && !strcmp(op, ">"))
-        *count = first - last;
-    else
-        return 0;
-    if(*count < 0)
-        *count = 0;
-    return 1;
-}
-
 /* Whether the expression at index is the identifier name. */
 static int
 names_ident(const ZirFunction *fn, int index, const char *name)
@@ -1343,9 +1265,6 @@ emit_inline_call(Emitter *e, const ZirExpr *call, char *out, size_t size)
     inner.ranges = RangeFactsBuild(fn);
     line(e, "{");
     inner.indent = e->indent + 1;
-    /* The call still costs the step its entry would have charged. */
-    if(run_guards)
-        line(&inner, "ZIR_STEP();");
     for(int p = 0; p < count; p++) {
         declare(&inner, parameters->items[p].name, parameters->items[p].type, values[p]);
         track_local(&inner, parameters->items[p].name, canonical(parameters->items[p].type));
@@ -1886,11 +1805,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             leave_block_locals(e, saved);e->sequence_terminated=1;return;
         case ZIR_STMT_UNREACHABLE:
             drop_locals(e, 0);
-            if(run_guards && e->target == ZIR_C)
-                line(e, "ZIR_UNREACHABLE(\"%s:%d:%d\");", SpanPath(st->span),
-                     st->span.line, st->span.column);
-            else
-                line(e,e->target==ZIR_GO?"panic(\"unreachable\")":"abort();");
+            line(e,e->target==ZIR_GO?"panic(\"unreachable\")":"abort();");
             leave_block_locals(e, saved);e->sequence_terminated=1;return;
         case ZIR_STMT_IF:i=emit_if(e,i,end,0);break;
         case ZIR_STMT_WHILE: {
@@ -1926,12 +1841,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 line(e,"zir_loop_%d:",st->loop_id);
             int native = st->for_form && e->loop_header[0];
             int binds = native ? e->loop_header_binds : 0;
-            int64_t iterations = 0;
-            int charged = native && run_guards && e->target == ZIR_C &&
-                          counted_iterations(e->fn, i, close, &iterations);
             if(native) {
-                if(charged)
-                    line(e, "ZIR_STEPS(%lld);", (long long)iterations);
                 line(e, "%s {", e->loop_header);
                 e->loop_header[0] = '\0';
                 e->indent++;
@@ -1966,8 +1876,6 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     line(e,e->target==ZIR_GO?"if !%s { break }":"if (!%s) { break; }",buffers->value);
                 }
             }
-            if(run_guards && e->target == ZIR_C && !charged)
-                line(e, "ZIR_STEP();");
             if(labeled && e->target!=ZIR_GO) {
                 line(e,"{");e->indent++;
             }

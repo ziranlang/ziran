@@ -400,14 +400,6 @@ owned_shape(Checker *c, int index, int globals)
     return 1;
 }
 
-/* A constructing aggregate moves each owned field from a local binding, fresh
- * call result, or another constructing aggregate with the same discipline. */
-int
-owned_initializer_shape(Checker *c, int index)
-{
-    return owned_shape(c, index, 0);
-}
-
 /* A declaration, assignment or return may also move a global place. */
 int
 owned_transfer_shape(Checker *c, int index)
@@ -539,12 +531,6 @@ constant_value(const ZirModule *module, const char *name, int depth,
     int status = integer_expression(owner, &expression, index, depth + 1, value, wide);
     free(expression.exprs);
     return status;
-}
-
-int
-bound_constant(const ZirModule *module, const char *name, int depth, int64_t *value)
-{
-    return constant_value(module, name, depth, value, 0);
 }
 
 /* A named integer constant at its full s64 value. */

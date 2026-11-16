@@ -944,12 +944,6 @@ sequence_returns(const ZirFunction *fn, int begin, int end)
 }
 
 int
-FunctionReturnsOnEveryPath(const ZirFunction *fn)
-{
-    return sequence_returns(fn, 0, fn->stmt_count);
-}
-
-int
 starts_word(const char *source, const char *word)
 {
     size_t length = strlen(word);

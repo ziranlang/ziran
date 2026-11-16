@@ -953,8 +953,6 @@ static int
 module_splits_tiers(const ZirModule *m)
 {
     long targets = 0;
-    if(EmitRunGuardsEnabled())
-        return 0;
     for(int i = 0; i < m->global_count; i++)
         if(m->globals[i].is_static)
             return 0;
@@ -997,8 +995,6 @@ emit_target_clones(FILE *c, const ZirModule *m, const ZirCModuleSyms *restab,
         else
             fprintf(c, "static %s %s\n%s_ziran_%s(%s)\n{\n", simd_tiers[t].attribute,
                     cret[0] ? cret : "void", cname, simd_tiers[t].name, cargs);
-        if(EmitRunGuardsEnabled())
-            fputs("    ZIR_BUDGET();\n", c);
         /* AVX2 clones hold native vectors in two 128-bit blocks. */
         EmitUseSimdTier(simd_tiers[t].name, simd_tiers[t].tier >= 4 ? 2 : 1);
         lower_body(c, m, restab, restab_count, fn);
@@ -1029,8 +1025,6 @@ emit_tier_copies(FILE *c, const ZirModule *m, const ZirCModuleSyms *restab,
                 simd_tiers[t].attribute, cret[0] ? cret : "void", cname,
                 simd_tiers[t].name, cargs, body ? "\n{\n" : ";\n");
         if(body) {
-            if(EmitRunGuardsEnabled())
-                fputs("    ZIR_ENTER();\n", c);
             EmitUseSimdTier(simd_tiers[t].name, simd_tiers[t].tier >= 4 ? 2 : 1);
             lower_body(c, m, restab, restab_count, fn);
             EmitUseSimdTier(NULL, 0);
@@ -1767,7 +1761,7 @@ system_header_stem(const char *stem)
 static int
 inline_candidate(const ZirModule *m, const ZirFunction *fn)
 {
-    if(m->name[0] == '\0' || !strcmp(m->name, "main") || EmitRunGuardsEnabled())
+    if(m->name[0] == '\0' || !strcmp(m->name, "main"))
         return 0;
     if(fn->is_template || !fn->is_public || fn->is_extern || fn->exported ||
        fn->simd_target || fn->is_global_initializer || fn->uses_host || fn->go_method[0] ||
@@ -2708,11 +2702,10 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 sprintf(compound_text, "{%s%s", text_name, end + 1);
             }
             int zero = TypeHasZeroArray(m, g->type);
-            /* The native engine places module globals itself (ZIR_GLOBAL). */
-            fprintf(c, "%s%s%s%s %s%s = %s;\n",
+            fprintf(c, "%s%s%s %s%s = %s;\n",
                     zero ? "__extension__ " : "",
                     g->is_static ? "static " : "",
-                    EmitRunGuardsEnabled() ? "ZIR_GLOBAL " : "", buffers->base, name, suffix,
+                    buffers->base, name, suffix,
                     compound_text != NULL ? compound_text :
                     buffers->initw[0] ? buffers->initw : zero ? "{}" : "{0}");
             free(compound_text);
@@ -2755,8 +2748,6 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         else
             fprintf(c, "static %s%s\n%s(%s)\n{\n", inlining_prefix(fn),
                     cret[0] ? cret : "void", cname, buffers->cargs);
-        if(EmitRunGuardsEnabled())
-            fputs("    ZIR_ENTER();\n", c);
         if(fn->simd_target)
             emit_target_dispatch(c, fn, cret, cname, buffers->abi_args);
         EmitAssembly(c, m, fn, ZIR_C, cret);
@@ -2789,7 +2780,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         /* Private helpers use prefixes outside the ziran_init_ namespace:
          * appending suffixes collides with modules named mail_state or
          * mail_constructor when mail imports them. */
-        fprintf(c, "\nstatic %sint ziran_state_%s;", EmitRunGuardsEnabled() ? "ZIR_GLOBAL " : "", init_name);
+        fprintf(c, "\nstatic int ziran_state_%s;", init_name);
         fprintf(c, "\nvoid\n%s(void)\n{\n"
                    "    if(ziran_state_%s == 2) return;\n"
                    "    if(ziran_state_%s == 1) abort();\n"
@@ -2811,8 +2802,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             }
         fprintf(c, "    ziran_state_%s = 2;\n}\n", init_name);
     }
-    /* The native engine runs module initializers when an instance starts. */
-    if(startup_count && !EmitRunGuardsEnabled()) {
+    if(startup_count) {
         fprintf(c, "\n__attribute__((constructor)) static void\n"
                    "ziran_constructor_%s(void)\n{\n"
                    "    %s();\n}\n", init_name, init_name);

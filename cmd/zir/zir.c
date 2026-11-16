@@ -2253,69 +2253,6 @@ dump_expr(const ZirFunction *fn, int index, FILE *out, int indent)
         dump_expr(fn, child, out, indent + 1);
 }
 
-void
-ProgramDump(const ZirProgram *program, FILE *out)
-{
-    int i;
-
-    if(out == NULL)
-        return;
-    fprintf(out, "zir 1\n");
-    if(program == NULL)
-        return;
-    for(i = 0; i < program->module_count; i++) {
-        const ZirModule *m = &program->modules[i];
-        int j;
-
-        fprintf(out, "module %s source %s span ", m->name, m->source_path);
-        dump_span(out, m->span);
-        fprintf(out, "\n");
-        for(j = 0; j < m->import_count; j++) {
-            const ZirImport *imp = &m->imports[j];
-
-            fprintf(out, "  import %s %s target %s",
-                    ImportKindName(imp->kind), imp->name, imp->target);
-            if(imp->kind == ZIR_IMPORT_EXTERN)
-                fprintf(out, " extern_kind %s extern_symbol %s",
-                        ExternKindName(imp->extern_kind),
-                        imp->extern_symbol);
-            fprintf(out, " required %d signature %s span ",
-                    imp->required, imp->signature);
-            dump_span(out, imp->span);
-            fprintf(out, "\n");
-        }
-        for(j = 0; j < m->assert_count; j++) {
-            const ZirAssert *a = &m->asserts[j];
-
-            fprintf(out, "  assert condition %s message %s span ",
-                    a->condition, a->message);
-            dump_span(out, a->span);
-            fprintf(out, "\n");
-        }
-        for(j = 0; j < m->function_count; j++) {
-            const ZirFunction *fn = &m->functions[j];
-            int k;
-
-            fprintf(out, "  function %s args %s return %s exported %d span ",
-                    fn->name, FunctionArgs(fn), fn->return_type, fn->exported);
-            dump_span(out, fn->span);
-            fprintf(out, "\n");
-            for(k = 0; k < fn->stmt_count; k++) {
-                const ZirStmt *st = &fn->stmts[k];
-
-                fprintf(out, "    stmt %s text %s span ",
-                        StmtKindName(st->kind), st->text);
-                dump_span(out, st->span);
-                fprintf(out, "\n");
-                if(st->expr_root >= 0)
-                    dump_expr(fn, st->expr_root, out, 3);
-                if(st->lhs_root >= 0)
-                    dump_expr(fn, st->lhs_root, out, 3);
-            }
-        }
-    }
-}
-
 typedef struct GeneratedOutputs {
     char **paths;
     int count, capacity;

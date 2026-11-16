@@ -2,12 +2,11 @@
  * ziran_simd.h - Ziran's fixed-width SIMD vectors in generated C.
  *
  * Every operation has one exact definition: zi_ref below computes it lane by
- * lane on bit patterns, and the portable VM runs that same code. GCC and
+ * lane on bit patterns, and the engine runs that same code. GCC and
  * Clang builds use native vectors with SSE2..AVX2, NEON or WebAssembly
- * SIMD128 instructions that give identical bits; other compilers, such as
- * TinyCC, and ZIRAN_SIMD_SCALAR builds keep lane arrays and run plain C over
- * each type's own lanes, TinyCC on x86-64 SSE2 assembly for the common
- * integer helpers.
+ * SIMD128 instructions that give identical bits; other compilers and
+ * ZIRAN_SIMD_SCALAR builds keep lane arrays and run plain C over each type's
+ * own lanes.
  *
  * Lanes are numbered from the lowest address. Viewing a vector as bytes
  * (Reinterpret, byte shifts) uses little-endian lanes on every host.
@@ -218,17 +217,11 @@ static inline uint64_t zi_int_to_float(uint64_t bits, int from, int to)
  * lane operand (Splat, WithLane) is b[0]; Make reads its lanes from a.
  * Scalar results are out[0]. Only ARMv7 NEON's float arithmetic calls it
  * from a helper; elsewhere it is the oracle the tests check helpers against.
- * TinyCC compiles a static inline function only where something calls it,
- * so its programs, whose helpers never do, skip zi_ref.
  */
-#if defined(__TINYC__)
-static inline void
-#else
 #if defined(__GNUC__)
 __attribute__((unused))
 #endif
 static void
-#endif
 zi_ref(int op, int r, int rn, int ak, int an, const uint64_t *a,
        const uint64_t *b, const uint64_t *c, const int64_t *k, uint64_t *out)
 {
@@ -546,10 +539,10 @@ zi_simd_gather_check(const void *indices, int lanes, int is_signed, int64_t leng
     }
 }
 
-/* Compilers that never inline, such as TinyCC and unoptimized GCC or Clang,
- * check in place and call only to report. Neither keeps type-based aliasing,
- * so index lanes are read as they lie. */
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+/* Unoptimized GCC or Clang never inlines, so it checks in place and calls
+ * only to report. It keeps no type-based aliasing, so index lanes are read
+ * as they lie. */
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
 #define zi_simd_at(data, length, index, count, lane) __extension__ ({ \
         const char *__zi_at_data = (const char *)(data); \
         int64_t __zi_at_length = (length), __zi_at = (index); \

@@ -35,7 +35,7 @@
   let revision = 0;
   let worker;
   let deadline;
-  const ms = value => value == null ? '—' : value < 0.001 ? (value * 1000000).toFixed(1) + ' ns' : value < 1 ? (value * 1000).toFixed(2) + ' µs' : value.toFixed(2) + ' ms';
+  const ms = value => value == null ? '—' : Number((value * 1000).toPrecision(3)).toString();
   const measurement = (example, target) => data.platforms[platform]?.examples[example.id]?.[target];
   const bytes = value => value == null ? '—' : value.toLocaleString() + ' B';
   function stop() {
@@ -157,7 +157,7 @@
       label.textContent = snapshot.runtimes[label.dataset.runtime].split(' · ').slice(1).join(' · ');
     });
     document.getElementById('matrix-metric-note').textContent = metric === 'size' ? 'Emitted file bytes, including C headers and imported modules; excludes linked executables and external runtimes. Size and emission are independent of the platform selector.' : metric === 'emission' ? 'Measured on the desktop build host: load, check, link and emit. Downstream C and Go builds are excluded. The selected platform changes execution measurements.' : snapshot.methodology + ' ZIR is a shared stage with no execution timing.';
-    document.getElementById('matrix-provenance').textContent = snapshot.label + ' · ' + snapshot.host + ' · measured ' + snapshot.measured_at.slice(0, 10) + ' · ' + snapshot.samples + ' measured batches · compiler base ' + data.revision.slice(0, 10) + (data.compiler_dirty ? ' with local compiler edits (exact hashes in the snapshot).' : '.');
+    document.getElementById('matrix-provenance').textContent = snapshot.samples + ' measured batches. Raw samples and provenance below.';
     const snapshotLink = document.createElement('a');
     snapshotLink.href = 'generated/targets/matrix.json';
     snapshotLink.textContent = 'Download all samples and provenance ↓';
@@ -193,7 +193,7 @@
   });
   document.querySelector('.matrix-views').hidden = false;
   document.querySelector('.matrix-metric').hidden = false;
-  document.querySelector('.matrix-platform').hidden = false;
+  document.querySelector('.matrix-platform').hidden = true;
   refreshMatrix();
   function fromHash() {
     const [id, target] = location.hash.slice(1).split('/');

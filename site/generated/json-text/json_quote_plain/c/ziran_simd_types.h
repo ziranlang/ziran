@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 /* Native vectors need __builtin_shufflevector: Clang, or GCC 12 and later. */
-#if !defined(ZIRAN_SIMD_SCALAR) && !defined(__TINYC__) && \
+#if !defined(ZIRAN_SIMD_SCALAR) && \
     (defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)) && \
     defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define ZI_VEC 1

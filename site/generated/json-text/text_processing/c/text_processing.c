@@ -28,7 +28,7 @@ text_processing_Answer(void)
         }
     }
     Slice value_2 = {(input).data, (input).count};
-    Slice value_3 = SliceRange(value_2, 0LL, input.count, sizeof(*(input).data));
+    Slice value_3 = SliceRangeAt(value_2, 0LL, input.count, sizeof(*(input).data));
     String text = StringView((const char *)(value_3).data, (size_t)(value_3).length);
     int64_t found = text_tools_TextFind(text, StringLiteral("beta\n"), (int64_t)((uint64_t)((int64_t)(text).length) - UINT64_C(18)));
     if (found != (int64_t)((uint64_t)((int64_t)(text).length) - UINT64_C(5)) || Count(text) != 14336) {
@@ -40,8 +40,8 @@ text_processing_Answer(void)
     }
     __type_c53c2d7c4913dc02 lines = text_tools_TextSplit(rewritten, StringLiteral("\n"));
     __type_c53c2d7c4913dc02* value_4 = &lines;
-    bool value_5 = lines.count != 1025LL || !StringEqual(ZIRAN_VEC_INDEX((lines).data, (lines).count, 0), StringLiteral("A \316\273\360\237\230\200 beta"));
-    if (value_5 || !StringEqual(ZIRAN_VEC_INDEX((lines).data, (lines).count, 1024), StringLiteral(""))) {
+    bool value_5 = lines.count != 1025LL || !StringEqual((lines).data[0], StringLiteral("A \316\273\360\237\230\200 beta"));
+    if (value_5 || !StringEqual((lines).data[1024], StringLiteral(""))) {
         int64_t value_6 = -4LL;
         free((*value_4).data);
         (*value_4).data = NULL;

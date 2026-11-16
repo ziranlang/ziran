@@ -41,11 +41,12 @@ func JsonStringScan_Answer() int64 {
 			return -1
 		}
 		for index := int64(0); index <= 16383; index++ {
-			(input).Data[index] = 120
+			value_5 := &((input).Data[index])
+			(*value_5) = 120
 		}
-		(input).Data[16384] = 34
+		value_6 := &((input).Data[16384])
+		(*value_6) = 34
 	}
-	if 0 < 0 || input.Count < 0 || input.Count > input.Count { panic("slice range out of bounds") }
 	end := JsonBytes_JsonStringRunEnd(string(input.Data[0:input.Count]), 0)
 	if end != 16384 || (input).Data[end] != 34 {
 		return -2

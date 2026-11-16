@@ -101,14 +101,20 @@ func JsonDocument_Add(document *JsonDocument, kind JsonKind, text string) int32 
 		value_0 = !value_3
 	}
 	if value_0 {
-		document.Error = "out of memory reading JSON"
+		value_6 := &(document.Error)
+		(*value_6) = "out of memory reading JSON"
 		return -1
 	}
-	((document.Nodes).Data[at]).Kind = kind
-	((document.Nodes).Data[at]).Text = text
-	((document.Nodes).Data[at]).First = -1
-	((document.Nodes).Data[at]).Last = -1
-	((document.Nodes).Data[at]).Next = -1
+	value_7 := &(((document.Nodes).Data[at]).Kind)
+	(*value_7) = kind
+	value_8 := &(((document.Nodes).Data[at]).Text)
+	(*value_8) = text
+	value_9 := &(((document.Nodes).Data[at]).First)
+	(*value_9) = -1
+	value_10 := &(((document.Nodes).Data[at]).Last)
+	(*value_10) = -1
+	value_11 := &(((document.Nodes).Data[at]).Next)
+	(*value_11) = -1
 	return int32(at)
 }
 
@@ -121,7 +127,6 @@ func JsonDocument_EraseBuffer(document *JsonDocument, bytes *__type_838711075b90
 	if document.Erase != nil && owned.Count > 0 {
 		var value_2 JsonEraser = document.Erase
 		var value_3 *byte = document.EraseContext
-		if 0 < 0 || owned.Count < 0 || owned.Count > owned.Count { panic("slice range out of bounds") }
 		value_2(value_3, owned.Data[0:owned.Count])
 	}
 	(*value_0).Data = nil
@@ -269,14 +274,19 @@ func JsonDocument_EqualText(document *JsonDocument, node int32, key bool, value 
 }
 
 func JsonDocument_Link(document *JsonDocument, parent int32, child int32) {
-	((document.Nodes).Data[child]).Next = -1
+	value_0 := &(((document.Nodes).Data[child]).Next)
+	(*value_0) = -1
 	if ((document.Nodes).Data[parent]).Last < 0 {
-		((document.Nodes).Data[parent]).First = child
+		value_1 := &(((document.Nodes).Data[parent]).First)
+		(*value_1) = child
 	} else {
-		((document.Nodes).Data[((document.Nodes).Data[parent]).Last]).Next = child
+		value_2 := &(((document.Nodes).Data[((document.Nodes).Data[parent]).Last]).Next)
+		(*value_2) = child
 	}
-	((document.Nodes).Data[parent]).Last = child
-	((document.Nodes).Data[parent]).Count++
+	value_3 := &(((document.Nodes).Data[parent]).Last)
+	(*value_3) = child
+	value_4 := &(((document.Nodes).Data[parent]).Count)
+	(*value_4)++
 }
 
 func JsonDocument_Skip(reader *Reader) {
@@ -285,13 +295,15 @@ func JsonDocument_Skip(reader *Reader) {
 		if ziran_keyword_byte_0 != 32 && ziran_keyword_byte_0 != 9 && ziran_keyword_byte_0 != 10 && ziran_keyword_byte_0 != 13 {
 			return
 		}
-		reader.At++
+		value_0 := &(reader.At)
+		(*value_0)++
 	}
 }
 
 func JsonDocument_Fail(reader *Reader, message string) int32 {
 	if int64(len(reader.Error)) == 0 {
-		reader.Error = message
+		value_0 := &(reader.Error)
+		(*value_0) = message
 	}
 	return -1
 }
@@ -428,7 +440,8 @@ func JsonDocument_PutCodePoint(bytes *__type_838711075b90279a, point int32) bool
 }
 
 func JsonDocument_ReadString(reader *Reader, text string, ok *bool, bytes *__type_838711075b90279a) string {
-	(*(ok)) = false
+	value_0 := &((*(ok)))
+	(*value_0) = false
 	start := reader.At + 1
 	at := JsonBytes_JsonStringRunEnd(reader.Text, start)
 	plain := true
@@ -440,7 +453,8 @@ func JsonDocument_ReadString(reader *Reader, text string, ok *bool, bytes *__typ
 		}
 		if ziran_keyword_byte_0 < 32 {
 			JsonDocument_Fail(reader, "control character in a string")
-			reader.At = at
+			value_1 := &(reader.At)
+			(*value_1) = at
 			return ""
 		}
 		if ziran_keyword_byte_0 == 92 {
@@ -451,31 +465,34 @@ func JsonDocument_ReadString(reader *Reader, text string, ok *bool, bytes *__typ
 	}
 	if at >= int64(len(reader.Text)) {
 		JsonDocument_Fail(reader, "unterminated string")
-		reader.At = at
+		value_2 := &(reader.At)
+		(*value_2) = at
 		return ""
 	}
 	if plain {
-		reader.At = at + 1
-		(*(ok)) = true
+		value_3 := &(reader.At)
+		(*value_3) = at + 1
+		value_4 := &((*(ok)))
+		(*value_4) = true
 		return text[start:at]
 	}
-	var value_1 int64 = at - start
-	var value_2 bool = false
-	value_2 = func() (ok bool) {
+	var value_6 int64 = at - start
+	var value_7 bool = false
+	value_7 = func() (ok bool) {
 		defer func() { if recover() != nil { ok = false } }()
-		if value_1 < 0 { return false }
-		if value_1 > (*(bytes)).Capacity {
-			var value_0 uint8
-			if uint64(value_1) > uint64(^uint(0) >> 1) { return false }
-			if unsafe.Sizeof(value_0) != 0 && uint64(value_1) > uint64(^uint(0) >> 1)/uint64(unsafe.Sizeof(value_0)) { return false }
-			value_3 := make([]uint8, (*(bytes)).Count, int(value_1))
-			copy(value_3, (*(bytes)).Data[:(*(bytes)).Count])
-			(*(bytes)).Data = value_3
-			(*(bytes)).Capacity = value_1
+		if value_6 < 0 { return false }
+		if value_6 > (*(bytes)).Capacity {
+			var value_5 uint8
+			if uint64(value_6) > uint64(^uint(0) >> 1) { return false }
+			if unsafe.Sizeof(value_5) != 0 && uint64(value_6) > uint64(^uint(0) >> 1)/uint64(unsafe.Sizeof(value_5)) { return false }
+			value_8 := make([]uint8, (*(bytes)).Count, int(value_6))
+			copy(value_8, (*(bytes)).Data[:(*(bytes)).Count])
+			(*(bytes)).Data = value_8
+			(*(bytes)).Capacity = value_6
 		}
 		return true
 	}()
-	if !value_2 {
+	if !value_7 {
 		JsonDocument_Fail(reader, "out of memory reading JSON")
 		return ""
 	}
@@ -484,13 +501,13 @@ func JsonDocument_ReadString(reader *Reader, text string, ok *bool, bytes *__typ
 		ziran_keyword_byte_0 := reader.Text[at]
 		_ = ziran_keyword_byte_0
 		if ziran_keyword_byte_0 != 92 {
-			var value_5 uint8 = ziran_keyword_byte_0
-			var value_6 bool = false
-			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_5)
+			var value_10 uint8 = ziran_keyword_byte_0
+			var value_11 bool = false
+			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_10)
 			(*(bytes)).Count = int64(len((*(bytes)).Data))
 			(*(bytes)).Capacity = int64(cap((*(bytes)).Data))
-			value_6 = true
-			if !value_6 {
+			value_11 = true
+			if !value_11 {
 				JsonDocument_Fail(reader, "out of memory reading JSON")
 				return ""
 			}
@@ -501,58 +518,59 @@ func JsonDocument_ReadString(reader *Reader, text string, ok *bool, bytes *__typ
 		at += 2
 		saved := true
 		if escape == 34 || escape == 92 || escape == 47 {
-			var value_7 uint8 = escape
-			var value_8 bool = false
-			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_7)
+			var value_12 uint8 = escape
+			var value_13 bool = false
+			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_12)
 			(*(bytes)).Count = int64(len((*(bytes)).Data))
 			(*(bytes)).Capacity = int64(cap((*(bytes)).Data))
-			value_8 = true
-			saved = value_8
+			value_13 = true
+			saved = value_13
 		} else if escape == 98 {
-			var value_9 uint8 = 8
-			var value_10 bool = false
-			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_9)
+			var value_14 uint8 = 8
+			var value_15 bool = false
+			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_14)
 			(*(bytes)).Count = int64(len((*(bytes)).Data))
 			(*(bytes)).Capacity = int64(cap((*(bytes)).Data))
-			value_10 = true
-			saved = value_10
+			value_15 = true
+			saved = value_15
 		} else if escape == 102 {
-			var value_11 uint8 = 12
-			var value_12 bool = false
-			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_11)
+			var value_16 uint8 = 12
+			var value_17 bool = false
+			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_16)
 			(*(bytes)).Count = int64(len((*(bytes)).Data))
 			(*(bytes)).Capacity = int64(cap((*(bytes)).Data))
-			value_12 = true
-			saved = value_12
+			value_17 = true
+			saved = value_17
 		} else if escape == 110 {
-			var value_13 uint8 = 10
-			var value_14 bool = false
-			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_13)
+			var value_18 uint8 = 10
+			var value_19 bool = false
+			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_18)
 			(*(bytes)).Count = int64(len((*(bytes)).Data))
 			(*(bytes)).Capacity = int64(cap((*(bytes)).Data))
-			value_14 = true
-			saved = value_14
+			value_19 = true
+			saved = value_19
 		} else if escape == 114 {
-			var value_15 uint8 = 13
-			var value_16 bool = false
-			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_15)
+			var value_20 uint8 = 13
+			var value_21 bool = false
+			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_20)
 			(*(bytes)).Count = int64(len((*(bytes)).Data))
 			(*(bytes)).Capacity = int64(cap((*(bytes)).Data))
-			value_16 = true
-			saved = value_16
+			value_21 = true
+			saved = value_21
 		} else if escape == 116 {
-			var value_17 uint8 = 9
-			var value_18 bool = false
-			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_17)
+			var value_22 uint8 = 9
+			var value_23 bool = false
+			(*(bytes)).Data = append((*(bytes)).Data[:(*(bytes)).Count], value_22)
 			(*(bytes)).Count = int64(len((*(bytes)).Data))
 			(*(bytes)).Capacity = int64(cap((*(bytes)).Data))
-			value_18 = true
-			saved = value_18
+			value_23 = true
+			saved = value_23
 		} else if escape == 117 {
 			point := JsonDocument_Hex4(reader, at)
 			if point < 0 {
 				JsonDocument_Fail(reader, "invalid \\u escape")
-				reader.At = at
+				value_24 := &(reader.At)
+				(*value_24) = at
 				return ""
 			}
 			at += 4
@@ -566,7 +584,8 @@ func JsonDocument_ReadString(reader *Reader, text string, ok *bool, bytes *__typ
 			saved = JsonDocument_PutCodePoint(bytes, point)
 		} else {
 			JsonDocument_Fail(reader, "invalid escape")
-			reader.At = at - 1
+			value_25 := &(reader.At)
+			(*value_25) = at - 1
 			return ""
 		}
 		if !saved {
@@ -574,8 +593,10 @@ func JsonDocument_ReadString(reader *Reader, text string, ok *bool, bytes *__typ
 			return ""
 		}
 	}
-	reader.At = at + 1
-	(*(ok)) = true
+	value_26 := &(reader.At)
+	(*value_26) = at + 1
+	value_27 := &((*(ok)))
+	(*value_27) = true
 	return ""
 }
 
@@ -615,16 +636,17 @@ func JsonDocument_ReadNumber(reader *Reader, document *JsonDocument) int32 {
 			value_4 = !value_5
 		}
 		if value_4 {
-			reader.At = at
+			value_6 := &(reader.At)
+			(*value_6) = at
 			return JsonDocument_Fail(reader, "invalid number")
 		}
 		for {
-			var value_6 bool = at < int64(len(text))
-			if value_6 {
-				var value_7 bool = JsonDocument_Digit(text[at])
-				value_6 = value_7
+			var value_7 bool = at < int64(len(text))
+			if value_7 {
+				var value_8 bool = JsonDocument_Digit(text[at])
+				value_7 = value_8
 			}
-			if !value_6 { break }
+			if !value_7 { break }
 			at++
 		}
 	}
@@ -633,26 +655,28 @@ func JsonDocument_ReadNumber(reader *Reader, document *JsonDocument) int32 {
 		if at < int64(len(text)) && (text[at] == 43 || text[at] == 45) {
 			at++
 		}
-		var value_8 bool = at >= int64(len(text))
-		if !value_8 {
-			var value_9 bool = JsonDocument_Digit(text[at])
-			value_8 = !value_9
+		var value_9 bool = at >= int64(len(text))
+		if !value_9 {
+			var value_10 bool = JsonDocument_Digit(text[at])
+			value_9 = !value_10
 		}
-		if value_8 {
-			reader.At = at
+		if value_9 {
+			value_11 := &(reader.At)
+			(*value_11) = at
 			return JsonDocument_Fail(reader, "invalid number")
 		}
 		for {
-			var value_10 bool = at < int64(len(text))
-			if value_10 {
-				var value_11 bool = JsonDocument_Digit(text[at])
-				value_10 = value_11
+			var value_12 bool = at < int64(len(text))
+			if value_12 {
+				var value_13 bool = JsonDocument_Digit(text[at])
+				value_12 = value_13
 			}
-			if !value_10 { break }
+			if !value_12 { break }
 			at++
 		}
 	}
-	reader.At = at
+	value_14 := &(reader.At)
+	(*value_14) = at
 	return JsonDocument_Add(document, JsonKindNumber, text[start:at])
 }
 
@@ -661,11 +685,11 @@ func JsonDocument_Literal(reader *Reader, word string) bool {
 		return false
 	}
 	value_0 := reader.Text
-	if int64(reader.At) < 0 || int64((reader.At + int64(len(word)))) < int64(reader.At) || int64((reader.At + int64(len(word)))) > int64(len(value_0)) { panic("string range out of bounds") }
 	if value_0[reader.At:(reader.At + int64(len(word)))] != word {
 		return false
 	}
-	reader.At += int64(len(word))
+	value_1 := &(reader.At)
+	(*value_1) += int64(len(word))
 	return true
 }
 
@@ -683,10 +707,12 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 		if object < 0 {
 			return JsonDocument_Fail(reader, document.Error)
 		}
-		reader.At++
+		value_0 := &(reader.At)
+		(*value_0)++
 		JsonDocument_Skip(reader)
 		if reader.At < int64(len(reader.Text)) && reader.Text[reader.At] == 125 {
-			reader.At++
+			value_1 := &(reader.At)
+			(*value_1)++
 			return object
 		}
 		for true {
@@ -697,18 +723,18 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 			ok := false
 			_ = ok
 			var key_bytes __type_838711075b90279a = __type_838711075b90279a{}
-			var value_0 *__type_838711075b90279a = &key_bytes
+			var value_2 *__type_838711075b90279a = &key_bytes
 			key := JsonDocument_ReadString(reader, reader.Text, &(ok), &(key_bytes))
 			if !ok {
 				var cleanup_return_0 int32 = -1
 				{
 					JsonDocument_EraseBuffer(document, &(key_bytes))
 				}
-				var value_1 int32 = cleanup_return_0
-				(*value_0).Data = nil
-				(*value_0).Capacity = 0
-				(*value_0).Count = 0
-				return value_1
+				var value_3 int32 = cleanup_return_0
+				(*value_2).Data = nil
+				(*value_2).Capacity = 0
+				(*value_2).Count = 0
+				return value_3
 			}
 			JsonDocument_Skip(reader)
 			if reader.At >= int64(len(reader.Text)) || reader.Text[reader.At] != 58 {
@@ -716,13 +742,14 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 				{
 					JsonDocument_EraseBuffer(document, &(key_bytes))
 				}
-				var value_2 int32 = cleanup_return_1
-				(*value_0).Data = nil
-				(*value_0).Capacity = 0
-				(*value_0).Count = 0
-				return value_2
+				var value_4 int32 = cleanup_return_1
+				(*value_2).Data = nil
+				(*value_2).Capacity = 0
+				(*value_2).Count = 0
+				return value_4
 			}
-			reader.At++
+			value_5 := &(reader.At)
+			(*value_5)++
 			value := JsonDocument_ReadValue(reader, document, depth + 1)
 			_ = value
 			if value < 0 {
@@ -730,16 +757,17 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 				{
 					JsonDocument_EraseBuffer(document, &(key_bytes))
 				}
-				var value_3 int32 = cleanup_return_2
-				(*value_0).Data = nil
-				(*value_0).Capacity = 0
-				(*value_0).Count = 0
-				return value_3
+				var value_6 int32 = cleanup_return_2
+				(*value_2).Data = nil
+				(*value_2).Capacity = 0
+				(*value_2).Count = 0
+				return value_6
 			}
-			((document.Nodes).Data[value]).Key = key
-			var value_4 __type_838711075b90279a = ((document.Nodes).Data[value]).OwnedKey
+			value_7 := &(((document.Nodes).Data[value]).Key)
+			(*value_7) = key
+			var value_8 __type_838711075b90279a = ((document.Nodes).Data[value]).OwnedKey
 			((document.Nodes).Data[value]).OwnedKey = key_bytes
-			key_bytes = value_4
+			key_bytes = value_8
 			JsonDocument_Link(document, object, value)
 			JsonDocument_Skip(reader)
 			if reader.At >= int64(len(reader.Text)) {
@@ -747,43 +775,45 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 				{
 					JsonDocument_EraseBuffer(document, &(key_bytes))
 				}
-				var value_5 int32 = cleanup_return_3
-				(*value_0).Data = nil
-				(*value_0).Capacity = 0
-				(*value_0).Count = 0
-				return value_5
+				var value_9 int32 = cleanup_return_3
+				(*value_2).Data = nil
+				(*value_2).Capacity = 0
+				(*value_2).Count = 0
+				return value_9
 			}
 			if reader.Text[reader.At] == 44 {
-				reader.At++
+				value_10 := &(reader.At)
+				(*value_10)++
 				{
 					JsonDocument_EraseBuffer(document, &(key_bytes))
 				}
-				(*value_0).Data = nil
-				(*value_0).Capacity = 0
-				(*value_0).Count = 0
+				(*value_2).Data = nil
+				(*value_2).Capacity = 0
+				(*value_2).Count = 0
 				continue
 			}
 			if reader.Text[reader.At] == 125 {
-				reader.At++
+				value_11 := &(reader.At)
+				(*value_11)++
 				cleanup_return_4 := object
 				{
 					JsonDocument_EraseBuffer(document, &(key_bytes))
 				}
-				var value_6 int32 = cleanup_return_4
-				(*value_0).Data = nil
-				(*value_0).Capacity = 0
-				(*value_0).Count = 0
-				return value_6
+				var value_12 int32 = cleanup_return_4
+				(*value_2).Data = nil
+				(*value_2).Capacity = 0
+				(*value_2).Count = 0
+				return value_12
 			}
 			cleanup_return_5 := JsonDocument_Fail(reader, "expected ',' or '}'")
 			{
 				JsonDocument_EraseBuffer(document, &(key_bytes))
 			}
-			var value_7 int32 = cleanup_return_5
-			(*value_0).Data = nil
-			(*value_0).Capacity = 0
-			(*value_0).Count = 0
-			return value_7
+			var value_13 int32 = cleanup_return_5
+			(*value_2).Data = nil
+			(*value_2).Capacity = 0
+			(*value_2).Count = 0
+			return value_13
 		}
 	}
 	if ziran_keyword_byte_0 == 91 {
@@ -791,10 +821,12 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 		if array < 0 {
 			return JsonDocument_Fail(reader, document.Error)
 		}
-		reader.At++
+		value_14 := &(reader.At)
+		(*value_14)++
 		JsonDocument_Skip(reader)
 		if reader.At < int64(len(reader.Text)) && reader.Text[reader.At] == 93 {
-			reader.At++
+			value_15 := &(reader.At)
+			(*value_15)++
 			return array
 		}
 		for true {
@@ -809,11 +841,13 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 				return JsonDocument_Fail(reader, "unterminated array")
 			}
 			if reader.Text[reader.At] == 44 {
-				reader.At++
+				value_16 := &(reader.At)
+				(*value_16)++
 				continue
 			}
 			if reader.Text[reader.At] == 93 {
-				reader.At++
+				value_17 := &(reader.At)
+				(*value_17)++
 				return array
 			}
 			return JsonDocument_Fail(reader, "expected ',' or ']'")
@@ -823,18 +857,18 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 		ok := false
 		_ = ok
 		var bytes __type_838711075b90279a = __type_838711075b90279a{}
-		var value_8 *__type_838711075b90279a = &bytes
+		var value_18 *__type_838711075b90279a = &bytes
 		text := JsonDocument_ReadString(reader, reader.Text, &(ok), &(bytes))
 		if !ok {
 			var cleanup_return_6 int32 = -1
 			{
 				JsonDocument_EraseBuffer(document, &(bytes))
 			}
-			var value_9 int32 = cleanup_return_6
-			(*value_8).Data = nil
-			(*value_8).Capacity = 0
-			(*value_8).Count = 0
-			return value_9
+			var value_19 int32 = cleanup_return_6
+			(*value_18).Data = nil
+			(*value_18).Capacity = 0
+			(*value_18).Count = 0
+			return value_19
 		}
 		node := JsonDocument_Add(document, JsonKindString, text)
 		if node < 0 {
@@ -842,31 +876,31 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 			{
 				JsonDocument_EraseBuffer(document, &(bytes))
 			}
-			var value_10 int32 = cleanup_return_7
-			(*value_8).Data = nil
-			(*value_8).Capacity = 0
-			(*value_8).Count = 0
-			return value_10
+			var value_20 int32 = cleanup_return_7
+			(*value_18).Data = nil
+			(*value_18).Capacity = 0
+			(*value_18).Count = 0
+			return value_20
 		}
-		var value_11 __type_838711075b90279a = ((document.Nodes).Data[node]).OwnedText
+		var value_21 __type_838711075b90279a = ((document.Nodes).Data[node]).OwnedText
 		((document.Nodes).Data[node]).OwnedText = bytes
-		bytes = value_11
+		bytes = value_21
 		cleanup_return_8 := node
 		{
 			JsonDocument_EraseBuffer(document, &(bytes))
 		}
-		var value_12 int32 = cleanup_return_8
-		(*value_8).Data = nil
-		(*value_8).Capacity = 0
-		(*value_8).Count = 0
-		return value_12
+		var value_22 int32 = cleanup_return_8
+		(*value_18).Data = nil
+		(*value_18).Capacity = 0
+		(*value_18).Count = 0
+		return value_22
 	}
-	var value_13 bool = ziran_keyword_byte_0 == 45
-	if !value_13 {
-		var value_14 bool = JsonDocument_Digit(ziran_keyword_byte_0)
-		value_13 = value_14
+	var value_23 bool = ziran_keyword_byte_0 == 45
+	if !value_23 {
+		var value_24 bool = JsonDocument_Digit(ziran_keyword_byte_0)
+		value_23 = value_24
 	}
-	if value_13 {
+	if value_23 {
 		return JsonDocument_ReadNumber(reader, document)
 	}
 	if JsonDocument_Literal(reader, "true") {
@@ -882,8 +916,10 @@ func JsonDocument_ReadValue(reader *Reader, document *JsonDocument, depth int32)
 }
 
 func JsonDocument_JsonSetEraser(document *JsonDocument, erase JsonEraser, context *byte) {
-	document.Erase = erase
-	document.EraseContext = context
+	value_0 := &(document.Erase)
+	(*value_0) = erase
+	value_1 := &(document.EraseContext)
+	(*value_1) = context
 }
 
 func JsonDocument_JsonReset(document *JsonDocument) {
@@ -913,9 +949,12 @@ func JsonDocument_JsonReset(document *JsonDocument) {
 	}
 	document.Nodes.Data = document.Nodes.Data[:0]
 	document.Nodes.Count = 0
-	document.Root = -1
-	document.Error = ""
-	document.ErrorAt = 0
+	value_1 := &(document.Root)
+	(*value_1) = -1
+	value_2 := &(document.Error)
+	(*value_2) = ""
+	value_3 := &(document.ErrorAt)
+	(*value_3) = 0
 }
 
 func JsonDocument_JsonRead(document *JsonDocument, text string, erase JsonEraser, erase_context *byte) bool {
@@ -925,7 +964,8 @@ func JsonDocument_JsonRead(document *JsonDocument, text string, erase JsonEraser
 	JsonDocument_JsonReset(document)
 	JsonDocument_JsonSetEraser(document, erase, erase_context)
 	var reader Reader = Reader{}
-	reader.Text = text
+	value_0 := &(reader.Text)
+	(*value_0) = text
 	root := JsonDocument_ReadValue(&(reader), document, 0)
 	if root >= 0 {
 		JsonDocument_Skip(&(reader))
@@ -935,14 +975,18 @@ func JsonDocument_JsonRead(document *JsonDocument, text string, erase JsonEraser
 	}
 	if root < 0 {
 		JsonDocument_JsonReset(document)
-		document.Error = reader.Error
+		value_1 := &(document.Error)
+		(*value_1) = reader.Error
 		if document.Error == "" {
-			document.Error = "out of memory reading JSON"
+			value_2 := &(document.Error)
+			(*value_2) = "out of memory reading JSON"
 		}
-		document.ErrorAt = reader.At
+		value_3 := &(document.ErrorAt)
+		(*value_3) = reader.At
 		return false
 	}
-	document.Root = root
+	value_4 := &(document.Root)
+	(*value_4) = root
 	return true
 }
 

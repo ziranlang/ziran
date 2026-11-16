@@ -32,9 +32,9 @@ json_write_Answer(void)
     __type_838711075b90279a output = {0};
     __type_838711075b90279a* value_2 = &output;
     Slice value_3 = {(input).data, (input).count};
-    Slice value_4 = SliceRange(value_3, 0LL, input.count, sizeof(*(input).data));
+    Slice value_4 = SliceRangeAt(value_3, 0LL, input.count, sizeof(*(input).data));
     bool value_5 = json_quote_JsonQuoteInto(&(output), StringView((const char *)(value_4).data, (size_t)(value_4).length), true);
-    if (!value_5 || output.count != 5378LL || ZIRAN_VEC_INDEX((output).data, (output).count, 0) != 34 || ZIRAN_VEC_INDEX((output).data, (output).count, 5377) != 34) {
+    if (!value_5 || output.count != 5378LL || (output).data[0] != 34 || (output).data[5377] != 34) {
         int64_t value_6 = -2LL;
         free((*value_2).data);
         (*value_2).data = NULL;
@@ -42,21 +42,18 @@ json_write_Answer(void)
         (*value_2).count = 0;
         return value_6;
     }
-    bool value_7 = ZIRAN_VEC_INDEX((output).data, (output).count, 4) != 92 || ZIRAN_VEC_INDEX((output).data, (output).count, 5) != 117;
-    if (value_7 || ZIRAN_VEC_INDEX((output).data, (output).count, 10) != 92) {
-        int64_t value_8 = -3LL;
+    if ((output).data[4] != 92 || (output).data[5] != 117 || (output).data[10] != 92) {
+        int64_t value_7 = -3LL;
         free((*value_2).data);
         (*value_2).data = NULL;
         (*value_2).capacity = 0;
         (*value_2).count = 0;
-        return value_8;
+        return value_7;
     }
-    int64_t value_9 = (int64_t)((uint64_t)(output.count) + (uint64_t)(ZIRAN_VEC_INDEX((output).data, (output).count, 0)));
-    uint8_t value_10 = ZIRAN_VEC_INDEX((output).data, (output).count, ((int64_t)((uint64_t)(output.count) - UINT64_C(1))));
-    int64_t value_11 = (int64_t)((uint64_t)value_9 + (uint64_t)(value_10));
+    int64_t value_8 = (int64_t)(((uint64_t)(output.count) + (uint64_t)((output).data[0])) + (uint64_t)((output).data[((int64_t)((uint64_t)(output.count) - UINT64_C(1)))]));
     free((*value_2).data);
     (*value_2).data = NULL;
     (*value_2).capacity = 0;
     (*value_2).count = 0;
-    return value_11;
+    return value_8;
 }

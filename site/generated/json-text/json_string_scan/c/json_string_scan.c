@@ -26,15 +26,17 @@ json_string_scan_Answer(void)
             return -1LL;
         }
         for (int64_t index = 0LL; index <= 16383LL; index++) {
-            ZIRAN_VEC_INDEX((input).data, (input).count, index) = 120;
+            uint8_t* value_5 = &(ZIRAN_VEC_INDEX((input).data, (input).count, index));
+            (*value_5) = 120;
         }
-        ZIRAN_VEC_INDEX((input).data, (input).count, 16384) = 34;
+        uint8_t* value_6 = &(ZIRAN_VEC_INDEX((input).data, (input).count, 16384));
+        (*value_6) = 34;
     }
-    Slice value_5 = {(input).data, (input).count};
-    Slice value_6 = SliceRange(value_5, 0LL, input.count, sizeof(*(input).data));
-    int64_t end = json_bytes_JsonStringRunEnd(StringView((const char *)(value_6).data, (size_t)(value_6).length), 0LL);
-    if (end != 16384LL || ZIRAN_VEC_INDEX((input).data, (input).count, end) != 34) {
+    Slice value_7 = {(input).data, (input).count};
+    Slice value_8 = SliceRangeAt(value_7, 0LL, input.count, sizeof(*(input).data));
+    int64_t end = json_bytes_JsonStringRunEnd(StringView((const char *)(value_8).data, (size_t)(value_8).length), 0LL);
+    if (end != 16384LL || (input).data[end] != 34) {
         return -2LL;
     }
-    return (int64_t)((uint64_t)end + (uint64_t)(ZIRAN_VEC_INDEX((input).data, (input).count, end)));
+    return (int64_t)((uint64_t)end + (uint64_t)((input).data[end]));
 }

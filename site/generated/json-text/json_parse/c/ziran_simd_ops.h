@@ -294,18 +294,6 @@ ZI_INLINE zi_f64x4 zi_pack_f64x4(const uint64_t *o) { zi_f64x4 x; zi_pack_p_f64x
 #else
 #define ZI_LE 0
 #endif
-/* TinyCC runs the helpers as macros, on x86-64 the common integer ones in
- * SSE2 assembly. */
-#if !ZI_VEC && defined(__TINYC__) && !defined(__GNUC__) && !defined(ZIRAN_SIMD_SCALAR)
-#define ZI_TCC 1
-#else
-#define ZI_TCC 0
-#endif
-#if ZI_TCC && defined(__x86_64__)
-#define ZI_TCC_X64 1
-#else
-#define ZI_TCC_X64 0
-#endif
 #if !ZI_VEC
 #if !ZI_LE
 /* Big-endian hosts view lanes as little-endian bytes one at a time. */
@@ -1692,7 +1680,7 @@ static inline zi_f64x4 zi_shuffle_lanes_f64x4(zi_f64x4 a, int k0, int k1)
 #endif /* ZIRAN_SIMD_OPS_COMMON_H */
 
 /* ---- operations for ZI_TIER ---- */
-#if !ZI_TCC
+ZI_FN zi_u8x16 ZI_N(add_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_u8x16 ZI_N(or_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_u8x16 ZI_N(not_u8x16)(zi_u8x16 a);
 ZI_FN zi_u8x16 ZI_N(eq_u8x16)(zi_u8x16 a, zi_u8x16 b);
@@ -1700,26 +1688,6 @@ ZI_FN zi_u8x16 ZI_N(lt_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_u8x16 ZI_N(splat_u8x16)(uint8_t x);
 ZI_FN zi_u8x16 ZI_N(load_u8x16)(const void * p);
 ZI_FN int ZI_N(all_zero_u8x16)(zi_u8x16 a);
-#endif
-
-/* TinyCC runs these as macros; see tcc_macro and tcc_x64_macro. */
-#if ZI_TCC_X64
-#define zi_or_u8x16(a, b) __extension__ ({ zi_u8x16 __zi_r; __asm__("lea %1, %%r10\n\tmovq 0(%%r10), %%xmm0\n\tmovhps 8(%%r10), %%xmm0\n\tlea %2, %%r10\n\tmovq 0(%%r10), %%xmm1\n\tmovhps 8(%%r10), %%xmm1\n\tpor %%xmm1, %%xmm0\n\tlea %0, %%r10\n\tmovups %%xmm0, 0(%%r10)" : "=m"(__zi_r) : "m"(a), "m"(b) : "r10", "memory"); __zi_r; })
-#define zi_not_u8x16(a) __extension__ ({ zi_u8x16 __zi_r; __asm__("lea %1, %%r10\n\tmovq 0(%%r10), %%xmm0\n\tmovhps 8(%%r10), %%xmm0\n\tpcmpeqd %%xmm1, %%xmm1\n\tpxor %%xmm1, %%xmm0\n\tlea %0, %%r10\n\tmovups %%xmm0, 0(%%r10)" : "=m"(__zi_r) : "m"(a) : "r10", "memory"); __zi_r; })
-#define zi_eq_u8x16(a, b) __extension__ ({ zi_u8x16 __zi_r; __asm__("lea %1, %%r10\n\tmovq 0(%%r10), %%xmm0\n\tmovhps 8(%%r10), %%xmm0\n\tlea %2, %%r10\n\tmovq 0(%%r10), %%xmm1\n\tmovhps 8(%%r10), %%xmm1\n\tpcmpeqb %%xmm1, %%xmm0\n\tlea %0, %%r10\n\tmovups %%xmm0, 0(%%r10)" : "=m"(__zi_r) : "m"(a), "m"(b) : "r10", "memory"); __zi_r; })
-#define zi_splat_u8x16(x) __extension__ ({ union { zi_u8x16 v; uint64_t w[2]; } __zi_r; uint64_t __zi_w = (uint64_t)(uint8_t)(uint8_t)(x) * UINT64_C(0x0101010101010101); __zi_r.w[0] = __zi_w; __zi_r.w[1] = __zi_w; __zi_r.v; })
-#define zi_load_u8x16(p) __extension__ ({ zi_u8x16 __zi_r; __asm__("movq 0(%1), %%xmm0\n\tmovhps 8(%1), %%xmm0\n\tlea %0, %%r10\n\tmovups %%xmm0, 0(%%r10)" : "=m"(__zi_r) : "r"((const void *)(p)) : "r10", "memory"); __zi_r; })
-#elif ZI_TCC
-#define zi_or_u8x16(a, b) __extension__ ({ zi_u8x16 __zi_a = (a); zi_u8x16 __zi_b = (b); zi_u8x16 r_; ZI_AT(r_, 0) = (uint8_t)(ZI_AT(__zi_a, 0) |ZI_AT(__zi_b, 0)); ZI_AT(r_, 1) = (uint8_t)(ZI_AT(__zi_a, 1) |ZI_AT(__zi_b, 1)); ZI_AT(r_, 2) = (uint8_t)(ZI_AT(__zi_a, 2) |ZI_AT(__zi_b, 2)); ZI_AT(r_, 3) = (uint8_t)(ZI_AT(__zi_a, 3) |ZI_AT(__zi_b, 3)); ZI_AT(r_, 4) = (uint8_t)(ZI_AT(__zi_a, 4) |ZI_AT(__zi_b, 4)); ZI_AT(r_, 5) = (uint8_t)(ZI_AT(__zi_a, 5) |ZI_AT(__zi_b, 5)); ZI_AT(r_, 6) = (uint8_t)(ZI_AT(__zi_a, 6) |ZI_AT(__zi_b, 6)); ZI_AT(r_, 7) = (uint8_t)(ZI_AT(__zi_a, 7) |ZI_AT(__zi_b, 7)); ZI_AT(r_, 8) = (uint8_t)(ZI_AT(__zi_a, 8) |ZI_AT(__zi_b, 8)); ZI_AT(r_, 9) = (uint8_t)(ZI_AT(__zi_a, 9) |ZI_AT(__zi_b, 9)); ZI_AT(r_, 10) = (uint8_t)(ZI_AT(__zi_a, 10) |ZI_AT(__zi_b, 10)); ZI_AT(r_, 11) = (uint8_t)(ZI_AT(__zi_a, 11) |ZI_AT(__zi_b, 11)); ZI_AT(r_, 12) = (uint8_t)(ZI_AT(__zi_a, 12) |ZI_AT(__zi_b, 12)); ZI_AT(r_, 13) = (uint8_t)(ZI_AT(__zi_a, 13) |ZI_AT(__zi_b, 13)); ZI_AT(r_, 14) = (uint8_t)(ZI_AT(__zi_a, 14) |ZI_AT(__zi_b, 14)); ZI_AT(r_, 15) = (uint8_t)(ZI_AT(__zi_a, 15) |ZI_AT(__zi_b, 15)); r_; })
-#define zi_not_u8x16(a) __extension__ ({ zi_u8x16 __zi_a = (a); zi_u8x16 r_; ZI_AT(r_, 0) = (uint8_t)~ZI_AT(__zi_a, 0); ZI_AT(r_, 1) = (uint8_t)~ZI_AT(__zi_a, 1); ZI_AT(r_, 2) = (uint8_t)~ZI_AT(__zi_a, 2); ZI_AT(r_, 3) = (uint8_t)~ZI_AT(__zi_a, 3); ZI_AT(r_, 4) = (uint8_t)~ZI_AT(__zi_a, 4); ZI_AT(r_, 5) = (uint8_t)~ZI_AT(__zi_a, 5); ZI_AT(r_, 6) = (uint8_t)~ZI_AT(__zi_a, 6); ZI_AT(r_, 7) = (uint8_t)~ZI_AT(__zi_a, 7); ZI_AT(r_, 8) = (uint8_t)~ZI_AT(__zi_a, 8); ZI_AT(r_, 9) = (uint8_t)~ZI_AT(__zi_a, 9); ZI_AT(r_, 10) = (uint8_t)~ZI_AT(__zi_a, 10); ZI_AT(r_, 11) = (uint8_t)~ZI_AT(__zi_a, 11); ZI_AT(r_, 12) = (uint8_t)~ZI_AT(__zi_a, 12); ZI_AT(r_, 13) = (uint8_t)~ZI_AT(__zi_a, 13); ZI_AT(r_, 14) = (uint8_t)~ZI_AT(__zi_a, 14); ZI_AT(r_, 15) = (uint8_t)~ZI_AT(__zi_a, 15); r_; })
-#define zi_eq_u8x16(a, b) __extension__ ({ zi_u8x16 __zi_a = (a); zi_u8x16 __zi_b = (b); zi_u8x16 r_; ZI_AT(r_, 0) = (uint8_t)-(ZI_AT(__zi_a, 0) == ZI_AT(__zi_b, 0)); ZI_AT(r_, 1) = (uint8_t)-(ZI_AT(__zi_a, 1) == ZI_AT(__zi_b, 1)); ZI_AT(r_, 2) = (uint8_t)-(ZI_AT(__zi_a, 2) == ZI_AT(__zi_b, 2)); ZI_AT(r_, 3) = (uint8_t)-(ZI_AT(__zi_a, 3) == ZI_AT(__zi_b, 3)); ZI_AT(r_, 4) = (uint8_t)-(ZI_AT(__zi_a, 4) == ZI_AT(__zi_b, 4)); ZI_AT(r_, 5) = (uint8_t)-(ZI_AT(__zi_a, 5) == ZI_AT(__zi_b, 5)); ZI_AT(r_, 6) = (uint8_t)-(ZI_AT(__zi_a, 6) == ZI_AT(__zi_b, 6)); ZI_AT(r_, 7) = (uint8_t)-(ZI_AT(__zi_a, 7) == ZI_AT(__zi_b, 7)); ZI_AT(r_, 8) = (uint8_t)-(ZI_AT(__zi_a, 8) == ZI_AT(__zi_b, 8)); ZI_AT(r_, 9) = (uint8_t)-(ZI_AT(__zi_a, 9) == ZI_AT(__zi_b, 9)); ZI_AT(r_, 10) = (uint8_t)-(ZI_AT(__zi_a, 10) == ZI_AT(__zi_b, 10)); ZI_AT(r_, 11) = (uint8_t)-(ZI_AT(__zi_a, 11) == ZI_AT(__zi_b, 11)); ZI_AT(r_, 12) = (uint8_t)-(ZI_AT(__zi_a, 12) == ZI_AT(__zi_b, 12)); ZI_AT(r_, 13) = (uint8_t)-(ZI_AT(__zi_a, 13) == ZI_AT(__zi_b, 13)); ZI_AT(r_, 14) = (uint8_t)-(ZI_AT(__zi_a, 14) == ZI_AT(__zi_b, 14)); ZI_AT(r_, 15) = (uint8_t)-(ZI_AT(__zi_a, 15) == ZI_AT(__zi_b, 15)); r_; })
-#define zi_splat_u8x16(x) __extension__ ({ uint8_t __zi_x = (x); zi_u8x16 r_; ZI_AT(r_, 0) = __zi_x; ZI_AT(r_, 1) = __zi_x; ZI_AT(r_, 2) = __zi_x; ZI_AT(r_, 3) = __zi_x; ZI_AT(r_, 4) = __zi_x; ZI_AT(r_, 5) = __zi_x; ZI_AT(r_, 6) = __zi_x; ZI_AT(r_, 7) = __zi_x; ZI_AT(r_, 8) = __zi_x; ZI_AT(r_, 9) = __zi_x; ZI_AT(r_, 10) = __zi_x; ZI_AT(r_, 11) = __zi_x; ZI_AT(r_, 12) = __zi_x; ZI_AT(r_, 13) = __zi_x; ZI_AT(r_, 14) = __zi_x; ZI_AT(r_, 15) = __zi_x; r_; })
-#define zi_load_u8x16(p) __extension__ ({ struct __zi_m { unsigned char b[16]; }; const void *__zi_p = (p); union { zi_u8x16 v; struct __zi_m m; } __zi_u; __zi_u.m = *(const struct __zi_m *)__zi_p; __zi_u.v; })
-#endif
-#if ZI_TCC
-#define zi_lt_u8x16(a, b) __extension__ ({ zi_u8x16 __zi_a = (a); zi_u8x16 __zi_b = (b); zi_u8x16 r_; ZI_AT(r_, 0) = (uint8_t)-(ZI_AT(__zi_a, 0) < ZI_AT(__zi_b, 0)); ZI_AT(r_, 1) = (uint8_t)-(ZI_AT(__zi_a, 1) < ZI_AT(__zi_b, 1)); ZI_AT(r_, 2) = (uint8_t)-(ZI_AT(__zi_a, 2) < ZI_AT(__zi_b, 2)); ZI_AT(r_, 3) = (uint8_t)-(ZI_AT(__zi_a, 3) < ZI_AT(__zi_b, 3)); ZI_AT(r_, 4) = (uint8_t)-(ZI_AT(__zi_a, 4) < ZI_AT(__zi_b, 4)); ZI_AT(r_, 5) = (uint8_t)-(ZI_AT(__zi_a, 5) < ZI_AT(__zi_b, 5)); ZI_AT(r_, 6) = (uint8_t)-(ZI_AT(__zi_a, 6) < ZI_AT(__zi_b, 6)); ZI_AT(r_, 7) = (uint8_t)-(ZI_AT(__zi_a, 7) < ZI_AT(__zi_b, 7)); ZI_AT(r_, 8) = (uint8_t)-(ZI_AT(__zi_a, 8) < ZI_AT(__zi_b, 8)); ZI_AT(r_, 9) = (uint8_t)-(ZI_AT(__zi_a, 9) < ZI_AT(__zi_b, 9)); ZI_AT(r_, 10) = (uint8_t)-(ZI_AT(__zi_a, 10) < ZI_AT(__zi_b, 10)); ZI_AT(r_, 11) = (uint8_t)-(ZI_AT(__zi_a, 11) < ZI_AT(__zi_b, 11)); ZI_AT(r_, 12) = (uint8_t)-(ZI_AT(__zi_a, 12) < ZI_AT(__zi_b, 12)); ZI_AT(r_, 13) = (uint8_t)-(ZI_AT(__zi_a, 13) < ZI_AT(__zi_b, 13)); ZI_AT(r_, 14) = (uint8_t)-(ZI_AT(__zi_a, 14) < ZI_AT(__zi_b, 14)); ZI_AT(r_, 15) = (uint8_t)-(ZI_AT(__zi_a, 15) < ZI_AT(__zi_b, 15)); r_; })
-#define zi_all_zero_u8x16(a) __extension__ ({ zi_u8x16 __zi_a = (a); (ZI_AT(__zi_a, 0) | ZI_AT(__zi_a, 1) | ZI_AT(__zi_a, 2) | ZI_AT(__zi_a, 3) | ZI_AT(__zi_a, 4) | ZI_AT(__zi_a, 5) | ZI_AT(__zi_a, 6) | ZI_AT(__zi_a, 7) | ZI_AT(__zi_a, 8) | ZI_AT(__zi_a, 9) | ZI_AT(__zi_a, 10) | ZI_AT(__zi_a, 11) | ZI_AT(__zi_a, 12) | ZI_AT(__zi_a, 13) | ZI_AT(__zi_a, 14) | ZI_AT(__zi_a, 15)) == 0; })
-#endif
 
 #if ZI_VEC && ZI_X86 && ZI_TIER < 4
 #if ZI_NS == 1
@@ -1728,7 +1696,31 @@ ZI_FN int ZI_N(all_zero_u8x16)(zi_u8x16 a);
 #endif
 #endif
 
-#if !ZI_TCC
+ZI_FN zi_u8x16 ZI_N(add_u8x16)(zi_u8x16 a, zi_u8x16 b)
+{
+#if ZI_VEC
+    return (zi_u8x16)((zi_u8x16)a + (zi_u8x16)b);
+#else
+    zi_u8x16 r_;
+    ZI_AT(r_, 0) = (uint8_t)((uint32_t)ZI_AT(a, 0) + (uint32_t)ZI_AT(b, 0));
+    ZI_AT(r_, 1) = (uint8_t)((uint32_t)ZI_AT(a, 1) + (uint32_t)ZI_AT(b, 1));
+    ZI_AT(r_, 2) = (uint8_t)((uint32_t)ZI_AT(a, 2) + (uint32_t)ZI_AT(b, 2));
+    ZI_AT(r_, 3) = (uint8_t)((uint32_t)ZI_AT(a, 3) + (uint32_t)ZI_AT(b, 3));
+    ZI_AT(r_, 4) = (uint8_t)((uint32_t)ZI_AT(a, 4) + (uint32_t)ZI_AT(b, 4));
+    ZI_AT(r_, 5) = (uint8_t)((uint32_t)ZI_AT(a, 5) + (uint32_t)ZI_AT(b, 5));
+    ZI_AT(r_, 6) = (uint8_t)((uint32_t)ZI_AT(a, 6) + (uint32_t)ZI_AT(b, 6));
+    ZI_AT(r_, 7) = (uint8_t)((uint32_t)ZI_AT(a, 7) + (uint32_t)ZI_AT(b, 7));
+    ZI_AT(r_, 8) = (uint8_t)((uint32_t)ZI_AT(a, 8) + (uint32_t)ZI_AT(b, 8));
+    ZI_AT(r_, 9) = (uint8_t)((uint32_t)ZI_AT(a, 9) + (uint32_t)ZI_AT(b, 9));
+    ZI_AT(r_, 10) = (uint8_t)((uint32_t)ZI_AT(a, 10) + (uint32_t)ZI_AT(b, 10));
+    ZI_AT(r_, 11) = (uint8_t)((uint32_t)ZI_AT(a, 11) + (uint32_t)ZI_AT(b, 11));
+    ZI_AT(r_, 12) = (uint8_t)((uint32_t)ZI_AT(a, 12) + (uint32_t)ZI_AT(b, 12));
+    ZI_AT(r_, 13) = (uint8_t)((uint32_t)ZI_AT(a, 13) + (uint32_t)ZI_AT(b, 13));
+    ZI_AT(r_, 14) = (uint8_t)((uint32_t)ZI_AT(a, 14) + (uint32_t)ZI_AT(b, 14));
+    ZI_AT(r_, 15) = (uint8_t)((uint32_t)ZI_AT(a, 15) + (uint32_t)ZI_AT(b, 15));
+    return r_;
+#endif
+}
 ZI_FN zi_u8x16 ZI_N(or_u8x16)(zi_u8x16 a, zi_u8x16 b)
 {
 #if ZI_VEC
@@ -1890,7 +1882,6 @@ ZI_FN int ZI_N(all_zero_u8x16)(zi_u8x16 a)
         ZI_AT(a, 8) | ZI_AT(a, 9) | ZI_AT(a, 10) | ZI_AT(a, 11) | ZI_AT(a, 12) | ZI_AT(a, 13) | ZI_AT(a, 14) | ZI_AT(a, 15)) == 0;
 #endif
 }
-#endif
 
 /* ---- native vectors, such as s16xN ---- */
 #if ZI_TIER >= 4

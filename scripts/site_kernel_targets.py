@@ -8,13 +8,11 @@ import re
 import shutil
 
 import site_targets as base
+import site_benchmark_cohort as cohort
 import site_target_platforms as platforms
 
 OUTPUT = base.SITE / 'generated/kernel-targets'
-RECEIPTS = (
-    'wasm-tier-omega-2026-11-16-explicit-engine.json',
-    'wasm-tier-alpha-2026-11-16-fields-after.json',
-)
+RECEIPTS = ('wasm-tier-targets-2026-11-16.json',)
 MARKER = 'kernel_tiers'
 TARGETS = ('c', 'zx', 'native', 'wasm')
 
@@ -39,37 +37,27 @@ def render():
     sections = []
     for name, data in receipts():
         validate(data)
-        explicit = data.get('engine_policy') == 'explicit-engine'
-        # Historic receipts used BundleInstantiate(Auto), which selected native
-        # on these Linux hosts. Do not turn that measurement into an engine claim.
-        zx_label = 'Instruction engine' if explicit else 'ZX Auto (native)'
+        assert data['engine_policy'] == 'explicit-engine'
         rows = []
         for kernel, row in data['kernels'].items():
-            values = ''.join('<td>' + base.format_time(row[t]['execution_ms']) + '</td>' for t in TARGETS)
+            values = ''.join('<td>' + base.format_microseconds(row[t]['execution_ms']) + '</td>' for t in TARGETS)
             rows.append('<tr><th scope="row">' + html.escape(kernel) + '</th>' + values + '</tr>')
         source = 'generated/kernel-targets/' + name
-        compiler = 'with uncommitted compiler changes' if data.get('compiler_dirty') else 'from a clean compiler checkout'
-        checks = ('off' if data.get('checks') is False else
-                  'off (manual-safety default)' if 'unchecked' in name else 'on (historical build)')
-        caveat = ('' if explicit else '<p>The historical receipt called this ZX column the instruction engine, '
-                  'but its Auto policy selected native on Linux. An explicit engine measurement is pending.</p>')
         sections.append(
-            '<article><h3>' + html.escape(data['host']) + '</h3>'
+            '<article>'
             '<p>Measured ' + html.escape(data['measured_at']) + ' · ' + str(data['samples']) +
-            ' samples · checks ' + checks + ' · ' + compiler + '.</p>' + caveat +
-            '<div class="matrix-scroll" tabindex="0" role="region" aria-label="' + html.escape(data['host']) +
-            ' kernel results"><table class="target-matrix"><caption class="sr-only">Median time per kernel call</caption>'
-            '<thead><tr><th scope="col">Kernel</th><th scope="col">C · cc -O2</th><th scope="col">' + zx_label +
-            '</th><th scope="col">Native ELF</th><th scope="col">Wasm · V8</th></tr></thead><tbody>' +
+            ' samples · checks off · learning off.</p>' +
+            '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Kernel results"><table class="target-matrix"><caption class="sr-only">Median µs per kernel call</caption>'
+            '<thead><tr><th scope="col">Kernel<small>µs per call</small></th><th scope="col">C · cc -O2</th><th scope="col">Instruction engine</th><th scope="col">Native ELF</th><th scope="col">Wasm · V8</th></tr></thead><tbody>' +
             ''.join(rows) + '</tbody></table></div><p><a href="' + source +
             '">Raw samples, exclusions and provenance</a></p></article>')
     content = ('<section class="section" id="kernel-tiers"><p class="eyebrow">Kernel execution tiers</p>'
-               '<h2>Omega and Alpha, measured separately.</h2>' + ''.join(sections) +
+               '<h2>One source, four execution tiers.</h2>' + cohort.validate(receipts()[0][1]) + ''.join(sections) +
                '<p class="matrix-footnote">Medians use symmetric 1.5×IQR filtering. Compilation is excluded. '
                'C, ZX and Wasm use warm in-process calls. Native ELF runs 32 verified calls per process; '
                'its figures include one process startup divided by 32. Calls can be constant-folded, '
-               'so tiny results measure different amounts of remaining work. Measurement times and '
-               'compiler revisions are recorded separately; compare targets within one host and receipt.</p></section>')
+               'so tiny results measure different amounts of remaining work. '
+               'All tables use the same physical host and compiler revision.</p></section>')
     original = (base.SITE / 'targets.html').read_text()
     pattern = r'(?s)(<!-- generated:' + MARKER + r' -->).*?(<!-- /generated:' + MARKER + r' -->)'
     assert len(re.findall(pattern, original)) == 1, 'Expected one kernel tier marker'

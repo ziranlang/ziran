@@ -21,7 +21,6 @@ func TextProcessing_Answer() int64 {
 			}
 		}
 	}
-	if 0 < 0 || input.Count < 0 || input.Count > input.Count { panic("slice range out of bounds") }
 	text := string(input.Data[0:input.Count])
 	found := TextTools_TextFind(text, "beta\n", int64(len(text)) - 18)
 	var value_2 bool = found != int64(len(text)) - 5

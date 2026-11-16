@@ -35,23 +35,23 @@ func JsonQuotePlain_Answer() int64 {
 			return -1
 		}
 		for index := int64(0); index <= 65535; index++ {
-			(input).Data[index] = 120
+			value_5 := &((input).Data[index])
+			(*value_5) = 120
 		}
 	}
 	var output __type_838711075b90279a = __type_838711075b90279a{}
-	var value_5 *__type_838711075b90279a = &output
-	if 0 < 0 || input.Count < 0 || input.Count > input.Count { panic("slice range out of bounds") }
-	var value_7 bool = JsonQuote_JsonQuoteInto(&(output), string(input.Data[0:input.Count]), true)
-	if !value_7 || output.Count != 65538 || (output).Data[1] != 120 || (output).Data[65536] != 120 {
-		var value_8 int64 = -2
-		(*value_5).Data = nil
-		(*value_5).Capacity = 0
-		(*value_5).Count = 0
-		return value_8
+	var value_6 *__type_838711075b90279a = &output
+	var value_8 bool = JsonQuote_JsonQuoteInto(&(output), string(input.Data[0:input.Count]), true)
+	if !value_8 || output.Count != 65538 || (output).Data[1] != 120 || (output).Data[65536] != 120 {
+		var value_9 int64 = -2
+		(*value_6).Data = nil
+		(*value_6).Capacity = 0
+		(*value_6).Count = 0
+		return value_9
 	}
-	var value_9 int64 = (output.Count + int64((output).Data[0])) + int64((output).Data[(output.Count - 1)])
-	(*value_5).Data = nil
-	(*value_5).Capacity = 0
-	(*value_5).Count = 0
-	return value_9
+	var value_10 int64 = (output.Count + int64((output).Data[0])) + int64((output).Data[(output.Count - 1)])
+	(*value_6).Data = nil
+	(*value_6).Capacity = 0
+	(*value_6).Count = 0
+	return value_10
 }

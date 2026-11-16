@@ -1,0 +1,2407 @@
+{
+  "schema_version": 1,
+  "revision": "96c23c7de6bc622225a916dfce18bff04486ba2b",
+  "checks": false,
+  "learning": "off",
+  "host": "alpha \u00b7 Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "measured_at": "2026-11-16T19:40:41.205974+00:00",
+  "samples": 11,
+  "compiler": {
+    "zi2c": "2e21cbdd222519dc2f54993721c5168719b0340fc00d4271c4ca101dd8300152",
+    "zi2go": "0628df64c2fc17eee1fb64d73e8182906cb559123668a0e648023b8adf1c34d9",
+    "zi2zx": "eb47203a4eef36585fcca75340e026e86b2fd34895b22c8dda342e127f956c00",
+    "zx2wasm": "f621cdbae99ed4abf839861905eba2c22a18839a7c18c3da3d4f7e41bc05ba75"
+  },
+  "stdlib": {
+    "std/atomic_go.zi": "8e65dcd9289cff694d257488e9368b564958fade6a1b5fb57746efeb3410b916",
+    "std/binary.zi": "01ebf672c5cbeab04305a25c4937c6ac054d42c1940288e4ab091a74d8cad978",
+    "std/binary_linux.zi": "47b562893efee0da3390fd2b3b1d76135051bf3000cfea2e9e250dfa0d514cbe",
+    "std/bundle_host.zi": "740468802e9d944bb11d6233fe8b573ae8ce2062909cb40a137fe32e3afef177",
+    "std/byte_text.zi": "44993d1c8492fd05237f88d65740a61e02d572202049ae4e8834fd5e139ccb75",
+    "std/byte_text_linux.zi": "649021d64a3663731d88d8c256872837127b8e31b439b3e085f290af3b33cbe3",
+    "std/c_string.zi": "f3032b7fffd956206ee9fa8cb6fcf5c7379815940d706e4fdda8a69716bf2766",
+    "std/calendar.zi": "4f11c018cca2b85e25a9e6e1f5514ece32806918cff975f974a8a4905e6b03ca",
+    "std/channel_go.zi": "962f4b2ce6a691bae1d37d6782fcf8dfbe0921b6ba37271aa0a88eb0f67c4afd",
+    "std/constant_time.zi": "ae1161d1922a4a44f05e3689a861007b7be8de3e641d727f00b4efd587309fe4",
+    "std/context.zi": "73f08a64d652d32c18b3dee373cda43cf40c32ca24110cb523d508fd6414fedf",
+    "std/context_go.zi": "b1ba591b32c08d68b342b03f52ad4b0310ef5015f590289aa1ab2d7b4318d117",
+    "std/date_parse.zi": "e6503d82de88f10b13ce2188de8db7bdcb909e2d1d5353e7a9c1571a55ab4642",
+    "std/date_time.zi": "c52e08cd1314d62fa80269be0e3090e118d1f12077d83f50d412b50d228d82cc",
+    "std/date_time_linux.zi": "57f1315c6fbc1e6ae7f2dbe0dd2de5a44c6e577a745bbdb6526215a644011892",
+    "std/date_time_types.zi": "bec55f52d9cc0b6ece4a894ffef4675e28dbb4f21a52e83bd0daf76b7b5dc374",
+    "std/ed25519_go.zi": "5056690eacab11df6b7528145ed1c05d131462c3bd68c3853093b7ebe3ad705a",
+    "std/environment.zi": "b59f250c0f6a8866bb7c5fd24f43e08d3ce2c68018ba8ac4345fb2adaf4513ab",
+    "std/environment_linux.zi": "1640de0dbb17f30b50e3836fef968fb0f5679e5eed2242e9b5879c418d399c17",
+    "std/errors_go.zi": "ab4d4735e61855d19b51ad566e9328254ba29962e13895a8b628fb60df0a7e0d",
+    "std/file.zi": "4e4636b13c08e293e8e9a380763df4c52ead0c4e7e7afeabcc6fc9e8b44191da",
+    "std/file_go.zi": "a36ff0c9cf67016f849c4d309b926de92f3175a48f3552485b815238f54cefda",
+    "std/file_linux.zi": "60e29d0d0bf1c2c642c32dafaadcadb78273065589c10b1258de792c15bd4549",
+    "std/file_tree.zi": "91adc55fb733e031ee547f0d4b9308ef043a82566613c4e46d0ac56bdca6024f",
+    "std/file_tree_linux.zi": "e32f983c04c127f09eea3351cde9cc30e7db64ba0e192299bdfffec8dac9d8a5",
+    "std/float_text.zi": "55e50699a512230639f875166293f8d701069fb324bd4fc2ed962854db21930b",
+    "std/format.zi": "24303900d395cc52a57024488564d450cb5deca14a850f38f43f29be386b8f2b",
+    "std/go_types.zi": "7f754dfa8372053368e85aa93cec759aff4af2e7028e1e3e91eee991dbdda7cb",
+    "std/grapheme.zi": "5c12a366dc7193d3e04fce99c07daab1771311aba6a042dcf26a3069b34d98e3",
+    "std/grapheme_data.zi": "0e922a311cfcca6a7ec0236c92a8f6008757086f12d7c098775776c734dd0067",
+    "std/gzip_linux.zi": "4297dd86dfc3c66016f3a165fab7e5ba6000f145a0970ec14245dda18b9fa035",
+    "std/hash_map.zi": "716c94fc8b00e2ce54d148f5111673b16984fee610efa138d0a2a906beaba612",
+    "std/hmac_sha256_go.zi": "d45c51a4f0083b92830e57fbc304c92c89379d40268c8119b082585d96479680",
+    "std/http_get_linux.zi": "42087a1d98339ea4db7e29e83624b43f86b52b259221b366fe3440eafd926ce7",
+    "std/http_go.zi": "c08446c6ae91d1563fc983131e4c5a816183bc98ec71318d2bfbe4fa4486a0c1",
+    "std/image.zi": "228dd453d97c2efbc1964c2732f394095aba9b29209eab2f6244640a017c8dbd",
+    "std/io_go.zi": "b8d03bc36a121157099e2ed17ada474cea874fd1c4878810c9c3696eacd38f44",
+    "std/jpeg.zi": "dea4b6fe8431384dc75cabda1fe6f2f06ba26179dcec4c49095c1de7d6e49772",
+    "std/json_bytes.zi": "5a03a9b2b61226ca7d0ca3a3a7592ffbfec42ec842152ea511132e9d398c94ee",
+    "std/json_document.zi": "fdda8dc02b9c7190ad68e61e94a33b32b979f5470e61d6c1a64b22bfedfae2ba",
+    "std/json_go.zi": "e32aa2c374b4280b5ad57632009e995d6cdb7499a327b2547ba9f9a5f7778981",
+    "std/json_quote.zi": "f4819c59c994e88ddf4264c6f36e43d497f7c6f10847e76ce68461908ea4a42f",
+    "std/json_scan.zi": "f85f0a375b9d617746f941b16033a4f50a6f464af04792cd612bf9946841924c",
+    "std/map_go.zi": "d054410db898f272aa9d40e1f8bf2ea2fc3f49b80f1ba8aa38fdaec390d113c3",
+    "std/mapped_file.zi": "85e1159ae596f776318e99bf4682c0cd30c9e19e5fceb5b1dfcf6144fb84b64f",
+    "std/mapped_file_linux.zi": "8d848fef2c291f198047815bbd72bac63b80fba61d1d8fea750c19919cb2b671",
+    "std/math.zi": "61a3acf660cef0870e7ef46830f5c7f8ef1a8468498b174ec04f3b90c8981fd2",
+    "std/mutex_linux.zi": "0addc4b9836d8748f4f82819ba9bccfee6e99afb39b337c8d67e4191da8ff4f9",
+    "std/net_go.zi": "c9565c5659c6a7e9ca725e9221229292bcf072e3073b010190ad46d4bac17550",
+    "std/net_http.zi": "d8f8c389bc4a6d8ed93e93c87193e69ddf3ddacdb92195a8407182f5bd13bcf7",
+    "std/net_http_curl_linux.zi": "5495eb0256be70e419ca77f078c174ebf1fda7adc2d7710b1c1db585572f3e5a",
+    "std/net_http_linux.zi": "748906ebe5397e93674c08d2a7e7a7072686f0a683f34efafce6eb82c73db869",
+    "std/net_ws_curl_linux.zi": "da2b2481b1a5922910035b7321e49e702c5762b4452d844b76604bd61eec5876",
+    "std/number_text.zi": "f00a82c9b34a59c858dbede56b79bd64a2d8a63918e757a4edbed6660f5e13a2",
+    "std/option.zi": "00be98050954cbc2e62061e28c5db00d7541ab03753d9a98d3fe79dbc2820a0a",
+    "std/pair.zi": "75a9d1a6311cbfa69a977cf00f1f40a969733b98d80e39f5ce515e828c36c726",
+    "std/parallel.zi": "b24201962fdc01a780fc784f4ca6d1f17b06508647eb7d93e52681568840053e",
+    "std/parallel_linux.zi": "d348619f72ba1e94a8c6a456cbdd884bc92884d010c7dfdaa5ff20a13bb37b4d",
+    "std/path.zi": "b462ae6baeb698580d1f502ffa46e3b922a7753b2752871fa66dfc0b54165825",
+    "std/png_linux.zi": "d61038cd2a47f4f3da5675af6aae39cddde18dc66c3cc03a24c417c0716ccb88",
+    "std/process.zi": "45b7ef79a6da6e6cab39fc21f630288600b529305685b4635165a5b2d52cdd86",
+    "std/process_capture_linux.zi": "3c5d0c23ce92b3e8f23048612c32777edd64219d00ef302728dc0d82a0563939",
+    "std/process_channel_linux.zi": "8dd9b33384facd630610af2fb38ce8d56a39018a25457fbf6efccdaddd15262d",
+    "std/process_run_linux.zi": "6776ce16d2e134354ff01bcf978ec6dad4cb3343931e6ebfb8bd8a52f1db08c9",
+    "std/queue.zi": "87a00933f3dffc8abace499525564daa061c34ea83400a280d5f548d136a0549",
+    "std/random.zi": "5f9d8b398cb34a40eba44812002b3ddf197745db7095ea7d1a34619d12bb992c",
+    "std/random_go.zi": "877c45503829a60d934db31b3d703b8eed5653193c0b7cc9f6a92de603bb5673",
+    "std/random_linux.zi": "716d638a37c22c160670ad3eaced41dac40d3c02d3414f28af41ee2383bda27d",
+    "std/resample.zi": "b15ff4350342a5fbf7b4ed82c8be714e1161e5bed6dc8ea3626923ba83c6bd05",
+    "std/result.zi": "5281849396c022a38ea646a269ce9b7560425e95ba93c2f57a7f4aa86b3125b8",
+    "std/rss_scan.zi": "de24141458e1c5681c00861e746e07930d59dfeefa17d13443191cee82c3858e",
+    "std/select_go.zi": "19627ad493636a1fa5d9ff738a62044aa8a6abbdcbae7a0ccea7668d9980bea8",
+    "std/simd.zi": "55378ba918e16ac4381849fccb7e2beda36970b2cfdd4a22a1a5ec31e360199a",
+    "std/socket_linux.zi": "fd380b44c4b2e966b22e3fa180e04108ab0749c8803a5fa07b79efafca777010",
+    "std/sort.zi": "2d2580689be49a626054f3caf4eec75f93d91b18c88887dae08022ec070bba44",
+    "std/sql_go.zi": "68f348411c0c70ec9cf3b0edc8c358abf19f88e4e6a48dd683b0e9362accaa61",
+    "std/stdio.zi": "3d3d6cd1e6f41bfcc1e564fb6609420a2930d9ed89ca818f1b60b10fe356bdf6",
+    "std/stdio_linux.zi": "d2105c774c4fce0dd92cc9c31cf920f756c2fd8ce1f6493cc617d8659f5ed31b",
+    "std/string_range.zi": "970df9c3bd4776c9f638446222c856e1dcbc57d5ad31ce7a9fad1294bd2bdc6c",
+    "std/sync_go.zi": "200c3c375fdc672adf243802b626111e22ad3acf6a0e516e0721763217d908f1",
+    "std/temp.zi": "0eea2060f769fe077546118691b37308b53346fcfb68165c1c89beb5a80ce550",
+    "std/text.zi": "7c877a42de8a8c8807d67e1bde0d54de12c666422611ec509747943ca61d4f90",
+    "std/text_buffer.zi": "7363d7e39ad714d56db7068580fb33543ea5a87b1c7de2ef36f950a9db8ac3b4",
+    "std/text_go.zi": "138fd222fdae04e3d45c52405d442e71b80fb58fa3792e5a0116257b3d250197",
+    "std/text_tools.zi": "a684527c63eb22957688d12a4439aac6a0c176f3d3e70a4035c86d1ae37cc904",
+    "std/thread.zi": "11008fae62e66fe72e0eb28842bf3ff5e3317ca7886919f5e68d71d77486ae7c",
+    "std/thread_linux.zi": "3a11d5dc2e10db31f2c2bb8250b83298e0b831277f8734a4353640493ddd4486",
+    "std/thread_windows.zi": "65fd2c735cb80ac5927f4e541365283ea04d5db13851282572b3a3daecbb2e48",
+    "std/time_go.zi": "9ce146b7be9325fa3a92444d9914fcc3d791df1de0edb01fa87a712bccd9bedc",
+    "std/timer.zi": "bcc442c07c996e1c9380df32c5c5a0c1bb83143048283752396c9a79d72c4f2c",
+    "std/timer_linux.zi": "70716770dae6f87978b2d5a9dc24017a7398c7090d1602285bf05950443ea22c",
+    "std/toml_document.zi": "474f703cc7b9bc02f67f913adeef99198191e213a60236528688ca41fe143c64",
+    "std/unicode.zi": "cca760b5dd868968beb2c4b7e5b29ecaeb5dbeb9700ead89e5d7073e840e162b",
+    "std/unicode_data.zi": "a32d3a7e1896c4839f26ddb71a77545995780fd042fea224bf7ad041bad5f607",
+    "std/unicode_normalization.zi": "f1274c1c5fb4c8741b792a24e8a2b8faac3573e3265b0a2731a6aaf15b1cabe9",
+    "std/unicode_normalization_data.zi": "3bb080bc66ddd7adb1f1eae84f4d4568ed953bce102f3ba7e8a37efe37fbd252",
+    "std/update.zi": "387b1f457af7675065a2509f1ccf33eb89323957edd27f3c4f901888a3f67119",
+    "std/url_go.zi": "d4583008eb4c1b5594e1b0d884876af5ed41b54c04a1677d95beefce3f3c7ce6",
+    "std/utf8.zi": "f02ea7ce171cfd97035d4acfe9e4dd2768280e79b1e1ad16ae1907cdfa4c7d24",
+    "std/vec.zi": "eca1289ee40cac3ddcba5fdf74598f02133504277c9844ea5028a112b9816d41",
+    "std/vorbis.zi": "19ce029ed4813a01d3227119281464f357716c241ad8749f36b1ed6ba2e6d2f4",
+    "std/vorbis_linux.zi": "0d9593a88e3f38b46d02b965296e6bd0a0f2387017ecc6064774c9a7bf5c4fa9",
+    "std/web.zi": "cd76ce538750bdc5babcec5ddc7f49e69867466d041b2f78c5fc79c0b2f91464",
+    "std/zip.zi": "c9b76fc28f74b31a4fe3bd5c38295954e3f75f17b6dfe62c691c2e2dc3645c28",
+    "std/zip_file_linux.zi": "ad75a6106728021af4dbbb771636edd832b453ed73cd1e8a9af503ddf83934b2",
+    "std/zip_linux.zi": "2a2bc56ca26fecfcaa0454e6985b74b59c28ec5ba072a5e2f1dffe04b8a342c2",
+    "std/zlib_linux.zi": "ba4a2614bdf5127bc4090715ef9455f5cd931e7cef4117b52e1feccc77039a4d",
+    "std/zstd_go.zi": "b777bd6d3261f0a2f0c6ff6d08b3c1ba6483549272b1a70783652f279318454a"
+  },
+  "harnesses": {
+    "bench/json_text.py": "e98b33b63a2fc07ba7b4214d0a1ca2b8e35743104174d900eb4ca5f79ff975bf",
+    "scripts/site_target_platforms.py": "87df13aa3ee01068e8bcbc8b334a2e2d4c7863314b7245b2a77416839c405eb5",
+    "scripts/site_targets.py": "cf86480e379b7997a0b30d827c083668837b26f2b7bdd22899301698f0856d6b",
+    "scripts/benchmark_samples.py": "28f53003eb06fae7180a3ecc65c35ea56e9e76a48aa316bf957fa5f99897cc66",
+    "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202",
+    "bench/site_target_host.c": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
+    "bench/site_target_host.go": "ed69c22b3ed61c70a1ff134c7aadf2578083ccc363b4604cefb0aa5334063c8c",
+    "site/target-abi.js": "0a06e46922d46b5eb1e234e6276dda29975976fb8f3e42ccfae150166bd8e328",
+    "site/target-measure.js": "fcb9dc8c446a07910600de1b65434b2c00b9a246952a7d8c57022c81248f47e0"
+  },
+  "versions": {
+    "cc": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+    "go": "go version go1.27.4 linux/amd64",
+    "node": "v26.13.1"
+  },
+  "methodology": "Median warm time per entry after symmetric 1.5\u00d7IQR outlier filtering; raw samples and exclusions are retained. Each runtime warms for at least 150 ms, calibrates a batch, then measures the recorded number of batches. Every timed return-value checksum is verified. Printed output is verified before timing; timed output uses a null sink (native) or byte callback (web). Formatting and runtime-specific I/O remain included. Includes the host call boundary and budget reset where required; excludes loading, process startup, downloads and offline compilation. Tiny examples emphasize call overhead. Shared machines and uncontrolled clocks; no universal target ranking.",
+  "examples": [
+    {
+      "id": "json_string_scan",
+      "title": "JSON string scan \u00b7 16 KiB",
+      "source": "generated/json-text/sources/json_string_scan.zi",
+      "source_input": "bench/json_text/json_string_scan.zi",
+      "entry": "Answer",
+      "expected": "16418",
+      "stdout": "",
+      "source_sha256": "f5d91fce302e4068e0d821ace35c71d4371b5cc9d421b6a0908d3d8aabb8c5f7",
+      "targets": {
+        "c": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_string_scan/c/json_bytes.c",
+              "bytes": 1975,
+              "sha256": "633acc003a18baaa0a3cb4236c285a273afa37691f49e529838a640b6c73b2d8"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/json_bytes.h",
+              "bytes": 296,
+              "sha256": "d0ba2adf9e12f9a09bd9ee9f33c8b94c8cbe1276ad43afd2736a0893668bbccb"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/json_string_scan.c",
+              "bytes": 1695,
+              "sha256": "aa9e8ccf3fb549db6bbaa511d37683c9602083e5cfaa276997b9b2aee1549378"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/json_string_scan.h",
+              "bytes": 765,
+              "sha256": "af1910775017b03f928f887708740a978a0f2855d7e353f25e7d5c27b8514f36"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/vec.h",
+              "bytes": 173,
+              "sha256": "33e852b91d5833811cca7e1fe1b7a34e3fd49008d0a70328772f387092b1cd1a"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/zir_slice.h",
+              "bytes": 2421,
+              "sha256": "38b49e4e4ba83177ec258ef5f1d05b4441b0dd9f72b2efb97836fc7c1b94baaa"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/zir_string.h",
+              "bytes": 2510,
+              "sha256": "522ec57a44a7cc0eb5cc582df43b0b1ee5ade4493a47df0f51e55cfc2cd2b61c"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/zir_string_types.h",
+              "bytes": 665,
+              "sha256": "47c09e74e99267994c67f326959f160b952f87671daaaaeeda3d6e14f60e2443"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/zir_vec.h",
+              "bytes": 2894,
+              "sha256": "5d02fc05c3da740ee3bc8440df282d629cfc1e433367db39aaf415475c5142dc"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/ziran_simd.h",
+              "bytes": 25802,
+              "sha256": "37184f310fccd155d6b50d172af77c220ee3c6ad3116a9e8453fb359b5072f0a"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/ziran_simd_ops.h",
+              "bytes": 88525,
+              "sha256": "d2f31b2c6c216496eb8ee2a392934f2b79cbd372d639dcbd946f27b8acc1d387"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/c/ziran_simd_types.h",
+              "bytes": 3909,
+              "sha256": "1d9868c18a9c11fb15dd182735a5dd980ec51c5a5233aac58b560f1fb472bb67"
+            }
+          ],
+          "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_string_scan:Answer -o build/benchmarks/json-text/json_string_scan/c bench/json_text/json_string_scan.zi",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_string_scan/c '-DMATRIX_HEADER=\"json_string_scan.h\"' -DMATRIX_ENTRY=json_string_scan_Answer bench/site_target_host.c site/generated/json-text/json_string_scan/c/json_bytes.c site/generated/json-text/json_string_scan/c/json_string_scan.c -lm -o build/benchmarks/json-text/json_string_scan/c-program",
+          "measurement": {
+            "result": "16418",
+            "batches": 16384,
+            "load_ms": 7.0006e-05,
+            "warmup_ms": 150.000643998,
+            "warmup_count": 155760,
+            "batch_samples_ms": [
+              14.483713984,
+              14.576020002,
+              14.317360997,
+              14.35592398,
+              14.403526008,
+              14.732930005,
+              14.477358997,
+              14.493014008,
+              14.441220015,
+              14.350304991,
+              14.748730004
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00088401574609375,
+              0.0008896496583251953,
+              0.0008738623655395508,
+              0.0008762160632324219,
+              0.0008791214604492188,
+              0.0008992266848754883,
+              0.0008836278684692383,
+              0.0008845833745117187,
+              0.0008814221200561524,
+              0.0008758731073608398,
+              0.0009001910402832032
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.0008634971299743652,
+              "upper_ms": 0.000901288148284912,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.00088401574609375,
+                0.0008896496583251953,
+                0.0008738623655395508,
+                0.0008762160632324219,
+                0.0008791214604492188,
+                0.0008992266848754883,
+                0.0008836278684692383,
+                0.0008845833745117187,
+                0.0008814221200561524,
+                0.0008758731073608398,
+                0.0009001910402832032
+              ],
+              "median_ms": 0.0008836278684692383
+            },
+            "execution_ms": 0.0008836278684692383,
+            "checksum": "268992512",
+            "command": "build/benchmarks/json-text/json_string_scan/c-program - 16418 11"
+          }
+        },
+        "go": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_string_scan/go/json_bytes.go",
+              "bytes": 1157,
+              "sha256": "c92977ba13d4b551f56aa6c75ab663e254cf284f4269fe4dd8ae3a256bd9cd34"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/go/json_string_scan.go",
+              "bytes": 1571,
+              "sha256": "d28c03e89ca5d9f19f0956d9b0c272a2e0dc0e2f303883d8fd0f9f73a0c924bf"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/go/vec.go",
+              "bytes": 66,
+              "sha256": "dc3e110464af9f67cfdc33e1a41d09cd0a48d4523214bee0c73dc69145e15f28"
+            },
+            {
+              "path": "generated/json-text/json_string_scan/go/ziran_simd.go",
+              "bytes": 992,
+              "sha256": "a5856a909be6588da86a5360e60f1ef546ea4ff32b99415d859f34dc32c4240a"
+            }
+          ],
+          "command": "build/bin/zi2go --no-main --pkg main --root bench/json_text --module-path std --entry json_string_scan:Answer -o build/benchmarks/json-text/json_string_scan/go bench/json_text/json_string_scan.zi",
+          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_string_scan/go-program build/benchmarks/json-text/json_string_scan/go-host/json_bytes.go build/benchmarks/json-text/json_string_scan/go-host/json_string_scan.go build/benchmarks/json-text/json_string_scan/go-host/vec.go build/benchmarks/json-text/json_string_scan/go-host/ziran_simd.go build/benchmarks/json-text/json_string_scan/go-host/matrix_host.go build/benchmarks/json-text/json_string_scan/go-host/matrix_bridge.go",
+          "measurement": {
+            "batch_samples_ms": [
+              18.468287,
+              18.503274,
+              18.511795,
+              18.48375,
+              18.43196,
+              18.235959,
+              18.270904,
+              18.649929,
+              18.888056,
+              19.097138,
+              19.073312
+            ],
+            "batches": 256,
+            "load_ms": 0,
+            "result": "16418",
+            "warmup_count": 2049,
+            "warmup_ms": 150.056135,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.07214174609375,
+              0.0722784140625,
+              0.07231169921875,
+              0.0722021484375,
+              0.07199984375,
+              0.07123421484375,
+              0.07137071875,
+              0.07285128515625,
+              0.07378146875,
+              0.0745981953125,
+              0.074505125
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.070202421875,
+              "upper_ms": 0.07518475,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.07214174609375,
+                0.0722784140625,
+                0.07231169921875,
+                0.0722021484375,
+                0.07199984375,
+                0.07123421484375,
+                0.07137071875,
+                0.07285128515625,
+                0.07378146875,
+                0.0745981953125,
+                0.074505125
+              ],
+              "median_ms": 0.0722784140625
+            },
+            "execution_ms": 0.0722784140625,
+            "checksum": "4203008",
+            "command": "build/benchmarks/json-text/json_string_scan/go-program - 16418 11"
+          }
+        },
+        "zx": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_string_scan/zx/json_string_scan.zx",
+              "bytes": 35668,
+              "sha256": "842ad9b6a503b61f00b758f8003c25c295ece56b1ba8d31773ca0298961d87a2"
+            }
+          ],
+          "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_string_scan:Answer -o build/benchmarks/json-text/json_string_scan/zx/json_string_scan.zx bench/json_text/json_string_scan.zi",
+          "measurement": {
+            "result": "16418",
+            "batches": 16,
+            "load_ms": 1.040255994,
+            "warmup_ms": 150.191215008,
+            "warmup_count": 122,
+            "batch_samples_ms": [
+              19.016737014,
+              19.007429987,
+              19.327462018,
+              19.433207005,
+              18.769039005,
+              18.714569002,
+              18.858338982,
+              19.483415008,
+              19.365810007,
+              19.031066,
+              19.195748985
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              1.188546063375,
+              1.1879643741875,
+              1.207966376125,
+              1.2145754378125,
+              1.1730649378125,
+              1.169660562625,
+              1.178646186375,
+              1.217713438,
+              1.2103631254375,
+              1.189441625,
+              1.1997343115625
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 1.1445160745312501,
+              "upper_ms": 1.2479539565312499,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                1.188546063375,
+                1.1879643741875,
+                1.207966376125,
+                1.2145754378125,
+                1.1730649378125,
+                1.169660562625,
+                1.178646186375,
+                1.217713438,
+                1.2103631254375,
+                1.189441625,
+                1.1997343115625
+              ],
+              "median_ms": 1.189441625
+            },
+            "execution_ms": 1.189441625,
+            "checksum": "262688",
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_string_scan/zx/json_string_scan.zx 16418 11"
+          }
+        },
+        "wasm": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_string_scan/wasm/json_string_scan.wasm",
+              "bytes": 7922,
+              "sha256": "85e6980474ac3b71e9675ed93241f7c41a03d6e735ebef58e2b945c23b3905fc"
+            }
+          ],
+          "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_string_scan:Answer -o build/benchmarks/json-text/json_string_scan/wasm/json_string_scan.zx bench/json_text/json_string_scan.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_string_scan/wasm/json_string_scan.wasm build/benchmarks/json-text/json_string_scan/wasm/json_string_scan.zx",
+          "measurement": {
+            "result": "16418",
+            "batches": 256,
+            "warmup_ms": 150.01232000000002,
+            "warmup_count": 2864,
+            "batch_samples_ms": [
+              13.262159999999994,
+              13.328322000000014,
+              13.380223999999998,
+              13.332423999999975,
+              13.321057999999994,
+              13.343387000000007,
+              13.320704999999975,
+              13.436942999999985,
+              13.381144000000006,
+              13.34540400000003,
+              13.363010000000031
+            ],
+            "load_ms": 3.9481249999999974,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.05180531249999998,
+              0.052063757812500056,
+              0.052266499999999994,
+              0.0520797812499999,
+              0.052035382812499975,
+              0.05212260546875003,
+              0.052034003906249904,
+              0.05248805859374994,
+              0.052270093750000024,
+              0.05213048437500012,
+              0.05219925781250012
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.05177460742187495,
+              "upper_ms": 0.05250784179687512,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.05180531249999998,
+                0.052063757812500056,
+                0.052266499999999994,
+                0.0520797812499999,
+                0.052035382812499975,
+                0.05212260546875003,
+                0.052034003906249904,
+                0.05248805859374994,
+                0.052270093750000024,
+                0.05213048437500012,
+                0.05219925781250012
+              ],
+              "median_ms": 0.05212260546875003
+            },
+            "execution_ms": 0.05212260546875003,
+            "checksum": "4203008",
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_string_scan/wasm/json_string_scan.wasm 16418 11"
+          }
+        }
+      }
+    },
+    {
+      "id": "json_parse",
+      "title": "JSON parse \u00b7 16 KiB string",
+      "source": "generated/json-text/sources/json_parse.zi",
+      "source_input": "bench/json_text/json_parse.zi",
+      "entry": "Answer",
+      "expected": "16624",
+      "stdout": "",
+      "source_sha256": "85379268b32e3cb019fb55a570df2e8cd3995be83e3ae936a1d404007ce12e20",
+      "targets": {
+        "c": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_parse/c/float_text.h",
+              "bytes": 218,
+              "sha256": "899ad9fe3cea1ee7cc9c0ed1fe64c83080119b04ad48deda7a9f96410a7b7079"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/json_bytes.c",
+              "bytes": 1975,
+              "sha256": "633acc003a18baaa0a3cb4236c285a273afa37691f49e529838a640b6c73b2d8"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/json_bytes.h",
+              "bytes": 296,
+              "sha256": "d0ba2adf9e12f9a09bd9ee9f33c8b94c8cbe1276ad43afd2736a0893668bbccb"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/json_document.c",
+              "bytes": 65423,
+              "sha256": "c55ef475421cf6a1c660990f07a35e22646c1d03e6c8ddb79581d6ee7d0cd3d9"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/json_document.h",
+              "bytes": 4117,
+              "sha256": "17c6a428275d50de5758a2b891f78f3b3ebbe78827448a0290454fa434aeccc0"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/json_parse.c",
+              "bytes": 6903,
+              "sha256": "1b2924a773eb8a3d8371e881c5bf70814b4fc4480bbb35c527d01a1a67d0118b"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/json_parse.h",
+              "bytes": 738,
+              "sha256": "87db933bc21a5d79b5f9ccdb4574c324f43be6e84f0e24916a1a52b566cc3b6c"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/json_quote.h",
+              "bytes": 218,
+              "sha256": "724d78317d862bdf82f006db26d4dc3dbc121c76f9b41ec3f1ce5772481936e0"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/vec.c",
+              "bytes": 526,
+              "sha256": "eb841e263f64b8a20063abf17f7b84f496c75130817d2902dc0276becced904e"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/vec.h",
+              "bytes": 708,
+              "sha256": "52751aa5c3a140d0427444c3a82c4121b961b726f67c7a3f8522107ca8194de3"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/zir_slice.h",
+              "bytes": 2421,
+              "sha256": "38b49e4e4ba83177ec258ef5f1d05b4441b0dd9f72b2efb97836fc7c1b94baaa"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/zir_string.h",
+              "bytes": 2510,
+              "sha256": "522ec57a44a7cc0eb5cc582df43b0b1ee5ade4493a47df0f51e55cfc2cd2b61c"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/zir_string_types.h",
+              "bytes": 665,
+              "sha256": "47c09e74e99267994c67f326959f160b952f87671daaaaeeda3d6e14f60e2443"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/zir_vec.h",
+              "bytes": 2894,
+              "sha256": "5d02fc05c3da740ee3bc8440df282d629cfc1e433367db39aaf415475c5142dc"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/ziran_simd.h",
+              "bytes": 25802,
+              "sha256": "37184f310fccd155d6b50d172af77c220ee3c6ad3116a9e8453fb359b5072f0a"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/ziran_simd_ops.h",
+              "bytes": 88525,
+              "sha256": "d2f31b2c6c216496eb8ee2a392934f2b79cbd372d639dcbd946f27b8acc1d387"
+            },
+            {
+              "path": "generated/json-text/json_parse/c/ziran_simd_types.h",
+              "bytes": 3909,
+              "sha256": "1d9868c18a9c11fb15dd182735a5dd980ec51c5a5233aac58b560f1fb472bb67"
+            }
+          ],
+          "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/c bench/json_text/json_parse.zi",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_parse/c '-DMATRIX_HEADER=\"json_parse.h\"' -DMATRIX_ENTRY=json_parse_Answer bench/site_target_host.c site/generated/json-text/json_parse/c/json_bytes.c site/generated/json-text/json_parse/c/json_document.c site/generated/json-text/json_parse/c/json_parse.c site/generated/json-text/json_parse/c/vec.c -lm -o build/benchmarks/json-text/json_parse/c-program",
+          "measurement": {
+            "result": "16624",
+            "batches": 16384,
+            "load_ms": 5.9992e-05,
+            "warmup_ms": 150.000804991,
+            "warmup_count": 115763,
+            "batch_samples_ms": [
+              20.346063018,
+              20.309219003,
+              20.238795996,
+              20.002074987,
+              19.99328801,
+              20.004206002,
+              20.054046005,
+              19.945252985,
+              19.692512006,
+              19.520163,
+              20.031495005
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.0012418251353759765,
+              0.0012395763551635742,
+              0.0012352780759277344,
+              0.0012208297721557617,
+              0.0012202934576416016,
+              0.0012209598389892578,
+              0.0012240018313598633,
+              0.001217361632385254,
+              0.001201935547241211,
+              0.0011914161987304688,
+              0.0012226254275512695
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.001202608932067871,
+              "upper_ms": 0.0012458585665893554,
+              "excluded_indices": [
+                8,
+                9
+              ],
+              "included_samples_ms": [
+                0.0012418251353759765,
+                0.0012395763551635742,
+                0.0012352780759277344,
+                0.0012208297721557617,
+                0.0012202934576416016,
+                0.0012209598389892578,
+                0.0012240018313598633,
+                0.001217361632385254,
+                0.0012226254275512695
+              ],
+              "median_ms": 0.0012226254275512695
+            },
+            "execution_ms": 0.0012226254275512695,
+            "checksum": "272367616",
+            "command": "build/benchmarks/json-text/json_parse/c-program - 16624 11"
+          }
+        },
+        "go": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_parse/go/float_text.go",
+              "bytes": 90,
+              "sha256": "ee4aef0df1a71dfd31aa06239effe3adfcb8ab7ba4cdb250b8683ce196f89811"
+            },
+            {
+              "path": "generated/json-text/json_parse/go/json_bytes.go",
+              "bytes": 1157,
+              "sha256": "c92977ba13d4b551f56aa6c75ab663e254cf284f4269fe4dd8ae3a256bd9cd34"
+            },
+            {
+              "path": "generated/json-text/json_parse/go/json_document.go",
+              "bytes": 29843,
+              "sha256": "d3748b875cd3cfee09785c819dd4de8ac0fce5a825582b150b939f3b8842c572"
+            },
+            {
+              "path": "generated/json-text/json_parse/go/json_parse.go",
+              "bytes": 3806,
+              "sha256": "5328b3ae84207a164409b1adfb4199a52d15dedafd8c5efac2edf73a36f1d5bd"
+            },
+            {
+              "path": "generated/json-text/json_parse/go/json_quote.go",
+              "bytes": 73,
+              "sha256": "43a466dfb47a6534d941b3dae299af8ee4fab31650027e9d86ba19f632c68533"
+            },
+            {
+              "path": "generated/json-text/json_parse/go/math.go",
+              "bytes": 18540,
+              "sha256": "319abef9564f5b20c3503c4c51ee00599c846d3a2929e8986bd915189143085b"
+            },
+            {
+              "path": "generated/json-text/json_parse/go/vec.go",
+              "bytes": 459,
+              "sha256": "a240301e5952c812e5a534e1c983d35e6dbbd9258985127991a6393135e66887"
+            },
+            {
+              "path": "generated/json-text/json_parse/go/ziran_simd.go",
+              "bytes": 992,
+              "sha256": "a5856a909be6588da86a5360e60f1ef546ea4ff32b99415d859f34dc32c4240a"
+            }
+          ],
+          "command": "build/bin/zi2go --no-main --pkg main --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/go bench/json_text/json_parse.zi",
+          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_parse/go-program build/benchmarks/json-text/json_parse/go-host/float_text.go build/benchmarks/json-text/json_parse/go-host/json_bytes.go build/benchmarks/json-text/json_parse/go-host/json_document.go build/benchmarks/json-text/json_parse/go-host/json_parse.go build/benchmarks/json-text/json_parse/go-host/json_quote.go build/benchmarks/json-text/json_parse/go-host/math.go build/benchmarks/json-text/json_parse/go-host/vec.go build/benchmarks/json-text/json_parse/go-host/ziran_simd.go build/benchmarks/json-text/json_parse/go-host/matrix_host.go build/benchmarks/json-text/json_parse/go-host/matrix_bridge.go",
+          "measurement": {
+            "batch_samples_ms": [
+              20.000108,
+              19.873674,
+              19.754115,
+              19.896722,
+              20.123243,
+              19.959726,
+              19.770483,
+              19.600024,
+              19.776552,
+              19.834604,
+              19.963781
+            ],
+            "batches": 256,
+            "load_ms": 0,
+            "result": "16624",
+            "warmup_count": 1897,
+            "warmup_ms": 150.07642,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.078125421875,
+              0.0776315390625,
+              0.07716451171875,
+              0.0777215703125,
+              0.07860641796875,
+              0.0779676796875,
+              0.07722844921875,
+              0.07656259375,
+              0.07725215625,
+              0.077478921875,
+              0.07798351953125
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.07613735742187497,
+              "upper_ms": 0.07907854492187502,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.078125421875,
+                0.0776315390625,
+                0.07716451171875,
+                0.0777215703125,
+                0.07860641796875,
+                0.0779676796875,
+                0.07722844921875,
+                0.07656259375,
+                0.07725215625,
+                0.077478921875,
+                0.07798351953125
+              ],
+              "median_ms": 0.0776315390625
+            },
+            "execution_ms": 0.0776315390625,
+            "checksum": "4255744",
+            "command": "build/benchmarks/json-text/json_parse/go-program - 16624 11"
+          }
+        },
+        "zx": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_parse/zx/json_parse.zx",
+              "bytes": 211470,
+              "sha256": "76d5750c644f8a604ebc4df9dce12a08e10e2121847b653d1fc614fcbd41bc92"
+            }
+          ],
+          "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/zx/json_parse.zx bench/json_text/json_parse.zi",
+          "measurement": {
+            "result": "16624",
+            "batches": 8,
+            "load_ms": 6.040806979,
+            "warmup_ms": 151.685510993,
+            "warmup_count": 82,
+            "batch_samples_ms": [
+              14.427087992,
+              14.931293994,
+              14.537026018,
+              14.099848002,
+              14.946152002,
+              14.107349008,
+              14.123412013,
+              14.469767988,
+              14.320755005,
+              14.122817993,
+              14.362456024
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              1.803385999,
+              1.86641174925,
+              1.81712825225,
+              1.76248100025,
+              1.86826900025,
+              1.763418626,
+              1.765426501625,
+              1.8087209985,
+              1.790094375625,
+              1.765352249125,
+              1.795307003
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 1.6940865003749996,
+              "upper_ms": 1.8842275003750002,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                1.803385999,
+                1.86641174925,
+                1.81712825225,
+                1.76248100025,
+                1.86826900025,
+                1.763418626,
+                1.765426501625,
+                1.8087209985,
+                1.790094375625,
+                1.765352249125,
+                1.795307003
+              ],
+              "median_ms": 1.795307003
+            },
+            "execution_ms": 1.795307003,
+            "checksum": "132992",
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_parse/zx/json_parse.zx 16624 11"
+          }
+        },
+        "wasm": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_parse/wasm/json_parse.wasm",
+              "bytes": 44364,
+              "sha256": "164e091b362f8a96a14be5517055b155e477439da7be8d095bdc4d83afa5699d"
+            }
+          ],
+          "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/wasm/json_parse.zx bench/json_text/json_parse.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_parse/wasm/json_parse.wasm build/benchmarks/json-text/json_parse/wasm/json_parse.zx",
+          "measurement": {
+            "result": "16624",
+            "batches": 256,
+            "warmup_ms": 150.005066,
+            "warmup_count": 2238,
+            "batch_samples_ms": [
+              17.159839000000005,
+              17.14999899999998,
+              20.49247200000002,
+              17.119740000000036,
+              17.084971999999993,
+              17.363135999999997,
+              17.567363,
+              17.45122200000003,
+              17.537281000000007,
+              17.383212000000015,
+              17.331352000000038
+            ],
+            "load_ms": 0.811868999999998,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.06703062109375002,
+              0.06699218359374992,
+              0.08004871875000008,
+              0.06687398437500014,
+              0.06673817187499997,
+              0.06782474999999999,
+              0.06862251171875,
+              0.06816883593750012,
+              0.06850500390625003,
+              0.06790317187500006,
+              0.06770059375000015
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.06502312597656232,
+              "upper_ms": 0.07032519628906272,
+              "excluded_indices": [
+                2
+              ],
+              "included_samples_ms": [
+                0.06703062109375002,
+                0.06699218359374992,
+                0.06687398437500014,
+                0.06673817187499997,
+                0.06782474999999999,
+                0.06862251171875,
+                0.06816883593750012,
+                0.06850500390625003,
+                0.06790317187500006,
+                0.06770059375000015
+              ],
+              "median_ms": 0.06776267187500007
+            },
+            "execution_ms": 0.06776267187500007,
+            "checksum": "4255744",
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_parse/wasm/json_parse.wasm 16624 11"
+          }
+        }
+      }
+    },
+    {
+      "id": "json_escaped",
+      "title": "JSON parse \u00b7 128 escaped Unicode objects",
+      "source": "generated/json-text/sources/json_escaped.zi",
+      "source_input": "bench/json_text/json_escaped.zi",
+      "entry": "Answer",
+      "expected": "43904",
+      "stdout": "",
+      "source_sha256": "eca86047f646da6edbf6f2907bcea69ef6a459a19699e4335aa8d68259ba0175",
+      "targets": {
+        "c": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_escaped/c/float_text.h",
+              "bytes": 218,
+              "sha256": "899ad9fe3cea1ee7cc9c0ed1fe64c83080119b04ad48deda7a9f96410a7b7079"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/json_bytes.c",
+              "bytes": 1975,
+              "sha256": "633acc003a18baaa0a3cb4236c285a273afa37691f49e529838a640b6c73b2d8"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/json_bytes.h",
+              "bytes": 296,
+              "sha256": "d0ba2adf9e12f9a09bd9ee9f33c8b94c8cbe1276ad43afd2736a0893668bbccb"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/json_document.c",
+              "bytes": 66485,
+              "sha256": "dd30ae7662acf92401b16878d293a40317d08adcca9a4ee0e44ea76561f394be"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/json_document.h",
+              "bytes": 6024,
+              "sha256": "79853e51fc35a9fce356b5ed0771fd0f2a00da39b7c35ef0930269e2b64d2a40"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/json_escaped.c",
+              "bytes": 8624,
+              "sha256": "8b1145059023bbd7ffffd8806703a9936a69cb3f4c8da54711df7c0e90755b51"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/json_escaped.h",
+              "bytes": 748,
+              "sha256": "56ef6508cf7f6fe3279e668152ba6992d21d61590d501fde3d85aee1b31b34f8"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/json_quote.h",
+              "bytes": 218,
+              "sha256": "724d78317d862bdf82f006db26d4dc3dbc121c76f9b41ec3f1ce5772481936e0"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/vec.c",
+              "bytes": 526,
+              "sha256": "eb841e263f64b8a20063abf17f7b84f496c75130817d2902dc0276becced904e"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/vec.h",
+              "bytes": 708,
+              "sha256": "52751aa5c3a140d0427444c3a82c4121b961b726f67c7a3f8522107ca8194de3"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/zir_slice.h",
+              "bytes": 2421,
+              "sha256": "38b49e4e4ba83177ec258ef5f1d05b4441b0dd9f72b2efb97836fc7c1b94baaa"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/zir_string.h",
+              "bytes": 2510,
+              "sha256": "522ec57a44a7cc0eb5cc582df43b0b1ee5ade4493a47df0f51e55cfc2cd2b61c"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/zir_string_types.h",
+              "bytes": 665,
+              "sha256": "47c09e74e99267994c67f326959f160b952f87671daaaaeeda3d6e14f60e2443"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/zir_vec.h",
+              "bytes": 2894,
+              "sha256": "5d02fc05c3da740ee3bc8440df282d629cfc1e433367db39aaf415475c5142dc"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/ziran_simd.h",
+              "bytes": 25802,
+              "sha256": "37184f310fccd155d6b50d172af77c220ee3c6ad3116a9e8453fb359b5072f0a"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/ziran_simd_ops.h",
+              "bytes": 88525,
+              "sha256": "d2f31b2c6c216496eb8ee2a392934f2b79cbd372d639dcbd946f27b8acc1d387"
+            },
+            {
+              "path": "generated/json-text/json_escaped/c/ziran_simd_types.h",
+              "bytes": 3909,
+              "sha256": "1d9868c18a9c11fb15dd182735a5dd980ec51c5a5233aac58b560f1fb472bb67"
+            }
+          ],
+          "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/c bench/json_text/json_escaped.zi",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_escaped/c '-DMATRIX_HEADER=\"json_escaped.h\"' -DMATRIX_ENTRY=json_escaped_Answer bench/site_target_host.c site/generated/json-text/json_escaped/c/json_bytes.c site/generated/json-text/json_escaped/c/json_document.c site/generated/json-text/json_escaped/c/json_escaped.c site/generated/json-text/json_escaped/c/vec.c -lm -o build/benchmarks/json-text/json_escaped/c-program",
+          "measurement": {
+            "result": "43904",
+            "batches": 512,
+            "load_ms": 6.8992e-05,
+            "warmup_ms": 150.025552005,
+            "warmup_count": 5235,
+            "batch_samples_ms": [
+              14.472873986,
+              14.687777013,
+              14.99395898,
+              14.848049998,
+              14.816673011,
+              14.897770017,
+              14.375234008,
+              14.627728999,
+              14.612089992,
+              14.642082006,
+              14.643932015
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.02826733200390625,
+              0.028687064478515625,
+              0.0292850761328125,
+              0.02900009765234375,
+              0.028938814474609376,
+              0.029097207064453123,
+              0.028076628921875,
+              0.028569783201171876,
+              0.028539238265625,
+              0.02859781641796875,
+              0.028601429716796876
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.02793209273828125,
+              "upper_ms": 0.02959187405859375,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.02826733200390625,
+                0.028687064478515625,
+                0.0292850761328125,
+                0.02900009765234375,
+                0.028938814474609376,
+                0.029097207064453123,
+                0.028076628921875,
+                0.028569783201171876,
+                0.028539238265625,
+                0.02859781641796875,
+                0.028601429716796876
+              ],
+              "median_ms": 0.028601429716796876
+            },
+            "execution_ms": 0.028601429716796876,
+            "checksum": "22478848",
+            "command": "build/benchmarks/json-text/json_escaped/c-program - 43904 11"
+          }
+        },
+        "go": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_escaped/go/float_text.go",
+              "bytes": 90,
+              "sha256": "ee4aef0df1a71dfd31aa06239effe3adfcb8ab7ba4cdb250b8683ce196f89811"
+            },
+            {
+              "path": "generated/json-text/json_escaped/go/json_bytes.go",
+              "bytes": 1157,
+              "sha256": "c92977ba13d4b551f56aa6c75ab663e254cf284f4269fe4dd8ae3a256bd9cd34"
+            },
+            {
+              "path": "generated/json-text/json_escaped/go/json_document.go",
+              "bytes": 30404,
+              "sha256": "0c57c2f9bf302ddd35142b866c07cf5f641c04f45b181deb249a4d0ccc31b6bc"
+            },
+            {
+              "path": "generated/json-text/json_escaped/go/json_escaped.go",
+              "bytes": 4404,
+              "sha256": "6c3072d50213ac634c9f7fcff5e2606d07c568014f89c428777515f0ffb48a62"
+            },
+            {
+              "path": "generated/json-text/json_escaped/go/json_quote.go",
+              "bytes": 73,
+              "sha256": "43a466dfb47a6534d941b3dae299af8ee4fab31650027e9d86ba19f632c68533"
+            },
+            {
+              "path": "generated/json-text/json_escaped/go/math.go",
+              "bytes": 18540,
+              "sha256": "319abef9564f5b20c3503c4c51ee00599c846d3a2929e8986bd915189143085b"
+            },
+            {
+              "path": "generated/json-text/json_escaped/go/vec.go",
+              "bytes": 459,
+              "sha256": "a240301e5952c812e5a534e1c983d35e6dbbd9258985127991a6393135e66887"
+            },
+            {
+              "path": "generated/json-text/json_escaped/go/ziran_simd.go",
+              "bytes": 992,
+              "sha256": "a5856a909be6588da86a5360e60f1ef546ea4ff32b99415d859f34dc32c4240a"
+            }
+          ],
+          "command": "build/bin/zi2go --no-main --pkg main --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/go bench/json_text/json_escaped.zi",
+          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_escaped/go-program build/benchmarks/json-text/json_escaped/go-host/float_text.go build/benchmarks/json-text/json_escaped/go-host/json_bytes.go build/benchmarks/json-text/json_escaped/go-host/json_document.go build/benchmarks/json-text/json_escaped/go-host/json_escaped.go build/benchmarks/json-text/json_escaped/go-host/json_quote.go build/benchmarks/json-text/json_escaped/go-host/math.go build/benchmarks/json-text/json_escaped/go-host/vec.go build/benchmarks/json-text/json_escaped/go-host/ziran_simd.go build/benchmarks/json-text/json_escaped/go-host/matrix_host.go build/benchmarks/json-text/json_escaped/go-host/matrix_bridge.go",
+          "measurement": {
+            "batch_samples_ms": [
+              11.966435,
+              11.233014,
+              12.169366,
+              11.758118,
+              11.868085,
+              11.604193,
+              11.624245,
+              11.374758,
+              11.276307,
+              12.13693,
+              11.301916
+            ],
+            "batches": 16,
+            "load_ms": 0,
+            "result": "43904",
+            "warmup_count": 205,
+            "warmup_ms": 150.608846,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.7479021875,
+              0.702063375,
+              0.760585375,
+              0.734882375,
+              0.7417553125,
+              0.7252620625,
+              0.7265153125,
+              0.710922375,
+              0.7047691875,
+              0.758558125,
+              0.70636975
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.6543720312499999,
+              "upper_ms": 0.7991027812500002,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.7479021875,
+                0.702063375,
+                0.760585375,
+                0.734882375,
+                0.7417553125,
+                0.7252620625,
+                0.7265153125,
+                0.710922375,
+                0.7047691875,
+                0.758558125,
+                0.70636975
+              ],
+              "median_ms": 0.7265153125
+            },
+            "execution_ms": 0.7265153125,
+            "checksum": "702464",
+            "command": "build/benchmarks/json-text/json_escaped/go-program - 43904 11"
+          }
+        },
+        "zx": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_escaped/zx/json_escaped.zx",
+              "bytes": 222448,
+              "sha256": "af9b3d28af8fdd9c41c4ebba3333ad55ea01523bc804431b6e57fcf00b35825c"
+            }
+          ],
+          "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/zx/json_escaped.zx bench/json_text/json_escaped.zi",
+          "measurement": {
+            "result": "43904",
+            "batches": 2,
+            "load_ms": 6.443218976,
+            "warmup_ms": 152.198527992,
+            "warmup_count": 24,
+            "batch_samples_ms": [
+              12.563005984,
+              12.507072002,
+              12.517345011,
+              12.519196004,
+              12.488633007,
+              12.614924014,
+              12.605814993,
+              12.507573009,
+              12.395452976,
+              12.648485005,
+              12.65575701
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              6.281502992,
+              6.253536001,
+              6.2586725055,
+              6.259598002,
+              6.2443165035,
+              6.307462007,
+              6.3029074965,
+              6.2537865045,
+              6.197726488,
+              6.3242425025,
+              6.327878505
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 6.17637600425,
+              "upper_ms": 6.38247000025,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                6.281502992,
+                6.253536001,
+                6.2586725055,
+                6.259598002,
+                6.2443165035,
+                6.307462007,
+                6.3029074965,
+                6.2537865045,
+                6.197726488,
+                6.3242425025,
+                6.327878505
+              ],
+              "median_ms": 6.259598002
+            },
+            "execution_ms": 6.259598002,
+            "checksum": "87808",
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_escaped/zx/json_escaped.zx 43904 11"
+          }
+        },
+        "wasm": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_escaped/wasm/json_escaped.wasm",
+              "bytes": 46604,
+              "sha256": "78fa5888dd80297047b4bd8778b1dc572784a812b466eedb5ebf1653231cc6cd"
+            }
+          ],
+          "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/wasm/json_escaped.zx bench/json_text/json_escaped.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_escaped/wasm/json_escaped.wasm build/benchmarks/json-text/json_escaped/wasm/json_escaped.zx",
+          "measurement": {
+            "result": "43904",
+            "batches": 64,
+            "warmup_ms": 150.070154,
+            "warmup_count": 913,
+            "batch_samples_ms": [
+              10.228182000000004,
+              9.980571999999995,
+              9.989255000000014,
+              10.359314999999981,
+              10.084565999999995,
+              9.99007899999998,
+              10.045413999999994,
+              9.979679000000033,
+              10.331005000000005,
+              10.030606000000034,
+              10.404359
+            ],
+            "load_ms": 0.7245460000000001,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.15981534375000006,
+              0.15594643749999992,
+              0.15608210937500022,
+              0.1618642968749997,
+              0.15757134374999993,
+              0.1560949843749997,
+              0.1569595937499999,
+              0.1559324843750005,
+              0.16142195312500007,
+              0.15672821875000054,
+              0.162568109375
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.1492933945312498,
+              "upper_ms": 0.16741380078125023,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.15981534375000006,
+                0.15594643749999992,
+                0.15608210937500022,
+                0.1618642968749997,
+                0.15757134374999993,
+                0.1560949843749997,
+                0.1569595937499999,
+                0.1559324843750005,
+                0.16142195312500007,
+                0.15672821875000054,
+                0.162568109375
+              ],
+              "median_ms": 0.1569595937499999
+            },
+            "execution_ms": 0.1569595937499999,
+            "checksum": "2809856",
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_escaped/wasm/json_escaped.wasm 43904 11"
+          }
+        }
+      }
+    },
+    {
+      "id": "json_write",
+      "title": "JSON write \u00b7 256 mixed Unicode strings",
+      "source": "generated/json-text/sources/json_write.zi",
+      "source_input": "bench/json_text/json_write.zi",
+      "entry": "Answer",
+      "expected": "5446",
+      "stdout": "",
+      "source_sha256": "1bdbe75bee8d72b390068e1001c1077b6d21031d04096f32b04cc5068992ce33",
+      "targets": {
+        "c": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_write/c/json_bytes.c",
+              "bytes": 2853,
+              "sha256": "9fc9a0945f58033a3c30dd4e8cf20f6af87044c7111fe0a74d44384a94a61735"
+            },
+            {
+              "path": "generated/json-text/json_write/c/json_bytes.h",
+              "bytes": 393,
+              "sha256": "0953007483c1d3f358528782bbb76f997aa743ef45e3a0a2572a6f93769935ec"
+            },
+            {
+              "path": "generated/json-text/json_write/c/json_quote.c",
+              "bytes": 16611,
+              "sha256": "b9d1bdfee333790ff3a6b549ac9109a1cc721936b1771f85e11f7fc3c08ce166"
+            },
+            {
+              "path": "generated/json-text/json_write/c/json_quote.h",
+              "bytes": 834,
+              "sha256": "e4f4ebba378e68bd80df770ffc97bfe48b16c3000492685e60bb74bc4c693852"
+            },
+            {
+              "path": "generated/json-text/json_write/c/json_write.c",
+              "bytes": 2447,
+              "sha256": "e0f3c84432bd94d01780b1d12fb8f89524fb2cb8383b53648b603d542ffdbef2"
+            },
+            {
+              "path": "generated/json-text/json_write/c/json_write.h",
+              "bytes": 735,
+              "sha256": "e9921f08779751d83f1ce10eb2589c46d72f3f74c950f36351395a22f3f58b68"
+            },
+            {
+              "path": "generated/json-text/json_write/c/vec.h",
+              "bytes": 173,
+              "sha256": "33e852b91d5833811cca7e1fe1b7a34e3fd49008d0a70328772f387092b1cd1a"
+            },
+            {
+              "path": "generated/json-text/json_write/c/zir_slice.h",
+              "bytes": 2421,
+              "sha256": "38b49e4e4ba83177ec258ef5f1d05b4441b0dd9f72b2efb97836fc7c1b94baaa"
+            },
+            {
+              "path": "generated/json-text/json_write/c/zir_string.h",
+              "bytes": 2510,
+              "sha256": "522ec57a44a7cc0eb5cc582df43b0b1ee5ade4493a47df0f51e55cfc2cd2b61c"
+            },
+            {
+              "path": "generated/json-text/json_write/c/zir_string_types.h",
+              "bytes": 665,
+              "sha256": "47c09e74e99267994c67f326959f160b952f87671daaaaeeda3d6e14f60e2443"
+            },
+            {
+              "path": "generated/json-text/json_write/c/zir_vec.h",
+              "bytes": 2894,
+              "sha256": "5d02fc05c3da740ee3bc8440df282d629cfc1e433367db39aaf415475c5142dc"
+            },
+            {
+              "path": "generated/json-text/json_write/c/ziran_simd.h",
+              "bytes": 25802,
+              "sha256": "37184f310fccd155d6b50d172af77c220ee3c6ad3116a9e8453fb359b5072f0a"
+            },
+            {
+              "path": "generated/json-text/json_write/c/ziran_simd_ops.h",
+              "bytes": 88525,
+              "sha256": "d2f31b2c6c216496eb8ee2a392934f2b79cbd372d639dcbd946f27b8acc1d387"
+            },
+            {
+              "path": "generated/json-text/json_write/c/ziran_simd_types.h",
+              "bytes": 3909,
+              "sha256": "1d9868c18a9c11fb15dd182735a5dd980ec51c5a5233aac58b560f1fb472bb67"
+            }
+          ],
+          "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/c bench/json_text/json_write.zi",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_write/c '-DMATRIX_HEADER=\"json_write.h\"' -DMATRIX_ENTRY=json_write_Answer bench/site_target_host.c site/generated/json-text/json_write/c/json_bytes.c site/generated/json-text/json_write/c/json_quote.c site/generated/json-text/json_write/c/json_write.c -lm -o build/benchmarks/json-text/json_write/c-program",
+          "measurement": {
+            "result": "5446",
+            "batches": 1024,
+            "load_ms": 6.4999e-05,
+            "warmup_ms": 150.001165003,
+            "warmup_count": 10952,
+            "batch_samples_ms": [
+              14.80309701,
+              13.988044977,
+              13.950688004,
+              15.884961993,
+              13.904938996,
+              13.898119986,
+              14.576839,
+              14.642025024,
+              14.020029992,
+              13.940973997,
+              13.98180002
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.014456149423828125,
+              0.013660200172851562,
+              0.01362371875390625,
+              0.015512658196289062,
+              0.01357904198828125,
+              0.013572382798828124,
+              0.0142351943359375,
+              0.0142988525625,
+              0.0136914355390625,
+              0.013614232418945313,
+              0.01365410158203125
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.01264690379223633,
+              "upper_ms": 0.015239095243408201,
+              "excluded_indices": [
+                3
+              ],
+              "included_samples_ms": [
+                0.014456149423828125,
+                0.013660200172851562,
+                0.01362371875390625,
+                0.01357904198828125,
+                0.013572382798828124,
+                0.0142351943359375,
+                0.0142988525625,
+                0.0136914355390625,
+                0.013614232418945313,
+                0.01365410158203125
+              ],
+              "median_ms": 0.013657150877441406
+            },
+            "execution_ms": 0.013657150877441406,
+            "checksum": "5576704",
+            "command": "build/benchmarks/json-text/json_write/c-program - 5446 11"
+          }
+        },
+        "go": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_write/go/json_bytes.go",
+              "bytes": 1766,
+              "sha256": "360e0aad7b8d26fbf73d9af2bcc88c517a120b0cfe8d61f6b311803245c9c513"
+            },
+            {
+              "path": "generated/json-text/json_write/go/json_quote.go",
+              "bytes": 7836,
+              "sha256": "eadbf5abe0b730902a78794d1cbbf0c910838d279b3b570da2b0b7d0c830079f"
+            },
+            {
+              "path": "generated/json-text/json_write/go/json_write.go",
+              "bytes": 1249,
+              "sha256": "03434eae7d4e70a2de4679ef3e864c66ec5fc2af20c341a041823dea0e2076fe"
+            },
+            {
+              "path": "generated/json-text/json_write/go/vec.go",
+              "bytes": 66,
+              "sha256": "dc3e110464af9f67cfdc33e1a41d09cd0a48d4523214bee0c73dc69145e15f28"
+            },
+            {
+              "path": "generated/json-text/json_write/go/ziran_simd.go",
+              "bytes": 992,
+              "sha256": "a5856a909be6588da86a5360e60f1ef546ea4ff32b99415d859f34dc32c4240a"
+            }
+          ],
+          "command": "build/bin/zi2go --no-main --pkg main --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/go bench/json_text/json_write.zi",
+          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_write/go-program build/benchmarks/json-text/json_write/go-host/json_bytes.go build/benchmarks/json-text/json_write/go-host/json_quote.go build/benchmarks/json-text/json_write/go-host/json_write.go build/benchmarks/json-text/json_write/go-host/vec.go build/benchmarks/json-text/json_write/go-host/ziran_simd.go build/benchmarks/json-text/json_write/go-host/matrix_host.go build/benchmarks/json-text/json_write/go-host/matrix_bridge.go",
+          "measurement": {
+            "batch_samples_ms": [
+              11.532305,
+              11.772297,
+              12.085807,
+              11.651862,
+              11.488556,
+              12.208099,
+              11.742053,
+              11.581039,
+              12.045206,
+              12.031803,
+              12.204957
+            ],
+            "batches": 256,
+            "load_ms": 0,
+            "result": "5446",
+            "warmup_count": 3232,
+            "warmup_ms": 150.039925,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.04504806640625,
+              0.04598553515625,
+              0.04721018359375,
+              0.0455150859375,
+              0.044877171875,
+              0.04768788671875,
+              0.04586739453125,
+              0.04523843359375,
+              0.0470515859375,
+              0.04699923046875,
+              0.04767561328125
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.04274557226562498,
+              "upper_ms": 0.04976207226562502,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.04504806640625,
+                0.04598553515625,
+                0.04721018359375,
+                0.0455150859375,
+                0.044877171875,
+                0.04768788671875,
+                0.04586739453125,
+                0.04523843359375,
+                0.0470515859375,
+                0.04699923046875,
+                0.04767561328125
+              ],
+              "median_ms": 0.04598553515625
+            },
+            "execution_ms": 0.04598553515625,
+            "checksum": "1394176",
+            "command": "build/benchmarks/json-text/json_write/go-program - 5446 11"
+          }
+        },
+        "zx": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_write/zx/json_write.zx",
+              "bytes": 116502,
+              "sha256": "465f4cae2d63d5af82839fa7225f2395cb9d437cc657be2760e794fa648f4a63"
+            }
+          ],
+          "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/zx/json_write.zx bench/json_text/json_write.zi",
+          "measurement": {
+            "result": "5446",
+            "batches": 8,
+            "load_ms": 4.062211007,
+            "warmup_ms": 151.794879973,
+            "warmup_count": 82,
+            "batch_samples_ms": [
+              14.456077009,
+              14.710392028,
+              14.602813005,
+              14.504227996,
+              14.748474002,
+              14.589459002,
+              14.392320007,
+              14.459478021,
+              14.470229,
+              14.452841997,
+              14.428140998
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              1.807009626125,
+              1.8387990035,
+              1.825351625625,
+              1.8130284995,
+              1.84355925025,
+              1.82368237525,
+              1.799040000875,
+              1.807434752625,
+              1.808778625,
+              1.806605249625,
+              1.80351762475
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 1.7802430940312497,
+              "upper_ms": 1.8510813442812502,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                1.807009626125,
+                1.8387990035,
+                1.825351625625,
+                1.8130284995,
+                1.84355925025,
+                1.82368237525,
+                1.799040000875,
+                1.807434752625,
+                1.808778625,
+                1.806605249625,
+                1.80351762475
+              ],
+              "median_ms": 1.808778625
+            },
+            "execution_ms": 1.808778625,
+            "checksum": "43568",
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_write/zx/json_write.zx 5446 11"
+          }
+        },
+        "wasm": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_write/wasm/json_write.wasm",
+              "bytes": 22432,
+              "sha256": "0426e6465575a88cd9f840921e6103a4e369a5f53ec11390963b78ecc0953f81"
+            }
+          ],
+          "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/wasm/json_write.zx bench/json_text/json_write.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_write/wasm/json_write.wasm build/benchmarks/json-text/json_write/wasm/json_write.zx",
+          "measurement": {
+            "result": "5446",
+            "batches": 256,
+            "warmup_ms": 150.030844,
+            "warmup_count": 3061,
+            "batch_samples_ms": [
+              12.042545999999987,
+              11.866056000000015,
+              11.86503399999998,
+              11.857760999999982,
+              11.893164000000013,
+              11.904731999999967,
+              11.969382999999993,
+              11.869925000000023,
+              12.328135000000032,
+              12.185423999999955,
+              12.204660999999987
+            ],
+            "load_ms": 0.7663340000000005,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.04704119531249995,
+              0.04635178125000006,
+              0.04634778906249992,
+              0.04631937890624993,
+              0.04645767187500005,
+              0.04650285937499987,
+              0.046755402343749974,
+              0.04636689453125009,
+              0.04815677734375012,
+              0.047599312499999824,
+              0.04767445703124995
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.044917963867187854,
+              "upper_ms": 0.04876162792968711,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.04704119531249995,
+                0.04635178125000006,
+                0.04634778906249992,
+                0.04631937890624993,
+                0.04645767187500005,
+                0.04650285937499987,
+                0.046755402343749974,
+                0.04636689453125009,
+                0.04815677734375012,
+                0.047599312499999824,
+                0.04767445703124995
+              ],
+              "median_ms": 0.04650285937499987
+            },
+            "execution_ms": 0.04650285937499987,
+            "checksum": "1394176",
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_write/wasm/json_write.wasm 5446 11"
+          }
+        }
+      }
+    },
+    {
+      "id": "json_quote_plain",
+      "title": "JSON write \u00b7 64 KiB ASCII string",
+      "source": "generated/json-text/sources/json_quote_plain.zi",
+      "source_input": "bench/json_text/json_quote_plain.zi",
+      "entry": "Answer",
+      "expected": "65606",
+      "stdout": "",
+      "source_sha256": "f12cb9d8cbb418e9cb7fc3623cdf429931cc49c8d7bec2c24756746eeb99cd0b",
+      "targets": {
+        "c": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_quote_plain/c/json_bytes.c",
+              "bytes": 2853,
+              "sha256": "9fc9a0945f58033a3c30dd4e8cf20f6af87044c7111fe0a74d44384a94a61735"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/json_bytes.h",
+              "bytes": 393,
+              "sha256": "0953007483c1d3f358528782bbb76f997aa743ef45e3a0a2572a6f93769935ec"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/json_quote.c",
+              "bytes": 16611,
+              "sha256": "b9d1bdfee333790ff3a6b549ac9109a1cc721936b1771f85e11f7fc3c08ce166"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/json_quote.h",
+              "bytes": 834,
+              "sha256": "e4f4ebba378e68bd80df770ffc97bfe48b16c3000492685e60bb74bc4c693852"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/json_quote_plain.c",
+              "bytes": 2158,
+              "sha256": "44c55ea63aa87442a9721d104b82933dd2dd01e094517d73be58bd776e7dcef6"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/json_quote_plain.h",
+              "bytes": 765,
+              "sha256": "d3f2dd0f3edefa5ee5229fb52ba474547125ad94dd9da8a4295b25d9c7aec332"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/vec.h",
+              "bytes": 173,
+              "sha256": "33e852b91d5833811cca7e1fe1b7a34e3fd49008d0a70328772f387092b1cd1a"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/zir_slice.h",
+              "bytes": 2421,
+              "sha256": "38b49e4e4ba83177ec258ef5f1d05b4441b0dd9f72b2efb97836fc7c1b94baaa"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/zir_string.h",
+              "bytes": 2510,
+              "sha256": "522ec57a44a7cc0eb5cc582df43b0b1ee5ade4493a47df0f51e55cfc2cd2b61c"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/zir_string_types.h",
+              "bytes": 665,
+              "sha256": "47c09e74e99267994c67f326959f160b952f87671daaaaeeda3d6e14f60e2443"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/zir_vec.h",
+              "bytes": 2894,
+              "sha256": "5d02fc05c3da740ee3bc8440df282d629cfc1e433367db39aaf415475c5142dc"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/ziran_simd.h",
+              "bytes": 25802,
+              "sha256": "37184f310fccd155d6b50d172af77c220ee3c6ad3116a9e8453fb359b5072f0a"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/ziran_simd_ops.h",
+              "bytes": 88525,
+              "sha256": "d2f31b2c6c216496eb8ee2a392934f2b79cbd372d639dcbd946f27b8acc1d387"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/c/ziran_simd_types.h",
+              "bytes": 3909,
+              "sha256": "1d9868c18a9c11fb15dd182735a5dd980ec51c5a5233aac58b560f1fb472bb67"
+            }
+          ],
+          "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/c bench/json_text/json_quote_plain.zi",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_quote_plain/c '-DMATRIX_HEADER=\"json_quote_plain.h\"' -DMATRIX_ENTRY=json_quote_plain_Answer bench/site_target_host.c site/generated/json-text/json_quote_plain/c/json_bytes.c site/generated/json-text/json_quote_plain/c/json_quote.c site/generated/json-text/json_quote_plain/c/json_quote_plain.c -lm -o build/benchmarks/json-text/json_quote_plain/c-program",
+          "measurement": {
+            "result": "65606",
+            "batches": 1024,
+            "load_ms": 5.9992e-05,
+            "warmup_ms": 150.008446008,
+            "warmup_count": 14973,
+            "batch_samples_ms": [
+              10.243892998,
+              10.166671008,
+              10.218021989,
+              10.558522999,
+              10.129181981,
+              10.094963014,
+              10.803198993,
+              10.177457005,
+              10.167668998,
+              10.509838998,
+              10.441190988
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.010003801755859375,
+              0.00992838965625,
+              0.009978537098632813,
+              0.010311057616210937,
+              0.009891779278320313,
+              0.009858362318359374,
+              0.010549999016601563,
+              0.009938922856445313,
+              0.009929364255859375,
+              0.010263514646484374,
+              0.01019647557421875
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.009477199724609371,
+              "upper_ms": 0.010681672341796879,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.010003801755859375,
+                0.00992838965625,
+                0.009978537098632813,
+                0.010311057616210937,
+                0.009891779278320313,
+                0.009858362318359374,
+                0.010549999016601563,
+                0.009938922856445313,
+                0.009929364255859375,
+                0.010263514646484374,
+                0.01019647557421875
+              ],
+              "median_ms": 0.009978537098632813
+            },
+            "execution_ms": 0.009978537098632813,
+            "checksum": "67180544",
+            "command": "build/benchmarks/json-text/json_quote_plain/c-program - 65606 11"
+          }
+        },
+        "go": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_quote_plain/go/json_bytes.go",
+              "bytes": 1766,
+              "sha256": "360e0aad7b8d26fbf73d9af2bcc88c517a120b0cfe8d61f6b311803245c9c513"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/go/json_quote.go",
+              "bytes": 7836,
+              "sha256": "eadbf5abe0b730902a78794d1cbbf0c910838d279b3b570da2b0b7d0c830079f"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/go/json_quote_plain.go",
+              "bytes": 1877,
+              "sha256": "ad816ccc597817bea5f0ef7f6b5700fcfc8d0d6b48e9e2079ce8d64d6ec35bcb"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/go/vec.go",
+              "bytes": 66,
+              "sha256": "dc3e110464af9f67cfdc33e1a41d09cd0a48d4523214bee0c73dc69145e15f28"
+            },
+            {
+              "path": "generated/json-text/json_quote_plain/go/ziran_simd.go",
+              "bytes": 992,
+              "sha256": "a5856a909be6588da86a5360e60f1ef546ea4ff32b99415d859f34dc32c4240a"
+            }
+          ],
+          "command": "build/bin/zi2go --no-main --pkg main --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/go bench/json_text/json_quote_plain.zi",
+          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_quote_plain/go-program build/benchmarks/json-text/json_quote_plain/go-host/json_bytes.go build/benchmarks/json-text/json_quote_plain/go-host/json_quote.go build/benchmarks/json-text/json_quote_plain/go-host/json_quote_plain.go build/benchmarks/json-text/json_quote_plain/go-host/vec.go build/benchmarks/json-text/json_quote_plain/go-host/ziran_simd.go build/benchmarks/json-text/json_quote_plain/go-host/matrix_host.go build/benchmarks/json-text/json_quote_plain/go-host/matrix_bridge.go",
+          "measurement": {
+            "batch_samples_ms": [
+              14.659143,
+              14.918879,
+              14.806757,
+              14.79669,
+              15.315754,
+              15.208325,
+              15.316781,
+              14.800586,
+              15.259748,
+              15.234954,
+              15.083699
+            ],
+            "batches": 32,
+            "load_ms": 0,
+            "result": "65606",
+            "warmup_count": 318,
+            "warmup_ms": 150.109019,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.45809821875,
+              0.46621496875,
+              0.46271115625,
+              0.4623965625,
+              0.4786173125,
+              0.47526015625,
+              0.47864940625,
+              0.4625183125,
+              0.476867125,
+              0.4760923125,
+              0.47136559375
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.44181725781250003,
+              "upper_ms": 0.49727719531250003,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.45809821875,
+                0.46621496875,
+                0.46271115625,
+                0.4623965625,
+                0.4786173125,
+                0.47526015625,
+                0.47864940625,
+                0.4625183125,
+                0.476867125,
+                0.4760923125,
+                0.47136559375
+              ],
+              "median_ms": 0.47136559375
+            },
+            "execution_ms": 0.47136559375,
+            "checksum": "2099392",
+            "command": "build/benchmarks/json-text/json_quote_plain/go-program - 65606 11"
+          }
+        },
+        "zx": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_quote_plain/zx/json_quote_plain.zx",
+              "bytes": 113156,
+              "sha256": "04ae08f9d93989df09a80ab4c9eda1ee89a34cc3007eeb7a9986ece1bea16c87"
+            }
+          ],
+          "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/zx/json_quote_plain.zx bench/json_text/json_quote_plain.zi",
+          "measurement": {
+            "result": "65606",
+            "batches": 2,
+            "load_ms": 3.987875998,
+            "warmup_ms": 152.337356985,
+            "warmup_count": 18,
+            "batch_samples_ms": [
+              17.424425006,
+              18.069409013,
+              17.018646002,
+              16.919268996,
+              17.656935006,
+              17.243321002,
+              16.960326999,
+              16.990436018,
+              17.160475016,
+              16.946118981,
+              17.11283201
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              8.712212503,
+              9.0347045065,
+              8.509323001,
+              8.459634498,
+              8.828467503,
+              8.621660501,
+              8.4801634995,
+              8.495218009,
+              8.580237508,
+              8.4730594905,
+              8.556416005
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 8.218822132625002,
+              "upper_ms": 8.935805123624997,
+              "excluded_indices": [
+                1
+              ],
+              "included_samples_ms": [
+                8.712212503,
+                8.509323001,
+                8.459634498,
+                8.828467503,
+                8.621660501,
+                8.4801634995,
+                8.495218009,
+                8.580237508,
+                8.4730594905,
+                8.556416005
+              ],
+              "median_ms": 8.532869503
+            },
+            "execution_ms": 8.532869503,
+            "checksum": "131212",
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_quote_plain/zx/json_quote_plain.zx 65606 11"
+          }
+        },
+        "wasm": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/json_quote_plain/wasm/json_quote_plain.wasm",
+              "bytes": 21706,
+              "sha256": "6d3686fa744008a2cd3827e760de57d1d82bd16addf8e464107a3f6967bc677b"
+            }
+          ],
+          "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/wasm/json_quote_plain.zx bench/json_text/json_quote_plain.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_quote_plain/wasm/json_quote_plain.wasm build/benchmarks/json-text/json_quote_plain/wasm/json_quote_plain.zx",
+          "measurement": {
+            "result": "65606",
+            "batches": 32,
+            "warmup_ms": 150.09258300000002,
+            "warmup_count": 445,
+            "batch_samples_ms": [
+              10.594527,
+              10.587012999999985,
+              11.064042999999998,
+              10.819143999999994,
+              10.394753000000009,
+              10.422916000000015,
+              10.359482999999955,
+              10.991735000000006,
+              10.893353999999988,
+              11.225030000000004,
+              10.831630000000018
+            ],
+            "load_ms": 0.7752929999999978,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.33107896875,
+              0.3308441562499995,
+              0.34575134374999994,
+              0.3380982499999998,
+              0.32483603125000027,
+              0.32571612500000047,
+              0.3237338437499986,
+              0.3434917187500002,
+              0.3404173124999996,
+              0.3507821875000001,
+              0.33848843750000057
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.30776857812500014,
+              "upper_ms": 0.36246607812499976,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.33107896875,
+                0.3308441562499995,
+                0.34575134374999994,
+                0.3380982499999998,
+                0.32483603125000027,
+                0.32571612500000047,
+                0.3237338437499986,
+                0.3434917187500002,
+                0.3404173124999996,
+                0.3507821875000001,
+                0.33848843750000057
+              ],
+              "median_ms": 0.3380982499999998
+            },
+            "execution_ms": 0.3380982499999998,
+            "checksum": "2099392",
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_quote_plain/wasm/json_quote_plain.wasm 65606 11"
+          }
+        }
+      }
+    },
+    {
+      "id": "text_processing",
+      "title": "UTF-8 \u00b7 scan, search, replace and split \u00b7 18 KiB",
+      "source": "generated/json-text/sources/text_processing.zi",
+      "source_input": "bench/json_text/text_processing.zi",
+      "entry": "Answer",
+      "expected": "33788",
+      "stdout": "",
+      "source_sha256": "ace3c43b2b487051fc30d2c1403325689166bbc4ea63cdc8c5ef610288b37c24",
+      "targets": {
+        "c": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/text_processing/c/text_processing.c",
+              "bytes": 2694,
+              "sha256": "d5555d33b95b02ad9397db815d27c01416d73ab06eeed84eeebaf7835c81b673"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/text_processing.h",
+              "bytes": 778,
+              "sha256": "372b8d40a54dc65b22130a8aaa4d355f43cc8f2eaa5a8460614bf4d8be6cc5d9"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/text_tools.c",
+              "bytes": 6209,
+              "sha256": "1283ec08861352987074c0b670597265752f399fd672d71169dfd0887dd5dee2"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/text_tools.h",
+              "bytes": 2339,
+              "sha256": "8e47a7b2e7cc609cac01974f3ff8858304f53a8fc6d7dd40fe5099bb1aeaf737"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/utf8.c",
+              "bytes": 2824,
+              "sha256": "8680b7b4a9216d806242c1ed99d38ea528d9a05e6c5a1f86bed06913c6aa4191"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/utf8.h",
+              "bytes": 959,
+              "sha256": "ddee93478f7c67298f2cebd68dcd955c2bea9de2f960467a9a9d7f6142bfd455"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/vec.c",
+              "bytes": 2207,
+              "sha256": "73823661a3101e34b8cfcc7827b648c8dd903cf51cc62610f9b9036472bfd76c"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/vec.h",
+              "bytes": 785,
+              "sha256": "94a527cb9230bd4818947151023f4e68f6a8c0bcce98c2551e83cf66f2029190"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/zir_slice.h",
+              "bytes": 2421,
+              "sha256": "38b49e4e4ba83177ec258ef5f1d05b4441b0dd9f72b2efb97836fc7c1b94baaa"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/zir_string.h",
+              "bytes": 2510,
+              "sha256": "522ec57a44a7cc0eb5cc582df43b0b1ee5ade4493a47df0f51e55cfc2cd2b61c"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/zir_string_types.h",
+              "bytes": 665,
+              "sha256": "47c09e74e99267994c67f326959f160b952f87671daaaaeeda3d6e14f60e2443"
+            },
+            {
+              "path": "generated/json-text/text_processing/c/zir_vec.h",
+              "bytes": 2894,
+              "sha256": "5d02fc05c3da740ee3bc8440df282d629cfc1e433367db39aaf415475c5142dc"
+            }
+          ],
+          "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/c bench/json_text/text_processing.zi",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/text_processing/c '-DMATRIX_HEADER=\"text_processing.h\"' -DMATRIX_ENTRY=text_processing_Answer bench/site_target_host.c site/generated/json-text/text_processing/c/text_processing.c site/generated/json-text/text_processing/c/text_tools.c site/generated/json-text/text_processing/c/utf8.c site/generated/json-text/text_processing/c/vec.c -lm -o build/benchmarks/json-text/text_processing/c-program",
+          "measurement": {
+            "result": "33788",
+            "batches": 64,
+            "load_ms": 6.6012e-05,
+            "warmup_ms": 150.019908994,
+            "warmup_count": 852,
+            "batch_samples_ms": [
+              11.235724002,
+              11.233612001,
+              11.229692012,
+              11.203449011,
+              11.248952001,
+              11.242950976,
+              11.269416004,
+              11.248384982,
+              11.232199013,
+              11.231214017,
+              11.223632008
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.17555818753125,
+              0.175525187515625,
+              0.1754639376875,
+              0.175053890796875,
+              0.175764875015625,
+              0.175671109,
+              0.1760846250625,
+              0.17575601534375,
+              0.175503109578125,
+              0.175487719015625,
+              0.175369250125
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.17511922762109375,
+              "upper_ms": 0.17607016290234376,
+              "excluded_indices": [
+                3,
+                6
+              ],
+              "included_samples_ms": [
+                0.17555818753125,
+                0.175525187515625,
+                0.1754639376875,
+                0.175764875015625,
+                0.175671109,
+                0.17575601534375,
+                0.175503109578125,
+                0.175487719015625,
+                0.175369250125
+              ],
+              "median_ms": 0.175525187515625
+            },
+            "execution_ms": 0.175525187515625,
+            "checksum": "2162432",
+            "command": "build/benchmarks/json-text/text_processing/c-program - 33788 11"
+          }
+        },
+        "go": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/text_processing/go/text_processing.go",
+              "bytes": 1398,
+              "sha256": "d8fa08b850a8e9d46ade3ca720997e142becd4b32b51fad53a71283d2c3b1fd3"
+            },
+            {
+              "path": "generated/json-text/text_processing/go/text_tools.go",
+              "bytes": 3438,
+              "sha256": "e97b93fabdbba7582027f123ca2e3ab7ffc03e8d75e6bf5aeaae788c5c59b823"
+            },
+            {
+              "path": "generated/json-text/text_processing/go/utf8.go",
+              "bytes": 3590,
+              "sha256": "43aaf88e6116b443e5bc38f9238c3ae988eac253cff47cdde771dd4d8089a96b"
+            },
+            {
+              "path": "generated/json-text/text_processing/go/vec.go",
+              "bytes": 1396,
+              "sha256": "19f27c363c79859efccfb4744785337704109269d0d508794908b46f2189aa93"
+            }
+          ],
+          "command": "build/bin/zi2go --no-main --pkg main --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/go bench/json_text/text_processing.zi",
+          "build_command": "go build -p=1 -o build/benchmarks/json-text/text_processing/go-program build/benchmarks/json-text/text_processing/go-host/text_processing.go build/benchmarks/json-text/text_processing/go-host/text_tools.go build/benchmarks/json-text/text_processing/go-host/utf8.go build/benchmarks/json-text/text_processing/go-host/vec.go build/benchmarks/json-text/text_processing/go-host/matrix_host.go build/benchmarks/json-text/text_processing/go-host/matrix_bridge.go",
+          "measurement": {
+            "batch_samples_ms": [
+              12.293408,
+              12.122542,
+              12.061173,
+              12.125307,
+              12.379248,
+              12.528887,
+              12.328629,
+              12.588767,
+              13.88517,
+              12.344518,
+              12.79072
+            ],
+            "batches": 128,
+            "load_ms": 0,
+            "result": "33788",
+            "warmup_count": 1524,
+            "warmup_ms": 150.059094,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.09604225,
+              0.094707359375,
+              0.0942279140625,
+              0.0947289609375,
+              0.096712875,
+              0.0978819296875,
+              0.0963174140625,
+              0.0983497421875,
+              0.108477890625,
+              0.096441546875,
+              0.0999275
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.09129025976562498,
+              "upper_ms": 0.10221118164062502,
+              "excluded_indices": [
+                8
+              ],
+              "included_samples_ms": [
+                0.09604225,
+                0.094707359375,
+                0.0942279140625,
+                0.0947289609375,
+                0.096712875,
+                0.0978819296875,
+                0.0963174140625,
+                0.0983497421875,
+                0.096441546875,
+                0.0999275
+              ],
+              "median_ms": 0.09637948046875
+            },
+            "execution_ms": 0.09637948046875,
+            "checksum": "4324864",
+            "command": "build/benchmarks/json-text/text_processing/go-program - 33788 11"
+          }
+        },
+        "zx": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/text_processing/zx/text_processing.zx",
+              "bytes": 51347,
+              "sha256": "4ff4e9824f98b0971dcaecbc3d4a0b7be107f1bcca1689b2385f25bf533125f5"
+            }
+          ],
+          "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/zx/text_processing.zx bench/json_text/text_processing.zi",
+          "measurement": {
+            "result": "33788",
+            "batches": 2,
+            "load_ms": 1.565664977,
+            "warmup_ms": 154.395478994,
+            "warmup_count": 17,
+            "batch_samples_ms": [
+              19.140765011,
+              19.117489994,
+              18.689353019,
+              18.474267006,
+              19.106927991,
+              18.507646024,
+              18.574434996,
+              18.551562011,
+              18.503856003,
+              18.47834599,
+              18.445178986
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              9.5703825055,
+              9.558744997,
+              9.3446765095,
+              9.237133503,
+              9.5534639955,
+              9.253823012,
+              9.287217498,
+              9.2757810055,
+              9.2519280015,
+              9.239172995,
+              9.222589493
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 8.940270866875002,
+              "upper_ms": 9.754349883875,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                9.5703825055,
+                9.558744997,
+                9.3446765095,
+                9.237133503,
+                9.5534639955,
+                9.253823012,
+                9.287217498,
+                9.2757810055,
+                9.2519280015,
+                9.239172995,
+                9.222589493
+              ],
+              "median_ms": 9.2757810055
+            },
+            "execution_ms": 9.2757810055,
+            "checksum": "67576",
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/text_processing/zx/text_processing.zx 33788 11"
+          }
+        },
+        "wasm": {
+          "status": "ok",
+          "files": [
+            {
+              "path": "generated/json-text/text_processing/wasm/text_processing.wasm",
+              "bytes": 10147,
+              "sha256": "4e38ead3ca1ecfe690d90c45884b48e592345469b9d800d39c8709a79558bcee"
+            }
+          ],
+          "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/wasm/text_processing.zx bench/json_text/text_processing.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/text_processing/wasm/text_processing.wasm build/benchmarks/json-text/text_processing/wasm/text_processing.zx",
+          "measurement": {
+            "result": "33788",
+            "batches": 64,
+            "warmup_ms": 150.091016,
+            "warmup_count": 497,
+            "batch_samples_ms": [
+              18.821910000000003,
+              19.034425,
+              19.912731999999977,
+              19.477900000000034,
+              19.649636999999984,
+              19.810204,
+              21.03386899999998,
+              19.30908500000004,
+              19.32833000000005,
+              19.973099999999988,
+              19.92992099999998
+            ],
+            "load_ms": 0.7774979999999978,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.29409234375000004,
+              0.297412890625,
+              0.31113643749999964,
+              0.3043421875000005,
+              0.30702557812499975,
+              0.3095344375,
+              0.3286542031249997,
+              0.3017044531250006,
+              0.3020051562500008,
+              0.3120796874999998,
+              0.31140501562499967
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.28773092187500227,
+              "upper_ms": 0.3253946093749981,
+              "excluded_indices": [
+                6
+              ],
+              "included_samples_ms": [
+                0.29409234375000004,
+                0.297412890625,
+                0.31113643749999964,
+                0.3043421875000005,
+                0.30702557812499975,
+                0.3095344375,
+                0.3017044531250006,
+                0.3020051562500008,
+                0.3120796874999998,
+                0.31140501562499967
+              ],
+              "median_ms": 0.30568388281250014
+            },
+            "execution_ms": 0.30568388281250014,
+            "checksum": "2162432",
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/text_processing/wasm/text_processing.wasm 33788 11"
+          }
+        }
+      }
+    }
+  ]
+}

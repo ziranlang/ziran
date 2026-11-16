@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure an ordinary library's manifest-defined entries on desktop C, Go and native ZX.
+"""Measure an ordinary library's manifest-defined entries on desktop C, Go, native ZX and Wasm.
 
 Library behavior and host bindings stay upstream. Publish the exact checked IR,
 generated files, source fixtures and raw samples, without adding compiler cases.
@@ -42,7 +42,12 @@ def archive(directory, output):
     return public(output)
 
 
+TARGETS = ('c', 'go', 'zx', 'wasm')
+
+
 def build(project, manifest_path, samples, revision=None):
+    assert platform.node() == 'alpha', 'Measurements require the selected physical host'
+    assert base.execute(['systemd-detect-virt'], allow_failure=True)[0].stdout.strip() == 'none'
     manifest = json.loads(manifest_path.read_text())
     source = project / manifest['source']
     module = source.stem
@@ -94,12 +99,13 @@ def build(project, manifest_path, samples, revision=None):
             'compiler': {'library_sha256': base.sha(base.REPO / 'build/libziran.a'),
                          'revision': base.git('rev-parse', 'HEAD'),
                          'dirty': bool(base.git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
-                         'tools': {name: base.sha(base.REPO / 'build/bin' / name) for name in ('zi2c', 'zi2go', 'zi2zx')},
+                         'tools': {name: base.sha(base.REPO / 'build/bin' / name) for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm')},
                          'source_hashes': {str(p.relative_to(base.REPO)): base.sha(p) for p in
                                            sorted(p for p in (base.REPO / 'cmd/zir').iterdir() if p.suffix in ('.c', '.h'))}},
             'harnesses': {p: base.sha(base.REPO / p) for p in
                           ['scripts/site_library_targets.py', 'scripts/site_target_platforms.py', 'scripts/benchmark_samples.py',
-                           'bench/site_target_host.c', 'bench/site_target_host.go', 'bench/site_target_backend.h']}, 'examples': []}
+                           'bench/site_target_host.c', 'bench/site_target_host.go', 'bench/site_target_backend.h',
+                           'scripts/site_target_node.cjs', 'site/target-abi.js', 'site/target-measure.js']}, 'examples': []}
     runner = WORK / 'zx-runner'
     # Explicit Native policy runs ZX as machine code; a native gap fails
     # instantiation and never falls back to the
@@ -109,24 +115,28 @@ def build(project, manifest_path, samples, revision=None):
                             ['-include', base.REPO / 'bench/site_target_backend.h',
                              '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_NATIVE'])
     data['zx_backend'] = 'native'
+    data['virtualization'] = 'none'
     data['checks'] = False
     data['learning'] = env.get('ZIRAN_LEARN', 'unknown')
     for case in manifest['cases']:
         row = {**case, 'module': module, 'stdout': '', 'targets': {}}
         entry = f'{module}:{case["entry"]}'
-        for target in ('c', 'go', 'zx'):
+        for target in TARGETS:
             directory = WORK / case['id'] / target
             directory.mkdir(parents=True, exist_ok=True)
             command = [ziran, 'bundle' if target == 'zx' else 'build',
                        *([] if target == 'zx' else ['--target=' + target, '--no-main']),
                        *(['--pkg', 'main'] if target == 'go' else []),
                        *common, *bindings, '--entry', entry, '-o', directory / (module + '.zx') if target == 'zx' else directory, source]
+            if target == 'wasm':
+                command = [base.REPO / 'build/bin/zx2wasm', '-o', directory / (module + '.wasm'),
+                           WORK / case['id'] / 'zx' / (module + '.zx')]
             run(command)
             emitted = []
             public_dir = OUTPUT / case['id'] / target
             public_dir.mkdir(parents=True, exist_ok=True)
             for path in sorted(directory.rglob('*')):
-                if path.suffix not in ({'.c', '.h'} if target == 'c' else {'.go'} if target == 'go' else {'.zx'}):
+                if path.suffix not in ({'.c', '.h'} if target == 'c' else {'.go'} if target == 'go' else {'.' + target}):
                     continue
                 dest = public_dir / path.relative_to(directory)
                 dest.parent.mkdir(parents=True, exist_ok=True)
@@ -145,18 +155,21 @@ def build(project, manifest_path, samples, revision=None):
                 platforms.run(build_command, env=env)
                 cell['build_command'] = base.command_text(build_command)
                 invocation = [executable, '-', case['expected'], samples]
+            elif target == 'wasm':
+                invocation = ['node', base.REPO / 'scripts/site_target_node.cjs',
+                              base.SITE / emitted[0]['path'], case['expected'], samples]
             else:
                 invocation = [runner, base.SITE / emitted[0]['path'], case['expected'], samples]
             measured = platforms.summarize(platforms.read_measurement(platforms.run(invocation, env=env), row), case['expected'])
             cell['measurement'] = {**measured, 'command': base.command_text(invocation)}
             add_licenses(public_dir)
-            cell['download'] = archive(public_dir, OUTPUT / case['id'] / (target + '.zip')) if target != 'zx' else emitted[0]
+            cell['download'] = archive(public_dir, OUTPUT / case['id'] / (target + '.zip')) if target in ('c', 'go') else emitted[0]
         data['examples'].append(row)
     assert data['compiler']['library_sha256'] == base.sha(base.REPO / 'build/libziran.a'), 'Runtime changed during measurement'
     data['loadavg_after'] = loadavg()
     (OUTPUT / 'matrix.json').write_text(json.dumps(data, indent=2) + '\n')
     render(data, write=True)
-    print(f'{len(data["examples"])} library entries: C, Go and native ZX executed; every batch verified')
+    print(f'{len(data["examples"])} library entries: C, Go, native ZX and Wasm executed; every batch verified')
 
 
 def render(data, write=False):
@@ -164,11 +177,10 @@ def render(data, write=False):
     for row in data['examples']:
         cells = ''.join(f'<td><a class="library-cell" href="{html.escape(cell["download"]["path"])}" download>'
                         f'<span class="matrix-state is-ok">Verified</span><strong class="matrix-value">'
-                        f'{base.format_time(cell["measurement"]["execution_ms"])}</strong></a></td>' for cell in row['targets'].values())
+                        f'{base.format_microseconds(cell["measurement"]["execution_ms"])}</strong></a></td>' for cell in (row['targets'][target] for target in TARGETS))
         rows.append(f'<tr><th scope="row">{html.escape(row["title"])}</th>{cells}</tr>')
-    content = '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Desktop widget comparison"><table class="target-matrix library-matrix"><caption class="sr-only">Desktop widget scenarios compiled to C, Go and ZX run as native code</caption><thead><tr><th scope="col">Two-frame scenario</th><th scope="col">C<small>cc -O2</small></th><th scope="col">Go<small>native</small></th><th scope="col">ZX<small>native</small></th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
-    content += (f'<p class="matrix-footnote">Median warm time on {html.escape(data["hostname"])} · '
-                f'{html.escape(data["host"])} · {html.escape(data["measured_at"])}. '
+    content = '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Desktop widget comparison"><table class="target-matrix library-matrix"><caption class="sr-only">Widget scenarios, median µs per two-frame scenario</caption><thead><tr><th scope="col">Two-frame scenario<small>µs per scenario</small></th><th scope="col">C<small>cc -O2</small></th><th scope="col">Go<small>native</small></th><th scope="col">ZX<small>native</small></th><th scope="col">Wasm<small>Node / V8</small></th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
+    content += ('<p class="matrix-footnote">Median warm time. '
                 f'{data["samples"]} batches with symmetric 1.5×IQR outliers excluded. '
                 'Loading, compilation and initialization are excluded; sessions are retained between calls. '
                 f'Checks {"off" if data.get("checks") is False else "not recorded"}; '
@@ -193,7 +205,7 @@ def check():
         assert base.sha(base.REPO / name) == digest, f'Stale library harness: {name}'
     files = [data['sources'], data['checked_ir']]
     for row in data['examples']:
-        assert set(row['targets']) == {'c', 'go', 'zx'}
+        assert set(row['targets']) == set(TARGETS)
         for cell in row['targets'].values():
             files += cell['files'] + [cell['download']]
             measured = cell['measurement']

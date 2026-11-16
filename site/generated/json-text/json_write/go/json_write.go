@@ -17,7 +17,6 @@ func JsonWrite_Answer() int64 {
 	}
 	var output __type_838711075b90279a = __type_838711075b90279a{}
 	var value_1 *__type_838711075b90279a = &output
-	if 0 < 0 || input.Count < 0 || input.Count > input.Count { panic("slice range out of bounds") }
 	var value_3 bool = JsonQuote_JsonQuoteInto(&(output), string(input.Data[0:input.Count]), true)
 	if !value_3 || output.Count != 5378 || (output).Data[0] != 34 || (output).Data[5377] != 34 {
 		var value_4 int64 = -2

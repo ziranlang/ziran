@@ -45,19 +45,19 @@ HARNESSES = ['bench/json_text.py', 'scripts/site_target_platforms.py', 'scripts/
 def render(data):
     rows = []
     for case in data['examples']:
-        cells = ''.join('<td>' + (base.format_time(case['targets'][target]['measurement']['execution_ms'])
+        cells = ''.join('<td>' + (base.format_microseconds(case['targets'][target]['measurement']['execution_ms'])
                         if case['targets'][target]['status']=='ok' else '<abbr title="' + html.escape(case['targets'][target]['diagnostic'],quote=True) + '">Unavailable</abbr>') + '</td>'
                         for target in ('c', 'go', 'zx', 'wasm'))
         rows.append('<tr><th scope="row"><a href="' + html.escape(case['source']) + '">' +
                     html.escape(case['title']) + '</a></th>' + cells + '</tr>')
     return ('<section class="section" id="json-text"><div class="section-head"><span class="eyebrow">Real workloads</span>'
-            '<h2>JSON and UTF-8 on Alpha</h2><p>Compare the same Ziran source across four targets. '
+            '<h2>JSON and UTF-8</h2><p>Compare the same Ziran source across four targets. '
             'Inputs are prepared once during warmup; parsing, decoding, output allocation and result validation remain in each call.</p></div>'
             '<div class="matrix-scroll" tabindex="0" role="region" aria-label="JSON and UTF-8 benchmark results">'
-            '<table class="target-matrix"><caption class="sr-only">Median time per operation on Alpha</caption>'
-            '<thead><tr><th scope="col">Workload and source</th><th scope="col">C</th><th scope="col">Go</th>'
+            '<table class="target-matrix"><caption class="sr-only">Median µs per operation</caption>'
+            '<thead><tr><th scope="col">Workload and source<small>µs per operation</small></th><th scope="col">C</th><th scope="col">Go</th>'
             '<th scope="col">ZX</th><th scope="col">Wasm · V8</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
-            '<p>' + html.escape(data['host']) + ' · ' + html.escape(data['measured_at'][:10]) + ' · ' + str(data['samples']) +
+            '<p>' + str(data['samples']) +
             ' batches per target. Symmetric 1.5×IQR filtering; every batch checks its result. '
             'Process startup, offline compilation and loading are excluded. Wasm uses Node/V8; these are target comparisons, '
             'not JavaScript-source comparisons. Unavailable cells retain the compiler diagnostic and have no timing. '
@@ -87,9 +87,10 @@ def build(compiler, samples):
     env = hosts.environment()
     env['PATH'] = str(Path.home() / '.local/bin') + ':' + env['PATH']
     env['ZIRAN_JOBS'] = '1'
+    env['ZIRAN_LEARN'] = 'off'
     # All helpers use the same scrubbed environment, including downstream Go.
     hosts.environment = lambda: env.copy()
-    data = {'schema_version': 1, 'host': platform.node() + ' · ' + base.cpu_name(),
+    data = {'schema_version': 1, 'revision': hosts.run(['git', 'rev-parse', 'HEAD'], cwd=compiler), 'checks': False, 'learning': 'off', 'host': platform.node() + ' · ' + base.cpu_name(),
             'measured_at': datetime.now(timezone.utc).isoformat(), 'samples': samples,
             'compiler': {tool: base.sha(compiler / 'build/bin' / tool)
                          for tool in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm')},

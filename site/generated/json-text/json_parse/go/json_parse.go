@@ -33,7 +33,6 @@ func JsonParse_Answer() int64 {
 		}
 	}
 	var document JsonDocument = JsonDocument{}
-	if 0 < 0 || input.Count < 0 || input.Count > input.Count { panic("slice range out of bounds") }
 	var value_5 string = string(input.Data[0:input.Count])
 	var value_6 JsonEraser = JsonDocument_ZiDefaultF5bc8736b19416aa()
 	var value_7 bool = JsonDocument_JsonRead(&(document), value_5, value_6, nil)

@@ -20,7 +20,7 @@ SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
     for index: cast(s32)0..JsonCount(*document, examples) - 1 {
         example := JsonElement(*document, examples, index)
         for target: targets {
-            if libraries && target != "zx" { continue }
+            if libraries && target == "zir" { continue }
             cell := JsonMember(*document, JsonMember(*document, example, "targets"), target)
             if !libraries && CheckField(*document, cell, "status") != "ok" {
                 if !NativeAssert(test, target == "wasm" && TextContains(CheckField(*document, cell, "diagnostic"), "outside the wasm execution subset"), "published target was skipped without its actual subset diagnostic") { return false }

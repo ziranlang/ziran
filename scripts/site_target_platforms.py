@@ -126,6 +126,9 @@ def c_build(example, cc, output, extra=()):
 
 
 def runtime_build(cc, library, output, extra=()):
+    if not extra:
+        extra = ['-include', ROOT / 'bench/site_target_backend.h',
+                 '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_ENGINE']
     libraries = ['-lm'] if '-DMATRIX_WEB' in extra else ['-lm', '-pthread', '-ldl']
     command = [cc, '-O2', '-std=c11', '-DMATRIX_ZX', '-I' + str(ROOT / 'include'),
                *extra, ROOT / 'bench/site_target_host.c', library, *libraries, '-o', output]

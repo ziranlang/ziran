@@ -123,8 +123,10 @@ static inline int32_t json_document_JsonNext_ziran_inline(JsonDocument* document
 static inline void
 json_document_JsonSetEraser_ziran_inline(JsonDocument* document, JsonEraser erase, void* context)
 {
-    document->erase = erase;
-    document->erase_context = context;
+    JsonEraser* value_0 = &(document->erase);
+    (*value_0) = erase;
+    void** value_1 = &(document->erase_context);
+    (*value_1) = context;
 }
 
 static inline JsonKind
@@ -139,7 +141,7 @@ json_document_JsonKindOf_ziran_inline(JsonDocument* document, int32_t node)
     if (value_0) {
         return JsonKind_Missing;
     }
-    return (JsonKind)((ZIRAN_VEC_INDEX((document->nodes).data, (document->nodes).count, node)).kind);
+    return (JsonKind)(((document->nodes).data[node]).kind);
 }
 
 static inline int32_t
@@ -154,7 +156,7 @@ json_document_JsonCount_ziran_inline(JsonDocument* document, int32_t node)
     if (value_0) {
         return 0;
     }
-    return (ZIRAN_VEC_INDEX((document->nodes).data, (document->nodes).count, node)).count;
+    return ((document->nodes).data[node]).count;
 }
 
 static inline int32_t
@@ -169,7 +171,7 @@ json_document_JsonFirst_ziran_inline(JsonDocument* document, int32_t node)
     if (value_0) {
         return -1;
     }
-    return (ZIRAN_VEC_INDEX((document->nodes).data, (document->nodes).count, node)).first;
+    return ((document->nodes).data[node]).first;
 }
 
 static inline int32_t
@@ -184,7 +186,7 @@ json_document_JsonNext_ziran_inline(JsonDocument* document, int32_t node)
     if (value_0) {
         return -1;
     }
-    return (ZIRAN_VEC_INDEX((document->nodes).data, (document->nodes).count, node)).next;
+    return ((document->nodes).data[node]).next;
 }
 #endif
 

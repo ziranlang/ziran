@@ -16,6 +16,12 @@ static inline String StringRange(String source, int64_t low, int64_t high) {
                       (size_t)(high - low));
 }
 
+/* The view of a range inside source: proven, or in a build without
+ * --checks, where ranges are raw. */
+static inline String StringRangeAt(String source, int64_t low, int64_t high) {
+    return StringView(source.data == NULL ? "" : source.data + low, (size_t)(high - low));
+}
+
 static inline bool StringEqual(String a, String b) {
     return a.length == b.length &&
         (a.length == 0 || memcmp(a.data, b.data, a.length) == 0);

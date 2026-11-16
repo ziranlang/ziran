@@ -96,6 +96,7 @@ def build(bin_dir, samples, render_page=True):
     for key in ('DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'ZIRAN_PROFILE'):
         environment.pop(key, None)
     environment['YUE_DESKTOP_RECOVERY'] = '0'
+    environment['ZIRAN_LEARN'] = 'off'
     rows, runs = [], []
     for name, title, source_path, expected in fixtures():
         source = REPO / source_path
@@ -159,7 +160,7 @@ def build(bin_dir, samples, render_page=True):
                     listing_path.write_text(listing)
                     file['inspection'] = store(listing_path, Path(name) / target / relative.with_suffix(relative.suffix + '.txt'))
                 cell['inspection'] = cell['files'][0]['inspection']
-            if target == 'zir':
+            if target in ('zir', 'native'):
                 continue
             run_cwd = REPO
             if target == 'c':
@@ -226,7 +227,13 @@ def build(bin_dir, samples, render_page=True):
              for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2native', 'zx2wasm', 'zi2zir', 'zi-inspect')}
     versions = {name: execute(command)[0].stdout.splitlines()[0]
                 for name, command in {'cc': ['cc', '--version'], 'go': ['go', 'version'], 'node': ['node', '--version']}.items()}
-    platforms, platform_harnesses = carried_platforms(rows)
+    import site_target_platforms as hosts
+    assert platform.node() == 'alpha', 'Publish measurements from the selected physical host'
+    assert execute(['systemd-detect-virt'], allow_failure=True)[0].stdout.strip() == 'none'
+    platforms = {'desktop': hosts.desktop({'examples': rows}, samples)}
+    platform_harnesses = {name: sha(REPO / name) for name in [
+        'scripts/site_target_platforms.py', 'scripts/site_target_node.cjs',
+        'bench/site_target_host.c', 'bench/site_target_host.go', 'site/target-measure.js']}
     data = {'schema_version': 2, 'platforms': platforms, 'generated_at': datetime.now(timezone.utc).isoformat(),
             'revision': git('rev-parse', 'HEAD'), 'compiler_dirty': bool(git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
             'platform': platform.system() + ' ' + platform.machine(), 'cpu': cpu_name(),
@@ -247,25 +254,6 @@ def build(bin_dir, samples, render_page=True):
     print(f'Target matrix: {len(rows)} examples; {len(runs)} verified execution cells; {samples} samples each')
 
 
-def carried_platforms(rows):
-    """Keep the published platform snapshots and the web artifacts they ran.
-
-    Only site_target_platforms.py measures a platform and replaces its
-    snapshot; rebuilding the outputs here must not drop the others.
-    """
-    try:
-        previous = json.loads((OUTPUT / 'matrix.json').read_text())
-    except (OSError, ValueError):
-        return {}, {}
-    targets = {example['id']: example['targets'] for example in previous.get('examples', [])}
-    for row in rows:
-        for target, cell in row['targets'].items():
-            web = targets.get(row['id'], {}).get(target, {}).get('web')
-            if web:
-                cell['web'] = web
-    return previous.get('platforms', {}), previous.get('platform_harnesses', {})
-
-
 def cpu_name():
     try:
         return next(line.split(':', 1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines() if line.startswith('model name'))
@@ -279,7 +267,7 @@ def render(data):
     for example in data['examples']:
         cells = []
         for target, cell in example['targets'].items():
-            if target == 'zir':
+            if target in ('zir', 'native'):
                 continue
             supported = cell['status'] == 'ok'
             href = (cell.get('inspection') or (cell['files'][0] if supported else cell['diagnostic_file']))['path']
@@ -308,14 +296,18 @@ def render(data):
 def format_time(value):
     if value is None:
         return '—'
-    return f'{value * 1000000:.1f} ns'
+    return format_microseconds(value)
+
+
+def format_microseconds(value):
+    return '—' if value is None else f'{value * 1000:.3g}'
 
 
 def check():
     data = json.loads((OUTPUT / 'matrix.json').read_text())
     expected = {name: (path.removeprefix('site/'), str(result)) for name, _, path, result in fixtures()}
     assert data['schema_version'] == 2 and data['samples'] >= 3 and data['warmups'] == 1
-    assert set(data['platforms']) == {'desktop', 'mobile', 'web'}, 'Collect every platform before publishing'
+    assert set(data['platforms']) == {'desktop'}, 'Publish one measured host'
     assert {example['id'] for example in data['examples']} == set(expected)
     for group in ('harnesses', 'platform_harnesses'):
         assert data.get(group), f'Missing {group}'

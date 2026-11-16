@@ -114,8 +114,10 @@ static inline JsonKind json_document_JsonKindOf_ziran_inline(JsonDocument* docum
 static inline void
 json_document_JsonSetEraser_ziran_inline(JsonDocument* document, JsonEraser erase, void* context)
 {
-    document->erase = erase;
-    document->erase_context = context;
+    JsonEraser* value_0 = &(document->erase);
+    (*value_0) = erase;
+    void** value_1 = &(document->erase_context);
+    (*value_1) = context;
 }
 
 static inline JsonKind
@@ -130,7 +132,7 @@ json_document_JsonKindOf_ziran_inline(JsonDocument* document, int32_t node)
     if (value_0) {
         return JsonKind_Missing;
     }
-    return (JsonKind)((ZIRAN_VEC_INDEX((document->nodes).data, (document->nodes).count, node)).kind);
+    return (JsonKind)(((document->nodes).data[node]).kind);
 }
 #endif
 

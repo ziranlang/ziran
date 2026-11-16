@@ -2,7 +2,6 @@
 #define ZIRAN_UTF8_H_SOURCE 1
 #include <stdbool.h>
 #include "zir_string_types.h"
-#include "zir_bounds.h"
 #include "utf8.h"
 
 bool
@@ -19,17 +18,22 @@ Decode(String text, int32_t at)
         return result;
     }
     if (at >= (int32_t)((int64_t)(text).length)) {
-        result.after = (int32_t)((int64_t)(text).length);
+        int32_t* value_0 = &(result.after);
+        (*value_0) = (int32_t)((int64_t)(text).length);
         return result;
     }
-    uint8_t first = (uint8_t)ZIRAN_INDEX(text.data, text.length, at);
-    result.after = (int32_t)((uint32_t)at + 1u);
+    uint8_t first = (uint8_t)text.data[at];
+    int32_t* value_1 = &(result.after);
+    (*value_1) = (int32_t)((uint32_t)at + 1u);
     if (first < 128) {
-        result.value = (uint32_t)(first);
-        result.valid = true;
+        uint32_t* value_2 = &(result.value);
+        (*value_2) = (uint32_t)(first);
+        bool* value_3 = &(result.valid);
+        (*value_3) = true;
         return result;
     }
-    result.value = 65533;
+    uint32_t* value_4 = &(result.value);
+    (*value_4) = 65533;
     int32_t count = 0;
     uint32_t codepoint = 0;
     uint32_t minimum = 0;
@@ -51,13 +55,13 @@ Decode(String text, int32_t at)
     }
     int32_t index = 1;
     while (index <= count) {
-        uint8_t part = (uint8_t)ZIRAN_INDEX(text.data, text.length, ((int32_t)((uint32_t)at + (uint32_t)index)));
-        bool value_0 = false;
+        uint8_t part = (uint8_t)text.data[((int32_t)((uint32_t)at + (uint32_t)index))];
+        bool value_5 = false;
         {
             uint8_t byte = part;
-            value_0 = byte >= 128 && byte <= 191;
+            value_5 = byte >= 128 && byte <= 191;
         }
-        if (!value_0) {
+        if (!value_5) {
             return result;
         }
         codepoint = (uint32_t)(((uint32_t)codepoint << 6) | (uint32_t)(((uint8_t)((uint32_t)part & 63u))));
@@ -66,9 +70,12 @@ Decode(String text, int32_t at)
     if (codepoint < minimum || codepoint > 1114111 || (codepoint >= 55296 && codepoint <= 57343)) {
         return result;
     }
-    result.value = codepoint;
-    result.after = (int32_t)(((uint32_t)at + (uint32_t)count) + 1u);
-    result.valid = true;
+    uint32_t* value_7 = &(result.value);
+    (*value_7) = codepoint;
+    int32_t* value_8 = &(result.after);
+    (*value_8) = (int32_t)(((uint32_t)at + (uint32_t)count) + 1u);
+    bool* value_9 = &(result.valid);
+    (*value_9) = true;
     return result;
 }
 

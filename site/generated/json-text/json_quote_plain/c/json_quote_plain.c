@@ -27,28 +27,27 @@ json_quote_plain_Answer(void)
             return -1LL;
         }
         for (int64_t index = 0LL; index <= 65535LL; index++) {
-            ZIRAN_VEC_INDEX((input).data, (input).count, index) = 120;
+            uint8_t* value_5 = &(ZIRAN_VEC_INDEX((input).data, (input).count, index));
+            (*value_5) = 120;
         }
     }
     __type_838711075b90279a output = {0};
-    __type_838711075b90279a* value_5 = &output;
-    Slice value_6 = {(input).data, (input).count};
-    Slice value_7 = SliceRange(value_6, 0LL, input.count, sizeof(*(input).data));
-    bool value_8 = json_quote_JsonQuoteInto(&(output), StringView((const char *)(value_7).data, (size_t)(value_7).length), true);
-    if (!value_8 || output.count != 65538LL || ZIRAN_VEC_INDEX((output).data, (output).count, 1) != 120 || ZIRAN_VEC_INDEX((output).data, (output).count, 65536) != 120) {
-        int64_t value_9 = -2LL;
-        free((*value_5).data);
-        (*value_5).data = NULL;
-        (*value_5).capacity = 0;
-        (*value_5).count = 0;
-        return value_9;
+    __type_838711075b90279a* value_6 = &output;
+    Slice value_7 = {(input).data, (input).count};
+    Slice value_8 = SliceRangeAt(value_7, 0LL, input.count, sizeof(*(input).data));
+    bool value_9 = json_quote_JsonQuoteInto(&(output), StringView((const char *)(value_8).data, (size_t)(value_8).length), true);
+    if (!value_9 || output.count != 65538LL || (output).data[1] != 120 || (output).data[65536] != 120) {
+        int64_t value_10 = -2LL;
+        free((*value_6).data);
+        (*value_6).data = NULL;
+        (*value_6).capacity = 0;
+        (*value_6).count = 0;
+        return value_10;
     }
-    int64_t value_10 = (int64_t)((uint64_t)(output.count) + (uint64_t)(ZIRAN_VEC_INDEX((output).data, (output).count, 0)));
-    uint8_t value_11 = ZIRAN_VEC_INDEX((output).data, (output).count, ((int64_t)((uint64_t)(output.count) - UINT64_C(1))));
-    int64_t value_12 = (int64_t)((uint64_t)value_10 + (uint64_t)(value_11));
-    free((*value_5).data);
-    (*value_5).data = NULL;
-    (*value_5).capacity = 0;
-    (*value_5).count = 0;
-    return value_12;
+    int64_t value_11 = (int64_t)(((uint64_t)(output.count) + (uint64_t)((output).data[0])) + (uint64_t)((output).data[((int64_t)((uint64_t)(output.count) - UINT64_C(1)))]));
+    free((*value_6).data);
+    (*value_6).data = NULL;
+    (*value_6).capacity = 0;
+    (*value_6).count = 0;
+    return value_11;
 }

@@ -453,6 +453,15 @@ inside the outer loop), the element address folded into the store and load,
 coalesce. The zero-initialized local array is still allocated, loaded and
 reallocated (`allocate; load; allocate v`), three 20 KB passes on entry.
 
+Loop rotation cannot be done while lowering: the optimized LIR has dropped
+the loop body's block parameters, so the body names the header's
+parameters directly, and a test copied to the bottom would branch back
+without updating them (tried 2026-11-16, made every kernel loop forever;
+with the safe condition, header parameters used only by its own test and
+edges, it never applies). It needs an SSA loop-rotation pass in the shared
+LIR optimizer: give the body parameters, duplicate the header's test at the
+latch and pass the next values, so Wasm and the engine gain too.
+
 Remaining per kernel after that, from objdump of the current build:
 - Sieve inner loop (12 instructions, C 5): the direct frame store goes
   `lea token; mov r9d, 1; mov r11d, tok; mov rsi, base; add rsi, r11; mov [rsi],

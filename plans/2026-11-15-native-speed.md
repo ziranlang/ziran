@@ -516,14 +516,17 @@ Loop rotation, the SSA pass: implemented on branch wip/loop-rotation
 only charges fuel, names constants, compares and branches, with one
 preheader and one latch, is entered once. The latch runs its test, and the
 header's successors get parameters for its values, with uses below them
-renamed. It passes make check, and Sieve's inner loop becomes `movb; add;
-cmp; jl` (C's four instructions). It is not on master because a controlled
+renamed. Sieve's inner loop becomes `movb; add; cmp; jl` (C's four
+instructions). It is not on master because a controlled
 A/B (today's zi2zx with and without the pass, the same zx2native) measured
 Sieve 24 -> 29 us and Records 16 -> 18 us slower, with Hash and Vectors
 neutral, although every rotated loop is shorter. Rotating main's loop
 shifts Sieve's hot loops by 19 bytes, so aligning loop heads (16 or 32
-bytes) is the first thing to try before landing it, and it needs its own
-case in compiler_opt_cases.
+bytes) is the first thing to try before landing it. With it on,
+proven_pointer_cases also fails ("global and frame array accesses are
+not all direct"): the shared index proofs must learn rotated loops (the
+bound test now sits in the latch). It also needs its own case in
+compiler_opt_cases.
 
 Loop rotation cannot be done while lowering: the optimized LIR has dropped
 the loop body's block parameters, so the body names the header's

@@ -1277,7 +1277,8 @@ native_global_bytes(const NativeInstance *instance, MachineImage image, int64_t 
 static int
 native_pointers_open(NativeInstance *instance, MachineImage image, unsigned char *constants)
 {
-    instance->checked = ((const LirProgram *)ExecBundleProgram(instance->bundle))->checks;
+    instance->checked = compiler_machine_image_MachineChecked(
+        ((const LirProgram *)ExecBundleProgram(instance->bundle))->checks, native_target());
     instance->constants = constants;
     size_t table = instance->checked ? (size_t)(MachinePointerCapacity + 1) * MachinePointerEntryBytes : 0;
     if(!ZirNativeReserve(table + MachinePointerArenaBytes, &instance->pointers)) return 0;

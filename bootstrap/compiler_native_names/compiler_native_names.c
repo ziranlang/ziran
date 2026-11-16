@@ -349,7 +349,7 @@ PrepareNativeNames(ZirProgram** programs, int32_t count)
                                 {
                                     String text = value_6;
                                     String prefix = value_7;
-                                    value_8 = (int64_t)(text).length >= (int64_t)(prefix).length && StringEqual(StringRange(text, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
+                                    value_8 = (int64_t)(text).length >= (int64_t)(prefix).length && StringEqual(StringRangeAt(text, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
                                 }
                                 value_4 = value_8;
                             }
@@ -587,5 +587,5 @@ compiler_native_names_Literal(String text)
 static bool
 compiler_native_names_StartsText(String text, String prefix)
 {
-    return (int64_t)(text).length >= (int64_t)(prefix).length && StringEqual(StringRange(text, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
+    return (int64_t)(text).length >= (int64_t)(prefix).length && StringEqual(StringRangeAt(text, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
 }

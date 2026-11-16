@@ -1665,7 +1665,7 @@ Call :: (state: *State) -> bool {
     if result_address { X86Lea(*state.writer, X86Rax, result_destination) }
     // Another function or the host may spend the step budget; a platform
     // service never does. A tail call stores it as it leaves.
-    tail := !indirect && state.program.functions[state.function].pointer_chain == 0 &&
+    tail := !indirect && state.program.functions[state.function].arena_mark == 0 &&
         TailCallAt(state.program, state.block, state.instruction)
     synced := call.calling != .Platform
     if synced && !tail { FuelStore(state) }
@@ -1855,7 +1855,7 @@ TailCallAt :: (program: MachineProgram, block_id: s32, at: s32) -> bool {
 // no callee or trap handler ever sees its stack.
 Frameless :: (program: MachineProgram, function_id: s32) -> bool {
     function := program.functions[function_id]
-    if function.calling != .Internal || function.stack_count != 0 || function.pointer_chain != 0 ||
+    if function.calling != .Internal || function.stack_count != 0 || function.arena_mark != 0 ||
         function.fuel_register || function_id >= program.frames.count || program.frames[function_id].size != 0 ||
         MachineX64StackChecked(program, function_id) { return false }
     for block_id: function.block_begin..function.block_begin + function.block_count - 1 {

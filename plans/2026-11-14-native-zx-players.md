@@ -657,8 +657,6 @@ heap-reclamation code is left as it is.
 
 After all gates, the tree no longer contains:
 
-- `cmd/compiler_lowered_x64.zi`, its dedicated shell/spec test, or any
-  `LirX64*` consumer;
 - fixed-base duplicate relocation logic in the ELF writer;
 - engine-specific public instance dispatch in `zir_host.c`;
 - duplicated interface/host-image conversion in engine, native, and Wasm

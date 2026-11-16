@@ -23,7 +23,7 @@ A direct move clears its source before the next drop; an aggregate move clears
 every reachable vector field in native targets, while the portable engine clones at
 the destination boundary and relies on the checker to make the source
 unreachable. Moving a plain record-member path clears only that field in native
-targets and invalidates only the corresponding VM storage slot. An aggregate
+targets and invalidates only the corresponding engine storage slot. An aggregate
 move source must be a whole local binding or fresh call result; a member move
 must be rooted at a local aggregate. A record literal can initialize a
 vector-bearing field from a local vector or fresh call result; using that
@@ -63,7 +63,7 @@ result directly.
 bytes without copying them on native C when nonempty. That target
 still retains nonempty finished bytes for process lifetime; it now releases
 reserved storage when the result is empty. Go copies into its immutable string
-representation. The VM copies into an owned snapshot, preserves its owner
+representation. The engine copies into an owned snapshot, preserves its owner
 through aliases and ranges, and collects unused snapshots at safe statement
 and call boundaries. Appending an empty string always succeeds
 without allocating.
@@ -172,6 +172,6 @@ string builder owns UTF-8 bytes in a `Vec[u8]`; `BuilderAppend` can fail, and
 `BuilderFinish` consumes the builder without copying its bytes. Immutable
 `string` values remain unchanged.
 
-The parser, checker, `.zir`, C/Go emitters, portable verifier, VM,
+The parser, checker, `.zir`, C/Go emitters, portable verifier, engine,
 and host boundary implement the direct-vector operations above, with the
 ownership and automatic-drop limitations called out at the start of this page.

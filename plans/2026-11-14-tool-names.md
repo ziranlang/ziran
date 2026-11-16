@@ -554,16 +554,9 @@ do not wait for CI. No release/version bump is part of the rename.
 Risk: active lowering/Wasm/site work overlaps moved files. Start only at the
 requested quiet point after those edits are integrated, and preserve content.
 
-## What is deleted
+## What remains
 
-- Old folders `cmd/zir-asm`, `cmd/zir-zx`, `cmd/zir-wasm`, `cmd/zir-ir`,
-  `cmd/zir-c`, and `cmd/zir-go` after moving live files.
-- `zi2asm`, phony `assembly`, and stale installed `zi2asm`/`zi2wasm`.
-- `--input zx`, `--machine`, and `zi2zx bundle`.
-- The monolithic old driver's multi-output branches.
-- VS Code's `zi2asmStep`/discovery and Kryon's obsolete source globs.
-- Active docs/current site text that presents an old tool as current.
-
+Every old tool, folder, flag and driver branch this plan named is deleted.
 Raw receipts, ZX artifacts, the embedding Wasm tier, portable engine,
 `ziran bundle`, and generated C/Go routes remain.
 

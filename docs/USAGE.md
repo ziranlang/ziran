@@ -1188,7 +1188,7 @@ saved IR. Other targets keep their ordinary record representation.
 `#c "SPELLING"` lets a generated C header match C code that shares the
 records. On a field it replaces the C type, or an array's element type. Written
 last on an enum, it prefixes each C constant. Saved IR keeps it; Go and the
-`.zx` VM ignore it:
+`.zx` engine ignore it:
 
 ```jai
 ExprKind :: enum s32 #c "ZIR_EXPR_" { Unknown; Ident }  // ZIR_EXPR_Ident
@@ -1229,7 +1229,7 @@ bundle; the provider must have the same signature. `--bind-host MODULE`
 binds every remaining capability to MODULE's exported function of the same
 name, as a C program links a host's symbols by name, so one Ziran host module
 serves `ziran bundle` and the Go target alike.
-The portable host ABI copies returned string bytes into VM-managed storage,
+The portable host ABI copies returned string bytes into engine-managed storage,
 including strings inside records, arrays, slices, and mutable slice updates.
 A host can reuse its result buffers on its next call; saved strings retain
 their bytes for as long as the program uses them, including across instance
@@ -1321,7 +1321,7 @@ reserving zero allocates nothing. Native C uses one fallible growth allocation;
 byte resize initializes its new range in bulk. Other element types use typed
 default initialization rather than raw byte clearing of managed values. C,
 Go, and portable `.zx` support both operations from source and saved `.zir`.
-The VM also returns `false` when its array-storage budget prevents growth.
+The engine also returns `false` when its array-storage budget prevents growth.
 Go catches recoverable allocation range panics, but physical out-of-memory
 failure can terminate the Go runtime. Capacities and allocation limits depend
 on the target; a successful capacity request never guarantees future growth.
@@ -1360,7 +1360,7 @@ declaration, assignment or return that moves a global, as in
 argument or `VecPush` element cannot move a global, because that would empty
 it as a side effect: pass its address or move it into a local first. A
 global cannot be replaced or moved while a view of it is live.
-`tests/global_owned_storage.sh` checks C, saved IR and native and VM bundles.
+`tests/global_owned_storage.sh` checks C, saved IR and native and engine bundles.
 
 A field path of a local record, or of a by-value parameter, takes owned
 values the same way: `shelf.label = TextCopy(name)` frees the old label, and
@@ -1389,7 +1389,7 @@ if !VecResizeBounded(scratch, 700, maximum_elements) { return false; }
 ```
 
 This bounds logical backing element capacity, not allocator size classes,
-runtime objects, managed-element allocations, VM validity maps or physical RSS.
+runtime objects, managed-element allocations, engine validity maps or physical RSS.
 During growth old and new backing allocations may be live together. A caller
 with a concurrent-live scratch budget must reserve the full possible new
 backing allocation in addition to already-live old capacity, then reconcile
@@ -1582,7 +1582,7 @@ without foreign calls, locale state or a Python runtime. Parsing scans all
 input bytes, retaining at most 1100 significant digits plus a sticky flag;
 this exceeds the length of every binary64 rounding boundary. Run
 `build-queue -- sh tests/std_float_text.sh build/bin/ziran` for independent
-edge/random C/Go/VM tests from source and saved IR.
+edge/random C/Go/engine tests from source and saved IR.
 
 ### Hash maps
 

@@ -220,7 +220,6 @@ C ABI/storage boundary:
 | `zir_parse_typed.c` | typed expression compilation from `:9`, cache `:1027` | `compiler_frontend_parse_typed` | S14 |
 | `zir_profile.c` / `.h` | counters/RSS/time from `:35` | `compiler_profile`; OS callbacks may remain | S17 |
 | `zir_proof.h` | proof ABI | covered by `compiler_proof`/`compiler_proof_kernel` | S15 |
-| `zir_runtime.c` / `.h` | generated runtime headers/SIMD selection `EmitRuntimeHeaders_with_buffers:65`, public wrapper `:115` | `compiler_runtime_emit` | S3 |
 | `zir_scalar.h` | scalar width/mask helpers `:8-41` | `compiler_scalar` | S4 |
 | `zir_scratch.h` | recoverable scratch helper | Ziran allocator/exceptions; no separate module | S15 |
 | `zir_semantic.c` / `.h` | semantic IDs `SemanticId:7`, function IDs `:22` | `compiler_semantic` | S15 |
@@ -327,18 +326,6 @@ No step commits before its implementation and proof are complete.
   in S1.
 - Delete `cmd/zir-wasm/zx_wasm_lower.c` and `cmd/zir-wasm/zx_wasm_lower.h`.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=wasm`.
-
-### S3 — runtime-header and SIMD selection generator
-
-- Add `cmd/compiler_runtime_emit.zi`; port `same_contents:14`,
-  `write_generated:44`, `EmitRuntimeHeaders_with_buffers:65`, helper need
-  analysis `:147`, `:157`, and SIMD writer logic in the remainder of
-  `cmd/zir/zir_runtime.c`.
-- Change `cmd/zir-c/main.c:20`, `:141`, and every `c_lower` caller that invokes
-  `EmitSimdOps` to the generated API. Add the generated object to
-  `Makefile:468-471` and bootstrap lists.
-- Delete `cmd/zir/zir_runtime.c` and `cmd/zir/zir_runtime.h`.
-- Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=simd`.
 
 ### S4 — shared emitter core
 

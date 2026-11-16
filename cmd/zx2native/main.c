@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #if defined(__unix__) || defined(__APPLE__)
+#include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
@@ -28,6 +29,7 @@ assembly_usage(void)
 {
     fputs("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|image] [--fuel N] -o FILE INPUT.zx\n"
           "elf writes the platform's executable: an ELF on Linux, a PE32+ .exe on Windows\n"
+          "a Linux x86-64 ELF links its host capabilities from the registered host libraries\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
           "--fuel sets an executable's starting fuel; it is unbounded by default, as for a bundle run\n"
           "zx2native reads only decoded and verified ZX and uses only the no-fallback machine-IR path\n"
@@ -117,45 +119,244 @@ assembly_machine_source_gap(const ZirProgram *program)
     return 0;
 }
 
-/* Foreign host calls are the only decoded-program preflight gap. All portable
- * platform services are lowered by the machine pipeline itself. */
-static int
-assembly_machine_gap(const LirProgram *program)
-{
-    const LirFunction *functions = program->functions.data;
-    for(int64_t index = 0; index < program->functions.length; index++) {
-        if(!functions[index].external) continue;
-        int service = ZxPlatformService(program, index);
-        if(service != ZX_SERVICE_NONE) continue;
-        Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-host",
-            "assembly.gap.machine-host: machine ELF does not implement host capability %.*s; no alternate engine was selected",
-            (int)functions[index].name.length, functions[index].name.data);
-        return 1;
-    }
-    return 0;
-}
-
+/* A whole file of at most LIMIT bytes, NUL-terminated past its end, or NULL. */
 static unsigned char *
-assembly_read(const char *path, size_t *size)
+assembly_read_bounded(const char *path, long limit, size_t *size)
 {
     FILE *stream = fopen(path, "rb");
     unsigned char *bytes = NULL;
     if(stream == NULL) goto failure;
     if(fseek(stream, 0, SEEK_END) != 0) goto failure;
     long length = ftell(stream);
-    if(length < 0 || length > 268435456 || fseek(stream, 0, SEEK_SET) != 0) goto failure;
+    if(length < 0 || length > limit || fseek(stream, 0, SEEK_SET) != 0) goto failure;
     bytes = malloc((size_t)length + 1);
     if(bytes == NULL) { DiagnosticOutOfMemory(); goto failure; }
     if(fread(bytes, 1, (size_t)length, stream) != (size_t)length ||
        fgetc(stream) != EOF || ferror(stream)) goto failure;
     if(fclose(stream) != 0) { stream = NULL; goto failure; }
+    bytes[length] = 0;
     *size = (size_t)length;
     return bytes;
 failure:
     if(stream) fclose(stream);
     free(bytes);
-    Diagnostic((ZirSourceSpan){0}, "assembly.codec", "cannot read bounded instruction input: %s", path);
     return NULL;
+}
+
+static unsigned char *
+assembly_read(const char *path, size_t *size)
+{
+    unsigned char *bytes = assembly_read_bounded(path, 268435456, size);
+    if(bytes == NULL)
+        Diagnostic((ZirSourceSpan){0}, "assembly.codec", "cannot read bounded instruction input: %s", path);
+    return bytes;
+}
+
+/* Host libraries. A `NAME.library` registration beside the `.host` ones that
+ * `ziran run` dispatches to holds one absolute path to a shared library that
+ * defines host capabilities by name, with the C ABI the C target declares
+ * for them. Registrations are read where `ziran run` finds providers:
+ * ZIRAN_HOST_PATH's absolute directories, or $XDG_DATA_HOME/ziran/hosts
+ * (~/.local/share/ziran/hosts) and then $XDG_DATA_DIRS (/usr/local/share and
+ * /usr/share) with /ziran/hosts, each directory's in name order. A Linux
+ * x86-64 ELF links each capability from the first library that defines it;
+ * a capability none defines is a gap. */
+typedef struct AssemblyHostLibrary {
+    char *path;
+    unsigned char *bytes;
+    size_t size;
+    int32_t linked;
+} AssemblyHostLibrary;
+
+typedef struct AssemblyHosts {
+    AssemblyHostLibrary *libraries;
+    size_t count, capacity;
+    String *paths;
+    int32_t *providers;
+    MachineHostLinks links;
+} AssemblyHosts;
+
+static void
+assembly_hosts_free(AssemblyHosts *hosts)
+{
+    for(size_t at = 0; at < hosts->count; at++) {
+        free(hosts->libraries[at].path);
+        free(hosts->libraries[at].bytes);
+    }
+    free(hosts->libraries);
+    free(hosts->paths);
+    free(hosts->providers);
+    memset(hosts, 0, sizeof(*hosts));
+}
+
+#if defined(__unix__) || defined(__APPLE__)
+static int
+assembly_name_order(const void *left, const void *right)
+{
+    return strcmp(*(char *const *)left, *(char *const *)right);
+}
+
+/* A registration's library: its trimmed text, one absolute path without
+ * control bytes. An unreadable or invalid registration is skipped. */
+static int
+assembly_hosts_register(AssemblyHosts *hosts, const char *registration)
+{
+    size_t size = 0;
+    char *text = (char *)assembly_read_bounded(registration, 16384, &size);
+    if(text == NULL) return 1;
+    size_t begin = 0, end = size;
+    while(begin < end && (text[begin] == ' ' || text[begin] == '\t' || text[begin] == '\n' || text[begin] == '\r')) begin++;
+    while(end > begin && (text[end - 1] == ' ' || text[end - 1] == '\t' || text[end - 1] == '\n' || text[end - 1] == '\r')) end--;
+    int valid = end > begin && text[begin] == '/';
+    for(size_t at = begin; valid && at < end; at++)
+        if((unsigned char)text[at] < 32 || (unsigned char)text[at] == 127) valid = 0;
+    if(!valid) { free(text); return 1; }
+    memmove(text, text + begin, end - begin);
+    text[end - begin] = 0;
+    AssemblyHostLibrary library = {.path = text, .linked = -1};
+    library.bytes = assembly_read_bounded(text, 268435456, &library.size);
+    if(library.bytes == NULL) { free(text); return 1; }
+    if(hosts->count == hosts->capacity) {
+        size_t capacity = hosts->capacity ? hosts->capacity * 2 : 4;
+        AssemblyHostLibrary *grown = realloc(hosts->libraries, capacity * sizeof(*grown));
+        if(grown == NULL) { free(library.bytes); free(text); DiagnosticOutOfMemory(); return 0; }
+        hosts->libraries = grown;
+        hosts->capacity = capacity;
+    }
+    hosts->libraries[hosts->count++] = library;
+    return 1;
+}
+
+static int
+assembly_hosts_directory(AssemblyHosts *hosts, const char *directory, size_t length, const char *suffix)
+{
+    char path[ZIR_PATH_MAX];
+    if(length == 0 || directory[0] != '/' ||
+       snprintf(path, sizeof(path), "%.*s%s", (int)length, directory, suffix) >= (int)sizeof(path)) return 1;
+    DIR *cursor = opendir(path);
+    if(cursor == NULL) return 1;
+    char **names = NULL;
+    size_t count = 0, capacity = 0;
+    int ok = 1;
+    for(struct dirent *entry = readdir(cursor); entry != NULL; entry = readdir(cursor)) {
+        size_t name = strlen(entry->d_name);
+        if(name <= 8 || strcmp(entry->d_name + name - 8, ".library")) continue;
+        if(count == capacity) {
+            capacity = capacity ? capacity * 2 : 8;
+            char **grown = realloc(names, capacity * sizeof(*grown));
+            if(grown == NULL) { ok = 0; break; }
+            names = grown;
+        }
+        if((names[count] = strdup(entry->d_name)) == NULL) { ok = 0; break; }
+        count++;
+    }
+    closedir(cursor);
+    if(ok && count) qsort(names, count, sizeof(*names), assembly_name_order);
+    for(size_t at = 0; ok && at < count; at++) {
+        char registration[ZIR_PATH_MAX];
+        if(snprintf(registration, sizeof(registration), "%s/%s", path, names[at]) < (int)sizeof(registration))
+            ok = assembly_hosts_register(hosts, registration);
+    }
+    for(size_t at = 0; at < count; at++) free(names[at]);
+    free(names);
+    if(!ok) DiagnosticOutOfMemory();
+    return ok;
+}
+
+static int
+assembly_hosts_directories(AssemblyHosts *hosts, const char *list, const char *suffix)
+{
+    for(const char *start = list; ; ) {
+        const char *end = strchr(start, ':');
+        size_t length = end ? (size_t)(end - start) : strlen(start);
+        if(!assembly_hosts_directory(hosts, start, length, suffix)) return 0;
+        if(end == NULL) return 1;
+        start = end + 1;
+    }
+}
+
+static int
+assembly_hosts_load(AssemblyHosts *hosts)
+{
+    const char *paths = getenv("ZIRAN_HOST_PATH");
+    if(paths && *paths) return assembly_hosts_directories(hosts, paths, "");
+    const char *data = getenv("XDG_DATA_HOME");
+    char home[ZIR_PATH_MAX];
+    if(data == NULL || *data == 0) {
+        const char *user = getenv("HOME");
+        if(user && *user && snprintf(home, sizeof(home), "%s/.local/share", user) < (int)sizeof(home)) data = home;
+    }
+    if(data && !assembly_hosts_directory(hosts, data, strlen(data), "/ziran/hosts")) return 0;
+    const char *shared = getenv("XDG_DATA_DIRS");
+    return assembly_hosts_directories(hosts, shared && *shared ? shared : "/usr/local/share:/usr/share",
+        "/ziran/hosts");
+}
+#else
+static int
+assembly_hosts_load(AssemblyHosts *hosts)
+{
+    (void)hosts;
+    return 1;
+}
+#endif
+
+/* Every host capability of PROGRAM needs a library that defines it, and only
+ * a Linux x86-64 ELF links one; everything else is a gap. Platform services
+ * are lowered by the machine pipeline itself. Fills HOSTS->links. */
+static int
+assembly_machine_hosts(const LirProgram *program, TargetDescription target, AssemblyHosts *hosts)
+{
+    const LirFunction *functions = program->functions.data;
+    int linking = target.arch == TargetArch_X86_64 && target.os == TargetOS_Linux;
+    int loaded = 0;
+    for(int64_t index = 0; index < program->functions.length; index++) {
+        if(!functions[index].external || ZxPlatformService(program, index) != ZX_SERVICE_NONE) continue;
+        String name = functions[index].name;
+        if(linking && !loaded) {
+            loaded = 1;
+            hosts->providers = malloc((size_t)program->functions.length * sizeof(*hosts->providers));
+            if(hosts->providers == NULL || !assembly_hosts_load(hosts)) {
+                if(hosts->providers == NULL) DiagnosticOutOfMemory();
+                return 1;
+            }
+            for(int64_t at = 0; at < program->functions.length; at++) hosts->providers[at] = -1;
+            hosts->paths = calloc(hosts->count ? hosts->count : 1, sizeof(*hosts->paths));
+            if(hosts->paths == NULL) { DiagnosticOutOfMemory(); return 1; }
+        }
+        size_t provider = 0;
+        while(linking && provider < hosts->count &&
+              !compiler_machine_elf_MachineElfLibraryDefines(
+                  (Slice){hosts->libraries[provider].bytes, (int64_t)hosts->libraries[provider].size}, name))
+            provider++;
+        if(!linking || provider == hosts->count) {
+            Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-host", linking ?
+                "assembly.gap.machine-host: machine ELF does not implement host capability %.*s: no registered host library defines it; no alternate engine was selected" :
+                "assembly.gap.machine-host: machine ELF does not implement host capability %.*s; no alternate engine was selected",
+                (int)name.length, name.data);
+            return 1;
+        }
+        AssemblyHostLibrary *library = &hosts->libraries[provider];
+        if(library->linked < 0) {
+            library->linked = (int32_t)hosts->links.libraries.length;
+            hosts->paths[library->linked] = (String){library->path, strlen(library->path)};
+            hosts->links.libraries = (Slice){hosts->paths, hosts->links.libraries.length + 1};
+        }
+        hosts->providers[index] = library->linked;
+        hosts->links.providers = (Slice){hosts->providers, program->functions.length};
+    }
+    return 0;
+}
+
+/* A host capability whose parameters or result the C ABI veneer cannot carry. */
+static void
+assembly_host_abi_gap(const LirProgram *program, int32_t function)
+{
+    String name = function >= 0 && function < program->functions.length ?
+        ((const LirFunction *)program->functions.data)[function].name : (String){"?", 1};
+    Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-host-abi",
+        "assembly.gap.machine-host-abi: machine ELF cannot pass host capability %.*s's parameters or result through the C ABI: "
+        "only bool, integer, pointer and float values and records of one or two 8-byte integers or pointers cross it; "
+        "no alternate engine was selected", (int)name.length, name.data);
 }
 
 static void
@@ -272,8 +473,10 @@ typedef struct AssemblyImageFacts {
 } AssemblyImageFacts;
 
 static AssemblyImageFacts
-assembly_image_facts(MachineProgram machine, MachineX64Image encoded)
+assembly_image_facts(const LirProgram *program, const MachineNativeOwner *owner, MachineHostLinks links)
 {
+    MachineProgram machine = owner->machine.program;
+    MachineX64Image encoded = owner->encoded.image;
     if(machine.target.os == TargetOS_Windows) {
         MachinePeResult pe = compiler_machine_pe_MachinePeEncode(machine, encoded, (Slice){0}, INT64_MAX);
         return (AssemblyImageFacts){.target = "x86_64-windows", .kind = "aot-pe",
@@ -284,7 +487,8 @@ assembly_image_facts(MachineProgram machine, MachineX64Image encoded)
             .data_address = pe.data_rva ? MachinePeImageBase + (uint64_t)pe.data_rva : 0,
             .data_size = pe.data_size, .problem = pe.diagnostic.problem};
     }
-    MachineElfResult elf = compiler_machine_elf_MachineElfEncode(machine, encoded, (Slice){0}, INT64_MAX);
+    MachineElfResult elf = compiler_machine_pipeline_MachineNativeElfLayout(*program,
+        (MachineNativeOwner *)owner, links);
     return (AssemblyImageFacts){.target = "x86_64-linux", .kind = "aot-elf",
         .address_space = "elf-virtual", .scope = "complete-elf", .startup = elf.startup_size,
         .size = elf.size, .text_offset = elf.text_offset,
@@ -296,7 +500,8 @@ assembly_image_facts(MachineProgram machine, MachineX64Image encoded)
 
 static int
 assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapSelection *selection,
-             const MachineNativeOwner *owner, const unsigned char *bytes, int64_t size, int optimize)
+             const MachineNativeOwner *owner, MachineHostLinks links, const unsigned char *bytes, int64_t size,
+             int optimize)
 {
     if(selection->function >= program->functions.length ||
        (selection->block >= 0 && selection->block >= ((LirFunction *)program->functions.data)[selection->function].blocks.length)) {
@@ -310,7 +515,7 @@ assembly_machine_map(const LirProgram *program, FILE *stream, const AssemblyMapS
     }
     MachineProgram machine = owner->machine.program;
     MachineX64Image encoded = owner->encoded.image;
-    AssemblyImageFacts image = assembly_image_facts(machine, encoded);
+    AssemblyImageFacts image = assembly_image_facts(program, owner, links);
     if(image.problem != MachineProblem_None) {
         Diagnostic((ZirSourceSpan){0}, "assembly.encode", "cannot measure native machine image layout: problem=%d",
             image.problem);
@@ -606,6 +811,7 @@ main(int argc, char **argv)
     LirOptResult optimization = {0};
     LirProgram optimized_program = {0};
     MachineNativeOwner machine_owner = {0};
+    AssemblyHosts hosts = {0};
     const LirProgram *view = NULL;
     unsigned char *bytes = NULL;
     unsigned char *zx_bytes = NULL;
@@ -739,10 +945,14 @@ main(int argc, char **argv)
         zx_bytes = NULL;
         size = zx_size;
     } else if(executable || mapping) {
-        if(assembly_machine_gap(view)) goto done;
+        if(assembly_machine_hosts(view, native_target, &hosts)) goto done;
         MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineNativeBuild(
             *view, native_target, compiler_machine_ir_MachineDefaultLimits(),
-            &machine_owner, elf_fuel);
+            &machine_owner, elf_fuel, hosts.links);
+        if(diagnostic.problem == MachineProblem_HostAbi) {
+            assembly_host_abi_gap(view, diagnostic.function);
+            goto done;
+        }
         if(diagnostic.problem != MachineProblem_None) {
             Diagnostic((ZirSourceSpan){0}, "assembly.machine",
                 "machine pipeline rejected the program: problem=%d function=%d block=%d instruction=%d operand=%d virtual=%d; no alternate engine was selected",
@@ -764,7 +974,7 @@ main(int argc, char **argv)
     if(!strcmp(output, "-") && !executable) {
         int written = reporting ? assembly_opt_report(stdout, &optimization) :
             listing ? AssemblyPrintLir((LirProgram *)view, stdout) : mapping ?
-                assembly_machine_map(view, stdout, &selection, &machine_owner, bytes, size, 1) :
+                assembly_machine_map(view, stdout, &selection, &machine_owner, hosts.links, bytes, size, 1) :
             fwrite(bytes, 1, (size_t)size, stdout) == (size_t)size;
         status = written && fflush(stdout) == 0 ? 0 : 1;
         goto done;
@@ -794,7 +1004,7 @@ main(int argc, char **argv)
     }
     int written = reporting ? assembly_opt_report(stream, &optimization) :
         listing ? AssemblyPrintLir((LirProgram *)view, stream) : mapping ?
-            assembly_machine_map(view, stream, &selection, &machine_owner, bytes, size, 1) :
+            assembly_machine_map(view, stream, &selection, &machine_owner, hosts.links, bytes, size, 1) :
         fwrite(bytes, 1, (size_t)size, stream) == (size_t)size;
 #if defined(__unix__) || defined(__APPLE__)
     if(executable && fchmod(fileno(stream), 0755) != 0) written = 0;
@@ -819,6 +1029,7 @@ done:
     free(bytes);
     free(zx_bytes);
     compiler_machine_pipeline_MachineNativeFree(&machine_owner);
+    assembly_hosts_free(&hosts);
     compiler_opt_LirOptFree(&optimized_owner);
     AssemblyFree(lowered);
     compiler_exec_debug_ZxDebugFree(&debug_owner);

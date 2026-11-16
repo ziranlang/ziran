@@ -1,4 +1,5 @@
 using Elf :: #import "compiler_machine_elf"
+using Host :: #import "compiler_x86_host"
 using Image :: #import "compiler_machine_image"
 using Pe :: #import "compiler_machine_pe"
 using Lir :: #import "compiler_lowered_ir"
@@ -140,13 +141,37 @@ NativeExchange :: (owner: *MachineNativeOwner, built: *MachineNativeOwner) {
 // ELF on Linux. An empty OUTPUT measures.
 Encoded :: struct { diagnostic: MachineDiagnostic; size: s64 }
 
-ExecutableEncode :: (program: MachineProgram, image: MachineX64Image, output: []u8, fuel: s64) -> Encoded {
+ExecutableEncode :: (program: MachineProgram, image: MachineX64Image, output: []u8, fuel: s64,
+    hosts: MachineElfHosts) -> Encoded {
     if program.target.os == .Windows {
+        // A PE imports only kernel32.
+        if hosts.imports.count > 0 { return .{diagnostic = Problem(.Unsupported)} }
         pe := MachinePeEncode(program, image, output, fuel)
         return .{diagnostic = pe.diagnostic, size = pe.size}
     }
-    elf := MachineElfEncode(program, image, output, fuel)
+    elf := MachineElfEncode(program, image, output, fuel, hosts)
     return .{diagnostic = elf.diagnostic, size = elf.size}
+}
+
+// The imports of every host function of PROGRAM, in function order, from the
+// libraries LINKS names. A host function no library provides fails with its
+// function named.
+HostImports :: (lir: LirProgram, program: MachineProgram, links: MachineHostLinks,
+    imports: *Vec(MachineX64HostImport)) -> MachineDiagnostic {
+    for function_id: cast(s64)0..program.functions.count - 1 {
+        if program.functions[function_id].calling != .Host { continue }
+        provider: s32 = -1
+        if function_id < links.providers.count { provider = links.providers[function_id] }
+        if provider < 0 || cast(s64)provider >= links.libraries.count || function_id >= lir.functions.count {
+            diagnostic := Problem(.Unsupported)
+            diagnostic.function = cast(s32)function_id
+            return diagnostic
+        }
+        source := lir.functions[function_id]
+        if !VecPush(<<imports, MachineX64HostImport.{function = cast(s32)function_id, library = provider,
+            parameters = source.parameters, result = source.result}) { return Problem(.Allocation) }
+    }
+    return NoDiagnostic()
 }
 
 // The SSA virtual an operand names in either stage.
@@ -224,7 +249,7 @@ MachineCodeImageView :: (owner: *MachineNativeOwner) -> MachineImage {
 // Transactional MachineLower -> RegAllocAllocate -> MachineX64Encode, with an
 // optional AOT executable. A failure leaves OUTPUT unchanged.
 Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
-    output: *MachineNativeOwner, emit_executable: bool, fuel: s64) -> MachineDiagnostic {
+    output: *MachineNativeOwner, emit_executable: bool, fuel: s64, links: MachineHostLinks) -> MachineDiagnostic {
     if output == null { return Problem(.Owner) }
     built: MachineNativeOwner
     options := MachineDefaultOptions()
@@ -257,21 +282,26 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     if emit_executable {
         image := MachineX64View(*built.encoded)
+        imports: Vec(MachineX64HostImport)
+        diagnostic = HostImports(lir, program, links, *imports)
+        hosts := MachineElfHosts.{libraries = links.libraries, imports = imports[:]}
         empty: [0]u8
-        measured := ExecutableEncode(program, image, empty[:], fuel)
-        if measured.diagnostic.problem != .None {
-            MachineNativeFree(*built)
-            return measured.diagnostic
+        measured: Encoded
+        if diagnostic.problem == .None {
+            measured = ExecutableEncode(program, image, empty[:], fuel, hosts)
+            diagnostic = measured.diagnostic
         }
-        if measured.size <= 0 || measured.size > limits.bytes ||
-            !VecResizeBounded(built.executable, measured.size, limits.bytes) {
-            MachineNativeFree(*built)
-            return Problem(ifx measured.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
+        if diagnostic.problem == .None && (measured.size <= 0 || measured.size > limits.bytes ||
+            !VecResizeBounded(built.executable, measured.size, limits.bytes)) {
+            diagnostic = Problem(ifx measured.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
         }
-        written := ExecutableEncode(program, image, built.executable[:], fuel)
-        if written.diagnostic.problem != .None || written.size != measured.size {
+        if diagnostic.problem == .None {
+            written := ExecutableEncode(program, image, built.executable[:], fuel, hosts)
             diagnostic = written.diagnostic
-            if diagnostic.problem == .None { diagnostic = Problem(.Relocation) }
+            if diagnostic.problem == .None && written.size != measured.size { diagnostic = Problem(.Relocation) }
+        }
+        VecFree(imports)
+        if diagnostic.problem != .None {
             MachineNativeFree(*built)
             return diagnostic
         }
@@ -285,13 +315,40 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
 
 MachineCodeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     output: *MachineNativeOwner) -> MachineDiagnostic {
-    return Build(lir, target, limits, output, false, 0)
+    none: MachineHostLinks
+    return Build(lir, target, limits, output, false, 0, none)
 }
 
-// FUEL is the AOT executable's starting budget; the default is unbounded,
-// as for a bundle run. The executable is an ELF on Linux and a PE on
-// Windows.
+// The host libraries a Linux x86-64 executable links its host capabilities
+// from: their absolute paths, and for each function of the program the
+// index of the library that provides it, or -1. Both are empty for a program
+// that calls no host capability.
+MachineHostLinks :: struct {
+    libraries: []string
+    providers: []s32
+}
+
+// FUEL is the AOT executable's starting budget; MachineX64InitialFuel is
+// unbounded, as for a bundle run. The executable is an ELF on Linux and a PE
+// on Windows; a Linux ELF links the host libraries LINKS names for its host
+// capabilities, and one that calls none is static.
 MachineNativeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
-    output: *MachineNativeOwner, fuel: s64 = MachineX64InitialFuel) -> MachineDiagnostic {
-    return Build(lir, target, limits, output, true, fuel)
+    output: *MachineNativeOwner, fuel: s64, links: MachineHostLinks) -> MachineDiagnostic {
+    return Build(lir, target, limits, output, true, fuel, links)
+}
+
+// The layout of the Linux ELF MachineNativeBuild wrote for LIR into OWNER
+// with LINKS, measured again for its map.
+MachineNativeElfLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: MachineHostLinks) -> MachineElfResult {
+    program := owner.machine.program
+    imports: Vec(MachineX64HostImport)
+    result: MachineElfResult
+    result.diagnostic = HostImports(lir, program, links, *imports)
+    if result.diagnostic.problem == .None {
+        empty: [0]u8
+        result = MachineElfEncode(program, MachineX64View(*owner.encoded), empty[:], MachineX64InitialFuel,
+            .{libraries = links.libraries, imports = imports[:]})
+    }
+    VecFree(imports)
+    return result
 }

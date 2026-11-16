@@ -1,4 +1,6 @@
 using Allocated :: #import "compiler_machine_verify_allocated"
+using Bytes :: #import "compiler_x86_bytes"
+using Host :: #import "compiler_x86_host"
 using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using Runtime :: #import "compiler_x86_runtime"
@@ -15,14 +17,16 @@ using X64 :: #import "compiler_x86_64"
 //
 //   * text, read/execute: a Ziran-owned process entry stub, the encoded
 //     machine text, the hard-trap stub when anything traps, the runtime
-//     routines the program calls (compiler_x86_runtime.zi) and, when it
-//     prints floats, the float formatter;
+//     routines the program calls (compiler_x86_runtime.zi), when it
+//     prints floats, the float formatter and, for each host capability a
+//     Linux executable imports, its C ABI veneer (compiler_x86_host.zi);
 //   * constants, read-only: the read-only globals;
 //   * data, read/write, only when the program needs writable state: writable
 //     globals, the fuel counter, the pointer runtime (its header, the pointer
 //     table with slot 0 and the globals' slots stored and the rest zero fill,
 //     and the frame arena), the last trap code, the stack limit, the heap's
-//     state and the console buffer, each only when used.
+//     state, the console buffer and the imported host capabilities' slots,
+//     which the dynamic linker fills, each only when used.
 //
 // Process convention:
 //   * a void entry exits zero; a bool/integer entry exits with its low byte;
@@ -52,6 +56,8 @@ MachineX64DataLayout :: struct {
     arena: s64
     heap: s64
     console: s64
+    // The first imported host capability's 8-byte slot; the rest follow it.
+    host_slots: s64
     // Bytes stored, and in memory with the zero fill.
     size: s64
     memory: s64
@@ -70,7 +76,9 @@ MachineX64ImageNeeds :: struct {
 // Positions of an image's parts. MachineX64ImageMeasure fills the needs and
 // sizes; the container then sets os and text for MachineX64ImageText, and
 // constants, data, data_file and on Windows the import slots before
-// MachineX64ImageResolve.
+// MachineX64ImageResolve. A Linux container that links host libraries sets
+// hosts, the capabilities it imports in function order, before
+// MachineX64ImageMeasure, and MachineX64ImageText places their veneers.
 MachineX64ImageLayout :: struct {
     os: TargetOS
     needs: MachineX64ImageNeeds
@@ -90,6 +98,7 @@ MachineX64ImageLayout :: struct {
     data_file: s64
     data_layout: MachineX64DataLayout
     imports: MachineWin64Slots
+    hosts: []MachineX64HostImport
 }
 
 #scope_file
@@ -134,7 +143,8 @@ ValidAlignment :: (alignment: s32) -> bool {
     return alignment > 0 && alignment <= Page && (alignment & (alignment - 1)) == 0
 }
 
-DataMeasure :: (program: MachineProgram, needs: MachineX64ImageNeeds, layout: *MachineX64DataLayout) -> MachineDiagnostic {
+DataMeasure :: (program: MachineProgram, needs: MachineX64ImageNeeds, hosts: s64,
+    layout: *MachineX64DataLayout) -> MachineDiagnostic {
     at: s64 = 0
     for global: program.globals {
         if global.type < 0 || global.type >= program.types.count { return Problem(.Unsupported) }
@@ -149,7 +159,7 @@ DataMeasure :: (program: MachineProgram, needs: MachineX64ImageNeeds, layout: *M
     }
     layout.globals_size = at
     layout.fuel = -1; layout.trap_status = -1; layout.stack_limit = -1; layout.pointer_header = -1
-    layout.table = -1; layout.arena = -1; layout.heap = -1; layout.console = -1
+    layout.table = -1; layout.arena = -1; layout.heap = -1; layout.console = -1; layout.host_slots = -1
     // Stored bytes first: the fuel budget and the pointer runtime's header and
     // the globals' table entries; everything after is zero fill.
     if needs.fuel { layout.fuel = Align(at, 8); at = layout.fuel + 8 }
@@ -172,6 +182,11 @@ DataMeasure :: (program: MachineProgram, needs: MachineX64ImageNeeds, layout: *M
     if needs.runtime.buffered {
         layout.console = Align(memory, 16)
         memory = layout.console + MachineX64RuntimeConsoleBytes
+    }
+    if hosts > 0 {
+        if hosts > (2147483647 - memory) / 8 - 1 { return Problem(.Limit) }
+        layout.host_slots = Align(memory, 8)
+        memory = layout.host_slots + hosts * 8
     }
     layout.memory = memory
     return NoDiagnostic()
@@ -360,6 +375,42 @@ InPrologue :: (program: MachineProgram, image: MachineX64Image, offset: s64) -> 
     return false
 }
 
+// The index of FUNCTION's import among HOSTS, which are in function order,
+// or -1 when the image does not import it.
+HostIndex :: (hosts: []MachineX64HostImport, function: s32) -> s64 {
+    low: s64 = 0
+    high := hosts.count
+    while low < high {
+        middle := low + (high - low) / 2
+        if hosts[middle].function < function { low = middle + 1 } else { high = middle }
+    }
+    return ifx low < hosts.count && hosts[low].function == function then low else -1
+}
+
+// The position of the INDEX-th import's slot.
+HostSlot :: (layout: MachineX64ImageLayout, index: s64) -> s64 {
+    return layout.data + layout.data_layout.host_slots + index * 8
+}
+
+// The imports are the program's host functions, each once, in order, and
+// each has a veneer.
+HostsMeasure :: (program: MachineProgram, hosts: []MachineX64HostImport) -> MachineDiagnostic {
+    previous: s32 = -1
+    for host: hosts {
+        if host.function <= previous || host.function >= program.functions.count ||
+            program.functions[host.function].calling != .Host || host.library < 0 {
+            return Problem(.Relocation)
+        }
+        previous = host.function
+        if !MachineX64HostSupported(program, host) {
+            diagnostic := Problem(.HostAbi)
+            diagnostic.function = host.function
+            return diagnostic
+        }
+    }
+    return NoDiagnostic()
+}
+
 // The position a relocation's field reaches, or false when the image has no
 // such target.
 RelocationTarget :: (program: MachineProgram, layout: MachineX64ImageLayout,
@@ -378,6 +429,12 @@ RelocationTarget :: (program: MachineProgram, layout: MachineX64ImageLayout,
     if relocation.kind == .StackLimit { piece = data.stack_limit }
     if relocation.kind == .PointerRuntime { piece = data.pointer_header }
     if piece >= 0 { <<target = layout.data + piece; return true }
+    if relocation.kind == .HostCapability {
+        index := HostIndex(layout.hosts, relocation.symbol)
+        if index < 0 { return false }
+        <<target = layout.hosts[index].veneer
+        return true
+    }
     if relocation.kind == .TrapHandler && layout.trap > 0 { <<target = layout.trap; return true }
     if relocation.kind == .RuntimeResize && layout.needs.runtime.resize { <<target = layout.routines.resize; return true }
     return false
@@ -607,14 +664,16 @@ MachineX64ImageMeasure :: (program: MachineProgram, image: MachineX64Image,
             return Problem(.Relocation)
         }
     }
+    hosts_diagnostic := HostsMeasure(program, layout.hosts)
+    if hosts_diagnostic.problem != .None { return hosts_diagnostic }
     layout.needs = ImageNeeds(program, image)
-    data_diagnostic := DataMeasure(program, layout.needs, *layout.data_layout)
+    data_diagnostic := DataMeasure(program, layout.needs, layout.hosts.count, *layout.data_layout)
     if data_diagnostic.problem != .None { return data_diagnostic }
     return GlobalsMeasure(program, false, *layout.constants_size)
 }
 
 // Lays out the text from LAYOUT.text: the entry stub, code, trap stub,
-// runtime and float formatter, ending at text_end.
+// runtime, float formatter and host veneers, ending at text_end.
 MachineX64ImageText :: (program: MachineProgram, image: MachineX64Image,
     layout: *MachineX64ImageLayout) -> MachineDiagnostic {
     if layout.text <= 0 || layout.text > 2147483647 - Page { return Problem(.Limit) }
@@ -636,6 +695,14 @@ MachineX64ImageText :: (program: MachineProgram, image: MachineX64Image,
     if layout.needs.float {
         layout.float = Align(end + 16 - FloatAlignment, 16) - 16 + FloatAlignment
         end = layout.float + FloatSize
+    }
+    // Each veneer's size depends only on its signature, never on its slot.
+    if layout.hosts.count > 0 { end = Align(end, 16) }
+    for index: cast(s64)0..layout.hosts.count - 1 {
+        layout.hosts[index].veneer = end
+        measure := X86Writer.{at = end, limit = 2147483647 - Page}
+        if !MachineX64HostVeneer(*measure, program, layout.hosts[index], 0) { return Problem(.Limit) }
+        end = measure.at
     }
     layout.text_end = end
     if layout.text_end > 2147483647 - Page { return Problem(.Limit) }
@@ -689,13 +756,14 @@ MachineX64ImageResolve :: (program: MachineProgram, image: MachineX64Image,
             (kind == .FuelCounter || kind == .TrapHandler || kind == .PointerRuntime ||
              kind == .RuntimeResize) && relocation.symbol != 0 ||
             kind == .TrapHandler && (!TrapOpcode(opcode) || relocation.addend != -4) ||
-            kind == .PlatformService && opcode != .CallDirect ||
+            (kind == .PlatformService || kind == .HostCapability) && opcode != .CallDirect ||
             kind == .RuntimeResize && opcode != .Resize {
             return Problem(.Relocation, relocation.instruction)
         }
         target: s64 = 0
         if !RelocationTarget(program, layout, relocation, *target) {
-            return Problem(ifx kind == .PlatformService then MachineProblem.Unsupported else MachineProblem.Relocation,
+            unsupported := kind == .PlatformService || kind == .HostCapability
+            return Problem(ifx unsupported then MachineProblem.Unsupported else MachineProblem.Relocation,
                 relocation.instruction)
         }
         displacement: s64 = 0
@@ -738,6 +806,13 @@ MachineX64ImageWrite :: (program: MachineProgram, image: MachineX64Image, layout
         // The formatter's one write is a rel32 call to stdout_bytes.
         WriteFloatRuntime(output, layout.float)
         if !PutRelative(output, layout.float + FloatWriteField, routines.stdout_bytes, -4) { return false }
+    }
+    for index: cast(s64)0..layout.hosts.count - 1 {
+        host := layout.hosts[index]
+        writer := X86Writer.{output = output, at = host.veneer, limit = layout.text_end}
+        if !MachineX64HostVeneer(*writer, program, host, HostSlot(layout, index)) ||
+            index + 1 < layout.hosts.count && writer.at != layout.hosts[index + 1].veneer ||
+            index + 1 == layout.hosts.count && writer.at != layout.text_end { return false }
     }
 
     for relocation: image.relocations {

@@ -179,7 +179,10 @@ supported direct target lowers the same verified instructions to machine code,
 applies the target ABI and platform veneers, and writes a platform binary;
 `zx2native --target x86_64 --platform linux --emit elf` is the Linux x86-64 row, and
 `--platform windows` writes the Windows x86-64 row's PE32+ `.exe`. Generated C and Go are
-separate routes, never native fallback.
+separate routes, never native fallback. A Linux x86-64 executable links its
+host capabilities by name from the registered host libraries, with the C ABI
+the C target declares for them ([host capabilities](USAGE.md#host-capabilities-and-visibility));
+a capability none defines is the `assembly.gap.machine-host` gap.
 
 The linker includes reachable code from ordinary libraries, Kryon only when
 the program imports it. A non-UI command-line program is a first-class `.zx`;

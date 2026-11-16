@@ -27,6 +27,12 @@ initial Linux x86-64 console contract uses a static executable with its own
 `_start`, no libc/CRT/dynamic linker, `write` syscall 1 through a `write_all`
 loop that handles partial progress and `EINTR`, and `exit_group` syscall 231
 rather than syscall 60. That opt-in AOT slice is implemented and executed.
+A program that calls host capabilities links them instead from registered host
+libraries by name: PT_INTERP and PT_DYNAMIC name the system dynamic linker and
+each library, one System V veneer per capability
+([`compiler_x86_host.zi`](../cmd/compiler_x86_host.zi)) calls through the slot
+its GLOB_DAT relocation fills, and the process entry, console and exit stay
+Ziran's own.
 Standard output is buffered, 8 KiB at a time and line by line on a terminal as
 in C, and written before any write to another descriptor, before a trap's exit
 and at exit, so its bytes and their order match direct writes. Its resize runtime, emitted with the x86 encoder

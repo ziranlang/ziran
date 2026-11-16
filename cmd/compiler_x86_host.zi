@@ -1,0 +1,182 @@
+using Bytes :: #import "compiler_x86_bytes"
+using Machine :: #import "compiler_machine_ir"
+
+// Host capabilities a Linux x86-64 executable imports from a host library by
+// name, as a C program links a host's symbols: for
+// `OpenHost :: (title: string, width: s32, height: s32) -> bool #foreign host_api;`
+// the C target declares `bool OpenHost(String title, int32_t width,
+// int32_t height);`, and the executable calls the library's `OpenHost` the
+// same way. The program keeps its own convention. One veneer per capability
+// moves the arguments to the System V C ABI, calls through the capability's
+// slot, which the dynamic linker fills, and returns the result the way the
+// program keeps it:
+//
+//   * a bool, integer, pointer or procedure is one INTEGER argument and a
+//     float one SSE argument, in parameter order, where the program already
+//     passes them;
+//   * a record of one or two 8-byte integer or pointer fields, such as a
+//     string or a slice, is that many INTEGER arguments, read from the
+//     program's stack arguments;
+//   * the result is void, a bool, an integer, a pointer or a float, widened
+//     the way the program keeps it.
+//
+// Anything else, such as a larger record, an array, a record holding a float,
+// a record result or more than six INTEGER or eight SSE arguments, has no
+// veneer, and MachineX64HostSupported says so before anything is laid out.
+// The registers the program preserves across a call (rbx, rbp, r12-r15) are
+// the ones the C ABI preserves, and the program calls with rsp 16-byte
+// aligned, so the veneer needs no frame of its own beyond rbp.
+
+// One imported capability: the program's function, the library that
+// provides it, its parameter and result types, and where its veneer starts,
+// which the image's layout fills in.
+MachineX64HostImport :: struct {
+    function: s32
+    library: s32
+    parameters: []s32
+    result: s32
+    veneer: s64
+}
+
+#scope_file
+
+Rax :: 0
+Rbp :: 5
+
+// The C ABI's INTEGER argument registers, which are also the program's
+// general argument registers: rdi, rsi, rdx, rcx, r8, r9.
+GeneralArgument :: (ordinal: s32) -> s32 {
+    if ordinal == 0 { return 7 }
+    if ordinal == 1 { return 6 }
+    if ordinal == 2 { return 2 }
+    if ordinal == 3 { return 1 }
+    if ordinal == 4 { return 8 }
+    return 9
+}
+
+GeneralArgumentCount :: 6
+FloatArgumentCount :: 8
+
+ValidType :: (program: MachineProgram, type: s32) -> bool { return type >= 0 && type < program.types.count }
+
+Scalar :: (kind: MachineTypeKind) -> bool {
+    return kind == .Bool || kind == .Integer || kind == .Pointer || kind == .Function
+}
+
+// The INTEGER eightbytes of a record the C ABI passes in registers: one or
+// two fields, each a 64-bit integer or a pointer, or 0 for any other type.
+Words :: (program: MachineProgram, type: MachineType) -> s32 {
+    if type.kind != .Record || type.fields_count < 1 || type.fields_count > 2 ||
+        type.size != 8 * cast(s64)type.fields_count || type.fields_begin < 0 ||
+        cast(s64)type.fields_begin + type.fields_count > program.type_ids.count { return 0 }
+    for at: 0..type.fields_count - 1 {
+        id := program.type_ids[type.fields_begin + at]
+        if !ValidType(program, id) { return 0 }
+        field := program.types[id]
+        word := field.kind == .Pointer || field.kind == .Function || field.kind == .Integer && field.bits == 64
+        if !word || field.size != 8 { return 0 }
+    }
+    return type.fields_count
+}
+
+RoundEight :: (value: s64) -> s64 { return (value + 7) & ~cast(s64)7 }
+
+// Widens REGISTER in place the way TYPE's values are kept: a bool to its low
+// bit, a narrow integer by its sign. Wider values are left as they are.
+Widen :: (writer: *X86Writer, register: s32, type: MachineType, keep: bool) {
+    if type.kind == .Bool {
+        // and r32, 1: a C bool is its low byte; the program keeps bit 0.
+        X86Encode(writer, 0, false, 131, 1, 4, X86Direct(register), trailing = 1)
+        X86Little(writer, 1, 1)
+        return
+    }
+    if type.kind != .Integer { return }
+    if type.bits == 8 || type.bits == 16 {
+        X86Load(writer, register, X86Direct(register), cast(s64)(type.bits / 8), type.is_signed)
+        return
+    }
+    // A 32-bit result comes back in eax with nothing defined above it.
+    if type.bits == 32 && keep { X86Load(writer, register, X86Direct(register), 4, type.is_signed) }
+}
+
+// Classifies IMPORT's parameters and, with an emitting WRITER, moves them
+// into the C ABI's registers. Returns false for a signature the C ABI cannot
+// carry this way.
+Arguments :: (program: MachineProgram, host: MachineX64HostImport, writer: *X86Writer, emit: bool) -> bool {
+    general: s32 = 0
+    floats: s32 = 0
+    integer: s32 = 0
+    stack: s64 = 0
+    for type_id: host.parameters {
+        if !ValidType(program, type_id) { return false }
+        type := program.types[type_id]
+        if Scalar(type.kind) { general += 1; integer += 1 }
+        else if type.kind == .Float { floats += 1 }
+        else {
+            words := Words(program, type)
+            if words == 0 { return false }
+            integer += words
+            stack += RoundEight(type.size)
+        }
+        if general > GeneralArgumentCount || floats > FloatArgumentCount || integer > GeneralArgumentCount {
+            return false
+        }
+    }
+    if !emit { return true }
+    // A scalar's C register is at or after its program register, because
+    // only records add registers before it; moving the last one first never
+    // overwrites a register a scalar before it still reads.
+    index := host.parameters.count - 1
+    while index >= 0 {
+        type := program.types[host.parameters[index]]
+        if Scalar(type.kind) {
+            integer -= 1
+            general -= 1
+            if integer != general { X86Move(writer, GeneralArgument(integer), GeneralArgument(general)) }
+            Widen(writer, GeneralArgument(integer), type, false)
+        } else if type.kind != .Float {
+            words := Words(program, type)
+            integer -= words
+            stack -= RoundEight(type.size)
+            // The program's stack arguments start above rbp's save and the
+            // return address.
+            for word: 0..words - 1 {
+                X86Load(writer, GeneralArgument(integer + word),
+                    X86At(Rbp, 16 + stack + cast(s64)(word * 8)), 8, false)
+            }
+        }
+        index -= 1
+    }
+    return true
+}
+
+ResultSupported :: (program: MachineProgram, result: s32) -> bool {
+    if !ValidType(program, result) { return false }
+    kind := program.types[result].kind
+    return kind == .Void || kind == .Float || Scalar(kind)
+}
+
+#scope_export
+
+// Whether IMPORT's signature has a veneer.
+MachineX64HostSupported :: (program: MachineProgram, host: MachineX64HostImport) -> bool {
+    measure: X86Writer
+    return ResultSupported(program, host.result) && Arguments(program, host, *measure, false)
+}
+
+// IMPORT's veneer at the writer's position, calling through the slot at
+// position SLOT: push rbp; mov rbp, rsp; the argument moves; call [rip +
+// slot]; the result's widening; pop rbp; ret. A measuring writer only counts
+// its bytes, which never depend on the slot's position.
+MachineX64HostVeneer :: (writer: *X86Writer, program: MachineProgram, host: MachineX64HostImport,
+    slot: s64) -> bool {
+    if !MachineX64HostSupported(program, host) { return false }
+    X86Push(writer, Rbp)
+    X86Move(writer, Rbp, X86Rsp)
+    if !Arguments(program, host, writer, true) { return false }
+    X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slot))
+    Widen(writer, Rax, program.types[host.result], true)
+    X86Byte(writer, 93)
+    X86Return(writer)
+    return !writer.failed
+}

@@ -1,3 +1,4 @@
+using Host :: #import "compiler_x86_host"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 using X64 :: #import "compiler_x86_64"
@@ -11,13 +12,33 @@ using X64Image :: #import "compiler_x86_image"
 // needs writable state. Its bytes follow the text in the file and map one
 // page higher in memory, so the two segments never share a page and the
 // file needs no padding. It is read/write but never executable. Positions are
-// virtual offsets from MachineElfBase. No dynamic linker, runtime, assembler
-// or foreign object participates.
+// virtual offsets from MachineElfBase. No runtime, assembler or foreign
+// object participates.
+//
+// A program with no host capabilities is static: no dynamic linker runs. One
+// that imports host capabilities links the host libraries that provide them,
+// as a C program links a host's symbols by name: PT_INTERP names the system's
+// dynamic linker, PT_DYNAMIC lists each library as a DT_NEEDED path, and each
+// capability is an undefined function symbol whose R_X86_64_GLOB_DAT
+// relocation fills the capability's slot in the data before the entry runs,
+// so a library missing the symbol stops the program before it starts. These
+// records follow the read-only globals in the first PT_LOAD, and
+// PT_GNU_STACK keeps the stack non-executable.
 
 MachineElfBase :: 0x400000
 MachineElfPage :: 4096
 MachineElfHeaderSize :: 64
 MachineElfProgramHeaderSize :: 56
+MachineElfInterpreter :: "/lib64/ld-linux-x86-64.so.2"
+
+// The host libraries an executable links and the capabilities it imports
+// from them; both empty for a static executable.
+MachineElfHosts :: struct {
+    // Absolute paths, one DT_NEEDED each, in order.
+    libraries: []string
+    // In function order; each import's library indexes libraries.
+    imports: []MachineX64HostImport
+}
 
 // File offsets, and the data segment's virtual offset from MachineElfBase
 // (both 0 without a data segment); a piece the image does not carry has
@@ -34,13 +55,44 @@ MachineElfResult :: struct {
     fuel_offset: s64
     trap_status_offset: s64
     pointer_offset: s64
+    // The dynamic linking records, or -1 for a static executable.
+    dynamic_offset: s64
 }
 
 #scope_file
 
+SymbolSize :: 24
+RelocationSize :: 24
+DynamicEntrySize :: 16
+// d_tag values, R_X86_64_GLOB_DAT and the symbol's STB_GLOBAL STT_FUNC.
+DtNull :: 0
+DtNeeded :: 1
+DtHash :: 4
+DtStrtab :: 5
+DtSymtab :: 6
+DtRela :: 7
+DtRelasz :: 8
+DtRelaent :: 9
+DtStrsz :: 10
+DtSyment :: 11
+GlobDat :: 6
+GlobalFunction :: 0x12
+
 Layout :: struct {
     image: MachineX64ImageLayout
     headers: s64
+    // The dynamic linking records' file offsets, which are also their
+    // virtual offsets; zero for a static executable.
+    interpreter: s64
+    strings: s64
+    strings_size: s64
+    symbols: s64
+    hash: s64
+    relocations: s64
+    dynamic: s64
+    dynamic_count: s64
+    // The end of the first PT_LOAD's bytes.
+    read_end: s64
     data_offset: s64
     file_size: s64
 }
@@ -60,28 +112,110 @@ PutLittle :: (output: []u8, at: s64, value: u64, count: s32) {
     }
 }
 
-// The end of the text segment: the text, then the read-only globals.
+PutBytes :: (output: []u8, at: s64, bytes: []u8) {
+    for index: cast(s64)0..bytes.count - 1 { output[at + index] = bytes[index] }
+}
+
+PutText :: (output: []u8, at: s64, text: string) {
+    for index: cast(s64)0..text.count - 1 { output[at + index] = cast(u8)text[index] }
+}
+
+// The end of the text and the read-only globals after it.
 TextEnd :: (layout: Layout) -> s64 { return layout.image.constants + layout.image.constants_size }
 
+Dynamic :: (layout: Layout) -> bool { return layout.image.hosts.count > 0 }
+
+// A host capability's symbol: its function's name.
+SymbolName :: (program: MachineProgram, function: s32) -> []u8 {
+    record := program.functions[function]
+    return program.text[record.name_offset:record.name_offset + record.name_length]
+}
+
+// A name the string table can hold: not empty and without a NUL.
+Named :: (text: []u8) -> bool {
+    if text.count == 0 { return false }
+    for byte: text { if byte == 0 { return false } }
+    return true
+}
+
+// An absolute path the string table can hold.
+AbsolutePath :: (path: string) -> bool {
+    if path.count == 0 || path.count > 4096 || path[0] != #char "/" { return false }
+    for index: cast(s64)0..path.count - 1 { if cast(u8)path[index] == 0 { return false } }
+    return true
+}
+
+// The dynamic records after the read-only globals: the interpreter path; the
+// strings, a NUL then each library path and each symbol name; the symbols,
+// a null one first; a hash table with one empty bucket, since the
+// executable defines nothing; the relocations; and the dynamic entries.
+DynamicLayout :: (program: MachineProgram, hosts: MachineElfHosts, layout: *Layout) -> MachineDiagnostic {
+    diagnostic := MachineDiagnostic.{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+    strings: s64 = 1
+    for path: hosts.libraries {
+        if !AbsolutePath(path) {
+            diagnostic.problem = .Unsupported
+            return diagnostic
+        }
+        strings += path.count + 1
+    }
+    for host: hosts.imports {
+        name := SymbolName(program, host.function)
+        if host.library < 0 || cast(s64)host.library >= hosts.libraries.count || !Named(name) {
+            diagnostic.problem = .Unsupported
+            diagnostic.function = host.function
+            return diagnostic
+        }
+        strings += name.count + 1
+    }
+    count := hosts.imports.count
+    at := Align(layout.read_end, 8)
+    layout.interpreter = at
+    at += MachineElfInterpreter.count + 1
+    layout.strings = at
+    layout.strings_size = strings
+    at = Align(at + strings, 8)
+    layout.symbols = at
+    at += (count + 1) * SymbolSize
+    layout.hash = at
+    at = Align(at + (3 + count + 1) * 4, 8)
+    layout.relocations = at
+    at += count * RelocationSize
+    layout.dynamic = at
+    layout.dynamic_count = hosts.libraries.count + 9
+    layout.read_end = at + layout.dynamic_count * DynamicEntrySize
+    return diagnostic
+}
+
 // The text right after the program headers, the read-only globals 16-byte
-// aligned after it, then the data.
-ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout) -> MachineDiagnostic {
+// aligned after it, any dynamic records, then the data.
+ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineElfHosts,
+    layout: *Layout) -> MachineDiagnostic {
     image := *layout.image
     image.os = .Linux
+    image.hosts = hosts.imports
     diagnostic := MachineX64ImageMeasure(program, encoded, image)
     if diagnostic.problem != .None { return diagnostic }
-    layout.headers = ifx MachineX64ImageHasData(<<image) then 2 else 1
+    // PT_INTERP, both PT_LOADs, PT_DYNAMIC and PT_GNU_STACK when linking.
+    if Dynamic(<<layout) { layout.headers = 5 }
+    else { layout.headers = ifx MachineX64ImageHasData(<<image) then 2 else 1 }
     image.text = Align(MachineElfHeaderSize + layout.headers * MachineElfProgramHeaderSize, 16)
     diagnostic = MachineX64ImageText(program, encoded, image)
     if diagnostic.problem != .None { return diagnostic }
     image.constants = Align(image.text_end, 16)
-    if TextEnd(<<layout) > 2147483647 - MachineElfPage {
+    layout.read_end = TextEnd(<<layout)
+    if Dynamic(<<layout) {
+        diagnostic = DynamicLayout(program, hosts, layout)
+        if diagnostic.problem != .None { return diagnostic }
+    }
+    if layout.read_end > 2147483647 - MachineElfPage {
         diagnostic.problem = .Limit
         return diagnostic
     }
-    layout.data_offset = TextEnd(<<layout)
+    layout.data_offset = layout.read_end
     image.data = layout.data_offset
-    if layout.headers == 2 {
+    if MachineX64ImageHasData(<<image) {
         layout.data_offset = Align(layout.data_offset, MachineX64DataAlignment(program))
         image.data = layout.data_offset + MachineElfPage
     }
@@ -90,10 +224,66 @@ ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout
     return MachineX64ImageResolve(program, encoded, <<image)
 }
 
-Write :: (program: MachineProgram, encoded: MachineX64Image, layout: Layout, output: []u8, fuel: s64) -> bool {
+ProgramHeader :: (output: []u8, at: s64, kind: u64, flags: u64, offset: s64, address: s64,
+    file_size: s64, memory_size: s64, alignment: s64) {
+    PutLittle(output, at, kind, 4); PutLittle(output, at + 4, flags, 4)
+    PutLittle(output, at + 8, cast(u64)offset, 8)
+    PutLittle(output, at + 16, cast(u64)address, 8); PutLittle(output, at + 24, cast(u64)address, 8)
+    PutLittle(output, at + 32, cast(u64)file_size, 8)
+    PutLittle(output, at + 40, cast(u64)memory_size, 8)
+    PutLittle(output, at + 48, cast(u64)alignment, 8)
+}
+
+DynamicEntry :: (output: []u8, layout: Layout, index: s64, tag: u64, value: u64) {
+    at := layout.dynamic + index * DynamicEntrySize
+    PutLittle(output, at, tag, 8)
+    PutLittle(output, at + 8, value, 8)
+}
+
+WriteDynamic :: (program: MachineProgram, hosts: MachineElfHosts, layout: Layout, output: []u8) {
+    base := cast(u64)MachineElfBase
+    PutText(output, layout.interpreter, MachineElfInterpreter)
+    at := layout.strings + 1
+    for index: cast(s64)0..hosts.libraries.count - 1 {
+        DynamicEntry(output, layout, index, DtNeeded, cast(u64)(at - layout.strings))
+        path := hosts.libraries[index]
+        PutText(output, at, path)
+        at += path.count + 1
+    }
+    count := hosts.imports.count
+    image := layout.image
+    for index: cast(s64)0..count - 1 {
+        name := SymbolName(program, hosts.imports[index].function)
+        symbol := layout.symbols + (index + 1) * SymbolSize
+        PutLittle(output, symbol, cast(u64)(at - layout.strings), 4)
+        output[symbol + 4] = GlobalFunction
+        PutBytes(output, at, name)
+        at += name.count + 1
+        relocation := layout.relocations + index * RelocationSize
+        slot := image.data + image.data_layout.host_slots + index * 8
+        PutLittle(output, relocation, base + cast(u64)slot, 8)
+        PutLittle(output, relocation + 8, (cast(u64)(index + 1) << 32) | GlobDat, 8)
+    }
+    // One bucket, empty, and a chain entry per symbol.
+    PutLittle(output, layout.hash, 1, 4)
+    PutLittle(output, layout.hash + 4, cast(u64)(count + 1), 4)
+    entry := hosts.libraries.count
+    DynamicEntry(output, layout, entry, DtHash, base + cast(u64)layout.hash)
+    DynamicEntry(output, layout, entry + 1, DtStrtab, base + cast(u64)layout.strings)
+    DynamicEntry(output, layout, entry + 2, DtSymtab, base + cast(u64)layout.symbols)
+    DynamicEntry(output, layout, entry + 3, DtStrsz, cast(u64)layout.strings_size)
+    DynamicEntry(output, layout, entry + 4, DtSyment, SymbolSize)
+    DynamicEntry(output, layout, entry + 5, DtRela, base + cast(u64)layout.relocations)
+    DynamicEntry(output, layout, entry + 6, DtRelasz, cast(u64)(count * RelocationSize))
+    DynamicEntry(output, layout, entry + 7, DtRelaent, RelocationSize)
+    DynamicEntry(output, layout, entry + 8, DtNull, 0)
+}
+
+Write :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineElfHosts, layout: Layout,
+    output: []u8, fuel: s64) -> bool {
     for index: cast(s64)0..output.count - 1 { output[index] = 0 }
     image := layout.image
-    data := cast(u64)(MachineElfBase + image.data)
+    data := MachineElfBase + image.data
 
     // ELF64 little-endian ET_EXEC, x86-64, its program headers, no sections.
     output[0] = 0x7f; output[1] = 69; output[2] = 76; output[3] = 70
@@ -105,24 +295,28 @@ Write :: (program: MachineProgram, encoded: MachineX64Image, layout: Layout, out
     PutLittle(output, 54, MachineElfProgramHeaderSize, 2)
     PutLittle(output, 56, cast(u64)layout.headers, 2)
 
-    // RX PT_LOAD: the headers and text.
     ph := cast(s64)MachineElfHeaderSize
-    PutLittle(output, ph, 1, 4); PutLittle(output, ph + 4, 5, 4)
-    PutLittle(output, ph + 16, MachineElfBase, 8); PutLittle(output, ph + 24, MachineElfBase, 8)
-    PutLittle(output, ph + 32, cast(u64)TextEnd(layout), 8)
-    PutLittle(output, ph + 40, cast(u64)TextEnd(layout), 8)
-    PutLittle(output, ph + 48, MachineElfPage, 8)
-
-    // RW PT_LOAD, a page above its file offset and never executable.
-    if layout.headers == 2 {
+    // PT_INTERP precedes every PT_LOAD.
+    if Dynamic(layout) {
+        ProgramHeader(output, ph, 3, 4, layout.interpreter, MachineElfBase + layout.interpreter,
+            MachineElfInterpreter.count + 1, MachineElfInterpreter.count + 1, 1)
         ph += MachineElfProgramHeaderSize
-        PutLittle(output, ph, 1, 4); PutLittle(output, ph + 4, 6, 4)
-        PutLittle(output, ph + 8, cast(u64)layout.data_offset, 8)
-        PutLittle(output, ph + 16, data, 8)
-        PutLittle(output, ph + 24, data, 8)
-        PutLittle(output, ph + 32, cast(u64)image.data_layout.size, 8)
-        PutLittle(output, ph + 40, cast(u64)image.data_layout.memory, 8)
-        PutLittle(output, ph + 48, MachineElfPage, 8)
+    }
+    // RX PT_LOAD: the headers, text, read-only globals and dynamic records.
+    ProgramHeader(output, ph, 1, 5, 0, MachineElfBase, layout.read_end, layout.read_end, MachineElfPage)
+    // RW PT_LOAD, a page above its file offset and never executable.
+    if MachineX64ImageHasData(image) {
+        ph += MachineElfProgramHeaderSize
+        ProgramHeader(output, ph, 1, 6, layout.data_offset, data, image.data_layout.size,
+            image.data_layout.memory, MachineElfPage)
+    }
+    if Dynamic(layout) {
+        ph += MachineElfProgramHeaderSize
+        size := layout.dynamic_count * DynamicEntrySize
+        ProgramHeader(output, ph, 2, 4, layout.dynamic, MachineElfBase + layout.dynamic, size, size, 8)
+        ph += MachineElfProgramHeaderSize
+        ProgramHeader(output, ph, 0x6474e551, 6, 0, 0, 0, 0, 16)
+        WriteDynamic(program, hosts, layout, output)
     }
     return MachineX64ImageWrite(program, encoded, image, output, MachineElfBase, fuel)
 }
@@ -130,28 +324,96 @@ Write :: (program: MachineProgram, encoded: MachineX64Image, layout: Layout, out
 // The file offset of a data piece at OFFSET, or -1 when absent.
 DataAt :: (layout: Layout, offset: s64) -> s64 { return ifx offset < 0 then -1 else layout.data_offset + offset }
 
+// Little-endian fields of a library's bytes; callers check the bounds.
+Read :: (bytes: []u8, at: s64, count: s32) -> u64 {
+    value: u64 = 0
+    for index: 0..count - 1 { value = value | (cast(u64)bytes[at + index] << cast(u64)(index * 8)) }
+    return value
+}
+
+// Whether OFFSET + SIZE lies inside COUNT bytes.
+Inside :: (offset: u64, size: u64, count: s64) -> bool {
+    return offset <= cast(u64)count && size <= cast(u64)count - offset
+}
+
+// Whether the NUL-terminated string at AT, before END, is NAME.
+NameAt :: (bytes: []u8, at: s64, end: s64, name: string) -> bool {
+    if at < 0 || at > end - name.count - 1 { return false }
+    for index: cast(s64)0..name.count - 1 { if bytes[at + index] != cast(u8)name[index] { return false } }
+    return bytes[at + name.count] == 0
+}
+
 #scope_export
 
 // Empty OUTPUT measures. A non-empty OUTPUT must have exactly the measured
 // length. Verification, complete relocation resolution and i32 range checks
-// all finish before the first output byte is changed.
+// all finish before the first output byte is changed. HOSTS names the host
+// libraries a program that calls host capabilities links; a program with
+// none takes empty HOSTS and is static.
 MachineElfEncode :: (program: MachineProgram, encoded: MachineX64Image, output: []u8,
-    fuel: s64 = MachineX64InitialFuel) -> MachineElfResult {
+    fuel: s64, hosts: MachineElfHosts) -> MachineElfResult {
     if fuel < 0 { return Failure(.Fuel) }
     layout: Layout
-    diagnostic := ElfLayout(program, encoded, *layout)
+    diagnostic := ElfLayout(program, encoded, hosts, *layout)
     if diagnostic.problem != .None { return .{diagnostic = diagnostic} }
     image := layout.image
     data := image.data_layout
+    has_data := MachineX64ImageHasData(image)
     // No data segment reports zero offsets.
     result := MachineElfResult.{diagnostic = diagnostic, size = layout.file_size,
         text_offset = image.text, text_size = TextEnd(layout) - image.text, startup_size = image.startup_size,
-        data_offset = ifx layout.headers == 2 then layout.data_offset else 0,
-        data_address = ifx layout.headers == 2 then image.data else 0, data_size = data.size,
+        data_offset = ifx has_data then layout.data_offset else 0,
+        data_address = ifx has_data then image.data else 0, data_size = data.size,
         fuel_offset = DataAt(layout, data.fuel), trap_status_offset = DataAt(layout, data.trap_status),
-        pointer_offset = DataAt(layout, data.pointer_header)}
+        pointer_offset = DataAt(layout, data.pointer_header),
+        dynamic_offset = ifx Dynamic(layout) then layout.dynamic else -1}
     if output.count == 0 { return result }
     if output.count != layout.file_size { return Failure(.Limit) }
-    if !Write(program, encoded, layout, output, fuel) { return Failure(.Relocation) }
+    if !Write(program, encoded, hosts, layout, output, fuel) { return Failure(.Relocation) }
     return result
+}
+
+// Whether LIBRARY, the bytes of a little-endian ELF64 x86-64 shared object,
+// defines NAME as a global or weak function in its dynamic symbol table: the
+// symbol the dynamic linker binds an executable's import of NAME to.
+MachineElfLibraryDefines :: (library: []u8, name: string) -> bool {
+    count := library.count
+    if count < 64 || name.count == 0 || library[0] != 0x7f || library[1] != 69 || library[2] != 76 ||
+        library[3] != 70 || library[4] != 2 || library[5] != 1 || Read(library, 16, 2) != 3 ||
+        Read(library, 18, 2) != 62 || Read(library, 58, 2) != 64 { return false }
+    sections := Read(library, 40, 8)
+    section_count := cast(s64)Read(library, 60, 2)
+    if !Inside(sections, cast(u64)section_count * 64, count) { return false }
+    section: s64 = 0
+    while section < section_count {
+        header := cast(s64)sections + section * 64
+        section += 1
+        if Read(library, header + 4, 4) != 11 { continue }
+        symbols := Read(library, header + 24, 8)
+        symbols_size := Read(library, header + 32, 8)
+        link := cast(s64)Read(library, header + 40, 4)
+        if Read(library, header + 56, 8) != SymbolSize || link >= section_count ||
+            !Inside(symbols, symbols_size, count) { return false }
+        strings_header := cast(s64)sections + link * 64
+        strings := Read(library, strings_header + 24, 8)
+        strings_size := Read(library, strings_header + 32, 8)
+        if !Inside(strings, strings_size, count) { return false }
+        symbol_count := cast(s64)(symbols_size / SymbolSize)
+        // Symbol 0 is the null symbol.
+        symbol: s64 = 1
+        while symbol < symbol_count {
+            at := cast(s64)symbols + symbol * SymbolSize
+            symbol += 1
+            info := library[at + 4]
+            bind := info >> 4
+            kind := info & 15
+            // Defined (st_shndx is not SHN_UNDEF), global or weak, a function
+            // or an indirect function.
+            if Read(library, at + 6, 2) == 0 || bind != 1 && bind != 2 || kind != 2 && kind != 10 { continue }
+            offset := Read(library, at, 4)
+            if offset >= strings_size { continue }
+            if NameAt(library, cast(s64)(strings + offset), cast(s64)(strings + strings_size), name) { return true }
+        }
+    }
+    return false
 }

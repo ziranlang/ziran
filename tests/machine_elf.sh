@@ -10,6 +10,9 @@ work=$(mktemp -d "$repo/build/tests/machine-elf-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER
 export HARMONY_DESKTOP_RECOVERY=0
+# No registered host library defines a capability unless a case registers one.
+mkdir "$work/no-hosts"
+export ZIRAN_HOST_PATH="$work/no-hosts"
 
 "$ziran" run --target=c --root "$repo/tests" --module-path "$repo/cmd" \
     "$repo/tests/machine_elf_cases.zi"
@@ -76,6 +79,24 @@ compile_native() {
     -o "$work/hello.zx" "$work/hello-checked/hello.zir"
 "$zx2native" --emit map -o "$work/hello.map" "$work/hello.zx"
 "$zx2native" -o "$work/hello.elf" "$work/hello.zx"
+# The map's per-instruction ranges are the compiler's own count of what main
+# emits: its constant zero element index must fold into the base, leaving
+# exactly four instructions (address, descriptor, count, tail call).
+main_instructions=$(awk '{
+    while (match($0, /\{"begin":[0-9]+,"end":[0-9]+[^{}]*"function":"main"\}/)) {
+        range = substr($0, RSTART, RLENGTH)
+        begin = 0; end = 0
+        if (match(range, /"begin":[0-9]+/)) begin = substr(range, RSTART + 8, RLENGTH - 8) + 0
+        if (match(range, /"end":[0-9]+/)) end = substr(range, RSTART + 6, RLENGTH - 6) + 0
+        if (begin < end) count++
+        $0 = substr($0, RSTART + RLENGTH)
+    }
+}
+END { print count + 0 }' "$work/hello.map")
+if test "$main_instructions" -ne 4; then
+    echo "native hello main kept its constant zero element index: $main_instructions instructions" >&2
+    exit 1
+fi
 readelf -hW "$work/hello.elf" > "$work/hello.header"
 grep -Fq 'Number of section headers:         0' "$work/hello.header"
 # Hello carries only what it reaches: one direct write, no output buffer,
@@ -281,6 +302,84 @@ if ZIRAN_DIAGNOSTICS=json "$zx2native" \
 fi
 grep -Fq 'assembly.gap.machine-host' "$work/native-host.log"
 printf 'preserve-output\n' | cmp - "$work/native-host.elf"
+
+# A host capability links by name from a registered host library, called with
+# the C ABI the C target declares for it, so a host built by the C target
+# serves the executable: strings, integers of every width, bools and floats
+# cross in parameter order and come back widened as the program keeps them.
+cat > "$work/host_provider.zi" <<'ZI'
+#program_export
+Measure :: (label: string, scale: s32, flag: bool, low: u8) -> s64 {
+    return label.count * scale + ifx flag then cast(s64)low else 0
+}
+#program_export
+Blend :: (left: float64, count: s8, right: float64, last: string) -> float64 {
+    return left * right + cast(float64)count + cast(float64)last.count
+}
+#program_export
+Narrow :: (value: s64) -> s16 { return cast(s16)value }
+#program_export
+Even :: (value: u32) -> bool { return value % 2 == 0 }
+#program_export
+Low :: (value: s64) -> u32 { return cast(u32)value }
+ZI
+"$ziran" build --target=c --root "$work" -o "$work/host-provider" "$work/host_provider.zi"
+cc -std=c99 -O2 -fPIC -shared -I"$repo/include" "$work"/host-provider/*.c -o "$work/libhost-provider.so"
+mkdir "$work/hosts"
+printf '%s\n' "$work/libhost-provider.so" > "$work/hosts/test.library"
+cat > "$work/host_link.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Measure :: (label: string, scale: s32, flag: bool, low: u8) -> s64 #reads #foreign host_api;
+Blend :: (left: float64, count: s8, right: float64, last: string) -> float64 #reads #foreign host_api;
+Narrow :: (value: s64) -> s16 #foreign host_api;
+Even :: (value: u32) -> bool #foreign host_api;
+Low :: (value: s64) -> u32 #foreign host_api;
+#program_export
+Answer :: () -> s32 {
+    if Measure("Window", 3, true, 200) != 218 || Measure("", 9, false, 7) != 0 { return 1 }
+    if Blend(1.5, -2, 2.5, "four") != 5.75 { return 2 }
+    if Narrow(65533) != -3 { return 3 }
+    if !Even(4) || Even(5) { return 4 }
+    if Low(0x1ffffffff) != 0xffffffff { return 5 }
+    return 42
+}
+ZI
+"$zi2zx" --root "$work" --entry host_link:Answer -o "$work/host-link.zx" "$work/host_link.zi"
+ZIRAN_HOST_PATH="$work/hosts" "$zx2native" -o "$work/host-link" "$work/host-link.zx"
+readelf -lW "$work/host-link" > "$work/host-link.program-headers"
+grep -Fq 'Requesting program interpreter: /lib64/ld-linux-x86-64.so.2' "$work/host-link.program-headers"
+readelf -dW "$work/host-link" > "$work/host-link.dynamic"
+grep -Fq "Shared library: [$work/libhost-provider.so]" "$work/host-link.dynamic"
+run_status "$work/host-link" 42
+# The map describes the same linked file.
+ZIRAN_HOST_PATH="$work/hosts" "$zx2native" --emit map -o "$work/host-link.map" "$work/host-link.zx"
+grep -Fq '"scope":"complete-elf"' "$work/host-link.map"
+
+# A capability no registered library defines is a gap naming it, and a
+# signature the C ABI veneer cannot carry is another.
+printf 'preserve-output\n' > "$work/host-unlinked"
+if "$zx2native" -o "$work/host-unlinked" "$work/host-link.zx" > "$work/host-unlinked.log" 2>&1; then
+    echo "native ELF linked a host capability no registered library defines" >&2
+    exit 1
+fi
+grep -Fq 'assembly.gap.machine-host: machine ELF does not implement host capability Measure: no registered host library defines it' \
+    "$work/host-unlinked.log"
+printf 'preserve-output\n' | cmp - "$work/host-unlinked"
+cat > "$work/host_record.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Even :: (value: u32) -> string #foreign host_api;
+#program_export
+Answer :: () -> s32 { return cast(s32)Even(2).count }
+ZI
+"$zi2zx" --root "$work" --entry host_record:Answer -o "$work/host-record.zx" "$work/host_record.zi"
+if ZIRAN_HOST_PATH="$work/hosts" "$zx2native" -o "$work/host-record" "$work/host-record.zx" \
+    > "$work/host-record.log" 2>&1; then
+    echo "native ELF linked a host capability returning a record" >&2
+    exit 1
+fi
+grep -Fq "assembly.gap.machine-host-abi: machine ELF cannot pass host capability Even's parameters or result" \
+    "$work/host-record.log"
+test ! -e "$work/host-record"
 
 # After all fixtures are prepared, poison every external compiler, assembler
 # and alternate language engine name. The sole native command must still

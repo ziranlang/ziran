@@ -34,6 +34,14 @@ Equal :: (left: []u8, right: []u8) -> bool {
 // A finite budget, so the fixture keeps its fuel check: an unbounded one, the
 // default, builds without fuel.
 TestFuel :: 1000000
+// The budget a bundle run starts with, which measuring takes.
+Unbounded :: 9223372036854775807
+
+// The fixture calls no host capability, so its executable links nothing.
+Static :: () -> Elf.MachineElfHosts {
+    hosts: Elf.MachineElfHosts
+    return hosts
+}
 
 // How far the data segment maps above its file offset.
 DataShift :: (layout: Elf.MachineElfResult) -> s64 { return layout.data_address - layout.data_offset }
@@ -90,7 +98,8 @@ BuildTarget :: (owner: *Pipeline.MachineNativeOwner, target: Target.TargetDescri
     program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
         constants = constants[:], globals = globals[:], initializers = initializers,
         functions = functions[:], entry = 1}
-    return Pipeline.MachineNativeBuild(program, target, limits, owner, TestFuel)
+    links: Pipeline.MachineHostLinks
+    return Pipeline.MachineNativeBuild(program, target, limits, owner, TestFuel, links)
 }
 
 StartupInitializers :: () -> bool {
@@ -102,7 +111,7 @@ StartupInitializers :: () -> bool {
     }
     bytes := Pipeline.MachineNativeView(*owner)
     empty: [0]u8
-    layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
     initializer_target := cast(s64)(0x400000 + layout.text_offset + layout.startup_size +
         owner.encoded.image.functions[0].begin)
     // No function checks its stack, so _start sets no limit and first calls
@@ -173,7 +182,7 @@ Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
         machine_image.global_offsets.count == owner.machine.program.globals.count,
         "pipeline publishes the target-neutral machine image") { return false }
     empty: [0]u8
-    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
     if !Check(measured.diagnostic.problem == .None && measured.size == bytes.count,
         "measure matches published write") { return false }
     if !Check(bytes.count == measured.data_offset + measured.data_size && measured.text_offset == 176 &&
@@ -199,7 +208,7 @@ Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     }
     storage: [16384]u8
     written := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image,
-        storage[0:measured.size], TestFuel)
+        storage[0:measured.size], TestFuel, Static())
     return Check(written.diagnostic.problem == .None && written.size == measured.size &&
         Equal(bytes, storage[0:measured.size]), "exact repeated measure/write bytes")
 }
@@ -207,7 +216,7 @@ Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
 Relocations :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     bytes := Pipeline.MachineNativeView(owner)
     empty: [0]u8
-    layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
     if !Check(layout.diagnostic.problem == .None && owner.encoded.image.relocations.count >= 3,
         "global, fuel and trap relocations are retained") { return false }
     // Globals are reached through checked pointers: their tokens are
@@ -238,7 +247,7 @@ Rejections :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     for index: 0..31 { sentinel[index] = 0xa5 }
     first := owner.encoded.relocations[0]
     owner.encoded.relocations[0].kind = .Invalid
-    rejected := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    rejected := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:], Unbounded, Static())
     owner.encoded.relocations[0] = first
     if !Check(rejected.diagnostic.problem == .Relocation, "invalid relocation kind rejected") { return false }
     for byte: sentinel { if !Check(byte == 0xa5, "invalid relocation preserves output") { return false } }
@@ -251,20 +260,20 @@ Rejections :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     if !Check(global >= 0, "global relocation fixture") { return false }
     saved := owner.encoded.relocations[global]
     owner.encoded.relocations[global].symbol = 99
-    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:], Unbounded, Static())
     owner.encoded.relocations[global] = saved
     if !Check(rejected.diagnostic.problem == .Relocation, "unresolved runtime symbol rejected") { return false }
     owner.encoded.relocations[global].addend = 2147483648
-    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:], Unbounded, Static())
     owner.encoded.relocations[global] = saved
     if !Check(rejected.diagnostic.problem == .Relocation, "out-of-range relocation rejected") { return false }
     owner.encoded.relocations[global].offset = owner.encoded.image.code.count
-    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:], Unbounded, Static())
     owner.encoded.relocations[global] = saved
     if !Check(rejected.diagnostic.problem == .Relocation, "malformed relocation field rejected") { return false }
     relocations := owner.encoded.image.relocations
     owner.encoded.image.relocations = relocations[0:relocations.count - 1]
-    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:], Unbounded, Static())
     owner.encoded.image.relocations = relocations
     return Check(rejected.diagnostic.problem == .Relocation, "missing relocation rejected")
 }
@@ -285,7 +294,7 @@ Preservation :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     if !Check(diagnostic.problem == .None, "read-only initialized data is supported") { return false }
     after = Pipeline.MachineNativeView(owner)
     empty: [0]u8
-    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
     // When the program resolves pointers at all, the read-only global's
     // pointer slot is live and not writable, so a store through it traps.
     flags: u64 = Image.MachinePointerLive

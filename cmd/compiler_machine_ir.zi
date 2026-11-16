@@ -319,6 +319,9 @@ MachineProblem :: enum s32 {
     // A memory access whose address is neither a checked resolve nor a
     // PointerDirect the verifier proves safe.
     Unchecked
+    // A host capability an executable imports whose parameters or result
+    // the C ABI veneer cannot carry; the diagnostic names its function.
+    HostAbi
 }
 
 MachineDiagnostic :: struct {

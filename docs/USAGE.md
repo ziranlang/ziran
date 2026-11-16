@@ -1249,6 +1249,24 @@ A host can reuse its result buffers on its next call; saved strings retain
 their bytes for as long as the program uses them, including across instance
 runs. Returned fields and elements must remain valid until that next call.
 Opaque pointer results still refer to host-owned storage.
+
+A Linux x86-64 executable from `zx2native` links its host capabilities from
+host libraries by name, the way the C target's program does: for
+`Open :: (title: string, width: s32) -> bool #foreign host_api;` the C target
+declares `bool Open(String title, int32_t width);`, and a shared library that
+defines `Open` with that signature, such as one built from Ziran with
+`#program_export` through the C target, serves both. A host registers a
+library with a `NAME.library` file holding its absolute path, beside the
+`NAME.host` players `ziran run` dispatches to: in `ZIRAN_HOST_PATH`'s
+directories, or `$XDG_DATA_HOME/ziran/hosts` (`~/.local/share/ziran/hosts`)
+and then `$XDG_DATA_DIRS` with `/ziran/hosts`. Each capability links from the
+first registered library that defines it; the executable names that library
+and the system's dynamic linker, which binds every capability before `main`
+runs. Bools, integers, pointers and floats cross, and records of one or two
+8-byte integers or pointers such as `string` and slices; a capability no
+library defines stops `zx2native` at `assembly.gap.machine-host`, and one with
+another signature at `assembly.gap.machine-host-abi`. A program with no host
+capabilities stays a static executable with no dynamic linker.
 Use `#scope_file`, `#scope_module`, and `#scope_export` to change the
 visibility of following declarations.
 

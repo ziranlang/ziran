@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native code reads a field or element it has just inserted as the inserted value instead of loading it back: Records' `x > 1000` test after `x += dx` compares the register.
 - Native x86-64 code reads and writes an array element at `[base + index*scale]` in unchecked builds instead of computing its address first. On Omega, Sieve runs in 29 µs instead of 33 and Vectors in 26 instead of 37.
 - Native x86-64 code stores a constant straight to memory (`mov byte [rdx], 1`) in unchecked builds, and a jump or branch into a block that only jumps on goes to the final target in one step.
 - Native ARMv7 code, SIMD gathers in generated C and Go's SIMD helpers carry no defensive check without `--checks` or `#checks` either; ARMv7 default bundles pass the 72-program parity on the Moto. The plain `ReadU16LE`, `ReadU32LE`, `ReadS32LE` and `ReadF32LE` read the bytes at their offset at any alignment, as C does, instead of returning 0 for a field they refuse, and `GetHttps` no longer validates its URL or caps its body; `TryRead*` and `GetHttpsCapped` keep the validated forms.

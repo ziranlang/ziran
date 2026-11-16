@@ -1205,6 +1205,94 @@ Splits :: (state: *LowerState, source: LirInstruction) -> bool {
     return (source.op == .Aggregate || source.op == .Insert) && source.result >= 0 && plan.split[source.result]
 }
 
+// Extract forwarding: a scalar read from an aggregate that inserts built is
+// the value inserted at that place. Reading back the field just updated is
+// the update's value, with no load. The walk looks through inserts at the
+// same key (equal constants or the same index value), through inserts at a
+// different constant key, and into the extracts its aggregates came from.
+// It stops at anything else.
+ForwardDepth :: 8
+
+Key :: struct {
+    dynamic: bool
+    value: s64
+}
+
+// The key of an extract or insert: its constant member or its index value.
+KeyOf :: (instruction: LirInstruction) -> Key {
+    if instruction.op == .Extract && instruction.operands.count == 2 {
+        return .{dynamic = true, value = cast(s64)instruction.operands[1]}
+    }
+    if instruction.op == .Insert && instruction.operands.count == 3 {
+        return .{dynamic = true, value = cast(s64)instruction.operands[2]}
+    }
+    return .{value = cast(s64)instruction.immediate}
+}
+
+// The value the scalar extract EXTRACT reads, or LirNoId. DEFINER maps
+// each value to its defining instruction (block * 2^32 + index), or -1.
+Forwarded :: (source: LirFunction, definer: []s64, extract: LirInstruction) -> s32 {
+    path: [ForwardDepth]Key
+    depth: s64 = 1
+    path[0] = KeyOf(extract)
+    value := extract.operands[0]
+    for step: 0..4 * ForwardDepth {
+        if value < 0 || definer[value] < 0 { return LirNoId }
+        at := definer[value]
+        instruction := source.blocks[at >> 32].instructions[at & 0xffffffff]
+        if instruction.op == .Insert && (instruction.operands.count == 2 || instruction.operands.count == 3) {
+            key := KeyOf(instruction)
+            top := path[depth - 1]
+            if key.dynamic == top.dynamic && key.value == top.value {
+                value = instruction.operands[1]
+                depth -= 1
+                if depth == 0 { return value }
+            } else if !key.dynamic && !top.dynamic {
+                value = instruction.operands[0]
+            } else { return LirNoId }
+        } else if instruction.op == .Extract && (instruction.operands.count == 1 || instruction.operands.count == 2) {
+            if depth == ForwardDepth { return LirNoId }
+            path[depth] = KeyOf(instruction)
+            depth += 1
+            value = instruction.operands[0]
+        } else { return LirNoId }
+    }
+    return LirNoId
+}
+
+// Aliases every scalar extract that reads an inserted value to that value,
+// in reverse postorder so chains resolve; such an extract emits nothing.
+ForwardExtracts :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
+    plan := *state.aggregates.plan
+    if plan.order.count == 0 { return true }
+    definer: Vec(s64)
+    defer VecFree(definer)
+    if !VecResizeBounded(definer, source.values.count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..definer.count - 1 { definer[at] = -1 }
+    for block, block_index: source.blocks {
+        for instruction, item: block.instructions {
+            if instruction.result >= 0 { definer[instruction.result] = (block_index << 32) | item }
+        }
+    }
+    for block: plan.order {
+        for instruction: source.blocks[block].instructions {
+            if !Spend(state, 1) { return false }
+            result := instruction.result
+            if instruction.op != .Extract || result < 0 || state.aggregates.alias[result] != MachineNoId ||
+                !RegisterClassValue(state, function, result) { continue }
+            value := Forwarded(source, definer[:], instruction)
+            if value == LirNoId || source.values[value] != source.values[result] { continue }
+            state.aggregates.alias[result] = GlobalVirtual(state, function, value)
+        }
+    }
+    return true
+}
+
+RegisterClassValue :: (state: *LowerState, function: *MachineFunction, value: s32) -> bool {
+    class := state.owner.virtuals[function.virtual_begin + value].class
+    return class == .General || class == .Float
+}
+
 // Each view that computes an address gets the virtual holding it; every other
 // view takes the virtual of the view whose address it shares.
 ViewAddresses :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
@@ -1349,6 +1437,8 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .Convert { return LowerMove(state, function, source, .Convert) }
     if source.op == .Bitcast { return LowerMove(state, function, source, .Bitcast) }
     if Splits(state, source) { return true }
+    // A forwarded extract stands for the value it reads.
+    if source.op == .Extract && source.result >= 0 && state.aggregates.alias[source.result] != MachineNoId { return true }
     if source.op == .Aggregate { return LowerMove(state, function, source, .AggregateBuild) }
     if source.op == .Extract { return LowerExtract(state, function, source) }
     if source.op == .Insert { return LowerInsert(state, function, source) }
@@ -1403,7 +1493,8 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     if !Spend(state, state.select.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
     function.fuel_register = state.options.fuel && MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
-    if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) { return false }
+    if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) ||
+        !ForwardExtracts(state, *function, source) { return false }
     // A function that allocates keeps the frame arena's top at entry and
     // the head of its pointer chain in two frame words. Each `allocate` gets
     // its raw-storage virtual up front, so a direct access in any block it

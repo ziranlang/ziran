@@ -459,6 +459,14 @@ Load 8 on Omega, 3 A/B runs of 41 processes: Sieve 33 -> 29 us, Vectors
 37 -> 26 us, Hash and Records unchanged. Sieve's inner loop is now `cmp;
 jge; movb; add; jmp` (C: 4 instructions).
 
+Landed: a scalar extract that reads a place inserts just wrote (looking
+through inserts at the same or a different constant key and the extracts
+its aggregates came from) is that value, with no load. Records' reloads in
+the same block are gone; reads through a block parameter still load. The
+gain is within noise, since the store-to-load forwarding was cheap. Next
+for Records: block layout (forwarding jumps and dead trap stubs sit on the
+hot path) and `shl` for the 32-byte element scale.
+
 Loop rotation cannot be done while lowering: the optimized LIR has dropped
 the loop body's block parameters, so the body names the header's
 parameters directly, and a test copied to the bottom would branch back

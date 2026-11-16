@@ -39,8 +39,6 @@ struct TargetName {
 extern TargetName FixedVectors[30];
 extern TargetName ScalarNames[16];
 extern int32_t native_blocks;
-extern uint8_t* literal_names[64];
-extern int32_t literal_count;
 void compiler_native_names_SetBlocks(int32_t blocks);
 int32_t compiler_native_names_Blocks(void);
 void* VectorTypeHereZiran(void* type, ZirTarget target);

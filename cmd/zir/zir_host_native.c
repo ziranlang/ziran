@@ -1411,11 +1411,15 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     instance->cumulative = max_steps > 0;
     if(instance->data_size < 8 ||
        (uint64_t)image.stack_limit_offset > instance->data_size - 8) goto failed;
-    memcpy(base, image.code.bytes.data, (size_t)image.code.bytes.length);
-    memcpy(base + constants_at, image.constants.bytes.data,
-           (size_t)image.constants.bytes.length);
-    memcpy(instance->data, image.data.bytes.data,
-           (size_t)image.data.bytes.length);
+    /* An empty section has no bytes to copy and may have no buffer. */
+    if(image.code.bytes.length > 0)
+        memcpy(base, image.code.bytes.data, (size_t)image.code.bytes.length);
+    if(image.constants.bytes.length > 0)
+        memcpy(base + constants_at, image.constants.bytes.data,
+               (size_t)image.constants.bytes.length);
+    if(image.data.bytes.length > 0)
+        memcpy(instance->data, image.data.bytes.data,
+               (size_t)image.data.bytes.length);
     if(image.pointer_offset <= 0 ||
        (uint64_t)image.pointer_offset > instance->data_size - MachinePointerHeaderBytes ||
        !native_pointers_open(instance, image, base + constants_at))

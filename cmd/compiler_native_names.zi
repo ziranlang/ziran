@@ -71,8 +71,6 @@ ScalarNames: [16]TargetName = .{
 };
 
 native_blocks: s32 = 0;
-literal_names: [64]*u8 = .{};
-literal_count: s32 = 0;
 
 SetBlocks :: (blocks: s32) { native_blocks = blocks }
 Blocks :: () -> s32 { return native_blocks }
@@ -209,16 +207,10 @@ CSameMapType :: (target_owner: *IR.ZirModule, target: *IR.ZirType,
 }
 DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
 
-Literal :: (text: string) -> *void {
-    for index: 0..literal_count - 1 {
-        if IR.CText(literal_names[index]) == text { return cast(*void)literal_names[index] }
-    }
-    if literal_count >= 64 { return null }
-    stored := Services.Keep(text)
-    literal_names[literal_count] = stored
-    literal_count += 1
-    return cast(*void)stored
-}
+// Kept text is interned per compiler context, so equal names share one
+// pointer without a cache here; a process-wide cache would outlive the
+// context that owns its texts.
+Literal :: (text: string) -> *void { return cast(*void)Services.Keep(text) }
 
 StartsText :: (text: string, prefix: string) -> bool {
     return text.count >= prefix.count && text[0:prefix.count] == prefix

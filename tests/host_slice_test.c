@@ -90,10 +90,10 @@ record_slice(void *context, const char *module, const char *function,
     assert(strcmp(module, "record_slices") == 0);
     if(strcmp(function, "Mutate") == 0) {
         assert(arg_count == 1 && args[0].kind == HOST_SLICE);
-        assert(strcmp(args[0].type, "[]Point") == 0);
+        assert(strcmp(args[0].type, "[]record_slices.Point") == 0);
         assert(args[0].length == 2 && args[0].elements != NULL);
         assert(args[0].elements[0].kind == HOST_RECORD);
-        assert(strcmp(args[0].elements[0].type, "Point") == 0);
+        assert(strcmp(args[0].elements[0].type, "record_slices.Point") == 0);
         assert(args[0].elements[0].field_count == 2);
         HostField *fields = (HostField *)args[0].elements[0].fields;
         assert(strcmp(fields[0].name, "x") == 0);
@@ -117,14 +117,14 @@ record_slice(void *context, const char *module, const char *function,
                                          i == 1 && j == 1 ? 2 : 0;
         }
         elements[i].kind = HOST_RECORD;
-        elements[i].type = "Point";
+        elements[i].type = "record_slices.Point";
         elements[i].fields = fields[i];
         elements[i].field_count = 2;
     }
     if(bad_return)
         fields[1][1].name = "wrong";
     result->kind = HOST_SLICE;
-    result->type = "[]Point";
+    result->type = "[]record_slices.Point";
     result->elements = elements;
     result->length = 2;
     return 1;
@@ -143,10 +143,10 @@ named_records(void *context, const char *module, const char *function,
     assert(args[0].kind == (strcmp(function, "SliceHost") == 0 ?
                             HOST_SLICE : HOST_ARRAY));
     assert(strcmp(args[0].type, strcmp(function, "SliceHost") == 0 ?
-                                      "[]Types.Point" : "[2]Types.Point") == 0);
+                                      "[]types.Point" : "[2]types.Point") == 0);
     for(size_t i = 0; i < args[0].length; i++) {
         assert(args[0].elements[i].kind == HOST_RECORD);
-        assert(strcmp(args[0].elements[i].type, "Types.Point") == 0);
+        assert(strcmp(args[0].elements[i].type, "types.Point") == 0);
     }
     HostField *first = (HostField *)args[0].elements[0].fields;
     HostField *second = (HostField *)args[0].elements[1].fields;

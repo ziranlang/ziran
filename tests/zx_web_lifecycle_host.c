@@ -175,7 +175,7 @@ static int migrate_instance(BundleInstance *old, const Bundle *replacement,
     HostValue *first, *title;
     ok = ok && BundleStateFind(new_state, "component", "state", &index) &&
          BundleStateValueAt(new_state, index, &value) &&
-         strcmp(value.type, "State") == 0 &&
+         strcmp(value.type, "component.State") == 0 &&
          (first = state_field(&value, "first")) != NULL &&
          (title = record_field(first, "title")) != NULL &&
          strcmp(title->type, "string") == 0 && title->length == 3 &&

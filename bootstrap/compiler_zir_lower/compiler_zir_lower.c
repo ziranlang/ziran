@@ -778,6 +778,7 @@ static void compiler_zir_lower_InterfacePut(InterfaceText* text, uint8_t* part) 
 static void compiler_zir_lower_InterfaceField(InterfaceText* text, uint8_t* part) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_InterfaceReject(InterfaceText* text, uint8_t* spelling) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_zir_lower_ClassText(int32_t class_id) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_zir_lower_InterfaceTypeName(AssemblyProgram* program, ZirModule* module, uint8_t* spelling, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, __type_5edaf1f9ada62dbd* nodes, ZirModule* module, uint8_t* spelling, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_PrintString(void* output, String value) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_HexDigit(int32_t digit) ZIRAN_MAYBE_UNUSED;
@@ -35167,6 +35168,63 @@ compiler_zir_lower_ClassText(int32_t class_id)
     return compiler_services_Keep(StringLiteral("scalar"));
 }
 
+static uint8_t*
+compiler_zir_lower_InterfaceTypeName(AssemblyProgram* program, ZirModule* module, uint8_t* spelling, int32_t depth)
+{
+    if (depth > 64) {
+        return spelling;
+    }
+    String spelled = compiler_ir_CText(spelling);
+    uint8_t element[128] = {0};
+    int32_t count = 0;
+    uint8_t* prefix = (void *)0;
+    bool value_0 = zir_f_0fe5ce4064831140_CArrayElementType(spelling, &(element[0]), (size_t)(128LL), &(count)) == 1;
+    if (value_0 || zir_f_0fe5ce4064831140_CSliceElementType(spelling, &(element[0]), (size_t)(128LL)) == 1) {
+        size_t close = 0;
+        while (spelling[close] != 0 && spelling[close] != 93) {
+            close = close + 1;
+        }
+        void* value_1 = compiler_zir_lower_Allocate(program, close + 2, 1);
+        prefix = (uint8_t*)(value_1);
+        if (prefix == ((void *)0)) {
+            return spelling;
+        }
+        zir_f_0fe5ce4064831140_memcpy((void*)(prefix), (void*)(spelling), close + 1);
+        uint8_t* value_2 = &(prefix[(close + 1)]);
+        (*value_2) = 0;
+    } else if ((int64_t)(spelled).length > 0LL && (uint8_t)spelled.data[0] == 42) {
+        prefix = compiler_services_Keep(StringLiteral("*"));
+        size_t length = zir_f_0fe5ce4064831140_strlen(spelling);
+        if (length >= (size_t)(128LL)) {
+            return spelling;
+        }
+        zir_f_0fe5ce4064831140_memcpy((void*)(&(element[0])), (void*)(((size_t)(spelling) + 1)), length);
+    }
+    InterfaceText text = {0};
+    if (prefix != ((void *)0)) {
+        compiler_zir_lower_InterfacePut(&(text), prefix);
+        compiler_zir_lower_InterfacePut(&(text), compiler_zir_lower_InterfaceTypeName(program, module, &(element[0]), (int32_t)((uint32_t)depth + 1u)));
+    } else {
+        ZirModule* owner = module;
+        ZirType* record = zir_f_0fe5ce4064831140_CFindType(module, spelling, &(owner));
+        if (record == ((void *)0)) {
+            return spelling;
+        }
+        compiler_zir_lower_InterfacePut(&(text), &(owner->name[0]));
+        compiler_zir_lower_InterfacePut(&(text), compiler_services_Keep(StringLiteral(".")));
+        compiler_zir_lower_InterfacePut(&(text), &(record->name[0]));
+    }
+    if (text.failed != 0) {
+        int32_t* value_3 = &(program->failed);
+        (*value_3) = 1;
+        zir_f_0fe5ce4064831140_free((void*)(text.data));
+        return spelling;
+    }
+    uint8_t* result = compiler_zir_lower_Text(program, text.data);
+    zir_f_0fe5ce4064831140_free((void*)(text.data));
+    return result;
+}
+
 static int32_t
 compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, __type_5edaf1f9ada62dbd* nodes, ZirModule* module, uint8_t* spelling, int32_t depth)
 {
@@ -35354,7 +35412,7 @@ compiler_zir_lower_DescribeNode(AssemblyProgram* program, InterfaceText* text, _
     }
     compiler_zir_lower_InterfacePut(&(line), value_18);
     compiler_zir_lower_PutTab(&(line));
-    compiler_zir_lower_InterfacePut(&(line), spelling);
+    compiler_zir_lower_InterfacePut(&(line), compiler_zir_lower_InterfaceTypeName(program, module, spelling, 0));
     if (child >= 0) {
         compiler_zir_lower_PutTab(&(line));
         compiler_zir_lower_InterfacePut(&(line), compiler_zir_lower_NumberBytes(&(number[0]), (int64_t)(child)));

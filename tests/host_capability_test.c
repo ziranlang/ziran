@@ -27,7 +27,7 @@ read_file(const char *path, size_t *size)
 static long long
 tree_sum(const HostValue *node)
 {
-    assert(node->kind == HOST_RECORD && strcmp(node->type, "Node") == 0 && node->field_count == 2);
+    assert(node->kind == HOST_RECORD && strcmp(node->type, "tree.Node") == 0 && node->field_count == 2);
     const HostValue *children = &node->fields[1].value;
     assert(strcmp(node->fields[1].name, "children") == 0 && children->kind == HOST_SLICE);
     long long sum = node->fields[0].value.integer;

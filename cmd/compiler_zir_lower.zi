@@ -7276,6 +7276,52 @@ ClassText :: (class_id: s32) -> *u8 {
     return SVC.Keep("scalar")
 }
 
+// Host values identify nominal types by their defining module, independent
+// of the import alias used by the foreign declaration. Containers retain
+// their shape and apply the same identity to their element type.
+InterfaceTypeName :: (program: *AssemblyProgram, module: *IR.ZirModule,
+                      spelling: *u8, depth: s32) -> *u8 {
+    if depth > 64 { return spelling }
+    spelled := IR.CText(spelling)
+    element: [IR.ZIR_NAME_MAX]u8
+    count: s32 = 0
+    prefix: *u8 = null
+    if CArrayElementType(spelling, *element[0], cast(usize)IR.ZIR_NAME_MAX, *count) == 1 ||
+       CSliceElementType(spelling, *element[0], cast(usize)IR.ZIR_NAME_MAX) == 1 {
+        close: usize = 0
+        while spelling[close] != 0 && spelling[close] != 93 { close += 1 }
+        prefix = cast(*u8)Allocate(program, close + 2, 1)
+        if prefix == null { return spelling }
+        memcpy(cast(*void)prefix, cast(*void)spelling, close + 1)
+        prefix[close + 1] = 0
+    } else if spelled.count > 0 && spelled[0] == cast(u8)42 {
+        prefix = SVC.Keep("*")
+        length := strlen(spelling)
+        if length >= cast(usize)IR.ZIR_NAME_MAX { return spelling }
+        memcpy(cast(*void)*element[0], cast(*void)(cast(usize)spelling + 1), length)
+    }
+    text: InterfaceText
+    if prefix != null {
+        InterfacePut(*text, prefix)
+        InterfacePut(*text, InterfaceTypeName(program, module, *element[0], depth + 1))
+    } else {
+        owner := module
+        record := CFindType(module, spelling, *owner)
+        if record == null { return spelling }
+        InterfacePut(*text, *owner.name[0])
+        InterfacePut(*text, SVC.Keep("."))
+        InterfacePut(*text, *record.name[0])
+    }
+    if text.failed != 0 {
+        program.failed = 1
+        free(cast(*void)text.data)
+        return spelling
+    }
+    result := Text(program, text.data)
+    free(cast(*void)text.data)
+    return result
+}
+
 // interface_node: one host-interface node, deduplicated by module and
 // spelling. The id is taken before children are described, so a type that
 // reaches itself finds its own node.
@@ -7364,7 +7410,7 @@ DescribeNode :: (program: *AssemblyProgram, text: *InterfaceText,
     PutTab(*line)
     InterfacePut(*line, ClassText(class_id))
     PutTab(*line)
-    InterfacePut(*line, spelling)
+    InterfacePut(*line, InterfaceTypeName(program, module, spelling, 0))
     if child >= 0 {
         PutTab(*line)
         InterfacePut(*line, NumberBytes(*number[0], cast(s64)child))

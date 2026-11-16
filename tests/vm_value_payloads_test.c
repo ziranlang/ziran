@@ -6,7 +6,7 @@ static int handle;
 static int calls, records;
 static HostField returned[2][6];
 static const char *names[] = {"number", "wide", "real", "text", "tone", "handle"};
-static const char *types[] = {"s64", "u64", "float64", "string", "Tone", "*void"};
+static const char *types[] = {"s64", "u64", "float64", "string", "vm_value_payloads_test.Tone", "*void"};
 
 /* The public host ABI keeps independent fields. A compact VM payload must
  * not expose the bits of a float/string as an unrelated number or pointer. */

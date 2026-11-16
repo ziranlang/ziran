@@ -64,12 +64,12 @@ host_call(void *context, const char *module, const char *function,
         return 1;
     }
     assert(strcmp(function, "EchoBoxes") == 0);
-    assert(strcmp(args[0].type, "[2]Box") == 0);
+    assert(strcmp(args[0].type, "[2]arrays.Box") == 0);
     assert(args[0].length == 2 && args[0].elements != NULL);
     for(int i = 0; i < 2; i++) {
         const HostValue *box = &args[0].elements[i];
         assert(box->kind == HOST_RECORD);
-        assert(strcmp(box->type, "Box") == 0);
+        assert(strcmp(box->type, "arrays.Box") == 0);
         assert(box->field_count == 2);
         assert(strcmp(box->fields[0].name, "empty") == 0);
         assert(box->fields[0].value.kind == HOST_ARRAY);
@@ -82,7 +82,7 @@ host_call(void *context, const char *module, const char *function,
             .kind = HOST_ARRAY, .type = "[0]s32"}};
         fields[i][1] = (HostField){"value", {
             .kind = HOST_INTEGER, .type = "s32", .integer = i == 0 ? 40 : 2}};
-        boxes[i] = (HostValue){.kind = HOST_RECORD, .type = "Box",
+        boxes[i] = (HostValue){.kind = HOST_RECORD, .type = "arrays.Box",
             .fields = fields[i], .field_count = 2};
     }
     if(malformed == 2)

@@ -1077,7 +1077,23 @@ exec_type_matches(const char *expected, const char *actual, int depth)
     const char *actual_dot = strrchr(actual, '.');
     const char *expected_leaf = expected_dot != NULL ? expected_dot + 1 : expected;
     const char *actual_leaf = actual_dot != NULL ? actual_dot + 1 : actual;
-    if(expected_dot != NULL && actual_dot != NULL) return 0;
+    if(expected_dot != NULL && actual_dot != NULL) {
+        if(strcmp(expected_leaf, actual_leaf) != 0) return 0;
+        size_t expected_module = (size_t)(expected_dot - expected);
+        size_t actual_module = (size_t)(actual_dot - actual);
+        const char *packaged = expected;
+        const char *plain = actual;
+        size_t packaged_length = expected_module, plain_length = actual_module;
+        if(actual_module > expected_module) {
+            packaged = actual; plain = expected;
+            packaged_length = actual_module; plain_length = expected_module;
+        }
+        if(packaged_length != plain_length + 18 || packaged[0] != 'p' || packaged[17] != '_') return 0;
+        for(size_t i = 1; i < 17; i++)
+            if(!((packaged[i] >= '0' && packaged[i] <= '9') ||
+                 (packaged[i] >= 'a' && packaged[i] <= 'f'))) return 0;
+        return memcmp(packaged + 18, plain, plain_length) == 0;
+    }
     if(strcmp(expected_leaf, actual_leaf) == 0) return 1;
     if(expected_dot != NULL) return exec_flat_type_matches(expected, actual);
     if(actual_dot != NULL) return exec_flat_type_matches(actual, expected);

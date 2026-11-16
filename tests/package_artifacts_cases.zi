@@ -214,6 +214,8 @@ Artifacts :: (test: *NativeTest) -> bool {
     if !NativeAssert(test, new_inherited != inherited && ArtifactDependency(test, new_inherited) != support_descriptor, "inherited option change did not invalidate prerequisite") { return false }
     client := CheckPath(test.work, "client")
     if !NativeWrite(test, CheckPath(client, "client.zi"), NativeRead(test, CheckPath(test.repo, "tests/fixtures/package_artifacts/client.zi"))) { return false }
+    // The package commands import the version module the Makefile generates.
+    if !NativeWrite(test, CheckPath(client, "version.zi"), "Version :: \"0.0.0\";\n") { return false }
     NativeSet(test, "LDLIBS", "-lcrypto")
     compile := string.[zi2c, "--exe", "--root", client, "--module-path", CheckPath(test.repo, "cmd"), "--module-path", CheckPath(test.repo, "std"),
         "--entry", "client:main", "-o", CheckPath(client, "build"), CheckPath(client, "client.zi")]

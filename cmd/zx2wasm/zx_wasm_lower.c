@@ -4693,6 +4693,12 @@ ZxWasmLowerProgram(const struct LirProgram *program, ZxWasmImage *image)
     return ZxWasmLowerExecutable((const unsigned char *)program, 0, image);
 }
 
+int
+ZxWasmLowerProgramSuspendable(const struct LirProgram *program, ZxWasmImage *image)
+{
+    return ZxWasmLowerExecutable((const unsigned char *)program, 0, image);
+}
+
 void
 ZxWasmImageFree(ZxWasmImage *image)
 {

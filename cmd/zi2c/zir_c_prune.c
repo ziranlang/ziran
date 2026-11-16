@@ -232,9 +232,10 @@ note_words(PruneWords *words, const char *text, size_t length, int how,
 void
 PruneNoteNames(const char *text, struct SimdNames *names)
 {
-    const char *cursor = text, *start;
+    /* The end is measured once: a generated file can be megabytes long. */
+    const char *cursor = text, *end = text + strlen(text), *start;
     size_t size;
-    while((start = next_identifier(&cursor, text + strlen(text), &size)) != NULL)
+    while((start = next_identifier(&cursor, end, &size)) != NULL)
         SimdNamesFind(names, start, size, 1);
 }
 

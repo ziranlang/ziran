@@ -220,10 +220,6 @@ TypeIdOf :: (state: *State, operand: MachineOperand) -> s32 {
     return MachineNoId
 }
 
-BitsOf :: (state: *State, operand: MachineOperand) -> s32 {
-    return state.program.types[TypeIdOf(state, operand)].bits
-}
-
 // The W/X selector (sf) bit for a type: 1 encodes a 64-bit operand, 0 a
 // 32-bit one. 64-bit integers, pointers and function values, which have no
 // bit width but are eight bytes, are X; smaller widths live in W registers
@@ -312,12 +308,6 @@ MoveImmediate :: (state: *State, rd: s32, value: u64, selector: u64) {
     }
 }
 
-// The number of words MaterializeRelocated emits: four MOVZ/MOVK halves for
-// a 64-bit pointer materialization.
-MaterializedWords :: () -> s64 {
-    return 4
-}
-
 // Materializes the address the loader computes for KIND and SYMBOL into RD
 // as four MOVZ/MOVK halves. Each half carries its own width-2 relocation
 // whose addend selects the shifted half; while measuring the relocation
@@ -361,13 +351,6 @@ SubsImmediateInto :: (state: *State, rd: s32, rn: s32, value: s64, selector: u64
 // CMP RN, #VALUE.
 SubsImmediate :: (state: *State, rn: s32, value: s64, selector: u64) {
     SubsImmediateInto(state, 31, rn, value, selector)
-}
-
-// CMN RN, #1: ADDS against the zero register, so the flags report RN == -1.
-CmnOne :: (state: *State, rn: s32, selector: u64) {
-    if state.diagnostic.problem != .None { return }
-    word := (selector << 31) | cast(u64)0x31000000 | (cast(u64)1 << 10) | (cast(u64)rn << 5) | cast(u64)31
-    Emit(state, cast(u32)word)
 }
 
 // A direct branch or call whose word delta the caller range-checked. TARGET

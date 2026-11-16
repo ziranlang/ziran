@@ -35,13 +35,6 @@ Re-run the caller search first, then the named focused check.
 - Proof: `make check CHECK_FILTER=target_diagnostics`,
   `make check CHECK_FILTER=parallel`, `make check CHECK_FILTER=compiler_inventory`.
 
-### Unreferenced AArch64 encoder helpers
-
-- Delete `BitsOf`, `CmnOne` and `MaterializedWords` in
-  `cmd/compiler_aarch64.zi` (no caller anywhere).
-- Blocked: the M4 AArch64 lane has the file open.
-- Proof: `make check CHECK_FILTER=aarch64_encoder`.
-
 ### Stale TinyCC comment in the build
 
 - `Makefile`, the `RUNTIME_LIBS` comment: drop "including through TCC".

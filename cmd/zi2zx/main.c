@@ -25,7 +25,7 @@ usage(void)
             "       zi2zx [--emit zx|lir] -o FILE file.zx\n"
             "       zi2zx run [--backend native|engine] file.zx\n"
             "       zi2zx run [--backend native|engine] [ZX build options] [--root DIR] [--entry module:function] file.zi ...\n"
-            "run uses native code on linux-x86_64 and the portable engine elsewhere; a bundle native code\n"
+            "run uses native code on linux-x86_64 and linux-aarch64 and the portable engine elsewhere; a bundle native code\n"
             "cannot run fails before it starts with a named gap, and nothing falls back to the engine\n");
 }
 
@@ -459,8 +459,8 @@ run_command(int argc, char **argv)
     int debug_engine = 0;
     int heap_report = 0;
     /* The platform decides the default, never the bundle: native code on
-     * linux-x86_64, where a native gap is a named error. */
-#if defined(__x86_64__) && defined(__linux__)
+     * linux-x86_64 and linux-aarch64, where a native gap is a named error. */
+#if (defined(__x86_64__) || defined(__aarch64__)) && defined(__linux__)
     BundleBackendPolicy backend = BUNDLE_BACKEND_NATIVE;
 #else
     BundleBackendPolicy backend = BUNDLE_BACKEND_AUTO;

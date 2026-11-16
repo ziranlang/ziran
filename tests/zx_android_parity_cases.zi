@@ -1,0 +1,316 @@
+// Android device parity for native ZX. Every revision-28 parity program
+// (tests/zx_parity_list.zi) becomes a bundle on this host, whose engine runs
+// it as the reference. The bundles and a zi2zx cross-built for the device
+// then run there through adb: on the engine, natively into an empty native
+// code cache, and natively again from that cache. Every device route must
+// print what this host's engine prints and exit as this host's run of the
+// same backend does; a case that traps must also trap natively with the
+// native diagnostic, and with no backend named, which shows the device's
+// default is native code. Nothing on the device falls back to another backend.
+// The run writes a JSON receipt of every case.
+//
+// Arguments: ZIRAN WORK DEVICE_TOOLS SERIAL ADB_HOST RECEIPT. An empty WORK
+// is a temporary directory under build/tests. DEVICE_TOOLS holds the
+// device's zi2zx. ADB_HOST is the ssh destination whose adb reaches SERIAL,
+// or empty for this host's adb.
+#import "native_test"
+#import "zx_parity_list"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+// The bundle folder's name, pushed to /data/local/tmp on the device.
+DeviceFolder :: "ziran-parity"
+DeviceDirectory :: "/data/local/tmp/ziran-parity"
+// Staging on ADB_HOST, under its home, when the device is on another host.
+AdbHostStage :: ".cache/ziran-android-parity"
+// A device route is stopped after this many seconds and fails.
+DeviceTimeout :: "300"
+
+Device :: struct { serial: string; host: string }
+
+// One run's standard output, kept in the file STDOUT, its errors and status.
+Outcome :: struct { output: string; error: string; code: s64; stdout: string }
+
+// Runs ARGUMENTS on the adb host: here, or through ssh with each word quoted.
+OnAdbHost :: (test: *NativeTest, device: Device, arguments: []string, timeout: s64 = 180000) -> NativeCommand {
+    if device.host == "" { return NativeInvoke(test, arguments, "", timeout) }
+    quoted: Vec(string)
+    for word: arguments { VecPush(quoted, CheckQuote(word)) }
+    command := string.["ssh", "-o", "BatchMode=yes", device.host, TextDetach(TextJoin(quoted[:], " "))]
+    return NativeInvoke(test, command[:], "", timeout)
+}
+
+Adb :: (test: *NativeTest, device: Device, words: []string, timeout: s64 = 180000) -> NativeCommand {
+    arguments: Vec(string)
+    VecPush(arguments, "adb"); VecPush(arguments, "-s"); VecPush(arguments, device.serial)
+    for word: words { VecPush(arguments, word) }
+    return OnAdbHost(test, device, arguments[:], timeout)
+}
+
+Succeeds :: (test: *NativeTest, command: NativeCommand, what: string) -> bool {
+    return NativeAssert(test, command.code == 0,
+        CheckConcat(what, CheckConcat(" failed: ", CheckConcat(command.output, command.error))))
+}
+
+// Copies LOCAL (a folder named DeviceFolder) to DeviceDirectory.
+PushFolder :: (test: *NativeTest, device: Device, local: string) -> bool {
+    clear := string.["shell", CheckConcat("rm -rf ", DeviceDirectory)]
+    if !Succeeds(test, Adb(test, device, clear[:]), "clearing the device folder") { return false }
+    source := local
+    if device.host != "" {
+        stage := string.["sh", "-c", CheckConcat("rm -rf ", CheckConcat(AdbHostStage, CheckConcat(" && mkdir -p ", AdbHostStage)))]
+        if !Succeeds(test, OnAdbHost(test, device, stage[:]), "preparing the adb host") { return false }
+        copy := string.["scp", "-q", "-r", "-o", "BatchMode=yes", local,
+            CheckConcat(device.host, CheckConcat(":", CheckConcat(AdbHostStage, "/")))]
+        if !Succeeds(test, NativeInvoke(test, copy[:], "", 600000), "copying to the adb host") { return false }
+        source = CheckConcat(AdbHostStage, CheckConcat("/", DeviceFolder))
+    }
+    push := string.["push", source, "/data/local/tmp/"]
+    return Succeeds(test, Adb(test, device, push[:], 600000), "pushing to the device")
+}
+
+// Copies the device's out folder to LOCAL.
+PullOutputs :: (test: *NativeTest, device: Device, local: string) -> bool {
+    device_out := CheckConcat(DeviceDirectory, "/out")
+    if device.host == "" {
+        pull := string.["pull", device_out, local]
+        return Succeeds(test, Adb(test, device, pull[:], 600000), "pulling device outputs")
+    }
+    staged := CheckConcat(AdbHostStage, "/out")
+    pull := string.["pull", device_out, staged]
+    if !Succeeds(test, Adb(test, device, pull[:], 600000), "pulling device outputs") { return false }
+    copy := string.["scp", "-q", "-r", "-o", "BatchMode=yes",
+        CheckConcat(device.host, CheckConcat(":", staged)), local]
+    return Succeeds(test, NativeInvoke(test, copy[:], "", 600000), "copying from the adb host")
+}
+
+Cleanup :: (test: *NativeTest, device: Device) {
+    // Cleanup runs after failures too, so it does not stop at one.
+    failed := test.failed
+    test.failed = false
+    clear := string.["shell", CheckConcat("rm -rf ", DeviceDirectory)]
+    unused Adb(test, device, clear[:])
+    if device.host != "" {
+        stage := string.["rm", "-rf", AdbHostStage]
+        unused OnAdbHost(test, device, stage[:])
+    }
+    test.failed = failed
+}
+
+// One device line per route: its output, errors and status land in out/.
+RouteLine :: (name: string, route: string, arguments: string) -> string {
+    prefix := CheckConcat("out/", CheckConcat(name, CheckConcat(".", route)))
+    parts := string.["timeout ", DeviceTimeout, " ./zi2zx run ", arguments, " >", prefix, ".stdout 2>",
+        prefix, ".stderr; echo $? >", prefix, ".code"]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+DeviceScript :: (cases: []ParityCase) -> string {
+    lines: Vec(string)
+    VecPush(lines, CheckConcat("cd ", CheckConcat(DeviceDirectory, " || exit 1")))
+    VecPush(lines, "chmod 755 zi2zx && mkdir -p out cache || exit 1")
+    VecPush(lines, CheckConcat("export ZIRAN_NATIVE_CACHE=", CheckConcat(DeviceDirectory, "/cache")))
+    for index: cast(s64)0..cases.count - 1 {
+        name := CheckConcat("case-", CheckNumber(index))
+        bundle := CheckConcat(name, ".zx")
+        VecPush(lines, RouteLine(name, "engine", CheckConcat("--backend engine ", bundle)))
+        VecPush(lines, RouteLine(name, "native", CheckConcat("--backend native ", bundle)))
+        VecPush(lines, RouteLine(name, "cached", CheckConcat("--backend native ", bundle)))
+        if cases[index].traps { VecPush(lines, RouteLine(name, "default", bundle)) }
+    }
+    VecPush(lines, "ls cache | wc -l >out/cache.count")
+    VecPush(lines, "echo finished >out/finished")
+    VecPush(lines, "")
+    return TextDetach(TextJoin(lines[:], "\n"))
+}
+
+ReadOutcome :: (test: *NativeTest, folder: string, name: string, route: string) -> Outcome {
+    prefix := CheckPath(folder, CheckConcat(name, CheckConcat(".", route)))
+    stdout := CheckConcat(prefix, ".stdout")
+    output, output_valid := ReadEntireFile(stdout)
+    error, error_valid := ReadEntireFile(CheckConcat(prefix, ".stderr"))
+    code_text, code_valid := ReadEntireFile(CheckConcat(prefix, ".code"))
+    code, valid := TextInteger(TextTrim(code_text))
+    if !NativeAssert(test, output_valid && error_valid && code_valid && valid,
+        CheckConcat("missing device output for ", prefix)) { return .{code = -1} }
+    return .{output = output, error = error, code = code, stdout = stdout}
+}
+
+// Runs one host route of BUNDLE and keeps its output in FOLDER.
+HostOutcome :: (test: *NativeTest, arguments: []string, folder: string, name: string) -> Outcome {
+    ran := NativeInvoke(test, arguments)
+    stdout := CheckPath(folder, CheckConcat(name, ".stdout"))
+    unused NativeWrite(test, stdout, ran.output)
+    return .{output = ran.output, error = ran.error, code = cast(s64)ran.code, stdout = stdout}
+}
+
+Excerpt :: (text: string) -> string {
+    return TextDetach(TextCopy(text[0:ifx text.count > 400 then 400 else text.count]))
+}
+
+RouteRecord :: (document: *JsonDocument, outcome: Outcome, matches: bool) -> s32 {
+    node := JsonNewObject(document)
+    JsonSet(document, node, "code", JsonNewInteger(document, outcome.code))
+    JsonSet(document, node, "stdout_bytes", JsonNewInteger(document, outcome.output.count))
+    CheckPut(document, node, "stdout_sha256", CheckHash(outcome.stdout))
+    JsonSet(document, node, "matches", JsonNewBool(document, matches))
+    return node
+}
+
+// A device route agrees when it prints the host engine's output and exits
+// as the host run of its backend; a native trap also names itself.
+Agrees :: (test: *NativeTest, item: ParityCase, route: string, actual: Outcome,
+    expected: Outcome, host_code: s64) -> bool {
+    native := route != "engine"
+    agrees := actual.output == expected.output && actual.code == host_code &&
+        (!item.traps || actual.code != 0 && (!native || TextContains(actual.error, "native execution failed")))
+    parts := string.[item.entry, " on the device ", route, ": status ", CheckNumber(actual.code),
+        " (host ", CheckNumber(host_code), "), output ", Excerpt(actual.output), ", errors ", Excerpt(actual.error)]
+    unused NativeAssert(test, agrees, TextDetach(TextJoin(parts[:], "")))
+    return agrees
+}
+
+Captured :: (arguments: []string) -> string {
+    output, code := CheckCapture(arguments)
+    if code != 0 { return "" }
+    return TextDetach(TextCopy(TextTrim(output)))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zx-android-parity-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc == 7, "pass ZIRAN WORK DEVICE_TOOLS SERIAL ADB_HOST RECEIPT") { return 1 }
+    device_tools := TextDetach(TextCopy(TextFromCString(argv[3])))
+    device := Device.{serial = TextDetach(TextCopy(TextFromCString(argv[4]))),
+        host = TextDetach(TextCopy(TextFromCString(argv[5])))}
+    receipt := TextDetach(TextCopy(TextFromCString(argv[6])))
+    if !TextHasPrefix(receipt, "/") { receipt = CheckPath(test.repo, receipt) }
+    if !NativeAssert(*test, device.serial != "", "pass the device serial") { return 1 }
+    tools := TextDetach(TextCopy(PathParent(test.ziran)))
+    zi2zx := CheckPath(tools, "zi2zx")
+    device_zi2zx := CheckPath(device_tools, "zi2zx")
+    std := CheckPath(test.repo, "std")
+    folder := CheckPath(test.work, DeviceFolder)
+    if !NativeAssert(*test, CreateDirectories(folder), "create the bundle folder") { return 1 }
+    copy := string.["cp", device_zi2zx, CheckPath(folder, "zi2zx")]
+    unused NativeRun(*test, copy[:])
+
+    // Bundles and this host's references.
+    cases := ParityCases(test.repo)
+    host_outputs := CheckPath(test.work, "host")
+    engine: Vec(Outcome)
+    host_native: Vec(Outcome)
+    for index: cast(s64)0..cases.count - 1 {
+        item := cases[index]
+        name := CheckConcat("case-", CheckNumber(index))
+        bundle := CheckPath(folder, CheckConcat(name, ".zx"))
+        build := string.[zi2zx, "--root", item.root, "--module-path", std, "--entry", item.entry, "-o", bundle, item.file]
+        unused NativeRun(*test, build[:])
+        reference := string.[zi2zx, "run", "--backend", "engine", bundle]
+        native := string.[zi2zx, "run", "--backend", "native", bundle]
+        ran := HostOutcome(*test, reference[:], host_outputs, CheckConcat(name, ".engine"))
+        ran_native := HostOutcome(*test, native[:], host_outputs, CheckConcat(name, ".native"))
+        if test.failed { return 1 }
+        VecPush(engine, ran)
+        VecPush(host_native, ran_native)
+        unused NativeAssert(*test, ran_native.output == ran.output && (item.traps == (ran.code != 0)),
+            CheckConcat(item.entry, ": this host's native run differs from its engine"))
+    }
+    if test.failed { return 1 }
+    if !NativeWrite(*test, CheckPath(folder, "run.sh"), DeviceScript(cases[:])) { return 1 }
+
+    // The device: describe it, run every route, and bring the outputs back.
+    describe := string.["shell", "getprop ro.product.model; getprop ro.build.version.release; getprop ro.build.version.sdk; getprop ro.product.cpu.abi; uname -m"]
+    described := Adb(*test, device, describe[:])
+    if !Succeeds(*test, described, "reading the device") { return 1 }
+    facts := TextLines(described.output)
+    if !NativeAssert(*test, facts.count >= 5, CheckConcat("unexpected device description: ", described.output)) { return 1 }
+    if !PushFolder(*test, device, folder) { Cleanup(*test, device); return 1 }
+    run := string.["shell", CheckConcat("sh ", CheckConcat(DeviceDirectory, "/run.sh"))]
+    unused Succeeds(*test, Adb(*test, device, run[:], 3600000), "running on the device")
+    outputs := CheckPath(test.work, "out")
+    unused PullOutputs(*test, device, outputs)
+    Cleanup(*test, device)
+    if test.failed { return 1 }
+    finished, finished_valid := ReadEntireFile(CheckPath(outputs, "finished"))
+    if !NativeAssert(*test, finished_valid && TextTrim(finished) == "finished", "the device run did not finish") { return 1 }
+    cache_text, cache_valid := ReadEntireFile(CheckPath(outputs, "cache.count"))
+    cache_entries, cache_counted := TextInteger(TextTrim(cache_text))
+    unused NativeAssert(*test, cache_valid && cache_counted && cache_entries > 0, "the device stored no native code")
+
+    // Compare and record.
+    document: JsonDocument
+    records := JsonNewArray(*document)
+    routes := string.["engine", "native", "cached"]
+    agreed: s64
+    for index: cast(s64)0..cases.count - 1 {
+        item := cases[index]
+        name := CheckConcat("case-", CheckNumber(index))
+        record := JsonNewObject(*document)
+        CheckPut(*document, record, "entry", item.entry)
+        JsonSet(*document, record, "traps", JsonNewBool(*document, item.traps))
+        CheckPut(*document, record, "bundle_sha256", CheckHash(CheckPath(folder, CheckConcat(name, ".zx"))))
+        JsonSet(*document, record, "host_engine", RouteRecord(*document, engine[index], true))
+        JsonSet(*document, record, "host_native", RouteRecord(*document, host_native[index], true))
+        all := true
+        for route: routes {
+            actual := ReadOutcome(*test, outputs, name, route)
+            host_code := ifx route == "engine" then engine[index].code else host_native[index].code
+            matches := Agrees(*test, item, route, actual, engine[index], host_code)
+            all = all && matches
+            JsonSet(*document, record, CheckConcat("device_", route), RouteRecord(*document, actual, matches))
+        }
+        if item.traps {
+            actual := ReadOutcome(*test, outputs, name, "default")
+            matches := Agrees(*test, item, "default", actual, engine[index], host_native[index].code)
+            all = all && matches
+            JsonSet(*document, record, "device_default", RouteRecord(*document, actual, matches))
+        }
+        if all { agreed += 1 }
+        JsonAppend(*document, records, record)
+    }
+    report := JsonNewObject(*document)
+    CheckPut(*document, report, "test", "zx_android_parity")
+    date := string.["date", "-u", "+%Y-%m-%dT%H:%M:%SZ"]
+    CheckPut(*document, report, "date", Captured(date[:]))
+    revision := string.["git", "-C", test.repo, "rev-parse", "HEAD"]
+    CheckPut(*document, report, "revision", Captured(revision[:]))
+    changes := string.["git", "-C", test.repo, "status", "--porcelain", "--untracked-files=no"]
+    JsonSet(*document, report, "worktree_clean", JsonNewBool(*document, Captured(changes[:]) == ""))
+    host_name := string.["uname", "-n"]
+    host_machine := string.["uname", "-m"]
+    host := JsonNewObject(*document)
+    CheckPut(*document, host, "name", Captured(host_name[:]))
+    CheckPut(*document, host, "machine", Captured(host_machine[:]))
+    CheckPut(*document, host, "zi2zx_sha256", CheckHash(zi2zx))
+    JsonSet(*document, report, "host", host)
+    target := JsonNewObject(*document)
+    CheckPut(*document, target, "serial", device.serial)
+    CheckPut(*document, target, "adb_host", ifx device.host == "" then "local" else device.host)
+    CheckPut(*document, target, "model", TextDetach(TextCopy(TextTrim(facts[0]))))
+    CheckPut(*document, target, "android", TextDetach(TextCopy(TextTrim(facts[1]))))
+    CheckPut(*document, target, "sdk", TextDetach(TextCopy(TextTrim(facts[2]))))
+    CheckPut(*document, target, "abi", TextDetach(TextCopy(TextTrim(facts[3]))))
+    CheckPut(*document, target, "machine", TextDetach(TextCopy(TextTrim(facts[4]))))
+    CheckPut(*document, target, "zi2zx_sha256", CheckHash(device_zi2zx))
+    JsonSet(*document, target, "native_cache_entries", JsonNewInteger(*document, cache_entries))
+    JsonSet(*document, report, "device", target)
+    JsonSet(*document, report, "cases", JsonNewInteger(*document, cases.count))
+    JsonSet(*document, report, "agreeing_cases", JsonNewInteger(*document, agreed))
+    JsonSet(*document, report, "passed", JsonNewBool(*document, !test.failed && agreed == cases.count))
+    JsonSet(*document, report, "records", records)
+    if !NativeAssert(*test, CreateDirectories(PathParent(receipt)) &&
+        WriteEntireFile(receipt, JsonWrite(*document, report, JsonPythonStyle(2))),
+        CheckConcat("cannot write the receipt ", receipt)) { return 1 }
+    if test.failed { return 1 }
+    print("Android parity: % programs print this host's engine output on the device engine, natively and from the native cache (% %)\n",
+        cases.count, TextTrim(facts[0]), device.serial)
+    return 0
+}

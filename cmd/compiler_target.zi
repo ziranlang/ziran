@@ -346,11 +346,11 @@ TargetRowAt :: (index: s32) -> TargetRow {
     }
     if index == 6 {
         return .{arch = .AArch64, os = .Linux, state = .Gap, milestone = "M4",
-            note = "AArch64 machine encoding is implemented; native device execution cutover is pending."}
+            note = "Bundles run natively in process by default; standalone executables are pending."}
     }
     if index == 7 {
         return .{arch = .AArch64, os = .Android, state = .Gap, milestone = "M4",
-            note = "AArch64 machine encoding is implemented; native device execution cutover and USB Moto device evidence are pending."}
+            note = "Bundles run natively in process by default, with Pixel parity recorded; standalone executables are pending."}
     }
     if index == 8 {
         return .{arch = .AArch64, os = .Windows, state = .Gap, milestone = "M5",

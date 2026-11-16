@@ -9,18 +9,12 @@
 // reproducible and print the same output.
 // The interpreter must end every program with no live heap block.
 #import "native_test"
+#import "zx_parity_list"
 #import "check_support"
 #import "std/file"
 #import "std/text_tools"
 #import "std/file_tree_linux"
 using Vectors :: #import "std/vec"
-
-ParityCase :: struct { root: string; entry: string; file: string; traps: bool }
-
-ParityAdd :: (cases: *Vec(ParityCase), root: string, entry: string, file: string, traps: bool = false) {
-    VecPush(<<cases, ParityCase.{root, entry, file, traps})
-}
-
 
 ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string, wasm_modules: *s64) {
     if test.failed { return }
@@ -128,51 +122,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     tools := TextDetach(TextCopy(PathParent(test.ziran)))
-    cases: Vec(ParityCase)
-    examples := string.["arrays", "conditions", "defer", "enums", "fizzbuzz", "functions", "greet",
-        "hello", "loops", "primes", "structs", "text_basics", "values", "variables"]
-    for name: examples {
-        ParityAdd(*cases, CheckPath(test.repo, "examples"), CheckConcat(name, ":main"),
-            CheckPath(test.repo, CheckConcat("examples/", CheckConcat(name, ".zi"))))
-    }
-    spec := string.["assembly_slices:Answer", "assembly_string_index:Answer", "compact_branches:main",
-        "constant_time_test:SelfTest", "date_parse_test:Check", "grapheme_conformance:NativeMain",
-        "language_contract:Answer", "path_test:main", "queue_test:SelfTest", "std_binary:SelfTest",
-        "std_c_string:main", "std_grapheme:SelfTest", "std_math:main", "std_math_sqrt:SelfTest",
-        "std_number_text:SelfTest", "std_string:main", "std_text:SelfTest", "utf8_copy_valid:SelfTest",
-        "vm_concurrent_instances_test:Next", "wide_compare_test:main", "zip_test:SelfTest",
-        "sort_test:SelfTest", "vm_local_reads_test:main", "vm_u64_enums_test:main",
-        "vm_deep_marking_test:Answer", "vm_return_storage_test:Answer", "vm_leaf_eval_test:main",
-        "image_resize_fallible:NativeMain", "vm_inline_records_test:Answer",
-        "vm_scalar_plans_test:Answer", "vm_storage_reads_test:main", "json_scan_test:SelfTest",
-        "json_scan_test:NativeMain", "json_string_value_test:SelfTest", "json_string_scan_test:SelfTest",
-        "json_document_lifetime_test:Answer", "std_float_text:SelfTest",
-        "generic_assembly_test:Answer", "native_assembly_test:Answer"]
-    spec_root := CheckPath(test.repo, "tests/spec")
-    ParityAdd(*cases, spec_root, "zx_lowered_features:main", CheckPath(spec_root, "zx_lowered_features.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_vec:main", CheckPath(spec_root, "zx_lowered_vec.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_owned:main", CheckPath(spec_root, "zx_lowered_owned.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_text:main", CheckPath(spec_root, "zx_lowered_text.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_pointers:main", CheckPath(spec_root, "zx_lowered_pointers.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_swap:main", CheckPath(spec_root, "zx_lowered_swap.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_globals:main", CheckPath(spec_root, "zx_lowered_globals.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_reserve:main", CheckPath(spec_root, "zx_lowered_reserve.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_shared:main", CheckPath(spec_root, "zx_lowered_shared.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_resize:main", CheckPath(spec_root, "zx_lowered_resize.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_take:main", CheckPath(spec_root, "zx_lowered_take.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_addresses:main", CheckPath(spec_root, "zx_lowered_addresses.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_cases:main", CheckPath(spec_root, "zx_lowered_cases.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_simd:main", CheckPath(spec_root, "zx_lowered_simd.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_using:main", CheckPath(spec_root, "zx_lowered_using.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_tables:main", CheckPath(spec_root, "zx_lowered_tables.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_records:main", CheckPath(spec_root, "zx_lowered_records.zi"))
-    ParityAdd(*cases, spec_root, "zx_lowered_aggregates:main", CheckPath(spec_root, "zx_lowered_aggregates.zi"))
-    for entry: spec {
-        at: s64
-        while entry[at] != cast(u8)58 { at += 1 }
-        ParityAdd(*cases, spec_root, entry, CheckPath(spec_root, CheckConcat(entry[0:at], ".zi")))
-    }
-    ParityAdd(*cases, spec_root, "std_string_bad:main", CheckPath(spec_root, "std_string_bad.zi"), true)
+    cases := ParityCases(test.repo)
     wasm_modules: s64
     for index: cast(s64)0..cases.count - 1 {
         ParityRun(*test, tools, cases[index], CheckConcat("case-", CheckNumber(index)), *wasm_modules)

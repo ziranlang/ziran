@@ -4,10 +4,10 @@ M0–M3 are done (`ASSEMBLY/milestones.md`, "Current position"). M3 closed
 with interim comparison 2 in `bench/zx_compare.md`. What remains, in
 milestone order:
 
-1. **M4: ARM rows.** AArch64 native loading, ARMv7/AAPCS32 with 32-bit host
-   images, native ZX on Android, and proof of the USB Moto row. Steps and
-   device notes are in `plans/2026-11-15-m4-native-arm.md`. Direct wasm
-   lowering from verified ZX already exists.
+1. **M4: ARM rows.** ARMv7/AAPCS32 with 32-bit host images, proof of the
+   USB Moto row, and standalone AArch64/ARMv7 executables. Steps and device
+   notes are in `plans/2026-11-15-m4-native-arm.md`. Direct wasm lowering
+   from verified ZX already exists.
 2. **M5: objects, linker and foreign libraries.** Relocatable ELF, COFF and
    Mach-O, archive reading, the external C ABI and foreign libraries,
    Windows/macOS ABIs and signing. Not started.

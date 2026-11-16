@@ -1,7 +1,8 @@
 # Step 09 — Integrate native ZX execution, AOT builds, caching, and hosts
 
 Status: in progress. Linux x86-64 has an AOT slice and native ZX loading,
-which `ziran run app.zx` and the embedding API use by default on that row,
+and Linux AArch64, Android included, has native ZX loading; `ziran run
+app.zx` and the embedding API use it by default on those rows,
 with the engine's pointer checks; a persistent code cache, the element-type
 check on pointer access and the remaining targets are still planned. The current startup/syscall work is not a completion claim. Depends on
 [steps 04](04-portable-instruction-engine.md)–[08](08-assembler-objects-and-linker.md).
@@ -33,7 +34,9 @@ and at exit, so its bytes and their order match direct writes. Its resize runtim
 blocks through power-of-two size classes instead of mapping and unmapping each
 growth; a block over 1 MiB is its own mapping and grows by `mremap`.
 
-Native ZX loading on linux-x86_64 ([`zir_host_native.c`](../cmd/zir/zir_host_native.c))
+Native ZX loading on linux-x86_64 and linux-aarch64
+([`zir_host_native.c`](../cmd/zir/zir_host_native.c), with each architecture's
+veneers and relocation fields in `zir_host_native_<arch>.c`)
 compiles the bundle's verified program with the same machine pipeline, copies
 the image into RW pages, resolves its relocations against the instance's own
 data, host veneers, trap stub and resize runtime, and only then makes the code

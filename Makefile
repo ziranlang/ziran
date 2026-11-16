@@ -838,6 +838,32 @@ check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-c
 zx-wasm-test: all
 	env -u DISPLAY -u WAYLAND_DISPLAY tests/zx_wasm.sh $(BIN_DIR)/ziran
 
+# Native ZX on an Android AArch64 device. android-aarch64 cross-builds
+# libziran.a and zi2zx with the NDK; the compilers that run during that build
+# are this host's. android-parity runs the revision-28 parity bundles on
+# ANDROID_SERIAL, on its engine and natively, against this host's engine and
+# writes ANDROID_PARITY_RECEIPT. ANDROID_ADB_HOST is the ssh destination
+# whose adb reaches the device, or empty for this host's adb.
+ANDROID_NDK ?= $(ANDROID_NDK_HOME)
+ANDROID_API ?= 33
+ANDROID_SERIAL ?=
+ANDROID_ADB_HOST ?=
+ANDROID_BUILD_DIR ?= $(BUILD_DIR)/android-aarch64
+ANDROID_PARITY_RECEIPT ?= $(BUILD_DIR)/android-parity.json
+ANDROID_TOOLCHAIN = $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin
+ANDROID_OUT = $(abspath $(ANDROID_BUILD_DIR))
+.PHONY: android-aarch64 android-parity
+android-aarch64: $(BIN_DIR)/zi2c
+	@test -n "$(ANDROID_NDK)" || { echo 'set ANDROID_NDK or ANDROID_NDK_HOME' >&2; exit 1; }
+	$(MAKE) BUILD_DIR=$(ANDROID_OUT) CC=$(ANDROID_TOOLCHAIN)/aarch64-linux-android$(ANDROID_API)-clang \
+	    AR=$(ANDROID_TOOLCHAIN)/llvm-ar OBJCOPY=$(ANDROID_TOOLCHAIN)/llvm-objcopy \
+	    GEN_ZI2C=$(abspath $(BIN_DIR)/zi2c) $(ANDROID_OUT)/libziran.a $(ANDROID_OUT)/bin/zi2zx
+
+android-parity: $(BIN_DIR)/ziran $(BIN_DIR)/zi2zx android-aarch64
+	@test -n "$(ANDROID_SERIAL)" || { echo 'set ANDROID_SERIAL' >&2; exit 1; }
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/ziran run --target=c --root tests tests/zx_android_parity_cases.zi -- \
+	    $(abspath $(BIN_DIR)/ziran) '' $(ANDROID_OUT)/bin '$(ANDROID_SERIAL)' '$(ANDROID_ADB_HOST)' $(ANDROID_PARITY_RECEIPT)
+
 # Address and undefined-behavior sanitizers over the whole toolchain and
 # test suite. It also checks every kept type/procedure lookup against a fresh one
 # (ZIRAN_VERIFY_SYMBOL_LOOKUPS), so a change that forgets SymbolLookupsChanged

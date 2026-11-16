@@ -11,35 +11,6 @@ scripts, bench drivers, build files) and, for public names, over
 `waozixyz/`. `bench/results/`, `CHANGELOG.md` and other plans are history,
 not callers.
 
-## Blocked on another lane's uncommitted files
-
-Delete each item as soon as its file is clean in `git status` and pushed.
-Re-run the caller search first, then the named focused check.
-
-### GPU device emitter (unreachable)
-
-- Delete `cmd/zir/zir_emit_gpu.c` and `include/ziran_gpu.h`; in
-  `cmd/zir/zir_emit_statement.c` delete `gpu_region_dispatch`,
-  `gpu_region_note`, their call sites and the `ziran_gpu.h` include; in
-  `cmd/zir/zir_emit_internal.h` delete `GpuRegionCode`, `GpuLowerRegion` and
-  `GpuEmitShaderLines`; drop `_gpu.c` from `EMIT_PARTS` and `ziran_gpu.h`
-  from the embedded header list in `Makefile`.
-- Evidence: `CheckTargetCapabilities` (`cmd/zir/zir.c`) rejects every
-  `is_gpu` statement with `gpu.device` before zi2c, zi2go or zi2zir emit;
-  the ZX lowering fails it ("GPU statements are not lowered yet") and
-  `zx2native` reports `assembly.gap.machine-parallel`. No emitter ever sees a
-  GPU region, so the shader lowering and device dispatch never run. The
-  `is_gpu` field and the checker's GPU storage rules stay (they enforce the
-  documented Gap).
-- Blocked: `Makefile` is dirty in another lane.
-- Proof: `make check CHECK_FILTER=target_diagnostics`,
-  `make check CHECK_FILTER=parallel`, `make check CHECK_FILTER=compiler_inventory`.
-
-### Stale TinyCC comment in the build
-
-- `Makefile`, the `RUNTIME_LIBS` comment: drop "including through TCC".
-- Blocked: `Makefile` is dirty in another lane.
-
 ## Self-hosting C replacement (planned work, not dead code)
 
 The hand-written compiler and backend C is live. It is replaced, not deleted,

@@ -14,7 +14,7 @@ ZIRAN_DEFINES ?= $(if $(DARWIN_TARGET),--define __APPLE__ --define $(if $(findst
 # macOS supplies SHA-256 and random bytes in libSystem.
 PACKAGE_LIBS ?= $(if $(DARWIN_TARGET),,-lcrypto) -lm
 # Linux before glibc 2.34 keeps POSIX threads and the dynamic loader in
-# separate libraries. The portable runtime uses both, including through TCC.
+# separate libraries. The portable runtime uses both.
 # Android keeps __android_log_print, which diagnostics use, in liblog, and
 # its NDK links no GNU build ID unless asked; the native code cache keys by it.
 # (A variable, because the comma in -Wl, would end the $(if).)
@@ -427,7 +427,7 @@ PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c 
     _condition.c _discover.c _source.c)
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
     _function.c _link.c _program.c _simd.c _text.c)
-EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _gpu.c _range.c _simd.c _simd_go.c)
+EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _range.c _simd.c _simd_go.c)
 
 # COFF does not retain ELF hidden visibility, but objcopy can localize the
 # same declarations explicitly after the group's objects have been merged.
@@ -556,7 +556,7 @@ $(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) $(
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
-    include/zir_vec.h include/ziran_parallel.h include/ziran_gpu.h include/ziran_simd.h \
+    include/zir_vec.h include/ziran_parallel.h include/ziran_simd.h \
     include/ziran_simd_types.h include/ziran_simd_ops.h
 
 # Reused builds can be newer than restored or exported source headers.

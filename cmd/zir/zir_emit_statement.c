@@ -385,62 +385,6 @@ parallel_shared_storage(Emitter *e, int while_index, const char *ctx, char *out,
     free(work);
 }
 
-/* A #parallel_gpu region's device attempt, opening a block whose CPU run the
- * caller writes for when the device did not finish it. Returns whether it did. */
-static int
-gpu_region_dispatch(Emitter *e, const ParallelRegion *region, const char *ctx)
-{
-    if(e->target != ZIR_C || !e->fn->stmts[region->while_index].is_gpu)
-        return 0;
-    struct {
-        ParallelRegion full;
-        GpuRegionCode code;
-        char lines[ZIR_NAME_MAX], state[ZIR_NAME_MAX], bindings[ZIR_NAME_MAX];
-        char range[ZIR_TEXT_MAX], captured[ZIR_NAME_MAX * 4];
-    } *work = AllocateOrExit(sizeof(*work));
-    ParallelRegion *full = &work->full;
-    GpuRegionCode *code = &work->code;
-    parallel_region_at(e->fn, region->while_index, full);
-    parallel_region_captures(e->module, e->fn, full);
-    if(!GpuLowerRegion(e->module, e->fn, full, code)) {
-        free(work);
-        return 0;
-    }
-    fresh(e, work->lines);
-    fresh(e, work->state);
-    fresh(e, work->bindings);
-    line(e, "{");
-    e->indent++;
-    line(e, "static const char *const %s[] = {", work->lines);
-    e->indent++;
-    GpuEmitShaderLines(e, code->text);
-    e->indent--;
-    line(e, "};");
-    line(e, "static ziran_gpu_region %s = {%s, (int)(sizeof(%s) / sizeof(%s[0])), 0, 0};",
-         work->state, work->lines, work->lines, work->lines);
-    line(e, "ziran_gpu_binding %s[] = {", work->bindings);
-    e->indent++;
-    for(int c = 0; c < full->capture_count; c++) {
-        if(code->is_buffer[c]) {
-            capture_range(e, full, c, ctx, work->range, sizeof(work->range));
-            char *comma = strstr(work->range, ", ");
-            *comma = '\0';
-            line(e, "{%d, 1, %d, (void *)%s, %s},", code->kinds[c], code->writes[c], work->range, comma + 2);
-        } else {
-            TargetBindingName(e->fn, e->target, full->captures[c], work->captured, sizeof(work->captured));
-            line(e, "{%d, 0, 0, &%s.capture_%s, 0},", code->kinds[c], ctx, work->captured);
-        }
-    }
-    e->indent--;
-    line(e, "};");
-    line(e, "if(!ziran_gpu_run(&%s, %s.start, %s.end, %s, (int)(sizeof(%s) / sizeof(%s[0]))))",
-         work->state, ctx, ctx, work->bindings, work->bindings, work->bindings);
-    e->indent++;
-    free(code->text);
-    free(work);
-    return 1;
-}
-
 /* Buffers parallel_region_dispatch keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ParallelRegionDispatchBuffers {
@@ -491,13 +435,8 @@ parallel_region_dispatch_with_buffers(Emitter *e, const ParallelRegion *region, 
         line(e, "else");
         e->indent++;
     }
-    int on_device = gpu_region_dispatch(e, region, ctx);
     line(e, "ziran_parallel_run(%s_worker, %s.start, %s.end, &%s);",
          region->worker, ctx, ctx, ctx);
-    if(on_device) {
-        e->indent -= 2;
-        line(e, "}");
-    }
     if(shared[0])
         e->indent--;
     e->indent--;
@@ -615,20 +554,6 @@ emit_parallel_worker(Emitter *e, const ZirFunction *fn,
     fprintf(e->out, "}\n\n");
 }
 
-/* A region's device header, or why it runs on CPU threads. */
-static void
-gpu_region_note(FILE *out, const ZirModule *module, const ZirFunction *fn, ParallelRegion *region)
-{
-    GpuRegionCode code;
-    parallel_region_captures(module, fn, region);
-    if(GpuLowerRegion(module, fn, region, &code)) {
-        free(code.text);
-        fprintf(out, "#include \"ziran_gpu.h\"\n\n");
-    } else {
-        fprintf(out, "/* ziran: #parallel_gpu region stays on CPU threads: %s. */\n\n", code.reason);
-    }
-}
-
 void
 EmitParallelWorkers(FILE *out, const ZirModule *module,
                     const ZirFunction *fn, ZirTarget target,
@@ -654,12 +579,9 @@ EmitParallelWorkers(FILE *out, const ZirModule *module,
         ParallelRegion region;
         if(!parallel_region_at(fn, i, &region))
             continue;
-        if(fn->stmts[i].is_gpu && region.forward)
-            gpu_region_note(out, module, fn, &region);
         if(!region.forward) {
             fprintf(out, "/* ziran: reverse #parallel region keeps serial "
-                         "execution%s */\n",
-                    fn->stmts[i].is_gpu ? "; GPU region on CPU" : "");
+                         "execution */\n");
             continue;
         }
         parallel_region_captures(module, fn, &region);
@@ -1821,9 +1743,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             int close=block_end(e->fn,i,end);
             int labeled=0;
             if(st->is_parallel && e->target==ZIR_GO)
-                line(e, st->is_gpu ?
-                    "// ziran: #parallel_gpu region downgraded to serial (no GPU device)" :
-                    "// ziran: #parallel region downgraded to serial");
+                line(e, "// ziran: #parallel region downgraded to serial");
             if(st->is_parallel && e->target == ZIR_C) {
                 ParallelRegion region;
                 if(parallel_region_at(e->fn,i,&region) && region.forward) {

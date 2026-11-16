@@ -23,6 +23,39 @@ ZstdSymbol :: (library: *void, name: string) -> *void {
     return DynamicSymbol(library, *buffer[0])
 }
 
+// The dependency requires Go 1.25. Keep this offline interop test independent
+// of PATH: downloaded Go toolchains are executable modules in GOMODCACHE.
+ZstdGoMeetsMinimum :: (version: string) -> bool {
+    version = TextTrim(version)
+    if version.count < 2 || version[:2] != "go" { return false }
+    parts := TextSplit(version[2:], ".")
+    if parts.count < 2 { return false }
+    major: s64; minor: s64
+    for byte: parts[0] { if byte < 48 || byte > 57 { return false }; major = major * 10 + cast(s64)(byte - 48) }
+    for byte: parts[1] { if byte < 48 || byte > 57 { return false }; minor = minor * 10 + cast(s64)(byte - 48) }
+    return major > 1 || major == 1 && minor >= 25
+}
+
+ZstdGo :: (test: *NativeTest) -> string {
+    query := string.["go", "env", "GOVERSION", "GOMODCACHE"]
+    current := NativeRun(test, query[:])
+    lines := TextSplit(TextTrim(current.output), "\n")
+    if test.failed || lines.count < 2 { return "" }
+    if ZstdGoMeetsMinimum(lines[0]) { return "go" }
+    names: Vec(string)
+    if ListDirectory(CheckPath(lines[1], "golang.org"), *names) {
+        for name: names {
+            if name.count < 10 || name[:10] != "toolchain@" { continue }
+            candidate := CheckPath(CheckPath(CheckPath(lines[1], "golang.org"), name), "bin/go")
+            version_query := string.[candidate, "env", "GOVERSION"]
+            version := NativeInvoke(test, version_query[:])
+            if version.code == 0 && ZstdGoMeetsMinimum(version.output) { return candidate }
+        }
+    }
+    unused NativeAssert(test, false, "zstd_go requires Go >= 1.25 on PATH or installed in GOMODCACHE/golang.org/toolchain@*/bin/go")
+    return ""
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "zstd-go-")
@@ -39,6 +72,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     NativeSet(*test, "GOSUMDB", "off")
     if EnvironmentText("GOMAXPROCS") == "" { VecPush(test.environment, "GOMAXPROCS=1") }
     if EnvironmentText("GOFLAGS") == "" { VecPush(test.environment, "GOFLAGS=-p=1") }
+    go := ZstdGo(*test)
+    if test.failed { return 1 }
     library_name: [64]u8
     if !CopyCString("libzstd.so.1", library_name[:]) { return 1 }
     library := DynamicOpen(*library_name[0], 2)
@@ -79,7 +114,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         unused NativeRun(*test, build[:])
         if !NativeWrite(*test, CheckPath(output, "go.mod"), "module zstd-test\n\ngo 1.25\n\nrequire github.com/klauspost/compress v1.20.3\n") ||
             !NativeWrite(*test, CheckPath(output, "stream_test.go"), host) { return 1 }
-        run := string.["go", "test", "-mod=mod", "-race", "."]
+        run := string.[go, "test", "-mod=mod", "-race", "."]
         unused NativeRun(*test, run[:], output)
         encoded: Vec(u8)
         if !NativeAssert(*test, ReadFileInto(CheckPath(output, "go.zst"), *encoded) && encoded.count > 0, "read Go frame") { return 1 }

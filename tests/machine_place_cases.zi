@@ -29,6 +29,8 @@ Put :: (instructions: []Lir.LirInstruction, at: s64, op: Lir.LirOp, result: s32,
 //   6  as 2, with the member updated again after it was inserted: the update
 //      would change the record's copy, so the member keeps its own storage
 //   7  a record built from two call results: the callee writes each in place
+//   8  a built record only read through views, returning a scalar: it has a
+//      frame object of its own, so its members are placed inside that
 // PLACED is the number of objects built inside another, OFFSETS the offset of
 // the first two, BUILDS the aggregate builds that remain; -1 when anything
 // failed. PHASE: 0 stops after the lowered program verifies, 1 also checks that
@@ -48,6 +50,7 @@ Fixture :: (owner: *Machine.MachineOwner, mode: s32, offsets: []s64, builds: *s3
     replace_second := s32.[2, 0]
     read_first := s32.[1]
     read_record := s32.[3]
+    read_view := s32.[4]
     return_one := s32.[1]
     return_two := s32.[2]
     return_three := s32.[3]
@@ -106,6 +109,16 @@ Fixture :: (owner: *Machine.MachineOwner, mode: s32, offsets: []s64, builds: *s3
             Put(instructions[:], 7, .Return, -1, return_six[:])
             at = 8
         }
+    } else if mode == 8 {
+        result_type = 1
+        values[1] = 2; values[2] = 2; values[3] = 3; values[4] = 2; values[5] = 1; count = 6
+        Put(instructions[:], 1, .Aggregate, 1, zeros[:])
+        Put(instructions[:], 2, .Aggregate, 2, zeros[:])
+        Put(instructions[:], 3, .Aggregate, 3, members[:])
+        Put(instructions[:], 4, .Extract, 4, read_record[:], 1)
+        Put(instructions[:], 5, .Extract, 5, read_view[:], 0)
+        Put(instructions[:], 6, .Return, -1, return_five[:])
+        at = 7
     } else if mode == 7 {
         values[1] = 2; values[2] = 2; values[3] = 3; count = 4
         Put(instructions[:], 1, .Call, 1, zeros[0:0])
@@ -160,11 +173,26 @@ Fixture :: (owner: *Machine.MachineOwner, mode: s32, offsets: []s64, builds: *s3
     }
     <<builds = 0
     for instruction: mir.instructions { if instruction.opcode == .AggregateBuild { <<builds += 1 } }
+    // Objects built inside another object are counted with their offsets in
+    // the first four of OFFSETS (in object order, members before the record
+    // that takes them); those lying in the caller's result memory, which is
+    // the returned record of a function and everything built in it, are
+    // also counted in OFFSETS[7].
     placed: s32
+    results: s32
     for object: mir.stack_objects {
         if object.placed_in == 0 { continue }
+        parent := mir.stack_objects[cast(s64)mir.functions[object.function].stack_begin + cast(s64)object.placed_in - 1]
+        if parent.kind == .ResultAddress { results += 1 }
         if placed < 4 { offsets[placed] = object.placed_at }
         placed += 1
+    }
+    offsets[7] = cast(s64)results
+    for function: mir.functions {
+        if function.result_register != (function.calling == .Internal && ResultPlacedIn(mir, function)) {
+            print("result register disagrees with its placed objects: mode %\n", mode)
+            return -1
+        }
     }
     if phase == 1 && !BudgetCharged(program, functions[0], limits, placed) { return -1 }
     if phase < 2 { return placed }
@@ -178,16 +206,35 @@ Fixture :: (owner: *Machine.MachineOwner, mode: s32, offsets: []s64, builds: *s3
         print("placement frame verification failed: mode %\n", mode)
         return -1
     }
-    function := allocated.functions[0]
     for object: allocated.stack_objects {
         if object.placed_in == 0 { continue }
+        function := allocated.functions[object.function]
         parent := allocated.stack_objects[cast(s64)function.stack_begin + cast(s64)object.placed_in - 1]
-        if object.offset != parent.offset + object.placed_at || parent.placed_in != 0 {
+        if parent.placed_in != 0 || !OffsetMatches(object, parent) {
             print("placed object left its parent: mode %\n", mode)
             return -1
         }
     }
     return placed
+}
+
+// Whether the object's offset is its distance into the caller's result memory
+// (placed_at) rather than the parent's frame offset plus placed_at.
+OffsetMatches :: (object: Machine.MachineStackObject, parent: Machine.MachineStackObject) -> bool {
+    return object.offset == object.placed_at && parent.kind == .ResultAddress ||
+        object.offset == parent.offset + object.placed_at && parent.kind != .ResultAddress
+}
+
+// Whether any object of FUNCTION lies in its caller's result memory.
+ResultPlacedIn :: (mir: Machine.MachineProgram, function: Machine.MachineFunction) -> bool {
+    for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
+        object := mir.stack_objects[object_id]
+        if object.placed_in == 0 { continue }
+        if mir.stack_objects[cast(s64)function.stack_begin + cast(s64)object.placed_in - 1].kind == .ResultAddress {
+            return true
+        }
+    }
+    return false
 }
 
 // Plans FUNCTION under budgets around the work a full plan reports: every
@@ -199,19 +246,19 @@ BudgetCharged :: (program: Lir.LirProgram, function: Lir.LirFunction, limits: Ma
     defer Aggregates.MachineAggregatePlanFree(*plan)
     stack_size := s64.[-1, -1, 8, 16]
     sizes := s64.[0, 4, 8, 16]
-    full := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, 1000000, limits.bytes)
+    full := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, true, 1000000, limits.bytes)
     spent := plan.work
     placed := Placements(*plan, function)
     if full != .None || spent <= 1 || placed != placements { return Reject("full plan", spent, placed) }
-    tiny := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, 1, limits.bytes)
+    tiny := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, true, 1, limits.bytes)
     if tiny != .Limit { return Reject("budget of one", plan.work, 0) }
-    exact := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, spent, limits.bytes)
+    exact := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, true, spent, limits.bytes)
     if exact != .None || plan.work != spent || Placements(*plan, function) != placed {
         return Reject("exact budget", plan.work, Placements(*plan, function))
     }
-    short := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, spent - 1, limits.bytes)
+    short := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, true, spent - 1, limits.bytes)
     if short != .Limit && short != .None || plan.work > spent - 1 { return Reject("short budget", plan.work, 0) }
-    again := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, 1000000, limits.bytes)
+    again := Aggregates.MachineAggregatePlanBuild(*plan, program, function, stack_size[:], sizes[:], true, true, 1000000, limits.bytes)
     if again != .None || plan.work != spent || Placements(*plan, function) != placed {
         return Reject("rerun after limits", plan.work, Placements(*plan, function))
     }
@@ -232,11 +279,156 @@ Reject :: (what: string, work: s64, placed: s32) -> bool {
 }
 
 Expect :: (mode: s32, placed: s32, builds: s32, offsets: []s64, count: s32, first: s64, second: s64,
-    expected_builds: s32) -> bool {
-    if placed == count && builds == expected_builds &&
+    expected_builds: s32, results: s64) -> bool {
+    if placed == count && builds == expected_builds && offsets[7] == results &&
         (count < 1 || offsets[0] == first) && (count < 2 || offsets[1] == second) { return true }
-    print("placement case failed: mode % placed % (offsets % %) builds %\n", mode, placed, offsets[0], offsets[1], builds)
+    print("placement case failed: mode % placed % (offsets % %) builds % results % (expected %)\n", mode, placed,
+        offsets[0], offsets[1], builds, offsets[7], results)
     return false
+}
+
+// Functions returning a record on several paths or taking it as an argument:
+// MODE 0 returns two different records on two paths (copied), 1 returns its
+// parameter, 2 returns its parameter with a member inserted (both copied),
+// 3 returns one record on both paths (built in the caller's result memory),
+// 4 builds one member, makes a call, builds the other member from that call
+// and returns the record built from both (both members are placed in it: the
+// call touches nothing of the record), 5 builds one member in the entry block
+// and the other and the record in the next (the first spans two blocks and
+// keeps its own storage). PLACED_OUT receives the objects built inside another
+// frame object. Reports how many objects lie in the caller's result memory,
+// or -1.
+ReturnFixture :: (owner: *Machine.MachineOwner, mode: s32, placed_out: *s32) -> s32 {
+    modules := string.["return"]
+    // Types: 2 is four floats (16 bytes), 4 two of those (32 bytes): both
+    // reach the size at which a returned record is built in result memory.
+    quad := s32.[1, 1, 1, 1]
+    outer := s32.[2, 2]
+    types := Lir.LirType.[.{kind = .Void}, .{kind = .Float, bits = 32}, .{kind = .Record, fields = quad[:]},
+        .{kind = .Bool, bits = 1}, .{kind = .Record, fields = outer[:]}]
+    constants := Lir.LirConstant.[.{type = 1, bits = 0x3f800000}, .{type = 3, bits = 1}]
+    zeros := s32.[0, 0, 0, 0]
+    nothing := zeros[0:0]
+    condition := s32.[3]
+    return_one := s32.[1]
+    return_two := s32.[2]
+    return_zero := s32.[0]
+    insert_into := s32.[0, 1]
+    inserted := s32.[2]
+    parameter_types := s32.[2]
+    parameter_values := s32.[0]
+    to_first := Lir.LirEdge.[.{block = 1}, .{block = 2}]
+    entry: [6]Lir.LirInstruction
+    first: [5]Lir.LirInstruction
+    second: [1]Lir.LirInstruction
+    callee_values := s32.[1, 2]
+    callee_instructions: [3]Lir.LirInstruction
+    callee_return := s32.[1]
+    members := s32.[1, 2]
+    return_three := s32.[3]
+    jump_edge := Lir.LirEdge.[.{block = 1}]
+    function_count: s64 = 1
+    result_type: s32 = 2
+    values: [6]s32
+    count: s64 = 4
+    entry_parameters := zeros[0:0]
+    parameters := zeros[0:0]
+    at: s64 = 0
+    first_count: s64 = 1
+    blocks_used: s64 = 1
+    if mode == 0 || mode == 3 {
+        values = s32.[1, 2, 2, 3, 0, 0]
+        Put(entry[:], 0, .Constant, 0, nothing); entry[0].symbol = 0
+        Put(entry[:], 1, .Aggregate, 1, zeros[:])
+        Put(entry[:], 2, .Aggregate, 2, zeros[:])
+        Put(entry[:], 3, .Constant, 3, nothing); entry[3].symbol = 1
+        Put(entry[:], 4, .Branch, -1, condition[:]); entry[4].edges = to_first[:]
+        at = 5
+        Put(first[:], 0, .Return, -1, return_one[:])
+        Put(second[:], 0, .Return, -1, return_one[:])
+        if mode == 0 { Put(second[:], 0, .Return, -1, return_two[:]) }
+        blocks_used = 3
+    } else if mode == 4 || mode == 5 {
+        result_type = 4
+        Put(entry[:], 0, .Constant, 0, nothing); entry[0].symbol = 0
+        Put(entry[:], 1, .Aggregate, 1, zeros[:])
+        if mode == 4 {
+            count = 4
+            values = s32.[1, 2, 2, 4, 0, 0]
+            Put(entry[:], 2, .Call, 2, nothing); entry[2].symbol = 1; entry[2].effect = 1
+            Put(entry[:], 3, .Aggregate, 3, members[:])
+            Put(entry[:], 4, .Return, -1, return_three[:])
+            at = 5
+            Put(callee_instructions[:], 0, .Constant, 0, nothing); callee_instructions[0].symbol = 0
+            Put(callee_instructions[:], 1, .Aggregate, 1, zeros[:])
+            Put(callee_instructions[:], 2, .Return, -1, callee_return[:])
+            function_count = 2
+        } else {
+            count = 4
+            values = s32.[1, 2, 2, 4, 0, 0]
+            Put(entry[:], 2, .Jump, -1, nothing); entry[2].edges = jump_edge[:]
+            at = 3
+            Put(first[:], 0, .Aggregate, 2, zeros[:])
+            Put(first[:], 1, .Aggregate, 3, members[:])
+            Put(first[:], 2, .Return, -1, return_three[:])
+            first_count = 3
+        }
+        blocks_used = ifx mode == 5 then 2 else 1
+    } else if mode == 1 {
+        count = 1
+        values = s32.[2, 0, 0, 0, 0, 0]
+        entry_parameters = parameter_values[:]
+        parameters = parameter_types[:]
+        Put(entry[:], 0, .Return, -1, return_zero[:])
+        at = 1
+    } else {
+        count = 3
+        values = s32.[2, 1, 2, 0, 0, 0]
+        entry_parameters = parameter_values[:]
+        parameters = parameter_types[:]
+        Put(entry[:], 0, .Constant, 1, nothing); entry[0].symbol = 0
+        Put(entry[:], 1, .Insert, 2, insert_into[:], 0)
+        Put(entry[:], 2, .Return, -1, return_two[:])
+        at = 3
+    }
+    callee_block := Lir.LirBlock.[.{instructions = callee_instructions[:]}]
+    blocks := Lir.LirBlock.[.{parameters = entry_parameters, instructions = entry[:at]},
+        .{instructions = first[:first_count]}, .{instructions = second[:]}]
+    functions := Lir.LirFunction.[.{module = 0, name = "pick", parameters = parameters, result = result_type,
+        values = values[:count], blocks = blocks[:blocks_used], entry = 0, origin = -1},
+        .{module = 0, name = "make", result = 2, values = callee_values[:], blocks = callee_block[:],
+            entry = 0, origin = -1}]
+    // The entry takes no parameters; the two functions that do have none.
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:function_count], entry = ifx mode == 1 || mode == 2 then -1 else 0}
+    limits := Machine.MachineDefaultLimits()
+    lowered := Lower.MachineLower(owner, program, Target.TargetLinuxX64(), Machine.MachineDefaultOptions(), limits)
+    if lowered.problem != .None {
+        print("return lowering failed: mode % problem % lir %\n", mode, cast(s32)lowered.problem,
+            lowered.lir_diagnostic_problem)
+        return -1
+    }
+    mir := Lower.MachineProgramView(owner)
+    if Verify.MachineVerify(mir, limits).problem != .None { print("return verification failed: mode %\n", mode); return -1 }
+    if RegAlloc.RegAllocAllocate(owner, Target.TargetLinuxX64(), limits).problem != .None {
+        print("return allocation failed: mode %\n", mode)
+        return -1
+    }
+    allocated := Lower.MachineProgramView(owner)
+    if Allocated.MachineVerifyAllocated(allocated, limits).problem != .None {
+        print("return frame verification failed: mode %\n", mode)
+        return -1
+    }
+    results: s32
+    <<placed_out = 0
+    for object: allocated.stack_objects {
+        if object.placed_in == 0 { continue }
+        if allocated.stack_objects[cast(s64)allocated.functions[object.function].stack_begin +
+            cast(s64)object.placed_in - 1].kind == .ResultAddress { results += 1 }
+        else { <<placed_out += 1 }
+    }
+    if (results > 0) != allocated.functions[0].result_register { return -1 }
+    return results
 }
 
 // A malformed placement is diagnosed, never trusted or indexed.
@@ -244,17 +436,18 @@ Tamper :: (owner: *Machine.MachineOwner) -> bool {
     offsets: [4]s64
     builds: s32
     limits := Machine.MachineDefaultLimits()
-    if Fixture(owner, 0, offsets[:], *builds, 0) != 2 { return false }
+    if Fixture(owner, 8, offsets[:], *builds, 0) != 2 { print("tamper setup: frame-parent fixture\n"); return false }
     child: s64 = -1
     parent: s64 = -1
     for index: cast(s64)0..owner.stack_objects.count - 1 {
-        if owner.stack_objects[index].placed_in != 0 {
+        if owner.stack_objects[index].placed_in != 0 &&
+            owner.stack_objects[cast(s64)owner.functions[0].stack_begin + cast(s64)owner.stack_objects[index].placed_in - 1].kind != .ResultAddress {
             child = index
             parent = cast(s64)owner.functions[0].stack_begin + cast(s64)owner.stack_objects[index].placed_in - 1
             break
         }
     }
-    if child < 0 { return false }
+    if child < 0 { print("tamper setup: no frame-placed object\n"); return false }
     saved := owner.stack_objects[child]
     saved_parent := owner.stack_objects[parent]
     saved_function := owner.functions[0]
@@ -278,14 +471,18 @@ Tamper :: (owner: *Machine.MachineOwner) -> bool {
             return false
         }
     }
-    if Verify.MachineVerify(Lower.MachineProgramView(owner), limits).problem != .None { return false }
+    if Verify.MachineVerify(Lower.MachineProgramView(owner), limits).problem != .None { print("tamper: restored program rejected\n"); return false }
     // After allocation a placed object must lie exactly inside its parent.
-    if Fixture(owner, 0, offsets[:], *builds, 2) != 2 { return false }
+    if Fixture(owner, 8, offsets[:], *builds, 2) != 2 { print("tamper setup: allocated frame-parent fixture\n"); return false }
     child = -1
     for index: cast(s64)0..owner.stack_objects.count - 1 {
-        if owner.stack_objects[index].placed_in != 0 { child = index; break }
+        if owner.stack_objects[index].placed_in != 0 &&
+            owner.stack_objects[cast(s64)owner.functions[0].stack_begin + cast(s64)owner.stack_objects[index].placed_in - 1].kind != .ResultAddress {
+            child = index
+            break
+        }
     }
-    if child < 0 { return false }
+    if child < 0 { print("tamper setup: no allocated frame-placed object\n"); return false }
     saved = owner.stack_objects[child]
     for corruption: cast(s32)0..2 {
         object := saved
@@ -300,6 +497,84 @@ Tamper :: (owner: *Machine.MachineOwner) -> bool {
             return false
         }
     }
+    return Allocated.MachineVerifyAllocated(Lower.MachineProgramView(owner), limits).problem == .None &&
+        TamperResult(owner)
+}
+
+// A returned record built in the caller's result memory needs the function to
+// say so, the memory to hold it, its frame offset to be its distance into it,
+// and the result register saved and never allocated.
+TamperResult :: (owner: *Machine.MachineOwner) -> bool {
+    offsets: [8]s64
+    builds: s32
+    limits := Machine.MachineDefaultLimits()
+    if Fixture(owner, 0, offsets[:], *builds, 0) != 3 || offsets[7] != 3 { print("result tamper setup\n"); return false }
+    result: s64 = -1
+    for index: cast(s64)0..owner.stack_objects.count - 1 {
+        object := owner.stack_objects[index]
+        if object.placed_in != 0 &&
+            owner.stack_objects[cast(s64)owner.functions[0].stack_begin + cast(s64)object.placed_in - 1].kind == .ResultAddress {
+            result = index
+            break
+        }
+    }
+    if result < 0 { print("result tamper: no result-placed object\n"); return false }
+    saved := owner.stack_objects[result]
+    saved_function := owner.functions[0]
+    for corruption: cast(s32)0..3 {
+        object := saved
+        if corruption == 0 { owner.functions[0].result_register = false }
+        else if corruption == 1 { object.placed_at = 20 }
+        else if corruption == 2 { object.kind = .Local }
+        else { object.size = 17 }
+        owner.stack_objects[result] = object
+        rejected := Verify.MachineVerify(Lower.MachineProgramView(owner), limits).problem != .None
+        owner.stack_objects[result] = saved
+        owner.functions[0] = saved_function
+        if !rejected {
+            print("verifier accepted a malformed result placement %\n", corruption)
+            return false
+        }
+    }
+    if Fixture(owner, 0, offsets[:], *builds, 2) != 3 { print("result tamper: allocated fixture\n"); return false }
+    for index: cast(s64)0..owner.stack_objects.count - 1 {
+        object := owner.stack_objects[index]
+        if object.placed_in != 0 &&
+            owner.stack_objects[cast(s64)owner.functions[0].stack_begin + cast(s64)object.placed_in - 1].kind == .ResultAddress {
+            result = index
+            break
+        }
+    }
+    saved = owner.stack_objects[result]
+    saved_function = owner.functions[0]
+    saved_frame := owner.frames[0]
+    operand_at: s64 = -1
+    for index: cast(s64)0..owner.instructions.count - 1 {
+        instruction := owner.instructions[index]
+        for local: 0..instruction.operand_count - 1 {
+            operand := owner.operands[instruction.operand_begin + local]
+            if operand.kind == .Physical && operand.class == .General { operand_at = cast(s64)instruction.operand_begin + cast(s64)local }
+        }
+    }
+    if operand_at < 0 { print("result tamper: no physical operand\n"); return false }
+    saved_operand := owner.operands[operand_at]
+    for corruption: cast(s32)0..3 {
+        object := saved
+        if corruption == 0 { object.offset = saved.offset + 4 }
+        else if corruption == 1 { owner.functions[0].result_register = false }
+        else if corruption == 2 { owner.frames[0].callee_saved_general = saved_frame.callee_saved_general & ~(cast(u64)1 << 14) }
+        else { owner.operands[operand_at].id = 14 }
+        owner.stack_objects[result] = object
+        rejected := Allocated.MachineVerifyAllocated(Lower.MachineProgramView(owner), limits).problem != .None
+        owner.stack_objects[result] = saved
+        owner.functions[0] = saved_function
+        owner.frames[0] = saved_frame
+        owner.operands[operand_at] = saved_operand
+        if !rejected {
+            print("allocated verifier accepted a malformed result placement %\n", corruption)
+            return false
+        }
+    }
     return Allocated.MachineVerifyAllocated(Lower.MachineProgramView(owner), limits).problem == .None
 }
 
@@ -308,26 +583,50 @@ Tamper :: (owner: *Machine.MachineOwner) -> bool {
 MachinePlaceCases :: () -> bool {
     owner: Machine.MachineOwner
     defer Lower.MachineFree(*owner)
-    offsets: [4]s64
+    offsets: [8]s64
     builds: s32
+    // The returned record is the one class every path returns, so it and the
+    // members built in it lie in the caller's result memory; the eight-byte
+    // records of modes 4 and 5 are better copied than kept in the result
+    // register (so are the eight-byte call results of mode 7); mode 8's is
+    // not returned and keeps a frame object of its own.
     placed := Fixture(*owner, 0, offsets[:], *builds)
-    if !Expect(0, placed, builds, offsets[:], 2, 0, 8, 3) { return false }
+    if !Expect(0, placed, builds, offsets[:], 3, 0, 8, 3, 3) { return false }
     placed = Fixture(*owner, 1, offsets[:], *builds)
-    if !Expect(1, placed, builds, offsets[:], 1, 8, 0, 3) { return false }
+    if !Expect(1, placed, builds, offsets[:], 2, 8, 0, 3, 2) { return false }
     placed = Fixture(*owner, 2, offsets[:], *builds)
-    if !Expect(2, placed, builds, offsets[:], 3, 0, 8, 4) { return false }
+    if !Expect(2, placed, builds, offsets[:], 4, 0, 8, 4, 4) { return false }
     placed = Fixture(*owner, 3, offsets[:], *builds)
-    if !Expect(3, placed, builds, offsets[:], 2, 0, 8, 4) { return false }
+    if !Expect(3, placed, builds, offsets[:], 3, 0, 8, 4, 3) { return false }
     placed = Fixture(*owner, 6, offsets[:], *builds)
-    if !Expect(6, placed, builds, offsets[:], 2, 0, 8, 4) { return false }
+    if !Expect(6, placed, builds, offsets[:], 3, 0, 8, 4, 3) { return false }
     placed = Fixture(*owner, 7, offsets[:], *builds)
-    if !Expect(7, placed, builds, offsets[:], 2, 0, 8, 2) { return false }
+    if !Expect(7, placed, builds, offsets[:], 3, 0, 8, 2, 3) { return false }
     placed = Fixture(*owner, 4, offsets[:], *builds)
-    if !Expect(4, placed, builds, offsets[:], 0, 0, 0, 0) { return false }
+    if !Expect(4, placed, builds, offsets[:], 0, 0, 0, 0, 0) { return false }
     placed = Fixture(*owner, 5, offsets[:], *builds)
-    if !Expect(5, placed, builds, offsets[:], 0, 0, 0, 1) { return false }
-    if Fixture(*owner, 2, offsets[:], *builds, 1) != 3 { return false }
-    if !Tamper(*owner) { return false }
+    if !Expect(5, placed, builds, offsets[:], 0, 0, 0, 1, 0) { return false }
+    placed = Fixture(*owner, 8, offsets[:], *builds)
+    if !Expect(8, placed, builds, offsets[:], 2, 0, 8, 3, 0) { return false }
+    // Two records returned on two paths, a parameter, and a parameter with a
+    // member inserted keep their copies; one record returned on both paths is
+    // built in place.
+    inner: s32
+    if ReturnFixture(*owner, 0, *inner) != 0 || ReturnFixture(*owner, 1, *inner) != 0 ||
+        ReturnFixture(*owner, 2, *inner) != 0 || ReturnFixture(*owner, 3, *inner) != 1 {
+        print("return placement case failed\n")
+        return false
+    }
+    // A call between a member's definition and its record does not touch the
+    // record, so both members are placed in it, in the caller's result memory
+    // (the callee builds its own result there too: four objects); a member
+    // whose definition and use are in two blocks is not (two).
+    if ReturnFixture(*owner, 4, *inner) != 4 || inner != 0 || ReturnFixture(*owner, 5, *inner) != 2 || inner != 0 {
+        print("member placement across a call or a block case failed: frame placed %\n", inner)
+        return false
+    }
+    if Fixture(*owner, 2, offsets[:], *builds, 1) != 4 { print("budget fixture failed\n"); return false }
+    if !Tamper(*owner) { print("tamper cases failed\n"); return false }
     print("machine placement: members build in their parent's storage unless it is read or shared, replaced builds emit nothing, planning charges its work, and malformed placements are rejected\n")
     return true
 }

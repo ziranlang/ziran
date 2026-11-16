@@ -258,7 +258,8 @@ VirtualsAndStack :: (state: *VerifyState, program: MachineProgram) -> bool {
 }
 
 // Whether the placed Value object OBJECT lies inside a Value object of its
-// own function that has a frame home of its own.
+// own function that has a frame home of its own, or inside the result memory
+// of a function that keeps the address of it in its result register.
 PlacedWithin :: (program: MachineProgram, object: MachineStackObject) -> bool {
     owner := program.functions[object.function]
     first := cast(s64)owner.stack_begin
@@ -267,8 +268,16 @@ PlacedWithin :: (program: MachineProgram, object: MachineStackObject) -> bool {
     if object.kind != .Value || object.placed_in < 0 || owner.stack_begin < 0 || owner.stack_count < 0 ||
         last > program.stack_objects.count || parent_at < first || parent_at >= last { return false }
     parent := program.stack_objects[parent_at]
-    return parent.function == object.function && parent.kind == .Value && parent.placed_in == 0 &&
-        object.placed_at >= 0 && object.placed_at <= parent.size && object.size <= parent.size - object.placed_at
+    if parent.function != object.function { return false }
+    capacity := parent.size
+    if parent.kind == .ResultAddress {
+        // The result's own type is what the caller's memory holds.
+        if !owner.result_register || owner.calling != .Internal || owner.result_type < 0 ||
+            owner.result_type >= program.types.count || program.types[owner.result_type].class != .Stack ||
+            MachineAbiResultPointerRegister(program.target) < 0 { return false }
+        capacity = program.types[owner.result_type].size
+    } else if parent.kind != .Value || parent.placed_in != 0 { return false }
+    return object.placed_at >= 0 && object.placed_at <= capacity && object.size <= capacity - object.placed_at
 }
 
 Operand :: (state: *VerifyState, program: MachineProgram, function: MachineFunction,

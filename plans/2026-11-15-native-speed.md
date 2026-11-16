@@ -919,9 +919,23 @@ LIR with frame verification, budget accounting and malformed placements),
 the nested-record program in `tests/machine_elf.sh`, and
 `tests/compiler_opt_float_cases.zi` (28 conversion/negation vectors).
 
+Result-memory construction (second phase): when every `return` of a function
+gives the same class of aggregate value, `ChooseResult` in the planner makes
+that class (and so every member class placed in it) lie in the caller's
+result memory. The hidden result address belongs to the callee alone while it
+runs (callers pass a frame object of their own, or a host buffer), so the
+object can be that memory. x86-64 keeps the address in `r14`
+(`MachineAbiResultPointerRegister`), set from `rax` in the prologue next to the
+existing store of the hidden address, saved in the frame like any callee-saved
+register and removed from the allocatable mask for that function
+(`MachineFunction.result_register`); `StackMemory` turns an object placed in
+the `ResultAddress` object into `[r14 + placed_at]` and `Return` copies
+nothing for it. Declined: a returned parameter or a class holding one (the
+incoming object is the caller's argument), two different classes returned on
+different paths (copied, as before), anything but a plain aggregate operand.
+
 Open: a constant member still goes through a register (`mov r11d, imm32;
 movd xmm0, r11d; movss [m], xmm0`) where `mov dword [m], imm32` would do;
-a function's own returned record is still built in a frame object and copied
-to its hidden result address, and members built across blocks (a select's
-value) or inserted through a dynamic index are not placed; placement is
-x86-64 only (views are), so aarch64 and armv7 keep their copies.
+members built across blocks (a select's value) or inserted through a dynamic
+index are not placed; placement and result construction are x86-64 only
+(views are), so aarch64 and armv7 keep their copies.

@@ -746,6 +746,7 @@ FrameLayout :: (state: *State, program: MachineProgram, limits: MachineLimits, f
     if frame.incoming_size != cursor - 16 { return Fail(state, .Frame, function_id) }
     saved_general: u64 = 0
     saved_float: u64 = 0
+    result_objects: s32 = 0
     resident: s64 = 0
     for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
         if !Spend(state, 1) { return false }
@@ -761,22 +762,15 @@ FrameLayout :: (state: *State, program: MachineProgram, limits: MachineLimits, f
             if object.offset != 0 || object.size > frame.outgoing_size { return Fail(state, .Frame, function_id) }
             continue
         }
+        // A placed object takes no frame space: it lies inside its parent's,
+        // or inside the caller's result memory.
+        if object.placed_in != 0 {
+            if !PlacedFrame(program, function, function_id, object) { return Fail(state, .Frame, function_id) }
+            continue
+        }
         if !MachineFrameResident(object.kind) || object.offset >= 0 || object.offset % cast(s64)object.alignment != 0 ||
             object.offset + object.size > 0 || -object.offset > frame.size - frame.outgoing_size {
             return Fail(state, .Frame, function_id)
-        }
-        // A placed object takes its parent's frame space: it lies inside it.
-        if object.placed_in != 0 {
-            parent_at := cast(s64)function.stack_begin + cast(s64)object.placed_in - 1
-            if object.kind != .Value || object.placed_in < 0 || parent_at < cast(s64)function.stack_begin ||
-                parent_at >= cast(s64)function.stack_begin + cast(s64)function.stack_count {
-                return Fail(state, .Frame, function_id)
-            }
-            parent := program.stack_objects[parent_at]
-            if parent.function != function_id || parent.kind != .Value || parent.placed_in != 0 || object.placed_at < 0 ||
-                object.placed_at > parent.size || object.size > parent.size - object.placed_at ||
-                object.offset != parent.offset + object.placed_at { return Fail(state, .Frame, function_id) }
-            continue
         }
         resident += 1
         if object.kind == .CalleeSave {
@@ -791,14 +785,21 @@ FrameLayout :: (state: *State, program: MachineProgram, limits: MachineLimits, f
                 if (saved_float & bit) != 0 { return Fail(state, .Frame, function_id) }
                 saved_float = saved_float | bit
             }
-        } else if object.kind == .ResultAddress &&
-            (object.size != 8 || object.alignment != 8 || object.value != MachineNoId) {
-            return Fail(state, .Frame, function_id)
+        } else if object.kind == .ResultAddress {
+            if object.size != 8 || object.alignment != 8 || object.value != MachineNoId {
+                return Fail(state, .Frame, function_id)
+            }
+            result_objects += 1
         }
     }
     if saved_general != frame.callee_saved_general || saved_float != frame.callee_saved_float {
         return Fail(state, .Frame, function_id)
     }
+    // A function keeping its result address in a register saves that register
+    // and has exactly one hidden result address to take it from.
+    result_pointer := MachineAbiResultPointerRegister(target)
+    if function.result_register && (result_pointer < 0 || result_objects != 1 ||
+        ((saved_general >> cast(u64)result_pointer) & 1) == 0) { return Fail(state, .Frame, function_id) }
     // Frame-resident objects never overlap.
     order: Vec(s32)
     defer VecFree(order)
@@ -830,6 +831,12 @@ FrameLayout :: (state: *State, program: MachineProgram, limits: MachineLimits, f
             }
             for local: 0..instruction.operand_count - 1 {
                 operand := program.operands[instruction.operand_begin + local]
+                // The result register holds the caller's address throughout.
+                if function.result_register && operand.kind == .Physical && operand.class == .General &&
+                    operand.id == result_pointer {
+                    return Fail(state, .Clobber, function_id, block_id, instruction_id,
+                        instruction.operand_begin + local, operand.value)
+                }
                 if operand.kind != .Physical || operand.role == .Use { continue }
                 bank := MachineRegisterBank(target, operand.class)
                 saved := ifx bank == 0 then frame.callee_saved_general else frame.callee_saved_float
@@ -843,6 +850,29 @@ FrameLayout :: (state: *State, program: MachineProgram, limits: MachineLimits, f
     }
     if dynamic != frame.dynamic_allocation { return Fail(state, .Frame, function_id) }
     return true
+}
+
+// Whether the placed Value object OBJECT of function FUNCTION_ID lies where it
+// says: inside a parent that has a frame home, at the parent's offset plus
+// placed_at, or inside the caller's result memory of a function that keeps its
+// address in a register, at placed_at.
+PlacedFrame :: (program: MachineProgram, function: MachineFunction, function_id: s32,
+    object: MachineStackObject) -> bool {
+    first := cast(s64)function.stack_begin
+    parent_at := first + cast(s64)object.placed_in - 1
+    if object.kind != .Value || object.placed_in < 0 || object.placed_at < 0 || parent_at < first ||
+        parent_at >= first + cast(s64)function.stack_count || parent_at >= program.stack_objects.count { return false }
+    parent := program.stack_objects[parent_at]
+    if parent.function != function_id { return false }
+    if parent.kind == .ResultAddress {
+        if !function.result_register || function.result_type < 0 || function.result_type >= program.types.count ||
+            program.types[function.result_type].class != .Stack { return false }
+        capacity := program.types[function.result_type].size
+        return object.placed_at <= capacity && object.size <= capacity - object.placed_at &&
+            object.offset == object.placed_at
+    }
+    return parent.kind == .Value && parent.placed_in == 0 && object.placed_at <= parent.size &&
+        object.size <= parent.size - object.placed_at && object.offset == parent.offset + object.placed_at
 }
 
 SortByOffset :: (program: MachineProgram, order: []s32) {

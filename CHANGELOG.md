@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 code builds the record a function returns where its caller keeps the result instead of in a frame object it then copies: when every return gives the same record, that record and the members built in it lie in the caller's result memory, which the function keeps the address of in `r14` for its whole body (saved and never allocated), so the return has nothing to copy. A record returned on two different paths, a parameter, or a parameter with a member changed keeps its copy. The machine IR gains a `result_register` flag on functions and placement into a function's `ResultAddress` object, and both verifiers check them.
 - Native x86-64 code builds a record member where its parent keeps it instead of in a temporary it then copies from: members of a nested literal, a member inserted into a built record, one replaced through a constant index and a call result used as a member take frame space inside the parent's, and a member that is also read, shared, updated afterwards or whose parent is read while it is built keeps its own. An aggregate build whose members are all replaced before it is read emits nothing, and the optimizer folds f64-to-f32 and f32-to-f64 constant conversions and float negations to the hardware's patterns (NaNs stay). A nested shadow-token builder shaped like Kryon's `DefaultShadows` shrinks from 1759 to 661 bytes of code. The machine IR gains placed stack objects (`placed_in`, `placed_at`), and the allocated verifier checks each lies inside its parent.
 ## [0.6.0] - 2026-11-16
 

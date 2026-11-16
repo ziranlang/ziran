@@ -1985,6 +1985,8 @@ LayoutFrame :: (state: *Alloc, function: *MachineFunction) -> bool {
     }
     fuel := MachineAbiFuelRegister(state.target)
     if function.fuel_register && fuel >= 0 { saved[0] = saved[0] | (cast(u64)1 << cast(u64)fuel) }
+    result_pointer := MachineAbiResultPointerRegister(state.target)
+    if function.result_register && result_pointer >= 0 { saved[0] = saved[0] | (cast(u64)1 << cast(u64)result_pointer) }
     float_bank := MachineRegisterBank(state.target, .Float)
     for bank: cast(s32)0..1 {
         for register: cast(s32)0..63 {
@@ -2015,8 +2017,11 @@ LayoutFrame :: (state: *Alloc, function: *MachineFunction) -> bool {
     for object_id: begin..finish - 1 {
         object := state.out.stack_objects[object_id]
         if object.placed_in == 0 { continue }
-        state.out.stack_objects[object_id].offset =
-            state.out.stack_objects[begin + object.placed_in - 1].offset + object.placed_at
+        // In the caller's result memory the offset is the distance into it.
+        parent := state.out.stack_objects[begin + object.placed_in - 1]
+        offset := parent.offset + object.placed_at
+        if parent.kind == .ResultAddress { offset = object.placed_at }
+        state.out.stack_objects[object_id].offset = offset
     }
     outgoing: s64 = 0
     dynamic := false
@@ -2089,7 +2094,11 @@ AllocateFunction :: (state: *Alloc, function_id: s32) -> bool {
     // A function keeping its step budget in the fuel register gives no value it.
     general := state.masks[0]
     fuel := MachineAbiFuelRegister(state.target)
-    if function.fuel_register && fuel >= 0 { state.masks[0] = general & ~(cast(u64)1 << cast(u64)fuel) }
+    if function.fuel_register && fuel >= 0 { state.masks[0] = state.masks[0] & ~(cast(u64)1 << cast(u64)fuel) }
+    result_pointer := MachineAbiResultPointerRegister(state.target)
+    if function.result_register && result_pointer >= 0 {
+        state.masks[0] = state.masks[0] & ~(cast(u64)1 << cast(u64)result_pointer)
+    }
     allocated := CollectParameters(state) && BuildItems(state) && Liveness(state) && BuildIntervals(state) &&
         BuildFixed(state)
     for bank: cast(s32)0..MachineBankCount - 1 {

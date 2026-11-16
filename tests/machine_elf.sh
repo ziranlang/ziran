@@ -297,6 +297,144 @@ ZI
 compile_native "$work/nested-elf" "$work" nested:Answer "$work/nested.zi"
 run_status "$work/nested-elf" 0
 
+# A record a function returns is built where the caller keeps its result when
+# every path returns the same one: through a loop, with an unaligned member,
+# as a call result inside another record, across recursion and with many
+# values live. Two records on two paths, a parameter and a parameter with a
+# member changed are copied instead. Every value is distinct so a stale or
+# shared copy shows.
+cat > "$work/result.zi" <<'ZI'
+Pair :: struct { a: s32; b: s32 }
+Trio :: struct { a: s64; b: s64; c: s64 }
+Wide :: struct { head: s64; tail: [64]s32; last: s64 }
+Mixed :: struct { x: float64; flag: u8; y: float64 }
+Frame :: struct { before: u8; inner: Mixed; after: u8 }
+Odd :: struct { a: u8; b: [3]u16; c: float64; d: u8 }
+Holder :: struct { tag: u8; odd: Odd; end: u8 }
+Box :: struct { first: Trio; second: Trio; third: Trio }
+
+MakeWide :: (seed: s32) -> Wide {
+    w: Wide
+    w.head = cast(s64)seed
+    for index: 0..63 { w.tail[index] = seed + cast(s32)index * 3 }
+    w.last = cast(s64)seed * 2
+    return w
+}
+
+MakeMixed :: (v: float64) -> Mixed {
+    m: Mixed
+    m.x = v
+    m.flag = 7
+    m.y = v * 2.0
+    return m
+}
+
+MakeFrame :: (v: float64) -> Frame {
+    return Frame.{1, MakeMixed(v), 3}
+}
+
+MakeOdd :: (v: u16) -> Odd {
+    o: Odd
+    o.a = 1
+    for index: 0..2 { o.b[index] = v + cast(u16)index }
+    o.c = cast(float64)v * 0.5
+    o.d = 4
+    return o
+}
+
+MakeHolder :: (v: u16) -> Holder { return Holder.{9, MakeOdd(v), 11} }
+
+// Eight bytes: too small for the result register to pay, copied as before.
+Small :: (a: s32) -> Pair { return Pair.{a, a + 1} }
+
+Choose :: (flag: bool) -> Trio {
+    first := Trio.{1, 2, 3}
+    second := Trio.{4, 5, 6}
+    if flag { return first }
+    return second
+}
+
+Echo :: (p: Trio) -> Trio { return p }
+
+Bump :: (p: Trio) -> Trio {
+    p.a += 1
+    return p
+}
+
+Swap :: (p: Trio) -> Trio { return Trio.{p.c, p.b, p.a} }
+
+Chain :: (n: s64) -> Trio {
+    r := Trio.{0, 0, 0}
+    if n > 0 {
+        r = Chain(n - 1)
+        r.a += n
+        r.b += 2
+        r.c += r.a * 10
+    }
+    return r
+}
+
+Take :: (p: Trio) -> s64 { return p.a * 100 + p.b * 10 + p.c }
+
+Mix :: (n: s64) -> Trio {
+    r := Trio.{n, n + 1, n + 2}
+    taken := Take(r)
+    r.b = taken
+    return r
+}
+
+Pressure :: (seed: s64) -> Trio {
+    a := seed + 1; b := seed + 2; c := seed + 3; d := seed + 4; e := seed + 5
+    f := seed + 6; g := seed + 7; h := seed + 8; i := seed + 9; j := seed + 10
+    k := seed + 11; l := seed + 12; m := seed + 13; n := seed + 14
+    middle := Take(Trio.{a, b, c})
+    return Trio.{a + b + c + d + e + f + g, h + i + j + k + l + m + n, middle}
+}
+
+#program_export
+Answer :: () -> s32 {
+    w := MakeWide(5)
+    if w.head != 5 || w.last != 10 { return 1 }
+    for index: 0..63 { if w.tail[index] != 5 + cast(s32)index * 3 { return 2 } }
+    other := MakeWide(1000)
+    if w.tail[63] != 5 + 63 * 3 || other.tail[0] != 1000 || other.last != 2000 { return 3 }
+    m := MakeMixed(1.5)
+    if m.x != 1.5 || m.flag != 7 || m.y != 3.0 { return 4 }
+    f := MakeFrame(2.5)
+    if f.before != 1 || f.inner.x != 2.5 || f.inner.flag != 7 || f.inner.y != 5.0 || f.after != 3 { return 5 }
+    h := MakeHolder(100)
+    if h.tag != 9 || h.odd.a != 1 || h.odd.b[0] != 100 || h.odd.b[1] != 101 || h.odd.b[2] != 102 ||
+        h.odd.c != 50.0 || h.odd.d != 4 || h.end != 11 { return 15 }
+    small := Small(40)
+    if small.a != 40 || small.b != 41 { return 16 }
+    c1 := Choose(true)
+    c2 := Choose(false)
+    if c1.a != 1 || c1.b != 2 || c1.c != 3 || c2.a != 4 || c2.b != 5 || c2.c != 6 { return 6 }
+    e := Echo(Trio.{8, 9, 10})
+    if e.a != 8 || e.b != 9 || e.c != 10 { return 7 }
+    x := Trio.{20, 21, 22}
+    x = Bump(x)
+    if x.a != 21 || x.b != 21 || x.c != 22 { return 8 }
+    x = Swap(x)
+    x = Swap(Trio.{x.a + 1, x.b + 2, x.c + 3})
+    if x.a != 24 || x.b != 23 || x.c != 23 { return 9 }
+    chain := Chain(4)
+    if chain.a != 10 || chain.b != 8 || chain.c != 200 { return 10 }
+    mixed := Mix(6)
+    if mixed.a != 6 || mixed.b != 6 * 100 + 7 * 10 + 8 || mixed.c != 8 { return 11 }
+    pressure := Pressure(10)
+    if pressure.a != 10 * 7 + 28 || pressure.b != 10 * 7 + 77 || pressure.c != 11 * 100 + 12 * 10 + 13 { return 12 }
+    box := Box.{Chain(1), Chain(2), Bump(Trio.{50, 51, 52})}
+    if box.first.a != 1 || box.first.b != 2 || box.first.c != 10 || box.second.a != 3 || box.second.b != 4 ||
+        box.third.a != 51 || box.third.b != 51 || box.third.c != 52 { return 13 }
+    box.second = Chain(3)
+    if box.first.a != 1 || box.second.a != 6 || box.second.b != 6 || box.third.a != 51 { return 14 }
+    return 0
+}
+ZI
+compile_native "$work/result-elf" "$work" result:Answer "$work/result.zi"
+run_status "$work/result-elf" 0
+
 # A debug attachment gives map ranges source lines without changing a byte
 # of the executable.
 "$zi2zx" --debug --root "$work" --entry app:Answer -o "$work/app-debug.zx" "$work/app.zi"

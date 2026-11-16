@@ -137,7 +137,9 @@ MachineStackObject :: struct {
     // among the function's stack objects, or 0 for an object with a frame
     // home of its own, and the byte offset it starts at inside the parent.
     // Allocation gives it no frame space: its offset is the parent's plus
-    // placed_at. The parent has a home of its own.
+    // placed_at. The parent has a home of its own, or is the function's
+    // ResultAddress object: the child then lies in the caller's result
+    // memory, placed_at bytes in, and its offset is placed_at.
     placed_in: s32
     placed_at: s64
 }
@@ -226,6 +228,12 @@ MachineFunction :: struct {
     // register (MachineAbiFuelRegister) instead of the instance counter,
     // writing it back wherever another function or the host may read it.
     fuel_register: bool
+    // A function whose returned aggregate lives where the caller's result
+    // address points (stack objects placed in its ResultAddress object)
+    // keeps that address in the target's result pointer register
+    // (MachineAbiResultPointerRegister): set from the hidden argument at
+    // entry, saved like any callee-saved register, never allocated.
+    result_register: bool
 }
 
 MachineOrigin :: struct {

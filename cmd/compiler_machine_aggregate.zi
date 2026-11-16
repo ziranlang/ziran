@@ -61,6 +61,10 @@ MachineAggregatePlan :: struct {
     view_at: Vec(s64)
     built_in_place: Vec(bool)
     covered: Vec(bool)
+    // Whether the aggregate the function returns is built in the caller's
+    // result memory (see Place): its class and every class placed in it have
+    // place_root MachineAggregateInResult.
+    result_placed: bool
     // Work spent by the last build.
     work: s64
     // Scratch, reused across functions. Per representative, for placement:
@@ -109,6 +113,16 @@ MachineAggregatePlan :: struct {
     chain_next: Vec(s32)
 }
 
+// The place_root of a class built in the caller's result memory, and the
+// class_into of the one class that is.
+MachineAggregateInResult :: -2
+
+// The smallest returned aggregate built in the caller's result memory: the
+// function then saves, sets and restores the result register (three
+// instructions), which the copy it saves must outweigh. Copies of less than
+// 16 bytes are one or two 8-byte moves through the scratch register.
+MachineAggregateResultBytes :: 16
+
 // Read and changed views have no storage of their own; a put-back value is
 // stored in its root like any other.
 MachineAggregateViewed :: (view: MachineAggregateView) -> bool { return view == .Read || view == .Changed }
@@ -126,6 +140,7 @@ Context :: struct {
     program: LirProgram
     stack_size: []s64
     sizes: []s64
+    results: bool
     place_left: s64
     budget: s64
     bytes: s64
@@ -778,6 +793,7 @@ Split :: (context: *Context) -> bool {
 // before it stops placing; placement only saves copies, so declining is sound.
 PlaceWork :: 64
 
+
 // The offset of member MEMBER in a value of LIR type TYPE, or -1. Records are
 // packed in declaration order, as the encoders lay them out.
 MemberAt :: (context: *Context, type: s32, member: s64) -> s64 {
@@ -873,7 +889,11 @@ Classes :: (context: *Context) -> bool {
 // Places the class of VALUE, used only by the instruction at ITEM of BLOCK as
 // the member at OFFSET of the value in class PARENT, inside PARENT's storage
 // when nothing between its first definition and ITEM touches that storage.
-// Reports whether it did; a scan past the work budget declines.
+// The scan covers results and operands of the instructions before ITEM, all
+// that can name the parent's values: the parent is a stack-class value whose
+// address nothing takes, and edge arguments (the only source of the machine
+// edge copies) belong to the block's terminator, after every ITEM. Reports
+// whether it did; a scan past the work budget declines.
 TryPlace :: (context: *Context, block: s32, item: s32, value: s32, offset: s64, parent: s32) -> bool {
     plan := context.plan
     class := plan.slot[value]
@@ -931,15 +951,20 @@ Flatten :: (context: *Context) -> bool {
         root := value
         at: s64 = 0
         steps: s32 = 0
-        while plan.class_into[root] != MachineNoId && steps <= count {
+        while plan.class_into[root] >= 0 && steps <= count {
             at += plan.class_at[root]
             root = plan.class_into[root]
             steps += 1
         }
         if !Spend(context, cast(s64)steps + 1) { return false }
-        if plan.class_into[root] != MachineNoId { continue }
-        plan.place_root[value] = root
-        plan.place_at[value] = at
+        if plan.class_into[root] >= 0 { continue }
+        if plan.class_into[root] == MachineAggregateInResult {
+            plan.place_root[value] = MachineAggregateInResult
+            plan.place_at[value] = at + plan.class_at[root]
+        } else {
+            plan.place_root[value] = root
+            plan.place_at[value] = at
+        }
     }
     return true
 }
@@ -997,7 +1022,46 @@ Place :: (context: *Context) -> bool {
             }
         }
     }
+    if context.results && !ChooseResult(context) { return false }
     return Flatten(context)
+}
+
+// Builds the aggregate the function returns where the caller wants it, when
+// every return gives the same class: the hidden result address belongs to
+// the callee alone while it runs, so the class's frame object can be that
+// memory and the return has nothing to copy, as long as the record is big
+// enough for that to pay (MachineAggregateResultBytes). The class must have an object of
+// its own (a split record or a view has none), must not be a function
+// parameter (its incoming object is the caller's argument), and must not
+// already lie inside another class. Two classes returned on different paths
+// keep their copies, as does anything unusual about a return.
+ChooseResult :: (context: *Context) -> bool {
+    plan := context.plan
+    function := context.function
+    result_type := function.result
+    if result_type < 0 || result_type >= context.program.types.count ||
+        context.stack_size[result_type] < MachineAggregateResultBytes { return true }
+    chosen: s32 = MachineNoId
+    for block: function.blocks {
+        if !Spend(context, block.instructions.count + 1) { return false }
+        for instruction: block.instructions {
+            if instruction.op != .Return { continue }
+            if instruction.operands.count != 1 || !Aggregate(context, instruction.operands[0]) { return true }
+            value := instruction.operands[0]
+            if TypeOf(context, value) != result_type || plan.split[value] ||
+                (plan.view[value] != .None && plan.view[value] != .PutBack) { return true }
+            class := plan.slot[value]
+            if chosen != MachineNoId && chosen != class { return true }
+            chosen = class
+        }
+    }
+    // The returned value itself is neither split nor a view (checked above),
+    // so its class takes a frame object of its own.
+    if chosen == MachineNoId || plan.class_fixed[chosen] || plan.class_into[chosen] != MachineNoId { return true }
+    plan.class_into[chosen] = MachineAggregateInResult
+    plan.class_at[chosen] = 0
+    plan.result_placed = true
+    return true
 }
 
 // Marks the aggregate builds whose members are all replaced, one constant
@@ -1036,13 +1100,15 @@ Cover :: (context: *Context) -> bool {
 
 // Plans FUNCTION of PROGRAM into PLAN. STACK_SIZE gives the size of each
 // stack-class type and -1 for the others, SIZES that of every type; VIEWS also
-// plans views and placement. BUDGET bounds the work, recorded in plan.work,
+// plans views and placement, RESULTS also lets the returned aggregate be built
+// in the caller's result memory. BUDGET bounds the work, recorded in plan.work,
 // and BYTES the element capacity of each scratch vector.
 MachineAggregatePlanBuild :: (plan: *MachineAggregatePlan, program: LirProgram, function: LirFunction,
-    stack_size: []s64, sizes: []s64, views: bool, budget: s64, bytes: s64) -> MachineProblem {
+    stack_size: []s64, sizes: []s64, views: bool, results: bool, budget: s64, bytes: s64) -> MachineProblem {
     plan.work = 0
+    plan.result_placed = false
     context := Context.{plan = plan, function = function, program = program, stack_size = stack_size,
-        sizes = sizes, budget = budget, bytes = bytes, problem = .None}
+        sizes = sizes, results = results, budget = budget, bytes = bytes, problem = .None}
     count := function.values.count
     context.place_left = cast(s64)count * PlaceWork + 4096
     if !VecResizeBounded(plan.slot, count, bytes) || !VecResizeBounded(plan.view, count, bytes) ||

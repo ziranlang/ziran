@@ -389,8 +389,28 @@ Count :: (state: *State, count: s32) -> bool {
     return true
 }
 
+// Whether OBJECT lies in the caller's result memory, which this function's
+// result register points to.
+InResultMemory :: (state: *State, object: MachineStackObject) -> bool {
+    if object.placed_in == 0 { return false }
+    function := state.program.functions[state.function]
+    parent_at := cast(s64)function.stack_begin + cast(s64)object.placed_in - 1
+    return parent_at >= cast(s64)function.stack_begin &&
+        parent_at < cast(s64)function.stack_begin + cast(s64)function.stack_count &&
+        state.program.stack_objects[parent_at].kind == .ResultAddress
+}
+
 StackMemory :: (state: *State, object_id: s32, operand: s32) -> X86Operand {
     object := state.program.stack_objects[object_id]
+    if InResultMemory(state, object) {
+        register := MachineAbiResultPointerRegister(state.program.target)
+        if !state.program.functions[state.function].result_register || register < 0 ||
+            !X86Fits32(object.placed_at) || !X86Fits32(object.placed_at + object.size) {
+            unused Fail(state, .Frame, operand)
+            return X86At(X86Rbp, 0)
+        }
+        return X86At(register, object.placed_at)
+    }
     if !X86Fits32(object.offset) || !X86Fits32(object.offset + object.size) {
         unused Fail(state, .Frame, operand)
         return X86At(X86Rbp, 0)
@@ -1884,7 +1904,11 @@ Return :: (state: *State) -> bool {
                 return Fail(state, .Frame, OperandId(state, 0))
             }
             X86Load(*state.writer, X86Rax, StackMemory(state, address, OperandId(state, 0)), 8, false)
-            if state.diagnostic.problem != .None || !CopyMemory(state, X86At(X86Rax, 0),
+            if state.diagnostic.problem != .None { return false }
+            // A value built in the caller's result memory is already there.
+            if InResultMemory(state, state.program.stack_objects[operand.id]) {
+                if state.program.stack_objects[operand.id].placed_at != 0 { return Fail(state, .Frame, OperandId(state, 0)) }
+            } else if !CopyMemory(state, X86At(X86Rax, 0),
                 StackMemory(state, operand.id, OperandId(state, 0)), size) { return false }
         } else {
             if operand.class == .Float {
@@ -2378,6 +2402,11 @@ Prologue :: (state: *State) -> bool {
         if object.kind != .ResultAddress { continue }
         result_addresses += 1
         X86Store(*state.writer, StackMemory(state, object_id, MachineNoId), X86Rax, 8)
+    }
+    if function.result_register {
+        register := MachineAbiResultPointerRegister(state.program.target)
+        if result_addresses != 1 || register < 0 { return Fail(state, .Frame) }
+        X86Move(*state.writer, register, X86Rax)
     }
     result_class := MachineRegisterClass.Invalid
     if function.result_type >= 0 && function.result_type < state.program.types.count &&

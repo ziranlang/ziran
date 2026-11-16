@@ -422,24 +422,37 @@ CreateVirtuals :: (state: *LowerState, function_id: s32) -> bool {
         if owner == MachineNoId { continue }
         state.owner.virtuals[virtual_id].stack_object = state.owner.virtuals[function.virtual_begin + owner].stack_object
     }
+    // An aggregate result comes back through a hidden address the caller
+    // passes; the object holding it is made first so a class built in the
+    // caller's memory can name it.
+    result_stack: s32 = MachineNoId
+    if source.result != MachineNoId && state.owner.types[source.result].class == .Stack &&
+        state.lir.types[source.result].kind != .Void {
+        result_stack = AddStack(state, .{function = function_id, kind = .ResultAddress, size = 8,
+            alignment = 8, type = 0, origin = Origin(state, source.origin),
+            value = MachineNoId})
+        if result_stack == MachineNoId { return false }
+    }
     // A class built inside another's object lies inside it, taking no frame
-    // space of its own.
+    // space of its own; the returned class may lie in the result memory.
     for value_id: cast(s64)0..source.values.count - 1 {
         if plan.slot[value_id] != cast(s32)value_id || plan.place_root[value_id] == MachineNoId { continue }
         child := state.owner.virtuals[function.virtual_begin + cast(s32)value_id].stack_object
-        parent := state.owner.virtuals[function.virtual_begin + plan.place_root[value_id]].stack_object
+        parent := result_stack
+        if plan.place_root[value_id] != MachineAggregateInResult {
+            parent = state.owner.virtuals[function.virtual_begin + plan.place_root[value_id]].stack_object
+        }
         if child == MachineNoId || parent == MachineNoId { continue }
         object := state.owner.stack_objects[child]
         object.placed_in = parent - function.stack_begin + 1
         object.placed_at = plan.place_at[value_id]
+        // Records are packed, so a member can start at an offset that is not
+        // a multiple of its own alignment (a float64 after a byte); the object
+        // keeps only the alignment that offset has. Every offset the planner
+        // gives is a MemberAt layout offset, so this matches the unplaced
+        // member read out of the parent.
         while object.alignment > 1 && object.placed_at % cast(s64)object.alignment != 0 { object.alignment = object.alignment / 2 }
         state.owner.stack_objects[child] = object
-    }
-    if source.result != MachineNoId && state.owner.types[source.result].class == .Stack &&
-        state.lir.types[source.result].kind != .Void {
-        if AddStack(state, .{function = function_id, kind = .ResultAddress, size = 8,
-            alignment = 8, type = 0, origin = Origin(state, source.origin),
-            value = MachineNoId}) == MachineNoId { return false }
     }
     integer_ordinal: s32
     float_ordinal: s32
@@ -1655,7 +1668,9 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     // Views read and change members in place through x86-64 address
     // registers; other targets share storage only.
     problem := MachineAggregatePlanBuild(*state.aggregates.plan, state.lir, source, state.aggregates.stack_size[:],
-        state.aggregates.size[:], state.target.arch == .X86_64, state.remaining, state.limits.bytes)
+        state.aggregates.size[:], state.target.arch == .X86_64,
+        state.target.arch == .X86_64 && MachineAbiResultPointerRegister(state.target) >= 0,
+        state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.aggregates.plan.work) { return false }
     if !VecResizeBounded(state.aggregates.alias, source.values.count, state.limits.bytes) { return Fail(state, .Allocation) }
@@ -1673,6 +1688,7 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     if !Spend(state, state.fields.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
     function.fuel_register = state.options.fuel && MachineAbiFuelRegister(state.target) >= 0 && Loops(source)
+    function.result_register = state.aggregates.plan.result_placed
     if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) ||
         !FoldZeroElements(state, *function, source) || !DropCovered(state, source) ||
         !ForwardExtracts(state, *function, source) { return false }

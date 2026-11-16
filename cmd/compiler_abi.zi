@@ -223,6 +223,14 @@ MachineAbiFuelRegister :: (target: TargetDescription) -> s32 {
     return cast(s32)X64Register.R15
 }
 
+// The callee-saved register a function that builds its returned aggregate
+// where the caller wants it keeps that address in for its whole body, or -1
+// where results are always copied. Allocation never gives it to a value.
+MachineAbiResultPointerRegister :: (target: TargetDescription) -> s32 {
+    if target.arch != .X86_64 || !TargetMachineLoweringSupported(target) { return -1 }
+    return cast(s32)X64Register.R14
+}
+
 // The address scratch of dynamic aggregate and element addressing.
 MachineAbiAddressScratchRegister :: (target: TargetDescription) -> s32 {
     if !TargetMachineLoweringSupported(target) { return -1 }

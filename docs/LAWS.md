@@ -145,17 +145,19 @@ authorize a proof. Canonical checking rejects divergent saved fields. The
 bundle loader also compares its outer evidence and waiver tables against
 the checked embedded IR. Earlier artifact versions are rejected.
 
-Trust changes how much input validation a boundary needs; it never changes
-memory safety. Checked-pointer slot, version, lifetime, extent, and
-writability rules apply at every tier. A compiler may omit a runtime check
-only when a verifier-visible fact proves every one of those obligations.
-Anything unknown keeps the check.
+Ziran is not a memory-safe language: memory safety is manual, as in C. A
+build without `--checks` carries no defensive runtime check, and `#checks`
+keeps them only where it is written (see the usage guide). Trust changes how
+much input validation a boundary needs. In a `--checks` build the
+checked-pointer slot, version, lifetime, extent, and writability rules apply
+at every tier, and a compiler may omit one of those checks only when a
+verifier-visible fact proves every obligation; anything unknown keeps it.
 
 | Tier | Boundary rule |
 | --- | --- |
 | 0, compiler-proved | Internal IR may consume a proved fact only after its verifier accepts the complete obligation. A backend optimization is not evidence by itself. |
 | 1, process-controlled | Environment and argv values are copied into bounded caller storage and parsed through `EnvironmentFailure` or `ArgumentFailure`. Missing, empty, oversized, malformed, and out-of-range input are distinct results; compatibility readers do not authorize compiler decisions. |
-| 2, semi-trusted local | Self-built `.zx`, local files, and caches are still editable. Loaders check framing, structure, identity, size, and digest before reuse. A cache hit may skip only hash-proven redundant compilation, never verification or a memory-safety check. Any cache refusal is named, removed, and recompiled. |
+| 2, semi-trusted local | Self-built `.zx`, local files, and caches are still editable. Loaders check framing, structure, identity, size, and digest before reuse. A cache hit may skip only hash-proven redundant compilation, never verification or a check the build asked for. Any cache refusal is named, removed, and recompiled. |
 | 3, untrusted | Downloaded or host-supplied bytes are capped before allocation, checked for valid framing and identity, decoded, and reverified. No short read, malformed field, invalid URL, host error, or oversized body becomes zero, empty text, truncated success, or another fallback value. |
 
 ## Boundary diagnostic inventory

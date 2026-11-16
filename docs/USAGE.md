@@ -438,8 +438,8 @@ copied out once. A local array passed by value to a Ziran procedure, as in
 `Sum(values)`, is copied once, by the procedure as it starts; the caller
 copies it first only when a later argument could change it.
 
-Indexing stays checked in every build, but generated C leaves out a check
-it can prove always passes: a loop counter its condition bounds, such as `i` in
+With `--checks` or `#checks` (see [Checks](#checks)) generated C leaves out
+an index check it can prove always passes: a loop counter its condition bounds, such as `i` in
 `for i: 0..7` over a `[8]T` array or in `for i: 0..view.count-1` over a
 slice or string nothing reassigns, and values bounded by their type or by
 `&`, `%`, `>>` or `<<` by a constant, such as `table[x & 255]`,
@@ -1283,6 +1283,43 @@ A declaration in an inner block or a `for` body may reuse an outer name. Its
 initializer still reads the outer binding, so `x := x + 5` adds to the outer
 `x`, and `for i: 0..7 { i := i * 10 }` keeps counting with the loop's own
 `i`. Two bindings of one name in the same block are rejected.
+
+## Checks
+
+Ziran is manually safe, like C. A build carries no defensive runtime check:
+a pointer is its address, indexes and slice ranges are raw, and reading past
+an array reads whatever is there. Results of correct programs are the same
+either way; divide by zero, shift counts, float conversion and `unreachable`
+keep their defined traps.
+
+Checks are opt-in at every level:
+
+```zi
+ziran build --checks app.zi      // the whole build
+
+#checks                          // at the top of a module: all of it
+Parse :: (bytes: []u8) -> s64 { return cast(s64)bytes[0] }
+
+Sum :: (values: []s64, i: s64) -> s64 {
+    total: s64 = 0
+    #checks {                    // a block
+        total = values[i] + values[i + 1]
+    }
+    #checks last := values[i]    // a statement
+    return total + last + #checks values[i - 1]   // one access
+}
+```
+
+`--checks` (on `ziran build`, `run` and `bundle`, and on `zi2zx`,
+`zi2c` and `zi2go`) checks everything: native code and Wasm use checked
+pointer tokens, so a dangling local, a use after `free`, a double `free`, a
+store through read-only bytes and an index out of range trap with a named
+diagnostic, and generated C and Go abort with one. The `.zx` header records a
+`--checks` build. `#checks` keeps the bounds checks of the index and slice
+accesses it covers in a build without `--checks`; pointer lifetime checks
+need the whole build, because they change what a pointer is. The portable
+instruction engine always checks. Go's own bounds checks stay unless its
+build uses `-gcflags=-B`.
 
 ## Integer literals
 

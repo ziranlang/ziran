@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Compiler and standard library guide: the Ziran guide, rendered from docs/USAGE.md."><title>Compiler and standard library guide · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/usage"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Compiler and standard library guide</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/USAGE.md">docs/USAGE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-c-and-go-binaries">Generate C and Go binaries</a><a href="#save-and-inspect-zir-modules">Save and inspect ZIR modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#shadowing">Shadowing</a><a href="#integer-literals">Integer literals</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-c-and-go-binaries">Generate C and Go binaries</a><a href="#save-and-inspect-zir-modules">Save and inspect ZIR modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#shadowing">Shadowing</a><a href="#checks">Checks</a><a href="#integer-literals">Integer literals</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
 <section class="prose"><p><a href="https://github.com/ziranlang/ziran/blob/master/README.md">Back to the README</a> · <a href="implementation-status.html">Implementation status</a></p>
 <h2 id="assembly-with-a-portable-body">Assembly with a portable body</h2>
 <p>An ordinary procedure can supply architecture-specific assembly and a required
@@ -387,8 +387,8 @@ destination on, and <code>return out</code>, <code>return holder.values</code> o
 copied out once. A local array passed by value to a Ziran procedure, as in
 <code>Sum(values)</code>, is copied once, by the procedure as it starts; the caller
 copies it first only when a later argument could change it.</p>
-<p>Indexing stays checked in every build, but generated C leaves out a check
-it can prove always passes: a loop counter its condition bounds, such as <code>i</code> in
+<p>With <code>--checks</code> or <code>#checks</code> (see <a href="#checks">Checks</a>) generated C leaves out
+an index check it can prove always passes: a loop counter its condition bounds, such as <code>i</code> in
 <code>for i: 0..7</code> over a <code>[8]T</code> array or in <code>for i: 0..view.count-1</code> over a
 slice or string nothing reassigns, and values bounded by their type or by
 <code>&amp;</code>, <code>%</code>, <code>&gt;&gt;</code> or <code>&lt;&lt;</code> by a constant, such as <code>table[x &amp; 255]</code>,
@@ -1078,6 +1078,37 @@ Label :: (owner: *Owner) -&gt; string { return owner.label }  // view stored in 
 initializer still reads the outer binding, so <code>x := x + 5</code> adds to the outer
 <code>x</code>, and <code>for i: 0..7 { i := i * 10 }</code> keeps counting with the loop's own
 <code>i</code>. Two bindings of one name in the same block are rejected.</p>
+<h2 id="checks">Checks</h2>
+<p>Ziran is manually safe, like C. A build carries no defensive runtime check:
+a pointer is its address, indexes and slice ranges are raw, and reading past
+an array reads whatever is there. Results of correct programs are the same
+either way; divide by zero, shift counts, float conversion and <code>unreachable</code>
+keep their defined traps.</p>
+<p>Checks are opt-in at every level:</p>
+<pre><code class="language-zi">ziran build --checks app.zi      // the whole build
+
+#checks                          // at the top of a module: all of it
+Parse :: (bytes: []u8) -&gt; s64 { return cast(s64)bytes[0] }
+
+Sum :: (values: []s64, i: s64) -&gt; s64 {
+    total: s64 = 0
+    #checks {                    // a block
+        total = values[i] + values[i + 1]
+    }
+    #checks last := values[i]    // a statement
+    return total + last + #checks values[i - 1]   // one access
+}
+</code></pre>
+<p><code>--checks</code> (on <code>ziran build</code>, <code>run</code> and <code>bundle</code>, and on <code>zi2zx</code>,
+<code>zi2c</code> and <code>zi2go</code>) checks everything: native code and Wasm use checked
+pointer tokens, so a dangling local, a use after <code>free</code>, a double <code>free</code>, a
+store through read-only bytes and an index out of range trap with a named
+diagnostic, and generated C and Go abort with one. The <code>.zx</code> header records a
+<code>--checks</code> build. <code>#checks</code> keeps the bounds checks of the index and slice
+accesses it covers in a build without <code>--checks</code>; pointer lifetime checks
+need the whole build, because they change what a pointer is. The portable
+instruction engine always checks. Go's own bounds checks stay unless its
+build uses <code>-gcflags=-B</code>.</p>
 <h2 id="integer-literals">Integer literals</h2>
 <p>Integer literals are decimal, <code>0x</code> hex or <code>0b</code> binary, with <code>_</code> between
 digits: <code>1_000_000</code>, <code>0xDEAD_BEEF</code>, <code>0b1010_0101</code>. A <code>u64</code> literal may use the

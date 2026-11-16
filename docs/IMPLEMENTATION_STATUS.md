@@ -463,7 +463,13 @@ removed redundant scripts; those fixtures remain in Git history. Run
   initializers, and the C and Go emitters; C header constants are written in
   decimal. `tests/integer_literal_spellings.sh` checks C, Go, native and
   portable results.
-  Generated C drops the bounds check on an array, slice or string index it
+  Manual safety is the default: native x86-64 and AArch64, Wasm, generated
+  C and Ziran's Go checks carry no defensive check unless the build uses
+  `--checks` or the code `#checks` (module, block, statement or one access;
+  `tests/checks_granularity_cases.zi`). ARMv7 native code keeps checked
+  pointers until its encoder has the unchecked forms, and the portable
+  engine always checks.
+  With checks, generated C drops the bounds check on an array, slice or string index it
   proves in range from integer types, literals, `&`, `|`, `^`, `%`, `/`,
   `>>`, `<<` by a constant, `+`, `-` and `*`, and from loop conditions. A local's range follows
   its initializer through any chain of locals, such as `line := row * 16`

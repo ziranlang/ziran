@@ -22,10 +22,14 @@ bundle as native code compiled from its verified instructions; in a browser
 it runs on the Wasm tier and on other CPUs on the portable instruction engine.
 The platform makes that choice, never the bundle: a bundle native code cannot
 run fails before it starts with a named gap. `--backend engine` picks the
-engine explicitly. Native code checks every pointer as the engine does: a read through a pointer into a returned frame, a use after `free`, a
-second `free` and a store through read-only bytes all trap, and each run of
-`allocate` gets fresh zeroed storage that lasts until its frame returns. A
-native trap is reported once. Nothing ever falls back to, or retries on, the
+engine explicitly. Native code follows manual safety like C: a pointer is its
+address and indexes are raw, and each run of `allocate` gets fresh zeroed
+storage that lasts until its frame returns. A bundle built with `--checks`
+(header flag 1 of its instructions) checks every pointer as the engine does:
+a read through a pointer into a returned frame, a use after `free`, a second
+`free`, a store through read-only bytes and an index out of range all trap.
+`#checks` marks single instructions to keep their bounds check in a bundle
+built without it. The engine always checks. A native trap is reported once. Nothing ever falls back to, or retries on, the
 engine. `zi2zx --debug` also writes
 the program's source origins to the optional debug attachment, so native trap
 diagnostics and `zx2native --emit map` name source lines.

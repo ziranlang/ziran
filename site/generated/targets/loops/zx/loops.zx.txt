@@ -53,8 +53,8 @@ constant c29:t4 = 0x0000000000000000 bytes=
 constant c30:t5 = 0x0000000000000001 bytes=
 constant c31:t4 = 0x0000000000000001 bytes=
 constant c32:t3 = 0x0000000000000001 bytes=
-constant c33:t3 = 0x0000000000000001 bytes=
-constant c34:t5 = 0x0000000000000006 bytes=
+constant c33:t5 = 0x0000000000000006 bytes=
+constant c34:t3 = 0x0000000000000001 bytes=
 constant c35:t5 = 0x0000000000000006 bytes=
 constant c36:t5 = 0x0000000000000007 bytes=
 constant c37:t5 = 0x0000000000000004 bytes=
@@ -76,7 +76,7 @@ function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variad
     i1 v2:t4 = constant symbol=0 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v3:t4 = convert v1 immediate=0 alignment=0 effect=0 origin=o-1
     i3 v4:t1 = less.equal v3 v2 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 branch v4 immediate=0 alignment=0 -> b13() -> b2() effect=0 origin=o-1
+    i4 branch v4 immediate=0 alignment=0 -> b10() -> b2() effect=0 origin=o-1
   b2():
     i0 v15:t4 = constant symbol=5 immediate=0 alignment=0 effect=0 origin=o-1
     i1 jump immediate=0 alignment=0 -> b3() effect=0 origin=o-1
@@ -84,7 +84,7 @@ function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variad
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v16:t4 = constant symbol=6 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v17:t1 = less.equal v15 v16 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 branch v17 immediate=0 alignment=0 -> b14(v15) -> b4() effect=0 origin=o-1
+    i3 branch v17 immediate=0 alignment=0 -> b11(v15) -> b4() effect=0 origin=o-1
   b4():
     i0 v27:t6 = null immediate=0 alignment=0 effect=0 origin=o-1
     i1 v28:t4 = constant symbol=11 immediate=0 alignment=0 effect=0 origin=o-1
@@ -111,7 +111,7 @@ function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variad
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v47:t4 = constant symbol=17 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v48:t1 = less v28 v47 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 branch v48 immediate=0 alignment=0 -> b15(v28) -> b6() effect=0 origin=o-1
+    i3 branch v48 immediate=0 alignment=0 -> b12(v28) -> b6() effect=0 origin=o-1
   b6():
     i0 v62:t4 = constant symbol=22 immediate=0 alignment=0 effect=0 origin=o-1
     i1 jump immediate=0 alignment=0 -> b7(v62) effect=0 origin=o-1
@@ -119,39 +119,33 @@ function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variad
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v64:t4 = constant symbol=23 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v65:t1 = less.equal v63 v64 immediate=0 alignment=0 effect=0 origin=o-1
-    i3 branch v65 immediate=0 alignment=0 -> b8() -> b12() effect=0 origin=o-1
+    i3 branch v65 immediate=0 alignment=0 -> b8() -> b15() effect=0 origin=o-1
   b8():
     i0 v66:t4 = constant symbol=24 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v67:t4 = remainder v63 v66 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v68:t4 = constant symbol=25 immediate=0 alignment=0 effect=0 origin=o-1
     i3 v69:t1 = equal v67 v68 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 branch v69 immediate=0 alignment=0 -> b16() -> b9() effect=0 origin=o-1
+    i4 branch v69 immediate=0 alignment=0 -> b9() -> b13() effect=0 origin=o-1
   b9():
-    i0 jump immediate=0 alignment=0 -> b10() effect=0 origin=o-1
+    i0 v70:t4 = constant symbol=26 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v71:t4 = add v63 v70 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 jump immediate=0 alignment=0 -> b7(v71) effect=0 origin=o-1
   b10():
-    i0 v72:t4 = constant symbol=27 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v73:t1 = greater v63 v72 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 branch v73 immediate=0 alignment=0 -> b11() -> b17() effect=0 origin=o-1
-  b11():
-    i0 jump immediate=0 alignment=0 -> b12() effect=0 origin=o-1
-  b12():
-    i0 return immediate=0 alignment=0 effect=0 origin=o-1
-  b13():
     i0 v5:t9 = global.address symbol=0 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v6:t4 = constant symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v7:t6 = element.address v5 v6 immediate=0 alignment=0 effect=0 origin=o-1
     i3 v8:t5 = constant symbol=3 immediate=0 alignment=0 effect=0 origin=o-1
-    i4 v9:t5 = constant symbol=34 immediate=0 alignment=0 effect=0 origin=o-1
+    i4 v9:t5 = constant symbol=33 immediate=0 alignment=0 effect=0 origin=o-1
     i5 host.call v8 v7 v9 symbol=1 immediate=0 alignment=0 effect=1 origin=o-1
     i6 v10:t4 = convert v1 immediate=0 alignment=0 effect=0 origin=o-1
     i7 host.call v10 symbol=2 immediate=0 alignment=0 effect=2 origin=o-1
     i8 v11:t11 = global.address symbol=1 immediate=0 alignment=0 effect=0 origin=o-1
     i9 v12:t6 = element.address v11 v6 immediate=0 alignment=0 effect=0 origin=o-1
     i10 host.call v8 v12 v8 symbol=1 immediate=0 alignment=0 effect=3 origin=o-1
-    i11 v13:t3 = constant symbol=33 immediate=0 alignment=0 effect=0 origin=o-1
+    i11 v13:t3 = constant symbol=34 immediate=0 alignment=0 effect=0 origin=o-1
     i12 v14:t3 = add v1 v13 immediate=0 alignment=0 effect=0 origin=o-1
     i13 jump immediate=0 alignment=0 -> b1(v14) effect=0 origin=o-1
-  b14(v83:t4):
+  b11(v83:t4):
     i0 v18:t9 = global.address symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v19:t4 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v20:t6 = element.address v18 v19 immediate=0 alignment=0 effect=0 origin=o-1
@@ -167,8 +161,8 @@ function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variad
     i12 fuel immediate=1 alignment=0 effect=4 origin=o-1
     i13 v84:t4 = constant symbol=6 immediate=0 alignment=0 effect=0 origin=o-1
     i14 v85:t1 = less.equal v26 v84 immediate=0 alignment=0 effect=0 origin=o-1
-    i15 branch v85 immediate=0 alignment=0 -> b14(v26) -> b4() effect=0 origin=o-1
-  b15(v86:t4):
+    i15 branch v85 immediate=0 alignment=0 -> b11(v26) -> b4() effect=0 origin=o-1
+  b12(v86:t4):
     i0 v49:t7 = extract v46 v86 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v50:t5 = constant symbol=18 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v51:t6 = extract v49 immediate=0 alignment=0 effect=0 origin=o-1
@@ -189,14 +183,12 @@ function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variad
     i17 fuel immediate=1 alignment=0 effect=5 origin=o-1
     i18 v87:t4 = constant symbol=17 immediate=0 alignment=0 effect=0 origin=o-1
     i19 v88:t1 = less v61 v87 immediate=0 alignment=0 effect=0 origin=o-1
-    i20 branch v88 immediate=0 alignment=0 -> b15(v61) -> b6() effect=0 origin=o-1
-  b16():
-    i0 v70:t4 = constant symbol=26 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v71:t4 = add v63 v70 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 jump immediate=0 alignment=0 -> b7(v71) effect=0 origin=o-1
-  b17():
-    i0 jump immediate=0 alignment=0 -> b18() effect=0 origin=o-1
-  b18():
+    i20 branch v88 immediate=0 alignment=0 -> b12(v61) -> b6() effect=0 origin=o-1
+  b13():
+    i0 v72:t4 = constant symbol=27 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v73:t1 = greater v63 v72 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 branch v73 immediate=0 alignment=0 -> b15() -> b14() effect=0 origin=o-1
+  b14():
     i0 v74:t18 = global.address symbol=7 immediate=0 alignment=0 effect=0 origin=o-1
     i1 v75:t4 = constant symbol=29 immediate=0 alignment=0 effect=0 origin=o-1
     i2 v76:t6 = element.address v74 v75 immediate=0 alignment=0 effect=0 origin=o-1
@@ -210,5 +202,7 @@ function @0 module=m0 name="main" result=t0 entry=b0 calling=0 external=0 variad
     i10 host.call v77 v80 v77 symbol=1 immediate=0 alignment=0 effect=3 origin=o-1
     i11 v82:t4 = add v63 v81 immediate=0 alignment=0 effect=0 origin=o-1
     i12 jump immediate=0 alignment=0 -> b7(v82) effect=0 origin=o-1
+  b15():
+    i0 return immediate=0 alignment=0 effect=0 origin=o-1
 function @1 module=m1 name="ziran.platform.write_all" result=t0 entry=b-1 calling=3 external=1 variadic=0 origin=o-1 parameters=(t5,t6,t5) values=()
 function @2 module=m1 name="ziran.print.signed" result=t0 entry=b-1 calling=3 external=1 variadic=0 origin=o-1 parameters=(t4) values=()

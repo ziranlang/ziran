@@ -27,7 +27,28 @@ the host call, `calloc` and block list on every `New` and `free`.
      `shl $5; sub`.
    - `i % 287` with `i >= 0` takes the signed multiply-high and its sign
      fix-up; gcc's range analysis uses the unsigned form.
-2. **matmul** (3,982 / 10,937): not yet profiled.
+2. **matmul** (3,982 / 10,937). gcc's inner loop is six instructions:
+   `mov (%rsi,%rax,8),%rcx; imul %rdi,%rcx; add %rcx,(%rdx,%rax,8); add
+   $1,%rax; cmp %rax,%rbx; jg`. Native's loop:
+   - Spills four values it never uses inside the loop on every iteration
+     and closes through a block that reloads them (register allocation;
+     evidence sent to the native lane).
+   - Reloads `a[i*n+k]` each iteration: LICM keeps the load because its
+     memory effect follows the store to `c`, and nothing proves the
+     vectors' storage is disjoint. gcc hoists it to the `k` loop.
+   - Tests the end twice: the inclusive range desugars
+     (`cmd/zir/zir_cleanup.c` `range_advance`) to `if j == last break;
+     j += 1` under `while j <= last`, and rotation leaves both tests in the
+     latch. With `j <= last` on every entry and `j != last` known, the
+     second test is always true. This costs every inclusive `for` loop one
+     compare and branch per iteration. Drop it when lowering scalar machine
+     code (`compiler_machine_select.zi`), not in LIR: the vectorizer
+     (`compiler_vectorize.zi`) recognizes counted loops by that latch test,
+     and removing it in rotation stopped computed-bound loops vectorizing.
+     The fact to check: every edge into the body is the true edge of
+     `x <= last` passing x, the latch's one entry is the false edge of
+     `cursor == last`, and the latch tests `cursor + 1 <= last`.
+   - One step check per iteration.
 3. **spectral-norm** (10,539 / 24,374): `A(i, j)` and the transpose select
    are duplicated into two copies of the loop body that jump back into each
    other; no vectorization under step metering.

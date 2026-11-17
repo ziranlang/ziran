@@ -1,69 +1,292 @@
-// What an Ogg Vorbis stream held in memory declares, read from its pages
-// alone: nothing is decoded or allocated, so a program can bound a stream
-// before handing it to a decoder (std/vorbis_linux on Linux, or another
-// platform's). Portable: no foreign library.
-//
-//     audio: VorbisAudio
-//     if VorbisProbe(ogg_bytes, *audio) && audio.channels == 1 { ... }
+// Portable Ogg Vorbis inspection (Vorbis I). std/ogg's
+// OggReader checks the container (capture, CRC, one serial, page order,
+// BOS/EOS, lacing); this module checks the identification, comment and setup
+// headers and reads every audio packet's block size from the setup header's
+// mode table, so the exact duration, the zero-based timeline and the end trim
+// are known without a codec library. std/vorbis_linux decodes what it accepts.
+#import "std/audio_types"
+#import "std/vec"
+#import "std/ogg"
 
-// Interleaved CHANNELS at RATE, FRAMES long.
+// `frames` is the exact PCM frame count a decoder returns: the final granule
+// position, which trims the last packet(s). Bitrates are the header's hints,
+// 0 when unset.
 VorbisAudio :: struct {
     channels: s32
     rate: s32
     frames: s64
+    nominal_bitrate: s32
+    maximum_bitrate: s32
+    minimum_bitrate: s32
+    short_block: s32 // blocksize_0
+    long_block: s32  // blocksize_1
+    modes: s32
+    packets: s64     // audio packets
+    comments: s64    // user comments in the comment header
+    end_trim: s64    // decodable frames past the final granule position
 }
+// An owned copy of the comment header: the vendor string, then each user
+// comment ("FIELD=value", UTF-8 by the specification; not validated here).
+// Free it with VorbisCommentsFree (or let the vectors go out of scope).
+VorbisComments :: struct {
+    text: Vec(u8)   // vendor bytes, then each comment's bytes
+    vendor: s64     // vendor length
+    spans: Vec(s64) // start and length of each comment in text
+}
+// 24 hours at 48 kHz, as for Opus and MP3 incremental decoding.
+VorbisMaxStreamFrames :: 4147200000
 
 #scope_file
-Little :: (input: []u8, at: s64, count: s64) -> u64 {
-    value: u64 = 0
-    for index: cast(s64)0..count - 1 { value |= cast(u64)input[at + index] << cast(u64)(8 * index) }
+Ilog :: (value: s64) -> s64 {
+    bits: s64
+    while value > 0 { bits += 1; value = value >> 1 }
+    return bits
+}
+// Chained or multiplexed streams: a beginning-of-stream page after the
+// first. Pages are walked by their headers only; OggReader checks the rest.
+Chained :: (input: []u8) -> bool {
+    at: s64
+    while input.count - at >= 27 && Magic(input, at, "OggS") {
+        segments := cast(s64)input[at + 26]
+        if input.count - at - 27 < segments { return false }
+        size: s64
+        for i: cast(s64)0..segments - 1 { size += input[at + 27 + i] }
+        if at > 0 && (input[at + 5] & 2) != 0 { return true }
+        at += 27 + segments + size
+    }
+    return false
+}
+Identification :: (packet: []u8, info: *VorbisAudio) -> s32 {
+    if packet.count != 30 || packet[0] != 1 || !Magic(packet, 1, "vorbis") { return Malformed }
+    if Little(packet, 7, 4) != 0 { return Unsupported }
+    channels := cast(s64)packet[11]
+    rate := cast(s64)Little(packet, 12, 4)
+    short := cast(s64)(packet[28] & 15); long := cast(s64)(packet[28] >> 4)
+    if channels == 0 || rate == 0 || short < 6 || long > 13 || short > long || (packet[29] & 1) == 0 { return Malformed }
+    if rate > 2147483647 { return Unsupported }
+    info.channels = cast(s32)channels; info.rate = cast(s32)rate
+    info.short_block = cast(s32)(1 << short); info.long_block = cast(s32)(1 << long)
+    rates: [3]s32
+    for i: 0..2 {
+        value := cast(s64)Little(packet, 16 + i * 4, 4)
+        if value >= 2147483648 { value -= 4294967296 }
+        rates[i] = ifx value > 0 then cast(s32)value else 0
+    }
+    info.maximum_bitrate = rates[0]; info.nominal_bitrate = rates[1]; info.minimum_bitrate = rates[2]
+    return OK
+}
+// Vendor, user comments and the framing bit; COMMENTS may be null.
+CommentHeader :: (packet: []u8, comments: *VorbisComments, count: *s64) -> s32 {
+    if packet.count < 16 || packet[0] != 3 || !Magic(packet, 1, "vorbis") { return Malformed }
+    vendor := cast(s64)Little(packet, 7, 4)
+    if vendor > packet.count - 16 { return Malformed }
+    offset := 11 + vendor
+    total := cast(s64)Little(packet, offset, 4); offset += 4
+    if total > (packet.count - offset) / 4 { return Malformed }
+    copy: VorbisComments
+    if comments != null {
+        for i: cast(s64)11..offset - 5 { if !VecPush(copy.text, packet[i]) { return AllocationFailed } }
+        copy.vendor = vendor
+    }
+    index: s64
+    while index < total {
+        if packet.count - offset < 4 { return Malformed }
+        size := cast(s64)Little(packet, offset, 4); offset += 4
+        if size > packet.count - offset { return Malformed }
+        if comments != null {
+            if !VecPush(copy.spans, copy.text.count) || !VecPush(copy.spans, size) { return AllocationFailed }
+            for i: offset..offset + size - 1 { if !VecPush(copy.text, packet[i]) { return AllocationFailed } }
+        }
+        offset += size; index += 1
+    }
+    if offset >= packet.count || (packet[offset] & 1) == 0 { return Malformed }
+    if comments != null {
+        VecSwap(comments.text, copy.text); VecSwap(comments.spans, copy.spans)
+        comments.vendor = copy.vendor
+    }
+    <<count = total
+    return OK
+}
+// Bit INDEX counted backwards from the packet's last bit (Vorbis packs
+// fields least significant bit first), and a WIDTH-bit field read the same
+// way, which yields the field's value.
+BackBit :: (packet: []u8, index: s64) -> s64 {
+    position := packet.count * 8 - 1 - index
+    return (cast(s64)packet[position >> 3] >> (position & 7)) & 1
+}
+BackBits :: (packet: []u8, index: s64, width: s64) -> s64 {
+    value: s64
+    for i: cast(s64)0..width - 1 { value = (value << 1) | BackBit(packet, index + i) }
     return value
+}
+// The mode table closes the setup header, so it is read backwards from the
+// framing bit, as FFmpeg's and liboggz's parsers do: each mode is a block
+// flag, two zero 16-bit fields and an 8-bit mapping, and the largest count
+// whose preceding 6-bit field agrees is the table. Codebooks, floors and
+// residues are left to the decoder.
+SetupModes :: (packet: []u8, long_blocks: []bool, modes: *s32) -> s32 {
+    if packet.count < 8 || packet[0] != 5 || !Magic(packet, 1, "vorbis") { return Malformed }
+    limit := packet.count * 8 - 56
+    at: s64
+    while at < limit && BackBit(packet, at) == 0 { at += 1 }
+    if at >= limit { return Malformed }
+    at += 1
+    start := at
+    count: s64; found: s64
+    while limit - at >= 47 && count < 64 {
+        if BackBits(packet, at, 8) > 63 || BackBits(packet, at + 8, 16) != 0 || BackBits(packet, at + 24, 16) != 0 { break }
+        at += 41; count += 1
+        if BackBits(packet, at, 6) + 1 == count { found = count }
+    }
+    if found == 0 { return Malformed }
+    for i: cast(s64)0..found - 1 { long_blocks[i] = BackBit(packet, start + (found - 1 - i) * 41 + 40) == 1 }
+    <<modes = cast(s32)found
+    return OK
+}
+// Validates the whole stream into INFO (and COMMENTS when not null).
+Walk :: (input: []u8, info: *VorbisAudio, comments: *VorbisComments) -> s32 {
+    if input.count > MaxBytes { return LimitExceeded }
+    if !VorbisRecognizes(input) { return Malformed }
+    if Chained(input) { return Unsupported }
+    reader := OggReader.{.input = input}
+    metadata: VorbisAudio
+    long_blocks: [64]bool
+    mode_bits: s64; mode_mask: s64
+    index: s64
+    previous: s64 // the previous audio packet's block size; 0 before the first
+    total: s64
+    granule: s64
+    while !reader.done {
+        code := NextPacket(*reader)
+        if code != OK { return code }
+        if reader.done { break }
+        packet := reader.packet[0:reader.packet_count]
+        if index == 0 {
+            code = Identification(packet, *metadata)
+            if code == OK && (!reader.page_last || reader.flags != 2 || reader.granule != 0) { code = Malformed }
+        } else if index == 1 {
+            code = CommentHeader(packet, comments, *metadata.comments)
+            if code == OK && reader.granule != 0 { code = Malformed }
+        } else if index == 2 {
+            code = SetupModes(packet, long_blocks[:], *metadata.modes)
+            // The first audio packet begins a new page.
+            if code == OK && (!reader.page_last || reader.granule != 0) { code = Malformed }
+            mode_bits = Ilog(metadata.modes - 1); mode_mask = (1 << mode_bits) - 1
+        } else {
+            if packet.count == 0 || (packet[0] & 1) != 0 { return Malformed }
+            mode := (cast(s64)packet[0] >> 1) & mode_mask
+            if mode >= metadata.modes { return Malformed }
+            size := cast(s64)(ifx long_blocks[mode] then metadata.long_block else metadata.short_block)
+            // A packet returns the frames between its window's center and
+            // the previous window's; the first returns none.
+            if previous != 0 { total += (previous + size) / 4 }
+            previous = size; metadata.packets += 1
+            if total > VorbisMaxStreamFrames { return LimitExceeded }
+            if reader.last_complete {
+                position := reader.granule
+                if (reader.flags & 4) == 0 {
+                    // A timeline not starting at zero, or a gap.
+                    if position != total { return Unsupported }
+                } else if position < granule || position > total { return Malformed }
+                granule = position
+            }
+        }
+        if code != OK { return code }
+        index += 1
+    }
+    if index < 4 || granule <= 0 { return Malformed }
+    metadata.frames = granule; metadata.end_trim = total - granule
+    <<info = metadata
+    return OK
+}
+Lower :: (byte: u8) -> u8 { return ifx byte >= 65 && byte <= 90 then byte + 32 else byte }
+// One labelled line with control bytes shown as '?', so a comment cannot
+// break the line-based output.
+PrintText :: (label: string, text: string) {
+    line: Vec(u8)
+    for i: cast(s64)0..text.count - 1 { unused VecPush(line, ifx text[i] < 32 || text[i] == 127 then cast(u8)63 else text[i]) }
+    print("%", label)
+    print("%\n", TextView(VecSlice(line, 0, line.count)))
 }
 
 #scope_export
-// Whether INPUT is exactly one Ogg Vorbis stream: whole pages of a single
-// logical stream and nothing else, beginning with its first page, ending
-// with its last, and starting with a Vorbis identification header. AUDIO
-// then holds its channels, rate and length, the last page's granule
-// position (streams start at zero, as encoders write them). Page CRCs are
-// left to the decoder. AUDIO is zero when the answer is false.
-VorbisProbe :: (input: []u8, audio: *VorbisAudio) -> bool {
-    <<audio = VorbisAudio.{}
-    at: s64 = 0
-    serial: u64 = 0
-    granule: s64 = 0
-    channels: s32 = 0
-    rate: s64 = 0
-    while at < input.count {
-        if input.count - at < 27 { return false }
-        if input[at] != 79 || input[at + 1] != 103 || input[at + 2] != 103 || input[at + 3] != 83 { return false }
-        if input[at + 4] != 0 { return false }
-        flags := input[at + 5]
-        first := at == 0
-        page_serial := Little(input, at + 14, 4)
-        if first { serial = page_serial } else if page_serial != serial { return false }
-        if ((flags & 2) != 0) != first { return false }
-        segments := cast(s64)input[at + 26]
-        if input.count - at - 27 < segments { return false }
-        body := at + 27 + segments
-        size: s64 = 0
-        for segment: cast(s64)0..segments - 1 { size += cast(s64)input[at + 27 + segment] }
-        if input.count - body < size { return false }
-        if first {
-            // The identification header is the first page's only packet.
-            if segments != 1 || size != 30 { return false }
-            if input[body] != 1 || input[body + 1] != 118 || input[body + 2] != 111 || input[body + 3] != 114 ||
-            input[body + 4] != 98 || input[body + 5] != 105 || input[body + 6] != 115 { return false }
-            if Little(input, body + 7, 4) != 0 || (input[body + 29] & 1) == 0 { return false }
-            channels = cast(s32)input[body + 11]
-            rate = cast(s64)Little(input, body + 12, 4)
-            if channels < 1 || rate < 1 || rate > 2147483647 { return false }
-        }
-        granule = cast(s64)Little(input, at + 6, 8)
-        at = body + size
-        if ((flags & 4) != 0) != (at == input.count) { return false }
+// True when the first Ogg packet is a Vorbis identification header; Ogg
+// Opus and other Ogg codecs are not.
+VorbisRecognizes :: (input: []u8) -> bool {
+    if input.count < 28 || !Magic(input, 0, "OggS") { return false }
+    body := 27 + cast(s64)input[26]
+    return body < input.count && input[body] == 1 && Magic(input, body + 1, "vorbis")
+}
+// Validates every page and header of a single logical Ogg Vorbis stream
+// before any decoder sees it, clearing INFO on failure. Truncation, CRC
+// errors, bad headers, packets that are not audio, granule positions that
+// disagree with the packets' block sizes and non-Vorbis input are Malformed;
+// chained or multiplexed streams and a timeline not starting at zero are Unsupported.
+VorbisInspect :: (input: []u8, info: *VorbisAudio) -> s32 {
+    <<info = VorbisAudio.{}
+    return Walk(input, info, null)
+}
+// VorbisInspect that also copies the comment header into COMMENTS, which is
+// unchanged on failure.
+VorbisInspectComments :: (input: []u8, info: *VorbisAudio, comments: *VorbisComments) -> s32 {
+    <<info = VorbisAudio.{}
+    copy: VorbisComments
+    code := Walk(input, info, *copy)
+    if code == OK {
+        VecSwap(comments.text, copy.text); VecSwap(comments.spans, copy.spans)
+        comments.vendor = copy.vendor
     }
-    if at == 0 || granule <= 0 { return false }
-    <<audio = VorbisAudio.{.channels = channels, .rate = cast(s32)rate, .frames = granule}
-    return true
+    return code
+}
+VorbisCommentsFree :: (comments: *VorbisComments) {
+    VecFree(comments.text); VecFree(comments.spans); comments.vendor = 0
+}
+VorbisCommentCount :: (comments: *VorbisComments) -> s64 { return comments.spans.count / 2 }
+// The returned strings borrow COMMENTS until it is freed or refilled.
+VorbisVendor :: (comments: *VorbisComments) -> string {
+    return TextView(VecSlice(comments.text, 0, comments.vendor))
+}
+// Comment INDEX (0..VorbisCommentCount-1) as stored, "" when out of range.
+VorbisComment :: (comments: *VorbisComments, index: s64) -> string {
+    if index < 0 || index >= VorbisCommentCount(comments) { return "" }
+    start := comments.spans[index * 2]
+    return TextView(VecSlice(comments.text, start, start + comments.spans[index * 2 + 1]))
+}
+// The value of the first comment whose field name equals FIELD, ignoring
+// ASCII case (Vorbis field names are case-insensitive), or "".
+VorbisCommentValue :: (comments: *VorbisComments, field: string) -> string {
+    for index: cast(s64)0..VorbisCommentCount(comments) - 1 {
+        start := comments.spans[index * 2]; size := comments.spans[index * 2 + 1]
+        if size > field.count && comments.text[start + field.count] == 61 {
+            same := true
+            for i: cast(s64)0..field.count - 1 { if Lower(comments.text[start + i]) != Lower(field[i]) { same = false } }
+            if same { return TextView(VecSlice(comments.text, start + field.count + 1, start + size)) }
+        }
+    }
+    return ""
+}
+VorbisSeconds :: (info: *VorbisAudio) -> float64 {
+    if info.rate <= 0 { return 0.0 }
+    return cast(float64)info.frames / cast(float64)info.rate
+}
+// One summary line, shared by the CLI and the Windows decode check.
+VorbisPrintInfo :: (info: *VorbisAudio) {
+    if info.rate <= 0 { print("Vorbis: no stream\n"); return }
+    milliseconds := (info.frames * 1000 + info.rate / 2) / info.rate
+    fraction := milliseconds % 1000
+    print("Vorbis: % channels, % Hz, % frames, %.", info.channels, info.rate, info.frames, milliseconds / 1000)
+    if fraction < 100 { print("0") }
+    if fraction < 10 { print("0") }
+    print("% s, % bps nominal, blocks %/%, % modes, end trim %, % packets, % comments\n", fraction, info.nominal_bitrate, info.short_block, info.long_block, info.modes, info.end_trim, info.packets, info.comments)
+}
+// The vendor and each comment on its own line.
+VorbisPrintComments :: (comments: *VorbisComments) {
+    PrintText("Vorbis vendor: ", VorbisVendor(comments))
+    for index: cast(s64)0..VorbisCommentCount(comments) - 1 { PrintText("Vorbis comment: ", VorbisComment(comments, index)) }
+}
+
+// Full portable validation with the stream's channels, rate and exact length.
+// Metadata is cleared on failure; no native decoder is needed.
+VorbisProbe :: (input: []u8, audio: *VorbisAudio) -> bool {
+    return VorbisInspect(input, audio) == OK
 }

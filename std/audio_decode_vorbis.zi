@@ -1,0 +1,52 @@
+// Register the existing guarded libvorbisfile decoder with std/audio.
+Mixer :: #import "std/audio";
+Vorbis :: #import "std/vorbis_linux";
+OggVorbis :: #import "std/vorbis";
+#scope_file
+libc :: #system_library "c";
+Allocate :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+Free :: (value: *void) #foreign libc "free";
+
+State :: struct { decoder: Vorbis.VorbisDecoder; }
+
+// The first Ogg page holds the Vorbis identification header; opening
+// validates the whole stream.
+Probe :: (bytes: []u8) -> bool {
+    return OggVorbis.VorbisRecognizes(bytes)
+}
+
+Read :: (argument: *void, output: []float32, frames: s64) -> s64 {
+    state := cast(*State)argument
+    channels := cast(s64)state.decoder.info.channels
+    got: s64
+    if Vorbis.VorbisDecoderRead(*state.decoder, output[0:frames * channels], *got) != 0 { return -1 }
+    return got
+}
+
+Rewind :: (argument: *void) -> bool {
+    return Vorbis.VorbisDecoderSeek(*(cast(*State)argument).decoder, 0) == 0
+}
+
+Seek :: (argument: *void, frame: s64) -> bool {
+    return Vorbis.VorbisDecoderSeek(*(cast(*State)argument).decoder, frame) == 0
+}
+Close :: (argument: *void) {
+    state := cast(*State)argument
+    Vorbis.VorbisDecoderClose(*state.decoder)
+    Free(argument)
+}
+
+Open :: (bytes: []u8, source: *Mixer.AudioSource) -> bool {
+    state := cast(*State)Allocate(1, size_of(State))
+    if state == null { return false }
+    if Vorbis.VorbisDecoderOpen(*state.decoder, bytes, 4147200000) != 0 {
+        Free(cast(*void)state)
+        return false
+    }
+    info := state.decoder.info
+    source.* = .{.state = cast(*void)state, .read = Read, .rewind = Rewind, .close = Close, .seek = Seek,
+        .rate = info.rate, .channels = info.channels, .frames = info.frames}
+    return true
+}
+
+registered: bool = Mixer.AudioUseDecoder(Probe, Open);

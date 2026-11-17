@@ -862,6 +862,12 @@ check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-c
 zx-wasm-test: all
 	env -u DISPLAY -u WAYLAND_DISPLAY tests/zx_wasm.sh $(BIN_DIR)/ziran
 
+# Optional decoder for std/audio_mp3; no SDL or other UI dependency.
+.PHONY: audio-mp3
+audio-mp3:
+	cmake -S std/native -B $(BUILD_DIR)/audio/native -DCMAKE_C_COMPILER=$(CC)
+	cmake --build $(BUILD_DIR)/audio/native --target ziran_mp3
+
 # Native ZX on an Android device: ANDROID_ARCH is aarch64 or armv7.
 # android-build cross-builds libziran.a and zi2zx with the NDK for
 # ANDROID_API; the compilers that run during that build are this host's.
@@ -880,6 +886,13 @@ ANDROID_TOOLCHAIN = $(ANDROID_NDK)/toolchains/llvm/prebuilt/linux-x86_64/bin
 ANDROID_TRIPLE_aarch64 = aarch64-linux-android
 ANDROID_TRIPLE_armv7 = armv7a-linux-androideabi
 ANDROID_OUT = $(abspath $(ANDROID_BUILD_DIR))
+# Real-device streaming PCM test, separate from native ZX parity.
+.PHONY: audio-android-test
+audio-android-test: $(BIN_DIR)/ziran
+	@test -n "$(ANDROID_SERIAL)" || { echo 'set ANDROID_SERIAL' >&2; exit 1; }
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/ziran run --target=c --root tests tests/audio_android_cases.zi -- \
+	    $(abspath $(BIN_DIR)/ziran) $(BUILD_DIR)/audio/android-test '$(ANDROID_NDK)' '$(ANDROID_SERIAL)'
+
 .PHONY: android-build android-parity
 android-build: $(BIN_DIR)/zi2c
 	@test -n "$(ANDROID_NDK)" || { echo 'set ANDROID_NDK or ANDROID_NDK_HOME' >&2; exit 1; }

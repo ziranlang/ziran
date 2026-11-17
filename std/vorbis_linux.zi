@@ -15,6 +15,8 @@
 // mirror fails the decode instead of passing unnoticed.
 using Vectors :: #import "vec"
 using Vorbis :: #import "vorbis"
+using AudioTypes :: #import "audio_types"
+Files :: #import "file";
 
 // ogg_sync_state.
 OggSyncState :: struct {
@@ -169,6 +171,10 @@ Info :: (file: *VorbisFile, link: s32) -> *VorbisInfo #foreign vorbisfile "ov_in
 PcmTotal :: (file: *VorbisFile, link: s32) -> s64 #foreign vorbisfile "ov_pcm_total";
 Read :: (file: *VorbisFile, buffer: *u8, length: s32, big_endian: s32, word: s32, signed: s32,
     stream: *s32) -> isize #foreign vorbisfile "ov_read";
+ReadFloat :: (file: *VorbisFile, pcm: ***float32, samples: s32, stream: *s32) -> isize #foreign vorbisfile "ov_read_float";
+SeekPCM :: (file: *VorbisFile, frame: s64) -> s32 #foreign vorbisfile "ov_pcm_seek";
+Allocate :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+Free :: (value: *void) #foreign libc "free";
 CopyBytes :: (destination: *void, source: *void, count: usize) -> *void #foreign libc "memcpy";
 
 GUARD :: 64
@@ -262,7 +268,7 @@ Decode :: (file: *VorbisFile, output: *Vec(u8), declared: VorbisAudio, audio: *V
     samples: Vec(u8)
     for at: cast(s64)0..bytes - 1 { VecPush(samples, cast(u8)0) }
     if !ReadAll(file, VecSlice(samples, 0, bytes)) { return false }
-    <<audio = VorbisAudio.{.channels = info.channels, .rate = cast(s32)info.rate, .frames = frames}
+    <<audio = declared
     VecSwap(samples, <<output)
     return true
 }
@@ -280,4 +286,158 @@ ReadAll :: (file: *VorbisFile, pcm: []u8) -> bool {
     }
     extra: [4096]u8
     return Read(file, *extra[0], 4096, 0, 2, 1, *stream) == 0
+}
+
+// Incremental state uses the same guarded libvorbisfile ABI and callbacks as
+// whole-file decode. Borrowed input stays unchanged until close. Do not copy
+// a live decoder or call it concurrently.
+DecoderState :: struct { guarded: Guarded; memory: Memory }
+#scope_export
+// Single-owner state over borrowed input, or owned input opened from a file.
+// Keep borrowed bytes alive and unchanged until close. No concurrent calls.
+VorbisDecoder :: struct {
+    state: *void
+    info: VorbisAudio
+    comments: VorbisComments
+    position: s64
+    owned: Vec(u8)
+}
+VorbisDecoderClose :: (decoder: *VorbisDecoder) {
+    if decoder.state != null {
+        state := cast(*DecoderState)decoder.state
+        unused Clear(*state.guarded.file)
+        Free(decoder.state)
+    }
+    VorbisCommentsFree(*decoder.comments); VecFree(decoder.owned)
+    decoder.state = null; decoder.info = .{}; decoder.position = 0
+}
+VorbisDecoderOpen :: (decoder: *VorbisDecoder, input: []u8, max_frames: s64) -> s32 {
+    if decoder.state != null || max_frames <= 0 || max_frames > VorbisMaxStreamFrames { return Invalid }
+    audio: VorbisAudio
+    comments: VorbisComments
+    code := VorbisInspectComments(input, *audio, *comments)
+    if code != OK { return code }
+    if audio.frames > max_frames { return LimitExceeded }
+    state := cast(*DecoderState)Allocate(1, size_of(DecoderState))
+    if state == null { return AllocationFailed }
+    state.memory = .{.data = *input[0], .count = input.count}
+    for index: 0..GUARD - 1 { state.guarded.guard[index] = cast(u8)GUARD_BYTE }
+    callbacks: VorbisCallbacks
+    callbacks.read = MemoryRead; callbacks.seek = MemorySeek; callbacks.close = MemoryClose; callbacks.tell = MemoryTell
+    file := *state.guarded.file
+    if OpenCallbacks(cast(*void)*state.memory, file, null, 0, callbacks) != 0 { Free(cast(*void)state); return Malformed }
+    info := Info(file, -1)
+    if !GuardIntact(*state.guarded) || Streams(file) != 1 || info == null ||
+        info.channels != audio.channels || info.rate != cast(isize)audio.rate || PcmTotal(file, -1) != audio.frames {
+        unused Clear(file); Free(cast(*void)state); return Malformed
+    }
+    decoder.state = cast(*void)state; decoder.info = audio; decoder.position = 0
+    VecSwap(decoder.comments.text, comments.text); VecSwap(decoder.comments.spans, comments.spans)
+    decoder.comments.vendor = comments.vendor
+    return OK
+}
+VorbisDecoderOpenFile :: (decoder: *VorbisDecoder, path: string, max_frames: s64) -> s32 {
+    if decoder.state != null || max_frames <= 0 || max_frames > VorbisMaxStreamFrames { return Invalid }
+    VecFree(decoder.owned)
+    if !Files.ReadFileInto(path, *decoder.owned) { VecFree(decoder.owned); return IOFailure }
+    if decoder.owned.count > MaxBytes { VecFree(decoder.owned); return LimitExceeded }
+    code := VorbisDecoderOpen(decoder, decoder.owned[:], max_frames)
+    if code != OK { VecFree(decoder.owned) }
+    return code
+}
+// Fills whole interleaved frames; OK with zero frames denotes the logical end.
+// Discard the output on error, then seek or close.
+VorbisDecoderRead :: (decoder: *VorbisDecoder, output: []float32, frames: *s64) -> s32 {
+    <<frames = 0
+    if decoder.state == null || output.count <= 0 || output.count % decoder.info.channels != 0 { return Invalid }
+    state := cast(*DecoderState)decoder.state
+    if !GuardIntact(*state.guarded) { return Malformed }
+    channels := cast(s64)decoder.info.channels
+    wanted := output.count / channels
+    left := decoder.info.frames - decoder.position
+    if wanted > left { wanted = left }
+    done: s64
+    while done < wanted {
+        request := wanted - done
+        if request > 65536 { request = 65536 }
+        planes: **float32; link: s32
+        got := cast(s64)ReadFloat(*state.guarded.file, *planes, cast(s32)request, *link)
+        if got <= 0 || got > request || link != 0 || !GuardIntact(*state.guarded) { return Malformed }
+        for frame: 0..got - 1 {
+            for channel: 0..channels - 1 { output[(done + frame) * channels + channel] = planes[channel][frame] }
+        }
+        done += got
+    }
+    decoder.position += done
+    if decoder.position == decoder.info.frames {
+        planes: **float32; link: s32
+        if ReadFloat(*state.guarded.file, *planes, 1, *link) != 0 || !GuardIntact(*state.guarded) { return Malformed }
+    }
+    <<frames = done
+    return OK
+}
+VorbisDecoderReadS16 :: (decoder: *VorbisDecoder, output: []s16, frames: *s64) -> s32 {
+    <<frames = 0
+    if decoder.state == null || output.count <= 0 || output.count % decoder.info.channels != 0 { return Invalid }
+    channels := cast(s64)decoder.info.channels
+    wanted := output.count / channels
+    if wanted > decoder.info.frames - decoder.position { wanted = decoder.info.frames - decoder.position }
+    scratch: [4096]float32
+    done: s64
+    while done < wanted {
+        count := wanted - done
+        if count > 4096 / channels { count = 4096 / channels }
+        got: s64
+        code := VorbisDecoderRead(decoder, scratch[0:count * channels], *got)
+        if code != OK { return code }
+        if got != count { return Malformed }
+        for index: cast(s64)0..got * channels - 1 {
+            value := cast(float64)scratch[index]
+            output[done * channels + index] = ifx value != value then cast(s16)0 else Pcm16(value)
+        }
+        done += got
+    }
+    <<frames = done
+    return OK
+}
+VorbisDecoderSeek :: (decoder: *VorbisDecoder, frame: s64) -> s32 {
+    if decoder.state == null || frame < 0 || frame > decoder.info.frames { return Invalid }
+    state := cast(*DecoderState)decoder.state
+    if !GuardIntact(*state.guarded) || SeekPCM(*state.guarded.file, frame) != 0 || !GuardIntact(*state.guarded) { return Malformed }
+    decoder.position = frame
+    return OK
+}
+VorbisDecoderRewind :: (decoder: *VorbisDecoder) -> s32 { return VorbisDecoderSeek(decoder, 0) }
+// Whole-file float output is unchanged on error.
+VorbisDecodeFloat :: (input: []u8, max_frames: s64, output: *PCM) -> s32 {
+    decoder: VorbisDecoder
+    code := VorbisDecoderOpen(*decoder, input, max_frames)
+    if code != OK { return code }
+    defer VorbisDecoderClose(*decoder)
+    if decoder.info.frames > MaxFrames { return LimitExceeded }
+    samples: Vec(float32)
+    count := decoder.info.frames * decoder.info.channels
+    if !VecResize(samples, count) { return AllocationFailed }
+    frames: s64
+    code = VorbisDecoderRead(*decoder, samples[:], *frames)
+    if code != OK { return code }
+    output.rate = decoder.info.rate; output.channels = decoder.info.channels
+    SwapSamples(output, *samples)
+    return OK
+}
+VorbisDecodeS16 :: (input: []u8, max_frames: s64, output: *Vec(s16), info: *VorbisAudio) -> s32 {
+    decoder: VorbisDecoder
+    code := VorbisDecoderOpen(*decoder, input, max_frames)
+    if code != OK { return code }
+    defer VorbisDecoderClose(*decoder)
+    if decoder.info.frames > MaxFrames { return LimitExceeded }
+    samples: Vec(s16)
+    count := decoder.info.frames * decoder.info.channels
+    if !VecResize(samples, count) { return AllocationFailed }
+    frames: s64
+    code = VorbisDecoderReadS16(*decoder, samples[:], *frames)
+    if code != OK { return code }
+    <<info = decoder.info
+    VecSwap(samples, <<output)
+    return OK
 }

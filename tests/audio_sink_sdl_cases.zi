@@ -1,0 +1,80 @@
+// SDL lifecycle without a physical device. The driver selects an unavailable
+// backend first, then SDL's disk backend on a private display.
+#import "std/audio"
+#import "std/audio_sink"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/timer_linux"
+#import "std/vec"
+
+captured: [262144]float32;
+captured_count: s64;
+Tap :: (samples: []float32, frames: s64) {
+    for index: 0..frames * 2 - 1 {
+        if captured_count < 262144 { captured[captured_count] = samples[index]; captured_count += 1 }
+    }
+}
+sdl :: #system_library "SDL2";
+RealInit :: (flags: u32) -> s32 #foreign sdl "__real_SDL_InitSubSystem";
+opens: s64;
+#program_export
+__wrap_SDL_InitSubSystem :: (flags: u32) -> s32 {
+    opens += 1
+    unused SleepMilliseconds(150) // A slow provider must never stall the caller.
+    return RealInit(flags)
+}
+Await :: () -> bool {
+    unused AudioSinkOpen()
+    deadline := MonotonicMilliseconds() + 3000
+    while AudioSinkPending() && MonotonicMilliseconds() < deadline { unused SleepMilliseconds(1) }
+    return AudioSinkReady()
+}
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 2 { return 1 }
+    path := TextFromCString(argv[1])
+    if path == "unavailable" {
+        start := MonotonicNanoseconds()
+        if AudioSinkOpen() { return 2 }
+        if MonotonicNanoseconds() - start > 50000000 { return 13 }
+        for attempt: 0..99 { if AudioSinkOpen() { return 2 } }
+        deadline := MonotonicMilliseconds() + 3000
+        while AudioSinkPending() && MonotonicMilliseconds() < deadline { unused SleepMilliseconds(1) }
+        if AudioSinkPending() || AudioSinkReady() || !AudioSinkUnavailable() { return 14 }
+        start = MonotonicNanoseconds()
+        for attempt: 0..99 { if AudioSinkOpen() { return 2 } }
+        if MonotonicNanoseconds() - start > 50000000 || opens != 1 { return 15 }
+        AudioSinkClose(); AudioSinkClose()
+        print("unavailable SDL device failed cleanly\n")
+        return 0
+    }
+    AudioUseTap(Tap)
+    stream := AudioOpenStream(48000, 2, 512)
+    if stream.slot < 0 || !AudioPlay(stream) { return 3 }
+    block: [1024]s16
+    for frame: 0..511 { block[frame * 2] = 8192; block[frame * 2 + 1] = -8192 }
+    if !AudioStreamSubmit(stream, block[:]) { return 4 }
+    if !Await() || !AudioSinkOpen() || !AudioSinkReady() { return 5 }
+    unused SleepMilliseconds(150)
+    AudioSinkClose(); AudioSinkClose()
+    if AudioSinkReady() { return 6 }
+    before := captured_count
+    unused SleepMilliseconds(30)
+    if captured_count != before { return 7 }
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !ReadFileInto(path, *bytes) || bytes.count % 4 != 0 { return 8 }
+    disk := cast(*float32)*bytes[0]
+    count := bytes.count / 4
+    first: s64
+    while first < count && disk[first] == 0.0 { first += 1 }
+    if first >= count || captured_count < 1024 || disk[first] != .25 || disk[first + 1] != -.25 { return 9 }
+    compared := count - first
+    if compared > captured_count { compared = captured_count }
+    if compared < 1024 { return 10 }
+    for index: 0..compared - 1 { if disk[first + index] != captured[index] { return 11 } }
+    if !AudioStreamSubmit(stream, block[:]) || !Await() { return 12 }
+    AudioSinkClose(); AudioUnload(stream)
+    print("SDL sink contract passed\n")
+    return 0
+}

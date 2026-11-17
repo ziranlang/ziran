@@ -1,0 +1,117 @@
+// Audio stays independent of Kryon, windows and physical output devices.
+#import "native_test"
+#import "check_support"
+#import "check_cache"
+#import "std/file_tree_linux"
+#import "std/environment_linux"
+#import "std/text_tools"
+#import "std/option"
+using Vectors :: #import "std/vec"
+
+Compile :: (test: *NativeTest, source: string, name: string, fake: bool, sdl: bool, codecs: bool = false) -> string {
+    generated := CheckPath(test.work, CheckConcat(name, "-c"))
+    arguments: Vec(string)
+    command := string.[test.ziran, "build", "--target=c", "--root", CheckPath(test.repo, "tests")]
+    for argument: command { VecPush(arguments, argument) }
+    if fake { VecPush(arguments, "--define"); VecPush(arguments, "ZIRAN_AUDIO_FAKE"); VecPush(arguments, "--define"); VecPush(arguments, "ANDROID_BUILD") }
+    VecPush(arguments, "-o"); VecPush(arguments, generated); VecPush(arguments, CheckPath(test.repo, source))
+    unused NativeRun(test, arguments[:])
+    client := CheckPath(test.work, name)
+    compile: Vec(string)
+    flags := string.[NativeCompiler(), "-std=c11", "-O1", CheckConcat("-I", generated)]
+    for flag: flags { VecPush(compile, flag) }
+    files := NativeFiles(generated, ".c", true)
+    for file: files { VecPush(compile, file) }
+    if fake { VecPush(compile, "-Wl,--export-dynamic"); VecPush(compile, "-Wl,--wrap=dlopen") }
+    if sdl { VecPush(compile, "-lSDL2"); VecPush(compile, "-Wl,--wrap=SDL_InitSubSystem") }
+    if codecs {
+        VecPush(compile, CheckPath(test.repo, "build/audio/native/libziran_mp3.a"))
+        VecPush(compile, "-l:libvorbisfile.so.3")
+    }
+    options := string.["-pthread", "-ldl", "-lm", "-o", client]
+    for option: options { VecPush(compile, option) }
+    unused NativeRun(test, compile[:])
+    return client
+}
+
+CodecTest :: (test: *NativeTest) {
+    archive := string.["make", "audio-mp3"]; unused NativeRun(test, archive[:])
+    client := Compile(test, "tests/audio_decode_cases.zi", "decode", false, false, true)
+    mp3 := CheckPath(test.work, "tone.mp3"); vorbis := CheckPath(test.work, "tone.ogg")
+    names := string.[mp3, vorbis]; codecs := string.["libmp3lame", "libvorbis"]
+    for index: 0..1 {
+        generate := string.["ffmpeg", "-v", "error", "-y", "-threads", "1", "-filter_threads", "1", "-f", "lavfi",
+            "-i", "sine=frequency=440:sample_rate=48000:duration=0.2", "-c:a", codecs[index], names[index]]
+        unused NativeRun(test, generate[:])
+    }
+    run := string.[client, mp3, vorbis]; unused NativeRun(test, run[:])
+    vorbis_client := Compile(test, "tests/audio_vorbis_cases.zi", "vorbis", false, false, true)
+    inspect := string.[vorbis_client]; unused NativeRun(test, inspect[:])
+}
+
+WebTest :: (test: *NativeTest) {
+    emcc := EnvironmentText("EMCC")
+    if emcc == "" { emcc = CheckExecutable("emcc") }
+    if emcc == "" { emcc = CheckPath(EnvironmentText("HOME"), "emsdk/upstream/emscripten/emcc") }
+    generated := CheckPath(test.work, "web-c")
+    generate := string.[test.ziran, "build", "--target=c", "--target-os", "web", "--target-cpu", "wasm32",
+        "--define", "PLATFORM_WEB", "--root", CheckPath(test.repo, "tests"), "-o", generated,
+        CheckPath(test.repo, "tests/audio_web_cases.zi")]
+    unused NativeRun(test, generate[:])
+    compile: Vec(string)
+    flags := string.[emcc, "-std=c11", "-O1", CheckConcat("-I", generated)]
+    for flag: flags { VecPush(compile, flag) }
+    files := NativeFiles(generated, ".c", true)
+    for file: files { VecPush(compile, file) }
+    options := string.["--js-library", CheckPath(test.repo, "web/ziran_web.js"), "-sASYNCIFY=1", "-sEXIT_RUNTIME=1",
+        "-sSTACK_SIZE=1048576", "-sALLOW_MEMORY_GROWTH=1", "-sENVIRONMENT=web", "-o", CheckPath(test.work, "audio-web.js")]
+    for option: options { VecPush(compile, option) }
+    unused NativeRun(test, compile[:])
+    html := CheckPath(test.work, "audio-web.html")
+    unused NativeWrite(test, html, "<!doctype html><html><body>pending<script src=audio-web.js></script></body></html>")
+    browser := EnvironmentText("CHROMIUM")
+    if browser == "" { browser = CheckExecutable("chromium") }
+    if browser == "" { browser = CheckExecutable("google-chrome") }
+    if browser == "" { browser = CheckExecutable("chromium-browser") }
+    if !NativeAssert(test, browser != "", "WebAudio tests require Chromium or Chrome") { return }
+    run := string.[browser, "--headless", "--no-sandbox", "--disable-gpu", "--autoplay-policy=no-user-gesture-required",
+        "--allow-file-access-from-files", "--virtual-time-budget=5000", "--dump-dom",
+        CheckConcat("--user-data-dir=", CheckPath(test.work, "browser")), CheckConcat("file://", html)]
+    browser_temp := CheckPath(test.repo, "build/audio/tmp")
+    if !NativeAssert(test, CreateDirectories(browser_temp), "create browser temporary directory") { return }
+    VecPush(test.environment, CheckConcat("TMPDIR=", browser_temp))
+    output := NativeRun(test, run[:])
+    unused VecPop(test.environment)
+    unused NativeAssert(test, TextContains(output.output, "<body>audio web sink contract passed</body>"), "WebAudio playback, lifecycle or handle cleanup failed")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "audio-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    mixer := Compile(*test, "tests/spec/audio_test.zi", "mixer", false, false)
+    mix := string.[mixer]; unused NativeRun(*test, mix[:])
+    if test.failed { return 1 }
+    android := Compile(*test, "tests/audio_sink_cases.zi", "android", true, false)
+    contract := string.[android]; unused NativeRun(*test, contract[:])
+    if test.failed { return 1 }
+    sdl := Compile(*test, "tests/audio_sink_sdl_cases.zi", "sdl", false, true)
+    VecPush(test.environment, "SDL_AUDIODRIVER=ziran-unavailable-audio-driver")
+    missing := string.["xvfb-run", "-a", sdl, "unavailable"]
+    unused NativeRun(*test, missing[:])
+    unused VecPop(test.environment)
+    VecPush(test.environment, "SDL_AUDIODRIVER=disk")
+    VecPush(test.environment, "SDL_DISKAUDIODELAY=10")
+    path := CheckPath(test.work, "sink.raw")
+    VecPush(test.environment, CheckConcat("SDL_DISKAUDIOFILE=", path))
+    disk := string.["xvfb-run", "-a", sdl, path]
+    unused NativeRun(*test, disk[:])
+    if test.failed { return 1 }
+    CodecTest(*test)
+    if test.failed { return 1 }
+    WebTest(*test)
+    if test.failed { return 1 }
+    print("audio mixer, Android, SDL and WebAudio sink local tests passed\n")
+    return 0
+}

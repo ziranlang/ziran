@@ -1,0 +1,131 @@
+// API-21 PCM output. Android's simple buffer queue owns two alternating
+// signed-16 stereo blocks. Only the completed block is refilled.
+Buffer :: #import "std/audio_android_buffer";
+
+#scope_file
+Realize :: #type (**Object, u32) -> u32 #c_call;
+GetInterface :: #type (**Object, *void, *void) -> u32 #c_call;
+Destroy :: #type (**Object) -> void #c_call;
+CreatePlayer :: #type (**Engine, ***Object, *Data, *Data, u32, **void, *u32) -> u32 #c_call;
+CreateMix :: #type (**Engine, ***Object, u32, **void, *u32) -> u32 #c_call;
+SetState :: #type (**Play, u32) -> u32 #c_call;
+Enqueue :: #type (**Queue, *void, u32) -> u32 #c_call;
+Clear :: #type (**Queue) -> u32 #c_call;
+SetCallback :: #type (queue: **Queue, callback: *void, argument: *void) -> u32 #c_call;
+Object :: struct {
+    realize: Realize
+    resume: *void
+    state: *void
+    interface: GetInterface
+    callback: *void
+    abort: *void
+    destroy: Destroy
+}
+Engine :: struct {
+    led: *void
+    vibra: *void
+    player: CreatePlayer
+    recorder: *void
+    midi: *void
+    listener: *void
+    group: *void
+    mix: CreateMix
+}
+Play :: struct { state: SetState }
+Callback :: #type (**Queue, *void) -> void #c_call;
+Queue :: struct {
+    enqueue: Enqueue
+    clear: Clear
+    state: *void
+    callback: SetCallback
+}
+Data :: struct { locator: *void; format: *void }
+QueueLocator :: struct { kind: u32; count: u32 }
+MixLocator :: struct { kind: u32; output: **Object }
+PCM :: struct { kind: u32; channels: u32; rate: u32; bits: u32; container: u32; mask: u32; endian: u32 }
+Create :: #type (***Object, u32, *void, u32, **void, *u32) -> u32 #c_call;
+create: Create;
+engine_id: *void;
+queue_id: *void;
+play_id: *void;
+library: *void;
+engine_object: **Object;
+output_object: **Object;
+player_object: **Object;
+queue: **Queue;
+play: **Play;
+blocks: [2048]s16;
+next: s64;
+running: bool;
+
+// Interface IDs are exported pointer variables, not the address of the UUID.
+Load :: () -> bool {
+    if library == null { library = Buffer.Library("libOpenSLES.so") }
+    if library == null { return false }
+    return Buffer.Resolve(library, cast(*void)*create, "slCreateEngine") &&
+        Buffer.Resolve(library, cast(*void)*engine_id, "SL_IID_ENGINE") &&
+        Buffer.Resolve(library, cast(*void)*queue_id, "SL_IID_ANDROIDSIMPLEBUFFERQUEUE") &&
+        Buffer.Resolve(library, cast(*void)*play_id, "SL_IID_PLAY")
+}
+
+Fill :: (target: **Queue, argument: *void) {
+    unused argument
+    Buffer.Enter()
+    active := running
+    Buffer.Leave()
+    if !active { return }
+    offset := next * 1024
+    Buffer.RenderPCM(blocks[offset:offset + 1024], 512)
+    result := target[0].enqueue(target, cast(*void)*blocks[offset], 2048)
+    next = 1 - next
+    if result != 0 { Buffer.Enter(); running = false; Buffer.Leave() }
+}
+
+#scope_export
+Ready :: () -> bool {
+    Buffer.Enter(); ready := running; Buffer.Leave()
+    return ready
+}
+Close :: () {
+    Buffer.Enter(); running = false; Buffer.Leave()
+    // Do not hold the mixer lock while stopping/joining native callbacks.
+    if play != null { unused play[0].state(play, 1) }
+    if player_object != null { player_object[0].destroy(player_object) }
+    queue = null; play = null; player_object = null
+    if output_object != null { output_object[0].destroy(output_object); output_object = null }
+    if engine_object != null { engine_object[0].destroy(engine_object); engine_object = null }
+}
+Open :: () -> bool {
+    if Ready() { return true }
+    Close()
+    if !Load() { return false }
+    // Resolve copies a function address. For interface IDs it copied the
+    // address of the exported variable, so dereference that address once.
+    engine_iid := (cast(**void)engine_id)[0]
+    queue_iid := (cast(**void)queue_id)[0]
+    play_iid := (cast(**void)play_id)[0]
+    if create(*engine_object, 0, null, 0, null, null) != 0 { Close(); return false }
+    if engine_object[0].realize(engine_object, 0) != 0 { Close(); return false }
+    engine: **Engine
+    if engine_object[0].interface(engine_object, engine_iid, cast(*void)*engine) != 0 { Close(); return false }
+    if engine[0].mix(engine, *output_object, 0, null, null) != 0 { Close(); return false }
+    if output_object[0].realize(output_object, 0) != 0 { Close(); return false }
+    locator := QueueLocator.{cast(u32)0x800007BD, 2}
+    format := PCM.{2, 2, 48000000, 16, 16, 3, 2}
+    output := MixLocator.{4, output_object}
+    source := Data.{cast(*void)*locator, cast(*void)*format}
+    sink := Data.{cast(*void)*output, null}
+    required: u32 = 1
+    if engine[0].player(engine, *player_object, *source, *sink, 1, *queue_iid, *required) != 0 { Close(); return false }
+    if player_object[0].realize(player_object, 0) != 0 { Close(); return false }
+    if player_object[0].interface(player_object, play_iid, cast(*void)*play) != 0 ||
+        player_object[0].interface(player_object, queue_iid, cast(*void)*queue) != 0 { Close(); return false }
+    callback: Callback = Fill
+    if queue[0].callback(queue, (cast(**void)*callback)[0], null) != 0 { Close(); return false }
+    next = 0
+    Buffer.Enter(); running = true; Buffer.Leave()
+    Fill(queue, null)
+    Fill(queue, null)
+    if !Ready() || play[0].state(play, 3) != 0 { Close(); return false }
+    return true
+}

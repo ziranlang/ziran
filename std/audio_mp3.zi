@@ -1,0 +1,150 @@
+// MP3 decoding: MPEG-1, MPEG-2 and MPEG-2.5, Layers I, II and III, mono and
+// stereo, through dr_mp3 (the pinned `dr_libs` source dependency, compiled by
+// native/ziran_mp3.c into libziran_mp3.a). Native C only: link
+// `libziran_mp3.a -lm`. std/audio_mpeg validates every frame first, so
+// dr_mp3 only sees a complete frame stream with its tags removed.
+#import "std/audio_types"
+#import "std/vec"
+#import "std/file"
+#import "std/audio_mpeg"
+#scope_file
+mp3 :: #system_library "ziran_mp3";
+NativeOpen :: (data: *u8, size: usize, seek_points: u32) -> *void #foreign mp3 "ziran_mp3_open";
+NativeClose :: (state: *void) #foreign mp3 "ziran_mp3_close";
+NativeReadFloat :: (state: *void, frames: u64, output: *float32) -> u64 #foreign mp3 "drmp3_read_pcm_frames_f32";
+NativeSeek :: (state: *void, frame: u64) -> u32 #foreign mp3 "drmp3_seek_to_pcm_frame";
+// Frames the next read requests: the caller's whole frames, capped at the
+// logical end; -1 rejects a closed decoder or a partial-frame buffer.
+Wanted :: (decoder: *Mp3Decoder, samples: s64) -> s64 {
+    if decoder.handle == null || samples <= 0 || samples % decoder.info.channels != 0 { return -1 }
+    wanted := samples / decoder.info.channels
+    left := decoder.info.frames - decoder.position
+    return ifx wanted < left then wanted else left
+}
+// The decoder ending before the declared frame count is truncated or
+// corrupt audio; the caller discards that read.
+Advance :: (decoder: *Mp3Decoder, wanted: s64, got: u64, frames: *s64) -> s32 {
+    if got != cast(u64)wanted { return Malformed }
+    decoder.position += wanted; <<frames = wanted
+    return OK
+}
+
+#scope_export
+// Single-owner native state over borrowed bytes (or bytes it read itself
+// with Mp3DecoderOpenFile). Do not copy a live decoder or call it
+// concurrently; keep borrowed input alive and unchanged until close.
+Mp3Decoder :: struct {
+    handle: *void
+    info: Mp3Info
+    position: s64 // next PCM frame a read returns
+    owned: Vec(u8)
+}
+Mp3DecoderClose :: (decoder: *Mp3Decoder) {
+    if decoder.handle != null { NativeClose(decoder.handle) }
+    decoder.handle = null; decoder.info = Mp3Info.{}; decoder.position = 0
+    VecFree(decoder.owned)
+}
+// Inspects INPUT, then opens dr_mp3 over its frames with a seek table of
+// about one point per second. MAX_FRAMES bounds the declared duration.
+Mp3DecoderOpen :: (decoder: *Mp3Decoder, input: []u8, max_frames: s64) -> s32 {
+    if decoder.handle != null || max_frames <= 0 || max_frames > Mp3MaxStreamFrames { return Invalid }
+    metadata: Mp3Info
+    code := Mp3Inspect(input, *metadata)
+    if code != OK { return code }
+    if metadata.frames > max_frames { return LimitExceeded }
+    points := metadata.frames / metadata.rate + 1
+    if points > 16384 { points = 16384 }
+    audio := input[metadata.audio_at:metadata.audio_end]
+    handle := NativeOpen(*audio[0], cast(usize)audio.count, cast(u32)points)
+    if handle == null { return Malformed }
+    decoder.handle = handle; decoder.info = metadata; decoder.position = 0
+    return OK
+}
+// Reads the whole file (at most MaxBytes) into the decoder, which then owns
+// it until Mp3DecoderClose.
+Mp3DecoderOpenFile :: (decoder: *Mp3Decoder, path: string, max_frames: s64) -> s32 {
+    if decoder.handle != null || max_frames <= 0 || max_frames > Mp3MaxStreamFrames { return Invalid }
+    VecFree(decoder.owned)
+    if !ReadFileInto(path, *decoder.owned) { VecFree(decoder.owned); return IOFailure }
+    if decoder.owned.count > MaxBytes { VecFree(decoder.owned); return LimitExceeded }
+    code := Mp3DecoderOpen(decoder, VecSlice(decoder.owned, 0, decoder.owned.count), max_frames)
+    if code != OK { VecFree(decoder.owned) }
+    return code
+}
+// Fills interleaved float frames. OK with zero frames is the logical end.
+// An error may leave a filled prefix: discard it, then rewind or close.
+Mp3DecoderRead :: (decoder: *Mp3Decoder, output: []float32, frames: *s64) -> s32 {
+    <<frames = 0
+    wanted := Wanted(decoder, output.count)
+    if wanted < 0 { return Invalid }
+    if wanted == 0 { return OK }
+    return Advance(decoder, wanted, NativeReadFloat(decoder.handle, cast(u64)wanted, *output[0]), frames)
+}
+// The same stream as interleaved PCM16: the float samples converted with
+// Pcm16, so they equal the WAV output of the same decode.
+Mp3DecoderReadS16 :: (decoder: *Mp3Decoder, output: []s16, frames: *s64) -> s32 {
+    <<frames = 0
+    wanted := Wanted(decoder, output.count)
+    if wanted < 0 { return Invalid }
+    channels := cast(s64)decoder.info.channels
+    scratch: [2304]float32
+    done: s64
+    while done < wanted {
+        count := wanted - done
+        if count > 1152 { count = 1152 }
+        got: s64
+        code := Advance(decoder, count, NativeReadFloat(decoder.handle, cast(u64)count, *scratch[0]), *got)
+        if code != OK { return code }
+        for i: cast(s64)0..count * channels - 1 { output[done * channels + i] = Pcm16(cast(float64)scratch[i]) }
+        done += count
+    }
+    <<frames = done
+    return OK
+}
+// Moves to exact PCM frame FRAME (0..frames): the next read returns the
+// same samples a read from the start would. Seeks begin at the nearest seek
+// point and decode forward, so the bit reservoir and overlap are primed.
+Mp3DecoderSeek :: (decoder: *Mp3Decoder, frame: s64) -> s32 {
+    if decoder.handle == null || frame < 0 || frame > decoder.info.frames { return Invalid }
+    if NativeSeek(decoder.handle, cast(u64)frame) == 0 { return Malformed }
+    decoder.position = frame
+    return OK
+}
+Mp3DecoderRewind :: (decoder: *Mp3Decoder) -> s32 { return Mp3DecoderSeek(decoder, 0) }
+
+// Whole-file float decode at the stream's own rate, bounded by MaxFrames.
+// OUTPUT is unchanged on an error.
+Mp3Decode :: (input: []u8, max_frames: s64, output: *PCM) -> s32 {
+    decoder: Mp3Decoder
+    code := Mp3DecoderOpen(*decoder, input, max_frames)
+    if code != OK { return code }
+    defer { Mp3DecoderClose(*decoder) }
+    if decoder.info.frames > MaxFrames { return LimitExceeded }
+    samples: Vec(float32)
+    count := decoder.info.frames * decoder.info.channels
+    if !VecResize(samples, count) { return AllocationFailed }
+    frames: s64
+    code = Mp3DecoderRead(*decoder, VecSlice(samples, 0, count), *frames)
+    if code != OK { return code }
+    output.rate = decoder.info.rate; output.channels = decoder.info.channels
+    SwapSamples(output, *samples)
+    return OK
+}
+// Whole-file interleaved s16 decode; INFO describes the samples. Both
+// outputs are unchanged on an error.
+Mp3DecodeS16 :: (input: []u8, max_frames: s64, output: *Vec(s16), info: *Mp3Info) -> s32 {
+    decoder: Mp3Decoder
+    code := Mp3DecoderOpen(*decoder, input, max_frames)
+    if code != OK { return code }
+    defer { Mp3DecoderClose(*decoder) }
+    if decoder.info.frames > MaxFrames { return LimitExceeded }
+    samples: Vec(s16)
+    count := decoder.info.frames * decoder.info.channels
+    if !VecResize(samples, count) { return AllocationFailed }
+    frames: s64
+    code = Mp3DecoderReadS16(*decoder, VecSlice(samples, 0, count), *frames)
+    if code != OK { return code }
+    <<info = decoder.info
+    VecSwap(samples, <<output)
+    return OK
+}

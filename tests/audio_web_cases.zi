@@ -1,0 +1,42 @@
+// Browser-only sink contract; the native driver runs this in headless Chromium.
+#import "std/audio"
+#import "std/audio_sink"
+#import "std/web"
+
+frames_seen: s64;
+signal_seen: bool;
+Tap :: (samples: []float32, frames: s64) {
+    frames_seen += frames
+    for sample: samples { if sample > .1 || sample < -.1 { signal_seen = true } }
+}
+#program_export
+main :: () -> s32 {
+    if AudioSinkReady() || AudioSinkPending() || AudioSinkUnavailable() { return 9 }
+    baseline := WebLiveHandles()
+    AudioUseTap(Tap)
+    voice := AudioOpenStream(48000, 2, 512)
+    if voice.slot < 0 || !AudioPlay(voice) { return 1 }
+    block: [1024]s16
+    for index: 0..1023 { block[index] = 8192 }
+    if !AudioStreamSubmit(voice, block[:]) { return 2 }
+    if !AudioSinkOpen() || !AudioSinkOpen() || !AudioSinkReady() || !AudioSinkResume() { return 3 }
+    WebSleep(250)
+    if !AudioSinkRunning() || frames_seen <= 0 || !signal_seen { return 4 }
+    AudioSinkClose(); AudioSinkClose()
+    if AudioSinkReady() || AudioSinkPending() || AudioSinkUnavailable() { return 5 }
+    before := frames_seen
+    WebSleep(50)
+    if frames_seen != before { return 6 }
+    for attempt: 0..3 {
+        if !AudioSinkOpen() || !AudioSinkResume() { return 7 }
+        WebSleep(30)
+        AudioSinkClose()
+    }
+    AudioUnload(voice)
+    if WebLiveHandles() != baseline { return 8 }
+    scope := WebScope(); defer WebEnd(scope)
+    document := WebGetObject(WebGlobal, WebName("document"))
+    body := WebGetObject(document, WebName("body"))
+    WebSet(body, WebName("textContent"), WebText("audio web sink contract passed"))
+    return 0
+}

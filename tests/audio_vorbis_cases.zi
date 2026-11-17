@@ -1,0 +1,365 @@
+// Native Ogg Vorbis contracts over tests/fixtures/vorbis (see its README for
+// the FFmpeg commands that made them): decode against FFmpeg's reference PCM,
+// exact durations from the final granule position, streaming = whole-file
+// output, exact seeks, comments, the Opus path left to Opus, and errors
+// (never crashes) for truncated, corrupted, garbage, chained, synthetic and
+// non-Vorbis input. Run from the package root.
+#import "std/audio_types"
+#import "std/vec"
+#import "std/file"
+#import "std/math"
+#import "std/byte_text_linux"
+#import "std/audio_wav"
+#import "std/ogg"
+#import "std/vorbis"
+#import "std/vorbis_linux"
+#import "audio_vorbis_fixture"
+
+#scope_file
+// Largest decoder difference against FFmpeg's PCM16 reference, in PCM16
+// steps, and the largest RMS difference. The reference itself is rounded to
+// 16 bits (0.5 steps); measured: at most 0.501 steps, RMS 0.29.
+ToleranceSteps :: 1.0
+ToleranceRms :: 0.35
+Fail :: (code: s32, name: string) -> s32 { print("vorbis contract % failed: %\n", code, name); return code }
+// Fixture paths are built in caller-owned bytes, so sanitizer runs see no
+// retained strings.
+PathInto :: (path: *Vec(u8), name: string, extension: string) {
+    parts: [4]string = .["tests/fixtures/vorbis/", name, ".", extension]
+    for part: parts { for i: cast(s64)0..part.count - 1 { unused VecPush(<<path, part[i]) } }
+}
+Load :: (name: string, extension: string, bytes: *Vec(u8)) -> bool {
+    path: Vec(u8)
+    PathInto(*path, name, extension)
+    return ReadFileInto(TextFromBytes(VecSlice(path, 0, path.count)), bytes)
+}
+Copy :: (from: []u8, to: *Vec(u8)) -> bool {
+    for byte: from { if !VecPush(<<to, byte) { return false } }
+    return true
+}
+Same :: (a: []float32, b: []float32) -> bool {
+    if a.count != b.count { return false }
+    for i: cast(s64)0..a.count - 1 { if a[i] != b[i] { return false } }
+    return true
+}
+// Reads the rest of the stream in irregular chunks into OUTPUT.
+Stream :: (decoder: *VorbisDecoder, output: *Vec(float32)) -> s32 {
+    sizes: [6]s64 = .[997, 1, 1024, 4093, 7, 128]
+    scratch: [8186]float32
+    channels := cast(s64)decoder.info.channels
+    turn: s64
+    while true {
+        frames: s64
+        code := VorbisDecoderRead(decoder, scratch[0:sizes[turn % 6] * channels], *frames)
+        if code != OK { return code }
+        if frames == 0 { return OK }
+        for i: cast(s64)0..frames * channels - 1 { if !VecPush(<<output, scratch[i]) { return AllocationFailed } }
+        turn += 1
+    }
+    return OK
+}
+Random :: (state: *u64) -> u8 {
+    <<state = <<state * 6364136223846793005 + 1442695040888963407
+    return cast(u8)(<<state >> 56)
+}
+// Page bodies [start, end) after the first SKIP pages, and a CRC refresh, so
+// corrupted payloads pass the container checks and reach libvorbisfile.
+Bodies :: (bytes: []u8, skip: s64, ranges: *Vec(s64)) {
+    at: s64; page: s64
+    while bytes.count - at >= 27 {
+        segments := cast(s64)bytes[at + 26]
+        size: s64
+        for i: cast(s64)0..segments - 1 { size += bytes[at + 27 + i] }
+        if page >= skip && size > 0 { unused VecPush(<<ranges, at + 27 + segments); unused VecPush(<<ranges, at + 27 + segments + size) }
+        at += 27 + segments + size; page += 1
+    }
+}
+Recrc :: (bytes: []u8) {
+    at: s64
+    while bytes.count - at >= 27 {
+        segments := cast(s64)bytes[at + 26]
+        size: s64
+        for i: cast(s64)0..segments - 1 { size += bytes[at + 27 + i] }
+        end := at + 27 + segments + size
+        PutLittle(bytes, at + 22, 4, OggCRC(bytes[at:end]))
+        at = end
+    }
+}
+Fixtures :: () -> s32 {
+    names: [5]string = .["stereo", "mono", "rate22", "rate48", "comments"]
+    rates: [5]s32 = .[44100, 44100, 22050, 48000, 32000]
+    channels: [5]s32 = .[2, 1, 2, 2, 1]
+    // The final granule positions; ffprobe's duration_ts and libvorbisfile's
+    // ov_pcm_total report the same.
+    lengths: [5]s64 = .[13230, 13230, 6615, 14400, 9600]
+    for index: 0..4 {
+        name := names[index]
+        bytes: Vec(u8)
+        reference_bytes: Vec(u8)
+        if !Load(name, "ogg", *bytes) || !Load(name, "wav", *reference_bytes) { return Fail(100, name) }
+        input := VecSlice(bytes, 0, bytes.count)
+        reference: PCM
+        if WavDecode(VecSlice(reference_bytes, 0, reference_bytes.count), MaxFrames, *reference) != OK { return Fail(101, name) }
+        if !VorbisRecognizes(input) { return Fail(102, name) }
+        info: VorbisAudio
+        if VorbisInspect(input, *info) != OK { return Fail(103, name) }
+        if info.rate != rates[index] || info.channels != channels[index] || info.frames != lengths[index] || reference.rate != info.rate || reference.channels != info.channels { print("% frames % rate %\n", name, info.frames, info.rate); return Fail(104, name) }
+        if info.packets < 2 || info.modes < 1 || info.short_block < 64 || info.long_block < info.short_block || info.end_trim < 0 || info.end_trim >= info.long_block || info.nominal_bitrate <= 0 { return Fail(105, name) }
+        // FFmpeg's Ogg demuxer counts the discarded first packet, so its
+        // decode ends up to one long block away from the granule length.
+        reference_frames := reference.samples.count / reference.channels
+        if reference_frames - info.frames > info.long_block || info.frames - reference_frames > info.long_block { return Fail(106, name) }
+        // Whole-file float decode against the reference within tolerance,
+        // over the frames both decodes hold.
+        decoded: PCM
+        if VorbisDecodeFloat(input, info.frames - 1, *decoded) != LimitExceeded || decoded.samples.count != 0 { return Fail(107, name) }
+        if VorbisDecodeFloat(input, MaxFrames, *decoded) != OK || decoded.rate != info.rate || decoded.channels != info.channels || decoded.samples.count != info.frames * info.channels { return Fail(108, name) }
+        shared := ifx reference_frames < info.frames then reference_frames else info.frames
+        worst: float64; squares: float64
+        for i: cast(s64)0..shared * info.channels - 1 {
+            difference := (cast(float64)decoded.samples[i] - cast(float64)reference.samples[i]) * 32768.0
+            if difference < 0.0 { difference = -difference }
+            if difference > worst { worst = difference }
+            squares += difference * difference
+        }
+        mean_square := squares / cast(float64)(shared * info.channels)
+        if worst > ToleranceSteps || mean_square > ToleranceRms * ToleranceRms { print("% worst % mean square %\n", name, worst, mean_square); return Fail(109, name) }
+        print("vorbis %: % frames at % Hz x%, % packets, end trim %, max difference % PCM16 steps, mean square % against FFmpeg over % frames\n", name, info.frames, info.rate, info.channels, info.packets, info.end_trim, worst, mean_square, shared)
+        // Streaming in irregular chunks matches the whole-file samples, and
+        // so does a rewind followed by a second pass.
+        decoder: VorbisDecoder
+        if VorbisDecoderOpen(*decoder, input, MaxFrames) != OK { return Fail(110, name) }
+        streamed: Vec(float32)
+        if Stream(*decoder, *streamed) != OK || !Same(VecSlice(streamed, 0, streamed.count), VecSlice(decoded.samples, 0, decoded.samples.count)) { VorbisDecoderClose(*decoder); return Fail(111, name) }
+        if VorbisDecoderRewind(*decoder) != OK { VorbisDecoderClose(*decoder); return Fail(112, name) }
+        again: Vec(float32)
+        if Stream(*decoder, *again) != OK || !Same(VecSlice(again, 0, again.count), VecSlice(streamed, 0, streamed.count)) { VorbisDecoderClose(*decoder); return Fail(113, name) }
+        // Interleaved s16 is the float output through the PCM16 boundary.
+        if VorbisDecoderRewind(*decoder) != OK { VorbisDecoderClose(*decoder); return Fail(114, name) }
+        shorts: [666]s16
+        at: s64
+        while true {
+            frames: s64
+            if VorbisDecoderReadS16(*decoder, shorts[0:333 * cast(s64)info.channels], *frames) != OK { VorbisDecoderClose(*decoder); return Fail(115, name) }
+            if frames == 0 { break }
+            for i: cast(s64)0..frames * info.channels - 1 {
+                if shorts[i] != Pcm16(cast(float64)decoded.samples[at + i]) { VorbisDecoderClose(*decoder); return Fail(116, name) }
+            }
+            at += frames * info.channels
+        }
+        VorbisDecoderClose(*decoder); VorbisDecoderClose(*decoder)
+        if at != decoded.samples.count { return Fail(117, name) }
+        whole: Vec(s16)
+        whole_info: VorbisAudio
+        if VorbisDecodeS16(input, MaxFrames, *whole, *whole_info) != OK || whole.count != at || whole_info.frames != info.frames { return Fail(118, name) }
+        // Any truncation, even of one byte, is an error before decoding.
+        cuts: [6]s64 = .[1, 2, 57, bytes.count / 2 + 3, bytes.count - 4, bytes.count - 1]
+        for cut: cuts {
+            code := VorbisDecodeFloat(VecSlice(bytes, 0, bytes.count - cut), MaxFrames, *decoded)
+            if code != Malformed { print("% cut % returned %\n", name, cut, code); return Fail(119, name) }
+        }
+    }
+    return OK
+}
+// Comments: the comment header is copied verbatim (FFmpeg writes its
+// `comment` metadata as DESCRIPTION), field names match without
+// regard to ASCII case, and the decoder holds the same copy while open.
+Comments :: () -> s32 {
+    bytes: Vec(u8)
+    if !Load("comments", "ogg", *bytes) { return Fail(150, "comments") }
+    input := VecSlice(bytes, 0, bytes.count)
+    info: VorbisAudio
+    comments: VorbisComments
+    if VorbisInspectComments(input, *info, *comments) != OK || info.comments != VorbisCommentCount(*comments) || info.comments < 3 { return Fail(151, "comments") }
+    if VorbisVendor(*comments).count == 0 || VorbisComment(*comments, -1) != "" || VorbisComment(*comments, info.comments) != "" { return Fail(152, "vendor") }
+    if VorbisCommentValue(*comments, "TITLE") != "Ziran fixture" || VorbisCommentValue(*comments, "artist") != "Ziran audio" { return Fail(153, "fields") }
+    if VorbisCommentValue(*comments, "Description") != "Vorbis comments, ünïcödé" || VorbisCommentValue(*comments, "missing") != "" || VorbisCommentValue(*comments, "TITL") != "" { return Fail(154, "fields") }
+    decoder: VorbisDecoder
+    if VorbisDecoderOpen(*decoder, input, MaxFrames) != OK { return Fail(155, "decoder") }
+    same := VorbisVendor(*decoder.comments) == VorbisVendor(*comments) && VorbisCommentCount(*decoder.comments) == info.comments && VorbisCommentValue(*decoder.comments, "title") == "Ziran fixture"
+    VorbisDecoderClose(*decoder)
+    if !same || VorbisCommentCount(*decoder.comments) != 0 { return Fail(156, "decoder") }
+    if VorbisInspectComments(input[0:input.count - 1], *info, *comments) != Malformed || info.frames != 0 ||
+        VorbisCommentValue(*comments, "title") != "Ziran fixture" { return Fail(158, "failed inspection preserves comments") }
+    VorbisCommentsFree(*comments)
+    if VorbisCommentCount(*comments) != 0 { return Fail(157, "free") }
+    return OK
+}
+// Exact seeks: after a seek the decoder returns the very samples a linear
+// decode has at that frame, forward and backward, on an 8-second stream and
+// on a short one, including the end-trimmed tail.
+Seeks :: (name: string, expected_frames: s64) -> s32 {
+    bytes: Vec(u8)
+    if !Load(name, "ogg", *bytes) { return Fail(200, name) }
+    input := VecSlice(bytes, 0, bytes.count)
+    linear: PCM
+    if VorbisDecodeFloat(input, MaxFrames, *linear) != OK { return Fail(201, name) }
+    channels := cast(s64)linear.channels
+    frames := linear.samples.count / channels
+    if frames != expected_frames { print("% decoded % frames\n", name, frames); return Fail(202, name) }
+    decoder: VorbisDecoder
+    if VorbisDecoderOpen(*decoder, input, MaxFrames) != OK { return Fail(203, name) }
+    defer { VorbisDecoderClose(*decoder) }
+    if decoder.info.frames != frames { return Fail(204, name) }
+    targets: [20]s64 = .[frames / 2, 1, 127, 128, 129, 255, 256, 1023, 1024, 1025, 12345, frames - 1000, frames - 1, 17, 0, frames / 3, frames, frames - 50, 4095, frames / 2 + 1]
+    scratch: [1024]float32
+    for target: targets {
+        if target < 0 || target > frames { continue }
+        if VorbisDecoderSeek(*decoder, target) != OK || decoder.position != target { print("% seek % failed\n", name, target); return Fail(205, name) }
+        got: s64
+        if VorbisDecoderRead(*decoder, scratch[0:512 * channels], *got) != OK { return Fail(206, name) }
+        wanted := frames - target
+        if wanted > 512 { wanted = 512 }
+        if got != wanted { return Fail(207, name) }
+        for i: cast(s64)0..got * channels - 1 {
+            if scratch[i] != linear.samples[target * channels + i] { print("% seek % differs at sample %\n", name, target, i); return Fail(208, name) }
+        }
+    }
+    if VorbisDecoderSeek(*decoder, frames + 1) != Invalid || VorbisDecoderSeek(*decoder, -1) != Invalid { return Fail(209, name) }
+    // Reading on from a seek to the middle reaches the end exactly.
+    if VorbisDecoderSeek(*decoder, frames / 2) != OK { return Fail(210, name) }
+    rest: Vec(float32)
+    if Stream(*decoder, *rest) != OK || !Same(VecSlice(rest, 0, rest.count), VecSlice(linear.samples, frames / 2 * channels, linear.samples.count)) { return Fail(211, name) }
+    return OK
+}
+// Synthetic streams: block-size arithmetic, end trim and timeline checks.
+Synthetic :: () -> s32 {
+    modes: [9]u8 = .[0, 0, 1, 1, 0, 1, 0, 0, 1]
+    stream: Vec(u8)
+    if !VorbisSynthetic(*stream, 2, 44100, modes[:], 0, 100) { return Fail(250, "synthetic") }
+    info: VorbisAudio
+    total := VorbisSyntheticFrames(modes[:])
+    if VorbisInspect(VecSlice(stream, 0, stream.count), *info) != OK || info.frames != total - 100 || info.end_trim != 100 || info.modes != 2 || info.packets != 9 || info.long_block != VorbisSyntheticLong { return Fail(251, "synthetic") }
+    // The setup header is filler, so libvorbisfile must refuse it cleanly.
+    pcm: PCM
+    if VorbisDecodeFloat(VecSlice(stream, 0, stream.count), MaxFrames, *pcm) != Malformed { return Fail(252, "synthetic decode") }
+    // A timeline offset, multichannel and low-rate metadata, a final
+    // granule past the decodable frames and a header-only stream.
+    offset: Vec(u8)
+    if !VorbisSynthetic(*offset, 1, 44100, modes[:], 4410, 0) || VorbisInspect(VecSlice(offset, 0, offset.count), *info) != Unsupported { return Fail(253, "offset") }
+    surround: Vec(u8)
+    if !VorbisSynthetic(*surround, 6, 44100, modes[:], 0, 0) || VorbisInspect(VecSlice(surround, 0, surround.count), *info) != OK { return Fail(254, "channels") }
+    slow: Vec(u8)
+    if !VorbisSynthetic(*slow, 1, 4000, modes[:], 0, 0) || VorbisInspect(VecSlice(slow, 0, slow.count), *info) != OK { return Fail(255, "rate") }
+    long: Vec(u8)
+    if !VorbisSynthetic(*long, 1, 44100, modes[:], 0, -64) || VorbisInspect(VecSlice(long, 0, long.count), *info) != Malformed { return Fail(256, "granule") }
+    single: [1]u8 = .[0]
+    empty: Vec(u8)
+    if !VorbisSynthetic(*empty, 1, 44100, single[:], 0, 0) || VorbisInspect(VecSlice(empty, 0, empty.count), *info) != Malformed { return Fail(257, "no audio") }
+    return OK
+}
+Errors :: () -> s32 {
+    decoder: VorbisDecoder
+    scratch: [4]float32
+    frames: s64
+    if VorbisDecoderRead(*decoder, scratch[:], *frames) != Invalid || VorbisDecoderSeek(*decoder, 0) != Invalid { return Fail(300, "closed decoder") }
+    VorbisDecoderClose(*decoder)
+    // Garbage, silence and text are not Ogg Vorbis.
+    state: u64 = 54321
+    sizes: [8]s64 = .[0, 1, 3, 4, 10, 417, 4096, 65536]
+    for size: sizes {
+        noise: Vec(u8)
+        for i: cast(s64)0..size - 1 { if !VecPush(noise, Random(*state)) { return Fail(301, "noise") } }
+        pcm: PCM
+        if VorbisDecodeFloat(VecSlice(noise, 0, noise.count), MaxFrames, *pcm) != Malformed { return Fail(302, "noise") }
+        zeros: Vec(u8)
+        if !VecResize(zeros, size) { return Fail(303, "zeros") }
+        if VorbisDecodeFloat(VecSlice(zeros, 0, zeros.count), MaxFrames, *pcm) != Malformed { return Fail(304, "zeros") }
+    }
+    info: VorbisAudio
+    text := "OggS is not enough to make this an Ogg Vorbis stream."
+    prose: Vec(u8)
+    for i: 0..text.count - 1 { if !VecPush(prose, text[i]) { return Fail(305, "text") } }
+    if VorbisRecognizes(VecSlice(prose, 0, prose.count)) || VorbisInspect(VecSlice(prose, 0, prose.count), *info) != Malformed { return Fail(306, "text") }
+    wav: Vec(u8)
+    if !Load("mono", "wav", *wav) || VorbisInspect(VecSlice(wav, 0, wav.count), *info) != Malformed { return Fail(307, "wav") }
+    // Chained streams (one stream after another) are rejected as
+    // unsupported, as is a stream followed by trailing bytes as malformed.
+    first: Vec(u8)
+    second: Vec(u8)
+    if !Load("stereo", "ogg", *first) || !Load("mono", "ogg", *second) { return Fail(311, "chained") }
+    chained: Vec(u8)
+    if !Copy(VecSlice(first, 0, first.count), *chained) || !Copy(VecSlice(second, 0, second.count), *chained) { return Fail(312, "chained") }
+    pcm: PCM
+    if VorbisInspect(VecSlice(chained, 0, chained.count), *info) != Unsupported || VorbisDecodeFloat(VecSlice(chained, 0, chained.count), MaxFrames, *pcm) != Unsupported { return Fail(313, "chained") }
+    trailing: Vec(u8)
+    if !Copy(VecSlice(first, 0, first.count), *trailing) || !Copy(VecSlice(prose, 0, prose.count), *trailing) { return Fail(314, "trailing") }
+    if VorbisInspect(VecSlice(trailing, 0, trailing.count), *info) != Malformed { return Fail(315, "trailing") }
+    // A flipped byte without a CRC refresh fails the container check.
+    flipped: Vec(u8)
+    if !Copy(VecSlice(first, 0, first.count), *flipped) { return Fail(316, "crc") }
+    flipped[flipped.count / 2] ^= 1
+    if VorbisInspect(VecSlice(flipped, 0, flipped.count), *info) != Malformed { return Fail(317, "crc") }
+    // Corrupted payload bytes behind refreshed CRCs reach libvorbisfile: in the
+    // setup header (codebooks) and in the audio packets. Every decode must
+    // return a status without crashing, and an OK decode keeps the declared
+    // length.
+    names: [3]string = .["stereo", "rate48", "comments"]
+    trials: s64; decoded_ok: s64
+    for name: names {
+        bytes: Vec(u8)
+        if !Load(name, "ogg", *bytes) || VorbisInspect(VecSlice(bytes, 0, bytes.count), *info) != OK { return Fail(318, name) }
+        skips: [2]s64 = .[1, 2]
+        for skip: skips {
+            ranges: Vec(s64)
+            Bodies(VecSlice(bytes, 0, bytes.count), skip, *ranges)
+            if ranges.count < 2 { return Fail(319, name) }
+            for trial: cast(s64)0..99 {
+                corrupt: Vec(u8)
+                if !Copy(VecSlice(bytes, 0, bytes.count), *corrupt) { return Fail(320, name) }
+                for flip: cast(s64)0..3 {
+                    range := ((trial * 7919 + flip * 104729) % (ranges.count / 2)) * 2
+                    start := ranges[range]; width := ranges[range + 1] - start
+                    corrupt[start + (trial * 31 + flip * 977) % width] ^= Random(*state) | 1
+                }
+                Recrc(VecSlice(corrupt, 0, corrupt.count))
+                output: PCM
+                corrupt_info: VorbisAudio
+                code := VorbisDecodeFloat(VecSlice(corrupt, 0, corrupt.count), MaxFrames, *output)
+                if code == OK {
+                    decoded_ok += 1
+                    if VorbisInspect(VecSlice(corrupt, 0, corrupt.count), *corrupt_info) != OK || output.samples.count != corrupt_info.frames * corrupt_info.channels { return Fail(321, name) }
+                    shorts: Vec(s16)
+                    if VorbisDecodeS16(VecSlice(corrupt, 0, corrupt.count), MaxFrames, *shorts, *corrupt_info) != OK || shorts.count != output.samples.count { return Fail(323, name) }
+                } else if code != Malformed && code != Unsupported && code != LimitExceeded { print("% corrupt returned %\n", name, code); return Fail(322, name) }
+                trials += 1
+            }
+        }
+    }
+    print("vorbis corruption: % decodes of corrupted payloads returned a status (% decoded to the declared length)\n", trials, decoded_ok)
+    return OK
+}
+Files :: () -> s32 {
+    decoder: VorbisDecoder
+    if VorbisDecoderOpenFile(*decoder, "tests/fixtures/vorbis/missing.ogg", MaxFrames) != IOFailure || decoder.state != null { return Fail(400, "missing file") }
+    path: Vec(u8)
+    PathInto(*path, "stereo", "ogg")
+    stereo_path := TextFromBytes(VecSlice(path, 0, path.count))
+    if VorbisDecoderOpenFile(*decoder, stereo_path, MaxFrames) != OK { return Fail(401, "stereo file") }
+    if VorbisDecoderOpenFile(*decoder, stereo_path, MaxFrames) != Invalid { VorbisDecoderClose(*decoder); return Fail(402, "reopen") }
+    streamed: Vec(float32)
+    code := Stream(*decoder, *streamed)
+    VorbisDecoderClose(*decoder)
+    bytes: Vec(u8)
+    pcm: PCM
+    if code != OK || !Load("stereo", "ogg", *bytes) || VorbisDecodeFloat(VecSlice(bytes, 0, bytes.count), MaxFrames, *pcm) != OK { return Fail(403, "stereo file") }
+    if !Same(VecSlice(streamed, 0, streamed.count), VecSlice(pcm.samples, 0, pcm.samples.count)) { return Fail(404, "stereo file") }
+    return OK
+}
+
+#scope_export
+VorbisContracts :: () -> s32 {
+    code := Fixtures()
+    if code == OK { code = Comments() }
+    if code == OK { code = Seeks("long", 176400) }
+    if code == OK { code = Seeks("stereo", 13230) }
+    if code == OK { code = Seeks("rate22", 6615) }
+    if code == OK { code = Synthetic() }
+    if code == OK { code = Errors() }
+    if code == OK { code = Files() }
+    if code == OK { print("native Vorbis contracts passed: 5 fixtures within % PCM16 steps (RMS %), exact granule lengths and seeks, comments, malformed input rejected\n", ToleranceSteps, ToleranceRms) }
+    return code
+}
+
+#program_export
+main :: () -> s32 { return VorbisContracts() }

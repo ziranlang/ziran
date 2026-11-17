@@ -1,0 +1,39 @@
+// Device test for both Android PCM backends. Run through audio-android-test;
+// serial is explicit so this never selects another phone.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 5 { print("usage: audio_android_cases ZIRAN BUILD_FOLDER NDK SERIAL\n"); return 2 }
+    test := NativeStart(argc, argv, "audio-android-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    ndk := TextFromCString(argv[3]); serial := TextFromCString(argv[4])
+    if serial == "" { return 2 }
+    generated := CheckPath(test.work, "c")
+    generate := string.[test.ziran, "build", "--target=c", "--root", CheckPath(test.repo, "tests"),
+        "--define", "ANDROID_BUILD", "--define", "__arm__", "--target-os", "android", "--target-cpu", "none",
+        "-o", generated, CheckPath(test.repo, "tests/audio_sink_cases.zi")]
+    unused NativeRun(*test, generate[:])
+    client := CheckPath(test.work, "contract")
+    compile: Vec(string)
+    compiler := CheckPath(ndk, "toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang")
+    flags := string.[compiler, "-std=c11", "-O2", CheckConcat("-I", generated)]
+    for flag: flags { VecPush(compile, flag) }
+    files := NativeFiles(generated, ".c")
+    for file: files { VecPush(compile, file) }
+    options := string.["-ldl", "-lm", "-o", client]
+    for option: options { VecPush(compile, option) }
+    unused NativeRun(*test, compile[:])
+    state := string.["adb", "-s", serial, "get-state"]; unused NativeRun(*test, state[:])
+    destination := "/data/local/tmp/ziran-audio-contract"
+    push := string.["adb", "-s", serial, "push", client, destination]; unused NativeRun(*test, push[:])
+    mode := string.["adb", "-s", serial, "shell", "chmod", "700", destination]; unused NativeRun(*test, mode[:])
+    run := string.["adb", "-s", serial, "shell", destination]; unused NativeRun(*test, run[:])
+    if test.failed { return 1 }
+    print("armv7 Android PCM playback contract passed on %\n", serial)
+    return 0
+}

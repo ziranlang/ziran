@@ -1,0 +1,63 @@
+// Shared Android mixer boundary. Bionic pthread_mutex_t fits this aligned
+// storage on all Android ABIs; its static zero initializer is PTHREAD_MUTEX_INITIALIZER.
+// The lock outlives devices, so voices remain safe after close and reopen.
+Mixer :: #import "std/audio";
+#import "std/byte_text_linux"
+#import "std/c_string"
+
+#scope_file
+c :: #system_library "c";
+dl :: #system_library "dl";
+Lock :: (mutex: *void) -> s32 #foreign c "pthread_mutex_lock";
+Unlock :: (mutex: *void) -> s32 #foreign c "pthread_mutex_unlock";
+Copy :: (output: *void, input: *void, count: usize) -> *void #foreign c "memcpy";
+Load :: (name: *u8, flags: s32) -> *void #foreign dl "dlopen";
+Symbol :: (library: *void, name: *u8) -> *void #foreign dl "dlsym";
+mutex: [8]u64;
+
+#scope_export
+Enter :: () { unused Lock(cast(*void)*mutex[0]) }
+Leave :: () { unused Unlock(cast(*void)*mutex[0]) }
+Install :: () { Mixer.AudioUseLock(Enter, Leave) }
+
+Library :: (name: string) -> *void {
+    text: [64]u8
+    if !CopyCString(name, text[:]) { return null }
+    return Load(*text[0], 2) // RTLD_NOW, local symbols
+}
+Resolve :: (library: *void, slot: *void, name: string) -> bool {
+    text: [96]u8
+    if !CopyCString(name, text[:]) { return false }
+    symbol := Symbol(library, *text[0])
+    if symbol == null { return false }
+    unused Copy(slot, cast(*void)*symbol, size_of(*void))
+    return true
+}
+
+RenderFloat :: (output: *void, frames: s32) {
+    if output == null || frames <= 0 { return }
+    samples: []float32
+    view := cast(*ByteDescriptor)(*samples)
+    view.data = cast(*u8)output
+    view.length = cast(s64)frames * 2
+    Enter()
+    Mixer.AudioRender(samples, cast(s64)frames)
+    Leave()
+}
+
+// OpenSL ES on API 21 accepts signed 16-bit PCM. Convert the mixer's clipped
+// stereo float output without allocating or retaining a caller's buffer.
+RenderPCM :: (output: []s16, frames: s32) {
+    mixed: [1024]float32
+    at: s32
+    while at < frames {
+        count := frames - at
+        if count > 512 { count = 512 }
+        RenderFloat(cast(*void)*mixed[0], count)
+        for index: 0..cast(s64)count * 2 - 1 {
+            value := mixed[index]
+            output[cast(s64)at * 2 + index] = ifx value <= -1.0 then cast(s16)-32768 else cast(s16)(value * 32767.0)
+        }
+        at += count
+    }
+}

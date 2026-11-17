@@ -1,0 +1,76 @@
+// Synthetic Ogg Vorbis streams for portable inspection tests: real
+// identification and comment headers, a setup header holding filler bits and
+// a two-mode table (mode 0 short blocks, mode 1 long), and one-byte audio
+// packets that name a mode, one packet per page. No decoder accepts the
+// setup header; the streams exercise std/vorbis's container, header,
+// block-size and granule checks.
+#import "std/audio_types"
+#import "std/vec"
+#import "std/ogg"
+
+#scope_file
+Bits :: struct { bytes: Vec(u8); count: s64; }
+Put :: (bits: *Bits, value: s64, width: s64) -> bool {
+    for i: cast(s64)0..width - 1 {
+        if bits.count % 8 == 0 && !VecPush(bits.bytes, 0) { return false }
+        if ((value >> i) & 1) != 0 { bits.bytes[bits.count / 8] |= cast(u8)(1 << (bits.count % 8)) }
+        bits.count += 1
+    }
+    return true
+}
+PutText :: (bits: *Bits, text: string) -> bool {
+    for i: 0..text.count - 1 { if !Put(bits, cast(s64)text[i], 8) { return false } }
+    return true
+}
+
+#scope_export
+// Short and long block sizes of the synthetic streams.
+VorbisSyntheticShort :: 256
+VorbisSyntheticLong :: 2048
+// Frames returned by packet I of MODES (0 short, 1 long): none for the
+// first, then half of each neighbouring block.
+VorbisSyntheticFrames :: (modes: []u8) -> s64 {
+    total: s64
+    for i: cast(s64)1..modes.count - 1 {
+        previous := ifx modes[i - 1] == 1 then VorbisSyntheticLong else VorbisSyntheticShort
+        current := ifx modes[i] == 1 then VorbisSyntheticLong else VorbisSyntheticShort
+        total += (previous + current) / 4
+    }
+    return total
+}
+// Appends a stream with CHANNELS at RATE whose audio packets use MODES. Page
+// granules count from START; the last one trims TRIM frames.
+VorbisSynthetic :: (output: *Vec(u8), channels: s32, rate: s32, modes: []u8, start: s64, trim: s64) -> bool {
+    identification: [30]u8
+    identification[0] = 1
+    text := "vorbis"
+    for i: 0..5 { identification[1 + i] = text[i] }
+    identification[11] = cast(u8)channels
+    PutLittle(identification[:], 12, 4, cast(u64)rate)
+    PutLittle(identification[:], 20, 4, 96000)
+    identification[28] = cast(u8)(8 | (11 << 4)); identification[29] = 1
+    if AppendPage(output, identification[:], 2, 0, 9, 0) != OK { return false }
+    comment: Bits
+    if !Put(*comment, 3, 8) || !PutText(*comment, "vorbis") || !Put(*comment, 5, 32) || !PutText(*comment, "ziran") ||
+        !Put(*comment, 1, 32) || !Put(*comment, 15, 32) || !PutText(*comment, "TITLE=synthetic") || !Put(*comment, 1, 8) { return false }
+    if AppendPage(output, VecSlice(comment.bytes, 0, comment.bytes.count), 0, 0, 9, 1) != OK { return false }
+    // Filler stands for the codebooks, floors, residues and mappings.
+    setup: Bits
+    if !Put(*setup, 5, 8) || !PutText(*setup, "vorbis") || !Put(*setup, 65535, 24) || !Put(*setup, 1, 6) { return false }
+    for mode: 0..1 { if !Put(*setup, mode, 1) || !Put(*setup, 0, 16) || !Put(*setup, 0, 16) || !Put(*setup, 0, 8) { return false } }
+    if !Put(*setup, 1, 1) { return false }
+    if AppendPage(output, VecSlice(setup.bytes, 0, setup.bytes.count), 0, 0, 9, 2) != OK { return false }
+    total: s64
+    for i: cast(s64)0..modes.count - 1 {
+        if i > 0 {
+            previous := ifx modes[i - 1] == 1 then VorbisSyntheticLong else VorbisSyntheticShort
+            current := ifx modes[i] == 1 then VorbisSyntheticLong else VorbisSyntheticShort
+            total += (previous + current) / 4
+        }
+        last := i == modes.count - 1
+        packet: [1]u8 = .[cast(u8)((cast(s32)modes[i] << 1) | (ifx modes[i] == 1 then 12 else 0))]
+        granule := start + total - (ifx last then trim else 0)
+        if AppendPage(output, packet[:], ifx last then cast(u8)4 else cast(u8)0, granule, 9, cast(u32)(3 + i)) != OK { return false }
+    }
+    return true
+}

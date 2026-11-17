@@ -1,0 +1,68 @@
+// Deterministic AAudio ABI fixture. Only dlopen is wrapped; dlsym resolves
+// these exported Ziran procedures exactly as it resolves the NDK library.
+#import "std/byte_text_linux"
+FakePull :: #type (*void, *void, *void, s32) -> s32 #c_call;
+FakeError :: #type (*void, *void, s32) -> void #c_call;
+fake_pull: FakePull;
+fake_error: FakeError;
+fake_rate: s32;
+fake_channels: s32;
+fake_format: s32;
+fake_direction: s32;
+fake_stage: s32;
+fake_creates: s32;
+fake_deletes: s32;
+fake_closes: s32;
+fake_starts: s32;
+fake_token: u64;
+c :: #system_library "c";
+RealOpen :: (name: *u8, flags: s32) -> *void #foreign c "__real_dlopen";
+#program_export
+__wrap_dlopen :: (name: *u8, flags: s32) -> *void {
+    if TextFromCString(name) == "libaaudio.so" { return RealOpen(null, flags) }
+    return null
+}
+#program_export
+AAudio_createStreamBuilder :: (output: **void) -> s32 {
+    fake_creates += 1
+    if fake_stage == 1 { return -1 }
+    output[0] = cast(*void)*fake_token
+    return 0
+}
+#program_export
+AAudioStreamBuilder_delete :: (builder: *void) -> s32 { unused builder; fake_deletes += 1; return 0 }
+#program_export
+AAudioStreamBuilder_setSampleRate :: (builder: *void, value: s32) { unused builder; fake_rate = value }
+#program_export
+AAudioStreamBuilder_setChannelCount :: (builder: *void, value: s32) { unused builder; fake_channels = value }
+#program_export
+AAudioStreamBuilder_setFormat :: (builder: *void, value: s32) { unused builder; fake_format = value }
+#program_export
+AAudioStreamBuilder_setDirection :: (builder: *void, value: s32) { unused builder; fake_direction = value }
+#program_export
+AAudioStreamBuilder_setDataCallback :: (builder: *void, callback: FakePull, argument: *void) {
+    unused builder; unused argument; fake_pull = callback
+}
+#program_export
+AAudioStreamBuilder_setErrorCallback :: (builder: *void, callback: FakeError, argument: *void) {
+    unused builder; unused argument; fake_error = callback
+}
+#program_export
+AAudioStreamBuilder_openStream :: (builder: *void, output: **void) -> s32 {
+    unused builder
+    if fake_stage == 2 { return -1 }
+    output[0] = cast(*void)*fake_token
+    return 0
+}
+#program_export
+AAudioStream_getSampleRate :: (stream: *void) -> s32 { unused stream; return ifx fake_stage == 3 then 44100 else fake_rate }
+#program_export
+AAudioStream_getChannelCount :: (stream: *void) -> s32 { unused stream; return fake_channels }
+#program_export
+AAudioStream_getFormat :: (stream: *void) -> s32 { unused stream; return fake_format }
+#program_export
+AAudioStream_requestStart :: (stream: *void) -> s32 { unused stream; fake_starts += 1; return ifx fake_stage == 4 then -1 else 0 }
+#program_export
+AAudioStream_requestStop :: (stream: *void) -> s32 { unused stream; return 0 }
+#program_export
+AAudioStream_close :: (stream: *void) -> s32 { unused stream; fake_closes += 1; return 0 }

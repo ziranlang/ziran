@@ -1,0 +1,49 @@
+// The same mixer source contract for whole-file and incremental MP3/Vorbis.
+#import "std/audio"
+#import "std/audio_decode_mp3"
+#import "std/audio_decode_vorbis"
+#import "std/byte_text_linux"
+
+Near :: (a: float32, b: float32) -> bool { return a - b < .0001 && a - b > -.0001 }
+Check :: (path: string) -> s32 {
+    whole := AudioLoadFile(path, false)
+    music := AudioLoadFile(path, true)
+    if whole.slot < 0 || music.slot < 0 { return 1 }
+    defer { AudioUnload(whole); AudioUnload(music) }
+    if AudioLength(music) < .1 || AudioLength(music) != AudioLength(whole) { return 2 }
+    expected: [8192]float32
+    output: [1024]float32
+    if !AudioPlay(whole) { return 3 }
+    AudioRender(expected[:], 4096)
+    AudioStop(whole)
+    if !AudioPlay(music) { return 4 }
+    AudioRender(output[:], 512)
+    for index: 0..1023 { if !Near(output[index], expected[index]) { return 5 } }
+    if !AudioSeek(music, 1024.0 / 48000.0) { return 6 }
+    AudioRender(output[:], 512)
+    for index: 0..1023 { if !Near(output[index], expected[2048 + index]) { return 7 } }
+    AudioPause(music)
+    if !AudioSeek(music, .01) || AudioState(music) != .Paused { return 8 }
+    AudioRender(output[:], 512)
+    if output[0] != 0.0 || AudioPosition(music) < .00999 || AudioPosition(music) > .01001 { return 9 }
+    if AudioSeek(music, -.1) || AudioSeek(music, AudioLength(music) + 1.0) { return 10 }
+    if !AudioSeek(music, AudioLength(music)) { return 11 }
+    AudioResume(music)
+    AudioRender(output[:], 512)
+    if AudioState(music) != .Finished || output[0] != 0.0 { return 12 }
+    if !AudioSeek(music, 0.0) || AudioState(music) != .Paused { return 13 }
+    AudioResume(music)
+    AudioRender(output[:], 512)
+    for index: 0..1023 { if !Near(output[index], expected[index]) { return 14 } }
+    return 0
+}
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 3 { return 1 }
+    for index: 1..2 {
+        result := Check(TextFromCString(argv[index]))
+        if result != 0 { print("audio decoder % failed: %\n", index, result); return result }
+    }
+    print("MP3 and Vorbis stream/seek contracts passed\n")
+    return 0
+}

@@ -1,0 +1,145 @@
+// Portable Ogg container validation and bounded packet/page construction.
+#import "std/audio_types"
+#import "std/vec"
+
+// Ogg CRC-32 (non-reflected), with the checksum field treated as zero.
+OggCRC :: (page: []u8) -> u32 {
+    crc: u32
+    for i: 0..page.count - 1 {
+        byte := ifx i >= 22 && i < 26 then cast(u8)0 else page[i]
+        crc ^= cast(u32)byte << cast(u32)24
+        for bit: 0..7 { crc = ifx (crc & cast(u32)0x80000000) != 0 then (crc << cast(u32)1) ^ cast(u32)0x04c11db7 else crc << cast(u32)1 }
+    }
+    return crc
+}
+// Bounded packet iterator. Borrowed input must outlive this record. A returned
+// packet is valid until the next call; never retain a view over NextPacket.
+OggReader :: struct {
+    input: []u8
+    at: s64
+    end: s64
+    body: s64
+    segment: s64
+    segments: s64
+    serial: u64
+    sequence: u64
+    granule: s64
+    flags: u8
+    packet: [65536]u8
+    packet_count: s64
+    done: bool
+    page_last: bool
+    last_complete: bool
+}
+NextPacket :: (reader: *OggReader) -> s32 {
+    reader.packet_count = 0
+    if reader.done { return OK }
+    while true {
+        if reader.segment == reader.segments {
+            if reader.at == reader.input.count {
+                if reader.packet_count != 0 { return Malformed }
+                reader.done = true; return OK
+            }
+            at := reader.at
+            input := reader.input
+            if input.count - at < 27 || !Magic(input, at, "OggS") || input[at + 4] != 0 { return Malformed }
+            flags := input[at + 5]
+            if (flags & 248) != 0 || ((flags & 1) != 0) != (reader.packet_count != 0) { return Malformed }
+            first := at == 0
+            if ((flags & 2) != 0) != first { return Malformed }
+            serial := Little(input, at + 14, 4)
+            sequence := Little(input, at + 18, 4)
+            if first { reader.serial = serial } else if serial != reader.serial { return Unsupported }
+            if sequence != reader.sequence { return Malformed }
+            reader.sequence += 1
+            segments := cast(s64)input[at + 26]
+            if segments == 0 || input.count - at - 27 < segments { return Malformed }
+            body := at + 27 + segments
+            size: s64
+            for i: cast(s64)0..segments - 1 { size += input[at + 27 + i] }
+            if input.count - body < size { return Malformed }
+            end := body + size
+            if cast(u64)OggCRC(input[at:end]) != Little(input, at + 22, 4) { return Malformed }
+            if ((flags & 4) != 0) != (end == input.count) { return Malformed }
+            reader.end = end; reader.body = body; reader.segment = 0; reader.segments = segments
+            reader.flags = flags; reader.granule = cast(s64)Little(input, at + 6, 8)
+            completed: s64
+            for i: cast(s64)0..segments - 1 { if input[at + 27 + i] < 255 { completed += 1 } }
+            if completed == 0 && reader.granule != -1 { return Malformed }
+        }
+        count := cast(s64)reader.input[reader.at + 27 + reader.segment]
+        if reader.packet_count + count > 65536 { return LimitExceeded }
+        start := reader.packet_count
+        reader.packet_count = start + count
+        for i: cast(s64)0..count - 1 { reader.packet[start + i] = reader.input[reader.body + i] }
+        reader.body += count; reader.segment += 1
+        reader.page_last = reader.segment == reader.segments
+        if reader.page_last {
+            reader.at = reader.end
+            if count == 255 && (reader.flags & 4) != 0 { return Malformed }
+        }
+        if count < 255 {
+            reader.last_complete = true
+            for i: reader.segment..reader.segments - 1 { if reader.input[reader.at + 27 + i] < 255 { reader.last_complete = false } }
+            return OK
+        }
+    }
+}
+// One complete packet per page. Output is staged by the whole-file encoder.
+AppendPage :: (output: *Vec(u8), packet: []u8, flags: u8, granule: s64, serial: u32, sequence: u32) -> s32 {
+    if packet.count > 65024 { return LimitExceeded }
+    segments := packet.count / 255 + 1
+    start := output.count
+    end := start + 27 + segments + packet.count
+    if end > MaxBytes { return LimitExceeded }
+    if !VecReserve(<<output, end) { return AllocationFailed }
+    bytes: Vec(u8)
+    if !VecResize(bytes, end - start) { return AllocationFailed }
+    {
+        page := VecSlice(bytes, 0, bytes.count)
+        text := "OggS"
+        for i: 0..3 { page[i] = text[i] }
+        page[4] = 0; page[5] = flags
+        PutLittle(page, 6, 8, cast(u64)granule); PutLittle(page, 14, 4, serial)
+        PutLittle(page, 18, 4, sequence); PutLittle(page, 22, 4, 0)
+        page[26] = cast(u8)segments
+        for i: cast(s64)0..segments - 1 { page[27 + i] = ifx i == segments - 1 then cast(u8)(packet.count % 255) else cast(u8)255 }
+        for i: 0..packet.count - 1 { page[27 + segments + i] = packet[i] }
+        PutLittle(page, 22, 4, OggCRC(page))
+    }
+    for i: 0..bytes.count - 1 { unused VecPush(<<output, bytes[i]) }
+    return OK
+}
+// Efficient file muxing: accumulate up to 200 ms or 255 lacing entries in a
+// page, amortizing the 27-byte header without changing Opus frame latency.
+PageBuilder :: struct { body: [65025]u8; laces: [255]u8; count: s64; segments: s64; }
+PageAdd :: (page: *PageBuilder, packet: []u8) -> s32 {
+    segments := packet.count / 255 + 1
+    if packet.count <= 0 || page.segments + segments > 255 || page.count + packet.count > 65025 { return LimitExceeded }
+    for i: cast(s64)0..segments - 1 { page.laces[page.segments + i] = ifx i == segments - 1 then cast(u8)(packet.count % 255) else cast(u8)255 }
+    for i: 0..packet.count - 1 { page.body[page.count + i] = packet[i] }
+    page.segments += segments; page.count += packet.count
+    return OK
+}
+PageFlush :: (page: *PageBuilder, output: *Vec(u8), final: bool, granule: s64, sequence: u32) -> s32 {
+    size := 27 + page.segments + page.count
+    if page.segments == 0 { return Invalid }
+    if output.count + size > MaxBytes { return LimitExceeded }
+    if !VecReserve(<<output, output.count + size) { return AllocationFailed }
+    bytes: Vec(u8)
+    if !VecResize(bytes, size) { return AllocationFailed }
+    {
+        data := VecSlice(bytes, 0, size)
+        text := "OggS"
+        for i: 0..3 { data[i] = text[i] }
+        data[4] = 0; data[5] = ifx final then cast(u8)4 else cast(u8)0
+        PutLittle(data, 6, 8, cast(u64)granule); PutLittle(data, 14, 4, 1); PutLittle(data, 18, 4, sequence)
+        data[26] = cast(u8)page.segments
+        for i: cast(s64)0..page.segments - 1 { data[27 + i] = page.laces[i] }
+        for i: cast(s64)0..page.count - 1 { data[27 + page.segments + i] = page.body[i] }
+        PutLittle(data, 22, 4, OggCRC(data))
+    }
+    for i: 0..bytes.count - 1 { unused VecPush(<<output, bytes[i]) }
+    page.count = 0; page.segments = 0
+    return OK
+}

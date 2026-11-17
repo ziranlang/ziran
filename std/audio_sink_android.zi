@@ -1,0 +1,25 @@
+// Android's output device for the shared audio mixer. The API-21 scaffold
+// needs OpenSL ES on Android 5/6/7; devices with AAudio use float32 output.
+// Public contract matches audio_sink_sdl. Call open/close on the application thread.
+AAudio :: #import "std/audio_android_aaudio";
+OpenSL :: #import "std/audio_android_opensl";
+Buffer :: #import "std/audio_android_buffer";
+
+Device :: #import "std/audio_device";
+#scope_file
+gate: Device.Device;
+OpenDevice :: () -> bool {
+    if AAudio.Available() { return AAudio.Open() }
+    return OpenSL.Open()
+}
+CloseDevice :: () { AAudio.Close(); OpenSL.Close() }
+#scope_export
+AudioSinkOpen :: () -> bool {
+    Buffer.Install()
+    if Device.Ready(*gate) && !AAudio.Ready() && !OpenSL.Ready() { Device.Invalidate(*gate) }
+    return Device.Open(*gate, OpenDevice, CloseDevice)
+}
+AudioSinkReady :: () -> bool { return Device.Ready(*gate) && (AAudio.Ready() || OpenSL.Ready()) }
+AudioSinkPending :: () -> bool { return Device.Pending(*gate) }
+AudioSinkUnavailable :: () -> bool { return Device.Unavailable(*gate) }
+AudioSinkClose :: () { Device.Close(*gate) }

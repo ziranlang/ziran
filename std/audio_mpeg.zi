@@ -1,0 +1,182 @@
+// Portable MPEG audio stream inspection for MP3 files: MPEG-1, MPEG-2 and
+// MPEG-2.5, Layers I, II and III. It skips ID3v2, ID3v1 and APEv2 tags,
+// reads Xing/Info, VBRI and LAME gapless headers, and walks every frame
+// header, so the exact duration and truncation are known without a codec
+// library. std/audio_mp3 decodes the bytes this module accepts.
+#import "std/audio_types"
+
+// `frames` is the exact PCM frame count a decoder returns: a Xing/Info
+// frame count (or the walked frames) times the frame length, minus the LAME
+// encoder delay and padding. Bitrate is nominal for CBR, the average for VBR.
+Mp3Info :: struct {
+    version: s32       // 1 = MPEG-1, 2 = MPEG-2, 25 = MPEG-2.5
+    layer: s32         // 1, 2 or 3
+    channels: s32
+    rate: s32
+    frames: s64
+    mp3_frames: s64    // audio frames, without a Xing/Info tag frame
+    frame_samples: s32 // PCM frames per MPEG frame: 384, 576 or 1152
+    delay: s32         // leading PCM frames removed (LAME delay + 529)
+    padding: s32       // trailing PCM frames removed
+    bitrate: s32       // bits per second
+    vbr: bool
+    audio_at: s64      // first frame byte, a Xing/Info frame included
+    audio_end: s64     // byte after the last frame
+}
+Mp3Header :: struct { version: s32; layer: s32; rate: s32; channels: s32; kbps: s32; samples: s32; bytes: s64; crc: bool; }
+// 24 hours at 48 kHz, as for incremental Opus decoding.
+Mp3MaxStreamFrames :: 4147200000
+
+#scope_file
+Bitrate :: (version: s32, layer: s32, index: s32) -> s32 {
+    mpeg1: [45]s32 = .[0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448,
+        0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384,
+        0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+    mpeg2: [30]s32 = .[0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256,
+        0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
+    if version == 1 { return mpeg1[(layer - 1) * 15 + index] }
+    return mpeg2[ifx layer == 1 then index else 15 + index]
+}
+Big :: (input: []u8, at: s64) -> s64 {
+    return (cast(s64)input[at] << 24) | (cast(s64)input[at + 1] << 16) | (cast(s64)input[at + 2] << 8) | cast(s64)input[at + 3]
+}
+Zeros :: (input: []u8, at: s64) -> bool {
+    while at < input.count { if input[at] != 0 { return false }; at += 1 }
+    return true
+}
+
+#scope_export
+// Parses the four-byte frame header at AT: Malformed when there is none,
+// Unsupported for free-format frames, whose length no header states.
+Mp3ParseHeader :: (input: []u8, at: s64, header: *Mp3Header) -> s32 {
+    <<header = Mp3Header.{}
+    if at < 0 || at > input.count || input.count - at < 4 { return Malformed }
+    b1 := cast(s32)input[at + 1]; b2 := cast(s32)input[at + 2]; b3 := cast(s32)input[at + 3]
+    if input[at] != 255 || (b1 & 224) != 224 { return Malformed }
+    version_bits := (b1 >> 3) & 3; layer_bits := (b1 >> 1) & 3
+    bitrate_index := (b2 >> 4) & 15; rate_index := (b2 >> 2) & 3
+    if version_bits == 1 || layer_bits == 0 || bitrate_index == 15 || rate_index == 3 { return Malformed }
+    if bitrate_index == 0 { return Unsupported }
+    rates: [3]s32 = .[44100, 48000, 32000]
+    header.version = ifx version_bits == 3 then 1 else ifx version_bits == 2 then 2 else 25
+    header.layer = 4 - layer_bits
+    header.rate = rates[rate_index] >> (ifx header.version == 1 then 0 else ifx header.version == 2 then 1 else 2)
+    header.channels = ifx (b3 >> 6) == 3 then 1 else 2
+    header.kbps = Bitrate(ifx header.version == 1 then 1 else 2, header.layer, bitrate_index)
+    header.samples = ifx header.layer == 1 then 384 else ifx header.layer == 2 || header.version == 1 then 1152 else 576
+    header.crc = (b1 & 1) == 0
+    bytes := cast(s64)header.samples * header.kbps * 125 / header.rate
+    if header.layer == 1 { bytes -= bytes % 4 }
+    if ((b2 >> 1) & 1) != 0 { bytes += ifx header.layer == 1 then 4 else 1 }
+    header.bytes = bytes
+    return OK
+}
+
+// Validates the whole stream before any decoder sees it. Every byte between
+// the leading ID3v2 tags and the trailing ID3v1/APEv2 tags must be a
+// complete frame with the first frame's version, layer, rate and channel
+// count, optionally followed by zero padding. A partial last frame, a Xing
+// count above the walked frames, junk between frames and non-MPEG input are
+// Malformed. Clears INFO on failure.
+Mp3Inspect :: (input: []u8, info: *Mp3Info) -> s32 {
+    <<info = Mp3Info.{}
+    if input.count > MaxBytes { return LimitExceeded }
+    at: s64 = 0
+    while input.count - at >= 10 && Magic(input, at, "ID3") {
+        if input[at + 3] == 255 || input[at + 4] == 255 { return Malformed }
+        size: s64
+        for i: 6..9 {
+            if input[at + i] >= 128 { return Malformed }
+            size = size * 128 + cast(s64)input[at + i]
+        }
+        if (cast(s32)input[at + 5] & 16) != 0 { size += 10 }
+        if size > input.count - at - 10 { return Malformed }
+        at += 10 + size
+    }
+    end := input.count
+    if end - at >= 128 && Magic(input, end - 128, "TAG") { end -= 128 }
+    if end - at >= 32 && Magic(input, end - 32, "APETAGEX") {
+        size := cast(s64)Little(input, end - 20, 4)
+        if (Little(input, end - 12, 4) >> 31) != 0 { size += 32 }
+        if size < 32 || size > end - at { return Malformed }
+        end -= size
+    }
+    stream := input[0:end]
+    while at < end && stream[at] == 0 { at += 1 }
+    first: Mp3Header
+    code := Mp3ParseHeader(stream, at, *first)
+    if code != OK { return code }
+    if first.bytes > end - at { return Malformed }
+    audio_at := at
+    declared: s64 = -1
+    delay: s64; padding: s64
+    vbr := false
+    if first.layer == 3 {
+        side: s64 = ifx first.version == 1 then (ifx first.channels == 1 then 17 else 32) else (ifx first.channels == 1 then 9 else 17)
+        tag := at + 4 + side + (ifx first.crc then 2 else 0)
+        frame_end := at + first.bytes
+        if frame_end - tag >= 8 && (Magic(stream, tag, "Xing") || Magic(stream, tag, "Info")) {
+            vbr = Magic(stream, tag, "Xing")
+            flags := cast(s32)stream[tag + 7]
+            field := tag + 8
+            if (flags & 1) != 0 {
+                if frame_end - field < 4 { return Malformed }
+                declared = Big(stream, field); field += 4
+            }
+            if (flags & 2) != 0 { field += 4 }
+            if (flags & 4) != 0 { field += 100 }
+            if (flags & 8) != 0 { field += 4 }
+            if frame_end - field < 1 { return Malformed }
+            if stream[field] != 0 {
+                if frame_end - field < 36 { return Malformed }
+                a := cast(s64)stream[field + 21]; b := cast(s64)stream[field + 22]; c := cast(s64)stream[field + 23]
+                delay = ((a << 4) | (b >> 4)) + 529
+                padding = (((b & 15) << 8) | c) - 529
+                if padding < 0 { padding = 0 }
+            }
+            at = frame_end
+        } else if Magic(stream, at + 36, "VBRI") { vbr = true }
+    }
+    // A tag frame may use another bitrate than the audio frames after it.
+    walked: s64; bytes: s64; kbps: s32
+    constant := true
+    while at < end {
+        header: Mp3Header
+        code = Mp3ParseHeader(stream, at, *header)
+        if code == Malformed && Zeros(stream, at) { break }
+        if code != OK { return code }
+        if header.version != first.version || header.layer != first.layer || header.rate != first.rate || header.channels != first.channels { return Unsupported }
+        if header.bytes > end - at { return Malformed }
+        if walked == 0 { kbps = header.kbps } else if header.kbps != kbps { constant = false }
+        walked += 1; bytes += header.bytes; at += header.bytes
+    }
+    if walked == 0 || declared > walked { return Malformed }
+    counted := ifx declared > 0 then declared else walked
+    frames := counted * first.samples - delay - padding
+    if frames <= 0 { return Malformed }
+    if frames > Mp3MaxStreamFrames { return LimitExceeded }
+    vbr = vbr || !constant
+    info.version = first.version; info.layer = first.layer; info.channels = first.channels; info.rate = first.rate
+    info.frames = frames; info.mp3_frames = walked; info.frame_samples = first.samples
+    info.delay = cast(s32)delay; info.padding = cast(s32)padding
+    duration := walked * first.samples
+    info.bitrate = ifx vbr then cast(s32)((bytes * 8 * first.rate + duration / 2) / duration) else kbps * 1000
+    info.vbr = vbr; info.audio_at = audio_at; info.audio_end = at
+    return OK
+}
+Mp3Seconds :: (info: *Mp3Info) -> float64 {
+    if info.rate <= 0 { return 0.0 }
+    return cast(float64)info.frames / cast(float64)info.rate
+}
+// One summary line, shared by the CLI and the Windows decode check.
+Mp3PrintInfo :: (info: *Mp3Info) {
+    if info.rate <= 0 { print("MP3: no stream\n"); return }
+    version := ifx info.version == 25 then "2.5" else ifx info.version == 2 then "2" else "1"
+    layer := ifx info.layer == 1 then "I" else ifx info.layer == 2 then "II" else "III"
+    milliseconds := (info.frames * 1000 + info.rate / 2) / info.rate
+    fraction := milliseconds % 1000
+    print("MP3: MPEG-% Layer %, % channels, % Hz, % frames, %.", version, layer, info.channels, info.rate, info.frames, milliseconds / 1000)
+    if fraction < 100 { print("0") }
+    if fraction < 10 { print("0") }
+    print("% s, % bps %, delay %, padding %, % MPEG frames\n", fraction, info.bitrate, ifx info.vbr then "VBR" else "CBR", info.delay, info.padding, info.mp3_frames)
+}

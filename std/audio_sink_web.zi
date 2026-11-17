@@ -1,0 +1,115 @@
+// WebAudio output for std/audio. A short timer schedules two immutable PCM
+// buffers ahead of the audio clock; suspended contexts do not consume voices.
+// The application calls AudioSinkResume from a trusted gesture when required.
+#import "std/web"
+#import "std/byte_text_linux"
+Mixer :: #import "std/audio";
+
+#scope_file
+context: s32;
+attempted: bool;
+timer: float64;
+tick: s32;
+ignore: s32;
+sources: [4]s32;
+ends: [4]float64;
+next_time: float64;
+samples: [2048]float32;
+channel: [1024]float32;
+
+Unlocked :: () {}
+Ignore :: (data: s32, first: s32, second: s32, third: s32) {
+    unused data; unused first; unused second; unused third
+}
+ReleaseSource :: (slot: s64) {
+    if sources[slot] == 0 { return }
+    unused WebCall0(sources[slot], WebName("disconnect"))
+    WebRelease(sources[slot])
+    sources[slot] = 0
+}
+Running :: () -> bool {
+    scope := WebScope(); defer WebEnd(scope)
+    if context == 0 { return false }
+    state := WebGet(context, WebName("state"))
+    if state.tag != WebStringTag { return false }
+    text: [24]u8
+    unused WebCopyString(WebAsObject(state), text[:])
+    return TextFromCString(*text[0]) == "running"
+}
+Pump :: (data: s32, first: s32, second: s32, third: s32) {
+    unused data; unused first; unused second; unused third
+    if !Running() { return }
+    now := WebGetNumber(context, WebName("currentTime"))
+    for slot: 0..3 { if sources[slot] != 0 && ends[slot] <= now { ReleaseSource(slot) } }
+    if next_time < now { next_time = now }
+    for block: 0..1 {
+        unused block
+        if next_time >= now + 2048.0 / 48000.0 { break }
+        slot: s64 = -1
+        for index: 0..3 { if sources[index] == 0 { slot = index; break } }
+        if slot < 0 { break }
+        buffer := WebAsObject(WebCall3(context, WebName("createBuffer"), WebNumber(2.0), WebNumber(1024.0), WebNumber(48000.0)))
+        if buffer == 0 || WebFailed() { return }
+        Mixer.AudioRender(samples[:], 1024)
+        for side: 0..1 {
+            for frame: 0..1023 { channel[frame] = samples[frame * 2 + side] }
+            target := WebAsObject(WebCall1(buffer, WebName("getChannelData"), WebNumber(cast(float64)side)))
+            view := WebBytes(WebBytesFloat32, cast(*void)*channel[0], 1024)
+            unused WebCall1(target, WebName("set"), WebObject(view))
+            WebRelease(view)
+        }
+        source := WebAsObject(WebCall0(context, WebName("createBufferSource")))
+        if source == 0 || WebFailed() { WebRelease(buffer); return }
+        WebSet(source, WebName("buffer"), WebObject(buffer))
+        unused WebCall1(source, WebName("connect"), WebObject(WebGetObject(context, WebName("destination"))))
+        unused WebCall1(source, WebName("start"), WebNumber(next_time))
+        WebRelease(buffer)
+        if WebFailed() { WebRelease(source); return }
+        sources[slot] = WebKeep(source)
+        next_time += 1024.0 / 48000.0
+        ends[slot] = next_time
+    }
+}
+
+#scope_export
+AudioSinkReady :: () -> bool { return context != 0 }
+AudioSinkPending :: () -> bool { return false }
+AudioSinkUnavailable :: () -> bool { return attempted && context == 0 }
+AudioSinkRunning :: () -> bool { return Running() }
+AudioSinkResume :: () -> bool {
+    scope := WebScope(); defer WebEnd(scope)
+    if context == 0 { return false }
+    promise := WebAsObject(WebCall0(context, WebName("resume")))
+    if promise != 0 { unused WebCall1(promise, WebName("catch"), WebObject(ignore)) }
+    return !WebFailed()
+}
+AudioSinkClose :: () {
+    scope := WebScope(); defer WebEnd(scope)
+    attempted = false
+    if context == 0 { return }
+    unused WebCall1(WebGlobal, WebName("clearInterval"), WebNumber(timer))
+    for slot: 0..3 {
+        if sources[slot] != 0 { unused WebCall0(sources[slot], WebName("stop")); ReleaseSource(slot) }
+    }
+    unused WebCall0(context, WebName("close"))
+    WebRelease(tick); WebRelease(ignore); WebRelease(context)
+    tick = 0; ignore = 0; context = 0; next_time = 0.0
+}
+AudioSinkOpen :: () -> bool {
+    scope := WebScope(); defer WebEnd(scope)
+    if context != 0 { return true }
+    attempted = true
+    constructor := WebGetObject(WebGlobal, WebName("AudioContext"))
+    if constructor == 0 { return false }
+    opened := WebNew0(constructor)
+    if opened == 0 || WebFailed() { return false }
+    context = WebKeep(opened)
+    ignore = WebFunction(Ignore, 0)
+    tick = WebFunction(Pump, 0)
+    result := WebCall2(WebGlobal, WebName("setInterval"), WebObject(tick), WebNumber(10.0))
+    if WebFailed() { AudioSinkClose(); return false }
+    timer = WebAsNumber(result)
+    unlocked: Mixer.AudioLockCall = Unlocked
+    Mixer.AudioUseLock(unlocked, unlocked) // Web callbacks and the application share one thread.
+    return true
+}

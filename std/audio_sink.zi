@@ -1,0 +1,11 @@
+// Import the output device for the compilation target. PCM voices and mixing
+// live in std/audio and can also be rendered without opening a device.
+#if OS == .WEB || #defined(PLATFORM_WEB) {
+    using Platform :: #import "std/audio_sink_web"
+} else {
+    #if OS == .ANDROID || #defined(ANDROID_BUILD) || #defined(PLATFORM_ANDROID) || #defined(__ANDROID__) {
+        using Platform :: #import "std/audio_sink_android"
+    } else {
+        using Platform :: #import "std/audio_sink_sdl"
+    }
+}

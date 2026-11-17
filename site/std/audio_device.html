@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Caller-owned asynchronous device open."><title>std/audio_device · Ziran</title><link rel="canonical" href="https://ziran-lang.org/std/audio_device"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#std">Modules</a> / Standard library</p><h1>std/audio_device</h1><p>Caller-owned asynchronous device open. Only the application thread touches this record; the worker publishes its result through ThreadFinished.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> Available on master (Unreleased).</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Declarations</strong><a href="#OpenCall">OpenCall</a><a href="#CloseCall">CloseCall</a><a href="#Device">Device</a><a href="#Poll">Poll</a><a href="#Pending">Pending</a><a href="#Unavailable">Unavailable</a><a href="#Ready">Ready</a><a href="#Open">Open</a><a href="#Close">Close</a><a href="#Invalidate">Invalidate</a></aside><div class="article-body api-body">
+<section><p>Import with <code>#import "std/audio_device"</code>.</p><div class="api-list">
+<div id="OpenCall"><code>OpenCall :: #type () -&gt; bool</code></div>
+<div id="CloseCall"><code>CloseCall :: #type ()</code></div>
+<div id="Device"><code>Device :: struct { worker: Thread; open: OpenCall; close: CloseCall; result: bool; ready: bool; attempted: bool; retry_at: s64; }</code></div>
+<div id="Poll"><code>Poll :: (device: *Device)</code></div>
+<div id="Pending"><code>Pending :: (device: *Device) -&gt; bool</code></div>
+<div id="Unavailable"><code>Unavailable :: (device: *Device) -&gt; bool</code></div>
+<div id="Ready"><code>Ready :: (device: *Device) -&gt; bool</code></div>
+<div id="Open"><code>Open :: (device: *Device, open: OpenCall, close: CloseCall) -&gt; bool</code></div>
+<div id="Close"><code>Close :: (device: *Device)</code></div>
+<div id="Invalidate"><code>Invalidate :: (device: *Device)</code><p>A backend's disconnect callback made a previously opened device unusable.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/audio_device.zi">Source ↗</a> · <a class="text-link" href="../modules.html#std">All modules</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

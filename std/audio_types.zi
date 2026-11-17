@@ -1,0 +1,57 @@
+#import "std/vec"
+
+OK :: 0
+Invalid :: 2
+Malformed :: 3
+Unsupported :: 4
+LimitExceeded :: 5
+NativeFailure :: 6
+AllocationFailed :: 7
+IOFailure :: 8
+
+// Interleaved normalized float samples. The caller owns the vector.
+PCM :: struct { samples: Vec(float32); rate: s32; channels: s32; }
+// Memory/work bounds apply before allocations. Rates are bounded to avoid
+// enormous output for hostile headers. Whole-file APIs are intentionally bounded.
+MaxBytes :: 268435456
+MaxFrames :: 28800000
+ValidPCM :: (pcm: *PCM) -> bool {
+    if pcm == null || pcm.channels < 1 || pcm.channels > 2 || pcm.rate < 8000 || pcm.rate > 192000 { return false }
+    if pcm.samples.count <= 0 || pcm.samples.count % pcm.channels != 0 || pcm.samples.count / pcm.channels > MaxFrames { return false }
+    for i: 0..pcm.samples.count - 1 {
+        value := pcm.samples[i]
+        if value != value || value < -16.0 || value > 16.0 { return false }
+    }
+    return true
+}
+ErrorText :: (code: s32) -> string {
+    if code == OK { return "ok" }
+    if code == Invalid { return "invalid argument" }
+    if code == Malformed { return "malformed audio" }
+    if code == Unsupported { return "unsupported audio capability" }
+    if code == LimitExceeded { return "audio limit exceeded" }
+    if code == AllocationFailed { return "allocation failed" }
+    if code == IOFailure { return "input/output failed" }
+    return "native audio failure"
+}
+Little :: (input: []u8, at: s64, count: s64) -> u64 {
+    value: u64
+    for i: cast(s64)0..count - 1 { value |= cast(u64)input[at + i] << cast(u64)(8 * i) }
+    return value
+}
+PutLittle :: (output: []u8, at: s64, count: s64, value: u64) {
+    for i: cast(s64)0..count - 1 { output[at + i] = cast(u8)(value >> cast(u64)(8 * i)) }
+}
+Magic :: (input: []u8, at: s64, text: string) -> bool {
+    if at < 0 || at > input.count || input.count - at < text.count { return false }
+    for i: 0..text.count - 1 { if input[at + i] != text[i] { return false } }
+    return true
+}
+// The PCM16 boundary for finite samples: clip overshoot to
+// [-1, 32767/32768], scale by 32768 and truncate, as WAV output does.
+Pcm16 :: (value: float64) -> s16 {
+    if value < -1.0 { value = -1.0 }; if value > 32767.0 / 32768.0 { value = 32767.0 / 32768.0 }
+    return cast(s16)cast(s64)(value * 32768.0)
+}
+// Move ownership between caller vector and PCM without copying samples.
+SwapSamples :: (pcm: *PCM, samples: *Vec(float32)) { VecSwap(pcm.samples, <<samples) }

@@ -44,6 +44,22 @@
   <url><loc>https://ziran-lang.org/packages/webp</loc></url>
   <url><loc>https://ziran-lang.org/status</loc></url>
   <url><loc>https://ziran-lang.org/std/atomic_go</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_android_aaudio</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_android_buffer</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_android_opensl</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_decode_mp3</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_decode_vorbis</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_decode_wav</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_device</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_mp3</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_mpeg</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_sink</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_sink_android</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_sink_sdl</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_sink_web</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_types</loc></url>
+  <url><loc>https://ziran-lang.org/std/audio_wav</loc></url>
   <url><loc>https://ziran-lang.org/std/binary</loc></url>
   <url><loc>https://ziran-lang.org/std/binary_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/bundle_host</loc></url>
@@ -97,6 +113,7 @@
   <url><loc>https://ziran-lang.org/std/net_http_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/net_ws_curl_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/number_text</loc></url>
+  <url><loc>https://ziran-lang.org/std/ogg</loc></url>
   <url><loc>https://ziran-lang.org/std/option</loc></url>
   <url><loc>https://ziran-lang.org/std/pair</loc></url>
   <url><loc>https://ziran-lang.org/std/parallel</loc></url>

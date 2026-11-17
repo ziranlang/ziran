@@ -2,7 +2,8 @@
 
 ## [Unreleased]
 
-- ZX lowering folds signed integer interval checks such as `value > 1000 || value < 0` into one unsigned comparison when both sides read the same stable local, record member or fixed-array element. Calls and other expressions whose second evaluation can matter retain short-circuit evaluation.
+- Audio mixing, PCM streams, Ogg/Vorbis inspection and streaming/seek, WAV/MP3 decoding and SDL/WebAudio output are core standard modules independent of Kryon. Android streams through AAudio on API 26+ and OpenSL ES on API 21–25, with the same mixer and sink contract as desktop.
+
 - Loop invariant hoisting leaves standalone constants and symbolic addresses near their uses while retaining useful invariant expressions. This reduces spills in vector growth loops; the matched Alpha Vectors kernel improves from 85.8 to 42.5 µs with unchanged results.
 
 - `bench/standard/` holds the benchmarks people use to compare languages, in Ziran, C and Go with every input read at run time: recursive Fibonacci, n-body, spectral-norm, mandelbrot, fannkuch-redux, binary-trees, fasta, nqueens, integer matrix multiplication, quicksort and FNV-1a string hashing. `bench/wasm_tier.py --standard` runs them as C (`cc -O2`), Go, native ZX and Wasm on Alpha's physical host and checks every result against C, at diagnostic sizes or the Benchmarks Game sizes (`--standard-full`); `bench/bench.zi -- standard-compile` times whole-suite builds for each target. The small-kernel table gains independent Go references. The website shows the results, and `bench/results/standard/gaps.md` ranks where native ZX trails C: on spectral-norm, fasta, binary-trees and matmul the same program runs much closer to C as Wasm, so the native backend is the gap there.

@@ -1,0 +1,73 @@
+#import "std/audio_types"
+#import "std/vec"
+#import "std/binary"
+// Canonical RIFF WAVE PCM16 or IEEE float32 mono/stereo. Unknown chunks are
+// skipped with padding, but duplicate fmt/data, RF64 and compressed WAV reject.
+WavDecode :: (input: []u8, max_frames: s64, output: *PCM) -> s32 {
+    if input.count > MaxBytes { return LimitExceeded }
+    if input.count < 12 || !Magic(input, 0, "RIFF") || !Magic(input, 8, "WAVE") || Little(input, 4, 4) + 8 != cast(u64)input.count { return Malformed }
+    at: s64 = 12
+    channels: s32; rate: s32; bits: s32; format: s32
+    start: s64 = -1; length: s64
+    while at < input.count {
+        if input.count - at < 8 { return Malformed }
+        size := cast(s64)Little(input, at + 4, 4)
+        body := at + 8
+        if size > input.count - body { return Malformed }
+        if Magic(input, at, "fmt ") {
+            if channels != 0 || size < 16 { return Malformed }
+            format = cast(s32)Little(input, body, 2); channels = cast(s32)Little(input, body + 2, 2)
+            rate = cast(s32)Little(input, body + 4, 4); bits = cast(s32)Little(input, body + 14, 2)
+            if channels < 1 || channels > 2 || rate < 8000 || rate > 192000 { return Unsupported }
+            if (format != 1 || bits != 16) && (format != 3 || bits != 32) { return Unsupported }
+            if Little(input, body + 12, 2) != cast(u64)(channels * bits / 8) || Little(input, body + 8, 4) != cast(u64)rate * cast(u64)(channels * bits / 8) { return Malformed }
+        } else if Magic(input, at, "data") {
+            if start != -1 { return Malformed }; start = body; length = size
+        }
+        at = body + size + size % 2
+    }
+    if at != input.count || channels == 0 || start < 0 || length == 0 || length % (channels * bits / 8) != 0 { return Malformed }
+    frames := length / (channels * bits / 8)
+    if max_frames <= 0 || frames > max_frames || frames > MaxFrames { return LimitExceeded }
+    samples: Vec(float32)
+    if !VecResize(samples, frames * channels) { return AllocationFailed }
+    for i: cast(s64)0..samples.count - 1 {
+        value: float64
+        if format == 1 {
+            raw := cast(s32)Little(input, start + i * 2, 2)
+            if raw >= 32768 { raw -= 65536 }; value = cast(float64)raw / 32768.0
+        } else { value = Float32FromBits(cast(u32)Little(input, start + i * 4, 4)) }
+        if value != value || value < -1.0 || value > 1.0 { return Malformed }
+        samples[i] = cast(float32)value
+    }
+    output.rate = rate; output.channels = channels
+    SwapSamples(output, *samples)
+    return OK
+}
+// PCM16 output clips finite sinc/codec overshoots at the integer boundary.
+WavEncode :: (pcm: *PCM, output: *Vec(u8)) -> s32 {
+    if pcm.channels < 1 || pcm.channels > 2 || pcm.rate < 8000 || pcm.rate > 192000 || pcm.samples.count <= 0 || pcm.samples.count % pcm.channels != 0 { return Invalid }
+    count := pcm.samples.count
+    if count / pcm.channels > MaxFrames || count * 2 + 44 > MaxBytes { return LimitExceeded }
+    bytes: Vec(u8)
+    if !VecResize(bytes, count * 2 + 44) { return AllocationFailed }
+    {
+        data := VecSlice(bytes, 0, bytes.count)
+        text := "RIFF"
+        for i: 0..3 { data[i] = text[i] }
+        PutLittle(data, 4, 4, cast(u64)(bytes.count - 8)); text = "WAVEfmt "
+        for i: 0..7 { data[8 + i] = text[i] }
+        PutLittle(data, 16, 4, 16); PutLittle(data, 20, 2, 1)
+        PutLittle(data, 22, 2, cast(u64)pcm.channels); PutLittle(data, 24, 4, cast(u64)pcm.rate)
+        PutLittle(data, 28, 4, cast(u64)(pcm.rate * pcm.channels * 2)); PutLittle(data, 32, 2, cast(u64)(pcm.channels * 2)); PutLittle(data, 34, 2, 16)
+        text = "data"
+        for i: 0..3 { data[36 + i] = text[i] }
+        PutLittle(data, 40, 4, cast(u64)(count * 2))
+        for i: cast(s64)0..count - 1 {
+            value := cast(float64)pcm.samples[i]
+            if value - value != 0.0 { return Invalid }
+            PutLittle(data, 44 + i * 2, 2, cast(u64)cast(s64)Pcm16(value))
+        }
+    }
+    VecSwap(bytes, <<output); return OK
+}

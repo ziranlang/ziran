@@ -1,0 +1,103 @@
+// AAudio is loaded at runtime so an API-21 app still loads on API 21-25.
+// All entry points below were introduced in API 26. No AAudio link is needed.
+Buffer :: #import "std/audio_android_buffer";
+
+#scope_file
+Create :: #type (**void) -> s32 #c_call;
+Dispose :: #type (*void) -> s32 #c_call;
+SetInt :: #type (*void, s32) -> void #c_call;
+DataCallback :: #type (*void, *void, *void, s32) -> s32 #c_call;
+ErrorCallback :: #type (*void, *void, s32) -> void #c_call;
+SetData :: #type (builder: *void, callback: *void, argument: *void) -> void #c_call;
+SetError :: #type (builder: *void, callback: *void, argument: *void) -> void #c_call;
+OpenStream :: #type (*void, **void) -> s32 #c_call;
+GetInt :: #type (*void) -> s32 #c_call;
+create: Create;
+delete: Dispose;
+set_rate: SetInt;
+set_channels: SetInt;
+set_format: SetInt;
+set_direction: SetInt;
+set_data: SetData;
+set_error: SetError;
+open_stream: OpenStream;
+start: Dispose;
+stop: Dispose;
+close: Dispose;
+get_rate: GetInt;
+get_channels: GetInt;
+get_format: GetInt;
+library: *void;
+stream: *void;
+failed: bool;
+
+Resolve :: () -> bool {
+    return Buffer.Resolve(library, cast(*void)*create, "AAudio_createStreamBuilder") &&
+        Buffer.Resolve(library, cast(*void)*delete, "AAudioStreamBuilder_delete") &&
+        Buffer.Resolve(library, cast(*void)*set_rate, "AAudioStreamBuilder_setSampleRate") &&
+        Buffer.Resolve(library, cast(*void)*set_channels, "AAudioStreamBuilder_setChannelCount") &&
+        Buffer.Resolve(library, cast(*void)*set_format, "AAudioStreamBuilder_setFormat") &&
+        Buffer.Resolve(library, cast(*void)*set_direction, "AAudioStreamBuilder_setDirection") &&
+        Buffer.Resolve(library, cast(*void)*set_data, "AAudioStreamBuilder_setDataCallback") &&
+        Buffer.Resolve(library, cast(*void)*set_error, "AAudioStreamBuilder_setErrorCallback") &&
+        Buffer.Resolve(library, cast(*void)*open_stream, "AAudioStreamBuilder_openStream") &&
+        Buffer.Resolve(library, cast(*void)*start, "AAudioStream_requestStart") &&
+        Buffer.Resolve(library, cast(*void)*stop, "AAudioStream_requestStop") &&
+        Buffer.Resolve(library, cast(*void)*close, "AAudioStream_close") &&
+        Buffer.Resolve(library, cast(*void)*get_rate, "AAudioStream_getSampleRate") &&
+        Buffer.Resolve(library, cast(*void)*get_channels, "AAudioStream_getChannelCount") &&
+        Buffer.Resolve(library, cast(*void)*get_format, "AAudioStream_getFormat")
+}
+Pull :: (device: *void, argument: *void, output: *void, frames: s32) -> s32 {
+    unused device; unused argument
+    Buffer.RenderFloat(output, frames)
+    return 0 // AAUDIO_CALLBACK_RESULT_CONTINUE
+}
+Error :: (device: *void, argument: *void, code: s32) {
+    unused device; unused argument; unused code
+    // Never stop/close on AAudio's callback thread. The next UI-thread open
+    // recovers the device; mixer voices and queued PCM survive it.
+    Buffer.Enter(); failed = true; Buffer.Leave()
+}
+
+#scope_export
+Available :: () -> bool {
+    if library == null { library = Buffer.Library("libaaudio.so") }
+    return library != null
+}
+Ready :: () -> bool {
+    Buffer.Enter()
+    ready := stream != null && !failed
+    Buffer.Leave()
+    return ready
+}
+Close :: () {
+    if stream == null { return }
+    // close joins the callback; do not hold the mixer's mutex while joining.
+    unused stop(stream)
+    unused close(stream)
+    stream = null
+}
+Open :: () -> bool {
+    if Ready() { return true }
+    Close()
+    if !Available() || !Resolve() { return false }
+    builder: *void
+    if create(*builder) != 0 || builder == null { return false }
+    defer delete(builder)
+    set_rate(builder, 48000)
+    set_channels(builder, 2)
+    set_format(builder, 2) // AAUDIO_FORMAT_PCM_FLOAT
+    set_direction(builder, 0) // AAUDIO_DIRECTION_OUTPUT
+    pull: DataCallback = Pull
+    set_data(builder, (cast(**void)*pull)[0], null)
+    error: ErrorCallback = Error
+    set_error(builder, (cast(**void)*error)[0], null)
+    if open_stream(builder, *stream) != 0 || stream == null { stream = null; return false }
+    if get_rate(stream) != 48000 || get_channels(stream) != 2 || get_format(stream) != 2 {
+        Close(); return false
+    }
+    Buffer.Enter(); failed = false; Buffer.Leave()
+    if start(stream) != 0 { Close(); return false }
+    return Ready()
+}

@@ -1953,7 +1953,11 @@ Pillow when it is installed.
 decoding it: `VorbisProbe(bytes, *audio)` checks that the bytes are whole
 pages of one stream with a Vorbis identification header and gives its
 channels, rate and length, so a program can bound a stream before any
-decoder allocates for it. It needs no library.
+decoder allocates for it. It validates CRCs, page order, headers and the exact
+packet timeline. `VorbisInspect` and `VorbisInspectComments` also report bitrate
+hints, block sizes, end trim, vendor and user comments. `VorbisRecognizes` only
+classifies a header; it does not validate a stream. The bounded packet reader,
+CRC and page builder live in `std/ogg`. These modules need no native library.
 `std/vorbis_linux.zi` decodes one whole Ogg Vorbis stream held in memory
 into interleaved signed 16-bit little-endian PCM over the platform
 libvorbisfile: `VorbisDecode(bytes, *pcm, max_frames, *audio)` probes first,
@@ -1964,7 +1968,42 @@ checked on every call. Only programs that import it link
 `-l:libvorbisfile.so.3` (or `-lvorbisfile` with the development package).
 `tests/vorbis_linux.sh` needs ffmpeg with libvorbis; with the Vorbis
 development headers (or `VORBIS_INCLUDE`) it also compares the record sizes
-with the C compiler's.
+with the C compiler's. `VorbisDecoderOpen`/`VorbisDecoderOpenFile` support
+incremental float or PCM16 reads, exact frame seeks and owned comments.
+`VorbisDecodeFloat` and `VorbisDecodeS16` provide bounded whole-file output.
+Their status codes and float PCM record come from `std/audio_types`.
+
+`std/audio` is the device-independent 48 kHz stereo float mixer. Voices
+support gain, pitch, looping, pause/resume, exact seek and position. `AudioSeek(voice, seconds)` preserves
+playing/paused state and returns false for live PCM or an unsupported source. `AudioOpenStream(rate,
+channels, block_frames)` accepts copied PCM16 blocks through
+`AudioStreamSubmit`; `AudioStreamWritable` provides backpressure, and underruns
+produce silence. `AudioRender` can render offline without opening a device.
+Import `std/audio_decode_wav` or `std/audio_decode_mp3` to register decoders by
+content. `std/audio_decode_vorbis` registers the existing guarded libvorbisfile decoder
+for incremental playback and exact seek. `std/audio_wav` also exposes bounded WAV encode/decode; `std/audio_mp3`
+and `std/audio_mpeg` provide incremental MP3 decoding and portable inspection.
+MP3 consumers build `make audio-mp3` and link
+`build/audio/native/libziran_mp3.a -lm`. The independent CMake recipe is
+`std/native/AudioCodecs.cmake`; it verifies the pinned dr_mp3 header and license.
+
+`std/audio_sink` selects the device interface (`AudioSinkOpen`, `AudioSinkReady`,
+`AudioSinkClose`). Native desktop programs use SDL2 without needing a window.
+Native open starts a worker and immediately returns false while pending;
+poll `AudioSinkReady`, `AudioSinkPending` or `AudioSinkUnavailable`. Repeated
+opens back off for one second after failure. Device teardown may join the
+worker and callbacks; perform it during explicit teardown, not per cue.
+Android targets use dynamically resolved AAudio
+on API 26+, with OpenSL ES for API 21–25; minSdk 21 binaries do not link AAudio.
+Both native sinks use the same mixer lock and retain loaded voices across
+close/reopen. Web targets use WebAudio; call `AudioSinkResume` from a
+trusted user gesture when the browser suspends audio. The web sink does not
+consume voices while suspended. Applications own device open/close and gesture
+policy. `make check CHECK_FILTER=audio_checks` exercises the mixer, deterministic
+Android failure paths, and SDL device failure/disk output on private Xvfb.
+`make audio-android-test ANDROID_NDK=… ANDROID_SERIAL=…` tests AAudio and
+OpenSL PCM callbacks on an explicit armv7 device; `make android-parity
+ANDROID_ARCH=armv7 ANDROID_API=21 ANDROID_SERIAL=…` separately verifies ZX.
 
 The reusable `audio` package, maintained in `ziranlang/packages/audio`, adds
 Opus and quality sinc conversion without a GUI or audio-device dependency.
@@ -1974,7 +2013,7 @@ with automatic sinc resampling. The Ogg decoder applies
 pre-skip, header gain and final trim; `DecoderRewind` resets a validated
 immutable input without rescanning it. `audio/resample` wraps libsamplerate's
 best-quality sinc, including 44.1–48 kHz conversion and incremental processing.
-`audio/ogg` inspection and `audio/wav` PCM16/float32 input with PCM16 output
+`std/ogg` container inspection and `std/audio_wav` PCM16/float32 input with PCM16 output
 also run in portable bundles. Native codec/sinc calls require the C target;
 portable bundles reject those FFI calls explicitly. Native consumers declare
 `links = ["opus", "samplerate", "m"]` in their root package manifest.

@@ -1,0 +1,53 @@
+// Caller-owned asynchronous device open. Only the application thread touches
+// this record; the worker publishes its result through ThreadFinished.
+#import "std/thread"
+#import "std/timer"
+
+OpenCall :: #type () -> bool;
+CloseCall :: #type () -> void;
+Device :: struct {
+    worker: Thread
+    open: OpenCall
+    close: CloseCall
+    result: bool
+    ready: bool
+    attempted: bool
+    retry_at: s64
+}
+#scope_file
+Run :: (argument: *void) {
+    device := cast(*Device)argument
+    device.result = device.open()
+}
+#scope_export
+Poll :: (device: *Device) {
+    if ThreadFinished(*device.worker) {
+        device.ready = device.result
+        if !device.ready { device.retry_at = MonotonicMilliseconds() + 1000 }
+    }
+}
+Pending :: (device: *Device) -> bool { Poll(device); return ThreadRunning(*device.worker) }
+Unavailable :: (device: *Device) -> bool {
+    Poll(device)
+    return device.attempted && !device.ready && !ThreadRunning(*device.worker)
+}
+Ready :: (device: *Device) -> bool { Poll(device); return device.ready }
+Open :: (device: *Device, open: OpenCall, close: CloseCall) -> bool {
+    Poll(device)
+    if device.ready { return true }
+    if ThreadRunning(*device.worker) || device.attempted && MonotonicMilliseconds() < device.retry_at { return false }
+    device.open = open; device.close = close
+    device.attempted = true; device.result = false
+    run: ThreadProcedure = Run
+    if !ThreadStart(*device.worker, run, cast(*void)device) { device.retry_at = MonotonicMilliseconds() + 1000 }
+    return false
+}
+Close :: (device: *Device) {
+    // Teardown is explicit and may join an in-flight open or callback. Open
+    // and readiness queries never wait for hardware, a backend or a join.
+    ThreadWait(*device.worker)
+    if device.close != null { device.close() }
+    device.ready = false; device.result = false; device.attempted = false; device.retry_at = 0
+}
+// A backend's disconnect callback made a previously opened device unusable.
+Invalidate :: (device: *Device) { device.ready = false; device.attempted = false }

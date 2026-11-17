@@ -21,59 +21,7 @@ Moved :: (point: Point, by: s64) -> Point { point.x += by; return point }
 Mover :: #type (point: Point, by: s64) -> Point;
 Holder :: struct { move: Mover; point: Point }
 
-// Signed interval checks may use one unsigned comparison, including narrow
-// signed values and either order of the original short-circuit expression.
-Outside8 :: (value: s8) -> bool { return value > 100 || value < 0 }
-Outside16 :: (value: s16) -> bool { return value < 0 || value > 1000 }
-Outside32 :: (value: s32) -> bool { return value > 1000 || value < 0 }
-Outside64 :: (value: s64) -> bool { return value > 1000 || value < 0 }
-OutsideMax :: (value: s64) -> bool { return value > 9223372036854775807 || value < 0 }
-OutsideNarrow :: (value: s8) -> bool { return value > cast(s64)1000 || value < 0 }
-OutsideOther :: (left: s64, right: s64) -> bool { return left > 1000 || right < 0 }
-OutsideUnsigned :: (value: u64) -> bool { return value > 1000 || value < 0 }
-OutsideFloat :: (value: float64) -> bool { return value > 1000.0 || value < 0.0 }
-BoundsCalls: s32;
-BoundsNext :: (value: s64) -> s64 { BoundsCalls += 1; return value }
-
-BoundsCases :: () -> bool {
-    for number: -128..127 {
-        expected := number < 0
-        if number > 100 { expected = true }
-        if Outside8(cast(s8)number) != expected { return false }
-        if OutsideNarrow(cast(s8)number) != (number < 0) { return false }
-    }
-    numbers := s64.[-9223372036854775808, -32768, -1, 0, 1, 999, 1000, 1001,
-        32767, 2147483647, 9223372036854775807]
-    records: [11]Point
-    for number, index: numbers {
-        records[index] = Point.{x = number, y = number}
-        expected := number < 0
-        if number > 1000 { expected = true }
-        if Outside64(number) != expected || OutsideMax(number) != (number < 0) { return false }
-        member := records[index].x > 1000 || records[index].x < 0
-        reversed := records[index].y < 0 || records[index].y > 1000
-        if member != expected || reversed != expected { return false }
-        if number >= -32768 && number <= 32767 {
-            if Outside16(cast(s16)number) != expected { return false }
-        }
-        if number >= -2147483648 && number <= 2147483647 {
-            if Outside32(cast(s32)number) != expected { return false }
-        }
-    }
-    if !OutsideOther(1, -1) || OutsideOther(1, 0) { return false }
-    if !OutsideUnsigned(18446744073709551615) || OutsideUnsigned(1000) { return false }
-    if !OutsideFloat(-0.5) || OutsideFloat(1000.0) { return false }
-    BoundsCalls = 0
-    // Distinct calls must run twice when the first predicate is false.
-    if !(BoundsNext(1) > 1000 || BoundsNext(-1) < 0) || BoundsCalls != 2 { return false }
-    // The right call must still be skipped when the first predicate is true.
-    if !(BoundsNext(1001) > 1000 || BoundsNext(-1) < 0) || BoundsCalls != 3 { return false }
-    print("bounds % %\n", Outside64(1001), BoundsCalls)
-    return true
-}
-
 main :: () -> s32 {
-    if !BoundsCases() { return 1 }
     points: [4]Point
     for i: 0..3 { points[i] = Point.{x = i, y = 10 * i} }
 

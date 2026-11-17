@@ -1,0 +1,104 @@
+// Same sink contract with deterministic AAudio on the host and both real
+// NDK backends on the armv7 Moto. No window, JNI, or raylib is involved.
+Sink :: #import "std/audio_sink";
+AAudio :: #import "std/audio_android_aaudio";
+OpenSL :: #import "std/audio_android_opensl";
+Buffer :: #import "std/audio_android_buffer";
+Mixer :: #import "std/audio";
+#import "std/timer_linux"
+#if #defined(ZIRAN_AUDIO_FAKE) {
+    #import, file "audio_sink_fake.zi";
+}
+frames_seen: s64;
+signal_seen: bool;
+Tap :: (samples: []float32, frames: s64) {
+    frames_seen += frames
+    for index: 0..frames * 2 - 1 {
+        if samples[index] > .001 || samples[index] < -.001 { signal_seen = true }
+    }
+}
+Fail :: (code: s32) -> s32 { print("Android audio contract failed: %\n", code); return code }
+
+Ready :: (opensl: bool) -> bool { return ifx opensl then OpenSL.Ready() else Sink.AudioSinkReady() }
+Open :: (opensl: bool) -> bool {
+    if opensl { return OpenSL.Open() }
+    unused Sink.AudioSinkOpen()
+    deadline := MonotonicMilliseconds() + 3000
+    while Sink.AudioSinkPending() && MonotonicMilliseconds() < deadline { unused SleepMilliseconds(1) }
+    return Sink.AudioSinkReady()
+}
+Close :: () { Sink.AudioSinkClose(); OpenSL.Close() }
+
+Run :: (opensl: bool) -> s32 {
+    if Ready(opensl) { return Fail(1) }
+    if !Open(opensl) { return Fail(3) }
+    if !Ready(opensl) { return Fail(4) }
+    // Reopening is idempotent, retains voices, and starts no second device.
+    if !opensl && !Sink.AudioSinkOpen() { return Fail(5) }
+    Mixer.AudioUseTap(Tap)
+    voice := Mixer.AudioOpenStream(48000, 2, 512)
+    if voice.slot < 0 || !Mixer.AudioPlay(voice) { return Fail(6) }
+    block: [1024]s16
+    for index: 0..511 { block[index * 2] = 1024; block[index * 2 + 1] = -1024 }
+    Mixer.AudioSetGain(voice, .25)
+    if !Mixer.AudioStreamSubmit(voice, block[:]) { return Fail(7) }
+    #if #defined(ZIRAN_AUDIO_FAKE) {
+        samples: [1024]float32
+        if fake_pull(null, null, cast(*void)*samples[0], 512) != 0 { return Fail(8) }
+        if samples[0] < .007 || samples[0] > .009 || samples[1] > -.007 { return Fail(9) }
+        // The PCM payload was copied; underruns produce silence.
+        unused fake_pull(null, null, cast(*void)*samples[0], 512)
+        if samples[0] != 0.0 || samples[1] != 0.0 { return Fail(10) }
+        Mixer.AudioPause(voice)
+        unused fake_pull(null, null, cast(*void)*samples[0], 512)
+        if samples[0] != 0.0 { return Fail(11) }
+        Mixer.AudioResume(voice)
+    } else {
+        unused SleepMilliseconds(250)
+    }
+    Buffer.Enter()
+    heard := frames_seen > 0 && signal_seen
+    Buffer.Leave()
+    if !heard || !Mixer.AudioStreamWritable(voice) { return Fail(12) }
+    Close()
+    Close()
+    if Ready(opensl) { return Fail(13) }
+    // No callback remains after close. Mixer operations still work, and a
+    // subsequent open retains the voice and its queued PCM.
+    before := frames_seen
+    unused SleepMilliseconds(30)
+    if frames_seen != before { return Fail(14) }
+    if !Mixer.AudioStreamSubmit(voice, block[:]) { return Fail(15) }
+    if !Open(opensl) { return Fail(17) }
+    Mixer.AudioUnload(voice)
+    Close()
+    return 0
+}
+
+#program_export
+main :: () -> s32 {
+    Sink.AudioSinkClose()
+    #if #defined(ZIRAN_AUDIO_FAKE) {
+        for stage: 1..4 {
+            fake_stage = cast(s32)stage
+            if Open(false) || Sink.AudioSinkReady() { return Fail(20 + cast(s32)stage) }
+            Sink.AudioSinkClose()
+        }
+        fake_stage = 0
+    }
+    result := Run(false)
+    if result != 0 { return result }
+    #if #defined(ZIRAN_AUDIO_FAKE) {
+        if fake_creates != fake_deletes + 1 || fake_rate != 48000 || fake_channels != 2 || fake_format != 2 || fake_direction != 0 { return Fail(30) }
+        if !Open(false) { return Fail(31) }
+        fake_error(null, null, -899)
+        if Sink.AudioSinkReady() || !Open(false) { return Fail(35) }
+        Sink.AudioSinkClose()
+    } else {
+        frames_seen = 0; signal_seen = false
+        result = Run(true)
+        if result != 0 { return result }
+    }
+    print("Android audio sink contract passed\n")
+    return 0
+}

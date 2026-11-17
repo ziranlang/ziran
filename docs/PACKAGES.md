@@ -334,8 +334,7 @@ no first commit is also usable for local development, including an overridden
 toolchain. Its lock entry has a `development` field instead of `commit`, with
 an `unborn:` identity derived deterministically from the canonical checkout
 path. This identifies local source; it does not claim a committed revision or
-a reproducible source snapshot. This is an optional field in lock format 1;
-older toolchains that require `commit` reject these development-only entries.
+a reproducible source snapshot. This is an optional field in lock format 1.
 Only a genuine unborn branch qualifies; missing commit objects and invalid Git
 metadata are refused. A directory inside another repository, such as an
 uninitialized submodule, is refused, because its HEAD would be the enclosing
@@ -449,8 +448,7 @@ bin = "example"
 the tool's `install` command with `ZIRAN_INSTALL_PREFIX` (`~/.local` unless
 `--prefix DIR` is given) and `ZIRAN_INSTALL_BIN`; other arguments are passed
 on. The tool decides what else an install includes, such as a desktop entry,
-from its own options. The older `[install] tool` key is rejected with a
-message naming its replacement.
+from its own options.
 
 ## Dependency-owned native artifacts
 

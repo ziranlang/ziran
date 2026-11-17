@@ -4,9 +4,8 @@
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Owned values and recoverable failures</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/OWNED_VALUES.md">docs/OWNED_VALUES.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
 <div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#values-and-ownership">Values and ownership</a><a href="#recoverable-errors">Recoverable errors</a><a href="#growable-storage">Growable storage</a></aside><div class="article-body">
-<section class="prose"><p>This is the target contract for owned <code>Vec[T]</code> and a string builder. A scoped
-<code>Vec(T)</code> subset now supports default initialization (including locals in the
-portable engine), checked indexing, fallible <code>VecPush</code>, <code>VecClear</code>, <code>VecFree</code>,
+<section class="prose"><p>Owned <code>Vec(T)</code> values and string builders support default initialization
+(including locals in the portable engine), indexing and fallible <code>VecPush</code>, <code>VecClear</code>, <code>VecFree</code>,
 <code>VecSwap</code>, <code>VecPop</code> and <code>VecGet</code> results carried as <code>Option(T)</code> records, a
 <code>Vec(u8)</code> string builder through <code>BuilderAppend</code> and <code>BuilderFinish</code>, an
 explicit <code>VecClone(dest, src)</code> with a recoverable failure result, and
@@ -53,16 +52,14 @@ The checks use lexical scopes; close a view's scope before reusing its buffer.
 Differently typed pointer aliases and raw native FFI still need explicit
 memory contracts. A raw foreign declaration has no checked read/write summary;
 the caller remains responsible for its pointer arguments. The current origin
-summary tracks every global in the program. The
-rest of this page describes the intended contract, not a guarantee that every
-case is enforced today.</p>
+summary tracks every global in the program. See the operations below for the supported ownership rules.</p>
 <p>A fresh <code>Vec</code> call result used as a whole expression statement is dropped
 immediately. A result used for member or index access must first be bound to a
 local so its lifetime is explicit; an ordinary call can consume the fresh
 result directly.</p>
 <p><code>BuilderFinish</code> consumes the builder: the returned <code>string</code> keeps the builder's
 bytes without copying them on native C when nonempty. That target
-still retains nonempty finished bytes for process lifetime; it now releases
+still retains nonempty finished bytes for process lifetime; it releases
 reserved storage when the result is empty. Go copies into its immutable string
 representation. The engine copies into an owned snapshot, preserves its owner
 through aliases and ranges, and collects unused snapshots at safe statement
@@ -115,7 +112,7 @@ their fields. Fixed arrays and borrowed slices remain value and view types,
 respectively.</p>
 <h2 id="values-and-ownership">Values and ownership</h2>
 <p>Scalars, immutable strings, and aggregates whose members are copyable retain
-value-copy semantics. An owned value, including <code>Vec[T]</code>, should move on assignment,
+value-copy semantics. An owned value, including <code>Vec(T)</code>, moves on assignment,
 argument passing, and return. A move source must be a local binding, a plain
 record-member path rooted at a local aggregate, or a fresh call result. The
 member can be a Vec or a record holding Vecs, as in <code>last := popped.value</code>. The
@@ -123,7 +120,7 @@ checker rejects moving indexed or pointer-backed member storage and moving a
 global, because their aliases cannot yet be represented precisely enough. The
 checker rejects use after move and assignment over a direct or aggregate-held
 owned vector; moves inside an <code>if</code> whose every arm returns do not reach the
-join. The target rule is that every path drops each owned local exactly once,
+join. Every supported path drops each owned local exactly once,
 with a moved source zeroed so a later drop is harmless. All current backends
 implement this for direct <code>Vec</code> bindings, plain record-member paths, and
 recursively owned vectors in records and fixed arrays.
@@ -154,13 +151,13 @@ Neither record has a hidden active case, and the language does not provide
 postfix error propagation. An owned error type will need defined move and drop
 behavior across all backends before it can be used in a portable <code>Result</code>.</p>
 <h2 id="growable-storage">Growable storage</h2>
-<p><code>Vec[T]</code> owns its allocation and reports length and capacity separately.
+<p><code>Vec(T)</code> owns its allocation and reports length and capacity separately.
 Growth checks size overflow and returns an allocation error without changing
 the vector. <code>VecPush</code> consumes its input on either outcome; <code>VecPop</code> removes
 the last element and returns <code>Option(T)</code>, leaving the vector unchanged when it
-is empty. Indexing has the same checked bounds behavior as fixed arrays, and
+is empty. Indexing follows the build’s runtime-check policy, as for fixed arrays;
 <code>VecGet</code> returns <code>Option(T)</code> instead of trapping on an out-of-range index. A
-string builder owns UTF-8 bytes in a <code>Vec[u8]</code>; <code>BuilderAppend</code> can fail, and
+string builder owns UTF-8 bytes in a <code>Vec(u8)</code>; <code>BuilderAppend</code> can fail, and
 <code>BuilderFinish</code> consumes the builder without copying its bytes. Immutable
 <code>string</code> values remain unchanged.</p>
 <p>The parser, checker, <code>.zir</code>, C/Go emitters, portable verifier, engine,

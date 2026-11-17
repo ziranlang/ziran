@@ -17,7 +17,7 @@ bundle file. Zero-argument entries returning an integer, `bool` or nothing
 run; the command prints a non-void result on its own line, unsigned results
 over their full range.
 
-On linux-x86_64, `ziran run app.zx`, `zi2zx run` and the embedding API run a
+On Linux x86-64, AArch64 and ARMv7, `ziran run app.zx`, `zi2zx run` and the embedding API run a
 bundle as native code compiled from its verified instructions; in a browser
 it runs on the Wasm tier and on other CPUs on the portable instruction engine.
 The platform makes that choice, never the bundle: a bundle native code cannot
@@ -41,6 +41,8 @@ the CPU's features and the build of the compiler that made it. It is checked
 against that key and its SHA-256 digest before it is used, and a damaged entry
 is removed and rebuilt. `ZIRAN_NATIVE_CACHE=DIR` uses another directory and
 `ZIRAN_NATIVE_CACHE=off` turns the cache off.
+
+## Learning
 
 `ziran build FILE.zi` keeps a corpus of the programs it compiles to native code,
 as training data for improving Ziran's machine code. It is on by default,
@@ -189,7 +191,9 @@ unreachable code executed, and the instruction where it did.
 
 ## Target contract
 
-The pipeline is source → `.zir` → linked and verified instructions → `.zx`.
+The pipeline is Source → ZIR → LIR → optimized LIR → ZX → native
+(ELF/PE, x86-64/AArch64/ARMv7). Wasm lowers from ZX; C/Go export
+from ZIR through `zi2c`/`zi2go`.
 The portable instruction engine runs the instructions on any platform. A
 supported direct target lowers the same verified instructions to machine code,
 applies the target ABI and platform veneers, and writes a platform binary;

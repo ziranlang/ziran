@@ -72,11 +72,7 @@ the reread source matches the captured document. Strings, comments, ambiguous
 occurrences, rewritten source without a raw mapping, and saved IR receive no
 speculative edits. Replacements and preimages are never clipped to fit a budget.
 
-Schema-1 diagnostic consumers must explicitly migrate to version 2:
-`related` is now `related_graph`, and top-level `edits` is now
-`alternatives[].edits`. No legacy diagnostic mode is retained.
-
-`check --target=c|go|py|zx` checks target-specific foreign
+`check --target=c|go|zx` checks target-specific foreign
 identities/imports and Go/portable scalar-union restrictions before writing
 output. Builds use the same preflight policy. Its failures include `target`
 and a capability such as `ffi.go`, `types.go`, or `unions.scalar`; individual

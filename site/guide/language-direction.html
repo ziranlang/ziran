@@ -1,22 +1,12 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Language direction: the Ziran guide, rendered from docs/LANGUAGE_DIRECTION.md."><title>Language direction · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/language-direction"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Language reference: the Ziran guide, rendered from docs/LANGUAGE_DIRECTION.md."><title>Language reference · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/language-direction"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
-<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Language direction</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/LANGUAGE_DIRECTION.md">docs/LANGUAGE_DIRECTION.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#general-language-first">General language first</a><a href="#laws-and-llm-development">Laws and LLM development</a><a href="#parallel-computation">Parallel computation</a><a href="#jai-source-syntax">Jai source syntax</a><a href="#evolution">Evolution</a></aside><div class="article-body">
-<section class="prose"><p>This records the intended language requirements behind the two-repository
-split. It is a target, not a list of features already shipped. See
-<a href="implementation-status.html">Implementation status</a> for the current compiler.</p>
-<h2 id="general-language-first">General language first</h2>
-<p>Ziran must be useful for command-line tools, services, libraries, numerical
-programs, and UI applications. Kryon is the first demanding library client,
-not the definition of the language. Modules, typed records, ordinary calls,
-procedure values, FFI, and host capabilities have the same meaning
-whether a program imports Kryon or never uses a display.</p>
-<p>The standard library belongs to Ziran and provides general facilities.
-Kryon's widgets, layout, rendering, styling, and accessibility remain in
-Kryon. No copied <code>kry_std</code> tree or UI-specific standard-library namespace is
-part of the end state.</p>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Language reference</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/LANGUAGE_DIRECTION.md">docs/LANGUAGE_DIRECTION.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#laws-and-llm-development">Laws and LLM development</a><a href="#parallel-computation">Parallel computation</a><a href="#jai-source-syntax">Jai source syntax</a></aside><div class="article-body">
+<section class="prose"><p>The current language contracts are described below. Query <code>ziran features</code>
+and <code>ziran capabilities</code> for the installed compiler. See <a href="implementation-status.html">current support</a>
+and the <a href="usage.html">compiler guide</a> for execution and target limits.</p>
 <h2 id="laws-and-llm-development">Laws and LLM development</h2>
 <p>Laws are executable or mechanically checked constraints on a program's
 behavior and interfaces. They must have stable names, source spans, and
@@ -267,7 +257,7 @@ Fixed arrays, borrowed slices, and strings expose Jai <code>.count</code>. Count
 <code>int</code> type and cannot be assigned. The older <code>.length</code> source spelling is
 rejected for strings, slices, and fixed arrays.
 String ranges use <code>value[low:high]</code> and return an immutable borrowed <code>string</code>
-view over those bytes. Bounds are checked, and callers must keep UTF-8
+view over those bytes. With runtime checks enabled, bounds are checked; callers must keep UTF-8
 codepoint boundaries intact when they need valid text.
 <code>TextView(bytes)</code> makes an immutable borrowed <code>string</code> view of a <code>[]u8</code> slice.
 The caller keeps the byte storage alive while the text is used. The portable
@@ -328,7 +318,7 @@ Quotes, backslashes, tabs, and UTF-8 text in the body are preserved. The
 4095 character source line limit applies to each physical line of the body;
 a string literal itself has no length limit, as a constant or a global.
 Nested <code>/* ... */</code> comments and <code>//</code> line comments may appear between tokens;
-comment delimiters inside quoted strings remain text. Legacy <code>#</code> comments
+comment delimiters inside quoted strings remain text. <code>#</code> comments
 are rejected. An unclosed block comment is a source error, including in a
 loaded file.
 Raw pointer null values use Jai <code>null</code>; the old <code>nil</code> source spelling is
@@ -446,13 +436,6 @@ contextual <code>.Member</code> references. Flag values support <code>&amp;</cod
 <code>-</code>, equality, and the corresponding compound assignments. Member references
 are checked against their enum before lowering to their numeric values.
 Regular enum values also accept <code>Type.Member</code> and contextual <code>.Member</code>
-references in typed declarations, comparisons, returns, and calls.</p>
-<h2 id="evolution">Evolution</h2>
-<p>The language can grow without embedding one library's concepts in its core.
-While Ziran is experimental, source syntax, library APIs, <code>.zir</code>, and <code>.zx</code>
-have no backward-compatibility promise. Prefer a coherent language design over
-compatibility shims; version incompatible binary formats and reject old input
-with clear diagnostics. Reproducible compiler output and conformance suites let
-new backends and LLM-authored code be checked against the same semantics.</p></section>
+references in typed declarations, comparisons, returns, and calls.</p></section>
 </div></div></main>
 <footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

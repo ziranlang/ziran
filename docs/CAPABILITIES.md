@@ -35,7 +35,6 @@ meaning. New language work lands on the primary targets first.
 `source_and_saved_ir` reports that the target accepts checked source and saved
 `.zir` inputs. `parallel_execution` is `threads` for C forward CPU regions
 and `serial` for Go and the portable engine.
-device backend. `text_view_mutable_bytes` reports the current observable
 It does not promise a parallel result reduction. `gpu_execution` is `gap` for every target: there is no
 device backend, and CPU execution is never selected. `text_view_mutable_bytes` reports the current observable
 divergence when backing bytes are mutated after making a view: native C

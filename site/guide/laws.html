@@ -167,14 +167,12 @@ and polynomial monomials, depth 64, 128 branch facts, 64 order terms, 16
 parameters, and 64 locals. Exceeding a checking budget cannot establish a
 proof. Finite <code>forall</code> has its separate 1,000,000-case budget.</p>
 <h2 id="saved-artifacts-and-trust">Saved artifacts and trust</h2>
-<p>Version 48 <code>.zir</code> stores theorem proposition graphs, certificate steps and
-their typed expression graphs, and evidence. Version 25 <code>.zx</code> carries the
+<p>Checked <code>.zir</code> stores theorem proposition graphs, certificate steps and
+their typed expression graphs, and evidence. Executable <code>.zx</code> carries the
 linked verification dependencies and an evidence table. Loaders retype and
 recheck certificates; saved status, type annotations, and evidence cannot
-authorize a proof. Canonical checking rejects divergent saved fields. The
-bundle loader also compares its outer evidence and waiver tables against
-the checked embedded IR. Earlier artifact versions are rejected.</p>
-<p>Ziran is not a memory-safe language: memory safety is manual, as in C. A
+authorize a proof. Canonical checking rejects divergent saved fields. The bundle loader validates linked evidence and waiver tables.</p>
+<p>Ziran uses manual safety by default, as in C. A
 build without <code>--checks</code> carries no defensive runtime check, and <code>#checks</code>
 keeps them only where it is written (see the usage guide). Trust changes how
 much input validation a boundary needs. In a <code>--checks</code> build the

@@ -1,21 +1,8 @@
-# Language direction
+# Language reference
 
-This records the intended language requirements behind the two-repository
-split. It is a target, not a list of features already shipped. See
-[Implementation status](IMPLEMENTATION_STATUS.md) for the current compiler.
-
-## General language first
-
-Ziran must be useful for command-line tools, services, libraries, numerical
-programs, and UI applications. Kryon is the first demanding library client,
-not the definition of the language. Modules, typed records, ordinary calls,
-procedure values, FFI, and host capabilities have the same meaning
-whether a program imports Kryon or never uses a display.
-
-The standard library belongs to Ziran and provides general facilities.
-Kryon's widgets, layout, rendering, styling, and accessibility remain in
-Kryon. No copied `kry_std` tree or UI-specific standard-library namespace is
-part of the end state.
+The current language contracts are described below. Query `ziran features`
+and `ziran capabilities` for the installed compiler. See [current support](IMPLEMENTATION_STATUS.md)
+and the [compiler guide](USAGE.md) for execution and target limits.
 
 ## Laws and LLM development
 
@@ -276,7 +263,7 @@ Fixed arrays, borrowed slices, and strings expose Jai `.count`. Counts have
 `int` type and cannot be assigned. The older `.length` source spelling is
 rejected for strings, slices, and fixed arrays.
 String ranges use `value[low:high]` and return an immutable borrowed `string`
-view over those bytes. Bounds are checked, and callers must keep UTF-8
+view over those bytes. With runtime checks enabled, bounds are checked; callers must keep UTF-8
 codepoint boundaries intact when they need valid text.
 `TextView(bytes)` makes an immutable borrowed `string` view of a `[]u8` slice.
 The caller keeps the byte storage alive while the text is used. The portable
@@ -337,7 +324,7 @@ Quotes, backslashes, tabs, and UTF-8 text in the body are preserved. The
 4095 character source line limit applies to each physical line of the body;
 a string literal itself has no length limit, as a constant or a global.
 Nested `/* ... */` comments and `//` line comments may appear between tokens;
-comment delimiters inside quoted strings remain text. Legacy `# ` comments
+comment delimiters inside quoted strings remain text. `# ` comments
 are rejected. An unclosed block comment is a source error, including in a
 loaded file.
 Raw pointer null values use Jai `null`; the old `nil` source spelling is
@@ -456,12 +443,3 @@ contextual `.Member` references. Flag values support `&`, `|`, `^`, `+`,
 are checked against their enum before lowering to their numeric values.
 Regular enum values also accept `Type.Member` and contextual `.Member`
 references in typed declarations, comparisons, returns, and calls.
-
-## Evolution
-
-The language can grow without embedding one library's concepts in its core.
-While Ziran is experimental, source syntax, library APIs, `.zir`, and `.zx`
-have no backward-compatibility promise. Prefer a coherent language design over
-compatibility shims; version incompatible binary formats and reject old input
-with clear diagnostics. Reproducible compiler output and conformance suites let
-new backends and LLM-authored code be checked against the same semantics.

@@ -40,6 +40,19 @@ main :: (argc: s32, argv: **u8) -> s32 {
     started := NativeRead(*test, CheckPath(test.repo, "site/get-started.html"))
     if !NativeAssert(*test, TextContains(examples, "ziran run hello.zi") && TextContains(started, "ziran run hello.zi") &&
         !TextContains(examples, "build/bin/ziran bundle") && !TextContains(started, "build/bin/ziran bundle"), "website examples lost the direct run command") { return 1 }
+    status := NativeRead(*test, CheckPath(test.repo, "site/status.html"))
+    usage := NativeRead(*test, CheckPath(test.repo, "site/guide/usage.html"))
+    index := NativeRead(*test, CheckPath(test.repo, "site/docs.html"))
+    if !NativeAssert(*test, TextContains(status, "v0.6.0 and Unreleased") &&
+        TextContains(status, "Source → ZIR → LIR → optimized LIR → ZX → native") &&
+        TextContains(status, "Safety is manual by default") && TextContains(usage, "--checks") &&
+        !TextContains(index, "migration.html") && !TextContains(usage, ".lirb") &&
+        !TextContains(usage, "--emit exec"), "website must describe only the current pipeline and opt-in checks") { return 1 }
+    webp := NativeRead(*test, CheckPath(test.repo, "site/packages/webp.html"))
+    api := NativeRead(*test, CheckPath(test.repo, "site/api.html"))
+    if !NativeAssert(*test, !TextContains(webp, "legacy_compare.sh") &&
+        !TextContains(webp, "original Kryon decoder") && TextContains(api, "revision 28") &&
+        !TextContains(api, "version 24"), "public references retained an obsolete pipeline or format") { return 1 }
     if test.failed { return 1 }
     print("Local site tests: generated pages, loaded-file documentation and one-line examples passed\n")
     return 0

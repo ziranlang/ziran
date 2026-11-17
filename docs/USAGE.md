@@ -141,8 +141,7 @@ variant "x86_64" differs from its portable body in dst` on a difference.
 Callers receive the portable results. Run it over random and edge-case
 inputs. Local `#asm` blocks are not
 checked this way. `tests/spec/asm_dct8.zi` is a complete kernel: AV1's 8x8
-inverse DCT with SSSE3, AArch64 and ARMv7 NEON variants, about ten times
-faster than its portable body.
+inverse DCT with SSSE3, AArch64 and ARMv7 NEON variants, with a portable reference body.
 
 A `.zx` bundle is lowered from each procedure's portable body, so a bundle
 holds no machine code and a downloaded bundle cannot run instructions of its
@@ -196,7 +195,7 @@ Assembly and the fallback must implement the same behavior; checking the
 fallback does not prove their equivalence, so test with `ZIRAN_ASM_CHECK`. These variants do not yet provide
 `asm goto`, naked functions, standalone assembler files, or direct Go ABI
 assembler output. Saved IR preserves the variants; `.zx`
-executes only portable code. Rebuild older IR/bundles with the current compiler.
+executes only portable code.
 
 Generated Go packages use their checked Go implementation by default. Enable
 the native bridge with `CGO_ENABLED=1 go build -tags=ziran_asm .` in the
@@ -289,8 +288,7 @@ captured bindings.
 ## Build and test
 
 Run `make` to build the current toolchain and `make check` for the complete
-lean language, backend, and portable bundle suite. Pruning removed 263
-redundant check scripts and their unused helpers. Local and CI runs
+language, backend, and portable executable suite. Local and CI runs
 execute every retained check. Explicit `CHECK_FILTER` runs include every
 matching check. Workers follow the build queue's allocation; set `CHECK_JOBS=1`
 to run serially or choose another positive worker count. `make sanitize` runs
@@ -344,10 +342,11 @@ see [runtime providers](ZX.md#running-bundles).
 
 ### Output routes
 
-The experimental `zi2zx` pipeline checks source into `.zir`, links and lowers
-LIR, verifies it, runs LIR optimizations, and writes portable ZX instructions.
+The pipeline is Source → ZIR → LIR → optimized LIR → ZX → native
+(ELF/PE, x86-64/AArch64/ARMv7), with Wasm from ZX and C/Go from ZIR
+through `zi2c`/`zi2go`. `zi2zx` verifies LIR and optimizes it before ZX emission.
 The portable interpreter executes those instructions directly.
-The experimental direct-native route lowers the same verified instructions to
+The direct-native route lowers the same verified instructions to
 machine code, applies a target ABI/platform veneer, and writes a platform
 binary; only rows with explicit implementation and execution evidence count as
 supported. It never changes to another engine after a gap.
@@ -355,11 +354,9 @@ supported. It never changes to another engine after a gap.
 Native output from source first encodes and reads verified ZX bytes, exactly
 as `zx2native --target x86_64 --platform linux --emit elf -o app app.zx` does.
 The `zi2zx` default output is first-class
-portable output; `--emit lir` remains a text inspection view. The standalone
-`.lirb`, `--emit exec` and `--input exec` routes are removed. Optimization is
+portable output; `--emit lir` remains a text inspection view. Optimization is
 mandatory before ZX; `--opt` only selects the optimized source LIR view or its
-source-only `--emit opt-report`. ZX input is not reoptimized. Native map source
-origins remain a gap because the required ZX payload is stripped.
+source-only `--emit opt-report`. ZX input is not reoptimized. `--debug` retains source origins for native maps and trap diagnostics.
 `ziran bundle` writes the same ZX; see [ZX](ZX.md).
 
 The C and Go targets are separate generated-code exporters. With `--exe`, their
@@ -372,15 +369,13 @@ capability gives ZX code a typed service contract; a host binding implements
 it. A direct target's ABI veneer instead implements target-specific entry,
 calling-convention, syscall, and exit details used by direct machine code.
 
-The opt-in `zx2native --target x86_64 --platform linux --emit elf` path is the first such veneer. It
-produces a static no-libc executable with target-owned `write_all` and process
-exit. Its literal formatter supports strings/text views, bools, every fixed
-signed and unsigned integer width, and `%%`; floats and unavailable platform
-services fail with stable named diagnostics. `--platform windows` writes the
-same program as a PE32+ console `.exe` whose runtime calls kernel32
-(`GetStdHandle`, `WriteFile`, `ExitProcess`, and `VirtualAlloc`/`VirtualFree`
-for resizable storage) through its import table, importing only the functions
-the program needs; it runs under Wine.
+`zx2native --target x86_64 --platform linux --emit elf -o app app.zx`
+writes a Linux ELF. `--platform windows` writes a PE32+ console executable.
+The native CLI also accepts `--target aarch64` and `--target armv7` and
+`--platform android`; supported target/platform combinations and service gaps
+are validated before output. Host-capability linking uses registered host
+libraries where supported. A successful lowering does not imply every OS
+service is available on every CPU.
 
 ## Generate C and Go binaries
 

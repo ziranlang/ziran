@@ -5,19 +5,16 @@
   <url><loc>https://ziran-lang.org/docs</loc></url>
   <url><loc>https://ziran-lang.org/examples</loc></url>
   <url><loc>https://ziran-lang.org/get-started</loc></url>
-  <url><loc>https://ziran-lang.org/language</loc></url>
-  <url><loc>https://ziran-lang.org/modules</loc></url>
-  <url><loc>https://ziran-lang.org/status</loc></url>
-  <url><loc>https://ziran-lang.org/targets</loc></url>
   <url><loc>https://ziran-lang.org/guide/api-discovery</loc></url>
   <url><loc>https://ziran-lang.org/guide/architecture</loc></url>
+  <url><loc>https://ziran-lang.org/guide/authoring</loc></url>
   <url><loc>https://ziran-lang.org/guide/capabilities</loc></url>
   <url><loc>https://ziran-lang.org/guide/compiler-api</loc></url>
   <url><loc>https://ziran-lang.org/guide/diagnostics</loc></url>
+  <url><loc>https://ziran-lang.org/guide/features</loc></url>
   <url><loc>https://ziran-lang.org/guide/implementation-status</loc></url>
   <url><loc>https://ziran-lang.org/guide/language-direction</loc></url>
   <url><loc>https://ziran-lang.org/guide/laws</loc></url>
-  <url><loc>https://ziran-lang.org/guide/migration</loc></url>
   <url><loc>https://ziran-lang.org/guide/owned-values</loc></url>
   <url><loc>https://ziran-lang.org/guide/packages</loc></url>
   <url><loc>https://ziran-lang.org/guide/semantic-edit</loc></url>
@@ -26,6 +23,8 @@
   <url><loc>https://ziran-lang.org/guide/usage</loc></url>
   <url><loc>https://ziran-lang.org/guide/zir</loc></url>
   <url><loc>https://ziran-lang.org/guide/zx</loc></url>
+  <url><loc>https://ziran-lang.org/language</loc></url>
+  <url><loc>https://ziran-lang.org/modules</loc></url>
   <url><loc>https://ziran-lang.org/packages/audio</loc></url>
   <url><loc>https://ziran-lang.org/packages/av1</loc></url>
   <url><loc>https://ziran-lang.org/packages/avif</loc></url>
@@ -43,6 +42,7 @@
   <url><loc>https://ziran-lang.org/packages/syntax</loc></url>
   <url><loc>https://ziran-lang.org/packages/telegram</loc></url>
   <url><loc>https://ziran-lang.org/packages/webp</loc></url>
+  <url><loc>https://ziran-lang.org/status</loc></url>
   <url><loc>https://ziran-lang.org/std/atomic_go</loc></url>
   <url><loc>https://ziran-lang.org/std/binary</loc></url>
   <url><loc>https://ziran-lang.org/std/binary_linux</loc></url>
@@ -151,4 +151,5 @@
   <url><loc>https://ziran-lang.org/std/zip_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/zlib_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/zstd_go</loc></url>
+  <url><loc>https://ziran-lang.org/targets</loc></url>
 </urlset>

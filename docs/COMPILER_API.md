@@ -35,7 +35,7 @@ retain their dependencies automatically. Internal code that copies an IR
 graph must use `ProgramInheritContexts` and assign copied modules the new
 graph's lookup context.
 
-Public checking, lowering, and VM entry points select their program's context
+Public checking, lowering, and instruction-engine entry points select their program's context
 for the operation and restore the caller's selection afterward. Raw IR
 construction and internal compiler helpers use the explicitly selected
 context. Unscoped low-level construction uses the shared process context;
@@ -44,7 +44,7 @@ long-running hosts should select an explicit region instead.
 Each mutable compilation graph has one compiling owner. Separate contexts can
 parse and check on separate threads. Native backend configuration still has
 process state, so embedding hosts must serialize native backend operations.
-Independent VM instances may execute an immutable program concurrently while
+Independent instruction-engine instances may execute an immutable program concurrently while
 that program and its contexts remain alive.
 Closing a context or mutating or freeing its graph during those operations is
 unsupported. Shared immutable snapshots and scratch-pool publication are

@@ -1,138 +1,63 @@
 # Ziran
 
-Ziran is a general-purpose language with generated C and Go targets and a
-portable executable format. The toolchain checks source, saves checked
-modules, and builds portable programs you can run without a platform compiler.
+Ziran 0.6.0 is a general-purpose language with direct native, WebAssembly,
+portable ZX, C and Go output. Master includes Unreleased work.
 
-[Website & playground](https://ziran-lang.org/) · [Compiler guide](docs/USAGE.md) · [Implementation status](docs/IMPLEMENTATION_STATUS.md)
-
-The compiler and portable runner are under active development. Language
-coverage and target limits are listed in the implementation status.
-
-## Try it
-
-```jai
-main :: () {
-    print("Hello, World!\n");
-}
-```
-
-Edit and run this example in the [browser playground](https://ziran-lang.org/).
+[Website and playground](https://ziran-lang.org/) · [Compiler guide](docs/USAGE.md) · [Current support](docs/IMPLEMENTATION_STATUS.md)
 
 ## Quick start
 
-You need Make, a C11 compiler, and GNU binutils. From the repository root:
+Build with Make, a C11 compiler and GNU binutils:
 
 ```sh
 make
+build/bin/ziran check examples/hello.zi
 build/bin/ziran run examples/hello.zi
+build/bin/ziran build examples/hello.zi
 ```
 
-This prints `Hello, World!`. To install the `ziran` command for your user, run
-`make install-user` and add `~/.local/bin` to your `PATH`. Then start a
-project from a template and run it:
+`run` checks and executes `main`; `build` defaults to a direct native binary.
+`make install-user` installs the tools in `~/.local/bin`.
 
-```sh
-ziran new hello          # or --template lib, or a package's template
-cd hello
-ziran run -- Ada         # Hello, Ada!
+```zi
+main :: () { print("Hello, World!\n") }
 ```
-
-See [packages and projects](docs/PACKAGES.md) for templates, dependencies,
-and `ziran build`/`install`.
 
 ## Tools and formats
 
-Use `build/bin/ziran` from the checkout, or `ziran` after installation.
+Source → ZIR → LIR → optimized LIR → ZX → native (ELF/PE, x86-64/AArch64/ARMv7). WebAssembly lowers from verified ZX through `zx2wasm`. C and Go export from ZIR through `zi2c` and `zi2go`.
 
 | Command | Purpose |
 | --- | --- |
 | `check` | Validate source and imports. |
-| `build` | Generate C or Go output. |
-| `ir` / `inspect` | Save checked modules and read their contents. |
-| `bundle` / `run` | Build and run portable programs; `run --target=c FILE.zi -- ARGS` runs C-generated scripts. |
-| `fmt` | Format source files. |
-| `guide` / `features` / `capabilities` | Explore syntax, support, and target limits. |
-| `api` | Query public declarations as JSON. |
+| `build` | Build native output, or select `--target=c`, `go`, `wasm` or `zx`. |
+| `ir` / `inspect` | Save checked `.zir` modules and inspect artifacts. |
+| `bundle` / `run` | Link `.zx` executables and run source or ZX. |
+| `learn` | Control native-build corpus recording and offline C-teacher verification/training. |
+| `fmt` | Format source. |
+| `guide` / `features` / `capabilities` | Query syntax and target limits. |
+| `api` | Query checked public declarations. |
 
-Source files use `.zi`, checked modules use [`.zir`](docs/ZIR.md), and portable
-programs use [`.zx`](docs/ZX.md). Direct-native targets and the portable runner
-have different limits.
-
-The experimental direct pipeline is source → `.zir` → linked LIR →
-verification → LIR optimization → portable `.zx`. Those verified ZX bytes run
-in the portable interpreter
-or, on an explicitly supported direct target, lower to machine code and a
-platform binary. That direct-native route is experimental and incomplete; its
-current gaps are tracked in [the assembly plan](ASSEMBLY/milestones.md).
-Generated C and generated Go are separate routes that also produce platform
-binaries after their own downstream toolchains run. “Native” in the assembly
-documentation means verified ZX instructions lowered directly to machine code,
-not a C- or Go-generated binary.
-`zx2wasm` (and `ziran build --target=wasm`) lowers the same verified ZX to a
-wasm32 module, and the bundle Wasm tier runs bundles in the browser through it;
-see [ZX status](docs/ZX.md).
-
-The opt-in Linux x86-64 `zx2native` path now has a first console veneer: its static
-ELF owns `_start`, retries partial or interrupted `write` syscalls, and exits
-the process with `exit_group`. It links no libc or CRT. Literal `print` formats
-cover byte strings/text views, bools, every fixed signed and unsigned integer
-width, and `%%`; floats and unavailable platform services are named hard gaps.
-This implemented slice does not make the wider direct-native target matrix
-complete.
-
-Host capabilities describe portable, typed services a program requires.
-Platform bindings implement those services for a host; they are separate from
-CPU instruction lowering and from each target's calling convention or syscall
-veneer.
-
-Run source as a C-generated script with `ziran task.zi arguments`. Executable
-Unix scripts can start with `#!/usr/bin/env ziran`; after `chmod +x task.zi`,
-run them as `./task.zi arguments`. See
-[C-generated scripts](docs/USAGE.md#c-generated-scripts).
-
-## Standard library
-
-The library includes text and UTF-8 helpers, generic values, sorting, queues,
-JSON scanning, ZIP archives, and explicit HTTP and process capabilities.
-Native Linux adapters provide file, socket, timer, and other system operations.
-
-See the [standard library reference](https://ziran-lang.org/stdlib.html) and
-[compiler guide](docs/USAGE.md#standard-library) for imports and platform limits.
+Safety is manual by default, as in C. `--checks` opts a build into runtime
+checks; `#checks` keeps bounds checks in selected source regions. See
+[checks](docs/USAGE.md#checks) for target-specific behavior.
 
 ## Documentation
 
-| Start here | What it covers |
-| --- | --- |
-| [Compiler guide](docs/USAGE.md) | Commands, imports, foreign functions, and standard modules. |
-| [Examples](https://ziran-lang.org/examples.html) | Small programs with source and output. |
-| [Implementation status](docs/IMPLEMENTATION_STATUS.md) | Supported features and remaining work. |
-| [Architecture](docs/ARCHITECTURE.md) | Compiler, runtime, and library boundaries. |
-| [Language direction](docs/LANGUAGE_DIRECTION.md) | Language design and tooling goals. |
-| [Jai parity roadmap](docs/JAI_PARITY_ROADMAP.md) | Planned language work. |
-| [Benchmarks](bench/README.md) | Compiler and runtime measurements. |
-| [Migration](docs/MIGRATION.md) | Repository migration details. |
+- [Compiler and standard library guide](docs/USAGE.md)
+- [Packages and projects](docs/PACKAGES.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Language reference](docs/LANGUAGE_DIRECTION.md)
+- [Standard library and package APIs](https://ziran-lang.org/modules.html)
+- [Examples](https://ziran-lang.org/examples.html)
 
-Kryon is a separate UI library that applications import explicitly.
+Kryon is a separate UI library imported by applications. Console programs have
+no graphics dependency. Release history lives in [CHANGELOG.md](CHANGELOG.md).
 
 ## Development
 
-Run `make check` for the complete lean language, backend, and portable runtime
-suite. Pruning removed 263 redundant check scripts and their unused helpers.
-Workers follow the build queue's allocation; set `CHECK_JOBS=1` to run serially.
-The check controller and its regression tests are written in Ziran.
-
-The native command and formatter are written in Ziran. Compiler scanners,
-declaration, foreign binding, and `using` modifier syntax, enum validation and
-evaluation, type spelling and field parsing, expression and nested initializer
-grammar, statement expression extraction, loop headers, optional `then`, and
-compile-time branch syntax are also written in Ziran. Ziran also parses multiple
-results and bindings, normalizes procedure-type parameters, expands formatted
-builder statements, and rewrites
-symmetric operators, procedure-name expressions, and local procedure names.
-The rest of the compiler is still being migrated from C.
-A fresh build uses the generated modules in `bootstrap/` to build a bootstrap
-compiler, then compiles their maintained `cmd/compiler_*.zi` sources for the
-ordinary tools. Run
-`make check-bootstrap` to verify that the generated seed matches the source.
-After changing a compiler module, use `make update-bootstrap` to refresh its seed.
+Run `make check` for the retained local suite and `make check-bootstrap` for
+bootstrap reproducibility. `CHECK_FILTER=text` selects matching tests.
+The compiler uses maintained Ziran and C sources; bootstrap seeds live in
+`bootstrap/`. Refresh affected seeds with `make update-bootstrap` after compiler
+changes.

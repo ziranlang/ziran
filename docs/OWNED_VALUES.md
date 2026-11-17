@@ -1,8 +1,7 @@
 # Owned values and recoverable failures
 
-This is the target contract for owned `Vec[T]` and a string builder. A scoped
-`Vec(T)` subset now supports default initialization (including locals in the
-portable engine), checked indexing, fallible `VecPush`, `VecClear`, `VecFree`,
+Owned `Vec(T)` values and string builders support default initialization
+(including locals in the portable engine), indexing and fallible `VecPush`, `VecClear`, `VecFree`,
 `VecSwap`, `VecPop` and `VecGet` results carried as `Option(T)` records, a
 `Vec(u8)` string builder through `BuilderAppend` and `BuilderFinish`, an
 explicit `VecClone(dest, src)` with a recoverable failure result, and
@@ -50,9 +49,7 @@ The checks use lexical scopes; close a view's scope before reusing its buffer.
 Differently typed pointer aliases and raw native FFI still need explicit
 memory contracts. A raw foreign declaration has no checked read/write summary;
 the caller remains responsible for its pointer arguments. The current origin
-summary tracks every global in the program. The
-rest of this page describes the intended contract, not a guarantee that every
-case is enforced today.
+summary tracks every global in the program. See the operations below for the supported ownership rules.
 
 A fresh `Vec` call result used as a whole expression statement is dropped
 immediately. A result used for member or index access must first be bound to a
@@ -61,7 +58,7 @@ result directly.
 
 `BuilderFinish` consumes the builder: the returned `string` keeps the builder's
 bytes without copying them on native C when nonempty. That target
-still retains nonempty finished bytes for process lifetime; it now releases
+still retains nonempty finished bytes for process lifetime; it releases
 reserved storage when the result is empty. Go copies into its immutable string
 representation. The engine copies into an owned snapshot, preserves its owner
 through aliases and ranges, and collects unused snapshots at safe statement
@@ -119,7 +116,7 @@ respectively.
 ## Values and ownership
 
 Scalars, immutable strings, and aggregates whose members are copyable retain
-value-copy semantics. An owned value, including `Vec[T]`, should move on assignment,
+value-copy semantics. An owned value, including `Vec(T)`, moves on assignment,
 argument passing, and return. A move source must be a local binding, a plain
 record-member path rooted at a local aggregate, or a fresh call result. The
 member can be a Vec or a record holding Vecs, as in `last := popped.value`. The
@@ -127,7 +124,7 @@ checker rejects moving indexed or pointer-backed member storage and moving a
 global, because their aliases cannot yet be represented precisely enough. The
 checker rejects use after move and assignment over a direct or aggregate-held
 owned vector; moves inside an `if` whose every arm returns do not reach the
-join. The target rule is that every path drops each owned local exactly once,
+join. Every supported path drops each owned local exactly once,
 with a moved source zeroed so a later drop is harmless. All current backends
 implement this for direct `Vec` bindings, plain record-member paths, and
 recursively owned vectors in records and fixed arrays.
@@ -162,13 +159,13 @@ behavior across all backends before it can be used in a portable `Result`.
 
 ## Growable storage
 
-`Vec[T]` owns its allocation and reports length and capacity separately.
+`Vec(T)` owns its allocation and reports length and capacity separately.
 Growth checks size overflow and returns an allocation error without changing
 the vector. `VecPush` consumes its input on either outcome; `VecPop` removes
 the last element and returns `Option(T)`, leaving the vector unchanged when it
-is empty. Indexing has the same checked bounds behavior as fixed arrays, and
+is empty. Indexing follows the build’s runtime-check policy, as for fixed arrays;
 `VecGet` returns `Option(T)` instead of trapping on an out-of-range index. A
-string builder owns UTF-8 bytes in a `Vec[u8]`; `BuilderAppend` can fail, and
+string builder owns UTF-8 bytes in a `Vec(u8)`; `BuilderAppend` can fail, and
 `BuilderFinish` consumes the builder without copying its bytes. Immutable
 `string` values remain unchanged.
 

@@ -325,7 +325,7 @@ def std_page(module, release):
     name, file = module['name'], module['file']
     status = (f'Shipped in release <a href="{GITHUB}/releases/tag/{release}">{release}</a>.'
               if module['status'] == 'stable' else
-              f'Added after release {release or "none"}; available when building from source.')
+              'Available on master (Unreleased).')
     intro = ((f'<p>{code(module["summary"])}</p>' if module['summary'] else '')
              + f'<p class="module-meta">{badge(module["status"])} '
              + (f'<span class="module-target">Needs: {code(module["target"])}.</span> ' if module['target'] else '')
@@ -468,6 +468,15 @@ def read_packages(ziran, packages):
         readme_path = os.path.join(directory, 'README.md')
         readme = open(readme_path).read() if os.path.exists(readme_path) else ''
         title, summary, rest = readme_parts(readme)
+        # Site summaries describe current package services without backend history.
+        if name == 'audio':
+            summary = first_sentence(summary)
+        if name == 'webp':
+            # The public reference covers current providers, not baseline comparisons.
+            rest = rest.replace('build-queue -- sh tests/legacy_compare.sh\n', '')
+            rest = re.sub(r'Tests reuse the independently pinned mandatory image-codec corpus\..*?no display is used\.',
+                          'Tests use the pinned image-codec corpus and native source package offline. '
+                          'All builds run through `build-queue` without a display.', rest, flags=re.S)
         docs_dir = os.path.join(directory, 'docs')
         docs = sorted(f for f in os.listdir(docs_dir) if f.endswith('.md')) if os.path.isdir(docs_dir) else []
         release = latest_release(directory)
@@ -733,7 +742,7 @@ def main():
     # Top-level pages keep their authored body but share the navigation used
     # by generated guides and references.
     for page in sorted(os.listdir(SITE)):
-        if page.endswith('.html') and page not in outputs:
+        if page.endswith('.html') and page != 'targets.html' and page not in outputs:
             outputs[page] = open(os.path.join(SITE, page)).read()
     outputs = {page: shared_navigation(page, text) if page.endswith('.html') else text
                for page, text in outputs.items()}

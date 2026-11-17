@@ -127,8 +127,7 @@ variant "x86_64" differs from its portable body in dst</code> on a difference.
 Callers receive the portable results. Run it over random and edge-case
 inputs. Local <code>#asm</code> blocks are not
 checked this way. <code>tests/spec/asm_dct8.zi</code> is a complete kernel: AV1's 8x8
-inverse DCT with SSSE3, AArch64 and ARMv7 NEON variants, about ten times
-faster than its portable body.</p>
+inverse DCT with SSSE3, AArch64 and ARMv7 NEON variants, with a portable reference body.</p>
 <p>A <code>.zx</code> bundle is lowered from each procedure's portable body, so a bundle
 holds no machine code and a downloaded bundle cannot run instructions of its
 own; <code>ziran run FILE.zi</code> runs the portable bodies too. Native builds of the
@@ -176,7 +175,7 @@ unaligned data.</p>
 fallback does not prove their equivalence, so test with <code>ZIRAN_ASM_CHECK</code>. These variants do not yet provide
 <code>asm goto</code>, naked functions, standalone assembler files, or direct Go ABI
 assembler output. Saved IR preserves the variants; <code>.zx</code>
-executes only portable code. Rebuild older IR/bundles with the current compiler.</p>
+executes only portable code.</p>
 <p>Generated Go packages use their checked Go implementation by default. Enable
 the native bridge with <code>CGO_ENABLED=1 go build -tags=ziran_asm .</code> in the
 generated package. Build packages rather than explicit filename lists so Go
@@ -257,8 +256,7 @@ reject pointer operands. Native parallel regions currently support up to 16
 captured bindings.</p>
 <h2 id="build-and-test">Build and test</h2>
 <p>Run <code>make</code> to build the current toolchain and <code>make check</code> for the complete
-lean language, backend, and portable bundle suite. Pruning removed 263
-redundant check scripts and their unused helpers. Local and CI runs
+language, backend, and portable executable suite. Local and CI runs
 execute every retained check. Explicit <code>CHECK_FILTER</code> runs include every
 matching check. Workers follow the build queue's allocation; set <code>CHECK_JOBS=1</code>
 to run serially or choose another positive worker count. <code>make sanitize</code> runs
@@ -305,21 +303,20 @@ compiler, downstream toolchains, and validated runtime cases separately.</p>
 bundles use installed package-provided platform hosts through the same command;
 see <a href="zx.html#running-bundles">runtime providers</a>.</p>
 <h3 id="output-routes">Output routes</h3>
-<p>The experimental <code>zi2zx</code> pipeline checks source into <code>.zir</code>, links and lowers
-LIR, verifies it, runs LIR optimizations, and writes portable ZX instructions.
+<p>The pipeline is Source → ZIR → LIR → optimized LIR → ZX → native
+(ELF/PE, x86-64/AArch64/ARMv7), with Wasm from ZX and C/Go from ZIR
+through <code>zi2c</code>/<code>zi2go</code>. <code>zi2zx</code> verifies LIR and optimizes it before ZX emission.
 The portable interpreter executes those instructions directly.
-The experimental direct-native route lowers the same verified instructions to
+The direct-native route lowers the same verified instructions to
 machine code, applies a target ABI/platform veneer, and writes a platform
 binary; only rows with explicit implementation and execution evidence count as
 supported. It never changes to another engine after a gap.</p>
 <p>Native output from source first encodes and reads verified ZX bytes, exactly
 as <code>zx2native --target x86_64 --platform linux --emit elf -o app app.zx</code> does.
 The <code>zi2zx</code> default output is first-class
-portable output; <code>--emit lir</code> remains a text inspection view. The standalone
-<code>.lirb</code>, <code>--emit exec</code> and <code>--input exec</code> routes are removed. Optimization is
+portable output; <code>--emit lir</code> remains a text inspection view. Optimization is
 mandatory before ZX; <code>--opt</code> only selects the optimized source LIR view or its
-source-only <code>--emit opt-report</code>. ZX input is not reoptimized. Native map source
-origins remain a gap because the required ZX payload is stripped.
+source-only <code>--emit opt-report</code>. ZX input is not reoptimized. <code>--debug</code> retains source origins for native maps and trap diagnostics.
 <code>ziran bundle</code> writes the same ZX; see <a href="zx.html">ZX</a>.</p>
 <p>The C and Go targets are separate generated-code exporters. With <code>--exe</code>, their
 downstream C or Go toolchains also produce platform binaries. These outputs are
@@ -329,15 +326,13 @@ rescue a direct-native request.</p>
 capability gives ZX code a typed service contract; a host binding implements
 it. A direct target's ABI veneer instead implements target-specific entry,
 calling-convention, syscall, and exit details used by direct machine code.</p>
-<p>The opt-in <code>zx2native --target x86_64 --platform linux --emit elf</code> path is the first such veneer. It
-produces a static no-libc executable with target-owned <code>write_all</code> and process
-exit. Its literal formatter supports strings/text views, bools, every fixed
-signed and unsigned integer width, and <code>%%</code>; floats and unavailable platform
-services fail with stable named diagnostics. <code>--platform windows</code> writes the
-same program as a PE32+ console <code>.exe</code> whose runtime calls kernel32
-(<code>GetStdHandle</code>, <code>WriteFile</code>, <code>ExitProcess</code>, and <code>VirtualAlloc</code>/<code>VirtualFree</code>
-for resizable storage) through its import table, importing only the functions
-the program needs; it runs under Wine.</p>
+<p><code>zx2native --target x86_64 --platform linux --emit elf -o app app.zx</code>
+writes a Linux ELF. <code>--platform windows</code> writes a PE32+ console executable.
+The native CLI also accepts <code>--target aarch64</code> and <code>--target armv7</code> and
+<code>--platform android</code>; supported target/platform combinations and service gaps
+are validated before output. Host-capability linking uses registered host
+libraries where supported. A successful lowering does not imply every OS
+service is available on every CPU.</p>
 <h2 id="generate-c-and-go-binaries">Generate C and Go binaries</h2>
 <p><code>ziran build FILE.zi</code> defaults to a direct native binary named after the source
 stem, composing <code>zi2zx</code> and host-target <code>zx2native</code>. Use <code>--target=zx</code>,

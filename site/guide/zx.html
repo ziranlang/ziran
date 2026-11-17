@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Ziran portable bundle (`.zx`): the Ziran guide, rendered from docs/ZX.md."><title>Ziran portable bundle (`.zx`) · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/zx"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Ziran portable bundle (`.zx`)</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/ZX.md">docs/ZX.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#running-bundles">Running bundles</a><a href="#writing-bundles">Writing bundles</a><a href="#embedding">Embedding</a><a href="#target-contract">Target contract</a><a href="#component-identity-state-and-replacement">Component identity, state, and replacement</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#running-bundles">Running bundles</a><a href="#learning">Learning</a><a href="#writing-bundles">Writing bundles</a><a href="#embedding">Embedding</a><a href="#target-contract">Target contract</a><a href="#component-identity-state-and-replacement">Component identity, state, and replacement</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
 <section class="prose"><p>The file roles are <code>.zi</code> for source, <code>.zir</code> for checked intermediate modules,
 and <code>.zx</code> for portable executables. The portable tool is <code>zi2zx</code>, and its
 target name is <code>zx</code>. A <code>.zx</code> file is revision-28 executable ZX: verified
@@ -18,7 +18,7 @@ is the default module root. <code>ziran run app.zx</code> and <code>zi2zx run ap
 bundle file. Zero-argument entries returning an integer, <code>bool</code> or nothing
 run; the command prints a non-void result on its own line, unsigned results
 over their full range.</p>
-<p>On linux-x86_64, <code>ziran run app.zx</code>, <code>zi2zx run</code> and the embedding API run a
+<p>On Linux x86-64, AArch64 and ARMv7, <code>ziran run app.zx</code>, <code>zi2zx run</code> and the embedding API run a
 bundle as native code compiled from its verified instructions; in a browser
 it runs on the Wasm tier and on other CPUs on the portable instruction engine.
 The platform makes that choice, never the bundle: a bundle native code cannot
@@ -41,6 +41,7 @@ the CPU's features and the build of the compiler that made it. It is checked
 against that key and its SHA-256 digest before it is used, and a damaged entry
 is removed and rebuilt. <code>ZIRAN_NATIVE_CACHE=DIR</code> uses another directory and
 <code>ZIRAN_NATIVE_CACHE=off</code> turns the cache off.</p>
+<h2 id="learning">Learning</h2>
 <p><code>ziran build FILE.zi</code> keeps a corpus of the programs it compiles to native code,
 as training data for improving Ziran's machine code. It is on by default,
 <code>ziran learn off</code> stops it and <code>ziran learn on</code> resumes it; benchmarks run
@@ -169,7 +170,9 @@ iterations. A runaway recursion stops with "nested calls filled the stack";
 other run failures name what happened, such as an index out of bounds or
 unreachable code executed, and the instruction where it did.</p>
 <h2 id="target-contract">Target contract</h2>
-<p>The pipeline is source → <code>.zir</code> → linked and verified instructions → <code>.zx</code>.
+<p>The pipeline is Source → ZIR → LIR → optimized LIR → ZX → native
+(ELF/PE, x86-64/AArch64/ARMv7). Wasm lowers from ZX; C/Go export
+from ZIR through <code>zi2c</code>/<code>zi2go</code>.
 The portable instruction engine runs the instructions on any platform. A
 supported direct target lowers the same verified instructions to machine code,
 applies the target ABI and platform veneers, and writes a platform binary;

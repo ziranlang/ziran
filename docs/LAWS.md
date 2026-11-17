@@ -137,15 +137,13 @@ proof. Finite `forall` has its separate 1,000,000-case budget.
 
 ## Saved artifacts and trust
 
-Version 48 `.zir` stores theorem proposition graphs, certificate steps and
-their typed expression graphs, and evidence. Version 25 `.zx` carries the
+Checked `.zir` stores theorem proposition graphs, certificate steps and
+their typed expression graphs, and evidence. Executable `.zx` carries the
 linked verification dependencies and an evidence table. Loaders retype and
 recheck certificates; saved status, type annotations, and evidence cannot
-authorize a proof. Canonical checking rejects divergent saved fields. The
-bundle loader also compares its outer evidence and waiver tables against
-the checked embedded IR. Earlier artifact versions are rejected.
+authorize a proof. Canonical checking rejects divergent saved fields. The bundle loader validates linked evidence and waiver tables.
 
-Ziran is not a memory-safe language: memory safety is manual, as in C. A
+Ziran uses manual safety by default, as in C. A
 build without `--checks` carries no defensive runtime check, and `#checks`
 keeps them only where it is written (see the usage guide). Trust changes how
 much input validation a boundary needs. In a `--checks` build the

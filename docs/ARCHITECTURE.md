@@ -1,156 +1,40 @@
 # Ziran architecture
 
-This is the agreed target architecture for the Ziran and Kryon repositories.
-It is not a claim that every part is implemented. Current gaps are tracked in
-[Implementation status](IMPLEMENTATION_STATUS.md).
+Ziran owns the language, compiler, standard library and executable runtime.
+Applications own product code; Kryon owns UI widgets and rendering.
 
-## Repository ownership
+## Compiler pipeline
 
-| Repository | Owns | Must not own |
-| --- | --- | --- |
-| Ziran | Language semantics, parser, checker, laws, standard library, `.zir`, native backends, `.zx` linker, verifier, loader, and generic execution runtime | Widgets, UI trees, styling, DOM policy, renderers, Kryon-specific names or implicit UI startup |
-| Kryon | Importable `.zi` modules for widgets, layout, themes, interaction, accessibility, rendering, and platform adapters | Ziran syntax, compiler branches for widgets, or an application's terminal or product UI |
+Source → ZIR → LIR → optimized LIR → ZX → native (ELF/PE, x86-64/AArch64/ARMv7). WebAssembly lowers from verified ZX through `zx2wasm`. C and Go export from ZIR through `zi2c` and `zi2go`.
 
-The dependency direction is **Kryon → Ziran**. A CLI, service, or library can
-use Ziran without Kryon. Importing Kryon is an explicit source dependency.
-Kryon's maintained implementation, including its widget and runtime logic, is
-100% Ziran source. A platform adapter may call operating-system or third-party
-APIs through declared FFI or host capabilities; those external libraries are
-dependencies, not a second copy of Kryon's implementation. Generated C or Go
-is compiler output, not Kryon source.
+The frontend checks imports, types, expressions, laws and ownership rules before
+writing `.zir`. The linker includes reachable code, lowers to LIR, verifies and
+optimizes it, and writes verified ZX instructions. The native backend consumes
+those instructions and applies CPU lowering and platform ABI services.
+`ziran build FILE.zi` selects native output by default. `zx2native --emit elf`
+writes ELF on Linux and PE32+ on Windows; supported CPU/platform combinations
+and service limits are diagnosed by the selected backend.
 
-## Language boundary
+`ziran run` uses native execution on Linux x86-64, AArch64 and ARMv7. The
+instruction engine can be selected explicitly with `--backend engine` on
+`zi2zx run`. A failed native lowering does not retry on another engine.
+Browser execution uses the Wasm tier. See [ZX](ZX.md).
 
-Modules, records, functions, imports, and procedure values are general
-language features. Calls resolve against visible function signatures and
-record types. Their semantics do not depend on the callee's spelling.
-`Button`, `Text`, and `Image` mean nothing until imported or declared.
-Kryon's intended `Image(ImageProps)` surface is an ordinary library API,
-including when used for semantic images; its full rendering implementation
-is still being migrated. A record argument uses `Function(Props.{value = 42})`;
-`result: Result = Function(Props.{value = 42})` binds a non-void return value.
+## Safety and capabilities
 
-Ziran has no `#ui` function modifier, app/route syntax, widget fallback,
-`#style` directive, DOM fields in its IR, or renderer-specific type checks.
-Kryon defines its own composition, styling, navigation, and lifecycle APIs in
-`.zi`. If a general language feature is needed for those APIs, it must work
-for unrelated libraries too and pass the same checker and backend tests.
+Safety is manual by default. `--checks` enables build-wide runtime checking;
+`#checks` retains bounds checks for a selected region. The instruction engine
+always checks. See [the guide](USAGE.md#checks).
 
-Language laws constrain semantics, types, evaluation order, IR validity, and
-backend equivalence. Kryon owns its UI behavior and rendering laws.
-[Language direction](LANGUAGE_DIRECTION.md) sets the additional requirements
-for law-driven development, LLM tooling, parallel execution, and evolution.
+Host capabilities describe typed services required by linked code. Host
+bindings implement them; CPU instruction lowering and ABI veneers implement
+the machine target. A missing binding or unsupported instruction is an error.
+Programs without graphical imports run without a graphical host.
 
-## Compilation and execution
+## Shared checked representation
 
-```text
-.zi modules ──parse/check──> .zir modules
-.zir modules ──link/lower/verify/optimize──> portable .zx instructions
-.zx ──verify/read──> portable interpreter ──> process
-.zx ──verify/read/direct target lowering──> platform binary
-.zir modules ──C/Go generation──> C or Go ──downstream toolchain──> platform binary
-```
-
-The direct-target branch is the native pipeline: Ziran lowers the verified ZX
-instructions directly to machine code, applies the target ABI and platform
-veneers, and writes the platform binary. It is an experimental, incomplete
-path, not a description of support on every target. Generated C and generated
-Go can also become binaries, but those are generated-code routes through their
-own compilers and linkers; they are not native-backend fallback paths.
-
-This is implemented by the format-specific `zi2zx` and `zx2native` route:
-source-native output serializes and reads ZX first, the same `.zx` that
-`ziran bundle` writes and `ziran run` executes. `zx2wasm` lowers the same
-verified revision-28 payload to a wasm32 module (`cmd/zx2wasm/zx_wasm_lower.c`), so one
-`.zx` gives one `.wasm`; `ziran build --target=wasm` and the bundle Wasm tier
-(`cmd/zir/zir_zx_wasm.c`) use that lowering too.
-Native source maps currently lose source origins at
-the stripped ZX boundary, while source LIR inspection retains them.
-
-The first implemented direct console veneer is the opt-in Linux x86-64 static
-ELF path. It owns `_start`, calls Linux `write` syscall 1 through a retrying
-`write_all` with standard output buffered until a newline on a terminal, a full
-buffer, another descriptor's write, a trap or exit, and terminates with
-`exit_group` syscall 231. It uses no libc,
-CRT, or dynamic linker. Other OS/CPU service rows and floating-point print
-formatting remain named gaps rather than alternate-engine requests.
-
-Inside the compiler, names in that model are interned: an expression's or
-statement's name and type, and a function's parameter list, are shared
-immutable strings (`KeepName`, `KeepParameters`), so equal spellings within a
-compilation context are one pointer. Parameter lists are split once into names and types
-(`ParametersOf`). Type and procedure resolution keep entry-scope answers,
-including misses and ambiguity, until declarations or imports change
-(`SymbolLookupsChanged`). Lookup file spellings remain part of each key;
-recursive import walks retain separate cycle state. `make sanitize` checks
-each kept answer against a fresh lookup.
-
-Record bodies share immutable parsed field snapshots. Field lookup uses an
-index over that snapshot, and ownership checking can reuse the fact that every
-field is a built-in value or pointer. This shortcut never assumes facts about
-named types, arrays, or generic applications: those still resolve in their
-owning scope. Rewriting a body selects a new snapshot, so copied or relocated
-record declarations cannot retain stale field names or ownership facts.
-
-Every backend consumes the same `.zir` model. The ZX linker produces
-one verified portable instruction program for the interpreter and direct
-target lowering. `.zx` cannot depend on arbitrary target-specific C or Go
-source fragments. C and Go exporters remain separate consumers of ZIR.
-Every supported route for the same program must agree on observable language
-behavior.
-
-Host capabilities are portable typed requirements in the linked program.
-Platform bindings satisfy those requirements for one host. Direct target
-lowering separately owns CPU instructions, calling conventions, object and
-executable formats, and small ABI veneers for services such as process entry,
-standard-stream writes, and process exit. A platform binding never makes a
-missing instruction lowering or ABI veneer implemented, and a CPU backend does
-not silently turn an OS service into a portable capability.
-
-Semantic checking sets `ZirFunction.checked` only from language validity.
-Native symbol planning runs afterward, and body eligibility is a separate
-emitter query. An emitter's inability to represent a valid function does not
-turn that function into unchecked source. The portable verifier remains the
-authority for executable `.zx` support.
-
-Parameter declarations have one immutable parsed view, including binding
-names, types, namespace modifiers, and defaults. Record fields likewise use
-the shared field snapshots. Backends consume these views; source spellings
-remain available for diagnostics, template rewriting, and serialization.
-
-Compilation contexts own interned text, source paths, symbol answers,
-declaration snapshots, expression caches, and reusable scratch buffers.
-Source and artifact readers create a context when the caller has not selected
-one. Programs and linked copies retain the contexts whose bytes they borrow;
-closing the original program therefore cannot invalidate a linked copy.
-Source spans keep their original context independently of the module's lookup
-context. Context pointers and cache identities are never serialized.
-
-Public source parsing is a recoverable operation. Syntax and source-read
-errors return `NULL` after reporting the ordinary structured diagnostic.
-An operation-local allocation transaction releases partial trees, temporary
-buffers, and open streams after an error, and restores the enclosing parser
-state. Transactions nest across import callbacks and are local to each thread.
-Published immutable caches remain owned by their context. See
-[Compiler embedding](COMPILER_API.md) for lifetime and concurrency rules.
-
-The linker resolves explicit imports, includes the reachable library code,
-and reports unresolved symbols or unavailable capabilities. A program with no
-Kryon import has no Kryon code or graphics requirement. A program importing
-Kryon links the Kryon modules it uses; graphics, input, audio, filesystem, and
-other host access must be declared as capabilities when needed. The host
-supplies those capabilities. A missing required capability is a reported
-error, never silently ignored.
-
-The portable runtime launches a non-graphical `.zx` without initializing a
-window or display. Kryon decides how to use the host's graphical capabilities
-through its imported `.zi` implementation. The compiler and loader do not
-inspect widget names to make that decision.
-
-## Product boundary
-
-Kryon is a reusable library. Applications keep their own product logic and
-UI in their repositories and import Kryon. Kapsule's terminal emulator, for
-example, belongs to Kapsule; Kryon only gains small reusable primitives when
-multiple applications need them. See [Migration](MIGRATION.md) for the single
-breaking cutover and verification gates.
+C and Go exporters consume the same checked [ZIR](ZIR.md) model. All routes
+must preserve observable language behavior within their supported subset.
+Contexts own parsed declarations, interned text, source spans and scratch
+storage. Linked programs retain contexts whose data they borrow. See
+[compiler embedding](COMPILER_API.md) for lifetime and concurrency rules.

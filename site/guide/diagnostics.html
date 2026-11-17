@@ -61,10 +61,7 @@ are emitted only after the lexer identifies one unambiguous identifier and
 the reread source matches the captured document. Strings, comments, ambiguous
 occurrences, rewritten source without a raw mapping, and saved IR receive no
 speculative edits. Replacements and preimages are never clipped to fit a budget.</p>
-<p>Schema-1 diagnostic consumers must explicitly migrate to version 2:
-<code>related</code> is now <code>related_graph</code>, and top-level <code>edits</code> is now
-<code>alternatives[].edits</code>. No legacy diagnostic mode is retained.</p>
-<p><code>check --target=c|go|py|zx</code> checks target-specific foreign
+<p><code>check --target=c|go|zx</code> checks target-specific foreign
 identities/imports and Go/portable scalar-union restrictions before writing
 output. Builds use the same preflight policy. Its failures include <code>target</code>
 and a capability such as <code>ffi.go</code>, <code>types.go</code>, or <code>unions.scalar</code>; individual

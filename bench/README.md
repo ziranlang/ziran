@@ -24,6 +24,24 @@ benchmark on the current desktop. Record the host in every report and collect
 both sides of a comparison on the same host; retained desktop results keep
 their original provenance.
 
+## Standard benchmarks and the host gate
+
+`bench/standard/README.md` describes the standard language benchmarks
+(`wasm-tier --standard`, `--standard-full` for the Benchmarks Game sizes) and
+`standard-compile`. Anything the site's kernel or standard tables publish is
+measured with `--host-gate`: each measured job runs on one logical CPU of the
+quietest core, inherited by the child so no wrapper process adds time, with Go
+at `GOMAXPROCS=1`. A poller on the other cores reads that CPU's
+`scaling_cur_freq` every 10 ms and the sibling's busy time. A job is kept only
+if its 10th to 90th percentile clock is within 3% of its median, the median
+reaches 95% of the clock calibrated at start, and the hyperthread sibling is
+busy at most 15% of the job; otherwise it runs again (up to eight attempts),
+and rejected attempts stay in the receipt with their observations. The site
+generators refuse receipts without it. Alpha's powersave/HWP clock otherwise
+moves between 0.8 and 4.3 GHz and run time follows it
+(`results/records-native-frequency-alpha-2026-11-16.json`). Compile-time builds
+are not pinned.
+
 Timed compiler/codec kernels are an explicit benchmark command, outside
 `make check`: `build/bin/ziran run --target=c bench/bench.zi -- compiler-kernels` on Alpha.
 Routine tests still validate benchmark statistics and command interfaces.

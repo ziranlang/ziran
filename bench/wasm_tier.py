@@ -21,6 +21,7 @@ import random
 import re
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -67,6 +68,127 @@ def host_snapshot():
         affinity = None
     return {'monotonic_ns': time.monotonic_ns(), 'loadavg': loadavg(),
             'allowed_cpus': affinity, 'scaling_cur_freq_khz': frequencies or None}
+
+
+def cpu_ticks(cpu):
+    """(busy, total) jiffies of one logical CPU from /proc/stat."""
+    for line in Path('/proc/stat').read_text().splitlines():
+        if line.startswith(f'cpu{cpu} '):
+            fields = [int(value) for value in line.split()[1:9]]
+            return sum(fields) - fields[3] - fields[4], sum(fields)
+    raise RuntimeError(f'cpu{cpu} is missing from /proc/stat')
+
+
+def busy_share(before, after):
+    return (after[0] - before[0]) / max(1, after[1] - before[1])
+
+
+GATE_METHOD = (' Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core and is repeated '
+               'unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached '
+               '95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; '
+               'Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.')
+
+
+class HostGate:
+    """Pin each measured job to one logical CPU and keep it only when that CPU held a steady,
+    full clock and its hyperthread sibling stayed mostly idle; otherwise run it again.
+
+    Alpha's powersave/HWP clock moves between 0.8 and 4.3 GHz, run time scales inversely with
+    it, and a busy sibling slows a core by about 30%
+    (bench/results/records-native-frequency-alpha-2026-11-16.json). Rejected attempts stay in
+    the receipt with their observations; accepted samples still follow the 1.5×IQR rule."""
+    STEADY = 0.03     # 10th to 90th percentile clock within 3% of the job's median
+    FLOOR = 0.95      # median clock at least 95% of the clock calibrated at start
+    SIBLING = 0.15    # hyperthread sibling busy for at most 15% of the job
+    ATTEMPTS = 8
+
+    def __init__(self):
+        cpus = sorted(os.sched_getaffinity(0))
+        cores = {}
+        for cpu in cpus:
+            key = Path(f'/sys/devices/system/cpu/cpu{cpu}/topology/thread_siblings_list').read_text().strip()
+            cores.setdefault(key, []).append(cpu)
+        before = {cpu: cpu_ticks(cpu) for cpu in cpus}
+        time.sleep(1.0)
+        busy = {cpu: busy_share(before[cpu], cpu_ticks(cpu)) for cpu in cpus}
+        core = min(cores.values(), key=lambda members: sum(busy[cpu] for cpu in members) / len(members))
+        self.cpu, self.sibling = core[0], (core[1] if len(core) > 1 else None)
+        # Measured children inherit this thread's CPU (no wrapper process adds to their
+        # time); the clock poller thread runs on the other cores.
+        self.free = set(cpus) - set(core) or set(cpus)
+        os.sched_setaffinity(0, {self.cpu})
+        spin = 'import time\nend = time.perf_counter() + 1.0\nwhile time.perf_counter() < end: pass'
+        _, observed = self.observe(lambda: subprocess.run([sys.executable, '-c', spin], check=True), settle=0.3)
+        self.reference_khz = observed['median_khz']
+        if not self.reference_khz:
+            raise RuntimeError(f'cpu{self.cpu} reports no scaling_cur_freq')
+
+    def frequency(self):
+        return int(Path(f'/sys/devices/system/cpu/cpu{self.cpu}/cpufreq/scaling_cur_freq').read_text())
+
+    def observe(self, job, settle=0.2):
+        readings, stop = [], threading.Event()
+
+        def poll():
+            os.sched_setaffinity(0, self.free)
+            while not stop.wait(0.01):
+                readings.append((time.monotonic(), self.frequency()))
+        sibling_before = cpu_ticks(self.sibling) if self.sibling is not None else None
+        poller = threading.Thread(target=poll, daemon=True)
+        started = time.monotonic()
+        poller.start()
+        try:
+            value = job()
+        finally:
+            stop.set()
+            poller.join()
+        # A short job (warmup included) may end inside the settle window: judge all its readings.
+        clocks = sorted(khz for at, khz in readings if at - started >= settle)
+        if len(clocks) < 3:
+            clocks = sorted(khz for _, khz in readings)
+        pick = (lambda share: clocks[min(len(clocks) - 1, int(share * len(clocks)))]) if clocks else (lambda share: None)
+        return value, {'cpu': self.cpu, 'sibling': self.sibling, 'readings': len(clocks),
+                       'median_khz': pick(0.5), 'p10_khz': pick(0.1), 'p90_khz': pick(0.9),
+                       'sibling_busy': None if self.sibling is None else round(busy_share(sibling_before, cpu_ticks(self.sibling)), 4)}
+
+    def rejection(self, observed):
+        median = observed['median_khz']
+        if not median or observed['readings'] < 3:
+            return 'too few clock readings'
+        if observed['p10_khz'] < (1 - self.STEADY) * median or observed['p90_khz'] > (1 + self.STEADY) * median:
+            return 'clock not steady'
+        if median < self.FLOOR * self.reference_khz:
+            return 'clock below the calibrated sustained clock'
+        if observed['sibling_busy'] is not None and observed['sibling_busy'] > self.SIBLING:
+            return 'hyperthread sibling busy'
+        return None
+
+    @staticmethod
+    def environment():
+        # One pinned CPU: Go gets one scheduler instead of two time-sliced on it.
+        return {**platforms.environment(), 'GOMAXPROCS': '1'}
+
+    def describe(self):
+        return {'cpu': self.cpu, 'sibling': self.sibling, 'reference_khz': self.reference_khz,
+                'rules': {'steady': self.STEADY, 'floor': self.FLOOR, 'sibling_busy_max': self.SIBLING,
+                          'attempts': self.ATTEMPTS}}
+
+    def measure(self, job):
+        attempts = []
+        for _ in range(self.ATTEMPTS):
+            measured, observed = self.observe(job)
+            reason = self.rejection(observed)
+            observed['accepted'] = reason is None
+            attempts.append(observed)
+            if reason is None:
+                measured['host_gate'] = {**self.describe(), 'accepted': True, 'attempts': attempts}
+                return measured
+            observed['rejected_because'] = reason
+            observed['measurement'] = measured
+            time.sleep(2.0)
+        raise RuntimeError('Host gate rejected every attempt: ' + json.dumps(
+            [{key: attempt[key] for key in ('rejected_because', 'median_khz', 'p10_khz', 'p90_khz', 'sibling_busy')}
+             for attempt in attempts]) + f' (reference {self.reference_khz} kHz)')
 
 
 def build(cc):
@@ -126,49 +248,57 @@ def build(cc):
     return kernels
 
 
-def measure(kernels, samples, *, observe_host=False):
+def native_samples(kernel, command, samples, observe_host, env):
+    warmup_count = 0
+    warmup_started = time.perf_counter_ns()
+    while (time.perf_counter_ns() - warmup_started) / 1e6 < 150:
+        result = subprocess.run(command, env=env, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.PIPE, text=True)
+        if result.returncode != 42:
+            raise RuntimeError(f'{kernel["id"]}/native warmup exited {result.returncode}: {result.stderr}')
+        warmup_count += 1
+    batch_samples = []
+    observations = []
+    for sample_index in range(samples):
+        if observe_host:
+            before = host_snapshot()
+        started = time.perf_counter_ns()
+        result = subprocess.run(command, env=env, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.PIPE, text=True)
+        batch_samples.append((time.perf_counter_ns() - started) / 1e6)
+        if observe_host:
+            observations.append({'sample_index': sample_index,
+                                 'before': before, 'after': host_snapshot()})
+        if result.returncode != 42:
+            raise RuntimeError(f'{kernel["id"]}/native sample exited {result.returncode}: {result.stderr}')
+    measured = platforms.summarize({'result': kernel['expected'], 'batches': NATIVE_BATCHES,
+                                     'batch_samples_ms': batch_samples}, kernel['expected'])
+    measured.update(stdout_verified=True, warmup_count=warmup_count,
+                    warmup_ms=(time.perf_counter_ns() - warmup_started) / 1e6)
+    if observe_host:
+        measured['host_observations'] = observations
+        measured['host_observation_scope'] = (
+            'Untimed Linux sysfs snapshots for all logical CPUs, not the clock frequency '
+            'of the child process; an unpinned process can migrate. Missing readings are null. '
+            'Observations do not filter timing samples or change affinity or governor.')
+    return measured
+
+
+def measure(kernels, samples, *, observe_host=False, gate=None):
     jobs = [(kernel, target) for kernel in kernels for target in TARGETS]
     random.Random(42).shuffle(jobs)
     results = {kernel['id']: {} for kernel in kernels}
+    env = HostGate.environment() if gate else platforms.environment()
     for kernel, target in jobs:
         command = kernel['commands'][target]
-        if target == 'native':
-            warmup_count = 0
-            warmup_started = time.perf_counter_ns()
-            while (time.perf_counter_ns() - warmup_started) / 1e6 < 150:
-                result = subprocess.run(command, env=platforms.environment(), stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.PIPE, text=True)
-                if result.returncode != 42:
-                    raise RuntimeError(f'{kernel["id"]}/native warmup exited {result.returncode}: {result.stderr}')
-                warmup_count += 1
-            batch_samples = []
-            observations = []
-            for sample_index in range(samples):
-                if observe_host:
-                    before = host_snapshot()
-                started = time.perf_counter_ns()
-                result = subprocess.run(command, env=platforms.environment(), stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.PIPE, text=True)
-                batch_samples.append((time.perf_counter_ns() - started) / 1e6)
-                if observe_host:
-                    observations.append({'sample_index': sample_index,
-                                         'before': before, 'after': host_snapshot()})
-                if result.returncode != 42:
-                    raise RuntimeError(f'{kernel["id"]}/native sample exited {result.returncode}: {result.stderr}')
-            measured = platforms.summarize({'result': kernel['expected'], 'batches': NATIVE_BATCHES,
-                                             'batch_samples_ms': batch_samples}, kernel['expected'])
-            measured.update(stdout_verified=True, warmup_count=warmup_count,
-                            warmup_ms=(time.perf_counter_ns() - warmup_started) / 1e6)
-            if observe_host:
-                measured['host_observations'] = observations
-                measured['host_observation_scope'] = (
-                    'Untimed Linux sysfs snapshots for all logical CPUs, not the clock frequency '
-                    'of the child process; an unpinned process can migrate. Missing readings are null. '
-                    'Observations do not filter timing samples or change affinity or governor.')
-        else:
+        if target != 'native':
             command = [*command, str(samples)]
-            text = platforms.run(command, env=platforms.environment())
-            measured = platforms.summarize(platforms.read_measurement(text, kernel), kernel['expected'])
+        if target == 'native':
+            job = lambda: native_samples(kernel, command, samples, observe_host, env)
+        else:
+            job = lambda: platforms.summarize(platforms.read_measurement(
+                platforms.run(command, env=env), kernel), kernel['expected'])
+        measured = gate.measure(job) if gate else job()
         measured['command'] = base.command_text(command)
         measured['artifact_sha256'] = platforms.sha(kernel['artifacts'][target])
         measured['artifact_bytes'] = Path(kernel['artifacts'][target]).stat().st_size
@@ -231,14 +361,20 @@ def standard(arguments):
     if arguments.standard_resume:
         # Native runtime is static and Wasm is precompiled. Keep the original
         # build epoch even if another lane has since updated checkout tools.
-        provenance = {key: saved[key] for key in ('revision','compiler_dirty','tools','sources','runtime_sha256','artifacts')}
+        provenance = {key: saved[key] for key in ('revision','compiler_dirty','host_gate','tools','sources','runtime_sha256','artifacts')}
+        if provenance['host_gate'] != arguments.host_gate:
+            raise RuntimeError('Resume must keep the --host-gate choice of the saved rows')
     else:
         provenance = {'revision': base.git('rev-parse','HEAD'),
                       'compiler_dirty': bool(base.git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
+                      'host_gate': arguments.host_gate,
                       'tools': {name: standard_sha(tool(name)) for name in ('zi2zx','zx2wasm')},
                       'sources': {str(p.relative_to(ROOT)): standard_sha(p) for p in sorted(src.iterdir()) if p.is_file()},
                       'runtime_sha256': standard_sha(ROOT/'build/libziran.a'),
                       'artifacts': {p.name: standard_sha(p) for p in work.iterdir() if p.is_file()}}
+    gate = HostGate() if arguments.host_gate else None
+    if gate:
+        env.update(HostGate.environment())
     completed_before = len(rows)
     sizes = {1:50000000, 2:5500, 3:16000, 4:12, 5:21, 6:25000000} if arguments.standard_full else {}
     for kind, (name, size, probe) in enumerate(STANDARD_CASES):
@@ -258,7 +394,10 @@ def standard(arguments):
                 'wasm': ['node', src/'host.cjs', work/'suite.wasm', kind, n, 11, expected],
             }
             for target, command in commands.items():
-                measured = platforms.summarize(json.loads(run(command)), expected)
+                if n == size and gate:
+                    measured = gate.measure(lambda: platforms.summarize(json.loads(run(command)), expected))
+                else:
+                    measured = platforms.summarize(json.loads(run(command)), expected)
                 measured['command'] = base.command_text(command)
                 measured['stdout_verified'] = True
                 if n == size:
@@ -279,7 +418,8 @@ def standard(arguments):
             'measured_at': datetime.now(timezone.utc).isoformat(), 'samples': 11,
             'checks': False, 'learning': 'off', 'sources': provenance['sources'],
             'compiler_provenance': 'artifact-build-epoch; immutable native runner statically contains runtime',
-            'methodology': 'Single thread, 150 ms warmup; 11 in-process single-call samples; process startup and compilation excluded. Every result checked against independent cc -O2 C reference. Symmetric 1.5×IQR inclusive interpolated quartiles; raw samples and excluded indices retained. Binary trees include allocation and reclamation (Go GC). Mandelbrot and FASTA digest output bytes without I/O; floats rounded to nine decimals.',
+            'methodology': 'Single thread, 150 ms warmup; 11 in-process single-call samples; process startup and compilation excluded. Every result checked against independent cc -O2 C reference. Symmetric 1.5×IQR inclusive interpolated quartiles; raw samples and excluded indices retained. Binary trees include allocation and reclamation (Go GC). Mandelbrot and FASTA digest output bytes without I/O; floats rounded to nine decimals.' +
+                           (GATE_METHOD if provenance['host_gate'] else ''),
             'examples': rows}
     output = arguments.output or ROOT/'bench/results/standard/matrix.json'
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -297,6 +437,8 @@ def main():
     parser.add_argument('--standard-full', action='store_true', help='use Game performance sizes (requires --standard)')
     parser.add_argument('--standard', action='store_true', help='independent C/Go/ZX native/Wasm standard suite')
     parser.add_argument('--samples', type=int, default=11)
+    parser.add_argument('--host-gate', action='store_true',
+                        help='pin each measured job to a quiet CPU and repeat any run whose clock throttled')
     parser.add_argument('--observe-host', action='store_true',
                         help='record untimed CPU frequency/load snapshots around native kernel samples')
     parser.add_argument('--output', type=Path)
@@ -306,6 +448,8 @@ def main():
         parser.error('--samples must be between 3 and 31')
     if (arguments.standard_full or arguments.standard_resume or arguments.standard_case_limit) and not arguments.standard:
         parser.error('--standard-full requires --standard')
+    if arguments.host_gate and arguments.observe_host:
+        parser.error('--host-gate already observes the measured CPU; omit --observe-host')
     if arguments.standard:
         if arguments.observe_host:
             parser.error('--observe-host applies to kernel native samples, not the standard suite')
@@ -314,13 +458,15 @@ def main():
     cc = os.environ.get('CC', 'cc')
     kernels = build(cc)
     before = loadavg()
-    results = measure(kernels, arguments.samples, observe_host=arguments.observe_host)
+    gate = HostGate() if arguments.host_gate else None
+    results = measure(kernels, arguments.samples, observe_host=arguments.observe_host, gate=gate)
     data = {'schema_version': 1, 'label': arguments.label, 'host': platform.node() + ' · ' + base.cpu_name(),
             'virtualization': subprocess.run(['systemd-detect-virt'], capture_output=True, text=True).stdout.strip(),
             'measured_at': datetime.now(timezone.utc).isoformat(), 'samples': arguments.samples,
             'revision': base.git('rev-parse', 'HEAD'),
             'checks': False, 'learning': 'off',
             'engine_policy': 'explicit-engine',
+            'host_gate': gate.describe() if gate else None,
             'harness_sha256': {name: base.sha(ROOT / name) for name in
                                ('bench/wasm_tier.py', 'bench/wasm_tier_reference.go', 'bench/site_target_host.c',
                                 'bench/site_target_backend.h', 'scripts/site_target_node.cjs')},
@@ -331,7 +477,8 @@ def main():
             'methodology': 'Warm in-process calls timed by the site matrix harnesses; median per call after symmetric 1.5×IQR '
                            'outlier filtering, raw samples and exclusions retained. Every timed checksum and the printed output are '
                            'verified against the instruction engine. Native samples execute 32 checked calls in one ELF process and '
-                           'divide by 32, amortizing one process startup per sample; other targets exclude process startup. Compilation is excluded.',
+                           'divide by 32, amortizing one process startup per sample; other targets exclude process startup. Compilation is excluded.' +
+                           (GATE_METHOD if gate else ''),
             'kernels': results}
     if arguments.output:
         arguments.output.parent.mkdir(parents=True, exist_ok=True)

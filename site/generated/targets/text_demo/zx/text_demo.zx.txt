@@ -43,8 +43,7 @@ function @1 module=m1 name="StartsWithFoldASCII" result=t0 entry=b0 calling=0 ex
     i0 jump immediate=0 alignment=0 -> b2() effect=0 origin=o-1
   b2():
     i0 v8:t2 = constant symbol=7 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 v25:t2 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
-    i2 jump immediate=0 alignment=0 -> b3(v8) effect=0 origin=o-1
+    i1 jump immediate=0 alignment=0 -> b3(v8) effect=0 origin=o-1
   b3(v9:t2):
     i0 fuel immediate=1 alignment=0 effect=1 origin=o-1
     i1 v10:t3 = extract v1 immediate=1 alignment=0 effect=0 origin=o-1
@@ -67,8 +66,9 @@ function @1 module=m1 name="StartsWithFoldASCII" result=t0 entry=b0 calling=0 ex
   b5():
     i0 jump immediate=0 alignment=0 -> b6() effect=0 origin=o-1
   b6():
-    i0 v26:t2 = add v9 v25 immediate=0 alignment=0 effect=0 origin=o-1
-    i1 jump immediate=0 alignment=0 -> b3(v26) effect=0 origin=o-1
+    i0 v25:t2 = constant symbol=8 immediate=0 alignment=0 effect=0 origin=o-1
+    i1 v26:t2 = add v9 v25 immediate=0 alignment=0 effect=0 origin=o-1
+    i2 jump immediate=0 alignment=0 -> b3(v26) effect=0 origin=o-1
   b7():
     i0 v7:t0 = constant symbol=2 immediate=0 alignment=0 effect=0 origin=o-1
     i1 return v7 immediate=0 alignment=0 effect=0 origin=o-1

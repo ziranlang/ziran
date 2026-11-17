@@ -12,7 +12,7 @@ import site_benchmark_cohort as cohort
 import site_target_platforms as platforms
 
 OUTPUT = base.SITE / 'generated/kernel-targets'
-RECEIPTS = ('wasm-tier-go-2026-11-16.json',)
+RECEIPTS = ('wasm-tier-gated-2026-11-16.json',)
 MARKER = 'kernel_tiers'
 TARGETS = ('c', 'go', 'zx', 'native', 'wasm')
 
@@ -25,10 +25,12 @@ def receipts():
 def validate(data):
     assert data['schema_version'] == 1 and data['virtualization'] == 'none'
     assert data['samples'] >= 3 and data['kernels']
+    assert data['host_gate'], 'Publish only host-gated kernel measurements'
     for row in data['kernels'].values():
         assert set(row) == set(TARGETS)
         for measured in row.values():
             assert measured['stdout_verified']
+            assert measured['host_gate']['accepted'] and measured['host_gate']['attempts'][-1]['accepted']
             assert len(measured['batch_samples_ms']) == data['samples']
             assert platforms.summarize(measured, measured['result']) == measured
 
@@ -55,9 +57,10 @@ def render():
                '<h2>One source plus a Go reference.</h2>' + cohort.validate(receipts()[0][1]) + ''.join(sections) +
                '<p class="matrix-footnote">Medians use symmetric 1.5×IQR filtering. Compilation is excluded. '
                'C, Go, ZX and Wasm use warm in-process calls. Native ELF runs 32 verified calls per process; '
-               'its figures include one process startup divided by 32. Recursive Fibonacci with a runtime input '
-               'is in the standard suite below. Kernels this short vary noticeably between runs, so compare '
-               'columns within one table. '
+               'its figures include one process startup divided by 32. Every job runs pinned to one CPU and is '
+               'repeated until that CPU held a steady clock at its calibrated sustained speed with the other '
+               'hyperthread of its core idle; Go uses GOMAXPROCS=1 there. Recursive Fibonacci with a runtime '
+               'input is in the standard suite below. '
                'All tables use the same physical host and compiler revision.</p></section>')
     original = (base.SITE / 'targets.html').read_text()
     pattern = r'(?s)(<!-- generated:' + MARKER + r' -->).*?(<!-- /generated:' + MARKER + r' -->)'

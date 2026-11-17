@@ -1,8 +1,9 @@
 # Where ZX native is slower than C
 
-Standard suite at diagnostic sizes (`diagnostic.json`), physical Alpha
-(Intel Core i7-8700), compiler 6a066abdb26d1579bcb1e786ccc42f50fa40f970, checks
-and learning off, 11 samples, symmetric 1.5×IQR medians. Times are µs per run.
+Standard suite at diagnostic sizes (`diagnostic-6a066abd.json`, measured before
+the host gate), physical Alpha (Intel Core i7-8700), compiler
+6a066abdb26d1579bcb1e786ccc42f50fa40f970, checks and learning off, 11 samples,
+symmetric 1.5×IQR medians. The gated cohort at a later commit is in `diagnostic.json`. Times are µs per run.
 The earlier compiler's receipt (`diagnostic-96c23c7d.json`) measured the same
 Ziran sources; C medians agree between the two runs to within about 7%.
 

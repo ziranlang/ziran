@@ -74,13 +74,15 @@ def build(project, manifest_path, samples, revision=None):
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(project / name, destination)
     shutil.copyfile(manifest_path, source_dir / manifest_path.name)
-    licenses = {project.name + '-LICENSE': project / 'LICENSE',
+    # Named for the library's repository, not the folder it was exported to.
+    licenses = {manifest['repository'].rstrip('/').rsplit('/', 1)[-1] + '-LICENSE': project / 'LICENSE',
                 'Ziran-LICENSE': base.REPO / 'LICENSE',
                 'Unicode-LICENSE': base.REPO / 'LICENSE-Unicode'}
 
     def add_licenses(directory):
         destination = directory / 'licenses'
-        destination.mkdir(exist_ok=True)
+        shutil.rmtree(destination, ignore_errors=True)  # no stale copies from an earlier run
+        destination.mkdir()
         for name, path in licenses.items():
             if path.is_file():
                 shutil.copyfile(path, destination / name)
@@ -230,8 +232,11 @@ if __name__ == '__main__':
     parser.add_argument('--samples', type=int, default=9)
     parser.add_argument('--revision', help='the commit a --project tree exported with git archive holds')
     parser.add_argument('--check', action='store_true')
+    parser.add_argument('--render', action='store_true', help='rewrite the page section from the saved matrix without measuring')
     args = parser.parse_args()
-    if args.check:
+    if args.render:
+        render(json.loads((OUTPUT / 'matrix.json').read_text()), write=True)
+    elif args.check:
         check()
     else:
         if not args.project or not args.manifest or not 3 <= args.samples <= 31:

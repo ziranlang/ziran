@@ -1,12 +1,13 @@
 {
-  "revision": "6a066abdb26d1579bcb1e786ccc42f50fa40f970",
+  "revision": "d3feb8a34bc9ac835b63bcc6012cbda9fad1916b",
   "compiler_dirty": false,
+  "host_gate": true,
   "tools": {
-    "zi2zx": "c840f0a428ac4521b6f6d25aa762797dafdebfe72dfc9a10c2f47270cdb7e3ad",
-    "zx2wasm": "3f16f42e09d5d4fa60ce699b5dcc5da9d681c514ed4b6de08a1958fc7f84c66a"
+    "zi2zx": "7668d76e4a992ed8e4eec58878bc0e2e56d3eb649dd91e8b9c2a6367c3d8f581",
+    "zx2wasm": "c17dc130b69903563010938dcc1953c3048296ef3ec662112aba970b32bd23f1"
   },
   "sources": {
-    "bench/standard/README.md": "731f3a6cea07cc867d3c1d0839abee2d0a8b999ed4fe0b3abedc484497bae7b0",
+    "bench/standard/README.md": "ce332830bba9dea8f5e95b390cb4786d8288d1fe83810979bb210312bc4c3d0e",
     "bench/standard/entry.zi": "5fe661a680ebdf2a1663956f3e63ec5d6d1357aa31ed4174f07df257d390e6a1",
     "bench/standard/host.c": "81956f42c2093c4756eb16920861527131e1738459c7b37c491dec74594bf190",
     "bench/standard/host.cjs": "676df749aedf9388a6ed47892cc6f64a79b5af4345ce5181d54f9dea421354ed",
@@ -15,25 +16,25 @@
     "bench/standard/reference.c": "9977bf725d9a46ca09633729273112d39ecd961a515c3a78cea3e384e392b717",
     "bench/standard/reference.go": "9468bca5b0db4355adbfb950b00825993648e1b8dc46670ec633a58d79db69a0"
   },
-  "runtime_sha256": "94c7ea90edfc78ca6fc62c72ea521d0800390efa5f867026e4225f58a15d7f90",
+  "runtime_sha256": "ab182c0bdc03216da858ceda60fabc9359872443766003e142baf5bc2c6358ed",
   "artifacts": {
-    "native": "369b560c8b4f524a8b702eb9395d2dd296f1fbf7c91a8cd34a1bbff41ff6bc95",
-    "go": "1bea537e91f7818eaaa31b99b8a402af3165a3b2c7136bfc0b12a2a791116a57",
-    "suite.wasm": "967b83ae59d0accaf99869b84990a71847f3e2005609e9488c140da07de81930",
+    "native": "adc801916ac12b1ba5ec8d65d0916376fe4bfcd82c4e4b4d3b075657d6f2488b",
+    "go": "561dff41b772a133d7a51634b490d8619f4db8293dc8cc21ffbc2ee9f40f7339",
+    "suite.wasm": "1e43409638b9d1390987f7764eb36388002e7a9e42c2022fee1886f255bd0293",
     "c": "b056d76232c8a8af447d180bfa71427dcd62b08ddc7e5ee0b2b1492d198ad56a",
-    "suite.zx": "0c2e52f91a4e28ffc33ffc7a7aeb554bde87521a40bec9d1f56eb3fcb468208c"
+    "suite.zx": "c73d452e0f7e775207efaaafc5760d4fa0a5db698f04dc7a576355a1afc4bca0"
   },
   "schema_version": 1,
   "set": "diagnostic",
   "host": "alpha",
   "cpu": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
   "virtualization": "none",
-  "measured_at": "2026-11-16T23:24:21.764501+00:00",
+  "measured_at": "2026-11-17T01:08:27.233495+00:00",
   "samples": 11,
   "checks": false,
   "learning": "off",
   "compiler_provenance": "artifact-build-epoch; immutable native runner statically contains runtime",
-  "methodology": "Single thread, 150 ms warmup; 11 in-process single-call samples; process startup and compilation excluded. Every result checked against independent cc -O2 C reference. Symmetric 1.5\u00d7IQR inclusive interpolated quartiles; raw samples and excluded indices retained. Binary trees include allocation and reclamation (Go GC). Mandelbrot and FASTA digest output bytes without I/O; floats rounded to nine decimals.",
+  "methodology": "Single thread, 150 ms warmup; 11 in-process single-call samples; process startup and compilation excluded. Every result checked against independent cc -O2 C reference. Symmetric 1.5\u00d7IQR inclusive interpolated quartiles; raw samples and excluded indices retained. Binary trees include allocation and reclamation (Go GC). Mandelbrot and FASTA digest output bytes without I/O; floats rounded to nine decimals. Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core and is repeated unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached 95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.",
   "examples": [
     {
       "id": "fib",
@@ -48,53 +49,77 @@
             "result": "9227465",
             "batches": 1,
             "batch_samples_ms": [
-              18.41444999,
-              18.378911972,
-              18.434121996,
-              18.44186601,
-              18.387809008,
-              18.478417993,
-              17.943287998,
-              17.81189701,
-              17.815582007,
-              17.672279,
-              17.693031996
+              18.669725001,
+              18.628278971,
+              20.041471004,
+              18.497884989,
+              18.532821953,
+              19.351189017,
+              18.973160982,
+              20.062415957,
+              19.019468009,
+              19.165482998,
+              18.957053006
             ],
             "execution_samples_ms": [
-              18.41444999,
-              18.378911972,
-              18.434121996,
-              18.44186601,
-              18.387809008,
-              18.478417993,
-              17.943287998,
-              17.81189701,
-              17.815582007,
-              17.672279,
-              17.693031996
+              18.669725001,
+              18.628278971,
+              20.041471004,
+              18.497884989,
+              18.532821953,
+              19.351189017,
+              18.973160982,
+              20.062415957,
+              19.019468009,
+              19.165482998,
+              18.957053006
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 16.89791978175,
-              "upper_ms": 19.340105719749996,
+              "lower_ms": 17.735000953750006,
+              "upper_ms": 20.172337039749994,
               "excluded_indices": [],
               "included_samples_ms": [
-                18.41444999,
-                18.378911972,
-                18.434121996,
-                18.44186601,
-                18.387809008,
-                18.478417993,
-                17.943287998,
-                17.81189701,
-                17.815582007,
-                17.672279,
-                17.693031996
+                18.669725001,
+                18.628278971,
+                20.041471004,
+                18.497884989,
+                18.532821953,
+                19.351189017,
+                18.973160982,
+                20.062415957,
+                19.019468009,
+                19.165482998,
+                18.957053006
               ],
-              "median_ms": 18.378911972
+              "median_ms": 18.973160982
             },
-            "execution_ms": 18.378911972,
+            "execution_ms": 18.973160982,
             "checksum": "9227465",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 18,
+                  "median_khz": 4398144,
+                  "p10_khz": 4300030,
+                  "p90_khz": 4400010,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 0 35 11 9227465",
             "stdout_verified": true
           }
@@ -103,55 +128,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              37.153443,
-              38.310643,
-              38.48472,
-              37.961443,
-              37.99386,
-              37.365406,
-              37.170864,
-              37.07419,
-              36.840655,
-              37.191548,
-              38.004582
+              38.925069,
+              38.978861,
+              40.133555,
+              38.916236,
+              39.472225,
+              38.899575,
+              39.00298,
+              39.621965,
+              38.533939,
+              38.973987,
+              38.264078
             ],
             "batches": 1,
             "result": "9227465",
             "execution_samples_ms": [
-              37.153443,
-              38.310643,
-              38.48472,
-              37.961443,
-              37.99386,
-              37.365406,
-              37.170864,
-              37.07419,
-              36.840655,
-              37.191548,
-              38.004582
+              38.925069,
+              38.978861,
+              40.133555,
+              38.916236,
+              39.472225,
+              38.899575,
+              39.00298,
+              39.621965,
+              38.533939,
+              38.973987,
+              38.264078
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 35.906552250000004,
-              "upper_ms": 39.25482224999999,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                37.153443,
-                38.310643,
-                38.48472,
-                37.961443,
-                37.99386,
-                37.365406,
-                37.170864,
-                37.07419,
-                36.840655,
-                37.191548,
-                38.004582
+              "lower_ms": 38.41336,
+              "upper_ms": 39.73214800000001,
+              "excluded_indices": [
+                2,
+                10
               ],
-              "median_ms": 37.365406
+              "included_samples_ms": [
+                38.925069,
+                38.978861,
+                38.916236,
+                39.472225,
+                38.899575,
+                39.00298,
+                39.621965,
+                38.533939,
+                38.973987
+              ],
+              "median_ms": 38.973987
             },
-            "execution_ms": 37.365406,
+            "execution_ms": 38.973987,
             "checksum": "9227465",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 42,
+                  "median_khz": 4396857,
+                  "p10_khz": 4299975,
+                  "p90_khz": 4400004,
+                  "sibling_busy": 0.0317,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 0 35 11 9227465",
             "stdout_verified": true
           }
@@ -162,53 +212,77 @@
             "result": "9227465",
             "batches": 1,
             "batch_samples_ms": [
-              71.414167017,
-              71.935532987,
-              72.733936012,
-              72.457605988,
-              74.327955991,
-              76.432593018,
-              74.771627009,
-              73.479626983,
-              70.711394012,
-              72.548247993,
-              71.006327987
+              76.765562952,
+              76.762394965,
+              75.749857008,
+              77.122005999,
+              75.539373994,
+              76.435687006,
+              75.372664034,
+              75.454856992,
+              74.933309972,
+              74.255999029,
+              74.178178966
             ],
             "execution_samples_ms": [
-              71.414167017,
-              71.935532987,
-              72.733936012,
-              72.457605988,
-              74.327955991,
-              76.432593018,
-              74.771627009,
-              73.479626983,
-              70.711394012,
-              72.548247993,
-              71.006327987
+              76.765562952,
+              76.762394965,
+              75.749857008,
+              77.122005999,
+              75.539373994,
+              76.435687006,
+              75.372664034,
+              75.454856992,
+              74.933309972,
+              74.255999029,
+              74.178178966
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 68.33143777449999,
-              "upper_ms": 77.24720371450002,
+              "lower_ms": 72.98390602925,
+              "upper_ms": 78.76812195925001,
               "excluded_indices": [],
               "included_samples_ms": [
-                71.414167017,
-                71.935532987,
-                72.733936012,
-                72.457605988,
-                74.327955991,
-                76.432593018,
-                74.771627009,
-                73.479626983,
-                70.711394012,
-                72.548247993,
-                71.006327987
+                76.765562952,
+                76.762394965,
+                75.749857008,
+                77.122005999,
+                75.539373994,
+                76.435687006,
+                75.372664034,
+                75.454856992,
+                74.933309972,
+                74.255999029,
+                74.178178966
               ],
-              "median_ms": 72.548247993
+              "median_ms": 75.539373994
             },
-            "execution_ms": 72.548247993,
+            "execution_ms": 75.539373994,
             "checksum": "9227465",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 93,
+                  "median_khz": 4300023,
+                  "p10_khz": 4299980,
+                  "p90_khz": 4399999,
+                  "sibling_busy": 0.0175,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 0 35 11 9227465",
             "stdout_verified": true
           }
@@ -219,53 +293,77 @@
             "result": "9227465",
             "batches": 1,
             "batch_samples_ms": [
-              67.74435899999997,
-              70.07718800000004,
-              73.296807,
-              71.92365400000006,
-              69.85884499999997,
-              70.61643800000002,
-              69.826277,
-              68.07782299999997,
-              66.36130400000002,
-              66.02201799999989,
-              67.3783269999999
+              67.61331899999999,
+              66.88458499999996,
+              67.29766600000005,
+              67.34444100000007,
+              66.67497099999991,
+              66.91779800000006,
+              67.24019800000008,
+              66.61041,
+              66.77180699999997,
+              67.060968,
+              66.5148529999999
             ],
             "execution_samples_ms": [
-              67.74435899999997,
-              70.07718800000004,
-              73.296807,
-              71.92365400000006,
-              69.85884499999997,
-              70.61643800000002,
-              69.826277,
-              68.07782299999997,
-              66.36130400000002,
-              66.02201799999989,
-              67.3783269999999
+              67.61331899999999,
+              66.88458499999996,
+              67.29766600000005,
+              67.34444100000007,
+              66.67497099999991,
+              66.91779800000006,
+              67.24019800000008,
+              66.61041,
+              66.77180699999997,
+              67.060968,
+              66.5148529999999
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 63.3831379999998,
-              "upper_ms": 74.52501800000016,
+              "lower_ms": 65.90507449999976,
+              "upper_ms": 68.08724650000025,
               "excluded_indices": [],
               "included_samples_ms": [
-                67.74435899999997,
-                70.07718800000004,
-                73.296807,
-                71.92365400000006,
-                69.85884499999997,
-                70.61643800000002,
-                69.826277,
-                68.07782299999997,
-                66.36130400000002,
-                66.02201799999989,
-                67.3783269999999
+                67.61331899999999,
+                66.88458499999996,
+                67.29766600000005,
+                67.34444100000007,
+                66.67497099999991,
+                66.91779800000006,
+                67.24019800000008,
+                66.61041,
+                66.77180699999997,
+                67.060968,
+                66.5148529999999
               ],
-              "median_ms": 69.826277
+              "median_ms": 66.91779800000006
             },
-            "execution_ms": 69.826277,
+            "execution_ms": 66.91779800000006,
             "checksum": "9227465",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 84,
+                  "median_khz": 4400000,
+                  "p10_khz": 4397371,
+                  "p90_khz": 4476674,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 0 35 11 9227465",
             "stdout_verified": true
           }
@@ -285,53 +383,78 @@
             "result": "-169096567",
             "batches": 1,
             "batch_samples_ms": [
-              29.089105994,
-              28.85751,
-              28.344283998,
-              28.372727007,
-              28.298669994,
-              29.480942994,
-              29.028539002,
-              28.829525024,
-              28.902399004,
-              28.910273999,
-              28.647255987
+              29.976227999,
+              29.823358953,
+              29.558322966,
+              29.972864032,
+              29.54725796,
+              30.05498296,
+              31.139802992,
+              31.452030003,
+              29.985157967,
+              29.828592002,
+              30.312072992
             ],
             "execution_samples_ms": [
-              29.089105994,
-              28.85751,
-              28.344283998,
-              28.372727007,
-              28.298669994,
-              29.480942994,
-              29.028539002,
-              28.829525024,
-              28.902399004,
-              28.910273999,
-              28.647255987
+              29.976227999,
+              29.823358953,
+              29.558322966,
+              29.972864032,
+              29.54725796,
+              30.05498296,
+              31.139802992,
+              31.452030003,
+              29.985157967,
+              29.828592002,
+              30.312072992
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 27.820868991750004,
-              "upper_ms": 29.658529005749998,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                29.089105994,
-                28.85751,
-                28.344283998,
-                28.372727007,
-                28.298669994,
-                29.480942994,
-                29.028539002,
-                28.829525024,
-                28.902399004,
-                28.910273999,
-                28.647255987
+              "lower_ms": 29.289646729750004,
+              "upper_ms": 30.71985672375,
+              "excluded_indices": [
+                6,
+                7
               ],
-              "median_ms": 28.85751
+              "included_samples_ms": [
+                29.976227999,
+                29.823358953,
+                29.558322966,
+                29.972864032,
+                29.54725796,
+                30.05498296,
+                29.985157967,
+                29.828592002,
+                30.312072992
+              ],
+              "median_ms": 29.972864032
             },
-            "execution_ms": 28.85751,
+            "execution_ms": 29.972864032,
             "checksum": "-169096567",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 34,
+                  "median_khz": 4397688,
+                  "p10_khz": 4299988,
+                  "p90_khz": 4400005,
+                  "sibling_busy": 0.0185,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 1 500000 11 -169096567",
             "stdout_verified": true
           }
@@ -340,56 +463,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              35.529331,
-              34.542491,
-              35.979069,
-              35.961402,
-              37.065092,
-              35.992711,
-              35.949911,
-              35.661318,
-              35.461233,
-              34.924973,
-              35.060733
+              36.640392,
+              36.167073,
+              35.907163,
+              36.232836,
+              36.400791,
+              37.251879,
+              35.607661,
+              36.515064,
+              36.242047,
+              37.166662,
+              36.238195
             ],
             "batches": 1,
             "result": "-169096567",
             "execution_samples_ms": [
-              35.529331,
-              34.542491,
-              35.979069,
-              35.961402,
-              37.065092,
-              35.992711,
-              35.949911,
-              35.661318,
-              35.461233,
-              34.924973,
-              35.060733
+              36.640392,
+              36.167073,
+              35.907163,
+              36.232836,
+              36.400791,
+              37.251879,
+              35.607661,
+              36.515064,
+              36.242047,
+              37.166662,
+              36.238195
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 34.19710424999999,
-              "upper_ms": 37.03411425000001,
+              "lower_ms": 35.633294250000006,
+              "upper_ms": 37.14438824999999,
               "excluded_indices": [
-                4
+                5,
+                6,
+                9
               ],
               "included_samples_ms": [
-                35.529331,
-                34.542491,
-                35.979069,
-                35.961402,
-                35.992711,
-                35.949911,
-                35.661318,
-                35.461233,
-                34.924973,
-                35.060733
+                36.640392,
+                36.167073,
+                35.907163,
+                36.232836,
+                36.400791,
+                36.515064,
+                36.242047,
+                36.238195
               ],
-              "median_ms": 35.595324500000004
+              "median_ms": 36.240121
             },
-            "execution_ms": 35.595324500000004,
+            "execution_ms": 36.240121,
             "checksum": "-169096567",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 42,
+                  "median_khz": 4389904,
+                  "p10_khz": 4299965,
+                  "p90_khz": 4400002,
+                  "sibling_busy": 0.0161,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 1 500000 11 -169096567",
             "stdout_verified": true
           }
@@ -400,54 +547,78 @@
             "result": "-169096567",
             "batches": 1,
             "batch_samples_ms": [
-              375.984398007,
-              375.960527003,
-              388.431307018,
-              392.409296006,
-              378.77589801,
-              375.594852984,
-              376.12577498,
-              370.38587901,
-              372.107280999,
-              381.360983998,
-              378.305895001
+              383.483476996,
+              380.409354031,
+              381.036462009,
+              378.143824995,
+              378.476581991,
+              376.61698997,
+              375.529911995,
+              378.205091,
+              377.821038008,
+              377.398450017,
+              377.250283003
             ],
             "execution_samples_ms": [
-              375.984398007,
-              375.960527003,
-              388.431307018,
-              392.409296006,
-              378.77589801,
-              375.594852984,
-              376.12577498,
-              370.38587901,
-              372.107280999,
-              381.360983998,
-              378.305895001
+              383.483476996,
+              380.409354031,
+              381.036462009,
+              378.143824995,
+              378.476581991,
+              376.61698997,
+              375.529911995,
+              378.205091,
+              377.821038008,
+              377.398450017,
+              377.250283003
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 369.34156347774996,
-              "upper_ms": 386.50456751974997,
+              "lower_ms": 374.14646425850003,
+              "upper_ms": 382.62087026250003,
               "excluded_indices": [
-                2,
-                3
+                0
               ],
               "included_samples_ms": [
-                375.984398007,
-                375.960527003,
-                378.77589801,
-                375.594852984,
-                376.12577498,
-                370.38587901,
-                372.107280999,
-                381.360983998,
-                378.305895001
+                380.409354031,
+                381.036462009,
+                378.143824995,
+                378.476581991,
+                376.61698997,
+                375.529911995,
+                378.205091,
+                377.821038008,
+                377.398450017,
+                377.250283003
               ],
-              "median_ms": 375.984398007
+              "median_ms": 377.9824315015
             },
-            "execution_ms": 375.984398007,
+            "execution_ms": 377.9824315015,
             "checksum": "-169096567",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 468,
+                  "median_khz": 4399994,
+                  "p10_khz": 4300000,
+                  "p90_khz": 4400008,
+                  "sibling_busy": 0.0142,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 1 500000 11 -169096567",
             "stdout_verified": true
           }
@@ -458,53 +629,77 @@
             "result": "-169096567",
             "batches": 1,
             "batch_samples_ms": [
-              346.18245,
-              352.45395899999994,
-              352.5246699999998,
-              351.16281000000004,
-              351.635953,
-              345.2850949999997,
-              346.13028799999984,
-              352.5315650000002,
-              345.93185500000027,
-              341.60383900000033,
-              343.2219189999996
+              343.01488300000005,
+              340.1486709999999,
+              340.42063900000016,
+              339.1882710000002,
+              339.6451540000003,
+              340.5791650000001,
+              339.19904399999996,
+              337.70358899999974,
+              337.6824609999999,
+              340.3572819999995,
+              336.515754
             ],
             "execution_samples_ms": [
-              346.18245,
-              352.45395899999994,
-              352.5246699999998,
-              351.16281000000004,
-              351.635953,
-              345.2850949999997,
-              346.13028799999984,
-              352.5315650000002,
-              345.93185500000027,
-              341.60383900000033,
-              343.2219189999996
+              343.01488300000005,
+              340.1486709999999,
+              340.42063900000016,
+              339.1882710000002,
+              339.6451540000003,
+              340.5791650000001,
+              339.19904399999996,
+              337.70358899999974,
+              337.6824609999999,
+              340.3572819999995,
+              336.515754
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 335.95375350000006,
-              "upper_ms": 361.6996774999999,
+              "lower_ms": 335.5313842500002,
+              "upper_ms": 343.3035062499996,
               "excluded_indices": [],
               "included_samples_ms": [
-                346.18245,
-                352.45395899999994,
-                352.5246699999998,
-                351.16281000000004,
-                351.635953,
-                345.2850949999997,
-                346.13028799999984,
-                352.5315650000002,
-                345.93185500000027,
-                341.60383900000033,
-                343.2219189999996
+                343.01488300000005,
+                340.1486709999999,
+                340.42063900000016,
+                339.1882710000002,
+                339.6451540000003,
+                340.5791650000001,
+                339.19904399999996,
+                337.70358899999974,
+                337.6824609999999,
+                340.3572819999995,
+                336.515754
               ],
-              "median_ms": 346.18245
+              "median_ms": 339.6451540000003
             },
-            "execution_ms": 346.18245,
+            "execution_ms": 339.6451540000003,
             "checksum": "-169096567",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 430,
+                  "median_khz": 4399992,
+                  "p10_khz": 4299997,
+                  "p90_khz": 4400006,
+                  "sibling_busy": 0.0197,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 1 500000 11 -169096567",
             "stdout_verified": true
           }
@@ -524,53 +719,77 @@
             "result": "1274224116",
             "batches": 1,
             "batch_samples_ms": [
-              9.974602014,
-              10.009142995,
-              10.013374984,
-              9.977803022,
-              10.327399015,
-              10.432812989,
-              10.550136,
-              10.113619,
-              9.989140004,
-              10.073499024,
-              10.270846993
+              10.615626037,
+              10.476119041,
+              10.467801034,
+              10.445997,
+              10.584833026,
+              10.55100596,
+              10.436374009,
+              10.437129974,
+              10.433203995,
+              10.549826026,
+              10.458349049
             ],
             "execution_samples_ms": [
-              9.974602014,
-              10.009142995,
-              10.013374984,
-              9.977803022,
-              10.327399015,
-              10.432812989,
-              10.550136,
-              10.113619,
-              9.989140004,
-              10.073499024,
-              10.270846993
+              10.615626037,
+              10.476119041,
+              10.467801034,
+              10.445997,
+              10.584833026,
+              10.55100596,
+              10.436374009,
+              10.437129974,
+              10.433203995,
+              10.549826026,
+              10.458349049
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 9.549169242749999,
-              "upper_ms": 10.749095260749998,
+              "lower_ms": 10.278284728,
+              "upper_ms": 10.713694751999999,
               "excluded_indices": [],
               "included_samples_ms": [
-                9.974602014,
-                10.009142995,
-                10.013374984,
-                9.977803022,
-                10.327399015,
-                10.432812989,
-                10.550136,
-                10.113619,
-                9.989140004,
-                10.073499024,
-                10.270846993
+                10.615626037,
+                10.476119041,
+                10.467801034,
+                10.445997,
+                10.584833026,
+                10.55100596,
+                10.436374009,
+                10.437129974,
+                10.433203995,
+                10.549826026,
+                10.458349049
               ],
-              "median_ms": 10.073499024
+              "median_ms": 10.467801034
             },
-            "execution_ms": 10.073499024,
+            "execution_ms": 10.467801034,
             "checksum": "1274224116",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 9,
+                  "median_khz": 4300006,
+                  "p10_khz": 4299950,
+                  "p90_khz": 4300045,
+                  "sibling_busy": 0.0333,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 2 500 11 1274224116",
             "stdout_verified": true
           }
@@ -579,55 +798,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              15.943846,
-              15.984681,
-              16.189706,
-              16.415521,
-              15.952494,
-              15.944866,
-              16.159383,
-              15.976691,
-              16.025584,
-              15.948458,
-              16.280799
+              16.748044,
+              16.810056,
+              16.727476,
+              16.740092,
+              16.793533,
+              16.731727,
+              16.73484,
+              16.800442,
+              16.698629,
+              17.735594,
+              16.951465
             ],
             "batches": 1,
             "result": "1274224116",
             "execution_samples_ms": [
-              15.943846,
-              15.984681,
-              16.189706,
-              16.415521,
-              15.952494,
-              15.944866,
-              16.159383,
-              15.976691,
-              16.025584,
-              15.948458,
-              16.280799
+              16.748044,
+              16.810056,
+              16.727476,
+              16.740092,
+              16.793533,
+              16.731727,
+              16.73484,
+              16.800442,
+              16.698629,
+              17.735594,
+              16.951465
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 15.61437325,
-              "upper_ms": 16.510647249999998,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                15.943846,
-                15.984681,
-                16.189706,
-                16.415521,
-                15.952494,
-                15.944866,
-                16.159383,
-                15.976691,
-                16.025584,
-                15.948458,
-                16.280799
+              "lower_ms": 16.62533525,
+              "upper_ms": 16.913197250000003,
+              "excluded_indices": [
+                9,
+                10
               ],
-              "median_ms": 15.984681
+              "included_samples_ms": [
+                16.748044,
+                16.810056,
+                16.727476,
+                16.740092,
+                16.793533,
+                16.731727,
+                16.73484,
+                16.800442,
+                16.698629
+              ],
+              "median_ms": 16.740092
             },
-            "execution_ms": 15.984681,
+            "execution_ms": 16.740092,
             "checksum": "1274224116",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 16,
+                  "median_khz": 4300012,
+                  "p10_khz": 4299960,
+                  "p90_khz": 4397126,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 2 500 11 1274224116",
             "stdout_verified": true
           }
@@ -638,54 +882,77 @@
             "result": "1274224116",
             "batches": 1,
             "batch_samples_ms": [
-              116.853312999,
-              118.611214012,
-              118.703334987,
-              116.710832,
-              116.851481974,
-              121.025870979,
-              123.696766019,
-              120.90564701,
-              118.488145977,
-              118.701626003,
-              118.686716974
+              111.348810017,
+              112.620090961,
+              113.087881982,
+              112.894774973,
+              111.370416999,
+              111.663620055,
+              111.990319014,
+              111.598499,
+              111.16880703,
+              111.437434018,
+              111.172950983
             ],
             "execution_samples_ms": [
-              116.853312999,
-              118.611214012,
-              118.703334987,
-              116.710832,
-              116.851481974,
-              121.025870979,
-              123.696766019,
-              120.90564701,
-              118.488145977,
-              118.701626003,
-              118.686716974
+              111.348810017,
+              112.620090961,
+              113.087881982,
+              112.894774973,
+              111.370416999,
+              111.663620055,
+              111.990319014,
+              111.598499,
+              111.16880703,
+              111.437434018,
+              111.172950983
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 114.47008722225002,
-              "upper_ms": 123.00513326424999,
-              "excluded_indices": [
-                6
-              ],
+              "lower_ms": 109.94122628875,
+              "upper_ms": 113.72359220674998,
+              "excluded_indices": [],
               "included_samples_ms": [
-                116.853312999,
-                118.611214012,
-                118.703334987,
-                116.710832,
-                116.851481974,
-                121.025870979,
-                120.90564701,
-                118.488145977,
-                118.701626003,
-                118.686716974
+                111.348810017,
+                112.620090961,
+                113.087881982,
+                112.894774973,
+                111.370416999,
+                111.663620055,
+                111.990319014,
+                111.598499,
+                111.16880703,
+                111.437434018,
+                111.172950983
               ],
-              "median_ms": 118.648965493
+              "median_ms": 111.598499
             },
-            "execution_ms": 118.648965493,
+            "execution_ms": 111.598499,
             "checksum": "1274224116",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 136,
+                  "median_khz": 4399993,
+                  "p10_khz": 4300018,
+                  "p90_khz": 4400003,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 2 500 11 1274224116",
             "stdout_verified": true
           }
@@ -696,53 +963,78 @@
             "result": "1274224116",
             "batches": 1,
             "batch_samples_ms": [
-              48.83093600000001,
-              48.79184499999997,
-              48.46854400000001,
-              47.71880599999997,
-              47.72991499999995,
-              47.727751999999896,
-              48.64050999999995,
-              48.12066899999991,
-              48.09015899999997,
-              48.445892999999955,
-              49.16046300000005
+              43.628138999999976,
+              43.645493999999985,
+              44.05830900000001,
+              43.44857000000002,
+              44.10746999999998,
+              44.08820099999997,
+              44.26540199999994,
+              44.546291,
+              43.957784999999944,
+              48.77793900000006,
+              45.84444599999995
             ],
             "execution_samples_ms": [
-              48.83093600000001,
-              48.79184499999997,
-              48.46854400000001,
-              47.71880599999997,
-              47.72991499999995,
-              47.727751999999896,
-              48.64050999999995,
-              48.12066899999991,
-              48.09015899999997,
-              48.445892999999955,
-              49.16046300000005
+              43.628138999999976,
+              43.645493999999985,
+              44.05830900000001,
+              43.44857000000002,
+              44.10746999999998,
+              44.08820099999997,
+              44.26540199999994,
+              44.546291,
+              43.957784999999944,
+              48.77793900000006,
+              45.84444599999995
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 46.70082624999996,
-              "upper_ms": 49.925388249999955,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                48.83093600000001,
-                48.79184499999997,
-                48.46854400000001,
-                47.71880599999997,
-                47.72991499999995,
-                47.727751999999896,
-                48.64050999999995,
-                48.12066899999991,
-                48.09015899999997,
-                48.445892999999955,
-                49.16046300000005
+              "lower_ms": 42.89532899999996,
+              "upper_ms": 45.31215699999997,
+              "excluded_indices": [
+                9,
+                10
               ],
-              "median_ms": 48.445892999999955
+              "included_samples_ms": [
+                43.628138999999976,
+                43.645493999999985,
+                44.05830900000001,
+                43.44857000000002,
+                44.10746999999998,
+                44.08820099999997,
+                44.26540199999994,
+                44.546291,
+                43.957784999999944
+              ],
+              "median_ms": 44.05830900000001
             },
-            "execution_ms": 48.445892999999955,
+            "execution_ms": 44.05830900000001,
             "checksum": "1274224116",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 54,
+                  "median_khz": 4397525,
+                  "p10_khz": 4300001,
+                  "p90_khz": 4400003,
+                  "sibling_busy": 0.0135,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 2 500 11 1274224116",
             "stdout_verified": true
           }
@@ -762,53 +1054,78 @@
             "result": "796911324",
             "batches": 1,
             "batch_samples_ms": [
-              69.268528014,
-              68.49238199,
-              69.018466979,
-              68.850497007,
-              72.134593993,
-              70.706010997,
-              70.486490011,
-              69.940303981,
-              69.506984979,
-              68.957017004,
-              70.804843009
+              72.00237596,
+              71.714550972,
+              71.902245998,
+              71.677349985,
+              71.618933976,
+              72.625795007,
+              72.382745028,
+              71.626142025,
+              71.640583992,
+              71.438139021,
+              70.558409989
             ],
             "execution_samples_ms": [
-              69.268528014,
-              68.49238199,
-              69.018466979,
-              68.850497007,
-              72.134593993,
-              70.706010997,
-              70.486490011,
-              69.940303981,
-              69.506984979,
-              68.957017004,
-              70.804843009
+              72.00237596,
+              71.714550972,
+              71.902245998,
+              71.677349985,
+              71.618933976,
+              72.625795007,
+              72.382745028,
+              71.626142025,
+              71.640583992,
+              71.438139021,
+              70.558409989
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 66.57497922274999,
-              "upper_ms": 73.00901327275002,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                69.268528014,
-                68.49238199,
-                69.018466979,
-                68.850497007,
-                72.134593993,
-                70.706010997,
-                70.486490011,
-                69.940303981,
-                69.506984979,
-                68.957017004,
-                70.804843009
+              "lower_ms": 71.12787853274996,
+              "upper_ms": 72.44697044675003,
+              "excluded_indices": [
+                5,
+                10
               ],
-              "median_ms": 69.506984979
+              "included_samples_ms": [
+                72.00237596,
+                71.714550972,
+                71.902245998,
+                71.677349985,
+                71.618933976,
+                72.382745028,
+                71.626142025,
+                71.640583992,
+                71.438139021
+              ],
+              "median_ms": 71.677349985
             },
-            "execution_ms": 69.506984979,
+            "execution_ms": 71.677349985,
             "checksum": "796911324",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 87,
+                  "median_khz": 4300005,
+                  "p10_khz": 4299972,
+                  "p90_khz": 4397463,
+                  "sibling_busy": 0.0185,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 3 1000 11 796911324",
             "stdout_verified": true
           }
@@ -817,55 +1134,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              74.176172,
-              73.515287,
-              72.514086,
-              72.253045,
-              70.299047,
-              71.664908,
-              71.619899,
-              70.280504,
-              71.273393,
-              71.862924,
-              71.01005
+              73.577143,
+              73.477342,
+              73.490161,
+              73.879113,
+              73.25527,
+              74.119774,
+              73.016197,
+              73.850034,
+              73.320492,
+              74.58693,
+              73.804545
             ],
             "batches": 1,
             "result": "796911324",
             "execution_samples_ms": [
-              74.176172,
-              73.515287,
-              72.514086,
-              72.253045,
-              70.299047,
-              71.664908,
-              71.619899,
-              70.280504,
-              71.273393,
-              71.862924,
-              71.01005
+              73.577143,
+              73.477342,
+              73.490161,
+              73.879113,
+              73.25527,
+              74.119774,
+              73.016197,
+              73.850034,
+              73.320492,
+              74.58693,
+              73.804545
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 69.2789555,
-              "upper_ms": 74.2463315,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                74.176172,
-                73.515287,
-                72.514086,
-                72.253045,
-                70.299047,
-                71.664908,
-                71.619899,
-                70.280504,
-                71.273393,
-                71.862924,
-                71.01005
+              "lower_ms": 72.70043224999998,
+              "upper_ms": 74.56305825000001,
+              "excluded_indices": [
+                9
               ],
-              "median_ms": 71.664908
+              "included_samples_ms": [
+                73.577143,
+                73.477342,
+                73.490161,
+                73.879113,
+                73.25527,
+                74.119774,
+                73.016197,
+                73.850034,
+                73.320492,
+                73.804545
+              ],
+              "median_ms": 73.533652
             },
-            "execution_ms": 71.664908,
+            "execution_ms": 73.533652,
             "checksum": "796911324",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 90,
+                  "median_khz": 4399996,
+                  "p10_khz": 4397180,
+                  "p90_khz": 4400007,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 3 1000 11 796911324",
             "stdout_verified": true
           }
@@ -876,54 +1218,77 @@
             "result": "796911324",
             "batches": 1,
             "batch_samples_ms": [
-              137.986152023,
-              135.121699005,
-              133.437643975,
-              131.817579001,
-              132.609108001,
-              133.566715002,
-              132.318076998,
-              131.615629017,
-              131.305386007,
-              133.107758015,
-              134.631231993
+              119.163481951,
+              117.987583995,
+              118.385937989,
+              118.534779966,
+              118.410000026,
+              118.172326982,
+              118.724048972,
+              118.214991033,
+              118.453840971,
+              118.703700006,
+              118.89061898
             ],
             "execution_samples_ms": [
-              137.986152023,
-              135.121699005,
-              133.437643975,
-              131.817579001,
-              132.609108001,
-              133.566715002,
-              132.318076998,
-              131.615629017,
-              131.305386007,
-              133.107758015,
-              134.631231993
+              119.163481951,
+              117.987583995,
+              118.385937989,
+              118.534779966,
+              118.410000026,
+              118.172326982,
+              118.724048972,
+              118.214991033,
+              118.453840971,
+              118.703700006,
+              118.89061898
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 129.02110975250008,
-              "upper_ms": 137.14569174449997,
-              "excluded_indices": [
-                0
-              ],
+              "lower_ms": 117.680349544,
+              "upper_ms": 119.33398945600001,
+              "excluded_indices": [],
               "included_samples_ms": [
-                135.121699005,
-                133.437643975,
-                131.817579001,
-                132.609108001,
-                133.566715002,
-                132.318076998,
-                131.615629017,
-                131.305386007,
-                133.107758015,
-                134.631231993
+                119.163481951,
+                117.987583995,
+                118.385937989,
+                118.534779966,
+                118.410000026,
+                118.172326982,
+                118.724048972,
+                118.214991033,
+                118.453840971,
+                118.703700006,
+                118.89061898
               ],
-              "median_ms": 132.85843300800002
+              "median_ms": 118.453840971
             },
-            "execution_ms": 132.85843300800002,
+            "execution_ms": 118.453840971,
             "checksum": "796911324",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 145,
+                  "median_khz": 4399995,
+                  "p10_khz": 4394275,
+                  "p90_khz": 4400006,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 3 1000 11 796911324",
             "stdout_verified": true
           }
@@ -934,53 +1299,77 @@
             "result": "796911324",
             "batches": 1,
             "batch_samples_ms": [
-              214.851157,
-              206.49062100000003,
-              203.98263499999996,
-              203.19981499999983,
-              205.15627999999992,
-              209.05328199999985,
-              206.1217999999999,
-              208.59332400000017,
-              215.11341200000015,
-              208.91046099999994,
-              215.05499999999984
+              102.27936699999998,
+              102.75982899999997,
+              102.51655600000004,
+              101.68882699999995,
+              102.87376999999992,
+              101.61790699999995,
+              101.44790099999989,
+              101.77354300000002,
+              101.10620200000017,
+              101.68575199999987,
+              104.10018799999989
             ],
             "execution_samples_ms": [
-              214.851157,
-              206.49062100000003,
-              203.98263499999996,
-              203.19981499999983,
-              205.15627999999992,
-              209.05328199999985,
-              206.1217999999999,
-              208.59332400000017,
-              215.11341200000015,
-              208.91046099999994,
-              215.05499999999984
+              102.27936699999998,
+              102.75982899999997,
+              102.51655600000004,
+              101.68882699999995,
+              102.87376999999992,
+              101.61790699999995,
+              101.44790099999989,
+              101.77354300000002,
+              101.10620200000017,
+              101.68575199999987,
+              104.10018799999989
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 196.1692707499999,
-              "upper_ms": 221.42198874999997,
+              "lower_ms": 100.17228499999976,
+              "upper_ms": 104.11773700000015,
               "excluded_indices": [],
               "included_samples_ms": [
-                214.851157,
-                206.49062100000003,
-                203.98263499999996,
-                203.19981499999983,
-                205.15627999999992,
-                209.05328199999985,
-                206.1217999999999,
-                208.59332400000017,
-                215.11341200000015,
-                208.91046099999994,
-                215.05499999999984
+                102.27936699999998,
+                102.75982899999997,
+                102.51655600000004,
+                101.68882699999995,
+                102.87376999999992,
+                101.61790699999995,
+                101.44790099999989,
+                101.77354300000002,
+                101.10620200000017,
+                101.68575199999987,
+                104.10018799999989
               ],
-              "median_ms": 208.59332400000017
+              "median_ms": 101.77354300000002
             },
-            "execution_ms": 208.59332400000017,
+            "execution_ms": 101.77354300000002,
             "checksum": "796911324",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 129,
+                  "median_khz": 4396995,
+                  "p10_khz": 4299988,
+                  "p90_khz": 4400003,
+                  "sibling_busy": 0.0067,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 3 1000 11 796911324",
             "stdout_verified": true
           }
@@ -1000,53 +1389,77 @@
             "result": "8629030",
             "batches": 1,
             "batch_samples_ms": [
-              14.966298014,
-              14.943922997,
-              14.936553001,
-              14.769961029,
-              15.258585006,
-              15.091652006,
-              14.947751999,
-              15.126103997,
-              14.711854011,
-              14.761666983,
-              14.805175006
+              15.390980959,
+              15.95796001,
+              15.740462005,
+              15.326821029,
+              15.89930898,
+              15.318921983,
+              15.466208994,
+              16.069582999,
+              15.508391023,
+              15.613795996,
+              15.850387037
             ],
             "execution_samples_ms": [
-              14.966298014,
-              14.943922997,
-              14.936553001,
-              14.769961029,
-              15.258585006,
-              15.091652006,
-              14.947751999,
-              15.126103997,
-              14.711854011,
-              14.761666983,
-              14.805175006
+              15.390980959,
+              15.95796001,
+              15.740462005,
+              15.326821029,
+              15.89930898,
+              15.318921983,
+              15.466208994,
+              16.069582999,
+              15.508391023,
+              15.613795996,
+              15.850387037
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 14.42545752875,
-              "upper_ms": 15.39108549875,
+              "lower_ms": 14.759215428500003,
+              "upper_ms": 16.5442275565,
               "excluded_indices": [],
               "included_samples_ms": [
-                14.966298014,
-                14.943922997,
-                14.936553001,
-                14.769961029,
-                15.258585006,
-                15.091652006,
-                14.947751999,
-                15.126103997,
-                14.711854011,
-                14.761666983,
-                14.805175006
+                15.390980959,
+                15.95796001,
+                15.740462005,
+                15.326821029,
+                15.89930898,
+                15.318921983,
+                15.466208994,
+                16.069582999,
+                15.508391023,
+                15.613795996,
+                15.850387037
               ],
-              "median_ms": 14.943922997
+              "median_ms": 15.613795996
             },
-            "execution_ms": 14.943922997,
+            "execution_ms": 15.613795996,
             "checksum": "8629030",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 15,
+                  "median_khz": 4399996,
+                  "p10_khz": 4396901,
+                  "p90_khz": 4400004,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 4 9 11 8629030",
             "stdout_verified": true
           }
@@ -1055,55 +1468,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              14.951286,
-              14.81692,
-              14.754291,
-              14.678038,
-              14.723302,
-              14.808558,
-              15.24245,
-              15.466119,
-              15.288831,
-              15.390034,
-              15.870104
+              15.293497,
+              15.927952,
+              15.179122,
+              15.117522,
+              15.456637,
+              15.139738,
+              15.103804,
+              15.2108,
+              15.598423,
+              15.138917,
+              15.082607
             ],
             "batches": 1,
             "result": "8629030",
             "execution_samples_ms": [
-              14.951286,
-              14.81692,
-              14.754291,
-              14.678038,
-              14.723302,
-              14.808558,
-              15.24245,
-              15.466119,
-              15.288831,
-              15.390034,
-              15.870104
+              15.293497,
+              15.927952,
+              15.179122,
+              15.117522,
+              15.456637,
+              15.139738,
+              15.103804,
+              15.2108,
+              15.598423,
+              15.138917,
+              15.082607
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 13.944412499999999,
-              "upper_ms": 16.176444500000002,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                14.951286,
-                14.81692,
-                14.754291,
-                14.678038,
-                14.723302,
-                14.808558,
-                15.24245,
-                15.466119,
-                15.288831,
-                15.390034,
-                15.870104
+              "lower_ms": 14.757948249999998,
+              "upper_ms": 15.745338250000003,
+              "excluded_indices": [
+                1
               ],
-              "median_ms": 14.951286
+              "included_samples_ms": [
+                15.293497,
+                15.179122,
+                15.117522,
+                15.456637,
+                15.139738,
+                15.103804,
+                15.2108,
+                15.598423,
+                15.138917,
+                15.082607
+              ],
+              "median_ms": 15.15943
             },
-            "execution_ms": 14.951286,
+            "execution_ms": 15.15943,
             "checksum": "8629030",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 14,
+                  "median_khz": 4399997,
+                  "p10_khz": 4396198,
+                  "p90_khz": 4400009,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 4 9 11 8629030",
             "stdout_verified": true
           }
@@ -1114,53 +1552,77 @@
             "result": "8629030",
             "batches": 1,
             "batch_samples_ms": [
-              34.061985016,
-              34.639873981,
-              36.790244997,
-              36.097851992,
-              34.899379998,
-              35.649538994,
-              35.966784984,
-              35.852709979,
-              33.768318981,
-              33.916036993,
-              34.109356999
+              27.418255985,
+              27.354342997,
+              27.294036984,
+              26.72992599,
+              27.273572028,
+              27.138563037,
+              26.612963974,
+              27.042632043,
+              26.695017993,
+              27.568409979,
+              26.644136965
             ],
             "execution_samples_ms": [
-              34.061985016,
-              34.639873981,
-              36.790244997,
-              36.097851992,
-              34.899379998,
-              35.649538994,
-              35.966784984,
-              35.852709979,
-              33.768318981,
-              33.916036993,
-              34.109356999
+              27.418255985,
+              27.354342997,
+              27.294036984,
+              26.72992599,
+              27.273572028,
+              27.138563037,
+              26.612963974,
+              27.042632043,
+              26.695017993,
+              27.568409979,
+              26.644136965
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 31.349556296499994,
-              "upper_ms": 38.645862192500005,
+              "lower_ms": 25.794894993000003,
+              "upper_ms": 28.241766989000002,
               "excluded_indices": [],
               "included_samples_ms": [
-                34.061985016,
-                34.639873981,
-                36.790244997,
-                36.097851992,
-                34.899379998,
-                35.649538994,
-                35.966784984,
-                35.852709979,
-                33.768318981,
-                33.916036993,
-                34.109356999
+                27.418255985,
+                27.354342997,
+                27.294036984,
+                26.72992599,
+                27.273572028,
+                27.138563037,
+                26.612963974,
+                27.042632043,
+                26.695017993,
+                27.568409979,
+                26.644136965
               ],
-              "median_ms": 34.899379998
+              "median_ms": 27.138563037
             },
-            "execution_ms": 34.899379998,
+            "execution_ms": 27.138563037,
             "checksum": "8629030",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 29,
+                  "median_khz": 4399992,
+                  "p10_khz": 4299999,
+                  "p90_khz": 4400005,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 4 9 11 8629030",
             "stdout_verified": true
           }
@@ -1171,53 +1633,77 @@
             "result": "8629030",
             "batches": 1,
             "batch_samples_ms": [
-              27.12890299999998,
-              27.19100500000002,
-              27.007108000000017,
-              26.477062999999987,
-              26.603868999999975,
-              26.03176000000002,
-              26.06241,
-              26.544885999999963,
-              26.393601000000046,
-              25.998148000000015,
-              27.01871799999992
+              21.475899999999967,
+              21.38346899999999,
+              20.93377300000003,
+              21.402604999999994,
+              21.100991000000022,
+              21.619141999999954,
+              20.911070999999993,
+              21.314696000000026,
+              20.979681000000028,
+              21.24278700000002,
+              21.612067000000025
             ],
             "execution_samples_ms": [
-              27.12890299999998,
-              27.19100500000002,
-              27.007108000000017,
-              26.477062999999987,
-              26.603868999999975,
-              26.03176000000002,
-              26.06241,
-              26.544885999999963,
-              26.393601000000046,
-              25.998148000000015,
-              27.01871799999992
+              21.475899999999967,
+              21.38346899999999,
+              20.93377300000003,
+              21.402604999999994,
+              21.100991000000022,
+              21.619141999999954,
+              20.911070999999993,
+              21.314696000000026,
+              20.979681000000028,
+              21.24278700000002,
+              21.612067000000025
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 25.050644250000104,
-              "upper_ms": 28.190274249999888,
+              "lower_ms": 20.44196125000009,
+              "upper_ms": 22.037627249999915,
               "excluded_indices": [],
               "included_samples_ms": [
-                27.12890299999998,
-                27.19100500000002,
-                27.007108000000017,
-                26.477062999999987,
-                26.603868999999975,
-                26.03176000000002,
-                26.06241,
-                26.544885999999963,
-                26.393601000000046,
-                25.998148000000015,
-                27.01871799999992
+                21.475899999999967,
+                21.38346899999999,
+                20.93377300000003,
+                21.402604999999994,
+                21.100991000000022,
+                21.619141999999954,
+                20.911070999999993,
+                21.314696000000026,
+                20.979681000000028,
+                21.24278700000002,
+                21.612067000000025
               ],
-              "median_ms": 26.544885999999963
+              "median_ms": 21.314696000000026
             },
-            "execution_ms": 26.544885999999963,
+            "execution_ms": 21.314696000000026,
             "checksum": "8629030",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 28,
+                  "median_khz": 4399992,
+                  "p10_khz": 4299986,
+                  "p90_khz": 4400002,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 4 9 11 8629030",
             "stdout_verified": true
           }
@@ -1237,53 +1723,78 @@
             "result": "3222190",
             "batches": 1,
             "batch_samples_ms": [
-              90.541090995,
-              90.183660001,
-              87.205202013,
-              90.022639006,
-              92.653683007,
-              90.294050992,
-              88.889584005,
-              87.765938014,
-              87.048391998,
-              91.303981006,
-              89.97992301
+              92.123706996,
+              94.076030016,
+              92.822953999,
+              92.141379952,
+              91.994607031,
+              92.543410003,
+              93.385008991,
+              91.854592025,
+              92.256897032,
+              91.185935974,
+              91.366455019
             ],
             "execution_samples_ms": [
-              90.541090995,
-              90.183660001,
-              87.205202013,
-              90.022639006,
-              92.653683007,
-              90.294050992,
-              88.889584005,
-              87.765938014,
-              87.048391998,
-              91.303981006,
-              89.97992301
+              92.123706996,
+              94.076030016,
+              92.822953999,
+              92.141379952,
+              91.994607031,
+              92.543410003,
+              93.385008991,
+              91.854592025,
+              92.256897032,
+              91.185935974,
+              91.366455019
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 85.1930460335,
-              "upper_ms": 93.55228596949999,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                90.541090995,
-                90.183660001,
-                87.205202013,
-                90.022639006,
-                92.653683007,
-                90.294050992,
-                88.889584005,
-                87.765938014,
-                87.048391998,
-                91.303981006,
-                89.97992301
+              "lower_ms": 90.7867258185,
+              "upper_ms": 93.82105571050002,
+              "excluded_indices": [
+                1
               ],
-              "median_ms": 90.022639006
+              "included_samples_ms": [
+                92.123706996,
+                92.822953999,
+                92.141379952,
+                91.994607031,
+                92.543410003,
+                93.385008991,
+                91.854592025,
+                92.256897032,
+                91.185935974,
+                91.366455019
+              ],
+              "median_ms": 92.13254347399999
             },
-            "execution_ms": 90.022639006,
+            "execution_ms": 92.13254347399999,
             "checksum": "3222190",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 109,
+                  "median_khz": 4397168,
+                  "p10_khz": 4299982,
+                  "p90_khz": 4400007,
+                  "sibling_busy": 0.0154,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 5 14 11 3222190",
             "stdout_verified": true
           }
@@ -1292,55 +1803,79 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              80.252714,
-              81.84163,
-              81.333367,
-              81.832836,
-              80.576103,
-              82.356756,
-              80.598338,
-              81.850661,
-              80.243184,
-              80.82855,
-              81.110613
+              85.325127,
+              83.362115,
+              84.91426,
+              86.311215,
+              84.04673,
+              82.3876,
+              86.716741,
+              82.568693,
+              83.969806,
+              85.025811,
+              82.417752
             ],
             "batches": 1,
             "result": "3222190",
             "execution_samples_ms": [
-              80.252714,
-              81.84163,
-              81.333367,
-              81.832836,
-              80.576103,
-              82.356756,
-              80.598338,
-              81.850661,
-              80.243184,
-              80.82855,
-              81.110613
+              85.325127,
+              83.362115,
+              84.91426,
+              86.311215,
+              84.04673,
+              82.3876,
+              86.716741,
+              82.568693,
+              83.969806,
+              85.025811,
+              82.417752
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 78.71220175,
-              "upper_ms": 83.71225175,
+              "lower_ms": 79.65030650000003,
+              "upper_ms": 88.49056649999997,
               "excluded_indices": [],
               "included_samples_ms": [
-                80.252714,
-                81.84163,
-                81.333367,
-                81.832836,
-                80.576103,
-                82.356756,
-                80.598338,
-                81.850661,
-                80.243184,
-                80.82855,
-                81.110613
+                85.325127,
+                83.362115,
+                84.91426,
+                86.311215,
+                84.04673,
+                82.3876,
+                86.716741,
+                82.568693,
+                83.969806,
+                85.025811,
+                82.417752
               ],
-              "median_ms": 81.110613
+              "median_ms": 84.04673
             },
-            "execution_ms": 81.110613,
+            "execution_ms": 84.04673,
             "checksum": "3222190",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 97,
+                  "median_khz": 4399997,
+                  "p10_khz": 4397296,
+                  "p90_khz": 4400009,
+                  "sibling_busy": 0.0339,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 5 14 11 3222190",
             "stdout_verified": true
           }
@@ -1351,53 +1886,78 @@
             "result": "3222190",
             "batches": 1,
             "batch_samples_ms": [
-              207.940048993,
-              208.99940899,
-              208.705159992,
-              208.909895003,
-              206.880331993,
-              213.371250004,
-              217.507412016,
-              214.303587973,
-              213.211293012,
-              210.178669006,
-              206.354750991
+              217.74021703,
+              218.508745015,
+              220.018792033,
+              219.486316979,
+              221.462557018,
+              220.965971053,
+              225.741934001,
+              216.886801958,
+              215.650164008,
+              227.624315023,
+              218.660883963
             ],
             "execution_samples_ms": [
-              207.940048993,
-              208.99940899,
-              208.705159992,
-              208.909895003,
-              206.880331993,
-              213.371250004,
-              217.507412016,
-              214.303587973,
-              213.211293012,
-              210.178669006,
-              206.354750991
+              217.74021703,
+              218.508745015,
+              220.018792033,
+              219.486316979,
+              221.462557018,
+              220.965971053,
+              225.741934001,
+              216.886801958,
+              215.650164008,
+              227.624315023,
+              218.660883963
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 200.86960396925002,
-              "upper_ms": 220.74427203124998,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                207.940048993,
-                208.99940899,
-                208.705159992,
-                208.909895003,
-                206.880331993,
-                213.371250004,
-                217.507412016,
-                214.303587973,
-                213.211293012,
-                210.178669006,
-                206.354750991
+              "lower_ms": 213.48980650299995,
+              "upper_ms": 225.84893855500002,
+              "excluded_indices": [
+                9
               ],
-              "median_ms": 208.99940899
+              "included_samples_ms": [
+                217.74021703,
+                218.508745015,
+                220.018792033,
+                219.486316979,
+                221.462557018,
+                220.965971053,
+                225.741934001,
+                216.886801958,
+                215.650164008,
+                218.660883963
+              ],
+              "median_ms": 219.07360047100002
             },
-            "execution_ms": 208.99940899,
+            "execution_ms": 219.07360047100002,
             "checksum": "3222190",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 264,
+                  "median_khz": 4396973,
+                  "p10_khz": 4299979,
+                  "p90_khz": 4400004,
+                  "sibling_busy": 0.0348,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 5 14 11 3222190",
             "stdout_verified": true
           }
@@ -1408,54 +1968,78 @@
             "result": "3222190",
             "batches": 1,
             "batch_samples_ms": [
-              98.58811500000002,
-              99.46432100000004,
-              98.82850500000006,
-              98.20714500000008,
-              98.733296,
-              98.60762999999997,
-              98.57924200000002,
-              98.26269400000001,
-              97.747746,
-              99.77197299999989,
-              98.12938600000007
+              93.033684,
+              101.01370800000001,
+              96.76128899999998,
+              103.35079600000006,
+              96.89957499999991,
+              97.92230599999994,
+              97.7573470000001,
+              97.19952899999998,
+              97.25388999999996,
+              95.6602969999999,
+              96.3682040000001
             ],
             "execution_samples_ms": [
-              98.58811500000002,
-              99.46432100000004,
-              98.82850500000006,
-              98.20714500000008,
-              98.733296,
-              98.60762999999997,
-              98.57924200000002,
-              98.26269400000001,
-              97.747746,
-              99.77197299999989,
-              98.12938600000007
+              93.033684,
+              101.01370800000001,
+              96.76128899999998,
+              103.35079600000006,
+              96.89957499999991,
+              97.92230599999994,
+              97.7573470000001,
+              97.19952899999998,
+              97.25388999999996,
+              95.6602969999999,
+              96.3682040000001
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 97.41594800000007,
-              "upper_ms": 99.599872,
+              "lower_ms": 94.65212650000008,
+              "upper_ms": 99.75244649999998,
               "excluded_indices": [
-                9
+                0,
+                1,
+                3
               ],
               "included_samples_ms": [
-                98.58811500000002,
-                99.46432100000004,
-                98.82850500000006,
-                98.20714500000008,
-                98.733296,
-                98.60762999999997,
-                98.57924200000002,
-                98.26269400000001,
-                97.747746,
-                98.12938600000007
+                96.76128899999998,
+                96.89957499999991,
+                97.92230599999994,
+                97.7573470000001,
+                97.19952899999998,
+                97.25388999999996,
+                95.6602969999999,
+                96.3682040000001
               ],
-              "median_ms": 98.58367850000002
+              "median_ms": 97.04955199999995
             },
-            "execution_ms": 98.58367850000002,
+            "execution_ms": 97.04955199999995,
             "checksum": "3222190",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 118,
+                  "median_khz": 4300005,
+                  "p10_khz": 4299962,
+                  "p90_khz": 4397449,
+                  "sibling_busy": 0.029,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 5 14 11 3222190",
             "stdout_verified": true
           }
@@ -1475,53 +2059,77 @@
             "result": "731294504",
             "batches": 1,
             "batch_samples_ms": [
-              111.072180003,
-              110.79440099,
-              106.150290996,
-              105.673695982,
-              106.265668005,
-              106.329417974,
-              106.810276002,
-              106.05914402,
-              105.970286995,
-              108.89239499,
-              107.581324995
+              110.097182035,
+              109.897374034,
+              109.922628999,
+              109.881799042,
+              110.896420002,
+              113.297924995,
+              111.346966028,
+              111.928955972,
+              112.18906796,
+              112.20145601,
+              111.893162012
             ],
             "execution_samples_ms": [
-              111.072180003,
-              110.79440099,
-              106.150290996,
-              105.673695982,
-              106.265668005,
-              106.329417974,
-              106.810276002,
-              106.05914402,
-              105.970286995,
-              108.89239499,
-              107.581324995
+              110.097182035,
+              109.897374034,
+              109.922628999,
+              109.881799042,
+              110.896420002,
+              113.297924995,
+              111.346966028,
+              111.928955972,
+              112.18906796,
+              112.20145601,
+              111.893162012
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 102.90650378124998,
-              "upper_ms": 111.43507371925001,
+              "lower_ms": 106.93624584349999,
+              "upper_ms": 115.13267163950002,
               "excluded_indices": [],
               "included_samples_ms": [
-                111.072180003,
-                110.79440099,
-                106.150290996,
-                105.673695982,
-                106.265668005,
-                106.329417974,
-                106.810276002,
-                106.05914402,
-                105.970286995,
-                108.89239499,
-                107.581324995
+                110.097182035,
+                109.897374034,
+                109.922628999,
+                109.881799042,
+                110.896420002,
+                113.297924995,
+                111.346966028,
+                111.928955972,
+                112.18906796,
+                112.20145601,
+                111.893162012
               ],
-              "median_ms": 106.329417974
+              "median_ms": 111.346966028
             },
-            "execution_ms": 106.329417974,
+            "execution_ms": 111.346966028,
             "checksum": "731294504",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 134,
+                  "median_khz": 4398924,
+                  "p10_khz": 4299980,
+                  "p90_khz": 4400005,
+                  "sibling_busy": 0.0323,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 6 1000000 11 731294504",
             "stdout_verified": true
           }
@@ -1530,55 +2138,79 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              116.832579,
-              113.362505,
-              113.685402,
-              112.563348,
-              114.915278,
-              114.687789,
-              112.892354,
-              113.786277,
-              113.426901,
-              115.733907,
-              114.486533
+              113.808807,
+              114.454508,
+              115.020008,
+              114.843998,
+              114.218314,
+              114.928678,
+              115.493265,
+              115.273445,
+              114.631903,
+              115.797972,
+              115.686217
             ],
             "batches": 1,
             "result": "731294504",
             "execution_samples_ms": [
-              116.832579,
-              113.362505,
-              113.685402,
-              112.563348,
-              114.915278,
-              114.687789,
-              112.892354,
-              113.786277,
-              113.426901,
-              115.733907,
-              114.486533
+              113.808807,
+              114.454508,
+              115.020008,
+              114.843998,
+              114.218314,
+              114.928678,
+              115.493265,
+              115.273445,
+              114.631903,
+              115.797972,
+              115.686217
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 111.28445724999997,
-              "upper_ms": 116.91177925000002,
+              "lower_ms": 113.28298125,
+              "upper_ms": 116.64357924999999,
               "excluded_indices": [],
               "included_samples_ms": [
-                116.832579,
-                113.362505,
-                113.685402,
-                112.563348,
-                114.915278,
-                114.687789,
-                112.892354,
-                113.786277,
-                113.426901,
-                115.733907,
-                114.486533
+                113.808807,
+                114.454508,
+                115.020008,
+                114.843998,
+                114.218314,
+                114.928678,
+                115.493265,
+                115.273445,
+                114.631903,
+                115.797972,
+                115.686217
               ],
-              "median_ms": 113.786277
+              "median_ms": 114.928678
             },
-            "execution_ms": 113.786277,
+            "execution_ms": 114.928678,
             "checksum": "731294504",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 139,
+                  "median_khz": 4399042,
+                  "p10_khz": 4299988,
+                  "p90_khz": 4400004,
+                  "sibling_busy": 0.0063,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 6 1000000 11 731294504",
             "stdout_verified": true
           }
@@ -1589,54 +2221,77 @@
             "result": "731294504",
             "batches": 1,
             "batch_samples_ms": [
-              329.939545989,
-              327.391064018,
-              329.911644012,
-              337.285160005,
-              341.896120995,
-              334.161840022,
-              328.412649006,
-              323.91021499,
-              329.594749004,
-              329.022468001,
-              322.601729006
+              302.83396101,
+              305.409426987,
+              302.218873978,
+              305.169541001,
+              307.383827031,
+              302.699544013,
+              305.780771971,
+              310.351740003,
+              307.53560096,
+              306.287526011,
+              305.533276021
             ],
             "execution_samples_ms": [
-              329.939545989,
-              327.391064018,
-              329.911644012,
-              337.285160005,
-              341.896120995,
-              334.161840022,
-              328.412649006,
-              323.91021499,
-              329.594749004,
-              329.022468001,
-              322.601729006
+              302.83396101,
+              305.409426987,
+              302.218873978,
+              305.169541001,
+              307.383827031,
+              302.699544013,
+              305.780771971,
+              310.351740003,
+              307.53560096,
+              306.287526011,
+              305.533276021
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 321.67860177175004,
-              "upper_ms": 338.2739477457499,
-              "excluded_indices": [
-                4
-              ],
+              "lower_ms": 299.7508627322501,
+              "upper_ms": 311.08656479424997,
+              "excluded_indices": [],
               "included_samples_ms": [
-                329.939545989,
-                327.391064018,
-                329.911644012,
-                337.285160005,
-                334.161840022,
-                328.412649006,
-                323.91021499,
-                329.594749004,
-                329.022468001,
-                322.601729006
+                302.83396101,
+                305.409426987,
+                302.218873978,
+                305.169541001,
+                307.383827031,
+                302.699544013,
+                305.780771971,
+                310.351740003,
+                307.53560096,
+                306.287526011,
+                305.533276021
               ],
-              "median_ms": 329.30860850249996
+              "median_ms": 305.533276021
             },
-            "execution_ms": 329.30860850249996,
+            "execution_ms": 305.533276021,
             "checksum": "731294504",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 372,
+                  "median_khz": 4399029,
+                  "p10_khz": 4299990,
+                  "p90_khz": 4400006,
+                  "sibling_busy": 0.0076,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 6 1000000 11 731294504",
             "stdout_verified": true
           }
@@ -1647,53 +2302,77 @@
             "result": "731294504",
             "batches": 1,
             "batch_samples_ms": [
-              157.20459100000005,
-              157.77341,
-              158.97403999999995,
-              162.27776200000017,
-              162.1482000000001,
-              157.56808699999988,
-              156.31323399999997,
-              155.19130500000006,
-              156.00503100000014,
-              158.26749699999982,
-              161.09824800000024
+              145.931552,
+              148.480147,
+              147.36967600000003,
+              148.136074,
+              148.54055700000004,
+              148.59009300000002,
+              148.84533100000021,
+              148.30567400000018,
+              146.45392200000015,
+              145.76415399999996,
+              146.05813400000034
             ],
             "execution_samples_ms": [
-              157.20459100000005,
-              157.77341,
-              158.97403999999995,
-              162.27776200000017,
-              162.1482000000001,
-              157.56808699999988,
-              156.31323399999997,
-              155.19130500000006,
-              156.00503100000014,
-              158.26749699999982,
-              161.09824800000024
+              145.931552,
+              148.480147,
+              147.36967600000003,
+              148.136074,
+              148.54055700000004,
+              148.59009300000002,
+              148.84533100000021,
+              148.30567400000018,
+              146.45392200000015,
+              145.76415399999996,
+              146.05813400000034
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 151.84306524999988,
-              "upper_ms": 164.95199125000022,
+              "lower_ms": 142.8745420000006,
+              "upper_ms": 151.89183799999967,
               "excluded_indices": [],
               "included_samples_ms": [
-                157.20459100000005,
-                157.77341,
-                158.97403999999995,
-                162.27776200000017,
-                162.1482000000001,
-                157.56808699999988,
-                156.31323399999997,
-                155.19130500000006,
-                156.00503100000014,
-                158.26749699999982,
-                161.09824800000024
+                145.931552,
+                148.480147,
+                147.36967600000003,
+                148.136074,
+                148.54055700000004,
+                148.59009300000002,
+                148.84533100000021,
+                148.30567400000018,
+                146.45392200000015,
+                145.76415399999996,
+                146.05813400000034
               ],
-              "median_ms": 157.77341
+              "median_ms": 148.136074
             },
-            "execution_ms": 157.77341,
+            "execution_ms": 148.136074,
             "checksum": "731294504",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 219,
+                  "median_khz": 4397080,
+                  "p10_khz": 4299979,
+                  "p90_khz": 4400009,
+                  "sibling_busy": 0.0124,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 6 1000000 11 731294504",
             "stdout_verified": true
           }
@@ -1713,53 +2392,78 @@
             "result": "14200",
             "batches": 1,
             "batch_samples_ms": [
-              5.039316982,
-              5.080705017,
-              5.059197992,
-              4.920515001,
-              4.994495988,
-              5.239908993,
-              5.289389998,
-              5.172643989,
-              5.189242989,
-              5.10949102,
-              5.291105002
+              5.534623981,
+              5.244202018,
+              5.243116021,
+              5.145637035,
+              5.204253018,
+              5.147145987,
+              5.146116972,
+              5.152545989,
+              5.145934999,
+              5.144903958,
+              5.633697033
             ],
             "execution_samples_ms": [
-              5.039316982,
-              5.080705017,
-              5.059197992,
-              4.920515001,
-              4.994495988,
-              5.239908993,
-              5.289389998,
-              5.172643989,
-              5.189242989,
-              5.10949102,
-              5.291105002
+              5.534623981,
+              5.244202018,
+              5.243116021,
+              5.145637035,
+              5.204253018,
+              5.147145987,
+              5.146116972,
+              5.152545989,
+              5.145934999,
+              5.144903958,
+              5.633697033
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 4.801279731,
-              "upper_ms": 5.462553747,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                5.039316982,
-                5.080705017,
-                5.059197992,
-                4.920515001,
-                4.994495988,
-                5.239908993,
-                5.289389998,
-                5.172643989,
-                5.189242989,
-                5.10949102,
-                5.291105002
+              "lower_ms": 4.9995764345,
+              "upper_ms": 5.390108570500001,
+              "excluded_indices": [
+                0,
+                10
               ],
-              "median_ms": 5.10949102
+              "included_samples_ms": [
+                5.244202018,
+                5.243116021,
+                5.145637035,
+                5.204253018,
+                5.147145987,
+                5.146116972,
+                5.152545989,
+                5.145934999,
+                5.144903958
+              ],
+              "median_ms": 5.147145987
             },
-            "execution_ms": 5.10949102,
+            "execution_ms": 5.147145987,
             "checksum": "14200",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 21,
+                  "median_khz": 4400002,
+                  "p10_khz": 4397209,
+                  "p90_khz": 4493654,
+                  "sibling_busy": 0.0435,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 7 12 11 14200",
             "stdout_verified": true
           }
@@ -1768,56 +2472,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              5.339115,
-              5.419392,
-              5.566864,
-              5.410453,
-              5.404023,
-              5.310071,
-              5.423903,
-              5.382582,
-              5.367875,
-              5.569224,
-              5.802189
+              5.649181,
+              5.661316,
+              5.659002,
+              5.644782,
+              5.682081,
+              5.805174,
+              5.671374,
+              5.736608,
+              5.7586,
+              5.688588,
+              5.654636
             ],
             "batches": 1,
             "result": "14200",
             "execution_samples_ms": [
-              5.339115,
-              5.419392,
-              5.566864,
-              5.410453,
-              5.404023,
-              5.310071,
-              5.423903,
-              5.382582,
-              5.367875,
-              5.569224,
-              5.802189
+              5.649181,
+              5.661316,
+              5.659002,
+              5.644782,
+              5.682081,
+              5.805174,
+              5.671374,
+              5.736608,
+              5.7586,
+              5.688588,
+              5.654636
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 5.1949960000000015,
-              "upper_ms": 5.675616,
+              "lower_ms": 5.5731505000000015,
+              "upper_ms": 5.796266499999999,
               "excluded_indices": [
-                10
+                5
               ],
               "included_samples_ms": [
-                5.339115,
-                5.419392,
-                5.566864,
-                5.410453,
-                5.404023,
-                5.310071,
-                5.423903,
-                5.382582,
-                5.367875,
-                5.569224
+                5.649181,
+                5.661316,
+                5.659002,
+                5.644782,
+                5.682081,
+                5.671374,
+                5.736608,
+                5.7586,
+                5.688588,
+                5.654636
               ],
-              "median_ms": 5.4072379999999995
+              "median_ms": 5.666345
             },
-            "execution_ms": 5.4072379999999995,
+            "execution_ms": 5.666345,
             "checksum": "14200",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 3,
+                  "median_khz": 4300005,
+                  "p10_khz": 4299979,
+                  "p90_khz": 4300026,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 7 12 11 14200",
             "stdout_verified": true
           }
@@ -1828,53 +2556,78 @@
             "result": "14200",
             "batches": 1,
             "batch_samples_ms": [
-              8.631641001,
-              8.596978009,
-              8.595178992,
-              8.595499009,
-              8.580844998,
-              8.580482006,
-              8.552266002,
-              8.384202987,
-              8.468212008,
-              8.387437016,
-              8.631164998
+              8.863810956,
+              8.635625958,
+              8.648182988,
+              8.644510031,
+              8.934009016,
+              8.783161998,
+              8.596698046,
+              8.601799011,
+              8.588592052,
+              8.607831001,
+              8.600467026
             ],
             "execution_samples_ms": [
-              8.631641001,
-              8.596978009,
-              8.595178992,
-              8.595499009,
-              8.580844998,
-              8.580482006,
-              8.552266002,
-              8.384202987,
-              8.468212008,
-              8.387437016,
-              8.631164998
+              8.863810956,
+              8.635625958,
+              8.648182988,
+              8.644510031,
+              8.934009016,
+              8.783161998,
+              8.596698046,
+              8.601799011,
+              8.588592052,
+              8.607831001,
+              8.600467026
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 8.381239748999999,
-              "upper_ms": 8.725237765,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                8.631641001,
-                8.596978009,
-                8.595178992,
-                8.595499009,
-                8.580844998,
-                8.580482006,
-                8.552266002,
-                8.384202987,
-                8.468212008,
-                8.387437016,
-                8.631164998
+              "lower_ms": 8.429323806750002,
+              "upper_ms": 8.887481704749998,
+              "excluded_indices": [
+                4
               ],
-              "median_ms": 8.580844998
+              "included_samples_ms": [
+                8.863810956,
+                8.635625958,
+                8.648182988,
+                8.644510031,
+                8.783161998,
+                8.596698046,
+                8.601799011,
+                8.588592052,
+                8.607831001,
+                8.600467026
+              ],
+              "median_ms": 8.6217284795
             },
-            "execution_ms": 8.580844998,
+            "execution_ms": 8.6217284795,
             "checksum": "14200",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 7,
+                  "median_khz": 4299987,
+                  "p10_khz": 4299948,
+                  "p90_khz": 4300031,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 7 12 11 14200",
             "stdout_verified": true
           }
@@ -1885,53 +2638,77 @@
             "result": "14200",
             "batches": 1,
             "batch_samples_ms": [
-              7.399523999999985,
-              7.402663000000018,
-              7.115409999999997,
-              7.228407999999973,
-              7.192768000000001,
-              7.1327,
-              7.1551789999999755,
-              7.155263999999988,
-              7.201834000000019,
-              7.32818199999997,
-              7.187004999999999
+              7.5803499999999815,
+              7.5172509999999875,
+              7.652681000000001,
+              7.726675,
+              7.524434000000014,
+              7.520523999999995,
+              7.531405000000007,
+              7.627488999999997,
+              7.565029999999979,
+              7.749772000000007,
+              7.538026000000002
             ],
             "execution_samples_ms": [
-              7.399523999999985,
-              7.402663000000018,
-              7.115409999999997,
-              7.228407999999973,
-              7.192768000000001,
-              7.1327,
-              7.1551789999999755,
-              7.155263999999988,
-              7.201834000000019,
-              7.32818199999997,
-              7.187004999999999
+              7.5803499999999815,
+              7.5172509999999875,
+              7.652681000000001,
+              7.726675,
+              7.524434000000014,
+              7.520523999999995,
+              7.531405000000007,
+              7.627488999999997,
+              7.565029999999979,
+              7.749772000000007,
+              7.538026000000002
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 6.9706112499999975,
-              "upper_ms": 7.462905249999956,
+              "lower_ms": 7.3596712500000265,
+              "upper_ms": 7.808333249999983,
               "excluded_indices": [],
               "included_samples_ms": [
-                7.399523999999985,
-                7.402663000000018,
-                7.115409999999997,
-                7.228407999999973,
-                7.192768000000001,
-                7.1327,
-                7.1551789999999755,
-                7.155263999999988,
-                7.201834000000019,
-                7.32818199999997,
-                7.187004999999999
+                7.5803499999999815,
+                7.5172509999999875,
+                7.652681000000001,
+                7.726675,
+                7.524434000000014,
+                7.520523999999995,
+                7.531405000000007,
+                7.627488999999997,
+                7.565029999999979,
+                7.749772000000007,
+                7.538026000000002
               ],
-              "median_ms": 7.192768000000001
+              "median_ms": 7.565029999999979
             },
-            "execution_ms": 7.192768000000001,
+            "execution_ms": 7.565029999999979,
             "checksum": "14200",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 7,
+                  "median_khz": 4299997,
+                  "p10_khz": 4299964,
+                  "p90_khz": 4300034,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 7 12 11 14200",
             "stdout_verified": true
           }
@@ -1951,53 +2728,78 @@
             "result": "339669441",
             "batches": 1,
             "batch_samples_ms": [
-              3.903849006,
-              3.896131992,
-              3.842631996,
-              3.817860007,
-              4.023163974,
-              3.81140101,
-              3.727099985,
-              3.756561995,
-              3.753405988,
-              3.840647012,
-              3.747005999
+              3.953173995,
+              4.079461038,
+              3.897563994,
+              3.921954989,
+              4.040052056,
+              3.874947011,
+              4.297049999,
+              4.024653971,
+              3.996749997,
+              4.008473039,
+              3.893714011
             ],
             "execution_samples_ms": [
-              3.903849006,
-              3.896131992,
-              3.842631996,
-              3.817860007,
-              4.023163974,
-              3.81140101,
-              3.727099985,
-              3.756561995,
-              3.753405988,
-              3.840647012,
-              3.747005999
+              3.953173995,
+              4.079461038,
+              3.897563994,
+              3.921954989,
+              4.040052056,
+              3.874947011,
+              4.297049999,
+              4.024653971,
+              3.996749997,
+              4.008473039,
+              3.893714011
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 3.58338698775,
-              "upper_ms": 4.040978997750001,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                3.903849006,
-                3.896131992,
-                3.842631996,
-                3.817860007,
-                4.023163974,
-                3.81140101,
-                3.727099985,
-                3.756561995,
-                3.753405988,
-                3.840647012,
-                3.747005999
+              "lower_ms": 3.7258692085000003,
+              "upper_ms": 4.2162432965,
+              "excluded_indices": [
+                6
               ],
-              "median_ms": 3.817860007
+              "included_samples_ms": [
+                3.953173995,
+                4.079461038,
+                3.897563994,
+                3.921954989,
+                4.040052056,
+                3.874947011,
+                4.024653971,
+                3.996749997,
+                4.008473039,
+                3.893714011
+              ],
+              "median_ms": 3.974961996
             },
-            "execution_ms": 3.817860007,
+            "execution_ms": 3.974961996,
             "checksum": "339669441",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 19,
+                  "median_khz": 4399997,
+                  "p10_khz": 4397305,
+                  "p90_khz": 4400009,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 8 192 11 339669441",
             "stdout_verified": true
           }
@@ -2006,56 +2808,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              8.929976,
-              9.141511,
-              9.052697,
-              8.902288,
-              8.957141,
-              8.936673,
-              9.087841,
-              9.067709,
-              10.300327,
-              10.226951,
-              9.724584
+              6.817416,
+              6.946884,
+              7.233852,
+              6.81035,
+              6.943046,
+              6.85772,
+              6.823439,
+              6.890848,
+              6.785651,
+              7.504358,
+              7.206777
             ],
             "batches": 1,
             "result": "339669441",
             "execution_samples_ms": [
-              8.929976,
-              9.141511,
-              9.052697,
-              8.902288,
-              8.957141,
-              8.936673,
-              9.087841,
-              9.067709,
-              10.300327,
-              10.226951,
-              9.724584
+              6.817416,
+              6.946884,
+              7.233852,
+              6.81035,
+              6.943046,
+              6.85772,
+              6.823439,
+              6.890848,
+              6.785651,
+              7.504358,
+              7.206777
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 8.217696249999998,
-              "upper_ms": 10.162258250000002,
+              "lower_ms": 6.435822999999998,
+              "upper_ms": 7.461435000000001,
               "excluded_indices": [
-                8,
                 9
               ],
               "included_samples_ms": [
-                8.929976,
-                9.141511,
-                9.052697,
-                8.902288,
-                8.957141,
-                8.936673,
-                9.087841,
-                9.067709,
-                9.724584
+                6.817416,
+                6.946884,
+                7.233852,
+                6.81035,
+                6.943046,
+                6.85772,
+                6.823439,
+                6.890848,
+                6.785651,
+                7.206777
               ],
-              "median_ms": 9.052697
+              "median_ms": 6.874283999999999
             },
-            "execution_ms": 9.052697,
+            "execution_ms": 6.874283999999999,
             "checksum": "339669441",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 4,
+                  "median_khz": 4400000,
+                  "p10_khz": 4396172,
+                  "p90_khz": 4400000,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 8 192 11 339669441",
             "stdout_verified": true
           }
@@ -2066,54 +2892,77 @@
             "result": "339669441",
             "batches": 1,
             "batch_samples_ms": [
-              24.587065011,
-              24.876866996,
-              24.802484989,
-              24.527107984,
-              25.187085986,
-              24.531115025,
-              24.813525021,
-              24.531577021,
-              25.906708986,
-              25.144847989,
-              24.363086015
+              22.070239007,
+              21.370414972,
+              21.706671953,
+              21.388915002,
+              21.622479022,
+              21.679163992,
+              21.274275959,
+              21.618543029,
+              21.30219698,
+              21.746832967,
+              21.399118006
             ],
             "execution_samples_ms": [
-              24.587065011,
-              24.876866996,
-              24.802484989,
-              24.527107984,
-              25.187085986,
-              24.531115025,
-              24.813525021,
-              24.531577021,
-              25.906708986,
-              25.144847989,
-              24.363086015
+              22.070239007,
+              21.370414972,
+              21.706671953,
+              21.388915002,
+              21.622479022,
+              21.679163992,
+              21.274275959,
+              21.618543029,
+              21.30219698,
+              21.746832967,
+              21.399118006
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 23.812078818749992,
-              "upper_ms": 25.730124696750007,
-              "excluded_indices": [
-                8
-              ],
+              "lower_ms": 20.909785508749998,
+              "upper_ms": 22.16279745075,
+              "excluded_indices": [],
               "included_samples_ms": [
-                24.587065011,
-                24.876866996,
-                24.802484989,
-                24.527107984,
-                25.187085986,
-                24.531115025,
-                24.813525021,
-                24.531577021,
-                25.144847989,
-                24.363086015
+                22.070239007,
+                21.370414972,
+                21.706671953,
+                21.388915002,
+                21.622479022,
+                21.679163992,
+                21.274275959,
+                21.618543029,
+                21.30219698,
+                21.746832967,
+                21.399118006
               ],
-              "median_ms": 24.694775
+              "median_ms": 21.618543029
             },
-            "execution_ms": 24.694775,
+            "execution_ms": 21.618543029,
             "checksum": "339669441",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 22,
+                  "median_khz": 4400001,
+                  "p10_khz": 4399988,
+                  "p90_khz": 4400011,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 8 192 11 339669441",
             "stdout_verified": true
           }
@@ -2124,53 +2973,77 @@
             "result": "339669441",
             "batches": 1,
             "batch_samples_ms": [
-              15.242930000000001,
-              14.81960300000003,
-              14.905895000000044,
-              15.021050000000002,
-              14.963758999999982,
-              14.96616899999998,
-              15.339857999999992,
-              15.151589999999999,
-              15.17963199999997,
-              14.726701999999989,
-              14.847658000000024
+              13.203383000000002,
+              13.27546000000001,
+              13.540035000000017,
+              13.140995000000032,
+              13.123708000000022,
+              13.35927799999996,
+              13.56683499999997,
+              13.162143000000015,
+              13.215788000000032,
+              13.15750700000001,
+              13.701247999999964
             ],
             "execution_samples_ms": [
-              15.242930000000001,
-              14.81960300000003,
-              14.905895000000044,
-              15.021050000000002,
-              14.963758999999982,
-              14.96616899999998,
-              15.339857999999992,
-              15.151589999999999,
-              15.17963199999997,
-              14.726701999999989,
-              14.847658000000024
+              13.203383000000002,
+              13.27546000000001,
+              13.540035000000017,
+              13.140995000000032,
+              13.123708000000022,
+              13.35927799999996,
+              13.56683499999997,
+              13.162143000000015,
+              13.215788000000032,
+              13.15750700000001,
+              13.701247999999964
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 14.443524750000108,
-              "upper_ms": 15.59886274999991,
+              "lower_ms": 12.725077750000047,
+              "upper_ms": 13.884403749999954,
               "excluded_indices": [],
               "included_samples_ms": [
-                15.242930000000001,
-                14.81960300000003,
-                14.905895000000044,
-                15.021050000000002,
-                14.963758999999982,
-                14.96616899999998,
-                15.339857999999992,
-                15.151589999999999,
-                15.17963199999997,
-                14.726701999999989,
-                14.847658000000024
+                13.203383000000002,
+                13.27546000000001,
+                13.540035000000017,
+                13.140995000000032,
+                13.123708000000022,
+                13.35927799999996,
+                13.56683499999997,
+                13.162143000000015,
+                13.215788000000032,
+                13.15750700000001,
+                13.701247999999964
               ],
-              "median_ms": 14.96616899999998
+              "median_ms": 13.215788000000032
             },
-            "execution_ms": 14.96616899999998,
+            "execution_ms": 13.215788000000032,
             "checksum": "339669441",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 18,
+                  "median_khz": 4399998,
+                  "p10_khz": 4398055,
+                  "p90_khz": 4400005,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 8 192 11 339669441",
             "stdout_verified": true
           }
@@ -2190,54 +3063,78 @@
             "result": "693184606",
             "batches": 1,
             "batch_samples_ms": [
-              12.721976012,
-              12.525972992,
-              12.753246993,
-              12.801464021,
-              12.786189973,
-              12.795442998,
-              12.808090001,
-              12.79470098,
-              12.777392,
-              12.759423018,
-              12.584509999
+              12.908754945,
+              12.78550899,
+              12.627305984,
+              12.688179016,
+              12.706568003,
+              12.707271039,
+              12.684951007,
+              12.719460964,
+              13.199250996,
+              12.719820976,
+              12.97794503
             ],
             "execution_samples_ms": [
-              12.721976012,
-              12.525972992,
-              12.753246993,
-              12.801464021,
-              12.786189973,
-              12.795442998,
-              12.808090001,
-              12.79470098,
-              12.777392,
-              12.759423018,
-              12.584509999
+              12.908754945,
+              12.78550899,
+              12.627305984,
+              12.688179016,
+              12.706568003,
+              12.707271039,
+              12.684951007,
+              12.719460964,
+              13.199250996,
+              12.719820976,
+              12.97794503
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 12.65142077275,
-              "upper_ms": 12.881262718750001,
+              "lower_ms": 12.472735822499999,
+              "upper_ms": 13.071769654500002,
               "excluded_indices": [
-                1,
-                10
+                8
               ],
               "included_samples_ms": [
-                12.721976012,
-                12.753246993,
-                12.801464021,
-                12.786189973,
-                12.795442998,
-                12.808090001,
-                12.79470098,
-                12.777392,
-                12.759423018
+                12.908754945,
+                12.78550899,
+                12.627305984,
+                12.688179016,
+                12.706568003,
+                12.707271039,
+                12.684951007,
+                12.719460964,
+                12.719820976,
+                12.97794503
               ],
-              "median_ms": 12.786189973
+              "median_ms": 12.713366001499999
             },
-            "execution_ms": 12.786189973,
+            "execution_ms": 12.713366001499999,
             "checksum": "693184606",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 11,
+                  "median_khz": 4299997,
+                  "p10_khz": 4299974,
+                  "p90_khz": 4300073,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 9 200000 11 693184606",
             "stdout_verified": true
           }
@@ -2246,56 +3143,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              14.078119,
-              14.137334,
-              13.486414,
-              13.498115,
-              13.277909,
-              13.530621,
-              13.846058,
-              13.477737,
-              13.463812,
-              13.608257,
-              13.385914
+              13.708598,
+              13.354999,
+              13.341747,
+              14.570629,
+              13.291083,
+              13.127669,
+              13.481029,
+              13.989284,
+              13.224699,
+              13.510608,
+              13.457439
             ],
             "batches": 1,
             "result": "693184606",
             "execution_samples_ms": [
-              14.078119,
-              14.137334,
-              13.486414,
-              13.498115,
-              13.277909,
-              13.530621,
-              13.846058,
-              13.477737,
-              13.463812,
-              13.608257,
-              13.385914
+              13.708598,
+              13.354999,
+              13.341747,
+              14.570629,
+              13.291083,
+              13.127669,
+              13.481029,
+              13.989284,
+              13.224699,
+              13.510608,
+              13.457439
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 13.086200000000002,
-              "upper_ms": 14.111732,
+              "lower_ms": 12.876632999999998,
+              "upper_ms": 14.049385000000001,
               "excluded_indices": [
-                1
+                3
               ],
               "included_samples_ms": [
-                14.078119,
-                13.486414,
-                13.498115,
-                13.277909,
-                13.530621,
-                13.846058,
-                13.477737,
-                13.463812,
-                13.608257,
-                13.385914
+                13.708598,
+                13.354999,
+                13.341747,
+                13.291083,
+                13.127669,
+                13.481029,
+                13.989284,
+                13.224699,
+                13.510608,
+                13.457439
               ],
-              "median_ms": 13.492264500000001
+              "median_ms": 13.406219
             },
-            "execution_ms": 13.492264500000001,
+            "execution_ms": 13.406219,
             "checksum": "693184606",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 12,
+                  "median_khz": 4496248,
+                  "p10_khz": 4400001,
+                  "p90_khz": 4499993,
+                  "sibling_busy": 0.0323,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 9 200000 11 693184606",
             "stdout_verified": true
           }
@@ -2306,53 +3227,78 @@
             "result": "693184606",
             "batches": 1,
             "batch_samples_ms": [
-              20.113009006,
-              19.449122012,
-              20.580552995,
-              20.151035994,
-              19.84344399,
-              19.853119999,
-              20.249961019,
-              20.015875012,
-              19.780763,
-              19.226271003,
-              19.74803099
+              21.009631038,
+              20.647534013,
+              21.480740964,
+              20.638648987,
+              20.945003986,
+              21.214612007,
+              21.197665989,
+              20.842565,
+              21.313190997,
+              22.251519024,
+              21.615073979
             ],
             "execution_samples_ms": [
-              20.113009006,
-              19.449122012,
-              20.580552995,
-              20.151035994,
-              19.84344399,
-              19.853119999,
-              20.249961019,
-              20.015875012,
-              19.780763,
-              19.226271003,
-              19.74803099
+              21.009631038,
+              20.647534013,
+              21.480740964,
+              20.638648987,
+              20.945003986,
+              21.214612007,
+              21.197665989,
+              20.842565,
+              21.313190997,
+              22.251519024,
+              21.615073979
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 19.2129587375,
-              "upper_ms": 20.683460757499997,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                20.113009006,
-                19.449122012,
-                20.580552995,
-                20.151035994,
-                19.84344399,
-                19.853119999,
-                20.249961019,
-                20.015875012,
-                19.780763,
-                19.226271003,
-                19.74803099
+              "lower_ms": 20.139012261749997,
+              "upper_ms": 22.15173821175,
+              "excluded_indices": [
+                9
               ],
-              "median_ms": 19.853119999
+              "included_samples_ms": [
+                21.009631038,
+                20.647534013,
+                21.480740964,
+                20.638648987,
+                20.945003986,
+                21.214612007,
+                21.197665989,
+                20.842565,
+                21.313190997,
+                21.615073979
+              ],
+              "median_ms": 21.103648513499998
             },
-            "execution_ms": 19.853119999,
+            "execution_ms": 21.103648513499998,
             "checksum": "693184606",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 23,
+                  "median_khz": 4399988,
+                  "p10_khz": 4395560,
+                  "p90_khz": 4400007,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 9 200000 11 693184606",
             "stdout_verified": true
           }
@@ -2363,54 +3309,77 @@
             "result": "693184606",
             "batches": 1,
             "batch_samples_ms": [
-              21.29634199999998,
-              22.353733000000034,
-              22.11932300000001,
-              21.672567000000015,
-              21.467030000000022,
-              21.323560999999984,
-              21.63241899999997,
-              21.340532999999994,
-              21.359823000000006,
-              21.248343999999975,
-              21.238433999999984
+              19.638670999999988,
+              19.45963899999998,
+              19.50439300000002,
+              19.786630000000002,
+              19.55321399999997,
+              19.728504000000044,
+              19.637833,
+              19.528503999999998,
+              19.695493999999997,
+              19.448441000000003,
+              19.689070000000015
             ],
             "execution_samples_ms": [
-              21.29634199999998,
-              22.353733000000034,
-              22.11932300000001,
-              21.672567000000015,
-              21.467030000000022,
-              21.323560999999984,
-              21.63241899999997,
-              21.340532999999994,
-              21.359823000000006,
-              21.248343999999975,
-              21.238433999999984
+              19.638670999999988,
+              19.45963899999998,
+              19.50439300000002,
+              19.786630000000002,
+              19.55321399999997,
+              19.728504000000044,
+              19.637833,
+              19.528503999999998,
+              19.695493999999997,
+              19.448441000000003,
+              19.689070000000015
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 20.796139249999968,
-              "upper_ms": 22.166305250000008,
-              "excluded_indices": [
-                1
-              ],
+              "lower_ms": 19.252698250000016,
+              "upper_ms": 19.95603225,
+              "excluded_indices": [],
               "included_samples_ms": [
-                21.29634199999998,
-                22.11932300000001,
-                21.672567000000015,
-                21.467030000000022,
-                21.323560999999984,
-                21.63241899999997,
-                21.340532999999994,
-                21.359823000000006,
-                21.248343999999975,
-                21.238433999999984
+                19.638670999999988,
+                19.45963899999998,
+                19.50439300000002,
+                19.786630000000002,
+                19.55321399999997,
+                19.728504000000044,
+                19.637833,
+                19.528503999999998,
+                19.695493999999997,
+                19.448441000000003,
+                19.689070000000015
               ],
-              "median_ms": 21.350178
+              "median_ms": 19.637833
             },
-            "execution_ms": 21.350178,
+            "execution_ms": 19.637833,
             "checksum": "693184606",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 23,
+                  "median_khz": 4299991,
+                  "p10_khz": 4299968,
+                  "p90_khz": 4300026,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 9 200000 11 693184606",
             "stdout_verified": true
           }
@@ -2430,53 +3399,78 @@
             "result": "513711197",
             "batches": 1,
             "batch_samples_ms": [
-              5.346309006,
-              5.343998998,
-              5.344193012,
-              5.358717024,
-              5.90981999,
-              5.489198983,
-              5.498689979,
-              5.664528012,
-              5.681812018,
-              5.453696012,
-              5.455624998
+              5.468384981,
+              5.716502011,
+              5.541070044,
+              5.465521991,
+              5.468411982,
+              5.466457009,
+              5.467994988,
+              5.473654985,
+              5.481003046,
+              5.466130018,
+              5.732150972
             ],
             "execution_samples_ms": [
-              5.346309006,
-              5.343998998,
-              5.344193012,
-              5.358717024,
-              5.90981999,
-              5.489198983,
-              5.498689979,
-              5.664528012,
-              5.681812018,
-              5.453696012,
-              5.455624998
+              5.468384981,
+              5.716502011,
+              5.541070044,
+              5.465521991,
+              5.468411982,
+              5.466457009,
+              5.467994988,
+              5.473654985,
+              5.481003046,
+              5.466130018,
+              5.732150972
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 5.008869044249999,
-              "upper_ms": 5.92525296625,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                5.346309006,
-                5.343998998,
-                5.344193012,
-                5.358717024,
-                5.90981999,
-                5.489198983,
-                5.498689979,
-                5.664528012,
-                5.681812018,
-                5.453696012,
-                5.455624998
+              "lower_ms": 5.401510178750001,
+              "upper_ms": 5.576752364749999,
+              "excluded_indices": [
+                1,
+                10
               ],
-              "median_ms": 5.455624998
+              "included_samples_ms": [
+                5.468384981,
+                5.541070044,
+                5.465521991,
+                5.468411982,
+                5.466457009,
+                5.467994988,
+                5.473654985,
+                5.481003046,
+                5.466130018
+              ],
+              "median_ms": 5.468384981
             },
-            "execution_ms": 5.455624998,
+            "execution_ms": 5.468384981,
             "checksum": "513711197",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 21,
+                  "median_khz": 4399998,
+                  "p10_khz": 4396938,
+                  "p90_khz": 4400009,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/c - 10 100000 11 513711197",
             "stdout_verified": true
           }
@@ -2485,56 +3479,80 @@
           "status": "ok",
           "measurement": {
             "batch_samples_ms": [
-              5.465891,
-              5.494277,
-              5.466592,
-              5.474585,
-              5.46566,
-              5.478699,
-              5.46934,
-              5.503413,
-              5.473441,
-              5.465885,
-              5.474314
+              5.476348,
+              5.478691,
+              5.519162,
+              5.541391,
+              5.487063,
+              5.469859,
+              5.83079,
+              5.500726,
+              5.475491,
+              5.476692,
+              5.477496
             ],
             "batches": 1,
             "result": "513711197",
             "execution_samples_ms": [
-              5.465891,
-              5.494277,
-              5.466592,
-              5.474585,
-              5.46566,
-              5.478699,
-              5.46934,
-              5.503413,
-              5.473441,
-              5.465885,
-              5.474314
+              5.476348,
+              5.478691,
+              5.519162,
+              5.541391,
+              5.487063,
+              5.469859,
+              5.83079,
+              5.500726,
+              5.475491,
+              5.476692,
+              5.477496
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 5.450640750000002,
-              "upper_ms": 5.492242749999999,
+              "lower_ms": 5.426384,
+              "upper_ms": 5.56008,
               "excluded_indices": [
-                1,
-                7
+                6
               ],
               "included_samples_ms": [
-                5.465891,
-                5.466592,
-                5.474585,
-                5.46566,
-                5.478699,
-                5.46934,
-                5.473441,
-                5.465885,
-                5.474314
+                5.476348,
+                5.478691,
+                5.519162,
+                5.541391,
+                5.487063,
+                5.469859,
+                5.500726,
+                5.475491,
+                5.476692,
+                5.477496
               ],
-              "median_ms": 5.46934
+              "median_ms": 5.4780935
             },
-            "execution_ms": 5.46934,
+            "execution_ms": 5.4780935,
             "checksum": "513711197",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 3,
+                  "median_khz": 4399987,
+                  "p10_khz": 4397394,
+                  "p90_khz": 4399998,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/go - 10 100000 11 513711197",
             "stdout_verified": true
           }
@@ -2545,54 +3563,77 @@
             "result": "513711197",
             "batches": 1,
             "batch_samples_ms": [
-              6.213971019,
-              6.214739978,
-              6.207047999,
-              6.227054,
-              6.222335011,
-              6.225785017,
-              6.20776999,
-              6.224123985,
-              6.223329991,
-              6.350757986,
-              6.221597016
+              7.520628035,
+              8.069584012,
+              7.707706988,
+              7.48901099,
+              7.622722983,
+              7.480664015,
+              7.471894026,
+              7.829200029,
+              7.817883015,
+              7.482319951,
+              7.505848944
             ],
             "execution_samples_ms": [
-              6.213971019,
-              6.214739978,
-              6.207047999,
-              6.227054,
-              6.222335011,
-              6.225785017,
-              6.20776999,
-              6.224123985,
-              6.223329991,
-              6.350757986,
-              6.221597016
+              7.520628035,
+              8.069584012,
+              7.707706988,
+              7.48901099,
+              7.622722983,
+              7.480664015,
+              7.471894026,
+              7.829200029,
+              7.817883015,
+              7.482319951,
+              7.505848944
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 6.19845699475,
-              "upper_ms": 6.240853004750001,
-              "excluded_indices": [
-                9
-              ],
+              "lower_ms": 7.069971174,
+              "upper_ms": 8.178489297999999,
+              "excluded_indices": [],
               "included_samples_ms": [
-                6.213971019,
-                6.214739978,
-                6.207047999,
-                6.227054,
-                6.222335011,
-                6.225785017,
-                6.20776999,
-                6.224123985,
-                6.223329991,
-                6.221597016
+                7.520628035,
+                8.069584012,
+                7.707706988,
+                7.48901099,
+                7.622722983,
+                7.480664015,
+                7.471894026,
+                7.829200029,
+                7.817883015,
+                7.482319951,
+                7.505848944
               ],
-              "median_ms": 6.2219660134999994
+              "median_ms": 7.520628035
             },
-            "execution_ms": 6.2219660134999994,
+            "execution_ms": 7.520628035,
             "checksum": "513711197",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 5,
+                  "median_khz": 4400000,
+                  "p10_khz": 4396434,
+                  "p90_khz": 4400006,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/standard/native build/standard/suite.zx 10 100000 11 513711197",
             "stdout_verified": true
           }
@@ -2603,54 +3644,78 @@
             "result": "513711197",
             "batches": 1,
             "batch_samples_ms": [
-              6.332830999999999,
-              6.350460000000027,
-              6.342398000000003,
-              6.349131,
-              6.350664999999992,
-              6.337401,
-              6.342475000000036,
-              6.341116999999997,
-              6.304872999999986,
-              6.33465799999999,
-              6.730298000000005
+              7.366178999999988,
+              7.372252000000003,
+              7.666152000000011,
+              7.4008429999999805,
+              7.301780000000008,
+              7.3124050000000125,
+              7.379980999999987,
+              7.350272999999987,
+              7.308709999999962,
+              7.751415000000009,
+              7.356866999999966
             ],
             "execution_samples_ms": [
-              6.332830999999999,
-              6.350460000000027,
-              6.342398000000003,
-              6.349131,
-              6.350664999999992,
-              6.337401,
-              6.342475000000036,
-              6.341116999999997,
-              6.304872999999986,
-              6.33465799999999,
-              6.730298000000005
+              7.366178999999988,
+              7.372252000000003,
+              7.666152000000011,
+              7.4008429999999805,
+              7.301780000000008,
+              7.3124050000000125,
+              7.379980999999987,
+              7.350272999999987,
+              7.308709999999962,
+              7.751415000000009,
+              7.356866999999966
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 6.315380499999968,
-              "upper_ms": 6.3704445000000405,
+              "lower_ms": 7.242729500000024,
+              "upper_ms": 7.479021499999959,
               "excluded_indices": [
-                8,
-                10
+                2,
+                9
               ],
               "included_samples_ms": [
-                6.332830999999999,
-                6.350460000000027,
-                6.342398000000003,
-                6.349131,
-                6.350664999999992,
-                6.337401,
-                6.342475000000036,
-                6.341116999999997,
-                6.33465799999999
+                7.366178999999988,
+                7.372252000000003,
+                7.4008429999999805,
+                7.301780000000008,
+                7.3124050000000125,
+                7.379980999999987,
+                7.350272999999987,
+                7.308709999999962,
+                7.356866999999966
               ],
-              "median_ms": 6.342398000000003
+              "median_ms": 7.356866999999966
             },
-            "execution_ms": 6.342398000000003,
+            "execution_ms": 7.356866999999966,
             "checksum": "513711197",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4399995,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 9,
+                  "median_khz": 4399995,
+                  "p10_khz": 4387517,
+                  "p90_khz": 4400007,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node bench/standard/host.cjs build/standard/suite.wasm 10 100000 11 513711197",
             "stdout_verified": true
           }

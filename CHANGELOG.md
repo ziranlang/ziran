@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- The website's kernel and standard tables are measured with `bench/wasm_tier.py --host-gate`: each job runs pinned to one logical CPU of the quietest core, with Go at `GOMAXPROCS=1`, and runs again unless that CPU held a steady clock at its calibrated sustained speed with its hyperthread sibling idle. Rejected attempts stay in the receipt, and the generators refuse ungated receipts; the earlier native kernel column had run at about half clock. Every /targets table is measured again at one compiler commit, and the widget downloads name Kryon's license after its repository with no stale copies left from earlier runs.
 - Audio mixing, PCM streams, Ogg/Vorbis inspection and streaming/seek, WAV/MP3 decoding and SDL/WebAudio output are core standard modules independent of Kryon. Android streams through AAudio on API 26+ and OpenSL ES on API 21–25, with the same mixer and sink contract as desktop.
 
 - Loop invariant hoisting leaves standalone constants and symbolic addresses near their uses while retaining useful invariant expressions. This reduces spills in vector growth loops; the matched Alpha Vectors kernel improves from 85.8 to 42.5 µs with unchanged results.

@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 code combines adjacent 64-bit integer record-field updates into SSE2 operations when their inputs are independent. Addition, subtraction and bitwise updates preserve scalar results and work at unaligned addresses; checked and fuel-metered execution keeps scalar accesses.
 - Native x86-64 integer-to-float conversions clear unused XMM lanes before converting, removing the legacy SSE instruction's dependency on an earlier floating-point value while preserving rounding and condition flags.
 - Native x86-64 returns simple integer base cases before allocating a frame or saving registers, while preserving checked and fueled paths. Adjacent 64-bit register copies and constant additions/subtractions use one address instruction, including recursive call arguments.
 - WAV decoding supports mono/stereo IMA ADPCM and Microsoft ADPCM in the core audio module and mixer, with fact-based frame counts, bounded block validation and independent PCM fixture tests.

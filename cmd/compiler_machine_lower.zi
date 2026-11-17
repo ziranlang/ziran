@@ -1,4 +1,5 @@
 using Vectorizer :: #import "compiler_vectorize"
+using PairVectorizer :: #import "compiler_vectorize_pair"
 using VectorForm :: #import "compiler_vector_form"
 using ABI :: #import "compiler_abi"
 using Aggregates :: #import "compiler_machine_aggregate"
@@ -1970,6 +1971,31 @@ MachineLower :: (owner: *MachineOwner, program: LirProgram, target: TargetDescri
     }
     Finalize(*state)
     diagnostic := MachineVerify(owner.program, limits)
+    if diagnostic.problem == .None && !options.fuel {
+        pairs: VectorPairPlan
+        defer VectorPairPlanFree(*pairs)
+        pair_problem := VectorPairPlanBuild(*pairs, owner.program, true, state.remaining, limits.bytes - state.bytes)
+        if pair_problem != .None {
+            unused Fail(*state, ifx pair_problem == .Allocation then MachineProblem.Allocation else .Limit)
+        } else if !Spend(*state, pairs.work) {
+            // Spend records the diagnostic.
+        } else if pairs.pairs.count > 0 {
+            if Reserve(*state, pairs.pairs.count, size_of(VectorPair), limits.instructions) &&
+                Reserve(*state, pairs.pairs.count * 8, size_of(MachineOperand), limits.operands - owner.operands.count) &&
+                Reserve(*state, owner.instructions.count, size_of(MachineInstruction) + size_of(s32), limits.instructions) &&
+                Spend(*state, owner.instructions.count + owner.blocks.count + owner.calls.count +
+                    owner.relocations.count + pairs.pairs.count * 8) {
+                applied := VectorPairPlanApply(owner, *pairs, limits.bytes)
+                if applied != .None { unused Fail(*state, applied) }
+                else { diagnostic = MachineVerify(owner.program, limits) }
+            }
+        }
+        if state.problem != .None {
+            result := Result(state)
+            MachineFree(owner)
+            return result
+        }
+    }
     if diagnostic.problem != .None {
         state.problem = diagnostic.problem
         state.diagnostic = diagnostic

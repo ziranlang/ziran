@@ -99,6 +99,38 @@ LowerProgram :: (owner: *Machine.MachineOwner, functions: []Lir.LirFunction, ent
         Machine.MachineDefaultLimits())
 }
 
+// A spilled float crosses blocks that do not read it before another call.
+// Those blocks should carry its stack location instead of restoring it.
+LiveThroughFixture :: (owner: *Machine.MachineOwner, bridges: s32) -> Machine.MachineResult {
+    storage: [32]s32
+    at: s64 = 0
+    callee_values := s32.[TypeInteger]
+    callee_body := Lir.LirInstruction.[Fuel(1), Constant(0, 1), Return(One(storage[:], *at, 0))]
+    callee_blocks := Lir.LirBlock.[.{instructions = callee_body[:]}]
+    values := s32.[TypeFloat, TypeInteger, TypeInteger, TypeFloat, TypeFloat, TypeInteger, TypeInteger, TypeInteger]
+    entry_edges := Lir.LirEdge.[.{block = 1}]
+    entry := Lir.LirInstruction.[Fuel(1), Constant(0, 3), Call(1, 0, storage[0:0], 2), Jump(entry_edges[:])]
+    finish := Lir.LirInstruction.[Call(2, 0, storage[0:0], 1), Constant(3, 4),
+        Op(.Add, 4, Two(storage[:], *at, 3, 0)), Return(One(storage[:], *at, 4))]
+    edges: [3]Lir.LirEdge
+    jumps: [6]Lir.LirInstruction
+    blocks: [5]Lir.LirBlock
+    blocks[0] = .{instructions = entry[:]}
+    for index: 0..bridges - 1 {
+        edges[index] = .{block = index + 2}
+        jumps[index * 2] = Call(5 + index, 0, storage[0:0], 1)
+        jumps[index * 2 + 1] = Jump(edges[index:index + 1])
+        blocks[index + 1] = .{instructions = jumps[index * 2:index * 2 + 2]}
+    }
+    blocks[bridges + 1] = .{instructions = finish[:]}
+    functions := Lir.LirFunction.[
+        .{module = 0, name = "call", result = TypeInteger, values = callee_values[:],
+            blocks = callee_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "live_through", result = TypeFloat, values = values[0:5 + bridges],
+            blocks = blocks[0:bridges + 2], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
 // `count` simultaneously live constants summed by a dependent chain.
 PressureFixture :: (owner: *Machine.MachineOwner, count: s32, float: bool) -> Machine.MachineResult {
     type: s32 = ifx float then TypeFloat else TypeInteger
@@ -692,6 +724,37 @@ MergedSpillLimitCase :: () -> bool {
     return Check(false, "merged spill input verifies within the test work bound")
 }
 
+LiveThroughCases :: () -> bool {
+    for bridges: cast(s32)0..3 {
+        owner: Machine.MachineOwner
+        defer Lower.MachineFree(*owner)
+        if !Lowered("live through", LiveThroughFixture(*owner, bridges)) ||
+            !Allocate("live through", *owner) { return false }
+        program := Lower.MachineProgramView(*owner)
+        if !Allocated(program, "spilled live-through values verify") { return false }
+        reloads: s32 = 0
+        stores: s32 = 0
+        for spill: program.spills {
+            if spill.function != 1 { continue }
+            opcode := program.instructions[spill.instruction].opcode
+            if opcode == .Reload { reloads += 1 }
+            if opcode == .Spill { stores += 1 }
+        }
+        if reloads != 1 || stores != 1 {
+            print("live-through bridges % reloads % stores %\n", bridges, reloads, stores)
+            for spill: program.spills {
+                if spill.function == 1 {
+                    print("spill instruction % virtual % opcode % reason %\n", spill.instruction,
+                        spill.virtual, cast(s32)program.instructions[spill.instruction].opcode, cast(s32)spill.reason)
+                }
+            }
+        }
+        if !Check(reloads == 1 && stores == 1,
+            "unused blocks retain the spill until its actual use") { return false }
+    }
+    return true
+}
+
 PressureCases :: () -> bool {
     owner: Machine.MachineOwner
     defer Lower.MachineFree(*owner)
@@ -1220,7 +1283,7 @@ VectorCases :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !BackwardDefinitionCase() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+    if !BackwardDefinitionCase() || !LiveThroughCases() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
         !VectorCases() { return 1 }
     print("register allocation: merged float/vector spills in both block orders, work limits, pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
     return 0

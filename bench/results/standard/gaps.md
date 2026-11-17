@@ -264,3 +264,24 @@ argument-register case. These correctness tests did not predict throughput.
 - C-teacher learning: every row, comparing gcc -O2 assembly with native
   output, starting with spectral-norm, fasta and binary-trees where Wasm
   already shows the native gap is code generation.
+
+## Spill propagation through unused blocks (timing pending)
+
+The allocator keeps a spilled value in memory across a block that never reads
+it, only when the preceding allocated segment reaches that block through its
+sole incoming edge. Adjacency in file layout is insufficient. Joins retain
+their existing allocation, including the cold-growth/header/reduction
+regression in both block orders.
+
+A retained machine-IR fixture carries a floating-point value through zero to
+three blocks containing integer calls before using it again. With one such
+block, the old allocator emits two spills and two reloads; the new allocator
+emits one of each. The fixture passes the allocated-machine verifier. This
+removes unnecessary memory transfers in that case; it establishes no
+whole-program speedup. Alpha timing remains pending.
+
+Focused local tests (`regalloc`, `zx_native`, `zx_lowered_parity`) pass, as do
+the full local suite (284/284 in 257.6 seconds) and bootstrap comparisons for
+the retained Linux and Darwin modules and SIMD headers. Source fingerprints
+match before and after the final full run. Learning was off and desktop
+display variables were removed. GitHub CI was not inspected.

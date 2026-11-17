@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Register allocation keeps spilled values in memory through blocks that only carry them to the next control-flow edge, avoiding a reload and another spill before the next call. Joins retain their register allocation.
 - Native x86-64 integer-to-float conversions clear unused XMM lanes before converting, removing the legacy SSE instruction's dependency on an earlier floating-point value while preserving rounding and condition flags.
 - Native x86-64 returns simple integer base cases before allocating a frame or saving registers, while preserving checked and fueled paths. Adjacent 64-bit register copies and constant additions/subtractions use one address instruction, including recursive call arguments.
 - WAV decoding supports mono/stereo IMA ADPCM and Microsoft ADPCM in the core audio module and mixer, with fact-based frame counts, bounded block validation and independent PCM fixture tests.

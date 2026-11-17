@@ -1222,6 +1222,36 @@ FirstRequired :: (state: *Alloc, interval: s32, from: s32) -> s32 {
     return Infinity
 }
 
+// A block may keep an already spilled value in memory when it only carries
+// it between CFG edges. Fixed/tied uses are real reads even when they do not
+// require their own allocated register, so they must not qualify here.
+LiveThroughOnly :: (state: *Alloc, interval: s32) -> bool {
+    it := state.intervals[interval]
+    previous := state.intervals[it.prev]
+    from := state.items[previous.end / 2].block
+    to := state.items[it.start / 2].block
+    // Layout neighbors need not be connected. In particular, a cold call
+    // beside a hot join must not force the join's other paths into memory.
+    if from == to || state.block_incoming[to] != 1 ||
+        previous.end != state.block_end[from] * 2 + 1 { return false }
+    terminator := state.input.instructions[state.items[state.block_end[from]].instruction]
+    connected := false
+    for edge: terminator.edge_begin..terminator.edge_begin + terminator.edge_count - 1 {
+        if !Spend(state, 1) { return false }
+        if state.input.edges[edge].target == state.function.block_begin + to { connected = true; break }
+    }
+    if !connected { return false }
+    for at: it.use_begin..it.use_begin + it.use_count - 1 {
+        if !Spend(state, 1) { return false }
+        use := state.uses[at]
+        if use.required { return false }
+        item := state.items[use.position / 2]
+        if item.kind == .BlockStart { continue }
+        if use.position != state.block_end[item.block] * 2 + 1 { return false }
+    }
+    return true
+}
+
 // Splits `interval` so the child covers [position, end]. Uses move with it.
 SplitAt :: (state: *Alloc, interval: s32, position: s32, reason: MachineSpillReason) -> s32 {
     it := state.intervals[interval]
@@ -1336,6 +1366,14 @@ ScanBank :: (state: *Alloc, bank: s32) -> bool {
         current := HeapPop(state)
         it := state.intervals[current]
         start := it.start
+        if it.prev != MachineNoId && state.intervals[it.prev].register == MachineNoId {
+            carry := LiveThroughOnly(state, current)
+            if state.diagnostic.problem != .None { return false }
+            if carry {
+                if !MemoryUntilNextUse(state, current, state.intervals[it.prev].reason) { return false }
+                continue
+            }
+        }
         kept: s64 = 0
         for index: cast(s64)0..state.active.count - 1 {
             active := state.active[index]

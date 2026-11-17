@@ -323,6 +323,11 @@ No step commits before its implementation and proof are complete.
   in S1.
 - Delete `cmd/zir-wasm/zx_wasm_lower.c` and `cmd/zir-wasm/zx_wasm_lower.h`.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=wasm`.
+- Done 2026-11-17: `cmd/compiler_zx_wasm*.zi` (types, fn, plan, code, body,
+  helpers and the module API) is part of the engine that `cmd/compiler_runtime.zi`
+  names; `zir_zx_wasm.c` and `cmd/zx2wasm/main.c` call it under the engine's
+  names; `cmd/zx2wasm/zx_wasm_lower.c` and `.h` are deleted. Every executable
+  in the comparison set lowers to the same bytes, plain and suspendable.
 
 ### S4 — shared emitter core
 

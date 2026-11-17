@@ -1,0 +1,1037 @@
+// Planning one procedure before its wasm is written: a block order with
+// contiguous loops, the aggregates read in place, and the places a value can
+// be built where its parent, the caller or the result keeps it.
+using Vectors :: #import "vec"
+using LIR :: #import "compiler_lowered_ir"
+using Types :: #import "compiler_zx_wasm_types"
+using Code :: #import "compiler_zx_wasm_fn"
+
+MAX_S64 :: 9223372036854775807
+// The storage root of a result placed for the caller.
+MEMBER_RESULT_ROOT :: -9223372036854775807 - 1
+
+// Orders the blocks so that each loop is contiguous from its header and
+// every other edge goes forward, when the control flow allows it: a weak
+// topological order (Bourdoncle), built without recursion. Unreachable
+// blocks go last. Leaves the function's own order on failure.
+OrderBlocks :: (fn: *Fn) {
+    count := fn.block_count
+    next := Successors(fn)
+    if !next.ok { return }
+    number: Vec(s64)
+    stack: Vec(s64)
+    out: Vec(s64)
+    frames: Vec(Frame)
+    if !VecResize(number, count) || !VecResize(stack, count) || !VecResize(out, count) || !VecResize(frames, count + 1) {
+        return
+    }
+    numbered: s64 = 0
+    top: s64 = 0
+    place := count
+    returned: s64 = 0
+    depth: s64 = 0
+    entry := cast(s64)fn.function.entry
+    stack[top] = entry; top += 1
+    numbered += 1; number[entry] = numbered
+    frames[depth] = .{.block = entry, .cursor = next.start[entry], .head = number[entry]}; depth += 1
+    while depth > 0 {
+        frame := *frames[depth - 1]
+        block := frame.block
+        if frame.waiting {
+            frame.waiting = false
+            if !frame.component && returned <= frame.head { frame.head = returned; frame.loop = true }
+        }
+        pushed := false
+        while frame.cursor < next.start[block + 1] && !pushed {
+            target := next.succ[frame.cursor]
+            frame.cursor += 1
+            if number[target] == 0 {
+                if depth > count || top >= count { return }
+                frame.waiting = true
+                stack[top] = target; top += 1
+                numbered += 1; number[target] = numbered
+                frames[depth] = .{.block = target, .cursor = next.start[target], .head = number[target]}; depth += 1
+                pushed = true
+            } else if !frame.component && number[target] <= frame.head {
+                frame.head = number[target]
+                frame.loop = true
+            }
+        }
+        if pushed { continue }
+        if !frame.component && frame.head == number[block] {
+            number[block] = MAX_S64
+            top -= 1
+            element := stack[top]
+            if frame.loop {
+                while element != block { number[element] = 0; top -= 1; element = stack[top] }
+                frame.component = true
+                frame.cursor = next.start[block]
+                continue
+            }
+        }
+        // A finished head, or a component whose members are placed.
+        if number[block] == MAX_S64 && place > 0 { place -= 1; out[place] = block }
+        returned = frame.head
+        depth -= 1
+    }
+    // Reachable blocks in order, then the rest as they were.
+    at: s64 = 0
+    for index: place..count - 1 { fn.order[at] = out[index]; at += 1 }
+    for block: 0..count - 1 {
+        if number[block] != MAX_S64 { fn.order[at] = block; at += 1 }
+    }
+    if at != count {
+        for block: 0..count - 1 { fn.order[block] = block }
+    }
+    for index: 0..count - 1 { fn.position[fn.order[index]] = index }
+}
+
+// Whether the blocks, in their order, form structured loops: every backward
+// edge reaches a header whose loop spans the header to its last back edge,
+// loops nest, and nothing enters a loop but at its header. Fills
+// loop_end[header position] with the loop's last position, -1 elsewhere.
+PlanLoops :: (fn: *Fn) -> bool {
+    count := fn.block_count
+    if fn.position[fn.function.entry] != 0 { return false }
+    for at: 0..count - 1 { fn.loop_end[at] = -1 }
+    headers: s64 = 0
+    for at: 0..count - 1 {
+        block := *fn.function.blocks[fn.order[at]]
+        for item: 0..block.instructions.count - 1 {
+            instruction := *block.instructions[item]
+            for edge: instruction.edges {
+                if edge.block < 0 || edge.block >= count { return false }
+                target := fn.position[edge.block]
+                if target <= at && fn.loop_end[target] < at {
+                    if fn.loop_end[target] < 0 { headers += 1 }
+                    fn.loop_end[target] = at
+                }
+            }
+        }
+    }
+    if headers > 4096 { return false }
+    for outer: 0..count - 1 {
+        if fn.loop_end[outer] < 0 { continue }
+        for inner: outer + 1..fn.loop_end[outer] {
+            if fn.loop_end[inner] > fn.loop_end[outer] { return false }
+        }
+    }
+    for at: 0..count - 1 {
+        block := *fn.function.blocks[fn.order[at]]
+        for item: 0..block.instructions.count - 1 {
+            instruction := *block.instructions[item]
+            for edge: instruction.edges {
+                target := fn.position[edge.block]
+                for header: 0..target - 1 {
+                    if fn.loop_end[header] >= target && (at < header || at > fn.loop_end[header]) { return false }
+                }
+            }
+        }
+    }
+    return true
+}
+
+// Whether two inserts or extracts name the same member.
+SameMember :: (left: *LirInstruction, left_fixed: s64, right: *LirInstruction, right_fixed: s64) -> bool {
+    dynamic := left.operands.count == left_fixed + 1
+    if dynamic != (right.operands.count == right_fixed + 1) { return false }
+    if dynamic { return left.operands[left_fixed] == right.operands[right_fixed] }
+    return left.immediate == right.immediate
+}
+
+// A load used only for member reads can borrow its pointer instead of
+// materializing the whole record. Nested extracts are tracked too: a read
+// after any possible memory effect needs the original snapshot. This stays
+// within one block and keeps checked loads and escaping values.
+PlanLoadViews :: (fn: *Fn, aggregate: []bool) -> bool {
+    count := fn.function.values.count
+    root: Vec(s32)
+    home: Vec(s64)
+    stamp: Vec(s64)
+    valid: Vec(bool)
+    used: Vec(bool)
+    if !VecResize(root, count) || !VecResize(home, count) || !VecResize(stamp, count) || !VecResize(valid, count) ||
+        !VecResize(used, count) {
+        return OutOfMemory(fn.lower)
+    }
+    for value: 0..count - 1 { root[value] = -1 }
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            value := instruction.result
+            if instruction.op == .Load && ValueValid(fn, value) && aggregate[value] && instruction.operands.count == 1 &&
+                !instruction.checked {
+                root[value] = value
+                home[value] = block
+                valid[value] = true
+            }
+        }
+    }
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        version: s64 = 0
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            result := instruction.result
+            if ValueValid(fn, result) && root[result] == result { stamp[result] = version }
+            for at: 0..instruction.operands.count - 1 {
+                value := instruction.operands[at]
+                if !ValueValid(fn, value) || root[value] < 0 { continue }
+                base := root[value]
+                if instruction.op != .Extract || at != 0 || home[base] != block || stamp[base] != version {
+                    valid[base] = false
+                    continue
+                }
+                used[base] = true
+                if ValueValid(fn, result) && aggregate[result] && fn.view[result].kind >= 0 { root[result] = base }
+            }
+            for edge: instruction.edges {
+                for argument: edge.arguments {
+                    if ValueValid(fn, argument) && root[argument] >= 0 { valid[root[argument]] = false }
+                }
+            }
+            op := instruction.op
+            if op == .Store || op == .Copy || op == .Zero || op == .Resize || op == .Allocate || op == .Call ||
+                op == .CallIndirect || op == .HostCall || op == .Insert {
+                version += 1
+            }
+        }
+    }
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            value := instruction.result
+            if instruction.op != .Load || !ValueValid(fn, value) || root[value] != value || !valid[value] || !used[value] {
+                continue
+            }
+            pointer := instruction.operands[0]
+            slot := fn.value_slot[value]
+            fn.view[value] = .{.kind = ADDR_LOCAL, .local = cast(u32)fn.value_local[pointer]}
+            fn.view_root[value] = -1 - cast(s64)value
+            for nested: 0..count - 1 {
+                if fn.view[nested].kind != ADDR_FRAME || fn.view_root[nested] != slot { continue }
+                fn.view[nested].kind = ADDR_LOCAL
+                fn.view[nested].local = cast(u32)fn.value_local[pointer]
+                fn.view[nested].offset -= slot
+                fn.view_root[nested] = -1 - cast(s64)value
+            }
+        }
+    }
+    return true
+}
+
+// Views: an aggregate extract read only by extracts in its own block, while
+// nothing writes the slot it reads from, is read in place there instead of
+// copied out. One that a single insert then changes, put back where it came
+// from, is changed in place: the insert writes into the source and putting
+// it back does nothing.
+PlanViews :: (fn: *Fn, aggregate: []bool) -> bool {
+    count := fn.function.values.count
+    // home: the block of all of a value's uses, -1 when unused, -2 for several
+    // blocks or an edge; read: the last read by extract; update: the one
+    // insert that changes it, -2 for more; other: the last other use; writes:
+    // a view that writes its source.
+    home: Vec(s64)
+    read: Vec(s64)
+    update: Vec(s64)
+    other: Vec(s64)
+    uses: Vec(s64)
+    writes: Vec(bool)
+    if !VecResize(home, count) || !VecResize(read, count) || !VecResize(update, count) || !VecResize(other, count) ||
+        !VecResize(uses, count) || !VecResize(writes, count) {
+        return OutOfMemory(fn.lower)
+    }
+    for value: 0..count - 1 {
+        home[value] = -1; read[value] = -1; update[value] = -1; other[value] = -1
+        fn.view[value].kind = -1
+    }
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            for at: 0..instruction.operands.count - 1 {
+                value := instruction.operands[at]
+                if !ValueValid(fn, value) { continue }
+                uses[value] += 1
+                home[value] = ifx home[value] == -1 || home[value] == block then block else -2
+                if instruction.op == .Extract && at == 0 { read[value] = item }
+                else if instruction.op == .Insert && at == 0 { update[value] = ifx update[value] == -1 then item else -2 }
+                else { other[value] = item }
+            }
+            for edge: instruction.edges {
+                for argument: edge.arguments {
+                    if ValueValid(fn, argument) { home[argument] = -2 }
+                }
+            }
+        }
+    }
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            result := instruction.result
+            if instruction.op != .Extract || !ValueValid(fn, result) || !aggregate[result] || home[result] != block ||
+                other[result] >= 0 || update[result] == -2 || instruction.operands.count < 1 {
+                continue
+            }
+            source := instruction.operands[0]
+            if !ValueValid(fn, source) || !aggregate[source] { continue }
+            root := ifx fn.view[source].kind >= 0 then fn.view_root[source] else fn.value_slot[source]
+            // A changed view: its insert is its last use, the changed value goes
+            // straight back into an in-place insert of the source at the same
+            // member, and nothing reads the source in between.
+            changed := update[result]
+            back: s64 = -1
+            changed_value: s32 = -1
+            put: s32 = -1
+            if changed >= 0 {
+                changed_value = code.instructions[changed].result
+                if changed <= read[result] || fn.view[source].kind >= 0 || !ValueValid(fn, changed_value) ||
+                    home[changed_value] != block || uses[changed_value] != 1 || other[changed_value] < 0 {
+                    continue
+                }
+                back = other[changed_value]
+                putting := *code.instructions[back]
+                put = putting.result
+                if putting.op != .Insert || putting.operands.count < 2 || putting.operands[0] != source ||
+                    putting.operands[1] != changed_value || !SameMember(putting, 2, instruction, 1) ||
+                    !ValueValid(fn, put) || fn.value_slot[put] != root {
+                    continue
+                }
+                reads := false
+                between := changed + 1
+                while between < back && !reads {
+                    for value: code.instructions[between].operands {
+                        if reads { break }
+                        reads = value == source || ValueValid(fn, value) && fn.view[value].kind >= 0 && fn.view_root[value] == root
+                    }
+                    between += 1
+                }
+                if reads { continue }
+            } else if read[result] <= item {
+                continue
+            }
+            until := ifx changed >= 0 then back else read[result]
+            written := false
+            between := item + 1
+            while between < until && !written {
+                value := code.instructions[between].result
+                written = ValueValid(fn, value) && aggregate[value] &&
+                    (fn.view[value].kind < 0 && fn.value_slot[value] == root || writes[value] && fn.view_root[value] == root)
+                between += 1
+            }
+            if written { continue }
+            place := AddrOfSlot(fn, source)
+            type := ValueType(fn, source)
+            if instruction.operands.count == 2 {
+                if TypeAt(fn.lower, type).kind != .Array { continue }
+                place = .{.kind = ADDR_LOCAL, .local = FnLocal(fn, W_I32)}
+            } else {
+                offset: s64
+                member: s32
+                if instruction.operands.count != 1 || !MemberOffset(fn, type, instruction.immediate, *offset, *member) {
+                    continue
+                }
+                place.offset += offset
+            }
+            fn.view[result] = place
+            fn.view_root[result] = root
+            if changed >= 0 {
+                fn.view[changed_value] = place
+                fn.view_root[changed_value] = root
+                writes[changed_value] = true
+                fn.elided[put] = true
+            }
+        }
+    }
+    return !fn.lower.failed
+}
+
+// Changes a coalesced frame slot's base without disturbing the offsets of
+// its nested read views. Dynamic views compute their address at the extract.
+PlaceSlot :: (fn: *Fn, aggregate: []bool, slot: s64, place: Addr) {
+    for value: 0..fn.function.values.count - 1 {
+        if !aggregate[value] { continue }
+        if fn.view[value].kind < 0 && fn.value_slot[value] == slot {
+            fn.view[value] = place
+            fn.view_root[value] = slot
+        } else if fn.view[value].kind == ADDR_FRAME && fn.view_root[value] == slot {
+            fn.view[value].kind = place.kind
+            fn.view[value].local = place.local
+            fn.view[value].offset += place.offset - slot
+        }
+    }
+}
+
+// Arguments are caller-owned SSA snapshots. A parameter whose coalesced slot
+// is never written can borrow that snapshot for this call. Aggregate results
+// with a single destination class can be built in the caller's result area;
+// calls always keep their result separate from their inputs.
+PlanCallPlaces :: (fn: *Fn, aggregate: []bool) {
+    entry := *fn.function.blocks[fn.function.entry]
+    first: u32 = ifx TypeAggregate(fn.lower, fn.function.result) then 1 else 0
+    for at: 0..entry.parameters.count - 1 {
+        parameter := entry.parameters[at]
+        if !aggregate[parameter] { continue }
+        slot := fn.value_slot[parameter]
+        written := false
+        for block: 0..fn.block_count - 1 {
+            if written { break }
+            code := *fn.function.blocks[block]
+            for value: code.parameters {
+                if value != parameter && aggregate[value] && fn.value_slot[value] == slot { written = true }
+            }
+            for item: 0..code.instructions.count - 1 {
+                if written { break }
+                value := code.instructions[item].result
+                if ValueValid(fn, value) && aggregate[value] && fn.value_slot[value] == slot && fn.view[value].kind < 0 {
+                    written = true
+                }
+            }
+        }
+        if !written { PlaceSlot(fn, aggregate, slot, .{.kind = ADDR_LOCAL, .local = first + cast(u32)at}) }
+    }
+    if first == 0 { return }
+    slot: s64 = -1
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            if instruction.op != .Return || instruction.operands.count != 1 { continue }
+            value := instruction.operands[0]
+            if !aggregate[value] || fn.view[value].kind >= 0 || slot >= 0 && slot != fn.value_slot[value] { return }
+            slot = fn.value_slot[value]
+        }
+    }
+    if slot < 0 { return }
+    // Loads and extracts use view[] to mean an elided read, whereas a
+    // constructor still writes its destination. Read results keep their own
+    // slots so placement cannot turn a required snapshot into a view.
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            value := instruction.result
+            if (instruction.op == .Load || instruction.op == .Extract) && ValueValid(fn, value) && aggregate[value] &&
+                fn.value_slot[value] == slot {
+                return
+            }
+        }
+    }
+    PlaceSlot(fn, aggregate, slot, .{.kind = ADDR_LOCAL, .local = fn.result_address})
+}
+
+// Constructor fields overwritten before any other use need no initial store.
+// Only single-use, fixed-member inserts are followed: a snapshot, extract or
+// block argument ends the chain. Nested constructors whose only uses were
+// those omitted stores are pruned, keeping calls and checked operations.
+PlanInitialStores :: (fn: *Fn) -> bool {
+    count := fn.function.values.count
+    definitions: Vec(*LirInstruction)
+    only: Vec(*LirInstruction)
+    uses: Vec(s64)
+    queue: Vec(s32)
+    if !VecResize(definitions, count) || !VecResize(only, count) || !VecResize(uses, count) ||
+        !VecResize(fn.omitted, count) {
+        return OutOfMemory(fn.lower)
+    }
+    for value: 0..count - 1 { fn.omitted[value] = -1 }
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            if ValueValid(fn, instruction.result) { definitions[instruction.result] = instruction }
+            for value: instruction.operands {
+                if ValueValid(fn, value) {
+                    uses[value] += 1
+                    only[value] = ifx uses[value] == 1 then instruction else null
+                }
+            }
+            for edge: instruction.edges {
+                for value: edge.arguments {
+                    if ValueValid(fn, value) { uses[value] += 1; only[value] = null }
+                }
+            }
+        }
+    }
+    for value: 0..count - 1 {
+        definition := definitions[value]
+        if definition == null || definition.op != .Aggregate { continue }
+        current := cast(s32)value
+        walk: s64 = 0
+        while walk < count && uses[current] == 1 && only[current] != null {
+            use := only[current]
+            if use.op != .Insert || use.operands.count != 2 || use.operands[0] != current ||
+                use.immediate >= cast(u64)definition.operands.count || !ValueValid(fn, use.result) {
+                break
+            }
+            if fn.omitted[value] < 0 {
+                fn.omitted[value] = fn.omitted_bits.count
+                if !VecResize(fn.omitted_bits, fn.omitted_bits.count + definition.operands.count) { return OutOfMemory(fn.lower) }
+            }
+            fn.omitted_bits[fn.omitted[value] + cast(s64)use.immediate] = true
+            current = use.result
+            walk += 1
+        }
+        if fn.omitted[value] >= 0 {
+            for at: 0..definition.operands.count - 1 {
+                if fn.omitted_bits[fn.omitted[value] + at] && ValueValid(fn, definition.operands[at]) { uses[definition.operands[at]] -= 1 }
+            }
+        }
+    }
+    for value: 0..count - 1 {
+        if uses[value] == 0 && definitions[value] != null && definitions[value].op == .Aggregate {
+            fn.elided[value] = true
+            if !VecPush(queue, cast(s32)value) { return OutOfMemory(fn.lower) }
+        }
+    }
+    head: s64 = 0
+    while head < queue.count {
+        value := queue[head]
+        head += 1
+        definition := definitions[value]
+        for at: 0..definition.operands.count - 1 {
+            source := definition.operands[at]
+            if fn.omitted[value] >= 0 && fn.omitted_bits[fn.omitted[value] + at] || !ValueValid(fn, source) { continue }
+            uses[source] -= 1
+            if uses[source] == 0 && !fn.elided[source] && definitions[source] != null && definitions[source].op == .Aggregate {
+                fn.elided[source] = true
+                if !VecPush(queue, source) { return OutOfMemory(fn.lower) }
+            }
+        }
+    }
+    return true
+}
+
+// The storage a value occupies: its frame slot, or the root of the place it views.
+StorageRoot :: (fn: *Fn, value: s32) -> s64 {
+    return ifx fn.view[value].kind >= 0 then fn.view_root[value] else fn.value_slot[value]
+}
+
+SamePlace :: (left: Addr, right: Addr) -> bool {
+    return left.kind == right.kind && left.local == right.local && left.offset == right.offset
+}
+
+// Checks instructions [from, to) of one block before a member class moves
+// into `root`. Class values may only feed in-place inserts of the class
+// (counted in chained) or, when `join` names a block, argument `parameter`
+// of an edge there (counted in tails). No other instruction may read the
+// root's storage or define a value living in it.
+MemberRange :: (fn: *Fn, code: *LirBlock, from: s64, to: s64, class: s32, root: s64, aggregate: []bool, rep: []s32,
+                join: s64, parameter: s64, chained: *s64, tails: *s64) -> bool {
+    for item: from..to - 1 {
+        between := *code.instructions[item]
+        result := between.result
+        if ValueValid(fn, result) && aggregate[result] && rep[result] != class && StorageRoot(fn, result) == root {
+            return false
+        }
+        for at: 0..between.operands.count - 1 {
+            value := between.operands[at]
+            if !ValueValid(fn, value) || !aggregate[value] { continue }
+            if rep[value] == class {
+                if between.op != .Insert || at != 0 || !ValueValid(fn, result) || rep[result] != class { return false }
+                <<chained += 1
+            } else if StorageRoot(fn, value) == root { return false }
+        }
+        for edge: between.edges {
+            for at: 0..edge.arguments.count - 1 {
+                value := edge.arguments[at]
+                if !ValueValid(fn, value) || !aggregate[value] { continue }
+                if rep[value] == class {
+                    if join < 0 || edge.block != join || at != parameter { return false }
+                    <<tails += 1
+                } else if StorageRoot(fn, value) == root { return false }
+            }
+        }
+    }
+    return true
+}
+
+// Builds a member where its parent keeps it, as native code does. A class of
+// values (a constructor or call and the inserts that update it in place)
+// whose last value only fills one member of a parent, by an in-place insert
+// or the parent's constructor, or is the return value, is written at that
+// destination directly. The whole class lives in the block before that use,
+// and nothing in between reads the destination's storage, so writing early
+// is unobservable. Loads and extracts keep their own slots, because a view
+// on them means an elided read; a returned load instead reads from its
+// pointer, so the return copies once.
+PlanMemberPlaces :: (fn: *Fn, aggregate: []bool, rep: []s32) -> bool {
+    if fn.async { return true }
+    count := fn.function.values.count
+    definition: Vec(*LirInstruction)
+    uses: Vec(s64)
+    home: Vec(s64)
+    position: Vec(s64)
+    next: Vec(s32)
+    head: Vec(s32)
+    if !VecResize(definition, count) || !VecResize(uses, count) || !VecResize(home, count) || !VecResize(position, count) ||
+        !VecResize(next, count) || !VecResize(head, count) {
+        return OutOfMemory(fn.lower)
+    }
+    for value: 0..count - 1 { head[value] = -1; next[value] = -1; home[value] = -1; position[value] = -1 }
+    value_at := count - 1
+    while value_at >= 0 {
+        if aggregate[value_at] { next[value_at] = head[rep[value_at]]; head[rep[value_at]] = cast(s32)value_at }
+        value_at -= 1
+    }
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            if ValueValid(fn, instruction.result) {
+                definition[instruction.result] = instruction
+                home[instruction.result] = block
+                position[instruction.result] = item
+            }
+            for value: instruction.operands {
+                if ValueValid(fn, value) { uses[value] += 1 }
+            }
+            for edge: instruction.edges {
+                for value: edge.arguments {
+                    if ValueValid(fn, value) { uses[value] += 1 }
+                }
+            }
+        }
+    }
+    returns_aggregate := TypeAggregate(fn.lower, fn.function.result)
+    for block: 0..fn.block_count - 1 {
+        code := *fn.function.blocks[block]
+        for use: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[use]
+            members: [64]s32
+            places: [64]Addr
+            roots: [64]s64
+            candidates: s64 = 0
+            if instruction.op == .Insert && instruction.operands.count == 2 {
+                base := instruction.operands[0]
+                member := instruction.operands[1]
+                result := instruction.result
+                offset: s64
+                member_type: s32
+                if !ValueValid(fn, base) || !ValueValid(fn, member) || !ValueValid(fn, result) || !aggregate[base] ||
+                    !aggregate[member] || rep[base] == rep[member] || !SamePlace(AddrOfSlot(fn, result), AddrOfSlot(fn, base)) ||
+                    StorageRoot(fn, result) != StorageRoot(fn, base) || StorageRoot(fn, result) < 0 ||
+                    !MemberOffset(fn, ValueType(fn, base), instruction.immediate, *offset, *member_type) {
+                    continue
+                }
+                places[0] = AddrOfSlot(fn, result)
+                places[0].offset += offset
+                roots[0] = StorageRoot(fn, result)
+                members[0] = member
+                candidates = 1
+            } else if instruction.op == .Aggregate && ValueValid(fn, instruction.result) && aggregate[instruction.result] &&
+                StorageRoot(fn, instruction.result) >= 0 {
+                result := instruction.result
+                at: s64 = 0
+                while at < instruction.operands.count && candidates < 64 {
+                    member := instruction.operands[at]
+                    offset: s64
+                    member_type: s32
+                    if ValueValid(fn, member) && aggregate[member] && rep[member] != rep[result] &&
+                        MemberOffset(fn, ValueType(fn, result), cast(u64)at, *offset, *member_type) {
+                        places[candidates] = AddrOfSlot(fn, result)
+                        places[candidates].offset += offset
+                        roots[candidates] = StorageRoot(fn, result)
+                        members[candidates] = member
+                        candidates += 1
+                    }
+                    at += 1
+                }
+            } else if instruction.op == .Return && returns_aggregate && instruction.operands.count == 1 &&
+                ValueValid(fn, instruction.operands[0]) && aggregate[instruction.operands[0]] &&
+                fn.view[instruction.operands[0]].kind < 0 {
+                member := instruction.operands[0]
+                loaded := definition[member]
+                // A returned load reads from its pointer: one copy.
+                if loaded != null && loaded.op == .Load {
+                    pointer: s32 = ifx loaded.operands.count == 1 then loaded.operands[0] else -1
+                    if !fn.lower.program.checks && !loaded.checked && uses[member] == 1 && home[member] == block &&
+                        position[member] == use - 1 && head[rep[member]] == member && next[member] < 0 &&
+                        ValueValid(fn, pointer) && ValueScalar(fn, pointer) && fn.value_local[pointer] >= 0 {
+                        fn.view[member] = .{.kind = ADDR_LOCAL, .local = cast(u32)fn.value_local[pointer]}
+                        fn.view_root[member] = -1 - cast(s64)member
+                    }
+                    continue
+                }
+                places[0] = .{.kind = ADDR_LOCAL, .local = fn.result_address}
+                roots[0] = MEMBER_RESULT_ROOT
+                members[0] = member
+                candidates = 1
+            }
+            for candidate: 0..candidates - 1 {
+                member := members[candidate]
+                place := places[candidate]
+                root := roots[candidate]
+                if fn.view[member].kind >= 0 || uses[member] != 1 || !OffsetFits(fn, place.offset) { continue }
+                class := rep[member]
+                slot := fn.value_slot[member]
+                first := use
+                size: s64 = 0
+                join: s64 = -1
+                outside: s64 = 0
+                good := true
+                value := head[class]
+                while value >= 0 && good {
+                    defined := definition[value]
+                    size += 1
+                    good = fn.view[value].kind < 0 && !fn.elided[value] && (value == member || uses[value] == 1)
+                    if !good { break }
+                    if defined == null {
+                        // One parameter of this block may join the values its
+                        // predecessors build.
+                        found: s64 = -1
+                        for at: 0..code.parameters.count - 1 {
+                            if code.parameters[at] == value { found = at }
+                        }
+                        good = found >= 0 && join < 0
+                        join = found
+                        value = next[value]
+                        continue
+                    }
+                    good = defined.op == .Aggregate || defined.op == .Call || defined.op == .CallIndirect ||
+                        defined.op == .Insert && defined.operands.count >= 2 && ValueValid(fn, defined.operands[0]) &&
+                        rep[defined.operands[0]] == class
+                    if good && home[value] == block {
+                        good = position[value] < use
+                        if position[value] < first { first = position[value] }
+                    } else {
+                        outside += 1
+                    }
+                    value = next[value]
+                }
+                if !good || outside > 0 && join < 0 { continue }
+                // Members already built inside this class move with it, so
+                // they start its range too.
+                for nested: 0..count - 1 {
+                    if !good { break }
+                    if aggregate[nested] && fn.view[nested].kind == ADDR_FRAME && fn.view_root[nested] == slot {
+                        good = join < 0 && home[nested] == block && position[nested] < use
+                        if good && position[nested] < first { first = position[nested] }
+                    }
+                }
+                chained: s64 = 0
+                tails: s64 = 0
+                if good && join >= 0 {
+                    // Each edge here is its block's only edge and carries a
+                    // class value built in that block; the parameter exists
+                    // from this block's start.
+                    covered: s64 = 0
+                    first = 0
+                    for from: 0..fn.block_count - 1 {
+                        if !good { break }
+                        source := *fn.function.blocks[from]
+                        length := source.instructions.count
+                        start := length
+                        enters: s64 = 0
+                        for item: 0..length - 1 {
+                            for edge: source.instructions[item].edges {
+                                if edge.block == block {
+                                    enters = ifx enters >= 0 && item == length - 1 && source.instructions[item].edges.count == 1 then 1 else -1
+                                }
+                            }
+                        }
+                        if enters == 0 { continue }
+                        edge := *source.instructions[length - 1].edges[0]
+                        good = enters > 0 && from != block && edge.arguments.count > join
+                        if !good { break }
+                        argument := edge.arguments[join]
+                        good = ValueValid(fn, argument) && rep[argument] == class && home[argument] == from
+                        walk := head[class]
+                        while walk >= 0 && good {
+                            if definition[walk] != null && home[walk] == from {
+                                covered += 1
+                                if position[walk] < start { start = position[walk] }
+                            }
+                            walk = next[walk]
+                        }
+                        good = good && MemberRange(fn, source, start, length, class, root, aggregate, rep, block, join,
+                            *chained, *tails)
+                    }
+                    good = good && covered == outside
+                }
+                good = good && MemberRange(fn, code, first, use, class, root, aggregate, rep, -1, -1, *chained, *tails)
+                if !good || chained + tails != size - 1 { continue }
+                for nested: 0..count - 1 {
+                    if aggregate[nested] && fn.view[nested].kind == ADDR_FRAME && fn.view_root[nested] == slot {
+                        fn.view[nested].kind = place.kind
+                        fn.view[nested].local = place.local
+                        fn.view[nested].offset += place.offset - slot
+                        fn.view_root[nested] = root
+                    }
+                }
+                walk := head[class]
+                while walk >= 0 {
+                    fn.view[walk] = place
+                    fn.view_root[walk] = root
+                    walk = next[walk]
+                }
+            }
+        }
+    }
+    return true
+}
+
+// Aggregate values whose lifetimes never overlap share one frame slot: an
+// insert's result takes its source's slot when the source dies there, and a
+// block parameter takes its arguments' slots, so a record or array updated in
+// a loop copies only the member that changes. This is SSA coalescing over the
+// liveness of the aggregate values alone. Fills rep[value] with the value
+// whose slot it uses. Returns false only when memory runs out.
+CoalesceAggregates :: (fn: *Fn, aggregate: []bool, rep: []s32) -> bool {
+    value_count := fn.function.values.count
+    block_count := fn.block_count
+    state: Coalesce
+    state.fn = fn
+    for value: 0..value_count - 1 { rep[value] = cast(s32)value }
+    if !VecResize(state.index, value_count) { return OutOfMemory(fn.lower) }
+    for value: 0..value_count - 1 {
+        state.index[value] = -1
+        if aggregate[value] {
+            state.index[value] = cast(s32)state.values.count
+            if !VecPush(state.values, cast(s32)value) { return OutOfMemory(fn.lower) }
+        }
+    }
+    count := state.values.count
+    width := (count + 63) / 64
+    state.width = width
+    // Without aggregates, or with too many to compare, each keeps its slot.
+    if count < 2 || count > 8192 || block_count * width > 4194304 { return true }
+    live: Vec(u64)
+    if !VecResize(state.live_in, block_count * width) || !VecResize(state.live_out, block_count * width) ||
+        !VecResize(state.interfere, count * width) || !VecResize(state.members, count * width) ||
+        !VecResize(state.parent, count) || !VecResize(live, width) {
+        return OutOfMemory(fn.lower)
+    }
+    for at: 0..count - 1 { state.parent[at] = cast(s32)at; BitSet(state.members[:], at * width, at) }
+    // Liveness, to a fixed point. An edge's arguments are used at the end of
+    // its block; a block's parameters are defined at its start.
+    changed := true
+    while changed {
+        changed = false
+        block := block_count - 1
+        while block >= 0 {
+            code := *fn.function.blocks[block]
+            for word: 0..width - 1 { live[word] = 0 }
+            for item: 0..code.instructions.count - 1 {
+                for edge: code.instructions[item].edges {
+                    if edge.block < 0 || edge.block >= block_count { continue }
+                    for word: 0..width - 1 { live[word] |= state.live_in[cast(s64)edge.block * width + word] }
+                    for parameter: fn.function.blocks[edge.block].parameters {
+                        if ValueValid(fn, parameter) && state.index[parameter] >= 0 { BitClear(live[:], 0, state.index[parameter]) }
+                    }
+                }
+            }
+            if CopyRow(state.live_out[:], block * width, live[:], width) { changed = true }
+            item := code.instructions.count - 1
+            while item >= 0 {
+                instruction := *code.instructions[item]
+                if ValueValid(fn, instruction.result) && state.index[instruction.result] >= 0 {
+                    BitClear(live[:], 0, state.index[instruction.result])
+                }
+                for operand: instruction.operands { CoalesceUse(*state, live[:], operand) }
+                for edge: instruction.edges {
+                    for argument: edge.arguments { CoalesceUse(*state, live[:], argument) }
+                }
+                item -= 1
+            }
+            for parameter: code.parameters {
+                if ValueValid(fn, parameter) && state.index[parameter] >= 0 { BitClear(live[:], 0, state.index[parameter]) }
+            }
+            if CopyRow(state.live_in[:], block * width, live[:], width) { changed = true }
+            block -= 1
+        }
+    }
+    // Interference: a value defined where another is live. An instruction's
+    // aggregate operands also conflict with its result, so no instruction
+    // reads a slot it writes; an insert updating its source in place is the
+    // one exception.
+    for block: 0..block_count - 1 {
+        code := *fn.function.blocks[block]
+        for word: 0..width - 1 { live[word] = state.live_out[block * width + word] }
+        item := code.instructions.count - 1
+        while item >= 0 {
+            instruction := *code.instructions[item]
+            for edge: instruction.edges {
+                for argument: edge.arguments { CoalesceUse(*state, live[:], argument) }
+            }
+            defined: s32 = ifx ValueValid(fn, instruction.result) then state.index[instruction.result] else -1
+            if defined >= 0 {
+                BitClear(live[:], 0, defined)
+                CoalesceConflict(*state, defined, live[:])
+                for operand: 0..instruction.operands.count - 1 {
+                    if instruction.op == .Insert && operand == 0 { continue }
+                    value := instruction.operands[operand]
+                    used: s32 = ifx ValueValid(fn, value) then state.index[value] else -1
+                    if used >= 0 && used != defined {
+                        BitSet(state.interfere[:], cast(s64)defined * width, used)
+                        BitSet(state.interfere[:], cast(s64)used * width, defined)
+                    }
+                }
+            }
+            for operand: instruction.operands { CoalesceUse(*state, live[:], operand) }
+            item -= 1
+        }
+        for parameter: code.parameters {
+            defined: s32 = ifx ValueValid(fn, parameter) then state.index[parameter] else -1
+            if defined < 0 { continue }
+            BitClear(live[:], 0, defined)
+            CoalesceConflict(*state, defined, live[:])
+            // Parameters of one block are defined together.
+            for other: code.parameters {
+                peer: s32 = ifx ValueValid(fn, other) then state.index[other] else -1
+                if peer >= 0 && peer != defined {
+                    BitSet(state.interfere[:], cast(s64)defined * width, peer)
+                    BitSet(state.interfere[:], cast(s64)peer * width, defined)
+                }
+            }
+        }
+    }
+    // In program order: updates in place first, then edges.
+    for block: 0..block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            if instruction.op == .Insert && instruction.operands.count > 0 {
+                CoalesceTry(*state, instruction.result, instruction.operands[0])
+            }
+        }
+    }
+    for block: 0..block_count - 1 {
+        code := *fn.function.blocks[block]
+        for item: 0..code.instructions.count - 1 {
+            for edge: code.instructions[item].edges {
+                if edge.block < 0 || edge.block >= block_count ||
+                    edge.arguments.count != fn.function.blocks[edge.block].parameters.count {
+                    continue
+                }
+                target := *fn.function.blocks[edge.block]
+                for argument: 0..edge.arguments.count - 1 {
+                    CoalesceTry(*state, target.parameters[argument], edge.arguments[argument])
+                }
+            }
+        }
+    }
+    for at: 0..count - 1 { rep[state.values[at]] = state.values[CoalesceFind(*state, cast(s32)at)] }
+    return true
+}
+
+#scope_file
+
+Frame :: struct {
+    block: s64
+    cursor: s64
+    head: s64
+    component: bool
+    loop: bool
+    waiting: bool
+}
+
+// The successors of every block, last edge first: succ[start[b]..start[b+1]).
+SuccessorList :: struct { start: Vec(s64); succ: Vec(s64); ok: bool }
+
+Successors :: (fn: *Fn) -> SuccessorList {
+    list: SuccessorList
+    count := fn.block_count
+    list.ok = VecResize(list.start, count + 1)
+    for block: 0..count - 1 {
+        if !list.ok { break }
+        code := *fn.function.blocks[block]
+        list.start[block] = list.succ.count
+        item := code.instructions.count - 1
+        while item >= 0 && list.ok {
+            instruction := *code.instructions[item]
+            edge := instruction.edges.count - 1
+            while edge >= 0 && list.ok {
+                target := instruction.edges[edge].block
+                list.ok = target >= 0 && target < count && VecPush(list.succ, cast(s64)target)
+                edge -= 1
+            }
+            item -= 1
+        }
+    }
+    if list.ok { list.start[count] = list.succ.count }
+    return list
+}
+
+// Bit sets over the aggregate values of one function, `width` words a row.
+Coalesce :: struct {
+    fn: *Fn
+    index: Vec(s32)  // value -> aggregate index, or -1
+    values: Vec(s32) // aggregate index -> value
+    width: s64
+    live_in: Vec(u64)
+    live_out: Vec(u64)
+    interfere: Vec(u64)
+    members: Vec(u64)
+    parent: Vec(s32)
+}
+
+BitSet :: (words: []u64, row: s64, bit: s64) {
+    words[row + bit / 64] |= cast(u64)1 << cast(u64)(bit % 64)
+}
+
+BitClear :: (words: []u64, row: s64, bit: s64) {
+    words[row + bit / 64] &= ~(cast(u64)1 << cast(u64)(bit % 64))
+}
+
+// Copies LIVE into ROWS at ROW; whether it changed anything.
+CopyRow :: (rows: []u64, row: s64, live: []u64, width: s64) -> bool {
+    changed := false
+    for word: 0..width - 1 {
+        if rows[row + word] != live[word] { rows[row + word] = live[word]; changed = true }
+    }
+    return changed
+}
+
+CoalesceFind :: (state: *Coalesce, start: s32) -> s32 {
+    at := start
+    while state.parent[at] != at {
+        state.parent[at] = state.parent[state.parent[at]]
+        at = state.parent[at]
+    }
+    return at
+}
+
+// Joins the classes of two aggregate values of one type unless a member of
+// one is live where a member of the other is.
+CoalesceTry :: (state: *Coalesce, left: s32, right: s32) {
+    fn := state.fn
+    if left < 0 || right < 0 || state.index[left] < 0 || state.index[right] < 0 || ValueType(fn, left) != ValueType(fn, right) {
+        return
+    }
+    a := CoalesceFind(state, state.index[left])
+    b := CoalesceFind(state, state.index[right])
+    if a == b { return }
+    width := state.width
+    for word: 0..width - 1 {
+        if (state.interfere[cast(s64)a * width + word] & state.members[cast(s64)b * width + word]) != 0 { return }
+    }
+    state.parent[b] = a
+    for word: 0..width - 1 {
+        state.interfere[cast(s64)a * width + word] |= state.interfere[cast(s64)b * width + word]
+        state.members[cast(s64)a * width + word] |= state.members[cast(s64)b * width + word]
+    }
+}
+
+CoalesceConflict :: (state: *Coalesce, defined: s32, live: []u64) {
+    width := state.width
+    row := cast(s64)defined * width
+    for word: 0..width - 1 {
+        others := live[word]
+        state.interfere[row + word] |= others
+        bit: s64 = 0
+        while others != 0 {
+            if (others & 1) != 0 { BitSet(state.interfere[:], (word * 64 + bit) * width, defined) }
+            others >>= 1
+            bit += 1
+        }
+    }
+    BitClear(state.interfere[:], row, defined)
+}
+
+CoalesceUse :: (state: *Coalesce, live: []u64, value: s32) {
+    if ValueValid(state.fn, value) && state.index[value] >= 0 { BitSet(live[:], 0, state.index[value]) }
+}

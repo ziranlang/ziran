@@ -3,8 +3,8 @@
 #include <stddef.h>
 /*
  * zir_zx_wasm_platform - the WebAssembly provider seam of the wasm
- * execution tier. libziran lowers bundles to wasm32 modules in plain C
- * (cmd/zx2wasm/zx_wasm_lower.c); instantiating and calling the module
+ * execution tier. libziran lowers bundles to wasm32 modules with the
+ * engine's Wasm lowering (cmd/compiler_zx_wasm.zi); instantiating and calling the module
  * needs a host runtime, so the embedding application installs one provider
  * at startup. Web hosts implement it over the browser's WebAssembly engine
  * through their bridge; without a provider every bundle runs on the
@@ -44,7 +44,7 @@ typedef struct ZxWasmPlatform {
     /* Drop an instance created by instantiate. A NULL entry is allowed. */
     void (*release)(void *context, unsigned long handle);
     /* Nonzero when host calls may suspend the stack (Asyncify): modules
-     * are lowered with ZxWasmLowerProgramSuspendable and the provider
+     * are lowered suspendable (compiler_zx_wasm LowerProgramSuspendable) and the provider
      * drives their zx_async_state. */
     int suspends;
 } ZxWasmPlatform;

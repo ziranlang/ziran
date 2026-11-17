@@ -1,0 +1,284 @@
+// One procedure's wasm body: local and frame-slot layout, the planning
+// passes in order, the prologue, and its code as structured blocks or one
+// dispatch loop, with the frame save and rewind of a suspendable procedure.
+using Vectors :: #import "vec"
+using LIR :: #import "compiler_lowered_ir"
+using Proven :: #import "compiler_lowered_proven"
+using Types :: #import "compiler_zx_wasm_types"
+using Code :: #import "compiler_zx_wasm_fn"
+using Plan :: #import "compiler_zx_wasm_plan"
+using Lowering :: #import "compiler_zx_wasm_code"
+
+// Writes one function body: run-length locals after the parameters, then
+// the code, which already ends.
+FnBody :: (fn: *Fn, output: *Buf) -> bool {
+    body: Buf
+    runs: u64 = 0
+    for pass: 0..1 {
+        if pass == 1 { Uleb(*body, runs) }
+        local := cast(s64)fn.param_count
+        while local < fn.locals.count {
+            next := local
+            while next < fn.locals.count && fn.locals[next] == fn.locals[local] { next += 1 }
+            if pass == 0 { runs += 1 } else { Uleb(*body, cast(u64)(next - local)); Byte(*body, fn.locals[local]) }
+            local = next
+        }
+    }
+    Raw(*body, TextView(fn.code.bytes[:]))
+    Uleb(output, cast(u64)body.bytes.count)
+    Raw(output, TextView(body.bytes[:]))
+    if body.failed || fn.code.failed { return OutOfMemory(fn.lower) }
+    return true
+}
+
+Align :: (value: s64, to: s64) -> s64 { return (value + to - 1) & ~(to - 1) }
+
+// Lays out locals and frame slots, then emits one function body.
+LowerFunction :: (lower: *Lower, index: s64, output: *Buf) -> bool {
+    function := *lower.program.functions[index]
+    fn: Fn
+    fn.lower = lower
+    fn.function = function
+    fn.block_count = function.blocks.count
+    value_count := function.values.count
+    instruction_count: s64 = 0
+    for block: function.blocks { instruction_count += block.instructions.count }
+    if !VecResize(fn.value_local, value_count) || !VecResize(fn.value_slot, value_count) ||
+        !VecResize(fn.alloca_slot, instruction_count) || !VecResize(fn.view, value_count) ||
+        !VecResize(fn.view_root, value_count) || !VecResize(fn.elided, value_count) || !VecResize(fn.proven, value_count) {
+        return OutOfMemory(lower)
+    }
+    if fn.block_count < 1 || function.entry < 0 || function.entry >= fn.block_count {
+        return Gap(lower, "wasm.gap.control", SayName("procedure @ has no entry block", function.name))
+    }
+    sig: Sig
+    if !SignatureOf(lower, function.parameters, function.result, *sig) { return false }
+    for at: 0..sig.params - 1 { unused FnLocal(*fn, sig.types[at]) }
+    fn.param_count = cast(u32)sig.params
+    first_parameter: u32 = ifx TypeAggregate(lower, function.result) then 1 else 0
+    aggregate: Vec(bool)
+    rep: Vec(s32)
+    if !VecResize(aggregate, value_count) || !VecResize(rep, value_count) { return OutOfMemory(lower) }
+    for value: 0..value_count - 1 {
+        if !TypeLowered(lower, function.values[value]) { return false }
+        aggregate[value] = TypeAggregate(lower, function.values[value])
+    }
+    if !CoalesceAggregates(*fn, aggregate[:], rep[:]) { return false }
+    for value: 0..value_count - 1 {
+        fn.value_local[value] = -1
+        fn.value_slot[value] = -1
+        if aggregate[value] {
+            // A value that shares a slot takes its class's once laid out.
+            if rep[value] != value { continue }
+            fn.frame = Align(fn.frame, 8)
+            fn.value_slot[value] = fn.frame
+            fn.frame += TypeSize(lower, function.values[value])
+        } else if TypeAt(lower, function.values[value]).kind != .Void {
+            fn.value_local[value] = cast(s32)FnLocal(*fn, ValType(lower, function.values[value]))
+        }
+    }
+    for value: 0..value_count - 1 {
+        if aggregate[value] && rep[value] != value { fn.value_slot[value] = fn.value_slot[rep[value]] }
+    }
+    if !PlanViews(*fn, aggregate[:]) { return false }
+    if !lower.program.checks && !PlanLoadViews(*fn, aggregate[:]) { return false }
+    PlanCallPlaces(*fn, aggregate[:])
+    if !PlanMemberPlaces(*fn, aggregate[:], rep[:]) || !PlanInitialStores(*fn) { return false }
+    // Borrowed loads, parameters and results need no stack reservation.
+    // Offsets stay stable, but unused trailing slots go; a procedure whose
+    // aggregates all live elsewhere then needs no frame at all.
+    fn.frame = 0
+    for value: 0..value_count - 1 {
+        if !aggregate[value] { continue }
+        place := AddrOfSlot(*fn, cast(s32)value)
+        end := place.offset + TypeSize(lower, function.values[value])
+        if place.kind == ADDR_FRAME && end > fn.frame { fn.frame = end }
+    }
+    for value: 0..value_count - 1 { fn.proven[value] = LirProvenIndex(*lower.proven, index, cast(s32)value) }
+    at: s64 = 0
+    host_area: s64 = 0
+    for block: 0..fn.block_count - 1 {
+        code := *function.blocks[block]
+        scratch: s64 = 0
+        for parameter: code.parameters {
+            if ValueValid(*fn, parameter) && !ValueScalar(*fn, parameter) { scratch += TypeSize(lower, ValueType(*fn, parameter)) }
+        }
+        if scratch > fn.scratch { fn.scratch = scratch }
+        for item: 0..code.instructions.count - 1 {
+            instruction := *code.instructions[item]
+            fn.alloca_slot[at] = -1
+            if instruction.op == .Allocate {
+                size := TypeSize(lower, ValueLir(*fn, instruction.result).element)
+                if size < 0 { return Gap(lower, "wasm.gap.allocate", "allocation of an unbounded value") }
+                fn.frame = Align(fn.frame, 8)
+                fn.alloca_slot[at] = fn.frame
+                fn.frame += size
+            }
+            if instruction.op == .HostCall && instruction.symbol >= 0 && instruction.symbol < lower.program.functions.count &&
+                lower.host_kind[instruction.symbol] == HOST_CAPABILITY && 16 * (instruction.operands.count + 1) > host_area {
+                host_area = 16 * (instruction.operands.count + 1)
+            }
+            for edge: instruction.edges {
+                if edge.block <= block { fn.loops = true }
+            }
+            at += 1
+        }
+    }
+    if fn.scratch > 0 {
+        fn.frame = Align(fn.frame, 8)
+        scratch := fn.scratch
+        fn.scratch = fn.frame
+        fn.frame += scratch
+    }
+    fn.host_area = -1
+    if host_area > 0 {
+        fn.frame = Align(fn.frame, 8)
+        fn.host_area = fn.frame
+        fn.frame += host_area
+    }
+    fn.frame = Align(fn.frame, 16)
+    if fn.frame > STACK_SIZE {
+        digits: [24]u8
+        limit: [24]u8
+        names: [3]string = .[function.name, FormatInteger(fn.frame, digits[:]), FormatInteger(STACK_SIZE, limit[:])]
+        return Gap(lower, "wasm.gap.frame", Fill("procedure @ needs a @-byte frame; limit is @ bytes", names[:]))
+    }
+    fn.has_frame = fn.frame > 0
+    if !VecResize(fn.loop_end, fn.block_count) || !VecResize(fn.order, fn.block_count) ||
+        !VecResize(fn.position, fn.block_count) || !VecResize(fn.first, fn.block_count) {
+        return OutOfMemory(lower)
+    }
+    counted: s64 = 0
+    for block: 0..fn.block_count - 1 {
+        fn.order[block] = block
+        fn.position[block] = block
+        fn.first[block] = counted
+        counted += function.blocks[block].instructions.count
+        fn.loop_end[block] = -1
+    }
+    fn.async = lower.suspendable && lower.suspends[index]
+    if fn.async { fn.dispatch = true }
+    else if fn.loops || function.entry != 0 {
+        OrderBlocks(*fn)
+        fn.dispatch = !PlanLoops(*fn)
+    }
+    if fn.dispatch {
+        if !VecResize(fn.seg_first, fn.block_count + 1) { return OutOfMemory(lower) }
+        for block: 0..fn.block_count - 1 {
+            fn.seg_first[block] = fn.segment_count
+            fn.segment_count += 1
+            if fn.async {
+                for item: 0..function.blocks[block].instructions.count - 1 {
+                    if SuspensionSite(lower, *function.blocks[block].instructions[item]) { fn.segment_count += 1 }
+                }
+            }
+        }
+    }
+    if fn.has_frame { fn.fp = FnLocal(*fn, W_I32) }
+    if fn.dispatch { fn.pc = FnLocal(*fn, W_I32) }
+    if fn.loops {
+        for block: 0..fn.block_count - 1 {
+            if fn.has_budget { break }
+            for instruction: function.blocks[block].instructions {
+                if instruction.op == .Fuel && instruction.immediate != 0 { fn.has_budget = true }
+            }
+        }
+    }
+    if fn.has_budget { fn.budget = FnLocal(*fn, W_I64) }
+    if lower.failed { return false }
+    BudgetLoad(*fn)
+    if fn.has_frame {
+        top := FnTemp(*fn, W_I32, 0)
+        GlobalGet(*fn, G_SP); LocalSet(*fn, fn.fp)
+        LocalGet(*fn, fn.fp); I32Const(*fn, fn.frame); Op(*fn, 0x6a)
+        LocalSet(*fn, top)
+        LocalGet(*fn, top); GlobalGet(*fn, G_LIMIT); Op(*fn, 0x4b)
+        TrapIf(*fn)
+        LocalGet(*fn, top); GlobalSet(*fn, G_SP)
+    }
+    entry := *function.blocks[function.entry]
+    if entry.parameters.count != function.parameters.count {
+        return Gap(lower, "wasm.gap.control", "entry block parameters differ from the procedure")
+    }
+    for parameter: 0..entry.parameters.count - 1 {
+        value := entry.parameters[parameter]
+        local := first_parameter + cast(u32)parameter
+        if ValueScalar(*fn, value) { LocalGet(*fn, local); Set(*fn, value) }
+        else { CopyFixed(*fn, AddrOfSlot(*fn, value), .{.kind = ADDR_LOCAL, .local = local}, TypeSize(lower, ValueType(*fn, value))) }
+    }
+    if !fn.dispatch {
+        EmitRegion(*fn, 0, fn.block_count - 1, false)
+    } else {
+        I32Const(*fn, fn.seg_first[function.entry])
+        LocalSet(*fn, fn.pc)
+        fn.prologue_end = fn.code.bytes.count
+        if fn.async { Op(*fn, 0x02); Op(*fn, 0x40) }
+        Op(*fn, 0x03); Op(*fn, 0x40)
+        for segment: 0..fn.segment_count - 1 { Op(*fn, 0x02); Op(*fn, 0x40) }
+        LocalGet(*fn, fn.pc)
+        OpU(*fn, 0x0e, cast(u64)fn.segment_count)
+        for segment: 0..fn.segment_count - 1 { Uleb(*fn.code, cast(u64)segment) }
+        Uleb(*fn.code, cast(u64)(fn.segment_count - 1))
+        at = 0
+        for block: 0..fn.block_count - 1 {
+            if lower.failed { break }
+            Op(*fn, 0x0b)
+            fn.segment = fn.seg_first[block]
+            code := *function.blocks[block]
+            item: s64 = 0
+            while item < code.instructions.count && !lower.failed {
+                LowerInstruction(*fn, block, *code.instructions[item], fn.alloca_slot[at])
+                item += 1
+                at += 1
+            }
+        }
+        Op(*fn, 0x0b)
+        if fn.async {
+            // The stack unwinds: save every local, the segment among them, and
+            // leave without the epilogue, so the frame stays.
+            Op(*fn, 0x00)
+            Op(*fn, 0x0b)
+            size := 8 * fn.locals.count
+            GlobalGet(*fn, G_ASTACK); I32Const(*fn, size); Op(*fn, 0x6a)
+            GlobalGet(*fn, G_ALIMIT); Op(*fn, 0x4b); TrapIf(*fn)
+            for local: 0..fn.locals.count - 1 { AsyncLocal(*fn, cast(u32)local, true) }
+            GlobalGet(*fn, G_ASTACK); I32Const(*fn, size); Op(*fn, 0x6a); GlobalSet(*fn, G_ASTACK)
+            GlobalGet(*fn, G_AFRAMES); I32Const(*fn, 1); Op(*fn, 0x6a); GlobalSet(*fn, G_AFRAMES)
+            ZeroOf(*fn, sig.result)
+            Op(*fn, 0x0f)
+        }
+    }
+    Op(*fn, 0x00)
+    Op(*fn, 0x0b)
+    if lower.failed { return false }
+    if fn.code.failed { return OutOfMemory(lower) }
+    if fn.async {
+        // A rewind restores the frame this procedure saved, last saved first,
+        // and resumes at its segment; the innermost frame ends the rewind.
+        // Otherwise the prologue runs.
+        body: Buf
+        VecSwap(body.bytes, fn.code.bytes)
+        size := 8 * fn.locals.count
+        GlobalGet(*fn, G_ASTATE); I32Const(*fn, ASYNC_REWIND); Op(*fn, 0x46)
+        Op(*fn, 0x04); Op(*fn, 0x40)
+        GlobalGet(*fn, G_ASTACK); I32Const(*fn, size); Op(*fn, 0x6b); GlobalSet(*fn, G_ASTACK)
+        for local: 0..fn.locals.count - 1 { AsyncLocal(*fn, cast(u32)local, false) }
+        GlobalGet(*fn, G_AFRAMES); I32Const(*fn, 1); Op(*fn, 0x6b); GlobalSet(*fn, G_AFRAMES)
+        GlobalGet(*fn, G_AFRAMES); Op(*fn, 0x45)
+        IfBegin(*fn); I32Const(*fn, ASYNC_NORMAL); GlobalSet(*fn, G_ASTATE); End(*fn)
+        Op(*fn, 0x05)
+        Raw(*fn.code, TextView(body.bytes[0:fn.prologue_end]))
+        Op(*fn, 0x0b)
+        Raw(*fn.code, TextView(body.bytes[fn.prologue_end:body.bytes.count]))
+        if fn.code.failed { return OutOfMemory(lower) }
+    }
+    return FnBody(*fn, output) && !lower.failed
+}
+
+// The zero of a wasm value type, for a suspended procedure's result.
+ZeroOf :: (fn: *Fn, type: u32) {
+    if type == W_I32 { I32Const(fn, 0) }
+    else if type == W_I64 { I64Const(fn, 0) }
+    else if type == W_F32 { Op(fn, 0x43); for at: 0..3 { Byte(*fn.code, 0) } }
+    else if type == W_F64 { Op(fn, 0x44); for at: 0..7 { Byte(*fn.code, 0) } }
+}

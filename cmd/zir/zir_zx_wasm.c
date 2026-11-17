@@ -2,7 +2,8 @@
  * zir_zx_wasm.c - revision-28 bundles executed as WebAssembly through the
  * installed provider. Mirrors the instruction engine's instance contract
  * so zir_host.c picks between engines at one seam. The module comes from
- * cmd/zx2wasm/zx_wasm_lower.c; its host calls and its globals cross as
+ * the engine's Wasm lowering (cmd/compiler_zx_wasm.zi); its host calls and
+ * its globals cross as
  * the engine's host images, which the bridge copies between the
  * instance's memory and ExecHosts, the embedding API's translation to
  * HostValue trees.
@@ -10,12 +11,14 @@
 #include "zir_zx_wasm.h"
 #include "zir_diagnostic.h"
 #include "zir_text.h"
-#include "../zx2wasm/zx_wasm_lower.h"
 #include "zir_zx_wasm_platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef ZIRAN_NO_ENGINE
+#include "compiler_zx_wasm.h"
 
 struct ZxWasm {
     /* The installed provider, its context this instance. */
@@ -37,6 +40,7 @@ struct ZxWasm {
     /* The image a state value of ZxWasmStateAt borrows. */
     unsigned char *state_image;
 };
+#endif
 
 static ZxWasmPlatform active_platform;
 static int platform_installed;
@@ -77,6 +81,8 @@ ZxWasmPlatformActive(void)
     return platform_installed ? &active_platform : NULL;
 }
 
+#ifndef ZIRAN_NO_ENGINE
+
 /* ---- Instance memory ---------------------------------------------------- */
 
 static int
@@ -104,10 +110,17 @@ zx_wasm_reserve(void *context, size_t size)
     return wasm->platform.allocate_state(wasm->platform.context, wasm->handle, size);
 }
 
+/* The lowering's memory callback takes a plain pointer. */
+static int
+zx_wasm_store(void *context, size_t address, void *source, size_t size)
+{
+    return zx_wasm_write(context, address, source, size);
+}
+
 static ZxWasmMemory
 zx_wasm_memory(ZxWasm *wasm)
 {
-    return (ZxWasmMemory){wasm, zx_wasm_read, zx_wasm_write, zx_wasm_reserve};
+    return (ZxWasmMemory){wasm, zx_wasm_read, zx_wasm_store, zx_wasm_reserve};
 }
 
 /* ---- Host calls --------------------------------------------------------- */
@@ -317,8 +330,8 @@ ZxWasmOpenExec(const ExecBundle *bundle, ExecFindBinding find, void *context, lo
         return NULL;
     }
     wasm->exec = bundle;
-    int lowered = active_platform.suspends ? ZxWasmLowerProgramSuspendable(ExecBundleProgram(bundle), &wasm->image)
-                                           : ZxWasmLowerProgram(ExecBundleProgram(bundle), &wasm->image);
+    int lowered = active_platform.suspends ? compiler_zx_wasm_LowerProgramSuspendable((LirProgram *)ExecBundleProgram(bundle), &wasm->image)
+                                           : compiler_zx_wasm_LowerProgram((LirProgram *)ExecBundleProgram(bundle), &wasm->image);
     if(!lowered)
         goto failed;
     wasm->hosts = ExecHostsOpen(bundle, find, context);
@@ -440,7 +453,7 @@ ZxWasmStateAt(ZxWasm *wasm, size_t index, const char **module, const char **name
     wasm->state_image = NULL;
     ZxWasmMemory memory = zx_wasm_memory(wasm);
     size_t size = 0;
-    if(!ZxWasmGlobalImage(ExecBundleProgram(wasm->exec), global, &wasm->image, &memory,
+    if(!compiler_zx_wasm_GlobalImage((LirProgram *)ExecBundleProgram(wasm->exec), global, &wasm->image, &memory,
                           &wasm->state_image, &size))
         return 0;
     return ExecHostsStateValue(wasm->hosts, index, wasm->state_image, size, value);
@@ -471,7 +484,7 @@ ZxWasmStateStore(ZxWasm *wasm, const HostValue *const *values)
         if(images[index] == NULL)
             continue;
         ok = ExecBundleStateAt(wasm->exec, index, &module, &name, &type, &global) &&
-             ZxWasmGlobalStore(ExecBundleProgram(wasm->exec), global, &wasm->image, &memory,
+             compiler_zx_wasm_GlobalStore((LirProgram *)ExecBundleProgram(wasm->exec), global, &wasm->image, &memory,
                                images[index], sizes[index]);
     }
     for(size_t index = 0; images != NULL && index < count; index++)
@@ -489,8 +502,36 @@ ZxWasmClose(ZxWasm *wasm)
     if(wasm->platform.release != NULL && wasm->handle != 0)
         wasm->platform.release(wasm->platform.context, wasm->handle);
     ExecHostsClose(wasm->hosts);
-    ZxWasmImageFree(&wasm->image);
+    compiler_zx_wasm_ImageFree(&wasm->image);
     free(wasm->host_of);
     free(wasm->state_image);
     free(wasm);
 }
+
+#else
+
+/* Bootstrap builds have no instruction engine, so no bundle runs as Wasm. */
+ZxWasm *
+ZxWasmOpenExec(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps)
+{
+    (void)bundle; (void)find; (void)context; (void)max_steps;
+    Diagnostic((ZirSourceSpan){0}, "wasm.container", "this build has no instruction engine");
+    return NULL;
+}
+int ZxWasmRun(ZxWasm *wasm, long long *result, int *has_result) { (void)wasm; (void)result; (void)has_result; return 0; }
+void ZxWasmLimitSteps(ZxWasm *wasm, long long max_steps) { (void)wasm; (void)max_steps; }
+void ZxWasmMatchFieldsByName(ZxWasm *wasm, int enabled) { (void)wasm; (void)enabled; }
+size_t ZxWasmLiveBytes(const ZxWasm *wasm) { (void)wasm; return 0; }
+size_t ZxWasmStateCount(const ZxWasm *wasm) { (void)wasm; return 0; }
+int
+ZxWasmStateAt(ZxWasm *wasm, size_t index, const char **module, const char **name, const char **type, HostValue *value)
+{
+    (void)wasm; (void)index; (void)module; (void)name; (void)type; (void)value;
+    return 0;
+}
+int ZxWasmStateStore(ZxWasm *wasm, const HostValue *const *values) { (void)wasm; (void)values; return 0; }
+void ZxWasmClose(ZxWasm *wasm) { (void)wasm; }
+int ZxWasmHostPrint(void *wasm, uint32_t service, int64_t argument) { (void)wasm; (void)service; (void)argument; return 0; }
+int ZxWasmHostCall(void *wasm, uint32_t index, uint32_t record) { (void)wasm; (void)index; (void)record; return 0; }
+
+#endif

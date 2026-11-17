@@ -1,0 +1,703 @@
+// Verified revision-28 executable ZX to one wasm32 module. Wasm is another
+// lowering of the one pipeline, .zi -> ZIR -> LIR -> verify -> LIR
+// optimizations -> .zx, beside the portable interpreter and native machine
+// code. The lowering reads only the decoded, verified executable payload, so
+// one .zx always gives the same .wasm bytes.
+//
+// Module ABI
+//   imports  (zx, overrun) () -> ()            a spent budget
+//            (zx, budget) mutable i64 global    charged by every LIR fuel
+//            (zx, host_i64) (i32, i64) -> i64   platform output, when used:
+//                index ZX_WASM_PRINT_*; a string is (length << 32 | address).
+//                The module formats integers and bools into a buffer of its
+//                own and hands over whole strings: when the entry returns,
+//                before a host call or float output, before a trap it raises,
+//                and when the buffer fills
+//            (zx, host) (i32, i32) -> i32       host capabilities, when used
+//   exports  zx_entry () -> i64, memory; with module initializers
+//            zx_initialize () -> (), which zx_entry calls first and a host
+//            may call to initialize an instance when it opens; with a heap
+//            zx_reserve (i32 bytes) -> i32 address (0 when memory runs out);
+//            with output zx_flush () -> (), which a host calls after a trap
+//            the module could not see coming, such as a division by zero
+//   custom   zxhost: each capability's module, function and parameter count,
+//            by capability index
+//
+// host(capability, record) mirrors the interpreter's typed host call. The
+// record holds one 16-byte entry per argument and then one for the result.
+// A scalar or pointer (an opaque handle) is its canonical u64 bits at +0. A
+// value of any other shape is a host image:
+//   +0 u32  image address        +4 u32  for a view, its elements' address
+//   +8 u32  image length         +12 u32 flags: the host sets bit 0 on a []T
+//           argument whose image elements it changed, and the module copies
+//           them back into the slice
+// A host image is the value's bytes followed by the elements of every view
+// inside it; a view's two words are the offset of its elements from the image
+// start and their count. The host writes the result entry: bits, or an image
+// it placed in a block from zx_reserve, which the module then owns. host
+// returns nonzero on success; zero traps.
+//
+// The heap serves the LIR resize instruction: blocks are zero-filled, freed
+// blocks are reused, and a request memory cannot hold gives null.
+// Unsupported forms fail with a named wasm.gap.* diagnostic and never select
+// another engine.
+using Vectors :: #import "vec"
+using LIR :: #import "compiler_lowered_ir"
+using Proven :: #import "compiler_lowered_proven"
+using Verify :: #import "compiler_lowered_verify"
+using Exec :: #import "compiler_exec_link"
+using Bundle :: #import "compiler_bundle"
+using Numbers :: #import "number_text"
+using Types :: #import "compiler_zx_wasm_types"
+using Code :: #import "compiler_zx_wasm_fn"
+using Body :: #import "compiler_zx_wasm_body"
+using Helpers :: #import "compiler_zx_wasm_helpers"
+
+// An instance's memory, for module state: read and write bytes, and reserve
+// zero-filled storage (zx_reserve), giving 0 when it cannot.
+MemoryRead :: #type (context: *void, address: usize, destination: *void, size: usize) -> s32 #c_call;
+MemoryWrite :: #type (context: *void, address: usize, source: *void, size: usize) -> s32 #c_call;
+MemoryReserve :: #type (context: *void, size: usize) -> usize #c_call;
+ZxWasmMemory :: struct {
+    context: *void
+    read: MemoryRead
+    write: MemoryWrite
+    reserve: MemoryReserve
+}
+
+LowerProgram :: (program: *LirProgram, image: *ZxWasmImage) -> bool {
+    if image == null { return false }
+    <<image = .{}
+    return program != null && LowerModule(program, image, false)
+}
+
+LowerProgramSuspendable :: (program: *LirProgram, image: *ZxWasmImage) -> bool {
+    if image == null { return false }
+    <<image = .{}
+    return program != null && LowerModule(program, image, true)
+}
+
+// Reads and verifies a revision-28 executable ZX image and lowers its payload.
+LowerExecutable :: (zx: *u8, size: usize, image: *ZxWasmImage) -> bool {
+    if image == null { return false }
+    <<image = .{}
+    if zx == null || size == 0 || size > IMAGE_LIMIT {
+        WasmDiagnose("wasm.container", "executable ZX input is empty or larger than the wasm32 image limit")
+        return false
+    }
+    owner: ZxExecOwner
+    read := ZxExecRead(*owner, View(zx, cast(s64)size), LirDefaultLimits())
+    if read.problem != .None {
+        codec: [24]u8
+        offset: [24]u8
+        verifier: [24]u8
+        names: [5]string = .[ZxExecProblemName(read.problem), ExecutableMessage(read.container),
+            FormatInteger(cast(s64)read.codec, codec[:]), FormatInteger(read.offset, offset[:]),
+            FormatInteger(cast(s64)read.diagnostic.problem, verifier[:])]
+        WasmDiagnose("wasm.container", Fill("executable ZX rejected: problem=@ container=@ codec=@ offset=@ verifier=@", names[:]))
+        ZxExecReadFree(*owner)
+        return false
+    }
+    program := ZxExecReadProgram(*owner)
+    diagnostic := LirVerify(program, LirDefaultLimits())
+    ok := false
+    if diagnostic.problem != .None {
+        digits: [6][24]u8
+        numbers: [6]s64 = .[cast(s64)diagnostic.problem, cast(s64)diagnostic.function, cast(s64)diagnostic.block,
+            cast(s64)diagnostic.instruction, cast(s64)diagnostic.value, cast(s64)diagnostic.origin]
+        names: [6]string
+        for at: 0..5 { names[at] = FormatInteger(numbers[at], digits[at][:]) }
+        WasmDiagnose("wasm.verify",
+            Fill("lowered IR rejected: problem=@ function=@ block=@ instruction=@ value=@ origin=@", names[:]))
+    } else {
+        ok = LowerModule(*program, image, false)
+    }
+    ZxExecReadFree(*owner)
+    return ok
+}
+
+ImageFree :: (image: *ZxWasmImage) {
+    if image == null { return }
+    for index: 0..cast(s64)image.capability_count - 1 { FreeCapability(*image.capabilities[index]) }
+    Free(cast(*void)image.capabilities)
+    Free(cast(*void)image.global_addresses)
+    Free(cast(*void)image.global_sizes)
+    Free(cast(*void)image.bytes)
+    <<image = .{}
+}
+
+// The image of a global's value in an instance: its bytes, with each view
+// turned into the offset and count of its elements appended after them.
+GlobalImage :: (program: *LirProgram, global: s32, module: *ZxWasmImage, memory: *ZxWasmMemory, image: **u8,
+                size: *usize) -> bool {
+    <<image = null
+    <<size = 0
+    if !StateGlobal(program, global, module) { return false }
+    state: StateImage
+    if !StateOpen(*state, program, memory) { return false }
+    declared := *program.globals[global]
+    width := cast(s64)module.global_sizes[global]
+    if (HostShape(*state.lower, declared.type) & SHAPE_VALID) == 0 || !VecResize(state.image, width) ||
+        width > 0 && memory.read(memory.context, cast(usize)module.global_addresses[global], cast(*void)*state.image[0], cast(usize)width) == 0 ||
+        !StateEncode(*state, declared.type, 0, 0) {
+        return false
+    }
+    if !VecPush(state.image, 0) { return false }
+    count := state.image.count - 1
+    <<image = CPointer(BuilderFinish(state.image))
+    <<size = cast(usize)count
+    return true
+}
+
+// Stores a global's image back into an instance, placing its views' elements
+// in fresh instance storage.
+GlobalStore :: (program: *LirProgram, global: s32, module: *ZxWasmImage, memory: *ZxWasmMemory, image: *u8,
+                size: usize) -> bool {
+    if !StateGlobal(program, global, module) { return false }
+    state: StateImage
+    if !StateOpen(*state, program, memory) { return false }
+    declared := *program.globals[global]
+    width := cast(usize)module.global_sizes[global]
+    if size < width || (HostShape(*state.lower, declared.type) & SHAPE_VALID) == 0 || !VecResize(state.image, cast(s64)size) {
+        return false
+    }
+    for at: 0..cast(s64)size - 1 { state.image[at] = image[at] }
+    return StatePlace(*state, declared.type, 0, 0) &&
+        (width == 0 || memory.write(memory.context, cast(usize)module.global_addresses[global], cast(*void)*state.image[0], width) != 0)
+}
+
+#scope_file
+
+FreeCapability :: (capability: *ZxWasmCapability) {
+    Free(cast(*void)capability.module)
+    Free(cast(*void)capability.function)
+    Free(cast(*void)capability.parameters)
+}
+
+TextDescriptor :: struct { data: *u8; length: usize }
+
+View :: (data: *u8, length: s64) -> string {
+    result := ""
+    descriptor := cast(*TextDescriptor)(*result)
+    descriptor.data = data
+    descriptor.length = cast(usize)length
+    return result
+}
+
+CPointer :: (value: string) -> *u8 { return (cast(*TextDescriptor)(*value)).data }
+
+// Type questions for state images, without lowering a module.
+StateImage :: struct {
+    lower: Lower
+    memory: *ZxWasmMemory
+    image: Vec(u8)
+}
+
+StateOpen :: (state: *StateImage, program: *LirProgram, memory: *ZxWasmMemory) -> bool {
+    state.memory = memory
+    state.lower.program = program
+    count := program.types.count
+    if !VecResize(state.lower.sizes, count) || !VecResize(state.lower.shapes, count) { return false }
+    for index: 0..count - 1 { state.lower.sizes[index] = -1 }
+    return true
+}
+
+StateGlobal :: (program: *LirProgram, global: s32, module: *ZxWasmImage) -> bool {
+    return program != null && module != null && global >= 0 && global < program.globals.count &&
+        cast(usize)global < module.global_count
+}
+
+StateRead :: (bytes: []u8, at: s64) -> u64 {
+    value: u64 = 0
+    for index: 0..7 { value |= cast(u64)bytes[at + index] << cast(u64)(8 * index) }
+    return value
+}
+
+StateWrite :: (bytes: []u8, at: s64, value: u64) {
+    for index: 0..7 { bytes[at + index] = cast(u8)((value >> cast(u64)(8 * index)) & 255) }
+}
+
+// Turns each view of the `type` value at image[at], whose words are still an
+// instance's pointer and count, into an image offset and count, appending the
+// elements read from memory.
+StateEncode :: (state: *StateImage, type: s32, at: s64, depth: s64) -> bool {
+    lower := *state.lower
+    if depth > 64 || (HostShape(lower, type) & SHAPE_VIEWS) == 0 { return depth <= 64 }
+    value := TypeAt(lower, type)
+    element := ViewElement(lower, type)
+    if element >= 0 {
+        pointer := StateRead(state.image[:], at)
+        count := StateRead(state.image[:], at + 8)
+        width := TypeSize(lower, element)
+        if count == 0 { StateWrite(state.image[:], at, 0); return true }
+        if width <= 0 || pointer > 0xffffffff || count > cast(u64)BLOCK_LIMIT / cast(u64)width { return false }
+        bytes := cast(s64)count * width
+        start := state.image.count
+        if !VecResize(state.image, start + bytes) ||
+            state.memory.read(state.memory.context, cast(usize)pointer, cast(*void)*state.image[start], cast(usize)bytes) == 0 {
+            return false
+        }
+        StateWrite(state.image[:], at, cast(u64)start)
+        if (HostShape(lower, element) & SHAPE_VIEWS) != 0 {
+            for index: 0..cast(s64)count - 1 {
+                if !StateEncode(state, element, start + index * width, depth + 1) { return false }
+            }
+        }
+        return true
+    }
+    if value.kind == .Array {
+        width := TypeSize(lower, value.element)
+        for index: 0..value.count - 1 {
+            if !StateEncode(state, value.element, at + index * width, depth + 1) { return false }
+        }
+        return true
+    }
+    offset: s64 = 0
+    for field: value.fields {
+        if !StateEncode(state, field, at + offset, depth + 1) { return false }
+        offset += TypeSize(lower, field)
+    }
+    return true
+}
+
+// Places the views of the `type` value at image[at] in fresh storage,
+// elements first, so each view's words become a pointer and count.
+StatePlace :: (state: *StateImage, type: s32, at: s64, depth: s64) -> bool {
+    lower := *state.lower
+    shape := HostShape(lower, type)
+    if depth > 64 || (shape & (SHAPE_VIEWS | SHAPE_BOOLS)) == 0 { return depth <= 64 }
+    value := TypeAt(lower, type)
+    size := cast(u64)state.image.count
+    if value.kind == .Bool { return state.image[at] <= 1 }
+    element := ViewElement(lower, type)
+    if element >= 0 {
+        start := StateRead(state.image[:], at)
+        count := StateRead(state.image[:], at + 8)
+        width := TypeSize(lower, element)
+        if count == 0 { return start == 0 }
+        if width <= 0 || start > size || count > (size - start) / cast(u64)width { return false }
+        for index: 0..cast(s64)count - 1 {
+            if !StatePlace(state, element, cast(s64)start + index * width, depth + 1) { return false }
+        }
+        length := cast(usize)count * cast(usize)width
+        address := state.memory.reserve(state.memory.context, length)
+        if address == 0 ||
+            state.memory.write(state.memory.context, address, cast(*void)*state.image[cast(s64)start], length) == 0 {
+            return false
+        }
+        StateWrite(state.image[:], at, cast(u64)address)
+        return true
+    }
+    if value.kind == .Array {
+        width := TypeSize(lower, value.element)
+        for index: 0..value.count - 1 {
+            if !StatePlace(state, value.element, at + index * width, depth + 1) { return false }
+        }
+        return true
+    }
+    offset: s64 = 0
+    for field: value.fields {
+        if !StatePlace(state, field, at + offset, depth + 1) { return false }
+        offset += TypeSize(lower, field)
+    }
+    return true
+}
+
+Section :: (module: *Buf, id: u64, content: *Buf) {
+    Byte(module, id)
+    Uleb(module, cast(u64)content.bytes.count)
+    Raw(module, TextView(content.bytes[:]))
+    if content.failed { module.failed = true }
+    unused VecResize(content.bytes, 0)
+}
+
+ScanProgram :: (lower: *Lower) -> bool {
+    functions := lower.program.functions
+    for function: functions {
+        for block: function.blocks {
+            for instruction: block.instructions {
+                code := instruction.op
+                symbol := instruction.symbol
+                if code == .HostCall && symbol >= 0 && symbol < functions.count {
+                    if lower.host_kind[symbol] == HOST_CAPABILITY { lower.uses_capability = true }
+                    else if lower.host_kind[symbol] != HOST_NONE {
+                        lower.uses_print = true
+                        lower.print_kinds |= cast(u32)1 << cast(u32)lower.host_kind[symbol]
+                    }
+                }
+                if code == .BytesEqual { lower.uses_bytes_equal = true }
+                if code == .FunctionAddress || code == .CallIndirect { lower.uses_table = true }
+                if code == .Resize { lower.uses_heap = true }
+                if code == .Copy || code == .Zero || code == .Invalid || cast(s64)code > cast(s64)LirOp.SquareRoot {
+                    return Gap(lower, "wasm.gap.instruction", SayName("LIR @ instructions are not lowered to wasm32", LirOpName(code)))
+                }
+            }
+        }
+    }
+    return true
+}
+
+// Which procedures can suspend: those with a host capability call or an
+// indirect call, and every procedure that calls one of them.
+PlanSuspends :: (lower: *Lower) -> bool {
+    count := lower.program.functions.count
+    if !VecResize(lower.suspends, count) { return OutOfMemory(lower) }
+    changed := true
+    while changed {
+        changed = false
+        for index: 0..count - 1 {
+            function := *lower.program.functions[index]
+            if function.external || lower.suspends[index] { continue }
+            for block: function.blocks {
+                if lower.suspends[index] { break }
+                for item: 0..block.instructions.count - 1 {
+                    if SuspensionSite(lower, *block.instructions[item]) { lower.suspends[index] = true; changed = true; break }
+                }
+            }
+        }
+    }
+    return true
+}
+
+MakeSig :: (types: []u32, result: u32) -> Sig {
+    sig: Sig
+    for type: types { sig.types[sig.params] = cast(u8)type; sig.params += 1 }
+    sig.result = result
+    return sig
+}
+
+// Frees what the lowering still owns: capabilities not handed to an image,
+// and the proof facts.
+Release :: (lower: *Lower) {
+    for index: 0..lower.capability_count - 1 { FreeCapability(*lower.capabilities[index]) }
+    Free(cast(*void)lower.capabilities)
+    LirProvenFree(*lower.proven)
+}
+
+Kind :: (lower: *Lower, kind: u32) -> bool { return (lower.print_kinds & (cast(u32)1 << kind)) != 0 }
+
+LowerModule :: (program: *LirProgram, image: *ZxWasmImage, suspendable: bool) -> bool {
+    lower: Lower
+    lower.suspendable = suspendable
+    lower.program = program
+    defer { Release(*lower) }
+    types := program.types.count
+    functions := program.functions.count
+    globals := program.globals.count
+    function_types: Vec(u32)
+    if !VecResize(lower.sizes, types) || !VecResize(lower.global_address, globals) || !VecResize(lower.host_kind, functions) ||
+        !VecResize(lower.host_index, functions) || !VecResize(lower.wasm_function, functions) || !VecResize(lower.shapes, types) ||
+        !VecResize(lower.needs, types) || !VecResize(lower.measure_function, types) ||
+        !VecResize(lower.encode_function, types) || !VecResize(lower.decode_function, types) ||
+        !VecResize(function_types, functions) {
+        return OutOfMemory(*lower)
+    }
+    // A program too large to prove keeps every check.
+    if LirProvenBuild(*lower.proven, <<program, LirDefaultLimits()).problem == .Allocation { return OutOfMemory(*lower) }
+    for index: 0..types - 1 { lower.sizes[index] = -1 }
+    if !ClassifyExternals(*lower) || !ScanProgram(*lower) || !LayoutGlobals(*lower) ||
+        lower.suspendable && !PlanSuspends(*lower) {
+        return false
+    }
+    if lower.uses_capability && lower.uses_images { lower.uses_heap = true }
+    // Imported state places the elements of a global's views with zx_reserve.
+    for global: program.globals {
+        if global.writable && (HostShape(*lower, global.type) & SHAPE_VIEWS) != 0 { lower.uses_heap = true }
+    }
+    if lower.uses_heap {
+        lower.free_table = DataReserve(*lower, 4 * CLASSES)
+        if lower.failed { return false }
+    }
+    if Kind(*lower, HOST_BOOL) {
+        lower.words_address = DataReserve(*lower, 9)
+        if lower.failed { return false }
+        words := "truefalse"
+        for at: 0..8 { lower.data.bytes[cast(s64)lower.words_address - DATA_BASE + at] = words[at] }
+    }
+    // Function index space: imports, LIR procedures, helpers, zx_entry.
+    next: u32 = 1
+    if lower.uses_print { lower.print_import = next; next += 1 }
+    if lower.uses_capability { lower.host_import = next; next += 1 }
+    lower.imports = next
+    for index: 0..functions - 1 {
+        if !program.functions[index].external { lower.wasm_function[index] = next; next += 1 }
+    }
+    if lower.uses_bytes_equal { lower.bytes_equal_function = next; next += 1 }
+    if lower.uses_table { lower.stub_function = next; next += 1 }
+    if lower.uses_heap {
+        lower.alloc_function = next; lower.free_function = next + 1
+        lower.resize_function = next + 2; lower.reserve_function = next + 3
+        next += 4
+    }
+    if lower.uses_print {
+        lower.flush_function = next; lower.put_function = next + 1
+        next += 2
+        if Kind(*lower, HOST_SIGNED) { lower.signed_function = next; next += 1 }
+        if Kind(*lower, HOST_UNSIGNED) { lower.unsigned_function = next; next += 1 }
+        if Kind(*lower, HOST_BOOL) { lower.bool_function = next; next += 1 }
+    }
+    for type: 0..types - 1 {
+        if Needs(*lower, cast(s32)type, NEED_ENCODE) {
+            lower.measure_function[type] = next; lower.encode_function[type] = next + 1
+            next += 2
+        }
+        if Needs(*lower, cast(s32)type, NEED_DECODE) { lower.decode_function[type] = next; next += 1 }
+    }
+    initializes := program.initializers.count > 0
+    if initializes { lower.initialize_function = next; next += 1 }
+    lower.entry_function = next
+    next += 1
+
+    one32: [1]u32 = .[W_I32]
+    one64: [1]u32 = .[W_I64]
+    pair: [2]u32 = .[W_I32, W_I32]
+    output: [2]u32 = .[W_I32, W_I64]
+    four: [4]u32 = .[W_I32, W_I64, W_I32, W_I64]
+    resizing: [4]u32 = .[W_I32, W_I64, W_I64, W_I32]
+    unit := MakeSig(one32[0:0], 0)
+    unit_type := SignatureIndex(*lower, *unit)
+    print_type: u32 = 0
+    host_type: u32 = 0
+    if lower.uses_print { sig := MakeSig(output[:], W_I64); print_type = SignatureIndex(*lower, *sig) }
+    if lower.uses_capability { sig := MakeSig(pair[:], W_I32); host_type = SignatureIndex(*lower, *sig) }
+    for index: 0..functions - 1 {
+        if lower.failed { break }
+        function := *program.functions[index]
+        if function.external { continue }
+        sig: Sig
+        if SignatureOf(*lower, function.parameters, function.result, *sig) { function_types[index] = SignatureIndex(*lower, *sig) }
+    }
+    bytes_type: u32 = 0
+    if lower.uses_bytes_equal { sig := MakeSig(four[:], W_I32); bytes_type = SignatureIndex(*lower, *sig) }
+    alloc_type: u32 = 0
+    address_type: u32 = 0
+    resize_type: u32 = 0
+    reserve_type: u32 = 0
+    measure_type: u32 = 0
+    encode_type: u32 = 0
+    put_type: u32 = 0
+    number_type: u32 = 0
+    flag_type: u32 = 0
+    address := MakeSig(one32[:], 0)
+    if lower.uses_print {
+        put := MakeSig(output[:], 0)
+        number := MakeSig(one64[:], 0)
+        put_type = SignatureIndex(*lower, *put)
+        number_type = SignatureIndex(*lower, *number)
+        flag_type = SignatureIndex(*lower, *address)
+    }
+    if lower.uses_heap {
+        alloc := MakeSig(pair[:], W_I32)
+        resize := MakeSig(resizing[:], W_I32)
+        reserve := MakeSig(one32[:], W_I32)
+        alloc_type = SignatureIndex(*lower, *alloc)
+        address_type = SignatureIndex(*lower, *address)
+        resize_type = SignatureIndex(*lower, *resize)
+        reserve_type = SignatureIndex(*lower, *reserve)
+    }
+    if lower.uses_images {
+        measure := MakeSig(one32[:], W_I64)
+        encode := MakeSig(pair[:], 0)
+        measure_type = SignatureIndex(*lower, *measure)
+        encode_type = SignatureIndex(*lower, *encode)
+        address_type = SignatureIndex(*lower, *address)
+    }
+    entry := MakeSig(one32[0:0], W_I64)
+    entry_type := SignatureIndex(*lower, *entry)
+
+    // Code first: constant blobs extend the data region while lowering; the
+    // helpers that follow need the heap base, known only after.
+    code: Buf
+    Uleb(*code, next - lower.imports)
+    for index: 0..functions - 1 {
+        if lower.failed { break }
+        if !program.functions[index].external && !LowerFunction(*lower, index, *code) { break }
+    }
+    if lower.failed { return false }
+    if lower.uses_bytes_equal { EmitBytesEqual(*lower, *code) }
+    if lower.uses_table { Uleb(*code, 3); Uleb(*code, 0); Byte(*code, 0x00); Byte(*code, 0x0b) }
+    data_end := DATA_BASE + lower.data.bytes.count
+    stack_base := cast(u32)((data_end + 15) & ~cast(s64)15)
+    // The output buffer lies between the data and the stack.
+    if lower.uses_print {
+        lower.out_base = stack_base
+        stack_base = cast(u32)((cast(s64)lower.out_base + OUT_REGION + 15) & ~cast(s64)15)
+    }
+    async_base: u32 = 0
+    if lower.suspendable {
+        async_base = stack_base
+        stack_base = async_base + ASYNC_SIZE
+    }
+    stack_limit := stack_base + STACK_SIZE
+    if lower.uses_heap {
+        EmitAlloc(*lower, *code)
+        EmitFree(*lower, *code)
+        EmitResize(*lower, *code)
+        EmitReserve(*lower, *code)
+    }
+    if lower.uses_print {
+        EmitFlush(*lower, *code)
+        EmitPut(*lower, *code)
+        if Kind(*lower, HOST_SIGNED) { EmitNumber(*lower, *code, true) }
+        if Kind(*lower, HOST_UNSIGNED) { EmitNumber(*lower, *code, false) }
+        if Kind(*lower, HOST_BOOL) { EmitBool(*lower, *code) }
+    }
+    for type: 0..types - 1 {
+        if lower.failed { break }
+        if Needs(*lower, cast(s32)type, NEED_ENCODE) {
+            EmitMeasure(*lower, cast(s32)type, *code)
+            EmitEncode(*lower, cast(s32)type, *code)
+        }
+        if Needs(*lower, cast(s32)type, NEED_DECODE) { EmitDecode(*lower, cast(s32)type, *code) }
+    }
+    if lower.failed || initializes && !EmitInitialize(*lower, *code, stack_base) || !EmitEntry(*lower, *code, stack_base) {
+        return false
+    }
+
+    module: Buf
+    content: Buf
+    magic: [8]u8 = .[0, #char "a", #char "s", #char "m", 1, 0, 0, 0]
+    Raw(*module, TextView(magic[:]))
+    // Type section.
+    Uleb(*content, cast(u64)lower.sigs.count)
+    for index: 0..lower.sigs.count - 1 {
+        sig := *lower.sigs[index]
+        Byte(*content, 0x60)
+        Uleb(*content, cast(u64)sig.params)
+        Raw(*content, TextView(sig.types[0:sig.params]))
+        Uleb(*content, ifx sig.result != 0 then 1 else 0)
+        if sig.result != 0 { Byte(*content, sig.result) }
+    }
+    Section(*module, 1, *content)
+    // Import section.
+    Uleb(*content, lower.imports + 1)
+    Name(*content, "zx"); Name(*content, "overrun")
+    Byte(*content, 0x00); Uleb(*content, unit_type)
+    if lower.uses_print { Name(*content, "zx"); Name(*content, "host_i64"); Byte(*content, 0x00); Uleb(*content, print_type) }
+    if lower.uses_capability { Name(*content, "zx"); Name(*content, "host"); Byte(*content, 0x00); Uleb(*content, host_type) }
+    Name(*content, "zx"); Name(*content, "budget")
+    Byte(*content, 0x03); Byte(*content, W_I64); Byte(*content, 0x01)
+    Section(*module, 2, *content)
+    // Function section.
+    Uleb(*content, next - lower.imports)
+    for index: 0..functions - 1 {
+        if !program.functions[index].external { Uleb(*content, function_types[index]) }
+    }
+    if lower.uses_bytes_equal { Uleb(*content, bytes_type) }
+    if lower.uses_table { Uleb(*content, unit_type) }
+    if lower.uses_heap {
+        Uleb(*content, alloc_type); Uleb(*content, address_type); Uleb(*content, resize_type); Uleb(*content, reserve_type)
+    }
+    if lower.uses_print {
+        Uleb(*content, unit_type)
+        Uleb(*content, put_type)
+        if Kind(*lower, HOST_SIGNED) { Uleb(*content, number_type) }
+        if Kind(*lower, HOST_UNSIGNED) { Uleb(*content, number_type) }
+        if Kind(*lower, HOST_BOOL) { Uleb(*content, flag_type) }
+    }
+    for type: 0..types - 1 {
+        if Needs(*lower, cast(s32)type, NEED_ENCODE) { Uleb(*content, measure_type); Uleb(*content, encode_type) }
+        if Needs(*lower, cast(s32)type, NEED_DECODE) { Uleb(*content, address_type) }
+    }
+    if initializes { Uleb(*content, unit_type) }
+    Uleb(*content, entry_type)
+    Section(*module, 3, *content)
+    // Table: slot 0 and external procedures trap; slot n + 1 is LIR @n.
+    if lower.uses_table {
+        Uleb(*content, 1); Byte(*content, 0x70); Byte(*content, 0x01)
+        Uleb(*content, cast(u64)functions + 1)
+        Uleb(*content, cast(u64)functions + 1)
+        Section(*module, 4, *content)
+    }
+    // Memory: data, a fixed stack, then the growable heap.
+    Uleb(*content, 1); Byte(*content, 0x00)
+    Uleb(*content, (stack_limit + 65535) / 65536)
+    Section(*module, 5, *content)
+    // Globals: stack pointer, initializer flag, stack limit, then the heap top
+    // and the image base, cursor, length and view depth.
+    count: s64 = ifx lower.suspendable then 13 else ifx lower.uses_images then 8 else ifx lower.uses_heap then 4 else 3
+    initial: [13]s64 = .[cast(s64)cast(s32)stack_base, 0, cast(s64)cast(s32)stack_limit, cast(s64)cast(s32)stack_limit,
+        0, 0, 0, 0, ASYNC_NORMAL, cast(s64)cast(s32)async_base, 0, cast(s64)cast(s32)(async_base + ASYNC_SIZE), 0]
+    Uleb(*content, cast(u64)count)
+    for index: 0..count - 1 {
+        Byte(*content, W_I32); Byte(*content, ifx index == 2 then 0x00 else 0x01)
+        Byte(*content, 0x41); Sleb(*content, initial[index]); Byte(*content, 0x0b)
+    }
+    Section(*module, 6, *content)
+    // Exports.
+    exports: u64 = 2
+    if lower.uses_heap { exports += 1 }
+    if initializes { exports += 1 }
+    if lower.uses_print { exports += 1 }
+    if lower.suspendable { exports += 1 }
+    Uleb(*content, exports)
+    if lower.suspendable { Name(*content, "zx_async_state"); Byte(*content, 0x03); Uleb(*content, G_ASTATE) }
+    Name(*content, "zx_entry"); Byte(*content, 0x00); Uleb(*content, lower.entry_function)
+    Name(*content, "memory"); Byte(*content, 0x02); Uleb(*content, 0)
+    if initializes { Name(*content, "zx_initialize"); Byte(*content, 0x00); Uleb(*content, lower.initialize_function) }
+    if lower.uses_heap { Name(*content, "zx_reserve"); Byte(*content, 0x00); Uleb(*content, lower.reserve_function) }
+    if lower.uses_print { Name(*content, "zx_flush"); Byte(*content, 0x00); Uleb(*content, lower.flush_function) }
+    Section(*module, 7, *content)
+    if lower.uses_table {
+        Uleb(*content, 1); Uleb(*content, 0)
+        Byte(*content, 0x41); Sleb(*content, 0); Byte(*content, 0x0b)
+        Uleb(*content, cast(u64)functions + 1)
+        Uleb(*content, lower.stub_function)
+        for index: 0..functions - 1 {
+            Uleb(*content, ifx program.functions[index].external then lower.stub_function else lower.wasm_function[index])
+        }
+        Section(*module, 9, *content)
+    }
+    Section(*module, 10, *code)
+    // Data: one segment at the data base, trailing zero bytes omitted.
+    used := lower.data.bytes.count
+    while used > 0 && lower.data.bytes[used - 1] == 0 { used -= 1 }
+    if used > 0 {
+        Uleb(*content, 1); Uleb(*content, 0)
+        Byte(*content, 0x41); Sleb(*content, DATA_BASE); Byte(*content, 0x0b)
+        Uleb(*content, cast(u64)used)
+        Raw(*content, TextView(lower.data.bytes[0:used]))
+        Section(*module, 11, *content)
+    }
+    // zxhost: each capability's identity, by capability index.
+    if lower.capability_count > 0 {
+        Name(*content, "zxhost")
+        Uleb(*content, cast(u64)lower.capability_count)
+        for index: 0..lower.capability_count - 1 {
+            capability := *lower.capabilities[index]
+            Name(*content, CText(capability.module))
+            Name(*content, CText(capability.function))
+            Uleb(*content, cast(u64)capability.parameter_count)
+        }
+        Section(*module, 0, *content)
+    }
+    if module.failed || content.failed || code.failed { return OutOfMemory(*lower) }
+    addresses := cast(*u32)Clear(cast(usize)(ifx globals > 0 then globals else 1), size_of(u32))
+    sizes := cast(*u32)Clear(cast(usize)(ifx globals > 0 then globals else 1), size_of(u32))
+    if addresses == null || sizes == null {
+        Free(cast(*void)addresses)
+        Free(cast(*void)sizes)
+        return OutOfMemory(*lower)
+    }
+    for index: 0..globals - 1 {
+        addresses[index] = lower.global_address[index]
+        sizes[index] = cast(u32)TypeSize(*lower, program.globals[index].type)
+    }
+    image.size = cast(usize)module.bytes.count
+    image.bytes = CPointer(BuilderFinish(module.bytes))
+    image.capabilities = lower.capabilities
+    image.capability_count = cast(usize)lower.capability_count
+    image.global_addresses = addresses
+    image.global_sizes = sizes
+    image.global_count = cast(usize)globals
+    image.returns = ifx TypeAt(*lower, program.functions[program.entry].result).kind != .Void then 1 else 0
+    lower.capabilities = null
+    lower.capability_count = 0
+    return true
+}
+
+CText :: (value: *u8) -> string {
+    length: s64 = 0
+    while value[length] != 0 { length += 1 }
+    return View(value, length)
+}

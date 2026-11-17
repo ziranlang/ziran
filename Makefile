@@ -239,12 +239,14 @@ obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # bootstrap compiler opens no bundle and has none.
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
-    compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt compiler_opt_ssa compiler_opt_rotate compiler_opt_loop compiler_opt_licm compiler_opt_induction compiler_opt_layout compiler_opt_inline compiler_opt_thread compiler_opt_dom compiler_learning compiler_learning_policy
-# The Wasm lowering of revision-28 ZX (cmd/zx2wasm/zx_wasm_lower.c) reads
-# the program through the same engine, under the same names.
+    compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt compiler_opt_ssa compiler_opt_rotate compiler_opt_loop compiler_opt_licm compiler_opt_induction compiler_opt_layout compiler_opt_inline compiler_opt_thread compiler_opt_dom compiler_learning compiler_learning_policy \
+    text_buffer number_text compiler_zx_wasm_types compiler_zx_wasm_fn compiler_zx_wasm_plan compiler_zx_wasm_code \
+    compiler_zx_wasm_body compiler_zx_wasm_helpers compiler_zx_wasm
+# The Wasm lowering of revision-28 ZX (cmd/compiler_zx_wasm*.zi) is part of
+# the engine; zir_zx_wasm.c and zx2wasm call it under the engine's names.
 # The native loader's per-architecture veneers are zir_host_native_<arch>.c.
 HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir/zir_host_native.c cmd/zir/zir_host_native_x86_64.c \
-    cmd/zir/zir_host_native_aarch64.c cmd/zir/zir_host_native_armv7.c cmd/zx2wasm/zx_wasm_lower.c
+    cmd/zir/zir_host_native_aarch64.c cmd/zir/zir_host_native_armv7.c cmd/zir/zir_zx_wasm.c
 ENGINE_NAMES := $(ENGINE_C)/engine_names.h
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=
@@ -256,10 +258,12 @@ ENGINE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/engine/%.o,$(ENGINE_MODULES))
 # generated assembly headers), and engine_names.h does not exist yet there.
 $(foreach object,$(call obj,$(HOST_EXEC_SOURCES)),$(eval $(object)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)))
 $(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_NAMES)
+$(call obj,cmd/zx2wasm/main.c)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)
+$(call obj,cmd/zx2wasm/main.c): $(ENGINE_NAMES)
 endif
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(NATIVE_NAMES_OBJECT) \
-    $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c)
+    $(call obj,cmd/zir/zir_zx_wasm_web.c)
 NATIVE_HOST_ENABLED := 1
 ifneq ($(findstring emcc,$(notdir $(firstword $(CC)))),)
 NATIVE_HOST_ENABLED := 0
@@ -760,7 +764,7 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 
 $(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_loop.zi cmd/compiler_opt_licm.zi cmd/compiler_opt_induction.zi cmd/compiler_opt_layout.zi cmd/compiler_opt_inline.zi cmd/compiler_opt_thread.zi cmd/compiler_opt_dom.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi \
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_lowered_ir.zi \
-    cmd/compiler_bundle.zi std/math.zi $(BOOTSTRAP_BIN)
+    cmd/compiler_bundle.zi std/math.zi std/text_buffer.zi std/number_text.zi $(wildcard cmd/compiler_zx_wasm*.zi) $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
 	    -o $(ENGINE_C) cmd/compiler_runtime.zi
 	touch $@

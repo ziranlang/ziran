@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 /* A revision-28 bundle instance running as WebAssembly: the verified
- * program lowered by cmd/zx2wasm/zx_wasm_lower.c and instantiated through
+ * program lowered by cmd/compiler_zx_wasm.zi and instantiated through
  * the installed provider (zir_zx_wasm_platform.h), with host calls and
  * module state translated by the embedding API's rules (ExecHosts).
  * Lowering and provider rejection fail the selected engine; the caller
@@ -46,7 +46,7 @@ void ZxWasmClose(ZxWasm *wasm);
 /* The (zx, host_i64) import: prints one value; 0 when it cannot. */
 int ZxWasmHostPrint(void *wasm, uint32_t service, int64_t argument);
 /* The (zx, host) import: capability `index` with the call record at
- * `record` in the instance's memory (zx_wasm_lower.h). Returns 1, or 0
+ * `record` in the instance's memory (cmd/compiler_zx_wasm.zi). Returns 1, or 0
  * when the call fails and the module traps. */
 int ZxWasmHostCall(void *wasm, uint32_t index, uint32_t record);
 

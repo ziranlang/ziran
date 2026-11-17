@@ -1,0 +1,928 @@
+// LIR instructions to wasm code. Blocks become nested wasm blocks; a
+// function with a backward edge that does not form structured loops, or
+// with a non-zero entry, runs one dispatch loop with a br_table instead.
+using Vectors :: #import "vec"
+using LIR :: #import "compiler_lowered_ir"
+using Types :: #import "compiler_zx_wasm_types"
+using Code :: #import "compiler_zx_wasm_fn"
+using Plan :: #import "compiler_zx_wasm_plan"
+
+// Emits positions start..last: a loop when `loop`, with a block label for
+// each of its own blocks after the first, and nested loops in turn.
+EmitRegion :: (fn: *Fn, start: s64, last: s64, loop: bool) {
+    if loop { LoopBegin(fn); LabelPush(fn, true, start) }
+    at := last
+    while at > start {
+        inner := false
+        header := start + 1
+        while header < at && !inner {
+            if fn.loop_end[header] >= at { inner = true }
+            header += 1
+        }
+        if !inner { BlockBegin(fn); LabelPush(fn, false, at) }
+        at -= 1
+    }
+    at = start
+    while at <= last && !fn.lower.failed {
+        if at > start { End(fn); unused VecResize(fn.labels, fn.labels.count - 1) }
+        if at > start && fn.loop_end[at] >= 0 {
+            EmitRegion(fn, at, fn.loop_end[at], true)
+            at = fn.loop_end[at] + 1
+            continue
+        }
+        block := fn.order[at]
+        code := *fn.function.blocks[block]
+        item: s64 = 0
+        while item < code.instructions.count && !fn.lower.failed {
+            LowerInstruction(fn, block, *code.instructions[item], fn.alloca_slot[fn.first[block] + item])
+            item += 1
+        }
+        at += 1
+    }
+    if loop { End(fn); unused VecResize(fn.labels, fn.labels.count - 1) }
+}
+
+BudgetStore :: (fn: *Fn) { if fn.has_budget { LocalGet(fn, fn.budget); GlobalSet(fn, G_BUDGET) } }
+BudgetLoad :: (fn: *Fn) { if fn.has_budget { GlobalGet(fn, G_BUDGET); LocalSet(fn, fn.budget) } }
+
+Epilogue :: (fn: *Fn) {
+    BudgetStore(fn)
+    if fn.has_frame { LocalGet(fn, fn.fp); GlobalSet(fn, G_SP) }
+}
+
+OperandCount :: (fn: *Fn, instruction: *LirInstruction, minimum: s64, maximum: s64) -> bool {
+    if instruction.operands.count < minimum || instruction.operands.count > maximum {
+        digits: [24]u8
+        names: [2]string = .[LirOpName(instruction.op), FormatInteger(instruction.operands.count, digits[:])]
+        return Gap(fn.lower, "wasm.gap.instruction", Fill("@ has @ operands", names[:]))
+    }
+    return true
+}
+
+LowerConstant :: (fn: *Fn, instruction: *LirInstruction) {
+    lower := fn.lower
+    if instruction.symbol < 0 || instruction.symbol >= lower.program.constants.count {
+        unused Gap(lower, "wasm.gap.constant", Say("constant c# is out of range", instruction.symbol))
+        return
+    }
+    constant := *lower.program.constants[instruction.symbol]
+    type := ValueType(fn, instruction.result)
+    lir := TypeAt(lower, type)
+    if !ValueScalar(fn, instruction.result) {
+        size := TypeSize(lower, type)
+        if lir.kind != .Array || size < 0 {
+            unused Gap(lower, "wasm.gap.constant", SayName("LIR @ constants", KindName(lir.kind)))
+            return
+        }
+        address := DataReserve(lower, size)
+        if lower.failed { return }
+        count := ifx constant.bytes.count < size then constant.bytes.count else size
+        for at: 0..count - 1 { lower.data.bytes[cast(s64)address - DATA_BASE + at] = constant.bytes[at] }
+        if size > 0 {
+            PushFull(fn, AddrOfSlot(fn, instruction.result))
+            I32Const(fn, address)
+            I32Const(fn, size)
+            MemoryCopy(fn)
+        }
+        return
+    }
+    bits := constant.bits
+    if lir.kind == .Bool { I32Const(fn, ifx bits != 0 then 1 else 0) }
+    else if lir.kind == .Integer {
+        bits &= IntegerMask(lir.bits)
+        if lir.bits == 64 { I64Const(fn, cast(s64)bits) } else { I32Const(fn, cast(s64)bits) }
+    } else if lir.kind == .Float {
+        Op(fn, ifx lir.bits == 32 then 0x43 else 0x44)
+        width := ifx lir.bits == 32 then 4 else 8
+        for at: 0..width - 1 { Byte(*fn.code, bits >> cast(u64)(8 * at)) }
+    } else if lir.kind == .Pointer || lir.kind == .Function {
+        if bits != 0 { unused Gap(lower, "wasm.gap.constant", "non-null address constant"); return }
+        I32Const(fn, 0)
+    } else {
+        unused Gap(lower, "wasm.gap.constant", SayName("LIR @ constants", KindName(lir.kind)))
+        return
+    }
+    Set(fn, instruction.result)
+}
+
+LowerBinary :: (fn: *Fn, instruction: *LirInstruction) {
+    lower := fn.lower
+    if !OperandCount(fn, instruction, 2, 2) { return }
+    left := instruction.operands[0]
+    right := instruction.operands[1]
+    type := ValueLir(fn, left)
+    wasm := ValueWasm(fn, left)
+    code := instruction.op
+    if type.kind == .Float {
+        base: u64 = ifx type.bits == 32 then 0x92 else 0xa0
+        opcode: u64 = 0
+        if code == .Add { opcode = base }
+        else if code == .Subtract { opcode = base + 1 }
+        else if code == .Multiply { opcode = base + 2 }
+        else if code == .Divide { opcode = base + 3 }
+        else { unused Gap(lower, "wasm.gap.float-operator", SayName("float @", LirOpName(code))); return }
+        Get(fn, left); Get(fn, right); Op(fn, opcode)
+        Set(fn, instruction.result)
+        return
+    }
+    if type.kind != .Integer || wasm != W_I32 && wasm != W_I64 {
+        unused Gap(lower, "wasm.gap.operator", SayName("arithmetic on LIR @", KindName(type.kind)))
+        return
+    }
+    wide := wasm == W_I64
+    sign := type.is_signed
+    if code == .ShiftLeft || code == .ShiftRight {
+        count_type := ValueLir(fn, right)
+        count_wasm := ValueWasm(fn, right)
+        if count_type.kind != .Integer {
+            unused Gap(lower, "wasm.gap.operator", SayName("shift count of LIR @", KindName(count_type.kind)))
+            return
+        }
+        Get(fn, right)
+        if count_wasm == W_I64 { I64Const(fn, type.bits); Op(fn, 0x5a) } else { I32Const(fn, type.bits); Op(fn, 0x4f) }
+        TrapIf(fn)
+        if code == .ShiftRight && sign { GetSigned(fn, left) } else { Get(fn, left) }
+        Get(fn, right)
+        if wide && count_wasm == W_I32 { Op(fn, 0xad) }
+        if !wide && count_wasm == W_I64 { Op(fn, 0xa7) }
+        if code == .ShiftLeft { Op(fn, ifx wide then 0x86 else 0x74) }
+        else { Op(fn, ifx wide then (ifx sign then 0x87 else 0x88) else (ifx sign then 0x75 else 0x76)) }
+        Canonical(fn, type)
+        Set(fn, instruction.result)
+        return
+    }
+    if (code == .Divide || code == .Remainder) && sign && !IntegerSmall(type) {
+        // Wasm traps on MIN / -1; the interpreter defines MIN and 0.
+        Get(fn, right)
+        if wide { I64Const(fn, -1); Op(fn, 0x51) } else { I32Const(fn, -1); Op(fn, 0x46) }
+        Op(fn, 0x04); Op(fn, ifx wide then W_I64 else W_I32)
+        if code == .Divide {
+            if wide { I64Const(fn, 0); Get(fn, left); Op(fn, 0x7d) } else { I32Const(fn, 0); Get(fn, left); Op(fn, 0x6b) }
+        } else if wide { I64Const(fn, 0) } else { I32Const(fn, 0) }
+        Op(fn, 0x05)
+        Get(fn, left); Get(fn, right)
+        Op(fn, ifx code == .Divide then (ifx wide then 0x7f else 0x6d) else (ifx wide then 0x81 else 0x6f))
+        Op(fn, 0x0b)
+        Set(fn, instruction.result)
+        return
+    }
+    if sign && (code == .Divide || code == .Remainder) { GetSigned(fn, left); GetSigned(fn, right) }
+    else { Get(fn, left); Get(fn, right) }
+    opcode: u64 = 0
+    if code == .Add { opcode = ifx wide then 0x7c else 0x6a }
+    else if code == .Subtract { opcode = ifx wide then 0x7d else 0x6b }
+    else if code == .Multiply { opcode = ifx wide then 0x7e else 0x6c }
+    else if code == .Divide { opcode = ifx wide then (ifx sign then 0x7f else 0x80) else (ifx sign then 0x6d else 0x6e) }
+    else if code == .Remainder { opcode = ifx wide then (ifx sign then 0x81 else 0x82) else (ifx sign then 0x6f else 0x70) }
+    else if code == .BitAnd { opcode = ifx wide then 0x83 else 0x71 }
+    else if code == .BitOr { opcode = ifx wide then 0x84 else 0x72 }
+    else if code == .BitXor { opcode = ifx wide then 0x85 else 0x73 }
+    else { unused Gap(lower, "wasm.gap.operator", Say("integer operator #", cast(s64)code)); return }
+    Op(fn, opcode)
+    Canonical(fn, type)
+    Set(fn, instruction.result)
+}
+
+LowerCompare :: (fn: *Fn, instruction: *LirInstruction) {
+    if !OperandCount(fn, instruction, 2, 2) { return }
+    type := ValueLir(fn, instruction.operands[0])
+    wasm := ValueWasm(fn, instruction.operands[0])
+    relation := cast(s64)instruction.op - cast(s64)LirOp.Equal // eq ne lt le gt ge
+    float32: [6]u64 = .[0x5b, 0x5c, 0x5d, 0x5f, 0x5e, 0x60]
+    float64: [6]u64 = .[0x61, 0x62, 0x63, 0x65, 0x64, 0x66]
+    i32s: [6]u64 = .[0x46, 0x47, 0x48, 0x4c, 0x4a, 0x4e]
+    i32u: [6]u64 = .[0x46, 0x47, 0x49, 0x4d, 0x4b, 0x4f]
+    i64s: [6]u64 = .[0x51, 0x52, 0x53, 0x57, 0x55, 0x59]
+    i64u: [6]u64 = .[0x51, 0x52, 0x54, 0x58, 0x56, 0x5a]
+    if relation < 0 || relation > 5 || wasm == 0 {
+        unused Gap(fn.lower, "wasm.gap.compare", SayName("comparison of LIR @", KindName(type.kind)))
+        return
+    }
+    sign := type.kind == .Integer && type.is_signed
+    if sign { GetSigned(fn, instruction.operands[0]); GetSigned(fn, instruction.operands[1]) }
+    else { Get(fn, instruction.operands[0]); Get(fn, instruction.operands[1]) }
+    if wasm == W_F32 { Op(fn, float32[relation]) }
+    else if wasm == W_F64 { Op(fn, float64[relation]) }
+    else if wasm == W_I64 { Op(fn, ifx sign then i64s[relation] else i64u[relation]) }
+    else { Op(fn, ifx sign then i32s[relation] else i32u[relation]) }
+    Set(fn, instruction.result)
+}
+
+LowerUnary :: (fn: *Fn, instruction: *LirInstruction) {
+    if !OperandCount(fn, instruction, 1, 1) { return }
+    source := instruction.operands[0]
+    type := ValueLir(fn, source)
+    wasm := ValueWasm(fn, source)
+    if type.kind == .Float && (instruction.op == .Negate || instruction.op == .SquareRoot) {
+        Get(fn, source)
+        Op(fn, ifx instruction.op == .SquareRoot then 0x9f else (ifx wasm == W_F32 then 0x8c else 0x9a))
+    } else if type.kind == .Integer {
+        if instruction.op == .Negate {
+            if wasm == W_I64 { I64Const(fn, 0); Get(fn, source); Op(fn, 0x7d) } else { I32Const(fn, 0); Get(fn, source); Op(fn, 0x6b) }
+        } else {
+            Get(fn, source)
+            if wasm == W_I64 { I64Const(fn, -1); Op(fn, 0x85) } else { I32Const(fn, -1); Op(fn, 0x73) }
+        }
+        Canonical(fn, type)
+    } else {
+        unused Gap(fn.lower, "wasm.gap.operator", SayName("unary operator on LIR @", KindName(type.kind)))
+        return
+    }
+    Set(fn, instruction.result)
+}
+
+// Narrow float-to-integer results must fit their destination.
+CheckNarrow :: (fn: *Fn, destination: *LirType) {
+    if !IntegerSmall(destination) { return }
+    temp := FnTemp(fn, W_I32, 0)
+    LocalSet(fn, temp)
+    LocalGet(fn, temp)
+    if destination.is_signed {
+        Op(fn, ifx destination.bits == 8 then 0xc0 else 0xc1)
+        LocalGet(fn, temp)
+        Op(fn, 0x47)
+    } else {
+        I32Const(fn, cast(s64)IntegerMask(destination.bits))
+        Op(fn, 0x4b)
+    }
+    TrapIf(fn)
+    LocalGet(fn, temp)
+    Canonical(fn, destination)
+}
+
+ConvertGap :: (fn: *Fn, text: string, from: *LirType, to: *LirType) {
+    names: [2]string = .[KindName(from.kind), KindName(to.kind)]
+    unused Gap(fn.lower, "wasm.gap.convert", Fill(text, names[:]))
+}
+
+LowerConvert :: (fn: *Fn, instruction: *LirInstruction) {
+    if !OperandCount(fn, instruction, 1, 1) { return }
+    source := instruction.operands[0]
+    from := ValueLir(fn, source)
+    to := ValueLir(fn, instruction.result)
+    from_wasm := ValueWasm(fn, source)
+    to_wasm := ValueWasm(fn, instruction.result)
+    if from_wasm == 0 || to_wasm == 0 { ConvertGap(fn, "conversion between LIR @ and @", from, to); return }
+    if instruction.op == .Bitcast {
+        Get(fn, source)
+        if from_wasm == W_I64 && to_wasm == W_F64 { Op(fn, 0xbf) }
+        else if from_wasm == W_F64 && to_wasm == W_I64 { Op(fn, 0xbd) }
+        else if from_wasm == W_I32 && to_wasm == W_F32 { Op(fn, 0xbe) }
+        else if from_wasm == W_F32 && to_wasm == W_I32 { Op(fn, 0xbc) }
+        else if from_wasm == W_I32 && to_wasm == W_I64 { Op(fn, 0xad) }
+        else if from_wasm == W_I64 && to_wasm == W_I32 { Op(fn, 0xa7) }
+        else if from_wasm != to_wasm { ConvertGap(fn, "bitcast between LIR @ and @", from, to); return }
+        if to.kind == .Bool {
+            if to_wasm == W_I64 { Op(fn, 0xa7) }
+            I32Const(fn, 0); Op(fn, 0x47)
+        }
+        Canonical(fn, to)
+        Set(fn, instruction.result)
+        return
+    }
+    if from.kind == .Bool && to.kind == .Integer {
+        Get(fn, source)
+        if to_wasm == W_I64 { Op(fn, 0xad) }
+    } else if from.kind == .Integer && to.kind == .Bool {
+        Get(fn, source)
+        Op(fn, ifx from_wasm == W_I64 then 0x50 else 0x45)
+        Op(fn, 0x45)
+    } else if from.kind == .Integer && to.kind == .Integer {
+        GetSigned(fn, source)
+        if from_wasm == W_I32 && to_wasm == W_I64 { Op(fn, ifx from.is_signed then 0xac else 0xad) }
+        else if from_wasm == W_I64 && to_wasm == W_I32 { Op(fn, 0xa7) }
+        Canonical(fn, to)
+    } else if from.kind == .Integer && to.kind == .Float {
+        GetSigned(fn, source)
+        sign := from.is_signed
+        if to_wasm == W_F32 { Op(fn, ifx from_wasm == W_I64 then (ifx sign then 0xb4 else 0xb5) else (ifx sign then 0xb2 else 0xb3)) }
+        else { Op(fn, ifx from_wasm == W_I64 then (ifx sign then 0xb9 else 0xba) else (ifx sign then 0xb7 else 0xb8)) }
+    } else if from.kind == .Float && to.kind == .Float {
+        Get(fn, source)
+        if from_wasm == W_F64 && to_wasm == W_F32 { Op(fn, 0xb6) }
+        else if from_wasm == W_F32 && to_wasm == W_F64 { Op(fn, 0xbb) }
+    } else if from.kind == .Float && to.kind == .Integer {
+        Get(fn, source)
+        single := from_wasm == W_F32
+        sign := to.is_signed
+        if to_wasm == W_I64 { Op(fn, ifx single then (ifx sign then 0xae else 0xaf) else (ifx sign then 0xb0 else 0xb1)) }
+        else { Op(fn, ifx single then (ifx sign then 0xa8 else 0xa9) else (ifx sign then 0xaa else 0xab)) }
+        CheckNarrow(fn, to)
+    } else {
+        ConvertGap(fn, "conversion from LIR @ to @", from, to)
+        return
+    }
+    Set(fn, instruction.result)
+}
+
+// Leaves the byte offset `index * size` as i32 on the stack after checking
+// index < count; index and count are integer values or count is constant.
+// A build without --checks, or an index the shared facts prove below every
+// count it can meet, needs no check.
+CheckedIndex :: (fn: *Fn, index: s32, count_value: s32, count_constant: s64, size: s64) {
+    owner: s32 = -1
+    if fn.instruction != null && fn.instruction.result >= 0 && fn.instruction.result < fn.function.values.count {
+        owner = fn.instruction.result
+    }
+    checked := fn.lower.program.checks || fn.instruction != null && fn.instruction.checked
+    if !checked || owner >= 0 && fn.proven.count > 0 && fn.proven[owner] {
+        GetI64(fn, index, false)
+        if size != 1 { I64Const(fn, size); Op(fn, 0x7e) }
+        Op(fn, 0xa7)
+        return
+    }
+    temp := FnTemp(fn, W_I64, 0)
+    GetI64(fn, index, false)
+    LocalSet(fn, temp)
+    LocalGet(fn, temp)
+    if count_value >= 0 { GetI64(fn, count_value, false) } else { I64Const(fn, count_constant) }
+    Op(fn, 0x5a) // i64.ge_u
+    TrapIf(fn)
+    LocalGet(fn, temp)
+    if size != 1 { I64Const(fn, size); Op(fn, 0x7e) }
+    Op(fn, 0xa7)
+}
+
+PRINT_STRING :: -1
+PRINT_FLOAT64 :: -4
+PRINT_FLOAT32 :: -5
+
+LowerExtractInsert :: (fn: *Fn, instruction: *LirInstruction) {
+    lower := fn.lower
+    insert := instruction.op == .Insert
+    fixed: s64 = ifx insert then 2 else 1
+    if !OperandCount(fn, instruction, fixed, fixed + 1) { return }
+    aggregate := instruction.operands[0]
+    if ValueScalar(fn, aggregate) {
+        unused Gap(lower, "wasm.gap.aggregate", SayName("@ of a scalar value", ifx insert then "insert" else "extract"))
+        return
+    }
+    aggregate_type := ValueType(fn, aggregate)
+    // A read view needs only its address.
+    if !insert && fn.view.count > 0 && fn.view[instruction.result].kind >= 0 {
+        if instruction.operands.count == fixed + 1 {
+            type := TypeAt(lower, aggregate_type)
+            CheckedIndex(fn, instruction.operands[fixed], -1, type.count, TypeSize(lower, type.element))
+            PushFull(fn, AddrOfSlot(fn, aggregate))
+            Op(fn, 0x6a)
+            LocalSet(fn, fn.view[instruction.result].local)
+        }
+        return
+    }
+    if insert && fn.elided.count > 0 && fn.elided[instruction.result] { return }
+    target := ifx insert then instruction.result else aggregate
+    // An insert whose result shares its source's place updates in place.
+    to := AddrOfSlot(fn, instruction.result)
+    from := AddrOfSlot(fn, aggregate)
+    if insert && !SamePlace(to, from) { CopyFixed(fn, to, from, TypeSize(lower, aggregate_type)) }
+    place := AddrOfSlot(fn, target)
+    if instruction.operands.count == fixed + 1 {
+        type := TypeAt(lower, aggregate_type)
+        if type.kind != .Array {
+            unused Gap(lower, "wasm.gap.aggregate", SayName("dynamic member of a LIR @", KindName(type.kind)))
+            return
+        }
+        address := FnTemp(fn, W_I32, 1)
+        CheckedIndex(fn, instruction.operands[fixed], -1, type.count, TypeSize(lower, type.element))
+        PushFull(fn, place)
+        Op(fn, 0x6a)
+        LocalSet(fn, address)
+        place = .{.kind = ADDR_LOCAL, .local = address}
+    } else {
+        offset: s64
+        member_type: s32
+        if !MemberOffset(fn, aggregate_type, instruction.immediate, *offset, *member_type) {
+            unused Gap(lower, "wasm.gap.aggregate", Say("member # is outside its aggregate", cast(s64)instruction.immediate))
+            return
+        }
+        place.offset += offset
+    }
+    if insert { StoreValue(fn, place, instruction.operands[1]) } else { LoadValue(fn, place, instruction.result) }
+}
+
+LowerAggregate :: (fn: *Fn, instruction: *LirInstruction) {
+    type := ValueType(fn, instruction.result)
+    lir := TypeAt(fn.lower, type)
+    expected := ifx lir.kind == .Array then lir.count else lir.fields.count
+    if ValueScalar(fn, instruction.result) || instruction.operands.count != expected {
+        digits: [24]u8
+        names: [2]string = .[KindName(lir.kind), FormatInteger(instruction.operands.count, digits[:])]
+        unused Gap(fn.lower, "wasm.gap.aggregate", Fill("aggregate of LIR @ with @ operands", names[:]))
+        return
+    }
+    base := AddrOfSlot(fn, instruction.result)
+    skips := fn.omitted[instruction.result]
+    at: s64 = 0
+    for index: 0..instruction.operands.count - 1 {
+        place := base
+        place.offset += at
+        if skips < 0 || !fn.omitted_bits[skips + index] { StoreValue(fn, place, instruction.operands[index]) }
+        at += TypeSize(fn.lower, ValueType(fn, instruction.operands[index]))
+    }
+}
+
+LowerAddress :: (fn: *Fn, instruction: *LirInstruction) {
+    lower := fn.lower
+    count := instruction.operands.count
+    if count < 1 || count > 4 { unused OperandCount(fn, instruction, 1, 4); return }
+    pointer := ValueLir(fn, instruction.operands[0])
+    result := ValueLir(fn, instruction.result)
+    if pointer.kind != .Pointer || result.kind != .Pointer {
+        unused Gap(lower, "wasm.gap.address", SayName("address of LIR @", KindName(pointer.kind)))
+        return
+    }
+    base_type := pointer.element
+    if instruction.op == .FieldAddress && count == 1 {
+        offset: s64
+        member_type: s32
+        if !MemberOffset(fn, base_type, instruction.immediate, *offset, *member_type) { Op(fn, 0x00); return }
+        Get(fn, instruction.operands[0])
+        if offset != 0 { I32Const(fn, offset); Op(fn, 0x6a) }
+        Set(fn, instruction.result)
+        return
+    }
+    if instruction.op != .ElementAddress || count < 2 {
+        digits: [24]u8
+        names: [2]string = .[ifx instruction.op == .FieldAddress then "field.address" else "element.address",
+            FormatInteger(count, digits[:])]
+        unused Gap(lower, "wasm.gap.address", Fill("@ with @ operands", names[:]))
+        return
+    }
+    if count == 2 {
+        aggregate := TypeAt(lower, base_type)
+        if aggregate.kind != .Array {
+            unused Gap(lower, "wasm.gap.address", SayName("dynamic member of a LIR @", KindName(aggregate.kind)))
+            return
+        }
+        CheckedIndex(fn, instruction.operands[1], -1, aggregate.count, TypeSize(lower, aggregate.element))
+        Get(fn, instruction.operands[0])
+        Op(fn, 0x6a)
+        Set(fn, instruction.result)
+        return
+    }
+    size := TypeSize(lower, base_type)
+    if size < 0 { unused Gap(lower, "wasm.gap.address", "element of unbounded size"); return }
+    if count == 3 {
+        CheckedIndex(fn, instruction.operands[1], instruction.operands[2], 0, size)
+        Get(fn, instruction.operands[0])
+        Op(fn, 0x6a)
+        Set(fn, instruction.result)
+        return
+    }
+    // Slice: with --checks low <= high <= count and a null base needs all
+    // zero; an empty slice keeps its base.
+    low := FnTemp(fn, W_I64, 0)
+    high := FnTemp(fn, W_I64, 1)
+    GetI64(fn, instruction.operands[1], false); LocalSet(fn, low)
+    GetI64(fn, instruction.operands[2], false); LocalSet(fn, high)
+    if lower.program.checks || instruction.checked {
+        LocalGet(fn, low); LocalGet(fn, high); Op(fn, 0x56) // low > high
+        LocalGet(fn, high); GetI64(fn, instruction.operands[3], false); Op(fn, 0x56) // high > count
+        Op(fn, 0x72)
+        Get(fn, instruction.operands[0]); Op(fn, 0x45)
+        GetI64(fn, instruction.operands[3], false); Op(fn, 0x50); Op(fn, 0x45) // count != 0
+        Op(fn, 0x71)
+        Op(fn, 0x72)
+        TrapIf(fn)
+    }
+    Get(fn, instruction.operands[0])
+    LocalGet(fn, low)
+    if size != 1 { I64Const(fn, size); Op(fn, 0x7e) }
+    Op(fn, 0xa7)
+    Op(fn, 0x6a)
+    Get(fn, instruction.operands[0])
+    LocalGet(fn, low); LocalGet(fn, high); Op(fn, 0x52) // low != high
+    Op(fn, 0x1b) // select
+    Set(fn, instruction.result)
+}
+
+LowerMemory :: (fn: *Fn, instruction: *LirInstruction) {
+    if instruction.op == .Load {
+        if !OperandCount(fn, instruction, 1, 1) { return }
+        if !ValueScalar(fn, instruction.operands[0]) { unused Gap(fn.lower, "wasm.gap.load", "address is not a pointer value"); return }
+        if fn.view[instruction.result].kind >= 0 { return }
+        LoadValue(fn, .{.kind = ADDR_LOCAL, .local = cast(u32)fn.value_local[instruction.operands[0]]}, instruction.result)
+        return
+    }
+    if !OperandCount(fn, instruction, 2, 2) { return }
+    if !ValueScalar(fn, instruction.operands[0]) { unused Gap(fn.lower, "wasm.gap.store", "address is not a pointer value"); return }
+    StoreValue(fn, .{.kind = ADDR_LOCAL, .local = cast(u32)fn.value_local[instruction.operands[0]]}, instruction.operands[1])
+}
+
+LowerAllocate :: (fn: *Fn, instruction: *LirInstruction, slot: s64) {
+    pointer := ValueLir(fn, instruction.result)
+    size := TypeSize(fn.lower, pointer.element)
+    if pointer.kind != .Pointer || size < 0 || slot < 0 {
+        unused Gap(fn.lower, "wasm.gap.allocate", "allocation of an unbounded value")
+        return
+    }
+    place := Addr.{.kind = ADDR_FRAME, .offset = slot}
+    if instruction.operands.count == 1 { StoreValue(fn, place, instruction.operands[0]) }
+    else if size > 0 { PushFull(fn, place); I32Const(fn, 0); I32Const(fn, size); MemoryFill(fn) }
+    PushFull(fn, place)
+    Set(fn, instruction.result)
+}
+
+LowerCall :: (fn: *Fn, instruction: *LirInstruction) {
+    lower := fn.lower
+    indirect := instruction.op == .CallIndirect
+    parameters: []s32
+    result_type: s32
+    if indirect {
+        if instruction.operands.count < 1 { unused OperandCount(fn, instruction, 1, 1); return }
+        callee := ValueLir(fn, instruction.operands[0])
+        if callee.kind != .Function {
+            unused Gap(lower, "wasm.gap.call", SayName("indirect call through LIR @", KindName(callee.kind)))
+            return
+        }
+        parameters = callee.parameters
+        result_type = callee.result
+    } else {
+        if instruction.symbol < 0 || instruction.symbol >= lower.program.functions.count {
+            unused Gap(lower, "wasm.gap.call", Say("call target @# is out of range", instruction.symbol))
+            return
+        }
+        callee := *lower.program.functions[instruction.symbol]
+        if callee.external {
+            unused Gap(lower, "wasm.gap.call", SayName("direct call to external procedure @", callee.name))
+            return
+        }
+        parameters = callee.parameters
+        result_type = callee.result
+    }
+    skip: s64 = ifx indirect then 1 else 0
+    if instruction.operands.count - skip != parameters.count {
+        unused Gap(lower, "wasm.gap.call", "call argument count differs from its procedure")
+        return
+    }
+    suspends := fn.async && SuspensionSite(lower, instruction)
+    if suspends { SegmentBoundary(fn) }
+    aggregate_result := TypeAggregate(lower, result_type)
+    if aggregate_result {
+        if instruction.result == LirNoId { unused Gap(lower, "wasm.gap.call", "discarded aggregate result"); return }
+        PushFull(fn, AddrOfSlot(fn, instruction.result))
+    }
+    for index: skip..instruction.operands.count - 1 {
+        operand := instruction.operands[index]
+        if ValueScalar(fn, operand) { Get(fn, operand) } else { PushFull(fn, AddrOfSlot(fn, operand)) }
+    }
+    BudgetStore(fn)
+    if indirect {
+        sig: Sig
+        if !SignatureOf(lower, parameters, result_type, *sig) { return }
+        Get(fn, instruction.operands[0])
+        OpU(fn, 0x11, SignatureIndex(lower, *sig))
+        Byte(*fn.code, 0)
+    } else {
+        OpU(fn, 0x10, lower.wasm_function[instruction.symbol])
+    }
+    BudgetLoad(fn)
+    if !aggregate_result && ValType(lower, result_type) != 0 {
+        if instruction.result == LirNoId { Op(fn, 0x1a) } else { Set(fn, instruction.result) }
+    }
+    if suspends { UnwindCheck(fn) }
+}
+
+// Pushes the header address of the heap block whose payload is the i32
+// local `address`.
+BlockHeader :: (fn: *Fn, address: u32) { LocalGet(fn, address); I32Const(fn, 16); Op(fn, 0x6b) }
+
+// Traps unless `address` (an i32 local) is the payload of a heap block in `state`.
+CheckBlock :: (fn: *Fn, address: u32, state: s64) {
+    LocalGet(fn, address); GlobalGet(fn, G_LIMIT); I32Const(fn, 16); Op(fn, 0x6a); Op(fn, 0x49)
+    LocalGet(fn, address); GlobalGet(fn, G_TOP); Op(fn, 0x4f); Op(fn, 0x72)
+    LocalGet(fn, address); I32Const(fn, 15); Op(fn, 0x71); Op(fn, 0x72)
+    TrapIf(fn)
+    BlockHeader(fn, address); MemArg(fn, 0x28, 4); I32Const(fn, state); Op(fn, 0x47)
+    TrapIf(fn)
+}
+
+// Pushes a bits value as its canonical u64: zero-extended integers, 0/1
+// bools, IEEE patterns and pointer handles.
+PushBits :: (fn: *Fn, value: s32) {
+    type := ValueLir(fn, value)
+    wasm := ValueWasm(fn, value)
+    Get(fn, value)
+    if type.kind == .Float && wasm == W_F32 { Op(fn, 0xbc); Op(fn, 0xad) }
+    else if type.kind == .Float { Op(fn, 0xbd) }
+    else if wasm == W_I32 { Op(fn, 0xad) }
+}
+
+// A typed host capability call; see the module ABI in compiler_zx_wasm.zi.
+LowerCapabilityCall :: (fn: *Fn, instruction: *LirInstruction) {
+    lower := fn.lower
+    capability := *lower.capabilities[lower.host_index[instruction.symbol]]
+    count := cast(u32)capability.parameter_count
+    base := fn.host_area
+    total := FnTemp(fn, W_I64, 0)
+    if base < 0 || !OffsetFits(fn, base + 16 * cast(s64)count + 16) { return }
+    // A trap inside an image helper leaves its depth behind.
+    if lower.uses_images { I32Const(fn, 0); GlobalSet(fn, G_DEPTH) }
+    index: u32 = 0
+    while index < count && !lower.failed {
+        value := *capability.parameters[index]
+        at := cast(u32)base + 16 * index
+        operand := instruction.operands[index]
+        if value.kind == ZX_WASM_BITS {
+            LocalGet(fn, fn.fp); PushBits(fn, operand); MemArg(fn, 0x37, at)
+            LocalGet(fn, fn.fp); I64Const(fn, 0); MemArg(fn, 0x37, at + 8)
+            index += 1
+            continue
+        }
+        // An image in a heap block of its own: the value's bytes, then the
+        // elements of its views.
+        size := TypeSize(lower, value.type)
+        views := (HostShape(lower, value.type) & SHAPE_VIEWS) != 0
+        block := FnTemp(fn, W_I32, 2 + index)
+        source := AddrOfSlot(fn, operand)
+        I64Const(fn, size)
+        if views { PushFull(fn, source); Call(fn, lower.measure_function[value.type]); Op(fn, 0x7c) }
+        LocalSet(fn, total)
+        LocalGet(fn, total); I64Const(fn, BLOCK_LIMIT); Op(fn, 0x56); TrapIf(fn)
+        LocalGet(fn, total); Op(fn, 0xa7); I32Const(fn, BLOCK_PROGRAM); Call(fn, lower.alloc_function)
+        LocalSet(fn, block)
+        LocalGet(fn, block); Op(fn, 0x45); TrapIf(fn)
+        if size > 0 { LocalGet(fn, block); PushFull(fn, source); I32Const(fn, size); MemoryCopy(fn) }
+        if views {
+            LocalGet(fn, block); GlobalSet(fn, G_BASE)
+            LocalGet(fn, block); I32Const(fn, size); Op(fn, 0x6a); GlobalSet(fn, G_CURSOR)
+            PushFull(fn, source); LocalGet(fn, block); Call(fn, lower.encode_function[value.type])
+        }
+        LocalGet(fn, fn.fp); LocalGet(fn, block); MemArg(fn, 0x36, at)
+        LocalGet(fn, fn.fp)
+        if ViewElement(lower, value.type) >= 0 { PushBase(fn, source); MemArg(fn, 0x29, cast(u32)source.offset); Op(fn, 0xa7) }
+        else { I32Const(fn, 0) }
+        MemArg(fn, 0x36, at + 4)
+        LocalGet(fn, fn.fp); LocalGet(fn, total); Op(fn, 0xa7); MemArg(fn, 0x36, at + 8)
+        LocalGet(fn, fn.fp); I32Const(fn, 0); MemArg(fn, 0x36, at + 12)
+        index += 1
+    }
+    result := cast(u32)base + 16 * count
+    LocalGet(fn, fn.fp); I64Const(fn, 0); MemArg(fn, 0x37, result)
+    LocalGet(fn, fn.fp); I64Const(fn, 0); MemArg(fn, 0x37, result + 8)
+    if fn.async { SegmentBoundary(fn) }
+    I32Const(fn, lower.host_index[instruction.symbol])
+    LocalGet(fn, fn.fp); I32Const(fn, base); Op(fn, 0x6a)
+    FlushOutput(fn)
+    Call(fn, lower.host_import)
+    if fn.async {
+        status := FnTemp(fn, W_I32, 0)
+        LocalSet(fn, status)
+        UnwindCheck(fn)
+        LocalGet(fn, status)
+    }
+    Op(fn, 0x45); TrapIf(fn)
+    // A host that changed a []T argument's elements gives them back in
+    // place; the module copies them into the slice. Nothing else may change.
+    index = 0
+    while index < count && !lower.failed {
+        value := *capability.parameters[index]
+        if value.kind != ZX_WASM_IMAGE { index += 1; continue }
+        at := cast(u32)base + 16 * index
+        block := FnTemp(fn, W_I32, 2 + index)
+        width := cast(s64)value.element_size
+        LocalGet(fn, fn.fp); MemArg(fn, 0x28, at + 12)
+        if width <= 0 {
+            TrapIf(fn)
+        } else {
+            slice := AddrOfSlot(fn, instruction.operands[index])
+            IfBegin(fn)
+            // The same element count, inside the image.
+            LocalGet(fn, block); MemArg(fn, 0x29, 8)
+            PushBase(fn, slice); MemArg(fn, 0x29, cast(u32)slice.offset + 8)
+            Op(fn, 0x52); TrapIf(fn)
+            LocalGet(fn, block); MemArg(fn, 0x29, 0)
+            PushBase(fn, slice); MemArg(fn, 0x29, cast(u32)slice.offset + 8)
+            I64Const(fn, width); Op(fn, 0x7e); Op(fn, 0x7c)
+            LocalGet(fn, fn.fp); MemArg(fn, 0x35, at + 8)
+            Op(fn, 0x56); TrapIf(fn)
+            PushBase(fn, slice); MemArg(fn, 0x29, cast(u32)slice.offset); Op(fn, 0xa7)
+            LocalGet(fn, block); LocalGet(fn, block); MemArg(fn, 0x29, 0); Op(fn, 0xa7); Op(fn, 0x6a)
+            PushBase(fn, slice); MemArg(fn, 0x29, cast(u32)slice.offset + 8)
+            I64Const(fn, width); Op(fn, 0x7e); Op(fn, 0xa7)
+            MemoryCopy(fn)
+            End(fn)
+        }
+        LocalGet(fn, block); Call(fn, lower.free_function)
+        index += 1
+    }
+    returned := *capability.result
+    if returned.kind == ZX_WASM_VOID { LocalGet(fn, fn.fp); MemArg(fn, 0x28, result + 8); TrapIf(fn); return }
+    if returned.kind == ZX_WASM_BITS {
+        type := TypeAt(lower, returned.type)
+        LocalGet(fn, fn.fp); MemArg(fn, 0x29, result); LocalSet(fn, total)
+        if type.kind == .Integer && type.bits < 64 {
+            LocalGet(fn, total); I64Const(fn, cast(s64)~IntegerMask(type.bits)); Op(fn, 0x83)
+            Op(fn, 0x50); Op(fn, 0x45); TrapIf(fn)
+        } else if type.kind == .Bool {
+            LocalGet(fn, total); I64Const(fn, 1); Op(fn, 0x56); TrapIf(fn)
+        } else if type.kind == .Pointer || type.kind == .Float && type.bits == 32 {
+            LocalGet(fn, total); I64Const(fn, 0xffffffff); Op(fn, 0x56); TrapIf(fn)
+        }
+        if instruction.result == LirNoId { return }
+        wasm := ValType(lower, returned.type)
+        LocalGet(fn, total)
+        if wasm == W_I32 { Op(fn, 0xa7) }
+        else if wasm == W_F32 { Op(fn, 0xa7); Op(fn, 0xbe) }
+        else if wasm == W_F64 { Op(fn, 0xbf) }
+        Set(fn, instruction.result)
+        return
+    }
+    // An image result: the host placed it in a block from zx_reserve. Its
+    // views become pointers into the block, which the module then keeps; a
+    // value without views is copied out and the block freed.
+    size := TypeSize(lower, returned.type)
+    shape := HostShape(lower, returned.type)
+    address := FnTemp(fn, W_I32, 0)
+    length := FnTemp(fn, W_I32, 1)
+    LocalGet(fn, fn.fp); MemArg(fn, 0x29, result); LocalSet(fn, total)
+    LocalGet(fn, total); I64Const(fn, 0xffffffff); Op(fn, 0x56); TrapIf(fn)
+    LocalGet(fn, total); Op(fn, 0xa7); LocalSet(fn, address)
+    LocalGet(fn, fn.fp); MemArg(fn, 0x28, result + 8); LocalSet(fn, length)
+    LocalGet(fn, length); I32Const(fn, size); Op(fn, ifx (shape & SHAPE_VIEWS) != 0 then 0x49 else 0x47); TrapIf(fn)
+    LocalGet(fn, address)
+    IfBegin(fn)
+    CheckBlock(fn, address, BLOCK_HOST)
+    BlockHeader(fn, address); MemArg(fn, 0x28, 0); LocalGet(fn, length); Op(fn, 0x49); TrapIf(fn)
+    Op(fn, 0x05)
+    LocalGet(fn, length); TrapIf(fn)
+    End(fn)
+    if (shape & (SHAPE_VIEWS | SHAPE_BOOLS)) != 0 {
+        LocalGet(fn, address); GlobalSet(fn, G_BASE)
+        LocalGet(fn, length); GlobalSet(fn, G_LENGTH)
+        LocalGet(fn, address); Call(fn, lower.decode_function[returned.type])
+    }
+    if size > 0 && instruction.result != LirNoId {
+        PushFull(fn, AddrOfSlot(fn, instruction.result)); LocalGet(fn, address)
+        I32Const(fn, size); MemoryCopy(fn)
+    }
+    if (shape & SHAPE_VIEWS) == 0 {
+        LocalGet(fn, address)
+        IfBegin(fn); LocalGet(fn, address); Call(fn, lower.free_function); End(fn)
+    }
+}
+
+LowerHostCall :: (fn: *Fn, instruction: *LirInstruction) {
+    lower := fn.lower
+    if instruction.symbol < 0 || instruction.symbol >= lower.program.functions.count ||
+        !lower.program.functions[instruction.symbol].external {
+        unused Gap(lower, "wasm.gap.host", "host call to a non-external procedure")
+        return
+    }
+    callee := *lower.program.functions[instruction.symbol]
+    if instruction.operands.count != callee.parameters.count {
+        unused Gap(lower, "wasm.gap.host", SayName("host call argument count differs from @", callee.name))
+        return
+    }
+    kind := lower.host_kind[instruction.symbol]
+    operands := instruction.operands
+    if kind == HOST_WRITE {
+        // Only descriptor 1 is the module's builtin output stream.
+        GetI64(fn, operands[0], false)
+        I64Const(fn, 1)
+        Op(fn, 0x52)
+        TrapIf(fn)
+        Get(fn, operands[1])
+        GetI64(fn, operands[2], false)
+        Call(fn, lower.put_function)
+        return
+    }
+    if kind == HOST_SIGNED { GetI64(fn, operands[0], true); Call(fn, lower.signed_function); return }
+    if kind == HOST_UNSIGNED { GetI64(fn, operands[0], false); Call(fn, lower.unsigned_function); return }
+    if kind == HOST_BOOL {
+        GetI64(fn, operands[0], false)
+        I64Const(fn, 0); Op(fn, 0x52)
+        Call(fn, lower.bool_function)
+        return
+    }
+    if kind == HOST_FLOAT32 {
+        FlushOutput(fn)
+        I32Const(fn, PRINT_FLOAT32)
+        Get(fn, operands[0]); Op(fn, 0xbc); Op(fn, 0xad)
+    } else if kind == HOST_FLOAT64 {
+        FlushOutput(fn)
+        I32Const(fn, PRINT_FLOAT64)
+        Get(fn, operands[0]); Op(fn, 0xbd)
+    } else if kind == HOST_CAPABILITY {
+        LowerCapabilityCall(fn, instruction)
+        return
+    } else {
+        unused Gap(lower, "wasm.gap.host", SayName("unclassified host procedure @", callee.name))
+        return
+    }
+    Call(fn, lower.print_import)
+    Op(fn, 0x1a)
+}
+
+// resize(pointer, old_count, new_count) -> pointer through the heap.
+LowerResize :: (fn: *Fn, instruction: *LirInstruction) {
+    if !OperandCount(fn, instruction, 3, 3) { return }
+    pointer := ValueLir(fn, instruction.result)
+    size: s64 = ifx pointer.kind == .Pointer then TypeSize(fn.lower, pointer.element) else -1
+    if size < 0 || size > BLOCK_LIMIT || ValueLir(fn, instruction.operands[1]).kind != .Integer ||
+        ValueLir(fn, instruction.operands[2]).kind != .Integer {
+        unused Gap(fn.lower, "wasm.gap.resize", "resize of an unbounded or non-pointer value")
+        return
+    }
+    Get(fn, instruction.operands[0])
+    GetI64(fn, instruction.operands[1], false)
+    GetI64(fn, instruction.operands[2], false)
+    I32Const(fn, size)
+    Call(fn, fn.lower.resize_function)
+    Set(fn, instruction.result)
+}
+
+LowerFuel :: (fn: *Fn, amount: u64) {
+    if amount == 0 { return }
+    if amount > cast(u64)MAX_S64 { unused Gap(fn.lower, "wasm.gap.fuel", "fuel charge is outside i64"); return }
+    // The budget never goes below zero before a charge, so it is spent
+    // exactly when the charge leaves it negative. A function that loops
+    // charges its local copy; any other charges the global directly.
+    if fn.has_budget {
+        LocalGet(fn, fn.budget); I64Const(fn, cast(s64)amount); Op(fn, 0x7d)
+        OpU(fn, 0x22, fn.budget)
+    } else {
+        left := FnTemp(fn, W_I64, 0)
+        GlobalGet(fn, G_BUDGET); I64Const(fn, cast(s64)amount); Op(fn, 0x7d)
+        OpU(fn, 0x22, left); GlobalSet(fn, G_BUDGET); LocalGet(fn, left)
+    }
+    I64Const(fn, 0); Op(fn, 0x53)
+    IfBegin(fn); BudgetStore(fn); FlushOutput(fn); OpU(fn, 0x10, 0); Op(fn, 0x0b)
+}
+
+LowerBytesEqual :: (fn: *Fn, instruction: *LirInstruction) {
+    if !OperandCount(fn, instruction, 4, 4) { return }
+    Get(fn, instruction.operands[0]); GetI64(fn, instruction.operands[1], false)
+    Get(fn, instruction.operands[2]); GetI64(fn, instruction.operands[3], false)
+    OpU(fn, 0x10, fn.lower.bytes_equal_function)
+    Set(fn, instruction.result)
+}
+
+LowerInstruction :: (fn: *Fn, block: s64, instruction: *LirInstruction, slot: s64) {
+    lower := fn.lower
+    fn.instruction = instruction
+    if ValueValid(fn, instruction.result) && fn.elided[instruction.result] { return }
+    op := instruction.op
+    if op == .Constant { LowerConstant(fn, instruction) }
+    else if op == .Null { I32Const(fn, 0); Set(fn, instruction.result) }
+    else if op == .GlobalAddress {
+        if instruction.symbol < 0 || instruction.symbol >= lower.program.globals.count {
+            unused Gap(lower, "wasm.gap.global", Say("global g# is out of range", instruction.symbol))
+            return
+        }
+        I32Const(fn, lower.global_address[instruction.symbol])
+        Set(fn, instruction.result)
+    } else if op == .FunctionAddress {
+        if instruction.symbol < 0 || instruction.symbol >= lower.program.functions.count {
+            unused Gap(lower, "wasm.gap.function", Say("function @# is out of range", instruction.symbol))
+            return
+        }
+        I32Const(fn, cast(s64)instruction.symbol + 1)
+        Set(fn, instruction.result)
+    } else if op == .Add || op == .Subtract || op == .Multiply || op == .Divide || op == .Remainder || op == .BitAnd ||
+        op == .BitOr || op == .BitXor || op == .ShiftLeft || op == .ShiftRight {
+        LowerBinary(fn, instruction)
+    } else if op == .Negate || op == .BitNot || op == .SquareRoot { LowerUnary(fn, instruction) }
+    else if op == .Equal || op == .NotEqual || op == .Less || op == .LessEqual || op == .Greater || op == .GreaterEqual {
+        LowerCompare(fn, instruction)
+    } else if op == .Convert || op == .Bitcast { LowerConvert(fn, instruction) }
+    else if op == .Aggregate { LowerAggregate(fn, instruction) }
+    else if op == .Extract || op == .Insert { LowerExtractInsert(fn, instruction) }
+    else if op == .Allocate { LowerAllocate(fn, instruction, slot) }
+    else if op == .Load || op == .Store { LowerMemory(fn, instruction) }
+    else if op == .FieldAddress || op == .ElementAddress { LowerAddress(fn, instruction) }
+    else if op == .BytesEqual { LowerBytesEqual(fn, instruction) }
+    else if op == .Call || op == .CallIndirect { LowerCall(fn, instruction) }
+    else if op == .HostCall { LowerHostCall(fn, instruction) }
+    else if op == .Resize { LowerResize(fn, instruction) }
+    else if op == .Fuel { LowerFuel(fn, instruction.immediate) }
+    else if op == .Trap || op == .Unreachable { FlushOutput(fn); Op(fn, 0x00) }
+    else if op == .Jump {
+        if instruction.edges.count != 1 { unused Gap(lower, "wasm.gap.control", "jump without one edge"); return }
+        EdgeJump(fn, block, *instruction.edges[0], 0)
+    } else if op == .Branch {
+        if instruction.edges.count != 2 || !OperandCount(fn, instruction, 1, 1) {
+            unused Gap(lower, "wasm.gap.control", "branch without a condition and two edges")
+            return
+        }
+        Get(fn, instruction.operands[0])
+        Op(fn, 0x04); Op(fn, 0x40)
+        EdgeJump(fn, block, *instruction.edges[0], 1)
+        Op(fn, 0x0b)
+        EdgeJump(fn, block, *instruction.edges[1], 0)
+    } else if op == .Return {
+        result := fn.function.result
+        if TypeAggregate(lower, result) {
+            if !OperandCount(fn, instruction, 1, 1) { return }
+            CopyFixed(fn, .{.kind = ADDR_LOCAL, .local = fn.result_address}, AddrOfSlot(fn, instruction.operands[0]),
+                TypeSize(lower, result))
+        } else if ValType(lower, result) != 0 {
+            if !OperandCount(fn, instruction, 1, 1) { return }
+            Get(fn, instruction.operands[0])
+        }
+        Epilogue(fn)
+        Op(fn, 0x0f)
+    } else {
+        unused Gap(lower, "wasm.gap.instruction", SayName("LIR @ instructions are not lowered to wasm32", LirOpName(op)))
+    }
+}

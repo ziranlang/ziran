@@ -1,0 +1,580 @@
+// The module's own helper functions: the heap (alloc, free, resize and the
+// host's zx_reserve), host images (measure, encode, decode), buffered
+// platform output, byte comparison and the entry points.
+//
+// Heap blocks have a 16-byte header (capacity, state, element count) and
+// power-of-two capacities from 16 bytes; a freed block joins the free list
+// of its capacity, and the block that ends the heap gives its bytes back.
+using Vectors :: #import "vec"
+using LIR :: #import "compiler_lowered_ir"
+using Types :: #import "compiler_zx_wasm_types"
+using Code :: #import "compiler_zx_wasm_fn"
+using Body :: #import "compiler_zx_wasm_body"
+using Lowering :: #import "compiler_zx_wasm_code"
+
+NONE :: 0xffffffff
+MIN_S32 :: -2147483648
+
+HelperStart :: (fn: *Fn, lower: *Lower, parameters: []u32) {
+    fn.lower = lower
+    for type: parameters { unused FnLocal(fn, type) }
+    fn.param_count = cast(u32)parameters.count
+}
+
+HelperFinish :: (fn: *Fn, output: *Buf) {
+    End(fn)
+    unused FnBody(fn, output)
+}
+
+MemorySizeBytes :: (fn: *Fn) { Op(fn, 0x3f); Byte(*fn.code, 0); I32Const(fn, 16); Op(fn, 0x74) }
+
+// Grows memory to hold `end` (an i32 local) bytes, or returns 0 from the
+// helper when it cannot.
+EmitRoom :: (fn: *Fn, end_local: u32) {
+    LocalGet(fn, end_local); MemorySizeBytes(fn); Op(fn, 0x4b)
+    IfBegin(fn)
+    LocalGet(fn, end_local); MemorySizeBytes(fn); Op(fn, 0x6b)
+    I32Const(fn, 65535); Op(fn, 0x6a); I32Const(fn, 16); Op(fn, 0x76)
+    Op(fn, 0x40); Byte(*fn.code, 0)
+    I32Const(fn, -1); Op(fn, 0x46)
+    IfBegin(fn); ReturnZero(fn); End(fn)
+    End(fn)
+}
+
+// Pushes 28 - clz(bytes - 1): the class of a block over 16 bytes.
+SizeClass :: (fn: *Fn, bytes: u32) {
+    I32Const(fn, 28); LocalGet(fn, bytes); I32Const(fn, 1); Op(fn, 0x6b); Op(fn, 0x67); Op(fn, 0x6b)
+}
+
+// alloc(bytes, state) -> payload: a zero-filled block from the free list of
+// its class or from the heap top; 0 when memory cannot grow.
+EmitAlloc :: (lower: *Lower, output: *Buf) {
+    fn: Fn
+    parameters: [2]u32 = .[W_I32, W_I32]
+    HelperStart(*fn, lower, parameters[:])
+    class := FnLocal(*fn, W_I32)
+    payload := FnLocal(*fn, W_I32)
+    header := FnLocal(*fn, W_I32)
+    limit := FnLocal(*fn, W_I32)
+    table := lower.free_table
+    I32Const(*fn, 0)
+    SizeClass(*fn, 0)
+    LocalGet(*fn, 0); I32Const(*fn, 16); Op(*fn, 0x4d)
+    Op(*fn, 0x1b)
+    LocalSet(*fn, class)
+    LocalGet(*fn, class); I32Const(*fn, 2); Op(*fn, 0x74); MemArg(*fn, 0x28, table)
+    OpU(*fn, 0x22, payload)
+    Op(*fn, 0x04); Op(*fn, 0x40)
+    LocalGet(*fn, class); I32Const(*fn, 2); Op(*fn, 0x74)
+    LocalGet(*fn, payload); MemArg(*fn, 0x28, 0)
+    MemArg(*fn, 0x36, table)
+    LocalGet(*fn, payload); I32Const(*fn, 16); Op(*fn, 0x6b); LocalSet(*fn, header)
+    Op(*fn, 0x05)
+    GlobalGet(*fn, G_TOP); OpU(*fn, 0x22, header)
+    I32Const(*fn, 16); Op(*fn, 0x6a)
+    I32Const(*fn, 16); LocalGet(*fn, class); Op(*fn, 0x74); Op(*fn, 0x6a)
+    OpU(*fn, 0x22, limit)
+    I32Const(*fn, MIN_S32); Op(*fn, 0x4b)
+    IfBegin(*fn); ReturnZero(*fn); End(*fn)
+    EmitRoom(*fn, limit)
+    LocalGet(*fn, limit); GlobalSet(*fn, G_TOP)
+    LocalGet(*fn, header); I32Const(*fn, 16); LocalGet(*fn, class); Op(*fn, 0x74); MemArg(*fn, 0x36, 0)
+    LocalGet(*fn, header); I32Const(*fn, 16); Op(*fn, 0x6a); LocalSet(*fn, payload)
+    End(*fn)
+    LocalGet(*fn, header); LocalGet(*fn, 1); MemArg(*fn, 0x36, 4)
+    LocalGet(*fn, header); I64Const(*fn, 0); MemArg(*fn, 0x37, 8)
+    LocalGet(*fn, payload); I32Const(*fn, 0); LocalGet(*fn, 0); MemoryFill(*fn)
+    LocalGet(*fn, payload)
+    HelperFinish(*fn, output)
+}
+
+// free(payload): the block that ends the heap gives its bytes back; any
+// other joins the free list of its class.
+EmitFree :: (lower: *Lower, output: *Buf) {
+    fn: Fn
+    parameters: [1]u32 = .[W_I32]
+    HelperStart(*fn, lower, parameters[:])
+    header := FnLocal(*fn, W_I32)
+    capacity := FnLocal(*fn, W_I32)
+    table := lower.free_table
+    LocalGet(*fn, 0); I32Const(*fn, 16); Op(*fn, 0x6b); OpU(*fn, 0x22, header)
+    MemArg(*fn, 0x28, 0); LocalSet(*fn, capacity)
+    LocalGet(*fn, header); I32Const(*fn, BLOCK_FREE); MemArg(*fn, 0x36, 4)
+    LocalGet(*fn, 0); LocalGet(*fn, capacity); Op(*fn, 0x6a); GlobalGet(*fn, G_TOP); Op(*fn, 0x46)
+    IfBegin(*fn); LocalGet(*fn, header); GlobalSet(*fn, G_TOP); Op(*fn, 0x0f); End(*fn)
+    LocalGet(*fn, 0)
+    LocalGet(*fn, capacity); Op(*fn, 0x68); I32Const(*fn, 4); Op(*fn, 0x6b); I32Const(*fn, 2); Op(*fn, 0x74)
+    MemArg(*fn, 0x28, table)
+    MemArg(*fn, 0x36, 0)
+    LocalGet(*fn, capacity); Op(*fn, 0x68); I32Const(*fn, 4); Op(*fn, 0x6b); I32Const(*fn, 2); Op(*fn, 0x74)
+    LocalGet(*fn, 0)
+    MemArg(*fn, 0x36, table)
+    HelperFinish(*fn, output)
+}
+
+// resize(pointer, old_count, new_count, element_size) -> pointer, the
+// interpreter's rules: null with count 0 allocates, count 0 frees, the first
+// min(old, new) elements stay and the rest is zero, and a request memory
+// cannot hold gives null with the old block intact. With --checks only a
+// live program block's own pointer with its exact count may be resized.
+EmitResize :: (lower: *Lower, output: *Buf) {
+    fn: Fn
+    parameters: [4]u32 = .[W_I32, W_I64, W_I64, W_I32]
+    HelperStart(*fn, lower, parameters[:])
+    header := FnLocal(*fn, W_I32)
+    capacity := FnLocal(*fn, W_I32)
+    bytes := FnLocal(*fn, W_I32)
+    kept := FnLocal(*fn, W_I32)
+    moved := FnLocal(*fn, W_I32)
+    limit := FnLocal(*fn, W_I32)
+    LocalGet(*fn, 0)
+    Op(*fn, 0x04); Op(*fn, 0x40)
+    if lower.program.checks { CheckBlock(*fn, 0, BLOCK_PROGRAM) }
+    BlockHeader(*fn, 0); LocalSet(*fn, header)
+    if lower.program.checks {
+        LocalGet(*fn, header); MemArg(*fn, 0x29, 8); LocalGet(*fn, 1); Op(*fn, 0x52); TrapIf(*fn)
+        Op(*fn, 0x05)
+        LocalGet(*fn, 1); I64Const(*fn, 0); Op(*fn, 0x52); TrapIf(*fn)
+    }
+    End(*fn)
+    LocalGet(*fn, 2); Op(*fn, 0x50)
+    IfBegin(*fn)
+    LocalGet(*fn, 0); IfBegin(*fn); LocalGet(*fn, 0); Call(*fn, lower.free_function); End(*fn)
+    ReturnZero(*fn)
+    End(*fn)
+    LocalGet(*fn, 3)
+    IfBegin(*fn)
+    LocalGet(*fn, 2); I64Const(*fn, BLOCK_LIMIT); LocalGet(*fn, 3); Op(*fn, 0xad); Op(*fn, 0x80); Op(*fn, 0x56)
+    IfBegin(*fn); ReturnZero(*fn); End(*fn)
+    End(*fn)
+    LocalGet(*fn, 2); LocalGet(*fn, 3); Op(*fn, 0xad); Op(*fn, 0x7e); Op(*fn, 0xa7); LocalSet(*fn, bytes)
+    LocalGet(*fn, 1); LocalGet(*fn, 3); Op(*fn, 0xad); Op(*fn, 0x7e); Op(*fn, 0xa7); LocalSet(*fn, kept)
+    LocalGet(*fn, 0)
+    IfBegin(*fn)
+    LocalGet(*fn, header); MemArg(*fn, 0x28, 0); LocalSet(*fn, capacity)
+    // In place within its capacity.
+    LocalGet(*fn, bytes); LocalGet(*fn, capacity); Op(*fn, 0x4d)
+    IfBegin(*fn)
+    LocalGet(*fn, bytes); LocalGet(*fn, kept); Op(*fn, 0x4b)
+    IfBegin(*fn)
+    LocalGet(*fn, 0); LocalGet(*fn, kept); Op(*fn, 0x6a); I32Const(*fn, 0)
+    LocalGet(*fn, bytes); LocalGet(*fn, kept); Op(*fn, 0x6b); MemoryFill(*fn)
+    End(*fn)
+    LocalGet(*fn, header); LocalGet(*fn, 2); MemArg(*fn, 0x37, 8)
+    LocalGet(*fn, 0); Op(*fn, 0x0f)
+    End(*fn)
+    // The block that ends the heap grows where it is.
+    LocalGet(*fn, 0); LocalGet(*fn, capacity); Op(*fn, 0x6a); GlobalGet(*fn, G_TOP); Op(*fn, 0x46)
+    IfBegin(*fn)
+    LocalGet(*fn, 0); I32Const(*fn, 16); SizeClass(*fn, bytes); Op(*fn, 0x74)
+    OpU(*fn, 0x22, capacity); Op(*fn, 0x6a); OpU(*fn, 0x22, limit)
+    I32Const(*fn, MIN_S32); Op(*fn, 0x4b)
+    IfBegin(*fn); ReturnZero(*fn); End(*fn)
+    EmitRoom(*fn, limit)
+    LocalGet(*fn, limit); GlobalSet(*fn, G_TOP)
+    LocalGet(*fn, header); LocalGet(*fn, capacity); MemArg(*fn, 0x36, 0)
+    LocalGet(*fn, 0); LocalGet(*fn, kept); Op(*fn, 0x6a); I32Const(*fn, 0)
+    LocalGet(*fn, bytes); LocalGet(*fn, kept); Op(*fn, 0x6b); MemoryFill(*fn)
+    LocalGet(*fn, header); LocalGet(*fn, 2); MemArg(*fn, 0x37, 8)
+    LocalGet(*fn, 0); Op(*fn, 0x0f)
+    End(*fn)
+    End(*fn)
+    // A new block, then the kept elements.
+    LocalGet(*fn, bytes); I32Const(*fn, BLOCK_PROGRAM); Call(*fn, lower.alloc_function)
+    OpU(*fn, 0x22, moved); Op(*fn, 0x45)
+    IfBegin(*fn); ReturnZero(*fn); End(*fn)
+    LocalGet(*fn, 0)
+    IfBegin(*fn)
+    LocalGet(*fn, moved); LocalGet(*fn, 0); LocalGet(*fn, kept); MemoryCopy(*fn)
+    LocalGet(*fn, 0); Call(*fn, lower.free_function)
+    End(*fn)
+    BlockHeader(*fn, moved); LocalGet(*fn, 2); MemArg(*fn, 0x37, 8)
+    LocalGet(*fn, moved)
+    HelperFinish(*fn, output)
+}
+
+// zx_reserve(bytes) -> payload of a zero-filled host block, or 0.
+EmitReserve :: (lower: *Lower, output: *Buf) {
+    fn: Fn
+    parameters: [1]u32 = .[W_I32]
+    HelperStart(*fn, lower, parameters[:])
+    LocalGet(*fn, 0); I32Const(*fn, BLOCK_LIMIT); Op(*fn, 0x4b)
+    IfBegin(*fn); ReturnZero(*fn); End(*fn)
+    LocalGet(*fn, 0); I32Const(*fn, BLOCK_HOST); Call(*fn, lower.alloc_function)
+    HelperFinish(*fn, output)
+}
+
+// Views inside views: a value that holds itself stops at 64 levels, as on
+// the engine, instead of running on.
+DepthEnter :: (fn: *Fn) {
+    GlobalGet(fn, G_DEPTH); I32Const(fn, 1); Op(fn, 0x6a); GlobalSet(fn, G_DEPTH)
+    GlobalGet(fn, G_DEPTH); I32Const(fn, 64); Op(fn, 0x4b); TrapIf(fn)
+}
+
+DepthLeave :: (fn: *Fn) { GlobalGet(fn, G_DEPTH); I32Const(fn, 1); Op(fn, 0x6b); GlobalSet(fn, G_DEPTH) }
+
+// Calls `function` (i32 address -> ...) for each of the elements at `first`
+// (an i32 local) up to `bytes` (a local, or the constant `fixed` when
+// `bytes` is NONE), `width` apart. `second`, when not NONE, is a parallel
+// destination; `sum`, when not NONE, is an i64 local that adds each result.
+EachElement :: (fn: *Fn, first: u32, second: u32, bytes: u32, fixed: s64, width: s64, function: u32, sum: u32) {
+    index := FnLocal(fn, W_I32)
+    if width <= 0 { return }
+    I32Const(fn, 0); LocalSet(fn, index)
+    BlockBegin(fn); LoopBegin(fn)
+    LocalGet(fn, index)
+    if bytes == NONE { I32Const(fn, fixed) } else { LocalGet(fn, bytes) }
+    Op(fn, 0x4f); OpU(fn, 0x0d, 1)
+    if sum != NONE { LocalGet(fn, sum) }
+    LocalGet(fn, first); LocalGet(fn, index); Op(fn, 0x6a)
+    if second != NONE { LocalGet(fn, second); LocalGet(fn, index); Op(fn, 0x6a) }
+    Call(fn, function)
+    if sum != NONE { Op(fn, 0x7c); LocalSet(fn, sum) }
+    LocalGet(fn, index); I32Const(fn, width); Op(fn, 0x6a); LocalSet(fn, index)
+    OpU(fn, 0x0c, 0)
+    End(fn); End(fn)
+}
+
+Needs :: (lower: *Lower, type: s32, need: u32) -> bool { return (cast(u32)lower.needs[type] & need) != 0 }
+
+// measure(source) -> i64: the bytes the view elements inside a value add to
+// its host image.
+EmitMeasure :: (lower: *Lower, type: s32, output: *Buf) {
+    fn: Fn
+    parameters: [1]u32 = .[W_I32]
+    HelperStart(*fn, lower, parameters[:])
+    value := TypeAt(lower, type)
+    element := ViewElement(lower, type)
+    total := FnLocal(*fn, W_I64)
+    I64Const(*fn, 0); LocalSet(*fn, total)
+    if element >= 0 {
+        width := TypeSize(lower, element)
+        count := FnLocal(*fn, W_I64)
+        data := FnLocal(*fn, W_I32)
+        bytes := FnLocal(*fn, W_I32)
+        LocalGet(*fn, 0); MemArg(*fn, 0x29, 8); OpU(*fn, 0x22, count); Op(*fn, 0x50)
+        IfBegin(*fn); I64Const(*fn, 0); Op(*fn, 0x0f); End(*fn)
+        LocalGet(*fn, count); I64Const(*fn, width); Op(*fn, 0x7e); LocalSet(*fn, total)
+        if Needs(lower, element, NEED_ENCODE) {
+            LocalGet(*fn, 0); MemArg(*fn, 0x29, 0); Op(*fn, 0xa7); LocalSet(*fn, data)
+            LocalGet(*fn, count); I64Const(*fn, width); Op(*fn, 0x7e); Op(*fn, 0xa7); LocalSet(*fn, bytes)
+            DepthEnter(*fn)
+            EachElement(*fn, data, NONE, bytes, 0, width, lower.measure_function[element], total)
+            DepthLeave(*fn)
+        }
+    } else if value.kind == .Array {
+        width := TypeSize(lower, value.element)
+        EachElement(*fn, 0, NONE, NONE, width * value.count, width, lower.measure_function[value.element], total)
+    } else {
+        offset: s64 = 0
+        for field: value.fields {
+            if Needs(lower, field, NEED_ENCODE) {
+                LocalGet(*fn, total)
+                LocalGet(*fn, 0); I32Const(*fn, offset); Op(*fn, 0x6a)
+                Call(*fn, lower.measure_function[field])
+                Op(*fn, 0x7c); LocalSet(*fn, total)
+            }
+            offset += TypeSize(lower, field)
+        }
+    }
+    LocalGet(*fn, total)
+    HelperFinish(*fn, output)
+}
+
+// encode(source, destination): the destination holds a copy of the value's
+// bytes; each view inside it becomes the offset and count of its elements,
+// appended at the image cursor.
+EmitEncode :: (lower: *Lower, type: s32, output: *Buf) {
+    fn: Fn
+    parameters: [2]u32 = .[W_I32, W_I32]
+    HelperStart(*fn, lower, parameters[:])
+    value := TypeAt(lower, type)
+    element := ViewElement(lower, type)
+    if element >= 0 {
+        width := TypeSize(lower, element)
+        count := FnLocal(*fn, W_I64)
+        at := FnLocal(*fn, W_I32)
+        bytes := FnLocal(*fn, W_I32)
+        data := FnLocal(*fn, W_I32)
+        LocalGet(*fn, 0); MemArg(*fn, 0x29, 8); OpU(*fn, 0x22, count); Op(*fn, 0x50)
+        IfBegin(*fn)
+        LocalGet(*fn, 1); I64Const(*fn, 0); MemArg(*fn, 0x37, 0)
+        LocalGet(*fn, 1); I64Const(*fn, 0); MemArg(*fn, 0x37, 8)
+        Op(*fn, 0x0f)
+        End(*fn)
+        LocalGet(*fn, 0); MemArg(*fn, 0x29, 0); Op(*fn, 0xa7); LocalSet(*fn, data)
+        LocalGet(*fn, count); I64Const(*fn, width); Op(*fn, 0x7e); Op(*fn, 0xa7); LocalSet(*fn, bytes)
+        GlobalGet(*fn, G_CURSOR); OpU(*fn, 0x22, at); LocalGet(*fn, bytes); Op(*fn, 0x6a); GlobalSet(*fn, G_CURSOR)
+        LocalGet(*fn, 1); LocalGet(*fn, at); GlobalGet(*fn, G_BASE); Op(*fn, 0x6b); Op(*fn, 0xad); MemArg(*fn, 0x37, 0)
+        LocalGet(*fn, 1); LocalGet(*fn, count); MemArg(*fn, 0x37, 8)
+        LocalGet(*fn, at); LocalGet(*fn, data); LocalGet(*fn, bytes); MemoryCopy(*fn)
+        if Needs(lower, element, NEED_ENCODE) {
+            DepthEnter(*fn)
+            EachElement(*fn, data, at, bytes, 0, width, lower.encode_function[element], NONE)
+            DepthLeave(*fn)
+        }
+    } else if value.kind == .Array {
+        width := TypeSize(lower, value.element)
+        EachElement(*fn, 0, 1, NONE, width * value.count, width, lower.encode_function[value.element], NONE)
+    } else {
+        offset: s64 = 0
+        for field: value.fields {
+            if Needs(lower, field, NEED_ENCODE) {
+                LocalGet(*fn, 0); I32Const(*fn, offset); Op(*fn, 0x6a)
+                LocalGet(*fn, 1); I32Const(*fn, offset); Op(*fn, 0x6a)
+                Call(*fn, lower.encode_function[field])
+            }
+            offset += TypeSize(lower, field)
+        }
+    }
+    HelperFinish(*fn, output)
+}
+
+// decode(at): checks a value inside the host image at G_BASE and turns each
+// view's offset into a pointer into the image.
+EmitDecode :: (lower: *Lower, type: s32, output: *Buf) {
+    fn: Fn
+    parameters: [1]u32 = .[W_I32]
+    HelperStart(*fn, lower, parameters[:])
+    value := TypeAt(lower, type)
+    element := ViewElement(lower, type)
+    if value.kind == .Bool {
+        LocalGet(*fn, 0); MemArg(*fn, 0x2d, 0); I32Const(*fn, 1); Op(*fn, 0x4b); TrapIf(*fn)
+    } else if element >= 0 {
+        width := TypeSize(lower, element)
+        start := FnLocal(*fn, W_I64)
+        count := FnLocal(*fn, W_I64)
+        data := FnLocal(*fn, W_I32)
+        bytes := FnLocal(*fn, W_I32)
+        LocalGet(*fn, 0); MemArg(*fn, 0x29, 0); LocalSet(*fn, start)
+        LocalGet(*fn, 0); MemArg(*fn, 0x29, 8); OpU(*fn, 0x22, count); Op(*fn, 0x50)
+        IfBegin(*fn)
+        LocalGet(*fn, start); I64Const(*fn, 0); Op(*fn, 0x52); TrapIf(*fn)
+        Op(*fn, 0x0f)
+        End(*fn)
+        if width <= 0 {
+            Op(*fn, 0x00)
+        } else {
+            LocalGet(*fn, start); GlobalGet(*fn, G_LENGTH); Op(*fn, 0xad); Op(*fn, 0x56); TrapIf(*fn)
+            LocalGet(*fn, count)
+            GlobalGet(*fn, G_LENGTH); Op(*fn, 0xad); LocalGet(*fn, start); Op(*fn, 0x7d)
+            I64Const(*fn, width); Op(*fn, 0x80)
+            Op(*fn, 0x56); TrapIf(*fn)
+            LocalGet(*fn, 0)
+            GlobalGet(*fn, G_BASE); LocalGet(*fn, start); Op(*fn, 0xa7); Op(*fn, 0x6a)
+            OpU(*fn, 0x22, data); Op(*fn, 0xad); MemArg(*fn, 0x37, 0)
+            if Needs(lower, element, NEED_DECODE) {
+                LocalGet(*fn, count); I64Const(*fn, width); Op(*fn, 0x7e); Op(*fn, 0xa7); LocalSet(*fn, bytes)
+                DepthEnter(*fn)
+                EachElement(*fn, data, NONE, bytes, 0, width, lower.decode_function[element], NONE)
+                DepthLeave(*fn)
+            }
+        }
+    } else if value.kind == .Array {
+        width := TypeSize(lower, value.element)
+        EachElement(*fn, 0, NONE, NONE, width * value.count, width, lower.decode_function[value.element], NONE)
+    } else {
+        offset: s64 = 0
+        for field: value.fields {
+            if Needs(lower, field, NEED_DECODE) {
+                LocalGet(*fn, 0); I32Const(*fn, offset); Op(*fn, 0x6a)
+                Call(*fn, lower.decode_function[field])
+            }
+            offset += TypeSize(lower, field)
+        }
+    }
+    HelperFinish(*fn, output)
+}
+
+// Pushes host_i64's string word for `length` (an i64 already pushed) bytes
+// at the address pushed before it.
+PrintStringWord :: (fn: *Fn) { I64Const(fn, 32); Op(fn, 0x86); Op(fn, 0x84) }
+
+// flush (): hands the buffered bytes to the host in one call.
+EmitFlush :: (lower: *Lower, output: *Buf) {
+    fn: Fn
+    fn.lower = lower
+    length := FnLocal(*fn, W_I32)
+    I32Const(*fn, lower.out_base); MemArg(*fn, 0x28, 0); OpU(*fn, 0x22, length)
+    IfBegin(*fn)
+    I32Const(*fn, PRINT_STRING)
+    I32Const(*fn, lower.out_base + 8); Op(*fn, 0xad)
+    LocalGet(*fn, length); Op(*fn, 0xad); PrintStringWord(*fn)
+    Call(*fn, lower.print_import); Op(*fn, 0x1a)
+    I32Const(*fn, lower.out_base); I32Const(*fn, 0); MemArg(*fn, 0x36, 0)
+    End(*fn)
+    HelperFinish(*fn, output)
+}
+
+// put (address, count): appends bytes, flushing when they do not fit; a run
+// longer than the buffer goes to the host directly.
+EmitPut :: (lower: *Lower, output: *Buf) {
+    fn: Fn
+    parameters: [2]u32 = .[W_I32, W_I64]
+    HelperStart(*fn, lower, parameters[:])
+    length := FnLocal(*fn, W_I32)
+    LocalGet(*fn, 1); Op(*fn, 0x50)
+    IfBegin(*fn); Op(*fn, 0x0f); End(*fn)
+    I32Const(*fn, lower.out_base); MemArg(*fn, 0x28, 0); LocalSet(*fn, length)
+    LocalGet(*fn, length); Op(*fn, 0xad); LocalGet(*fn, 1); Op(*fn, 0x7c)
+    I64Const(*fn, OUT_CAPACITY); Op(*fn, 0x56)
+    IfBegin(*fn)
+    Call(*fn, lower.flush_function)
+    LocalGet(*fn, 1); I64Const(*fn, OUT_CAPACITY); Op(*fn, 0x56)
+    IfBegin(*fn)
+    I32Const(*fn, PRINT_STRING)
+    LocalGet(*fn, 0); Op(*fn, 0xad); LocalGet(*fn, 1); PrintStringWord(*fn)
+    Call(*fn, lower.print_import); Op(*fn, 0x1a)
+    Op(*fn, 0x0f)
+    End(*fn)
+    I32Const(*fn, 0); LocalSet(*fn, length)
+    End(*fn)
+    I32Const(*fn, lower.out_base + 8); LocalGet(*fn, length); Op(*fn, 0x6a)
+    LocalGet(*fn, 0); LocalGet(*fn, 1); Op(*fn, 0xa7); MemoryCopy(*fn)
+    I32Const(*fn, lower.out_base)
+    LocalGet(*fn, length); LocalGet(*fn, 1); Op(*fn, 0xa7); Op(*fn, 0x6a)
+    MemArg(*fn, 0x36, 0)
+    HelperFinish(*fn, output)
+}
+
+// number (value): decimal digits, with a sign when `is_signed`.
+EmitNumber :: (lower: *Lower, output: *Buf, is_signed: bool) {
+    fn: Fn
+    parameters: [1]u32 = .[W_I64]
+    HelperStart(*fn, lower, parameters[:])
+    magnitude := FnLocal(*fn, W_I64)
+    at := FnLocal(*fn, W_I32)
+    negative := FnLocal(*fn, W_I32)
+    limit := cast(s64)lower.out_base + OUT_REGION
+    if is_signed {
+        LocalGet(*fn, 0); I64Const(*fn, 0); Op(*fn, 0x53); LocalSet(*fn, negative)
+        I64Const(*fn, 0); LocalGet(*fn, 0); Op(*fn, 0x7d)
+        LocalGet(*fn, 0); LocalGet(*fn, negative); Op(*fn, 0x1b)
+        LocalSet(*fn, magnitude)
+    } else {
+        LocalGet(*fn, 0); LocalSet(*fn, magnitude)
+    }
+    I32Const(*fn, limit); LocalSet(*fn, at)
+    LoopBegin(*fn)
+    LocalGet(*fn, at); I32Const(*fn, 1); Op(*fn, 0x6b); OpU(*fn, 0x22, at)
+    LocalGet(*fn, magnitude); I64Const(*fn, 10); Op(*fn, 0x82); Op(*fn, 0xa7); I32Const(*fn, #char "0"); Op(*fn, 0x6a)
+    MemArg(*fn, 0x3a, 0)
+    LocalGet(*fn, magnitude); I64Const(*fn, 10); Op(*fn, 0x80); OpU(*fn, 0x22, magnitude)
+    I64Const(*fn, 0); Op(*fn, 0x52); OpU(*fn, 0x0d, 0)
+    End(*fn)
+    if is_signed {
+        LocalGet(*fn, negative)
+        IfBegin(*fn)
+        LocalGet(*fn, at); I32Const(*fn, 1); Op(*fn, 0x6b); OpU(*fn, 0x22, at)
+        I32Const(*fn, #char "-"); MemArg(*fn, 0x3a, 0)
+        End(*fn)
+    }
+    LocalGet(*fn, at); I32Const(*fn, limit); LocalGet(*fn, at); Op(*fn, 0x6b); Op(*fn, 0xad)
+    Call(*fn, lower.put_function)
+    HelperFinish(*fn, output)
+}
+
+// bool (value): "true" or "false".
+EmitBool :: (lower: *Lower, output: *Buf) {
+    fn: Fn
+    parameters: [1]u32 = .[W_I32]
+    HelperStart(*fn, lower, parameters[:])
+    I32Const(*fn, lower.words_address); I32Const(*fn, cast(s64)lower.words_address + 4)
+    LocalGet(*fn, 0); Op(*fn, 0x1b)
+    I64Const(*fn, 4); I64Const(*fn, 5); LocalGet(*fn, 0); Op(*fn, 0x1b)
+    Call(*fn, lower.put_function)
+    HelperFinish(*fn, output)
+}
+
+// (i32 a, i64 la, i32 b, i64 lb) -> i32; local 4 is the i64 cursor.
+EmitBytesEqual :: (lower: *Lower, output: *Buf) {
+    fn: Fn
+    parameters: [4]u32 = .[W_I32, W_I64, W_I32, W_I64]
+    HelperStart(*fn, lower, parameters[:])
+    unused FnLocal(*fn, W_I64)
+    LocalGet(*fn, 1); LocalGet(*fn, 3); Op(*fn, 0x52)
+    Op(*fn, 0x04); Op(*fn, 0x40); I32Const(*fn, 0); Op(*fn, 0x0f); Op(*fn, 0x0b)
+    Op(*fn, 0x02); Op(*fn, 0x40); Op(*fn, 0x03); Op(*fn, 0x40)
+    LocalGet(*fn, 4); LocalGet(*fn, 1); Op(*fn, 0x5a); OpU(*fn, 0x0d, 1)
+    LocalGet(*fn, 0); LocalGet(*fn, 4); Op(*fn, 0xa7); Op(*fn, 0x6a); MemArg(*fn, 0x2d, 0)
+    LocalGet(*fn, 2); LocalGet(*fn, 4); Op(*fn, 0xa7); Op(*fn, 0x6a); MemArg(*fn, 0x2d, 0)
+    Op(*fn, 0x47)
+    Op(*fn, 0x04); Op(*fn, 0x40); I32Const(*fn, 0); Op(*fn, 0x0f); Op(*fn, 0x0b)
+    LocalGet(*fn, 4); I64Const(*fn, 1); Op(*fn, 0x7c); LocalSet(*fn, 4)
+    OpU(*fn, 0x0c, 0)
+    Op(*fn, 0x0b); Op(*fn, 0x0b)
+    I32Const(*fn, 1)
+    HelperFinish(*fn, output)
+}
+
+// zx_initialize () -> (): runs the module initializers once. zx_entry calls
+// it; a host may call it first, so an instance is initialized when it opens.
+EmitInitialize :: (lower: *Lower, output: *Buf, stack_base: u32) -> bool {
+    program := lower.program
+    fn: Fn
+    fn.lower = lower
+    GlobalGet(*fn, G_INIT)
+    IfBegin(*fn); Op(*fn, 0x0f); End(*fn)
+    if lower.suspendable { GlobalGet(*fn, G_ASTATE); I32Const(*fn, ASYNC_REWIND); Op(*fn, 0x47); IfBegin(*fn) }
+    I32Const(*fn, stack_base); GlobalSet(*fn, G_SP)
+    if lower.suspendable { End(*fn) }
+    for index: 0..program.initializers.count - 1 {
+        initializer := program.initializers[index]
+        if initializer < 0 || initializer >= program.functions.count || program.functions[initializer].external ||
+            program.functions[initializer].parameters.count != 0 ||
+            TypeAt(lower, program.functions[initializer].result).kind != .Void {
+            return Gap(lower, "wasm.gap.initializer", Say("module initializer @# is not a () -> void procedure", initializer))
+        }
+        if !lower.suspendable { Call(*fn, lower.wasm_function[initializer]); continue }
+        // Initializers already run are skipped on a rewind.
+        GlobalGet(*fn, G_INITAT); I32Const(*fn, index); Op(*fn, 0x4d)
+        IfBegin(*fn)
+        Call(*fn, lower.wasm_function[initializer])
+        GlobalGet(*fn, G_ASTATE); I32Const(*fn, ASYNC_UNWIND); Op(*fn, 0x46)
+        IfBegin(*fn); Op(*fn, 0x0f); End(*fn)
+        I32Const(*fn, index + 1); GlobalSet(*fn, G_INITAT)
+        End(*fn)
+    }
+    I32Const(*fn, 1); GlobalSet(*fn, G_INIT)
+    FlushOutput(*fn)
+    HelperFinish(*fn, output)
+    return !fn.code.failed
+}
+
+EmitEntry :: (lower: *Lower, output: *Buf, stack_base: u32) -> bool {
+    program := lower.program
+    if program.entry < 0 || program.entry >= program.functions.count || program.functions[program.entry].external {
+        return Gap(lower, "wasm.gap.entry", "the executable has no internal entry procedure")
+    }
+    entry := *program.functions[program.entry]
+    result := TypeAt(lower, entry.result)
+    if entry.parameters.count != 0 || result.kind != .Void && result.kind != .Bool && result.kind != .Integer {
+        return Gap(lower, "wasm.gap.entry", "zx_entry needs a procedure with no parameters returning void, bool or an integer")
+    }
+    fn: Fn
+    fn.lower = lower
+    // A rewind keeps the stack it unwound from.
+    if lower.suspendable { GlobalGet(*fn, G_ASTATE); I32Const(*fn, ASYNC_REWIND); Op(*fn, 0x47); IfBegin(*fn) }
+    I32Const(*fn, stack_base); GlobalSet(*fn, G_SP)
+    if lower.suspendable { End(*fn) }
+    if program.initializers.count > 0 {
+        Call(*fn, lower.initialize_function)
+        if lower.suspendable {
+            GlobalGet(*fn, G_ASTATE); I32Const(*fn, ASYNC_UNWIND); Op(*fn, 0x46)
+            IfBegin(*fn); I64Const(*fn, 0); Op(*fn, 0x0f); End(*fn)
+        }
+    }
+    // An entry that unwinds returns a value the host ignores.
+    OpU(*fn, 0x10, lower.wasm_function[program.entry])
+    FlushOutput(*fn)
+    if result.kind == .Void { I64Const(*fn, 0) }
+    else if result.kind == .Bool { Op(*fn, 0xad) }
+    else if result.bits < 64 {
+        if result.is_signed && result.bits == 8 { Op(*fn, 0xc0) }
+        if result.is_signed && result.bits == 16 { Op(*fn, 0xc1) }
+        Op(*fn, ifx result.is_signed then 0xac else 0xad)
+    }
+    HelperFinish(*fn, output)
+    return !fn.code.failed
+}
+

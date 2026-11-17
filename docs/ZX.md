@@ -252,12 +252,12 @@ typed-ABI rejection.
 
 A host that installs a WebAssembly provider with `ZxWasmSetPlatform`
 (`cmd/zir/zir_zx_wasm_platform.h`) runs bundles as WebAssembly:
-`BundleInstantiate` lowers the bundle's verified program with
-`zx_wasm_lower`, instantiates it through the provider, runs its module
+`BundleInstantiate` lowers the bundle's verified program with the engine's
+Wasm lowering, instantiates it through the provider, runs its module
 initializers, and charges the run budget like the instruction engine. An
 Emscripten build of `libziran` installs the browser provider itself. In an
 Asyncify runtime, whose hosts may suspend the stack, modules are lowered
-suspendable (`ZxWasmLowerProgramSuspendable`): a module unwinds with the stack
+suspendable (`LowerProgramSuspendable`): a module unwinds with the stack
 and resumes at the host call when it rewinds. A JSPI runtime leaves bundles to the
 instruction engine. Set `ZIRAN_WASM_TIER=0` in the environment, or
 `globalThis.ZIRAN_WASM_TIER = "0"` before a page loads the runtime, to leave
@@ -280,7 +280,7 @@ every `fuel` instruction charges, `zx.host_i64` when the program prints and
 `zx_initialize` when it has module initializers and `zx_reserve` when it has a
 heap; a `zxhost` custom section names each capability. A form it has no code
 for stops at a named `wasm.gap.*` diagnostic. The host-call record layout is in
-`cmd/zx2wasm/zx_wasm_lower.h`.
+`cmd/compiler_zx_wasm.zi`.
 
 ## Embedded files and application hosts
 

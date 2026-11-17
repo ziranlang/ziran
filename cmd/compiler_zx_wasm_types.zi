@@ -1,0 +1,647 @@
+// Verified revision-28 executable ZX to one wasm32 module: the module-wide
+// lowering state, wasm byte encoding, the layout of LIR types in linear
+// memory, procedure signatures, host-call shapes and the static data region.
+//
+// Layout follows the interpreter: packed records, arrays of packed elements,
+// 8-byte pointers in memory and canonical zero-extended integers in locals.
+// Memory holds static data, a fixed stack, then the heap. Every iteration is
+// in program index order, so equal inputs give byte-identical modules.
+using Vectors :: #import "vec"
+using LIR :: #import "compiler_lowered_ir"
+using Proven :: #import "compiler_lowered_proven"
+using Numbers :: #import "number_text"
+
+W_I32 :: 0x7f
+W_I64 :: 0x7e
+W_F32 :: 0x7d
+W_F64 :: 0x7c
+DATA_BASE :: 1024
+STACK_SIZE :: 8388608
+IMAGE_LIMIT :: 268435456
+BLOCK_LIMIT :: 1073741824 // the largest heap block and host image
+CLASSES :: 27             // free lists by capacity 16 << class
+OUT_CAPACITY :: 4096      // output buffer: a length word, the bytes, room for one number
+OUT_REGION :: 4136
+ASYNC_SIZE :: 1048576     // frames a suspendable module saves while its caller's stack unwinds
+
+// Global indices: the imported budget, the stack pointer, the initializer
+// flag and the stack limit (also the heap base); with a heap the heap top;
+// with host images the image base, cursor and length. A suspendable module
+// adds the unwind state, the save stack, its frame count and limit, and the
+// next module initializer to run.
+G_BUDGET :: 0
+G_SP :: 1
+G_INIT :: 2
+G_LIMIT :: 3
+G_TOP :: 4
+G_BASE :: 5
+G_CURSOR :: 6
+G_LENGTH :: 7
+G_DEPTH :: 8
+G_ASTATE :: 9
+G_ASTACK :: 10
+G_AFRAMES :: 11
+G_ALIMIT :: 12
+G_INITAT :: 13
+ASYNC_NORMAL :: 0
+ASYNC_UNWIND :: 1
+ASYNC_REWIND :: 2
+BLOCK_FREE :: 0
+BLOCK_PROGRAM :: 1
+BLOCK_HOST :: 2
+
+HOST_NONE :: 0
+HOST_WRITE :: 1
+HOST_SIGNED :: 2
+HOST_UNSIGNED :: 3
+HOST_BOOL :: 4
+HOST_FLOAT32 :: 5
+HOST_FLOAT64 :: 6
+HOST_CAPABILITY :: 7
+// Host shape flags of a type, computed once.
+SHAPE_VALID :: 1
+SHAPE_VIEWS :: 2
+SHAPE_BOOLS :: 4
+SHAPE_BUSY :: 0x40
+SHAPE_DONE :: 0x80
+// Image helpers a type needs: measure and encode, or decode.
+NEED_ENCODE :: 1
+NEED_DECODE :: 2
+
+// How one capability value crosses the host boundary.
+ZX_WASM_VOID :: 0
+ZX_WASM_BITS :: 1
+ZX_WASM_IMAGE :: 2
+
+// One capability value: its LIR type and how it crosses. For a view whose
+// elements hold no views (string, []T), element_size is the element size,
+// so its elements can be copied back; 0 otherwise.
+ZxWasmValue :: struct {
+    type: s32
+    kind: s32
+    element_size: usize
+}
+
+ZxWasmCapability :: struct {
+    module: *u8 #c "char *"
+    function: *u8 #c "char *"
+    symbol: s32 // the LIR function the capability is
+    parameter_count: usize
+    parameters: *ZxWasmValue
+    result: ZxWasmValue
+}
+
+// A lowered module and what its host needs: each capability's typed
+// signature, and where each LIR global lives in instance memory.
+ZxWasmImage :: struct {
+    bytes: *u8 #c "unsigned char *"
+    size: usize
+    capabilities: *ZxWasmCapability
+    capability_count: usize
+    global_addresses: *u32
+    global_sizes: *u32
+    global_count: usize
+    returns: s32 // the entry returns a value
+}
+
+// Growable wasm bytes; failed after a size past the image limit or an
+// allocation failure, after which writes do nothing.
+Buf :: struct {
+    bytes: Vec(u8)
+    failed: bool
+}
+
+Reserve :: (buf: *Buf, extra: s64) -> bool {
+    if buf.failed { return false }
+    if extra > IMAGE_LIMIT || buf.bytes.count > IMAGE_LIMIT - extra { buf.failed = true; return false }
+    if buf.bytes.count + extra > buf.bytes.capacity {
+        capacity := ifx buf.bytes.capacity > 0 then buf.bytes.capacity else 256
+        while capacity < buf.bytes.count + extra { capacity *= 2 }
+        if !VecReserve(buf.bytes, capacity) { buf.failed = true; return false }
+    }
+    return true
+}
+
+Byte :: (buf: *Buf, value: u64) {
+    if Reserve(buf, 1) { unused VecPush(buf.bytes, cast(u8)(value & 255)) }
+}
+
+Raw :: (buf: *Buf, data: string) {
+    if data.count > 0 && Reserve(buf, data.count) { unused BuilderAppend(buf.bytes, data) }
+}
+
+Uleb :: (buf: *Buf, value: u64) {
+    rest := value
+    while true {
+        byte := rest & 127
+        rest >>= 7
+        Byte(buf, ifx rest != 0 then byte | 128 else byte)
+        if rest == 0 { break }
+    }
+}
+
+Sleb :: (buf: *Buf, value: s64) {
+    rest := value
+    while true {
+        byte := cast(u64)(rest & 127)
+        rest >>= 7
+        if rest == 0 && (byte & 64) == 0 || rest == -1 && (byte & 64) != 0 { Byte(buf, byte); return }
+        Byte(buf, byte | 128)
+    }
+}
+
+Name :: (buf: *Buf, name: string) {
+    Uleb(buf, cast(u64)name.count)
+    Raw(buf, name)
+}
+
+// One signature: parameter value types and an optional result.
+Sig :: struct {
+    types: [513]u8
+    params: s64
+    result: u32
+}
+
+// The module-wide lowering state.
+Lower :: struct {
+    program: *LirProgram
+    // The checked-access facts native code shares; an index the facts prove
+    // inside its fixed array skips its bounds check.
+    proven: LirProvenOwner
+    sizes: Vec(s64)
+    global_address: Vec(u32)
+    host_kind: Vec(u8)
+    // Suspendable lowering: which procedures can reach a host capability,
+    // and so unwind with their caller's stack.
+    suspendable: bool
+    suspends: Vec(bool)
+    host_index: Vec(u32)
+    wasm_function: Vec(u32)
+    data: Buf
+    sigs: Vec(Sig)
+    capabilities: *ZxWasmCapability
+    capability_count: s64
+    shapes: Vec(u8)
+    // Types whose shape is being found, by depth, and the shallowest of them
+    // a result depended on.
+    shape_stack: [66]s32
+    shape_low: s64
+    needs: Vec(u8)
+    measure_function: Vec(u32)
+    encode_function: Vec(u32)
+    decode_function: Vec(u32)
+    uses_print: bool
+    uses_capability: bool
+    uses_images: bool
+    uses_heap: bool
+    uses_bytes_equal: bool
+    uses_table: bool
+    imports: u32
+    print_import: u32
+    host_import: u32
+    free_table: u32
+    alloc_function: u32
+    free_function: u32
+    resize_function: u32
+    reserve_function: u32
+    bytes_equal_function: u32
+    stub_function: u32
+    initialize_function: u32
+    entry_function: u32
+    // Platform output, formatted into a buffer in memory and flushed in one
+    // host call: the print services the program uses, the helpers, the
+    // buffer and the "truefalse" text.
+    print_kinds: u32
+    flush_function: u32
+    put_function: u32
+    signed_function: u32
+    unsigned_function: u32
+    bool_function: u32
+    out_base: u32
+    words_address: u32
+    failed: bool
+}
+
+// Reports CODE with MESSAGE as it is.
+WasmDiagnose :: (code: string, message: string) { ZiranDiagnose(.{}, code, message) }
+
+// Reports a named gap once; returns false.
+Gap :: (lower: *Lower, code: string, text: string) -> bool {
+    if lower.failed { return false }
+    message: Vec(u8)
+    unused BuilderAppend(message, code) && BuilderAppend(message, ": ") && BuilderAppend(message, text) &&
+        BuilderAppend(message, "; the program is outside the wasm execution subset and no alternate engine was selected")
+    ZiranDiagnose(.{}, code, TextView(message[:]))
+    lower.failed = true
+    return false
+}
+
+// TEXT with NUMBER in place of its `#`.
+Say :: (text: string, number: s64) -> Text {
+    digits: [24]u8
+    names: [1]string = .[FormatInteger(number, digits[:])]
+    return Fill(text, names[:], #char "#")
+}
+
+// TEXT with each `@` replaced by the next of NAMES.
+Fill :: (text: string, names: []string, mark: u8 = #char "@") -> Text {
+    result: Vec(u8)
+    next: s64 = 0
+    for at: 0..text.count - 1 {
+        if text[at] == mark && next < names.count { unused BuilderAppend(result, names[next]); next += 1 }
+        else { unused VecPush(result, text[at]) }
+    }
+    return TextFromBuilder(result)
+}
+
+SayName :: (text: string, name: string) -> Text {
+    names: [1]string = .[name]
+    return Fill(text, names[:])
+}
+
+OutOfMemory :: (lower: *Lower) -> bool {
+    lower.failed = true
+    DiagnosticOutOfMemory()
+    return false
+}
+
+TypeValid :: (lower: *Lower, type: s32) -> bool {
+    return type >= 0 && type < lower.program.types.count
+}
+
+TypeAt :: (lower: *Lower, type: s32) -> *LirType {
+    if !TypeValid(lower, type) { return *NoType }
+    return *lower.program.types[type]
+}
+
+TypeSizeAt :: (lower: *Lower, type: s32, depth: s64) -> s64 {
+    if !TypeValid(lower, type) || depth > 256 { return -1 }
+    if lower.sizes[type] >= 0 { return lower.sizes[type] }
+    value := TypeAt(lower, type)
+    size: s64 = -1
+    if value.kind == .Void { size = 0 }
+    else if value.kind == .Bool { size = 1 }
+    else if value.kind == .Integer || value.kind == .Float { size = value.bits / 8 }
+    else if value.kind == .Pointer || value.kind == .Function { size = 8 }
+    else if value.kind == .Array {
+        element := TypeSizeAt(lower, value.element, depth + 1)
+        if element >= 0 && value.count >= 0 && (element == 0 || value.count <= IMAGE_LIMIT / element) {
+            size = element * value.count
+        }
+    } else if value.kind == .Record {
+        size = 0
+        for field: value.fields {
+            width := TypeSizeAt(lower, field, depth + 1)
+            if width < 0 || size > IMAGE_LIMIT - width { size = -1; break }
+            size += width
+        }
+    }
+    lower.sizes[type] = size
+    return size
+}
+
+TypeSize :: (lower: *Lower, type: s32) -> s64 { return TypeSizeAt(lower, type, 0) }
+
+TypeAggregate :: (lower: *Lower, type: s32) -> bool {
+    kind := TypeAt(lower, type).kind
+    return kind == .Array || kind == .Record
+}
+
+KindName :: (kind: LirTypeKind) -> string {
+    names: [11]string = .["invalid", "void", "bool", "integer", "float", "pointer", "array", "record", "vector",
+        "function", "capability"]
+    index := cast(s64)kind
+    return ifx index >= 0 && index < 11 then names[index] else "invalid"
+}
+
+// The wasm value type of a scalar LIR type, or 0 for void and aggregates.
+// Unsupported scalar shapes are a named gap.
+ValType :: (lower: *Lower, type: s32) -> u32 {
+    value := TypeAt(lower, type)
+    if value.kind == .Bool || value.kind == .Pointer || value.kind == .Function { return W_I32 }
+    if value.kind == .Integer {
+        if value.bits == 8 || value.bits == 16 || value.bits == 32 { return W_I32 }
+        if value.bits == 64 { return W_I64 }
+        unused Gap(lower, "wasm.gap.integer-width", Say("LIR integer width # has no wasm32 representation", value.bits))
+        return 0
+    }
+    if value.kind == .Float {
+        if value.bits == 32 { return W_F32 }
+        if value.bits == 64 { return W_F64 }
+        unused Gap(lower, "wasm.gap.float-width", Say("LIR float width # has no wasm32 representation", value.bits))
+        return 0
+    }
+    if value.kind == .Void || value.kind == .Array || value.kind == .Record { return 0 }
+    unused Gap(lower, "wasm.gap.type", SayName("LIR @ values have no wasm32 representation yet", KindName(value.kind)))
+    return 0
+}
+
+TypeLowered :: (lower: *Lower, type: s32) -> bool {
+    if !TypeValid(lower, type) { return Gap(lower, "wasm.gap.type", Say("LIR type t# is out of range", type)) }
+    if TypeAggregate(lower, type) || TypeAt(lower, type).kind == .Void {
+        return TypeSize(lower, type) >= 0 ||
+            Gap(lower, "wasm.gap.type", Say("LIR type t# has no bounded wasm32 layout", type))
+    }
+    return ValType(lower, type) != 0
+}
+
+IntegerSmall :: (type: *LirType) -> bool { return type.kind == .Integer && type.bits < 32 }
+
+IntegerMask :: (bits: s64) -> u64 {
+    if bits >= 64 { return 0xffffffffffffffff }
+    return (cast(u64)1 << cast(u64)bits) - 1
+}
+
+// Finds or adds a signature; returns its type index.
+SignatureIndex :: (lower: *Lower, sig: *Sig) -> u32 {
+    for index: 0..lower.sigs.count - 1 {
+        other := *lower.sigs[index]
+        if other.params == sig.params && other.result == sig.result && TextView(other.types[0:sig.params]) == TextView(sig.types[0:sig.params]) {
+            return cast(u32)index
+        }
+    }
+    if !VecPush(lower.sigs, <<sig) { unused OutOfMemory(lower); return 0 }
+    return cast(u32)(lower.sigs.count - 1)
+}
+
+// The wasm signature of a LIR procedure shape: an aggregate result adds a
+// leading result address, and aggregate parameters pass their address.
+SignatureOf :: (lower: *Lower, parameters: []s32, result: s32, sig: *Sig) -> bool {
+    <<sig = .{}
+    if parameters.count > 500 {
+        return Gap(lower, "wasm.gap.signature", Say("procedure with # parameters", parameters.count))
+    }
+    if !TypeLowered(lower, result) { return false }
+    if TypeAggregate(lower, result) { sig.types[sig.params] = W_I32; sig.params += 1 }
+    else { sig.result = ValType(lower, result) }
+    for parameter: parameters {
+        if !TypeLowered(lower, parameter) { return false }
+        if TypeAt(lower, parameter).kind == .Void { return Gap(lower, "wasm.gap.signature", "void parameter") }
+        sig.types[sig.params] = ifx TypeAggregate(lower, parameter) then W_I32 else cast(u8)ValType(lower, parameter)
+        sig.params += 1
+    }
+    return !lower.failed
+}
+
+// A C copy of TEXT, or null.
+TextCopyC :: (text: string) -> *u8 {
+    copy := cast(*u8)Allocate(cast(usize)text.count + 1)
+    if copy == null { return null }
+    for at: 0..text.count - 1 { copy[at] = text[at] }
+    copy[text.count] = 0
+    return copy
+}
+
+// A view is the record {data: *T, count: s64} of a non-void element, as
+// LirHostView defines it: string, []T. Gives the element type or -1.
+ViewElement :: (lower: *Lower, type: s32) -> s32 {
+    value := TypeAt(lower, type)
+    if value.kind != .Record || value.fields.count != 2 { return -1 }
+    pointer := TypeAt(lower, value.fields[0])
+    count := TypeAt(lower, value.fields[1])
+    if pointer.kind != .Pointer || !TypeValid(lower, pointer.element) || TypeAt(lower, pointer.element).kind == .Void ||
+        count.kind != .Integer || count.bits != 64 || !count.is_signed {
+        return -1
+    }
+    return pointer.element
+}
+
+// Host shape flags, by the rules of LirHostShapes: scalars, pointers as
+// handles, and records, arrays and views of host shapes. A type nesting past
+// 64 levels is not a shape. A type that reaches itself does so through a
+// view; it counts as a shape with views until its own fields decide, and
+// nothing whose answer leaned on that is kept before then.
+HostShapeAt :: (lower: *Lower, type: s32, depth: s64) -> u32 {
+    if !TypeValid(lower, type) || depth > 64 { return 0 }
+    shape := cast(u32)lower.shapes[type]
+    if (shape & SHAPE_DONE) != 0 { return shape & 7 }
+    if (shape & SHAPE_BUSY) != 0 {
+        for at: 0..depth - 1 {
+            if lower.shape_stack[at] == type && at < lower.shape_low { lower.shape_low = at }
+        }
+        return SHAPE_VALID | SHAPE_VIEWS
+    }
+    lower.shapes[type] = cast(u8)(shape | SHAPE_BUSY)
+    lower.shape_stack[depth] = type
+    outer := lower.shape_low
+    lower.shape_low = depth
+    value := TypeAt(lower, type)
+    flags: u32 = 0
+    element := ViewElement(lower, type)
+    if value.kind == .Bool { flags = SHAPE_VALID | SHAPE_BOOLS }
+    else if value.kind == .Integer || value.kind == .Float || value.kind == .Pointer { flags = SHAPE_VALID }
+    else if element >= 0 {
+        inner := HostShapeAt(lower, element, depth + 1)
+        if (inner & SHAPE_VALID) != 0 { flags = SHAPE_VALID | SHAPE_VIEWS | (inner & SHAPE_BOOLS) }
+    } else if value.kind == .Array {
+        flags = HostShapeAt(lower, value.element, depth + 1)
+    } else if value.kind == .Record {
+        flags = SHAPE_VALID
+        for field: value.fields {
+            inner := HostShapeAt(lower, field, depth + 1)
+            if (inner & SHAPE_VALID) == 0 { flags = 0; break }
+            flags |= inner
+        }
+    }
+    low := lower.shape_low
+    lower.shape_low = ifx low < outer then low else outer
+    if low < depth { lower.shapes[type] = cast(u8)(cast(u32)lower.shapes[type] & ~SHAPE_BUSY) }
+    else { lower.shapes[type] = cast(u8)(SHAPE_DONE | flags) }
+    return flags
+}
+
+HostShape :: (lower: *Lower, type: s32) -> u32 {
+    lower.shape_low = 0
+    return HostShapeAt(lower, type, 0)
+}
+
+// Scalars and pointers cross as bits; other shapes cross as images.
+HostBits :: (lower: *Lower, type: s32) -> bool {
+    kind := TypeAt(lower, type).kind
+    return kind == .Bool || kind == .Integer || kind == .Float || kind == .Pointer
+}
+
+// Marks the image helpers a type and everything inside it needs.
+MarkNeeds :: (lower: *Lower, type: s32, need: u32) {
+    shape := HostShape(lower, type)
+    if need == NEED_ENCODE && (shape & SHAPE_VIEWS) == 0 { return }
+    if need == NEED_DECODE && (shape & (SHAPE_VIEWS | SHAPE_BOOLS)) == 0 { return }
+    if (cast(u32)lower.needs[type] & need) != 0 { return }
+    lower.needs[type] = cast(u8)(cast(u32)lower.needs[type] | need)
+    value := TypeAt(lower, type)
+    element := ViewElement(lower, type)
+    if element >= 0 { MarkNeeds(lower, element, need) }
+    else if value.kind == .Array { MarkNeeds(lower, value.element, need) }
+    else if value.kind == .Record {
+        for field: value.fields { MarkNeeds(lower, field, need) }
+    }
+}
+
+// How one capability value crosses, or false after a gap.
+CapabilityValue :: (lower: *Lower, function: *LirFunction, type: s32, result: bool, value: *ZxWasmValue) -> bool {
+    <<value = .{.type = type}
+    if result && TypeAt(lower, type).kind == .Void { value.kind = ZX_WASM_VOID; return true }
+    if (HostShape(lower, type) & SHAPE_VALID) == 0 || !TypeLowered(lower, type) {
+        names: [3]string = .[function.name, KindName(TypeAt(lower, type).kind), ifx result then "result" else "parameter"]
+        return Gap(lower, "wasm.gap.host-capability-abi",
+            Fill("host capability @ has a @ @ that cannot cross a typed host boundary", names[:]))
+    }
+    value.kind = ifx HostBits(lower, type) then ZX_WASM_BITS else ZX_WASM_IMAGE
+    element := ViewElement(lower, type)
+    if element >= 0 && (HostShape(lower, element) & SHAPE_VIEWS) == 0 && TypeSize(lower, element) > 0 {
+        value.element_size = cast(usize)TypeSize(lower, element)
+    }
+    if value.kind == ZX_WASM_IMAGE {
+        lower.uses_images = true
+        MarkNeeds(lower, type, ifx result then NEED_DECODE else NEED_ENCODE)
+    }
+    return true
+}
+
+AddCapability :: (lower: *Lower, index: s64) -> bool {
+    function := *lower.program.functions[index]
+    grown := cast(*ZxWasmCapability)Reallocate(cast(*void)lower.capabilities,
+        cast(usize)(lower.capability_count + 1) * size_of(ZxWasmCapability))
+    if grown == null { return OutOfMemory(lower) }
+    lower.capabilities = grown
+    module := ""
+    if function.module >= 0 && function.module < lower.program.modules.count { module = lower.program.modules[function.module] }
+    capability := *lower.capabilities[lower.capability_count]
+    lower.capability_count += 1
+    <<capability = .{.symbol = cast(s32)index, .parameter_count = cast(usize)function.parameters.count}
+    capability.module = TextCopyC(module)
+    capability.function = TextCopyC(function.name)
+    capability.parameters = cast(*ZxWasmValue)Clear(capability.parameter_count + 1, size_of(ZxWasmValue))
+    if capability.module == null || capability.function == null || capability.parameters == null {
+        return OutOfMemory(lower)
+    }
+    for at: 0..function.parameters.count - 1 {
+        if !CapabilityValue(lower, function, function.parameters[at], false, *capability.parameters[at]) { return false }
+    }
+    if !CapabilityValue(lower, function, function.result, true, *capability.result) { return false }
+    lower.host_index[index] = cast(u32)(lower.capability_count - 1)
+    return true
+}
+
+// Classifies every external procedure once: platform output services map to
+// the reserved print indices, every other host procedure is a declared
+// capability with its own index and typed signature.
+ClassifyExternals :: (lower: *Lower) -> bool {
+    for index: 0..lower.program.functions.count - 1 {
+        function := *lower.program.functions[index]
+        if !function.external { continue }
+        name := function.name
+        count := function.parameters.count
+        first := TypeAt(lower, ifx count > 0 then function.parameters[0] else -1)
+        kind: u8 = HOST_NONE
+        if name == "ziran.platform.write_all" { kind = HOST_WRITE }
+        else if name == "ziran.print.signed" { kind = HOST_SIGNED }
+        else if name == "ziran.print.unsigned" { kind = HOST_UNSIGNED }
+        else if name == "ziran.print.bool" { kind = HOST_BOOL }
+        else if name == "ziran.print.float32" { kind = HOST_FLOAT32 }
+        else if name == "ziran.print.float64" { kind = HOST_FLOAT64 }
+        else if Prefix(name, "ziran.platform.") || Prefix(name, "ziran.print.") {
+            return Gap(lower, "wasm.gap.platform-service-unavailable",
+                SayName("the wasm32 target does not implement platform service @", name))
+        } else if function.calling != .Host {
+            return Gap(lower, "wasm.gap.foreign-service", SayName("external procedure @ is not a host capability", name))
+        } else { kind = HOST_CAPABILITY }
+        lower.host_kind[index] = kind
+        if kind == HOST_CAPABILITY {
+            if !AddCapability(lower, index) { return false }
+            continue
+        }
+        valid := true
+        if kind == HOST_WRITE {
+            valid = count == 3 && TypeAt(lower, function.parameters[0]).kind == .Integer &&
+                TypeAt(lower, function.parameters[1]).kind == .Pointer && TypeAt(lower, function.parameters[2]).kind == .Integer
+        } else if kind == HOST_SIGNED || kind == HOST_UNSIGNED {
+            valid = count == 1 && first.kind == .Integer
+        } else if kind == HOST_BOOL {
+            valid = count == 1 && (first.kind == .Bool || first.kind == .Integer)
+        } else if kind == HOST_FLOAT32 || kind == HOST_FLOAT64 {
+            valid = count == 1 && first.kind == .Float && first.bits == (ifx kind == HOST_FLOAT32 then 32 else 64)
+        }
+        if !valid || TypeAt(lower, function.result).kind != .Void {
+            return Gap(lower, "wasm.gap.platform-service-abi", SayName("platform service @ has an unexpected LIR signature", name))
+        }
+    }
+    return true
+}
+
+Prefix :: (text: string, prefix: string) -> bool {
+    return text.count >= prefix.count && text[0:prefix.count] == prefix
+}
+
+// Data region: writable and read-only globals first, then constant blobs.
+DataReserve :: (lower: *Lower, size: s64) -> u32 {
+    start := (lower.data.bytes.count + 7) & ~cast(s64)7
+    if size < 0 || size > IMAGE_LIMIT - start {
+        unused Gap(lower, "wasm.gap.data-size", "static data exceeds the wasm32 image limit")
+        return 0
+    }
+    if !Reserve(*lower.data, start - lower.data.bytes.count + size) { unused OutOfMemory(lower); return 0 }
+    unused VecResize(lower.data.bytes, start + size)
+    return cast(u32)(DATA_BASE + start)
+}
+
+DataWriteBits :: (lower: *Lower, address: u32, size: s64, bits: u64) {
+    at: s64 = 0
+    while at < size && at < 8 {
+        lower.data.bytes[cast(s64)address - DATA_BASE + at] = cast(u8)((bits >> cast(u64)(8 * at)) & 255)
+        at += 1
+    }
+}
+
+LayoutGlobals :: (lower: *Lower) -> bool {
+    for index: 0..lower.program.globals.count - 1 {
+        global := *lower.program.globals[index]
+        size := TypeSize(lower, global.type)
+        if size < 0 || !TypeLowered(lower, global.type) {
+            return Gap(lower, "wasm.gap.global-layout", SayName("global @ has no bounded wasm32 layout", global.name))
+        }
+        address := DataReserve(lower, size)
+        if lower.failed { return false }
+        lower.global_address[index] = address
+        if global.constant == LirNoId { continue }
+        if global.constant < 0 || global.constant >= lower.program.constants.count {
+            return Gap(lower, "wasm.gap.global-constant", SayName("global @ names a missing constant", global.name))
+        }
+        constant := *lower.program.constants[global.constant]
+        type := TypeAt(lower, global.type)
+        if type.kind == .Array {
+            count := ifx constant.bytes.count < size then constant.bytes.count else size
+            for at: 0..count - 1 { lower.data.bytes[cast(s64)address - DATA_BASE + at] = constant.bytes[at] }
+        } else if size <= 8 {
+            bits := constant.bits
+            if type.kind == .Bool { bits = ifx bits != 0 then 1 else 0 }
+            if type.kind == .Integer { bits &= IntegerMask(type.bits) }
+            DataWriteBits(lower, address, size, bits)
+        } else {
+            names: [2]string = .[global.name, KindName(type.kind)]
+            return Gap(lower, "wasm.gap.global-constant", Fill("global @ has a @ initial constant wider than one scalar", names[:]))
+        }
+    }
+    return true
+}
+
+#scope_file
+
+NoType: LirType = .{};
+SourceSpan :: struct { context: *void; file: s32; line: s32; column: s32; end_line: s32; end_column: s32 }
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+ZiranDiagnose :: (span: SourceSpan, code: string, message: string) #foreign compiler "ZiranDiagnose";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+
+CAllocate :: (size: usize) -> *void #foreign libc "malloc";
+CClear :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+CReallocate :: (memory: *void, size: usize) -> *void #foreign libc "realloc";
+CFree :: (memory: *void) #foreign libc "free";
+
+#scope_export
+// The C allocator: images and capabilities cross to C, which frees them.
+Allocate :: (size: usize) -> *void { return CAllocate(size) }
+Clear :: (count: usize, size: usize) -> *void { return CClear(count, size) }
+Reallocate :: (memory: *void, size: usize) -> *void { return CReallocate(memory, size) }
+Free :: (memory: *void) { CFree(memory) }

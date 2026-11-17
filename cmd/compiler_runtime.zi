@@ -1,9 +1,11 @@
 // The portable instruction engine every embedder links through libziran:
 // the executable ZX container and reader, the lowered-IR verifier, the
 // interpreter, the LIR optimizer a host that compiles source in place
-// (the browser playground) needs, and the checked-access facts every backend
-// shares. This module only names that set for the C generator.
+// (the browser playground) needs, the checked-access facts every backend
+// shares, and the Wasm lowering. This module only names that set for the C
+// generator.
 #import "compiler_exec_link"
 #import "compiler_exec"
 #import "compiler_opt"
 #import "compiler_lowered_proven"
+#import "compiler_zx_wasm"

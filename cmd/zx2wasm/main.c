@@ -1,4 +1,4 @@
-#include "zx_wasm_lower.h"
+#include "compiler_zx_wasm.h"
 #include "zir.h"
 #include "zir_diagnostic.h"
 
@@ -90,7 +90,7 @@ main(int argc, char **argv)
     if(bytes == NULL) return 1;
     ZxWasmImage image = {0};
     int status = 1;
-    if(!ZxWasmLowerExecutable(bytes, size, &image)) goto done;
+    if(!compiler_zx_wasm_LowerExecutable(bytes, size, &image)) goto done;
     if(!strcmp(output, "-")) {
         if(fwrite(image.bytes, 1, image.size, stdout) == image.size &&
            fflush(stdout) == 0)
@@ -118,7 +118,7 @@ main(int argc, char **argv)
     }
     status = 0;
 done:
-    ZxWasmImageFree(&image);
+    compiler_zx_wasm_ImageFree(&image);
     free(bytes);
     return status;
 }

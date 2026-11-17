@@ -1,0 +1,410 @@
+// One procedure being lowered to wasm: its locals, frame slots, labels and
+// the instruction encoders the lowering writes with. Scalar values are wasm
+// locals; record and array values live in a per-call frame on a
+// linear-memory stack.
+using Vectors :: #import "vec"
+using LIR :: #import "compiler_lowered_ir"
+using Types :: #import "compiler_zx_wasm_types"
+
+ADDR_LOCAL :: 0
+ADDR_FRAME :: 1
+ADDR_ABSOLUTE :: 2
+
+// A base (pointer local, frame pointer, or absolute zero) plus a constant
+// byte offset; kind -1 marks a value that has a slot of its own.
+Addr :: struct {
+    kind: s64
+    local: u32
+    offset: s64
+}
+
+// A structured label: a branch to a block label reaches that block's code
+// (the label's block ends just before it), one to a loop label reaches the
+// loop's header.
+Label :: struct { loop: bool; block: s64 }
+
+Fn :: struct {
+    lower: *Lower
+    function: *LirFunction
+    code: Buf
+    locals: Vec(u8)
+    param_count: u32
+    value_local: Vec(s32)
+    value_slot: Vec(s64)
+    // An aggregate extract read in place: its address in the slot of the
+    // aggregate it reads (kind -1 when it has a slot of its own), and that slot.
+    view: Vec(Addr)
+    view_root: Vec(s64)
+    // An insert of a view back where it was read, or an unused constructor.
+    elided: Vec(bool)
+    // Initial members overwritten along a single-use insert chain: by value,
+    // where its member flags start in omitted_bits, or -1.
+    omitted: Vec(s64)
+    omitted_bits: Vec(bool)
+    alloca_slot: Vec(s64)
+    frame: s64
+    scratch: s64
+    host_area: s64 // frame offset of the host call record
+    fp: u32
+    pc: u32
+    result_address: u32
+    has_frame: bool
+    // A procedure that can suspend runs its blocks as segments split at each
+    // call that can suspend, so a rewind resumes at that call.
+    async: bool
+    seg_first: Vec(s64)
+    segment: s64
+    segment_count: s64
+    prologue_end: s64
+    // Control: structured loops when each loop is a span of blocks entered at
+    // its header, else one dispatch loop.
+    dispatch: bool
+    loops: bool
+    // Structured blocks are laid out in `order`; position is its inverse,
+    // loop_end is by position, and first is a block's first instruction
+    // counted in the function's own order.
+    order: Vec(s64)
+    position: Vec(s64)
+    first: Vec(s64)
+    loop_end: Vec(s64)
+    labels: Vec(Label)
+    // The budget, kept in a local while the function runs; it reaches the
+    // global around calls, returns and an overrun.
+    has_budget: bool
+    budget: u32
+    // The instruction being lowered and the static array indices whose
+    // runtime check its interval proof has shown to be redundant.
+    instruction: *LirInstruction
+    proven: Vec(bool)
+    block_count: s64
+    temp: [4]Vec(u32)
+}
+
+FnLocal :: (fn: *Fn, type: u32) -> u32 {
+    if !VecPush(fn.locals, cast(u8)type) { unused OutOfMemory(fn.lower); return 0 }
+    return cast(u32)(fn.locals.count - 1)
+}
+
+TempSlot :: (type: u32) -> s64 {
+    return ifx type == W_I32 then 0 else ifx type == W_I64 then 1 else ifx type == W_F32 then 2 else 3
+}
+
+// Scratch locals live only inside one instruction's sequence.
+FnTemp :: (fn: *Fn, type: u32, which: u32) -> u32 {
+    slot := TempSlot(type)
+    while fn.temp[slot].count <= cast(s64)which {
+        local := FnLocal(fn, type)
+        if !VecPush(fn.temp[slot], local) { unused OutOfMemory(fn.lower); return 0 }
+    }
+    return fn.temp[slot][which]
+}
+
+Op :: (fn: *Fn, code: u64) { Byte(*fn.code, code) }
+OpU :: (fn: *Fn, code: u64, value: u64) { Byte(*fn.code, code); Uleb(*fn.code, value) }
+LocalGet :: (fn: *Fn, local: u32) { OpU(fn, 0x20, local) }
+LocalSet :: (fn: *Fn, local: u32) { OpU(fn, 0x21, local) }
+GlobalGet :: (fn: *Fn, global: u32) { OpU(fn, 0x23, global) }
+GlobalSet :: (fn: *Fn, global: u32) { OpU(fn, 0x24, global) }
+I32Const :: (fn: *Fn, value: s64) { Byte(*fn.code, 0x41); Sleb(*fn.code, cast(s64)cast(s32)value) }
+I64Const :: (fn: *Fn, value: s64) { Byte(*fn.code, 0x42); Sleb(*fn.code, value) }
+MemArg :: (fn: *Fn, code: u64, offset: u32) { Byte(*fn.code, code); Uleb(*fn.code, 0); Uleb(*fn.code, offset) }
+MemoryCopy :: (fn: *Fn) { Byte(*fn.code, 0xfc); Uleb(*fn.code, 10); Byte(*fn.code, 0); Byte(*fn.code, 0) }
+MemoryFill :: (fn: *Fn) { Byte(*fn.code, 0xfc); Uleb(*fn.code, 11); Byte(*fn.code, 0) }
+IfBegin :: (fn: *Fn) { Op(fn, 0x04); Op(fn, 0x40) }
+BlockBegin :: (fn: *Fn) { Op(fn, 0x02); Op(fn, 0x40) }
+LoopBegin :: (fn: *Fn) { Op(fn, 0x03); Op(fn, 0x40) }
+End :: (fn: *Fn) { Op(fn, 0x0b) }
+Call :: (fn: *Fn, function: u32) { OpU(fn, 0x10, function) }
+// Buffered output reaches the host before anything that can stop the
+// module or let the host print.
+FlushOutput :: (fn: *Fn) { if fn.lower.uses_print { Call(fn, fn.lower.flush_function) } }
+TrapIf :: (fn: *Fn) { IfBegin(fn); FlushOutput(fn); Op(fn, 0x00); Op(fn, 0x0b) }
+ReturnZero :: (fn: *Fn) { I32Const(fn, 0); Op(fn, 0x0f) }
+
+ValueValid :: (fn: *Fn, value: s32) -> bool { return value >= 0 && value < fn.function.values.count }
+
+ValueType :: (fn: *Fn, value: s32) -> s32 {
+    return ifx ValueValid(fn, value) then fn.function.values[value] else LirNoId
+}
+
+ValueLir :: (fn: *Fn, value: s32) -> *LirType { return TypeAt(fn.lower, ValueType(fn, value)) }
+
+ValueScalar :: (fn: *Fn, value: s32) -> bool { return ValueValid(fn, value) && fn.value_local[value] >= 0 }
+
+ValueWasm :: (fn: *Fn, value: s32) -> u32 {
+    return ifx ValueScalar(fn, value) then cast(u32)fn.locals[fn.value_local[value]] else 0
+}
+
+Get :: (fn: *Fn, value: s32) {
+    if !ValueScalar(fn, value) {
+        unused Gap(fn.lower, "wasm.gap.operand", Say("operand v# is not a scalar value", value))
+        return
+    }
+    LocalGet(fn, cast(u32)fn.value_local[value])
+}
+
+Set :: (fn: *Fn, value: s32) {
+    if !ValueScalar(fn, value) {
+        unused Gap(fn.lower, "wasm.gap.result", Say("result v# is not a scalar value", value))
+        return
+    }
+    LocalSet(fn, cast(u32)fn.value_local[value])
+}
+
+AddrOfSlot :: (fn: *Fn, value: s32) -> Addr {
+    if ValueValid(fn, value) && fn.view.count > 0 && fn.view[value].kind >= 0 { return fn.view[value] }
+    return .{.kind = ADDR_FRAME, .offset = ifx ValueValid(fn, value) then fn.value_slot[value] else 0}
+}
+
+PushBase :: (fn: *Fn, address: Addr) {
+    if address.kind == ADDR_LOCAL { LocalGet(fn, address.local) }
+    else if address.kind == ADDR_FRAME { LocalGet(fn, fn.fp) }
+    else { I32Const(fn, 0) }
+}
+
+PushFull :: (fn: *Fn, address: Addr) {
+    if address.kind == ADDR_ABSOLUTE { I32Const(fn, address.offset); return }
+    PushBase(fn, address)
+    if address.offset != 0 { I32Const(fn, address.offset); Op(fn, 0x6a) }
+}
+
+OffsetFits :: (fn: *Fn, offset: s64) -> bool {
+    return offset >= 0 && offset <= 0x7fffffff ||
+        Gap(fn.lower, "wasm.gap.offset", Say("memory offset # is outside wasm32", offset))
+}
+
+// Copies `size` bytes between two places that do not overlap: unrolled loads
+// and stores for a small value, memory.copy otherwise.
+CopyFixed :: (fn: *Fn, destination: Addr, source: Addr, size: s64) {
+    if size <= 0 || destination.kind == source.kind && destination.local == source.local &&
+        destination.offset == source.offset {
+        return
+    }
+    if size > 64 || !OffsetFits(fn, destination.offset + size) || !OffsetFits(fn, source.offset + size) {
+        PushFull(fn, destination)
+        PushFull(fn, source)
+        I32Const(fn, size)
+        MemoryCopy(fn)
+        return
+    }
+    loads: [4]u64 = .[0x29, 0x28, 0x2f, 0x2d]
+    stores: [4]u64 = .[0x37, 0x36, 0x3b, 0x3a]
+    at: s64 = 0
+    width: s64 = 8
+    for kind: 0..3 {
+        while size - at >= width {
+            PushBase(fn, destination)
+            PushBase(fn, source)
+            MemArg(fn, loads[kind], cast(u32)(source.offset + at))
+            MemArg(fn, stores[kind], cast(u32)(destination.offset + at))
+            at += width
+        }
+        width /= 2
+    }
+}
+
+// Scalar memory access of one LIR type at base + memarg offset.
+LoadScalar :: (fn: *Fn, type: s32, offset: u32) {
+    value := TypeAt(fn.lower, type)
+    if value.kind == .Bool { MemArg(fn, 0x2d, offset); I32Const(fn, 0); Op(fn, 0x47) }
+    else if value.kind == .Integer {
+        MemArg(fn, ifx value.bits == 8 then 0x2d else ifx value.bits == 16 then 0x2f else ifx value.bits == 32 then 0x28 else 0x29, offset)
+    } else if value.kind == .Float { MemArg(fn, ifx value.bits == 32 then 0x2a else 0x2b, offset) }
+    else if value.kind == .Pointer || value.kind == .Function { MemArg(fn, 0x29, offset); Op(fn, 0xa7) }
+    else { unused Gap(fn.lower, "wasm.gap.load", SayName("load of LIR @", KindName(value.kind))) }
+}
+
+// Expects base then value on the stack.
+StoreScalar :: (fn: *Fn, type: s32, offset: u32) {
+    value := TypeAt(fn.lower, type)
+    if value.kind == .Bool { MemArg(fn, 0x3a, offset) }
+    else if value.kind == .Integer {
+        MemArg(fn, ifx value.bits == 8 then 0x3a else ifx value.bits == 16 then 0x3b else ifx value.bits == 32 then 0x36 else 0x37, offset)
+    } else if value.kind == .Float { MemArg(fn, ifx value.bits == 32 then 0x38 else 0x39, offset) }
+    else if value.kind == .Pointer || value.kind == .Function { Op(fn, 0xad); MemArg(fn, 0x37, offset) }
+    else { unused Gap(fn.lower, "wasm.gap.store", SayName("store of LIR @", KindName(value.kind))) }
+}
+
+// Copies a value (scalar or aggregate) into memory.
+StoreValue :: (fn: *Fn, destination: Addr, value: s32) {
+    if !OffsetFits(fn, destination.offset) { return }
+    if ValueScalar(fn, value) {
+        PushBase(fn, destination)
+        Get(fn, value)
+        StoreScalar(fn, ValueType(fn, value), cast(u32)destination.offset)
+        return
+    }
+    CopyFixed(fn, destination, AddrOfSlot(fn, value), TypeSize(fn.lower, ValueType(fn, value)))
+}
+
+LoadValue :: (fn: *Fn, source: Addr, value: s32) {
+    if !OffsetFits(fn, source.offset) { return }
+    if ValueScalar(fn, value) {
+        PushBase(fn, source)
+        LoadScalar(fn, ValueType(fn, value), cast(u32)source.offset)
+        Set(fn, value)
+        return
+    }
+    CopyFixed(fn, AddrOfSlot(fn, value), source, TypeSize(fn.lower, ValueType(fn, value)))
+}
+
+// Keeps an i32 integer canonical after an operation of a narrow type.
+Canonical :: (fn: *Fn, type: *LirType) {
+    if IntegerSmall(type) { I32Const(fn, cast(s64)IntegerMask(type.bits)); Op(fn, 0x71) }
+}
+
+// Pushes an operand sign-extended within i32 when its type is signed narrow.
+GetSigned :: (fn: *Fn, value: s32) {
+    type := ValueLir(fn, value)
+    Get(fn, value)
+    if type.kind == .Integer && type.is_signed {
+        if type.bits == 8 { Op(fn, 0xc0) }
+        else if type.bits == 16 { Op(fn, 0xc1) }
+    }
+}
+
+// Pushes an integer operand widened to i64 (zero- or sign-extended).
+GetI64 :: (fn: *Fn, value: s32, sign: bool) {
+    wasm := ValueWasm(fn, value)
+    if sign { GetSigned(fn, value) } else { Get(fn, value) }
+    if wasm == W_I32 { Op(fn, ifx sign && ValueLir(fn, value).is_signed then 0xac else 0xad) }
+}
+
+MemberOffset :: (fn: *Fn, type: s32, member: u64, offset: *s64, member_type: *s32) -> bool {
+    lower := fn.lower
+    value := TypeAt(lower, type)
+    if value.kind == .Array {
+        if member >= cast(u64)value.count { return false }
+        <<member_type = value.element
+        <<offset = cast(s64)member * TypeSize(lower, value.element)
+        return true
+    }
+    if value.kind != .Record || member >= cast(u64)value.fields.count { return false }
+    at: s64 = 0
+    for index: 0..cast(s64)member - 1 { at += TypeSize(lower, value.fields[index]) }
+    <<member_type = value.fields[member]
+    <<offset = at
+    return true
+}
+
+// Whether an edge must move this argument into its parameter: a scalar that
+// is another value, or an aggregate in another slot.
+EdgeMoves :: (fn: *Fn, argument: s32, parameter: s32, aggregate: bool) -> bool {
+    if aggregate != !ValueScalar(fn, parameter) { return false }
+    if aggregate { return ValueValid(fn, argument) && fn.value_slot[argument] != fn.value_slot[parameter] }
+    return argument != parameter
+}
+
+// Edge copies: parameters are assigned in parallel.
+EdgeCopy :: (fn: *Fn, edge: *LirEdge) {
+    if edge.block < 0 || edge.block >= fn.block_count {
+        unused Gap(fn.lower, "wasm.gap.edge", Say("edge target b# is out of range", edge.block))
+        return
+    }
+    target := *fn.function.blocks[edge.block]
+    if edge.arguments.count != target.parameters.count {
+        unused Gap(fn.lower, "wasm.gap.edge", Say("edge argument count differs from b#", edge.block))
+        return
+    }
+    count := edge.arguments.count
+    aggregates: s64 = 0
+    for index: 0..count - 1 {
+        if EdgeMoves(fn, edge.arguments[index], target.parameters[index], true) { aggregates += 1 }
+    }
+    if aggregates == 1 {
+        for index: 0..count - 1 {
+            if EdgeMoves(fn, edge.arguments[index], target.parameters[index], true) {
+                StoreValue(fn, AddrOfSlot(fn, target.parameters[index]), edge.arguments[index])
+            }
+        }
+    } else if aggregates > 1 {
+        for pass: 0..1 {
+            at := fn.scratch
+            for index: 0..count - 1 {
+                if !EdgeMoves(fn, edge.arguments[index], target.parameters[index], true) { continue }
+                place := Addr.{.kind = ADDR_FRAME, .offset = at}
+                if pass == 0 { StoreValue(fn, place, edge.arguments[index]) }
+                else { LoadValue(fn, place, target.parameters[index]) }
+                at += TypeSize(fn.lower, ValueType(fn, target.parameters[index]))
+            }
+        }
+    }
+    for index: 0..count - 1 {
+        if EdgeMoves(fn, edge.arguments[index], target.parameters[index], false) { Get(fn, edge.arguments[index]) }
+    }
+    index := count - 1
+    while index >= 0 {
+        if EdgeMoves(fn, edge.arguments[index], target.parameters[index], false) { Set(fn, target.parameters[index]) }
+        index -= 1
+    }
+}
+
+LabelPush :: (fn: *Fn, loop: bool, block: s64) {
+    if !VecPush(fn.labels, Label.{.loop = loop, .block = block}) { unused OutOfMemory(fn.lower) }
+}
+
+// Transfers control from code(b_current) to b_target, `extra` labels deep.
+EdgeJump :: (fn: *Fn, current_block: s64, edge: *LirEdge, extra: u64) {
+    EdgeCopy(fn, edge)
+    target := cast(s64)edge.block
+    current := current_block
+    if !fn.dispatch {
+        current = fn.position[current]
+        target = fn.position[target]
+        if target == current + 1 && extra == 0 { return }
+        loop := target <= current
+        at := fn.labels.count
+        while at > 0 {
+            if fn.labels[at - 1].loop == loop && fn.labels[at - 1].block == target {
+                OpU(fn, 0x0c, cast(u64)(fn.labels.count - at) + extra)
+                return
+            }
+            at -= 1
+        }
+        unused Gap(fn.lower, "wasm.gap.control", Say("edge to b# leaves its loop structure", edge.block))
+        return
+    }
+    target = fn.seg_first[target]
+    current = fn.segment
+    if target > current {
+        if target == current + 1 && extra == 0 { return }
+        OpU(fn, 0x0c, cast(u64)(target - current - 1) + extra)
+        return
+    }
+    I32Const(fn, target)
+    LocalSet(fn, fn.pc)
+    OpU(fn, 0x0c, cast(u64)(fn.segment_count - 1 - current) + extra)
+}
+
+// Whether a call can suspend: a host capability, a procedure that can reach
+// one, or any indirect call.
+SuspensionSite :: (lower: *Lower, instruction: *LirInstruction) -> bool {
+    symbol := instruction.symbol
+    if instruction.op == .CallIndirect { return true }
+    if symbol < 0 || symbol >= lower.program.functions.count { return false }
+    if instruction.op == .HostCall { return lower.host_kind[symbol] == HOST_CAPABILITY }
+    return instruction.op == .Call && !lower.program.functions[symbol].external && lower.suspends[symbol]
+}
+
+// Starts the segment a rewind resumes at: the call that follows.
+SegmentBoundary :: (fn: *Fn) { Op(fn, 0x0b); fn.segment += 1 }
+
+// After a call that can suspend: when the stack unwinds, record this segment
+// and leave for the frame save at the end of the procedure.
+UnwindCheck :: (fn: *Fn) {
+    GlobalGet(fn, G_ASTATE); I32Const(fn, ASYNC_UNWIND); Op(fn, 0x46)
+    IfBegin(fn)
+    I32Const(fn, fn.segment); LocalSet(fn, fn.pc)
+    OpU(fn, 0x0c, cast(u64)(fn.segment_count - fn.segment + 1))
+    End(fn)
+}
+
+// Moves local `local` between the save stack, 8 bytes a local, and the procedure.
+AsyncLocal :: (fn: *Fn, local: u32, store: bool) {
+    loads: [4]u64 = .[0x28, 0x29, 0x2a, 0x2b]
+    stores: [4]u64 = .[0x36, 0x37, 0x38, 0x39]
+    kind := TempSlot(cast(u32)fn.locals[local])
+    GlobalGet(fn, G_ASTACK)
+    if store { LocalGet(fn, local); MemArg(fn, stores[kind], 8 * local) }
+    else { MemArg(fn, loads[kind], 8 * local); LocalSet(fn, local) }
+}

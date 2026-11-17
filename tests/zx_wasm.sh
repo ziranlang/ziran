@@ -282,7 +282,7 @@ test "$("$zi2zx" run --heap-report "$work/heap.zx" 2>/dev/null)" = 99000
 
 # The bundle Wasm tier in a WebAssembly host: libziran built by emcc with
 # the instruction engine, whose web provider lowers each revision-28 bundle
-# through zx_wasm_lower and translates its host calls and module state to
+# through the engine's Wasm lowering and translates its host calls and module state to
 # HostValue bindings. The Wasm instances and engine instances must agree.
 # Skipped without emcc.
 emcc=${ZIRAN_WASM_EMCC:-}

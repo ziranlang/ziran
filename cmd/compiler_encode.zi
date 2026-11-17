@@ -172,6 +172,17 @@ WriteGlobalImage :: (program: MachineProgram, global_id: s32, bytes: []u8, at: s
     return true
 }
 
+// The codes a native encoder materializes before it calls the trap handler.
+NativeTrapReserved :: 0xffff0000
+NativeTrapUnreachable :: 0xffff0001
+NativeTrapDivideByZero :: 0xffff0002
+NativeTrapShift :: 0xffff0003
+NativeTrapFuel :: 0xffff0004
+NativeTrapConversion :: 0xffff0005
+NativeTrapStack :: 0xffff0006
+NativeTrapStorage :: 0xffff0007
+NativeTrapPointer :: 0xfffeffff
+
 // Relocations, numbered alike on every target; the image builder maps each
 // to its machine-image kind and field width.
 NativeRelocationKind :: enum s32 {
@@ -185,6 +196,14 @@ NativeRelocation :: struct {
     symbol: s32
     addend: s64
     instruction: s32
+}
+
+Relocate :: (state: *$S, kind: NativeRelocationKind, symbol: s32, addend: s64, field: s64) {
+    if state.emit && state.relocation_count < state.relocations.count {
+        state.relocations[state.relocation_count] = .{offset = field, kind = kind, symbol = symbol,
+            addend = addend, instruction = state.instruction}
+    }
+    state.relocation_count += 1
 }
 
 // Maps encoder relocations onto image relocations.

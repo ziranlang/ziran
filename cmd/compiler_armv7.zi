@@ -35,15 +35,6 @@ using Vectors :: #import "std/vec"
 // addend is -8, the A32 pc offset. Every trap puts its code in r0, calls the
 // trap handler and ends in UDF.
 
-MachineV7TrapReserved :: 0xffff0000
-MachineV7TrapUnreachable :: 0xffff0001
-MachineV7TrapDivideByZero :: 0xffff0002
-MachineV7TrapShift :: 0xffff0003
-MachineV7TrapFuel :: 0xffff0004
-MachineV7TrapConversion :: 0xffff0005
-MachineV7TrapStack :: 0xffff0006
-MachineV7TrapStorage :: 0xffff0007
-MachineV7TrapPointer :: 0xfffeffff
 // A calling function or one with a large frame checks the stack limit.
 MachineV7StackSlack :: 4096
 // MOVW, MOVT, BL, UDF.
@@ -166,14 +157,6 @@ Place :: (state: *State, slots: []s64, index: s64) -> bool {
     }
     slots[index] = state.writer.at
     return true
-}
-
-Relocate :: (state: *State, kind: NativeRelocationKind, symbol: s32, addend: s64, field: s64) {
-    if state.emit && state.relocation_count < state.relocations.count {
-        state.relocations[state.relocation_count] = .{offset = field, kind = kind, symbol = symbol,
-            addend = addend, instruction = state.instruction}
-    }
-    state.relocation_count += 1
 }
 
 // Byte size of a general scalar the encoder can hold, or -1: booleans, 8 to
@@ -946,7 +929,7 @@ Divide :: (state: *State, opcode: MachineOpcode) -> bool {
     if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
     type := TypeOf(state, OperandAt(state, 1))
     if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 1)) }
-    TrapIfZero(state, right, type, MachineV7TrapDivideByZero)
+    TrapIfZero(state, right, type, NativeTrapDivideByZero)
     remainder := opcode == .IntegerRemainder
     helper := MachineHelper.DivideSigned
     if remainder { helper = ifx Signed(type) then MachineHelper.RemainderSigned else MachineHelper.RemainderUnsigned }
@@ -981,7 +964,7 @@ Shift :: (state: *State, opcode: MachineOpcode) -> bool {
         DataImmediate(state, OpCmp, true, 0, High(right), 0)
         DataImmediate(state, OpCmp, true, 0, n, width, CondEq)
     } else { DataImmediate(state, OpCmp, true, 0, n, width) }
-    TrapUnless(state, CondLo, MachineV7TrapShift)
+    TrapUnless(state, CondLo, NativeTrapShift)
     lo := Low(destination)
     signed := Signed(type)
     // Shift kinds: 0 LSL, 1 LSR, 2 ASR.
@@ -1200,7 +1183,7 @@ FloatToInteger :: (state: *State, destination: s32, source: s32, target: Machine
         } else { GeneralToSingle(state, FloatScratch, Ip) }
         FloatCompare(state, source, FloatScratch, size)
         // GE: source >= lower and ordered; MI: source < bound.
-        TrapUnless(state, ifx limit == 0 then cast(s32)CondGe else CondMi, MachineV7TrapConversion)
+        TrapUnless(state, ifx limit == 0 then cast(s32)CondGe else CondMi, NativeTrapConversion)
     }
     if Wide(target) {
         helper := ifx size == 8 then MachineHelper.F64ToSigned else MachineHelper.F32ToSigned
@@ -1406,7 +1389,7 @@ DynamicElement :: (state: *State, memory: V7Memory, index: s32, wide: bool, coun
     checked: bool) -> V7Memory {
     if checked {
         CompareCount(state, index, wide, count)
-        TrapUnless(state, CondLo, MachineV7TrapPointer)
+        TrapUnless(state, CondLo, NativeTrapPointer)
     }
     AddConstant(state, Link, memory.base, memory.displacement)
     MoveWord(state, Ip, cast(u32)size)
@@ -1569,22 +1552,22 @@ ElementAddress :: (state: *State) -> bool {
             return Fail(state, .Unsupported, OperandId(state, 1))
         }
         CompareCount(state, low, index_wide, state.program.types[source_pointer.element].count)
-        TrapUnless(state, CondLo, MachineV7TrapPointer)
+        TrapUnless(state, CondLo, NativeTrapPointer)
     } else if instruction.operand_count == 4 && OperandAt(state, 3).kind == .Immediate {
         // The shared facts prove the index below this bound: no check.
     } else if instruction.operand_count == 4 {
         count := Register(state, 3, .Use)
         if count == MachineNoId { return false }
         ComparePairs(state, low, count, index_wide)
-        TrapUnless(state, CondLo, MachineV7TrapPointer)
+        TrapUnless(state, CondLo, NativeTrapPointer)
     } else {
         high := Register(state, 3, .Use)
         count := Register(state, 4, .Use)
         if high == MachineNoId || count == MachineNoId { return false }
         ComparePairs(state, low, high, index_wide)
-        TrapUnless(state, CondLs, MachineV7TrapPointer)
+        TrapUnless(state, CondLs, NativeTrapPointer)
         ComparePairs(state, high, count, index_wide)
-        TrapUnless(state, CondLs, MachineV7TrapPointer)
+        TrapUnless(state, CondLs, NativeTrapPointer)
     }
     // r12:lr = index * size, then destination = base + r12:lr.
     MoveWord(state, Temp, cast(u32)size)
@@ -1756,7 +1739,7 @@ Fuel :: (state: *State) -> bool {
     }
     WordAccess(state, false, false, Ip, .{base = Temp, displacement = 0})
     WordAccess(state, false, false, Link, .{base = Temp, displacement = 4})
-    TrapUnless(state, CondHs, MachineV7TrapFuel)
+    TrapUnless(state, CondHs, NativeTrapFuel)
     return true
 }
 
@@ -1778,7 +1761,7 @@ PointerEntry :: (state: *State, entry: s32) {
 FlagRequired :: (state: *State, entry: s32, bit: s32) {
     HalfAccess(state, true, 0xB0, Link, .{base = entry, displacement = MachinePointerEntryFlags})
     DataImmediate(state, OpTst, true, 0, Link, cast(u32)1 << cast(u32)bit)
-    TrapUnless(state, CondNe, MachineV7TrapPointer)
+    TrapUnless(state, CondNe, NativeTrapPointer)
 }
 
 // Checks the slot, version and liveness of the token whose high word is
@@ -1788,12 +1771,12 @@ CheckSlot :: (state: *State, token_high: s32, entry: s32, spare: s32) {
     DataShift(state, OpMov, false, Temp, 0, token_high, 1, 12)
     WordAccess(state, true, false, Link, .{base = Ip, displacement = MachinePointerHeaderCapacity})
     Data(state, OpCmp, true, 0, Temp, Link)
-    TrapUnless(state, CondLo, MachineV7TrapPointer)
+    TrapUnless(state, CondLo, NativeTrapPointer)
     PointerEntry(state, entry)
     ExtractBits(state, spare, token_high, 0, 12)
     HalfAccess(state, true, 0xB0, Link, .{base = entry, displacement = MachinePointerEntryVersion})
     Data(state, OpCmp, true, 0, spare, Link)
-    TrapUnless(state, CondEq, MachineV7TrapPointer)
+    TrapUnless(state, CondEq, NativeTrapPointer)
     FlagRequired(state, entry, 0)
 }
 
@@ -1825,10 +1808,10 @@ PointerResolve :: (state: *State) -> bool {
         if !V7Pair(width.id) { return Fail(state, .Unsupported, OperandId(state, 2)) }
         Data(state, OpAdd, true, Ip, Low(token), Low(width.id))
     }
-    TrapUnless(state, CondLo, MachineV7TrapPointer)
+    TrapUnless(state, CondLo, NativeTrapPointer)
     WordAccess(state, true, false, Link, .{base = Temp, displacement = MachinePointerEntrySize})
     Data(state, OpCmp, true, 0, Ip, Link)
-    TrapUnless(state, CondLs, MachineV7TrapPointer)
+    TrapUnless(state, CondLs, NativeTrapPointer)
     WordAccess(state, true, false, Ip, .{base = Temp, displacement = MachinePointerEntryBase})
     Data(state, OpAdd, false, Low(destination), Ip, Low(token))
     return true
@@ -1852,10 +1835,10 @@ ArenaAllocate :: (state: *State) -> bool {
     WordAccess(state, true, false, d, .{base = Ip, displacement = MachinePointerHeaderArenaTop})
     MoveWord(state, Link, rounded)
     Data(state, OpAdd, true, Link, d, Link)
-    TrapUnless(state, CondLo, MachineV7TrapStorage)
+    TrapUnless(state, CondLo, NativeTrapStorage)
     WordAccess(state, true, false, Temp, .{base = Ip, displacement = MachinePointerHeaderArenaLimit})
     Data(state, OpCmp, true, 0, Link, Temp)
-    TrapUnless(state, CondLs, MachineV7TrapStorage)
+    TrapUnless(state, CondLs, NativeTrapStorage)
     WordAccess(state, false, false, Link, .{base = Ip, displacement = MachinePointerHeaderArenaTop})
     if Wide(TypeOf(state, OperandAt(state, 0))) { DataImmediate(state, OpMov, false, High(destination), 0, 0) }
     return true
@@ -1890,7 +1873,7 @@ CreateSlot :: (state: *State, destination: s32, size: s64, size_register: s32, f
     UnusedSlot(state)
     WordAccess(state, true, false, Link, .{base = Ip, displacement = MachinePointerHeaderCapacity})
     Data(state, OpCmp, true, 0, Temp, Link)
-    TrapUnless(state, CondLo, MachineV7TrapStorage)
+    TrapUnless(state, CondLo, NativeTrapStorage)
     PointerEntry(state, entry)
     // The address the caller pushed.
     Emit(state, 0xE49DE008)
@@ -2136,7 +2119,7 @@ CheckHeapSlot :: (state: *State) {
     CheckSlot(state, 1, 2, 3)
     FlagRequired(state, 2, 2)
     DataImmediate(state, OpCmp, true, 0, 0, 0)
-    TrapUnless(state, CondEq, MachineV7TrapPointer)
+    TrapUnless(state, CondEq, NativeTrapPointer)
     WordAccess(state, true, false, Temp, .{base = 2, displacement = MachinePointerEntryBase})
 }
 
@@ -2411,7 +2394,7 @@ Return :: (state: *State) -> bool {
 Trap :: (state: *State) -> bool {
     if !Count(state, 1) { return false }
     code := OperandAt(state, 0)
-    if code.kind != .Immediate || code.immediate >= MachineV7TrapReserved {
+    if code.kind != .Immediate || code.immediate >= NativeTrapReserved {
         return Fail(state, .Unsupported, OperandId(state, 0))
     }
     TrapSequence(state, code.immediate)
@@ -2464,7 +2447,7 @@ Instruction :: (state: *State) -> bool {
     else if op == .Trap { ok = Trap(state) }
     else if op == .Unreachable {
         ok = Count(state, 0)
-        if ok { TrapSequence(state, MachineV7TrapUnreachable) }
+        if ok { TrapSequence(state, NativeTrapUnreachable) }
     }
     else { return Fail(state, .Unsupported) }
     if op != .Compare { state.flags_value = MachineNoId }
@@ -2494,7 +2477,7 @@ Prologue :: (state: *State) -> bool {
         MaterializeRelocated(state, Ip, .StackLimit, 0)
         WordAccess(state, true, false, Ip, .{base = Ip, displacement = 0})
         Data(state, OpCmp, true, 0, StackPointer, Ip)
-        TrapUnless(state, CondHs, MachineV7TrapStack)
+        TrapUnless(state, CondHs, NativeTrapStack)
     }
     if !CalleeSaves(state, false) { return false }
     if function.arena_mark != 0 && !PointerFrameEnter(state, function) { return false }

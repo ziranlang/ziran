@@ -808,7 +808,7 @@ BuildNegative :: (b: *Builder, kind: NegativeKind) -> s32 {
     if kind == .Opcode {
         id = Three(b, .FloatAdd, X0, result, X0, first, X1, second)
     } else if kind == .ReservedTrap {
-        id = Trap(b, A64.MachineA64TrapFuel)
+        id = Trap(b, NativeTrapFuel)
         End(b, 0)
         return id
     } else if kind == .FuelFlags {

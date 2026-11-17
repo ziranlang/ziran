@@ -433,6 +433,9 @@ Instructions :: (state: *VerifyState, program: MachineProgram, limits: MachineLi
                 if instruction.opcode == .VectorLoop && !VectorLoopForm(program, instruction) {
                     return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
                 }
+                if instruction.opcode == .VectorPair && !VectorPairForm(program, instruction) {
+                    return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
+                }
                 if instruction.opcode == .Allocate {
                     if instruction.operand_count < 1 || instruction.operand_count > 2 {
                         return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)

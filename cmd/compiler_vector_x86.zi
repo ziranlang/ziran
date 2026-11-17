@@ -111,6 +111,23 @@ AliasGuard :: (e: *Emitter, source: s32, next_label: s32) {
 }
 
 #scope_export
+VectorPairX64Emit :: (writer: *X86Writer, program: MachineProgram, instruction: MachineInstruction) -> bool {
+    if !VectorPairForm(program, instruction) { return false }
+    operands := program.operands[instruction.operand_begin:instruction.operand_begin + 8]
+    for at: 0..2 { if operands[at].kind != .Physical { return false } }
+    destination := X86At(operands[2].id, cast(s64)operands[4].immediate * 8)
+    right := X86At(operands[2].id, cast(s64)operands[5].immediate * 8)
+    X86VectorLoad(writer, 0, destination)
+    X86VectorLoad(writer, 1, right)
+    Combine(writer, cast(VectorOperation)operands[3].immediate, program.types[operands[0].type])
+    X86VectorStore(writer, destination, 0)
+    // Store first: an output register may reuse the address register.
+    X86FloatToGeneralBits(writer, operands[0].id, 0, 8)
+    Shift(writer, 0x0f73, 3, 0, 8)
+    X86FloatToGeneralBits(writer, operands[1].id, 0, 8)
+    return !writer.failed
+}
+
 VectorX64Emit :: (writer: *X86Writer, program: MachineProgram, instruction: MachineInstruction) -> bool {
     if !VectorLoopForm(program, instruction) { return false }
     operands := program.operands[instruction.operand_begin:instruction.operand_begin + 9]

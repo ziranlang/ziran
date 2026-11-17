@@ -9,6 +9,60 @@ VectorFill :: 512
 VectorScalarRight :: 1024
 VectorInclusive :: 2048
 
+// Packed homogeneous records have eight bytes per field. Both source lanes
+// are read before either destination is written, so the two pairs must be
+// disjoint; this also keeps the original first store from changing an input.
+VectorPairRecord :: (program: MachineProgram, pointer: s32, lane: s32,
+    destination: u64, right: u64) -> bool {
+    if pointer < 0 || pointer >= program.types.count || lane < 0 || lane >= program.types.count { return false }
+    scalar := program.types[lane]
+    address := program.types[pointer]
+    if scalar.kind != .Integer || scalar.bits != 64 || scalar.size != 8 || address.kind != .Pointer ||
+        address.element < 0 || address.element >= program.types.count { return false }
+    record := program.types[address.element]
+    if record.kind != .Record || record.fields_count < 4 || record.fields_count > 32 || record.fields_begin < 0 ||
+        cast(s64)record.fields_begin + record.fields_count > program.type_ids.count ||
+        record.size != cast(s64)record.fields_count * 8 ||
+        destination >= cast(u64)(record.fields_count - 1) || right >= cast(u64)(record.fields_count - 1) ||
+        destination > 268435454 || right > 268435454 { return false }
+    if destination <= right + 1 && right <= destination + 1 { return false }
+    for at: record.fields_begin..record.fields_begin + record.fields_count - 1 {
+        if program.type_ids[at] != lane { return false }
+    }
+    return true
+}
+
+// (low, high) = packed record update(base, operation, destination, right).
+// The two results preserve scalar uses following the stores. XMM0/1 are
+// explicit clobbers, so live floating-point values are allocated elsewhere.
+VectorPairForm :: (program: MachineProgram, instruction: MachineInstruction) -> bool {
+    if program.target.arch != .X86_64 || program.checks || instruction.operand_count != 8 ||
+        instruction.edge_count != 0 || instruction.call != -1 || instruction.flags_use != -1 ||
+        instruction.flags_def != -1 || instruction.condition != .None { return false }
+    operands := program.operands[instruction.operand_begin:instruction.operand_begin + 8]
+    for at: 0..2 {
+        operand := operands[at]
+        if operand.kind != .Virtual && operand.kind != .Physical || operand.class != .General ||
+            operand.role != (ifx at == 2 then MachineOperandRole.Use else .Define) ||
+            operand.type < 0 || operand.type >= program.types.count || operand.tied_to != -1 { return false }
+    }
+    if operands[0].type != operands[1].type || operands[0].id == operands[1].id { return false }
+    for at: 3..5 {
+        if operands[at].kind != .Immediate || operands[at].role != .Use { return false }
+    }
+    operation := operands[3].immediate
+    if operation != 1 && operation != 2 && operation != 4 && operation != 5 && operation != 6 { return false }
+    if !VectorPairRecord(program, operands[2].type, operands[0].type,
+        operands[4].immediate, operands[5].immediate) { return false }
+    for at: 6..7 {
+        operand := operands[at]
+        if operand.kind != .Physical || operand.class != .Float || operand.role != .Define ||
+            operand.id != at - 6 || operand.fixed_register != at - 6 || operand.tied_to != -1 ||
+            operand.type != -1 || operand.value != -1 { return false }
+    }
+    return true
+}
+
 VectorLoopForm :: (program: MachineProgram, instruction: MachineInstruction) -> bool {
     if program.target.arch != .X86_64 || program.checks || instruction.operand_count != 9 ||
         instruction.edge_count != 0 || instruction.call != -1 || instruction.flags_use != -1 ||

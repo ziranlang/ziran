@@ -1,14 +1,128 @@
 #import "std/audio_types"
 #import "std/vec"
 #import "std/binary"
-// Canonical RIFF WAVE PCM16 or IEEE float32 mono/stereo. Unknown chunks are
-// skipped with padding, but duplicate fmt/data, RF64 and compressed WAV reject.
+#scope_file
+// Microsoft Multimedia Data Standards Update (1994), WAVE ADPCM blocks.
+WavSigned16 :: (bytes: []u8, at: s64) -> s32 {
+    value := cast(s32)Little(bytes, at, 2)
+    return ifx value >= 32768 then value - 65536 else value
+}
+WavClamp16 :: (value: s64) -> s32 {
+    if value < -32768 { return -32768 }; if value > 32767 { return 32767 }
+    return cast(s32)value
+}
+WavImaSteps :: s32.[7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,
+    34,37,41,45,50,55,60,66,73,80,88,97,107,118,130,143,
+    157,173,190,209,230,253,279,307,337,371,408,449,494,544,598,658,
+    724,796,876,963,1060,1166,1282,1411,1552,1707,1878,2066,2272,2499,2749,3024,
+    3327,3660,4026,4428,4871,5358,5894,6484,7132,7845,8630,9493,10442,11487,12635,13899,
+    15289,16818,18500,20350,22385,24623,27086,29794,32767]
+WavImaIndex :: s32.[-1,-1,-1,-1,2,4,6,8]
+WavMsAdapt :: s32.[230,230,230,230,307,409,512,614,768,614,512,409,307,230,230,230]
+WavAdpcmChannel :: struct { sample: s32; previous: s32; index: s32; delta: s64; c1: s32; c2: s32; }
+WavImaSample :: (state: *WavAdpcmChannel, nibble: s32) -> s32 {
+    step := WavImaSteps[state.index]
+    difference := step >> 3
+    if (nibble & 1) != 0 { difference += step >> 2 }
+    if (nibble & 2) != 0 { difference += step >> 1 }
+    if (nibble & 4) != 0 { difference += step }
+    if (nibble & 8) != 0 { difference = -difference }
+    state.sample = WavClamp16(cast(s64)state.sample + difference)
+    state.index += WavImaIndex[nibble & 7]
+    if state.index < 0 { state.index = 0 }; if state.index > 88 { state.index = 88 }
+    return state.sample
+}
+WavMsSample :: (state: *WavAdpcmChannel, nibble: s32) -> s32 {
+    code := ifx nibble >= 8 then nibble - 16 else nibble
+    predicted := (cast(s64)state.sample * state.c1 + cast(s64)state.previous * state.c2) / 256
+    value := WavClamp16(predicted + code * state.delta)
+    state.previous = state.sample; state.sample = value
+    state.delta = state.delta * WavMsAdapt[nibble] / 256
+    if state.delta < 16 { state.delta = 16 }
+    // Bound hostile repeated high-delta codes without signed arithmetic overflow.
+    if state.delta > 2796202 { state.delta = 2796202 }
+    return value
+}
+WavAdpcmDecode :: (input: []u8, start: s64, length: s64, format: s32,
+    channels: s32, align: s64, per_block: s64, fact: s64, coefficients: s64,
+    coefficient_count: s64, max_frames: s64, output: *PCM, rate: s32) -> s32 {
+    header := cast(s64)channels * (ifx format == 17 then 4 else 7)
+    full := length / align; tail := length % align
+    if tail != 0 && tail < header { return Malformed }
+    if format == 17 && tail != 0 && (tail - header) % (channels * 4) != 0 { return Malformed }
+    frames := full * per_block
+    if tail != 0 { frames += (tail - header) * 2 / channels + (ifx format == 17 then 1 else 2) }
+    if fact != -1 {
+        if fact <= 0 || fact > frames { return Malformed }
+        // Only the final compressed block may contain padding samples.
+        before_last := ifx tail != 0 then full * per_block else (full - 1) * per_block
+        if fact <= before_last { return Malformed }
+        frames = fact
+    }
+    if frames <= 0 { return Malformed }
+    if max_frames <= 0 || frames > max_frames || frames > MaxFrames { return LimitExceeded }
+    samples: Vec(float32)
+    if !VecResize(samples, frames * channels) { return AllocationFailed }
+    defer VecFree(samples)
+    offset: s64; frame: s64
+    while offset < length {
+        count := align
+        if count > length - offset { count = length - offset }
+        block := input[start + offset:start + offset + count]
+        block_frames := (count - header) * 2 / channels + (ifx format == 17 then 1 else 2)
+        states: [2]WavAdpcmChannel
+        for channel: 0..channels - 1 {
+            state := *states[channel]
+            if format == 17 {
+                state.sample = WavSigned16(block, channel * 4)
+                state.index = cast(s32)block[channel * 4 + 2]
+                if state.index > 88 || block[channel * 4 + 3] != 0 { return Malformed }
+            } else {
+                predictor := cast(s64)block[channel]
+                if predictor >= coefficient_count { return Malformed }
+                state.c1 = WavSigned16(input, coefficients + predictor * 4)
+                state.c2 = WavSigned16(input, coefficients + predictor * 4 + 2)
+                state.delta = cast(s64)Little(block, channels + channel * 2, 2)
+                state.sample = WavSigned16(block, channels * 3 + channel * 2)
+                state.previous = WavSigned16(block, channels * 5 + channel * 2)
+                if frame < frames { samples[frame * channels + channel] = cast(float32)state.previous / 32768.0 }
+            }
+            initial := frame + (ifx format == 17 then 0 else 1)
+            if initial < frames { samples[initial * channels + channel] = cast(float32)state.sample / 32768.0 }
+        }
+        initial_frames := ifx format == 17 then 1 else 2
+        for local: cast(s64)initial_frames..block_frames - 1 {
+            for channel: 0..channels - 1 {
+                nibble: s32
+                if format == 17 {
+                    code := local - 1
+                    byte_at := header + (code / 8) * channels * 4 + channel * 4 + (code % 8) / 2
+                    nibble = (cast(s32)block[byte_at] >> cast(s32)((code % 2) * 4)) & 15
+                    value := WavImaSample(*states[channel], nibble)
+                    if frame + local < frames { samples[(frame + local) * channels + channel] = cast(float32)value / 32768.0 }
+                } else {
+                    code := (local - 2) * channels + channel
+                    nibble = (cast(s32)block[header + code / 2] >> cast(s32)(4 - (code % 2) * 4)) & 15
+                    value := WavMsSample(*states[channel], nibble)
+                    if frame + local < frames { samples[(frame + local) * channels + channel] = cast(float32)value / 32768.0 }
+                }
+            }
+        }
+        frame += block_frames; offset += count
+    }
+    output.rate = rate; output.channels = channels; SwapSamples(output, *samples)
+    return OK
+}
+#scope_export
+// RIFF WAVE mono/stereo: PCM16, IEEE float32, IMA ADPCM and MS ADPCM.
+// Unknown chunks skip with padding; duplicate fmt/data and RF64 reject.
 WavDecode :: (input: []u8, max_frames: s64, output: *PCM) -> s32 {
     if input.count > MaxBytes { return LimitExceeded }
     if input.count < 12 || !Magic(input, 0, "RIFF") || !Magic(input, 8, "WAVE") || Little(input, 4, 4) + 8 != cast(u64)input.count { return Malformed }
     at: s64 = 12
     channels: s32; rate: s32; bits: s32; format: s32
     start: s64 = -1; length: s64
+    align: s64; per_block: s64; fact: s64 = -1; coefficients: s64; coefficient_count: s64
     while at < input.count {
         if input.count - at < 8 { return Malformed }
         size := cast(s64)Little(input, at + 4, 4)
@@ -19,14 +133,38 @@ WavDecode :: (input: []u8, max_frames: s64, output: *PCM) -> s32 {
             format = cast(s32)Little(input, body, 2); channels = cast(s32)Little(input, body + 2, 2)
             rate = cast(s32)Little(input, body + 4, 4); bits = cast(s32)Little(input, body + 14, 2)
             if channels < 1 || channels > 2 || rate < 8000 || rate > 192000 { return Unsupported }
-            if (format != 1 || bits != 16) && (format != 3 || bits != 32) { return Unsupported }
-            if Little(input, body + 12, 2) != cast(u64)(channels * bits / 8) || Little(input, body + 8, 4) != cast(u64)rate * cast(u64)(channels * bits / 8) { return Malformed }
+            align = cast(s64)Little(input, body + 12, 2)
+            if format == 17 || format == 2 {
+                if bits != 4 { return Unsupported }
+                if size < 20 || Little(input, body + 16, 2) < 2 || Little(input, body + 16, 2) > cast(u64)(size - 18) { return Malformed }
+                per_block = cast(s64)Little(input, body + 18, 2)
+                header := cast(s64)channels * (ifx format == 17 then 4 else 7)
+                if align < header || per_block != (align - header) * 2 / channels + (ifx format == 17 then 1 else 2) { return Malformed }
+                if format == 17 && (align - header) % (channels * 4) != 0 { return Malformed }
+                if format == 2 {
+                    if size < 22 { return Malformed }
+                    coefficient_count = cast(s64)Little(input, body + 20, 2)
+                    if coefficient_count < 1 || coefficient_count > 256 || 4 * coefficient_count + 4 > cast(s64)Little(input, body + 16, 2) { return Malformed }
+                    coefficients = body + 22
+                }
+            } else {
+                if (format != 1 || bits != 16) && (format != 3 || bits != 32) { return Unsupported }
+                if align != channels * bits / 8 || Little(input, body + 8, 4) != cast(u64)rate * cast(u64)align { return Malformed }
+            }
+        } else if Magic(input, at, "fact") {
+            if size < 4 || fact != -1 { return Malformed }
+            fact = cast(s64)Little(input, body, 4)
         } else if Magic(input, at, "data") {
             if start != -1 { return Malformed }; start = body; length = size
         }
         at = body + size + size % 2
     }
-    if at != input.count || channels == 0 || start < 0 || length == 0 || length % (channels * bits / 8) != 0 { return Malformed }
+    if at != input.count || channels == 0 || start < 0 || length == 0 { return Malformed }
+    if format == 17 || format == 2 {
+        return WavAdpcmDecode(input, start, length, format, channels, align, per_block, fact,
+            coefficients, coefficient_count, max_frames, output, rate)
+    }
+    if length % align != 0 { return Malformed }
     frames := length / (channels * bits / 8)
     if max_frames <= 0 || frames > max_frames || frames > MaxFrames { return LimitExceeded }
     samples: Vec(float32)

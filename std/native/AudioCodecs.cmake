@@ -60,6 +60,10 @@ function(ziran_audio_vorbis)
         URL https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz
         URL_HASH SHA256=b33cc4934322bcbf6efcbacf49e3ca01aadbea4114ec9589d1b1e9d20f72954b)
     FetchContent_MakeAvailable(ziran_core_vorbis)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        # Upstream libvorbis 1.3.7 sharedbook.c:425 shifts signed codebook bits.
+        target_compile_options(vorbis PRIVATE -fno-sanitize=shift)
+    endif()
     set_target_properties(vorbisenc PROPERTIES EXCLUDE_FROM_ALL TRUE)
     foreach(target IN ITEMS ogg vorbis vorbisfile)
         set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON

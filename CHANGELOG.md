@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- WAV decoding supports mono/stereo IMA ADPCM and Microsoft ADPCM in the core audio module and mixer, with fact-based frame counts, bounded block validation and independent PCM fixture tests.
 - Float64 `sqrt` and `std/math.Sqrt` lower to hardware square root on x86-64, AArch64 and ARMv7, with the same IEEE rounding on the portable engine, generated C/Go and Wasm. An independent integer reference checks every exponent and one million bit patterns.
 - ZX lowering folds signed integer interval checks such as `value > 1000 || value < 0` into one unsigned comparison when both sides read the same stable local, record member or fixed-array element. Calls and other expressions whose second evaluation can matter retain short-circuit evaluation.
 - Native verification distinguishes integer and floating-point scratch registers when checking parallel copies, so valid floating-point argument copies are accepted even when register numbers match across banks.

@@ -1,0 +1,193 @@
+// ADPCM contracts use independent libsndfile (IMA) and FFmpeg (MS) references.
+#import "std/audio_wav"
+#import "std/audio_types"
+#import "std/audio"
+#import "std/audio_decode_wav"
+#import "std/vec"
+#import "std/file"
+#import "std/byte_text_linux"
+
+#scope_file
+Fail :: (code: s32, message: string) -> s32 { print("WAV contract %: %\n", code, message); return code }
+Load :: (name: string, bytes: *Vec(u8)) -> bool {
+    path: Vec(u8)
+    defer VecFree(path)
+    parts := string.["tests/fixtures/wav/", name, ".wav"]
+    for part: parts { for byte: part { if !VecPush(path, byte) { return false } } }
+    return ReadFileInto(TextFromBytes(path[:]), bytes)
+}
+Chunk :: (bytes: []u8, name: string) -> s64 {
+    at: s64 = 12
+    while at + 8 <= bytes.count {
+        if Magic(bytes, at, name) { return at + 8 }
+        size := cast(s64)Little(bytes, at + 4, 4)
+        at += 8 + size + size % 2
+    }
+    return -1
+}
+Same :: (a: *PCM, b: *PCM) -> bool {
+    if a.rate != b.rate || a.channels != b.channels || a.samples.count != b.samples.count { return false }
+    for i: cast(s64)0..a.samples.count - 1 {
+        if a.samples[i] != b.samples[i] { print("sample %: % != %\n", i, a.samples[i], b.samples[i]); return false }
+    }
+    return true
+}
+// Decode failures must leave the caller's PCM intact.
+Reject :: (bytes: []u8, limit: s64, expected: s32) -> bool {
+    pcm: PCM
+    pcm.rate = 12345; pcm.channels = 7
+    if !VecPush(pcm.samples, 0.375) { return false }
+    defer VecFree(pcm.samples)
+    code := WavDecode(bytes, limit, *pcm)
+    return code == expected && pcm.rate == 12345 && pcm.channels == 7 && pcm.samples.count == 1 && pcm.samples[0] == 0.375
+}
+TrimData :: (bytes: *Vec(u8), data: s64, length: s64) -> bool {
+    storage: Vec(u8)
+    VecSwap(storage, <<bytes)
+    defer VecSwap(storage, <<bytes)
+    if !VecResize(storage, data + length + length % 2) { return false }
+    {
+        content := storage[:]
+        PutLittle(content, 4, 4, cast(u64)(storage.count - 8))
+        PutLittle(content, data - 4, 4, cast(u64)length)
+        if length % 2 != 0 { content[storage.count - 1] = 0 }
+    }
+    return true
+}
+Fixture :: (name: string, reference: string, format: s32, channels: s32) -> s32 {
+    bytes: Vec(u8); reference_bytes: Vec(u8)
+    defer VecFree(bytes); defer VecFree(reference_bytes)
+    pcm: PCM; expected: PCM
+    defer VecFree(pcm.samples); defer VecFree(expected.samples)
+    if !Load(name, *bytes) || !Load(reference, *reference_bytes) { return Fail(1, name) }
+    if WavDecode(reference_bytes[:], MaxFrames, *expected) != OK || WavDecode(bytes[:], MaxFrames, *pcm) != OK { return Fail(2, name) }
+    if pcm.channels != channels || pcm.rate != 48000 || !Same(*pcm, *expected) { return Fail(3, name) }
+    frames := pcm.samples.count / channels
+    if !Reject(bytes[:], frames - 1, LimitExceeded) || !Reject(bytes[:], 0, LimitExceeded) { return Fail(4, "frame limit and preserved output") }
+    if WavDecode(bytes[:], frames, *pcm) != OK || !Same(*pcm, *expected) { return Fail(5, "exact frame limit and replacement") }
+
+    // The ordinary mixer decoder registration accepts compressed WAV bytes.
+    for streamed: 0..1 {
+        voice := AudioLoad(TextView(bytes[:]), streamed == 1)
+        if voice.slot < 0 || !AudioPlay(voice) { return Fail(6, "mixer load/play") }
+        output: [256]float32
+        AudioRender(output[:], 128)
+        for frame: 0..127 {
+            for channel: 0..1 {
+                source_channel := ifx channels == 1 then 0 else channel
+                if output[frame * 2 + channel] != expected.samples[frame * channels + source_channel] { return Fail(7, "mixer compressed samples") }
+            }
+        }
+        if !AudioSeek(voice, 0.01) { return Fail(8, "compressed seek") }
+        AudioRender(output[:], 128)
+        if output[0] != expected.samples[480 * channels] { return Fail(9, "seek samples") }
+        AudioUnload(voice)
+    }
+    fmt := Chunk(bytes[:], "fmt "); data := Chunk(bytes[:], "data"); fact := Chunk(bytes[:], "fact")
+    if fmt < 0 || data < 0 || fact < 0 { return Fail(10, "fixture chunks") }
+    align := cast(s64)Little(bytes[:], fmt + 12, 2)
+    per_block := cast(s64)Little(bytes[:], fmt + 18, 2)
+    data_count := cast(s64)Little(bytes[:], data - 4, 4)
+    // ADPCM fact clips only padding in the final block, not whole earlier blocks.
+    PutLittle(bytes[:], fact, 4, cast(u64)(frames - 3))
+    if WavDecode(bytes[:], MaxFrames, *pcm) != OK || pcm.samples.count != (frames - 3) * channels { return Fail(11, "fact padding") }
+    for i: cast(s64)0..pcm.samples.count - 1 { if pcm.samples[i] != expected.samples[i] { return Fail(12, "fact prefix") } }
+    PutLittle(bytes[:], fact, 4, cast(u64)(data_count / align * per_block + 1))
+    if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(13, "fact exceeds available samples") }
+    PutLittle(bytes[:], fact, 4, 0)
+    if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(14, "zero fact") }
+    PutLittle(bytes[:], fact, 4, cast(u64)(frames - per_block))
+    if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(15, "fact discards a complete block") }
+    PutLittle(bytes[:], fact, 4, cast(u64)frames)
+    // Unknown chunk IDs skip normally, and ADPCM without fact uses full blocks.
+    bytes[fact - 8] = #char "J"
+    if WavDecode(bytes[:], MaxFrames, *pcm) != OK || pcm.samples.count != data_count / align * per_block * channels { return Fail(16, "optional fact") }
+    for i: cast(s64)0..expected.samples.count - 1 { if pcm.samples[i] != expected.samples[i] { return Fail(16, "optional fact prefix") } }
+    bytes[fact - 8] = #char "f"
+    PutLittle(bytes[:], fmt + 18, 2, cast(u64)(per_block + 1))
+    if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(17, "inconsistent block sample count") }
+    PutLittle(bytes[:], fmt + 18, 2, cast(u64)per_block)
+    extension := Little(bytes[:], fmt + 16, 2)
+    PutLittle(bytes[:], fmt + 16, 2, 65535)
+    if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(18, "truncated format extension") }
+    PutLittle(bytes[:], fmt + 16, 2, extension)
+    if format == 17 {
+        saved := bytes[data + 2]; bytes[data + 2] = 89
+        if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(19, "IMA index") }; bytes[data + 2] = saved
+        bytes[data + 3] = 1
+        if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(20, "IMA reserved byte") }; bytes[data + 3] = 0
+    } else {
+        saved := bytes[data]; bytes[data] = 7
+        if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(21, "MS predictor") }; bytes[data] = saved
+        count := Little(bytes[:], fmt + 20, 2); PutLittle(bytes[:], fmt + 20, 2, 0)
+        if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(22, "MS missing coefficients") }
+        PutLittle(bytes[:], fmt + 20, 2, count)
+    }
+    // Every block header is validated, including blocks after the output limit.
+    last := data + data_count - align
+    last_header := ifx format == 17 then last + 2 else last
+    saved_header := bytes[last_header]; bytes[last_header] = 255
+    if !Reject(bytes[:], MaxFrames, Malformed) { return Fail(23, "later block header") }
+    bytes[last_header] = saved_header
+    // Truncation at each header boundary rejects before any allocation/indexing.
+    header_end := data + channels * (ifx format == 17 then 4 else 7)
+    for cut: cast(s64)0..header_end - 1 {
+        if !Reject(bytes[0:cut], MaxFrames, Malformed) { return Fail(24, "truncated input") }
+    }
+    if format == 2 {
+        custom: Vec(u8)
+        defer VecFree(custom)
+        for i: cast(s64)0..bytes.count - 1 { if !VecPush(custom, bytes[i]) { return Fail(29, "custom fixture allocation") } }
+        PutLittle(custom[:], fmt + 22, 2, 512); PutLittle(custom[:], fmt + 24, 2, 0)
+        for block: cast(s64)0..data_count / align - 1 {
+            base := data + block * align
+            for channel: 0..channels - 1 {
+                custom[base + channel] = 0
+                PutLittle(custom[:], base + channels + channel * 2, 2, 16)
+                PutLittle(custom[:], base + channels * 3 + channel * 2, 2, 1)
+                PutLittle(custom[:], base + channels * 5 + channel * 2, 2, 0)
+            }
+            for byte: cast(s64)channels * 7..align - 1 { custom[base + byte] = 0 }
+        }
+        if WavDecode(custom[:], MaxFrames, *pcm) != OK { return Fail(30, "custom MS coefficients") }
+        value: s32 = 1
+        for frame: 1..20 {
+            for channel: 0..channels - 1 {
+                if pcm.samples[frame * channels + channel] != cast(float32)value / 32768.0 { return Fail(31, "MS coefficient/predictor clipping") }
+            }
+            value *= 2; if value > 32767 { value = 32767 }
+        }
+        for block: cast(s64)0..data_count / align - 1 {
+            base := data + block * align
+            for byte: cast(s64)channels * 7..align - 1 { custom[base + byte] = 0x77 }
+        }
+        if WavDecode(custom[:], MaxFrames, *pcm) != OK { return Fail(32, "MS large adaptive deltas") }
+        for i: cast(s64)0..pcm.samples.count - 1 { if pcm.samples[i] < -1.0 || pcm.samples[i] > 32767.0 / 32768.0 { return Fail(33, "MS clipped sample bounds") } }
+    }
+    // Short final blocks are legal when they contain complete channel groups.
+    header := cast(s64)channels * (ifx format == 17 then 4 else 7)
+    tail_bytes := header + 8 * channels
+    tail_frames := ifx format == 17 then 17 else 18
+    total_frames := (data_count / align - 1) * per_block + tail_frames
+    bytes[fact - 8] = #char "J"
+    if !TrimData(*bytes, data, data_count - align + tail_bytes) || WavDecode(bytes[:], MaxFrames, *pcm) != OK || pcm.samples.count != total_frames * channels { return Fail(25, "complete partial block") }
+    for i: cast(s64)0..pcm.samples.count - 1 { if pcm.samples[i] != expected.samples[i] { return Fail(26, "partial block samples") } }
+    // Header-only final blocks still contribute their initial samples.
+    if !TrimData(*bytes, data, header) || WavDecode(bytes[:], MaxFrames, *pcm) != OK || pcm.samples.count != (ifx format == 17 then channels else channels * 2) { return Fail(27, "header-only block") }
+    if !TrimData(*bytes, data, header - 1) || !Reject(bytes[:], MaxFrames, Malformed) { return Fail(28, "short block header") }
+    print("WAV %: % exact PCM frames and mixer passed\n", name, frames)
+    return 0
+}
+
+#scope_export
+#program_export
+main :: () -> s32 {
+    names := string.["ima-1", "ima-2", "ms-1", "ms-2"]
+    references := string.["ima-1-pcm", "ima-2-pcm", "ms-1-pcm", "ms-2-pcm"]
+    for i: 0..3 {
+        code := Fixture(names[i], references[i], ifx i < 2 then 17 else 2, cast(s32)(i % 2 + 1))
+        if code != 0 { return code }
+    }
+    print("WAV ADPCM contracts passed\n")
+    return 0
+}

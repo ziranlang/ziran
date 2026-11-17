@@ -1,4 +1,4 @@
-// RIFF WAVE for std/audio, PCM16 or float32, decoded whole by std/audio_wav.
+// RIFF WAVE for std/audio, PCM16, float32 and IMA/MS ADPCM, decoded by std/audio_wav.
 // Importing this module is what adds the format.
 Mixer :: #import "std/audio";
 Wav :: #import "std/audio_wav";

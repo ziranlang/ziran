@@ -8,13 +8,24 @@
 #import "std/option"
 using Vectors :: #import "std/vec"
 
-Compile :: (test: *NativeTest, source: string, name: string, fake: bool, sdl: bool, codecs: bool = false) -> string {
+Compile :: (test: *NativeTest, source: string, name: string, fake: bool, sdl: bool, codecs: bool = false, saved: bool = false) -> string {
     generated := CheckPath(test.work, CheckConcat(name, "-c"))
+    root := CheckPath(test.repo, "tests")
+    input := CheckPath(test.repo, source)
+    if saved {
+        ir := CheckPath(test.work, CheckConcat(name, "-ir"))
+        save := string.[test.ziran, "ir", "--root", root, "-o", ir, input]
+        unused NativeRun(test, save[:])
+        first: s64
+        for i: cast(s64)0..source.count - 1 { if source[i] == #char "/" { first = i + 1 } }
+        input = CheckPath(ir, CheckConcat(source[first:source.count - 3], ".zir"))
+        root = ir
+    }
     arguments: Vec(string)
-    command := string.[test.ziran, "build", "--target=c", "--root", CheckPath(test.repo, "tests")]
+    command := string.[test.ziran, "build", "--target=c", "--root", root]
     for argument: command { VecPush(arguments, argument) }
     if fake { VecPush(arguments, "--define"); VecPush(arguments, "ZIRAN_AUDIO_FAKE"); VecPush(arguments, "--define"); VecPush(arguments, "ANDROID_BUILD") }
-    VecPush(arguments, "-o"); VecPush(arguments, generated); VecPush(arguments, CheckPath(test.repo, source))
+    VecPush(arguments, "-o"); VecPush(arguments, generated); VecPush(arguments, input)
     unused NativeRun(test, arguments[:])
     client := CheckPath(test.work, name)
     compile: Vec(string)
@@ -108,6 +119,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
     VecPush(test.environment, CheckConcat("SDL_DISKAUDIOFILE=", path))
     disk := string.["xvfb-run", "-a", sdl, path]
     unused NativeRun(*test, disk[:])
+    if test.failed { return 1 }
+    wav := Compile(*test, "tests/audio_wav_cases.zi", "wav", false, false)
+    wav_run := string.[wav]; unused NativeRun(*test, wav_run[:])
+    if test.failed { return 1 }
+    saved_wav := Compile(*test, "tests/audio_wav_cases.zi", "wav-saved", false, false, false, true)
+    saved_run := string.[saved_wav]; unused NativeRun(*test, saved_run[:])
     if test.failed { return 1 }
     CodecTest(*test)
     if test.failed { return 1 }

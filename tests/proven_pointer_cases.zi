@@ -98,6 +98,9 @@ Tampered :: (test: *NativeTest, path: string) -> bool {
     program := Lower.MachineProgramView(*owner)
     store: s64 = -1
     direct: s64 = -1
+    // The direct store covering the most bytes fills its root, so one more
+    // byte must not verify; inlining can put a narrower one first.
+    widest: s64 = -1
     other: s32 = Machine.MachineNoId
     for instruction, at: program.instructions {
         if instruction.opcode != .Store || instruction.operand_count != 2 { continue }
@@ -111,6 +114,8 @@ Tampered :: (test: *NativeTest, path: string) -> bool {
             if base != program.operands[program.instructions[direct].operand_begin + 2].id { other = base }
         }
         if store < 0 { store = at; direct = definer }
+        if widest < 0 || program.operands[program.instructions[definer].operand_begin + 3].immediate >
+            program.operands[program.instructions[widest].operand_begin + 3].immediate { widest = definer }
     }
     if !NativeAssert(test, store >= 0 && other != Machine.MachineNoId, "the fixture has direct stores to two roots") {
         return false
@@ -124,7 +129,7 @@ Tampered :: (test: *NativeTest, path: string) -> bool {
     saved = program.operands[base]
     program.operands[base].id = other
     if !Refused(test, program, base, saved, "a direct address on another root's base verified") { return false }
-    width := begin + 3
+    width := program.instructions[widest].operand_begin + 3
     saved = program.operands[width]
     program.operands[width].immediate += 1
     if !Refused(test, program, width, saved, "a direct address wider than its pointee verified") { return false }
@@ -167,32 +172,34 @@ main :: (argc: s32, argv: **u8) -> s32 {
     tools := PathParent(test.ziran)
     counts: Pipeline.MachineChecks
 
-    // The frame record main writes and reads is direct; Observe reaches it
-    // through a parameter, and platform calls take strings with a count, so
-    // those keep their resolves.
+    // The frame record main writes and reads is direct, and so are Observe's
+    // accesses through its parameter once Observe is inlined into main.
+    // Platform calls take strings with a count, so those keep their resolves.
     pointers := Bundle(*test, tools, CheckPath(test.repo, "tests/spec"), "zx_lowered_pointers", "")
     if test.failed || !Counts(*test, pointers, *counts) { return 1 }
-    if !NativeAssert(*test, counts.resolves == 13 && counts.direct_global == 0 && counts.direct_frame == 4,
-        "the pointer fixture's frame record accesses are not the four direct ones") ||
+    if !NativeAssert(*test, counts.resolves == 13 && counts.direct_global == 0 && counts.direct_frame == 19,
+        "the pointer fixture's frame record accesses are not the nineteen direct ones") ||
         !Runs(*test, tools, pointers, "true true false 0 4\n4\n") { return 1 }
 
     // Globals and an in-memory frame array, with constant and runtime
-    // indices. Mark reaches an element through its parameter, which keeps
-    // its resolves; the table's initializer store is direct too.
+    // indices. Mark is inlined into main: its element pointer keeps its
+    // resolves, and the frame accesses around it are direct. The table's
+    // initializer store is direct too.
     direct := Bundle(*test, tools, test.work, "direct",
         "table: [4]s64 = .{10, 20, 30, 40};\nMark :: (value: *s64) { <<value += 1 }\n#program_export\nmain :: () -> s64 {\n    local: [8]s64\n    Mark(*local[0])\n    for i: 0..7 { local[i] += cast(s64)i * 3 }\n    total := table[2] + local[5]\n    for i: 0..3 { total += table[i] }\n    table[1] = 7\n    return total + table[1]\n}\n")
     if test.failed || !Counts(*test, direct, *counts) { return 1 }
-    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_global == 5 && counts.direct_frame == 3 &&
+    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_global == 5 && counts.direct_frame == 5 &&
         counts.index_checks == 0 && counts.index_proven == 7, "global and frame array accesses are not all direct") ||
         !Runs(*test, tools, direct, "152\n") || !WasmRuns(*test, tools, direct, "152\n") ||
         !Tampered(*test, direct) { return 1 }
 
-    // A runtime index past an in-memory frame array: the accesses are
-    // direct, and the element address they derive from still traps.
+    // A runtime index past an in-memory frame array: the accesses, with
+    // inlined Mark's, are direct, and the element address they derive from
+    // still traps.
     index := Bundle(*test, tools, test.work, "index",
         "limit: s64 = 9;\nMark :: (value: *s64) { <<value += 1 }\n#program_export\nmain :: () -> s64 {\n    local: [4]s64\n    Mark(*local[0])\n    local[limit] = 1\n    return local[limit]\n}\n")
     if test.failed || !Counts(*test, index, *counts) { return 1 }
-    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_frame == 2 && counts.index_checks == 2 &&
+    if !NativeAssert(*test, counts.resolves == 2 && counts.direct_frame == 4 && counts.index_checks == 2 &&
         counts.index_proven == 1, "the runtime-index accesses are not direct behind their index checks") ||
         !Runs(*test, tools, index, "") || !WasmRuns(*test, tools, index, "") { return 1 }
 

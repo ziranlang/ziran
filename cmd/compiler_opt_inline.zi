@@ -1,7 +1,10 @@
-// Bounded scalar leaf inlining. Reuse the call's operand storage; no new values,
-// blocks or allocations are needed. General CFG inlining belongs in a separate
-// pass with its own growth budget.
+// Bounded scalar leaf inlining reuses the call's operand storage; it needs no
+// new values, blocks or allocations. LirInlineCalls copies small procedures'
+// blocks into their callers under a growth budget.
 using IR :: #import "compiler_lowered_ir"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
 
 LirInlineResult :: struct { work: s64; calls: s64; limited: bool }
 
@@ -83,5 +86,332 @@ LirInlineLeaves :: (program: LirProgram, maximum_operations: s32, budget: s64) -
             }
         }
     }
+    return result
+}
+
+LirInlineCallsResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; calls: s64; work: s64; scratch_bytes: s64 }
+
+#scope_file
+// One expanded caller and the tables it points into. Copies point only into
+// these tables and the unchanged input, so they live until the one write.
+Expanded :: struct {
+    values: Vec(s32)
+    instructions: Vec(LirInstruction)
+    edges: Vec(LirEdge)
+    data: Vec(s32)
+    blocks: Vec(LirBlock)
+    function: LirFunction
+}
+
+ExpandedFree :: (expanded: *Expanded) {
+    VecFree(expanded.values)
+    VecFree(expanded.instructions)
+    VecFree(expanded.edges)
+    VecFree(expanded.data)
+    VecFree(expanded.blocks)
+}
+
+FreeExpanded :: (versions: []Expanded) {
+    for at: 0..versions.count - 1 { ExpandedFree(*versions[at]) }
+}
+
+Shape :: struct { instructions: s64; edges: s64; words: s64; returns: s64 }
+
+Measure :: (function: LirFunction) -> Shape {
+    shape: Shape
+    for block: function.blocks {
+        shape.instructions += block.instructions.count
+        shape.words += block.parameters.count
+        for instruction: block.instructions {
+            shape.words += instruction.operands.count
+            shape.edges += instruction.edges.count
+            for edge: instruction.edges { shape.words += edge.arguments.count }
+            if instruction.op == .Return { shape.returns += 1 }
+        }
+    }
+    return shape
+}
+
+// A direct call to a small portable procedure that returns, keeps no stack
+// storage, does not call its host and does not call itself.
+Expandable :: (program: LirProgram, caller: s64, call: LirInstruction, maximum: s64) -> bool {
+    if call.op != .Call || call.symbol < 0 || cast(s64)call.symbol >= program.functions.count ||
+        cast(s64)call.symbol == caller { return false }
+    callee := program.functions[call.symbol]
+    if callee.external || callee.variadic || callee.calling != .Portable || callee.blocks.count == 0 { return false }
+    size: s64
+    returns := false
+    for block: callee.blocks {
+        size += block.instructions.count
+        if size > maximum { return false }
+        for instruction: block.instructions {
+            if instruction.op == .Allocate || instruction.op == .HostCall { return false }
+            if instruction.op == .Call && instruction.symbol == call.symbol { return false }
+            if instruction.op == .Return { returns = true }
+        }
+    }
+    return returns
+}
+
+// Copies each site's callee into FUNCTION. sites[i] names the callee of the
+// i-th instruction in block order, or is -1. The call's block ends with a
+// jump to the copied entry; every copied return jumps to the rest of the
+// block, whose one parameter, if the call had a result, is that result.
+Expand :: (program: LirProgram, function: LirFunction, sites: []s32, limits: LirLimits,
+    budget: *LirSsaBudget, out: *Expanded) -> bool {
+    shape := Measure(function)
+    block_count := function.blocks.count
+    value_count := function.values.count
+    for site: sites {
+        if site < 0 { continue }
+        callee := program.functions[site]
+        inner := Measure(callee)
+        block_count += 1 + callee.blocks.count
+        value_count += callee.values.count
+        shape.instructions += inner.instructions
+        shape.edges += 1 + inner.edges + inner.returns
+        shape.words += inner.words + 1
+    }
+    if value_count > limits.values || shape.instructions > limits.instructions || block_count > limits.blocks ||
+        !LirSsaReserve(budget, value_count, 4) || !LirSsaReserve(budget, shape.instructions, 112) ||
+        !LirSsaReserve(budget, shape.edges, 24) || !LirSsaReserve(budget, shape.words, 4) ||
+        !LirSsaReserve(budget, block_count + function.blocks.count, 36) { budget.problem = .Limit; return false }
+    first: Vec(s32)
+    defer VecFree(first)
+    // The caller frees `out` whether or not the expansion succeeds.
+    if !VecResizeBounded(out.values, value_count, value_count) ||
+        !VecResizeBounded(out.instructions, shape.instructions, shape.instructions) ||
+        !VecResizeBounded(out.edges, shape.edges, shape.edges) ||
+        !VecResizeBounded(out.data, shape.words, shape.words) ||
+        !VecResizeBounded(out.blocks, block_count, block_count) ||
+        !VecResizeBounded(first, function.blocks.count, function.blocks.count) {
+        budget.problem = .Allocation; return false
+    }
+    values := out.values[:]
+    instructions := out.instructions[:]
+    edges := out.edges[:]
+    data := out.data[:]
+    blocks := out.blocks[:]
+    for v: 0..function.values.count - 1 { values[v] = function.values[v] }
+    // Each original block keeps one number; its sites' continuations and
+    // copies follow it.
+    next_block: s64
+    flat: s64
+    for b: 0..function.blocks.count - 1 {
+        first[b] = cast(s32)next_block
+        next_block += 1
+        for instruction: function.blocks[b].instructions {
+            if sites[flat] >= 0 { next_block += 1 + program.functions[sites[flat]].blocks.count }
+            flat += 1
+        }
+    }
+    ip: s64
+    ep: s64
+    wp: s64
+    next_value := function.values.count
+    flat = 0
+    for b: 0..function.blocks.count - 1 {
+        block := function.blocks[b]
+        current := cast(s64)first[b]
+        following := current + 1
+        parameter_start := wp
+        for value: block.parameters { data[wp] = value; wp += 1 }
+        blocks[current].parameters = data[parameter_start:wp]
+        instruction_start := ip
+        for i: 0..block.instructions.count - 1 {
+            if !LirSsaSpend(budget, 1) { return false }
+            instruction := block.instructions[i]
+            site := sites[flat]
+            flat += 1
+            if site < 0 {
+                operand_start := wp
+                for value: instruction.operands { data[wp] = value; wp += 1 }
+                instruction.operands = data[operand_start:wp]
+                edge_start := ep
+                for edge: instruction.edges {
+                    argument_start := wp
+                    for value: edge.arguments { data[wp] = value; wp += 1 }
+                    edges[ep] = .{block = first[edge.block], arguments = data[argument_start:wp]}
+                    ep += 1
+                }
+                instruction.edges = edges[edge_start:ep]
+                instructions[ip] = instruction
+                ip += 1
+                continue
+            }
+            callee := program.functions[site]
+            continuation := following
+            copy := following + 1
+            following += 1 + callee.blocks.count
+            base := cast(s32)next_value
+            for v: 0..callee.values.count - 1 { values[next_value + v] = callee.values[v] }
+            next_value += callee.values.count
+            argument_start := wp
+            for value: instruction.operands { data[wp] = value; wp += 1 }
+            edges[ep] = .{block = cast(s32)copy + callee.entry, arguments = data[argument_start:wp]}
+            instructions[ip] = .{op = .Jump, result = LirNoId, edges = edges[ep:ep + 1], symbol = LirNoId, origin = instruction.origin}
+            ep += 1
+            ip += 1
+            blocks[current].instructions = instructions[instruction_start:ip]
+            for cb: 0..callee.blocks.count - 1 {
+                source := callee.blocks[cb]
+                start := wp
+                for value: source.parameters { data[wp] = value + base; wp += 1 }
+                blocks[copy + cb].parameters = data[start:wp]
+                copy_start := ip
+                for copied: source.instructions {
+                    if !LirSsaSpend(budget, 1) { return false }
+                    if copied.op == .Return {
+                        returned := wp
+                        if instruction.result != LirNoId {
+                            for value: copied.operands { data[wp] = value + base; wp += 1 }
+                        }
+                        edges[ep] = .{block = cast(s32)continuation, arguments = data[returned:wp]}
+                        instructions[ip] = .{op = .Jump, result = LirNoId, edges = edges[ep:ep + 1], symbol = LirNoId, origin = copied.origin}
+                        ep += 1
+                        ip += 1
+                        continue
+                    }
+                    item := copied
+                    if item.result != LirNoId { item.result += base }
+                    operand_start := wp
+                    for value: copied.operands { data[wp] = value + base; wp += 1 }
+                    item.operands = data[operand_start:wp]
+                    edge_start := ep
+                    for edge: copied.edges {
+                        argument_start := wp
+                        for value: edge.arguments { data[wp] = value + base; wp += 1 }
+                        edges[ep] = .{block = cast(s32)copy + edge.block, arguments = data[argument_start:wp]}
+                        ep += 1
+                    }
+                    item.edges = edges[edge_start:ep]
+                    instructions[ip] = item
+                    ip += 1
+                }
+                blocks[copy + cb].instructions = instructions[copy_start:ip]
+            }
+            current = continuation
+            parameter_start = wp
+            if instruction.result != LirNoId { data[wp] = instruction.result; wp += 1 }
+            blocks[current].parameters = data[parameter_start:wp]
+            instruction_start = ip
+        }
+        blocks[current].instructions = instructions[instruction_start:ip]
+    }
+    for b: 0..block_count - 1 {
+        effect: s32
+        for at: 0..blocks[b].instructions.count - 1 {
+            if LirEffectful(blocks[b].instructions[at].op) {
+                effect += 1
+                blocks[b].instructions[at].effect = effect
+            } else {
+                blocks[b].instructions[at].effect = 0
+            }
+        }
+    }
+    function.values = values
+    function.blocks = blocks
+    function.entry = first[function.entry]
+    out.function = function
+    return true
+}
+
+// Write once, while every expanded table and the borrowed input still exist;
+// only LirRead may replace the owner's storage.
+Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
+    budget: *LirSsaBudget) -> LirCodecResult {
+    empty: []u8
+    measured := LirWrite(program, empty)
+    if measured.problem != .None { return measured }
+    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
+    written := LirWrite(program, encoded[:])
+    if written.problem != .None { return written }
+    return LirRead(storage, TextView(encoded[:]), limits)
+}
+
+#scope_export
+// Inlines direct calls to procedures of at most MAXIMUM instructions, one
+// level deep: callees are the input versions. The program grows by at most
+// half its instructions, or 256 for a small one, and never beyond what the
+// remaining work budget admits; it is written and verified once.
+LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum: s64) -> LirInlineCallsResult {
+    result: LirInlineCallsResult
+    budget := LirSsaBudget.{work = work, bytes = limits.bytes}
+    if maximum <= 0 { return result }
+    program := LirReadProgram(storage)
+    total: s64
+    largest: s64
+    for function: program.functions {
+        size := Measure(function).instructions
+        total += size
+        if size > largest { largest = size }
+    }
+    allowance := total / 2
+    if allowance < 256 { allowance = 256 }
+    // Later passes spend over a thousand work units per instruction; keep
+    // the grown program within a quarter of what the remaining work admits,
+    // so a large program is never pushed past its optimizer budget.
+    room := work / 4096 - total
+    if room < allowance { allowance = room }
+    functions: Vec(LirFunction)
+    versions: Vec(Expanded)
+    sites: Vec(s32)
+    defer VecFree(functions)
+    defer VecFree(sites)
+    defer VecFree(versions)
+    defer FreeExpanded(versions[:])
+    if !LirSsaReserve(*budget, largest, 4) { result.problem = budget.problem; return result }
+    if !VecResizeBounded(functions, program.functions.count, program.functions.count) ||
+        !VecResizeBounded(sites, largest, largest) {
+        result.problem = .Allocation
+        return result
+    }
+    for fi: 0..program.functions.count - 1 { functions[fi] = program.functions[fi] }
+    for fi: 0..program.functions.count - 1 {
+        function := program.functions[fi]
+        if function.external || function.blocks.count == 0 { continue }
+        count := Measure(function).instructions
+        budget.reserved = 0
+        if !LirSsaSpend(*budget, count) { break }
+        found: s64
+        flat: s64
+        for block: function.blocks {
+            for instruction: block.instructions {
+                sites[flat] = -1
+                if allowance > 0 && Expandable(program, fi, instruction, maximum) {
+                    size := Measure(program.functions[instruction.symbol]).instructions
+                    if size <= allowance {
+                        sites[flat] = instruction.symbol
+                        allowance -= size
+                        found += 1
+                    }
+                }
+                flat += 1
+            }
+        }
+        if found == 0 { continue }
+        expanded: Expanded
+        built := Expand(program, function, sites[:count], limits, *budget, *expanded)
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+        if !built {
+            ExpandedFree(*expanded)
+            break
+        }
+        functions[fi] = expanded.function
+        VecPush(versions, expanded)
+        result.calls += found
+    }
+    if budget.problem == .None && result.calls > 0 {
+        budget.reserved = 0
+        inlined := program
+        inlined.functions = functions[:]
+        result.codec = Serialize(storage, inlined, limits, *budget)
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+    }
+    result.problem = budget.problem
+    result.work = budget.used
     return result
 }

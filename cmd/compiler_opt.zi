@@ -36,6 +36,7 @@ LirOptCounters :: struct {
     induction: LirOptPassCounters
     layout: LirOptPassCounters
     inline_leaf: LirOptPassCounters
+    inline_calls: LirOptPassCounters
     input_functions: s64
     input_blocks: s64
     input_values: s64
@@ -53,6 +54,8 @@ LirOptOptions :: struct {
     simplify_cfg: bool
     maximum_rounds: s32
     inline_leaf_operations: s32
+    // Calls to procedures of at most this many instructions are inlined; 0 keeps every call.
+    inline_calls: s32
 }
 
 LirOptOwner :: struct {
@@ -1879,7 +1882,8 @@ Result :: (state: OptState) -> LirOptResult {
 #scope_export
 LirOptDefaultOptions :: () -> LirOptOptions {
     return .{fold_constants = true, propagate_copies = true, eliminate_dead = true,
-        simplify_cfg = true, maximum_rounds = 8, inline_leaf_operations = LearningTuningChoice().leaf_operations}
+        simplify_cfg = true, maximum_rounds = 8, inline_leaf_operations = LearningTuningChoice().leaf_operations,
+        inline_calls = 48}
 }
 
 LirOptFree :: (owner: *LirOptOwner) {
@@ -1906,7 +1910,8 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         return Result(state)
     }
     if options.maximum_rounds < 1 || options.maximum_rounds > 64 ||
-        options.inline_leaf_operations < 0 || options.inline_leaf_operations > 1 {
+        options.inline_leaf_operations < 0 || options.inline_leaf_operations > 1 ||
+        options.inline_calls < 0 || options.inline_calls > 1024 {
         LirOptFree(owner)
         state.problem = .Options
         return Result(state)
@@ -1935,6 +1940,14 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         state.counters.inline_leaf.runs += 1
         state.counters.inline_leaf.instructions += inlined.calls
         if !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+    }
+    if options.inline_calls > 0 {
+        expanded := LirInlineCalls(*owner.storage, limits, state.remaining, cast(s64)options.inline_calls)
+        state.counters.inline_calls.runs += 1
+        state.counters.inline_calls.instructions += expanded.calls
+        if !SharedPassResult(*state, expanded.problem, expanded.codec, expanded.work, expanded.scratch_bytes) {
+            LirOptFree(owner); return Result(state)
+        }
     }
     ScratchReset(*state)
     if options.fold_constants && !FoldPass(*state, owner, limits, options) {

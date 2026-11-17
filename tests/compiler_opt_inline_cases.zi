@@ -1,6 +1,9 @@
 using IR :: #import "compiler_lowered_ir"
 using Verify :: #import "compiler_lowered_verify"
 using Inline :: #import "compiler_opt_inline"
+using Codec :: #import "compiler_exec_serial"
+using Exec :: #import "compiler_exec"
+using Vectors :: #import "std/vec"
 
 InlineCases :: () -> s32 {
     types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64}]
@@ -45,5 +48,95 @@ InlineCases :: () -> s32 {
         caller_code[2].effect != 0 || caller_code[2].operands[0] != 1 ||
         caller_code[2].operands[1] != 0 || caller_code[2].result != 2 { return 5 }
     if LirVerify(program, LirDefaultLimits()).problem != .None { return 6 }
+    return 0
+}
+
+#scope_file
+Run :: (program: LirProgram) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 811, *instance)
+    if opened.problem != .None { return opened }
+    arguments: [0]LirExecArgument
+    return LirExecCall(*instance, 0, arguments[:])
+}
+
+#scope_export
+// A caller of a multi-block procedure: pick(a, b) returns the smaller value
+// from one of two returns. Both calls become copies of its blocks.
+CallCases :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1}]
+    modules := string.["inline"]
+    constants := LirConstant.[.{type = 1, bits = 3}, .{type = 1, bits = 5}]
+    main_values := s32.[1, 1, 1, 1, 1]
+    first := s32.[0, 1]
+    second := s32.[1, 0]
+    sum := s32.[2, 3]
+    returned := s32.[4]
+    main_code := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 0, origin = -1},
+        .{op = .Constant, result = 1, symbol = 1, origin = -1},
+        .{op = .Call, result = 2, operands = first[:], symbol = 1, effect = 1, origin = -1},
+        .{op = .Call, result = 3, operands = second[:], symbol = 1, effect = 2, origin = -1},
+        .{op = .Add, result = 4, operands = sum[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}]
+    pick_values := s32.[1, 1, 2]
+    pick_parameters := s32.[1, 1]
+    entry_parameters := s32.[0, 1]
+    compared := s32.[0, 1]
+    condition := s32.[2]
+    left := s32.[0]
+    right := s32.[1]
+    targets := LirEdge.[.{block = 1}, .{block = 2}]
+    entry_code := LirInstruction.[
+        .{op = .Fuel, result = -1, immediate = 1, effect = 1, symbol = -1, origin = -1},
+        .{op = .Less, result = 2, operands = compared[:], symbol = -1, origin = -1},
+        .{op = .Branch, result = -1, operands = condition[:], edges = targets[:], symbol = -1, origin = -1}]
+    left_code := LirInstruction.[.{op = .Return, result = -1, operands = left[:], symbol = -1, origin = -1}]
+    right_code := LirInstruction.[.{op = .Return, result = -1, operands = right[:], symbol = -1, origin = -1}]
+    main_blocks := LirBlock.[.{instructions = main_code[:]}]
+    pick_blocks := LirBlock.[.{parameters = entry_parameters[:], instructions = entry_code[:]},
+        .{instructions = left_code[:]}, .{instructions = right_code[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "main", result = 1, values = main_values[:], blocks = main_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "pick", parameters = pick_parameters[:], result = 1, values = pick_values[:],
+            blocks = pick_blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 11 }
+    before := Run(program)
+    if before.problem != .None || before.value.bits != 6 { return 12 }
+    empty: []u8
+    measured := LirWrite(program, empty)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if measured.problem != .None || !VecResize(bytes, measured.size) ||
+        LirWrite(program, bytes[:]).problem != .None { return 13 }
+    owner: LirReadOwner
+    defer LirReadFree(*owner)
+    if LirRead(*owner, TextView(bytes[:]), LirDefaultLimits()).problem != .None { return 13 }
+    // Disabled, or a limit below the callee's size, keeps both calls.
+    if LirInlineCalls(*owner, LirDefaultLimits(), 1000000, 0).calls != 0 { return 14 }
+    small := LirInlineCalls(*owner, LirDefaultLimits(), 1000000, 4)
+    if small.problem != .None || small.calls != 0 {
+        print("small problem=% calls=% codec=%\n", cast(s32)small.problem, small.calls, cast(s32)small.codec.problem)
+        return 15
+    }
+    expanded := LirInlineCalls(*owner, LirDefaultLimits(), 1000000, 48)
+    if expanded.problem != .None || expanded.codec.problem != .None || expanded.calls != 2 { return 16 }
+    output := LirReadProgram(*owner)
+    if LirVerify(output, LirDefaultLimits()).problem != .None { return 17 }
+    // The block, a continuation per call and three copied blocks per call.
+    caller := output.functions[0]
+    if caller.blocks.count != 9 || caller.values.count != 11 { return 18 }
+    for block: caller.blocks {
+        for instruction: block.instructions { if instruction.op == .Call { return 19 } }
+    }
+    after := Run(output)
+    if after.problem != .None || after.value.bits != before.value.bits { return 20 }
     return 0
 }

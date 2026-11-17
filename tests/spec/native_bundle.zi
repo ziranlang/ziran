@@ -81,7 +81,12 @@ Long :: () -> s32 {
     return cast(s32)(value / 1000000)
 }
 
-Divide :: (left: s64, right: s64) -> s64 { return left / right }
+// Divide calls itself for a negative divisor, which never happens here, so it
+// stays a call that is not inlined and a debug trap names it.
+Divide :: (left: s64, right: s64) -> s64 {
+    if right < 0 { return -Divide(left, -right) }
+    return left / right
+}
 
 #program_export
 Trapper :: () -> s32 {

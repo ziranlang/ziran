@@ -1,4 +1,9 @@
-Twice :: (value: s64) -> s64 { return value * 2 }
+// Twice calls itself for a negative value, which never happens here, so it
+// stays a call that is not inlined: the frame budget check needs a nested call.
+Twice :: (value: s64) -> s64 {
+    if value < 0 { return -Twice(-value) }
+    return value * 2
+}
 
 #program_export
 Answer :: () -> s32 {

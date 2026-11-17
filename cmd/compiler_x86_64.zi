@@ -2449,10 +2449,6 @@ Instruction :: (state: *State) -> bool {
         if !ok { return Fail(state, ifx state.writer.failed then .Limit else .Instruction) }
         state.flags_value = -1
     }
-    else if op == .VectorPair {
-        ok = VectorPairX64Emit(*state.writer, state.program, instruction)
-        if !ok { return Fail(state, ifx state.writer.failed then .Limit else .Instruction) }
-    }
     else if op == .MoveImmediate { ok = MoveImmediate(state) }
     else if op == .IntegerAdd || op == .IntegerSubtract || op == .IntegerMultiply ||
         op == .IntegerAnd || op == .IntegerOr || op == .IntegerXor { ok = Binary(state, op) }

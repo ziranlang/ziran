@@ -171,70 +171,6 @@ GrowthSum :: () -> s64 {
     }
     return total
 }
-PairRecord :: struct { x: u64; y: u64; dx: u64; dy: u64 }
-PairUpdates :: (seed: u64, operation: s32) -> u64 {
-    values: [4]PairRecord
-    for i: 0..3 {
-        values[i] = PairRecord.{seed + cast(u64)i, seed ^ cast(u64)(i + 17),
-            cast(u64)(i + 3), cast(u64)(i + 5)}
-    }
-    checksum: u64
-    for i: 0..3 {
-        if operation == 0 {
-            values[i].x += values[i].dx
-            values[i].y += values[i].dy
-        } else if operation == 1 {
-            values[i].x -= values[i].dx
-            values[i].y -= values[i].dy
-        } else if operation == 2 {
-            values[i].x &= values[i].dx
-            values[i].y &= values[i].dy
-        } else if operation == 3 {
-            values[i].x |= values[i].dx
-            values[i].y |= values[i].dy
-        } else {
-            values[i].x ^= values[i].dx
-            values[i].y ^= values[i].dy
-        }
-        checksum = checksum * 31 + values[i].x * 7 + values[i].y
-    }
-    return checksum
-}
-
-PairLive :: (seed: u64, step: float64) -> u64 {
-    values: [3]PairRecord
-    for i: 0..2 { values[i] = PairRecord.{seed + cast(u64)i, 27, 3, 5} }
-    live := step
-    checksum: u64
-    for i: 0..2 {
-        live = live * 2 + step
-        values[i].x += values[i].dx
-        values[i].y += values[i].dy
-        if values[i].x < values[i].y { checksum += values[i].x }
-        else { checksum += values[i].y }
-        checksum ^= cast(u64)(live * step)
-    }
-    return checksum
-}
-
-PairOffsetRecord :: struct { tag: s64; x: s64; y: s64; dx: s64; dy: s64 }
-PairOffset :: (seed: s64) -> s64 {
-    // Forty-byte records alternate their alignment modulo sixteen; fields
-    // x/y also start eight bytes into the record. Packed accesses must work
-    // at either alignment, including signed values and live scalar results.
-    values: [3]PairOffsetRecord
-    for i: 0..2 { values[i] = PairOffsetRecord.{17, seed + i, -27, 3, 5} }
-    checksum: s64
-    for i: 0..2 {
-        values[i].x += values[i].dx
-        values[i].y += values[i].dy
-        if values[i].x < values[i].y { checksum += values[i].x }
-        else { checksum += values[i].y }
-        checksum ^= values[i].tag
-    }
-    return checksum
-}
-
 main :: () -> s32 {
     IntegerCases(cast(u8)0x81); IntegerCases(cast(s8)-97)
     IntegerCases(cast(u16)0x8001); IntegerCases(cast(s16)-32001)
@@ -245,10 +181,5 @@ main :: () -> s32 {
     Fill(guarded[:], cast(u64)17)
     print("checked %\n", CheckedSum(guarded[:]))
     print("growth %\n", GrowthSum())
-    for operation: cast(s32)0..4 {
-        print("pair % %\n", operation, PairUpdates(18446744073709551613, operation))
-    }
-    print("pair live %\n", PairLive(23, 1.25))
-    print("pair offset %\n", PairOffset(-9223372036854775807))
     return 0
 }

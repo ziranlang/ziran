@@ -546,10 +546,18 @@ Remaining per kernel after that, from objdump of the current build:
 - Hash byte loop: the text token, a zero-index element, the global address
   and the 64-bit prime are recomputed every iteration (loop-invariant code
   motion), plus a dead count constant the proven element no longer uses.
-- Records per particle (~33 instructions, C 19): reloads of x and y just
-  stored (the changed view's value can be forwarded), jumps through
-  forwarding blocks the layout puts out of order, and outer-loop copy moves
-  that tie hints would remove.
+- Records per particle (2026-11-17, 19 instructions; loop 19.5 µs against
+  C 16.5 µs on Alpha, 1.18×): the frame base `lea` and `imul $0x20` index
+  scale are recomputed every iteration (hoist the base, step a pointer or use
+  `shl`), `dx`/`dy` loads are not folded into `add` (memory-operand ALU
+  selection), and `y` is reloaded after the x-bounds join although its
+  inserted value is still in a register. Pairing the x/y update into one SSE2
+  add was measured neutral (19.48 against 19.50 µs) because both lanes return
+  to general registers for the bounds compares, so it was removed. Receipts:
+  `bench/results/records-pair-alpha-2026-11-17.json` and
+  `records-pair-loop-alpha-2026-11-17.json`. The published native column
+  times 32 calls per process and so includes about 5.4 µs per call of process
+  startup (an empty native program takes 174 µs).
 
 ### Canonical SSA implementation and integration, 2026-11-16
 

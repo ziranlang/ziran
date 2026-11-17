@@ -1,0 +1,1110 @@
+{
+  "schema_version": 1,
+  "host": "alpha",
+  "cpu": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "virtualization": "none",
+  "learning": "off",
+  "checks": false,
+  "measured_at": "2026-11-17T04:57:37.346536+00:00",
+  "revision": "f662d6c53a4f22da1d628fb1d14e5c9181fb3dc0",
+  "method": "Records native wrappers make 512 verified calls per process (parent and pairing compilers, one parent-built bundle); an empty native program measures process startup; C is the in-process site host (three calibrated batches, loading excluded). Shuffled matched rounds under HostGate; per-call samples use symmetric inclusive 1.5xIQR filtering. Loop time subtracts the median empty-process time divided by the call count.",
+  "host_gate": {
+    "cpu": 0,
+    "sibling": 6,
+    "reference_khz": 4397277,
+    "rules": {
+      "steady": 0.03,
+      "floor": 0.95,
+      "sibling_busy_max": 0.15,
+      "attempts": 8
+    }
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "order": [
+        "empty-after",
+        "records-before",
+        "c",
+        "records-after"
+      ],
+      "targets": {
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.175493,
+            0.173553,
+            0.174783
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            9.95354,
+            10.050627,
+            10.008227
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.690725982,
+            16.601749003,
+            17.116040945
+          ]
+        },
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.459822,
+            10.489477,
+            10.293958
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4399997,
+            "p10_khz": 4395929,
+            "p90_khz": 4400008,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 1,
+      "order": [
+        "records-after",
+        "empty-after",
+        "c",
+        "records-before"
+      ],
+      "targets": {
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.082655,
+            10.047256,
+            9.976865
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.178794,
+            0.173354,
+            0.170393
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.778617024,
+            16.780281007,
+            16.783655941
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            9.943216,
+            9.934194,
+            9.943456
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4396236,
+            "p10_khz": 4299988,
+            "p90_khz": 4400006,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 2,
+      "order": [
+        "records-before",
+        "empty-after",
+        "records-after",
+        "c"
+      ],
+      "targets": {
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            9.931704,
+            10.061805,
+            10.243201
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.174397,
+            0.181442,
+            0.177424
+          ]
+        },
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            9.913984,
+            9.897966,
+            10.422024
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.974240005,
+            17.134990036,
+            17.166627049
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4399990,
+            "p10_khz": 4300001,
+            "p90_khz": 4400002,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 3,
+      "order": [
+        "records-after",
+        "records-before",
+        "empty-after",
+        "c"
+      ],
+      "targets": {
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.209343,
+            10.166552,
+            10.269436
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.181558,
+            10.213247,
+            10.124923
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.170069,
+            0.172838,
+            0.289432
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.913644969,
+            17.191834033,
+            17.141167045
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4300008,
+            "p10_khz": 4299974,
+            "p90_khz": 4395555,
+            "sibling_busy": 0.0132,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 4,
+      "order": [
+        "c",
+        "records-before",
+        "empty-after",
+        "records-after"
+      ],
+      "targets": {
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.625485003,
+            17.225657046,
+            17.554369986
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.120702,
+            10.113515,
+            10.147084
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.175675,
+            0.173604,
+            0.180717
+          ]
+        },
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.167596,
+            10.114822,
+            10.092147
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4300008,
+            "p10_khz": 4299975,
+            "p90_khz": 4387252,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 5,
+      "order": [
+        "c",
+        "records-before",
+        "empty-after",
+        "records-after"
+      ],
+      "targets": {
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.874646962,
+            16.545020998,
+            16.601677001
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.166402,
+            10.104261,
+            9.928683
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.168196,
+            0.23812,
+            0.167937
+          ]
+        },
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            9.985398,
+            9.921293,
+            9.940993
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4399960,
+            "p10_khz": 4300007,
+            "p90_khz": 4400008,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 6,
+      "order": [
+        "records-after",
+        "c",
+        "records-before",
+        "empty-after"
+      ],
+      "targets": {
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.254833,
+            10.293874,
+            10.424136
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.878738999,
+            16.788996994,
+            16.851588011
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.240529,
+            10.185353,
+            10.18618
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.17306,
+            0.170889,
+            0.19495
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4300044,
+            "p10_khz": 4299985,
+            "p90_khz": 4399039,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 7,
+      "order": [
+        "c",
+        "records-before",
+        "records-after",
+        "empty-after"
+      ],
+      "targets": {
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.45688802,
+            17.175568998,
+            16.983728945
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.141719,
+            10.228084,
+            10.190831
+          ]
+        },
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.137902,
+            10.14834,
+            10.378865
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.169552,
+            0.172197,
+            0.172207
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4300008,
+            "p10_khz": 4299974,
+            "p90_khz": 4396595,
+            "sibling_busy": 0.026,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 8,
+      "order": [
+        "empty-after",
+        "records-before",
+        "c",
+        "records-after"
+      ],
+      "targets": {
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.175749,
+            0.173166,
+            0.17657
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.181761,
+            10.179163,
+            10.167944
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            17.235157013,
+            17.105302989,
+            16.869527996
+          ]
+        },
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.168755,
+            10.164859,
+            10.202969
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4300016,
+            "p10_khz": 4299972,
+            "p90_khz": 4400001,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 9,
+      "order": [
+        "c",
+        "records-before",
+        "empty-after",
+        "records-after"
+      ],
+      "targets": {
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.973948002,
+            16.805741012,
+            16.808264017
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            11.732384,
+            10.210686,
+            10.216938
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.175634,
+            0.174446,
+            0.180065
+          ]
+        },
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            9.991926,
+            10.054553,
+            9.943137
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4300016,
+            "p10_khz": 4299975,
+            "p90_khz": 4399990,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 10,
+      "order": [
+        "c",
+        "empty-after",
+        "records-after",
+        "records-before"
+      ],
+      "targets": {
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.826385021,
+            16.798723996,
+            16.802487016
+          ]
+        },
+        "empty-after": {
+          "batches": 1,
+          "batch_samples_ms": [
+            0.173475,
+            0.172766,
+            0.172237
+          ]
+        },
+        "records-after": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.080063,
+            10.123021,
+            10.152019
+          ]
+        },
+        "records-before": {
+          "batches": 512,
+          "batch_samples_ms": [
+            10.194781,
+            10.30496,
+            10.053147
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 0,
+        "sibling": 6,
+        "reference_khz": 4397277,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 0,
+            "sibling": 6,
+            "readings": 54,
+            "median_khz": 4300014,
+            "p10_khz": 4299973,
+            "p90_khz": 4399996,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    }
+  ],
+  "summaries": {
+    "records-before": {
+      "execution_samples_ms": [
+        0.0194405078125,
+        0.019630130859375,
+        0.019547318359375,
+        0.01942034375,
+        0.01940272265625,
+        0.0194208125,
+        0.019397859375,
+        0.019651962890625,
+        0.020006251953125,
+        0.01988585546875,
+        0.019947748046875,
+        0.019775240234375,
+        0.01976699609375,
+        0.019752958984375,
+        0.0198185234375,
+        0.01985625390625,
+        0.019734884765625,
+        0.019391958984375,
+        0.020001033203125,
+        0.019893267578125,
+        0.0198948828125,
+        0.019808044921875,
+        0.0199767265625,
+        0.019903966796875,
+        0.019886251953125,
+        0.019881177734375,
+        0.019859265625,
+        0.0229148125,
+        0.01994274609375,
+        0.01995495703125,
+        0.019911681640625,
+        0.020126875,
+        0.019635052734375
+      ],
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.019220109374999995,
+        "upper_ms": 0.020326625000000008,
+        "excluded_indices": [
+          27
+        ],
+        "included_samples_ms": [
+          0.0194405078125,
+          0.019630130859375,
+          0.019547318359375,
+          0.01942034375,
+          0.01940272265625,
+          0.0194208125,
+          0.019397859375,
+          0.019651962890625,
+          0.020006251953125,
+          0.01988585546875,
+          0.019947748046875,
+          0.019775240234375,
+          0.01976699609375,
+          0.019752958984375,
+          0.0198185234375,
+          0.01985625390625,
+          0.019734884765625,
+          0.019391958984375,
+          0.020001033203125,
+          0.019893267578125,
+          0.0198948828125,
+          0.019808044921875,
+          0.0199767265625,
+          0.019903966796875,
+          0.019886251953125,
+          0.019881177734375,
+          0.019859265625,
+          0.01994274609375,
+          0.01995495703125,
+          0.019911681640625,
+          0.020126875,
+          0.019635052734375
+        ],
+        "median_ms": 0.019837388671874998
+      },
+      "median_us": 19.837388671874997
+    },
+    "records-after": {
+      "execution_samples_ms": [
+        0.02042933984375,
+        0.020487259765625,
+        0.02010538671875,
+        0.019692685546875,
+        0.019623546875,
+        0.019486064453125,
+        0.01936325,
+        0.01933196484375,
+        0.020355515625,
+        0.019940123046875,
+        0.019856546875,
+        0.0200574921875,
+        0.0198585859375,
+        0.01975551171875,
+        0.019711224609375,
+        0.01950273046875,
+        0.019377525390625,
+        0.019416001953125,
+        0.020028970703125,
+        0.02010522265625,
+        0.020359640625,
+        0.01980058984375,
+        0.0198209765625,
+        0.020271220703125,
+        0.019860849609375,
+        0.019853240234375,
+        0.019927673828125,
+        0.01951548046875,
+        0.019637798828125,
+        0.019420189453125,
+        0.019687623046875,
+        0.019771525390625,
+        0.019828162109375
+      ],
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.019015411132812507,
+        "upper_ms": 0.020637106445312497,
+        "excluded_indices": [],
+        "included_samples_ms": [
+          0.02042933984375,
+          0.020487259765625,
+          0.02010538671875,
+          0.019692685546875,
+          0.019623546875,
+          0.019486064453125,
+          0.01936325,
+          0.01933196484375,
+          0.020355515625,
+          0.019940123046875,
+          0.019856546875,
+          0.0200574921875,
+          0.0198585859375,
+          0.01975551171875,
+          0.019711224609375,
+          0.01950273046875,
+          0.019377525390625,
+          0.019416001953125,
+          0.020028970703125,
+          0.02010522265625,
+          0.020359640625,
+          0.01980058984375,
+          0.0198209765625,
+          0.020271220703125,
+          0.019860849609375,
+          0.019853240234375,
+          0.019927673828125,
+          0.01951548046875,
+          0.019637798828125,
+          0.019420189453125,
+          0.019687623046875,
+          0.019771525390625,
+          0.019828162109375
+        ],
+        "median_ms": 0.0198209765625
+      },
+      "median_us": 19.8209765625
+    },
+    "empty-after": {
+      "execution_samples_ms": [
+        0.175493,
+        0.173553,
+        0.174783,
+        0.178794,
+        0.173354,
+        0.170393,
+        0.174397,
+        0.181442,
+        0.177424,
+        0.170069,
+        0.172838,
+        0.289432,
+        0.175675,
+        0.173604,
+        0.180717,
+        0.168196,
+        0.23812,
+        0.167937,
+        0.17306,
+        0.170889,
+        0.19495,
+        0.169552,
+        0.172197,
+        0.172207,
+        0.175749,
+        0.173166,
+        0.17657,
+        0.175634,
+        0.174446,
+        0.180065,
+        0.173475,
+        0.172766,
+        0.172237
+      ],
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.16573749999999998,
+        "upper_ms": 0.1830695,
+        "excluded_indices": [
+          11,
+          16,
+          20
+        ],
+        "included_samples_ms": [
+          0.175493,
+          0.173553,
+          0.174783,
+          0.178794,
+          0.173354,
+          0.170393,
+          0.174397,
+          0.181442,
+          0.177424,
+          0.170069,
+          0.172838,
+          0.175675,
+          0.173604,
+          0.180717,
+          0.168196,
+          0.167937,
+          0.17306,
+          0.170889,
+          0.169552,
+          0.172197,
+          0.172207,
+          0.175749,
+          0.173166,
+          0.17657,
+          0.175634,
+          0.174446,
+          0.180065,
+          0.173475,
+          0.172766,
+          0.172237
+        ],
+        "median_ms": 0.173514
+      },
+      "median_us": 173.514
+    },
+    "c": {
+      "execution_samples_ms": [
+        0.016299537091796875,
+        0.016212645510742186,
+        0.016714883735351564,
+        0.0163853681875,
+        0.016386993170898437,
+        0.016390289004882812,
+        0.01657640625488281,
+        0.01673338870703125,
+        0.01676428422753906,
+        0.016517231415039062,
+        0.016788900422851562,
+        0.016739420942382812,
+        0.01623582519824219,
+        0.016821930708984374,
+        0.017142939439453126,
+        0.016479147423828125,
+        0.016157247068359373,
+        0.01621257519628906,
+        0.016483143553710937,
+        0.016395504876953126,
+        0.016456628916992188,
+        0.01607117970703125,
+        0.016773016599609374,
+        0.016585672797851562,
+        0.01683120802050781,
+        0.01670439745019531,
+        0.01647414843359375,
+        0.016576121095703125,
+        0.01641185645703125,
+        0.01641432032910156,
+        0.016432016622070313,
+        0.01640500390234375,
+        0.0164086787265625
+      ],
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.015903396909179683,
+        "upper_ms": 0.017201775831054693,
+        "excluded_indices": [],
+        "included_samples_ms": [
+          0.016299537091796875,
+          0.016212645510742186,
+          0.016714883735351564,
+          0.0163853681875,
+          0.016386993170898437,
+          0.016390289004882812,
+          0.01657640625488281,
+          0.01673338870703125,
+          0.01676428422753906,
+          0.016517231415039062,
+          0.016788900422851562,
+          0.016739420942382812,
+          0.01623582519824219,
+          0.016821930708984374,
+          0.017142939439453126,
+          0.016479147423828125,
+          0.016157247068359373,
+          0.01621257519628906,
+          0.016483143553710937,
+          0.016395504876953126,
+          0.016456628916992188,
+          0.01607117970703125,
+          0.016773016599609374,
+          0.016585672797851562,
+          0.01683120802050781,
+          0.01670439745019531,
+          0.01647414843359375,
+          0.016576121095703125,
+          0.01641185645703125,
+          0.01641432032910156,
+          0.016432016622070313,
+          0.01640500390234375,
+          0.0164086787265625
+        ],
+        "median_ms": 0.01647414843359375
+      },
+      "median_us": 16.474148433593747
+    }
+  },
+  "startup_us": 173.514,
+  "loop_us": {
+    "before": 19.498494140625,
+    "after": 19.482082031250002
+  },
+  "loop_ratio_to_c": {
+    "before": 1.1835813073569295,
+    "after": 1.1825850732000531
+  },
+  "artifacts": {
+    "records-before": {
+      "sha256": "f9194685444991847f79cedb6c7ed346b37904de04b8319aae662432b7267a63",
+      "bytes": 2688
+    },
+    "records-after": {
+      "sha256": "4c1b3a32110c5b320d11d8a607224b7b4317fe64906098204467d56141f7ee0e",
+      "bytes": 2688
+    },
+    "empty-after": {
+      "sha256": "4d1da20bc9eee600af27ea3d0ff953a0b5a780feb1dde94fa6d6c53aa4a57e48",
+      "bytes": 160
+    }
+  },
+  "c_sha256": "e29201073a45f1245e5ccd37ccad74a5c2e0e1d16178638c3ef4e0aa20e8cd78",
+  "runner_sha256": "8ff7f305b4ef6493002096e8ee436058b67fa9db37500ab56434525ee8852f3b"
+}

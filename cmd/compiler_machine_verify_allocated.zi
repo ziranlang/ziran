@@ -495,7 +495,7 @@ InstructionStructure :: (state: *State, program: MachineProgram, function_id: s3
     function := program.functions[function_id]
     block := program.blocks[block_id]
     instruction := program.instructions[instruction_id]
-    if instruction.opcode == .Invalid || cast(s32)instruction.opcode > cast(s32)MachineOpcode.VectorPair ||
+    if instruction.opcode == .Invalid || cast(s32)instruction.opcode > cast(s32)MachineOpcode.FloatSquareRoot ||
         !Range(instruction.operand_begin, instruction.operand_count, program.operands.count) ||
         !Range(instruction.edge_begin, instruction.edge_count, program.edges.count) ||
         !Optional(instruction.flags_use, program.virtuals.count) ||
@@ -505,9 +505,6 @@ InstructionStructure :: (state: *State, program: MachineProgram, function_id: s3
         return Fail(state, .Instruction, function_id, block_id, instruction_id)
     }
     if instruction.opcode == .VectorLoop && !VectorLoopForm(program, instruction) {
-        return Fail(state, .Instruction, function_id, block_id, instruction_id)
-    }
-    if instruction.opcode == .VectorPair && !VectorPairForm(program, instruction) {
         return Fail(state, .Instruction, function_id, block_id, instruction_id)
     }
     last := instruction_id == block.instruction_begin + block.instruction_count - 1

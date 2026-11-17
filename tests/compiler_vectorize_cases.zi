@@ -7,7 +7,6 @@ using IR :: #import "compiler_lowered_ir"
 using Link :: #import "compiler_exec_link"
 using Opt :: #import "compiler_opt"
 using Vectorizer :: #import "compiler_vectorize"
-using PairVectorizer :: #import "compiler_vectorize_pair"
 using Machine :: #import "compiler_machine_ir"
 using Lower :: #import "compiler_machine_lower"
 using RegAlloc :: #import "compiler_regalloc"
@@ -16,85 +15,6 @@ using X64 :: #import "compiler_x86_64"
 using Target :: #import "compiler_target"
 using Verify :: #import "compiler_lowered_verify"
 using Vectors :: #import "std/vec"
-
-PairPlans :: (test: *NativeTest, program: LirProgram, checked: bool) -> bool {
-    // Fuel keeps this lowering scalar, so the planner can be tested even
-    // after the normal native path starts applying the resulting packets.
-    machine: MachineOwner
-    defer MachineFree(*machine)
-    options := MachineDefaultOptions(); options.fuel = true
-    lowered := MachineLower(*machine, program, TargetLinuxX64(), options, MachineDefaultLimits())
-    if !NativeAssert(test, lowered.problem == .None, "lower scalar paired-field fixture") { return false }
-    pairs: VectorPairPlan
-    defer VectorPairPlanFree(*pairs)
-    scalar := MachineProgramView(*machine)
-    for instruction: scalar.instructions {
-        if !NativeAssert(test, instruction.opcode != .VectorPair, "fuel retains scalar paired fields") { return false }
-    }
-    if !NativeAssert(test, VectorPairPlanBuild(*pairs, scalar, true, 10000000, 16777216) == .None,
-        "bounded paired-field analysis") { return false }
-    print("record pair plans=% checks=%\n", pairs.pairs.count, checked)
-    if checked { return NativeAssert(test, pairs.pairs.count == 0, "checked fields keep scalar accesses") }
-    if !NativeAssert(test, pairs.pairs.count >= 5, "adjacent add/subtract/bitwise record fields pair") { return false }
-    if !NativeAssert(test, VectorPairPlanBuild(*pairs, scalar, false, 0, 0) == .None && pairs.pairs.count == 0,
-        "disabled paired-field analysis allocates nothing") { return false }
-    other_target := scalar; other_target.target.arch = .AArch64
-    if !NativeAssert(test, VectorPairPlanBuild(*pairs, other_target, true, 0, 0) == .None && pairs.pairs.count == 0,
-        "other architectures retain scalar fields") { return false }
-    if !NativeAssert(test, VectorPairPlanBuild(*pairs, scalar, true, 10000000, 0) == .Limit,
-        "paired-field analysis respects allocation budget") { return false }
-    if !NativeAssert(test, VectorPairPlanBuild(*pairs, scalar, true, 10000000, 16777216) == .None,
-        "restore paired-field plan") { return false }
-    first := pairs.pairs[0].instruction
-    destination := pairs.pairs[0].operands[4].immediate
-    left_input := scalar.instructions[first + 1].operand_begin + 2
-    right_input := scalar.instructions[first + 5].operand_begin + 2
-    saved_left := machine.operands[left_input].immediate
-    saved_right := machine.operands[right_input].immediate
-    // The first store now changes what the second lane reads. Reading both
-    // lanes up front would change the program, so this packet must decline.
-    machine.operands[left_input].immediate = destination + 1
-    machine.operands[right_input].immediate = destination + 2
-    defer {
-        machine.operands[left_input].immediate = saved_left
-        machine.operands[right_input].immediate = saved_right
-    }
-    if !NativeAssert(test, VectorPairPlanBuild(*pairs, scalar, true, 10000000, 16777216) == .None,
-        "analyze overlapping record fields") { return false }
-    for at: 0..pairs.pairs.count - 1 {
-        if !NativeAssert(test, pairs.pairs[at].instruction != first,
-            "dependent lane loads retain their scalar order") { return false }
-    }
-    if !NativeAssert(test, VectorPairPlanBuild(*pairs, scalar, true, 0, 16777216) == .Limit,
-        "paired-field analysis respects work budget") { return false }
-    return true
-}
-
-PairRejections :: (test: *NativeTest, machine: *MachineOwner) -> bool {
-    program := MachineProgramView(machine)
-    first: s32 = -1
-    for instruction: program.instructions {
-        if instruction.opcode == .VectorPair { first = instruction.operand_begin; break }
-    }
-    if !NativeAssert(test, first >= 0, "allocated paired-field packet is reachable") { return false }
-    for variant: 0..5 {
-        local := ifx variant == 0 then 3 else ifx variant <= 2 then 5 else ifx variant == 3 then 7 else 1
-        saved := machine.operands[first + local]
-        if variant == 0 { machine.operands[first + local].immediate = 3 }
-        if variant == 1 { machine.operands[first + local].immediate = machine.operands[first + 4].immediate }
-        if variant == 2 { machine.operands[first + local].immediate = 18446744073709551615 }
-        if variant == 3 { machine.operands[first + local].id = 2 }
-        if variant == 4 { machine.operands[first + local].id = machine.operands[first].id }
-        if variant == 5 { machine.operands[first + local].tied_to = 0 }
-        rejected: MachineX64Owner
-        defer MachineX64Free(*rejected)
-        invalid := MachineX64Encode(MachineProgramView(machine), MachineDefaultLimits(), *rejected)
-        machine.operands[first + local] = saved
-        if !NativeAssert(test, invalid.problem != .None && !rejected.valid,
-            "invalid paired-field form produces no native image") { return false }
-    }
-    return true
-}
 
 GuardPlacement :: (test: *NativeTest, program: LirProgram, function: LirFunction, loop: VectorLoop) -> bool {
     entry := function.blocks[loop.preheader].instructions
@@ -137,7 +57,6 @@ Inspect :: (test: *NativeTest, path: string, checked: bool, elf: string) -> bool
     built := LirOptBuild(*optimized, ZxExecReadProgram(*owner), LirDefaultLimits(), LirOptDefaultOptions())
     if !NativeAssert(test, built.problem == .None, "optimize vector fixture") { return false }
     program := LirOptProgram(*optimized)
-    if !PairPlans(test, program, checked) { return false }
     count: s64
     operations: [9]s64
     fills: s64
@@ -183,27 +102,15 @@ Inspect :: (test: *NativeTest, path: string, checked: bool, elf: string) -> bool
     defer MachineFree(*machine)
     options := MachineDefaultOptions(); options.fuel = false; options.executable = true
     lowered := MachineLower(*machine, program, TargetLinuxX64(), options, MachineDefaultLimits())
-    if lowered.problem != .None {
-        print("paired lowering diagnostic: function=% block=% instruction=% operand=% virtual=%\n",
-            lowered.diagnostic.function, lowered.diagnostic.block, lowered.diagnostic.instruction,
-            lowered.diagnostic.operand, lowered.diagnostic.virtual)
-    }
     if !NativeAssert(test, lowered.problem == .None, CheckConcat("vector machine lowering: ", CheckNumber(cast(s32)lowered.problem))) { return false }
     emitted: s64
-    paired: s64
-    for instruction: MachineProgramView(*machine).instructions {
-        if instruction.opcode == .VectorLoop { emitted += 1 }
-        if instruction.opcode == .VectorPair { paired += 1 }
-    }
-    print("vector plans=% machine prefixes=% record packets=% checks=%\n", count, emitted, paired, checked)
-    if !NativeAssert(test, ifx checked then paired == 0 else paired >= 5,
-        "paired-field packets and checked scalar fallback") { return false }
+    for instruction: MachineProgramView(*machine).instructions { if instruction.opcode == .VectorLoop { emitted += 1 } }
+    print("vector plans=% machine prefixes=% checks=%\n", count, emitted, checked)
     if !NativeAssert(test, ifx checked then count == 0 && emitted == 0 else count >= 4 && emitted == count,
         "expected vector prefixes and checked scalar fallback") { return false }
     if !checked {
         allocated := RegAllocAllocate(*machine, TargetLinuxX64(), MachineDefaultLimits())
         if !NativeAssert(test, allocated.problem == .None, "allocate vector fixture") { return false }
-        if !PairRejections(test, *machine) { return false }
         allocated_program := MachineProgramView(*machine)
         growth_tested: bool
         for f: 0..allocated_program.functions.count - 1 {

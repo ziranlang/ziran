@@ -1,0 +1,1707 @@
+{
+  "schema_version": 1,
+  "host": "alpha",
+  "cpu": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "virtualization": "none",
+  "uname": [
+    "Linux",
+    "alpha",
+    "7.0.0-43-generic",
+    "#43-Ubuntu SMP PREEMPT_DYNAMIC Fri Oct 23 13:25:25 UTC 2026",
+    "x86_64",
+    ""
+  ],
+  "learning": "off",
+  "checks": false,
+  "measured_at": "2026-11-17T04:55:49.320788+00:00",
+  "before_revision": "d647525b07629691f83ea5836349494f4c8d4730",
+  "after_revision": "f662d6c53a4f22da1d628fb1d14e5c9181fb3dc0",
+  "method": "Parent and child zx2native compile identical bundles built by the parent zi2zx. Each of the matched rounds runs, in shuffled order, the two native Records executables (150 ms warmup, then three processes of 32 verified calls; process startup included, as in the published native column), generated C and the instruction engine through bench/site_target_host.c (three calibrated batches; loading excluded). HostGate pins each round to one quiet logical CPU and repeats rounds with an unsteady or low clock. Per-call samples use symmetric inclusive 1.5xIQR filtering; raw samples and exclusions are retained.",
+  "host_gate": {
+    "cpu": 3,
+    "sibling": 9,
+    "reference_khz": 4500000,
+    "rules": {
+      "steady": 0.03,
+      "floor": 0.95,
+      "sibling_busy_max": 0.15,
+      "attempts": 8
+    }
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "order": [
+        "zx-engine",
+        "c",
+        "native-before",
+        "native-after"
+      ],
+      "targets": {
+        "zx-engine": {
+          "batches": 16,
+          "batch_samples_ms": [
+            20.894609988,
+            20.511178017,
+            20.214771986
+          ],
+          "warmup_count": 116,
+          "load_ms": 0.404877007
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.02629602,
+            15.85048902,
+            16.234667003
+          ],
+          "warmup_count": 9454,
+          "load_ms": 5.6982e-05
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 173,
+          "batch_samples_ms": [
+            0.877563,
+            0.968764,
+            0.898722
+          ]
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 168,
+          "batch_samples_ms": [
+            0.922111,
+            0.913281,
+            0.93475
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 59,
+            "median_khz": 4499992,
+            "p10_khz": 4484345,
+            "p90_khz": 4597082,
+            "sibling_busy": 0.0125,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 1,
+      "order": [
+        "c",
+        "zx-engine",
+        "native-before",
+        "native-after"
+      ],
+      "targets": {
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.764572978,
+            16.582567036,
+            15.947629035
+          ],
+          "warmup_count": 9398,
+          "load_ms": 7.0989e-05
+        },
+        "zx-engine": {
+          "batches": 8,
+          "batch_samples_ms": [
+            10.52481401,
+            10.510857046,
+            12.066496015
+          ],
+          "warmup_count": 115,
+          "load_ms": 0.362269998
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 169,
+          "batch_samples_ms": [
+            0.88016,
+            0.864064,
+            0.866072
+          ]
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 174,
+          "batch_samples_ms": [
+            0.854,
+            0.856392,
+            0.847422
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4400012,
+            "p10_khz": 4399966,
+            "p90_khz": 4500040,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 2,
+      "order": [
+        "zx-engine",
+        "native-after",
+        "native-before",
+        "c"
+      ],
+      "targets": {
+        "zx-engine": {
+          "batches": 8,
+          "batch_samples_ms": [
+            10.049157023,
+            11.028248966,
+            10.312279999
+          ],
+          "warmup_count": 118,
+          "load_ms": 1.538906991
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 175,
+          "batch_samples_ms": [
+            0.85251,
+            0.844405,
+            0.852274
+          ]
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 173,
+          "batch_samples_ms": [
+            0.847943,
+            0.864418,
+            0.849908
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            15.986775994,
+            16.467592001,
+            16.470135987
+          ],
+          "warmup_count": 9444,
+          "load_ms": 6.9022e-05
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4497347,
+            "p10_khz": 4299996,
+            "p90_khz": 4599997,
+            "sibling_busy": 0.0,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "round": 2,
+              "order": [
+                "zx-engine",
+                "native-after",
+                "native-before",
+                "c"
+              ],
+              "targets": {
+                "zx-engine": {
+                  "batches": 8,
+                  "batch_samples_ms": [
+                    10.959095001,
+                    9.993548989,
+                    10.122497976
+                  ],
+                  "warmup_count": 118,
+                  "load_ms": 0.367061973
+                },
+                "native-after": {
+                  "batches": 32,
+                  "warmup_count": 169,
+                  "batch_samples_ms": [
+                    0.898224,
+                    0.877161,
+                    0.908239
+                  ]
+                },
+                "native-before": {
+                  "batches": 32,
+                  "warmup_count": 168,
+                  "batch_samples_ms": [
+                    0.849395,
+                    0.845494,
+                    0.848645
+                  ]
+                },
+                "c": {
+                  "batches": 1024,
+                  "batch_samples_ms": [
+                    16.323549986,
+                    16.489979982,
+                    16.990549028
+                  ],
+                  "warmup_count": 9480,
+                  "load_ms": 5.6982e-05
+                }
+              }
+            }
+          },
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4499993,
+            "p10_khz": 4496736,
+            "p90_khz": 4594792,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 3,
+      "order": [
+        "native-after",
+        "c",
+        "native-before",
+        "zx-engine"
+      ],
+      "targets": {
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 174,
+          "batch_samples_ms": [
+            0.847796,
+            0.842248,
+            0.849221
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.525561035,
+            16.529938996,
+            16.458380997
+          ],
+          "warmup_count": 9197,
+          "load_ms": 6.2048e-05
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 172,
+          "batch_samples_ms": [
+            0.878885,
+            0.878378,
+            0.887763
+          ]
+        },
+        "zx-engine": {
+          "batches": 8,
+          "batch_samples_ms": [
+            10.289299011,
+            10.48952502,
+            10.447620988
+          ],
+          "warmup_count": 116,
+          "load_ms": 0.366536975
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4400005,
+            "p10_khz": 4399007,
+            "p90_khz": 4499991,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 4,
+      "order": [
+        "native-before",
+        "zx-engine",
+        "native-after",
+        "c"
+      ],
+      "targets": {
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 173,
+          "batch_samples_ms": [
+            0.850388,
+            0.956094,
+            0.856516
+          ]
+        },
+        "zx-engine": {
+          "batches": 8,
+          "batch_samples_ms": [
+            10.224107981,
+            10.215267003,
+            10.471620023
+          ],
+          "warmup_count": 117,
+          "load_ms": 0.367235005
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 174,
+          "batch_samples_ms": [
+            0.850314,
+            0.869073,
+            0.849505
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.172429025,
+            16.134043992,
+            16.837939024
+          ],
+          "warmup_count": 9455,
+          "load_ms": 5.9009e-05
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4499984,
+            "p10_khz": 4400000,
+            "p90_khz": 4595638,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 5,
+      "order": [
+        "native-after",
+        "native-before",
+        "c",
+        "zx-engine"
+      ],
+      "targets": {
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 170,
+          "batch_samples_ms": [
+            0.866136,
+            0.866844,
+            0.865399
+          ]
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 175,
+          "batch_samples_ms": [
+            0.848243,
+            0.851065,
+            0.864097
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            17.190221012,
+            16.087704003,
+            16.240512013
+          ],
+          "warmup_count": 9340,
+          "load_ms": 6.0022e-05
+        },
+        "zx-engine": {
+          "batches": 16,
+          "batch_samples_ms": [
+            19.849938989,
+            19.69954896,
+            19.768088043
+          ],
+          "warmup_count": 120,
+          "load_ms": 0.434119999
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4493404,
+            "p10_khz": 4300008,
+            "p90_khz": 4500010,
+            "sibling_busy": 0.0,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "round": 5,
+              "order": [
+                "native-after",
+                "native-before",
+                "c",
+                "zx-engine"
+              ],
+              "targets": {
+                "native-after": {
+                  "batches": 32,
+                  "warmup_count": 172,
+                  "batch_samples_ms": [
+                    0.84869,
+                    0.861779,
+                    0.848726
+                  ]
+                },
+                "native-before": {
+                  "batches": 32,
+                  "warmup_count": 170,
+                  "batch_samples_ms": [
+                    0.90094,
+                    0.876363,
+                    0.876333
+                  ]
+                },
+                "c": {
+                  "batches": 1024,
+                  "batch_samples_ms": [
+                    17.032349944,
+                    16.829367995,
+                    16.776028991
+                  ],
+                  "warmup_count": 9347,
+                  "load_ms": 6.5029e-05
+                },
+                "zx-engine": {
+                  "batches": 8,
+                  "batch_samples_ms": [
+                    10.632486999,
+                    10.59464401,
+                    10.716441989
+                  ],
+                  "warmup_count": 117,
+                  "load_ms": 0.37973398
+                }
+              }
+            }
+          },
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 59,
+            "median_khz": 4500019,
+            "p10_khz": 4496541,
+            "p90_khz": 4599999,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 6,
+      "order": [
+        "c",
+        "native-before",
+        "native-after",
+        "zx-engine"
+      ],
+      "targets": {
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.22714299,
+            16.272370994,
+            16.207512975
+          ],
+          "warmup_count": 6740,
+          "load_ms": 0.000344992
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 172,
+          "batch_samples_ms": [
+            0.870027,
+            0.870434,
+            0.871636
+          ]
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 171,
+          "batch_samples_ms": [
+            0.857458,
+            0.86233,
+            0.847305
+          ]
+        },
+        "zx-engine": {
+          "batches": 16,
+          "batch_samples_ms": [
+            20.128952026,
+            20.305561006,
+            20.516194999
+          ],
+          "warmup_count": 118,
+          "load_ms": 0.363515019
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4499964,
+            "p10_khz": 4300020,
+            "p90_khz": 4569852,
+            "sibling_busy": 0.0,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "round": 6,
+              "order": [
+                "c",
+                "native-before",
+                "native-after",
+                "zx-engine"
+              ],
+              "targets": {
+                "c": {
+                  "batches": 1024,
+                  "batch_samples_ms": [
+                    16.765073001,
+                    16.791992009,
+                    17.062982023
+                  ],
+                  "warmup_count": 8918,
+                  "load_ms": 6.1989e-05
+                },
+                "native-before": {
+                  "batches": 32,
+                  "warmup_count": 173,
+                  "batch_samples_ms": [
+                    0.848198,
+                    0.862501,
+                    0.848288
+                  ]
+                },
+                "native-after": {
+                  "batches": 32,
+                  "warmup_count": 175,
+                  "batch_samples_ms": [
+                    0.8836,
+                    0.824388,
+                    0.85963
+                  ]
+                },
+                "zx-engine": {
+                  "batches": 8,
+                  "batch_samples_ms": [
+                    10.242215991,
+                    10.209710956,
+                    10.327989995
+                  ],
+                  "warmup_count": 116,
+                  "load_ms": 0.357169986
+                }
+              }
+            }
+          },
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4497431,
+            "p10_khz": 4300007,
+            "p90_khz": 4500017,
+            "sibling_busy": 0.0,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "round": 6,
+              "order": [
+                "c",
+                "native-before",
+                "native-after",
+                "zx-engine"
+              ],
+              "targets": {
+                "c": {
+                  "batches": 1024,
+                  "batch_samples_ms": [
+                    17.050074041,
+                    16.910409987,
+                    16.640882969
+                  ],
+                  "warmup_count": 7962,
+                  "load_ms": 0.000123978
+                },
+                "native-before": {
+                  "batches": 32,
+                  "warmup_count": 174,
+                  "batch_samples_ms": [
+                    0.847982,
+                    0.849307,
+                    0.842612
+                  ]
+                },
+                "native-after": {
+                  "batches": 32,
+                  "warmup_count": 168,
+                  "batch_samples_ms": [
+                    0.887528,
+                    0.88563,
+                    0.887581
+                  ]
+                },
+                "zx-engine": {
+                  "batches": 8,
+                  "batch_samples_ms": [
+                    10.570831954,
+                    10.443817019,
+                    10.918805003
+                  ],
+                  "warmup_count": 117,
+                  "load_ms": 0.401121974
+                }
+              }
+            }
+          },
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 59,
+            "median_khz": 4497145,
+            "p10_khz": 4399998,
+            "p90_khz": 4598096,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 7,
+      "order": [
+        "c",
+        "native-before",
+        "zx-engine",
+        "native-after"
+      ],
+      "targets": {
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.752190053,
+            16.890963018,
+            16.578552008
+          ],
+          "warmup_count": 6823,
+          "load_ms": 0.000321031
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 170,
+          "batch_samples_ms": [
+            0.859996,
+            0.848009,
+            0.848123
+          ]
+        },
+        "zx-engine": {
+          "batches": 16,
+          "batch_samples_ms": [
+            20.435653031,
+            19.688542962,
+            20.168695986
+          ],
+          "warmup_count": 120,
+          "load_ms": 0.364529967
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 173,
+          "batch_samples_ms": [
+            0.922248,
+            0.881421,
+            0.888055
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4497493,
+            "p10_khz": 4300015,
+            "p90_khz": 4500014,
+            "sibling_busy": 0.0,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "round": 7,
+              "order": [
+                "c",
+                "native-before",
+                "zx-engine",
+                "native-after"
+              ],
+              "targets": {
+                "c": {
+                  "batches": 1024,
+                  "batch_samples_ms": [
+                    16.179050982,
+                    16.105942965,
+                    16.575442016
+                  ],
+                  "warmup_count": 9280,
+                  "load_ms": 5.9009e-05
+                },
+                "native-before": {
+                  "batches": 32,
+                  "warmup_count": 173,
+                  "batch_samples_ms": [
+                    0.849516,
+                    0.865841,
+                    0.851002
+                  ]
+                },
+                "zx-engine": {
+                  "batches": 8,
+                  "batch_samples_ms": [
+                    10.230585039,
+                    10.21114403,
+                    10.380550027
+                  ],
+                  "warmup_count": 114,
+                  "load_ms": 0.370317996
+                },
+                "native-after": {
+                  "batches": 32,
+                  "warmup_count": 170,
+                  "batch_samples_ms": [
+                    0.842085,
+                    0.849509,
+                    0.859424
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 59,
+            "median_khz": 4500008,
+            "p10_khz": 4399994,
+            "p90_khz": 4600008,
+            "sibling_busy": 0.0123,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 8,
+      "order": [
+        "zx-engine",
+        "native-before",
+        "c",
+        "native-after"
+      ],
+      "targets": {
+        "zx-engine": {
+          "batches": 8,
+          "batch_samples_ms": [
+            10.251736999,
+            10.238898039,
+            10.242424011
+          ],
+          "warmup_count": 117,
+          "load_ms": 0.368607998
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 173,
+          "batch_samples_ms": [
+            0.847928,
+            0.849837,
+            0.842602
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.10640502,
+            16.447903991,
+            16.216215968
+          ],
+          "warmup_count": 9369,
+          "load_ms": 5.2989e-05
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 171,
+          "batch_samples_ms": [
+            0.911774,
+            0.913168,
+            0.961371
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4499987,
+            "p10_khz": 4400034,
+            "p90_khz": 4596068,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 9,
+      "order": [
+        "zx-engine",
+        "native-before",
+        "c",
+        "native-after"
+      ],
+      "targets": {
+        "zx-engine": {
+          "batches": 8,
+          "batch_samples_ms": [
+            10.514722943,
+            10.511274993,
+            10.127958
+          ],
+          "warmup_count": 114,
+          "load_ms": 0.380271018
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 172,
+          "batch_samples_ms": [
+            0.84976,
+            0.846993,
+            0.845792
+          ]
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.445576012,
+            16.403719962,
+            16.610830009
+          ],
+          "warmup_count": 9144,
+          "load_ms": 5.9009e-05
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 166,
+          "batch_samples_ms": [
+            0.895572,
+            0.902554,
+            0.88348
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4493508,
+            "p10_khz": 4397240,
+            "p90_khz": 4500000,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    },
+    {
+      "round": 10,
+      "order": [
+        "zx-engine",
+        "c",
+        "native-before",
+        "native-after"
+      ],
+      "targets": {
+        "zx-engine": {
+          "batches": 8,
+          "batch_samples_ms": [
+            9.991989017,
+            10.032682002,
+            9.989724994
+          ],
+          "warmup_count": 119,
+          "load_ms": 1.688893974
+        },
+        "c": {
+          "batches": 1024,
+          "batch_samples_ms": [
+            16.346459031,
+            16.107836008,
+            16.056227982
+          ],
+          "warmup_count": 9431,
+          "load_ms": 6.1035e-05
+        },
+        "native-before": {
+          "batches": 32,
+          "warmup_count": 173,
+          "batch_samples_ms": [
+            0.853327,
+            0.914572,
+            0.88878
+          ]
+        },
+        "native-after": {
+          "batches": 32,
+          "warmup_count": 174,
+          "batch_samples_ms": [
+            0.886894,
+            0.842973,
+            0.862978
+          ]
+        }
+      },
+      "host_gate": {
+        "cpu": 3,
+        "sibling": 9,
+        "reference_khz": 4500000,
+        "rules": {
+          "steady": 0.03,
+          "floor": 0.95,
+          "sibling_busy_max": 0.15,
+          "attempts": 8
+        },
+        "accepted": true,
+        "attempts": [
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 59,
+            "median_khz": 4499982,
+            "p10_khz": 4300018,
+            "p90_khz": 4596243,
+            "sibling_busy": 0.0,
+            "accepted": false,
+            "rejected_because": "clock not steady",
+            "measurement": {
+              "round": 10,
+              "order": [
+                "zx-engine",
+                "c",
+                "native-before",
+                "native-after"
+              ],
+              "targets": {
+                "zx-engine": {
+                  "batches": 16,
+                  "batch_samples_ms": [
+                    20.586194992,
+                    20.855956972,
+                    19.993574023
+                  ],
+                  "warmup_count": 115,
+                  "load_ms": 0.383274019
+                },
+                "c": {
+                  "batches": 1024,
+                  "batch_samples_ms": [
+                    16.001646996,
+                    16.044377983,
+                    15.911521971
+                  ],
+                  "warmup_count": 9481,
+                  "load_ms": 6.0976e-05
+                },
+                "native-before": {
+                  "batches": 32,
+                  "warmup_count": 168,
+                  "batch_samples_ms": [
+                    0.844169,
+                    0.847302,
+                    0.848703
+                  ]
+                },
+                "native-after": {
+                  "batches": 32,
+                  "warmup_count": 170,
+                  "batch_samples_ms": [
+                    0.846979,
+                    0.843188,
+                    0.908959
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "cpu": 3,
+            "sibling": 9,
+            "readings": 54,
+            "median_khz": 4499996,
+            "p10_khz": 4497356,
+            "p90_khz": 4500030,
+            "sibling_busy": 0.0,
+            "accepted": true
+          }
+        ]
+      }
+    }
+  ],
+  "summaries": {
+    "native-before": {
+      "execution_samples_ms": [
+        0.02742384375,
+        0.030273875,
+        0.0280850625,
+        0.027505,
+        0.027002,
+        0.02706475,
+        0.02649821875,
+        0.0270130625,
+        0.026559625,
+        0.02746515625,
+        0.0274493125,
+        0.02774259375,
+        0.026574625,
+        0.0298779375,
+        0.026766125,
+        0.02650759375,
+        0.02659578125,
+        0.02700303125,
+        0.02718834375,
+        0.0272010625,
+        0.027238625,
+        0.026874875,
+        0.02650028125,
+        0.02650384375,
+        0.02649775,
+        0.02655740625,
+        0.0263313125,
+        0.026555,
+        0.02646853125,
+        0.026431,
+        0.02666646875,
+        0.028580375,
+        0.027774375
+      ],
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.025213531249999997,
+        "upper_ms": 0.02879078125,
+        "excluded_indices": [
+          1,
+          13
+        ],
+        "included_samples_ms": [
+          0.02742384375,
+          0.0280850625,
+          0.027505,
+          0.027002,
+          0.02706475,
+          0.02649821875,
+          0.0270130625,
+          0.026559625,
+          0.02746515625,
+          0.0274493125,
+          0.02774259375,
+          0.026574625,
+          0.026766125,
+          0.02650759375,
+          0.02659578125,
+          0.02700303125,
+          0.02718834375,
+          0.0272010625,
+          0.027238625,
+          0.026874875,
+          0.02650028125,
+          0.02650384375,
+          0.02649775,
+          0.02655740625,
+          0.0263313125,
+          0.026555,
+          0.02646853125,
+          0.026431,
+          0.02666646875,
+          0.028580375,
+          0.027774375
+        ],
+        "median_ms": 0.026874875
+      },
+      "median_us": 26.874875
+    },
+    "native-after": {
+      "execution_samples_ms": [
+        0.02881596875,
+        0.02854003125,
+        0.0292109375,
+        0.0266875,
+        0.02676225,
+        0.0264819375,
+        0.0266409375,
+        0.02638765625,
+        0.0266335625,
+        0.026493625,
+        0.02632025,
+        0.02653815625,
+        0.0265723125,
+        0.02715853125,
+        0.02654703125,
+        0.02706675,
+        0.027088875,
+        0.02704371875,
+        0.0267955625,
+        0.0269478125,
+        0.02647828125,
+        0.02882025,
+        0.02754440625,
+        0.02775171875,
+        0.0284929375,
+        0.0285365,
+        0.03004284375,
+        0.027986625,
+        0.0282048125,
+        0.02760875,
+        0.0277154375,
+        0.02634290625,
+        0.0269680625
+      ],
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.02445084375,
+        "upper_ms": 0.030108093750000002,
+        "excluded_indices": [],
+        "included_samples_ms": [
+          0.02881596875,
+          0.02854003125,
+          0.0292109375,
+          0.0266875,
+          0.02676225,
+          0.0264819375,
+          0.0266409375,
+          0.02638765625,
+          0.0266335625,
+          0.026493625,
+          0.02632025,
+          0.02653815625,
+          0.0265723125,
+          0.02715853125,
+          0.02654703125,
+          0.02706675,
+          0.027088875,
+          0.02704371875,
+          0.0267955625,
+          0.0269478125,
+          0.02647828125,
+          0.02882025,
+          0.02754440625,
+          0.02775171875,
+          0.0284929375,
+          0.0285365,
+          0.03004284375,
+          0.027986625,
+          0.0282048125,
+          0.02760875,
+          0.0277154375,
+          0.02634290625,
+          0.0269680625
+        ],
+        "median_ms": 0.02704371875
+      },
+      "median_us": 27.04371875
+    },
+    "c": {
+      "execution_samples_ms": [
+        0.01565067970703125,
+        0.01547899318359375,
+        0.015854166995117186,
+        0.016371653298828125,
+        0.01619391312109375,
+        0.015573856479492188,
+        0.015612085931640625,
+        0.016081632813476562,
+        0.016084117174804687,
+        0.016138243198242187,
+        0.01614251855078125,
+        0.01607263769238281,
+        0.015793387719726562,
+        0.0157559023359375,
+        0.016443299828125,
+        0.01678732520703125,
+        0.015710648440429686,
+        0.015859875012695313,
+        0.015846819326171876,
+        0.015890987298828124,
+        0.015827649389648438,
+        0.016359560598632812,
+        0.016495081072265626,
+        0.0161899921953125,
+        0.01572891115234375,
+        0.016062406241210938,
+        0.01583614840625,
+        0.01606013282421875,
+        0.016019257775390625,
+        0.016221513680664063,
+        0.015963338897460936,
+        0.0157303086015625,
+        0.015679910138671874
+      ],
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.015175978013671874,
+        "upper_ms": 0.016722442873046875,
+        "excluded_indices": [
+          15
+        ],
+        "included_samples_ms": [
+          0.01565067970703125,
+          0.01547899318359375,
+          0.015854166995117186,
+          0.016371653298828125,
+          0.01619391312109375,
+          0.015573856479492188,
+          0.015612085931640625,
+          0.016081632813476562,
+          0.016084117174804687,
+          0.016138243198242187,
+          0.01614251855078125,
+          0.01607263769238281,
+          0.015793387719726562,
+          0.0157559023359375,
+          0.016443299828125,
+          0.015710648440429686,
+          0.015859875012695313,
+          0.015846819326171876,
+          0.015890987298828124,
+          0.015827649389648438,
+          0.016359560598632812,
+          0.016495081072265626,
+          0.0161899921953125,
+          0.01572891115234375,
+          0.016062406241210938,
+          0.01583614840625,
+          0.01606013282421875,
+          0.016019257775390625,
+          0.016221513680664063,
+          0.015963338897460936,
+          0.0157303086015625,
+          0.015679910138671874
+        ],
+        "median_ms": 0.01592716309814453
+      },
+      "median_us": 15.92716309814453
+    },
+    "zx-engine": {
+      "execution_samples_ms": [
+        1.30591312425,
+        1.2819486260625,
+        1.263423249125,
+        1.31560175125,
+        1.31385713075,
+        1.508312001875,
+        1.256144627875,
+        1.37853112075,
+        1.289034999875,
+        1.286162376375,
+        1.3111906275,
+        1.3059526235,
+        1.278013497625,
+        1.276908375375,
+        1.308952502875,
+        1.2406211868125,
+        1.23122181,
+        1.2355055026875,
+        1.258059501625,
+        1.269097562875,
+        1.2822621874375,
+        1.2772283144375,
+        1.230533935125,
+        1.260543499125,
+        1.281467124875,
+        1.279862254875,
+        1.280303001375,
+        1.314340367875,
+        1.313909374125,
+        1.26599475,
+        1.248998627125,
+        1.25408525025,
+        1.24871562425
+      ],
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 1.1862198188125,
+        "upper_ms": 1.3777923063125002,
+        "excluded_indices": [
+          5,
+          7
+        ],
+        "included_samples_ms": [
+          1.30591312425,
+          1.2819486260625,
+          1.263423249125,
+          1.31560175125,
+          1.31385713075,
+          1.256144627875,
+          1.289034999875,
+          1.286162376375,
+          1.3111906275,
+          1.3059526235,
+          1.278013497625,
+          1.276908375375,
+          1.308952502875,
+          1.2406211868125,
+          1.23122181,
+          1.2355055026875,
+          1.258059501625,
+          1.269097562875,
+          1.2822621874375,
+          1.2772283144375,
+          1.230533935125,
+          1.260543499125,
+          1.281467124875,
+          1.279862254875,
+          1.280303001375,
+          1.314340367875,
+          1.313909374125,
+          1.26599475,
+          1.248998627125,
+          1.25408525025,
+          1.24871562425
+        ],
+        "median_ms": 1.278013497625
+      },
+      "median_us": 1278.013497625
+    }
+  },
+  "ratios": {
+    "native-before": 1.6873610720499779,
+    "native-after": 1.6979620653944656,
+    "c": 1.0,
+    "zx-engine": 80.2411257893055
+  },
+  "native_speedup": 0.9937566371118987,
+  "identity": {
+    "Sieve": {
+      "expected": "2262",
+      "before": {
+        "check_sha256": "91ac80f8a0e5837a32aac350f931df7b6d19fcba697b9dee92a34ac3d5284bf7",
+        "timed_sha256": "3c2a0502fafd3b966a99ebc6062a38b48b89a9288917ad218b57280e013f49c3",
+        "timed_bytes": 928,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "after": {
+        "check_sha256": "91ac80f8a0e5837a32aac350f931df7b6d19fcba697b9dee92a34ac3d5284bf7",
+        "timed_sha256": "3c2a0502fafd3b966a99ebc6062a38b48b89a9288917ad218b57280e013f49c3",
+        "timed_bytes": 928,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "identical": true
+    },
+    "Records": {
+      "expected": "68788",
+      "before": {
+        "check_sha256": "d54752ee310de15ce7aa7208b791da392bbbd2badd17da8f8d4e0a1a2f739ed1",
+        "timed_sha256": "476189efc0604880291c472a52132f669a45e18c40f2c126b6b2ea77ad69aabd",
+        "timed_bytes": 2688,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "after": {
+        "check_sha256": "234eb35ff58718587aa2a32493cba621ae00fec2c60c6e5d3017456f5f9fad18",
+        "timed_sha256": "2e1838e239cef3c32e746a346e18dd7c399192c851894a3b716cef7355119041",
+        "timed_bytes": 2688,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "identical": false
+    },
+    "Hash": {
+      "expected": "117287868",
+      "before": {
+        "check_sha256": "6e32110ed601520ab6aa951817f2850077b3f5cb2c9f9c5fdb59b4d4a9bd29bc",
+        "timed_sha256": "ae014ab47a6883e8e4dcdd597602c007fe360669594557eb431124f686d2b108",
+        "timed_bytes": 704,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "after": {
+        "check_sha256": "6e32110ed601520ab6aa951817f2850077b3f5cb2c9f9c5fdb59b4d4a9bd29bc",
+        "timed_sha256": "ae014ab47a6883e8e4dcdd597602c007fe360669594557eb431124f686d2b108",
+        "timed_bytes": 704,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "identical": true
+    },
+    "Vectors": {
+      "expected": "94905000",
+      "before": {
+        "check_sha256": "0a0a454eb331211fb0854c74dbd1488b5d35666f2b14adc2c6207b17d249251e",
+        "timed_sha256": "bc8693e76c3df5cddec3ac71a0bda419b72659b19c5ab37227696ecfbfe1e935",
+        "timed_bytes": 1728,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "after": {
+        "check_sha256": "0a0a454eb331211fb0854c74dbd1488b5d35666f2b14adc2c6207b17d249251e",
+        "timed_sha256": "bc8693e76c3df5cddec3ac71a0bda419b72659b19c5ab37227696ecfbfe1e935",
+        "timed_bytes": 1728,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "identical": true
+    },
+    "Printing": {
+      "expected": "0",
+      "before": {
+        "check_sha256": "ef8669299b7e217322fda3de2fc006dbbee8c7eca95d1ba6c8bb92c58689bd48",
+        "timed_sha256": "ef0ce4adfc02ad4478e81d288a808dc4a41d93d28a9e3eb9c0b50986666c2990",
+        "timed_bytes": 1088,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "after": {
+        "check_sha256": "ef8669299b7e217322fda3de2fc006dbbee8c7eca95d1ba6c8bb92c58689bd48",
+        "timed_sha256": "ef0ce4adfc02ad4478e81d288a808dc4a41d93d28a9e3eb9c0b50986666c2990",
+        "timed_bytes": 1088,
+        "instructions": {
+          "paddq": 0,
+          "psubq": 0,
+          "movdqu": 0,
+          "psrldq": 0,
+          "movq": 0
+        }
+      },
+      "identical": true
+    },
+    "standard-suite": {
+      "before": {
+        "zx2native_refused": "ziran: assembly.gap.machine-host: machine ELF does not implement host capability Input: no registered host library defines it; no alternate engine was selected"
+      },
+      "after": {
+        "zx2native_refused": "ziran: assembly.gap.machine-host: machine ELF does not implement host capability Input: no registered host library defines it; no alternate engine was selected"
+      },
+      "identical": false,
+      "record_types": "bench/standard/kernels.zi declares only Node {*Node, *Node} and Body {7 x float64}; pairing needs 4..32 fields that are all 64-bit integers"
+    }
+  },
+  "artifacts": {
+    "native-before": {
+      "sha256": "476189efc0604880291c472a52132f669a45e18c40f2c126b6b2ea77ad69aabd",
+      "bytes": 2688
+    },
+    "native-after": {
+      "sha256": "2e1838e239cef3c32e746a346e18dd7c399192c851894a3b716cef7355119041",
+      "bytes": 2688
+    },
+    "c": {
+      "sha256": "e29201073a45f1245e5ccd37ccad74a5c2e0e1d16178638c3ef4e0aa20e8cd78",
+      "bytes": 17368
+    },
+    "zx-engine": {
+      "sha256": "95077d18732d10efefae9d12c543f29555dd68f2a4524b55acdc632cfab3a59f",
+      "bytes": 10995
+    }
+  },
+  "tools": {
+    "before": {
+      "zx2native": "626d63db5b2216541d92004d31cf0df80d8bf0cfc5395f1ce3b5f5f93691d47f"
+    },
+    "after": {
+      "zx2native": "0669676d63009f82af4465865993ec4cc1ba18ea9daea9fe83fba5021925ddc2"
+    }
+  },
+  "runner_sha256": "015fed6ac662fc341251752352d38a507c4788ddd7a31ec810f34abfb71b9b1b"
+}

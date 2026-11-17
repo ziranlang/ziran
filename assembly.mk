@@ -1,5 +1,5 @@
 ASSEMBLY_C := $(BUILD_DIR)/compiler-assembly
-ASSEMBLY_MACHINE_SOURCES := cmd/compiler_vector_form.zi cmd/compiler_vectorize.zi cmd/compiler_vectorize_pair.zi cmd/compiler_vector_x86.zi \
+ASSEMBLY_MACHINE_SOURCES := cmd/compiler_vector_form.zi cmd/compiler_vectorize.zi cmd/compiler_vector_x86.zi \
      cmd/compiler_target.zi cmd/compiler_machine_image.zi cmd/compiler_abi.zi cmd/compiler_machine_ir.zi \
     cmd/compiler_machine_verify.zi cmd/compiler_machine_aggregate.zi cmd/compiler_machine_fields.zi cmd/compiler_machine_select.zi cmd/compiler_machine_lower.zi \
     cmd/compiler_machine_verify_allocated.zi cmd/compiler_regalloc.zi cmd/compiler_x86_bytes.zi cmd/compiler_x86_64.zi cmd/compiler_x86_runtime.zi \
@@ -58,7 +58,7 @@ $(BUILD_DIR)/obj/assembly-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(BUILD_D
 # engine, including its own compiler_bundle symbols. Keep the native machine
 # pipeline in a separate relocatable object so linking libziran cannot pull in a
 # second copy of those public symbols from assembly-core.o.
-ASSEMBLY_NATIVE_MODULES := compiler_vector_form compiler_vectorize compiler_vectorize_pair compiler_vector_x86 compiler_opt_ssa \
+ASSEMBLY_NATIVE_MODULES := compiler_vector_form compiler_vectorize compiler_vector_x86 compiler_opt_ssa \
      compiler_abi compiler_machine_image \
     compiler_machine_ir compiler_machine_verify \
     compiler_machine_aggregate compiler_machine_fields compiler_machine_select compiler_machine_lower compiler_machine_verify_allocated compiler_regalloc \

@@ -53,8 +53,6 @@ MachineOpcode :: enum s32 {
     // SSE2 strip-mined prefix; see compiler_vector_form. Native x86 only.
     VectorLoop
     FloatSquareRoot
-    // Two adjacent record fields, with explicit scalar results and XMM clobbers.
-    VectorPair
 }
 
 MachineCondition :: enum s32 {

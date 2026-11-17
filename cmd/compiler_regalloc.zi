@@ -1560,6 +1560,12 @@ CollectBoundaries :: (state: *Alloc) -> bool {
         it := state.intervals[index]
         if it.prev == MachineNoId { continue }
         item := it.start / 2
+        previous := state.intervals[it.prev]
+        // Block parts are linked in layout order, not execution order.
+        // Only a split inside this block needs a gap transfer. An incoming
+        // live value is reconciled by EdgeCopies; a local definition has no
+        // old value to copy, even when its first use is laid out before it.
+        if state.items[item].block != state.items[previous.end / 2].block { continue }
         if state.items[item].kind == .BlockStart {
             // An even block-start boundary is resolved on the incoming edges;
             // an odd one is stored before the block's first instruction.

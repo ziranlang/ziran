@@ -1169,6 +1169,32 @@ Negatives :: () -> bool {
     return Check(!kept.valid && view.code.count == 0 && view.entry == -1, "repeated cleanup")
 }
 
+ConstantDivision :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b)
+    function := Begin(*b, "constant_divide")
+    dividend := Parameter(*b, S64, RDI)
+    divisor := Value(*b, S64); quotient := Value(*b, S64); remainder := Value(*b, S64)
+    Enter(*b, Blocks(*b, 1))
+    unused Constant(*b, RCX, divisor, 8)
+    unused Two(*b, .Move, RAX, dividend, RDI, dividend)
+    divide := Divide(*b, .IntegerDivide, quotient, dividend, RCX, divisor)
+    unused Two(*b, .Move, RAX, dividend, RDI, dividend)
+    modulo := Divide(*b, .IntegerRemainder, remainder, dividend, RCX, divisor)
+    unused Return(*b, RAX, remainder)
+    End(*b, 0)
+    b.entry = function
+    owner: X64.MachineX64Owner
+    defer X64.MachineX64Free(*owner)
+    diagnostic := Apply(*b, .Encode, *owner, MachineDefaultLimits()).diagnostic
+    if diagnostic.problem != .None { Report("constant division", diagnostic); return false }
+    image := X64.MachineX64View(*owner)
+    return Instruction(image, divide, "48 89 c2 48 c1 fa 3f 48 c1 ea 3d 48 01 d0 48 c1 f8 03", "signed divide by eight") &&
+        Instruction(image, modulo, "48 89 c2 48 c1 fa 3f 48 c1 ea 3d 48 01 d0 48 83 e0 07 48 29 d0", "signed remainder by eight") &&
+        Check(image.relocations.count == 0, "known nonzero divisor has no division trap")
+}
+
 ImmediateMultiplication :: () -> bool {
     values := s64.[-129, -128, -1, 0, 127, 128]
     expected := string.["4d 69 c8 7f ff ff ff", "4d 6b c8 80", "4d 6b c8 ff",
@@ -1200,7 +1226,7 @@ ImmediateMultiplication :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
+    if !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
     print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, packed aggregates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of invalid call forms and addends, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

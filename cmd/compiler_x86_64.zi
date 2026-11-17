@@ -690,6 +690,66 @@ FloatUnary :: (state: *State) -> bool {
     return true
 }
 
+// Recover a constant through physical moves in this block only. Never look
+// through a call or an unknown write, and bound the scan independently of
+// function size. The allocated form and its RAX/RDX contract stay unchanged.
+ConstantDivisor :: (state: *State, register: s32) -> u64 {
+    begin := state.program.blocks[state.block].instruction_begin
+    at := state.instruction - 1
+    while at >= begin && at >= state.instruction - 32 {
+        instruction := state.program.instructions[at]
+        if instruction.call != MachineNoId { return 0 }
+        for local: 0..instruction.operand_count - 1 {
+            operand := state.program.operands[instruction.operand_begin + local]
+            if operand.kind != .Physical || operand.class != .General ||
+                operand.id != register || operand.role == .Use { continue }
+            if local != 0 { return 0 }
+            if instruction.opcode == .MoveImmediate && instruction.operand_count == 2 {
+                immediate := state.program.operands[instruction.operand_begin + 1]
+                if immediate.kind == .Immediate { return NormalizeConstant(immediate.immediate, TypeOf(state, operand)) }
+            }
+            if instruction.opcode == .Move && instruction.operand_count == 2 {
+                source := state.program.operands[instruction.operand_begin + 1]
+                if source.kind == .Physical && source.class == .General && source.type == operand.type {
+                    register = source.id
+                    break
+                }
+            } else { return 0 }
+            return 0
+        }
+        at -= 1
+    }
+    return 0
+}
+
+// Signed division rounds toward zero: bias a negative dividend by 2^k-1
+// before shifting. Remainder is (x+bias)&mask-bias, retaining x's sign.
+PowerDivide :: (state: *State, divisor: u64, type: MachineType, remainder: bool) {
+    shift: s32 = 0
+    power := divisor
+    while power > 1 { shift += 1; power = power >> 1 }
+    if shift == 0 {
+        if remainder { X86Arithmetic(*state.writer, X86Xor, X86Rax, X86Rax) }
+    } else {
+        if Signed(type) {
+            X86Move(*state.writer, X86Rdx, X86Rax)
+            X86ShiftImmediate(*state.writer, 7, X86Rdx, 63)
+            X86ShiftImmediate(*state.writer, 5, X86Rdx, 64 - shift)
+            X86Arithmetic(*state.writer, X86Add, X86Rax, X86Rdx)
+        }
+        if remainder {
+            mask := divisor - 1
+            if mask <= 2147483647 { X86ArithmeticImmediate(*state.writer, X86And, X86Rax, cast(s64)mask) }
+            else {
+                X86MoveImmediate(*state.writer, X86R11, mask)
+                X86Arithmetic(*state.writer, X86And, X86Rax, X86R11)
+            }
+            if Signed(type) { X86Arithmetic(*state.writer, X86Subtract, X86Rax, X86Rdx) }
+        } else { X86ShiftImmediate(*state.writer, ifx Signed(type) then 7 else 5, X86Rax, shift) }
+    }
+    Normalize(state, X86Rax, type)
+}
+
 // Divide and remainder: result and dividend in rax, rdx named as a clobber.
 // Zero divisors trap; a signed divisor of -1 negates (or yields zero)
 // without idiv, so the most negative dividend cannot fault.
@@ -706,6 +766,13 @@ Divide :: (state: *State, opcode: MachineOpcode) -> bool {
     type := TypeOf(state, OperandAt(state, 1))
     if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 1)) }
     remainder := opcode == .IntegerRemainder
+    if !Spend(state, 32) { return false }
+    constant := ConstantDivisor(state, right)
+    if constant != 0 && (constant & (constant - 1)) == 0 &&
+        (!Signed(type) || constant <= 9223372036854775807) {
+        PowerDivide(state, constant, type, remainder)
+        return true
+    }
     divisor := right
     if divisor == X86Rax || divisor == X86Rdx {
         X86Move(*state.writer, X86R11, divisor)

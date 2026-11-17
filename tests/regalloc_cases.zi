@@ -1138,6 +1138,40 @@ FrameCases :: () -> bool {
     return Check(result.problem == .Constraint && result.function == 2, "two values fixed to one register")
 }
 
+// A tied result is defined after its use in layout, but before it in
+// execution. Its earlier block location must not be copied after the def.
+BackwardDefinitionCase :: () -> bool {
+    storage: [24]s32
+    at: s64
+    callee_values := s32.[TypeInteger, TypeFloat]
+    callee_parameters := s32.[TypeInteger]
+    callee_entry := s32.[0]
+    callee_body := LirInstruction.[Fuel(1), Op(.Convert, 1, One(storage[:], *at, 0)),
+        Return(One(storage[:], *at, 1))]
+    callee_blocks := LirBlock.[.{parameters = callee_entry[:], instructions = callee_body[:]}]
+    values := s32.[TypeFloat, TypeFloat, TypeInteger, TypeFloat, TypeFloat, TypeBool]
+    enter_edges := LirEdge.[.{block = 2}]
+    entry := LirInstruction.[Fuel(1), Constant(0, 3), Constant(1, 4), Constant(2, 2), Jump(enter_edges[:])]
+    use_edges := LirEdge.[.{block = 3}]
+    use_body := LirInstruction.[Op(.Less, 5, Two(storage[:], *at, 0, 4)), Jump(use_edges[:])]
+    def_edges := LirEdge.[.{block = 1}]
+    def_body := LirInstruction.[Call(3, 0, One(storage[:], *at, 2), 1),
+        Op(.Multiply, 4, Two(storage[:], *at, 1, 3)), Jump(def_edges[:])]
+    exit_body := LirInstruction.[Return(One(storage[:], *at, 5))]
+    blocks := LirBlock.[.{instructions = entry[:]}, .{instructions = use_body[:]},
+        .{instructions = def_body[:]}, .{instructions = exit_body[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "convert", parameters = callee_parameters[:], result = TypeFloat,
+            values = callee_values[:], blocks = callee_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "backward", result = TypeBool, values = values[:],
+            blocks = blocks[:], entry = 0, origin = -1}]
+    owner: MachineOwner
+    defer MachineFree(*owner)
+    if !Lowered("backward definition", LowerProgram(*owner, functions[:], 1)) ||
+        !Allocate("backward definition", *owner) { return false }
+    return Allocated(MachineProgramView(*owner), "backward tied definition verifies")
+}
+
 VectorCases :: () -> bool {
     owner: Machine.MachineOwner
     defer Lower.MachineFree(*owner)
@@ -1186,7 +1220,7 @@ VectorCases :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+    if !BackwardDefinitionCase() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
         !VectorCases() { return 1 }
     print("register allocation: merged float/vector spills in both block orders, work limits, pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
     return 0

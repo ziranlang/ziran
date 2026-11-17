@@ -12,6 +12,15 @@ Emit :: (x: u64) {
     f := cast(s32)x
     print("% % % % % %\n", cast(s8)(d * 3), cast(s8)(d * 32),
         cast(s16)(e * 5), cast(s16)(e * 128), cast(s32)(f * 9), cast(s32)(f * 1073741824))
+    // Constant divisors use shifts in native code, including signed
+    // truncation toward zero, signed remainders and full-width masks.
+    sx := cast(s64)x
+    print("% % % % % % % % % %\n", sx / 2, sx % 2, sx / 8, sx % 8,
+        sx / 4294967296, sx % 4294967296, x / 2, x % 2,
+        x / 9223372036854775808, x % 9223372036854775808)
+    print("% % % % % % % %\n", cast(s8)(d / 2), cast(s8)(d % 2),
+        cast(s16)(e / 8), cast(s16)(e % 8), cast(s32)(f / 256), cast(s32)(f % 256),
+        cast(u8)(a / 128), cast(u8)(a % 128))
     // Both ends of the imm8 range, and the adjacent imm32 values.
     print("% % % %\n", x * cast(u64)-128, x * cast(u64)127, x * cast(u64)-129, x * cast(u64)128)
 }

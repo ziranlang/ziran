@@ -4,13 +4,13 @@
   "repository": "https://github.com/kryonlabs/kryon",
   "revision": "08f70214c368fe10a5c2f462db902eef64d11c7d",
   "dirty_inputs": false,
-  "measured_at": "2026-11-17T01:27:00.227174+00:00",
+  "measured_at": "2026-11-17T14:09:09.516980+00:00",
   "host": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
   "hostname": "alpha",
   "loadavg_before": [
-    "3.81",
-    "3.43",
-    "3.39"
+    "4.24",
+    "4.03",
+    "4.02"
   ],
   "versions": {
     "cc": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
@@ -25,33 +25,33 @@
   },
   "checked_ir": {
     "path": "generated/library-targets/checked-ir.zip",
-    "bytes": 596773,
-    "sha256": "45e8c8ccc65ec1c1f90444f5e7e4922214abe2c55c639b3b85aa30ecc247d7c8"
+    "bytes": 595973,
+    "sha256": "a02a152d71a2d4c7ba4199c26ed00441bef3182fd168c2d6dfed390b0e4ba370"
   },
   "compiler": {
-    "library_sha256": "ab182c0bdc03216da858ceda60fabc9359872443766003e142baf5bc2c6358ed",
+    "library_sha256": "934908aade905edfc38dc2d9c185eb481a4ccceb144e6f74f8df0f82cfcebc8b",
     "package_path": "/home/wao/Projects/ziranlang/ziran",
-    "revision": "d3feb8a34bc9ac835b63bcc6012cbda9fad1916b",
+    "revision": "5a2ee505c0591946534ae1e8815d0ab09b9b0587",
     "dirty": false,
     "tools": {
-      "zi2c": "72f2bfb5b4e35fc5e16563503a86c400597026de54e9b08096a6a30a66efd0a0",
-      "zi2go": "90d598fb9f7bbcd584cb74b694fd413e3f2703a4994ade0822fb5b592fe1125c",
-      "zi2zx": "7668d76e4a992ed8e4eec58878bc0e2e56d3eb649dd91e8b9c2a6367c3d8f581",
-      "zx2wasm": "c17dc130b69903563010938dcc1953c3048296ef3ec662112aba970b32bd23f1"
+      "zi2c": "151eba8c435d88a4f4d1ccff04034089ae41c7b07a6b6603dc32d9a174bdd14d",
+      "zi2go": "688d45fea4dac90548b51c0bd4efce592d24d4a6e3ae79b6ee30a02c4606bc3a",
+      "zi2zx": "c0cc58f563a80e5f2e58d013cba50f40a3d7ad9d31a20bd625d2e48f2c99c92e",
+      "zx2wasm": "f261dc5bcec54b9fc5deff7b51b1bdde763d2fa0cc8fdd904b1d77cc4a295aa6"
     },
     "source_hashes": {
-      "cmd/zir/zir.c": "28a932de1fdbf9b8c3611b077210b5752a1ea9342b4c132312f0f67cfcb74fcb",
+      "cmd/zir/zir.c": "ec15ae9e1585d14658a0df1f50e5b2d64e165c44484d6f95b9fcba0f586e8e03",
       "cmd/zir/zir.h": "91b3fad4e121ecb9a793bd11feaa9b3d7ba39a51908a44c38ea766a5fa5bc81e",
       "cmd/zir/zir_asm.c": "c598340b677e39bf0c0faf399a86814cecde88c9a59ccefe299753b7b0ef5daf",
       "cmd/zir/zir_asm.h": "d35cf7ad8727c97f54dd2085be63dddf870e8a7644a60f7eea9bb1b6387ec8d5",
       "cmd/zir/zir_assets.c": "702a3cd531630b04bd8c4542c2a89414ae98ea35e533e468c3741aedac10a08f",
       "cmd/zir/zir_body.c": "8d845024ebbbefa977e40a2ebb53a789e3dd7f157f77e2cfdd5116e7d2b9047b",
       "cmd/zir/zir_body.h": "ff8151ff5bb3c3220dcb61a64130b9a574950d6e48038e357b03773cfb7751f6",
-      "cmd/zir/zir_borrow.c": "eedd2121a198a10f88947b266f874609bf537c7a5104f0bbb952f2f93aaa3a9c",
+      "cmd/zir/zir_borrow.c": "933e6a80e1507ad05bdd075f6525862a2c1e9da488dbf68586518223aebaa52f",
       "cmd/zir/zir_borrow.h": "58aa0130ace6cd6e66e9f383314629afdd94029fe5f4c165b4f5a3f4953b3684",
       "cmd/zir/zir_check.c": "fe08d04866a546fe02d22ed7e504ba7a80c2bc57b0d5a34b075748e2eb3b5bcf",
       "cmd/zir/zir_check.h": "7b41717d0dec1bcace3435481662a8e9f4dc0e9f65375492adb14f5a2cdd0c0d",
-      "cmd/zir/zir_check_expr.c": "1925620bc84b0956f6dcf960c8cc9ff45f29bad77cb4b46e5499d3cf8ac9b2a7",
+      "cmd/zir/zir_check_expr.c": "f6ae10e0f510de23c9415d1c849ff2eb57784900c76e43dfd8668a3d0b65b736",
       "cmd/zir/zir_check_function.c": "8299fc11982b2b40b257fce6dbd26f660b4f142c546f5831f6efdfc5d715cbc9",
       "cmd/zir/zir_check_internal.h": "60819be19cea1558897a89cd3781faeec03eeab9215e03070f69030c2646c697",
       "cmd/zir/zir_check_link.c": "df37ba1e94c6eb9da2c52f6d274c8bd906e6295004cbb06f7d34fb170a06ad21",
@@ -74,12 +74,12 @@
       "cmd/zir/zir_emit.c": "9294cddf123b1836c25270aafab5c661fbdbf1dc75da8ab6022467ed222aeb37",
       "cmd/zir/zir_emit.h": "60bb373ac21f5859d4d24c5ae0c5077f9e4ba4837654d409576dcda6d526a616",
       "cmd/zir/zir_emit_call.c": "05bec4994baf1740cb7994ae87d59802aeda6ec40c7e20994f7aecb68b74be93",
-      "cmd/zir/zir_emit_expr.c": "c6c9e69d0557eb26d0eb818cceb7d4f4dcca69af0668b181cf5dcd57d331051c",
+      "cmd/zir/zir_emit_expr.c": "159df637dd65bb3afde58deedc78d6dd1ee1302a61d2fdb05f79f0a5fb6c8ef4",
       "cmd/zir/zir_emit_internal.h": "1d1440b8fae83254db49bf79b5a985ace899f6321269bdd714e36b89dd049cb0",
       "cmd/zir/zir_emit_range.c": "57df3b7ad27c4fb8b5bba22f7c4836d61b8637fa5911df126b8e72a22d8bcd49",
       "cmd/zir/zir_emit_simd.c": "d359ee6bec9bb73ed93c95cf75bcbf2ba792db2aaa271d0f47d5858a58d09e5c",
-      "cmd/zir/zir_emit_simd_go.c": "9952dcd7fe66107e2634626bd529c89387a41734429423f7280e6dc27ee3a39a",
-      "cmd/zir/zir_emit_statement.c": "23379411aaf1d87e962766e62a623cf556c5d5c84a3b957f00ed06e5e6159c9f",
+      "cmd/zir/zir_emit_simd_go.c": "f96d6d115f810f46cbd2cde7e8742e81d988f11f6c729fccf086557eaab0ca23",
+      "cmd/zir/zir_emit_statement.c": "ea2305c37e368922e629191205553f43657a2302e5cf7c345ce5e76198ab3abd",
       "cmd/zir/zir_emit_value.c": "aadfcec88c2939ba36186d33b8b22263327c07be6523883ebf4393d71e95bbf5",
       "cmd/zir/zir_enum.c": "31908c652dc0c99d2dbfc7f1d1f0f591edb638f5fec17a0bfcea7638b26fc092",
       "cmd/zir/zir_exec_console.h": "6362605dd87c58fac5da54ee89ba74d4001fce02a3c49c2566d13d8e6a3a5789",
@@ -98,7 +98,7 @@
       "cmd/zir/zir_host_native_x86_64.c": "9c7abe98925be63cd6f9ddc5fec6551623e17d3c6ea66c1db834cefc71e8ad53",
       "cmd/zir/zir_law.c": "98fb63a843733179d7699051d45e690db189d0e51fd8de1d1c0617b6b5b9d55a",
       "cmd/zir/zir_law.h": "214851ffdc165c4050620dc256840a802ed96ea292a7cc7bf79931c935df38a8",
-      "cmd/zir/zir_link.c": "eb95ff0cfe8892e93a81a35a13dc26b8390d37d2762b111e072435e238a4f2fe",
+      "cmd/zir/zir_link.c": "27969c5101a2ea1a67f3259243b1bc2bd9169c50babdc82c2e2b22d22d534f71",
       "cmd/zir/zir_link.h": "acd12f0049548c0c69a9c82f7842d556c16b01c6cc46b1945f1b582789602066",
       "cmd/zir/zir_load.c": "cd249027f243ac0005e64152f35d5256ccb5a220f69df363b70adc5f2706d42d",
       "cmd/zir/zir_load.h": "4246a53ef2d9994cbf3c0898065f9ee5d6174e849d26e792f13914452f36b941",
@@ -133,7 +133,6 @@
       "cmd/zir/zir_sha256.h": "be773e0bac5d4d0f26d0666dd7871d57c6c9e24066cdf9ece575695b5ed8deda",
       "cmd/zir/zir_simd.c": "438fbd51646a87e26948cf5fc2f7297aa6e53ddc1ae4d5cceb7ad7aeac55d57b",
       "cmd/zir/zir_simd.h": "fd953fb305d4c17ae0369c72cdb02f6f3ddbf756b38ca1a28b5cfd2addd3e9de",
-      "cmd/zir/zir_simd_go_bodies.h": "940b7b94952027e4b0b2e6334ce8c13979294de213fb04dce10fb8dc433c61f1",
       "cmd/zir/zir_storage.c": "bf081ec8fec1254bea627c7a074d5f358ef2d9582d39f81659ef67cc274ff53b",
       "cmd/zir/zir_stream.h": "73961522b61db25c92e9a7a127cbd9db804d8d2076b13b50f0fcf00a7204ac68",
       "cmd/zir/zir_text.c": "5c742723ad2cbe65584293665a5821d117d1c619d6e7d38304b7811ae1bc6f65",
@@ -146,7 +145,7 @@
       "cmd/zir/zir_zx_wasm.h": "d67642f04619a41a2610b02c91ae6afe6b937edeef5d301f3ab7ee8f29f0f694",
       "cmd/zir/zir_zx_wasm_platform.h": "8f6259d41021d917d64b8f32dd13a36e6304ddd3cbe6f8a4c84b2fb2bc7ee59a",
       "cmd/zir/zir_zx_wasm_web.c": "15de5f177144808578c3621ccf1fd9a28ea3e6ce756917b9ce8db81a6ee1bbc1",
-      "cmd/zx2wasm/zx_wasm_lower.c": "4a11774222f4b059358c07089613290f0b771629a2e0f27aeb24cb7ea90c426c",
+      "cmd/zx2wasm/zx_wasm_lower.c": "770a39a4868c23ac1a3ab2ec48df8b441dcda4e0a07bf0a0ca0bd893aeda8acd",
       "cmd/zx2wasm/zx_wasm_lower.h": "ac9d8eca07cbd0a0b960036190ae1168784f059dba81a6d480f57a294d6c34b9"
     }
   },
@@ -609,58 +608,57 @@
           "measurement": {
             "result": "0",
             "batches": 4096,
-            "load_ms": 6.4015e-05,
-            "warmup_ms": 150.000813007,
-            "warmup_count": 52436,
+            "load_ms": 0.002076983,
+            "warmup_ms": 150.002622008,
+            "warmup_count": 52804,
             "batch_samples_ms": [
-              11.135446012,
-              11.194200993,
-              11.559001982,
-              11.157764018,
-              11.20036298,
-              11.157923996,
-              11.554206014,
-              11.15478301,
-              11.161131024,
-              11.153429031,
-              11.265055001
+              11.204576969,
+              11.512730956,
+              11.009728014,
+              10.968460977,
+              10.963204026,
+              10.977320969,
+              11.248093963,
+              10.981746018,
+              11.017984986,
+              11.155529022,
+              11.463189006
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0027186147490234373,
-              0.002732959226806641,
-              0.0028220219682617187,
-              0.0027240634809570312,
-              0.0027344636181640624,
-              0.0027241025380859373,
-              0.0028208510776367188,
-              0.002723335695800781,
-              0.00272488550390625,
-              0.0027230051345214844,
-              0.0027502575686035157
+              0.0027354924240722655,
+              0.0028107253310546876,
+              0.002687921878417969,
+              0.0026778469182128905,
+              0.002676563482910156,
+              0.002680010002197266,
+              0.002746116690185547,
+              0.0026810903364257815,
+              0.0026899377407226563,
+              0.0027235178276367187,
+              0.002798630128417969
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.002695708080871581,
-              "upper_ms": 0.0027703521008911143,
-              "excluded_indices": [
-                2,
-                6
-              ],
+              "lower_ms": 0.0025901685875854494,
+              "upper_ms": 0.0028311861388549808,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.0027186147490234373,
-                0.002732959226806641,
-                0.0027240634809570312,
-                0.0027344636181640624,
-                0.0027241025380859373,
-                0.002723335695800781,
-                0.00272488550390625,
-                0.0027230051345214844,
-                0.0027502575686035157
+                0.0027354924240722655,
+                0.0028107253310546876,
+                0.002687921878417969,
+                0.0026778469182128905,
+                0.002676563482910156,
+                0.002680010002197266,
+                0.002746116690185547,
+                0.0026810903364257815,
+                0.0026899377407226563,
+                0.0027235178276367187,
+                0.002798630128417969
               ],
-              "median_ms": 0.0027241025380859373
+              "median_ms": 0.0026899377407226563
             },
-            "execution_ms": 0.0027241025380859373,
+            "execution_ms": 0.0026899377407226563,
             "checksum": "0",
             "command": "build/site-library-targets/button/c-runner - 0 11"
           },
@@ -851,8 +849,8 @@
             },
             {
               "path": "generated/library-targets/button/go/std_math.go",
-              "bytes": 18502,
-              "sha256": "f6dbe5415b68b70db2c0d297d65c25167613d9cbe2e4f1ab05f7456ac40a4d8d"
+              "bytes": 17811,
+              "sha256": "b2c9492eedfa230ca27a779abaccdd48813efa6fe0e66740fa9e44389186f93f"
             },
             {
               "path": "generated/library-targets/button/go/std_utf8.go",
@@ -1033,65 +1031,65 @@
           "build_command": "go build -p=2 -o build/site-library-targets/button/go-runner build/site-library-targets/button/go-host/bitmap_store.go build/site-library-targets/button/go-host/button.go build/site-library-targets/button/go-host/button_behavior.go build/site-library-targets/button/go-host/button_props.go build/site-library-targets/button/go-host/card_behavior.go build/site-library-targets/button/go-host/card_props.go build/site-library-targets/button/go-host/contextmenu.go build/site-library-targets/button/go-host/control_props.go build/site-library-targets/button/go-host/cursor.go build/site-library-targets/button/go-host/dpi.go build/site-library-targets/button/go-host/drawing_props.go build/site-library-targets/button/go-host/elevation.go build/site-library-targets/button/go-host/focus.go build/site-library-targets/button/go-host/font_metrics.go build/site-library-targets/button/go-host/geometry.go build/site-library-targets/button/go-host/image_behavior.go build/site-library-targets/button/go-host/image_lookup.go build/site-library-targets/button/go-host/image_props.go build/site-library-targets/button/go-host/input_props.go build/site-library-targets/button/go-host/input_protocol.go build/site-library-targets/button/go-host/overlay.go build/site-library-targets/button/go-host/overlay_behavior.go build/site-library-targets/button/go-host/overlay_props.go build/site-library-targets/button/go-host/paint_queue.go build/site-library-targets/button/go-host/paint_texture.go build/site-library-targets/button/go-host/raster.go build/site-library-targets/button/go-host/raster_shape.go build/site-library-targets/button/go-host/raster_text.go build/site-library-targets/button/go-host/raster_triangles.go build/site-library-targets/button/go-host/scroll_sampling.go build/site-library-targets/button/go-host/semantic.go build/site-library-targets/button/go-host/session.go build/site-library-targets/button/go-host/shape_paint.go build/site-library-targets/button/go-host/std_grapheme.go build/site-library-targets/button/go-host/std_grapheme_data.go build/site-library-targets/button/go-host/std_math.go build/site-library-targets/button/go-host/std_utf8.go build/site-library-targets/button/go-host/std_vec.go build/site-library-targets/button/go-host/style.go build/site-library-targets/button/go-host/style_sheet.go build/site-library-targets/button/go-host/surface.go build/site-library-targets/button/go-host/svg_icon_behavior.go build/site-library-targets/button/go-host/svg_shape.go build/site-library-targets/button/go-host/system_clipboard.go build/site-library-targets/button/go-host/system_clipboard_host.go build/site-library-targets/button/go-host/text.go build/site-library-targets/button/go-host/text_align.go build/site-library-targets/button/go-host/text_behavior.go build/site-library-targets/button/go-host/text_boundary.go build/site-library-targets/button/go-host/text_context_menu.go build/site-library-targets/button/go-host/text_editing.go build/site-library-targets/button/go-host/text_emphasis.go build/site-library-targets/button/go-host/text_field_props.go build/site-library-targets/button/go-host/text_host.go build/site-library-targets/button/go-host/text_input.go build/site-library-targets/button/go-host/text_input_platform.go build/site-library-targets/button/go-host/text_layout.go build/site-library-targets/button/go-host/text_props.go build/site-library-targets/button/go-host/text_request.go build/site-library-targets/button/go-host/text_selection_host.go build/site-library-targets/button/go-host/text_style.go build/site-library-targets/button/go-host/text_typeface.go build/site-library-targets/button/go-host/textfield.go build/site-library-targets/button/go-host/theme.go build/site-library-targets/button/go-host/tree.go build/site-library-targets/button/go-host/tree_draw.go build/site-library-targets/button/go-host/tree_input.go build/site-library-targets/button/go-host/widget_benchmark_host.go build/site-library-targets/button/go-host/widget_benchmarks.go build/site-library-targets/button/go-host/widget_key.go build/site-library-targets/button/go-host/widget_kind.go build/site-library-targets/button/go-host/matrix_host.go build/site-library-targets/button/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              17.883862,
-              17.292654,
-              17.681024,
-              17.512778,
-              17.235553,
-              17.686555,
-              17.23384,
-              17.24077,
-              17.768099,
-              17.251226,
-              17.215498
+              17.274521,
+              17.237962,
+              17.27172,
+              17.075161,
+              16.748635,
+              16.725154,
+              16.673613,
+              17.051175,
+              16.688614,
+              16.73017,
+              16.987841
             ],
             "batches": 4096,
             "load_ms": 0,
             "result": "0",
-            "warmup_count": 34001,
-            "warmup_ms": 150.004345,
+            "warmup_count": 34076,
+            "warmup_ms": 150.003941,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.00436617724609375,
-              0.00422183935546875,
-              0.00431665625,
-              0.00427558056640625,
-              0.004207898681640625,
-              0.004318006591796875,
-              0.00420748046875,
-              0.00420917236328125,
-              0.004337914794921875,
-              0.00421172509765625,
-              0.00420300244140625
+              0.004217412353515625,
+              0.00420848681640625,
+              0.004216728515625,
+              0.004168740478515625,
+              0.004089022216796875,
+              0.00408328955078125,
+              0.004070706298828125,
+              0.004162884521484375,
+              0.00407436865234375,
+              0.00408451416015625,
+              0.004147422119140625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.004045341674804688,
-              "upper_ms": 0.004480525268554687,
+              "lower_ms": 0.003926834167480469,
+              "upper_ms": 0.004345681335449219,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.00436617724609375,
-                0.00422183935546875,
-                0.00431665625,
-                0.00427558056640625,
-                0.004207898681640625,
-                0.004318006591796875,
-                0.00420748046875,
-                0.00420917236328125,
-                0.004337914794921875,
-                0.00421172509765625,
-                0.00420300244140625
+                0.004217412353515625,
+                0.00420848681640625,
+                0.004216728515625,
+                0.004168740478515625,
+                0.004089022216796875,
+                0.00408328955078125,
+                0.004070706298828125,
+                0.004162884521484375,
+                0.00407436865234375,
+                0.00408451416015625,
+                0.004147422119140625
               ],
-              "median_ms": 0.00422183935546875
+              "median_ms": 0.004147422119140625
             },
-            "execution_ms": 0.00422183935546875,
+            "execution_ms": 0.004147422119140625,
             "checksum": "0",
             "command": "build/site-library-targets/button/go-runner - 0 11"
           },
           "download": {
             "path": "generated/library-targets/button/go.zip",
-            "bytes": 153054,
-            "sha256": "522e83c08af92130e0bd32968a9c396f2be078d5f76f0f68cf3d788538b29c19"
+            "bytes": 152943,
+            "sha256": "d650bdf852fe4c0dbd0723b2f69d4494fb05427fc1b21e63db15288271418223"
           }
         },
         "zx": {
@@ -1100,71 +1098,72 @@
           "files": [
             {
               "path": "generated/library-targets/button/zx/widget_benchmarks.zx",
-              "bytes": 1103781,
-              "sha256": "8b71ec583698616845379f1f8d3ba24321b54f3d6bf9366bdadc1154c5d633da"
+              "bytes": 1484445,
+              "sha256": "722b3d1945079daa6fce12af57f6bfdfcfb952b8bff71bfc01d4dcea31034705"
             }
           ],
           "measurement": {
             "result": "0",
             "batches": 2048,
-            "load_ms": 44.338178992,
-            "warmup_ms": 150.006007016,
-            "warmup_count": 20951,
+            "load_ms": 220.089691997,
+            "warmup_ms": 150.002264023,
+            "warmup_count": 23224,
             "batch_samples_ms": [
-              15.325312018,
-              14.035329998,
-              13.995270014,
-              13.999684989,
-              14.846517026,
-              13.757938027,
-              14.412835956,
-              14.677697003,
-              14.179234028,
-              13.76949501,
-              14.633536994
+              13.518210053,
+              12.832000017,
+              12.774536967,
+              12.80528599,
+              12.795871973,
+              12.732411981,
+              12.797483027,
+              12.981619,
+              12.842980027,
+              12.712713003,
+              12.899594009
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0074830625087890625,
-              0.0068531884755859375,
-              0.006833627936523438,
-              0.006835783686035156,
-              0.007249275891601563,
-              0.006717743177246094,
-              0.007037517556640625,
-              0.007166844239746094,
-              0.006923454115234375,
-              0.0067233862353515625,
-              0.0071452817353515625
+              0.006600688502441407,
+              0.006265625008300781,
+              0.0062375668784179685,
+              0.006252581049804687,
+              0.0062479843618164065,
+              0.006216998037597656,
+              0.006248771009277344,
+              0.00633868115234375,
+              0.0062709863413085935,
+              0.006207379395996093,
+              0.006298629887207031
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.006352670046875,
-              "upper_ms": 0.007638098751953126,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.0074830625087890625,
-                0.0068531884755859375,
-                0.006833627936523438,
-                0.006835783686035156,
-                0.007249275891601563,
-                0.006717743177246094,
-                0.007037517556640625,
-                0.007166844239746094,
-                0.006923454115234375,
-                0.0067233862353515625,
-                0.0071452817353515625
+              "lower_ms": 0.00617972687890625,
+              "upper_ms": 0.00634785685546875,
+              "excluded_indices": [
+                0
               ],
-              "median_ms": 0.006923454115234375
+              "included_samples_ms": [
+                0.006265625008300781,
+                0.0062375668784179685,
+                0.006252581049804687,
+                0.0062479843618164065,
+                0.006216998037597656,
+                0.006248771009277344,
+                0.00633868115234375,
+                0.0062709863413085935,
+                0.006207379395996093,
+                0.006298629887207031
+              ],
+              "median_ms": 0.006250676029541016
             },
-            "execution_ms": 0.006923454115234375,
+            "execution_ms": 0.006250676029541016,
             "checksum": "0",
             "command": "build/site-library-targets/zx-runner site/generated/library-targets/button/zx/widget_benchmarks.zx 0 11"
           },
           "download": {
             "path": "generated/library-targets/button/zx/widget_benchmarks.zx",
-            "bytes": 1103781,
-            "sha256": "8b71ec583698616845379f1f8d3ba24321b54f3d6bf9366bdadc1154c5d633da"
+            "bytes": 1484445,
+            "sha256": "722b3d1945079daa6fce12af57f6bfdfcfb952b8bff71bfc01d4dcea31034705"
           }
         },
         "wasm": {
@@ -1173,71 +1172,71 @@
           "files": [
             {
               "path": "generated/library-targets/button/wasm/widget_benchmarks.wasm",
-              "bytes": 2200393,
-              "sha256": "de425583d257a095b1ffaeeb19fac41c739702b7b3c308c5ffb4d855fafdbd95"
+              "bytes": 2263472,
+              "sha256": "0106c3c1ed53e6c417dd34e2c2df1dd3ebcfd8b5de3f58fa8c59bcfe274c3a7b"
             }
           ],
           "measurement": {
             "result": "0",
             "batches": 2048,
-            "warmup_ms": 150.016717,
-            "warmup_count": 17834,
+            "warmup_ms": 150.021674,
+            "warmup_count": 23041,
             "batch_samples_ms": [
-              11.582319000000012,
-              11.47347000000002,
-              11.488351999999992,
-              11.463186000000007,
-              11.605463000000015,
-              11.451734999999985,
-              11.593138999999951,
-              11.472649999999987,
-              11.677301,
-              11.502120999999988,
-              11.464592000000039
+              10.370818999999983,
+              10.369920000000008,
+              10.328527000000008,
+              10.354100999999986,
+              10.373862000000003,
+              10.163904000000002,
+              10.091139999999996,
+              10.233069,
+              10.166868000000022,
+              10.218411000000003,
+              10.167040999999983
             ],
-            "load_ms": 3.767191999999998,
+            "load_ms": 3.9186719999999973,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.005655429199218756,
-              0.00560228027343751,
-              0.005609546874999996,
-              0.005597258789062504,
-              0.005666729980468757,
-              0.005591667480468743,
-              0.005660712402343726,
-              0.005601879882812494,
-              0.00570180712890625,
-              0.005616270019531244,
-              0.005597945312500019
+              0.005063876464843742,
+              0.005063437500000004,
+              0.005043226074218754,
+              0.005055713378906243,
+              0.005065362304687501,
+              0.004962843750000001,
+              0.004927314453124998,
+              0.00499661572265625,
+              0.004964291015625011,
+              0.004989458496093752,
+              0.004964375488281242
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.005512675292968779,
-              "upper_ms": 0.005745308105468718,
+              "lower_ms": 0.004821469970703131,
+              "upper_ms": 0.005202438720703119,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.005655429199218756,
-                0.00560228027343751,
-                0.005609546874999996,
-                0.005597258789062504,
-                0.005666729980468757,
-                0.005591667480468743,
-                0.005660712402343726,
-                0.005601879882812494,
-                0.00570180712890625,
-                0.005616270019531244,
-                0.005597945312500019
+                0.005063876464843742,
+                0.005063437500000004,
+                0.005043226074218754,
+                0.005055713378906243,
+                0.005065362304687501,
+                0.004962843750000001,
+                0.004927314453124998,
+                0.00499661572265625,
+                0.004964291015625011,
+                0.004989458496093752,
+                0.004964375488281242
               ],
-              "median_ms": 0.005609546874999996
+              "median_ms": 0.00499661572265625
             },
-            "execution_ms": 0.005609546874999996,
+            "execution_ms": 0.00499661572265625,
             "checksum": "0",
             "command": "node scripts/site_target_node.cjs site/generated/library-targets/button/wasm/widget_benchmarks.wasm 0 11"
           },
           "download": {
             "path": "generated/library-targets/button/wasm/widget_benchmarks.wasm",
-            "bytes": 2200393,
-            "sha256": "de425583d257a095b1ffaeeb19fac41c739702b7b3c308c5ffb4d855fafdbd95"
+            "bytes": 2263472,
+            "sha256": "0106c3c1ed53e6c417dd34e2c2df1dd3ebcfd8b5de3f58fa8c59bcfe274c3a7b"
           }
         }
       }
@@ -1406,13 +1405,13 @@
             },
             {
               "path": "generated/library-targets/text/c/std_math.c",
-              "bytes": 6345,
-              "sha256": "eef5f4e19597d9dc04468bf64d283e107e3ccc6183d5893d9c80f5fa8b4c8cba"
+              "bytes": 2458,
+              "sha256": "ad2aa99df462f4558316fa1bcba13c89e73d243c96d1f422aba0c2047326b36e"
             },
             {
               "path": "generated/library-targets/text/c/std_math.h",
-              "bytes": 1123,
-              "sha256": "acb0dcc83a70d99bf71d17fa24b2078a9b7fc16149614c8516360439e37d2437"
+              "bytes": 393,
+              "sha256": "2dbbc3c065ce801e1c08022e5dd52666b6dbb0df48b64b4d8f7a65a9b71c54f1"
             },
             {
               "path": "generated/library-targets/text/c/std_utf8.c",
@@ -1674,64 +1673,64 @@
           "measurement": {
             "result": "0",
             "batches": 4096,
-            "load_ms": 0.002104998,
-            "warmup_ms": 150.002362967,
-            "warmup_count": 44519,
+            "load_ms": 0.002083957,
+            "warmup_ms": 150.000748038,
+            "warmup_count": 45849,
             "batch_samples_ms": [
-              13.430073977,
-              13.425049961,
-              13.249735057,
-              13.482725024,
-              13.218423963,
-              13.217638016,
-              12.967992008,
-              13.293552995,
-              12.99912101,
-              12.996825993,
-              13.564904988
+              12.574391007,
+              12.852248013,
+              12.929299951,
+              12.83544302,
+              12.997847021,
+              12.999755025,
+              13.283869028,
+              13.232949018,
+              13.155028999,
+              12.97891295,
+              12.809991002
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0032788266545410154,
-              0.0032776000881347654,
-              0.0032347985979003908,
-              0.0032916809140625,
-              0.0032271542878417967,
-              0.00322696240625,
-              0.003166013673828125,
-              0.003245496336669922,
-              0.003173613527832031,
-              0.0031730532209472656,
-              0.0033117443818359376
+              0.003069919679443359,
+              0.0031377558625488283,
+              0.0031565673708496096,
+              0.0031336530810546874,
+              0.003173302495361328,
+              0.003173768316650391,
+              0.0032431320869140625,
+              0.003230700443847656,
+              0.0032116770017089845,
+              0.0031686799194335937,
+              0.0031274392094726563
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.003083399860595703,
-              "upper_ms": 0.003395101477783203,
+              "lower_ms": 0.003050177190734863,
+              "upper_ms": 0.0032782499402465824,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.0032788266545410154,
-                0.0032776000881347654,
-                0.0032347985979003908,
-                0.0032916809140625,
-                0.0032271542878417967,
-                0.00322696240625,
-                0.003166013673828125,
-                0.003245496336669922,
-                0.003173613527832031,
-                0.0031730532209472656,
-                0.0033117443818359376
+                0.003069919679443359,
+                0.0031377558625488283,
+                0.0031565673708496096,
+                0.0031336530810546874,
+                0.003173302495361328,
+                0.003173768316650391,
+                0.0032431320869140625,
+                0.003230700443847656,
+                0.0032116770017089845,
+                0.0031686799194335937,
+                0.0031274392094726563
               ],
-              "median_ms": 0.0032347985979003908
+              "median_ms": 0.0031686799194335937
             },
-            "execution_ms": 0.0032347985979003908,
+            "execution_ms": 0.0031686799194335937,
             "checksum": "0",
             "command": "build/site-library-targets/text/c-runner - 0 11"
           },
           "download": {
             "path": "generated/library-targets/text/c.zip",
-            "bytes": 101396,
-            "sha256": "5262a00747f198cea275dbe89e6293d4e90c8019ed233a3d9800598f0b570425"
+            "bytes": 100266,
+            "sha256": "3482e24f7fc678a241b137a29e4cbef4bebfe4cc532803b56d3ac3b58ae5be45"
           }
         },
         "go": {
@@ -1915,8 +1914,8 @@
             },
             {
               "path": "generated/library-targets/text/go/std_math.go",
-              "bytes": 18502,
-              "sha256": "f6dbe5415b68b70db2c0d297d65c25167613d9cbe2e4f1ab05f7456ac40a4d8d"
+              "bytes": 17811,
+              "sha256": "b2c9492eedfa230ca27a779abaccdd48813efa6fe0e66740fa9e44389186f93f"
             },
             {
               "path": "generated/library-targets/text/go/std_utf8.go",
@@ -2097,66 +2096,65 @@
           "build_command": "go build -p=2 -o build/site-library-targets/text/go-runner build/site-library-targets/text/go-host/bitmap_store.go build/site-library-targets/text/go-host/button.go build/site-library-targets/text/go-host/button_behavior.go build/site-library-targets/text/go-host/button_props.go build/site-library-targets/text/go-host/card_behavior.go build/site-library-targets/text/go-host/card_props.go build/site-library-targets/text/go-host/contextmenu.go build/site-library-targets/text/go-host/control_props.go build/site-library-targets/text/go-host/cursor.go build/site-library-targets/text/go-host/dpi.go build/site-library-targets/text/go-host/drawing_props.go build/site-library-targets/text/go-host/elevation.go build/site-library-targets/text/go-host/focus.go build/site-library-targets/text/go-host/font_metrics.go build/site-library-targets/text/go-host/geometry.go build/site-library-targets/text/go-host/image_behavior.go build/site-library-targets/text/go-host/image_lookup.go build/site-library-targets/text/go-host/image_props.go build/site-library-targets/text/go-host/input_props.go build/site-library-targets/text/go-host/input_protocol.go build/site-library-targets/text/go-host/overlay.go build/site-library-targets/text/go-host/overlay_behavior.go build/site-library-targets/text/go-host/overlay_props.go build/site-library-targets/text/go-host/paint_queue.go build/site-library-targets/text/go-host/paint_texture.go build/site-library-targets/text/go-host/raster.go build/site-library-targets/text/go-host/raster_shape.go build/site-library-targets/text/go-host/raster_text.go build/site-library-targets/text/go-host/raster_triangles.go build/site-library-targets/text/go-host/scroll_sampling.go build/site-library-targets/text/go-host/semantic.go build/site-library-targets/text/go-host/session.go build/site-library-targets/text/go-host/shape_paint.go build/site-library-targets/text/go-host/std_grapheme.go build/site-library-targets/text/go-host/std_grapheme_data.go build/site-library-targets/text/go-host/std_math.go build/site-library-targets/text/go-host/std_utf8.go build/site-library-targets/text/go-host/std_vec.go build/site-library-targets/text/go-host/style.go build/site-library-targets/text/go-host/style_sheet.go build/site-library-targets/text/go-host/surface.go build/site-library-targets/text/go-host/svg_icon_behavior.go build/site-library-targets/text/go-host/svg_shape.go build/site-library-targets/text/go-host/system_clipboard.go build/site-library-targets/text/go-host/system_clipboard_host.go build/site-library-targets/text/go-host/text.go build/site-library-targets/text/go-host/text_align.go build/site-library-targets/text/go-host/text_behavior.go build/site-library-targets/text/go-host/text_boundary.go build/site-library-targets/text/go-host/text_context_menu.go build/site-library-targets/text/go-host/text_editing.go build/site-library-targets/text/go-host/text_emphasis.go build/site-library-targets/text/go-host/text_field_props.go build/site-library-targets/text/go-host/text_host.go build/site-library-targets/text/go-host/text_input.go build/site-library-targets/text/go-host/text_input_platform.go build/site-library-targets/text/go-host/text_layout.go build/site-library-targets/text/go-host/text_props.go build/site-library-targets/text/go-host/text_request.go build/site-library-targets/text/go-host/text_selection_host.go build/site-library-targets/text/go-host/text_style.go build/site-library-targets/text/go-host/text_typeface.go build/site-library-targets/text/go-host/textfield.go build/site-library-targets/text/go-host/theme.go build/site-library-targets/text/go-host/tree.go build/site-library-targets/text/go-host/tree_draw.go build/site-library-targets/text/go-host/tree_input.go build/site-library-targets/text/go-host/widget_benchmark_host.go build/site-library-targets/text/go-host/widget_benchmarks.go build/site-library-targets/text/go-host/widget_key.go build/site-library-targets/text/go-host/widget_kind.go build/site-library-targets/text/go-host/matrix_host.go build/site-library-targets/text/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              15.783612,
-              16.023921,
-              15.584193,
-              15.292964,
-              16.119098,
-              15.672091,
-              15.662396,
-              15.742298,
-              15.691554,
-              15.98266,
-              15.678678
+              15.656743,
+              15.768926,
+              15.6421,
+              16.042659,
+              15.978378,
+              15.928461,
+              15.645034,
+              15.644753,
+              15.936035,
+              15.920643,
+              15.645804
             ],
             "batches": 4096,
             "load_ms": 0,
             "result": "0",
-            "warmup_count": 37294,
-            "warmup_ms": 150.001305,
+            "warmup_count": 37782,
+            "warmup_ms": 150.001698,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0038534208984375,
-              0.003912090087890625,
-              0.003804734619140625,
-              0.0037336337890625,
-              0.00393532666015625,
-              0.003826194091796875,
-              0.0038238271484375,
-              0.00384333447265625,
-              0.00383094580078125,
-              0.0039020166015625,
-              0.00382780224609375
+              0.003822447021484375,
+              0.00384983544921875,
+              0.0038188720703125,
+              0.003916664794921875,
+              0.00390097119140625,
+              0.003888784423828125,
+              0.00381958837890625,
+              0.003819519775390625,
+              0.003890633544921875,
+              0.003886875732421875,
+              0.0038197763671875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.003745948425292968,
-              "upper_ms": 0.003956780944824219,
-              "excluded_indices": [
-                3
-              ],
+              "lower_ms": 0.0037146424560546873,
+              "upper_ms": 0.003994748901367189,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.0038534208984375,
-                0.003912090087890625,
-                0.003804734619140625,
-                0.00393532666015625,
-                0.003826194091796875,
-                0.0038238271484375,
-                0.00384333447265625,
-                0.00383094580078125,
-                0.0039020166015625,
-                0.00382780224609375
+                0.003822447021484375,
+                0.00384983544921875,
+                0.0038188720703125,
+                0.003916664794921875,
+                0.00390097119140625,
+                0.003888784423828125,
+                0.00381958837890625,
+                0.003819519775390625,
+                0.003890633544921875,
+                0.003886875732421875,
+                0.0038197763671875
               ],
-              "median_ms": 0.00383714013671875
+              "median_ms": 0.00384983544921875
             },
-            "execution_ms": 0.00383714013671875,
+            "execution_ms": 0.00384983544921875,
             "checksum": "0",
             "command": "build/site-library-targets/text/go-runner - 0 11"
           },
           "download": {
             "path": "generated/library-targets/text/go.zip",
-            "bytes": 153054,
-            "sha256": "522e83c08af92130e0bd32968a9c396f2be078d5f76f0f68cf3d788538b29c19"
+            "bytes": 152943,
+            "sha256": "d650bdf852fe4c0dbd0723b2f69d4494fb05427fc1b21e63db15288271418223"
           }
         },
         "zx": {
@@ -2165,71 +2163,71 @@
           "files": [
             {
               "path": "generated/library-targets/text/zx/widget_benchmarks.zx",
-              "bytes": 941321,
-              "sha256": "2d35100f62240ac3fe46a78e26eaa01c29e042756716aee279af2863ef0afcbb"
+              "bytes": 1259249,
+              "sha256": "1ae04b50f4d2255588b70ae7d45456c32db9cdd64655937d63cbe883d24cd707"
             }
           ],
           "measurement": {
             "result": "0",
             "batches": 2048,
-            "load_ms": 36.02977103,
-            "warmup_ms": 150.008877993,
-            "warmup_count": 16275,
+            "load_ms": 183.987820029,
+            "warmup_ms": 150.00640595,
+            "warmup_count": 20800,
             "batch_samples_ms": [
-              18.568419039,
-              18.767862022,
-              18.730166972,
-              18.550014019,
-              18.690384984,
-              18.215348005,
-              18.328743994,
-              18.556160986,
-              18.240794003,
-              18.228287995,
-              18.962213993
+              14.388513982,
+              14.400075018,
+              14.434755027,
+              14.456187963,
+              15.033079982,
+              15.674071014,
+              15.595665038,
+              16.291808009,
+              15.517738044,
+              15.473542988,
+              15.585170031
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.009066610858886718,
-              0.009163995127929687,
-              0.009145589341796875,
-              0.009057624032714843,
-              0.00912616454296875,
-              0.008894212893066406,
-              0.008949582028320312,
-              0.009060625481445312,
-              0.008906637696777344,
-              0.008900531247558593,
-              0.00925889355126953
+              0.007025641592773437,
+              0.007031286629882813,
+              0.0070482202280273435,
+              0.007058685528808594,
+              0.007340371084960938,
+              0.007653354987304688,
+              0.0076150708193359375,
+              0.007954984379394531,
+              0.007577020529296875,
+              0.007555440912109375,
+              0.007609946304199219
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.008616459242797851,
-              "upper_ms": 0.009447527562133788,
+              "lower_ms": 0.006214869353393554,
+              "upper_ms": 0.008451092086791992,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.009066610858886718,
-                0.009163995127929687,
-                0.009145589341796875,
-                0.009057624032714843,
-                0.00912616454296875,
-                0.008894212893066406,
-                0.008949582028320312,
-                0.009060625481445312,
-                0.008906637696777344,
-                0.008900531247558593,
-                0.00925889355126953
+                0.007025641592773437,
+                0.007031286629882813,
+                0.0070482202280273435,
+                0.007058685528808594,
+                0.007340371084960938,
+                0.007653354987304688,
+                0.0076150708193359375,
+                0.007954984379394531,
+                0.007577020529296875,
+                0.007555440912109375,
+                0.007609946304199219
               ],
-              "median_ms": 0.009060625481445312
+              "median_ms": 0.007555440912109375
             },
-            "execution_ms": 0.009060625481445312,
+            "execution_ms": 0.007555440912109375,
             "checksum": "0",
             "command": "build/site-library-targets/zx-runner site/generated/library-targets/text/zx/widget_benchmarks.zx 0 11"
           },
           "download": {
             "path": "generated/library-targets/text/zx/widget_benchmarks.zx",
-            "bytes": 941321,
-            "sha256": "2d35100f62240ac3fe46a78e26eaa01c29e042756716aee279af2863ef0afcbb"
+            "bytes": 1259249,
+            "sha256": "1ae04b50f4d2255588b70ae7d45456c32db9cdd64655937d63cbe883d24cd707"
           }
         },
         "wasm": {
@@ -2238,71 +2236,71 @@
           "files": [
             {
               "path": "generated/library-targets/text/wasm/widget_benchmarks.wasm",
-              "bytes": 2059461,
-              "sha256": "42343db819ad28f4860d605116161906d28c7913e5146033f73f2a6c784b66e3"
+              "bytes": 2112658,
+              "sha256": "f2b7b8ac2724e60424b8f78ede0741b35d461c347180666a8d0a45b237f9d720"
             }
           ],
           "measurement": {
             "result": "0",
             "batches": 2048,
-            "warmup_ms": 150.01525600000002,
-            "warmup_count": 14919,
+            "warmup_ms": 150.011681,
+            "warmup_count": 19318,
             "batch_samples_ms": [
-              15.200061000000005,
-              15.046221000000003,
-              15.431421,
-              14.979102000000012,
-              14.949891999999977,
-              15.336157000000014,
-              14.95604099999997,
-              14.963325999999995,
-              14.943939999999998,
-              15.450733999999954,
-              14.946702000000016
+              13.190208999999982,
+              13.100087000000002,
+              13.220180000000028,
+              13.004530999999986,
+              12.884175000000027,
+              12.727273000000025,
+              13.605205000000012,
+              12.824095999999997,
+              12.60427500000003,
+              12.681274999999971,
+              13.300457999999992
             ],
-            "load_ms": 3.286832999999998,
+            "load_ms": 3.472161,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0074219047851562525,
-              0.007346787597656251,
-              0.00753487353515625,
-              0.007314014648437506,
-              0.007299751953124989,
-              0.007488357910156257,
-              0.007302754394531236,
-              0.007306311523437498,
-              0.007296845703124999,
-              0.007544303710937478,
-              0.007298194335937508
+              0.006440531738281241,
+              0.006396526855468751,
+              0.0064551660156250135,
+              0.006349868652343743,
+              0.006291101074218763,
+              0.006214488769531262,
+              0.006643166503906256,
+              0.006261765624999999,
+              0.0061544311523437645,
+              0.006192028808593736,
+              0.006494364257812496
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0070704359130858985,
-              "upper_ms": 0.0076859486083984685,
+              "lower_ms": 0.005923544677734385,
+              "upper_ms": 0.006762431396484372,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.0074219047851562525,
-                0.007346787597656251,
-                0.00753487353515625,
-                0.007314014648437506,
-                0.007299751953124989,
-                0.007488357910156257,
-                0.007302754394531236,
-                0.007306311523437498,
-                0.007296845703124999,
-                0.007544303710937478,
-                0.007298194335937508
+                0.006440531738281241,
+                0.006396526855468751,
+                0.0064551660156250135,
+                0.006349868652343743,
+                0.006291101074218763,
+                0.006214488769531262,
+                0.006643166503906256,
+                0.006261765624999999,
+                0.0061544311523437645,
+                0.006192028808593736,
+                0.006494364257812496
               ],
-              "median_ms": 0.007314014648437506
+              "median_ms": 0.006349868652343743
             },
-            "execution_ms": 0.007314014648437506,
+            "execution_ms": 0.006349868652343743,
             "checksum": "0",
             "command": "node scripts/site_target_node.cjs site/generated/library-targets/text/wasm/widget_benchmarks.wasm 0 11"
           },
           "download": {
             "path": "generated/library-targets/text/wasm/widget_benchmarks.wasm",
-            "bytes": 2059461,
-            "sha256": "42343db819ad28f4860d605116161906d28c7913e5146033f73f2a6c784b66e3"
+            "bytes": 2112658,
+            "sha256": "f2b7b8ac2724e60424b8f78ede0741b35d461c347180666a8d0a45b237f9d720"
           }
         }
       }
@@ -2874,57 +2872,57 @@
           "measurement": {
             "result": "0",
             "batches": 4096,
-            "load_ms": 0.000109017,
-            "warmup_ms": 150.003100991,
-            "warmup_count": 36419,
+            "load_ms": 0.001935005,
+            "warmup_ms": 150.005469024,
+            "warmup_count": 36454,
             "batch_samples_ms": [
-              17.119388044,
-              16.896423995,
-              16.803083003,
-              17.069743991,
-              16.266214013,
-              16.365649998,
-              16.76946497,
-              16.585547984,
-              16.573637962,
-              16.704210997,
-              16.563064992
+              15.905634999,
+              15.566922009,
+              15.616560996,
+              15.742630005,
+              15.840659022,
+              15.694033027,
+              16.045798004,
+              15.754620016,
+              15.591179013,
+              15.83978498,
+              15.905394018
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.004179538096679688,
-              0.004125103514404297,
-              0.004102315186279297,
-              0.004167417966552734,
-              0.003971243655517578,
-              0.003995520019042968,
-              0.004094107658691407,
-              0.00404920605078125,
-              0.004046298330566406,
-              0.004078176512939453,
-              0.0040437170390625
+              0.0038832116696777344,
+              0.003800518068603516,
+              0.0038126369619140626,
+              0.0038434155285644533,
+              0.003867348394042969,
+              0.003831551031982422,
+              0.003917431153320313,
+              0.00384634277734375,
+              0.003806440188720703,
+              0.0038671350048828123,
+              0.0038831528364257815
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.003941955186523437,
-              "upper_ms": 0.004216761848632814,
+              "lower_ms": 0.003742359069519043,
+              "upper_ms": 0.003954985542663574,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.004179538096679688,
-                0.004125103514404297,
-                0.004102315186279297,
-                0.004167417966552734,
-                0.003971243655517578,
-                0.003995520019042968,
-                0.004094107658691407,
-                0.00404920605078125,
-                0.004046298330566406,
-                0.004078176512939453,
-                0.0040437170390625
+                0.0038832116696777344,
+                0.003800518068603516,
+                0.0038126369619140626,
+                0.0038434155285644533,
+                0.003867348394042969,
+                0.003831551031982422,
+                0.003917431153320313,
+                0.00384634277734375,
+                0.003806440188720703,
+                0.0038671350048828123,
+                0.0038831528364257815
               ],
-              "median_ms": 0.004078176512939453
+              "median_ms": 0.00384634277734375
             },
-            "execution_ms": 0.004078176512939453,
+            "execution_ms": 0.00384634277734375,
             "checksum": "0",
             "command": "build/site-library-targets/input/c-runner - 0 11"
           },
@@ -3115,8 +3113,8 @@
             },
             {
               "path": "generated/library-targets/input/go/std_math.go",
-              "bytes": 18502,
-              "sha256": "f6dbe5415b68b70db2c0d297d65c25167613d9cbe2e4f1ab05f7456ac40a4d8d"
+              "bytes": 17811,
+              "sha256": "b2c9492eedfa230ca27a779abaccdd48813efa6fe0e66740fa9e44389186f93f"
             },
             {
               "path": "generated/library-targets/input/go/std_utf8.go",
@@ -3297,65 +3295,66 @@
           "build_command": "go build -p=2 -o build/site-library-targets/input/go-runner build/site-library-targets/input/go-host/bitmap_store.go build/site-library-targets/input/go-host/button.go build/site-library-targets/input/go-host/button_behavior.go build/site-library-targets/input/go-host/button_props.go build/site-library-targets/input/go-host/card_behavior.go build/site-library-targets/input/go-host/card_props.go build/site-library-targets/input/go-host/contextmenu.go build/site-library-targets/input/go-host/control_props.go build/site-library-targets/input/go-host/cursor.go build/site-library-targets/input/go-host/dpi.go build/site-library-targets/input/go-host/drawing_props.go build/site-library-targets/input/go-host/elevation.go build/site-library-targets/input/go-host/focus.go build/site-library-targets/input/go-host/font_metrics.go build/site-library-targets/input/go-host/geometry.go build/site-library-targets/input/go-host/image_behavior.go build/site-library-targets/input/go-host/image_lookup.go build/site-library-targets/input/go-host/image_props.go build/site-library-targets/input/go-host/input_props.go build/site-library-targets/input/go-host/input_protocol.go build/site-library-targets/input/go-host/overlay.go build/site-library-targets/input/go-host/overlay_behavior.go build/site-library-targets/input/go-host/overlay_props.go build/site-library-targets/input/go-host/paint_queue.go build/site-library-targets/input/go-host/paint_texture.go build/site-library-targets/input/go-host/raster.go build/site-library-targets/input/go-host/raster_shape.go build/site-library-targets/input/go-host/raster_text.go build/site-library-targets/input/go-host/raster_triangles.go build/site-library-targets/input/go-host/scroll_sampling.go build/site-library-targets/input/go-host/semantic.go build/site-library-targets/input/go-host/session.go build/site-library-targets/input/go-host/shape_paint.go build/site-library-targets/input/go-host/std_grapheme.go build/site-library-targets/input/go-host/std_grapheme_data.go build/site-library-targets/input/go-host/std_math.go build/site-library-targets/input/go-host/std_utf8.go build/site-library-targets/input/go-host/std_vec.go build/site-library-targets/input/go-host/style.go build/site-library-targets/input/go-host/style_sheet.go build/site-library-targets/input/go-host/surface.go build/site-library-targets/input/go-host/svg_icon_behavior.go build/site-library-targets/input/go-host/svg_shape.go build/site-library-targets/input/go-host/system_clipboard.go build/site-library-targets/input/go-host/system_clipboard_host.go build/site-library-targets/input/go-host/text.go build/site-library-targets/input/go-host/text_align.go build/site-library-targets/input/go-host/text_behavior.go build/site-library-targets/input/go-host/text_boundary.go build/site-library-targets/input/go-host/text_context_menu.go build/site-library-targets/input/go-host/text_editing.go build/site-library-targets/input/go-host/text_emphasis.go build/site-library-targets/input/go-host/text_field_props.go build/site-library-targets/input/go-host/text_host.go build/site-library-targets/input/go-host/text_input.go build/site-library-targets/input/go-host/text_input_platform.go build/site-library-targets/input/go-host/text_layout.go build/site-library-targets/input/go-host/text_props.go build/site-library-targets/input/go-host/text_request.go build/site-library-targets/input/go-host/text_selection_host.go build/site-library-targets/input/go-host/text_style.go build/site-library-targets/input/go-host/text_typeface.go build/site-library-targets/input/go-host/textfield.go build/site-library-targets/input/go-host/theme.go build/site-library-targets/input/go-host/tree.go build/site-library-targets/input/go-host/tree_draw.go build/site-library-targets/input/go-host/tree_input.go build/site-library-targets/input/go-host/widget_benchmark_host.go build/site-library-targets/input/go-host/widget_benchmarks.go build/site-library-targets/input/go-host/widget_key.go build/site-library-targets/input/go-host/widget_kind.go build/site-library-targets/input/go-host/matrix_host.go build/site-library-targets/input/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              13.90176,
-              13.926494,
-              13.921743,
-              13.602416,
-              14.112321,
-              13.623095,
-              13.601206,
-              13.634042,
-              13.923443,
-              13.602026,
-              13.579347
+              13.617872,
+              14.304368,
+              13.996766,
+              14.05565,
+              14.334601,
+              13.857754,
+              13.845027,
+              13.86487,
+              13.988876,
+              13.852032,
+              13.842486
             ],
             "batches": 2048,
             "load_ms": 0,
             "result": "0",
-            "warmup_count": 21739,
-            "warmup_ms": 150.002193,
+            "warmup_count": 22134,
+            "warmup_ms": 150.002375,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.00678796875,
-              0.0068000458984375,
-              0.00679772607421875,
-              0.0066418046875,
-              0.00689078173828125,
-              0.00665190185546875,
-              0.0066412138671875,
-              0.0066572470703125,
-              0.00679855615234375,
-              0.0066416142578125,
-              0.00663054052734375
+              0.0066493515625,
+              0.0069845546875,
+              0.0068343583984375,
+              0.0068631103515625,
+              0.00699931689453125,
+              0.0067664814453125,
+              0.00676026708984375,
+              0.0067699560546875,
+              0.006830505859375,
+              0.0067636875,
+              0.0067590263671875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.006407062011718751,
-              "upper_ms": 0.007032788574218749,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.00678796875,
-                0.0068000458984375,
-                0.00679772607421875,
-                0.0066418046875,
-                0.00689078173828125,
-                0.00665190185546875,
-                0.0066412138671875,
-                0.0066572470703125,
-                0.00679855615234375,
-                0.0066416142578125,
-                0.00663054052734375
+              "lower_ms": 0.006631841674804687,
+              "upper_ms": 0.006978869995117189,
+              "excluded_indices": [
+                1,
+                4
               ],
-              "median_ms": 0.0066572470703125
+              "included_samples_ms": [
+                0.0066493515625,
+                0.0068343583984375,
+                0.0068631103515625,
+                0.0067664814453125,
+                0.00676026708984375,
+                0.0067699560546875,
+                0.006830505859375,
+                0.0067636875,
+                0.0067590263671875
+              ],
+              "median_ms": 0.0067664814453125
             },
-            "execution_ms": 0.0066572470703125,
+            "execution_ms": 0.0067664814453125,
             "checksum": "0",
             "command": "build/site-library-targets/input/go-runner - 0 11"
           },
           "download": {
             "path": "generated/library-targets/input/go.zip",
-            "bytes": 153054,
-            "sha256": "522e83c08af92130e0bd32968a9c396f2be078d5f76f0f68cf3d788538b29c19"
+            "bytes": 152943,
+            "sha256": "d650bdf852fe4c0dbd0723b2f69d4494fb05427fc1b21e63db15288271418223"
           }
         },
         "zx": {
@@ -3364,71 +3363,71 @@
           "files": [
             {
               "path": "generated/library-targets/input/zx/widget_benchmarks.zx",
-              "bytes": 1536306,
-              "sha256": "a8aeccddf4dfe118396802653197003d2c4b6939a16e9244bfaf843582d5bead"
+              "bytes": 2261626,
+              "sha256": "e48b324571cf5683c48890e1d99f7712bee2eb71d0c232152d452b416f295ed8"
             }
           ],
           "measurement": {
             "result": "0",
-            "batches": 1024,
-            "load_ms": 56.856531024,
-            "warmup_ms": 150.002162993,
-            "warmup_count": 13990,
+            "batches": 2048,
+            "load_ms": 581.055806041,
+            "warmup_ms": 150.006671011,
+            "warmup_count": 16875,
             "batch_samples_ms": [
-              10.727576017,
-              10.73872298,
-              10.843065977,
-              10.750146985,
-              10.787643015,
-              10.772015035,
-              10.868555009,
-              10.779657006,
-              10.640883982,
-              10.545325041,
-              10.582109988
+              17.855675995,
+              17.608072996,
+              18.38341099,
+              18.755201995,
+              18.230259001,
+              17.802157998,
+              17.726211011,
+              18.131623983,
+              18.676175952,
+              18.245911002,
+              17.908161998
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.010476148454101563,
-              0.01048703416015625,
-              0.010588931618164063,
-              0.010498190415039063,
-              0.010534807631835938,
-              0.010519545932617188,
-              0.010613823250976562,
-              0.010527008794921876,
-              0.010391488263671875,
-              0.010298168985351562,
-              0.01033409178515625
+              0.008718591794433593,
+              0.008597691892578125,
+              0.008976274897460938,
+              0.009157813474121094,
+              0.008901493652832031,
+              0.008692459959960937,
+              0.008655376470214844,
+              0.008853332022949219,
+              0.0091192265390625,
+              0.008909136231445312,
+              0.008744219725585938
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.01028818357714844,
-              "upper_ms": 0.010676542995117187,
+              "lower_ms": 0.008349756346313474,
+              "upper_ms": 0.009298475095336916,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.010476148454101563,
-                0.01048703416015625,
-                0.010588931618164063,
-                0.010498190415039063,
-                0.010534807631835938,
-                0.010519545932617188,
-                0.010613823250976562,
-                0.010527008794921876,
-                0.010391488263671875,
-                0.010298168985351562,
-                0.01033409178515625
+                0.008718591794433593,
+                0.008597691892578125,
+                0.008976274897460938,
+                0.009157813474121094,
+                0.008901493652832031,
+                0.008692459959960937,
+                0.008655376470214844,
+                0.008853332022949219,
+                0.0091192265390625,
+                0.008909136231445312,
+                0.008744219725585938
               ],
-              "median_ms": 0.010498190415039063
+              "median_ms": 0.008853332022949219
             },
-            "execution_ms": 0.010498190415039063,
+            "execution_ms": 0.008853332022949219,
             "checksum": "0",
             "command": "build/site-library-targets/zx-runner site/generated/library-targets/input/zx/widget_benchmarks.zx 0 11"
           },
           "download": {
             "path": "generated/library-targets/input/zx/widget_benchmarks.zx",
-            "bytes": 1536306,
-            "sha256": "a8aeccddf4dfe118396802653197003d2c4b6939a16e9244bfaf843582d5bead"
+            "bytes": 2261626,
+            "sha256": "e48b324571cf5683c48890e1d99f7712bee2eb71d0c232152d452b416f295ed8"
           }
         },
         "wasm": {
@@ -3437,71 +3436,71 @@
           "files": [
             {
               "path": "generated/library-targets/input/wasm/widget_benchmarks.wasm",
-              "bytes": 2271054,
-              "sha256": "7a0f1ccb9a393375433502a2d2aad6a4572ed568fcc7312615d6272fe8f41164"
+              "bytes": 2393448,
+              "sha256": "5a6503086add76deb447f005d8129212cdfe8273019f2d47a786446c15c5384f"
             }
           ],
           "measurement": {
             "result": "0",
             "batches": 2048,
-            "warmup_ms": 150.018177,
-            "warmup_count": 10349,
+            "warmup_ms": 150.018567,
+            "warmup_count": 13297,
             "batch_samples_ms": [
-              19.43470499999998,
-              19.216534000000024,
-              19.624439999999993,
-              18.776274,
-              18.845203000000026,
-              18.635944999999992,
-              18.295979000000045,
-              18.750541999999996,
-              19.468615,
-              18.887854000000004,
-              18.495591999999988
+              16.525417000000004,
+              16.462946999999986,
+              16.464781000000016,
+              16.08488699999998,
+              15.776450999999952,
+              15.88542000000001,
+              16.291629,
+              15.878629999999987,
+              16.342507000000012,
+              16.396022999999957,
+              15.737805999999978
             ],
-            "load_ms": 3.8993269999999995,
+            "load_ms": 3.9868120000000005,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.00948960205078124,
-              0.009383073242187512,
-              0.009582246093749996,
-              0.0091681025390625,
-              0.009201759277343763,
-              0.009099582519531246,
-              0.008933583496093772,
-              0.009155538085937498,
-              0.00950615966796875,
-              0.009222584960937502,
-              0.009031050781249994
+              0.008069051269531252,
+              0.008038548339843743,
+              0.008039443847656258,
+              0.00785394873046874,
+              0.0077033452148437265,
+              0.007756552734375005,
+              0.00795489697265625,
+              0.007753237304687494,
+              0.007979739746093756,
+              0.008005870605468729,
+              0.007684475585937489
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.008664394287109366,
-              "upper_ms": 0.009899503662109382,
+              "lower_ms": 0.0073539233398437695,
+              "upper_ms": 0.008423181152343716,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.00948960205078124,
-                0.009383073242187512,
-                0.009582246093749996,
-                0.0091681025390625,
-                0.009201759277343763,
-                0.009099582519531246,
-                0.008933583496093772,
-                0.009155538085937498,
-                0.00950615966796875,
-                0.009222584960937502,
-                0.009031050781249994
+                0.008069051269531252,
+                0.008038548339843743,
+                0.008039443847656258,
+                0.00785394873046874,
+                0.0077033452148437265,
+                0.007756552734375005,
+                0.00795489697265625,
+                0.007753237304687494,
+                0.007979739746093756,
+                0.008005870605468729,
+                0.007684475585937489
               ],
-              "median_ms": 0.009201759277343763
+              "median_ms": 0.00795489697265625
             },
-            "execution_ms": 0.009201759277343763,
+            "execution_ms": 0.00795489697265625,
             "checksum": "0",
             "command": "node scripts/site_target_node.cjs site/generated/library-targets/input/wasm/widget_benchmarks.wasm 0 11"
           },
           "download": {
             "path": "generated/library-targets/input/wasm/widget_benchmarks.wasm",
-            "bytes": 2271054,
-            "sha256": "7a0f1ccb9a393375433502a2d2aad6a4572ed568fcc7312615d6272fe8f41164"
+            "bytes": 2393448,
+            "sha256": "5a6503086add76deb447f005d8129212cdfe8273019f2d47a786446c15c5384f"
           }
         }
       }
@@ -3512,8 +3511,8 @@
   "checks": false,
   "learning": "off",
   "loadavg_after": [
-    "3.36",
-    "3.36",
-    "3.36"
+    "3.51",
+    "3.88",
+    "3.97"
   ]
 }

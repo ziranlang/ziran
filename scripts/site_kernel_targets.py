@@ -12,7 +12,7 @@ import site_benchmark_cohort as cohort
 import site_target_platforms as platforms
 
 OUTPUT = base.SITE / 'generated/kernel-targets'
-RECEIPTS = ('wasm-tier-gated-2026-11-16.json',)
+RECEIPTS = ('wasm-tier-gated-2026-11-17.json',)
 MARKER = 'kernel_tiers'
 TARGETS = ('c', 'go', 'zx', 'native', 'wasm')
 
@@ -26,6 +26,7 @@ def validate(data):
     assert data['schema_version'] == 1 and data['virtualization'] == 'none'
     assert data['samples'] >= 3 and data['kernels']
     assert data['host_gate'], 'Publish only host-gated kernel measurements'
+    assert data['runtimes']['native'] == 'ZX native · translated in process', 'Native must exclude process startup'
     for row in data['kernels'].values():
         assert set(row) == set(TARGETS)
         for measured in row.values():
@@ -50,14 +51,14 @@ def render():
             '<p>Measured ' + html.escape(data['measured_at']) + ' · ' + str(data['samples']) +
             ' samples · checks off · learning off.</p>' +
             '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Kernel results"><table class="target-matrix"><caption class="sr-only">Median µs per kernel call</caption>'
-            '<thead><tr><th scope="col">Kernel<small>µs per call</small></th><th scope="col">C · cc -O2</th><th scope="col">Go</th><th scope="col">Instruction engine</th><th scope="col">Native ELF</th><th scope="col">Wasm · V8</th></tr></thead><tbody>' +
+            '<thead><tr><th scope="col">Kernel<small>µs per call</small></th><th scope="col">C · cc -O2</th><th scope="col">Go</th><th scope="col">Instruction engine</th><th scope="col">ZX native</th><th scope="col">Wasm · V8</th></tr></thead><tbody>' +
             ''.join(rows) + '</tbody></table></div><p><a href="' + source +
             '">Raw samples, exclusions and provenance</a></p></article>')
     content = ('<section class="section" id="kernel-tiers"><p class="eyebrow">Kernel execution tiers</p>'
                '<h2>One source plus a Go reference.</h2>' + cohort.validate(receipts()[0][1]) + ''.join(sections) +
                '<p class="matrix-footnote">Medians use symmetric 1.5×IQR filtering. Compilation is excluded. '
-               'C, Go, ZX and Wasm use warm in-process calls. Native ELF runs 32 verified calls per process; '
-               'its figures include one process startup divided by 32. Every job runs pinned to one CPU and is '
+               'Every target uses warm in-process calls and excludes process startup; ZX native translates the '
+               'bundle to machine code when it is loaded, before warmup. Every job runs pinned to one CPU and is '
                'repeated until that CPU held a steady clock at its calibrated sustained speed with the other '
                'hyperthread of its core idle; Go uses GOMAXPROCS=1 there. Recursive Fibonacci with a runtime '
                'input is in the standard suite below. '

@@ -85,9 +85,31 @@ Rename :: (plan: *LirSsaPlan, definitions: []s32, next: []s32,
     return LirSsaRename(plan, definitions, block, value)
 }
 
-Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, header: s32,
-    latch: s32, limits: LirLimits, budget: *LirSsaBudget) -> LirCodecResult {
-    function := program.functions[fi]
+// One rotated function and the tables it points into. Each rotation copies
+// everything it keeps, so an older version can be freed once replaced.
+Rotated :: struct {
+    values: Vec(s32)
+    instructions: Vec(LirInstruction)
+    edges: Vec(LirEdge)
+    data: Vec(s32)
+    blocks: Vec(LirBlock)
+    function: LirFunction
+}
+
+RotatedFree :: (rotated: *Rotated) {
+    VecFree(rotated.values)
+    VecFree(rotated.instructions)
+    VecFree(rotated.edges)
+    VecFree(rotated.data)
+    VecFree(rotated.blocks)
+}
+
+FreeVersions :: (versions: []Rotated) {
+    for at: 0..versions.count - 1 { RotatedFree(*versions[at]) }
+}
+
+RebuildFunction :: (function: LirFunction, functions: s64, header: s32, latch: s32,
+    limits: LirLimits, budget: *LirSsaBudget, out: *Rotated) -> bool {
     head := function.blocks[header]
     tail := function.blocks[latch]
     jump := tail.instructions[tail.instructions.count - 1]
@@ -97,16 +119,16 @@ Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, header: s32,
     defer VecFree(next)
     width := head.parameters.count
     for instruction: head.instructions { if instruction.result >= 0 { width += 1 } }
-    if !LirSsaReserve(budget, width, 8) { return .{} }
+    if !LirSsaReserve(budget, width, 8) { return false }
     if !VecResizeBounded(definitions, width, width) || !VecResizeBounded(next, width, width) {
-        budget.problem = .Allocation; return .{}
+        budget.problem = .Allocation; return false
     }
     at: s64
     for value: head.parameters { definitions[at] = value; at += 1 }
     for instruction: head.instructions { if instruction.result >= 0 { definitions[at] = instruction.result; at += 1 } }
     plan: LirSsaPlan
     defer LirSsaFree(*plan)
-    if !LirSsaPlanBuild(*plan, function, header, definitions[:], budget) { return .{} }
+    if !LirSsaPlanBuild(*plan, function, header, definitions[:], budget) { return false }
     value_count := plan.values + width - head.parameters.count
     instructions_count: s64 = head.instructions.count - 1
     edges_count: s64 = 1
@@ -129,27 +151,20 @@ Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, header: s32,
         !LirSsaReserve(budget, value_count, 4) || !LirSsaReserve(budget, instructions_count, 112) ||
         !LirSsaReserve(budget, edges_count, 24) || !LirSsaReserve(budget, words, 4) ||
         !LirSsaReserve(budget, function.blocks.count, 32) ||
-        !LirSsaReserve(budget, program.functions.count, 112) { budget.problem = .Limit; return .{} }
-    values: Vec(s32)
-    instructions: Vec(LirInstruction)
-    edges: Vec(LirEdge)
-    data: Vec(s32)
-    blocks: Vec(LirBlock)
-    functions: Vec(LirFunction)
-    defer VecFree(values)
-    defer VecFree(instructions)
-    defer VecFree(edges)
-    defer VecFree(data)
-    defer VecFree(blocks)
-    defer VecFree(functions)
-    if !VecResizeBounded(values, value_count, value_count) ||
-        !VecResizeBounded(instructions, instructions_count, instructions_count) ||
-        !VecResizeBounded(edges, edges_count, edges_count) ||
-        !VecResizeBounded(data, words, words) ||
-        !VecResizeBounded(blocks, function.blocks.count, function.blocks.count) ||
-        !VecResizeBounded(functions, program.functions.count, program.functions.count) {
-        budget.problem = .Allocation; return .{}
+        !LirSsaReserve(budget, functions, 112) { budget.problem = .Limit; return false }
+    // The caller frees `out` whether or not the rebuild succeeds.
+    if !VecResizeBounded(out.values, value_count, value_count) ||
+        !VecResizeBounded(out.instructions, instructions_count, instructions_count) ||
+        !VecResizeBounded(out.edges, edges_count, edges_count) ||
+        !VecResizeBounded(out.data, words, words) ||
+        !VecResizeBounded(out.blocks, function.blocks.count, function.blocks.count) {
+        budget.problem = .Allocation; return false
     }
+    values := out.values[:]
+    instructions := out.instructions[:]
+    edges := out.edges[:]
+    data := out.data[:]
+    blocks := out.blocks[:]
     for v: 0..function.values.count - 1 { values[v] = function.values[v] }
     for b: 0..function.blocks.count - 1 {
         for d: 0..width - 1 {
@@ -185,7 +200,7 @@ Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, header: s32,
             instruction: LirInstruction
             if clone { instruction = head.instructions[i - block.instructions.count + 1] }
             else { instruction = block.instructions[i] }
-            if !LirSsaSpend(budget, 1 + width * (instruction.operands.count + 1)) { return .{} }
+            if !LirSsaSpend(budget, 1 + width * (instruction.operands.count + 1)) { return false }
             if clone && instruction.result >= 0 {
                 instruction.result = next[LirSsaIndex(definitions[:], instruction.result)]
             }
@@ -202,7 +217,7 @@ Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, header: s32,
                     data[wp] = Rename(*plan, definitions[:], next[:], b, header, clone, value)
                     wp += 1
                 }
-                if !LirSsaSpend(budget, width * (edge.arguments.count + 1)) { return .{} }
+                if !LirSsaSpend(budget, width * (edge.arguments.count + 1)) { return false }
                 for d: 0..width - 1 {
                     if LirSsaName(*plan, edge.block, d) < 0 { continue }
                     data[wp] = Rename(*plan, definitions[:], next[:], b, header, clone, definitions[d])
@@ -219,22 +234,24 @@ Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, header: s32,
         }
         blocks[b].instructions = instructions[instruction_start:ip]
     }
-    function.blocks = blocks[:]
-    function.values = values[:]
-    for f: 0..program.functions.count - 1 { functions[f] = program.functions[f] }
-    functions[fi] = function
-    rebuilt := program
-    rebuilt.functions = functions[:]
-    // Serialize while all borrowed input and transient tables still exist;
-    // only LirRead may replace the owner's storage after serialization.
+    function.blocks = blocks
+    function.values = values
+    out.function = function
+    return true
+}
+
+// Serialize once, while every rotated table and the borrowed input still
+// exist; only LirRead may replace the owner's storage.
+Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
+    budget: *LirSsaBudget) -> LirCodecResult {
     empty: []u8
-    measured := LirWrite(rebuilt, empty)
+    measured := LirWrite(program, empty)
     if measured.problem != .None { return measured }
     if !LirSsaReserve(budget, measured.size, 1) { return .{} }
     encoded: Vec(u8)
     defer VecFree(encoded)
     if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
-    written := LirWrite(rebuilt, encoded[:])
+    written := LirWrite(program, encoded[:])
     if written.problem != .None { return written }
     return LirRead(storage, TextView(encoded[:]), limits)
 }
@@ -245,14 +262,33 @@ Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, header: s32,
 LirRotate :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirRotateResult {
     result: LirRotateResult
     budget := LirSsaBudget.{work = work, bytes = limits.bytes}
-    functions := LirReadProgram(storage).functions.count
-    for fi: 0..functions - 1 {
-        block_count := LirReadProgram(storage).functions[fi].blocks.count
+    program := LirReadProgram(storage)
+    // Rotations work on in-memory versions; the program is written and
+    // verified once, not once per loop.
+    // versions keeps every rebuilt function's tables until the one write;
+    // latest[f] names f's current version, and replaced ones are freed.
+    functions: Vec(LirFunction)
+    latest: Vec(s64)
+    versions: Vec(Rotated)
+    defer VecFree(functions)
+    defer VecFree(latest)
+    defer VecFree(versions)
+    defer FreeVersions(versions[:])
+    if !VecResizeBounded(functions, program.functions.count, program.functions.count) ||
+        !VecResizeBounded(latest, program.functions.count, program.functions.count) {
+        result.problem = .Allocation
+        return result
+    }
+    for fi: 0..program.functions.count - 1 {
+        functions[fi] = program.functions[fi]
+        latest[fi] = -1
+    }
+    for fi: 0..program.functions.count - 1 {
+        block_count := functions[fi].blocks.count
         for h: 0..block_count - 1 {
             budget.reserved = 0
             if !LirSsaSpend(*budget, 1) { break }
-            program := LirReadProgram(storage)
-            function := program.functions[fi]
+            function := functions[fi]
             if function.external || function.blocks.count == 0 { continue }
             seen: Vec(u8)
             if !LirSsaReserve(*budget, function.blocks.count, 1) { break }
@@ -261,13 +297,28 @@ LirRotate :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirRotate
             VecFree(seen)
             if budget.problem != .None { break }
             if latch < 0 { continue }
-            result.codec = Rebuild(storage, program, fi, cast(s32)h, latch, limits, *budget)
+            rebuilt: Rotated
+            built := RebuildFunction(function, program.functions.count, cast(s32)h, latch, limits, *budget, *rebuilt)
             if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
-            if budget.problem == .Unsupported { budget.problem = .None; continue }
-            if budget.problem != .None || result.codec.problem != .None { break }
+            if !built {
+                RotatedFree(*rebuilt)
+                if budget.problem == .Unsupported { budget.problem = .None; continue }
+                break
+            }
+            functions[fi] = rebuilt.function
+            VecPush(versions, rebuilt)
+            if latest[fi] >= 0 { RotatedFree(*versions[latest[fi]]) }
+            latest[fi] = versions.count - 1
             result.loops += 1
         }
-        if budget.problem != .None || result.codec.problem != .None { break }
+        if budget.problem != .None { break }
+    }
+    if budget.problem == .None && result.loops > 0 {
+        budget.reserved = 0
+        rotated := program
+        rotated.functions = functions[:]
+        result.codec = Serialize(storage, rotated, limits, *budget)
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
     }
     result.problem = budget.problem
     result.work = budget.used

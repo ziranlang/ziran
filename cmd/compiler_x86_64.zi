@@ -112,6 +112,7 @@ Layout :: struct {
     instruction_begin: Vec(s64)
     instruction_end: Vec(s64)
     relocation_of: Vec(s32)
+    heads: Vec(u8)
     cold: Vec(ColdTrap)
     cold_offsets: Vec(s64)
 }
@@ -139,6 +140,8 @@ State :: struct {
     instruction_begin: []s64
     instruction_end: []s64
     relocation_of: []s32
+    // Loop heads: blocks a block at or after them in the function jumps to.
+    heads: []u8
     relocations: []MachineX64Relocation
     relocation_count: s64
     consumed: s64
@@ -202,6 +205,7 @@ LayoutFree :: (layout: *Layout) {
     VecFree(layout.instruction_begin)
     VecFree(layout.instruction_end)
     VecFree(layout.relocation_of)
+    VecFree(layout.heads)
     VecFree(layout.cold)
     VecFree(layout.cold_offsets)
 }
@@ -965,8 +969,7 @@ Divide :: (state: *State, opcode: MachineOpcode) -> bool {
     if !Count(state, 4) { return false }
     destination := Register(state, 0, .Define)
     left := Register(state, 1, .Use)
-    right := Register(state, 2, .Use)
-    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    if destination == MachineNoId || left == MachineNoId { return false }
     if destination != X86Rax || left != X86Rax { return Fail(state, .Constraint, OperandId(state, 0)) }
     clobber := OperandAt(state, 3)
     if clobber.kind != .Physical || clobber.class != .General || clobber.id != X86Rdx ||
@@ -975,6 +978,22 @@ Divide :: (state: *State, opcode: MachineOpcode) -> bool {
     if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 1)) }
     remainder := opcode == .IntegerRemainder
     if !Spend(state, 32) { return false }
+    // A divisor the selection plan folded is one of the constants below.
+    immediate := OperandAt(state, 2)
+    if immediate.kind == .Immediate {
+        folded := NormalizeConstant(immediate.immediate, type)
+        if folded != 0 && (folded & (folded - 1)) == 0 && folded <= 9223372036854775807 {
+            PowerDivide(state, folded, type, remainder)
+            return true
+        }
+        if folded > 2 && folded <= 9223372036854775807 {
+            MagicDivide(state, folded, type, remainder)
+            return true
+        }
+        return Fail(state, .Unsupported, OperandId(state, 2))
+    }
+    right := Register(state, 2, .Use)
+    if right == MachineNoId { return false }
     constant := ConstantDivisor(state, right)
     if constant != 0 && (constant & (constant - 1)) == 0 &&
         (!Signed(type) || constant <= 9223372036854775807) {
@@ -2939,6 +2958,11 @@ Pass :: (state: *State) -> bool {
             state.instruction = MachineNoId
             state.flags_value = MachineNoId
             block := program.blocks[block_id]
+            // A loop starts on a 32-byte boundary, whatever code precedes it;
+            // the NOPs run once per entry from the block above.
+            if state.heads[block_id] != 0 && state.writer.at % FunctionAlignment != 0 {
+                X86Nop(*state.writer, FunctionAlignment - state.writer.at % FunctionAlignment)
+            }
             if !Spend(state, 1) || !Place(state, state.block_begin, block_id) { return false }
             stub := FuelStub(state, block_id)
             if stub {
@@ -3144,6 +3168,19 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
         return Failure(.Allocation)
     }
     for index: cast(s64)0..program.instructions.count - 1 { layout.relocation_of[index] = MachineNoId }
+    if !VecResizeBounded(layout.heads, program.blocks.count, program.blocks.count) { return Failure(.Allocation) }
+    for function: program.functions {
+        for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+            block := program.blocks[block_id]
+            for at: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+                instruction := program.instructions[at]
+                for edge: instruction.edge_begin..instruction.edge_begin + instruction.edge_count - 1 {
+                    target := program.edges[edge].target
+                    if target >= function.block_begin && target <= block_id { layout.heads[target] = 1 }
+                }
+            }
+        }
+    }
     for relocation_id: cast(s64)0..program.relocations.count - 1 {
         relocation := program.relocations[relocation_id]
         if layout.relocation_of[relocation.instruction] != MachineNoId {
@@ -3161,7 +3198,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
         function_begin = layout.function_begin[:], function_body = layout.function_body[:],
         function_cold = layout.function_cold[:], function_end = layout.function_end[:], block_begin = layout.block_begin[:],
         instruction_begin = layout.instruction_begin[:], instruction_end = layout.instruction_end[:],
-        relocation_of = layout.relocation_of[:],
+        relocation_of = layout.relocation_of[:], heads = layout.heads[:],
         cold = *layout.cold, cold_offsets = *layout.cold_offsets,
         function = MachineNoId, block = MachineNoId, instruction = MachineNoId,
         flags_value = MachineNoId}

@@ -543,6 +543,8 @@ Accounted :: (b: *Builder, image: X64.MachineX64Image) -> bool {
         if function.entry != function.block_begin { at += 5 }
         for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
             block := b.blocks[block_id]
+            // A loop head starts 32-byte aligned after NOPs.
+            if image.blocks[block_id] != at { at = BranchPadding(image.code, at, image.blocks[block_id]) }
             if image.blocks[block_id] != at { return false }
             for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
                 range := image.instructions[instruction_id]
@@ -864,13 +866,13 @@ Basics :: () -> bool {
     if !Instruction(image, ids.loop_ops[0], "", "fallthrough into loop") ||
         !Checked(image, ids.loop_ops[1], "48 83 2d 00 00 00 00 01", 2, TRAP_FUEL, "", "fuel imm8") ||
         !Instruction(image, ids.loop_ops[2], "48 39 f8", "loop compare") ||
-        !Instruction(image, ids.loop_ops[3], "0f 8d 0d 00 00 00", "signed inverse branch") ||
+        !Instruction(image, ids.loop_ops[3], "0f 8d 0e 00 00 00", "signed inverse branch") ||
         !Instruction(image, ids.loop_ops[4], "48 01 c8", "loop add") ||
-        !Instruction(image, ids.loop_ops[5], "e9 dc ff ff ff", "backward jump") ||
-        !Check(Displacement(image.code, image.instructions[ids.loop_ops[5]].begin + 1) ==
+        !Instruction(image, ids.loop_ops[5], "e9 db ff ff ff", "backward jump") ||
+        !Check(Displacement(image.code, image.instructions[ids.loop_ops[5]].end - 4) ==
             image.blocks[b.functions[ids.loop].block_begin + 1] - image.instructions[ids.loop_ops[5]].end,
             "backward jump reaches the loop head") ||
-        !Check(loop.end - loop.begin == 56, "loop function size") { return false }
+        !Check(loop.end - loop.begin == 83, "loop function size") { return false }
     if !Checked(image, ids.fuel_ops[0], "48 81 2d 00 00 00 00 e8 03 00 00", 2, TRAP_FUEL, "", "fuel imm32") ||
         !Checked(image, ids.fuel_ops[1], "49 bb 00 00 00 00 01 00 00 00 4c 29 1d 00 00 00 00", 2, TRAP_FUEL, "",
             "fuel through scratch") { return false }

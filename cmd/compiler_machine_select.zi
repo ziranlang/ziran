@@ -130,6 +130,15 @@ Fold :: (context: *Context, instruction: LirInstruction) -> MachineSelectFold {
             !Immediate(context, instruction.operands[1]) { return .None }
         return .Right
     }
+    if (op == .Divide || op == .Remainder) && instruction.operands.count == 2 {
+        // A positive constant divisor divides by shifts or a high multiply
+        // (compiler_x86_64.zi Divide) without a register to hold it.
+        type := TypeOf(context, instruction.operands[0])
+        divisor := instruction.operands[1]
+        if type.kind == .Integer && Immediate(context, divisor) && context.plan.bits[divisor] != 0 &&
+            context.plan.bits[divisor] <= 9223372036854775807 { return .Right }
+        return .None
+    }
     if (op == .ShiftLeft || op == .ShiftRight) && instruction.operands.count == 2 {
         // A constant count inside the width shifts by an immediate: no cl,
         // and no range check, since it cannot trap.

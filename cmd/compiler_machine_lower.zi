@@ -712,8 +712,13 @@ LowerBinary :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     } else if opcode == .ShiftLeft || opcode == .ShiftRight {
         right_fixed = MachineAbiFixedRegister(state.target, .ShiftCount)
     }
-    if VirtualOperand(state, result, .Define, result_fixed, cast(s32)1) == MachineNoId ||
-        VirtualOperand(state, left, .Use, left_fixed, cast(s32)0) == MachineNoId ||
+    // x86 LEA computes a sum without overwriting either input. Leaving ADD
+    // untied avoids a temporary copy when its left input remains live.
+    independent_add := state.target.arch == .X86_64 && opcode == .IntegerAdd
+    result_tie: s32 = ifx independent_add then MachineNoId else 1
+    left_tie: s32 = ifx independent_add then MachineNoId else 0
+    if VirtualOperand(state, result, .Define, result_fixed, result_tie) == MachineNoId ||
+        VirtualOperand(state, left, .Use, left_fixed, left_tie) == MachineNoId ||
         SelectedOperand(state, function, right_value, fold != .None, right_fixed) == MachineNoId { return false }
     if clobber >= 0 && PhysicalOperand(state, clobber, .UseDefine) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId

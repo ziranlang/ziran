@@ -964,10 +964,11 @@ ArithmeticCases :: () -> bool {
         diagnostic.instruction == add && diagnostic.operand == right && diagnostic.virtual == saved_right.value,
         "overlapping assignment is rejected with its location") { Report("interference", diagnostic); return false }
     program.operands[right] = saved_right
-    saved_result := program.operands[result]
-    program.operands[result].id = ifx saved_result.id == 3 then 12 else 3
-    if !Rejects(program, .Tie, "broken tie") { return false }
-    program.operands[result] = saved_result
+    tied_result := program.instructions[shift].operand_begin
+    saved_result := program.operands[tied_result]
+    program.operands[tied_result].id = ifx saved_result.id == 3 then 12 else 3
+    if !Rejects(program, .Tie, "broken shift tie") { return false }
+    program.operands[tied_result] = saved_result
     program.operands[right].kind = .Virtual
     if !Rejects(program, .Virtual, "virtual operand after allocation") { return false }
     program.operands[right] = saved_right
@@ -1282,8 +1283,33 @@ VectorCases :: () -> bool {
     return true
 }
 
+// Reused row indices must survive additions without copies into tied temporaries.
+IndependentAddCase :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    storage: [16]s32
+    at: s64 = 0
+    values := s32.[TypeInteger, TypeInteger, TypeInteger, TypeInteger, TypeInteger]
+    parameters := s32.[TypeInteger, TypeInteger]
+    entry_parameters := s32.[0, 1]
+    instructions := Lir.LirInstruction.[Fuel(1),
+        Op(.Add, 2, Two(storage[:], *at, 0, 1)),
+        Op(.Add, 3, Two(storage[:], *at, 0, 2)),
+        Op(.Add, 4, Two(storage[:], *at, 3, 1)), Return(One(storage[:], *at, 4))]
+    blocks := Lir.LirBlock.[.{parameters = entry_parameters[:], instructions = instructions[:]}]
+    functions := Lir.LirFunction.[.{module = 0, name = "reused indices", parameters = parameters[:],
+        result = TypeInteger, values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    if !Lowered("independent add", LowerProgram(*owner, functions[:], -1)) ||
+        !Allocate("independent add", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "independent additions preserve live inputs") { return false }
+    moves: s32 = 0
+    for instruction: program.instructions { if instruction.opcode == .Move { moves += 1 } }
+    return Check(moves == 0 && program.spills.count == 0, "reused additions need no copies or spills")
+}
+
 main :: () -> s32 {
-    if !BackwardDefinitionCase() || !LiveThroughCases() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+    if !IndependentAddCase() || !BackwardDefinitionCase() || !LiveThroughCases() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
         !VectorCases() { return 1 }
     print("register allocation: merged float/vector spills in both block orders, work limits, pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
     return 0

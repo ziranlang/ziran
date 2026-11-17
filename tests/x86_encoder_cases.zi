@@ -1052,7 +1052,7 @@ BuildNegative :: (b: *Builder, kind: NegativeKind) -> s32 {
     Enter(b, Blocks(b, 1))
     id: s32 = -1
     if kind == .Tie || kind == .Opcode || kind == .Stage || kind == .Target {
-        id = Three(b, ifx kind == .Opcode then MachineOpcode.FloatAdd else .IntegerAdd, RAX, result, RDI, first, RSI, second)
+        id = Three(b, ifx kind == .Opcode then MachineOpcode.FloatAdd else ifx kind == .Tie then .IntegerSubtract else .IntegerAdd, RAX, result, RDI, first, RSI, second)
     } else if kind == .ShiftCount {
         id = Three(b, .ShiftLeft, RDI, result, RDI, first, RSI, second)
         unused Two(b, .Move, RAX, result, RDI, result)
@@ -1397,8 +1397,51 @@ CopyArithmetic :: () -> bool {
     return true
 }
 
+// Addition can keep both inputs alive without a preceding tied copy.
+IndependentAddition :: () -> bool {
+    for variant: 0..4 {
+        b: Builder
+        defer BuilderFree(*b)
+        Setup(*b)
+        function := Begin(*b, "independent addition")
+        type: s32 = ifx variant == 4 then S8 else S64
+        record := b.functions[function]
+        record.result_type = type
+        b.functions[function] = record
+        left := Parameter(*b, type, RDI)
+        right := Parameter(*b, type, RSI)
+        result := Value(*b, type)
+        returned := Value(*b, type)
+        destination: s32 = ifx variant == 1 then RSI else ifx variant == 2 then RDI else R8
+        Enter(*b, Blocks(*b, 1))
+        instruction := Open(*b, .IntegerAdd)
+        unused Physical(*b, destination, .Define, result)
+        unused Physical(*b, RDI, .Use, left)
+        if variant == 3 { unused Immediate(*b, cast(u64)cast(s64)-2) }
+        else { unused Physical(*b, RSI, .Use, right) }
+        addition := Close(*b, instruction)
+        unused Two(*b, .Move, RAX, returned, destination, result)
+        unused Return(*b, RAX, returned)
+        End(*b, 0)
+        b.entry = function
+        owner: X64.MachineX64Owner
+        defer X64.MachineX64Free(*owner)
+        diagnostic := Apply(*b, .Encode, *owner, MachineDefaultLimits()).diagnostic
+        if diagnostic.problem != .None { Report("independent addition", diagnostic); return false }
+        image := X64.MachineX64View(*owner)
+        expected := "4c 8d 04 37"
+        if variant == 1 { expected = "48 01 fe" }
+        if variant == 2 { expected = "48 01 f7" }
+        if variant == 3 { expected = "4c 8d 47 fe" }
+        if variant == 4 { expected = "4c 8d 04 37 4d 0f be c0" }
+        if !Instruction(image, addition, expected, "independent addition and narrow normalization") ||
+            !Check(Accounted(*b, image), "independent addition instruction accounting") { return false }
+    }
+    return true
+}
+
 main :: () -> s32 {
-    if !IntegerFloatConversions() || !CopyArithmetic() || !EarlyReturns() || !SquareRoot() || !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
+    if !IndependentAddition() || !IntegerFloatConversions() || !CopyArithmetic() || !EarlyReturns() || !SquareRoot() || !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
     print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, packed aggregates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of invalid call forms and addends, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

@@ -285,3 +285,27 @@ the full local suite (284/284 in 257.6 seconds) and bootstrap comparisons for
 the retained Linux and Darwin modules and SIMD headers. Source fingerprints
 match before and after the final full run. Learning was off and desktop
 display variables were removed. GitHub CI was not inspected.
+
+## Independent x86-64 additions (timing pending)
+
+The machine lowering pass no longer ties x86-64 integer additions to their
+left input. The emitter uses LEA when both inputs remain live, or an ordinary
+ADD when the result shares an input register. Immediate additions use a
+signed 32-bit displacement, and narrow results retain their existing
+normalization. Other arithmetic and target architectures retain their
+constraints.
+
+A retained allocation fixture reuses both inputs across three additions.
+It fails the no-copy assertion with the old lowering; the new lowering
+allocates it with zero moves and zero spills, and the allocated verifier
+confirms the live inputs survive. Encoder cases cover separate and shared
+result registers, a negative immediate, and signed-byte normalization.
+This removes the artificial copy before reused address-index additions;
+matmul's invariant-load and pointer-induction gaps still remain. Alpha
+whole-program timing is pending, so no speedup is claimed here.
+
+Focused local tests (`x86_encoder`, `regalloc`, `zx_native`,
+`zx_lowered_parity`) pass. The final full local run passed 284/284 in
+278.0 seconds, and Linux/Darwin and SIMD bootstrap comparisons matched.
+Source fingerprints match before and after the gate. Learning was off and
+desktop display variables were removed. GitHub CI was not inspected.

@@ -607,8 +607,6 @@ MoveImmediate :: (state: *State) -> bool {
     return true
 }
 
-// destination = left OPCODE right, with destination tied to left; the right
-// operand is a register or a sign-extended 32-bit immediate.
 // Adjacent allocated copy plus 64-bit add/sub immediate: compute directly
 // from the copy's source with LEA. Both original instruction ranges remain
 // represented, with the copy emitting no bytes. No block edge can enter
@@ -648,12 +646,28 @@ Binary :: (state: *State, opcode: MachineOpcode) -> bool {
     constant := immediate.kind == .Immediate
     right := ifx constant then MachineNoId else Register(state, 2, .Use)
     if destination == MachineNoId || left == MachineNoId || !constant && right == MachineNoId { return false }
-    if destination != left { return Fail(state, .Tie, OperandId(state, 0)) }
+    if destination != left && opcode != .IntegerAdd { return Fail(state, .Tie, OperandId(state, 0)) }
     if constant && !X86Fits32(cast(s64)immediate.immediate) { return Fail(state, .Unsupported, OperandId(state, 2)) }
     type := TypeOf(state, OperandAt(state, 0))
     logical := opcode == .IntegerAnd || opcode == .IntegerOr || opcode == .IntegerXor
     if type.kind == .Bool && !logical || type.kind == .Function { return Fail(state, .Unsupported, OperandId(state, 0)) }
     value := cast(s64)immediate.immediate
+    // ADD is commutative; LEA also permits a result independent of both inputs.
+    // Keep the short ADD when a dying right input already holds the result.
+    if destination != left {
+        if constant { X86Lea(*state.writer, destination, X86At(left, value)) }
+        else if destination == right { X86Arithmetic(*state.writer, X86Add, destination, left) }
+        else if left == X86Rsp && right == X86Rsp {
+            X86Move(*state.writer, destination, left)
+            X86Arithmetic(*state.writer, X86Add, destination, right)
+        } else {
+            base := ifx right == X86Rsp then right else left
+            index := ifx right == X86Rsp then left else right
+            X86Lea(*state.writer, destination, X86Indexed(base, index, 0, 0))
+        }
+        Normalize(state, destination, type)
+        return true
+    }
     base := LeaCopy(state, state.instruction - 1)
     if base != MachineNoId {
         X86Lea(*state.writer, destination, X86At(base, ifx opcode == .IntegerSubtract then -value else value))

@@ -218,11 +218,16 @@ FoldAddress :: (context: *Context, instructions: []LirInstruction, item: s64) {
 
 // Whether the compare defining VALUE at ITEM of INSTRUCTIONS has its only use
 // right after it.
+// An ordered float order test fuses too: x86 branches on it with one
+// unsigned condition that an unordered compare fails. Float equality needs
+// the parity flag as well and stays a value.
 Fusable :: (context: *Context, instructions: []LirInstruction, item: s64, value: s32) -> bool {
     if item < 0 { return false }
     compare := instructions[item]
-    return compare.result == value && Compare(compare.op) && context.plan.uses[value] == 1 &&
-        Scalar(TypeOf(context, compare.operands[0]))
+    if compare.result != value || !Compare(compare.op) || context.plan.uses[value] != 1 { return false }
+    type := TypeOf(context, compare.operands[0])
+    if type.kind == .Float { return compare.op != .Equal && compare.op != .NotEqual }
+    return Scalar(type)
 }
 
 Plan :: (context: *Context) -> bool {

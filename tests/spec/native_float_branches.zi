@@ -1,0 +1,52 @@
+// Branches on float order tests give C's results, NaN included: x86-64
+// native code branches on the compare's flags with one unsigned condition.
+Values :: float64.[0.0, -0.0, 1.0, -1.0, 0.5, 2.5, 1.0e300, -1.0e300, 4.9e-324]
+
+// One bit per order test that holds, and per negation that holds.
+Tests :: (a: float64, b: float64) -> s64 {
+    bits: s64
+    if a < b { bits |= 1 }
+    if a <= b { bits |= 2 }
+    if a > b { bits |= 4 }
+    if a >= b { bits |= 8 }
+    if !(a < b) { bits |= 16 }
+    if !(a <= b) { bits |= 32 }
+    if !(a > b) { bits |= 64 }
+    if !(a >= b) { bits |= 128 }
+    return bits
+}
+
+Narrow :: (a: float32, b: float32) -> s64 {
+    total: s64
+    if a < b { total += 1 }
+    if a <= b { total += 2 }
+    if a > b { total += 4 }
+    if a >= b { total += 8 }
+    return total
+}
+
+main :: () -> s32 {
+    zero := Values[0]
+    infinity := 1.0 / zero
+    nan := zero / zero
+    counts: [8]s64
+    all: [12]float64
+    for at: 0..Values.count - 1 { all[at] = Values[at] }
+    all[9] = infinity; all[10] = -infinity; all[11] = nan
+    narrow: s64
+    for a: all {
+        for b: all {
+            bits := Tests(a, b)
+            for k: 0..7 { if ((bits >> cast(s64)k) & 1) != 0 { counts[k] += 1 } }
+            narrow = narrow * 3 + Narrow(cast(float32)a, cast(float32)b)
+        }
+    }
+    // A loop whose exit test is a float compare, as in mandelbrot and fasta.
+    steps: s64
+    x: float64 = 0.0
+    while x < 1000.5 { x += 1.25; steps += 1 }
+    while !(x <= 3.0) { x -= 0.75; steps += 1 }
+    print("float branches % % % % % % % % narrow % steps %\n", counts[0], counts[1], counts[2], counts[3],
+        counts[4], counts[5], counts[6], counts[7], narrow, steps)
+    return 0
+}

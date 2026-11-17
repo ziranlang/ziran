@@ -101,6 +101,7 @@ MachineX64Owner :: struct {
 #scope_file
 
 CodeLimit :: 2147483647
+FunctionAlignment :: 32
 
 Layout :: struct {
     function_begin: Vec(s64)
@@ -163,6 +164,11 @@ State :: struct {
     cold: *Vec(ColdTrap)
     cold_offsets: *Vec(s64)
     cold_count: s64
+    // The latest float compare was fused with a branch on an order test.
+    flags_ordered: bool
+    // Inside a sequence whose length a probe measured at another position,
+    // branches keep their place: BranchPad adds nothing.
+    fixed: s64
 }
 
 NoDiagnostic :: () -> MachineDiagnostic {
@@ -511,6 +517,7 @@ TrapUnless :: (state: *State, condition: s32, code: u64) {
         trap := ColdTrap.{code = code, fuel_live = state.fuel_live, instruction = state.instruction}
         if !VecPush(<<state.cold, trap) { unused Fail(state, .Allocation) }
     }
+    BranchPad(state, 6)
     X86JumpCondition32(*state.writer, condition ^ 1, target)
 }
 
@@ -863,6 +870,94 @@ PowerDivide :: (state: *State, divisor: u64, type: MachineType, remainder: bool)
     Normalize(state, X86Rax, type)
 }
 
+// The multiplier and shift that divide by a constant with a high multiply
+// (Hacker's Delight 10-1 and 10-2), in 64-bit wrapping arithmetic. Signed:
+// 2 <= divisor < 2^63; a multiplier at or above 2^63 needs the dividend
+// added. Unsigned: 2 <= divisor < 2^63; add selects the 65-bit form.
+Magic :: struct { multiplier: u64; shift: s32; add: bool }
+
+SignedMagic :: (divisor: u64) -> Magic {
+    two63 := cast(u64)1 << 63
+    anc := two63 - 1 - two63 % divisor
+    p: s32 = 63
+    q1 := two63 / anc; r1 := two63 - q1 * anc
+    q2 := two63 / divisor; r2 := two63 - q2 * divisor
+    while true {
+        p += 1
+        q1 = q1 + q1; r1 = r1 + r1
+        if r1 >= anc { q1 += 1; r1 -= anc }
+        q2 = q2 + q2; r2 = r2 + r2
+        if r2 >= divisor { q2 += 1; r2 -= divisor }
+        delta := divisor - r2
+        if !(q1 < delta || q1 == delta && r1 == 0) { break }
+    }
+    multiplier := q2 + 1
+    return .{multiplier = multiplier, shift = p - 64, add = multiplier >= two63}
+}
+
+UnsignedMagic :: (divisor: u64) -> Magic {
+    two63 := cast(u64)1 << 63
+    add := false
+    nc := ~cast(u64)0 - (~divisor + 1) % divisor
+    p: s32 = 63
+    q1 := two63 / nc; r1 := two63 - q1 * nc
+    q2 := (two63 - 1) / divisor; r2 := (two63 - 1) - q2 * divisor
+    while true {
+        p += 1
+        if r1 >= nc - r1 { q1 = q1 + q1 + 1; r1 = r1 + r1 - nc }
+        else { q1 = q1 + q1; r1 = r1 + r1 }
+        if r2 + 1 >= divisor - r2 {
+            if q2 >= two63 - 1 { add = true }
+            q2 = q2 + q2 + 1; r2 = r2 + r2 + 1 - divisor
+        } else {
+            if q2 >= two63 { add = true }
+            q2 = q2 + q2; r2 = r2 + r2 + 1
+        }
+        delta := divisor - 1 - r2
+        if !(p < 128 && (q1 < delta || q1 == delta && r1 == 0)) { break }
+    }
+    return .{multiplier = q2 + 1, shift = p - 64, add = add}
+}
+
+// Division by a constant that is no power of two, without idiv: r11 keeps
+// the dividend, rdx takes the high product. Signed quotients add one for a
+// negative dividend so they round toward zero; the remainder is the
+// dividend less quotient * divisor.
+MagicDivide :: (state: *State, divisor: u64, type: MachineType, remainder: bool) {
+    writer := *state.writer
+    signed := Signed(type)
+    magic := ifx signed then SignedMagic(divisor) else UnsignedMagic(divisor)
+    X86Move(writer, X86R11, X86Rax)
+    X86MoveImmediate(writer, X86Rax, magic.multiplier)
+    X86Group3(writer, ifx signed then 5 else 4, X86R11)
+    if signed {
+        if magic.add { X86Arithmetic(writer, X86Add, X86Rdx, X86R11) }
+        if magic.shift > 0 { X86ShiftImmediate(writer, 7, X86Rdx, magic.shift) }
+        X86Move(writer, X86Rax, X86R11)
+        X86ShiftImmediate(writer, 5, X86Rax, 63)
+        X86Arithmetic(writer, X86Add, X86Rax, X86Rdx)
+    } else if magic.add {
+        X86Move(writer, X86Rax, X86R11)
+        X86Arithmetic(writer, X86Subtract, X86Rax, X86Rdx)
+        X86ShiftImmediate(writer, 5, X86Rax, 1)
+        X86Arithmetic(writer, X86Add, X86Rax, X86Rdx)
+        if magic.shift > 1 { X86ShiftImmediate(writer, 5, X86Rax, magic.shift - 1) }
+    } else {
+        X86Move(writer, X86Rax, X86Rdx)
+        if magic.shift > 0 { X86ShiftImmediate(writer, 5, X86Rax, magic.shift) }
+    }
+    if remainder {
+        if divisor <= 2147483647 { X86MultiplyImmediate(writer, X86Rax, X86Rax, cast(s64)divisor) }
+        else {
+            X86MoveImmediate(writer, X86Rdx, divisor)
+            X86Multiply(writer, X86Rax, X86Rdx)
+        }
+        X86Arithmetic(writer, X86Subtract, X86R11, X86Rax)
+        X86Move(writer, X86Rax, X86R11)
+    }
+    Normalize(state, X86Rax, type)
+}
+
 // Divide and remainder: result and dividend in rax, rdx named as a clobber.
 // Zero divisors trap; a signed divisor of -1 negates (or yields zero)
 // without idiv, so the most negative dividend cannot fault.
@@ -884,6 +979,10 @@ Divide :: (state: *State, opcode: MachineOpcode) -> bool {
     if constant != 0 && (constant & (constant - 1)) == 0 &&
         (!Signed(type) || constant <= 9223372036854775807) {
         PowerDivide(state, constant, type, remainder)
+        return true
+    }
+    if constant > 2 && constant <= 9223372036854775807 {
+        MagicDivide(state, constant, type, remainder)
         return true
     }
     divisor := right
@@ -933,7 +1032,30 @@ Shift :: (state: *State, opcode: MachineOpcode) -> bool {
     return true
 }
 
+// A compare that the next instruction, a branch on its flags, fuses with
+// keeps the pair inside one 32-byte block (BranchPad).
 Compare :: (state: *State) -> bool {
+    next := state.instruction + 1
+    block := state.program.blocks[state.block]
+    if next < block.instruction_begin + block.instruction_count {
+        branch := state.program.instructions[next]
+        if branch.opcode == .Branch && branch.operand_count == 0 && branch.flags_use != MachineNoId &&
+            branch.flags_use == Current(state).flags_def {
+            saved := Probe(state)
+            ok := CompareBody(state, true)
+            length := Unprobe(state, saved)
+            if !ok { return false }
+            BranchPad(state, length + 6)
+            return CompareBody(state, true)
+        }
+    }
+    return CompareBody(state, false)
+}
+
+// FUSED: the next instruction branches on these flags. A fused float order
+// test puts the side that must be larger first, so the branch is one
+// unsigned condition (FlagsCondition).
+CompareBody :: (state: *State, fused: bool) -> bool {
     if !Count(state, 2) { return false }
     type := TypeOf(state, OperandAt(state, 0))
     if type.class == .Float {
@@ -941,7 +1063,11 @@ Compare :: (state: *State) -> bool {
         right := FloatRegister(state, 1, .Use)
         if left == MachineNoId || right == MachineNoId ||
             FloatSize(TypeOf(state, OperandAt(state, 1))) != FloatSize(type) { return false }
-        X86FloatCompare(*state.writer, left, right, FloatSize(type))
+        condition := Current(state).condition
+        state.flags_ordered = fused && condition != .Equal && condition != .NotEqual
+        if state.flags_ordered && (condition == .Less || condition == .LessEqual) {
+            X86FloatCompare(*state.writer, right, left, FloatSize(type))
+        } else { X86FloatCompare(*state.writer, left, right, FloatSize(type)) }
         state.flags_float = true
     } else {
         // The right operand is a register or a sign-extended 32-bit immediate.
@@ -957,6 +1083,7 @@ Compare :: (state: *State) -> bool {
             X86Arithmetic(*state.writer, X86Compare, left, right)
         }
         state.flags_float = false
+        state.flags_ordered = false
     }
     state.flags_value = Current(state).flags_def
     state.flags_signed = Signed(type)
@@ -971,7 +1098,13 @@ FlagsCondition :: (state: *State) -> s32 {
         unused Fail(state, .Flags)
         return MachineNoId
     }
-    if state.flags_float { unused Fail(state, .Unsupported); return MachineNoId }
+    if state.flags_float {
+        // Unordered sets CF and ZF, so above and above-or-equal fail it.
+        ordered := instruction.condition != .Equal && instruction.condition != .NotEqual
+        if !state.flags_ordered || !ordered { unused Fail(state, .Unsupported); return MachineNoId }
+        if instruction.condition == .Less || instruction.condition == .Greater { return X86Above }
+        return X86AboveEqual
+    }
     code := ConditionCode(instruction.condition, state.flags_signed)
     if code == MachineNoId { unused Fail(state, .Unsupported) }
     return code
@@ -1571,6 +1704,8 @@ BytesEqual :: (state: *State) -> bool {
 }
 
 Resize :: (state: *State) -> bool {
+    state.fixed += 1
+    defer { state.fixed -= 1 }
     if !Count(state, 13) { return false }
     result := Register(state, 0, .Define)
     pointer := Register(state, 1, .Use)
@@ -1655,6 +1790,8 @@ Resize :: (state: *State) -> bool {
 // new count, rcx the element size, r8 the old token): end the old slot and
 // give a new block a heap slot; rax becomes its token.
 ResizeSlots :: (state: *State) {
+    state.fixed += 1
+    defer { state.fixed -= 1 }
     writer := *state.writer
     X86Multiply(writer, X86Rdx, X86Rcx)
     X86Move(writer, 9, X86Rdx)
@@ -1796,6 +1933,7 @@ Fuel :: (state: *State) -> bool {
     if state.fuel_register {
         // The budget is in the fuel register: subtract there, trap on borrow.
         register := MachineAbiFuelRegister(state.program.target)
+        BranchPad(state, ifx value <= 127 then cast(s64)10 else ifx value <= 2147483647 then cast(s64)13 else 19)
         if value <= 2147483647 { X86ArithmeticImmediate(*state.writer, X86Subtract, register, value) }
         else {
             X86MoveImmediate(*state.writer, X86R11, amount.immediate)
@@ -1946,8 +2084,10 @@ Call :: (state: *State) -> bool {
     }
     if call.calling == .Internal {
         address := FunctionTarget(state, state.program.operands[target].id)
+        BranchPad(state, 5)
         if tail { X86Jump32(*state.writer, address) } else { X86Call32(*state.writer, address) }
     } else {
+        BranchPad(state, 5)
         if tail { X86Jump32(*state.writer, state.writer.at + 5) } else { X86Call32(*state.writer, state.writer.at + 5) }
         Relocate(state, image_kind, state.program.operands[target].id, -4, state.writer.at - 4)
     }
@@ -2015,7 +2155,10 @@ Forward :: (state: *State, block: s32) -> s32 {
 
 JumpTo :: (state: *State, block: s32) {
     target := Forward(state, block)
-    if !Falls(state, target) { X86Jump32(*state.writer, BlockTarget(state, target)) }
+    if !Falls(state, target) {
+        BranchPad(state, 5)
+        X86Jump32(*state.writer, BlockTarget(state, target))
+    }
 }
 
 Branch :: (state: *State) -> bool {
@@ -2024,6 +2167,7 @@ Branch :: (state: *State) -> bool {
     if instruction.operand_count == 1 && instruction.flags_use == MachineNoId {
         value := Register(state, 0, .Use)
         if value == MachineNoId { return false }
+        BranchPad(state, 9)
         X86Arithmetic(*state.writer, X86Test, value, value)
         condition = X86NotEqual
     } else if instruction.operand_count == 0 {
@@ -2034,12 +2178,14 @@ Branch :: (state: *State) -> bool {
     }
     taken := Forward(state, state.program.edges[instruction.edge_begin].target)
     other := Forward(state, state.program.edges[instruction.edge_begin + 1].target)
+    BranchPad(state, 6)
     if Falls(state, other) {
         X86JumpCondition32(*state.writer, condition, BlockTarget(state, taken))
     } else if Falls(state, taken) {
         X86JumpCondition32(*state.writer, condition ^ 1, BlockTarget(state, other))
     } else {
         X86JumpCondition32(*state.writer, condition, BlockTarget(state, taken))
+        BranchPad(state, 5)
         X86Jump32(*state.writer, BlockTarget(state, other))
     }
     return true
@@ -2104,6 +2250,7 @@ Return :: (state: *State) -> bool {
         }
     }
     if !Epilogue(state) { return false }
+    BranchPad(state, 1)
     X86Return(*state.writer)
     return true
 }
@@ -2226,6 +2373,19 @@ Unprobe :: (state: *State, saved: X86Writer) -> s64 {
     state.suppress -= 1
     if failed { state.writer.failed = true }
     return length
+}
+
+// Intel cores with the jump conditional code erratum fix (Skylake through
+// Comet Lake) keep no decoded instructions for a 32-byte block in which a
+// branch, or a compare fused with one, crosses or ends at the block's end.
+// A branch sequence of LENGTH bytes that would starts at the next block,
+// after NOPs. Code starts 32-byte aligned, so offsets show the blocks.
+BranchPad :: (state: *State, length: s64) {
+    at := state.writer.at
+    if state.fixed > 0 || length <= 0 || length >= FunctionAlignment { return }
+    end := at + length
+    if at / FunctionAlignment == (end - 1) / FunctionAlignment && end % FunctionAlignment != 0 { return }
+    X86Nop(*state.writer, FunctionAlignment - at % FunctionAlignment)
 }
 
 // lea r11, [rip + pointer runtime header]
@@ -2355,6 +2515,8 @@ FreePop :: (state: *State, entry: s32) {
 // already saved on the stack below the address.
 CreateSlot :: (state: *State, destination: s32, size: s64, size_on_stack: bool, flags: u64, chain: X86Operand,
     chained: bool) {
+    state.fixed += 1
+    defer { state.fixed -= 1 }
     writer := *state.writer
     PointerHeader(state)
     X86Load(writer, PointerScratch, X86At(X86R11, MachinePointerHeaderFree), 8, false)
@@ -2431,6 +2593,8 @@ PointerCreate :: (state: *State) -> bool {
 // live, and unless its versions are used up it goes back on the free list.
 // Uses rdx; the header is in r11.
 RetireSlot :: (state: *State) {
+    state.fixed += 1
+    defer { state.fixed -= 1 }
     writer := *state.writer
     X86Load(writer, X86Rdx, X86At(X86Rcx, MachinePointerEntryVersion), 2, false)
     X86Encode(writer, 0, false, 0xff, 1, 0, X86Direct(X86Rdx))
@@ -2471,6 +2635,8 @@ PointerFrameEnter :: (state: *State, function: MachineFunction) -> bool {
 // on the chain. Only rax holds a live value here; rcx, rdx, r10 and r11 are
 // free.
 PointerFrameLeave :: (state: *State, function: MachineFunction) -> bool {
+    state.fixed += 1
+    defer { state.fixed -= 1 }
     mark := StackMemory(state, function.stack_begin + function.arena_mark - 1, MachineNoId)
     if state.diagnostic.problem != .None { return false }
     writer := *state.writer
@@ -2618,10 +2784,13 @@ EntryReturn :: (state: *State, values: EntryValues, block_id: s32) -> EntryValue
 EntryResult :: (state: *State, value: EntryValue) {
     if value.source == -1 { X86MoveImmediate(*state.writer, X86Rax, value.bits) }
     else if value.source != X86Rax { X86Move(*state.writer, X86Rax, value.source) }
+    BranchPad(state, 1)
     X86Return(*state.writer)
 }
 
 EarlyReturn :: (state: *State) -> bool {
+    state.fixed += 1
+    defer { state.fixed -= 1 }
     function := state.program.functions[state.function]
     if state.frameless || state.program.checks || function.fuel_register || function.arena_mark != 0 ||
         function.result_register || function.result_type < 0 ||
@@ -2746,6 +2915,10 @@ Pass :: (state: *State) -> bool {
         state.fuel_live = false
         state.frameless = Frameless(program, cast(s32)function_index)
         state.tail_returned = false
+        // Each function starts on a 32-byte boundary of the code, so its
+        // branches meet the same fetch and decoded-cache boundaries however
+        // the functions before it change. The gap is int3, never run.
+        while state.writer.at % FunctionAlignment != 0 { X86Byte(*state.writer, 0xcc) }
         if !Spend(state, 1) || !Place(state, state.function_begin, function_index) || !Prologue(state) { return false }
         if state.writer.failed { return Fail(state, .Limit) }
         for block_id: function.block_begin..function.block_begin + function.block_count - 1 {

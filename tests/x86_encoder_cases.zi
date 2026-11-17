@@ -449,6 +449,19 @@ Nibble :: (byte: u8) -> s32 {
 }
 
 // Compares CODE[BEGIN:END] with space-separated lowercase hex bytes.
+// Whether CODE at AT holds the NOPs that keep a branch inside one 32-byte
+// block: exactly X86Nop's bytes up to the next 32-byte boundary.
+BranchPadding :: (code: []u8, at: s64, end: s64) -> s64 {
+    next := at - at % 32 + 32
+    if next > end { return at }
+    expected: [32]u8
+    writer := Encoding.X86Writer.{output = expected[:], limit = expected.count}
+    Encoding.X86Nop(*writer, next - at)
+    for offset: cast(s64)0..writer.at - 1 { if code[at + offset] != expected[offset] { return at } }
+    return next
+}
+
+// Expected HEX at [BEGIN, END) of CODE, past any branch padding.
 Bytes :: (code: []u8, begin: s64, end: s64, hex: string, message: string) -> bool {
     at := begin
     index: s64 = 0
@@ -457,6 +470,7 @@ Bytes :: (code: []u8, begin: s64, end: s64, hex: string, message: string) -> boo
         if hex[index] == 32 { index += 1; continue }
         high := Nibble(hex[index])
         low := ifx index + 1 < hex.count then Nibble(hex[index + 1]) else -1
+        if high >= 0 && low >= 0 && at < end && cast(s32)code[at] != high * 16 + low { at = BranchPadding(code, at, end) }
         if high < 0 || low < 0 || at >= end || cast(s32)code[at] != high * 16 + low { ok = false; break }
         at += 1
         index += 2
@@ -519,6 +533,11 @@ Accounted :: (b: *Builder, image: X64.MachineX64Image) -> bool {
     for function_id: cast(s64)0..b.functions.count - 1 {
         function := b.functions[function_id]
         record := image.functions[function_id]
+        // A function with code starts 32-byte aligned after int3 bytes.
+        if record.end > record.begin {
+            while at < record.begin && image.code[at] == 0xcc { at += 1 }
+            if record.begin % 32 != 0 { return false }
+        }
         if record.begin != at || record.body < record.begin { return false }
         at = record.body
         if function.entry != function.block_begin { at += 5 }
@@ -967,22 +986,22 @@ Calls :: () -> bool {
     measured := Apply(*b, .Measure, null, limits)
     // Only the caller calls, so only its prologue checks the stack limit:
     // cmp rsp, [rip + limit]; jb to the stack trap after its body.
-    if !Check(measured.code_bytes == 158 && image.code.count == 158 && measured.relocations == 8,
+    if !Check(measured.code_bytes == 240 && image.code.count == 240 && measured.relocations == 8,
             "call image size") ||
         !Check(Accounted(*b, image), "call image accounting") ||
-        !Check(image.functions[caller].begin == 35 && image.functions[later].begin == 107 &&
-            image.functions[failing].begin == 142, "function offsets") ||
-        !Instruction(image, backward, "e8 c2 ff ff ff", "backward direct call") ||
-        !Instruction(image, forward, "e8 23 00 00 00", "forward direct call") ||
+        !Check(image.functions[caller].begin == 64 && image.functions[later].begin == 160 &&
+            image.functions[failing].begin == 224, "function offsets") ||
+        !Instruction(image, backward, "e8 a5 ff ff ff", "backward direct call") ||
+        !Instruction(image, forward, "e8 3b 00 00 00", "forward direct call") ||
         !Check(Displacement(image.code, image.instructions[forward].begin + 1) ==
             image.functions[later].begin - image.instructions[forward].end, "forward call reaches callee") ||
-        !Instruction(image, address, "48 8d 0d b1 ff ff ff", "rip-relative function address") ||
+        !Instruction(image, address, "48 8d 0d 94 ff ff ff", "rip-relative function address") ||
         !Instruction(image, indirect, "ff d1", "indirect call") ||
         !Instruction(image, global, "48 8d 15 00 00 00 00", "relocated global address") ||
         !Instruction(image, explicit, "bf 09 00 00 00 e8 00 00 00 00 0f 0b", "explicit trap") { return false }
     kinds: [8]X64.MachineX64RelocationKind = .[.FuelCounter, .TrapHandler, .StackLimit, .GlobalAddress,
         .TrapHandler, .FuelCounter, .TrapHandler, .TrapHandler]
-    offsets: [8]s64 = .[7, 29, 42, 89, 101, 114, 136, 152]
+    offsets: [8]s64 = .[7, 29, 71, 118, 130, 167, 189, 234]
     addends: [8]s64 = .[-5, -4, -4, 4, -4, -5, -4, -4]
     for index: 0..7 {
         relocation := image.relocations[index]
@@ -1220,6 +1239,34 @@ ConstantDivision :: () -> bool {
     modulo := Divide(*b, .IntegerRemainder, remainder, dividend, RCX, divisor)
     unused Return(*b, RAX, remainder)
     End(*b, 0)
+
+    // Other constants take a high multiply: signed 7, unsigned 7 in its
+    // 65-bit form and unsigned 10 in its plain form.
+    unused Begin(*b, "magic_divide")
+    signed := Parameter(*b, S64, RDI)
+    seven := Value(*b, S64); signed_quotient := Value(*b, S64); signed_remainder := Value(*b, S64)
+    Enter(*b, Blocks(*b, 1))
+    unused Constant(*b, RCX, seven, 7)
+    unused Two(*b, .Move, RAX, signed, RDI, signed)
+    by_seven := Divide(*b, .IntegerDivide, signed_quotient, signed, RCX, seven)
+    unused Two(*b, .Move, RAX, signed, RDI, signed)
+    modulo_seven := Divide(*b, .IntegerRemainder, signed_remainder, signed, RCX, seven)
+    unused Return(*b, RAX, signed_remainder)
+    End(*b, 0)
+
+    unused Begin(*b, "magic_unsigned")
+    unsigned := Parameter(*b, U64, RDI)
+    useven := Value(*b, U64); ten := Value(*b, U64)
+    unsigned_quotient := Value(*b, U64); unsigned_remainder := Value(*b, U64)
+    Enter(*b, Blocks(*b, 1))
+    unused Constant(*b, RCX, useven, 7)
+    unused Two(*b, .Move, RAX, unsigned, RDI, unsigned)
+    unsigned_seven := Divide(*b, .IntegerDivide, unsigned_quotient, unsigned, RCX, useven)
+    unused Constant(*b, RCX, ten, 10)
+    unused Two(*b, .Move, RAX, unsigned, RDI, unsigned)
+    unsigned_ten := Divide(*b, .IntegerRemainder, unsigned_remainder, unsigned, RCX, ten)
+    unused Return(*b, RAX, unsigned_remainder)
+    End(*b, 0)
     b.entry = function
     owner: X64.MachineX64Owner
     defer X64.MachineX64Free(*owner)
@@ -1228,6 +1275,14 @@ ConstantDivision :: () -> bool {
     image := X64.MachineX64View(*owner)
     return Instruction(image, divide, "48 89 c2 48 c1 fa 3f 48 c1 ea 3d 48 01 d0 48 c1 f8 03", "signed divide by eight") &&
         Instruction(image, modulo, "48 89 c2 48 c1 fa 3f 48 c1 ea 3d 48 01 d0 48 83 e0 07 48 29 d0", "signed remainder by eight") &&
+        Instruction(image, by_seven, "49 89 c3 48 b8 25 49 92 24 49 92 24 49 49 f7 eb 48 c1 fa 01 4c 89 d8 48 c1 e8 3f 48 01 d0",
+            "signed divide by seven") &&
+        Instruction(image, modulo_seven, "49 89 c3 48 b8 25 49 92 24 49 92 24 49 49 f7 eb 48 c1 fa 01 4c 89 d8 48 c1 e8 3f 48 01 d0 48 6b c0 07 49 29 c3 4c 89 d8",
+            "signed remainder by seven") &&
+        Instruction(image, unsigned_seven, "49 89 c3 48 b8 93 24 49 92 24 49 92 24 49 f7 e3 4c 89 d8 48 29 d0 48 c1 e8 01 48 01 d0 48 c1 e8 02",
+            "unsigned divide by seven") &&
+        Instruction(image, unsigned_ten, "49 89 c3 48 b8 cd cc cc cc cc cc cc cc 49 f7 e3 48 89 d0 48 c1 e8 03 48 6b c0 0a 49 29 c3 4c 89 d8",
+            "unsigned remainder by ten") &&
         Check(image.relocations.count == 0, "known nonzero divisor has no division trap")
 }
 

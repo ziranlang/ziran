@@ -1,0 +1,217 @@
+// Matched A/B of bench/standard workloads: the C reference and in-process
+// ZX native runners (bench/standard/host.c linked against different
+// libziran.a builds) on one bundle. Each round runs every program once per
+// workload, pinned to one CPU, in a shuffled order. Every runner must give
+// the C reference's value. A run's time is the median of its 11 samples;
+// the table shows the median of run medians in microseconds, and OUTPUT
+// keeps every raw sample.
+//
+// standard-ab --c BIN --bundle SUITE.zx --runner LABEL=BIN... [--cpu N]
+//     [--rounds N] [--cases NAME,...] --output FILE
+#import "benchmark_statistics"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+Workload :: struct { name: string; kind: s64; size: s64 }
+
+// bench/wasm_tier.py STANDARD_CASES: the diagnostic sizes in suite order.
+WORKLOADS :: Workload.[
+    .{name = "fib", kind = 0, size = 35}, .{name = "n-body", kind = 1, size = 500000},
+    .{name = "spectral-norm", kind = 2, size = 500}, .{name = "mandelbrot", kind = 3, size = 1000},
+    .{name = "fannkuch-redux", kind = 4, size = 9}, .{name = "binary-trees", kind = 5, size = 14},
+    .{name = "fasta", kind = 6, size = 1000000}, .{name = "nqueens", kind = 7, size = 12},
+    .{name = "matmul", kind = 8, size = 192}, .{name = "quicksort", kind = 9, size = 200000},
+    .{name = "string-hash", kind = 10, size = 100000}]
+
+Program :: struct { label: string; path: string }
+
+// One program's runs of one workload: each run's median and its samples.
+Runs :: struct { medians: Vec(float64); samples: Vec(float64) }
+
+Options :: struct {
+    bundle: string
+    cpu: string
+    rounds: s64
+    output: string
+    programs: Vec(Program)
+    workloads: Vec(Workload)
+}
+
+Join :: (a: string, b: string, c: string = "", d: string = "", e: string = "", f: string = "", g: string = "") -> string {
+    parts := string.[a, b, c, d, e, f, g]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+Number :: (n: s64) -> string { bytes: [32]u8; return TextDetach(TextCopy(FormatInteger(n, bytes[:]))) }
+
+Parse :: (argc: s32, argv: **u8, options: *Options) -> bool {
+    options.cpu = "3"
+    options.rounds = 5
+    c := ""
+    runners: Vec(Program)
+    names := ""
+    index: s32 = 1
+    while index + 1 < argc {
+        option := TextFromCString(argv[index])
+        value := TextFromCString(argv[index + 1])
+        index += 2
+        if option == "--c" { c = value }
+        else if option == "--bundle" { options.bundle = value }
+        else if option == "--cpu" { options.cpu = value }
+        else if option == "--output" { options.output = value }
+        else if option == "--cases" { names = value }
+        else if option == "--rounds" {
+            rounds, ok := TextInteger(value)
+            if !ok || rounds < 1 { return false }
+            options.rounds = rounds
+        } else if option == "--runner" {
+            at := TextFind(value, "=", 0)
+            if at <= 0 { return false }
+            unused VecPush(runners, Program.{label = value[0:at], path = value[at + 1:value.count]})
+        } else { return false }
+    }
+    if index != argc || c == "" || options.bundle == "" || options.output == "" || runners.count == 0 {
+        return false
+    }
+    // The reference is program 0; its values are the expected results.
+    unused VecPush(options.programs, Program.{label = "c", path = c})
+    for runner: runners { unused VecPush(options.programs, runner) }
+    for workload: WORKLOADS {
+        if names == "" || TextContains(Join(",", names, ","), Join(",", workload.name, ",")) {
+            unused VecPush(options.workloads, workload)
+        }
+    }
+    return options.workloads.count > 0
+}
+
+// The value and samples of one run, or false when it failed or disagreed.
+Run :: (options: *Options, program: Program, workload: Workload, expected: string,
+    value: *string, samples: *Vec(float64)) -> bool {
+    arguments := string.["taskset", "-c", options.cpu, program.path, options.bundle,
+        Number(workload.kind), Number(workload.size), "11", ifx expected == "" then "oracle" else expected]
+    run: ProcessRun
+    process := ProcessOptions.{arguments = arguments[:], capture_output = true, merge_error = true}
+    if !RunProcess(process, *run) { return false }
+    text := TextDetach(BuilderFinish(run.output))
+    if run.code != 0 {
+        print("% % exited %: %\n", program.label, workload.name, run.code, text)
+        return false
+    }
+    document: JsonDocument
+    if !JsonRead(*document, TextTrim(text)) { print("% %: unreadable %\n", program.label, workload.name, text); return false }
+    <<value = TextDetach(JsonString(*document, JsonMember(*document, document.root, "result")))
+    list := JsonMember(*document, document.root, "batch_samples_ms")
+    for at: cast(s32)0..JsonCount(*document, list) - 1 {
+        sample, ok := ParseFloat64(TextDetach(JsonNumberText(*document, JsonElement(*document, list, at))))
+        if !ok { return false }
+        unused VecPush(<<samples, sample)
+    }
+    return samples.count == 11 && (expected == "" || <<value == expected)
+}
+
+Microseconds :: (milliseconds: float64) -> string { return Number(cast(s64)(milliseconds * 1000.0 + 0.5)) }
+
+// Fisher-Yates with a fixed LCG, so a rerun repeats the order.
+Shuffle :: (order: *Vec(s64), seed: *u64) {
+    at := order.count - 1
+    while at > 0 {
+        <<seed = <<seed * 6364136223846793005 + 1442695040888963407
+        pick := cast(s64)((<<seed >> 33) % cast(u64)(at + 1))
+        swap := (<<order)[at]; (<<order)[at] = (<<order)[pick]; (<<order)[pick] = swap
+        at -= 1
+    }
+}
+
+Median :: (values: []float64) -> float64 {
+    statistics := BenchmarkAnalyze(values)
+    return ifx statistics.valid then statistics.median else 0.0
+}
+
+Samples :: (output: *Vec(u8), values: []float64) {
+    unused BuilderAppend(<<output, "[")
+    for at: cast(s64)0..values.count - 1 {
+        if at > 0 { unused BuilderAppend(<<output, ",") }
+        unused BuilderAppend(<<output, TextDetach(Float64Repr(values[at])))
+    }
+    unused BuilderAppend(<<output, "]")
+}
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    options: Options
+    if !Parse(argc, argv, *options) {
+        print("usage: standard-ab --c BIN --bundle SUITE.zx --runner LABEL=BIN... [--cpu N] [--rounds N] [--cases NAME,...] --output FILE\n")
+        return 2
+    }
+    if EnvironmentText("ZIRAN_LEARN") != "off" { print("standard-ab needs ZIRAN_LEARN=off\n"); return 2 }
+    count := options.programs.count
+    runs: Vec(Runs)
+    for at: cast(s64)0..options.workloads.count * count - 1 { unused VecPush(runs, Runs.{}) }
+    expected: Vec(string)
+    for at: cast(s64)0..options.workloads.count - 1 { unused VecPush(expected, "") }
+    order: Vec(s64)
+    for at: cast(s64)0..count - 1 { unused VecPush(order, at) }
+    seed: u64 = 29
+    for round: cast(s64)0..options.rounds - 1 {
+        for w: cast(s64)0..options.workloads.count - 1 {
+            workload := options.workloads[w]
+            Shuffle(*order, *seed)
+            // The reference runs first in round 0 to fix the expected value.
+            if round == 0 {
+                for at: cast(s64)0..count - 1 { if order[at] == 0 { order[at] = order[0]; order[0] = 0; break } }
+            }
+            for at: cast(s64)0..count - 1 {
+                p := order[at]
+                value: string
+                samples: Vec(float64)
+                if !Run(*options, options.programs[p], workload, ifx p == 0 then "" else expected[w], *value, *samples) {
+                    return 1
+                }
+                if p == 0 {
+                    if expected[w] == "" { expected[w] = value }
+                    else if expected[w] != value { print("C reference changed its % value\n", workload.name); return 1 }
+                }
+                entry := *runs[w * count + p]
+                unused VecPush(entry.medians, Median(samples[:]))
+                for sample: samples { unused VecPush(entry.samples, sample) }
+            }
+        }
+        print("round % of % done\n", round + 1, options.rounds)
+    }
+    header: Vec(u8)
+    unused BuilderAppend(header, "workload")
+    for program: options.programs { unused BuilderAppend(header, Join(" | ", program.label, " µs")) }
+    print("%\n", TextDetach(BuilderFinish(header)))
+    report: Vec(u8)
+    unused BuilderAppend(report, Join("{\"bundle\":\"", options.bundle, "\",\"cpu\":", options.cpu,
+        ",\"rounds\":", Number(options.rounds), ",\"samples_per_run\":11,\"learning\":\"off\",\"workloads\":["))
+    for w: cast(s64)0..options.workloads.count - 1 {
+        workload := options.workloads[w]
+        line: Vec(u8)
+        unused BuilderAppend(line, workload.name)
+        if w > 0 { unused BuilderAppend(report, ",") }
+        unused BuilderAppend(report, Join("{\"name\":\"", workload.name, "\",\"size\":", Number(workload.size),
+            ",\"result\":\"", expected[w], "\",\"programs\":["))
+        for p: cast(s64)0..count - 1 {
+            entry := *runs[w * count + p]
+            unused BuilderAppend(line, Join(" | ", Microseconds(Median(entry.medians[:]))))
+            if p > 0 { unused BuilderAppend(report, ",") }
+            unused BuilderAppend(report, Join("{\"label\":\"", options.programs[p].label, "\",\"path\":\"",
+                options.programs[p].path, "\",\"run_medians_ms\":"))
+            Samples(*report, entry.medians[:])
+            unused BuilderAppend(report, ",\"samples_ms\":")
+            Samples(*report, entry.samples[:])
+            unused BuilderAppend(report, "}")
+        }
+        unused BuilderAppend(report, "]}")
+        print("%\n", TextDetach(BuilderFinish(line)))
+    }
+    unused BuilderAppend(report, "]}\n")
+    if !WriteEntireFile(options.output, TextDetach(BuilderFinish(report))) { print("cannot write %\n", options.output); return 1 }
+    return 0
+}

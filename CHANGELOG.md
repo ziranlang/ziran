@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Native x86-64 division and remainder by any other positive constant use a high multiply instead of `idiv`, signed and unsigned at every integer width. FASTA, whose generator takes `%139968` and `%1000000007` per byte, runs in less than half the time.
+- Native x86-64 code starts every function on a 32-byte boundary and keeps each branch, compare-and-branch pair, call and return inside one 32-byte block, with NOPs where needed. Intel cores with the jump-erratum microcode fix keep such loops in their decoded-instruction cache, so a change elsewhere in a program no longer moves a hot loop's speed by up to a third.
+- Native x86-64 branches on an ordered float comparison (`<`, `<=`, `>`, `>=`) jump on the compare's flags, NaN included, instead of first building a bool and testing it.
+- `bench/bench.zi standard-ab` times the C reference and several in-process native runners on the standard suite in shuffled rounds on one CPU, checking every result against C. `standard-profile` reports SIGPROF samples of a runner by function, with the hottest native code disassembled.
 - Native x86-64 checks no longer branch around their traps: a passing check falls through, and its trap call sits after the function's blocks, so loops with bounds, division, shift, stack and step checks keep one straight path. Trap reports still name the check's function, block and source line.
 - Native x86-64 additions can write a separate result register with LEA, keeping reused inputs live without tied copies; narrow integer results retain their normalization.
 - Register allocation keeps spilled values in memory through blocks that only carry them to the next control-flow edge, avoiding a reload and another spill before the next call. Joins retain their register allocation.

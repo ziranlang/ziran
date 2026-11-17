@@ -2,6 +2,9 @@
 // exec's first stop, restore its instruction and registers, and then sample
 // unchanged code. No signal handler or runtime is added to the measured ELF.
 #import "std/c_string"
+#import "std/file"
+#import "std/number_text"
+#import "std/text_tools"
 using Vectors :: #import "std/vec"
 
 #scope_file
@@ -15,6 +18,7 @@ Kill :: (pid: s32, number: s32) -> s32 #foreign libc_teacher "kill";
 Open :: (path: *u8, flags: s32) -> s32 #foreign libc_teacher "open";
 Dup :: (from: s32, to: s32) -> s32 #foreign libc_teacher "dup2";
 Close :: (fd: s32) -> s32 #foreign libc_teacher "close";
+PreadRaw :: (fd: s32, buffer: *u8, count: u64, offset: s64) -> s64 #foreign libc_teacher "pread";
 Errno :: () -> *s32 #foreign libc_teacher "__errno_location";
 Registers :: struct { words: [27]u64 }
 
@@ -22,6 +26,50 @@ Wait :: (pid: s32, status: *s32) -> bool {
     while true {
         if WaitPid(pid, status, 0) == pid { return true }
         if Errno()[0] != 4 { return false }
+    }
+}
+
+Hex :: (text: string) -> u64 {
+    value: u64 = 0
+    for byte: text {
+        if byte >= #char "0" && byte <= #char "9" { value = value * 16 + cast(u64)(byte - #char "0") }
+        else if byte >= #char "a" && byte <= #char "f" { value = value * 16 + cast(u64)(byte - #char "a") + 10 }
+        else { break }
+    }
+    return value
+}
+
+// The first executable mapping without a path in MAPS, read from the
+// stopped child's memory.
+CaptureImage :: (pid: s32, maps: string, profile: *TeacherProfile) {
+    lines := TextLines(maps)
+    for line: lines {
+        dash := TextFind(line, "-")
+        space := TextFind(line, " ")
+        if dash <= 0 || space <= dash || space + 4 > line.count || line[space + 3] != #char "x" { continue }
+        // Anonymous mappings end after the inode field: five fields only.
+        fields: s64 = 0
+        at: s64 = 0
+        while at < line.count {
+            while at < line.count && line[at] == #char " " { at += 1 }
+            if at < line.count { fields += 1 }
+            while at < line.count && line[at] != #char " " { at += 1 }
+        }
+        if fields != 5 { continue }
+        begin := Hex(line[0:dash])
+        end := Hex(line[dash + 1:space])
+        if end <= begin || end - begin > 268435456 { return }
+        buffer: [32]u8
+        parts := string.["/proc/", FormatInteger(cast(s64)pid, buffer[:]), "/mem"]
+        path: [64]u8
+        if !CopyCString(TextDetach(TextJoin(parts[:], "")), path[:]) { return }
+        fd := Open(*path[0], 0)
+        if fd < 0 { return }
+        unused VecResize(profile.image, cast(s64)(end - begin))
+        if PreadRaw(fd, *profile.image[0], end - begin, cast(s64)begin) == cast(s64)(end - begin) { profile.image_base = begin }
+        else { unused VecResize(profile.image, 0) }
+        unused Close(fd)
+        return
     }
 }
 
@@ -40,13 +88,34 @@ TeacherProfile :: struct {
     runs: s64
     valid: bool
     exit_code: s32
+    // With maps requested: the child's first anonymous executable mapping
+    // (an in-process native image) and its address.
+    image_base: u64
+    image: Vec(u8)
 }
 
 TeacherSampleRun :: (path: string, profile: *TeacherProfile) -> bool {
-    cpath: [4096]u8
+    arguments := string.[path]
+    return TeacherSampleProcess(arguments[:], profile, null)
+}
+
+// Samples ARGUMENTS[0] run with ARGUMENTS. MAPS, when not null, receives
+// the child's /proc maps at its 64th sample, so samples in anonymous code
+// (an in-process native image) and in shared libraries can be attributed.
+TeacherSampleProcess :: (arguments: []string, profile: *TeacherProfile, maps: *Vec(u8)) -> bool {
+    if arguments.count < 1 || arguments.count > 15 { return false }
+    text: [8192]u8
     sink: [16]u8
-    if !CopyCString(path, cpath[:]) || !CopyCString("/dev/null", sink[:]) { return false }
-    arguments: [2]*u8 = .[*cpath[0], null]
+    pointers: [16]*u8
+    used: s64 = 0
+    for index: cast(s64)0..arguments.count - 1 {
+        if used + arguments[index].count + 1 > text.count || !CopyCString(arguments[index], text[used:]) { return false }
+        pointers[index] = *text[used]
+        used += arguments[index].count + 1
+    }
+    pointers[arguments.count] = null
+    if !CopyCString("/dev/null", sink[:]) { return false }
+    cpath := pointers[0]
     pid := Fork()
     if pid < 0 { return false }
     if pid == 0 {
@@ -54,7 +123,7 @@ TeacherSampleRun :: (path: string, profile: *TeacherProfile) -> bool {
         if fd < 0 { Exit(120); return false }
         unused Dup(fd, 1); unused Dup(fd, 2); unused Close(fd)
         if !Trace(0, 0, 0, 0) { Exit(121); return false }
-        unused Exec(*cpath[0], *arguments[0])
+        unused Exec(cpath, *pointers[0])
         Exit(122)
         return false
     }
@@ -113,6 +182,18 @@ TeacherSampleRun :: (path: string, profile: *TeacherProfile) -> bool {
             }
             if !found { unused VecPush(profile.samples, TeacherSample.{address = address, count = 1}) }
             profile.total += 1
+            if maps != null && profile.total == 64 {
+                buffer: [32]u8
+                parts := string.["/proc/", FormatInteger(cast(s64)pid, buffer[:]), "/maps"]
+                path := TextDetach(TextJoin(parts[:], ""))
+                captured: Vec(u8)
+                if ReadFileInto(path, *captured) {
+                    CaptureImage(pid, TextView(captured[:]), profile)
+                    unused VecResize(<<maps, 0)
+                    for byte: captured { unused VecPush(<<maps, byte) }
+                }
+                VecFree(captured)
+            }
             signal_number = 0
         }
         if !Trace(7, pid, 0, cast(u64)signal_number) { return false }

@@ -31,7 +31,8 @@ ParityCases :: (repo: string) -> Vec(ParityCase) {
         "vm_scalar_plans_test:Answer", "vm_storage_reads_test:main", "json_scan_test:SelfTest",
         "json_scan_test:NativeMain", "json_string_value_test:SelfTest", "json_string_scan_test:SelfTest",
         "json_document_lifetime_test:Answer", "std_float_text:SelfTest",
-        "generic_assembly_test:Answer", "native_assembly_test:Answer", "teacher_integer_idioms:main"]
+        "generic_assembly_test:Answer", "native_assembly_test:Answer", "teacher_integer_idioms:main",
+        "native_constant_division:main", "native_float_branches:main"]
     spec_root := CheckPath(repo, "tests/spec")
     ParityAdd(*cases, spec_root, "zx_lowered_features:main", CheckPath(spec_root, "zx_lowered_features.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_vec:main", CheckPath(spec_root, "zx_lowered_vec.zi"))

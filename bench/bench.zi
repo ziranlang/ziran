@@ -60,6 +60,8 @@ Registry :: () -> Vec(Benchmark) {
     Add(*list, "bundle-instances", "bench/bundle_instances.py", .Python, .Host, "bundle loading and fresh-instance costs")
     Add(*list, "compiler-build", "bench/compiler_build.zi", .Ziran, .Host, "full native compiler rebuild")
     Add(*list, "standard-compile", "bench/standard_compile.zi", .Ziran, .Host, "complete standard suite builds in C, Go, generated C, native ZX and Wasm")
+    Add(*list, "standard-ab", "bench/standard_ab.zi", .Ziran, .Host, "shuffled C and in-process ZX native runners on the standard suite")
+    Add(*list, "standard-profile", "bench/standard_profile.zi", .Ziran, .Host, "SIGPROF samples of an in-process standard runner by function")
     Add(*list, "c-teacher", "bench/c_teacher.zi", .Ziran, .Host, "generated C versus native assembly and SIGPROF")
     Add(*list, "c-teacher-tune", "bench/c_teacher_tuning.zi", .Ziran, .Host, "offline leaf policies against generated C")
     Add(*list, "compiler-kernels", "bench/compiler_kernel_benchmarks.sh", .Shell, .Host, "timed compiler and codec kernels")

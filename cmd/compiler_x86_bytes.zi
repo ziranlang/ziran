@@ -80,6 +80,29 @@ X86RipRelocated :: () -> X86Operand {
 
 X86Fits8 :: (value: s64) -> bool { return value >= -128 && value <= 127 }
 
+// COUNT bytes of the recommended multi-byte NOPs, at most 9 bytes each.
+X86Nop :: (writer: *X86Writer, count: s64) {
+    left := count
+    while left > 0 {
+        size := ifx left > 9 then cast(s64)9 else left
+        if size == 2 || size == 6 || size == 9 { X86Byte(writer, 0x66) }
+        if size == 1 || size == 2 { X86Byte(writer, 0x90) }
+        else {
+            X86Byte(writer, 0x0f); X86Byte(writer, 0x1f)
+            if size == 3 { X86Byte(writer, 0x00) }
+            else if size == 4 { X86Byte(writer, 0x40); X86Byte(writer, 0x00) }
+            else if size == 5 || size == 6 { X86Byte(writer, 0x44); X86Byte(writer, 0x00); X86Byte(writer, 0x00) }
+            else {
+                X86Byte(writer, ifx size == 7 then cast(u8)0x80 else 0x84)
+                if size != 7 { X86Byte(writer, 0x00) }
+                X86Little(writer, 0, 4)
+            }
+        }
+        left -= size
+    }
+}
+
+
 X86Fits32 :: (value: s64) -> bool { return value >= -2147483648 && value <= 2147483647 }
 
 X86Register :: (register: s32) -> bool { return register >= 0 && register < 16 }

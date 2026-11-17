@@ -356,8 +356,11 @@ StartupSize :: (program: MachineProgram, layout: MachineX64ImageLayout) -> s64 {
     if Windows(layout) { size += 4 }
     if Windows(layout) && needs.float { size += 2 }
     if needs.stack { size += StackSetupSize }
-    if needs.runtime.buffered { return size + 5 }
-    return size + ifx Windows(layout) then 14 else 7
+    if needs.runtime.buffered { size += 5 } else { size += ifx Windows(layout) then 14 else 7 }
+    // int3 bytes up to a 32-byte boundary: the encoder aligns functions and
+    // keeps branches inside 32-byte blocks relative to the code's start.
+    end := layout.text + size
+    return size + (32 - end % 32) % 32
 }
 
 Code :: (layout: MachineX64ImageLayout) -> s64 { return layout.text + layout.startup_size }
@@ -616,6 +619,7 @@ WriteStartup :: (program: MachineProgram, image: MachineX64Image, layout: Machin
         Put8(output, at + 5, 0x0f); Put8(output, at + 6, 0x05)
         at += 7
     }
+    while at < code && code - at < 32 { Put8(output, at, 0xcc); at += 1 }
     return at == code
 }
 

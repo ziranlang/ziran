@@ -1,0 +1,253 @@
+// SIGPROF profile of bench/standard workloads in an in-process ZX native
+// runner (bench/standard/host.c) or the C reference: where the samples
+// land by function. File-backed code is named with nm; the native image is
+// anonymous executable memory, reported as offsets into that mapping.
+//
+// standard-profile --runner BIN --bundle SUITE.zx [--cases NAME,...]
+#import "c_teacher_profile"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+Workload :: struct { name: string; kind: s64; size: s64 }
+
+// bench/wasm_tier.py STANDARD_CASES: the diagnostic sizes in suite order.
+WORKLOADS :: Workload.[
+    .{name = "fib", kind = 0, size = 35}, .{name = "n-body", kind = 1, size = 500000},
+    .{name = "spectral-norm", kind = 2, size = 500}, .{name = "mandelbrot", kind = 3, size = 1000},
+    .{name = "fannkuch-redux", kind = 4, size = 9}, .{name = "binary-trees", kind = 5, size = 14},
+    .{name = "fasta", kind = 6, size = 1000000}, .{name = "nqueens", kind = 7, size = 12},
+    .{name = "matmul", kind = 8, size = 192}, .{name = "quicksort", kind = 9, size = 200000},
+    .{name = "string-hash", kind = 10, size = 100000}]
+
+// One executable mapping of the child.
+Mapping :: struct { begin: u64; end: u64; offset: u64; path: string }
+Symbol :: struct { address: u64; name: string }
+// Samples per name; native offsets use 64-byte buckets.
+Bucket :: struct { name: string; count: s64 }
+
+Number :: (n: s64) -> string { bytes: [32]u8; return TextDetach(TextCopy(FormatInteger(n, bytes[:]))) }
+Join :: (a: string, b: string, c: string = "", d: string = "") -> string {
+    parts := string.[a, b, c, d]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+Hex :: (text: string) -> u64 {
+    value: u64 = 0
+    for byte: text {
+        digit: u64 = 16
+        if byte >= #char "0" && byte <= #char "9" { digit = cast(u64)(byte - #char "0") }
+        else if byte >= #char "a" && byte <= #char "f" { digit = cast(u64)(byte - #char "a") + 10 }
+        if digit == 16 { break }
+        value = value * 16 + digit
+    }
+    return value
+}
+
+HexText :: (value: u64) -> string {
+    digits := "0123456789abcdef"
+    shift: s32 = 60
+    while shift > 0 && ((value >> cast(u64)shift) & 15) == 0 { shift -= 4 }
+    text: Vec(u8)
+    unused BuilderAppend(text, "0x")
+    while shift >= 0 {
+        unused BuilderAppend(text, digits[cast(s64)((value >> cast(u64)shift) & 15):cast(s64)((value >> cast(u64)shift) & 15) + 1])
+        shift -= 4
+    }
+    return TextDetach(BuilderFinish(text))
+}
+
+// The space-separated fields of LINE.
+Fields :: (line: string) -> Vec(string) {
+    result: Vec(string)
+    at: s64 = 0
+    while at < line.count {
+        while at < line.count && line[at] == #char " " { at += 1 }
+        start := at
+        while at < line.count && line[at] != #char " " { at += 1 }
+        if at > start { unused VecPush(result, line[start:at]) }
+    }
+    return result
+}
+
+// Executable mappings from a /proc maps text.
+Mappings :: (text: string) -> Vec(Mapping) {
+    result: Vec(Mapping)
+    lines := TextLines(text)
+    for line: lines {
+        fields := Fields(line)
+        if fields.count < 5 || fields[1].count < 3 || fields[1][2] != #char "x" { continue }
+        dash := TextFind(fields[0], "-")
+        if dash <= 0 { continue }
+        path := ifx fields.count >= 6 then TextDetach(TextCopy(fields[5])) else ""
+        unused VecPush(result, Mapping.{begin = Hex(fields[0][0:dash]), end = Hex(fields[0][dash + 1:fields[0].count]),
+            offset = Hex(fields[2]), path = path})
+    }
+    return result
+}
+
+// Text symbols of PATH by address, from nm (dynamic symbols for a library).
+Symbols :: (path: string) -> Vec(Symbol) {
+    result: Vec(Symbol)
+    dynamic := TextContains(path, ".so")
+    arguments := string.["nm", "-n", "--defined-only", ifx dynamic then "-D" else "--no-demangle", path]
+    run: ProcessRun
+    options := ProcessOptions.{arguments = arguments[:], capture_output = true}
+    started := RunProcess(options, *run) && run.code == 0
+    lines := TextLines(ifx started then TextDetach(BuilderFinish(run.output)) else "")
+    for line: lines {
+        fields := Fields(line)
+        if fields.count < 3 || fields[1].count != 1 { continue }
+        kind := fields[1][0]
+        if kind != #char "t" && kind != #char "T" && kind != #char "W" && kind != #char "w" && kind != #char "i" { continue }
+        unused VecPush(result, Symbol.{address = Hex(fields[0]), name = TextDetach(TextCopy(fields[2]))})
+    }
+    return result
+}
+
+Nearest :: (symbols: *Vec(Symbol), address: u64) -> string {
+    low: s64 = 0
+    high := symbols.count - 1
+    found: s64 = -1
+    while low <= high {
+        middle := (low + high) / 2
+        if (<<symbols)[middle].address <= address { found = middle; low = middle + 1 } else { high = middle - 1 }
+    }
+    if found < 0 { return "?" }
+    return TextDetach(TextCopy((<<symbols)[found].name))
+}
+
+Base :: (path: string) -> string {
+    at := path.count - 1
+    while at >= 0 && path[at] != #char "/" { at -= 1 }
+    return path[at + 1:path.count]
+}
+
+Add :: (buckets: *Vec(Bucket), name: string, count: s64) {
+    for at: cast(s64)0..buckets.count - 1 {
+        if (<<buckets)[at].name == name { (<<buckets)[at].count += count; return }
+    }
+    unused VecPush(<<buckets, Bucket.{name = name, count = count})
+}
+
+// Bucket indices, most samples first.
+ByCount :: (buckets: *Vec(Bucket)) -> Vec(s64) {
+    order: Vec(s64)
+    for at: cast(s64)0..buckets.count - 1 {
+        place := order.count
+        unused VecPush(order, at)
+        while place > 0 && (<<buckets)[order[place - 1]].count < (<<buckets)[at].count {
+            order[place] = order[place - 1]
+            place -= 1
+        }
+        order[place] = at
+    }
+    return order
+}
+
+Report :: (workload: Workload, profile: *TeacherProfile, maps: string) {
+    mappings := Mappings(maps)
+    files: Vec(string)
+    tables: Vec(Vec(Symbol))
+    functions: Vec(Bucket)
+    native: Vec(Bucket)
+    for sample: profile.samples {
+        name := "unmapped"
+        for mapping: mappings {
+            if sample.address < mapping.begin || sample.address >= mapping.end { continue }
+            if mapping.path == "" || mapping.path[0] == #char "[" {
+                name = ifx mapping.path == "" then "native image" else mapping.path
+                if mapping.path == "" {
+                    Add(*native, HexText((sample.address - mapping.begin) & ~cast(u64)63), sample.count)
+                }
+                break
+            }
+            table: s64 = -1
+            for at: cast(s64)0..files.count - 1 { if files[at] == mapping.path { table = at } }
+            if table < 0 {
+                unused VecPush(files, mapping.path)
+                unused VecPush(tables, Symbols(mapping.path))
+                table = files.count - 1
+            }
+            name = Join(Base(mapping.path), ":", Nearest(*tables[table], sample.address - mapping.begin + mapping.offset))
+            break
+        }
+        Add(*functions, name, sample.count)
+    }
+    function_order := ByCount(*functions)
+    native_order := ByCount(*native)
+    print("## % · % (% samples)\n\n| share | where |\n|---:|---|\n", workload.name, workload.size, profile.total)
+    for at: cast(s64)0..functions.count - 1 {
+        if at == 15 { break }
+        bucket := function_order[at]
+        print("| %.% % | % |\n", functions[bucket].count * 100 / profile.total, (functions[bucket].count * 1000 / profile.total) % 10,
+            "%", functions[bucket].name)
+    }
+    if native.count > 0 {
+        print("\nHottest 64-byte native image ranges (offset from the mapping):\n\n")
+        for at: cast(s64)0..native.count - 1 {
+            if at == 8 { break }
+            print("- % · % samples\n", native[native_order[at]].name, native[native_order[at]].count)
+        }
+        Disassemble(workload, profile, *native, *native_order)
+    }
+    print("\n")
+}
+
+// The three hottest native ranges with 32 bytes of context, from the image
+// the sampler read; objdump decodes a copy under build/standard-profile/.
+Disassemble :: (workload: Workload, profile: *TeacherProfile, native: *Vec(Bucket), order: *Vec(s64)) {
+    if profile.image.count == 0 || !CreateDirectories("build/standard-profile") { return }
+    path := Join("build/standard-profile/", workload.name, ".bin")
+    if !WriteEntireFile(path, TextView(profile.image[:])) { return }
+    for at: cast(s64)0..order.count - 1 {
+        if at == 3 { break }
+        start := Hex((<<native)[(<<order)[at]].name[2:(<<native)[(<<order)[at]].name.count])
+        begin := ifx start >= 32 then start - 32 else 0
+        arguments := string.["objdump", "-D", "-b", "binary", "-m", "i386:x86-64", "--no-show-raw-insn",
+            Join("--start-address=", HexText(begin)), Join("--stop-address=", HexText(start + 96)), path]
+        run: ProcessRun
+        options := ProcessOptions.{arguments = arguments[:], capture_output = true}
+        if !RunProcess(options, *run) || run.code != 0 { continue }
+        print("\n```\n% (samples % in the 64 bytes at %)\n", workload.name, (<<native)[(<<order)[at]].count,
+            (<<native)[(<<order)[at]].name)
+        lines := TextLines(TextDetach(BuilderFinish(run.output)))
+        for line: lines { if TextContains(line, ":\t") { print("%\n", line) } }
+        print("```\n")
+    }
+}
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    runner := ""; bundle := ""; names := ""
+    index: s32 = 1
+    while index + 1 < argc {
+        option := TextFromCString(argv[index]); value := TextFromCString(argv[index + 1])
+        index += 2
+        if option == "--runner" { runner = value }
+        else if option == "--bundle" { bundle = value }
+        else if option == "--cases" { names = value }
+        else { index = argc + 1 }
+    }
+    if index != argc || runner == "" || bundle == "" {
+        print("usage: standard-profile --runner BIN --bundle SUITE.zx [--cases NAME,...]\n")
+        return 2
+    }
+    if EnvironmentText("ZIRAN_LEARN") != "off" { print("standard-profile needs ZIRAN_LEARN=off\n"); return 2 }
+    for workload: WORKLOADS {
+        if names != "" && !TextContains(Join(",", names, ","), Join(",", workload.name, ",")) { continue }
+        arguments := string.[runner, bundle, Number(workload.kind), Number(workload.size), "11", "oracle"]
+        profile: TeacherProfile
+        maps: Vec(u8)
+        if !TeacherSampleProcess(arguments[:], *profile, *maps) || profile.exit_code != 0 || profile.total < 64 {
+            print("% failed (exit %, % samples)\n", workload.name, profile.exit_code, profile.total)
+            return 1
+        }
+        Report(workload, *profile, TextDetach(BuilderFinish(maps)))
+    }
+    return 0
+}

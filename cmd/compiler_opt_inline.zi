@@ -89,7 +89,7 @@ LirInlineLeaves :: (program: LirProgram, maximum_operations: s32, budget: s64) -
     return result
 }
 
-LirInlineCallsResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; calls: s64; work: s64; scratch_bytes: s64 }
+LirInlineCallsResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; calls: s64; work: s64; scratch_bytes: s64; grown: s64 }
 
 #scope_file
 // One expanded caller and the tables it points into. Copies point only into
@@ -443,27 +443,119 @@ Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
     return LirRead(storage, TextView(encoded[:]), limits)
 }
 
+// Whether FUNCTION's blocks form no cycle: every block leaves the
+// topological order Kahn's method builds from the entry.
+Acyclic :: (function: LirFunction, budget: *LirSsaBudget) -> bool {
+    count := function.blocks.count
+    indegree: Vec(s32)
+    queue: Vec(s32)
+    defer VecFree(indegree)
+    defer VecFree(queue)
+    if !LirSsaReserve(budget, count, 8) { return false }
+    if !VecResizeBounded(indegree, count, count) || !VecResizeBounded(queue, count, count) {
+        budget.problem = .Allocation
+        return false
+    }
+    for at: 0..count - 1 { indegree[at] = 0 }
+    for block: function.blocks {
+        for edge: block.instructions[block.instructions.count - 1].edges { indegree[edge.block] += 1 }
+    }
+    head: s64
+    tail: s64
+    for at: 0..count - 1 { if indegree[at] == 0 { queue[tail] = cast(s32)at; tail += 1 } }
+    while head < tail {
+        if !LirSsaSpend(budget, 1) { return false }
+        block := function.blocks[queue[head]]
+        head += 1
+        for edge: block.instructions[block.instructions.count - 1].edges {
+            indegree[edge.block] -= 1
+            if indegree[edge.block] == 0 { queue[tail] = edge.block; tail += 1 }
+        }
+    }
+    return tail == count
+}
+
 #scope_export
+// Procedures a caller cannot observe: no stores, host or indirect calls,
+// traps or operations that may trap, no loops, and calls only to such
+// procedures. pure[f] is 1 for each. An unused call to one can go, and one
+// whose result is only read member by member can be inlined for those reads.
+LirPureProcedures :: (program: LirProgram, pure: []u8, budget: *LirSsaBudget) -> bool {
+    for function_index: 0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        pure[function_index] = 0
+        if function.external || function.variadic || function.calling != .Portable || function.blocks.count == 0 { continue }
+        candidate := true
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if !LirSsaSpend(budget, 1) { return false }
+                op := instruction.op
+                memory := op == .Load || op == .ElementAddress || op == .FieldAddress || op == .BytesEqual
+                trapping := op == .Divide || op == .Remainder || op == .Trap || op == .Unreachable ||
+                    instruction.checked || program.checks && memory ||
+                    op == .Convert && program.types[function.values[instruction.operands[0]]].kind == .Float &&
+                    program.types[function.values[instruction.result]].kind == .Integer
+                effect := op == .Store || op == .Copy || op == .Zero || op == .Allocate || op == .HostCall ||
+                    op == .CallIndirect || op == .Resize
+                if trapping || effect || op == .Call && cast(s64)instruction.symbol == function_index { candidate = false }
+            }
+        }
+        if !candidate { continue }
+        held := budget.reserved
+        acyclic := Acyclic(function, budget)
+        budget.reserved = held
+        if budget.problem != .None { return false }
+        if acyclic { pure[function_index] = 1 }
+    }
+    changed := true
+    while changed {
+        changed = false
+        for function_index: 0..program.functions.count - 1 {
+            if pure[function_index] == 0 { continue }
+            for block: program.functions[function_index].blocks {
+                for instruction: block.instructions {
+                    if !LirSsaSpend(budget, 1) { return false }
+                    if instruction.op == .Call && pure[function_index] != 0 &&
+                        (instruction.symbol < 0 || pure[instruction.symbol] == 0) {
+                        pure[function_index] = 0
+                        changed = true
+                    }
+                }
+            }
+        }
+    }
+    return true
+}
+
 // Inlines direct calls to procedures of at most MAXIMUM instructions.
 // Callees are expanded before their callers, and a call copies its callee
 // as expanded, so a helper's own inlined helpers come with it and a callee
-// that grew past MAXIMUM stays a call. The program grows by at most
-// half its instructions, or 256 for a small one, and never beyond what the
-// remaining work budget admits; it is written and verified once.
-LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum: s64) -> LirInlineCallsResult {
+// that grew past MAXIMUM stays a call. With PROJECTED, only calls to pure
+// procedures whose result is read member by member and nowhere else are
+// inlined, from callees up to four times as large: those reads then fold
+// to what the callee built, and the rest of it is dead. The program grows
+// by at most ALLOWANCE instructions (negative: half its size, or 256 for a
+// small one) and never beyond what the remaining work budget admits; it is
+// written and verified once.
+LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum: s64,
+    projected := false, allowance: s64 = -1) -> LirInlineCallsResult {
     result: LirInlineCallsResult
     budget := LirSsaBudget.{work = work, bytes = limits.bytes}
     if maximum <= 0 { return result }
     program := LirReadProgram(storage)
     total: s64
     largest: s64
+    widest: s64
     for function: program.functions {
         size := Measure(function).instructions
         total += size
         if size > largest { largest = size }
+        if function.values.count > widest { widest = function.values.count }
     }
-    allowance := total / 2
-    if allowance < 256 { allowance = 256 }
+    if allowance < 0 {
+        allowance = total / 2
+        if allowance < 256 { allowance = 256 }
+    }
     // Later passes spend over a thousand work units per instruction; keep
     // the grown program within a quarter of what the remaining work admits,
     // so a large program is never pushed past its optimizer budget.
@@ -473,9 +565,13 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
     versions: Vec(Expanded)
     sites: Vec(s32)
     order: Vec(s32)
+    pure: Vec(u8)
+    read_only: Vec(u8)
     defer VecFree(functions)
     defer VecFree(sites)
     defer VecFree(order)
+    defer VecFree(pure)
+    defer VecFree(read_only)
     defer VecFree(versions)
     defer FreeExpanded(versions[:])
     if !LirSsaReserve(*budget, largest, 4) { result.problem = budget.problem; return result }
@@ -487,6 +583,15 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
     }
     for fi: 0..program.functions.count - 1 { functions[fi] = program.functions[fi] }
     if !CalleesFirst(program, order[:], *budget) { result.problem = budget.problem; return result }
+    if projected {
+        if !LirSsaReserve(*budget, program.functions.count + widest, 1) { result.problem = budget.problem; return result }
+        if !VecResizeBounded(pure, program.functions.count, program.functions.count) ||
+            !VecResizeBounded(read_only, widest, widest) {
+            result.problem = .Allocation
+            return result
+        }
+        if !LirPureProcedures(program, pure[:], *budget) { result.problem = budget.problem; return result }
+    }
     // The program as expanded so far: callers see their callees' new bodies.
     current := program
     current.functions = functions[:]
@@ -497,16 +602,40 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
         count := Measure(function).instructions
         budget.reserved = 0
         if !LirSsaSpend(*budget, count) { break }
+        if projected {
+            // Values read member by member and nowhere else.
+            for v: 0..function.values.count - 1 { read_only[v] = 0 }
+            for block: function.blocks {
+                for instruction: block.instructions {
+                    if !LirSsaSpend(*budget, 1 + instruction.operands.count) { break }
+                    for at: 0..instruction.operands.count - 1 {
+                        value := instruction.operands[at]
+                        read := instruction.op == .Extract && instruction.operands.count == 1 && !instruction.checked
+                        read_only[value] = ifx read && read_only[value] != 2 then 1 else 2
+                    }
+                    for edge: instruction.edges { for value: edge.arguments { read_only[value] = 2 } }
+                }
+            }
+            if budget.problem != .None { break }
+        }
         found: s64
         flat: s64
         for block: function.blocks {
             for instruction: block.instructions {
                 sites[flat] = -1
-                if allowance > 0 && Expandable(current, fi, instruction, maximum) {
+                eligible := false
+                if allowance > 0 && !projected { eligible = Expandable(current, fi, instruction, maximum) }
+                if allowance > 0 && projected && instruction.op == .Call && instruction.result != LirNoId &&
+                    read_only[instruction.result] == 1 && instruction.symbol >= 0 &&
+                    cast(s64)instruction.symbol < program.functions.count && pure[instruction.symbol] != 0 {
+                    eligible = Expandable(current, fi, instruction, maximum * 4)
+                }
+                if eligible {
                     size := Measure(current.functions[instruction.symbol]).instructions
                     if size <= allowance {
                         sites[flat] = instruction.symbol
                         allowance -= size
+                        result.grown += size
                         found += 1
                     }
                 }
@@ -530,6 +659,269 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
         inlined := program
         inlined.functions = functions[:]
         result.codec = Serialize(storage, inlined, limits, *budget)
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+    }
+    result.problem = budget.problem
+    result.work = budget.used
+    return result
+}
+
+#scope_file
+// The type of member MEMBER of the record or array TYPE, or -1.
+MemberType :: (program: LirProgram, type: s32, member: u64) -> s32 {
+    value := program.types[type]
+    if value.kind == .Record && member < cast(u64)value.fields.count { return value.fields[cast(s64)member] }
+    if value.kind == .Array && member < cast(u64)value.count { return value.element }
+    return -1
+}
+
+// The members a sunk parameter is read at, and where its new parameters start.
+Sunk :: struct { start: s64; count: s64; first: s32 }
+
+// Replaces each block parameter that only fixed member reads use with one
+// parameter per member read. Each edge into the block reads those members
+// from its argument just before the jump, so a record joined from calls or
+// loads is never needed whole when only some of its members are read.
+SinkReads :: (program: LirProgram, function: LirFunction, limits: LirLimits,
+    budget: *LirSsaBudget, out: *Expanded) -> s64 {
+    count := function.values.count
+    if !LirSsaReserve(budget, count, 32) { return -1 }
+    reads_only: Vec(u8)
+    owner: Vec(s32)
+    plans: Vec(Sunk)
+    members: Vec(u64)
+    rename: Vec(s32)
+    defer VecFree(reads_only)
+    defer VecFree(owner)
+    defer VecFree(plans)
+    defer VecFree(members)
+    defer VecFree(rename)
+    if !VecResizeBounded(reads_only, count, count) || !VecResizeBounded(owner, count, count) ||
+        !VecResizeBounded(plans, count, count) || !VecResizeBounded(rename, count, count) {
+        budget.problem = .Allocation; return -1
+    }
+    for v: 0..count - 1 { reads_only[v] = 1; owner[v] = -1; rename[v] = cast(s32)v; plans[v].count = 0 }
+    for b: 0..function.blocks.count - 1 {
+        if cast(s32)b == function.entry { continue }
+        for value: function.blocks[b].parameters { owner[value] = cast(s32)b }
+    }
+    uses: s64
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if !LirSsaSpend(budget, 1 + instruction.operands.count) { return -1 }
+            for at: 0..instruction.operands.count - 1 {
+                read := instruction.op == .Extract && instruction.operands.count == 1 && at == 0 && !instruction.checked
+                if !read { reads_only[instruction.operands[at]] = 0 } else { uses += 1 }
+            }
+            for edge: instruction.edges { for value: edge.arguments { reads_only[value] = 0 } }
+        }
+    }
+    // Each candidate's distinct members, at most eight.
+    if !VecResizeBounded(members, uses + 1, uses + 1) { budget.problem = .Allocation; return -1 }
+    used: s64
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if instruction.op != .Extract || instruction.operands.count != 1 { continue }
+            p := instruction.operands[0]
+            if owner[p] < 0 || reads_only[p] == 0 { continue }
+            kind := program.types[function.values[p]].kind
+            if kind != .Record && kind != .Array { reads_only[p] = 0; continue }
+            if plans[p].count == 0 { plans[p].start = used }
+            seen := false
+            for j: 0..plans[p].count - 1 { if members[plans[p].start + j] == instruction.immediate { seen = true } }
+            if seen { continue }
+            // Members of one parameter are contiguous only while it is the
+            // last one started; otherwise, or past eight, leave it whole.
+            if plans[p].count >= 8 || plans[p].start + plans[p].count != used { reads_only[p] = 0; continue }
+            members[used] = instruction.immediate
+            used += 1
+            plans[p].count += 1
+        }
+    }
+    sunk: s64
+    added_values: s64
+    for v: 0..count - 1 {
+        if owner[v] < 0 || reads_only[v] == 0 || plans[v].count == 0 { plans[v].count = 0; continue }
+        plans[v].first = cast(s32)(count + added_values)
+        added_values += plans[v].count
+        sunk += 1
+    }
+    if sunk == 0 { return 0 }
+    // Inserted reads: one per sunk member per edge into its block.
+    inserted: s64
+    for block: function.blocks {
+        for edge: block.instructions[block.instructions.count - 1].edges {
+            for value: function.blocks[edge.block].parameters { inserted += plans[value].count }
+        }
+    }
+    shape := Measure(function)
+    value_count := count + added_values + inserted
+    instruction_count := shape.instructions + inserted
+    word_count := shape.words + added_values * 2 + inserted * 2
+    if value_count > limits.values || instruction_count > limits.instructions ||
+        !LirSsaReserve(budget, value_count, 4) || !LirSsaReserve(budget, instruction_count, 112) ||
+        !LirSsaReserve(budget, shape.edges + 1, 24) || !LirSsaReserve(budget, word_count, 4) ||
+        !LirSsaReserve(budget, function.blocks.count, 32) { budget.problem = .Limit; return -1 }
+    if !VecResizeBounded(out.values, value_count, value_count) ||
+        !VecResizeBounded(out.instructions, instruction_count, instruction_count) ||
+        !VecResizeBounded(out.edges, shape.edges + 1, shape.edges + 1) ||
+        !VecResizeBounded(out.data, word_count, word_count) ||
+        !VecResizeBounded(out.blocks, function.blocks.count, function.blocks.count) {
+        budget.problem = .Allocation; return -1
+    }
+    values := out.values[:]
+    instructions := out.instructions[:]
+    edges := out.edges[:]
+    data := out.data[:]
+    blocks := out.blocks[:]
+    for v: 0..count - 1 {
+        values[v] = function.values[v]
+        if plans[v].count == 0 { continue }
+        for j: 0..plans[v].count - 1 {
+            values[plans[v].first + j] = MemberType(program, function.values[v], members[plans[v].start + j])
+        }
+    }
+    // A removed read names the new parameter for its member.
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if instruction.op != .Extract || instruction.operands.count != 1 || instruction.result == LirNoId { continue }
+            p := instruction.operands[0]
+            for j: 0..plans[p].count - 1 {
+                if members[plans[p].start + j] == instruction.immediate { rename[instruction.result] = plans[p].first + cast(s32)j }
+            }
+        }
+    }
+    next_value := count + added_values
+    ip: s64
+    ep: s64
+    wp: s64
+    for b: 0..function.blocks.count - 1 {
+        block := function.blocks[b]
+        start := wp
+        for value: block.parameters {
+            if plans[value].count == 0 { data[wp] = value; wp += 1; continue }
+            for j: 0..plans[value].count - 1 { data[wp] = plans[value].first + cast(s32)j; wp += 1 }
+        }
+        blocks[b].parameters = data[start:wp]
+        first := ip
+        for instruction: block.instructions {
+            if !LirSsaSpend(budget, 1) { return -1 }
+            if instruction.op == .Extract && instruction.operands.count == 1 && plans[instruction.operands[0]].count > 0 { continue }
+            item := instruction
+            // Before the jump, each edge reads the members its sunk parameters
+            // need; the edges then pass those reads in the same order.
+            read_base := next_value
+            for edge: instruction.edges {
+                target := function.blocks[edge.block]
+                for at: 0..edge.arguments.count - 1 {
+                    p := target.parameters[at]
+                    if plans[p].count == 0 { continue }
+                    source := rename[edge.arguments[at]]
+                    for j: 0..plans[p].count - 1 {
+                        data[wp] = source
+                        instructions[ip] = .{op = .Extract, result = cast(s32)next_value, operands = data[wp:wp + 1],
+                            immediate = members[plans[p].start + j], symbol = LirNoId, origin = instruction.origin}
+                        values[next_value] = MemberType(program, function.values[p], members[plans[p].start + j])
+                        wp += 1
+                        ip += 1
+                        next_value += 1
+                    }
+                }
+            }
+            operand_start := wp
+            for value: instruction.operands { data[wp] = rename[value]; wp += 1 }
+            item.operands = data[operand_start:wp]
+            edge_start := ep
+            fresh: s64
+            for edge: instruction.edges {
+                target := function.blocks[edge.block]
+                argument_start := wp
+                for at: 0..edge.arguments.count - 1 {
+                    p := target.parameters[at]
+                    if plans[p].count == 0 { data[wp] = rename[edge.arguments[at]]; wp += 1; continue }
+                    for j: 0..plans[p].count - 1 {
+                        data[wp] = cast(s32)(read_base + fresh)
+                        wp += 1
+                        fresh += 1
+                    }
+                }
+                edges[ep] = .{block = edge.block, arguments = data[argument_start:wp]}
+                ep += 1
+            }
+            item.edges = edges[edge_start:ep]
+            instructions[ip] = item
+            ip += 1
+        }
+        blocks[b].instructions = instructions[first:ip]
+    }
+    // Every value is defined once: drop the sunk parameters and the reads
+    // they replaced, and number what is left densely. Every word in data is
+    // a value: a parameter, an operand or an edge argument.
+    dense: Vec(s32)
+    defer VecFree(dense)
+    if !VecResizeBounded(dense, next_value, next_value) { budget.problem = .Allocation; return -1 }
+    for v: 0..next_value - 1 { dense[v] = -1 }
+    for b: 0..function.blocks.count - 1 { for value: blocks[b].parameters { dense[value] = 0 } }
+    for i: 0..ip - 1 { if instructions[i].result != LirNoId { dense[instructions[i].result] = 0 } }
+    kept: s32
+    for v: 0..next_value - 1 {
+        if dense[v] < 0 { continue }
+        dense[v] = kept
+        values[kept] = values[v]
+        kept += 1
+    }
+    for w: 0..wp - 1 { data[w] = dense[data[w]] }
+    for i: 0..ip - 1 { if instructions[i].result != LirNoId { instructions[i].result = dense[instructions[i].result] } }
+    function.values = values[:kept]
+    function.blocks = blocks
+    out.function = function
+    return sunk
+}
+
+#scope_export
+// Sinks member reads of joined records into the edges that join them (see
+// SinkReads), ROUNDS times so nested members sink too. The program is
+// written and verified once.
+LirSinkFieldReads :: (storage: *LirReadOwner, limits: LirLimits, work: s64, rounds: s64) -> LirInlineCallsResult {
+    result: LirInlineCallsResult
+    budget := LirSsaBudget.{work = work, bytes = limits.bytes}
+    program := LirReadProgram(storage)
+    functions: Vec(LirFunction)
+    versions: Vec(Expanded)
+    defer VecFree(functions)
+    defer VecFree(versions)
+    defer FreeExpanded(versions[:])
+    if !VecResizeBounded(functions, program.functions.count, program.functions.count) {
+        result.problem = .Allocation
+        return result
+    }
+    for fi: 0..program.functions.count - 1 { functions[fi] = program.functions[fi] }
+    for round: 1..rounds {
+        sunk_round: s64
+        for fi: 0..program.functions.count - 1 {
+            function := functions[fi]
+            if function.external || function.blocks.count < 2 { continue }
+            budget.reserved = 0
+            expanded: Expanded
+            sunk := SinkReads(program, function, limits, *budget, *expanded)
+            if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+            if sunk <= 0 {
+                ExpandedFree(*expanded)
+                if sunk < 0 { break }
+                continue
+            }
+            functions[fi] = expanded.function
+            VecPush(versions, expanded)
+            sunk_round += sunk
+        }
+        if budget.problem != .None || sunk_round == 0 { break }
+        result.calls += sunk_round
+    }
+    if budget.problem == .None && result.calls > 0 {
+        budget.reserved = 0
+        sunk_program := program
+        sunk_program.functions = functions[:]
+        result.codec = Serialize(storage, sunk_program, limits, *budget)
         if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
     }
     result.problem = budget.problem

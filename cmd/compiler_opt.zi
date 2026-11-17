@@ -1441,87 +1441,16 @@ CsePass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     return VerifyPass(state, program, limits)
 }
 
-// Whether FUNCTION's blocks form no cycle: every block leaves the
-// topological order Kahn's method builds from the entry.
-Acyclic :: (state: *OptState, function: LirFunction) -> bool {
-    count := function.blocks.count
-    indegree: Vec(s32)
-    queue: Vec(s32)
-    defer VecFree(indegree)
-    defer VecFree(queue)
-    if !VecResizeBounded(indegree, count, count) || !VecResizeBounded(queue, count, count) { return false }
-    for block: function.blocks {
-        for edge: block.instructions[block.instructions.count - 1].edges { indegree[edge.block] += 1 }
-    }
-    head: s64
-    tail: s64
-    for at: 0..count - 1 { if indegree[at] == 0 { queue[tail] = cast(s32)at; tail += 1 } }
-    while head < tail {
-        if !Spend(state, 1) { return false }
-        block := function.blocks[queue[head]]
-        head += 1
-        for edge: block.instructions[block.instructions.count - 1].edges {
-            indegree[edge.block] -= 1
-            if indegree[edge.block] == 0 { queue[tail] = edge.block; tail += 1 }
-        }
-    }
-    return tail == count
-}
-
-// Procedures a caller cannot observe: no stores, host or indirect calls,
-// traps or operations that may trap, no loops, and calls only to such
-// procedures. An unused call to one can go; its fuel goes with it, as an
-// inlined leaf's does.
-PureProcedures :: (state: *OptState, program: LirProgram, pure: []u8) -> bool {
-    for function_index: 0..program.functions.count - 1 {
-        function := program.functions[function_index]
-        pure[function_index] = 0
-        if function.external || function.variadic || function.calling != .Portable || function.blocks.count == 0 { continue }
-        candidate := true
-        for block: function.blocks {
-            for instruction: block.instructions {
-                if !Spend(state, 1) { return false }
-                op := instruction.op
-                memory := op == .Load || op == .ElementAddress || op == .FieldAddress || op == .BytesEqual
-                trapping := op == .Divide || op == .Remainder || op == .Trap || op == .Unreachable ||
-                    instruction.checked || program.checks && memory ||
-                    op == .Convert && program.types[function.values[instruction.operands[0]]].kind == .Float &&
-                    program.types[function.values[instruction.result]].kind == .Integer
-                effect := op == .Store || op == .Copy || op == .Zero || op == .Allocate || op == .HostCall ||
-                    op == .CallIndirect || op == .Resize
-                if trapping || effect || op == .Call && cast(s64)instruction.symbol == function_index { candidate = false }
-            }
-        }
-        if candidate && Acyclic(state, function) { pure[function_index] = 1 }
-        if state.problem != .None { return false }
-    }
-    changed := true
-    while changed {
-        changed = false
-        for function_index: 0..program.functions.count - 1 {
-            if pure[function_index] == 0 { continue }
-            for block: program.functions[function_index].blocks {
-                for instruction: block.instructions {
-                    if !Spend(state, 1) { return false }
-                    if instruction.op == .Call && pure[function_index] != 0 &&
-                        (instruction.symbol < 0 || pure[instruction.symbol] == 0) {
-                        pure[function_index] = 0
-                        changed = true
-                    }
-                }
-            }
-        }
-    }
-    return true
-}
-
 DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     state.counters.dead.runs += 1
     pure: Vec(u8)
     defer VecFree(pure)
     if !Scratch(state, program.functions.count, 1) { return false }
     if !VecResizeBounded(pure, program.functions.count, program.functions.count) { return Fail(state, .Allocation) }
-    if !PureProcedures(state, program, pure[:]) { return false }
+    analysis := LirSsaBudget.{work = state.remaining, bytes = state.maximum_bytes - state.scratch_bytes}
+    analysed := LirPureProcedures(program, pure[:], *analysis)
+    if !Spend(state, analysis.used) { return false }
+    if !analysed { return Fail(state, ifx analysis.problem == .Allocation then .Allocation else .Limit) }
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
         count := function.values.count
@@ -1906,7 +1835,7 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
             entry_terminal := entry_block.instructions[entry_terminal_index]
             if entry_terminal.op == .Jump && entry_terminal.edges.count == 1 {
                 target_index := entry_terminal.edges[0].block
-                if target_index != function.entry &&
+                if target_index != function.entry && entry_block.parameters.count == 0 &&
                     function.blocks[target_index].parameters.count == 0 {
                     target := function.blocks[target_index]
                     sole_predecessor := true
@@ -1929,10 +1858,13 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                 }
             }
         }
+        // A forwarded entry starts the function, so the lone jump that led
+        // to it is unreachable and goes.
+        start := ifx jump_target >= 0 then cast(s32)jump_target else function.entry
         head: s64
         tail: s64 = 1
-        queue[0] = function.entry
-        reachable[function.entry] = 1
+        queue[0] = start
+        reachable[start] = 1
         while head < tail {
             if !Spend(state, 1) { VecFree(symbols); VecFree(reachable); VecFree(queue); VecFree(block_map); return false }
             block_index := queue[head]
@@ -1991,6 +1923,49 @@ Result :: (state: OptState) -> LirOptResult {
     return .{problem = state.problem, diagnostic = state.diagnostic,
         counters = state.counters, work = state.used,
         scratch_bytes = state.peak_scratch_bytes}
+}
+
+// Member reads of a joined record move into the edges that join it, the
+// copy pass folds them, and a pure callee whose result is then read only
+// member by member is inlined for those reads: a theme lookup's colour
+// becomes the constant its builder stores. Each round needs the last, so a
+// nested builder takes three. This runs on folded code, where callees have
+// their final size, and only while the work left is ample for the passes
+// after it; with nothing inlined or sunk there is nothing new to fold.
+MemberRounds :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits, options: LirOptOptions,
+    inlined: s64, changed: *s64) -> bool {
+    growth: s64
+    for round: 1..3 {
+        size: s64
+        for function: LirReadProgram(*owner.storage).functions {
+            for block: function.blocks { size += block.instructions.count }
+        }
+        if state.remaining / 8192 < size { return true }
+        // Projected inlining grows the program by a quarter at most.
+        if round == 1 { growth = ifx size / 4 < 256 then 256 else size / 4 }
+        sunk := LirSinkFieldReads(*owner.storage, limits, state.remaining, 2)
+        if !SharedPassResult(state, sunk.problem, sunk.codec, sunk.work, sunk.scratch_bytes) { return false }
+        if round == 1 && inlined == 0 && sunk.calls == 0 { return true }
+        changed.* += sunk.calls
+        ScratchReset(state)
+        if !CopyPass(state, LirReadProgram(*owner.storage), limits) { return false }
+        // Folded reads leave the records they read dead; removing them lets
+        // a callee's result count as read member by member.
+        ScratchReset(state)
+        if options.eliminate_dead && !DeadPass(state, LirReadProgram(*owner.storage), limits) { return false }
+        projected := LirInlineCalls(*owner.storage, limits, state.remaining, cast(s64)options.inline_calls, true, growth)
+        state.counters.inline_calls.runs += 1
+        state.counters.inline_calls.instructions += projected.calls
+        if !SharedPassResult(state, projected.problem, projected.codec, projected.work, projected.scratch_bytes) {
+            return false
+        }
+        growth -= projected.grown
+        changed.* += projected.calls
+        ScratchReset(state)
+        if projected.calls > 0 && !CopyPass(state, LirReadProgram(*owner.storage), limits) { return false }
+        if projected.calls == 0 || growth <= 0 { return true }
+    }
+    return true
 }
 
 #scope_export
@@ -2055,6 +2030,7 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         state.counters.inline_leaf.instructions += inlined.calls
         if !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
     }
+    inlined: s64
     if options.inline_calls > 0 {
         expanded := LirInlineCalls(*owner.storage, limits, state.remaining, cast(s64)options.inline_calls)
         state.counters.inline_calls.runs += 1
@@ -2062,6 +2038,7 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         if !SharedPassResult(*state, expanded.problem, expanded.codec, expanded.work, expanded.scratch_bytes) {
             LirOptFree(owner); return Result(state)
         }
+        inlined = expanded.calls
     }
     ScratchReset(*state)
     if options.fold_constants && !FoldPass(*state, owner, limits, options) {
@@ -2089,6 +2066,28 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
     if options.simplify_cfg && !CfgPass(*state, optimized, limits) {
         LirOptFree(owner)
         return Result(state)
+    }
+    optimized = LirReadProgram(*owner.storage)
+    ScratchReset(*state)
+    rounds_changed: s64
+    if options.inline_calls > 0 && options.propagate_copies &&
+        !MemberRounds(*state, owner, limits, options, inlined, *rounds_changed) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    // Folded member reads leave constant branches between the builders a
+    // record could have come from; resolve them so the unused calls go.
+    if rounds_changed > 0 {
+        ScratchReset(*state)
+        if options.fold_constants && !FoldPass(*state, owner, limits, options) {
+            LirOptFree(owner)
+            return Result(state)
+        }
+        ScratchReset(*state)
+        if options.simplify_cfg && !CfgPass(*state, LirReadProgram(*owner.storage), limits) {
+            LirOptFree(owner)
+            return Result(state)
+        }
     }
     optimized = LirReadProgram(*owner.storage)
     ScratchReset(*state)

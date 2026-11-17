@@ -246,6 +246,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if bottom != 0 { print("callee-first inline case % failed\n", bottom); return 1 }
     fields := FieldCases()
     if fields != 0 { print("field read case % failed\n", fields); return 1 }
+    joins := JoinCases()
+    if joins != 0 { print("field join case % failed\n", joins); return 1 }
+    themes := ThemeCases()
+    if themes != 0 { print("theme read case % failed\n", themes); return 1 }
     rotation := OptRotateCases()
     if rotation != 0 { return rotation }
     floats := OptFloatCases()

@@ -2,6 +2,9 @@ using IR :: #import "compiler_lowered_ir"
 using Verify :: #import "compiler_lowered_verify"
 using Opt :: #import "compiler_opt"
 using Exec :: #import "compiler_exec"
+using Codec :: #import "compiler_exec_serial"
+using Inline :: #import "compiler_opt_inline"
+using Vectors :: #import "std/vec"
 
 #scope_file
 Run :: (program: LirProgram) -> LirExecResult {
@@ -102,5 +105,166 @@ FieldCases :: () -> s32 {
     if calls != 1 { return 36 }
     after := Run(output)
     if after.problem != .None || after.value.bits != before.value.bits { return 35 }
+    return 0
+}
+
+// A theme lookup: a record joined from theme() and a literal is read at
+// .palette.second. theme() is small and inlines; palette() is over the
+// call limit, but its result is then only read at one member, so it
+// inlines for that read and the read folds to the constant it stores.
+ThemeCases :: () -> s32 {
+    palette_fields := s32.[1, 1]
+    theme_fields := s32.[3, 1]
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1},
+        .{kind = .Record, fields = palette_fields[:]}, .{kind = .Record, fields = theme_fields[:]}]
+    modules := string.["theme"]
+    constants := LirConstant.[.{type = 1, bits = 3}, .{type = 1, bits = 5}, .{type = 1, bits = 1},
+        .{type = 1, bits = 2}, .{type = 1, bits = 7}, .{type = 1, bits = 9}]
+    main_values := s32.[1, 1, 2, 4, 3, 4, 4, 3, 1]
+    compared := s32.[0, 1]
+    condition := s32.[2]
+    literal_palette := s32.[0, 1]
+    literal_theme := s32.[4, 0]
+    from_call := s32.[3]
+    from_literal := s32.[5]
+    joined := s32.[6]
+    member := s32.[7]
+    read := s32.[8]
+    targets := LirEdge.[.{block = 1}, .{block = 2}]
+    call_edge := LirEdge.[.{block = 3, arguments = from_call[:]}]
+    literal_edge := LirEdge.[.{block = 3, arguments = from_literal[:]}]
+    main_entry := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 0, origin = -1},
+        .{op = .Constant, result = 1, symbol = 1, origin = -1},
+        .{op = .Less, result = 2, operands = compared[:], symbol = -1, origin = -1},
+        .{op = .Branch, result = -1, operands = condition[:], edges = targets[:], symbol = -1, origin = -1}]
+    main_call := LirInstruction.[
+        .{op = .Call, result = 3, symbol = 1, effect = 1, origin = -1},
+        .{op = .Jump, result = -1, edges = call_edge[:], symbol = -1, origin = -1}]
+    main_literal := LirInstruction.[
+        .{op = .Aggregate, result = 4, operands = literal_palette[:], symbol = -1, origin = -1},
+        .{op = .Aggregate, result = 5, operands = literal_theme[:], symbol = -1, origin = -1},
+        .{op = .Jump, result = -1, edges = literal_edge[:], symbol = -1, origin = -1}]
+    main_join := LirInstruction.[
+        .{op = .Extract, result = 7, operands = joined[:], immediate = 0, symbol = -1, origin = -1},
+        .{op = .Extract, result = 8, operands = member[:], immediate = 1, symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = read[:], symbol = -1, origin = -1}]
+    theme_values := s32.[3, 1, 4]
+    theme_built := s32.[0, 1]
+    theme_result := s32.[2]
+    theme_code := LirInstruction.[
+        .{op = .Call, result = 0, symbol = 2, effect = 1, origin = -1},
+        .{op = .Constant, result = 1, symbol = 5, origin = -1},
+        .{op = .Aggregate, result = 2, operands = theme_built[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = theme_result[:], symbol = -1, origin = -1}]
+    palette_values := s32.[1, 1, 3, 1, 3]
+    palette_built := s32.[0, 1]
+    palette_replaced := s32.[2, 3]
+    palette_result := s32.[4]
+    palette_code := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 2, origin = -1},
+        .{op = .Constant, result = 1, symbol = 3, origin = -1},
+        .{op = .Aggregate, result = 2, operands = palette_built[:], symbol = -1, origin = -1},
+        .{op = .Constant, result = 3, symbol = 4, origin = -1},
+        .{op = .Insert, result = 4, operands = palette_replaced[:], immediate = 1, symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = palette_result[:], symbol = -1, origin = -1}]
+    join_parameters := s32.[6]
+    main_blocks := LirBlock.[.{instructions = main_entry[:]}, .{instructions = main_call[:]},
+        .{instructions = main_literal[:]}, .{parameters = join_parameters[:], instructions = main_join[:]}]
+    theme_blocks := LirBlock.[.{instructions = theme_code[:]}]
+    palette_blocks := LirBlock.[.{instructions = palette_code[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "main", result = 1, values = main_values[:], blocks = main_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "theme", result = 4, values = theme_values[:], blocks = theme_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "palette", result = 3, values = palette_values[:], blocks = palette_blocks[:],
+            entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 71 }
+    before := Run(program)
+    if before.problem != .None || before.value.bits != 7 { return 72 }
+    // theme() has four instructions and inlines; palette() has six.
+    options := LirOptDefaultOptions()
+    options.inline_calls = 4
+    options.inline_leaf_operations = 0
+    owner: LirOptOwner
+    defer LirOptFree(*owner)
+    optimized := LirOptBuild(*owner, program, LirDefaultLimits(), options)
+    if optimized.problem != .None || !owner.valid {
+        print("theme problem=% verifier=% f=% b=% i=% v=%\n", cast(s32)optimized.problem, cast(s32)optimized.diagnostic.problem,
+            optimized.diagnostic.function, optimized.diagnostic.block, optimized.diagnostic.instruction, optimized.diagnostic.value)
+        return 73
+    }
+    output := LirOptProgram(*owner)
+    main := output.functions[0]
+    if Has(main, .Call) { return 74 }
+    if Has(main, .Extract) || Has(main, .Insert) || Has(main, .Aggregate) { return 75 }
+    after := Run(output)
+    if after.problem != .None || after.value.bits != before.value.bits { return 76 }
+    return 0
+}
+
+// A record joined from two branches and read at one member: the join gets
+// that member as its parameter and each branch reads it before jumping.
+JoinCases :: () -> s32 {
+    record_fields := s32.[1, 1]
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1},
+        .{kind = .Record, fields = record_fields[:]}]
+    modules := string.["join"]
+    constants := LirConstant.[.{type = 1, bits = 3}, .{type = 1, bits = 5}]
+    values := s32.[1, 1, 2, 3, 3, 3, 1]
+    compared := s32.[0, 1]
+    condition := s32.[2]
+    forward := s32.[0, 1]
+    backward := s32.[1, 0]
+    first := s32.[3]
+    second := s32.[4]
+    joined := s32.[5]
+    joined_parameters := s32.[5]
+    read := s32.[6]
+    targets := LirEdge.[.{block = 1}, .{block = 2}]
+    left_edge := LirEdge.[.{block = 3, arguments = first[:]}]
+    right_edge := LirEdge.[.{block = 3, arguments = second[:]}]
+    entry_code := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 0, origin = -1},
+        .{op = .Constant, result = 1, symbol = 1, origin = -1},
+        .{op = .Less, result = 2, operands = compared[:], symbol = -1, origin = -1},
+        .{op = .Branch, result = -1, operands = condition[:], edges = targets[:], symbol = -1, origin = -1}]
+    left_code := LirInstruction.[
+        .{op = .Aggregate, result = 3, operands = forward[:], symbol = -1, origin = -1},
+        .{op = .Jump, result = -1, edges = left_edge[:], symbol = -1, origin = -1}]
+    right_code := LirInstruction.[
+        .{op = .Aggregate, result = 4, operands = backward[:], symbol = -1, origin = -1},
+        .{op = .Jump, result = -1, edges = right_edge[:], symbol = -1, origin = -1}]
+    join_code := LirInstruction.[
+        .{op = .Extract, result = 6, operands = joined[:], immediate = 1, symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = read[:], symbol = -1, origin = -1}]
+    blocks := LirBlock.[.{instructions = entry_code[:]}, .{instructions = left_code[:]},
+        .{instructions = right_code[:]}, .{parameters = joined_parameters[:], instructions = join_code[:]}]
+    functions := LirFunction.[.{module = 0, name = "main", result = 1, values = values[:], blocks = blocks[:],
+        entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 41 }
+    before := Run(program)
+    if before.problem != .None || before.value.bits != 5 { return 42 }
+    empty: []u8
+    measured := LirWrite(program, empty)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if measured.problem != .None || !VecResize(bytes, measured.size) ||
+        LirWrite(program, bytes[:]).problem != .None { return 43 }
+    owner: LirReadOwner
+    defer LirReadFree(*owner)
+    if LirRead(*owner, TextView(bytes[:]), LirDefaultLimits()).problem != .None { return 43 }
+    sunk := LirSinkFieldReads(*owner, LirDefaultLimits(), 1000000, 2)
+    if sunk.problem != .None || sunk.codec.problem != .None || sunk.calls != 1 { return 44 }
+    output := LirReadProgram(*owner)
+    if LirVerify(output, LirDefaultLimits()).problem != .None { return 45 }
+    join := output.functions[0].blocks[3]
+    if join.parameters.count != 1 || output.functions[0].values[join.parameters[0]] != 1 { return 46 }
+    for instruction: join.instructions { if instruction.op == .Extract { return 47 } }
+    after := Run(output)
+    if after.problem != .None || after.value.bits != before.value.bits { return 48 }
     return 0
 }

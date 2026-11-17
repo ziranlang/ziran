@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- ZX lowering folds signed integer interval checks such as `value > 1000 || value < 0` into one unsigned comparison when both sides read the same stable local, record member or fixed-array element. Calls and other expressions whose second evaluation can matter retain short-circuit evaluation.
 - Native verification distinguishes integer and floating-point scratch registers when checking parallel copies, so valid floating-point argument copies are accepted even when register numbers match across banks.
 - Core audio builds share SHA256-pinned Xiph Vorbis archives across native targets; Windows uses the correct C-long ABI, verified against every public field offset and actual streaming/seek decoding.
 

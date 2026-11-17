@@ -161,8 +161,6 @@ void EmitSymbolDeclaration(FILE *out, const char *result, const char *name,
                            const char *parameters, const char *symbol);
 void EmitNativeMain(FILE *out, const ZirModule *module, const ZirFunction *fn,
                     ZirTarget target);
-int FoldIntegerOperation(const char *op, const char *type, uint64_t a, uint64_t b,
-                         uint64_t *result);
 void EmitStringType(FILE *out);
 /* Encode a checked literal for native expressions and constant byte arrays. */
 void EmitStringLiteral(const ZirExpr *expr, ZirTarget target, char *out, size_t size);

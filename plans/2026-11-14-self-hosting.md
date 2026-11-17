@@ -190,7 +190,6 @@ C ABI/storage boundary:
 | `zir_emit.c` / `.h` | generic emission setup and public emitters | `compiler_c_emit` | S4 |
 | `zir_emit_call.c` | C/Go call emission from `:6` | `compiler_c_emit_call` | S6 |
 | `zir_emit_expr.c` | C/Go expression emission from `:13` | `compiler_c_emit_expr` | S6 |
-| `zir_emit_gpu.c` | OpenGL ES compute emission from `:50` | `compiler_gpu_emit` | S7 |
 | `zir_emit_internal.h` | shared emitter state | private records in emitter modules | S7 |
 | `zir_emit_simd.c` | SIMD C emission `EmitUseSimdTier:14` | `compiler_c_emit_simd` | S7 |
 | `zir_emit_simd_go.c` | Go SIMD emission from `:735`, generated file marker `:1188` | `compiler_go_simd` | S7 |
@@ -226,7 +225,6 @@ C ABI/storage boundary:
 | `zir_services.c` | generated-module service hooks `terminated:11`, keep `:28`, diagnose `:33`, add import `:42` | native service calls; final OS hooks only | S15/S18 |
 | `zir_sha256.c` / `.h` | portable and hardware hashes from `:36`, `:74`, `:138` | `compiler_sha256` | S15 |
 | `zir_simd.c` / `.h` | SIMD metadata/signatures from `:95` | `compiler_simd_metadata` | S7 |
-| `zir_simd_go_bodies.h` | Go SIMD generated body text | data in `compiler_go_simd` | S7 |
 | `zir_storage.c` | interned source strings `SourceFile_persistent:62`, span path `:114` | `compiler_source_store` | S15 |
 | `zir_stream.h` | memory/text streams from `:19`, `:149` | standard Ziran slices/files | S15 |
 | `zir_text.c` / `.h` | wrappers around generated text rules from `:18`, `:30` | direct `compiler_text` | S15 |
@@ -361,17 +359,17 @@ No step commits before its implementation and proof are complete.
 - Delete `cmd/zir/zir_emit_expr.c` and `cmd/zir/zir_emit_call.c`.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=c_warnings`.
 
-### S7 — SIMD, range and GPU emission
+### S7 — SIMD emission
 
-- Add `cmd/compiler_c_emit_simd.zi`, `cmd/compiler_gpu_emit.zi`,
-  `cmd/compiler_go_simd.zi`, and `cmd/compiler_simd_metadata.zi`; port
-  `cmd/zir/zir_emit_simd.c`, `zir_emit_gpu.c`, `zir_emit_simd_go.c`,
-  `zir_simd.c`, `zir_simd.h`, and `zir_simd_go_bodies.h`. The range proofs
-  are done (2026-11-17): `cmd/compiler_c_range*.zi`, seeded in
-  `bootstrap/compiler_c_range/`.
+- Add `cmd/compiler_c_emit_simd.zi`, `cmd/compiler_go_simd.zi`, and
+  `cmd/compiler_simd_metadata.zi`; port `cmd/zir/zir_emit_simd.c`,
+  `zir_emit_simd_go.c`, `zir_simd.c` and `zir_simd.h`. The range proofs are
+  done (2026-11-17): `cmd/compiler_c_range*.zi`, seeded in
+  `bootstrap/compiler_c_range/`; the GPU emitter and the Go SIMD body header
+  are already gone.
 - Change generated C/Go emitters and `compiler_runtime_emit` to these modules;
   update `Makefile:468-474` and bootstrap lists.
-- Delete all six listed C files/headers.
+- Delete all four listed C files/headers.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=simd`.
 
 ### S8 — C backend lowering

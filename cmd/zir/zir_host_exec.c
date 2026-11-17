@@ -278,14 +278,6 @@ exec_copy(String text)
     return copy;
 }
 
-int
-ExecBundleBytes(const unsigned char *bytes, size_t size)
-{
-    return size >= 8 && !memcmp(bytes, "ZX\0\0", 4) &&
-        (uint32_t)(bytes[4] | bytes[5] << 8 | bytes[6] << 16 | (uint32_t)bytes[7] << 24) ==
-            compiler_bundle_ExecutableVersionNumber();
-}
-
 /* Splits the next tab- or line-ended field off *cursor, ending it in place. */
 static char *
 exec_field(char **cursor, int *line_end)
@@ -1983,7 +1975,6 @@ ExecInstanceClose(ExecInstance *instance)
 
 #include "zir_diagnostic.h"
 
-int ExecBundleBytes(const unsigned char *bytes, size_t size) { (void)bytes; (void)size; return 0; }
 ExecBundle *ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
 {
     (void)bytes;

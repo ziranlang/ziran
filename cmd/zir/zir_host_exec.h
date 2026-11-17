@@ -15,8 +15,6 @@ typedef struct ExecBundle ExecBundle;
 typedef struct ExecHosts ExecHosts;
 typedef struct ExecInstance ExecInstance;
 
-/* Whether the bytes' header names revision 28. */
-int ExecBundleBytes(const unsigned char *bytes, size_t size);
 /* Reads, verifies and plans a revision-28 executable; NULL after a
  * diagnostic naming `name` when it cannot. The bytes are borrowed only
  * during the call. */

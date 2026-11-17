@@ -271,7 +271,6 @@ ZirType *ModuleAddType(ZirModule *module, const char *name,
                           ZirSourceSpan span);
 ZirStmt *FunctionAddStmt(ZirFunction *fn, ZirStmtKind kind,
                             const char *text, ZirSourceSpan span);
-const char *ImportKindName(ZirImportKind kind);
 const char *StmtKindName(ZirStmtKind kind);
 const char *ExprKindName(ZirExprKind kind);
 ZirExpr *FunctionAddExpr(ZirFunction *fn, ZirExprKind kind,

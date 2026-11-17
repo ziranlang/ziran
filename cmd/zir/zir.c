@@ -2148,17 +2148,6 @@ FunctionAddExpr(ZirFunction *fn, ZirExprKind kind, const char *text,
 }
 
 const char *
-ImportKindName(ZirImportKind kind)
-{
-    switch(kind) {
-    case ZIR_IMPORT_OPEN: return "open";
-    case ZIR_IMPORT_MODULE: return "module";
-    case ZIR_IMPORT_EXTERN: return "extern";
-    default: return "unknown";
-    }
-}
-
-const char *
 ExprKindName(ZirExprKind kind)
 {
     switch(kind) {

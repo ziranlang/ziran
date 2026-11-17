@@ -473,6 +473,32 @@ FloatCallFixture :: (owner: *Machine.MachineOwner, float_result: bool) -> Machin
     return LowerProgram(owner, functions[:], 1)
 }
 
+// The computed argument's input remains live after the call, so its tied
+// copy cannot reuse the input register. In the reverse case, the preferred
+// RSI still holds the other argument until after the subtraction.
+TiedArgumentFixture :: (owner: *Machine.MachineOwner, reverse: bool) -> Machine.MachineResult {
+    storage: [24]s32
+    at: s64 = 0
+    parameters: [2]s32 = .[TypeInteger, TypeInteger]
+    entry: [2]s32 = .[0, 1]
+    callee_values: [3]s32 = .[TypeInteger, TypeInteger, TypeInteger]
+    callee_body: [3]Lir.LirInstruction = .[Fuel(1), Op(.Subtract, 2, Two(storage[:], *at, 0, 1)),
+        Return(One(storage[:], *at, 2))]
+    callee_blocks: [1]Lir.LirBlock = .[.{parameters = entry[:], instructions = callee_body[:]}]
+    caller_values: [6]s32 = .[TypeInteger, TypeInteger, TypeInteger, TypeInteger, TypeInteger, TypeInteger]
+    caller_body: [6]Lir.LirInstruction = .[Fuel(1), Constant(2, 1),
+        Op(.Subtract, 3, Two(storage[:], *at, 0, 2)),
+        Call(4, 0, Two(storage[:], *at, ifx reverse then 1 else 3, ifx reverse then 3 else 1), 2),
+        Op(.Add, 5, Two(storage[:], *at, 4, 0)), Return(One(storage[:], *at, 5))]
+    caller_blocks: [1]Lir.LirBlock = .[.{parameters = entry[:], instructions = caller_body[:]}]
+    functions: [2]Lir.LirFunction = .[
+        .{module = 0, name = "difference", parameters = parameters[:], result = TypeInteger,
+            values = callee_values[:], blocks = callee_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "arguments", parameters = parameters[:], result = TypeInteger,
+            values = caller_values[:], blocks = caller_blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
 // The call result is deliberately unused while `kept` remains live across the
 // call. The ABI still defines RAX at the call, so allocation must reserve that
 // fixed definition even though no interval is created for the result value.
@@ -859,6 +885,39 @@ UnusedFixedResultCase :: () -> bool {
         "a value live across an unused RAX result is restored for return")
 }
 
+TiedArgumentCases :: () -> bool {
+    for reverse: 0..1 {
+        owner: Machine.MachineOwner
+        defer Lower.MachineFree(*owner)
+        if !Lowered("tied arguments", TiedArgumentFixture(*owner, reverse != 0)) ||
+            !Allocate("tied arguments", *owner) { return false }
+        program := Lower.MachineProgramView(*owner)
+        if !Allocated(program, "tied argument allocation verifies") { return false }
+        caller := program.functions[1]
+        first := program.blocks[caller.block_begin].instruction_begin
+        subtract := FindOpcode(program, .IntegerSubtract, first)
+        call := FindOpcode(program, .CallDirect, first)
+        if !Check(subtract >= first && call > subtract, "computed argument precedes call") { return false }
+        result := Operand(program, subtract, 0)
+        expected: s32 = ifx reverse != 0 then 6 else 7
+        if reverse == 0 {
+            if !Check(result.id == expected, "tied result computes directly in the free argument register") { return false }
+            for between: subtract + 1..call - 1 {
+                instruction := program.instructions[between]
+                if instruction.opcode == .Move && Operand(program, cast(s32)between, 0).id == expected {
+                    return Check(false, "argument does not need a following register move")
+                }
+            }
+        } else if !Check(result.id != expected, "occupied argument register is not chosen for tied result") {
+            return false
+        }
+        argument := program.operands[program.calls[program.instructions[call].call].argument_begin + reverse]
+        if !Check(argument.kind == .Physical && argument.id == expected,
+            "fixed argument is in its required ABI register") { return false }
+    }
+    return true
+}
+
 ArithmeticCases :: () -> bool {
     owner: Machine.MachineOwner
     defer Lower.MachineFree(*owner)
@@ -1220,7 +1279,7 @@ VectorCases :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !BackwardDefinitionCase() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+    if !BackwardDefinitionCase() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !TiedArgumentCases() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
         !VectorCases() { return 1 }
     print("register allocation: merged float/vector spills in both block orders, work limits, pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
     return 0

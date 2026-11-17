@@ -1,0 +1,218 @@
+// Index range proofs for generated C: what the C and Go emitters ask. Each
+// question takes the emitter's facts for the function being emitted, that
+// function and its module; facts build with RangeFactsBuild and free with
+// RangeFactsFree. An access whose module or expression keeps its checks
+// (#checks or --checks) needs a proof to lose its check; any other access
+// has none to lose.
+using IR :: #import "compiler_ir"
+using Facts :: #import "compiler_c_range_facts"
+using Values :: #import "compiler_c_range_values"
+using Polys :: #import "compiler_c_range_poly"
+using Splices :: #import "compiler_c_range_callers"
+using Fills :: #import "compiler_c_range_fill"
+
+#scope_file
+
+PROVE_IN_RANGE :: 0
+PROVE_BELOW_COUNT :: 1
+PROVE_RUN :: 2
+
+// The facts of the function being emitted, resolving calls in its module.
+FactsFor :: (f: *RangeFacts, fn: *ZirFunction, module: *ZirModule) -> *RangeFacts {
+    if f != null && f.fn == fn { f.module = module }
+    return f
+}
+
+// Whether every call of the procedure being emitted keeps the access at
+// index inside its memory, shown on each call's spliced copy.
+CallersProve :: (f: *RangeFacts, fn: *ZirFunction, module: *ZirModule, c_target: bool, kind: s32, index: s32,
+                 base: s32, n: s64) -> bool {
+    if f == null || f.fn != fn || f.spliced != 0 || !c_target || module == null || index < 0 { return false }
+    if f.callers_built == 0 {
+        f.callers_built = 1
+        f.callers = CallersOf(f, module)
+    }
+    if f.callers == null || f.callers.usable == 0 || f.callers.count == 0 { return false }
+    proven := true
+    i: s32 = 0
+    while i < f.callers.count && proven {
+        site := *f.callers.site[i]
+        if kind == PROVE_IN_RANGE { proven = InRangeHere(site.facts, *site.fn, module, site.offset + index, n) }
+        else { proven = RunBelowHere(site.facts, *site.fn, module, site.offset + index, n, site.offset + base) }
+        i += 1
+    }
+    return proven
+}
+
+InRangeHere :: (facts: *RangeFacts, fn: *ZirFunction, module: *ZirModule, index: s32, count: s64) -> bool {
+    f := FactsFor(facts, fn, module)
+    range: Range
+    limit: Poly
+    if f == null || f.fn != fn || count <= 0 { return false }
+    f.budget = RANGE_BUDGET
+    if ExprRange(f, index, 0, *range) && range.low >= 0 && range.high < count { return true }
+    PolyConstant(*limit, count, count)
+    f.budget = POLY_BUDGET
+    return PolyIndexBelow(f, index, *limit)
+}
+
+// The binding whose count limit is when limit reads view.count.
+CountOf :: (f: *RangeFacts, limit: s32) -> s32 {
+    expr := *f.fn.exprs[limit]
+    if expr.kind != ZirExprKind.MEMBER || !Is(expr.name, "count") || f.fn.exprs[expr.left].kind != ZirExprKind.IDENT {
+        return -1
+    }
+    return f.binding_of[expr.left]
+}
+
+// Whether limit is view.count - 1 or a binding only ever holding it.
+CountMinusOne :: (f: *RangeFacts, limit: s32, view: s32, depth: s32) -> bool {
+    expr := *f.fn.exprs[limit]
+    one: s64
+    if depth > RANGE_DEPTH { return false }
+    if expr.kind == ZirExprKind.BINARY && IsOp(expr, "-") && CountOf(f, expr.left) == view &&
+       f.fn.exprs[expr.right].kind == ZirExprKind.INT && LiteralValue(f.fn.exprs[expr.right].text, *one) && one == 1 {
+        return true
+    }
+    if expr.kind == ZirExprKind.IDENT && f.binding_of[limit] >= 0 && f.binding_of[limit] < f.statements {
+        binding := f.binding_of[limit]
+        return f.unknown[binding] == 0 && f.first_write[binding] < 0 && f.fn.stmts[binding].expr_root >= 0 &&
+               CountMinusOne(f, f.fn.stmts[binding].expr_root, view, depth + 1)
+    }
+    return false
+}
+
+// Whether condition holding means counter < view.count.
+ConditionBelowCount :: (f: *RangeFacts, condition: s32, counter: s32, view: s32, depth: s32) -> bool {
+    if condition < 0 || depth > RANGE_DEPTH { return false }
+    expr := *f.fn.exprs[condition]
+    if expr.kind != ZirExprKind.BINARY { return false }
+    if IsOp(expr, "&&") {
+        return ConditionBelowCount(f, expr.left, counter, view, depth + 1) ||
+               ConditionBelowCount(f, expr.right, counter, view, depth + 1)
+    }
+    left := *f.fn.exprs[expr.left]
+    right := *f.fn.exprs[expr.right]
+    if left.kind != ZirExprKind.IDENT || f.binding_of[expr.left] != counter || left.type == null || right.type == null ||
+       !Is(Canonical(left.type), "s64") || !Is(Canonical(right.type), "s64") {
+        return false
+    }
+    if IsOp(expr, "<") { return CountOf(f, expr.right) == view }
+    if IsOp(expr, "<=") { return CountMinusOne(f, expr.right, view, 0) }
+    return false
+}
+
+CounterBelowCount :: (f: *RangeFacts, fn: *ZirFunction, index: s32, base: s32) -> bool {
+    range: Range
+    if f == null || f.fn != fn || index < 0 || base < 0 || fn.exprs[base].kind != ZirExprKind.IDENT ||
+       fn.exprs[index].kind != ZirExprKind.IDENT {
+        return false
+    }
+    f.budget = RANGE_BUDGET
+    view := f.binding_of[base]
+    counter := f.binding_of[index]
+    at := f.statement_of[index]
+    // The view's count is fixed when nothing writes the view itself.
+    if view < 0 || counter < 0 || at < 0 || f.unknown[view] != 0 || f.unknown[counter] != 0 || f.first_write[view] >= 0 ||
+       !ExprRange(f, index, 0, *range) || range.low < 0 {
+        return false
+    }
+    loop := f.loop_of[at]
+    while loop >= 0 {
+        if ConditionBelowCount(f, f.fn.stmts[loop].expr_root, counter, view, 0) && UnchangedSinceCondition(f, counter, loop, at) {
+            return true
+        }
+        loop = f.loop_of[loop]
+    }
+    return false
+}
+
+// Whether index < base.count - (run - 1), so a run of that many elements
+// starting at index ends below the count.
+RunBelowHere :: (facts: *RangeFacts, fn: *ZirFunction, module: *ZirModule, index: s32, run: s64, base: s32) -> bool {
+    f := FactsFor(facts, fn, module)
+    limit: Poly
+    if f == null || f.fn != fn || index < 0 || base < 0 || run < 1 { return false }
+    if run == 1 && CounterBelowCount(f, fn, index, base) { return true }
+    view := ifx f.fn.exprs[base].kind == ZirExprKind.IDENT then f.binding_of[base] else -1
+    if !Invariant(f, view) { return false }
+    PolyAtom(*limit, f.bindings + view)
+    limit.k.low = 1 - run; limit.k.high = 1 - run
+    f.budget = POLY_BUDGET
+    return PolyIndexBelow(f, index, *limit)
+}
+
+// Whether high is low + run for a binding low and a constant run >= 1.
+PlusRun :: (f: *RangeFacts, high: s32, low: s32, run: *s64) -> bool {
+    sum := *f.fn.exprs[high]
+    if sum.kind != ZirExprKind.BINARY || !IsOp(sum, "+") || sum.left < 0 || sum.right < 0 ||
+       f.fn.exprs[sum.right].kind != ZirExprKind.INT || !LiteralValue(f.fn.exprs[sum.right].text, run) || <<run < 1 ||
+       <<run > 2147483647 {
+        return false
+    }
+    return f.fn.exprs[sum.left].kind == ZirExprKind.IDENT && f.fn.exprs[low].kind == ZirExprKind.IDENT &&
+           f.binding_of[sum.left] >= 0 && f.binding_of[sum.left] == f.binding_of[low]
+}
+
+#scope_export
+
+// Whether the access at expression expr keeps its bounds check.
+ChecksAt :: (module: *ZirModule, fn: *ZirFunction, expr: s32) -> bool {
+    return (module != null && module.checks != 0) || (expr >= 0 && expr < fn.expr_count && fn.exprs[expr].checked != 0)
+}
+
+// Whether index lies in 0..count-1 wherever it is read.
+IndexInRange :: (f: *RangeFacts, fn: *ZirFunction, module: *ZirModule, c_target: bool, index: s32, count: s64) -> bool {
+    return !ChecksAt(module, fn, index) || InRangeHere(f, fn, module, index, count) ||
+           CallersProve(f, fn, module, c_target, PROVE_IN_RANGE, index, -1, count)
+}
+
+// Whether index lies below base.count, for a base view nothing writes.
+IndexBelowCount :: (f: *RangeFacts, fn: *ZirFunction, module: *ZirModule, c_target: bool, index: s32, base: s32) -> bool {
+    return !ChecksAt(module, fn, index) || RunBelowHere(f, fn, module, index, 1, base) ||
+           CallersProve(f, fn, module, c_target, PROVE_BELOW_COUNT, index, base, 1)
+}
+
+// Whether the run of elements index..index + run - 1 lies below base.count.
+RunBelowCount :: (f: *RangeFacts, fn: *ZirFunction, module: *ZirModule, c_target: bool, index: s32, run: s64,
+                  base: s32) -> bool {
+    return !ChecksAt(module, fn, index) || RunBelowHere(f, fn, module, index, run, base) ||
+           CallersProve(f, fn, module, c_target, PROVE_RUN, index, base, run)
+}
+
+// base[low:high] needs 0 <= low <= high <= count. An absent bound is 0 or
+// the count. For low:low + run, prove the run fits both the memory and the
+// endpoint's integer type, including unsigned types whose wrapped result
+// would still be nonnegative. Of a slice, an open bound is shown below the
+// count, which asks a little more than needed.
+SliceRangeInRange :: (facts: *RangeFacts, fn: *ZirFunction, module: *ZirModule, c_target: bool, index: s32,
+                      capacity: s32) -> bool {
+    f := FactsFor(facts, fn, module)
+    endpoint: Range
+    run: s64
+    if !ChecksAt(module, fn, index) { return true }
+    if f == null || f.fn != fn || !c_target || index < 0 || fn.exprs[index].kind != ZirExprKind.SLICE { return false }
+    expr := *fn.exprs[index]
+    if expr.right < 0 && expr.third < 0 { return true }
+    if expr.third < 0 || expr.right < 0 {
+        bound := ifx expr.third < 0 then expr.right else expr.third
+        if capacity >= 0 { return IndexInRange(f, fn, module, c_target, bound, cast(s64)capacity + 1) }
+        return IndexBelowCount(f, fn, module, c_target, bound, expr.left)
+    }
+    if !PlusRun(f, expr.third, expr.right, *run) || !TypeRange(fn.exprs[expr.third].type, *endpoint) || run > endpoint.high {
+        return false
+    }
+    if capacity >= 0 {
+        limit := ifx capacity < endpoint.high then cast(s64)capacity else endpoint.high
+        return run <= limit && IndexInRange(f, fn, module, c_target, expr.right, limit - run + 1)
+    }
+    return RunBelowCount(f, fn, module, c_target, expr.right, run, expr.left) &&
+           IndexInRange(f, fn, module, c_target, expr.right, endpoint.high - run + 1)
+}
+
+// Whether generated C may leave the local declared at statement
+// declaration unset: every element is stored before anything reads it.
+InitializedBeforeRead :: (facts: *RangeFacts, fn: *ZirFunction, module: *ZirModule, declaration: s32) -> bool {
+    f := FactsFor(facts, fn, module)
+    return f != null && f.fn == fn && WrittenBeforeRead(f, module, declaration)
+}

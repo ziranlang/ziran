@@ -1,0 +1,418 @@
+// Index range proofs, part 4: callers' facts. Only its own module can call
+// a procedure that is not public, so an access in its body that every call
+// there keeps inside its memory needs no check. A call is shown on a copy of
+// its caller with the callee's body spliced in as a block just before the
+// call's statement: each parameter becomes a local holding its argument, or
+// the caller's own binding when the argument names one neither side writes,
+// and the callee's names take a prefix no source name has. A copy is only
+// proved on, never emitted.
+using IR :: #import "compiler_ir"
+using Facts :: #import "compiler_c_range_facts"
+using Values :: #import "compiler_c_range_values"
+
+#scope_file
+
+// NAME with the prefix spliced names take, kept until c is freed.
+SplicedName :: (c: *Callers, name: *u8) -> *u8 {
+    length := CText(name).count
+    if c.name_count == c.name_cap {
+        cap := ifx c.name_cap != 0 then 2 * c.name_cap else 64
+        grown := Grow(c.names, cast(s64)cap)
+        if grown == null { return null }
+        c.names = grown
+        c.name_cap = cap
+    }
+    copy := cast(*u8)Allocate(length + 2, 1)
+    if copy == null { return null }
+    copy[0] = 1
+    Copy(*copy[1], name, length + 1)
+    c.names[c.name_count] = copy
+    c.name_count += 1
+    return copy
+}
+
+TreeSize :: (fn: *ZirFunction, x: s32) -> s32 {
+    if x < 0 { return 0 }
+    size := 1 + TreeSize(fn, fn.exprs[x].left) + TreeSize(fn, fn.exprs[x].right) + TreeSize(fn, fn.exprs[x].third)
+    child := fn.exprs[x].first_child
+    while child >= 0 {
+        size += TreeSize(fn, child)
+        child = fn.exprs[child].next_sibling
+    }
+    return size
+}
+
+// Copy expression x of from and what it holds to to[next...].
+CopyTree :: (from: *ZirFunction, x: s32, to: *ZirExpr, next: *s32) -> s32 {
+    if x < 0 { return -1 }
+    at := <<next
+    <<next += 1
+    to[at] = from.exprs[x]
+    to[at].next_sibling = -1
+    to[at].first_child = -1
+    to[at].left = CopyTree(from, from.exprs[x].left, to, next)
+    to[at].right = CopyTree(from, from.exprs[x].right, to, next)
+    to[at].third = CopyTree(from, from.exprs[x].third, to, next)
+    last: s32 = -1
+    child := from.exprs[x].first_child
+    while child >= 0 {
+        copied := CopyTree(from, child, to, next)
+        if last < 0 { to[at].first_child = copied } else { to[last].next_sibling = copied }
+        last = copied
+        child = from.exprs[child].next_sibling
+    }
+    return at
+}
+
+TreeCalls :: (fn: *ZirFunction, x: s32, except: s32) -> bool {
+    if x < 0 { return false }
+    if x != except && fn.exprs[x].kind == ZirExprKind.CALL { return true }
+    if TreeCalls(fn, fn.exprs[x].left, except) || TreeCalls(fn, fn.exprs[x].right, except) ||
+       TreeCalls(fn, fn.exprs[x].third, except) {
+        return true
+    }
+    child := fn.exprs[x].first_child
+    while child >= 0 {
+        if TreeCalls(fn, child, except) { return true }
+        child = fn.exprs[child].next_sibling
+    }
+    return false
+}
+
+TreeHolds :: (fn: *ZirFunction, x: s32, wanted: s32) -> bool {
+    if x < 0 { return false }
+    if x == wanted || TreeHolds(fn, fn.exprs[x].left, wanted) || TreeHolds(fn, fn.exprs[x].right, wanted) ||
+       TreeHolds(fn, fn.exprs[x].third, wanted) {
+        return true
+    }
+    child := fn.exprs[x].first_child
+    while child >= 0 {
+        if TreeHolds(fn, child, wanted) { return true }
+        child = fn.exprs[child].next_sibling
+    }
+    return false
+}
+
+// The name a binding of facts f was declared with.
+BindingName :: (f: *RangeFacts, binding: s32) -> *u8 {
+    if binding < f.statements { return f.fn.stmts[binding].name }
+    return ParameterBinding(f.fn, binding - f.statements)
+}
+
+ShiftLink :: (link: *s32, offset: s32) { if <<link >= 0 { <<link += offset } }
+
+// A declaration's name lives in a union with a #c spelling, which zi2c's
+// stores into do not keep yet, so the name goes through the union itself.
+SetName :: (st: *ZirStmt, name: *u8) {
+    slot := cast(**u8)(*st.names)
+    <<slot = name
+}
+
+// The arguments of call by parameter, and the caller's own bindings that
+// stand for parameters neither side writes; false when a call's arguments
+// are not one per parameter. extra counts the expressions copied.
+BindArguments :: (f: *RangeFacts, caller: *ZirFunction, outer: *RangeFacts, call: s32, argument: *s32, alias: *s32,
+                  extra: *s32) -> bool {
+    callee := f.fn
+    count := ParameterCount(callee)
+    for p: 0..count - 1 {
+        argument[p] = -1
+        alias[p] = -1
+    }
+    child := caller.exprs[call].first_child
+    while child >= 0 {
+        p := caller.exprs[child].argument_index
+        if p < 0 || p >= count || argument[p] >= 0 || ParameterUsing(callee, p) { return false }
+        argument[p] = child
+        child = caller.exprs[child].next_sibling
+    }
+    for p: 0..count - 1 {
+        if argument[p] < 0 || ParameterName(callee, p) == null { return false }
+        value := *caller.exprs[argument[p]]
+        binding: s32 = -1
+        if value.kind == ZirExprKind.IDENT && value.is_global_value == 0 && value.is_function_value == 0 {
+            binding = outer.binding_of[argument[p]]
+        }
+        // The caller's binding stands for the parameter when neither side
+        // writes it and both have one type.
+        if binding >= 0 && Invariant(outer, binding) && Invariant(f, f.statements + p) &&
+           outer.binding_type[binding] != null &&
+           Same(Canonical(outer.binding_type[binding]), Canonical(ParameterType(callee, p))) {
+            alias[p] = binding
+        } else { <<extra += TreeSize(caller, argument[p]) }
+    }
+    // A name the callee reads from outside it must not meet a caller's
+    // binding of the same name.
+    for x: 0..callee.expr_count - 1 {
+        expr := *callee.exprs[x]
+        if expr.kind == ZirExprKind.IDENT && f.binding_of[x] < 0 && expr.name != null {
+            for b: 0..outer.bindings - 1 {
+                name := BindingName(outer, b)
+                if name != null && Same(name, expr.name) { return false }
+            }
+        }
+    }
+    return true
+}
+
+// Copy the callee's expressions after the caller's, linked at their new
+// places and with its bindings renamed.
+SpliceExprs :: (c: *Callers, f: *RangeFacts, caller: *ZirFunction, argument: *s32, alias: *s32, site: *CallSite) -> bool {
+    callee := f.fn
+    copy := *site.fn
+    Copy(copy.exprs, caller.exprs, cast(s64)caller.expr_count)
+    site.offset = caller.expr_count
+    Copy(*copy.exprs[site.offset], callee.exprs, cast(s64)callee.expr_count)
+    for x: 0..callee.expr_count - 1 {
+        expr := *copy.exprs[site.offset + x]
+        binding := f.binding_of[x]
+        ShiftLink(*expr.left, site.offset)
+        ShiftLink(*expr.right, site.offset)
+        ShiftLink(*expr.first_child, site.offset)
+        ShiftLink(*expr.next_sibling, site.offset)
+        ShiftLink(*expr.third, site.offset)
+        if expr.kind == ZirExprKind.IDENT && binding >= 0 {
+            if binding >= f.statements && alias[binding - f.statements] >= 0 {
+                expr.name = caller.exprs[argument[binding - f.statements]].name
+            } else {
+                expr.name = SplicedName(c, BindingName(f, binding))
+                if expr.name == null { return false }
+            }
+        }
+    }
+    return true
+}
+
+// The statements of the copy: the caller's up to s, a block holding the
+// parameters' locals and the callee's body, then the rest of the caller's.
+SpliceStmts :: (c: *Callers, f: *RangeFacts, caller: *ZirFunction, s: s32, call: s32, argument: *s32, alias: *s32,
+                marker: bool, site: *CallSite) -> bool {
+    callee := f.fn
+    copy := *site.fn
+    st := *caller.stmts[s]
+    count := ParameterCount(callee)
+    next := caller.expr_count + callee.expr_count
+    k: s32 = 0
+    loops: s32 = 0
+    plain: ZirStmt
+    for s2: 0..caller.stmt_count - 1 { if caller.stmts[s2].loop_id > loops { loops = caller.stmts[s2].loop_id } }
+    plain.expr_root = -1
+    plain.lhs_root = -1
+    plain.span = st.span
+    for s2: 0..s - 1 {
+        copy.stmts[k] = caller.stmts[s2]
+        k += 1
+    }
+    copy.stmts[k] = plain
+    copy.stmts[k].kind = ZirStmtKind.BLOCK_OPEN
+    k += 1
+    if marker {
+        // Anything the statement runs besides this call may change memory
+        // first, so the copy calls something unknown before the callee.
+        copy.exprs[next] = caller.exprs[call]
+        copy.exprs[next].kind = ZirExprKind.CALL
+        copy.exprs[next].name = LiteralC("\x01unknown")
+        copy.exprs[next].type = LiteralC("void")
+        copy.exprs[next].left = -1
+        copy.exprs[next].right = -1
+        copy.exprs[next].third = -1
+        copy.exprs[next].first_child = -1
+        copy.exprs[next].next_sibling = -1
+        copy.stmts[k] = plain
+        copy.stmts[k].kind = ZirStmtKind.EXPR
+        copy.stmts[k].expr_root = next
+        next += 1
+        k += 1
+    }
+    for p: 0..count - 1 {
+        if alias[p] < 0 {
+            copy.stmts[k] = plain
+            copy.stmts[k].kind = ZirStmtKind.DECL
+            copy.stmts[k].expr_root = CopyTree(caller, argument[p], copy.exprs, *next)
+            copy.stmts[k].type = ParameterType(callee, p)
+            name := SplicedName(c, BindingName(f, f.statements + p))
+            if name == null { return false }
+            SetName(*copy.stmts[k], name)
+            k += 1
+        }
+    }
+    for s2: 0..callee.stmt_count - 1 {
+        into := *copy.stmts[k]
+        k += 1
+        <<into = callee.stmts[s2]
+        if into.expr_root >= 0 { into.expr_root += site.offset }
+        if into.lhs_root >= 0 { into.lhs_root += site.offset }
+        if into.loop_id > 0 { into.loop_id += loops }
+        if into.target_id > 0 { into.target_id += loops }
+        if into.for_step > 0 { into.for_step += loops }
+        if into.kind == ZirStmtKind.DECL && into.name != null {
+            name := SplicedName(c, into.name)
+            if name == null { return false }
+            SetName(into, name)
+        }
+    }
+    copy.stmts[k] = plain
+    copy.stmts[k].kind = ZirStmtKind.BLOCK_CLOSE
+    k += 1
+    for s2: s..caller.stmt_count - 1 {
+        copy.stmts[k] = caller.stmts[s2]
+        k += 1
+    }
+    copy.stmt_count = k
+    copy.stmt_cap = k
+    copy.expr_count = next
+    copy.expr_cap = next
+    return true
+}
+
+// Splice the callee of facts f into a copy of caller, before statement s
+// holding call: true when the copy and its facts are built.
+SpliceCall :: (c: *Callers, f: *RangeFacts, module: *ZirModule, caller: *ZirFunction, outer: *RangeFacts, s: s32,
+               call: s32, site: *CallSite) -> bool {
+    callee := f.fn
+    st := *caller.stmts[s]
+    count := ParameterCount(callee)
+    extra: s32 = 0
+    ok := false
+    <<site = CallSite.{}
+    if st.for_step != 0 || st.is_parallel != 0 || st.is_gpu != 0 ||
+       !(st.kind == ZirStmtKind.DECL || st.kind == ZirStmtKind.ASSIGN || st.kind == ZirStmtKind.EXPR ||
+         st.kind == ZirStmtKind.RETURN || (st.kind == ZirStmtKind.IF && st.is_else == 0)) {
+        return false
+    }
+    argument := cast(*s32)Allocate(cast(s64)count + 1, size_of(s32))
+    alias := cast(*s32)Allocate(cast(s64)count + 1, size_of(s32))
+    copy := *site.fn
+    if argument != null && alias != null && BindArguments(f, caller, outer, call, argument, alias, *extra) {
+        marker := TreeCalls(caller, st.expr_root, call) || TreeCalls(caller, st.lhs_root, call)
+        copy.args_text = caller.args_text
+        copy.default_args_text = caller.default_args_text
+        copy.stmts = cast(*ZirStmt)Allocate(cast(s64)caller.stmt_count + callee.stmt_count + count + 3, size_of(ZirStmt))
+        copy.exprs = cast(*ZirExpr)Allocate(cast(s64)caller.expr_count + callee.expr_count + extra + 1, size_of(ZirExpr))
+        if copy.stmts != null && copy.exprs != null && SpliceExprs(c, f, caller, argument, alias, site) &&
+           SpliceStmts(c, f, caller, s, call, argument, alias, marker, site) {
+            site.facts = RangeFactsBuild(copy)
+            if site.facts != null {
+                site.facts.module = module
+                site.facts.spliced = 1
+                ok = true
+            }
+        }
+    }
+    Release(argument)
+    Release(alias)
+    if !ok {
+        Release(copy.stmts)
+        Release(copy.exprs)
+        <<site = CallSite.{}
+    }
+    return ok
+}
+
+WordByte :: (byte: u8) -> bool {
+    return (byte >= #char "a" && byte <= #char "z") || (byte >= #char "A" && byte <= #char "Z") ||
+           (byte >= #char "0" && byte <= #char "9") || byte == #char "_"
+}
+
+// Whether text holds name as a whole identifier.
+NamesWord :: (text: *u8, name: *u8) -> bool {
+    if text == null || name[0] == 0 { return false }
+    hay := CText(text)
+    word := CText(name)
+    for at: 0..hay.count - word.count {
+        if hay[at:at + word.count] == word {
+            before := ifx at > 0 then hay[at - 1] else #char " "
+            after := ifx at + word.count < hay.count then hay[at + word.count] else 0
+            if !WordByte(before) && !WordByte(after) { return true }
+        }
+    }
+    return false
+}
+
+// Whether callee can have callers outside what this module shows.
+Reachable :: (module: *ZirModule, callee: *ZirFunction) -> bool {
+    own := false
+    for i: 0..module.function_count - 1 { if *module.functions[i] == callee { own = true } }
+    return !own || callee.is_public != 0 || callee.exported != 0 || callee.export_symbol[0] != 0 ||
+           callee.is_template != 0 || callee.is_specialization != 0 || callee.is_conversion != 0 ||
+           callee.retained_root != 0 || (callee.assembly_text != null && callee.assembly_text[0] != 0) ||
+           callee.is_extern != 0 || callee.is_global_initializer != 0 || callee.go_method[0] != 0 ||
+           NativeProgramMain(module, callee) ||
+           (callee.overload_name[0] != 0 && BufferText(callee.overload_name[:]) != BufferText(callee.name[:]))
+}
+
+// Whether the text after a call name's last dot is want.
+LastNameIs :: (name: *u8, want: string) -> bool {
+    text := CText(name)
+    start: s64 = 0
+    for i: 0..text.count - 1 { if text[i] == #char "." { start = i + 1 } }
+    return text[start:text.count] == want
+}
+
+// Splice each call of callee in caller; false when one may escape the
+// proofs.
+SpliceCallsIn :: (c: *Callers, f: *RangeFacts, module: *ZirModule, caller: *ZirFunction) -> bool {
+    callee := f.fn
+    callee_name := BufferText(callee.name[:])
+    outer: *RangeFacts = null
+    usable := true
+    x: s32 = 0
+    while x < caller.expr_count && usable {
+        expr := *caller.exprs[x]
+        owner: *ZirModule = null
+        target: *ZirFunction = null
+        // Values are marked; the callee name of a call parses to a node no
+        // statement reaches.
+        if expr.name != null && (expr.kind == ZirExprKind.CALL || expr.is_function_value != 0) &&
+           LastNameIs(expr.name, callee_name) {
+            if expr.is_function_value != 0 {
+                usable = false
+            } else if expr.slot_type == null || expr.slot_type[0] == 0 {
+                // A call whose target is unclear may be one more.
+                if ResolveFunction(module, expr.name, *owner, *target) != 1 {
+                    usable = false
+                } else if target == callee {
+                    if caller.is_template != 0 || caller.checked == 0 || c.count == CALL_SITES {
+                        usable = false
+                    } else {
+                        if outer == null { outer = RangeFactsBuild(caller) }
+                        s: s32 = -1
+                        if outer == null {
+                            usable = false
+                        } else {
+                            t: s32 = 0
+                            while t < caller.stmt_count && s < 0 {
+                                if TreeHolds(caller, caller.stmts[t].expr_root, x) || TreeHolds(caller, caller.stmts[t].lhs_root, x) {
+                                    s = t
+                                }
+                                t += 1
+                            }
+                            if s < 0 || !SpliceCall(c, f, module, caller, outer, s, x, *c.site[c.count]) { usable = false }
+                            else { c.count += 1 }
+                        }
+                    }
+                }
+            }
+        }
+        x += 1
+    }
+    RangeFactsFree(outer)
+    return usable
+}
+
+#scope_export
+
+// Every call of the procedure of facts f in module, each spliced into a
+// copy of its caller; usable when all of them were.
+CallersOf :: (f: *RangeFacts, module: *ZirModule) -> *Callers {
+    callee := f.fn
+    c := cast(*Callers)Allocate(1, size_of(Callers))
+    if c == null || Reachable(module, callee) { return c }
+    // A file-scope initializer or define naming it may make it a value.
+    usable := true
+    for g: 0..module.global_count - 1 { if usable { usable = !NamesWord(module.globals[g].init, *callee.name[0]) } }
+    for d: 0..module.define_count - 1 { if usable { usable = !NamesWord(module.defines[d].value, *callee.name[0]) } }
+    for i: 0..module.function_count - 1 { if usable { usable = SpliceCallsIn(c, f, module, *module.functions[i]) } }
+    c.usable = ifx usable then 1 else 0
+    return c
+}

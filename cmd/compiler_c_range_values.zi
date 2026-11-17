@@ -1,0 +1,935 @@
+// Index range proofs, part 2: the range of values an integer expression or
+// binding can hold at a statement. Writes the proofs follow give a binding
+// its values, conditions that hold where it is read narrow them, and a call
+// of a procedure in the same module returns what its body shows.
+using IR :: #import "compiler_ir"
+using Facts :: #import "compiler_c_range_facts"
+
+RANGE_EXCEPT :: 8
+
+AddChecked :: (a: s64, b: s64, out: *s64) -> bool {
+    if (b > 0 && a > MAX_S64 - b) || (b < 0 && a < MIN_S64 - b) { return false }
+    <<out = a + b
+    return true
+}
+
+SubtractChecked :: (a: s64, b: s64, out: *s64) -> bool {
+    if (b < 0 && a > MAX_S64 + b) || (b > 0 && a < MIN_S64 + b) { return false }
+    <<out = a - b
+    return true
+}
+
+// a * b, refusing MIN_S64 and any product whose magnitude overflows.
+MulChecked :: (a: s64, b: s64, out: *s64) -> bool {
+    if a == 0 || b == 0 {
+        <<out = 0
+        return true
+    }
+    if a == MIN_S64 || b == MIN_S64 { return false }
+    magnitude_a := ifx a < 0 then -a else a
+    magnitude_b := ifx b < 0 then -b else b
+    if magnitude_a > MAX_S64 / magnitude_b { return false }
+    <<out = a * b
+    return true
+}
+
+AddRange :: (a: Range, b: Range, subtract: bool, out: *Range) -> bool {
+    if subtract { return SubtractChecked(a.low, b.high, *out.low) && SubtractChecked(a.high, b.low, *out.high) }
+    return AddChecked(a.low, b.low, *out.low) && AddChecked(a.high, b.high, *out.high)
+}
+
+// Whether a * b overflows s64, exactly; otherwise out holds the product.
+MulOverflows :: (a: s64, b: s64, out: *s64) -> bool {
+    overflows := false
+    if a > 0 {
+        if b > 0 { overflows = a > MAX_S64 / b } else { overflows = b < MIN_S64 / a }
+    } else if b > 0 {
+        overflows = a < MIN_S64 / b
+    } else { overflows = a != 0 && b < MAX_S64 / a }
+    if !overflows { <<out = a * b }
+    return overflows
+}
+
+// The product's range, when no corner product overflows: a 32-bit value
+// less one, such as cast(s64)height - 1, times a 32-bit stride fits.
+MultiplyRange :: (a: Range, b: Range, out: *Range) -> bool {
+    products: [4]s64
+    if MulOverflows(a.low, b.low, *products[0]) || MulOverflows(a.low, b.high, *products[1]) ||
+       MulOverflows(a.high, b.low, *products[2]) || MulOverflows(a.high, b.high, *products[3]) {
+        return false
+    }
+    Corners(products, out)
+    return true
+}
+
+// The range of products computed with MulChecked.
+RangeMultiply :: (a: Range, b: Range, out: *Range) -> bool {
+    products: [4]s64
+    if !MulChecked(a.low, b.low, *products[0]) || !MulChecked(a.low, b.high, *products[1]) ||
+       !MulChecked(a.high, b.low, *products[2]) || !MulChecked(a.high, b.high, *products[3]) {
+        return false
+    }
+    Corners(products, out)
+    return true
+}
+
+#scope_file
+
+Corners :: (products: [4]s64, out: *Range) {
+    out.low = products[0]; out.high = products[0]
+    for i: 1..3 {
+        if products[i] < out.low { out.low = products[i] }
+        if products[i] > out.high { out.high = products[i] }
+    }
+}
+
+BitCover :: (value: s64) -> s64 {
+    cover: s64 = 0
+    while cover < value { cover = cover * 2 + 1 }
+    return cover
+}
+
+// The largest value a counter can have when condition holds: i <= n,
+// i < n, n >= i or n > i, through &&.
+ConditionBound :: (f: *RangeFacts, condition: s32, binding: s32, depth: s32, bound: *s64) -> bool {
+    if condition < 0 || depth > RANGE_DEPTH { return false }
+    expr := *f.fn.exprs[condition]
+    if expr.kind != ZirExprKind.BINARY { return false }
+    if IsOp(expr, "&&") {
+        left: s64
+        right: s64
+        has_left := ConditionBound(f, expr.left, binding, depth + 1, *left)
+        has_right := ConditionBound(f, expr.right, binding, depth + 1, *right)
+        if has_left && has_right { <<bound = ifx left < right then left else right }
+        else if has_left { <<bound = left }
+        else if has_right { <<bound = right }
+        return has_left || has_right
+    }
+    counter: s32
+    limit: s32
+    if IsOp(expr, "<=") || IsOp(expr, "<") {
+        counter = expr.left
+        limit = expr.right
+    } else if IsOp(expr, ">=") || IsOp(expr, ">") {
+        counter = expr.right
+        limit = expr.left
+    } else { return false }
+    strict := expr.op[1] == 0
+    if f.fn.exprs[counter].kind != ZirExprKind.IDENT || f.binding_of[counter] != binding { return false }
+    if f.fn.exprs[limit].type == null || f.fn.exprs[counter].type == null { return false }
+    limit_range: Range
+    counter_type: Range
+    own_type := Canonical(f.fn.exprs[counter].type)
+    if !ExprRange(f, limit, depth + 1, *limit_range) || !TypeRange(own_type, *counter_type) { return false }
+    // Both sides compare as the counter's type; canonical never names the
+    // untyped integer.
+    if !Same(Canonical(f.fn.exprs[limit].type), own_type) { return false }
+    <<bound = limit_range.high - (ifx strict then 1 else 0)
+    return true
+}
+
+#scope_export
+
+// Whether every path from statement s jumps away before it reaches
+// statement at: a continue, break, return or unreachable follows s in its
+// own block, with at not between them. A for loop's step before a continue
+// is such a write: the loop's condition runs again before the body does.
+LeavesBefore :: (f: *RangeFacts, s: s32, at: s32) -> bool {
+    block := f.parent_of[s]
+    end := ifx block >= 0 then f.block_end[block] else f.statements
+    for c: s + 1..end - 1 {
+        kind := f.fn.stmts[c].kind
+        if s < at && at <= c { return false }
+        if f.parent_of[c] == block && (kind == ZirStmtKind.CONTINUE || kind == ZirStmtKind.BREAK ||
+                                       kind == ZirStmtKind.RETURN || kind == ZirStmtKind.UNREACHABLE) {
+            return true
+        }
+    }
+    return false
+}
+
+// Every write of binding inside loop comes after statement at, outside any
+// loop nested in loop, so at holds the value the condition last saw.
+UnchangedSinceCondition :: (f: *RangeFacts, binding: s32, loop: s32, at: s32) -> bool {
+    s := f.first_write[binding]
+    while s >= 0 {
+        if s > loop && s < f.block_end[loop] && ((s < at && !LeavesBefore(f, s, at)) || f.loop_of[s] != loop) {
+            return false
+        }
+        s = f.next_write[s]
+    }
+    return true
+}
+
+// Guards also bound counts: atom bindings + view stands for view.count,
+// which changes only when view does. A field read keeps its value within
+// its epoch, so only its base must stay the same.
+AtomBinding :: (f: *RangeFacts, atom: s32) -> s32 {
+    if atom >= 2 * f.bindings { return f.field_base[atom - 2 * f.bindings] }
+    return ifx atom >= f.bindings then atom - f.bindings else atom
+}
+
+AtomType :: (f: *RangeFacts, atom: s32) -> *u8 {
+    if atom >= 2 * f.bindings { return f.field_type[atom - 2 * f.bindings] }
+    return ifx atom >= f.bindings then LiteralC("s64") else f.binding_type[atom]
+}
+
+// Nothing writes binding between statement from and statement at: no write
+// lies between them, and no loop around at but not from writes it.
+UnchangedBetween :: (f: *RangeFacts, atom: s32, from: s32, at: s32) -> bool {
+    binding := AtomBinding(f, atom)
+    if binding < 0 || binding >= f.bindings || f.unknown[binding] != 0 { return false }
+    s := f.first_write[binding]
+    while s >= 0 {
+        if s > from && s < at && !LeavesBefore(f, s, at) { return false }
+        loop := f.loop_of[at]
+        while loop >= 0 {
+            if !(loop < from && from < f.block_end[loop]) && s > loop && s < f.block_end[loop] { return false }
+            loop = f.loop_of[loop]
+        }
+        s = f.next_write[s]
+    }
+    return true
+}
+
+// A binding nothing writes after its declaration, nor through its address.
+Invariant :: (f: *RangeFacts, binding: s32) -> bool {
+    return binding >= 0 && binding < f.bindings && f.unknown[binding] == 0 && f.first_write[binding] < 0
+}
+
+// When a read of a pointer parameter's field at statement s sees the value
+// every other read in the same epoch sees: 0 before any clobber, 2c + 2
+// after clobber c, or 2w + 3 within an iteration of a while w that may
+// clobber. A read sharing its statement with a clobber, or in the
+// condition of such a while, has no epoch, -1: the write may come first.
+FieldEpoch :: (f: *RangeFacts, s: s32) -> s32 {
+    epoch := ifx f.last_clobber[s] >= 0 then 2 * f.last_clobber[s] + 2 else 0
+    if f.clobber[s] != 0 || (f.fn.stmts[s].kind == ZirStmtKind.WHILE && f.dirty[s] != 0) { return -1 }
+    loop := f.loop_of[s]
+    while loop >= 0 {
+        if f.dirty[loop] != 0 {
+            if 2 * loop + 3 > epoch { epoch = 2 * loop + 3 }
+            break
+        }
+        loop = f.loop_of[loop]
+    }
+    return epoch
+}
+
+// The atom of integer field read index, base.name for a parameter base
+// nothing rebinds, or -1. Through a pointer the field holds one value
+// within an epoch; a record parameter's field changes only when the
+// parameter does, which Invariant rules out.
+FieldAtom :: (f: *RangeFacts, index: s32) -> s32 {
+    expr := *f.fn.exprs[index]
+    at := f.statement_of[index]
+    type: Range
+    if (expr.kind != ZirExprKind.MEMBER && expr.kind != ZirExprKind.POINTER_MEMBER) || expr.name == null ||
+       expr.left < 0 || f.fn.exprs[expr.left].kind != ZirExprKind.IDENT || at < 0 || expr.type == null ||
+       !IntegerType(expr.type) || !TypeRange(expr.type, *type) {
+        return -1
+    }
+    base := f.binding_of[expr.left]
+    if base < f.statements || !Invariant(f, base) { return -1 }
+    if expr.kind == ZirExprKind.MEMBER {
+        // Counts of views are their own atoms.
+        record := f.fn.exprs[expr.left].type
+        capacity: s32 = 0
+        if record == null || record[0] == #char "*" || IsSlice(record) || ArrayCapacity(record, *capacity) ||
+           Is(Canonical(record), "string") {
+            return -1
+        }
+    }
+    epoch := ifx expr.kind == ZirExprKind.POINTER_MEMBER then FieldEpoch(f, at) else 0
+    if epoch < 0 { return -1 }
+    for k: 0..f.fields - 1 {
+        if f.field_base[k] == base && f.field_epoch[k] == epoch && Same(f.field_name[k], expr.name) &&
+           Same(f.field_type[k], expr.type) {
+            return 2 * f.bindings + k
+        }
+    }
+    if f.fields >= FIELD_ATOMS { return -1 }
+    f.field_base[f.fields] = base
+    f.field_epoch[f.fields] = epoch
+    f.field_name[f.fields] = expr.name
+    f.field_type[f.fields] = expr.type
+    f.fields += 1
+    return 2 * f.bindings + f.fields - 1
+}
+
+#scope_file
+
+// Whether expression index reads binding's value unchanged: the binding
+// itself, or a cast to a type holding every value of the binding's type.
+ReadsBinding :: (f: *RangeFacts, index: s32, binding: s32) -> bool {
+    at := index
+    expr := *f.fn.exprs[at]
+    own := AtomType(f, binding)
+    inner: Range
+    outer: Range
+    if own == null || expr.type == null || !TypeRange(own, *inner) { return false }
+    if expr.kind == ZirExprKind.CAST {
+        if !TypeRange(expr.type, *outer) || !Within(inner, outer) { return false }
+        at = expr.right
+        expr = *f.fn.exprs[at]
+        if expr.type == null { return false }
+    }
+    if binding >= 2 * f.bindings { return FieldAtom(f, at) == binding }
+    if binding >= f.bindings {
+        if expr.kind != ZirExprKind.MEMBER || !Is(expr.name, "count") { return false }
+        base := *f.fn.exprs[expr.left]
+        return base.kind == ZirExprKind.IDENT && f.binding_of[expr.left] == binding - f.bindings &&
+               base.type != null && (IsSlice(base.type) || Is(Canonical(base.type), "string")) &&
+               Is(Canonical(expr.type), "s64")
+    }
+    return expr.kind == ZirExprKind.IDENT && f.binding_of[at] == binding && Same(Canonical(expr.type), Canonical(own))
+}
+
+#scope_export
+
+// Whether child continues condition's && or || chain, as each further
+// comparison of a || b || c does; walking a chain costs no depth, so a long
+// guard keeps every comparison.
+SameChain :: (f: *RangeFacts, condition: s32, child: s32) -> bool {
+    if child < 0 { return false }
+    a := *f.fn.exprs[condition]
+    b := *f.fn.exprs[child]
+    return b.kind == ZirExprKind.BINARY && BufferText(a.op[:]) == BufferText(b.op[:])
+}
+
+// The depth a chain's operand costs: none while it continues the chain.
+ChainDepth :: (f: *RangeFacts, condition: s32, child: s32, depth: s32) -> s32 {
+    return ifx SameChain(f, condition, child) then depth else depth + 1
+}
+
+PushContext :: (f: *RangeFacts, condition: s32, truth: bool, statement: s32) {
+    f.context[f.contexts].condition = condition
+    f.context[f.contexts].truth = ifx truth then 1 else 0
+    f.context[f.contexts].statement = statement
+    f.contexts += 1
+}
+
+// The comparison an operator spells: < <= > >= == !=, or -1.
+Comparison :: (expr: *ZirExpr) -> s32 {
+    ops := string.["<", "<=", ">", ">=", "==", "!="]
+    op: s32 = -1
+    for i: 0..5 { if IsOp(expr, ops[i]) { op = cast(s32)i } }
+    return op
+}
+
+#scope_file
+
+// Whether self and other compare as one type, or other is an untyped
+// value that self's type holds.
+ComparesAsOne :: (f: *RangeFacts, self: s32, other: s32, value: Range) -> bool {
+    if Same(Canonical(f.fn.exprs[self].type), Canonical(f.fn.exprs[other].type)) { return true }
+    compared: Range
+    return Is(f.fn.exprs[other].type, "integer") && TypeRange(f.fn.exprs[self].type, *compared) &&
+           Within(value, compared)
+}
+
+// The values binding can hold where condition, evaluated at statement, has
+// value truth: x < n, n >= x, x == n and their negations, through !, && and
+// ||. The right side of && or || runs only after the left side, so facts
+// about its operands may use the left side's value.
+ConditionInterval :: (f: *RangeFacts, condition: s32, truth: bool, binding: s32, statement: s32, depth: s32,
+                      out: *Range) -> bool {
+    mirror := s32.[2, 3, 0, 1, 4, 5]
+    negate := s32.[3, 2, 1, 0, 5, 4]
+    if condition < 0 || depth > 2 * RANGE_DEPTH { return false }
+    f.budget -= 1
+    if f.budget < 0 { return false }
+    expr := *f.fn.exprs[condition]
+    if expr.kind == ZirExprKind.UNARY && IsOp(expr, "!") {
+        return ConditionInterval(f, expr.right, !truth, binding, statement, depth + 1, out)
+    }
+    if expr.kind != ZirExprKind.BINARY { return false }
+    if IsOp(expr, "&&") || IsOp(expr, "||") {
+        // Both sides hold for a true && or a false ||; otherwise one does.
+        both := (expr.op[0] == #char "&") == truth
+        left: Range
+        right: Range
+        has_right := false
+        has_left := ConditionInterval(f, expr.left, truth, binding, statement,
+                                      ChainDepth(f, condition, expr.left, depth), *left)
+        if f.contexts < RANGE_CONTEXT {
+            PushContext(f, expr.left, expr.op[0] == #char "&", statement)
+            has_right = ConditionInterval(f, expr.right, truth, binding, statement,
+                                          ChainDepth(f, condition, expr.right, depth), *right)
+            f.contexts -= 1
+        }
+        if both {
+            if has_left && has_right {
+                out.low = ifx left.low > right.low then left.low else right.low
+                out.high = ifx left.high < right.high then left.high else right.high
+            } else { <<out = ifx has_left then left else right }
+            return has_left || has_right
+        }
+        if !has_left || !has_right { return false }
+        out.low = ifx left.low < right.low then left.low else right.low
+        out.high = ifx left.high > right.high then left.high else right.high
+        return true
+    }
+    op := Comparison(expr)
+    if op < 0 { return false }
+    self: s32
+    other: s32
+    if ReadsBinding(f, expr.left, binding) {
+        self = expr.left
+        other = expr.right
+    } else if ReadsBinding(f, expr.right, binding) {
+        self = expr.right
+        other = expr.left
+        op = mirror[op]
+    } else { return false }
+    if !truth { op = negate[op] }
+    // Both sides compare as one type, or an untyped literal it holds.
+    whole: Range
+    value: Range
+    if f.fn.exprs[self].type == null || f.fn.exprs[other].type == null || !TypeRange(AtomType(f, binding), *whole) ||
+       !ExprRange(f, other, depth + 1, *value) || !ComparesAsOne(f, self, other, value) {
+        return false
+    }
+    <<out = whole
+    if op == 0 {
+        if value.high == MIN_S64 { return false }
+        out.high = value.high - 1
+    } else if op == 1 {
+        out.high = value.high
+    } else if op == 2 {
+        if value.low == MAX_S64 { return false }
+        out.low = value.low + 1
+    } else if op == 3 {
+        out.low = value.low
+    } else if op == 4 {
+        <<out = value
+    } else { return false }
+    if out.low < whole.low { out.low = whole.low }
+    if out.high > whole.high { out.high = whole.high }
+    return out.low <= out.high
+}
+
+// Whether binding differs from point where condition, evaluated at
+// statement, has value truth: x != c, x == c false, or either through !, a
+// true && or a false ||.
+ConditionExcept :: (f: *RangeFacts, condition: s32, truth: bool, binding: s32, statement: s32, depth: s32,
+                    point: *s64) -> bool {
+    if condition < 0 || depth > 2 * RANGE_DEPTH { return false }
+    f.budget -= 1
+    if f.budget < 0 { return false }
+    expr := *f.fn.exprs[condition]
+    if expr.kind == ZirExprKind.UNARY && IsOp(expr, "!") {
+        return ConditionExcept(f, expr.right, !truth, binding, statement, depth + 1, point)
+    }
+    if expr.kind != ZirExprKind.BINARY { return false }
+    if IsOp(expr, "&&") || IsOp(expr, "||") {
+        return (expr.op[0] == #char "&") == truth &&
+               (ConditionExcept(f, expr.left, truth, binding, statement, depth + 1, point) ||
+                ConditionExcept(f, expr.right, truth, binding, statement, depth + 1, point))
+    }
+    if !IsOp(expr, ifx truth then "!=" else "==") { return false }
+    self: s32
+    other: s32
+    if ReadsBinding(f, expr.left, binding) {
+        self = expr.left
+        other = expr.right
+    } else if ReadsBinding(f, expr.right, binding) {
+        self = expr.right
+        other = expr.left
+    } else { return false }
+    whole: Range
+    value: Range
+    if f.fn.exprs[self].type == null || f.fn.exprs[other].type == null || !TypeRange(AtomType(f, binding), *whole) ||
+       !ExprRange(f, other, depth + 1, *value) || value.low != value.high || !ComparesAsOne(f, self, other, value) {
+        return false
+    }
+    <<point = value.low
+    return true
+}
+
+Narrow :: (value: *Range, by: Range) {
+    result := Range.{low = ifx by.low > value.low then by.low else value.low,
+                     high = ifx by.high < value.high then by.high else value.high}
+    // An empty range is code that cannot run; keep the wider answer.
+    if result.low <= result.high { <<value = result }
+}
+
+Excepts :: struct {
+    point: [RANGE_EXCEPT]s64
+    count: s32
+}
+
+// Narrow binding by condition with value truth at statement; a value it
+// rules out joins except, to trim an end of the range once all is known.
+NarrowBy :: (f: *RangeFacts, condition: s32, truth: bool, binding: s32, statement: s32, depth: s32, value: *Range,
+             except: *Excepts) {
+    by: Range
+    if ConditionInterval(f, condition, truth, binding, statement, depth, *by) { Narrow(value, by) }
+    if except.count < RANGE_EXCEPT &&
+       ConditionExcept(f, condition, truth, binding, statement, depth, *except.point[except.count]) {
+        except.count += 1
+    }
+}
+
+#scope_export
+
+// Narrow binding's value at statement at by the conditions that hold
+// there: earlier sibling ifs that always exit, enclosing ifs and whiles, and
+// the left sides of && and || around the operand being checked.
+GuardNarrow :: (f: *RangeFacts, binding: s32, at: s32, depth: s32, value: *Range) {
+    except: Excepts
+    if at < 0 || at >= f.statements || binding < 0 || binding >= 2 * f.bindings + f.fields || f.busy[binding] != 0 ||
+       f.unknown[AtomBinding(f, binding)] != 0 || depth > RANGE_DEPTH {
+        return
+    }
+    f.busy[binding] = 1
+    for c: 0..f.contexts - 1 {
+        if f.context[c].statement == at {
+            NarrowBy(f, f.context[c].condition, f.context[c].truth != 0, binding, at, depth + 1, value, *except)
+        }
+    }
+    x := at
+    while x >= 0 {
+        open := f.parent_of[x]
+        // A counting loop's step also runs after continue.
+        guard := ifx f.fn.stmts[x].for_step != 0 then -1 else f.prev_guard[x]
+        while guard >= 0 {
+            if UnchangedBetween(f, binding, guard, at) {
+                NarrowBy(f, f.fn.stmts[guard].expr_root, false, binding, guard, depth + 1, value, *except)
+            }
+            guard = f.prev_guard[guard]
+        }
+        if open < 0 { break }
+        st := *f.fn.stmts[open]
+        branch := ifx st.kind == ZirStmtKind.IF && st.is_else != 0 then f.prev_branch[open] else -1
+        while branch >= 0 {
+            if f.fn.stmts[branch].expr_root >= 0 && UnchangedBetween(f, binding, branch, at) {
+                NarrowBy(f, f.fn.stmts[branch].expr_root, false, binding, branch, depth + 1, value, *except)
+            }
+            branch = ifx f.fn.stmts[branch].is_else != 0 then f.prev_branch[branch] else -1
+        }
+        if st.expr_root >= 0 &&
+           ((st.kind == ZirStmtKind.IF && UnchangedBetween(f, binding, open, at)) ||
+            (st.kind == ZirStmtKind.WHILE && UnchangedSinceCondition(f, AtomBinding(f, binding), open, at))) {
+            NarrowBy(f, st.expr_root, true, binding, open, depth + 1, value, *except)
+        }
+        x = open
+    }
+    // A value ruled out at an end of the range moves that end.
+    trimmed := true
+    while trimmed {
+        trimmed = false
+        i: s32 = 0
+        while i < except.count && value.low < value.high {
+            if except.point[i] == value.low {
+                value.low += 1
+                trimmed = true
+            } else if except.point[i] == value.high {
+                value.high -= 1
+                trimmed = true
+            }
+            i += 1
+        }
+    }
+    f.busy[binding] = 0
+}
+
+#scope_file
+
+MemoSlot :: (f: *RangeFacts, key: s64) -> *RangeMemo {
+    if f.memo == null { return null }
+    i := cast(u32)((cast(u64)key * 0x9e3779b97f4a7c15) >> 40) & f.memo_mask
+    while f.memo[i].key != 0 && f.memo[i].key != key { i = (i + 1) & f.memo_mask }
+    return *f.memo[i]
+}
+
+MemoStore :: (f: *RangeFacts, key: s64, range: Range) {
+    if f.memo == null || (f.memo_count + 1) * 2 > f.memo_mask + 1 {
+        size: u32 = ifx f.memo == null then 1024 else (f.memo_mask + 1) * 2
+        old := f.memo
+        old_size: u32 = ifx old == null then 0 else f.memo_mask + 1
+        grown := cast(*RangeMemo)Allocate(cast(s64)size, size_of(RangeMemo))
+        if grown == null { return }
+        f.memo = grown
+        f.memo_mask = size - 1
+        f.memo_count = 0
+        for i: 0..cast(s64)old_size - 1 {
+            if old[i].key != 0 {
+                <<MemoSlot(f, old[i].key) = old[i]
+                f.memo_count += 1
+            }
+        }
+        Release(old)
+    }
+    slot := MemoSlot(f, key)
+    if slot.key == 0 { f.memo_count += 1 }
+    slot.key = key
+    slot.range = range
+}
+
+#scope_export
+
+// Binding's value at statement at. Each binding followed starts its own
+// expression depth; a binding already being worked out, or a chain longer
+// than RANGE_HOPS, answers with its type's range.
+BindingRange :: (f: *RangeFacts, binding: s32, at: s32, out: *Range) -> bool {
+    key := cast(s64)binding * (f.statements + 2) + at + 2
+    in_context := false
+    for c: 0..f.contexts - 1 { if f.context[c].statement == at { in_context = true } }
+    slot := ifx in_context then null else MemoSlot(f, key)
+    if slot != null && slot.key == key {
+        <<out = slot.range
+        return true
+    }
+    if f.computing[binding] != 0 || f.hops >= RANGE_HOPS { return TypeRange(f.binding_type[binding], out) }
+    f.computing[binding] = 1
+    f.hops += 1
+    ok := BindingBaseRange(f, binding, at, 0, out)
+    if ok { GuardNarrow(f, binding, at, 0, out) }
+    f.hops -= 1
+    f.computing[binding] = 0
+    // A question cut short keeps a sound but wider answer; ask it again.
+    if ok && f.contexts == 0 && f.budget >= 0 && f.read_at < 0 { MemoStore(f, key, <<out) }
+    return ok
+}
+
+#scope_file
+
+// The value of binding's initializer, read at statement at. A binding never
+// written after it holds the value its reads had, and where nothing writes
+// them before at, they still have it there, so what they hold at at narrows
+// it too: at := row * stride + column fits in s32 once a later guard bounds
+// row, stride and column.
+InitializerRange :: (f: *RangeFacts, binding: s32, at: s32, depth: s32, out: *Range) -> bool {
+    root := f.fn.stmts[binding].expr_root
+    later: Range
+    if !ExprRange(f, root, depth + 1, out) { return false }
+    if at <= binding || f.read_at >= 0 || f.first_write[binding] >= 0 || f.increment_loop[binding] != -1 { return true }
+    f.read_at = at
+    if ExprRange(f, root, depth + 1, *later) { Narrow(out, later) }
+    f.read_at = -1
+    return true
+}
+
+// The one = write of binding inside an if that at follows, outside any
+// loop, when nothing else writes binding: the if's condition held there.
+ConditionalWrite :: (f: *RangeFacts, binding: s32, at: s32, branch: *s32) -> s32 {
+    fn := f.fn
+    write := f.first_write[binding]
+    found: s32 = -1
+    if write < 0 || f.next_write[write] >= 0 || f.increment_loop[binding] >= 0 || f.loop_of[at] >= 0 ||
+       BufferText(fn.stmts[write].assignment_op[:]) != "=" || fn.stmts[write].expr_root < 0 {
+        return -1
+    }
+    for open: 0..write - 1 {
+        if fn.stmts[open].kind == ZirStmtKind.IF && fn.stmts[open].is_else == 0 && fn.stmts[open].expr_root >= 0 &&
+           write < f.block_end[open] && at >= f.block_end[open] && f.loop_of[write] < 0 {
+            found = write
+            <<branch = open
+        }
+    }
+    return found
+}
+
+BindingBaseRange :: (f: *RangeFacts, binding: s32, at: s32, depth: s32, out: *Range) -> bool {
+    fn := f.fn
+    whole: Range
+    value: Range
+    if !TypeRange(f.binding_type[binding], *whole) { return false }
+    <<out = whole
+    if f.unknown[binding] != 0 || depth > RANGE_DEPTH { return true }
+    if binding >= f.statements {
+        // A parameter's incoming value is any value of its type, or of what
+        // the call being followed passes.
+        value = whole
+        if f.seed != null { Narrow(*value, f.seed[binding - f.statements]) }
+    } else if fn.stmts[binding].expr_root < 0 {
+        // A declaration without a value starts at zero.
+        value.low = 0; value.high = 0
+    } else if !InitializerRange(f, binding, at, depth, *value) { return true }
+    conditional_branch: s32 = -1
+    conditional_write := ConditionalWrite(f, binding, at, *conditional_branch)
+    s := f.first_write[binding]
+    while s >= 0 {
+        if BufferText(fn.stmts[s].assignment_op[:]) == "=" {
+            if fn.stmts[s].expr_root < 0 { return true }
+            stored: Range
+            known := false
+            if s == conditional_write && f.contexts < RANGE_CONTEXT {
+                PushContext(f, fn.stmts[conditional_branch].expr_root, true, s)
+                known = ExprRange(f, fn.stmts[s].expr_root, depth + 1, *stored)
+                f.contexts -= 1
+            } else { known = ExprRange(f, fn.stmts[s].expr_root, depth + 1, *stored) }
+            if !known { return true }
+            if s == conditional_write {
+                except: Excepts
+                NarrowBy(f, fn.stmts[conditional_branch].expr_root, false, binding, s, depth + 1, *value, *except)
+            }
+            if stored.low < value.low { value.low = stored.low }
+            if stored.high > value.high { value.high = stored.high }
+        }
+        s = f.next_write[s]
+    }
+    if f.increment_loop[binding] != -1 {
+        loop := f.increment_loop[binding]
+        bound: s64
+        if loop < 0 || !ConditionBound(f, fn.stmts[loop].expr_root, binding, depth + 1, *bound) { return true }
+        if bound < value.high { bound = value.high }
+        // Each step runs at most once per pass after the condition held.
+        if bound > whole.high - f.step_total[binding] { return true }
+        value.high = bound + f.step_total[binding]
+    }
+    if !Within(value, whole) { return true }
+    // Inside a loop that bounds the counter and before it changes again.
+    loop := ifx at >= 0 then f.loop_of[at] else -1
+    while loop >= 0 {
+        bound: s64
+        if ConditionBound(f, fn.stmts[loop].expr_root, binding, depth + 1, *bound) &&
+           UnchangedSinceCondition(f, binding, loop, at) && bound < value.high {
+            value.high = bound
+        }
+        loop = f.loop_of[loop]
+    }
+    <<out = value
+    return true
+}
+
+// The values its return statements give, with each parameter starting in
+// seed: the result of a call of callee, from facts of its own.
+ReturnedRange :: (owner: *ZirModule, callee: *ZirFunction, seed: *Range, call_depth: s32, out: *Range) -> bool {
+    inner := RangeFactsBuild(callee)
+    if inner == null { return false }
+    known := true
+    any := false
+    inner.module = owner
+    inner.seed = seed
+    inner.call_depth = call_depth
+    // Falling off the end aborts, so only return statements give values.
+    s: s32 = 0
+    while s < callee.stmt_count && known {
+        if callee.stmts[s].kind == ZirStmtKind.RETURN {
+            value: Range
+            inner.budget = RANGE_BUDGET
+            if callee.stmts[s].expr_root < 0 || !ExprRange(inner, callee.stmts[s].expr_root, 0, *value) {
+                known = false
+            } else if !any {
+                <<out = value
+                any = true
+            } else {
+                if value.low < out.low { out.low = value.low }
+                if value.high > out.high { out.high = value.high }
+            }
+        }
+        s += 1
+    }
+    RangeFactsFree(inner)
+    return known && any
+}
+
+// Whether two seeds hold the same ranges.
+SameSeeds :: (a: *Range, b: *Range, count: s32) -> bool {
+    for i: 0..count - 1 { if a[i].low != b[i].low || a[i].high != b[i].high { return false } }
+    return true
+}
+
+// The values a call of a checked Ziran procedure returns, worked out from
+// its body with each parameter in the range its argument has here: with a
+// limit of 3, CoefficientLevel(levels, at, 3) returns 0..3.
+CallRangeOf :: (f: *RangeFacts, index: s32, out: *Range) -> bool {
+    call := *f.fn.exprs[index]
+    owner: *ZirModule = null
+    callee: *ZirFunction = null
+    result: Range
+    if f.module == null || f.call_depth >= CALL_DEPTH || call.name == null || call.name[0] == 0 ||
+       (call.slot_type != null && call.slot_type[0] != 0) || call.is_function_value != 0 ||
+       ResolveFunction(f.module, call.name, *owner, *callee) != 1 || callee == null || callee == f.fn ||
+       callee.checked == 0 || callee.is_extern != 0 || callee.is_template != 0 || callee.stmt_count <= 0 ||
+       !TypeRange(*callee.return_type[0], *result) {
+        return false
+    }
+    count := ParameterCount(callee)
+    seed := cast(*Range)Allocate(cast(s64)count + 1, size_of(Range))
+    if seed == null { return false }
+    for p: 0..count - 1 {
+        if !TypeRange(ParameterType(callee, p), *seed[p]) { seed[p].low = MIN_S64; seed[p].high = MAX_S64 }
+    }
+    child := call.first_child
+    while child >= 0 {
+        p := f.fn.exprs[child].argument_index
+        value: Range
+        // An argument the parameter type holds arrives as itself.
+        if p >= 0 && p < count && !ParameterUsing(callee, p) && ExprRange(f, child, 0, *value) && Within(value, seed[p]) {
+            seed[p] = value
+        }
+        child = f.fn.exprs[child].next_sibling
+    }
+    for c: 0..f.call_count - 1 {
+        if f.calls[c].callee == callee && f.calls[c].seeds == count && SameSeeds(f.calls[c].seed, seed, count) {
+            Release(seed)
+            <<out = f.calls[c].result
+            return f.calls[c].known != 0
+        }
+    }
+    known := ReturnedRange(owner, callee, seed, f.call_depth + 1, *result)
+    if f.call_count < CALL_RANGES {
+        if f.calls == null { f.calls = cast(*CallRange)Allocate(CALL_RANGES, size_of(CallRange)) }
+        if f.calls != null {
+            slot := *f.calls[f.call_count]
+            f.call_count += 1
+            slot.callee = callee
+            slot.seed = seed
+            slot.seeds = count
+            slot.known = ifx known then 1 else 0
+            slot.result = result
+            seed = null
+        }
+    }
+    Release(seed)
+    <<out = result
+    return known
+}
+
+// The range a binary operator's result lies in, from its operands' ranges.
+BinaryRange :: (f: *RangeFacts, expr: *ZirExpr, left: bool, a: Range, right: bool, b: Range, out: *Range) -> bool {
+    known := false
+    if IsOp(expr, "&") {
+        // A nonnegative operand clears every higher bit.
+        if left && a.low >= 0 { out.low = 0; out.high = a.high; known = true }
+        if right && b.low >= 0 && (!known || b.high < out.high) { out.low = 0; out.high = b.high; known = true }
+    } else if IsOp(expr, "|") || IsOp(expr, "^") {
+        if left && right && a.low >= 0 && b.low >= 0 {
+            out.low = 0; out.high = BitCover(ifx a.high > b.high then a.high else b.high); known = true
+        }
+    } else if IsOp(expr, "+") || IsOp(expr, "-") {
+        known = left && right && AddRange(a, b, expr.op[0] == #char "-", out)
+    } else if IsOp(expr, "*") {
+        known = left && right && MultiplyRange(a, b, out)
+    } else if IsOp(expr, "/") {
+        if left && right && a.low >= 0 && b.low > 0 {
+            out.low = a.low / b.high; out.high = a.high / b.low; known = true
+        }
+    } else if IsOp(expr, "%") {
+        if left && right && a.low >= 0 && b.low > 0 {
+            out.low = 0; out.high = ifx a.high < b.high - 1 then a.high else b.high - 1; known = true
+        }
+    } else if IsOp(expr, "<<") {
+        // x << k is x * 2^k when that fits the type; a count outside the
+        // width aborts before the index.
+        if left && right && b.low >= 0 && b.high <= 62 {
+            scale := Range.{low = cast(s64)1 << b.low, high = cast(s64)1 << b.high}
+            known = MultiplyRange(a, scale, out)
+        }
+    } else if IsOp(expr, ">>") {
+        // A shift count outside the width aborts before the index.
+        if right && b.low >= 0 && b.high < 64 {
+            if left && a.low >= 0 {
+                out.low = a.low >> b.high; out.high = a.high >> b.low; known = true
+            } else if Is(Canonical(f.fn.exprs[expr.left].type), "u64") && b.low > 0 {
+                out.low = 0; out.high = cast(s64)(cast(u64)18446744073709551615 >> cast(u64)b.low); known = true
+            }
+        }
+    }
+    return known
+}
+
+#scope_export
+
+ExprRange :: (f: *RangeFacts, index: s32, depth: s32, out: *Range) -> bool {
+    fn := f.fn
+    if index < 0 || index >= fn.expr_count { return false }
+    expr := *fn.exprs[index]
+    whole: Range
+    a: Range
+    b: Range
+    has_whole := TypeRange(expr.type, *whole)
+    if depth > RANGE_DEPTH { 
+        <<out = whole
+        return has_whole
+    }
+    f.budget -= 1
+    if f.budget < 0 {
+        <<out = whole
+        return has_whole
+    }
+    kind := expr.kind
+    if kind == ZirExprKind.INT {
+        if LiteralValue(expr.text, *a.low) {
+            a.high = a.low
+            if !has_whole || Within(a, whole) {
+                <<out = a
+                return true
+            }
+        }
+    } else if kind == ZirExprKind.CAST {
+        if has_whole && IntegerType(fn.exprs[expr.right].type) && ExprRange(f, expr.right, depth + 1, *a) && Within(a, whole) {
+            <<out = a
+            return true
+        }
+    } else if kind == ZirExprKind.IDENT {
+        binding := f.binding_of[index]
+        at := f.statement_of[index]
+        if binding >= 0 && expr.type != null && f.binding_type[binding] != null &&
+           Same(Canonical(expr.type), Canonical(f.binding_type[binding])) {
+            if f.read_at > at && UnchangedBetween(f, binding, at, f.read_at) { at = f.read_at }
+            return BindingRange(f, binding, at, out)
+        }
+    } else if kind == ZirExprKind.MEMBER || kind == ZirExprKind.POINTER_MEMBER {
+        capacity: s32 = 0
+        field := FieldAtom(f, index)
+        base := fn.exprs[expr.left].type
+        if field >= 0 && has_whole {
+            <<out = whole
+            GuardNarrow(f, field, f.statement_of[index], depth, out)
+            return true
+        }
+        if kind == ZirExprKind.MEMBER && Is(expr.name, "count") && base != null {
+            if ArrayCapacity(base, *capacity) && capacity >= 0 {
+                out.low = capacity; out.high = capacity
+                return true
+            }
+            // A slice or string never holds a negative count.
+            if (IsSlice(base) || Is(Canonical(base), "string")) && has_whole && whole.high == MAX_S64 {
+                out.low = 0; out.high = MAX_S64
+                if fn.exprs[expr.left].kind == ZirExprKind.IDENT && f.binding_of[expr.left] >= 0 {
+                    GuardNarrow(f, f.bindings + f.binding_of[expr.left], f.statement_of[index], depth, out)
+                }
+                return true
+            }
+        }
+    } else if kind == ZirExprKind.CALL {
+        if CallRangeOf(f, index, *a) && (!has_whole || Within(a, whole)) {
+            <<out = a
+            return true
+        }
+    } else if kind == ZirExprKind.CONDITIONAL {
+        if ExprRange(f, expr.right, depth + 1, *a) && ExprRange(f, expr.third, depth + 1, *b) {
+            a.low = ifx a.low < b.low then a.low else b.low; a.high = ifx a.high > b.high then a.high else b.high
+            if !has_whole || Within(a, whole) {
+                <<out = a
+                return true
+            }
+        }
+    } else if kind == ZirExprKind.UNARY {
+        if IsOp(expr, "-") && ExprRange(f, expr.right, depth + 1, *a) && a.low > MIN_S64 {
+            b.low = -a.high; b.high = -a.low
+            if has_whole && Within(b, whole) {
+                <<out = b
+                return true
+            }
+        }
+    } else if kind == ZirExprKind.BINARY {
+        left := ExprRange(f, expr.left, depth + 1, *a)
+        right := ExprRange(f, expr.right, depth + 1, *b)
+        result: Range
+        if has_whole && IntegerType(fn.exprs[expr.left].type) && BinaryRange(f, expr, left, a, right, b, *result) &&
+           Within(result, whole) {
+            <<out = result
+            return true
+        }
+    }
+    if has_whole {
+        <<out = whole
+        return true
+    }
+    return false
+}

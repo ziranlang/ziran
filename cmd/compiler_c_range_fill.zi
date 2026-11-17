@@ -1,0 +1,453 @@
+// Index range proofs, part 5: definite initialization. Ziran fills a local
+// declared with no value with zeros; generated C need not when every element
+// is provably stored before anything can read it. The statements after the
+// declaration run here on the values known exactly: integer locals set from
+// constants, so counted loops with constant bounds run their real
+// iterations. Each store into the local marks the elements it writes, at
+// constant positions only:
+//
+// - local = value, local.field = value and local.array[k] = value;
+// - Simd.Store(local.array[:], k, vector) of a fixed vector.
+//
+// Coverage counts only if it completes before any statement names the local
+// otherwise, which covers every read and every address taken, and before
+// control could leave the block or run a branch or loop not known here. Such
+// a branch or loop is passed over only when it names nothing of the local
+// and cannot jump out. Only arrays and records whose leaves are scalars or
+// fixed vectors of one size count: their C object has no padding left unset,
+// and no field owns storage that a store would release first.
+using IR :: #import "compiler_ir"
+using Facts :: #import "compiler_c_range_facts"
+using Values :: #import "compiler_c_range_values"
+
+#scope_file
+zir :: #system_library "zir";
+CVectorType :: (type: *u8, vector: *RangeVector) -> s32 #foreign zir "VectorType";
+CSimdOpChecked :: (name: *u8) -> *RangeSimdOp #foreign zir "SimdOpChecked";
+CTypeNextFieldShared :: (record: *ZirType, offset: *usize, field: **ZirTypeField) -> s32 #foreign zir "TypeNextFieldShared";
+
+// zir.h's ZirVector, and the operation number that leads zir_simd.h's SimdOp.
+RangeVector :: struct {
+    name: *u8
+    lane: *u8
+    lanes: s32
+    lane_bits: s32
+    bytes: s32
+    is_signed: s32
+    is_float: s32
+    is_native: s32
+    block: *u8
+}
+RangeSimdOp :: struct {
+    id: s32
+}
+ZI_OP_STORE :: 38 // include/ziran_simd.h
+
+// IR.ZIR_NAME_MAX; an imported constant cannot size an array yet.
+NameMax :: 128
+FILL_SLOTS :: 16384 // 1 << 14
+FILL_STEPS :: 16384
+FILL_DEPTH :: 16
+FILL_FAIL :: 0
+FILL_NEXT :: 1
+FILL_DONE :: 2
+FILL_BREAK :: 3
+FILL_CONTINUE :: 4
+
+Fill :: struct {
+    f: *RangeFacts
+    module: *ZirModule
+    binding: s32     // the declaration
+    slots: s32       // leaf elements
+    left: s32        // those not written yet
+    leaf_bytes: s64  // the one size of every leaf
+    written: *u8     // per slot
+    known: *u8       // per binding: value holds its exact value
+    value: *s64
+    pending: *s32    // expression walks
+    steps: s32       // statements run, bounded by FILL_STEPS
+    jump: s32        // loop_id a FILL_BREAK or FILL_CONTINUE leaves, 0 innermost
+}
+
+// The plain record whose C struct holds exactly its fields, or null.
+FillRecord :: (w: *Fill, type: *u8) -> *ZirType {
+    record := FindType(w.module, type)
+    if record == null || record.is_enum != 0 || record.is_union != 0 || record.is_procedure_type != 0 ||
+       record.foreign_target[0] != 0 || record.is_map != 0 || record.is_extern != 0 || record.is_abi_incomplete != 0 ||
+       record.is_owned_vec != 0 || record.is_record_template != 0 || record.is_type_instance != 0 ||
+       record.is_go_anonymous != 0 {
+        return null
+    }
+    return record
+}
+
+// Leaf elements of a value of type, every one leaf_bytes wide, or -1.
+FillSlots :: (w: *Fill, spelled: *u8, depth: s32) -> s32 {
+    element: [NameMax]u8
+    capacity: s32 = 0
+    vector: RangeVector
+    if spelled == null || depth > FILL_DEPTH || spelled[0] == #char "*" { return -1 }
+    type := Canonical(spelled)
+    if ArrayElement(type, element[:], *capacity) {
+        if capacity <= 0 { return -1 }
+        each := FillSlots(w, *element[0], depth + 1)
+        if each <= 0 || cast(s64)capacity * each > FILL_SLOTS { return -1 }
+        return capacity * each
+    }
+    bytes: s64 = 0
+    if CVectorType(type, *vector) != 0 { bytes = ifx vector.is_native != 0 then 0 else vector.bytes }
+    else { bytes = ScalarBytes(type) }
+    if bytes > 0 {
+        if w.leaf_bytes == 0 { w.leaf_bytes = bytes }
+        return ifx w.leaf_bytes == bytes then 1 else -1
+    }
+    record := FillRecord(w, type)
+    if record == null { return -1 }
+    offset: usize = 0
+    field: *ZirTypeField = null
+    total: s32 = 0
+    status := CTypeNextFieldShared(record, *offset, *field)
+    while status > 0 {
+        if field.c_type[0] != 0 { return -1 }
+        each := FillSlots(w, *field.type[0], depth + 1)
+        if each <= 0 { return -1 }
+        total += each
+        if total > FILL_SLOTS { return -1 }
+        status = CTypeNextFieldShared(record, *offset, *field)
+    }
+    return ifx status == 0 && total > 0 then total else -1
+}
+
+FillMentions :: (w: *Fill, root: s32) -> bool {
+    walk := ZirExprWalk.{fn = w.f.fn, pending = w.pending, count = 0}
+    x := WalkFirst(*walk, root)
+    while x >= 0 {
+        if w.f.binding_of[x] == w.binding { return true }
+        x = WalkNext(*walk)
+    }
+    return false
+}
+
+// Whether value is one a value of type can hold; no wrap is followed.
+FillFits :: (type: *u8, value: s64) -> bool {
+    range: Range
+    if type == null { return false }
+    if Is(Canonical(type), "bool") { return value == 0 || value == 1 }
+    if Is(Canonical(type), "u64") { return value >= 0 }
+    return TypeRange(type, *range) && value >= range.low && value <= range.high
+}
+
+// a op b for the operators fill_eval follows past && and ||.
+FillBinary :: (expr: *ZirExpr, a: s64, b: s64, out: *s64) -> bool {
+    if IsOp(expr, "&&") || IsOp(expr, "||") { <<out = ifx b != 0 then 1 else 0 }
+    else if IsOp(expr, "<") { <<out = ifx a < b then 1 else 0 }
+    else if IsOp(expr, "<=") { <<out = ifx a <= b then 1 else 0 }
+    else if IsOp(expr, ">") { <<out = ifx a > b then 1 else 0 }
+    else if IsOp(expr, ">=") { <<out = ifx a >= b then 1 else 0 }
+    else if IsOp(expr, "==") { <<out = ifx a == b then 1 else 0 }
+    else if IsOp(expr, "!=") { <<out = ifx a != b then 1 else 0 }
+    else if IsOp(expr, "+") { return AddChecked(a, b, out) }
+    else if IsOp(expr, "-") { return SubtractChecked(a, b, out) }
+    else if IsOp(expr, "*") { return MulChecked(a, b, out) }
+    else if a < 0 || b < 0 { return false }
+    else if IsOp(expr, "/") && b > 0 { <<out = a / b }
+    else if IsOp(expr, "%") && b > 0 { <<out = a % b }
+    else if IsOp(expr, ">>") && b < 63 { <<out = a >> b }
+    else if IsOp(expr, "<<") && b < 62 && a <= (MAX_S64 >> b) { <<out = a << b }
+    else if IsOp(expr, "&") { <<out = a & b }
+    else if IsOp(expr, "|") { <<out = a | b }
+    else if IsOp(expr, "^") { <<out = a ^ b }
+    else { return false }
+    return true
+}
+
+// The exact value of an integer or bool expression, from literals and known
+// locals.
+FillEval :: (w: *Fill, index: s32, out: *s64, depth: s32) -> bool {
+    f := w.f
+    a: s64
+    b: s64
+    if index < 0 || depth > POLY_DEPTH { return false }
+    expr := *f.fn.exprs[index]
+    kind := expr.kind
+    if kind == ZirExprKind.INT {
+        if !LiteralValue(expr.text, out) { return false }
+    } else if kind == ZirExprKind.IDENT {
+        binding := f.binding_of[index]
+        if binding < 0 || f.unknown[binding] != 0 || w.known[binding] == 0 { return false }
+        <<out = w.value[binding]
+    } else if kind == ZirExprKind.CAST {
+        if !FillEval(w, expr.right, out, depth + 1) { return false }
+    } else if kind == ZirExprKind.UNARY {
+        if !FillEval(w, expr.right, *a, depth + 1) { return false }
+        if IsOp(expr, "!") { <<out = ifx a == 0 then 1 else 0 }
+        else if IsOp(expr, "-") && a != MIN_S64 { <<out = -a }
+        else { return false }
+    } else if kind == ZirExprKind.BINARY {
+        if !FillEval(w, expr.left, *a, depth + 1) { return false }
+        if (IsOp(expr, "&&") && a == 0) || (IsOp(expr, "||") && a != 0) { <<out = a }
+        else if !FillEval(w, expr.right, *b, depth + 1) || !FillBinary(expr, a, b, out) { return false }
+    } else { return false }
+    return FillFits(expr.type, <<out)
+}
+
+// The slots destination index names in the local: the local itself, one of
+// its fields or an element at a known position.
+FillPath :: (w: *Fill, index: s32, first: *s32, count: *s32, depth: s32) -> bool {
+    if index < 0 || depth > FILL_DEPTH { return false }
+    expr := *w.f.fn.exprs[index]
+    if expr.kind == ZirExprKind.IDENT {
+        if w.f.binding_of[index] != w.binding { return false }
+        <<first = 0
+        <<count = w.slots
+        return true
+    }
+    if expr.kind == ZirExprKind.MEMBER && expr.name != null {
+        if !FillPath(w, expr.left, first, count, depth + 1) || w.f.fn.exprs[expr.left].type == null { return false }
+        record := FillRecord(w, Canonical(w.f.fn.exprs[expr.left].type))
+        if record == null { return false }
+        offset: usize = 0
+        field: *ZirTypeField = null
+        skip: s32 = 0
+        while CTypeNextFieldShared(record, *offset, *field) > 0 {
+            each := FillSlots(w, *field.type[0], 0)
+            if each <= 0 { return false }
+            if BufferText(field.name[:]) == CText(expr.name) {
+                <<first += skip
+                <<count = each
+                return true
+            }
+            skip += each
+        }
+        return false
+    }
+    if expr.kind == ZirExprKind.INDEX {
+        capacity: s32 = 0
+        at: s64
+        if !FillPath(w, expr.left, first, count, depth + 1) || w.f.fn.exprs[expr.left].type == null ||
+           !ArrayCapacity(Canonical(w.f.fn.exprs[expr.left].type), *capacity) || capacity <= 0 ||
+           !FillEval(w, expr.right, *at, 0) || at < 0 || at >= capacity {
+            return false
+        }
+        <<count = <<count / capacity
+        <<first += cast(s32)at * <<count
+        return true
+    }
+    return false
+}
+
+// Simd.Store into an array of the local at a known position: its lanes.
+FillStore :: (w: *Fill, root: s32, first: *s32, count: *s32) -> bool {
+    fn := w.f.fn
+    call := *fn.exprs[root]
+    element: [NameMax]u8
+    children: [3]s32
+    n: s32 = 0
+    capacity: s32 = 0
+    at: s64
+    vector: RangeVector
+    if call.kind != ZirExprKind.CALL || call.name == null { return false }
+    op := CSimdOpChecked(call.name)
+    if op == null || op.id != ZI_OP_STORE { return false }
+    child := call.first_child
+    while child >= 0 {
+        if n == 3 { return false }
+        children[n] = child
+        n += 1
+        child = fn.exprs[child].next_sibling
+    }
+    if n != 3 || FillMentions(w, children[1]) || FillMentions(w, children[2]) { return false }
+    memory := children[0]
+    // A whole slice of an array, a[:], stores into the array itself.
+    if fn.exprs[memory].kind == ZirExprKind.SLICE {
+        if fn.exprs[memory].right >= 0 || fn.exprs[memory].third >= 0 { return false }
+        memory = fn.exprs[memory].left
+    }
+    if fn.exprs[children[2]].type == null || fn.exprs[memory].type == null ||
+       CVectorType(fn.exprs[children[2]].type, *vector) == 0 || vector.is_native != 0 ||
+       !FillPath(w, memory, first, count, 0) ||
+       !ArrayElement(Canonical(fn.exprs[memory].type), element[:], *capacity) || capacity != <<count {
+        return false
+    }
+    width := ScalarBytes(Canonical(*element[0]))
+    if width == 0 || width != ScalarBytes(Canonical(vector.lane)) || !FillEval(w, children[1], *at, 0) || at < 0 ||
+       at > capacity - vector.lanes {
+        return false
+    }
+    <<first += cast(s32)at
+    <<count = vector.lanes
+    return true
+}
+
+FillMark :: (w: *Fill, first: s32, count: s32) -> s32 {
+    for slot: first..first + count - 1 {
+        if w.written[slot] == 0 {
+            w.written[slot] = 1
+            w.left -= 1
+        }
+    }
+    return ifx w.left == 0 then FILL_DONE else FILL_NEXT
+}
+
+// Statements from..to-1 passed over unrun: none names the local or can jump
+// out, so control reaches their end or never leaves them. Locals they set
+// are no longer known.
+FillSkip :: (w: *Fill, from: s32, to: s32) -> bool {
+    f := w.f
+    for s: from..to - 1 {
+        st := *f.fn.stmts[s]
+        lhs := st.lhs_root
+        kind := st.kind
+        if kind != ZirStmtKind.BLOCK_OPEN && kind != ZirStmtKind.BLOCK_CLOSE && kind != ZirStmtKind.DECL &&
+           kind != ZirStmtKind.ASSIGN && kind != ZirStmtKind.EXPR && kind != ZirStmtKind.IF &&
+           kind != ZirStmtKind.WHILE && kind != ZirStmtKind.UNUSED {
+            return false
+        }
+        if FillMentions(w, st.expr_root) || FillMentions(w, lhs) { return false }
+        if kind == ZirStmtKind.DECL { w.known[s] = 0 }
+        if lhs >= 0 && f.fn.exprs[lhs].kind == ZirExprKind.IDENT && f.binding_of[lhs] >= 0 { w.known[f.binding_of[lhs]] = 0 }
+    }
+    return true
+}
+
+// Run an assignment that does not store into the local: a known local
+// keeps its exact value.
+FillAssign :: (w: *Fill, st: *ZirStmt) -> s32 {
+    f := w.f
+    lhs := st.lhs_root
+    first: s32
+    count: s32
+    value: s64
+    operator := BufferText(st.assignment_op[:])
+    if lhs < 0 || FillMentions(w, st.expr_root) { return FILL_FAIL }
+    if RootBinding(f, lhs, true) == w.binding {
+        if operator != "=" || !FillPath(w, lhs, *first, *count, 0) { return FILL_FAIL }
+        return FillMark(w, first, count)
+    }
+    if FillMentions(w, lhs) { return FILL_FAIL }
+    if f.fn.exprs[lhs].kind == ZirExprKind.IDENT && f.binding_of[lhs] >= 0 {
+        binding := f.binding_of[lhs]
+        known := FillEval(w, st.expr_root, *value, 0)
+        if known && operator != "=" {
+            if w.known[binding] == 0 { known = false }
+            else if operator == "+=" { known = AddChecked(w.value[binding], value, *value) }
+            else if operator == "-=" { known = SubtractChecked(w.value[binding], value, *value) }
+            else { known = false }
+        }
+        w.known[binding] = ifx known && IntegerType(f.binding_type[binding]) && FillFits(f.binding_type[binding], value) then 1 else 0
+        w.value[binding] = value
+    }
+    return FILL_NEXT
+}
+
+// Run statements from..to-1: FILL_DONE once every slot is written.
+FillRun :: (w: *Fill, from: s32, to: s32) -> s32 {
+    f := w.f
+    fn := f.fn
+    s := from
+    while s < to {
+        st := *fn.stmts[s]
+        first: s32
+        count: s32
+        value: s64
+        w.steps += 1
+        if w.steps > FILL_STEPS { return FILL_FAIL }
+        kind := st.kind
+        if kind == ZirStmtKind.BLOCK_OPEN || kind == ZirStmtKind.BLOCK_CLOSE {
+            s += 1
+        } else if kind == ZirStmtKind.DECL {
+            if FillMentions(w, st.expr_root) { return FILL_FAIL }
+            w.value[s] = 0
+            w.known[s] = ifx IntegerType(st.type) && (st.expr_root < 0 || FillEval(w, st.expr_root, *w.value[s], 0)) then 1 else 0
+            s += 1
+        } else if kind == ZirStmtKind.ASSIGN {
+            result := FillAssign(w, st)
+            if result != FILL_NEXT { return result }
+            s += 1
+        } else if kind == ZirStmtKind.EXPR {
+            if st.expr_root >= 0 && FillStore(w, st.expr_root, *first, *count) {
+                if FillMark(w, first, count) == FILL_DONE { return FILL_DONE }
+            } else if FillMentions(w, st.expr_root) { return FILL_FAIL }
+            s += 1
+        } else if kind == ZirStmtKind.UNUSED {
+            if FillMentions(w, st.expr_root) { return FILL_FAIL }
+            s += 1
+        } else if kind == ZirStmtKind.IF {
+            close := f.block_end[s]
+            if close <= s || close >= to || FillMentions(w, st.expr_root) { return FILL_FAIL }
+            if st.expr_root >= 0 && !FillEval(w, st.expr_root, *value, 0) {
+                // No branch is known to run: pass over the whole chain.
+                pass := true
+                while pass {
+                    if FillMentions(w, fn.stmts[s].expr_root) || !FillSkip(w, s + 1, f.block_end[s]) { return FILL_FAIL }
+                    s = f.block_end[s] + 1
+                    pass = s < to && fn.stmts[s].kind == ZirStmtKind.IF && fn.stmts[s].is_else != 0
+                }
+            } else if st.expr_root >= 0 && value == 0 {
+                s = close + 1
+            } else {
+                result := FillRun(w, s + 1, close)
+                if result != FILL_NEXT { return result }
+                s = close + 1
+                while s < to && fn.stmts[s].kind == ZirStmtKind.IF && fn.stmts[s].is_else != 0 { s = f.block_end[s] + 1 }
+            }
+        } else if kind == ZirStmtKind.WHILE {
+            close := f.block_end[s]
+            if close <= s || close >= to || FillMentions(w, st.expr_root) { return FILL_FAIL }
+            round: s32 = 0
+            running := true
+            while running {
+                if !FillEval(w, st.expr_root, *value, 0) {
+                    // A loop not known to run is passed over whole.
+                    if round > 0 || !FillSkip(w, s + 1, close) { return FILL_FAIL }
+                    running = false
+                } else if value == 0 {
+                    running = false
+                } else {
+                    result := FillRun(w, s + 1, close)
+                    if (result == FILL_BREAK || result == FILL_CONTINUE) && (w.jump == 0 || w.jump == st.loop_id) {
+                        if result == FILL_BREAK { running = false }
+                    } else if result != FILL_NEXT { return result }
+                }
+                round += 1
+            }
+            s = close + 1
+        } else if kind == ZirStmtKind.BREAK || kind == ZirStmtKind.CONTINUE {
+            w.jump = st.target_id
+            return ifx kind == ZirStmtKind.BREAK then FILL_BREAK else FILL_CONTINUE
+        } else { return FILL_FAIL }
+    }
+    return FILL_NEXT
+}
+
+#scope_export
+
+// Whether every element of the local declared at statement declaration is
+// stored before anything can read it.
+WrittenBeforeRead :: (f: *RangeFacts, module: *ZirModule, declaration: s32) -> bool {
+    if f == null || declaration < 0 || declaration >= f.statements { return false }
+    st := *f.fn.stmts[declaration]
+    capacity: s32 = 0
+    if st.kind != ZirStmtKind.DECL || st.expr_root >= 0 || st.type == null ||
+       (!ArrayCapacity(st.type, *capacity) && !RecordType(module, st.type)) {
+        return false
+    }
+    w := Fill.{f = f, module = module, binding = declaration}
+    w.slots = FillSlots(*w, st.type, 0)
+    if w.slots <= 0 { return false }
+    w.left = w.slots
+    w.written = cast(*u8)Allocate(w.slots, 1)
+    w.known = cast(*u8)Allocate(f.bindings, 1)
+    w.value = cast(*s64)Allocate(f.bindings, size_of(s64))
+    w.pending = cast(*s32)Allocate(f.fn.expr_count, size_of(s32))
+    parent := f.parent_of[declaration]
+    result := FILL_FAIL
+    if w.written != null && w.known != null && w.value != null && w.pending != null {
+        result = FillRun(*w, declaration + 1, ifx parent >= 0 then f.block_end[parent] else f.statements)
+    }
+    Release(w.written)
+    Release(w.known)
+    Release(w.value)
+    Release(w.pending)
+    return result == FILL_DONE
+}

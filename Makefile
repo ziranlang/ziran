@@ -211,6 +211,20 @@ $(C_PRUNE_C)/%.c $(C_PRUNE_C)/%.h: $(C_PRUNE_C)/.generated
 	@test -f $@
 endif
 C_PRUNE_OBJECTS := $(addprefix $(BUILD_DIR)/obj/c-prune/,compiler_c_prune.o hash_map.o)
+# The C emitter's index range proofs (cmd/compiler_c_range*.zi).
+ifeq ($(BOOTSTRAP),1)
+RANGE_C := bootstrap/compiler_c_range
+RANGE_READY := $(filter %.c %.h,$(wildcard $(RANGE_C)/*))
+else
+RANGE_C := $(BUILD_DIR)/c-range
+RANGE_READY := $(RANGE_C)/.generated
+$(RANGE_C)/%.c $(RANGE_C)/%.h: $(RANGE_C)/.generated
+	@test -f $@
+endif
+RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values compiler_c_range_poly \
+    compiler_c_range_callers compiler_c_range_fill
+RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
+override CFLAGS += -I$(RANGE_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
@@ -262,7 +276,7 @@ $(call obj,cmd/zx2wasm/main.c)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_N
 $(call obj,cmd/zx2wasm/main.c): $(ENGINE_NAMES)
 endif
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
-    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(NATIVE_NAMES_OBJECT) \
+    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT) \
     $(call obj,cmd/zir/zir_zx_wasm_web.c)
 NATIVE_HOST_ENABLED := 1
 ifneq ($(findstring emcc,$(notdir $(firstword $(CC)))),)
@@ -274,7 +288,7 @@ LIB_OBJECTS += $(BUILD_DIR)/obj/native-core.o
 endif
 endif
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
-    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(NATIVE_NAMES_OBJECT)
+    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT)
 # The expression parser, cmd/compiler_parse.zi.
 override CFLAGS += -I$(PARSE_C)
 LIB_OBJECTS += $(PARSE_OBJECT)
@@ -445,6 +459,9 @@ $(BACKEND_CACHE_OBJECT): $(BACKEND_CACHE_C)/compiler_backend_cache.c \
 $(C_PRUNE_OBJECTS): $(BUILD_DIR)/obj/c-prune/%.o: $(C_PRUNE_C)/%.c $(BUILD_DIR)/.compiler-flags $(C_PRUNE_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) -I$(C_PRUNE_C) $(DEPFLAGS) -c -o $@ $<
+$(RANGE_OBJECTS): $(BUILD_DIR)/obj/c-range/%.o: $(RANGE_C)/%.c $(BUILD_DIR)/.compiler-flags $(RANGE_READY) $(IR_READY)
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(NATIVE_NAMES_OBJECT): $(NATIVE_NAMES_C)/compiler_native_names.c \
     $(BUILD_DIR)/.compiler-flags $(NATIVE_NAMES_READY)
@@ -458,7 +475,9 @@ PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c 
     _condition.c _discover.c _source.c)
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
     _function.c _link.c _program.c _simd.c _text.c)
-EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _range.c _simd.c _simd_go.c)
+EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _simd.c _simd_go.c)
+# The parts include the range proofs' generated header.
+$(call obj,$(EMIT_PARTS)): $(RANGE_READY)
 
 # COFF does not retain ELF hidden visibility, but objcopy can localize the
 # same declarations explicitly after the group's objects have been merged.
@@ -645,6 +664,11 @@ $(C_PRUNE_C)/.generated: cmd/compiler_c_prune.zi std/vec.zi std/hash_map.zi std/
 	    -o $(C_PRUNE_C) cmd/compiler_c_prune.zi
 	touch $@
 
+$(RANGE_C)/.generated: $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) cmd/compiler_ir.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(RANGE_C) cmd/compiler_c_range.zi
+	touch $@
+
 $(call obj,cmd/zi2c/zir_c_lower.c): $(C_PRUNE_READY)
 $(call obj,cmd/zi2c/zir_c_lower.c)_CFLAGS += -I$(C_PRUNE_C)
 $(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c) $(C_PRUNE_OBJECTS) \
@@ -702,7 +726,8 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_native_names/compiler_native_names.h \
     bootstrap/compiler_lowered_ir/compiler_lowered_ir.c bootstrap/compiler_lowered_ir/compiler_lowered_ir.h \
     bootstrap/compiler_zir_lower/compiler_zir_lower.c bootstrap/compiler_zir_lower/compiler_zir_lower.h \
-    $(wildcard bootstrap/compiler_c_prune/*.c bootstrap/compiler_c_prune/*.h)
+    $(wildcard bootstrap/compiler_c_prune/*.c bootstrap/compiler_c_prune/*.h) \
+    $(wildcard bootstrap/compiler_c_range/*.c bootstrap/compiler_c_range/*.h)
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap SIMD_DIR=$(SIMD_DIR) \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=$(call quote,$(BOOTSTRAP_CFLAGS)) \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -807,7 +832,7 @@ $(LINK_C)/.generated: cmd/compiler_link.zi cmd/compiler_services.zi cmd/compiler
 # The checked-in bootstrap C must match what the current compiler generates
 # from cmd/compiler_*.zi; update-bootstrap refreshes it. A seed also keeps the
 # generated headers of standard modules it uses, such as vec.h.
-BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names lowered_ir zir_lower c_prune
+BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names lowered_ir zir_lower c_prune c_range
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse
@@ -844,6 +869,7 @@ update-bootstrap: $(BIN_DIR)/zi2c
 	    files="compiler_$$module.c compiler_$$module.h"; \
 	    case "$$module" in \
 	        proof_kernel|proof|link) files="$$files vec.h";; \
+	        c_range) files="$(foreach m,$(RANGE_MODULES),$(m).c $(m).h)";; \
 	        runtime_emit) files="compiler_runtime_emit.c compiler_runtime_emit.h \
 	            file.c file.h file_linux.c file_linux.h \
 	            c_string.c c_string.h result.h vec.c vec.h";; \

@@ -1,0 +1,745 @@
+// Index range proofs for generated C. An index whose value provably lies
+// inside its array, slice or string needs no bounds check, so C can index
+// directly. Proofs use only facts that hold on every path:
+//
+// - every value of an integer type lies in that type's range;
+// - literals, casts and integer operators narrow ranges, such as x & 7,
+//   x % 8 for a nonnegative x, or u32 >> 29;
+// - a local or parameter whose every write is visible here, never through
+//   its address, takes only the values those writes store;
+// - inside a while body, before the body writes the counter again, the
+//   counter still satisfies the loop condition, such as i <= 7 or
+//   i < view.count, and it never goes below its smallest stored value when
+//   it only grows by constants within that loop;
+// - an integer field of a parameter, such as frame.count through a
+//   pointer, reads one value from one statement to a later one when no
+//   call and no write outside this call's own locals can run between them;
+//   then a guard on it bounds a loop that reads it into its limit.
+//
+// Anything else keeps its check, so a program aborts exactly where it did.
+// This module holds the records the proofs share and RangeFactsBuild, which
+// resolves one function's bindings, blocks, loops, guards and writes.
+using IR :: #import "compiler_ir"
+
+RANGE_DEPTH :: 8
+RANGE_BUDGET :: 4096
+RANGE_CONTEXT :: 32
+RANGE_HOPS :: 48
+POLY_TERMS :: 12
+POLY_DEGREE :: 3
+POLY_DEPTH :: 24
+GUARD_FACTS :: 32
+POLY_BUDGET :: 16384
+FIELD_ATOMS :: 64
+GUARD_SIDES :: 4
+CALL_RANGES :: 64
+CALL_DEPTH :: 2
+CALL_SITES :: 32
+MAX_S64 :: 9223372036854775807
+MIN_S64 :: -9223372036854775807 - 1
+
+Range :: struct {
+    low: s64
+    high: s64
+}
+
+RangeMemo :: struct {
+    key: s64 // binding * (statements + 2) + statement + 2, 0 when empty
+    range: Range
+}
+
+// What a call of callee returns when each parameter starts in seed.
+CallRange :: struct {
+    callee: *ZirFunction
+    seed: *Range
+    seeds: s32
+    known: s32
+    result: Range
+}
+
+// An exact integer polynomial over bindings and slice counts, plus a
+// constant somewhere in k: the value is sum(coef * atoms) + some c in k.
+Term :: struct {
+    coef: s64
+    degree: s32
+    // Ascending ids: bindings, bindings + view for view.count, then
+    // 2 * bindings + k for field read k.
+    atom: [POLY_DEGREE]s32
+}
+
+Poly :: struct {
+    k: Range
+    count: s32
+    term: [POLY_TERMS]Term
+}
+
+// What must hold, each poly >= 0, for a guard's narrow operations not to
+// have wrapped: cast(s64)(height - 1) did not wrap in s32, as inside
+// for i: 0..height - 1.
+GuardSides :: struct {
+    poly: [GUARD_SIDES]Poly
+}
+
+// A guard's facts, each poly >= 0, built once per guard and truth. A fact
+// may hold only when its sides hold too.
+GuardFacts :: struct {
+    state: s32 // 0 not built, 1 building, 2 built
+    count: s32
+    poly: *Poly
+    sides: *s32 // per fact, or null when no fact has any
+    side: *Poly // GUARD_SIDES per fact
+}
+
+RangeContext :: struct {
+    condition: s32
+    truth: s32
+    statement: s32
+}
+
+// One call of a procedure spliced into a copy of its caller.
+CallSite :: struct {
+    fn: ZirFunction
+    facts: *RangeFacts
+    offset: s32 // callee expression x is fn.exprs[offset + x]
+}
+
+Callers :: struct {
+    count: s32
+    usable: s32
+    site: [CALL_SITES]CallSite
+    names: **u8
+    name_count: s32
+    name_cap: s32
+}
+
+RangeFacts :: struct {
+    fn: *ZirFunction
+    statements: s32
+    parameters: s32
+    statement_of: *s32 // expression -> statement holding it, or -1
+    binding_of: *s32   // identifier -> binding, or -1 for anything else
+    block_end: *s32    // if/while/block statement -> its closing statement
+    loop_of: *s32      // statement -> innermost enclosing while, or -1
+    // Per binding: statements first, then parameters.
+    unknown: *u8       // written in a way the proofs do not follow
+    first_write: *s32  // first assignment statement, linked by next_write
+    last_write: *s32
+    next_write: *s32
+    increment_loop: *s32 // while holding every += write, -1 none, -2 mixed
+    step_total: *s64
+    binding_type: **u8
+    // Guards: conditions that hold where an index is read.
+    bindings: s32
+    parent_of: *s32    // statement -> innermost enclosing if/while/block, or -1
+    prev_guard: *s32   // statement -> nearest earlier sibling if that always exits, or -1
+    prev_branch: *s32  // else branch -> the branch before it in its chain, or -1
+    busy: *u8          // per binding: its guard facts are being applied
+    computing: *u8     // per binding: its own value is being worked out
+    hops: s32          // bindings being worked out, innermost question last
+    // Answers by binding and statement, outside && and || contexts.
+    memo: *RangeMemo
+    memo_mask: u32
+    memo_count: u32
+    facts: *GuardFacts // per statement, [0] false and [1] true
+    // Conditions that hold while a later operand of && or || runs.
+    context: [RANGE_CONTEXT]RangeContext
+    contexts: s32
+    // While an initializer is evaluated for a read at a later statement,
+    // that statement, where its reads are taken when nothing writes them in
+    // between; -1 otherwise. Such answers hold only on paths reaching it.
+    read_at: s32
+    // Steps left for the current question; a long chain of bindings stops
+    // being followed instead of taking exponential time.
+    budget: s32
+    broken: s32
+    // While a guard's comparison is read: what must hold for each narrow
+    // operation in it not to have wrapped, each poly >= 0.
+    side: *Poly
+    sides: s32
+    // Field reads: atom 2 * bindings + k is integer field field_name[k] of
+    // parameter field_base[k] as it reads in epoch field_epoch[k].
+    fields: s32
+    field_base: [FIELD_ATOMS]s32
+    field_epoch: [FIELD_ATOMS]s32
+    field_name: [FIELD_ATOMS]*u8
+    field_type: [FIELD_ATOMS]*u8
+    // Per statement: it may write memory a pointer passed in reaches, by a
+    // call or a store outside this call's own locals.
+    clobber: *u8
+    last_clobber: *s32 // statement -> latest earlier clobber, or -1
+    dirty: *u8         // per while: its condition or body may clobber
+    // Calls: the module whose procedures a call names, the range each
+    // parameter's incoming value lies in while a call's result is worked
+    // out (null: any value of its type), and results found so far.
+    module: *ZirModule
+    seed: *Range
+    calls: *CallRange
+    call_count: s32
+    call_depth: s32
+    // The calls of this procedure, each spliced into a copy of its caller,
+    // once looked for; spliced is set on such a copy's own facts.
+    callers: *Callers
+    callers_built: s32
+    spliced: s32
+}
+
+#scope_file
+libc :: #system_library "libc";
+zir :: #system_library "zir";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+realloc :: (memory: *void, size: usize) -> *void #foreign libc "realloc";
+CFree :: (memory: *void) #foreign libc "free";
+memcpy :: (destination: *void, source: *void, count: usize) -> *void #foreign libc "memcpy";
+CScalarType :: (type: *u8) -> *u8 #foreign zir "ScalarType";
+CArrayElementType :: (type: *u8, element: *u8, size: usize, capacity: *s32) -> s32 #foreign zir "ArrayElementType";
+CSliceElementType :: (type: *u8, element: *u8, size: usize) -> s32 #foreign zir "SliceElementType";
+CScalarByteWidth :: (type: *u8) -> usize #foreign zir "ScalarByteWidth";
+CZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign zir "ZirIntegerLiteral";
+CParametersOf :: (text: *u8) -> *RangeParameters #foreign zir "ParametersOf";
+CFindType :: (module: *ZirModule, name: *u8, owner: **ZirModule) -> *ZirType #foreign zir "FindType";
+CResolveFunction :: (module: *ZirModule, name: *u8, owner: **ZirModule, fn: **ZirFunction) -> s32 #foreign zir "ResolveFunction";
+CNativeProgramMain :: (module: *ZirModule, fn: *ZirFunction) -> s32 #foreign zir "NativeProgramMain";
+
+// zir_text.h's parsed parameters; the items follow count and its padding.
+RangeParameter :: struct {
+    text: *u8
+    name: *u8
+    type: *u8
+    binding_name: *u8
+    value_type: *u8
+    default_value: *u8
+    is_using: s32
+}
+RangeParameters :: struct {
+    count: s32
+}
+
+TextDescriptor :: struct { data: *u8; length: usize }
+
+Parameters :: (fn: *ZirFunction) -> *RangeParameters {
+    if fn.args_text != null { return CParametersOf(fn.args_text) }
+    return CParametersOf(LiteralC(""))
+}
+
+ParameterAt :: (fn: *ZirFunction, index: s32) -> *RangeParameter {
+    items := cast(*RangeParameter)(cast(usize)Parameters(fn) + 8)
+    return *items[index]
+}
+
+#scope_export
+
+// A string literal's bytes; generated C keeps literals NUL-terminated.
+LiteralC :: (text: string) -> *u8 { return (cast(*TextDescriptor)(*text)).data }
+
+// Whether C text is want; null is no text.
+Is :: (text: *u8, want: string) -> bool { return text != null && CText(text) == want }
+Same :: (a: *u8, b: *u8) -> bool { return CText(a) == CText(b) }
+IsOp :: (expr: *ZirExpr, want: string) -> bool { return BufferText(expr.op[:]) == want }
+
+Allocate :: (count: s64, size: s64) -> *void { return calloc(cast(usize)count, cast(usize)size) }
+GrowMemory :: (memory: *void, size: s64) -> *void { return realloc(memory, cast(usize)size) }
+Grow :: (memory: *$T, count: s64) -> *T { return cast(*T)GrowMemory(cast(*void)memory, count * size_of(T)) }
+ReleaseMemory :: (memory: *void) { CFree(memory) }
+Release :: (memory: *$T) { ReleaseMemory(cast(*void)memory) }
+CopyMemory :: (destination: *void, source: *void, size: s64) { unused memcpy(destination, source, cast(usize)size) }
+// Copy count elements of source to destination.
+Copy :: (destination: *$T, source: *T, count: s64) { CopyMemory(cast(*void)destination, cast(*void)source, count * size_of(T)) }
+
+// zir_emit.c's canonical: a scalar's own spelling, integer as s64 and real
+// as float64, or the type itself.
+Canonical :: (type: *u8) -> *u8 {
+    result := CScalarType(type)
+    if Is(type, "integer") { return LiteralC("s64") }
+    if Is(type, "real") { return LiteralC("float64") }
+    return ifx result[0] != 0 then result else type
+}
+
+ArrayCapacity :: (type: *u8, capacity: *s32) -> bool { return CArrayElementType(type, null, 0, capacity) != 0 }
+ArrayElement :: (type: *u8, element: []u8, capacity: *s32) -> bool {
+    return CArrayElementType(type, *element[0], cast(usize)element.count, capacity) != 0
+}
+IsSlice :: (type: *u8) -> bool { return CSliceElementType(type, null, 0) != 0 }
+ScalarBytes :: (type: *u8) -> s64 { return cast(s64)CScalarByteWidth(type) }
+FindType :: (module: *ZirModule, name: *u8) -> *ZirType { return CFindType(module, name, null) }
+// A declared record, as zir_emit.c's record_type.
+RecordType :: (module: *ZirModule, type: *u8) -> bool {
+    declared := CFindType(module, type, null)
+    return declared != null && declared.is_enum == 0 && declared.is_procedure_type == 0
+}
+ResolveFunction :: (module: *ZirModule, name: *u8, owner: **ZirModule, fn: **ZirFunction) -> s32 {
+    return CResolveFunction(module, name, owner, fn)
+}
+NativeProgramMain :: (module: *ZirModule, fn: *ZirFunction) -> bool { return CNativeProgramMain(module, fn) != 0 }
+
+ParameterCount :: (fn: *ZirFunction) -> s32 { return Parameters(fn).count }
+ParameterName :: (fn: *ZirFunction, index: s32) -> *u8 { return ParameterAt(fn, index).name }
+// The name a parameter binds, and the type of its value.
+ParameterBinding :: (fn: *ZirFunction, index: s32) -> *u8 {
+    p := ParameterAt(fn, index)
+    return ifx p.binding_name != null then p.binding_name else p.name
+}
+ParameterType :: (fn: *ZirFunction, index: s32) -> *u8 {
+    p := ParameterAt(fn, index)
+    return ifx p.value_type != null then p.value_type else p.type
+}
+ParameterUsing :: (fn: *ZirFunction, index: s32) -> bool { return ParameterAt(fn, index).is_using != 0 }
+
+// zir.h's ExprWalk: every expression of one tree, depth first. PENDING must
+// have room for every expression of the function.
+WalkFirst :: (walk: *ZirExprWalk, root: s32) -> s32 {
+    walk.count = 0
+    WalkPush(walk, root)
+    return WalkNext(walk)
+}
+
+WalkPush :: (walk: *ZirExprWalk, index: s32) {
+    if index >= 0 && index < walk.fn.expr_count && walk.count < walk.fn.expr_count {
+        walk.pending[walk.count] = index
+        walk.count += 1
+    }
+}
+
+WalkNext :: (walk: *ZirExprWalk) -> s32 {
+    if walk.count == 0 { return -1 }
+    walk.count -= 1
+    index := walk.pending[walk.count]
+    expr := *walk.fn.exprs[index]
+    WalkPush(walk, expr.next_sibling)
+    WalkPush(walk, expr.third)
+    WalkPush(walk, expr.right)
+    WalkPush(walk, expr.left)
+    WalkPush(walk, expr.first_child)
+    return index
+}
+
+TypeRange :: (type: *u8, out: *Range) -> bool {
+    if type == null { return false }
+    name := CText(Canonical(type))
+    low: s64 = 0
+    high: s64 = 0
+    if name == "s8" { low = -128; high = 127 }
+    else if name == "s16" { low = -32768; high = 32767 }
+    else if name == "s32" { low = -2147483648; high = 2147483647 }
+    else if name == "s64" || name == "integer" { low = MIN_S64; high = MAX_S64 }
+    else if name == "u8" { high = 255 }
+    else if name == "u16" { high = 65535 }
+    else if name == "u32" { high = 4294967295 }
+    else { return false }
+    out.low = low; out.high = high
+    return true
+}
+
+IntegerType :: (type: *u8) -> bool {
+    ignored: Range
+    return type != null && (TypeRange(type, *ignored) || Is(Canonical(type), "u64"))
+}
+
+Within :: (inner: Range, outer: Range) -> bool { return inner.low >= outer.low && inner.high <= outer.high }
+
+// Decimal, 0x or 0b digits only; anything else is not proven.
+LiteralValue :: (text: *u8, value: *s64) -> bool {
+    bits: u64
+    if CZirIntegerLiteral(text, *bits) == 0 || bits > (cast(u64)1 << 62) { return false }
+    <<value = cast(s64)bits
+    return true
+}
+
+// The binding an expression's storage belongs to: v, v.field, v[i].
+RootBinding :: (f: *RangeFacts, index: s32, through_index: bool) -> s32 {
+    at := index
+    while at >= 0 {
+        expr := *f.fn.exprs[at]
+        if expr.kind == ZirExprKind.IDENT { return f.binding_of[at] }
+        if expr.kind == ZirExprKind.MEMBER || (through_index && expr.kind == ZirExprKind.INDEX) { at = expr.left }
+        else { return -1 }
+    }
+    return -1
+}
+
+StatementHasAssembly :: (st: *ZirStmt) -> bool {
+    return st.kind == ZirStmtKind.BLOCK_OPEN && st.assembly_text != null && st.assembly_text[0] != 0
+}
+
+RangeFactsFree :: (f: *RangeFacts) {
+    if f == null { return }
+    Release(f.statement_of)
+    Release(f.binding_of)
+    Release(f.block_end)
+    Release(f.loop_of)
+    Release(f.unknown)
+    Release(f.first_write)
+    Release(f.last_write)
+    Release(f.next_write)
+    Release(f.increment_loop)
+    Release(f.step_total)
+    Release(f.binding_type)
+    Release(f.parent_of)
+    Release(f.prev_guard)
+    Release(f.prev_branch)
+    Release(f.busy)
+    Release(f.computing)
+    Release(f.clobber)
+    Release(f.last_clobber)
+    Release(f.dirty)
+    Release(f.memo)
+    for c: 0..f.call_count - 1 { Release(f.calls[c].seed) }
+    Release(f.calls)
+    CallersFree(f.callers)
+    if f.facts != null {
+        for s: 0..2 * f.statements - 1 {
+            Release(f.facts[s].poly)
+            Release(f.facts[s].sides)
+            Release(f.facts[s].side)
+        }
+    }
+    Release(f.facts)
+    Release(f)
+}
+
+CallersFree :: (c: *Callers) {
+    if c == null { return }
+    for i: 0..c.count - 1 {
+        RangeFactsFree(c.site[i].facts)
+        Release(c.site[i].fn.stmts)
+        Release(c.site[i].fn.exprs)
+    }
+    for i: 0..c.name_count - 1 { Release(c.names[i]) }
+    Release(c.names)
+    Release(c)
+}
+
+#scope_file
+
+SupportedStatement :: (st: *ZirStmt) -> bool {
+    kind := st.kind
+    if kind == ZirStmtKind.BLOCK_OPEN { return !StatementHasAssembly(st) }
+    if kind == ZirStmtKind.BLOCK_CLOSE || kind == ZirStmtKind.DECL || kind == ZirStmtKind.ASSIGN ||
+       kind == ZirStmtKind.EXPR || kind == ZirStmtKind.IF || kind == ZirStmtKind.RETURN ||
+       kind == ZirStmtKind.BREAK || kind == ZirStmtKind.CONTINUE || kind == ZirStmtKind.UNUSED ||
+       kind == ZirStmtKind.UNREACHABLE || kind == ZirStmtKind.WHILE {
+        return st.is_parallel == 0 && st.is_gpu == 0
+    }
+    return false
+}
+
+// Mark every binding the tree at root names as written in a way the proofs
+// do not follow; false without memory for the walk.
+MarkUnknown :: (f: *RangeFacts, root: s32) -> bool {
+    walk := ZirExprWalk.{fn = f.fn, pending = cast(*s32)Allocate(f.fn.expr_count, size_of(s32)), count = 0}
+    if walk.pending == null { return false }
+    x := WalkFirst(*walk, root)
+    while x >= 0 {
+        if f.binding_of[x] >= 0 { f.unknown[f.binding_of[x]] = 1 }
+        x = WalkNext(*walk)
+    }
+    Release(walk.pending)
+    return true
+}
+
+RecordWrite :: (f: *RangeFacts, statement: s32) {
+    fn := f.fn
+    st := *fn.stmts[statement]
+    lhs := *fn.exprs[st.lhs_root]
+    binding := RootBinding(f, st.lhs_root, false)
+    if lhs.kind != ZirExprKind.IDENT && lhs.kind != ZirExprKind.MEMBER && lhs.kind != ZirExprKind.INDEX &&
+       lhs.kind != ZirExprKind.POINTER_MEMBER && !(lhs.kind == ZirExprKind.UNARY && IsOp(lhs, "*")) {
+        // An unfamiliar destination may write any binding it names.
+        if !MarkUnknown(f, st.lhs_root) { f.broken = 1 }
+        return
+    }
+    if binding < 0 { return }
+    if lhs.kind != ZirExprKind.IDENT {
+        // A field write such as view.count = n changes a count.
+        f.unknown[binding] = 1
+        return
+    }
+    operator := BufferText(st.assignment_op[:])
+    if operator == "+=" && st.expr_root >= 0 {
+        // Only literal steps: other bindings' writes are not all known yet.
+        step: s64
+        loop := f.loop_of[statement]
+        value := st.expr_root
+        if fn.exprs[value].kind == ZirExprKind.CAST { value = fn.exprs[value].right }
+        if value < 0 || fn.exprs[value].kind != ZirExprKind.INT || !LiteralValue(fn.exprs[value].text, *step) ||
+           step < 1 || step > (cast(s64)1 << 40) || loop < 0 {
+            f.unknown[binding] = 1
+            return
+        }
+        if f.increment_loop[binding] == -1 { f.increment_loop[binding] = loop }
+        else if f.increment_loop[binding] != loop { f.increment_loop[binding] = -2 }
+        f.step_total[binding] += step
+        if f.step_total[binding] > (cast(s64)1 << 40) { f.unknown[binding] = 1 }
+    } else if operator != "=" {
+        f.unknown[binding] = 1
+        return
+    }
+    f.next_write[statement] = -1
+    if f.first_write[binding] < 0 { f.first_write[binding] = statement }
+    else { f.next_write[f.last_write[binding]] = statement }
+    f.last_write[binding] = statement
+}
+
+// Whether an assignment to destination index writes only storage of this
+// call: a local or parameter, or a field or fixed-array element of one.
+// Nothing a parameter points to was allocated here, so no pointer passed in
+// reaches that storage.
+WritesOwnStorage :: (f: *RangeFacts, index: s32) -> bool {
+    at := index
+    while at >= 0 && at < f.fn.expr_count {
+        expr := *f.fn.exprs[at]
+        capacity: s32 = 0
+        if expr.kind == ZirExprKind.IDENT { return expr.is_global_value == 0 && f.binding_of[at] >= 0 }
+        if (expr.kind != ZirExprKind.MEMBER && expr.kind != ZirExprKind.INDEX) || expr.left < 0 { return false }
+        base := f.fn.exprs[expr.left].type
+        if base == null || base[0] == #char "*" ||
+           (expr.kind == ZirExprKind.INDEX && !(ArrayCapacity(base, *capacity) && capacity >= 0)) {
+            return false
+        }
+        at = expr.left
+    }
+    return false
+}
+
+// Names in scope, newest first per hash bucket, so a lookup costs the names
+// sharing its bucket instead of every live binding.
+ScopeEntry :: struct {
+    name: *u8
+    binding: s32
+    previous: s32
+    bucket: u32
+}
+
+Scope :: struct {
+    entry: *ScopeEntry
+    heads: *s32
+    count: s32
+    mask: u32
+}
+
+NameHash :: (name: *u8, mask: u32) -> u32 {
+    hash: u32 = 2166136261
+    i: s64 = 0
+    while name[i] != 0 {
+        hash = (hash ^ cast(u32)name[i]) * 16777619
+        i += 1
+    }
+    return hash & mask
+}
+
+ScopePush :: (scope: *Scope, name: *u8, binding: s32) {
+    entry := *scope.entry[scope.count]
+    entry.name = name
+    entry.binding = binding
+    entry.bucket = NameHash(name, scope.mask)
+    entry.previous = scope.heads[entry.bucket]
+    scope.heads[entry.bucket] = scope.count
+    scope.count += 1
+}
+
+ScopeFind :: (scope: *Scope, name: *u8) -> s32 {
+    i := scope.heads[NameHash(name, scope.mask)]
+    while i >= 0 {
+        if Same(scope.entry[i].name, name) { return scope.entry[i].binding }
+        i = scope.entry[i].previous
+    }
+    return -1
+}
+
+Ints :: (count: s64) -> *s32 { return cast(*s32)Allocate(count, size_of(s32)) }
+Flags :: (count: s64) -> *u8 { return cast(*u8)Allocate(count, 1) }
+
+Allocated :: (f: *RangeFacts) -> bool {
+    return f.statement_of != null && f.binding_of != null && f.block_end != null && f.loop_of != null &&
+           f.next_write != null && f.unknown != null && f.first_write != null && f.last_write != null &&
+           f.increment_loop != null && f.step_total != null && f.binding_type != null &&
+           f.parent_of != null && f.prev_guard != null && f.prev_branch != null && f.busy != null &&
+           f.computing != null && f.facts != null && f.clobber != null && f.last_clobber != null &&
+           f.dirty != null
+}
+
+// Resolve each identifier to the binding in scope, as the checker did: a
+// declaration's own value still reads the outer binding. Fills each
+// statement's blocks and guards and each expression's statement.
+ResolveScopes :: (f: *RangeFacts, scope: *Scope, walk: *ZirExprWalk, opens: *s32, guards: *s32) {
+    fn := f.fn
+    open_count: s32 = 0
+    // guards[level] is the last exiting if at that nesting level.
+    guards[0] = -1
+    // Parameters are the outermost bindings.
+    for i: 0..f.parameters - 1 {
+        name := ParameterBinding(fn, i)
+        f.binding_type[f.statements + i] = ParameterType(fn, i)
+        if name != null { ScopePush(scope, name, f.statements + i) }
+    }
+    for s: 0..fn.stmt_count - 1 {
+        st := *fn.stmts[s]
+        roots := s32.[st.expr_root, st.lhs_root]
+        // Ifs and blocks pass on the while around them; the opener's own
+        // entry already names a while or -1.
+        f.loop_of[s] = ifx open_count > 0 then opens[open_count - 1] else -1
+        f.parent_of[s] = f.loop_of[s]
+        f.prev_guard[s] = guards[open_count]
+        if f.loop_of[s] >= 0 && fn.stmts[f.loop_of[s]].kind != ZirStmtKind.WHILE { f.loop_of[s] = f.loop_of[f.loop_of[s]] }
+        for r: 0..1 {
+            x := WalkFirst(walk, roots[r])
+            while x >= 0 {
+                expr := *fn.exprs[x]
+                f.statement_of[x] = s
+                if expr.kind == ZirExprKind.CALL { f.clobber[s] = 1 }
+                if expr.kind == ZirExprKind.IDENT && expr.name != null && expr.is_global_value == 0 &&
+                   expr.is_function_value == 0 {
+                    found := ScopeFind(scope, expr.name)
+                    if found >= 0 { f.binding_of[x] = found }
+                }
+                x = WalkNext(walk)
+            }
+        }
+        if st.kind == ZirStmtKind.DECL && st.name != null {
+            ScopePush(scope, st.name, s)
+            f.binding_type[s] = st.type
+        }
+        if st.kind == ZirStmtKind.IF || st.kind == ZirStmtKind.WHILE || st.kind == ZirStmtKind.BLOCK_OPEN {
+            // The scope marker is the count before the block.
+            opens[open_count] = s
+            open_count += 1
+            guards[open_count] = -1
+            f.block_end[s] = scope.count
+        }
+        if st.kind == ZirStmtKind.BLOCK_CLOSE && open_count > 0 {
+            open_count -= 1
+            open := opens[open_count]
+            last := fn.stmts[s - 1].kind
+            while scope.count > f.block_end[open] {
+                scope.count -= 1
+                scope.heads[scope.entry[scope.count].bucket] = scope.entry[scope.count].previous
+            }
+            f.block_end[open] = s
+            opener := *fn.stmts[open]
+            // An else branch runs where every branch before it was false.
+            if opener.kind == ZirStmtKind.IF && s + 1 < fn.stmt_count && fn.stmts[s + 1].kind == ZirStmtKind.IF &&
+               fn.stmts[s + 1].is_else != 0 {
+                f.prev_branch[s + 1] = open
+            }
+            // After an if whose body always leaves, its condition was false.
+            if opener.kind == ZirStmtKind.IF && opener.is_else == 0 && opener.expr_root >= 0 && s - 1 > open &&
+               (last == ZirStmtKind.RETURN || last == ZirStmtKind.BREAK || last == ZirStmtKind.CONTINUE ||
+                last == ZirStmtKind.UNREACHABLE) {
+                guards[open_count] = open
+            }
+        }
+    }
+    while open_count > 0 {
+        open_count -= 1
+        f.block_end[opens[open_count]] = fn.stmt_count
+    }
+}
+
+// Writes the proofs follow, and where memory a pointer passed in reaches
+// may change: calls, and stores through pointers, slices or globals.
+RecordWrites :: (f: *RangeFacts) {
+    fn := f.fn
+    // Taking an address lets a write happen anywhere.
+    for x: 0..fn.expr_count - 1 {
+        expr := *fn.exprs[x]
+        if expr.kind == ZirExprKind.UNARY && IsOp(expr, "&") {
+            binding := RootBinding(f, expr.right, true)
+            if binding >= 0 { f.unknown[binding] = 1 }
+        }
+    }
+    for s: 0..fn.stmt_count - 1 {
+        if fn.stmts[s].kind == ZirStmtKind.ASSIGN && fn.stmts[s].lhs_root >= 0 { RecordWrite(f, s) }
+    }
+    last: s32 = -1
+    for s: 0..fn.stmt_count - 1 {
+        st := *fn.stmts[s]
+        if st.kind == ZirStmtKind.ASSIGN && !WritesOwnStorage(f, st.lhs_root) { f.clobber[s] = 1 }
+        f.last_clobber[s] = last
+        if f.clobber[s] != 0 {
+            last = s
+            if st.kind == ZirStmtKind.WHILE { f.dirty[s] = 1 }
+            loop := f.loop_of[s]
+            while loop >= 0 {
+                f.dirty[loop] = 1
+                loop = f.loop_of[loop]
+            }
+        }
+    }
+}
+
+#scope_export
+
+RangeFactsBuild :: (fn: *ZirFunction) -> *RangeFacts {
+    if fn == null || fn.stmt_count <= 0 || fn.expr_count <= 0 || (fn.assembly_text != null && fn.assembly_text[0] != 0) {
+        return null
+    }
+    for s: 0..fn.stmt_count - 1 { if !SupportedStatement(*fn.stmts[s]) { return null } }
+    f := cast(*RangeFacts)Allocate(1, size_of(RangeFacts))
+    if f == null { return null }
+    f.fn = fn
+    f.read_at = -1
+    f.statements = fn.stmt_count
+    f.parameters = ParameterCount(fn)
+    bindings := f.statements + f.parameters
+    statements := cast(s64)fn.stmt_count
+    f.statement_of = Ints(fn.expr_count)
+    f.binding_of = Ints(fn.expr_count)
+    f.block_end = Ints(statements)
+    f.loop_of = Ints(statements)
+    f.next_write = Ints(statements)
+    f.unknown = Flags(bindings)
+    f.first_write = Ints(bindings)
+    f.last_write = Ints(bindings)
+    f.increment_loop = Ints(bindings)
+    f.step_total = cast(*s64)Allocate(bindings, size_of(s64))
+    f.binding_type = cast(**u8)Allocate(bindings, size_of(*u8))
+    f.bindings = bindings
+    f.parent_of = Ints(statements)
+    f.prev_guard = Ints(statements)
+    f.prev_branch = Ints(statements)
+    f.busy = Flags(cast(s64)bindings * 2 + FIELD_ATOMS)
+    f.computing = Flags(bindings)
+    f.facts = cast(*GuardFacts)Allocate(statements * 2, size_of(GuardFacts))
+    f.clobber = Flags(statements)
+    f.last_clobber = Ints(statements)
+    f.dirty = Flags(statements)
+    guards := Ints(statements + 2)
+    mask: u32 = 1
+    while mask < cast(u32)bindings * 2 && mask < (cast(u32)1 << 30) { mask = mask << 1 }
+    scope := Scope.{entry = cast(*ScopeEntry)Allocate(cast(s64)bindings + 1, size_of(ScopeEntry)),
+                    heads = Ints(cast(s64)mask), count = 0, mask = mask - 1}
+    opens := Ints(statements + 1)
+    walk := ZirExprWalk.{fn = fn, pending = Ints(fn.expr_count), count = 0}
+    ready := Allocated(f) && guards != null && scope.entry != null && scope.heads != null && opens != null &&
+             walk.pending != null
+    if ready {
+        for x: 0..fn.expr_count - 1 {
+            f.statement_of[x] = -1
+            f.binding_of[x] = -1
+        }
+        for s: 0..fn.stmt_count - 1 {
+            f.block_end[s] = -1
+            f.loop_of[s] = -1
+            f.next_write[s] = -1
+            f.parent_of[s] = -1
+            f.prev_guard[s] = -1
+            f.prev_branch[s] = -1
+        }
+        for b: 0..bindings - 1 {
+            f.first_write[b] = -1
+            f.increment_loop[b] = -1
+        }
+        for b: 0..cast(s64)scope.mask { scope.heads[b] = -1 }
+        ResolveScopes(f, *scope, *walk, opens, guards)
+        RecordWrites(f)
+    }
+    Release(guards)
+    Release(scope.heads)
+    ReleaseMemory(cast(*void)scope.entry) // a private record: no generic copy
+    Release(opens)
+    Release(walk.pending)
+    if !ready || f.broken != 0 {
+        RangeFactsFree(f)
+        return null
+    }
+    return f
+}

@@ -1,0 +1,875 @@
+// Index range proofs, part 3: proofs through polynomials. An index such as
+// row * stride + x lies below a count when, with each written binding
+// replaced by an upper bound that a loop condition or guard gives it,
+// count - index - 1 is never negative, using a guard fact such as
+// count >= (height + 3) * stride + 8.
+using IR :: #import "compiler_ir"
+using Facts :: #import "compiler_c_range_facts"
+using Values :: #import "compiler_c_range_values"
+
+INDEX_FACTS :: 48
+GATHERED_FACTS :: 4 * INDEX_FACTS
+SUBSTITUTE_TRIES :: 64
+
+PolyConstant :: (p: *Poly, low: s64, high: s64) {
+    p.k.low = low; p.k.high = high
+    p.count = 0
+}
+
+PolyAtom :: (p: *Poly, atom: s32) {
+    PolyConstant(p, 0, 0)
+    p.count = 1
+    p.term[0].coef = 1
+    p.term[0].degree = 1
+    p.term[0].atom[0] = atom
+}
+
+#scope_file
+
+SameAtoms :: (a: *Term, b: *Term) -> bool {
+    if a.degree != b.degree { return false }
+    for i: 0..a.degree - 1 { if a.atom[i] != b.atom[i] { return false } }
+    return true
+}
+
+// Add t to p; a term that cancels leaves p.
+PolyAddTerm :: (p: *Poly, t: *Term) -> bool {
+    for i: 0..p.count - 1 {
+        if SameAtoms(*p.term[i], t) {
+            if !AddChecked(p.term[i].coef, t.coef, *p.term[i].coef) { return false }
+            if p.term[i].coef == 0 {
+                p.count -= 1
+                p.term[i] = p.term[p.count]
+            }
+            return true
+        }
+    }
+    if t.coef == 0 { return true }
+    if p.count >= POLY_TERMS { return false }
+    p.term[p.count] = <<t
+    p.count += 1
+    return true
+}
+
+#scope_export
+
+PolyAdd :: (out: *Poly, a: *Poly, b: *Poly, subtract: bool) -> bool {
+    r := <<a
+    if !AddRange(a.k, b.k, subtract, *r.k) { return false }
+    for i: 0..b.count - 1 {
+        t := b.term[i]
+        if subtract {
+            if t.coef == MIN_S64 { return false }
+            t.coef = -t.coef
+        }
+        if !PolyAddTerm(*r, *t) { return false }
+    }
+    <<out = r
+    return true
+}
+
+#scope_file
+
+TermTimes :: (a: *Term, b: *Term, out: *Term) -> bool {
+    if a.degree + b.degree > POLY_DEGREE || !MulChecked(a.coef, b.coef, *out.coef) { return false }
+    i: s32 = 0
+    j: s32 = 0
+    n: s32 = 0
+    while i < a.degree || j < b.degree {
+        if j >= b.degree || (i < a.degree && a.atom[i] <= b.atom[j]) {
+            out.atom[n] = a.atom[i]
+            i += 1
+        } else {
+            out.atom[n] = b.atom[j]
+            j += 1
+        }
+        n += 1
+    }
+    out.degree = n
+    return true
+}
+
+#scope_export
+
+PolyMultiply :: (out: *Poly, a: *Poly, b: *Poly) -> bool {
+    r: Poly
+    PolyConstant(*r, 0, 0)
+    // A constant known only as a range multiplies only constants.
+    if (a.count > 0 && b.k.low != b.k.high) || (b.count > 0 && a.k.low != a.k.high) || !RangeMultiply(a.k, b.k, *r.k) {
+        return false
+    }
+    for i: 0..a.count - 1 {
+        for j: 0..b.count - 1 {
+            t: Term
+            if !TermTimes(*a.term[i], *b.term[j], *t) || !PolyAddTerm(*r, *t) { return false }
+        }
+    }
+    if b.k.low != 0 {
+        for i: 0..a.count - 1 {
+            t := a.term[i]
+            if !MulChecked(t.coef, b.k.low, *t.coef) || !PolyAddTerm(*r, *t) { return false }
+        }
+    }
+    if a.k.low != 0 {
+        for j: 0..b.count - 1 {
+            t := b.term[j]
+            if !MulChecked(t.coef, a.k.low, *t.coef) || !PolyAddTerm(*r, *t) { return false }
+        }
+    }
+    <<out = r
+    return true
+}
+
+#scope_file
+
+AtomRange :: (f: *RangeFacts, atom: s32, at: s32, out: *Range) -> bool {
+    if atom >= 2 * f.bindings {
+        if !TypeRange(f.field_type[atom - 2 * f.bindings], out) { return false }
+        GuardNarrow(f, atom, at, 0, out)
+        return true
+    }
+    if atom >= f.bindings {
+        // A count: a view of a whole fixed array holds its length.
+        view := atom - f.bindings
+        capacity: s32 = 0
+        if view < f.statements && Invariant(f, view) && f.fn.stmts[view].kind == ZirStmtKind.DECL &&
+           f.fn.stmts[view].expr_root >= 0 {
+            value := *f.fn.exprs[f.fn.stmts[view].expr_root]
+            if value.kind == ZirExprKind.SLICE && value.right < 0 && value.third < 0 && value.left >= 0 &&
+               f.fn.exprs[value.left].type != null && ArrayCapacity(f.fn.exprs[value.left].type, *capacity) && capacity >= 0 {
+                out.low = capacity; out.high = capacity
+                return true
+            }
+        }
+        out.low = 0; out.high = MAX_S64
+        GuardNarrow(f, atom, at, 0, out)
+        return true
+    }
+    return BindingRange(f, atom, at, out)
+}
+
+// The least value of p at statement at, or with upper its greatest, when no
+// term's range overflows and that end of their sum does not; false when that
+// end is not known. With nonnegative terms, first + 1 + second has a least
+// value even when its greatest overflows.
+PolyBound :: (f: *RangeFacts, p: *Poly, at: s32, upper: bool, out: *s64) -> bool {
+    bound := ifx upper then p.k.high else p.k.low
+    for i: 0..p.count - 1 {
+        term := Range.{low = p.term[i].coef, high = p.term[i].coef}
+        atom: Range
+        for a: 0..p.term[i].degree - 1 {
+            if !AtomRange(f, p.term[i].atom[a], at, *atom) || !RangeMultiply(term, atom, *term) { return false }
+        }
+        if !AddChecked(bound, ifx upper then term.high else term.low, *bound) { return false }
+    }
+    <<out = bound
+    return true
+}
+
+// Every written binding root reads keeps its value from statement from to
+// statement at.
+ReadsUnchanged :: (f: *RangeFacts, root: s32, from: s32, at: s32) -> bool {
+    walk := ZirExprWalk.{fn = f.fn, pending = cast(*s32)Allocate(f.fn.expr_count, size_of(s32)), count = 0}
+    if walk.pending == null { return false }
+    unchanged := true
+    x := WalkFirst(*walk, root)
+    while x >= 0 {
+        binding := f.binding_of[x]
+        if binding >= 0 && !Invariant(f, binding) && !UnchangedBetween(f, binding, from, at) {
+            unchanged = false
+            break
+        }
+        x = WalkNext(*walk)
+    }
+    Release(walk.pending)
+    return unchanged
+}
+
+// Note what p must satisfy to lie in whole at statement at; false when that
+// does not fit.
+RecordSides :: (f: *RangeFacts, p: *Poly, whole: Range, at: s32) -> bool {
+    bound: Poly
+    low: s64
+    high: s64
+    // An end whose bound overflows may lie outside whole too.
+    low_known := PolyBound(f, p, at, false, *low)
+    high_known := PolyBound(f, p, at, true, *high)
+    if low_known && high_known && low >= whole.low && high <= whole.high { return true }
+    if !low_known || low < whole.low {
+        // p - low >= 0
+        if whole.low == MIN_S64 || f.sides >= GUARD_SIDES { return false }
+        PolyConstant(*bound, whole.low, whole.low)
+        if !PolyAdd(*f.side[f.sides], p, *bound, true) { return false }
+        f.sides += 1
+    }
+    if !high_known || high > whole.high {
+        // high - p >= 0
+        if whole.high == MAX_S64 || f.sides >= GUARD_SIDES { return false }
+        PolyConstant(*bound, whole.high, whole.high)
+        if !PolyAdd(*f.side[f.sides], *bound, p, true) { return false }
+        f.sides += 1
+    }
+    return true
+}
+
+// Whether the identifier's binding stands for its initializer's value at
+// at: a declaration nothing writes, whose reads keep their values there.
+ExpandBinding :: (f: *RangeFacts, binding: s32, own: Range, at: s32, depth: s32, out: *Poly) -> bool {
+    fn := f.fn
+    if !Invariant(f, binding) || binding >= f.statements || fn.stmts[binding].kind != ZirStmtKind.DECL ||
+       fn.stmts[binding].expr_root < 0 || fn.exprs[fn.stmts[binding].expr_root].kind == ZirExprKind.CONDITIONAL {
+        return false
+    }
+    value := fn.stmts[binding].expr_root
+    saved := f.read_at
+    a: Range
+    if !ExprRange(f, value, 0, *a) || !Within(a, own) || !ReadsUnchanged(f, value, binding, at) { return false }
+    // What it reads holds the same values at at, so whether its operations
+    // wrapped follows from their ranges there.
+    if saved < 0 && at > binding { f.read_at = at }
+    expanded := ToPoly(f, value, at, depth + 1, out) && (out.count > 0 || out.k.low == out.k.high)
+    f.read_at = saved
+    return expanded
+}
+
+#scope_export
+
+// The exact value of an integer expression at statement at, or false when
+// an operation may wrap. A declaration nothing writes stands for its value
+// when what that reads is unchanged at at; other bindings stay atoms.
+ToPoly :: (f: *RangeFacts, index: s32, at: s32, depth: s32, out: *Poly) -> bool {
+    fn := f.fn
+    whole: Range
+    a: Range
+    b: Range
+    result: Range
+    left: Poly
+    right: Poly
+    if index < 0 || index >= fn.expr_count || depth > POLY_DEPTH { return false }
+    f.budget -= 1
+    if f.budget < 0 { return false }
+    expr := *fn.exprs[index]
+    if !TypeRange(expr.type, *whole) { return false }
+    kind := expr.kind
+    if kind == ZirExprKind.INT {
+        value: s64
+        if !LiteralValue(expr.text, *value) || value < whole.low || value > whole.high { return false }
+        PolyConstant(out, value, value)
+        return true
+    } else if kind == ZirExprKind.CAST {
+        if IntegerType(fn.exprs[expr.right].type) &&
+           ((ExprRange(f, expr.right, 0, *a) && Within(a, whole)) ||
+            (TypeRange(fn.exprs[expr.right].type, *a) && Within(a, whole))) {
+            return ToPoly(f, expr.right, at, depth + 1, out)
+        }
+    } else if kind == ZirExprKind.IDENT {
+        binding := f.binding_of[index]
+        own: Range
+        if binding >= 0 && f.binding_type[binding] != null && TypeRange(f.binding_type[binding], *own) && Within(own, whole) {
+            if ExpandBinding(f, binding, own, at, depth, out) { return true }
+            PolyAtom(out, binding)
+            return true
+        }
+    } else if kind == ZirExprKind.MEMBER || kind == ZirExprKind.POINTER_MEMBER {
+        capacity: s32 = 0
+        field := FieldAtom(f, index)
+        base := fn.exprs[expr.left].type
+        if field >= 0 {
+            PolyAtom(out, field)
+            return true
+        }
+        if kind == ZirExprKind.MEMBER && Is(expr.name, "count") && base != null {
+            if ArrayCapacity(base, *capacity) && capacity >= 0 {
+                PolyConstant(out, capacity, capacity)
+                return true
+            }
+            view := ifx fn.exprs[expr.left].kind == ZirExprKind.IDENT then f.binding_of[expr.left] else -1
+            if (IsSlice(base) || Is(Canonical(base), "string")) && Invariant(f, view) && whole.high == MAX_S64 {
+                PolyAtom(out, f.bindings + view)
+                return true
+            }
+        }
+    } else if kind == ZirExprKind.UNARY {
+        if IsOp(expr, "-") && ExprRange(f, expr.right, 0, *a) && a.low > MIN_S64 && -a.high >= whole.low &&
+           -a.low <= whole.high && ToPoly(f, expr.right, at, depth + 1, *right) {
+            zero: Poly
+            PolyConstant(*zero, 0, 0)
+            if PolyAdd(out, *zero, *right, true) { return true }
+        }
+    } else if kind == ZirExprKind.BINARY {
+        if IntegerType(fn.exprs[expr.left].type) && ExprRange(f, expr.left, 0, *a) && ExprRange(f, expr.right, 0, *b) {
+            if IsOp(expr, "<<") {
+                if ShiftPoly(f, expr, a, whole, at, depth, out) { return true }
+            } else if IsOp(expr, "+") || IsOp(expr, "-") {
+                if AddRange(a, b, expr.op[0] == #char "-", *result) && Within(result, whole) &&
+                   ToPoly(f, expr.left, at, depth + 1, *left) && ToPoly(f, expr.right, at, depth + 1, *right) &&
+                   PolyAdd(out, *left, *right, expr.op[0] == #char "-") {
+                    return true
+                }
+            } else if IsOp(expr, "*") {
+                if RangeMultiply(a, b, *result) && Within(result, whole) && ToPoly(f, expr.left, at, depth + 1, *left) &&
+                   ToPoly(f, expr.right, at, depth + 1, *right) && PolyMultiply(out, *left, *right) {
+                    return true
+                }
+            }
+        }
+    }
+    // In a guard, + - * whose result may leave its type is exact on the side
+    // that it did not.
+    if f.side != null && kind == ZirExprKind.BINARY && IntegerType(fn.exprs[expr.left].type) &&
+       (IsOp(expr, "+") || IsOp(expr, "-") || IsOp(expr, "*")) && ToPoly(f, expr.left, at, depth + 1, *left) &&
+       ToPoly(f, expr.right, at, depth + 1, *right) &&
+       (ifx expr.op[0] == #char "*" then PolyMultiply(out, *left, *right) else PolyAdd(out, *left, *right, expr.op[0] == #char "-")) &&
+       RecordSides(f, out, whole, at) {
+        return true
+    }
+    // Anything else is some value in its range.
+    if !ExprRange(f, index, 0, *a) { return false }
+    PolyConstant(out, a.low, a.high)
+    return true
+}
+
+#scope_file
+
+// A literal count: x << k is x * 2^k when that fits.
+ShiftPoly :: (f: *RangeFacts, expr: *ZirExpr, a: Range, whole: Range, at: s32, depth: s32, out: *Poly) -> bool {
+    fn := f.fn
+    count := expr.right
+    shift: s64
+    scale: Poly
+    result: Range
+    left: Poly
+    if fn.exprs[count].kind == ZirExprKind.CAST { count = fn.exprs[count].right }
+    if fn.exprs[count].kind != ZirExprKind.INT || !LiteralValue(fn.exprs[count].text, *shift) || shift > 62 { return false }
+    PolyConstant(*scale, cast(s64)1 << shift, cast(s64)1 << shift)
+    return RangeMultiply(a, scale.k, *result) && Within(result, whole) && ToPoly(f, expr.left, at, depth + 1, *left) &&
+           PolyMultiply(out, *left, *scale)
+}
+
+// Whether a comparison of left and right compares their values: one type,
+// or an untyped literal that type holds.
+ComparesValues :: (f: *RangeFacts, left: s32, right: s32) -> bool {
+    a := f.fn.exprs[left].type
+    b := f.fn.exprs[right].type
+    type: Range
+    value: Range
+    if a == null || b == null || !IntegerType(a) || !IntegerType(b) { return false }
+    // Canonical maps the untyped integer to s64, so look first.
+    if Is(a, "integer") && !Is(b, "integer") { return TypeRange(b, *type) && ExprRange(f, left, 0, *value) && Within(value, type) }
+    if Is(b, "integer") && !Is(a, "integer") { return TypeRange(a, *type) && ExprRange(f, right, 0, *value) && Within(value, type) }
+    return Same(Canonical(a), Canonical(b))
+}
+
+AddFact :: (facts: *GuardFacts, a: *Poly, b: *Poly, less: s64) {
+    // a - b - less >= 0
+    d: Poly
+    gap: Poly
+    PolyConstant(*gap, less, less)
+    if facts.count < GUARD_FACTS && PolyAdd(*d, a, b, true) && PolyAdd(*d, *d, *gap, true) {
+        facts.poly[facts.count] = d
+        facts.count += 1
+    }
+}
+
+// Facts poly >= 0 that hold where condition, evaluated at statement, has
+// value truth.
+ConditionFacts :: (f: *RangeFacts, condition: s32, truth: bool, statement: s32, depth: s32, facts: *GuardFacts) {
+    negate := s32.[3, 2, 1, 0, 5, 4]
+    left: Poly
+    right: Poly
+    if condition < 0 || depth > 2 * RANGE_DEPTH || facts.count >= GUARD_FACTS { return }
+    expr := *f.fn.exprs[condition]
+    if expr.kind == ZirExprKind.UNARY && IsOp(expr, "!") {
+        ConditionFacts(f, expr.right, !truth, statement, depth + 1, facts)
+        return
+    }
+    if expr.kind != ZirExprKind.BINARY { return }
+    if IsOp(expr, "&&") || IsOp(expr, "||") {
+        if (expr.op[0] == #char "&") != truth || f.contexts >= RANGE_CONTEXT { return }
+        ConditionFacts(f, expr.left, truth, statement, ChainDepth(f, condition, expr.left, depth), facts)
+        PushContext(f, expr.left, truth, statement)
+        ConditionFacts(f, expr.right, truth, statement, ChainDepth(f, condition, expr.right, depth), facts)
+        f.contexts -= 1
+        return
+    }
+    op := Comparison(expr)
+    if op < 0 || !ComparesValues(f, expr.left, expr.right) { return }
+    outer := f.side
+    outer_sides := f.sides
+    side: GuardSides
+    first := facts.count
+    f.side = *side.poly[0]
+    f.sides = 0
+    read := ToPoly(f, expr.left, statement, 0, *left) && ToPoly(f, expr.right, statement, 0, *right)
+    sides := f.sides
+    f.side = outer
+    f.sides = outer_sides
+    if !read { return }
+    if sides > 0 && facts.sides == null {
+        facts.sides = cast(*s32)Allocate(GUARD_FACTS, size_of(s32))
+        facts.side = cast(*Poly)Allocate(GUARD_FACTS * GUARD_SIDES, size_of(Poly))
+        if facts.sides == null || facts.side == null {
+            Release(facts.sides)
+            Release(facts.side)
+            facts.sides = null
+            facts.side = null
+            return
+        }
+    }
+    if !truth { op = negate[op] }
+    if op == 0 { AddFact(facts, *right, *left, 1) }
+    else if op == 1 { AddFact(facts, *right, *left, 0) }
+    else if op == 2 { AddFact(facts, *left, *right, 1) }
+    else if op == 3 { AddFact(facts, *left, *right, 0) }
+    else if op == 4 {
+        AddFact(facts, *left, *right, 0)
+        AddFact(facts, *right, *left, 0)
+    }
+    if sides > 0 {
+        for i: first..facts.count - 1 {
+            facts.sides[i] = sides
+            for s: 0..sides - 1 { facts.side[i * GUARD_SIDES + s] = side.poly[s] }
+        }
+    }
+}
+
+GuardFactsOf :: (f: *RangeFacts, guard: s32, truth: bool) -> *GuardFacts {
+    facts := *f.facts[2 * guard + (ifx truth then 1 else 0)]
+    if facts.state == 0 {
+        budget := f.budget
+        facts.state = 1
+        facts.poly = cast(*Poly)Allocate(GUARD_FACTS, size_of(Poly))
+        if facts.poly != null {
+            f.budget = POLY_BUDGET
+            ConditionFacts(f, f.fn.stmts[guard].expr_root, truth, guard, 0, facts)
+        }
+        f.budget = budget
+        facts.state = 2
+    }
+    return ifx facts.state == 2 then facts else null
+}
+
+SidedFact :: struct {
+    facts: *GuardFacts
+    index: s32
+}
+
+// Whether every written binding p names keeps the value it had at guard.
+NamesUnchanged :: (f: *RangeFacts, p: *Poly, guard: s32, at: s32, loop: bool) -> bool {
+    for t: 0..p.count - 1 {
+        for a: 0..p.term[t].degree - 1 {
+            atom := p.term[t].atom[a]
+            if atom < f.bindings && !Invariant(f, atom) &&
+               !(ifx loop then UnchangedSinceCondition(f, atom, guard, at) else UnchangedBetween(f, atom, guard, at)) {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+// The facts gathered for one statement: those that hold outright, and
+// those with sides, which wait until the others can show the sides.
+Gathered :: struct {
+    list: *Poly
+    count: s32
+    max: s32
+    sided: *SidedFact
+    pending: s32
+}
+
+// Keep the facts of guard that still hold at statement at.
+AddValidFacts :: (f: *RangeFacts, guard: s32, truth: bool, at: s32, into: *Gathered) {
+    facts := GuardFactsOf(f, guard, truth)
+    loop := f.fn.stmts[guard].kind == ZirStmtKind.WHILE
+    i: s32 = 0
+    while facts != null && i < facts.count && into.count < into.max {
+        sides := ifx facts.sides != null then facts.sides[i] else 0
+        valid := NamesUnchanged(f, *facts.poly[i], guard, at, loop)
+        s: s32 = 0
+        while s < sides && valid {
+            valid = NamesUnchanged(f, *facts.side[i * GUARD_SIDES + s], guard, at, loop)
+            s += 1
+        }
+        if valid {
+            if sides == 0 {
+                into.list[into.count] = facts.poly[i]
+                into.count += 1
+            } else if into.pending < into.max {
+                into.sided[into.pending] = SidedFact.{facts = facts, index = i}
+                into.pending += 1
+            }
+        }
+        i += 1
+    }
+}
+
+GatherFacts :: (f: *RangeFacts, at: s32, list: *Poly, max: s32) -> s32 {
+    into := Gathered.{list = list, count = 0, max = max, sided = cast(*SidedFact)Allocate(max, size_of(SidedFact)), pending = 0}
+    if into.sided == null { return 0 }
+    x := at
+    while x >= 0 {
+        open := f.parent_of[x]
+        guard := ifx f.fn.stmts[x].for_step != 0 then -1 else f.prev_guard[x]
+        while guard >= 0 {
+            AddValidFacts(f, guard, false, at, *into)
+            guard = f.prev_guard[guard]
+        }
+        if open < 0 { break }
+        opener := *f.fn.stmts[open]
+        branch := ifx opener.kind == ZirStmtKind.IF && opener.is_else != 0 then f.prev_branch[open] else -1
+        while branch >= 0 {
+            if f.fn.stmts[branch].expr_root >= 0 { AddValidFacts(f, branch, false, at, *into) }
+            branch = ifx f.fn.stmts[branch].is_else != 0 then f.prev_branch[branch] else -1
+        }
+        if opener.expr_root >= 0 && (opener.kind == ZirStmtKind.IF || opener.kind == ZirStmtKind.WHILE) {
+            AddValidFacts(f, open, true, at, *into)
+        }
+        x = open
+    }
+    // The sides name only values unchanged since the guard, so showing them
+    // here shows the guard's operations did not wrap.
+    i: s32 = 0
+    while i < into.pending && into.count < max {
+        facts := into.sided[i].facts
+        n := into.sided[i].index
+        shown := true
+        s: s32 = 0
+        while s < facts.sides[n] && shown {
+            shown = PolyNonnegative(f, *facts.side[n * GUARD_SIDES + s], at, list, into.count, 2)
+            s += 1
+        }
+        if shown {
+            list[into.count] = facts.poly[n]
+            into.count += 1
+        }
+        i += 1
+    }
+    ReleaseMemory(cast(*void)into.sided) // a private record: no generic copy
+    return into.count
+}
+
+// Whether atom and fact name a binding in common.
+SharesAtom :: (p: *Poly, fact: *Poly) -> bool {
+    for t: 0..p.count - 1 {
+        for a: 0..p.term[t].degree - 1 {
+            for u: 0..fact.count - 1 {
+                for b: 0..fact.term[u].degree - 1 { if p.term[t].atom[a] == fact.term[u].atom[b] { return true } }
+            }
+        }
+    }
+    return false
+}
+
+// Whether p >= 0 at statement at: from the ranges of what it names, or after
+// taking away up to depth facts that share a binding with it, each never
+// negative. stride >= 0 follows from stride - width >= 0 and, inside
+// for j: 0..width - 1, width - 1 - j >= 0 with j >= 0.
+PolyNonnegative :: (f: *RangeFacts, p: *Poly, at: s32, facts: *Poly, count: s32, depth: s32) -> bool {
+    low: s64
+    if PolyBound(f, p, at, false, *low) && low >= 0 { return true }
+    if p.count == 1 && p.term[0].degree == 1 && p.term[0].coef > 0 && p.k.low >= 0 {
+        chosen: Poly
+        other: Poly
+        if ChoiceBranches(f, p.term[0].atom[0], at, *chosen, *other) && PolyNonnegative(f, *chosen, at, facts, count, depth) &&
+           PolyNonnegative(f, *other, at, facts, count, depth) {
+            return true
+        }
+    }
+    // Each fact alone is tried before any pair, so a guard that matches
+    // directly costs one look rather than a search under every other fact.
+    pass := ifx depth > 1 then 0 else 1
+    while depth > 0 && pass < 2 {
+        next := ifx pass != 0 then depth - 1 else 0
+        for i: 0..count - 1 {
+            rest: Poly
+            if SharesAtom(p, *facts[i]) && PolyAdd(*rest, p, *facts[i], true) &&
+               PolyNonnegative(f, *rest, at, facts, count, next) {
+                return true
+            }
+        }
+        if FactProducts(f, p, at, facts, count, next) { return true }
+        pass += 1
+    }
+    return false
+}
+
+// Whether p >= 0 once a linear fact times a value never negative is taken
+// away: a fact about a in a product a * b of p, times b. With 2 - radius >= 0
+// and stride >= 0, (2 - radius) * stride + 2 - radius is never negative.
+FactProducts :: (f: *RangeFacts, p: *Poly, at: s32, facts: *Poly, count: s32, depth: s32) -> bool {
+    for t: 0..p.count - 1 {
+        if p.term[t].degree == 2 {
+            for side: 0..1 {
+                a := p.term[t].atom[side]
+                factor: Poly
+                product: Poly
+                rest: Poly
+                PolyAtom(*factor, p.term[t].atom[1 - side])
+                for i: 0..count - 1 {
+                    linear := facts[i].count > 0
+                    names := false
+                    for u: 0..facts[i].count - 1 {
+                        linear = linear && facts[i].term[u].degree == 1
+                        names = names || facts[i].term[u].atom[0] == a
+                    }
+                    // Taking the product away must cancel the term, not add to it.
+                    if linear && names && PolyMultiply(*product, *facts[i], *factor) && PolyAdd(*rest, p, *product, true) &&
+                       rest.count <= p.count + 1 && PolyNonnegative(f, *factor, at, facts, count, 1) &&
+                       PolyNonnegative(f, *rest, at, facts, count, depth) {
+                        return true
+                    }
+                }
+            }
+        }
+    }
+    return false
+}
+
+// Whether every term of p is a positive multiple of bindings each never
+// negative, and its constant is not negative either.
+TermsNonnegative :: (f: *RangeFacts, p: *Poly, at: s32, facts: *Poly, count: s32) -> bool {
+    if p.k.low < 0 { return false }
+    for t: 0..p.count - 1 {
+        if p.term[t].coef < 0 { return false }
+        for a: 0..p.term[t].degree - 1 {
+            atom: Poly
+            PolyAtom(*atom, p.term[t].atom[a])
+            if !PolyNonnegative(f, *atom, at, facts, count, 2) { return false }
+        }
+    }
+    return true
+}
+
+// Whether q <= limit - 1 at statement at once q names only invariant
+// bindings: directly, or as d = fact + rest where a fact is never negative.
+PolyBelowLimit :: (f: *RangeFacts, q: *Poly, at: s32, facts: *Poly, count: s32, limit: *Poly) -> bool {
+    d: Poly
+    one: Poly
+    PolyConstant(*one, 1, 1)
+    return PolyAdd(*d, limit, q, true) && PolyAdd(*d, *d, *one, true) && PolyNonnegative(f, *d, at, facts, count, 3)
+}
+
+// Whether atom is a local declared as ifx c then a else b, with what a and
+// b read unchanged at statement at and each fitting the local's type; then
+// and other are a and b as polynomials there.
+ChoiceBranches :: (f: *RangeFacts, atom: s32, at: s32, chosen: *Poly, other: *Poly) -> bool {
+    fn := f.fn
+    own: Range
+    a: Range
+    b: Range
+    if atom < 0 || atom >= f.statements || !Invariant(f, atom) || fn.stmts[atom].kind != ZirStmtKind.DECL ||
+       fn.stmts[atom].expr_root < 0 || f.binding_type[atom] == null || !TypeRange(f.binding_type[atom], *own) {
+        return false
+    }
+    root := fn.stmts[atom].expr_root
+    value := *fn.exprs[root]
+    return value.kind == ZirExprKind.CONDITIONAL && ReadsUnchanged(f, root, atom, at) &&
+           ExprRange(f, value.right, 0, *a) && Within(a, own) && ExprRange(f, value.third, 0, *b) && Within(b, own) &&
+           ToPoly(f, value.right, at, 1, chosen) && ToPoly(f, value.third, at, 1, other)
+}
+
+// The first atom of q to replace: a written binding, or a local chosen by
+// ifx, whose branches then fill branch; -1 when q names neither.
+ReplacedAtom :: (f: *RangeFacts, q: *Poly, at: s32, first: *Poly, second: *Poly, choice: *bool) -> s32 {
+    for t: 0..q.count - 1 {
+        for a: 0..q.term[t].degree - 1 {
+            atom := q.term[t].atom[a]
+            if atom < f.bindings && !Invariant(f, atom) { return atom }
+            if ChoiceBranches(f, atom, at, first, second) {
+                <<choice = true
+                return atom
+            }
+        }
+    }
+    return -1
+}
+
+// q = rest + grows * v, when no term names v twice.
+SplitAt :: (q: *Poly, v: s32, rest: *Poly, grows: *Poly) -> bool {
+    PolyConstant(rest, q.k.low, q.k.high)
+    PolyConstant(grows, 0, 0)
+    for t: 0..q.count - 1 {
+        term := q.term[t]
+        uses: s32 = 0
+        for a: 0..term.degree - 1 { if term.atom[a] == v { uses += 1 } }
+        if uses == 0 {
+            if !PolyAddTerm(rest, *term) { return false }
+        } else {
+            if uses > 1 { return false }
+            n: s32 = 0
+            for a: 0..term.degree - 1 {
+                if term.atom[a] != v {
+                    term.atom[n] = term.atom[a]
+                    n += 1
+                }
+            }
+            term.degree -= 1
+            if term.degree == 0 {
+                if !AddChecked(grows.k.low, term.coef, *grows.k.low) { return false }
+                grows.k.high = grows.k.low
+            } else if !PolyAddTerm(grows, *term) { return false }
+        }
+    }
+    return true
+}
+
+// Whether fact names v once, linearly, with the coefficient want.
+BoundsAtom :: (fact: *Poly, v: s32, want: s64) -> bool {
+    term: s32 = -1
+    uses: s32 = 0
+    for t: 0..fact.count - 1 {
+        for a: 0..fact.term[t].degree - 1 {
+            if fact.term[t].atom[a] == v {
+                uses += 1
+                term = t
+            }
+        }
+    }
+    return uses == 1 && fact.term[term].degree == 1 && fact.term[term].coef == want
+}
+
+// Replace each written binding in q by an upper bound, a fact bound - v >= 0
+// or its largest value, where q only grows with v, or by a lower bound where
+// q only shrinks with it, until q is below limit. A local chosen by ifx is
+// replaced by each branch in turn, and both must hold. Every fact bounding v
+// is tried in turn, since the nearest one, such as i <= 31 from a guard, may
+// be weaker than an outer one such as i <= height - 1. Afterwards q is at
+// least the index everywhere at statement at.
+SubstituteBounds :: (f: *RangeFacts, q: *Poly, at: s32, facts: *Poly, count: s32, limit: *Poly, round: s32,
+                     tries: *s32) -> bool {
+    rest: Poly
+    grows: Poly
+    bound: Poly
+    product: Poly
+    next: Poly
+    branch: [2]Poly
+    choice := false
+    lower := false
+    v := ReplacedAtom(f, q, at, *branch[0], *branch[1], *choice)
+    if v < 0 { return PolyBelowLimit(f, q, at, facts, count, limit) }
+    if round >= 8 { return false }
+    <<tries += 1
+    if <<tries > SUBSTITUTE_TRIES || !SplitAt(q, v, *rest, *grows) { return false }
+    if choice {
+        for b: 0..1 {
+            if !PolyMultiply(*product, *grows, *branch[b]) || !PolyAdd(*next, *rest, *product, false) ||
+               !SubstituteBounds(f, *next, at, facts, count, limit, round + 1, tries) {
+                return false
+            }
+        }
+        return true
+    }
+    if !PolyNonnegative(f, *grows, at, facts, count, 2) {
+        zero: Poly
+        shrinks: Poly
+        PolyConstant(*zero, 0, 0)
+        if !PolyAdd(*shrinks, *zero, *grows, true) || !PolyNonnegative(f, *shrinks, at, facts, count, 2) { return false }
+        lower = true
+    }
+    for i: 0..count - 1 {
+        // bound - v >= 0 gives an upper bound, v - bound >= 0 a lower one.
+        if BoundsAtom(*facts[i], v, ifx lower then 1 else -1) {
+            atom: Poly
+            PolyAtom(*atom, v)
+            if (ifx lower then PolyAdd(*bound, *atom, *facts[i], true) else PolyAdd(*bound, *facts[i], *atom, false)) &&
+               PolyMultiply(*product, *grows, *bound) && PolyAdd(*next, *rest, *product, false) &&
+               SubstituteBounds(f, *next, at, facts, count, limit, round + 1, tries) {
+                return true
+            }
+        }
+    }
+    largest: Range
+    if !BindingRange(f, v, at, *largest) { return false }
+    if lower { PolyConstant(*bound, largest.low, largest.low) } else { PolyConstant(*bound, largest.high, largest.high) }
+    return PolyMultiply(*product, *grows, *bound) && PolyAdd(*next, *rest, *product, false) &&
+           SubstituteBounds(f, *next, at, facts, count, limit, round + 1, tries)
+}
+
+MarkAtoms :: (p: *Poly, mark: *u8, marks: s32) {
+    for t: 0..p.count - 1 {
+        for a: 0..p.term[t].degree - 1 {
+            atom := p.term[t].atom[a]
+            if atom >= 0 && atom < marks { mark[atom] = 1 }
+        }
+    }
+}
+
+MarksAtom :: (p: *Poly, mark: *u8, marks: s32) -> bool {
+    for t: 0..p.count - 1 {
+        for a: 0..p.term[t].degree - 1 {
+            atom := p.term[t].atom[a]
+            if atom >= 0 && atom < marks && mark[atom] != 0 { return true }
+        }
+    }
+    return false
+}
+
+// Keep, in order and up to max, the facts linked to q or limit through
+// shared bindings, including those an ifx local of q may hold. A fact about
+// other values cannot help, and left in it would only lengthen the search or
+// take a place a useful fact needs.
+RelatedFacts :: (f: *RangeFacts, q: *Poly, limit: *Poly, at: s32, facts: *Poly, count: s32, max: s32) -> s32 {
+    marks := 2 * f.bindings + FIELD_ATOMS
+    mark := cast(*u8)Allocate(cast(s64)marks + 1, 1)
+    keep := cast(*u8)Allocate(cast(s64)count + 1, 1)
+    if mark == null || keep == null {
+        Release(mark)
+        Release(keep)
+        return ifx count < max then count else max
+    }
+    MarkAtoms(q, mark, marks)
+    MarkAtoms(limit, mark, marks)
+    for t: 0..q.count - 1 {
+        for a: 0..q.term[t].degree - 1 {
+            chosen: Poly
+            other: Poly
+            if ChoiceBranches(f, q.term[t].atom[a], at, *chosen, *other) {
+                MarkAtoms(*chosen, mark, marks)
+                MarkAtoms(*other, mark, marks)
+            }
+        }
+    }
+    grown := true
+    while grown {
+        grown = false
+        for i: 0..count - 1 {
+            if keep[i] == 0 && MarksAtom(*facts[i], mark, marks) {
+                keep[i] = 1
+                MarkAtoms(*facts[i], mark, marks)
+                grown = true
+            }
+        }
+    }
+    kept: s32 = 0
+    i: s32 = 0
+    while i < count && kept < max {
+        if keep[i] != 0 {
+            facts[kept] = facts[i]
+            kept += 1
+        }
+        i += 1
+    }
+    Release(mark)
+    Release(keep)
+    return kept
+}
+
+#scope_export
+
+// Whether the index expression lies in 0..limit-1 at its statement.
+PolyIndexBelow :: (f: *RangeFacts, index: s32, limit: *Poly) -> bool {
+    q: Poly
+    range: Range
+    at := f.statement_of[index]
+    tries: s32 = 0
+    // The index must not wrap; its sign may still need the facts.
+    if at < 0 || !ExprRange(f, index, 0, *range) || !ToPoly(f, index, at, 0, *q) { return false }
+    facts := cast(*Poly)Allocate(GATHERED_FACTS, size_of(Poly))
+    if facts == null { return false }
+    count := RelatedFacts(f, *q, limit, at, facts, GatherFacts(f, at, facts, GATHERED_FACTS), INDEX_FACTS)
+    proven := (range.low >= 0 || TermsNonnegative(f, *q, at, facts, count)) &&
+              SubstituteBounds(f, *q, at, facts, count, limit, 0, *tries)
+    Release(facts)
+    return proven
+}

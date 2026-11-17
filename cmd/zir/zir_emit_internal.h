@@ -76,7 +76,8 @@ typedef struct Local {
      * alias, if any, lasts as long as the binding. */
     int shadow_depth;
 } Local;
-typedef struct RangeFacts RangeFacts;
+/* RangeFacts and the index range proofs, cmd/compiler_c_range*.zi. */
+#include "compiler_c_range.h"
 typedef struct Emitter {
     FILE *out;
     const ZirModule *module;
@@ -251,29 +252,6 @@ void literal(Emitter *e, const ZirExpr *expr, const char *type, int negative, ch
 void emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size);
 void emit_function_value(Emitter *e, int index, char *out, size_t size);
 int member_path(const ZirFunction *fn, int index);
-RangeFacts *RangeFactsBuild(const ZirFunction *fn);
-void RangeFactsFree(RangeFacts *facts);
-/* Whether index expression index provably lies in 0..count-1. */
-int IndexInRange(const Emitter *e, int index, int64_t count);
-/* Whether index provably lies below the count of the slice or string that
- * identifier base names. */
-int IndexBelowCount(const Emitter *e, int index, int base);
-/* Whether the run elements from index provably lie inside the slice or
- * string that identifier base names: 0 <= index, index + run <= count. */
-int RunBelowCount(const Emitter *e, int index, int64_t run, int base);
-/* Whether expression EXPR keeps its defensive checks: its module is
- * --checks or #checks, or it was parsed under #checks. Without them the
- * range predicates hold for every access, so indexes and ranges are raw, as
- * in C. */
-int EmitChecksAt(const Emitter *e, int expr);
-/* Whether the C view of slice expression index, base[low:high] of a fixed
- * array of capacity elements or of a slice when capacity < 0, provably keeps
- * 0 <= low <= high <= count. */
-int SliceRangeInRange(const Emitter *e, int index, int capacity);
-/* Whether every element of the local that declaration, with no value,
- * declares is provably stored before anything can read it, so C need not
- * fill it with zeros first. */
-int WrittenBeforeRead(const Emitter *e, int declaration);
 int expression_calls(const ZirFunction *fn, int index);
 /* Emit call, a call of a small procedure of this module, as that
  * procedure's body in place, leaving the result's C text in out. Returns 0,
@@ -290,5 +268,34 @@ int SimdTierCopyCall(const Emitter *e, const ZirExpr *call);
 void emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size);
 void zero_record(Emitter *e, const char *type, char *out, size_t size);
 #pragma GCC visibility pop
+
+/* The index range proofs, cmd/compiler_c_range*.zi, outside the hidden block
+ * since they name the Ziran modules' own symbols. Each takes the emitter's
+ * facts, function and module, and whether it writes C. */
+#define EMITTER_RANGES(e) (e)->ranges, (ZirFunction *)(e)->fn, (ZirModule *)(e)->module
+#define EMITTER_PROOF(e) EMITTER_RANGES(e), (e)->target == ZIR_C
+#define RangeFactsBuild(fn) compiler_c_range_facts_RangeFactsBuild((ZirFunction *)(fn))
+#define RangeFactsFree(facts) compiler_c_range_facts_RangeFactsFree(facts)
+/* Whether expression EXPR keeps its defensive checks: its module is
+ * --checks or #checks, or it was parsed under #checks. Without them the
+ * range predicates hold for every access, so indexes and ranges are raw, as
+ * in C. */
+#define EmitChecksAt(e, expr) compiler_c_range_ChecksAt((ZirModule *)(e)->module, (ZirFunction *)(e)->fn, expr)
+/* Whether index expression index provably lies in 0..count-1. */
+#define IndexInRange(e, index, count) compiler_c_range_IndexInRange(EMITTER_PROOF(e), index, count)
+/* Whether index provably lies below the count of the slice or string that
+ * identifier base names. */
+#define IndexBelowCount(e, index, base) compiler_c_range_IndexBelowCount(EMITTER_PROOF(e), index, base)
+/* Whether the run elements from index provably lie inside the slice or
+ * string that identifier base names: 0 <= index, index + run <= count. */
+#define RunBelowCount(e, index, run, base) compiler_c_range_RunBelowCount(EMITTER_PROOF(e), index, run, base)
+/* Whether the C view of slice expression index, base[low:high] of a fixed
+ * array of capacity elements or of a slice when capacity < 0, provably keeps
+ * 0 <= low <= high <= count. */
+#define SliceRangeInRange(e, index, capacity) compiler_c_range_SliceRangeInRange(EMITTER_PROOF(e), index, capacity)
+/* Whether every element of the local that declaration, with no value,
+ * declares is provably stored before anything can read it, so C need not
+ * fill it with zeros first. */
+#define WrittenBeforeRead(e, declaration) compiler_c_range_InitializedBeforeRead(EMITTER_RANGES(e), declaration)
 
 #endif

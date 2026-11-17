@@ -1226,6 +1226,33 @@ ImmediateMultiplication :: () -> bool {
     return true
 }
 
+IntegerFloatConversions :: () -> bool {
+    destinations := s32.[0, 9, 15, 0, 9, 15]
+    sources := s32.[0, 8, 11, 0, 8, 11]
+    float_sizes := s64.[8, 8, 4, 4, 4, 8]
+    integer_sizes := s64.[8, 8, 8, 4, 4, 4]
+    expected := string.["0f 57 c0 f2 48 0f 2a c0", "45 0f 57 c9 f2 4d 0f 2a c8",
+        "45 0f 57 ff f3 4d 0f 2a fb", "0f 57 c0 f3 0f 2a c0",
+        "45 0f 57 c9 f3 45 0f 2a c8", "45 0f 57 ff f2 45 0f 2a fb"]
+    for index: 0..destinations.count - 1 {
+        output: [32]u8
+        writer := Encoding.X86Writer.{output = output[:], limit = output.count}
+        Encoding.X86IntegerToFloat(*writer, destinations[index], sources[index],
+            float_sizes[index], integer_sizes[index])
+        if !Check(!writer.failed, "integer to float conversion encodes") ||
+            !Bytes(output[:], 0, writer.at, expected[index], "conversion breaks false XMM dependency") { return false }
+        measured := Encoding.X86Writer.{limit = output.count}
+        Encoding.X86IntegerToFloat(*measured, destinations[index], sources[index],
+            float_sizes[index], integer_sizes[index])
+        if !Check(!measured.failed && measured.at == writer.at, "conversion measure/write parity") { return false }
+        bounded := Encoding.X86Writer.{output = output[:], limit = writer.at - 1}
+        Encoding.X86IntegerToFloat(*bounded, destinations[index], sources[index],
+            float_sizes[index], integer_sizes[index])
+        if !Check(bounded.failed, "conversion rejects short output") { return false }
+    }
+    return true
+}
+
 SquareRoot :: () -> bool {
     b: Builder
     defer BuilderFree(*b)
@@ -1371,7 +1398,7 @@ CopyArithmetic :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !CopyArithmetic() || !EarlyReturns() || !SquareRoot() || !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
+    if !IntegerFloatConversions() || !CopyArithmetic() || !EarlyReturns() || !SquareRoot() || !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
     print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, packed aggregates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of invalid call forms and addends, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

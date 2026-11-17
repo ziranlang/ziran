@@ -364,6 +364,10 @@ X86FloatToGeneralBits :: (writer: *X86Writer, destination: s32, source: s32, siz
 
 X86IntegerToFloat :: (writer: *X86Writer, destination: s32, source: s32,
     float_size: s64, integer_size: s64) {
+    // Legacy scalar conversions merge the untouched high lanes from the old
+    // XMM destination. Scalar machine values do not use those lanes; clearing
+    // them breaks a false dependency on earlier arithmetic without changing flags.
+    X86VectorZero(writer, destination)
     prefix: u8 = ifx float_size == 4 then cast(u8)243 else cast(u8)242
     X86Encode(writer, prefix, integer_size == 8, 0x0f2a, 2, destination, X86Direct(source))
 }

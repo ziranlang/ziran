@@ -1710,6 +1710,13 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             pure = e->pure;
             break;
         }
+        if(!strcmp(expr->name, "zi_sqrt")) {
+            emit_expr(e, expr->first_child, type, buffers->a, sizeof(buffers->a));
+            pure = e->pure;
+            format(buffers->result, sizeof(buffers->result),
+                   e->target == ZIR_GO ? "math.Sqrt(%s)" : "__builtin_sqrt(%s)", buffers->a);
+            break;
+        }
         if(BitBuiltin(expr->name) != ZIR_BIT_NONE) {
             int op = BitBuiltin(expr->name);
             size_t width = ScalarByteWidth(type) * 8;

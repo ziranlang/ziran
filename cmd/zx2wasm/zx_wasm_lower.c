@@ -2451,9 +2451,10 @@ lower_unary(Fn *fn, const LirInstruction *instruction)
     int32_t source = ((const int32_t *)instruction->operands.data)[0];
     const LirType *type = value_lir(fn, source);
     unsigned wasm = value_wasm(fn, source);
-    if(type->kind == LirTypeKind_Float && instruction->op == LirOp_Negate) {
+    if(type->kind == LirTypeKind_Float &&
+       (instruction->op == LirOp_Negate || instruction->op == LirOp_SquareRoot)) {
         get(fn, source);
-        op(fn, wasm == W_F32 ? 0x8c : 0x9a);
+        op(fn, instruction->op == LirOp_SquareRoot ? 0x9f : (wasm == W_F32 ? 0x8c : 0x9a));
     } else if(type->kind == LirTypeKind_Integer) {
         if(instruction->op == LirOp_Negate) {
             if(wasm == W_I64) { i64_const(fn, 0); get(fn, source); op(fn, 0x7d); }
@@ -3211,7 +3212,7 @@ lower_instruction(Fn *fn, int64_t block, const LirInstruction *instruction, int6
     case LirOp_Remainder: case LirOp_BitAnd: case LirOp_BitOr: case LirOp_BitXor:
     case LirOp_ShiftLeft: case LirOp_ShiftRight:
         lower_binary(fn, instruction); return;
-    case LirOp_Negate: case LirOp_BitNot: lower_unary(fn, instruction); return;
+    case LirOp_Negate: case LirOp_BitNot: case LirOp_SquareRoot: lower_unary(fn, instruction); return;
     case LirOp_Equal: case LirOp_NotEqual: case LirOp_Less: case LirOp_LessEqual:
     case LirOp_Greater: case LirOp_GreaterEqual:
         lower_compare(fn, instruction); return;
@@ -4419,7 +4420,7 @@ scan_program(Lower *lower)
                 if(code == LirOp_BytesEqual) lower->uses_bytes_equal = 1;
                 if(code == LirOp_FunctionAddress || code == LirOp_CallIndirect) lower->uses_table = 1;
                 if(code == LirOp_Resize) lower->uses_heap = 1;
-                if(code == LirOp_Copy || code == LirOp_Zero || code == LirOp_Invalid || code > LirOp_Resize)
+                if(code == LirOp_Copy || code == LirOp_Zero || code == LirOp_Invalid || code > LirOp_SquareRoot)
                     return WasmGap(lower, "wasm.gap.instruction", "LIR %.*s instructions are not lowered to wasm32",
                                (int)compiler_lowered_ir_LirOpName(code).length, compiler_lowered_ir_LirOpName(code).data);
             }

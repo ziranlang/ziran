@@ -34,6 +34,8 @@ LirOp :: enum s32 {
     // Heap storage: resize(pointer: *T, old_count, new_count) -> *T. Appended
     // so every earlier instruction keeps its number.
     Resize
+    // IEEE-754 round-to-nearest square root of f64.
+    SquareRoot
 }
 
 LirEdge :: struct { block: s32; arguments: []s32 }
@@ -143,7 +145,7 @@ LirEffectful :: (op: LirOp) -> bool {
 
 LirProducesValue :: (op: LirOp) -> bool {
     return cast(s32)op >= cast(s32)LirOp.Constant && cast(s32)op <= cast(s32)LirOp.Load || op == .FieldAddress || op == .ElementAddress || op == .BytesEqual ||
-        op == .Call || op == .CallIndirect || op == .HostCall || op == .Resize
+        op == .Call || op == .CallIndirect || op == .HostCall || op == .Resize || op == .SquareRoot
 }
 
 LirOpName :: (op: LirOp) -> string {
@@ -192,5 +194,6 @@ LirOpName :: (op: LirOp) -> string {
     if op == .Return { return "return" }
     if op == .Unreachable { return "unreachable" }
     if op == .Resize { return "resize" }
+    if op == .SquareRoot { return "square.root" }
     return "invalid"
 }

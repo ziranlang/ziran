@@ -1012,6 +1012,18 @@ Unary :: (state: *State, opcode: MachineOpcode) -> bool {
 }
 
 // Floating negate.
+FloatSquareRoot :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := FloatRegister(state, 0, .Define)
+    source := FloatRegister(state, 1, .Use)
+    if destination == MachineNoId || source == MachineNoId { return false }
+    if destination != source { return Fail(state, .Tie, OperandId(state, 0)) }
+    if FloatSize(TypeOf(state, OperandAt(state, 0))) != 8 ||
+        FloatSize(TypeOf(state, OperandAt(state, 1))) != 8 { return Fail(state, .Unsupported) }
+    Emit(state, cast(u32)(cast(u64)0x1E61C000 | (cast(u64)source << 5) | cast(u64)destination))
+    return true
+}
+
 FloatUnary :: (state: *State) -> bool {
     if !Count(state, 3) { return false }
     destination := FloatRegister(state, 0, .Define)
@@ -2648,6 +2660,7 @@ Instruction :: (state: *State) -> bool {
         op == .FloatDivide { ok = FloatBinary(state, op) }
     else if op == .IntegerNegate || op == .IntegerNot { ok = Unary(state, op) }
     else if op == .FloatNegate { ok = FloatUnary(state) }
+    else if op == .FloatSquareRoot { ok = FloatSquareRoot(state) }
     else if op == .IntegerDivide || op == .IntegerRemainder { ok = Divide(state, op) }
     else if op == .ShiftLeft || op == .ShiftRight { ok = Shift(state, op) }
     else if op == .Compare { ok = Compare(state) }

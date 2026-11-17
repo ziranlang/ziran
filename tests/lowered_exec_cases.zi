@@ -101,7 +101,7 @@ Scalar :: (type_id: s32, op: LirOp, left: u64, right: u64,
     pair: [2]s32 = .[0, 1]
     returned: [1]s32 = .[2]
     values: [3]s32 = .[type_id, type_id, result]
-    unary := op == .Negate || op == .BitNot || op == .Convert || op == .Bitcast
+    unary := op == .Negate || op == .BitNot || op == .Convert || op == .Bitcast || op == .SquareRoot
     instructions: [4]LirInstruction = .[
         Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
         Instruction(op, 2, pair[:ifx unary then 1 else 2]), Instruction(.Return, -1, returned[:])]
@@ -150,6 +150,14 @@ ScalarCases :: () -> bool {
         Scalar(9, .Multiply, 0x3ff8000000000000, 0x4000000000000000).value.bits != 0x4008000000000000 {
         return false
     }
+    // Exact rounding, signed zero and a subnormal operand. Scalar also
+    // compares compact/reference execution at every sampled fuel/work limit.
+    if Scalar(9, .SquareRoot, 0x4000000000000000, 0).value.bits != 0x3ff6a09e667f3bcd ||
+        Scalar(9, .SquareRoot, 0x8000000000000000, 0).value.bits != 0x8000000000000000 ||
+        Scalar(9, .SquareRoot, 1, 0).value.bits != 0x1e60000000000000 ||
+        Scalar(9, .SquareRoot, 0x7fefffffffffffff, 0).value.bits != 0x5fefffffffffffff ||
+        Scalar(8, .SquareRoot, 0x40800000, 0).problem != .InvalidProgram ||
+        Scalar(6, .SquareRoot, 4, 0).problem != .InvalidProgram { return false }
     if Scalar(9, .Divide, 0x3ff0000000000000, 0).value.bits != 0x7ff0000000000000 { return false }
     if Scalar(9, .Equal, 0x7ff8000000000000, 0x7ff8000000000000, 1).value.bits != 0 ||
         Scalar(9, .NotEqual, 0x7ff8000000000000, 0, 1).value.bits != 1 { return false }

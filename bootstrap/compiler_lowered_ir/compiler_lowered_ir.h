@@ -107,6 +107,7 @@ enum {
     LirOp_Return = 43,
     LirOp_Unreachable = 44,
     LirOp_Resize = 45,
+    LirOp_SquareRoot = 46,
 };
 
 struct LirEdge {
@@ -263,7 +264,7 @@ compiler_lowered_ir_LirProducesValue_ziran_inline(LirOp op)
 {
     bool value_0 = ((int32_t)(op) >= (int32_t)(LirOp_Constant) && (int32_t)(op) <= (int32_t)(LirOp_Load)) || op == LirOp_FieldAddress;
     bool value_1 = value_0 || op == LirOp_ElementAddress || op == LirOp_BytesEqual || op == LirOp_Call || op == LirOp_CallIndirect;
-    return value_1 || op == LirOp_HostCall || op == LirOp_Resize;
+    return value_1 || op == LirOp_HostCall || op == LirOp_Resize || op == LirOp_SquareRoot;
 }
 #endif
 

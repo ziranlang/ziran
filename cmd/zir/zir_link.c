@@ -654,7 +654,7 @@ builtin_call(const char *name)
            !strcmp(name, "VecClone") || !strcmp(name, "VecSlice") ||
            !strcmp(name, "BuilderAppend") || !strcmp(name, "BuilderFinish") ||
            !strcmp(name, "print") || !strcmp(name, "zi_new") ||
-           !strcmp(name, "zi_free") || BitBuiltin(name) != ZIR_BIT_NONE ||
+           !strcmp(name, "zi_free") || !strcmp(name, "zi_sqrt") || BitBuiltin(name) != ZIR_BIT_NONE ||
            SimdOpChecked(name) != NULL;
 }
 

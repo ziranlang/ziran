@@ -32657,70 +32657,103 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
             uint8_t* value_387 = (uint8_t*)expression->name;
             if (zir_f_0fe5ce4064831140_ResolveFunctionAt(value_386, value_387, compiler_services_SpanPath(expression->span), &(owner), &(callee)) == 1) {
                 symbol = compiler_zir_lower_Function(program, owner, callee);
-            } else if (zir_f_0fe5ce4064831140_BitBuiltin((uint8_t*)expression->name) != 0) {
+            } else if (StringEqual(spelled, StringLiteral("zi_sqrt"))) {
                 AssemblyProgram* value_388 = program;
                 AssemblyFunction* value_389 = function;
-                ZirExpr* value_390 = expression;
-                int32_t value_391 = type;
-                int32_t value_392 = zir_f_0fe5ce4064831140_BitBuiltin((uint8_t*)expression->name);
-                return compiler_zir_lower_Bit(value_388, value_389, value_390, value_391, value_392, (int32_t)((uint32_t)depth + 1u));
-            } else if (StringEqual(spelled, StringLiteral("zi_new"))) {
-                AssemblyProgram* value_393 = program;
-                AssemblyFunction* value_394 = function;
-                ZirExpr* value_395 = expression;
-                int32_t value_396 = type;
-                int32_t value_397 = 0;
+                int32_t value_390 = expression->first_child;
+                int32_t value_391 = (int32_t)((uint32_t)depth + 1u);
+                int32_t value_392 = 0;
                 {
-                    AssemblyProgram* program = value_393;
-                    AssemblyFunction* function = value_394;
-                    ZirExpr* expression = value_395;
-                    int32_t type = value_396;
-                    ZirSourceSpan span = expression->span;
-                    AssemblyProgram* value_399 = program;
-                    LirType* value_400 = (void *)0;
-                    {
-                        AssemblyProgram* program = value_399;
-                        int32_t identity = type;
-                        value_400 = &(program->types.data[identity]);
+                    AssemblyProgram* program = value_388;
+                    AssemblyFunction* function = value_389;
+                    int32_t root = value_390;
+                    int32_t depth = value_391;
+                    bool saved = function->checking;
+                    if (root >= 0 && root < function->source->expr_count && (function->source->exprs[root]).checked != 0) {
+                        bool* value_394 = &(function->checking);
+                        (*value_394) = true;
                     }
-                    if (((LirTypeKind)(value_400->kind)) != ((LirTypeKind)(5))) {
-                        AssemblyProgram* value_402 = program;
-                        ZirSourceSpan value_403 = span;
-                        String value_404 = StringLiteral("New requires a pointer result");
-                        int32_t value_405 = 0;
+                    int32_t value = compiler_zir_lower_ExpressionValue(program, function, root, depth);
+                    bool* value_395 = &(function->checking);
+                    (*value_395) = saved;
+                    if (program->failed != 0 || value < 0 || root < 0 || root >= function->source->expr_count || (function->source->exprs[root]).is_move == 0) {
+                        value_392 = value;
+                        goto value_393;
+                    }
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+                    value_392 = value;
+                value_393: ;
+                }
+                int32_t value = value_392;
+                if (program->failed != 0) {
+                    return -1;
+                }
+                int32_t operands[1] = {value};
+                return compiler_zir_lower_Emit(program, function, (LirOp)(46), type, operands, 1, -1, expression->span);
+            } else if (zir_f_0fe5ce4064831140_BitBuiltin((uint8_t*)expression->name) != 0) {
+                AssemblyProgram* value_396 = program;
+                AssemblyFunction* value_397 = function;
+                ZirExpr* value_398 = expression;
+                int32_t value_399 = type;
+                int32_t value_400 = zir_f_0fe5ce4064831140_BitBuiltin((uint8_t*)expression->name);
+                return compiler_zir_lower_Bit(value_396, value_397, value_398, value_399, value_400, (int32_t)((uint32_t)depth + 1u));
+            } else if (StringEqual(spelled, StringLiteral("zi_new"))) {
+                AssemblyProgram* value_401 = program;
+                AssemblyFunction* value_402 = function;
+                ZirExpr* value_403 = expression;
+                int32_t value_404 = type;
+                int32_t value_405 = 0;
+                {
+                    AssemblyProgram* program = value_401;
+                    AssemblyFunction* function = value_402;
+                    ZirExpr* expression = value_403;
+                    int32_t type = value_404;
+                    ZirSourceSpan span = expression->span;
+                    AssemblyProgram* value_407 = program;
+                    LirType* value_408 = (void *)0;
+                    {
+                        AssemblyProgram* program = value_407;
+                        int32_t identity = type;
+                        value_408 = &(program->types.data[identity]);
+                    }
+                    if (((LirTypeKind)(value_408->kind)) != ((LirTypeKind)(5))) {
+                        AssemblyProgram* value_410 = program;
+                        ZirSourceSpan value_411 = span;
+                        String value_412 = StringLiteral("New requires a pointer result");
+                        int32_t value_413 = 0;
                         {
-                            AssemblyProgram* program = value_402;
-                            ZirSourceSpan span = value_403;
-                            String message = value_404;
+                            AssemblyProgram* program = value_410;
+                            ZirSourceSpan span = value_411;
+                            String message = value_412;
                             if (program->failed == 0) {
                                 compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                             }
-                            int32_t* value_407 = &(program->failed);
-                            (*value_407) = 1;
-                            value_405 = -1;
+                            int32_t* value_415 = &(program->failed);
+                            (*value_415) = 1;
+                            value_413 = -1;
                         }
-                        value_397 = value_405;
-                        goto value_398;
+                        value_405 = value_413;
+                        goto value_406;
                     }
-                    void* value_408 = compiler_zir_lower_Allocate(program, 3, sizeof(int32_t));
-                    int32_t* operands = (int32_t*)(value_408);
+                    void* value_416 = compiler_zir_lower_Allocate(program, 3, sizeof(int32_t));
+                    int32_t* operands = (int32_t*)(value_416);
                     if (operands == ((void *)0)) {
-                        value_397 = -1;
-                        goto value_398;
+                        value_405 = -1;
+                        goto value_406;
                     }
-                    int32_t* value_409 = &(operands[0]);
-                    int32_t value_410 = compiler_zir_lower_Emit(program, function, (LirOp)(2), type, (void *)0, 0, -1, span);
-                    (*value_409) = value_410;
-                    int32_t* value_411 = &(operands[1]);
-                    int32_t value_412 = compiler_zir_lower_Constant(program, function, 8, 0ULL, span);
-                    (*value_411) = value_412;
-                    int32_t* value_413 = &(operands[2]);
-                    int32_t value_414 = compiler_zir_lower_Constant(program, function, 8, 1ULL, span);
-                    (*value_413) = value_414;
-                    value_397 = compiler_zir_lower_Emit(program, function, (LirOp)(45), type, operands, 3, -1, span);
-                value_398: ;
+                    int32_t* value_417 = &(operands[0]);
+                    int32_t value_418 = compiler_zir_lower_Emit(program, function, (LirOp)(2), type, (void *)0, 0, -1, span);
+                    (*value_417) = value_418;
+                    int32_t* value_419 = &(operands[1]);
+                    int32_t value_420 = compiler_zir_lower_Constant(program, function, 8, 0ULL, span);
+                    (*value_419) = value_420;
+                    int32_t* value_421 = &(operands[2]);
+                    int32_t value_422 = compiler_zir_lower_Constant(program, function, 8, 1ULL, span);
+                    (*value_421) = value_422;
+                    value_405 = compiler_zir_lower_Emit(program, function, (LirOp)(45), type, operands, 3, -1, span);
+                value_406: ;
                 }
-                return value_397;
+                return value_405;
             } else if (StringEqual(spelled, StringLiteral("zi_free"))) {
                 return compiler_zir_lower_FreePointer(program, function, expression, (int32_t)((uint32_t)depth + 1u));
             } else {
@@ -32733,22 +32766,22 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                 compiler_zir_lower_ForeignCall(program, (uint8_t*)expression->name);
             }
             if (symbol < 0) {
-                AssemblyProgram* value_415 = program;
-                ZirSourceSpan value_416 = expression->span;
-                String value_417 = StringLiteral("call is not a direct concrete Ziran procedure");
-                int32_t value_418 = 0;
+                AssemblyProgram* value_423 = program;
+                ZirSourceSpan value_424 = expression->span;
+                String value_425 = StringLiteral("call is not a direct concrete Ziran procedure");
+                int32_t value_426 = 0;
                 {
-                    AssemblyProgram* program = value_415;
-                    ZirSourceSpan span = value_416;
-                    String message = value_417;
+                    AssemblyProgram* program = value_423;
+                    ZirSourceSpan span = value_424;
+                    String message = value_425;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_420 = &(program->failed);
-                    (*value_420) = 1;
-                    value_418 = -1;
+                    int32_t* value_428 = &(program->failed);
+                    (*value_428) = 1;
+                    value_426 = -1;
                 }
-                return value_418;
+                return value_426;
             }
             AssemblyFunction** targets = (AssemblyFunction**)(program->functions.data);
             AssemblyFunction* target = targets[symbol];
@@ -32756,20 +32789,20 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
             result = target->result.result;
         }
         int32_t count = (int32_t)((int64_t)(parameters).length);
-        int64_t value_421 = 0;
+        int64_t value_429 = 0;
         if (indirect == true) {
-            value_421 = 1LL;
+            value_429 = 1LL;
         } else {
-            value_421 = 0LL;
+            value_429 = 0LL;
         }
-        void* value_422 = compiler_zir_lower_Allocate(program, (size_t)(((int32_t)((uint32_t)count + (uint32_t)(value_421)))), sizeof(int32_t));
-        int32_t* arguments = (int32_t*)(value_422);
+        void* value_430 = compiler_zir_lower_Allocate(program, (size_t)(((int32_t)((uint32_t)count + (uint32_t)(value_429)))), sizeof(int32_t));
+        int32_t* arguments = (int32_t*)(value_430);
         if ((count > 0 || indirect == true) && arguments == ((void *)0)) {
             return -1;
         }
         if (indirect == true) {
-            int32_t* value_423 = &(arguments[0]);
-            (*value_423) = receiver;
+            int32_t* value_431 = &(arguments[0]);
+            (*value_431) = receiver;
         }
         int32_t* values = arguments;
         if (indirect == true) {
@@ -32777,55 +32810,55 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
         }
         int32_t index = 0;
         while (index < count) {
-            int32_t* value_424 = &(values[index]);
-            (*value_424) = -1;
+            int32_t* value_432 = &(values[index]);
+            (*value_432) = -1;
             index = (int32_t)((uint32_t)index + 1u);
         }
         int32_t ordinal = 0;
         int32_t child = expression->first_child;
         while (child >= 0) {
-            bool value_425 = child >= function->source->expr_count;
-            bool value_426 = value_425;
-            if (!value_426) {
-                AssemblyProgram* value_427 = program;
-                ZirSourceSpan value_428 = expression->span;
-                int32_t value_429 = 0;
+            bool value_433 = child >= function->source->expr_count;
+            bool value_434 = value_433;
+            if (!value_434) {
+                AssemblyProgram* value_435 = program;
+                ZirSourceSpan value_436 = expression->span;
+                int32_t value_437 = 0;
                 {
-                    AssemblyProgram* program = value_427;
-                    ZirSourceSpan span = value_428;
+                    AssemblyProgram* program = value_435;
+                    ZirSourceSpan span = value_436;
                     if (program->failed != 0) {
-                        value_429 = 0;
-                        goto value_430;
+                        value_437 = 0;
+                        goto value_438;
                     }
-                    int64_t value_431 = program->work;
-                    if (value_431 > 0LL) {
-                        int64_t* value_432 = &(program->work);
-                        (*value_432) = (int64_t)((uint64_t)((*value_432)) - UINT64_C(1));
-                        value_429 = 1;
-                        goto value_430;
+                    int64_t value_439 = program->work;
+                    if (value_439 > 0LL) {
+                        int64_t* value_440 = &(program->work);
+                        (*value_440) = (int64_t)((uint64_t)((*value_440)) - UINT64_C(1));
+                        value_437 = 1;
+                        goto value_438;
                     }
-                    AssemblyProgram* value_433 = program;
-                    ZirSourceSpan value_434 = span;
-                    String value_435 = StringLiteral("lowering work budget exhausted");
-                    int32_t value_436 = 0;
+                    AssemblyProgram* value_441 = program;
+                    ZirSourceSpan value_442 = span;
+                    String value_443 = StringLiteral("lowering work budget exhausted");
+                    int32_t value_444 = 0;
                     {
-                        AssemblyProgram* program = value_433;
-                        ZirSourceSpan span = value_434;
-                        String message = value_435;
+                        AssemblyProgram* program = value_441;
+                        ZirSourceSpan span = value_442;
+                        String message = value_443;
                         if (program->failed == 0) {
                             compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                         }
-                        int32_t* value_438 = &(program->failed);
-                        (*value_438) = 1;
-                        value_436 = -1;
+                        int32_t* value_446 = &(program->failed);
+                        (*value_446) = 1;
+                        value_444 = -1;
                     }
-                    (void)value_436;
-                    value_429 = 0;
-                value_430: ;
+                    (void)value_444;
+                    value_437 = 0;
+                value_438: ;
                 }
-                value_426 = (value_429 == 0);
+                value_434 = (value_437 == 0);
             }
-            if (value_426) {
+            if (value_434) {
                 return -1;
             }
             ZirExpr* argument = &(function->source->exprs[child]);
@@ -32834,109 +32867,109 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
                 position = argument->argument_index;
             }
             if (position < 0 || position >= count || values[position] >= 0) {
-                AssemblyProgram* value_439 = program;
-                ZirSourceSpan value_440 = argument->span;
-                String value_441 = StringLiteral("invalid checked call argument mapping");
-                int32_t value_442 = 0;
+                AssemblyProgram* value_447 = program;
+                ZirSourceSpan value_448 = argument->span;
+                String value_449 = StringLiteral("invalid checked call argument mapping");
+                int32_t value_450 = 0;
                 {
-                    AssemblyProgram* program = value_439;
-                    ZirSourceSpan span = value_440;
-                    String message = value_441;
+                    AssemblyProgram* program = value_447;
+                    ZirSourceSpan span = value_448;
+                    String message = value_449;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_444 = &(program->failed);
-                    (*value_444) = 1;
-                    value_442 = -1;
+                    int32_t* value_452 = &(program->failed);
+                    (*value_452) = 1;
+                    value_450 = -1;
                 }
-                return value_442;
+                return value_450;
             }
             int32_t wanted = ((int32_t *)parameters.data)[position];
-            AssemblyProgram* value_445 = program;
-            AssemblyFunction* value_446 = function;
-            int32_t value_447 = wanted;
-            int32_t value_448 = (int32_t)((uint32_t)depth + 1u);
-            int32_t value_449 = 0;
+            AssemblyProgram* value_453 = program;
+            AssemblyFunction* value_454 = function;
+            int32_t value_455 = wanted;
+            int32_t value_456 = (int32_t)((uint32_t)depth + 1u);
+            int32_t value_457 = 0;
             {
-                AssemblyProgram* program = value_445;
-                AssemblyFunction* function = value_446;
+                AssemblyProgram* program = value_453;
+                AssemblyFunction* function = value_454;
                 int32_t root = child;
-                int32_t wanted = value_447;
-                int32_t depth = value_448;
+                int32_t wanted = value_455;
+                int32_t depth = value_456;
                 if (program->failed == 0 && root >= 0 && root < function->source->expr_count && wanted > 0) {
                     ZirExpr* expression = &(function->source->exprs[root]);
-                    AssemblyProgram* value_451 = program;
-                    LirType* value_452 = (void *)0;
+                    AssemblyProgram* value_459 = program;
+                    LirType* value_460 = (void *)0;
                     {
-                        AssemblyProgram* program = value_451;
+                        AssemblyProgram* program = value_459;
                         int32_t identity = wanted;
-                        value_452 = &(program->types.data[identity]);
+                        value_460 = &(program->types.data[identity]);
                     }
-                    LirTypeKind kind = (LirTypeKind)(value_452->kind);
-                    bool value_454 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(1)) && expression->is_global_value == 0;
-                    bool value_455 = value_454 && StringEqual(compiler_ir_CText((uint8_t*)expression->name), StringLiteral("null"));
-                    bool value_456 = value_455;
-                    bool value_457 = value_456 && StringEqual(compiler_ir_CText((uint8_t*)expression->type), StringLiteral("null"));
-                    if (value_457 && (kind == ((LirTypeKind)(5)) || kind == ((LirTypeKind)(9)))) {
-                        value_449 = compiler_zir_lower_Emit(program, function, (LirOp)(2), wanted, (void *)0, 0, -1, expression->span);
-                        goto value_450;
+                    LirTypeKind kind = (LirTypeKind)(value_460->kind);
+                    bool value_462 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(1)) && expression->is_global_value == 0;
+                    bool value_463 = value_462 && StringEqual(compiler_ir_CText((uint8_t*)expression->name), StringLiteral("null"));
+                    bool value_464 = value_463;
+                    bool value_465 = value_464 && StringEqual(compiler_ir_CText((uint8_t*)expression->type), StringLiteral("null"));
+                    if (value_465 && (kind == ((LirTypeKind)(5)) || kind == ((LirTypeKind)(9)))) {
+                        value_457 = compiler_zir_lower_Emit(program, function, (LirOp)(2), wanted, (void *)0, 0, -1, expression->span);
+                        goto value_458;
                     }
                 }
-                AssemblyProgram* value_458 = program;
-                AssemblyFunction* value_459 = function;
-                int32_t value_460 = root;
-                int32_t value_461 = depth;
-                int32_t value_462 = 0;
+                AssemblyProgram* value_466 = program;
+                AssemblyFunction* value_467 = function;
+                int32_t value_468 = root;
+                int32_t value_469 = depth;
+                int32_t value_470 = 0;
                 {
-                    AssemblyProgram* program = value_458;
-                    AssemblyFunction* function = value_459;
-                    int32_t root = value_460;
-                    int32_t depth = value_461;
+                    AssemblyProgram* program = value_466;
+                    AssemblyFunction* function = value_467;
+                    int32_t root = value_468;
+                    int32_t depth = value_469;
                     bool saved = function->checking;
                     if (root >= 0 && root < function->source->expr_count && (function->source->exprs[root]).checked != 0) {
-                        bool* value_464 = &(function->checking);
-                        (*value_464) = true;
+                        bool* value_472 = &(function->checking);
+                        (*value_472) = true;
                     }
                     int32_t value = compiler_zir_lower_ExpressionValue(program, function, root, depth);
-                    bool* value_465 = &(function->checking);
-                    (*value_465) = saved;
+                    bool* value_473 = &(function->checking);
+                    (*value_473) = saved;
                     if (program->failed != 0 || value < 0 || root < 0 || root >= function->source->expr_count || (function->source->exprs[root]).is_move == 0) {
-                        value_462 = value;
-                        goto value_463;
+                        value_470 = value;
+                        goto value_471;
                     }
                     compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
-                    value_462 = value;
-                value_463: ;
+                    value_470 = value;
+                value_471: ;
                 }
-                value_449 = value_462;
-            value_450: ;
+                value_457 = value_470;
+            value_458: ;
             }
-            int32_t value = value_449;
-            int32_t* value_466 = &(values[position]);
-            int32_t value_467 = compiler_zir_lower_Convert(program, function, value, wanted, argument->span);
-            (*value_466) = value_467;
+            int32_t value = value_457;
+            int32_t* value_474 = &(values[position]);
+            int32_t value_475 = compiler_zir_lower_Convert(program, function, value, wanted, argument->span);
+            (*value_474) = value_475;
             ordinal = (int32_t)((uint32_t)ordinal + 1u);
             child = argument->next_sibling;
         }
         index = 0;
         while (index < count) {
             if (values[index] < 0) {
-                AssemblyProgram* value_468 = program;
-                ZirSourceSpan value_469 = expression->span;
-                String value_470 = StringLiteral("call arguments are not fully lowered");
-                int32_t value_471 = 0;
+                AssemblyProgram* value_476 = program;
+                ZirSourceSpan value_477 = expression->span;
+                String value_478 = StringLiteral("call arguments are not fully lowered");
+                int32_t value_479 = 0;
                 {
-                    AssemblyProgram* program = value_468;
-                    ZirSourceSpan span = value_469;
-                    String message = value_470;
+                    AssemblyProgram* program = value_476;
+                    ZirSourceSpan span = value_477;
+                    String message = value_478;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_473 = &(program->failed);
-                    (*value_473) = 1;
-                    value_471 = -1;
+                    int32_t* value_481 = &(program->failed);
+                    (*value_481) = 1;
+                    value_479 = -1;
                 }
-                return value_471;
+                return value_479;
             }
             index = (int32_t)((uint32_t)index + 1u);
         }
@@ -32952,30 +32985,30 @@ compiler_zir_lower_ExpressionValue(AssemblyProgram* program, AssemblyFunction* f
         if (host == true) {
             op = (LirOp)(38);
         }
-        int64_t value_474 = 0;
+        int64_t value_482 = 0;
         if (indirect == true) {
-            value_474 = 1LL;
+            value_482 = 1LL;
         } else {
-            value_474 = 0LL;
+            value_482 = 0LL;
         }
-        return compiler_zir_lower_Emit(program, function, op, result, arguments, (int32_t)((uint32_t)count + (uint32_t)(value_474)), symbol, expression->span);
+        return compiler_zir_lower_Emit(program, function, op, result, arguments, (int32_t)((uint32_t)count + (uint32_t)(value_482)), symbol, expression->span);
     }
-    AssemblyProgram* value_475 = program;
-    ZirSourceSpan value_476 = expression->span;
-    String value_477 = StringLiteral("expression is outside the initial direct scalar backend");
-    int32_t value_478 = 0;
+    AssemblyProgram* value_483 = program;
+    ZirSourceSpan value_484 = expression->span;
+    String value_485 = StringLiteral("expression is outside the initial direct scalar backend");
+    int32_t value_486 = 0;
     {
-        AssemblyProgram* program = value_475;
-        ZirSourceSpan span = value_476;
-        String message = value_477;
+        AssemblyProgram* program = value_483;
+        ZirSourceSpan span = value_484;
+        String message = value_485;
         if (program->failed == 0) {
             compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
         }
-        int32_t* value_480 = &(program->failed);
-        (*value_480) = 1;
-        value_478 = -1;
+        int32_t* value_488 = &(program->failed);
+        (*value_488) = 1;
+        value_486 = -1;
     }
-    return value_478;
+    return value_486;
 }
 
 static int32_t

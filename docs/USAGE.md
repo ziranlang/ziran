@@ -2081,6 +2081,15 @@ A file-scope variable may start from a table of any length, named as in
 with its values, so nothing fills it when the program starts, and writing it
 leaves the table unchanged.
 
+### Square root
+
+`sqrt(x)` takes one `float64` and returns its IEEE-754 square root. It preserves
+signed zero, returns NaN for negative values, and rounds to the nearest `float64`
+under the default floating-point environment. `std/math.Sqrt` uses this operation.
+Native targets use scalar hardware sqrt; Wasm uses `f64.sqrt`, generated C uses
+the compiler sqrt builtin, and Go uses `math.Sqrt`. A procedure of your own
+named `sqrt` takes precedence.
+
 ### Bit counts and byte swaps
 
 `clz(x)`, `ctz(x)` and `popcount(x)` count leading zero bits, trailing zero

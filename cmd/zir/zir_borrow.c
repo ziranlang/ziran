@@ -1094,7 +1094,7 @@ check_call_mutations(BorrowCheck *check, const ZirExpr *expression)
     const char *name = expression->name;
     if(!strcmp(name, "print") || !strcmp(name, "assert") ||
        !strcmp(name, "TextView") || !strcmp(name, "VecSlice") ||
-       !strcmp(name, "VecGet") || BitBuiltin(name) != ZIR_BIT_NONE) return;
+       !strcmp(name, "VecGet") || !strcmp(name, "zi_sqrt") || BitBuiltin(name) != ZIR_BIT_NONE) return;
     if(SimdOpChecked(name) != NULL) {
         /* A store writes through its slice or pointer; the rest only read. */
         const SimdOp *op = SimdOpChecked(name);

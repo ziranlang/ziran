@@ -592,6 +592,7 @@ BinaryOpcode :: (op: LirOp, class: MachineRegisterClass) -> MachineOpcode {
 }
 
 UnaryOpcode :: (op: LirOp, class: MachineRegisterClass) -> MachineOpcode {
+    if op == .SquareRoot && class == .Float { return .FloatSquareRoot }
     if op == .Negate { return ifx class == .Float then .FloatNegate else .IntegerNegate }
     if op == .BitNot { return .IntegerNot }
     return .Invalid
@@ -1619,7 +1620,7 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     if source.op == .FunctionAddress {
         return LowerAddress(state, function, source, .FunctionAddress, .Function, .FunctionAddress)
     }
-    if source.op == .Negate || source.op == .BitNot { return LowerUnary(state, function, source) }
+    if source.op == .Negate || source.op == .BitNot || source.op == .SquareRoot { return LowerUnary(state, function, source) }
     if source.op == .Add || source.op == .Subtract || source.op == .Multiply || source.op == .Divide ||
         source.op == .Remainder || source.op == .BitAnd || source.op == .BitOr || source.op == .BitXor ||
         source.op == .ShiftLeft || source.op == .ShiftRight { return LowerBinary(state, function, source) }

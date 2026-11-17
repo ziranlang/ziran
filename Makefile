@@ -716,7 +716,7 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 
 $(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_loop.zi cmd/compiler_opt_licm.zi cmd/compiler_opt_induction.zi cmd/compiler_opt_layout.zi cmd/compiler_opt_inline.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi \
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_lowered_ir.zi \
-    cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
+    cmd/compiler_bundle.zi std/math.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
 	    -o $(ENGINE_C) cmd/compiler_runtime.zi
 	touch $@
@@ -724,9 +724,9 @@ $(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/co
 $(ENGINE_NAMES): $(ENGINE_C)/.generated scripts/engine-names.sh
 	sh scripts/engine-names.sh $(ENGINE_C) $(ENGINE_MODULES) > $@
 
-$(BUILD_DIR)/obj/engine/%.o: $(ENGINE_NAMES) $(BUILD_DIR)/.compiler-flags
+$(BUILD_DIR)/obj/engine/%.o: Makefile $(ENGINE_NAMES) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
-	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -fvisibility=hidden -iquote $(ENGINE_C) -include $(ENGINE_NAMES) \
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -fno-math-errno -fvisibility=hidden -iquote $(ENGINE_C) -include $(ENGINE_NAMES) \
 	    -DZIRAN_ENGINE_SOURCE_$* -c -o $@ $(ENGINE_C)/$*.c
 
 

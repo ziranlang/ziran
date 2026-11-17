@@ -1225,8 +1225,29 @@ ImmediateMultiplication :: () -> bool {
     return true
 }
 
+SquareRoot :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b)
+    function := Begin(*b, "sqrt")
+    argument := Parameter(*b, F64, 0)
+    result := Value(*b, F64)
+    Enter(*b, Blocks(*b, 1))
+    square_root := Two(*b, .FloatSquareRoot, 0, result, 0, argument)
+    unused Return(*b, 0, result)
+    End(*b, 0)
+    b.entry = function
+    owner: X64.MachineX64Owner
+    defer X64.MachineX64Free(*owner)
+    diagnostic := Apply(*b, .Encode, *owner, MachineDefaultLimits()).diagnostic
+    if !Check(diagnostic.problem == .None, "f64 sqrt encodes") { return false }
+    image := X64.MachineX64View(*owner)
+    return Instruction(image, square_root, "f2 0f 51 c0", "f64 hardware sqrt") &&
+        Check(image.relocations.count == 0, "f64 sqrt needs no runtime helper")
+}
+
 main :: () -> s32 {
-    if !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
+    if !SquareRoot() || !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
     print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, packed aggregates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of invalid call forms and addends, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

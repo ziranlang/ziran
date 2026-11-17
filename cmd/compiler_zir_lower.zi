@@ -6098,6 +6098,11 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
             if ResolveFunctionAt(function.module, expression.name, SVC.SpanPath(expression.span),
                                  *owner, *callee) == 1 {
                 symbol = Function(program, owner, callee)
+            } else if spelled == "zi_sqrt" {
+                value := Expression(program, function, expression.first_child, depth + 1)
+                if program.failed != 0 { return -1 }
+                operands := s32.[value]
+                return Emit(program, function, .SquareRoot, type, operands.data, 1, -1, expression.span)
             } else if BitBuiltin(expression.name) != ZIR_BIT_NONE {
                 return Bit(program, function, expression, type,
                            BitBuiltin(expression.name), depth + 1)

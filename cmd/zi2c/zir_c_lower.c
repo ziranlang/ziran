@@ -1919,7 +1919,7 @@ inline_candidate(const ZirModule *m, const ZirFunction *fn)
             }
             break;
         case ZIR_EXPR_CALL:
-            if(BitBuiltin(e->name) != ZIR_BIT_NONE || SimdOpChecked(e->name) != NULL) break;
+            if(!strcmp(e->name, "zi_sqrt") || BitBuiltin(e->name) != ZIR_BIT_NONE || SimdOpChecked(e->name) != NULL) break;
             dot = strchr(e->name, '.');
             if(dot == NULL ? header_function(m, e->name) == NULL :
                public_function(header_module(m, e->name, (size_t)(dot - e->name)), dot + 1) == NULL)

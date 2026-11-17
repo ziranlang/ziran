@@ -473,6 +473,23 @@ Operations :: () -> bool {
             if !Expect(Verifier.LirVerify(program, Lir.LirDefaultLimits()), expected, 5, type * 100 + at) { return false }
         }
     }
+    program.functions[0].blocks[0].instructions[0].op = .SquareRoot
+    program.functions[0].blocks[0].instructions[0].operands = operands[:1]
+    for type: cast(s32)2..3 {
+        program.functions[0].parameters[0] = type; program.functions[0].parameters[1] = type
+        program.functions[0].values[0] = type; program.functions[0].values[1] = type
+        program.functions[0].values[2] = type; program.functions[0].result = type
+        expected: Lir.LirProblem = ifx type == 3 then .None else .Operand
+        if !Expect(Verifier.LirVerify(program, Lir.LirDefaultLimits()), expected, 5, 200 + type) { return false }
+    }
+    program.types[3].bits = 32
+    if !Expect(Verifier.LirVerify(program, Lir.LirDefaultLimits()), .Operand, 5, 204) { return false }
+    program.types[3].bits = 64
+    for count: cast(s64)0..2 {
+        if count == 1 { continue }
+        program.functions[0].blocks[0].instructions[0].operands = operands[:count]
+        if !Expect(Verifier.LirVerify(program, Lir.LirDefaultLimits()), .Operand, 5, cast(s32)(205 + count)) { return false }
+    }
     return true
 }
 

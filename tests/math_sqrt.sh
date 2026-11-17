@@ -2,6 +2,7 @@
 set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=${1:-$repo/build/bin/ziran}
+zi2c=$(dirname -- "$ziran")/zi2c
 work="$repo/build/math-sqrt"
 mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY
@@ -15,10 +16,24 @@ cd "$repo"
 cmp "$work/source.zx" "$work/saved.zx"
 test "$("$ziran" run "$work/source.zx")" = 42
 test "$("$ziran" run "$work/saved.zx")" = 42
-"$ziran" build --target=c --root tests/spec --module-path std -o "$work/source-c" tests/spec/std_math_sqrt.zi
+"$zi2c" --root tests/spec --module-path std -o "$work/source-c" tests/spec/std_math_sqrt.zi
 "${CC:-cc}" -std=c11 -O2 -iquote "$work/source-c" "$work/source-c"/*.c -lm -o "$work/source"
 "$work/source"
-"$ziran" build --target=c --root "$work/ir" --module-path "$work/ir" -o "$work/saved-c" "$work/ir/std_math_sqrt.zir"
+"$zi2c" --root "$work/ir" --module-path "$work/ir" -o "$work/saved-c" "$work/ir/std_math_sqrt.zir"
 "${CC:-cc}" -std=c11 -O2 -iquote "$work/saved-c" "$work/saved-c"/*.c -lm -o "$work/saved"
 "$work/saved"
-echo 'math-sqrt-parity-ok: source/saved IR and native/portable'
+for input in source saved; do
+    if test "$input" = source; then
+        root=tests/spec
+        module=tests/spec/std_math_sqrt.zi
+    else
+        root=$work/ir
+        module=$work/ir/std_math_sqrt.zir
+    fi
+    "$ziran" build --target=go --pkg main --root "$root" --module-path std \
+        --entry std_math_sqrt:SelfTest -o "$work/go-$input" "$module"
+    printf '%s\n' 'package main' 'func main() { if StdMathSqrt_SelfTest() != 42 { panic("sqrt parity") } }' \
+        > "$work/go-$input/main.go"
+    GO111MODULE=off go run "$work/go-$input"/*.go
+done
+echo 'math-sqrt-parity-ok: source/saved IR, native/portable and Go' 

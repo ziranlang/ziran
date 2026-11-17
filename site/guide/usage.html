@@ -1779,6 +1779,13 @@ starts a variable from it.</p>
 <code>table: [4096]u8 = Lib.BIG</code> or written out. Each target defines the variable
 with its values, so nothing fills it when the program starts, and writing it
 leaves the table unchanged.</p>
+<h3 id="square-root">Square root</h3>
+<p><code>sqrt(x)</code> takes one <code>float64</code> and returns its IEEE-754 square root. It preserves
+signed zero, returns NaN for negative values, and rounds to the nearest <code>float64</code>
+under the default floating-point environment. <code>std/math.Sqrt</code> uses this operation.
+Native targets use scalar hardware sqrt; Wasm uses <code>f64.sqrt</code>, generated C uses
+the compiler sqrt builtin, and Go uses <code>math.Sqrt</code>. A procedure of your own
+named <code>sqrt</code> takes precedence.</p>
 <h3 id="bit-counts-and-byte-swaps">Bit counts and byte swaps</h3>
 <p><code>clz(x)</code>, <code>ctz(x)</code> and <code>popcount(x)</code> count leading zero bits, trailing zero
 bits and set bits; <code>bswap(x)</code> reverses the bytes. Each takes one <code>u8</code>, <code>u16</code>,

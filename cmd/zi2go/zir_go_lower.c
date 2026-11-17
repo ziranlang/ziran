@@ -2283,12 +2283,20 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                         break;
                     }
                 }
+            int sqrt_calls = 0;
+            for(int fi = 0; fi < m->function_count && !sqrt_calls; fi++)
+                for(int ei = 0; ei < m->functions[fi].expr_count; ei++)
+                    if(m->functions[fi].exprs[ei].kind == ZIR_EXPR_CALL &&
+                       !strcmp(m->functions[fi].exprs[ei].name, "zi_sqrt")) {
+                        sqrt_calls = 1;
+                        break;
+                    }
             int float_helper = pi == 0 && mi == 0 && go_prints_floats(progs, prog_count);
             /* Imports are written as one gofmt block, standard packages first. */
             int import_count = 0;
             if(prints)
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"fmt\"");
-            if(float_helper)
+            if(float_helper || sqrt_calls)
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"math\"");
             if(bit_calls)
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "zibits \"math/bits\"");

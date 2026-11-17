@@ -52,6 +52,7 @@ MachineOpcode :: enum s32 {
     PointerDirect
     // SSE2 strip-mined prefix; see compiler_vector_form. Native x86 only.
     VectorLoop
+    FloatSquareRoot
 }
 
 MachineCondition :: enum s32 {

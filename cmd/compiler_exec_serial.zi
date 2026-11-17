@@ -703,7 +703,7 @@ DecodeCore :: (decoder: *Decoder) {
                 checked: u32
                 if (flags & cast(u32)4) != 0 { checked = DecodeU32(decoder) }
                 if decoder.cursor.problem != .None { return }
-                if raw_op > cast(u32)LirOp.Resize || checked > 1 { DecodeFail(decoder, .Field) }
+                if raw_op > cast(u32)LirOp.SquareRoot || checked > 1 { DecodeFail(decoder, .Field) }
                 if decoder.mode == ModeViews {
                     operands := VecSlice(decoder.owner.operands,
                         operands_span.at, operands_span.at + operands_span.count)

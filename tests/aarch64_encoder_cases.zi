@@ -902,8 +902,29 @@ Negatives :: () -> bool {
     return Check(!kept.valid && view.code.count == 0 && view.entry == -1, "repeated cleanup")
 }
 
+SquareRoot :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b, Target.TargetDescribe(.AArch64, .Linux).target)
+    function := Begin(*b, "sqrt")
+    argument := Parameter(*b, F64, 0)
+    result := Value(*b, F64)
+    Enter(*b, Blocks(*b, 1))
+    square_root := Two(*b, .FloatSquareRoot, 0, result, 0, argument)
+    unused Return(*b, 0, result)
+    End(*b, 0)
+    b.entry = function
+    owner: A64.MachineA64Owner
+    defer A64.MachineA64Free(*owner)
+    diagnostic := Apply(*b, .Encode, *owner, MachineDefaultLimits()).diagnostic
+    if !Check(diagnostic.problem == .None, "f64 sqrt encodes") { return false }
+    image := A64.MachineA64View(*owner)
+    return Instruction(image, square_root, "00 c0 61 1e", "f64 hardware sqrt") &&
+        Check(image.relocations.count == 0, "f64 sqrt needs no runtime helper")
+}
+
 main :: () -> s32 {
-    if !Basics() || !Calls() || !RecordCalls() || !Negatives() { return 1 }
+    if !SquareRoot() || !Basics() || !Calls() || !RecordCalls() || !Negatives() { return 1 }
     print("aarch64 encoder: exact words, three-operand forms, branch fields, fixed ABI forms, fuel, traps, relocation fields, pre-encoding rejection of invalid programs, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

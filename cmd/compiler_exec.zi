@@ -3233,7 +3233,10 @@ ExecUnaryInstruction :: (instance: *LirExecInstance, frame_index: s64,
     source_type := ExecValueType(instance, instruction.operands[0])
     bits := ExecSlotBits(instance, instruction.operands[0])
     if instance.failure.problem != .None { return false }
-    if source_type.kind == .Integer {
+    if instruction.op == .SquareRoot {
+        ExecWriteSlotBits(instance, instruction.result,
+            ExecFloat64Bits(Math.Sqrt(ExecBitsFloat(instance.plan, bits, false))))
+    } else if source_type.kind == .Integer {
         ExecWriteSlotBits(instance, instruction.result,
             ifx instruction.op == .Negate then cast(u64)0 - bits else ~bits)
     } else {
@@ -3292,7 +3295,7 @@ ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
         if !ExecAllocate(instance, frame_index, instruction, result_type) { return false }
     } else if op == .Resize {
         if !ExecResize(instance, instruction, result_type) { return false }
-    } else if op == .Negate || op == .BitNot {
+    } else if op == .Negate || op == .BitNot || op == .SquareRoot {
         if !ExecUnaryInstruction(instance, frame_index, instruction) { return false }
     } else if !ExecNumericInstruction(instance, frame_index, instruction, result_type) { return false }
     instance.frames[frame_index].instruction += 1

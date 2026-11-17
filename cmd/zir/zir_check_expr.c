@@ -1870,6 +1870,23 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 break;
             }
         }
+        /* A checked spelling survives saved IR; a user procedure wins. */
+        if(!strcmp(e->name, "zi_sqrt") ||
+           (!strcmp(e->name, "sqrt") && !program_callable(c, e->name))) {
+            int first = e->first_child;
+            const char *operand = first >= 0 ? expression_type(c, first) : "";
+            const char *scalar = ScalarType(operand);
+            e = &c->fn->exprs[index];
+            if(first < 0 || c->fn->exprs[first].next_sibling >= 0 ||
+               c->fn->exprs[first].argument_name[0] || strcmp(scalar, "float64")) {
+                error(c, e->span, "sqrt takes one float64 value", display_name);
+                break;
+            }
+            e->name = KeepName("zi_sqrt");
+            e->type = KeepName(scalar);
+            type = e->type;
+            break;
+        }
         /* clz/ctz/popcount/bswap take one u8/u16/u32/u64 and return that
          * type; the count builtins give the width for 0. A program's own
          * procedure of the same name wins, as with New. */

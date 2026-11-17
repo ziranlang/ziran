@@ -671,6 +671,18 @@ Unary :: (state: *State, opcode: MachineOpcode) -> bool {
     return true
 }
 
+FloatSquareRoot :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := FloatRegister(state, 0, .Define)
+    source := FloatRegister(state, 1, .Use)
+    if destination == MachineNoId || source == MachineNoId { return false }
+    if destination != source { return Fail(state, .Tie, OperandId(state, 0)) }
+    if FloatSize(TypeOf(state, OperandAt(state, 0))) != 8 ||
+        FloatSize(TypeOf(state, OperandAt(state, 1))) != 8 { return Fail(state, .Unsupported) }
+    X86FloatArithmetic(*state.writer, destination, source, 8, 0x0f51)
+    return true
+}
+
 FloatUnary :: (state: *State) -> bool {
     if !Count(state, 3) { return false }
     destination := FloatRegister(state, 0, .Define)
@@ -2061,7 +2073,7 @@ PlainOpcode :: (opcode: MachineOpcode) -> bool {
         opcode == .IntegerAdd || opcode == .IntegerSubtract || opcode == .IntegerMultiply ||
         opcode == .IntegerNegate || opcode == .IntegerAnd || opcode == .IntegerOr || opcode == .IntegerXor ||
         opcode == .IntegerNot || opcode == .FloatAdd || opcode == .FloatSubtract || opcode == .FloatMultiply ||
-        opcode == .FloatDivide || opcode == .FloatNegate || opcode == .Compare || opcode == .SetCondition ||
+        opcode == .FloatDivide || opcode == .FloatNegate || opcode == .FloatSquareRoot || opcode == .Compare || opcode == .SetCondition ||
         opcode == .Bitcast || opcode == .Load || opcode == .Store || opcode == .Copy || opcode == .Zero ||
         opcode == .FieldAddress || opcode == .PointerDirect || opcode == .Jump || opcode == .Branch ||
         opcode == .Return
@@ -2407,6 +2419,7 @@ Instruction :: (state: *State) -> bool {
         op == .FloatDivide { ok = FloatBinary(state, op) }
     else if op == .IntegerNegate || op == .IntegerNot { ok = Unary(state, op) }
     else if op == .FloatNegate { ok = FloatUnary(state) }
+    else if op == .FloatSquareRoot { ok = FloatSquareRoot(state) }
     else if op == .IntegerDivide || op == .IntegerRemainder { ok = Divide(state, op) }
     else if op == .ShiftLeft || op == .ShiftRight { ok = Shift(state, op) }
     else if op == .Compare { ok = Compare(state) }

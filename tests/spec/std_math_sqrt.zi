@@ -2,9 +2,9 @@
 #import "std/binary"
 #import "math_sqrt_reference"
 
-SameSqrt :: (value: float64) -> bool {
-    actual := Sqrt(value)
-    expected := ReferenceSqrt(value)
+SameSqrt :: (bits: u64) -> bool {
+    actual := Sqrt(Float64FromBits(bits))
+    expected := ReferenceSqrt(bits)
     if expected != expected { return actual != actual }
     if actual != expected { return false }
     if expected == 0.0 { return 1.0 / actual == 1.0 / expected }
@@ -12,7 +12,7 @@ SameSqrt :: (value: float64) -> bool {
 }
 
 CheckBits :: (bits: u64) -> bool {
-    return SameSqrt(Float64FromBits(bits))
+    return SameSqrt(bits)
 }
 
 #program_export
@@ -32,6 +32,13 @@ SelfTest :: () -> s32 {
         exponent += 63
     }
     if Sqrt(144.0) != 12.0 || Sqrt(4.0) != 2.0 || Sqrt(1.0) != 1.0 { return 3 }
+    state: u64 = 88172645463325252
+    for sample: 0..63 {
+        state ^= state << cast(u64)13
+        state ^= state >> cast(u64)7
+        state ^= state << cast(u64)17
+        if !CheckBits(state) { return 4 }
+    }
     return 42
 }
 

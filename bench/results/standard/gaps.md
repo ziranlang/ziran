@@ -43,6 +43,35 @@ Ziran sources; C medians agree between the two runs to within about 7%.
   Go use the hardware square root; n-body takes one per body pair per step.
   This source difference is established; its exact share needs a profile.
 
+## First native backend A/B
+
+The [constant division and register-copy fix](https://github.com/ziranlang/ziran/commit/426c7329289c548537cb7f1f73d7727f5183a907)
+was measured against its published baseline on physical Alpha. The
+[raw receipt](native-constant-divide-alpha.json) retains eleven interleaved
+samples of C, before and after, on the same pinned core with the host clock
+and sibling gate, learning off and every checksum matching C. Both native
+runners use the same frozen ZX bundle. A private copy of the standard host
+accepts one timed sample per process so the revisions can alternate; each
+process keeps the standard 150 ms warmup. Loading and compilation are excluded.
+
+| Benchmark | C µs | Native before µs | Native after µs | After/C |
+| --- | ---: | ---: | ---: | ---: |
+| n-body | 30,088 | 379,382 | 329,766 | 10.96× |
+| spectral-norm | 10,451 | 111,529 | 69,195 | 6.62× |
+| matmul | 3,915 | 21,538 | 20,928 | 5.35× |
+| fib | 18,733 | 74,487 | 74,253 | 3.96× |
+| mandelbrot | 70,433 | 119,730 | 118,524 | 1.68× |
+
+Native n-body is 13.1% faster and spectral-norm is 38.0% faster in this
+comparison. The other rows show little change. Inspection found SSE2 scalar
+doubles already in use, with no x87 arithmetic. Spectral-norm's `A(i,j)`
+still calls out of the inner loop and spills live XMM values, but its division
+by two now uses shifts and a signed bias instead of `idiv`; n-body's software
+square root also divides its exponent by two. The allocator fix removes
+invalid copies between unrelated layout-adjacent block parts and allows the
+neighboring inliner to preserve floating-point results. Hardware square root,
+call elimination, matrix induction and recursive-call overhead remain open.
+
 ## Hypotheses to test (timing alone does not prove them)
 
 1. **n-body, spectral-norm:** float-heavy inner loops. Beyond `Sqrt`, native

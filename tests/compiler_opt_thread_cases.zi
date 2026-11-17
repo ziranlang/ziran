@@ -1,0 +1,156 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
+
+#scope_file
+// Calls FUNCTION with the one s64 argument VALUE.
+Call :: (program: LirProgram, function: s32, value: s64) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 811, *instance)
+    if opened.problem != .None { return opened }
+    // The optimizer may renumber types; the parameter names its own.
+    arguments := LirExecArgument.[.{type = program.functions[function].parameters[0], bits = cast(u64)value}]
+    return LirExecCall(*instance, function, arguments[:])
+}
+
+// Whether FUNCTION returns EXPECTED for VALUE in PROGRAM.
+Returns :: (program: LirProgram, function: s32, value: s64, expected: s64) -> bool {
+    result := Call(program, function, value)
+    return result.problem == .None && result.value.bits == cast(u64)expected
+}
+
+// A block that holds nothing but a branch on one of its parameters.
+BranchOnly :: (function: LirFunction) -> bool {
+    for block: function.blocks {
+        if block.instructions.count == 1 && block.instructions[0].op == .Branch { return true }
+    }
+    return false
+}
+
+#scope_export
+// Jump threading and block merging. range(x) is `x > 0 && x < 9`, lowered
+// the way a short-circuit `&&` is: each side jumps to a block that only
+// branches on the joined flag, and the true side then passes through a
+// block that only jumps. chain(x) is three blocks in a row; pick(x) passes
+// x or -x to a block that only jumps, but the value is read beyond it, so
+// that block stays.
+ThreadCases :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1}]
+    modules := string.["thread"]
+    constants := LirConstant.[.{type = 1, bits = 0}, .{type = 1, bits = 9}, .{type = 2, bits = 0}, .{type = 1, bits = 1}]
+    one_parameter := s32.[1]
+    // range: b0..b6.
+    range_values := s32.[1, 1, 2, 1, 2, 2, 2, 1]
+    x := s32.[0]
+    positive := s32.[0, 1]
+    below := s32.[0, 3]
+    flag := s32.[2]
+    joined := s32.[6]
+    yes := s32.[7]
+    no := s32.[1]
+    to_yes_no := LirEdge.[.{block = 1}, .{block = 2}]
+    with_below := s32.[4]
+    with_false := s32.[5]
+    into_join := LirEdge.[.{block = 3, arguments = with_below[:]}]
+    false_into_join := LirEdge.[.{block = 3, arguments = with_false[:]}]
+    to_true_false := LirEdge.[.{block = 4}, .{block = 5}]
+    to_result := LirEdge.[.{block = 6}]
+    join_parameters := s32.[6]
+    b0 := LirInstruction.[
+        .{op = .Constant, result = 1, symbol = 0, origin = -1},
+        .{op = .Greater, result = 2, operands = positive[:], symbol = -1, origin = -1},
+        .{op = .Branch, result = -1, operands = flag[:], edges = to_yes_no[:], symbol = -1, origin = -1}]
+    b1 := LirInstruction.[
+        .{op = .Constant, result = 3, symbol = 1, origin = -1},
+        .{op = .Less, result = 4, operands = below[:], symbol = -1, origin = -1},
+        .{op = .Jump, result = -1, edges = into_join[:], symbol = -1, origin = -1}]
+    b2 := LirInstruction.[
+        .{op = .Constant, result = 5, symbol = 2, origin = -1},
+        .{op = .Jump, result = -1, edges = false_into_join[:], symbol = -1, origin = -1}]
+    b3 := LirInstruction.[.{op = .Branch, result = -1, operands = joined[:], edges = to_true_false[:], symbol = -1, origin = -1}]
+    b4 := LirInstruction.[.{op = .Jump, result = -1, edges = to_result[:], symbol = -1, origin = -1}]
+    b5 := LirInstruction.[.{op = .Return, result = -1, operands = no[:], symbol = -1, origin = -1}]
+    b6 := LirInstruction.[
+        .{op = .Constant, result = 7, symbol = 3, origin = -1},
+        .{op = .Return, result = -1, operands = yes[:], symbol = -1, origin = -1}]
+    range_blocks := LirBlock.[.{parameters = x[:], instructions = b0[:]}, .{instructions = b1[:]},
+        .{instructions = b2[:]}, .{parameters = join_parameters[:], instructions = b3[:]},
+        .{instructions = b4[:]}, .{instructions = b5[:]}, .{instructions = b6[:]}]
+    // chain: b0(v0) -> b1(v1) doubles it -> b2(v3) returns it.
+    chain_values := s32.[1, 1, 1, 1]
+    pass := s32.[0]
+    pair := s32.[1, 1]
+    doubled := s32.[2]
+    result := s32.[3]
+    first_parameter := s32.[1]
+    last_parameter := s32.[3]
+    to_double := LirEdge.[.{block = 1, arguments = pass[:]}]
+    to_return := LirEdge.[.{block = 2, arguments = doubled[:]}]
+    c0 := LirInstruction.[.{op = .Jump, result = -1, edges = to_double[:], symbol = -1, origin = -1}]
+    c1 := LirInstruction.[
+        .{op = .Add, result = 2, operands = pair[:], symbol = -1, origin = -1},
+        .{op = .Jump, result = -1, edges = to_return[:], symbol = -1, origin = -1}]
+    c2 := LirInstruction.[.{op = .Return, result = -1, operands = result[:], symbol = -1, origin = -1}]
+    chain_blocks := LirBlock.[.{parameters = x[:], instructions = c0[:]},
+        .{parameters = first_parameter[:], instructions = c1[:]},
+        .{parameters = last_parameter[:], instructions = c2[:]}]
+    // pick: b0 branches to b1 with x or -x; b1 only jumps; b2 returns b1's parameter.
+    pick_values := s32.[1, 1, 2, 1, 1]
+    negated := s32.[3]
+    picked := s32.[4]
+    as_is := s32.[0]
+    to_pick := LirEdge.[.{block = 1, arguments = as_is[:]}, .{block = 1, arguments = negated[:]}]
+    to_end := LirEdge.[.{block = 2}]
+    pick_parameter := s32.[4]
+    p0 := LirInstruction.[
+        .{op = .Constant, result = 1, symbol = 0, origin = -1},
+        .{op = .Greater, result = 2, operands = positive[:], symbol = -1, origin = -1},
+        .{op = .Negate, result = 3, operands = x[:], symbol = -1, origin = -1},
+        .{op = .Branch, result = -1, operands = flag[:], edges = to_pick[:], symbol = -1, origin = -1}]
+    p1 := LirInstruction.[.{op = .Jump, result = -1, edges = to_end[:], symbol = -1, origin = -1}]
+    p2 := LirInstruction.[.{op = .Return, result = -1, operands = picked[:], symbol = -1, origin = -1}]
+    pick_blocks := LirBlock.[.{parameters = x[:], instructions = p0[:]},
+        .{parameters = pick_parameter[:], instructions = p1[:]}, .{instructions = p2[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "range", parameters = one_parameter[:], result = 1, values = range_values[:],
+            blocks = range_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "chain", parameters = one_parameter[:], result = 1, values = chain_values[:],
+            blocks = chain_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "pick", parameters = one_parameter[:], result = 1, values = pick_values[:],
+            blocks = pick_blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = LirNoId}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 61 }
+    inputs := s64.[3, -1, 12, 0, 8, 9]
+    ranged := s64.[1, 0, 0, 0, 1, 0]
+    for at: 0..inputs.count - 1 {
+        if !Returns(program, 0, inputs[at], ranged[at]) { return 62 }
+        if !Returns(program, 1, inputs[at], 2 * inputs[at]) { return 63 }
+        if !Returns(program, 2, inputs[at], ifx inputs[at] > 0 then inputs[at] else -inputs[at]) { return 64 }
+    }
+    options := LirOptDefaultOptions()
+    options.inline_calls = 0
+    options.inline_leaf_operations = 0
+    owner: LirOptOwner
+    defer LirOptFree(*owner)
+    optimized := LirOptBuild(*owner, program, LirDefaultLimits(), options)
+    if optimized.problem != .None || !owner.valid { return 65 }
+    output := LirOptProgram(*owner)
+    // range: the join and the lone jump are gone; chain is one block; pick
+    // keeps the block whose parameter b2 reads, with b2 merged into it.
+    if BranchOnly(output.functions[0]) || output.functions[0].blocks.count > 5 { return 66 }
+    if output.functions[1].blocks.count != 1 { return 67 }
+    if output.functions[2].blocks.count != 2 { return 68 }
+    for at: 0..inputs.count - 1 {
+        if !Returns(output, 0, inputs[at], ranged[at]) { return 69 }
+        if !Returns(output, 1, inputs[at], 2 * inputs[at]) { return 70 }
+        if !Returns(output, 2, inputs[at], ifx inputs[at] > 0 then inputs[at] else -inputs[at]) { return 71 }
+    }
+    return 0
+}

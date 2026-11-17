@@ -1,0 +1,571 @@
+using IR :: #import "compiler_lowered_ir"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+// What LirThread changed: edges sent past a block that only jumps or
+// branches, and blocks merged into their only predecessor.
+LirThreadResult :: struct {
+    problem: LirSsaProblem
+    codec: LirCodecResult
+    edges: s64
+    merged: s64
+    work: s64
+    scratch_bytes: s64
+}
+
+#scope_file
+// An edge being rewritten. Its arguments, one per parameter of BLOCK, start
+// at FIRST in the argument pool.
+Edge :: struct { block: s32; first: s64 }
+
+// A block's current terminal. A jump or branch keeps its condition and its
+// COUNT edges, from FIRST, in the pools; any other terminal is INSTRUCTION.
+Term :: struct { instruction: LirInstruction; condition: s32; first: s64; count: s64 }
+
+Work :: struct {
+    terms: Vec(Term)
+    edges: Vec(Edge)
+    arguments: Vec(s32)
+    // The block a value is a parameter of, or -1, and its place there.
+    owner: Vec(s32)
+    position: Vec(s32)
+    // 1 when one of the block's parameters is used beyond its terminal.
+    outside: Vec(u8)
+    // 1 for a loop header: no edge is moved onto one, so each loop keeps its
+    // one unconditional entry and its one latch for the loop passes.
+    header: Vec(u8)
+    // The constant that defines a value, or -1.
+    symbols: Vec(s32)
+    edge_next: s64
+    argument_next: s64
+}
+
+WorkFree :: (work: *Work) {
+    VecFree(work.terms)
+    VecFree(work.edges)
+    VecFree(work.arguments)
+    VecFree(work.owner)
+    VecFree(work.position)
+    VecFree(work.outside)
+    VecFree(work.header)
+    VecFree(work.symbols)
+}
+
+// One rewritten function and the storage its slices borrow.
+Rebuilt :: struct {
+    values: Vec(s32)
+    instructions: Vec(LirInstruction)
+    edges: Vec(LirEdge)
+    data: Vec(s32)
+    blocks: Vec(LirBlock)
+    function: LirFunction
+}
+
+RebuiltFree :: (rebuilt: *Rebuilt) {
+    VecFree(rebuilt.values)
+    VecFree(rebuilt.instructions)
+    VecFree(rebuilt.edges)
+    VecFree(rebuilt.data)
+    VecFree(rebuilt.blocks)
+}
+
+FreeRebuilt :: (versions: []Rebuilt) {
+    for at: 0..versions.count - 1 { RebuiltFree(*versions[at]) }
+}
+
+Branching :: (op: LirOp) -> bool { return op == .Jump || op == .Branch }
+
+// Copies each block's terminal into the pools and records which block each
+// parameter belongs to, which blocks' parameters are used beyond their own
+// terminal, and which values are constants.
+Prepare :: (function: LirFunction, work: *Work, budget: *LirSsaBudget) -> bool {
+    blocks := function.blocks.count
+    values := function.values.count
+    edge_total: s64
+    argument_total: s64
+    for block: function.blocks {
+        if !LirSsaSpend(budget, block.instructions.count + 1) { return false }
+        for instruction: block.instructions {
+            edge_total += instruction.edges.count
+            for edge: instruction.edges { argument_total += edge.arguments.count }
+        }
+    }
+    edge_room := edge_total + 2 * blocks
+    argument_room := 2 * argument_total + 2 * blocks + 64
+    if !LirSsaReserve(budget, blocks, 97) || !LirSsaReserve(budget, edge_room, 16) ||
+        !LirSsaReserve(budget, argument_room, 4) || !LirSsaReserve(budget, values, 12) { return false }
+    if !VecResizeBounded(work.terms, blocks, blocks) || !VecResizeBounded(work.edges, edge_room, edge_room) ||
+        !VecResizeBounded(work.arguments, argument_room, argument_room) ||
+        !VecResizeBounded(work.owner, values, values) || !VecResizeBounded(work.position, values, values) ||
+        !VecResizeBounded(work.symbols, values, values) || !VecResizeBounded(work.outside, blocks, blocks) ||
+        !VecResizeBounded(work.header, blocks, blocks) {
+        budget.problem = .Allocation
+        return false
+    }
+    for v: 0..values - 1 { work.owner[v] = -1; work.position[v] = -1; work.symbols[v] = -1 }
+    for b: 0..blocks - 1 {
+        block := function.blocks[b]
+        for at: 0..block.parameters.count - 1 {
+            work.owner[block.parameters[at]] = cast(s32)b
+            work.position[block.parameters[at]] = cast(s32)at
+        }
+    }
+    for b: 0..blocks - 1 {
+        block := function.blocks[b]
+        last := block.instructions.count - 1
+        for i: 0..last {
+            instruction := block.instructions[i]
+            if !LirSsaSpend(budget, 1 + instruction.operands.count + instruction.edges.count) { return false }
+            if instruction.op == .Constant { work.symbols[instruction.result] = instruction.symbol }
+            for value: instruction.operands {
+                owner := work.owner[value]
+                if owner >= 0 && (owner != cast(s32)b || i != last) { work.outside[owner] = 1 }
+            }
+            for edge: instruction.edges {
+                for value: edge.arguments {
+                    owner := work.owner[value]
+                    if owner >= 0 && owner != cast(s32)b { work.outside[owner] = 1 }
+                }
+            }
+        }
+        terminal := block.instructions[last]
+        term := Term.{instruction = terminal, condition = -1, first = work.edge_next, count = terminal.edges.count}
+        if terminal.op == .Branch { term.condition = terminal.operands[0] }
+        for edge: terminal.edges {
+            work.edges[work.edge_next] = .{block = edge.block, first = work.argument_next}
+            work.edge_next += 1
+            for value: edge.arguments {
+                work.arguments[work.argument_next] = value
+                work.argument_next += 1
+            }
+        }
+        work.terms[b] = term
+    }
+    return Headers(function, work, budget)
+}
+
+// Marks the targets of edges back to a block still on the depth-first path
+// from the entry: the loop headers.
+Headers :: (function: LirFunction, work: *Work, budget: *LirSsaBudget) -> bool {
+    blocks := function.blocks.count
+    if !LirSsaReserve(budget, blocks, 13) { return false }
+    mark: Vec(u8)
+    path: Vec(s32)
+    next: Vec(s64)
+    defer VecFree(mark)
+    defer VecFree(path)
+    defer VecFree(next)
+    if !VecResizeBounded(mark, blocks, blocks) || !VecResizeBounded(path, blocks, blocks) ||
+        !VecResizeBounded(next, blocks, blocks) {
+        budget.problem = .Allocation
+        return false
+    }
+    mark[function.entry] = 1
+    path[0] = function.entry
+    depth: s64 = 1
+    while depth > 0 {
+        if !LirSsaSpend(budget, 1) { return false }
+        b := path[depth - 1]
+        term := work.terms[b]
+        k := next[depth - 1]
+        if !Branching(term.instruction.op) || k >= term.count {
+            mark[b] = 2
+            depth -= 1
+            continue
+        }
+        next[depth - 1] = k + 1
+        target := work.edges[term.first + k].block
+        if mark[target] == 1 { work.header[target] = 1 }
+        else if mark[target] == 0 {
+            mark[target] = 1
+            path[depth] = target
+            next[depth] = 0
+            depth += 1
+        }
+    }
+    return true
+}
+
+// VALUE of TARGET's terminal as seen at the end of the edge INTO it.
+Through :: (work: *Work, target: s32, into: Edge, value: s32) -> s32 {
+    if work.owner[value] != target { return value }
+    return work.arguments[into.first + cast(s64)work.position[value]]
+}
+
+// TARGET's edge EDGE as taken from the end of INTO, or block -1 when the
+// pools are full.
+Forward :: (work: *Work, function: LirFunction, target: s32, into: Edge, edge: Edge) -> Edge {
+    count := function.blocks[edge.block].parameters.count
+    first := work.argument_next
+    if first + count > work.arguments.count { return .{block = -1} }
+    for at: 0..count - 1 {
+        work.arguments[first + at] = Through(work, target, into, work.arguments[edge.first + at])
+    }
+    work.argument_next += count
+    return .{block = edge.block, first = first}
+}
+
+// Whether VALUE is a constant of its own type, with its bits in *BITS.
+Known :: (program: LirProgram, function: LirFunction, work: *Work, value: s32, bits: *u64) -> bool {
+    symbol := work.symbols[value]
+    if symbol < 0 || program.constants[symbol].type != function.values[value] { return false }
+    bits.* = program.constants[symbol].bits
+    return true
+}
+
+// Sends edges past blocks that hold only a jump or a branch. An edge into a
+// jump goes to that jump's target; an edge into a branch on a constant goes
+// to the side it selects; a jump into any other branch becomes that branch.
+// A block is skipped only when its parameters are used in its terminal
+// alone, so nothing beyond it reads a value the skipped edge defined, and
+// no edge moves onto a loop header.
+Rewrite :: (program: LirProgram, function: LirFunction, work: *Work, budget: *LirSsaBudget) -> s64 {
+    blocks := function.blocks.count
+    rewritten: s64
+    for round: 1..4 {
+        changed: s64
+        for p: 0..blocks - 1 {
+            term := work.terms[p]
+            if !Branching(term.instruction.op) { continue }
+            for k: 0..term.count - 1 {
+                if !LirSsaSpend(budget, 4) { return rewritten }
+                into := work.edges[term.first + k]
+                target := into.block
+                if cast(s64)target == p || target == function.entry || work.outside[target] != 0 ||
+                    function.blocks[target].instructions.count != 1 { continue }
+                next := work.terms[target]
+                if next.instruction.op == .Jump {
+                    edge := work.edges[next.first]
+                    if edge.block == target || work.header[edge.block] != 0 { continue }
+                    forwarded := Forward(work, function, target, into, edge)
+                    if forwarded.block < 0 { return rewritten }
+                    work.edges[term.first + k] = forwarded
+                    changed += 1
+                } else if next.instruction.op == .Branch {
+                    condition := Through(work, target, into, next.condition)
+                    bits: u64
+                    if Known(program, function, work, condition, *bits) {
+                        selected: s64 = ifx bits != 0 then 0 else 1
+                        edge := work.edges[next.first + selected]
+                        if edge.block == target || work.header[edge.block] != 0 { continue }
+                        forwarded := Forward(work, function, target, into, edge)
+                        if forwarded.block < 0 { return rewritten }
+                        work.edges[term.first + k] = forwarded
+                        changed += 1
+                    } else if term.instruction.op == .Jump {
+                        if work.header[work.edges[next.first].block] != 0 ||
+                            work.header[work.edges[next.first + 1].block] != 0 { continue }
+                        if work.edge_next + 2 > work.edges.count { return rewritten }
+                        first := work.edge_next
+                        yes := Forward(work, function, target, into, work.edges[next.first])
+                        no := Forward(work, function, target, into, work.edges[next.first + 1])
+                        if yes.block < 0 || no.block < 0 { return rewritten }
+                        work.edges[first] = yes
+                        work.edges[first + 1] = no
+                        work.edge_next += 2
+                        work.terms[p] = .{instruction = next.instruction, condition = condition, first = first, count = 2}
+                        changed += 1
+                        break
+                    }
+                }
+            }
+        }
+        rewritten += changed
+        if changed == 0 { break }
+    }
+    return rewritten
+}
+
+// The value VALUE stands for once merged blocks' parameters are replaced
+// by the arguments their only predecessor passed.
+Resolve :: (rename: []s32, value: s32) -> s32 {
+    current := value
+    for step: 0..rename.count - 1 {
+        if rename[current] == current { return current }
+        current = rename[current]
+    }
+    return current
+}
+
+// The new number of VALUE once merged parameters are replaced and the
+// values of dropped blocks are gone.
+Map :: (rename: []s32, numbers: []s32, value: s32) -> s32 { return numbers[Resolve(rename, value)] }
+
+// Merges each block whose only predecessor jumps to it into that
+// predecessor, renaming its parameters to the jump's arguments, and writes
+// the function into OUT without the merged blocks and those no longer
+// reached; their values go and the rest are renumbered in order. Returns
+// the number of blocks merged, or -1.
+Emit :: (function: LirFunction, work: *Work, threaded: s64, out: *Rebuilt, budget: *LirSsaBudget) -> s64 {
+    blocks := function.blocks.count
+    values := function.values.count
+    if !LirSsaReserve(budget, blocks, 22) || !LirSsaReserve(budget, values, 8) { return -1 }
+    reached: Vec(u8)
+    absorbed: Vec(u8)
+    queue: Vec(s32)
+    predecessors: Vec(s32)
+    from: Vec(s32)
+    next: Vec(s32)
+    rename: Vec(s32)
+    numbers: Vec(s32)
+    defer VecFree(reached)
+    defer VecFree(absorbed)
+    defer VecFree(queue)
+    defer VecFree(predecessors)
+    defer VecFree(from)
+    defer VecFree(next)
+    defer VecFree(rename)
+    defer VecFree(numbers)
+    if !VecResizeBounded(reached, blocks, blocks) || !VecResizeBounded(absorbed, blocks, blocks) ||
+        !VecResizeBounded(queue, blocks, blocks) ||
+        !VecResizeBounded(predecessors, blocks, blocks) || !VecResizeBounded(from, blocks, blocks) ||
+        !VecResizeBounded(next, blocks, blocks) || !VecResizeBounded(rename, values, values) ||
+        !VecResizeBounded(numbers, values, values) {
+        budget.problem = .Allocation
+        return -1
+    }
+    for b: 0..blocks - 1 { next[b] = -1; from[b] = -1 }
+    for v: 0..values - 1 { rename[v] = cast(s32)v; numbers[v] = -1 }
+    head: s64
+    tail: s64 = 1
+    queue[0] = function.entry
+    reached[function.entry] = 1
+    while head < tail {
+        if !LirSsaSpend(budget, 1) { return -1 }
+        term := work.terms[queue[head]]
+        head += 1
+        if !Branching(term.instruction.op) { continue }
+        for k: 0..term.count - 1 {
+            target := work.edges[term.first + k].block
+            if reached[target] == 0 { reached[target] = 1; queue[tail] = target; tail += 1 }
+        }
+    }
+    for b: 0..blocks - 1 {
+        if reached[b] == 0 { continue }
+        term := work.terms[b]
+        if !Branching(term.instruction.op) { continue }
+        for k: 0..term.count - 1 {
+            target := work.edges[term.first + k].block
+            predecessors[target] += 1
+            from[target] = cast(s32)b
+        }
+    }
+    merged: s64
+    for b: 0..blocks - 1 {
+        if reached[b] == 0 || cast(s32)b == function.entry || predecessors[b] != 1 { continue }
+        p := from[b]
+        if cast(s64)p == b || work.terms[p].instruction.op != .Jump { continue }
+        next[p] = cast(s32)b
+        absorbed[b] = 1
+        into := work.edges[work.terms[p].first]
+        parameters := function.blocks[b].parameters
+        for at: 0..parameters.count - 1 { rename[parameters[at]] = work.arguments[into.first + at] }
+        merged += 1
+    }
+    if merged == 0 && threaded == 0 { return 0 }
+    // The blocks kept, in order, and the values they define.
+    kept: s64
+    instruction_total: s64
+    edge_total: s64
+    word_total: s64
+    for b: 0..blocks - 1 {
+        if reached[b] == 0 || absorbed[b] != 0 { queue[b] = -1; continue }
+        queue[b] = cast(s32)kept
+        kept += 1
+        for value: function.blocks[b].parameters { numbers[value] = 0 }
+        word_total += function.blocks[b].parameters.count
+        current := cast(s32)b
+        for step: 0..blocks - 1 {
+            block := function.blocks[current]
+            if !LirSsaSpend(budget, block.instructions.count + 1) { return -1 }
+            instruction_total += block.instructions.count
+            for instruction: block.instructions {
+                word_total += instruction.operands.count
+                if instruction.result != LirNoId { numbers[instruction.result] = 0 }
+            }
+            if next[current] < 0 { break }
+            current = next[current]
+        }
+        term := work.terms[current]
+        if Branching(term.instruction.op) {
+            word_total += 1
+            for k: 0..term.count - 1 {
+                edge_total += 1
+                word_total += function.blocks[work.edges[term.first + k].block].parameters.count
+            }
+        } else {
+            edge_total += term.instruction.edges.count
+            for edge: term.instruction.edges { word_total += edge.arguments.count }
+        }
+    }
+    count: s32
+    for v: 0..values - 1 {
+        if numbers[v] < 0 { continue }
+        numbers[v] = count
+        count += 1
+    }
+    if !LirSsaReserve(budget, instruction_total, 112) || !LirSsaReserve(budget, edge_total, 24) ||
+        !LirSsaReserve(budget, word_total, 4) || !LirSsaReserve(budget, kept, 32) ||
+        !LirSsaReserve(budget, cast(s64)count, 4) { return -1 }
+    if !VecResizeBounded(out.values, cast(s64)count, cast(s64)count) ||
+        !VecResizeBounded(out.instructions, instruction_total, instruction_total) ||
+        !VecResizeBounded(out.edges, edge_total, edge_total) ||
+        !VecResizeBounded(out.data, word_total, word_total) ||
+        !VecResizeBounded(out.blocks, kept, kept) {
+        budget.problem = .Allocation
+        return -1
+    }
+    types := out.values[:]
+    instructions := out.instructions[:]
+    edges := out.edges[:]
+    data := out.data[:]
+    built := out.blocks[:]
+    for v: 0..values - 1 { if numbers[v] >= 0 { types[numbers[v]] = function.values[v] } }
+    ip: s64
+    ep: s64
+    wp: s64
+    for b: 0..blocks - 1 {
+        if queue[b] < 0 { continue }
+        block := function.blocks[b]
+        parameter_start := wp
+        for value: block.parameters { data[wp] = numbers[value]; wp += 1 }
+        start := ip
+        effect: s32
+        current := cast(s32)b
+        for step: 0..blocks - 1 {
+            source := function.blocks[current]
+            if !LirSsaSpend(budget, source.instructions.count + 1) { return -1 }
+            for i: 0..source.instructions.count - 2 {
+                instruction := source.instructions[i]
+                first := wp
+                for value: instruction.operands { data[wp] = Map(rename[:], numbers[:], value); wp += 1 }
+                instruction.operands = data[first:wp]
+                if instruction.result != LirNoId { instruction.result = numbers[instruction.result] }
+                if LirEffectful(instruction.op) { effect += 1; instruction.effect = effect }
+                else { instruction.effect = 0 }
+                instructions[ip] = instruction
+                ip += 1
+            }
+            if next[current] < 0 { break }
+            current = next[current]
+        }
+        term := work.terms[current]
+        terminal := term.instruction
+        edge_start := ep
+        first := wp
+        if Branching(terminal.op) {
+            if terminal.op == .Branch { data[wp] = Map(rename[:], numbers[:], term.condition); wp += 1 }
+            terminal.operands = data[first:wp]
+            for k: 0..term.count - 1 {
+                edge := work.edges[term.first + k]
+                argument_start := wp
+                arguments := function.blocks[edge.block].parameters.count
+                for at: 0..arguments - 1 {
+                    data[wp] = Map(rename[:], numbers[:], work.arguments[edge.first + at])
+                    wp += 1
+                }
+                edges[ep] = .{block = queue[edge.block], arguments = data[argument_start:wp]}
+                ep += 1
+            }
+        } else {
+            for value: terminal.operands { data[wp] = Map(rename[:], numbers[:], value); wp += 1 }
+            terminal.operands = data[first:wp]
+            for edge: terminal.edges {
+                argument_start := wp
+                for value: edge.arguments { data[wp] = Map(rename[:], numbers[:], value); wp += 1 }
+                edges[ep] = .{block = queue[edge.block], arguments = data[argument_start:wp]}
+                ep += 1
+            }
+        }
+        terminal.edges = edges[edge_start:ep]
+        if LirEffectful(terminal.op) { effect += 1; terminal.effect = effect }
+        else { terminal.effect = 0 }
+        instructions[ip] = terminal
+        ip += 1
+        built[queue[b]] = .{parameters = data[parameter_start:parameter_start + block.parameters.count],
+            instructions = instructions[start:ip]}
+    }
+    function.entry = queue[function.entry]
+    function.values = types
+    function.blocks = built
+    out.function = function
+    return merged
+}
+
+Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
+    budget: *LirSsaBudget) -> LirCodecResult {
+    empty: []u8
+    measured := LirWrite(program, empty)
+    if measured.problem != .None { return measured }
+    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
+    written := LirWrite(program, encoded[:])
+    if written.problem != .None { return written }
+    return LirRead(storage, TextView(encoded[:]), limits)
+}
+
+#scope_export
+// Jump threading and straight-line merging. An edge into a block that only
+// jumps goes to where it jumps; an edge into a block that only branches,
+// with a constant condition there, goes to the side it selects, and a jump
+// into such a branch becomes that branch; then each block whose only
+// predecessor jumps to it joins that predecessor. Blocks left unreached go
+// with their values. Every instruction, fuel included, still runs on each
+// path it ran on before.
+// Verified input only; the program is written and read back once.
+LirThread :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirThreadResult {
+    result: LirThreadResult
+    budget := LirSsaBudget.{work = work, bytes = limits.bytes}
+    program := LirReadProgram(storage)
+    functions: Vec(LirFunction)
+    versions: Vec(Rebuilt)
+    defer VecFree(functions)
+    defer VecFree(versions)
+    defer FreeRebuilt(versions[:])
+    if !LirSsaReserve(*budget, program.functions.count, 112) { result.problem = budget.problem; return result }
+    if !VecResizeBounded(functions, program.functions.count, program.functions.count) {
+        result.problem = .Allocation
+        return result
+    }
+    held := budget.reserved
+    for fi: 0..program.functions.count - 1 { functions[fi] = program.functions[fi] }
+    for fi: 0..program.functions.count - 1 {
+        function := program.functions[fi]
+        if function.external || function.blocks.count < 2 { continue }
+        budget.reserved = held
+        state: Work
+        rebuilt: Rebuilt
+        threaded: s64
+        merged: s64 = -1
+        if Prepare(function, *state, *budget) {
+            threaded = Rewrite(program, function, *state, *budget)
+            if budget.problem == .None { merged = Emit(function, *state, threaded, *rebuilt, *budget) }
+        }
+        WorkFree(*state)
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+        if budget.problem != .None || merged < 0 {
+            RebuiltFree(*rebuilt)
+            break
+        }
+        if threaded == 0 && merged == 0 {
+            RebuiltFree(*rebuilt)
+            continue
+        }
+        functions[fi] = rebuilt.function
+        VecPush(versions, rebuilt)
+        result.edges += threaded
+        result.merged += merged
+    }
+    if budget.problem == .None && result.edges + result.merged > 0 {
+        budget.reserved = 0
+        threaded := program
+        threaded.functions = functions[:]
+        result.codec = Serialize(storage, threaded, limits, *budget)
+    }
+    result.problem = budget.problem
+    result.work = budget.used
+    return result
+}

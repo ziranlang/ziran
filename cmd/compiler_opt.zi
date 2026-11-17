@@ -8,6 +8,7 @@ using Licm :: #import "compiler_opt_licm"
 using Induction :: #import "compiler_opt_induction"
 using Layout :: #import "compiler_opt_layout"
 using Inline :: #import "compiler_opt_inline"
+using Thread :: #import "compiler_opt_thread"
 #import "compiler_learning"
 
 LirOptProblem :: enum s32 {
@@ -1919,6 +1920,16 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     return VerifyPass(state, program, limits)
 }
 
+// Threads jumps and merges straight-line blocks, then simplifies the CFG.
+CfgRound :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits) -> bool {
+    threaded := LirThread(*owner.storage, limits, state.remaining)
+    state.counters.cfg.instructions += threaded.edges
+    if !SharedPassResult(state, threaded.problem, threaded.codec, threaded.work, threaded.scratch_bytes) {
+        return false
+    }
+    return CfgPass(state, LirReadProgram(*owner.storage), limits)
+}
+
 Result :: (state: OptState) -> LirOptResult {
     return .{problem = state.problem, diagnostic = state.diagnostic,
         counters = state.counters, work = state.used,
@@ -2063,7 +2074,7 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         return Result(state)
     }
     ScratchReset(*state)
-    if options.simplify_cfg && !CfgPass(*state, optimized, limits) {
+    if options.simplify_cfg && !CfgRound(*state, owner, limits) {
         LirOptFree(owner)
         return Result(state)
     }
@@ -2084,7 +2095,7 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
             return Result(state)
         }
         ScratchReset(*state)
-        if options.simplify_cfg && !CfgPass(*state, LirReadProgram(*owner.storage), limits) {
+        if options.simplify_cfg && !CfgRound(*state, owner, limits) {
             LirOptFree(owner)
             return Result(state)
         }

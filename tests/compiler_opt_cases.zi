@@ -8,6 +8,7 @@ using Vectors :: #import "std/vec"
 using Rotation :: #import "compiler_opt_rotate_cases"
 using Inlining :: #import "compiler_opt_inline_cases"
 using Fields :: #import "compiler_opt_fields_cases"
+using Threading :: #import "compiler_opt_thread_cases"
 using FloatFolds :: #import "compiler_opt_float_cases"
 using LoopLayout :: #import "compiler_opt_layout_cases"
 using LicmCases :: #import "compiler_opt_licm_cases"
@@ -250,6 +251,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if joins != 0 { print("field join case % failed\n", joins); return 1 }
     themes := ThemeCases()
     if themes != 0 { print("theme read case % failed\n", themes); return 1 }
+    threads := ThreadCases()
+    if threads != 0 { print("thread case % failed\n", threads); return 1 }
     rotation := OptRotateCases()
     if rotation != 0 { return rotation }
     floats := OptFloatCases()

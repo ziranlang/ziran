@@ -1,0 +1,178 @@
+// Native-width vectors use the fixed helpers, with distinct whole-vector
+// ordering where a fixed 256-bit helper deliberately operates block by block.
+#import "model"
+#import "arithmetic"
+#import "emit"
+#import "std/sort"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+Alias :: struct { name: string; one: string; two: string }
+NativeName :: struct { name: string; fixed: string; wide: bool }
+
+OwnNative :: (name: string) -> bool {
+    prefixes := string.["widen_low", "widen_high", "mul_wide_low", "mul_wide_high",
+        "narrow", "make", "load_low", "store_low"]
+    for prefix: prefixes { if TextHasPrefix(name, prefix) { return true } }
+    return false
+}
+
+NativeNames :: (names: []string) -> Vec(NativeName) {
+    output: Vec(NativeName)
+    for name: names {
+        if TextHasPrefix(name, "lane_") || TextHasPrefix(name, "with_lane_") { continue }
+        words := TextSplit(name, "_")
+        text: Vec(u8)
+        found := false
+        wide := false
+        mixed := false
+        for i: cast(s64)0..words.count - 1 {
+            if i > 0 { BuilderAppend(text, "_") }
+            type := ByName(words[i])
+            if type.name != "" {
+                if found && wide != type.wide { mixed = true }
+                wide = type.wide
+                found = true
+                BuilderAppend(text, Render("@0xN", LaneName(type)))
+            } else { BuilderAppend(text, words[i]) }
+        }
+        if found && !mixed {
+            VecPush(output, NativeName.{TextDetach(BuilderFinish(text)), TextDetach(TextCopy(name)), wide})
+        }
+    }
+    return output
+}
+
+Aliases :: (names: []string) -> Vec(Alias) {
+    output: Vec(Alias)
+    candidates := NativeNames(names)
+    for one: candidates {
+        if one.wide { continue }
+        for two: candidates {
+            if two.wide && two.name == one.name {
+                VecPush(output, Alias.{TextDetach(TextCopy(one.name)), TextDetach(TextCopy(one.fixed)),
+                    ifx OwnNative(two.fixed) then Render("native_@0", two.fixed) else TextDetach(TextCopy(two.fixed))})
+                break
+            }
+        }
+    }
+    return output
+}
+
+NativeMacros :: (output: *Vec(u8)) {
+    names: Vec(string)
+    types := Types()
+    operations := string.["align_bytes", "shr_bytes", "shl_bytes", "shuffle"]
+    for op: operations {
+        for t: types {
+            if op != "shuffle" && t.is_float { continue }
+            VecPush(names, Render("@0_@1", op, t.name))
+        }
+    }
+    aliases := Aliases(names[:])
+    sorted: Vec(string)
+    for alias: aliases { VecPush(sorted, alias.name) }
+    SortText(sorted[:])
+    AppendLine(output, "/* The macros for native vectors, such as zi_shuffle_s16xN. */")
+    AppendLine(output, "#if ZI_NATIVE_WIDE")
+    for width: 0..1 {
+        if width == 1 { AppendLine(output, "#else") }
+        for name: sorted {
+            for alias: aliases {
+                if alias.name == name {
+                    AppendLine(output, Render("#define zi_@0 zi_@1", name, ifx width == 0 then alias.two else alias.one))
+                    break
+                }
+            }
+        }
+    }
+    AppendLine(output, "#endif")
+}
+
+NativeHelper :: (op: string, t: VectorType, body: string, result: string = "") -> Helper {
+    helper: Helper
+    helper.name = Render("native_@0_@1", op, t.name)
+    helper.result = ifx result == "" then t.c else result
+    if op == "make" {
+        for i: 0..Block(t) - 1 { VecPush(helper.parameters, Parameter.{t.scalar, Render("l@0", Decimal(i))}) }
+    } else if op == "load_low" { VecPush(helper.parameters, Parameter.{"const void *", "p"}) }
+    else {
+        if op == "store_low" { VecPush(helper.parameters, Parameter.{"void *", "p"}) }
+        VecPush(helper.parameters, Parameter.{t.c, "a"})
+        if TextHasPrefix(op, "mul_wide") { VecPush(helper.parameters, Parameter.{t.c, "b"}) }
+    }
+    AddBranch(*helper.branches, "", body)
+    return helper
+}
+
+NativeHelpers :: () -> Vec(Helper) {
+    output: Vec(Helper)
+    types := Types()
+    for t: types {
+        if !t.wide { continue }
+        h := Half(t)
+        arguments: Vec(u8)
+        for i: 0..Block(t) - 1 {
+            if i > 0 { BuilderAppend(arguments, ", ") }
+            BuilderAppend(arguments, Render("l@0", Decimal(i)))
+        }
+        VecPush(output, NativeHelper("make", t, Render("@0 b_ = ZI_N(make_@1)(@2);\n    return ZI_N(combine_@1)(b_, b_);",
+            h.c, h.name, BuilderFinish(arguments))))
+        VecPush(output, NativeHelper("load_low", t,
+            Render("return ZI_N(combine_@0)(ZI_N(load_@0)(p), ZI_N(zero_@0)());", h.name)))
+        VecPush(output, NativeHelper("store_low", t, Render("ZI_N(store_@0)(p, ZI_N(low_@1)(a));", h.name, t.name), "void"))
+        if t.is_float || t.bits == 64 { continue }
+        r := Wider(t)
+        halves := string.["low", "high"]
+        for half: halves {
+            VecPush(output, NativeHelper(Render("widen_@0", half), t,
+                Render("return ZI_N(widen_@0)(ZI_N(@1_@2)(a));", h.name, half, t.name), r.c))
+            VecPush(output, NativeHelper(Render("mul_wide_@0", half), t,
+                Render("return ZI_N(combine_@0)(ZI_N(@1_@2)(ZI_N(mul_wide_low_@3)(a, b)),\n        ZI_N(@1_@2)(ZI_N(mul_wide_high_@3)(a, b)));",
+                    Half(r).name, half, r.name, t.name), r.c))
+        }
+    }
+    for t: types {
+        if !t.wide || t.is_float || t.bits == 8 { continue }
+        for sign: 0..1 {
+            r := Type(t.lane - t.lane % 2 - 2 + cast(s32)sign, true)
+            helper: Helper
+            helper.name = Render("native_narrow_@0_@1", t.name, r.name)
+            helper.result = r.c
+            VecPush(helper.parameters, Parameter.{t.c, "a"})
+            VecPush(helper.parameters, Parameter.{t.c, "b"})
+            if t.bits < 64 {
+                AddBranch(*helper.branches, "ZI_VEC && ZI_X86",
+                    Render("return (@0)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_@1_@2)(a, b), 0xD8);", r.c, t.name, r.name))
+            }
+            narrow := Render("narrow_@0_@1", Half(t).name, Half(r).name)
+            AddBranch(*helper.branches, "",
+                Render("return ZI_N(combine_@0)(ZI_N(@1)(ZI_N(low_@2)(a), ZI_N(high_@2)(a)),\n        ZI_N(@1)(ZI_N(low_@2)(b), ZI_N(high_@2)(b)));", Half(r).name, narrow, t.name))
+            VecPush(output, helper)
+        }
+    }
+    return output
+}
+
+NativeSection :: (output: *Vec(u8), helpers: []Helper, marker: *string) {
+    Marker(output, marker, "")
+    AppendLine(output, "/* ---- native vectors, such as s16xN ---- */")
+    AppendLine(output, "#if ZI_TIER >= 4")
+    own := NativeHelpers()
+    for *helper: own { Marker(output, marker, helper.name); Function(output, helper, false) }
+    Marker(output, marker, "")
+    AppendLine(output, "#endif")
+    names: Vec(string)
+    for *helper: helpers { VecPush(names, helper.name) }
+    aliases := Aliases(names[:])
+    for width: 0..1 {
+        Marker(output, marker, "")
+        AppendLine(output, ifx width == 0 then "#if ZI_NS == 1 && ZI_NATIVE_WIDE" else "#elif ZI_NS == 1")
+        for alias: aliases {
+            Marker(output, marker, alias.name)
+            AppendLine(output, Render("#define zi_@0 zi_@1", alias.name, ifx width == 0 then alias.two else alias.one))
+        }
+    }
+    Marker(output, marker, "")
+    AppendLine(output, "#endif")
+}

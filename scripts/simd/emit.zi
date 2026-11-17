@@ -1,0 +1,93 @@
+// C declarations, tier ABI wrappers and helper boundaries are emitted in one
+// place, so the operation modules describe only parameters and implementations.
+#import "model"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+Marker :: (output: *Vec(u8), current: *string, name: string) {
+    if <<current == name { return }
+    AppendLine(output, Render("/*@@0*/", name))
+    <<current = TextDetach(TextCopy(name))
+}
+
+Prototype :: (output: *Vec(u8), helper: *Helper) {
+    parameters := ParameterList(helper.parameters[:])
+    if WideParameters(helper.parameters[:]) {
+        AppendLine(output, Render("#if @0", SplitABI))
+        AppendLine(output, Render("ZI_FN @0 ZI_N(@1_p_)(@2);", helper.result,
+            helper.name, ParameterList(helper.parameters[:], true)))
+        AppendLine(output, "#else")
+        AppendLine(output, Render("ZI_FN @0 ZI_N(@1)(@2);",
+            helper.result, helper.name, parameters))
+        AppendLine(output, "#endif")
+    } else {
+        AppendLine(output, Render("ZI_FN @0 ZI_N(@1)(@2);",
+            helper.result, helper.name, parameters))
+    }
+}
+
+Function :: (output: *Vec(u8), helper: *Helper, split: bool = true) {
+    if split && WideParameters(helper.parameters[:]) {
+        AppendLine(output, Render("#if @0", SplitABI))
+        AppendLine(output, Render("ZI_FN @0 ZI_N(@1_p_)(@2)\n{",
+            helper.result, helper.name, ParameterList(helper.parameters[:], true)))
+        for parameter: helper.parameters {
+            if WideParameter(parameter) {
+                AppendLine(output, Render("    @0 @1 = *@1_p_;", parameter.type, parameter.name))
+            }
+        }
+        AppendLine(output, "#else")
+        AppendLine(output, Render("ZI_FN @0 ZI_N(@1)(@2)\n{",
+            helper.result, helper.name, ParameterList(helper.parameters[:])))
+        AppendLine(output, "#endif")
+    } else {
+        AppendLine(output, Render("ZI_FN @0 ZI_N(@1)(@2)\n{",
+            helper.result, helper.name, ParameterList(helper.parameters[:])))
+    }
+    if helper.branches.count == 1 && helper.branches[0].condition == "" {
+        AppendLine(output, Render("    @0", helper.branches[0].body))
+    } else {
+        for i: cast(s64)0..helper.branches.count - 1 {
+            branch := helper.branches[i]
+            if branch.condition == "" { AppendLine(output, "#else") }
+            else {
+                AppendLine(output, Render("#@0 @1", ifx i == 0 then "if" else "elif", branch.condition))
+            }
+            AppendLine(output, Render("    @0", branch.body))
+        }
+        AppendLine(output, "#endif")
+    }
+    AppendLine(output, "}")
+}
+
+SplitMacros :: (output: *Vec(u8), helpers: []Helper, marker: *string) {
+    Marker(output, marker, "")
+    AppendLine(output, Render("#if @0", SplitABI))
+    prefixes := string.["zi_", "zi_ssse3_", "zi_sse41_"]
+    for i: cast(s64)0..prefixes.count - 1 {
+        Marker(output, marker, "")
+        AppendLine(output, Render("#@0 ZI_NS == @1", ifx i == 0 then "if" else "elif", Decimal(i + 1)))
+        for *helper: helpers {
+            if !WideParameters(helper.parameters[:]) { continue }
+            Marker(output, marker, helper.name)
+            names: Vec(u8)
+            declarations: Vec(u8)
+            arguments: Vec(u8)
+            for k: cast(s64)0..helper.parameters.count - 1 {
+                parameter := helper.parameters[k]
+                if k > 0 { BuilderAppend(names, ", "); BuilderAppend(arguments, ", ") }
+                BuilderAppend(names, parameter.name)
+                if WideParameter(parameter) {
+                    if declarations.count > 0 { VecPush(declarations, #char " ") }
+                    BuilderAppend(declarations, Render("@0 __zi_@1 = (@1);", parameter.type, parameter.name))
+                    BuilderAppend(arguments, Render("&__zi_@0", parameter.name))
+                } else { BuilderAppend(arguments, Render("(@0)", parameter.name)) }
+            }
+            AppendLine(output, Render("#define @0@1(@2) __extension__ ({ @3 @0@1_p_(@4); })",
+                prefixes[i], helper.name, BuilderFinish(names), BuilderFinish(declarations), BuilderFinish(arguments)))
+        }
+    }
+    Marker(output, marker, "")
+    AppendLine(output, "#endif")
+    AppendLine(output, "#endif")
+}

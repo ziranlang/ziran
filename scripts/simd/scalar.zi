@@ -1,0 +1,240 @@
+// Lane-array implementations. These preserve integer wrapping, saturated
+// conversions, NaN payloads and the block ordering of the native helpers.
+#import "model"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+Lane :: (name: string, index: s32) -> string {
+    return Render("ZI_AT(@0, @1)", name, Decimal(index))
+}
+
+CalculationType :: (type: VectorType) -> string {
+    return ifx type.bits == 64 then "uint64_t" else "uint32_t"
+}
+
+Operator :: (op: string) -> string {
+    if op == "add" || op == "add_sat" { return "+" }
+    if op == "sub" || op == "sub_sat" { return "-" }
+    if op == "mul" { return "*" }
+    if op == "div" { return "/" }
+    if op == "min" || op == "lt" { return "<" }
+    if op == "max" || op == "gt" { return ">" }
+    if op == "eq" { return "==" }
+    if op == "and" { return "&" }
+    if op == "or" { return "|" }
+    if op == "xor" { return "^" }
+    if op == "and_not" { return "& ~" }
+    return ""
+}
+
+Clamp :: (value: string, index: s32, low: s64, high: s64, scalar: string) -> string {
+    return Render("{ int v_ = @0; ZI_AT(r_, @1) = (@2)(v_ < @3 ? @3 : v_ > @4 ? @4 : v_); }",
+        value, Decimal(index), scalar, Decimal(low), Decimal(high))
+}
+
+BlockLane :: (type: VectorType, result: VectorType, index: s32, offset: s32) -> s32 {
+    blocks: s32 = ifx type.wide then 2 else 1
+    per := type.lanes / blocks
+    result_per := result.lanes / blocks
+    return index / result_per * per + index % result_per + offset
+}
+
+ScalarExpression :: (op: string, t: VectorType, r: VectorType, i: s32) -> string {
+    a := Lane("a", i)
+    b := Lane("b", i)
+    ct := t.scalar
+    w := CalculationType(t)
+    bits := Decimal(t.bits)
+    if op == "add" || op == "sub" || op == "mul" || op == "div" {
+        if t.is_float { return Render("@0 @1 @2", a, Operator(op), b) }
+        return Render("(@0)((@1)@2 @3 (@1)@4)", ct, w, a, Operator(op), b)
+    }
+    if op == "min" || op == "max" {
+        return Render("@0 @1 @2 ? @0 : @2", a, Operator(op), b)
+    }
+    if op == "avg" {
+        return Render("(@0)(((uint32_t)@1 + (uint32_t)@2 + 1) >> 1)", ct, a, b)
+    }
+    if op == "mul_high" {
+        return Render("(@0)(((@1)@2 * (@1)@3) >> 16)", ct,
+            ifx t.is_signed then "int32_t" else "uint32_t", a, b)
+    }
+    if op == "mul_high_round" {
+        return Render("(@0)(((int32_t)@1 * (int32_t)@2 + 0x4000) >> 15)", ct, a, b)
+    }
+    if op == "and" || op == "or" || op == "xor" || op == "and_not" {
+        return Render("(@0)(@1 @2@3)", ct, a, Operator(op), b)
+    }
+    if op == "not" { return Render("(@0)~@1", ct, a) }
+    if op == "abs" { return Render("(@0)(@1 < 0 ? (@2)0 - (@2)@1 : (@2)@1)", ct, a, w) }
+    if op == "neg" { return Render("(@0)((@1)0 - (@1)@2)", ct, w, a) }
+    if op == "sign" {
+        return Render("(@0)(@1 < 0 ? (@2)0 - (@2)@3 : @1 == 0 ? (@2)0 : (@2)@3)", ct, b, w, a)
+    }
+    if op == "abs_diff" {
+        return Render("(@0)(@1 < @2 ? (@3)@2 - (@3)@1 : (@3)@1 - (@3)@2)", r.scalar, a, b, w)
+    }
+    if op == "eq" || op == "lt" || op == "gt" {
+        return Render("(@0)-(@1 @2 @3)", r.scalar, a, Operator(op), b)
+    }
+    if op == "select" {
+        return Render("(@0)((@1 & (@2)@3) | (~@1 & (@2)@4))", ct, Lane("m", i), UnsignedScalar(t), a, b)
+    }
+    if op == "shl" { return Render("(@0)(((@1)@2 << s_) & h_)", ct, w, a) }
+    if op == "shr" {
+        if t.is_signed { return Render("(@0)(@1 >> s_)", ct, a) }
+        return Render("(@0)(((@1)@2 >> s_) & h_)", ct, w, a)
+    }
+    if op == "shr_round" {
+        if t.is_signed {
+            return Render("(@0)((@1)(@2 >> s_) + (@1)((@2 >> t_) & q_))", ct, w, a)
+        }
+        return Render("(@0)((((@1)@2 >> s_) & h_) + (((@1)@2 >> t_) & q_))", ct, w, a)
+    }
+    if op == "shl_lanes" || op == "shr_lanes" {
+        count := Render("(@0)@1", UnsignedScalar(t), b)
+        if op == "shl_lanes" {
+            return Render("(@0)(@1 >= @2 ? 0 : (@3)@4 << @1)", ct, count, bits, w, a)
+        }
+        if !t.is_signed { return Render("(@0)(@1 >= @2 ? 0 : @3 >> @1)", ct, count, bits, a) }
+        return Render("(@0)(@1 >> (@2 >= @3 ? @4 : @2))", ct, a, count, bits, Decimal(t.bits - 1))
+    }
+    if op == "splat" { return "x" }
+    if op == "zero" { return "0" }
+    if op == "widen" { return Render("(@0)@1", r.scalar, a) }
+    if op == "widen_low" || op == "widen_high" ||
+        op == "mul_wide_low" || op == "mul_wide_high" {
+        high := TextHasSuffix(op, "_high")
+        at := BlockLane(t, r, i, ifx high then Block(t) / 2 else 0)
+        if TextHasPrefix(op, "widen") { return Render("(@0)@1", r.scalar, Lane("a", at)) }
+        return Render("(@0)((@0)@1 * (@0)@2)", r.scalar, Lane("a", at), Lane("b", at))
+    }
+    if op == "madd" {
+        return Render("(int32_t)((uint32_t)((int32_t)@0 * @1) + (uint32_t)((int32_t)@2 * @3))",
+            Lane("a", i * 2), Lane("b", i * 2), Lane("a", i * 2 + 1), Lane("b", i * 2 + 1))
+    }
+    if op == "add_pairs" {
+        return Render("(@0)((@0)@1 + (@0)@2)", r.scalar, Lane("a", i * 2), Lane("a", i * 2 + 1))
+    }
+    if op == "sad" {
+        terms: Vec(u8)
+        for k: i * 8..i * 8 + 7 {
+            if k > i * 8 { BuilderAppend(terms, "\n        + ") }
+            BuilderAppend(terms, Render("(@0 > @1 ? @0 - @1 : @1 - @0)", Lane("a", k), Lane("b", k)))
+        }
+        return Render("(uint64_t)(@0)", BuilderFinish(terms))
+    }
+    if op == "byte_shuffle" {
+        return Render("@0 < 16 ? ZI_AT(a, @1 + @0) : 0", b, Decimal(i & ~15))
+    }
+    if op == "interleave_low" || op == "interleave_high" {
+        offset: s32 = ifx op == "interleave_high" then Block(t) / 2 else 0
+        k := i % Block(t)
+        at := i / Block(t) * Block(t) + k / 2 + offset
+        return Lane(ifx k % 2 == 0 then "a" else "b", at)
+    }
+    return ""
+}
+
+ScalarSetup :: (op: string, t: VectorType) -> string {
+    bits := Decimal(t.bits)
+    w := CalculationType(t)
+    if op == "shr" && t.is_signed {
+        return Render("int s_ = n >= @0 ? @1 : (int)n;\n    ", bits, Decimal(t.bits - 1))
+    }
+    if op == "shl" || op == "shr" {
+        return Render("int s_ = n < @0 ? (int)n : 0;\n    @1 h_ = n < @0 ? ~(@1)0 : 0;\n    ", bits, w)
+    }
+    if op == "shr_round" {
+        if t.is_signed {
+            return Render("int s_ = n >= @0 ? @1 : (int)n, t_ = n == 0 ? 0 : n - 1 >= @0 ? @1 : (int)(n - 1);\n    @2 q_ = n != 0;\n    ",
+                bits, Decimal(t.bits - 1), w)
+        }
+        return Render("uint64_t m_ = n - 1;\n    int s_ = n < @0 ? (int)n : 0, t_ = m_ < @0 ? (int)m_ : 0;\n    @1 h_ = n < @0 ? ~(@1)0 : 0, q_ = m_ < @0 ? 1 : 0;\n    ", bits, w)
+    }
+    return ""
+}
+
+ScalarFloatBits :: (op: string, t: VectorType) -> string {
+    output: Vec(u8)
+    BuilderAppend(output, Render("union { @0 f; @1 u; } v_;\n    v_.f = a;", t.c, Unsigned(t).c))
+    sign := ifx t.bits == 32 then "0x80000000u" else "UINT64_C(0x8000000000000000)"
+    change := ifx op == "abs" then "&= ~" else "^= "
+    for i: 0..t.lanes - 1 {
+        BuilderAppend(output, Render("\n    ZI_AT(v_.u, @0) @1@2;", Decimal(i), change, sign))
+    }
+    BuilderAppend(output, "\n    return v_.f;")
+    return TextDetach(BuilderFinish(output))
+}
+
+ScalarSelectFloat :: (t: VectorType) -> string {
+    output: Vec(u8)
+    BuilderAppend(output, Render("union { @0 f; @1 u; } x_, y_, o_;\n    x_.f = a;\n    y_.f = b;", t.c, Unsigned(t).c))
+    for i: 0..t.lanes - 1 {
+        BuilderAppend(output, Render("\n    ZI_AT(o_.u, @0) = (@1 & ZI_AT(x_.u, @0)) | (~@1 & ZI_AT(y_.u, @0));",
+            Decimal(i), Lane("m", i)))
+    }
+    BuilderAppend(output, "\n    return o_.f;")
+    return TextDetach(BuilderFinish(output))
+}
+
+ScalarReduction :: (op: string, t: VectorType) -> string {
+    output: Vec(u8)
+    if op == "reduce_add" || op == "all_zero" {
+        BuilderAppend(output, ifx op == "all_zero" then "return (" else Render("return (@0)(", t.scalar))
+        for i: 0..t.lanes - 1 {
+            if i > 0 {
+                if op == "all_zero" {
+                    BuilderAppend(output, ifx i % 8 == 0 then " |\n        " else " | ")
+                } else { BuilderAppend(output, ifx i % 4 == 0 then " +\n        " else " + ") }
+            }
+            value := Lane("a", i)
+            BuilderAppend(output, ifx op == "all_zero" then value else Render("(@0)@1", CalculationType(t), value))
+        }
+        BuilderAppend(output, ifx op == "all_zero" then ") == 0;" else ");")
+        return TextDetach(BuilderFinish(output))
+    }
+    BuilderAppend(output, Render("@0 m_ = @1;", t.scalar, Lane("a", 0)))
+    if op == "reduce_max_index" { BuilderAppend(output, "\n    int best_ = 0;") }
+    for i: 1..t.lanes - 1 {
+        if op == "reduce_max_index" {
+            BuilderAppend(output, Render("\n    if(@0 > m_) { m_ = @0; best_ = @1; }", Lane("a", i), Decimal(i)))
+        } else {
+            BuilderAppend(output, Render("\n    if(@0 @1 m_) m_ = @0;", Lane("a", i), ifx op == "reduce_min" then "<" else ">"))
+        }
+    }
+    BuilderAppend(output, ifx op == "reduce_max_index" then "\n    return best_;" else "\n    return m_;")
+    return TextDetach(BuilderFinish(output))
+}
+
+ScalarBody :: (op: string, t: VectorType, r: VectorType) -> string {
+    if t.is_float && (op == "abs" || op == "neg") { return ScalarFloatBits(op, t) }
+    if t.is_float && op == "select" { return ScalarSelectFloat(t) }
+    if TextHasPrefix(op, "reduce_") || op == "all_zero" { return ScalarReduction(op, t) }
+    if op == "low" || op == "high" {
+        return Render("union { @0 w; @1 h[2]; } u_;\n    u_.w = a;\n    return u_.h[@2];",
+            t.c, Half(t).c, ifx op == "high" then "1" else "0")
+    }
+    output: Vec(u8)
+    BuilderAppend(output, ScalarSetup(op, t))
+    BuilderAppend(output, Render("@0 r_;", r.c))
+    for i: 0..r.lanes - 1 {
+        line: string
+        if op == "add_sat" || op == "sub_sat" {
+            high := (cast(s64)1 << (t.bits - ifx t.is_signed then 1 else 0)) - 1
+            low := ifx t.is_signed then -(cast(s64)1 << (t.bits - 1)) else cast(s64)0
+            line = Clamp(Render("(int)@0 @1 (int)@2", Lane("a", i), Operator(op), Lane("b", i)), i, low, high, t.scalar)
+        } else if op == "madd_sat" {
+            line = Clamp(Render("(int)@0 * @1 + (int)@2 * @3", Lane("a", i * 2), Lane("b", i * 2),
+                Lane("a", i * 2 + 1), Lane("b", i * 2 + 1)), i, -32768, 32767, "int16_t")
+        } else {
+            value := ScalarExpression(op, t, r, i)
+            if value == "" { return "" }
+            line = Render("ZI_AT(r_, @0) = @1;", Decimal(i), value)
+        }
+        BuilderAppend(output, "\n    ")
+        BuilderAppend(output, line)
+    }
+    BuilderAppend(output, "\n    return r_;")
+    return TextDetach(BuilderFinish(output))
+}

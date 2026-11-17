@@ -1,0 +1,110 @@
+// Select implementations and preserve the below-AVX2 pointer ABI. Every
+// operation ends in a lane-array implementation; no target loses its branch.
+#import "model"
+#import "operations"
+#import "arithmetic"
+#import "control"
+#import "scalar"
+#import "widen"
+#import "pairs"
+#import "reduce"
+#import "std/text_tools"
+#import "std/sort"
+using Vectors :: #import "std/vec"
+
+Specials :: (op: string, t: VectorType) -> Vec(Branch) {
+    if op == "all_zero" || op == "byte_shuffle" { return MaskSpecials(op, t) }
+    if TextHasPrefix(op, "reduce_") { return ReduceSpecials(op, t) }
+    if op == "madd" || op == "madd_sat" || op == "add_pairs" || op == "sad" { return PairSpecials(op, t) }
+    if TextHasPrefix(op, "load") || TextHasPrefix(op, "store") { return MemorySpecials(op, t) }
+    if TextHasPrefix(op, "widen") || TextHasPrefix(op, "mul_wide") || op == "low" || op == "high" || op == "combine" {
+        return WidenSpecials(op, t)
+    }
+    if op == "shl" || op == "shr" || op == "shr_round" || op == "shl_lanes" || op == "shr_lanes" {
+        return ShiftSpecials(op, t)
+    }
+    return ArithmeticSpecials(op, t)
+}
+
+FloatArithmetic :: (op: string, t: VectorType) -> bool {
+    return t.is_float && (op == "add" || op == "sub" || op == "mul" || op == "div" ||
+        op == "min" || op == "max" || op == "eq" || op == "lt" || op == "gt")
+}
+
+ReferenceBody :: (op: string, t: VectorType) -> string {
+    name: Vec(u8)
+    BuilderAppend(name, "ZI_OP_")
+    for byte: op {
+        VecPush(name, ifx byte >= #char "a" && byte <= #char "z" then byte - 32 else byte)
+    }
+    r := ResultType(op, t)
+    return Render("uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];\n    int64_t k_[32] = {0};\n    zi_unpack_@0(a, x_);\n    zi_unpack_@0(b, y_);\n    zi_ref(@1, @2, @3, @4, @5, x_, y_, z_, k_, o_);\n    return zi_pack_@6(o_);",
+        t.name, BuilderFinish(name), r.kind, Decimal(r.lanes), t.kind, Decimal(t.lanes), r.name)
+}
+
+HalfArguments :: (parameters: []Parameter, high: bool) -> string {
+    result: Vec(u8)
+    for i: cast(s64)0..parameters.count - 1 {
+        if i > 0 { BuilderAppend(result, ", ") }
+        parameter := parameters[i]
+        if TextHasPrefix(parameter.type, "zi_") {
+            BuilderAppend(result, Render("ZI_N(@0_@1)(@2)", ifx high then "high" else "low",
+                parameter.type[3:], parameter.name))
+        } else { BuilderAppend(result, parameter.name) }
+    }
+    return TextDetach(BuilderFinish(result))
+}
+
+SplitCondition :: (op: string, t: VectorType, generic: string, portable: string) -> string {
+    if op == "byte_shuffle" { return "ZI_VEC && !(ZI_X86 && ZI_TIER < 2)" }
+    if generic == "" && (portable == "" || TextContains(portable, "for(")) { return "ZI_VEC" }
+    conditions: Vec(string)
+    half := Specials(op, Half(t))
+    for branch: half {
+        present := false
+        for condition: conditions { if condition == branch.condition { present = true } }
+        if !present { VecPush(conditions, branch.condition) }
+    }
+    SortText(conditions[:])
+    result: Vec(u8)
+    BuilderAppend(result, Render("ZI_VEC && ((@0)",
+        ifx op == "eq" || op == "lt" || op == "gt" || op == "shr_round" then
+            Render("@0 && !defined(__clang__)", SplitABI) else SplitABI))
+    for condition: conditions { BuilderAppend(result, Render(" || (@0)", condition)) }
+    if FloatArithmetic(op, t) { BuilderAppend(result, " || (ZI_NEON && !ZI_A64)") }
+    BuilderAppend(result, ")")
+    return TextDetach(BuilderFinish(result))
+}
+
+Build :: (op: string, t: VectorType) -> Helper {
+    helper := Signature(op, t)
+    special := Specials(op, t)
+    generic := Generic(op, t)
+    if op == "madd" || op == "add_pairs" { generic = PairGeneric(op, t) }
+    if TextHasPrefix(op, "reduce_") { generic = ReduceGeneric(op, t) }
+    portable := Portable(op, t)
+    if TextHasPrefix(op, "reduce_") { portable = ReducePortable(op, t) }
+    for branch: special {
+        if !t.wide || op == "low" || op == "high" || TextHasPrefix(op, "reduce_") ||
+            TextContains(branch.condition, "ZI_TIER >= 4") {
+            AddBranch(*helper.branches, branch.condition, branch.body)
+        }
+    }
+    if t.wide {
+        r := ResultType(op, t)
+        if helper.split && TextHasPrefix(helper.result, "zi_") && r.wide && WideParameters(helper.parameters[:]) {
+            AddBranch(*helper.branches, SplitCondition(op, t, generic, portable),
+                Render("return ZI_N(combine_@0)(ZI_N(@1_@2)(@3), ZI_N(@1_@2)(@4));",
+                    Half(r).name, op, Half(t).name, HalfArguments(helper.parameters[:], false),
+                    HalfArguments(helper.parameters[:], true)))
+        }
+    } else if FloatArithmetic(op, t) {
+        AddBranch(*helper.branches, "ZI_NEON && !ZI_A64", ReferenceBody(op, t))
+    }
+    if generic != "" { AddBranch(*helper.branches, "ZI_VEC", generic) }
+    scalar := ifx op == "combine" then generic else ScalarBody(op, t, ResultType(op, t))
+    if scalar == "" { scalar = portable }
+    else if generic == "" && portable != "" { AddBranch(*helper.branches, "ZI_VEC", portable) }
+    AddBranch(*helper.branches, "", scalar)
+    return helper
+}

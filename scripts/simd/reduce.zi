@@ -1,0 +1,163 @@
+// Horizontal folds. Preserve the first matching lane for maximum-index.
+#import "model"
+#import "arithmetic"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+FirstLane :: (isa: string, t: VectorType, expression: string) -> string {
+    if isa == X86 {
+        return Render("__builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(@0))) / @1", expression, Decimal(t.bits / 8))
+    }
+    if isa == Wasm {
+        return Render("__builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(@0))) / @1", expression, Decimal(t.bits / 8))
+    }
+    return Render("__builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(@0), 4)), 0)) / @1",
+        expression, Decimal(t.bits / 2))
+}
+
+FoldTree :: (t: VectorType, op: string, variable: string, x86: bool = false) -> string {
+    output: Vec(u8)
+    step := t.lanes / 2
+    while step > 0 {
+        other: string
+        if x86 {
+            x := Render("(__m128i)@0", variable)
+            swap: string
+            bytes := step * t.bits / 8
+            if bytes == 8 { swap = Render("_mm_shuffle_epi32(@0, 0x4e)", x) }
+            else if bytes == 4 { swap = Render("_mm_shuffle_epi32(@0, 0xb1)", x) }
+            else if bytes == 2 { swap = Render("_mm_shufflehi_epi16(_mm_shufflelo_epi16(@0, 0xb1), 0xb1)", x) }
+            else { swap = Render("_mm_or_si128(_mm_slli_epi16(@0, 8), _mm_srli_epi16(@0, 8))", x) }
+            other = Render("(@0)@1", t.c, swap)
+        } else {
+            permutation: Vec(u8)
+            for i: 0..t.lanes - 1 {
+                if i > 0 { BuilderAppend(permutation, ", ") }
+                BuilderAppend(permutation, Decimal(i ^ step))
+            }
+            other = Render("__builtin_shufflevector(@0, @0, @1)", variable, BuilderFinish(permutation))
+        }
+        BuilderAppend(output, Render("\n    @0 = ZI_N(@1_@2)(@0, @3);", variable, op, t.name, other))
+        step /= 2
+    }
+    return TextDetach(BuilderFinish(output))
+}
+
+ReducePortable :: (op: string, t: VectorType) -> string {
+    if op == "reduce_add" {
+        return Render("@0 s_ = 0;\n    for(int i_ = 0; i_ < @1; i_++) s_ = (@0)(s_ + (@0)ZI_AT(a, i_));\n    return (@2)s_;",
+            UnsignedScalar(t), Decimal(t.lanes), t.scalar)
+    }
+    return Render("int best_ = 0;\n    for(int i_ = 1; i_ < @0; i_++) if(ZI_AT(a, i_) @1 ZI_AT(a, best_)) best_ = i_;\n    return @2;",
+        Decimal(t.lanes), ifx op == "reduce_min" then "<" else ">",
+        ifx op == "reduce_max_index" then "best_" else "ZI_AT(a, best_)")
+}
+
+ReduceGeneric :: (op: string, t: VectorType) -> string {
+    word := ifx op == "reduce_add" then "add" else ifx op == "reduce_min" then "min" else "max"
+    if t.wide {
+        if op == "reduce_max_index" { return "" }
+        return Render("return ZI_N(@0_@1)(ZI_N(@2_@1)(ZI_N(low_@3)(a), ZI_N(high_@3)(a)));",
+            op, Half(t).name, word, t.name)
+    }
+    tree := Render("@0 m_ = a;@1", t.c, FoldTree(t, word, "m_"))
+    if op != "reduce_max_index" { return Render("@0\n    return (@1)ZI_AT(m_, 0);", tree, t.scalar) }
+    return Render("@0\n    @1 e_ = ZI_N(eq_@2)(a, m_);\n    for(int i_ = 0; i_ < @3; i_++) if(ZI_AT(e_, i_)) return i_;\n    return 0;",
+        tree, t.c, t.name, Decimal(t.lanes))
+}
+
+X86TreeReduce :: (output: *Vec(Branch), op: string, t: VectorType) {
+    if t.bits == 64 { return }
+    forms: s32 = ifx t.bits == 8 && t.is_signed then 2 else 1
+    for i: 0..forms - 1 {
+        flip := i == 1
+        tt := ifx flip then Unsigned(t) else t
+        value := ifx flip then Render("ZI_N(xor_@0)((@1)a, ZI_N(splat_@0)(0x80))", tt.name, tt.c) else "a"
+        word := ifx op == "reduce_min" then "min" else "max"
+        tree := Render("@0 x_ = @1, m_ = x_;@2", tt.c, value, FoldTree(tt, word, "m_", true))
+        result: string
+        if op == "reduce_max_index" {
+            result = FirstLane(X86, tt, Render("ZI_N(eq_@0)(x_, m_)", tt.name))
+        } else {
+            result = Render("(@0)@1", t.scalar, ifx flip then "(ZI_AT(m_, 0) ^ 0x80)" else "ZI_AT(m_, 0)")
+        }
+        AddBranch(output, ifx t.bits == 32 || !flip && forms == 2 then SSE41 else X86,
+            Render("@0\n    return @1;", tree, result))
+    }
+}
+
+ReduceSpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    index := op == "reduce_max_index"
+    word := ifx op == "reduce_min" then "min" else "max"
+    if t.wide {
+        if index {
+            h := Half(t)
+            halves := Render("@0 lo_ = ZI_N(low_@1)(a), hi_ = ZI_N(high_@1)(a), m_ = ZI_N(splat_@2)(ZI_N(reduce_max_@1)(a));\n    ",
+                h.c, t.name, h.name)
+            low := Render("ZI_N(eq_@0)(lo_, m_)", h.name)
+            high := Render("ZI_N(eq_@0)(hi_, m_)", h.name)
+            AddBranch(*output, AVX2, Render("@0 m_ = ZI_N(splat_@1)(ZI_N(reduce_max_@1)(a));\n    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_@1)(a, m_))) / @2;",
+                t.c, t.name, Decimal(t.bits / 8)))
+            if t.bits < 64 {
+                AddBranch(*output, ifx t.bits < 32 then X86 else SSE41,
+                    Render("@0unsigned k_ = (unsigned)_mm_movemask_epi8((__m128i)@1) |\n        (unsigned)_mm_movemask_epi8((__m128i)@2) << 16;\n    return __builtin_ctz(k_) / @3;",
+                        halves, low, high, Decimal(t.bits / 8)))
+            }
+            AddBranch(*output, Wasm, Render("@0unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)@1) |\n        (unsigned)wasm_i8x16_bitmask((v128_t)@2) << 16;\n    return __builtin_ctz(k_) / @3;",
+                halves, low, high, Decimal(t.bits / 8)))
+            AddBranch(*output, Neon, Render("@0uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)@1, 4), vshrn_n_u16((uint16x8_t)@2, 4));\n    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);\n    return l_ ? __builtin_ctzll(l_) / @3 : @4 + __builtin_ctzll(h_) / @3;",
+                halves, low, high, Decimal(t.bits / 2), Decimal(t.lanes / 2)))
+        }
+    } else {
+        if t.bits == 16 && op != "reduce_add" {
+            flip := ifx word == "min" then ifx t.is_signed then "0x8000" else "" else ifx t.is_signed then "0x7fff" else "0xffff"
+            x := ifx flip == "" then "(__m128i)a" else Render("_mm_xor_si128((__m128i)a, _mm_set1_epi16((short)@0))", flip)
+            if index {
+                AddBranch(*output, SSE41, Render("return _mm_extract_epi16(_mm_minpos_epu16(@0), 1);", x))
+            } else {
+                v := Render("_mm_cvtsi128_si32(_mm_minpos_epu16(@0))", x)
+                if flip != "" { v = Render("(@0 ^ @1)", v, flip) }
+                AddBranch(*output, SSE41, Render("return (@0)@1;", t.scalar, v))
+            }
+        }
+        if op != "reduce_add" {
+            X86TreeReduce(*output, op, t)
+            if index && t.bits >= 32 { AddBranch(*output, X86, ReducePortable(op, t)) }
+        } else if t.bits == 8 {
+            AddBranch(*output, X86, Render("__m128i s_ = _mm_sad_epu8((__m128i)a, _mm_setzero_si128());\n    return (@0)(_mm_cvtsi128_si32(s_) + _mm_extract_epi16(s_, 4));", t.scalar))
+        }
+        if op == "reduce_add" {
+            AddBranch(*output, A64, Render("return (@0)vaddvq_@1((@2)a);", t.scalar, NeonSuffix(t), NeonType(t)))
+        } else if t.bits < 64 && !index {
+            AddBranch(*output, A64, Render("return (@0)v@1vq_@2((@3)a);", t.scalar, word, NeonSuffix(t), NeonType(t)))
+        } else if t.bits < 64 {
+            AddBranch(*output, A64, Render("@0 m_ = ZI_N(splat_@1)(ZI_N(reduce_max_@1)(a));\n    return @2;",
+                t.c, t.name, FirstLane(Neon, t, Render("ZI_N(eq_@0)(a, m_)", t.name))))
+        }
+        if t.bits < 64 && !index && op != "reduce_add" {
+            body: Vec(u8)
+            BuilderAppend(body, Render("@0 x_ = (@0)a;\n    @1x@2_t d_ = vp@3_@4(vget_low_@4(x_), vget_high_@4(x_));",
+                NeonType(t), ifx t.is_signed then Render("int@0", Decimal(t.bits)) else Render("uint@0", Decimal(t.bits)),
+                Decimal(t.lanes / 2), word, NeonSuffix(t)))
+            steps: s32 = ifx t.bits == 8 then 3 else ifx t.bits == 16 then 2 else 1
+            for i: 0..steps - 1 { BuilderAppend(body, Render("\n    d_ = vp@0_@1(d_, d_);", word, NeonSuffix(t))) }
+            BuilderAppend(body, Render("\n    return (@0)vget_lane_@1(d_, 0);", t.scalar, NeonSuffix(t)))
+            AddBranch(*output, Neon, BuilderFinish(body))
+        }
+        if op == "reduce_add" && t.bits < 64 {
+            value := Render("(@0)a", NeonType(Unsigned(t)))
+            bits := t.bits
+            while bits < 64 { value = Render("vpaddlq_u@0(@1)", Decimal(bits), value); bits *= 2 }
+            AddBranch(*output, Neon, Render("uint64x2_t s_ = @0;\n    return (@1)(vgetq_lane_u64(s_, 0) + vgetq_lane_u64(s_, 1));", value, t.scalar))
+        }
+        if index {
+            tree := Render("@0 m_ = a;@1", t.c, FoldTree(t, "max", "m_"))
+            isas := string.[Neon, Wasm]
+            for isa: isas {
+                AddBranch(*output, isa, Render("@0\n    return @1;", tree, FirstLane(isa, t, Render("ZI_N(eq_@0)(a, m_)", t.name))))
+            }
+        }
+    }
+    return output
+}

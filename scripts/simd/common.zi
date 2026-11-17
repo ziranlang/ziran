@@ -1,0 +1,160 @@
+// Shared bit views, endianness handling and constant-operand macros. These
+// definitions precede the individually prunable per-tier operation helpers.
+#import "model"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+LaneArrays :: (output: *Vec(u8)) {
+    AppendLine(output, "#if ZI_VEC || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) || \\")
+    AppendLine(output, "    defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86) || defined(_M_ARM64)")
+    AppendLine(output, "#define ZI_LE 1\n#else\n#define ZI_LE 0\n#endif\n#if !ZI_VEC\n#if !ZI_LE")
+    AppendLine(output, "/* Big-endian hosts view lanes as little-endian bytes one at a time. */")
+    types := Types()
+    for t: types {
+        size := t.bits / 8
+        AppendLine(output, Render("static inline void zi_le_bytes_@0(@1 a, unsigned char *o)\n{\n    for(int i = 0; i < @2; i++) {\n        uint64_t v = zi_bits_@3(ZI_AT(a, i));\n        for(int j = 0; j < @4; j++) o[i * @4 + j] = (unsigned char)(v >> 8 * j);\n    }\n}",
+            t.name, t.c, Decimal(t.lanes), LaneName(t), Decimal(size)))
+        AppendLine(output, Render("static inline @0 zi_le_lanes_@1(const unsigned char *o)\n{\n    @0 r;\n    for(int i = 0; i < @2; i++) {\n        uint64_t v = 0;\n        for(int j = @3; j >= 0; j--) v = v << 8 | o[i * @4 + j];\n        ZI_AT(r, i) = zi_from_bits_@5(v);\n    }\n    return r;\n}",
+            t.c, t.name, Decimal(t.lanes), Decimal(size - 1), Decimal(size), LaneName(t)))
+    }
+    AppendLine(output, "#endif")
+    AppendLine(output, "/* Each 128-bit block of the bytes of `low` then `high` (when `both`;\n * zeros otherwise) from byte s on: AlignBytes, ShiftBytesRight with\n * s = n, and ShiftBytesLeft with s = -n. */")
+    for t: types {
+        if t.is_float { continue }
+        AppendLine(output, Render("static inline @0 zi_bytes_from_@1(@0 high, @0 low, int64_t s, int both)\n{", t.c, t.name))
+        AppendLine(output, "#if ZI_LE")
+        AppendLine(output, Render("    union { @0 v; unsigned char b[@1]; } h_, l_, r_;", t.c, Decimal(t.bytes)))
+        AppendLine(output, "    h_.v = high;\n    l_.v = low;\n#else")
+        AppendLine(output, Render("    struct { unsigned char b[@0]; } h_, l_, r_;", Decimal(t.bytes)))
+        AppendLine(output, Render("    zi_le_bytes_@0(high, h_.b);\n    zi_le_bytes_@0(low, l_.b);", t.name))
+        AppendLine(output, "#endif")
+        AppendLine(output, Render("    memset(r_.b, 0, @0);\n    for(int k = 0; k < @0; k += 16) {", Decimal(t.bytes)))
+        BuilderAppend(<<output, #string C
+        /* Output bytes [start, stop) of the block come from low, then from high. */
+        int64_t start = s < 0 ? -s : 0, stop = s > 0 ? 16 - s : 16;
+        if(start < stop) memcpy(r_.b + k + start, l_.b + k + start + s, (size_t)(stop - start));
+        start = s < 16 ? 16 - s : 0;
+        stop = s > 16 ? 32 - s : 16;
+        if(both && start < stop) memcpy(r_.b + k + start, h_.b + k + start + s - 16, (size_t)(stop - start));
+    }
+#if ZI_LE
+    return r_.v;
+#else
+C)
+        AppendLine(output, Render("    return zi_le_lanes_@0(r_.b);", t.name))
+        AppendLine(output, "#endif\n}")
+    }
+    AppendLine(output, "/* Shuffle picks lanes of each 128-bit block. */")
+    for t: types {
+        parameters: Vec(u8)
+        for i: 0..Block(t) - 1 {
+            if i > 0 { BuilderAppend(parameters, ", ") }
+            BuilderAppend(parameters, Render("int k@0", Decimal(i)))
+        }
+        body: Vec(u8)
+        BuilderAppend(body, Render("@0 r_;", t.c))
+        for i: 0..t.lanes - 1 {
+            BuilderAppend(body, Render("\n    ZI_AT(r_, @0) = ZI_AT(a, @1 + k@2);",
+                Decimal(i), Decimal(i / Block(t) * Block(t)), Decimal(i % Block(t))))
+        }
+        BuilderAppend(body, "\n    return r_;")
+        AppendLine(output, Render("static inline @0 zi_shuffle_lanes_@1(@0 a, @2)\n{\n    @3\n}",
+            t.c, t.name, BuilderFinish(parameters), BuilderFinish(body)))
+    }
+    AppendLine(output, "#endif")
+}
+
+ConstantMacros :: (output: *Vec(u8)) {
+    AppendLine(output, "/* Byte shifts, AlignBytes and Shuffle take constants; they are macros so\n * the constants reach the instructions in every build. */")
+    types := Types()
+    for t: types {
+        if t.is_float { continue }
+        indices: Vec(u8)
+        for block: 0..ifx t.wide then 1 else 0 {
+            for i: 0..15 {
+                if indices.count > 0 { BuilderAppend(indices, ", ") }
+                BuilderAppend(indices, Render("ZI_BYTE_FROM(@0, @1, @2, n)", Decimal(block), Decimal(i), Decimal(t.bytes)))
+            }
+        }
+        AppendLine(output, "#if ZI_VEC")
+        AppendLine(output, Render("#define zi_align_bytes_@0(a, b, n) ((@1)__builtin_shufflevector((zi_u8x@2)(b), (zi_u8x@2)(a), @3))",
+            t.name, t.c, Decimal(t.bytes), BuilderFinish(indices)))
+        AppendLine(output, Render("#define zi_shr_bytes_@0(a, n) zi_align_bytes_@0((@1){0}, a, n)", t.name, t.c))
+        AppendLine(output, Render("#define zi_shl_bytes_@0(a, n) zi_align_bytes_@0(a, (@1){0}, 16 - (n))", t.name, t.c))
+        AppendLine(output, "#else")
+        AppendLine(output, Render("#define zi_align_bytes_@0(a, b, n) zi_bytes_from_@0(a, b, n, 1)", t.name))
+        AppendLine(output, Render("#define zi_shr_bytes_@0(a, n) zi_bytes_from_@0(a, a, n, 0)", t.name))
+        AppendLine(output, Render("#define zi_shl_bytes_@0(a, n) zi_bytes_from_@0(a, a, -(int64_t)(n), 0)", t.name))
+        AppendLine(output, "#endif")
+    }
+    for t: types {
+        parameters: Vec(u8)
+        arguments: Vec(u8)
+        indices: Vec(u8)
+        for i: 0..Block(t) - 1 {
+            if i > 0 { BuilderAppend(parameters, ", "); BuilderAppend(arguments, ", "); BuilderAppend(indices, ", ") }
+            BuilderAppend(parameters, Render("i@0", Decimal(i)))
+            BuilderAppend(arguments, Render("(i@0)", Decimal(i)))
+            BuilderAppend(indices, Render("(i@0)", Decimal(i)))
+        }
+        if t.wide {
+            for i: 0..Block(t) - 1 {
+                BuilderAppend(indices, Render(", @0 + (i@1)", Decimal(Block(t)), Decimal(i)))
+            }
+        }
+        parameters_text := BuilderFinish(parameters)
+        AppendLine(output, "#if ZI_VEC")
+        AppendLine(output, Render("#define zi_shuffle_@0(a, @1) ((@2)__builtin_shufflevector(a, (@2){0}, @3))",
+            t.name, parameters_text, t.c, BuilderFinish(indices)))
+        AppendLine(output, "#else")
+        AppendLine(output, Render("#define zi_shuffle_@0(a, @1) zi_shuffle_lanes_@0(a, @2)",
+            t.name, parameters_text, BuilderFinish(arguments)))
+        AppendLine(output, "#endif")
+    }
+}
+
+Common :: (output: *Vec(u8)) {
+    AppendLine(output, "#ifndef ZIRAN_SIMD_OPS_COMMON_H\n#define ZIRAN_SIMD_OPS_COMMON_H\n#if ZI_VEC")
+    types := Types()
+    for t: types {
+        if t.is_float || t.bits == 8 { continue }
+        AppendLine(output, Render("typedef @0 zi_w_@1 __attribute__((vector_size(@2)));",
+            UnsignedScalar(t), t.name, Decimal(t.bytes * 2)))
+    }
+    AppendLine(output, "#endif\n")
+    AppendLine(output, "/* Lane values and the zero-extended bit patterns zi_ref computes on. */")
+    for lane: 0..9 {
+        t := Type(cast(s32)lane, false)
+        u := UnsignedScalar(t)
+        if t.is_float {
+            AppendLine(output, Render("ZI_INLINE uint64_t zi_bits_@0(@1 x) { @2 w; memcpy(&w, &x, sizeof(w)); return w; }",
+                LaneName(t), t.scalar, u))
+            AppendLine(output, Render("ZI_INLINE @0 zi_from_bits_@1(uint64_t b) { @2 w = (@2)b; @0 x; memcpy(&x, &w, sizeof(x)); return x; }",
+                t.scalar, LaneName(t), u))
+        } else {
+            AppendLine(output, Render("ZI_INLINE uint64_t zi_bits_@0(@1 x) { return (@2)x; }", LaneName(t), t.scalar, u))
+            AppendLine(output, Render("ZI_INLINE @0 zi_from_bits_@1(uint64_t b) { return (@0)(@2)b; }", t.scalar, LaneName(t), u))
+        }
+    }
+    for t: types {
+        AppendLine(output, Render("ZI_INLINE void zi_unpack_p_@0(const @1 *x, uint64_t *o)\n{\n    for(int i = 0; i < @2; i++) o[i] = zi_bits_@3(ZI_AT(*x, i));\n}",
+            t.name, t.c, Decimal(t.lanes), LaneName(t)))
+        AppendLine(output, Render("ZI_INLINE void zi_pack_p_@0(@1 *x, const uint64_t *o)\n{\n    for(int i = 0; i < @2; i++) ZI_AT(*x, i) = zi_from_bits_@3(o[i]);\n}",
+            t.name, t.c, Decimal(t.lanes), LaneName(t)))
+    }
+    AppendLine(output, "#if ZI_VEC")
+    for t: types {
+        AppendLine(output, Render("#define zi_unpack_@0(x, o) __extension__ ({ @1 __zi_x = (x); zi_unpack_p_@0(&__zi_x, (o)); })", t.name, t.c))
+        AppendLine(output, Render("#define zi_pack_@0(o) __extension__ ({ @1 __zi_x; zi_pack_p_@0(&__zi_x, (o)); __zi_x; })", t.name, t.c))
+    }
+    AppendLine(output, "#else")
+    for t: types {
+        AppendLine(output, Render("ZI_INLINE void zi_unpack_@0(@1 x, uint64_t *o) { zi_unpack_p_@0(&x, o); }", t.name, t.c))
+        AppendLine(output, Render("ZI_INLINE @0 zi_pack_@1(const uint64_t *o) { @0 x; zi_pack_p_@1(&x, o); return x; }", t.c, t.name))
+    }
+    AppendLine(output, "#endif\n")
+    LaneArrays(output)
+    AppendLine(output, "/* Byte i of block `block` in AlignBytes: from low:high shifted by n. */")
+    AppendLine(output, "#define ZI_BYTE_FROM(block, i, size, n) ((i) + (n) < 16 ? (block) * 16 + (i) + (n) : (size) + (block) * 16 + (i) + (n) - 16)")
+    ConstantMacros(output)
+}

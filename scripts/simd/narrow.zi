@@ -1,0 +1,132 @@
+// Saturating packs. Inputs are clamped before truncation on every target.
+#import "model"
+#import "operations"
+#import "arithmetic"
+#import "scalar"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+HighLimit :: (r: VectorType) -> s64 { return (cast(s64)1 << (r.bits - ifx r.is_signed then 1 else 0)) - 1 }
+LowLimit :: (r: VectorType) -> s64 { return ifx r.is_signed then -(cast(s64)1 << (r.bits - 1)) else 0 }
+
+NarrowGeneric :: (t: VectorType, r: VectorType) -> string {
+    output: Vec(u8)
+    BuilderAppend(output, Render("@0 x_ = a, y_ = b, hi_ = (@0){0} + (@1)@2LL;", t.c, t.scalar, Decimal(HighLimit(r))))
+    if t.is_signed {
+        BuilderAppend(output, Render("\n    @0 lo_ = (@0){0} + (@1)(@2LL);", t.c, t.scalar, Decimal(LowLimit(r))))
+    }
+    variables := string.["x_", "y_"]
+    for variable: variables {
+        BuilderAppend(output, Render("\n    @0 = @1;", variable,
+            SelectBits(t, Render("(@0)(@1 > hi_)", Unsigned(t).c, variable), "hi_", variable)))
+        if t.is_signed {
+            BuilderAppend(output, Render("\n    @0 = @1;", variable,
+                SelectBits(t, Render("(@0)(@1 < lo_)", Unsigned(t).c, variable), "lo_", variable)))
+        }
+    }
+    indices: Vec(u8)
+    for block: 0..ifx t.wide then 1 else 0 {
+        for input: 0..1 {
+            for i: 0..Block(t) - 1 {
+                if indices.count > 0 { BuilderAppend(indices, ", ") }
+                BuilderAppend(indices, Decimal(input * t.lanes + block * Block(t) + i))
+            }
+        }
+    }
+    BuilderAppend(output, Render("\n    return (@0)__builtin_convertvector((zi_w_@1)__builtin_shufflevector(x_, y_, @2), @3);",
+        r.c, t.name, BuilderFinish(indices), Unsigned(r).c))
+    return TextDetach(BuilderFinish(output))
+}
+
+NarrowLiteral :: (t: VectorType, value: s64) -> string {
+    if t.bits == 64 { return Render("@0(@1)", ifx t.is_signed then "INT64_C" else "UINT64_C", Decimal(value)) }
+    return Render("@0@1", Decimal(value), ifx t.is_signed || t.bits < 32 then "" else "u")
+}
+
+NarrowScalar :: (t: VectorType, r: VectorType) -> string {
+    output: Vec(u8)
+    BuilderAppend(output, Render("@0 r_;", r.c))
+    high := NarrowLiteral(t, HighLimit(r))
+    low := NarrowLiteral(t, LowLimit(r))
+    for j: 0..r.lanes - 1 {
+        k := j % Block(r)
+        value := Lane(ifx k < Block(t) then "a" else "b", j / Block(r) * Block(t) + k % Block(t))
+        expression := (ifx t.is_signed then Render("(@0)(@1 > @2 ? @2 : @1 < @3 ? @3 : @1)", r.scalar, value, high, low) else
+            Render("(@0)(@1 > @2 ? @2 : @1)", r.scalar, value, high))
+        BuilderAppend(output, Render("\n    ZI_AT(r_, @0) = @1;", Decimal(j), expression))
+    }
+    BuilderAppend(output, "\n    return r_;")
+    return TextDetach(BuilderFinish(output))
+}
+
+NarrowSpecials :: (t: VectorType, r: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    high := Decimal(HighLimit(r))
+    if t.bits == 16 || t.bits == 32 {
+        prefix := ifx t.wide then "_mm256_" else "_mm_"
+        register := ifx t.wide then "__m256i" else "__m128i"
+        name := Render("@0pack@1_epi@2", prefix, ifx r.is_signed then "s" else "us", Decimal(t.bits))
+        if t.is_signed {
+            AddBranch(*output, ifx t.wide then AVX2 else ifx t.bits == 32 && !r.is_signed then SSE41 else X86,
+                Render("return (@0)@1((@2)a, (@2)b);", r.c, name, register))
+        } else {
+            AddBranch(*output, ifx t.wide then AVX2 else SSE41,
+                Render("@0 m_ = @1set1_epi@2(@3);\n    return (@4)@5(@1min_epu@2((@0)a, m_), @1min_epu@2((@0)b, m_));",
+                    register, prefix, Decimal(t.bits), high, r.c, name))
+        }
+        if !t.wide && t.bits == 16 && !t.is_signed {
+            AddBranch(*output, X86, Render("__m128i m_ = _mm_set1_epi16(@0), x_ = (__m128i)a, y_ = (__m128i)b;\n    return (@1)@2(_mm_sub_epi16(x_, _mm_subs_epu16(x_, m_)), _mm_sub_epi16(y_, _mm_subs_epu16(y_, m_)));", high, r.c, name))
+        }
+        if !t.wide && t.bits == 32 && !(t.is_signed && r.is_signed) {
+            fix := (ifx t.is_signed then "_mm_andnot_si128(_mm_srai_epi32(@0, 31), @0)" else
+                "_mm_and_si128(_mm_or_si128(@0, _mm_srai_epi32(@0, 31)), _mm_set1_epi32(0x7fffffff))")
+            x := Render(fix, "x_")
+            y := Render(fix, "y_")
+            if r.is_signed {
+                AddBranch(*output, X86, Render("__m128i x_ = (__m128i)a, y_ = (__m128i)b;\n    return (@0)_mm_packs_epi32(@1, @2);", r.c, x, y))
+            } else {
+                AddBranch(*output, X86, Render("__m128i x_ = (__m128i)a, y_ = (__m128i)b, o_ = _mm_set1_epi32(32768);\n    __m128i p_ = _mm_packs_epi32(_mm_sub_epi32(@0, o_), _mm_sub_epi32(@1, o_));\n    return (@2)_mm_xor_si128(p_, _mm_set1_epi16((short)0x8000));", x, y, r.c))
+            }
+        }
+    }
+    if !t.wide {
+        if t.is_signed {
+            AddBranch(*output, Neon, Render("return (@0)vcombine_@1(@2_@3((@4)a), @2_@3((@4)b));",
+                r.c, NeonSuffix(r), ifx r.is_signed then "vqmovn" else "vqmovun", NeonSuffix(t), NeonType(t)))
+        } else {
+            ru := Render("u@0", Decimal(r.bits))
+            body := Render("vcombine_@0(vqmovn_@1((@2)a), vqmovn_@1((@2)b))", ru, NeonSuffix(t), NeonType(t))
+            if r.is_signed { body = Render("vminq_@0(@1, vdupq_n_@0(@2))", ru, body, high) }
+            AddBranch(*output, Neon, Render("return (@0)@1;", r.c, body))
+        }
+        if t.bits < 64 {
+            name := Render("wasm_@0@1x@2_narrow_i@3x@4", ifx r.is_signed then "i" else "u",
+                Decimal(r.bits), Decimal(r.lanes), Decimal(t.bits), Decimal(t.lanes))
+            if t.is_signed {
+                AddBranch(*output, Wasm, Render("return (@0)@1((v128_t)a, (v128_t)b);", r.c, name))
+            } else {
+                AddBranch(*output, Wasm, Render("v128_t m_ = wasm_i@0x@1_splat(@2);\n    return (@3)@4(wasm_@5_min((v128_t)a, m_), wasm_@5_min((v128_t)b, m_));",
+                    Decimal(t.bits), Decimal(t.lanes), high, r.c, name, WasmSuffix(t)))
+            }
+        }
+    }
+    return output
+}
+
+Narrow :: (t: VectorType, r: VectorType) -> Helper {
+    helper: Helper
+    helper.name = Render("narrow_@0_@1", t.name, r.name)
+    helper.result = r.c
+    VecPush(helper.parameters, Parameter.{t.c, "a"})
+    VecPush(helper.parameters, Parameter.{t.c, "b"})
+    helper.branches = NarrowSpecials(t, r)
+    if t.wide {
+        h := Render("narrow_@0_@1", Half(t).name, Half(r).name)
+        AddBranch(*helper.branches, ifx t.bits < 64 then "ZI_VEC" else Neon,
+            Render("return ZI_N(combine_@0)(ZI_N(@1)(ZI_N(low_@2)(a), ZI_N(low_@2)(b)),\n        ZI_N(@1)(ZI_N(high_@2)(a), ZI_N(high_@2)(b)));",
+                Half(r).name, h, t.name))
+    }
+    AddBranch(*helper.branches, "ZI_VEC", NarrowGeneric(t, r))
+    AddBranch(*helper.branches, "", NarrowScalar(t, r))
+    return helper
+}

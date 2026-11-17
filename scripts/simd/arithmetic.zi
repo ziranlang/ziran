@@ -1,0 +1,146 @@
+// Architecture-specific arithmetic preserves the original helpers' precise
+// instruction selection. Generic and scalar forms live in separate emitters.
+#import "model"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+Intrinsic :: (result: string, register: string, name: string, a: string = "a", b: string = "b") -> string {
+    if b == "" { return Render("return (@0)@1((@2)@3);", result, name, register, a) }
+    return Render("return (@0)@1((@2)@3, (@2)@4);", result, name, register, a, b)
+}
+
+AddBranch :: (output: *Vec(Branch), condition: string, body: string) {
+    VecPush(<<output, Branch.{TextDetach(TextCopy(condition)), TextDetach(TextCopy(TextTrim(body)))})
+}
+
+MinMaxSpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    intrinsic: string
+    tier: string
+    prefix := ifx t.wide then "_mm256_" else "_mm_"
+    if t.is_float {
+        intrinsic = Render("@0@1_@2", prefix, op, ifx t.bits == 32 then "ps" else "pd")
+        tier = X86
+    } else if t.lane == 3 || t.lane == 0 {
+        intrinsic = Render("@0@1_@2", prefix, op, X86Suffix(t))
+        tier = X86
+    } else if t.bits <= 32 {
+        intrinsic = Render("@0@1_@2", prefix, op, X86Suffix(t))
+        tier = SSE41
+    }
+    if intrinsic != "" { AddBranch(*output, ifx t.wide then AVX2 else tier, Intrinsic(t.c, X86Type(t), intrinsic)) }
+    if t.lane == 2 && !t.wide {
+        AddBranch(*output, X86, Render("__m128i x_ = (__m128i)a, y_ = (__m128i)b;\n    return (@0)@1;",
+            t.c, ifx op == "min" then "_mm_sub_epi16(x_, _mm_subs_epu16(x_, y_))" else "_mm_add_epi16(_mm_subs_epu16(x_, y_), y_)"))
+    }
+    if !t.wide && !t.is_float && t.bits < 64 {
+        AddBranch(*output, Neon, Intrinsic(t.c, NeonType(t), Render("v@0q_@1", op, NeonSuffix(t))))
+        AddBranch(*output, Wasm, Intrinsic(t.c, "v128_t", Render("wasm_@0_@1", WasmSuffix(t), op)))
+    }
+    if !t.wide && t.is_float {
+        AddBranch(*output, Wasm, Intrinsic(t.c, "v128_t", Render("wasm_@0_p@1", WasmSuffix(t), op), "b", "a"))
+    }
+    return output
+}
+
+MulHighSpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    rounded := op == "mul_high_round"
+    name := ifx rounded then "mulhrs_epi16" else Render("mulhi_@0", X86Suffix(t))
+    AddBranch(*output, ifx t.wide then AVX2 else ifx rounded then SSSE3 else X86,
+        Intrinsic(t.c, X86Type(t), Render("@0@1", ifx t.wide then "_mm256_" else "_mm_", name)))
+    if !t.wide {
+    if rounded {
+        AddBranch(*output, X86, Render(#string C
+__m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    __m128i hi_ = _mm_mulhi_epi16(x_, y_), lo_ = _mm_mullo_epi16(x_, y_);
+    __m128i q_ = _mm_or_si128(_mm_slli_epi16(hi_, 1), _mm_srli_epi16(lo_, 15));
+    return (@0)_mm_add_epi16(q_, _mm_and_si128(_mm_srli_epi16(lo_, 14), _mm_set1_epi16(1)));
+C, t.c))
+        AddBranch(*output, Neon, Render("int16x8_t x_ = (int16x8_t)a, y_ = (int16x8_t)b;\n    return (@0)vcombine_s16(vrshrn_n_s32(vmull_s16(vget_low_s16(x_), vget_low_s16(y_)), 15),\n        vrshrn_n_s32(vmull_s16(vget_high_s16(x_), vget_high_s16(y_)), 15));", t.c))
+        AddBranch(*output, Wasm, Render("v128_t x_ = (v128_t)a, y_ = (v128_t)b, min_ = wasm_i16x8_splat(-32768);\n    return (@0)wasm_v128_xor(wasm_i16x8_q15mulr_sat(x_, y_),\n        wasm_v128_and(wasm_i16x8_eq(x_, min_), wasm_i16x8_eq(y_, min_)));", t.c))
+    } else {
+        s := NeonSuffix(t)
+        wide := ifx t.is_signed then "s32" else "u32"
+        AddBranch(*output, Neon, Render("@0 x_ = (@0)a, y_ = (@0)b;\n    return (@1)vcombine_@2(vshrn_n_@3(vmull_@2(vget_low_@2(x_), vget_low_@2(y_)), 16),\n        vshrn_n_@3(vmull_@2(vget_high_@2(x_), vget_high_@2(y_)), 16));",
+            NeonType(t), t.c, s, wide))
+        AddBranch(*output, Wasm, Render("v128_t lo_ = wasm_@0_extmul_low_@1((v128_t)a, (v128_t)b),\n        hi_ = wasm_@0_extmul_high_@1((v128_t)a, (v128_t)b);\n    return (@2)wasm_i16x8_shuffle(lo_, hi_, 1, 3, 5, 7, 9, 11, 13, 15);",
+            ifx t.is_signed then "i32x4" else "u32x4", ifx t.is_signed then "i16x8" else "u16x8", t.c))
+    }
+    }
+    return output
+}
+
+AbsSpecials :: (t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    if !t.is_float {
+    if t.bits <= 32 {
+        AddBranch(*output, ifx t.wide then AVX2 else SSSE3,
+            Intrinsic(t.c, X86Type(t), Render("@0abs_epi@1", ifx t.wide then "_mm256_" else "_mm_", Decimal(t.bits)), "a", ""))
+        if !t.wide && (t.bits == 8 || t.bits == 16) {
+            AddBranch(*output, X86, Render("__m128i x_ = (__m128i)a;\n    return (@0)@1(x_, _mm_sub_epi@2(_mm_setzero_si128(), x_));",
+                t.c, ifx t.bits == 8 then "_mm_min_epu8" else "_mm_max_epi16", Decimal(t.bits)))
+        }
+    }
+    if !t.wide {
+    AddBranch(*output, ifx t.bits < 64 then Neon else A64,
+        Intrinsic(t.c, NeonType(t), Render("vabsq_@0", NeonSuffix(t)), "a", ""))
+    AddBranch(*output, Wasm, Intrinsic(t.c, "v128_t", Render("wasm_@0_abs", WasmSuffix(t)), "a", ""))
+    }
+    }
+    return output
+}
+
+AbsDiffSpecials :: (t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    r := Unsigned(t)
+    prefix := ifx t.wide then "_mm256_" else "_mm_"
+    register := X86Type(t)
+    bits := Decimal(t.bits)
+    if t.bits <= 16 && !t.is_signed {
+        AddBranch(*output, ifx t.wide then AVX2 else X86,
+            Render("@0 x_ = (@0)a, y_ = (@0)b;\n    return (@1)@2or_si@3(@2subs_@4(x_, y_), @2subs_@4(y_, x_));",
+                register, r.c, prefix, Decimal(t.bytes * 8), X86Suffix(t)))
+    } else if t.bits <= 32 {
+        AddBranch(*output, ifx t.wide then AVX2 else ifx t.lane == 3 then X86 else SSE41,
+            Render("@0 x_ = (@0)a, y_ = (@0)b;\n    return (@1)@2sub_epi@3(@2max_@4(x_, y_), @2min_@4(x_, y_));",
+                register, r.c, prefix, bits, X86Suffix(t)))
+    }
+    if !t.wide && t.bits < 64 {
+        AddBranch(*output, Neon, Intrinsic(r.c, NeonType(t), Render("vabdq_@0", NeonSuffix(t))))
+        if t.bits <= 16 && !t.is_signed {
+            AddBranch(*output, Wasm, Render("v128_t x_ = (v128_t)a, y_ = (v128_t)b;\n    return (@0)wasm_v128_or(wasm_@1_sub_sat(x_, y_), wasm_@1_sub_sat(y_, x_));",
+                r.c, WasmSuffix(t)))
+        } else {
+            AddBranch(*output, Wasm, Render("v128_t x_ = (v128_t)a, y_ = (v128_t)b;\n    return (@0)wasm_@1_sub(wasm_@2_max(x_, y_), wasm_@2_min(x_, y_));",
+                r.c, WasmSuffix(t, true), WasmSuffix(t)))
+        }
+    }
+    return output
+}
+
+ArithmeticSpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    if op == "min" || op == "max" { return MinMaxSpecials(op, t) }
+    if op == "mul_high" || op == "mul_high_round" { return MulHighSpecials(op, t) }
+    if op == "abs" { return AbsSpecials(t) }
+    if op == "abs_diff" { return AbsDiffSpecials(t) }
+    output: Vec(Branch)
+    if op == "add_sat" || op == "sub_sat" || op == "avg" {
+        word := ifx op == "add_sat" then "add" else ifx op == "sub_sat" then "sub" else "avg"
+        AddBranch(*output, ifx t.wide then AVX2 else X86, Intrinsic(t.c, X86Type(t),
+            Render("@0@1@2_@3", ifx t.wide then "_mm256_" else "_mm_", word, ifx op == "avg" then "" else "s", X86Suffix(t))))
+        if !t.wide {
+            AddBranch(*output, Neon, Intrinsic(t.c, NeonType(t),
+                Render("@0@1q_@2", ifx op == "avg" then "vrh" else "vq", ifx op == "avg" then "add" else word, NeonSuffix(t))))
+            AddBranch(*output, Wasm, Intrinsic(t.c, "v128_t",
+                Render("wasm_@0_@1@2", WasmSuffix(t), word, ifx op == "avg" then "r" else "_sat")))
+        }
+    } else if op == "sign" && t.bits != 64 {
+        AddBranch(*output, ifx t.wide then AVX2 else SSSE3, Intrinsic(t.c, X86Type(t),
+            Render("@0sign_epi@1", ifx t.wide then "_mm256_" else "_mm_", Decimal(t.bits))))
+    } else if op == "select" && !t.wide {
+        AddBranch(*output, Neon, Render("return (@0)vbslq_u8((uint8x16_t)m, (uint8x16_t)a, (uint8x16_t)b);", t.c))
+        AddBranch(*output, Wasm, Render("return (@0)wasm_v128_bitselect((v128_t)a, (v128_t)b, (v128_t)m);", t.c))
+    }
+    return output
+}

@@ -1,0 +1,205 @@
+// The public operation inventory, signatures and native-vector expressions.
+#import "model"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+Operations :: () -> Vec(string) {
+    names := string.["add", "sub", "mul", "div", "add_sat", "sub_sat", "min", "max",
+        "avg", "mul_high", "mul_high_round", "and", "or", "xor", "and_not", "not",
+        "abs", "neg", "sign", "abs_diff", "eq", "lt", "gt", "select", "shl", "shr",
+        "shr_round", "shl_lanes", "shr_lanes", "make", "splat", "zero", "lane",
+        "with_lane", "load", "load_low", "store", "store_low", "gather", "widen_low",
+        "widen_high", "widen", "narrow", "mul_wide_low", "mul_wide_high", "madd",
+        "madd_sat", "add_pairs", "sad", "reduce_add", "reduce_min", "reduce_max",
+        "reduce_max_index", "all_zero", "byte_shuffle", "reinterpret", "convert",
+        "low", "high", "combine", "interleave_low", "interleave_high"]
+    result: Vec(string)
+    for name: names { VecPush(result, name) }
+    return result
+}
+
+Supported :: (op: string, t: VectorType) -> bool {
+    if op == "div" { return t.is_float }
+    if op == "add_sat" || op == "sub_sat" { return !t.is_float && t.bits <= 16 }
+    if op == "avg" { return !t.is_float && !t.is_signed && t.bits <= 16 }
+    if op == "mul_high" { return !t.is_float && t.bits == 16 }
+    if op == "mul_high_round" || op == "madd" { return t.lane == 3 }
+    if op == "abs" { return t.is_signed || t.is_float }
+    if op == "sign" { return t.is_signed }
+    if op == "widen" { return !t.is_float && t.bits < 64 && !t.wide }
+    if op == "widen_low" || op == "widen_high" || op == "mul_wide_low" ||
+        op == "mul_wide_high" || op == "add_pairs" { return !t.is_float && t.bits < 64 }
+    if op == "madd_sat" || op == "sad" { return t.lane == 0 }
+    if op == "byte_shuffle" { return t.bits == 8 }
+    if op == "low" || op == "high" { return t.wide }
+    if op == "combine" { return !t.wide }
+    if op == "and" || op == "or" || op == "xor" || op == "and_not" ||
+        op == "not" || op == "abs_diff" || op == "shl" || op == "shr" ||
+        op == "shr_round" || op == "shl_lanes" || op == "shr_lanes" ||
+        TextHasPrefix(op, "reduce_") || op == "all_zero" { return !t.is_float }
+    return true
+}
+
+ResultType :: (op: string, t: VectorType) -> VectorType {
+    if op == "abs_diff" || t.is_float && (op == "eq" || op == "lt" || op == "gt") { return Unsigned(t) }
+    if op == "widen_low" || op == "widen_high" || op == "mul_wide_low" ||
+        op == "mul_wide_high" || op == "add_pairs" { return Wider(t) }
+    if op == "widen" { return Type(t.lane + 2, true) }
+    if op == "madd" { return Type(5, t.wide) }
+    if op == "madd_sat" { return Type(3, t.wide) }
+    if op == "sad" { return Type(6, t.wide) }
+    if op == "low" || op == "high" { return Half(t) }
+    if op == "combine" { return Type(t.lane, true) }
+    return t
+}
+
+Unary :: (op: string) -> bool {
+    return op == "not" || op == "abs" || op == "neg" || op == "widen_low" ||
+        op == "widen_high" || op == "widen" || op == "add_pairs" ||
+        TextHasPrefix(op, "reduce_") || op == "all_zero" || op == "low" || op == "high"
+}
+
+Signature :: (op: string, t: VectorType) -> Helper {
+    result: Helper
+    result.name = Render("@0_@1", op, t.name)
+    result.result = ResultType(op, t).c
+    result.split = !(op == "with_lane" || op == "widen" || op == "low" || op == "high" ||
+        op == "combine" || op == "all_zero" || TextHasPrefix(op, "reduce_") ||
+        TextHasPrefix(op, "load") || TextHasPrefix(op, "store"))
+    if op == "all_zero" { result.result = "int" }
+    else if op == "reduce_max_index" { result.result = "int64_t" }
+    else if TextHasPrefix(op, "reduce_") || op == "lane" { result.result = t.scalar }
+    else if TextHasPrefix(op, "store") { result.result = "void" }
+    if op == "make" {
+        for i: 0..t.lanes - 1 { VecPush(result.parameters, Parameter.{t.scalar, Render("l@0", Decimal(i))}) }
+    } else if op == "splat" { VecPush(result.parameters, Parameter.{t.scalar, "x"}) }
+    else if op == "zero" { }
+    else if TextHasPrefix(op, "load") { VecPush(result.parameters, Parameter.{"const void *", "p"}) }
+    else if TextHasPrefix(op, "store") {
+        VecPush(result.parameters, Parameter.{"void *", "p"})
+        VecPush(result.parameters, Parameter.{t.c, "a"})
+    } else {
+        if op == "select" { VecPush(result.parameters, Parameter.{Unsigned(t).c, "m"}) }
+        VecPush(result.parameters, Parameter.{t.c, "a"})
+        if op == "lane" || op == "with_lane" {
+            VecPush(result.parameters, Parameter.{"int", "i"})
+            if op == "with_lane" { VecPush(result.parameters, Parameter.{t.scalar, "x"}) }
+        } else if op == "shl" || op == "shr" || op == "shr_round" {
+            VecPush(result.parameters, Parameter.{"uint64_t", "n"})
+        } else if !Unary(op) {
+            VecPush(result.parameters, Parameter.{ifx op == "madd_sat" then Signed(t).c else ifx op == "byte_shuffle" then Unsigned(t).c else t.c, "b"})
+        }
+    }
+    return result
+}
+
+SignMask :: (t: VectorType) -> string {
+    return Render("((@0){0} + ((@1)1 << @2))", Unsigned(t).c, UnsignedScalar(t), Decimal(t.bits - 1))
+}
+
+SelectBits :: (t: VectorType, mask: string, yes: string, no: string) -> string {
+    return Render("(@0)(((@1)@2 & @3) | ((@1)@4 & ~@3))", t.c, Unsigned(t).c, yes, mask, no)
+}
+
+EvenOdd :: (t: VectorType, name: string, odd: bool) -> string {
+    indices: Vec(u8)
+    for i: 0..t.lanes / 2 - 1 {
+        if i > 0 { BuilderAppend(indices, ", ") }
+        BuilderAppend(indices, Decimal(i * 2 + ifx odd then 1 else 0))
+    }
+    return Render("__builtin_shufflevector(@0, @0, @1)", name, BuilderFinish(indices))
+}
+
+GenericShift :: (op: string, t: VectorType) -> string {
+    u := Unsigned(t).c
+    bits := Decimal(t.bits)
+    top := Decimal(t.bits - 1)
+    if op == "shl" { return Render("if(n >= @0) return (@1){0};\n    return (@1)((@2)a << (int)n);", bits, t.c, u) }
+    if op == "shr" && !t.is_signed { return Render("if(n >= @0) return (@1){0};\n    return a >> (int)n;", bits, t.c) }
+    if op == "shr" { return Render("return a >> (int)(n >= @0 ? @1 : n);", bits, top) }
+    if op == "shr_round" { return "" }
+    if op == "shl_lanes" || !t.is_signed {
+        return Render("@0 c_ = (@0)b, ok_ = (@0)(c_ < @1);\n    return (@2)(((@0)a @3 (c_ & @4)) & ok_);",
+            u, bits, t.c, ifx op == "shl_lanes" then "<<" else ">>", top)
+    }
+    return Render("@0 c_ = (@0)b, top_ = (@0){0} + @1, m_ = (@0)(c_ < top_);\n    c_ = (c_ & m_) | (top_ & ~m_);\n    return a >> (@2)c_;", u, top, t.c)
+}
+
+Generic :: (op: string, t: VectorType) -> string {
+    u := Unsigned(t).c
+    r := ResultType(op, t)
+    if op == "add" || op == "sub" || op == "mul" || op == "div" {
+        operator := ifx op == "add" then "+" else ifx op == "sub" then "-" else ifx op == "mul" then "*" else "/"
+        if t.is_float { return Render("return a @0 b;", operator) }
+        return Render("return (@0)((@1)a @2 (@1)b);", t.c, u, operator)
+    }
+    if op == "min" || op == "max" {
+        return Render("@0 m_ = (@0)(a @1 b);\n    return @2;", u, ifx op == "min" then "<" else ">",
+            SelectBits(t, "m_", "a", "b"))
+    }
+    if op == "avg" { return "return (a | b) - ((a ^ b) >> 1);" }
+    if op == "and" { return "return a & b;" }
+    if op == "or" { return "return a | b;" }
+    if op == "xor" { return "return a ^ b;" }
+    if op == "and_not" { return "return a & ~b;" }
+    if op == "not" { return "return ~a;" }
+    if op == "abs" {
+        if t.is_float { return Render("return (@0)((@1)a & ~@2);", t.c, u, SignMask(t)) }
+        return Render("@0 m_ = (@0)(a >> @1);\n    return (@2)(((@0)a ^ m_) - m_);", u, Decimal(t.bits - 1), t.c)
+    }
+    if op == "neg" {
+        if t.is_float { return Render("return (@0)((@1)a ^ @2);", t.c, u, SignMask(t)) }
+        return Render("return (@0)((@1){0} - (@1)a);", t.c, u)
+    }
+    if op == "sign" {
+        return Render("@0 n_ = (@0)(b >> @1), z_ = (@0)(b != 0);\n    return (@2)((((@0)a ^ n_) - n_) & z_);", u, Decimal(t.bits - 1), t.c)
+    }
+    if op == "abs_diff" { return Render("@0 l_ = (@0)(a < b);\n    return (((@0)a - (@0)b) ^ l_) - l_;", u) }
+    if op == "eq" || op == "lt" || op == "gt" {
+        return Render("return (@0)(a @1 b);", r.c, ifx op == "eq" then "==" else ifx op == "lt" then "<" else ">")
+    }
+    if op == "select" { return Render("return @0;", SelectBits(t, "m", "a", "b")) }
+    if op == "shl" || op == "shr" || op == "shr_round" || op == "shl_lanes" || op == "shr_lanes" {
+        return GenericShift(op, t)
+    }
+    if op == "make" || op == "splat" {
+        lanes: Vec(u8)
+        for i: 0..t.lanes - 1 {
+            if i > 0 { BuilderAppend(lanes, ", ") }
+            BuilderAppend(lanes, ifx op == "splat" then "x" else Render("l@0", Decimal(i)))
+        }
+        return Render("return (@0){@1};", t.c, BuilderFinish(lanes))
+    }
+    if op == "zero" { return Render("return (@0){0};", t.c) }
+    if op == "load_low" { return Render("uint64_t w_;\n    memcpy(&w_, p, 8);\n    return (@0)(zi_u64x@1){w_};", t.c, Decimal(t.bytes / 8)) }
+    if op == "widen" { return Render("return (@0)__builtin_convertvector(a, @0);", r.c) }
+    if op == "combine" { return Render("union { @0 w; @1 h[2]; } u_;\n    u_.h[0] = a;\n    u_.h[1] = b;\n    return u_.w;", r.c, t.c) }
+    if op == "interleave_low" || op == "interleave_high" || op == "widen_low" || op == "widen_high" {
+        indices: Vec(u8)
+        for block: 0..ifx t.wide then 1 else 0 {
+            for i: 0..Block(t) / 2 - 1 {
+                at := block * Block(t) + i + ifx TextHasSuffix(op, "_high") then Block(t) / 2 else 0
+                if indices.count > 0 { BuilderAppend(indices, ", ") }
+                BuilderAppend(indices, Decimal(at))
+                if TextHasPrefix(op, "interleave") {
+                    BuilderAppend(indices, Render(", @0", Decimal(t.lanes + at)))
+                }
+            }
+        }
+        indices_text := BuilderFinish(indices)
+        if TextHasPrefix(op, "interleave") {
+            return Render("return (@0)__builtin_shufflevector(a, b, @1);", t.c, indices_text)
+        }
+        return Render("return (@0)__builtin_convertvector(__builtin_shufflevector(a, a, @1), @0);", r.c, indices_text)
+    }
+    if op == "mul_high" || op == "mul_high_round" {
+        return Render("typedef @0 w_ __attribute__((vector_size(@1)));\n    typedef uint32_t wu_ __attribute__((vector_size(@1)));\n    w_ p_ = __builtin_convertvector(a, w_) * __builtin_convertvector(b, w_);\n    return (@2)__builtin_convertvector((wu_)(@3), @4);",
+            ifx t.is_signed then "int32_t" else "uint32_t", Decimal(t.lanes * 4), t.c,
+            ifx op == "mul_high" then "p_ >> 16" else "(p_ + 0x4000) >> 15", u)
+    }
+    if op == "mul_wide_low" || op == "mul_wide_high" {
+        return Render("@0 x_ = ZI_N(widen_@1_@2)(a), y_ = ZI_N(widen_@1_@2)(b);\n    return (@0)((@3)x_ * (@3)y_);",
+            r.c, ifx op == "mul_wide_low" then "low" else "high", t.name, Unsigned(r).c)
+    }
+    return ""
+}

@@ -1,0 +1,137 @@
+// Shift counts, unaligned memory and scalar-shaped operations.
+#import "model"
+#import "arithmetic"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ShiftSpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    if op == "shl" || op == "shr" {
+        name: string
+        if t.bits != 8 {
+            if op == "shl" { name = Render("sll_epi@0", Decimal(t.bits)) }
+            else if !t.is_signed { name = Render("srl_epi@0", Decimal(t.bits)) }
+            else if t.bits < 64 { name = Render("sra_epi@0", Decimal(t.bits)) }
+        }
+        if name != "" {
+            AddBranch(*output, ifx t.wide then AVX2 else X86,
+                Render("return (@0)@1@2((@3)a, _mm_set_epi64x(0, (long long)n));",
+                    t.c, ifx t.wide then "_mm256_" else "_mm_", name, X86Type(t)))
+        }
+    } else if op == "shl_lanes" || op == "shr_lanes" {
+        prefix := ifx t.wide then "_mm256_" else "_mm_"
+        register := X86Type(t)
+        if t.bits == 16 {
+            body: Vec(u8)
+            BuilderAppend(body, Render("@0 x_ = (@0)a, c_ = (@0)b, lo_ = @1set1_epi32(0xffff);\n    @0 ce_ = @1and_si@2(c_, lo_), co_ = @1srli_epi32(c_, 16);\n    ",
+                register, prefix, Decimal(t.bytes * 8)))
+            if op == "shl_lanes" {
+                BuilderAppend(body, Render("@0 e_ = @1sllv_epi32(x_, ce_), o_ = @1sllv_epi32(@1andnot_si@2(lo_, x_), co_);",
+                    register, prefix, Decimal(t.bytes * 8)))
+            } else if !t.is_signed {
+                BuilderAppend(body, Render("@0 e_ = @1srlv_epi32(@1and_si@2(x_, lo_), ce_), o_ = @1srlv_epi32(x_, co_);",
+                    register, prefix, Decimal(t.bytes * 8)))
+            } else {
+                BuilderAppend(body, Render("@0 e_ = @1srav_epi32(@1slli_epi32(x_, 16), @1add_epi32(ce_, @1set1_epi32(16))), o_ = @1srav_epi32(x_, co_);",
+                    register, prefix))
+            }
+            BuilderAppend(body, Render("\n    return (@0)@1blend_epi16(e_, o_, 0xaa);", t.c, prefix))
+            AddBranch(*output, AVX2, BuilderFinish(body))
+        } else if t.bits >= 32 {
+            name: string
+            if op == "shl_lanes" { name = Render("sllv_epi@0", Decimal(t.bits)) }
+            else if !t.is_signed { name = Render("srlv_epi@0", Decimal(t.bits)) }
+            else if t.bits == 32 { name = "srav_epi32" }
+            if name != "" { AddBranch(*output, AVX2, Intrinsic(t.c, register, Render("@0@1", prefix, name))) }
+        }
+    }
+    return output
+}
+
+MemorySpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    store := TextHasPrefix(op, "store")
+    low := TextHasSuffix(op, "_low")
+    if t.wide {
+        if !low {
+            AddBranch(*output, AVX2, ifx store then "_mm256_storeu_si256((__m256i *)p, (__m256i)a);" else
+                Render("return (@0)_mm256_loadu_si256((const __m256i *)p);", t.c))
+        }
+    } else if store && low {
+        AddBranch(*output, X86, "_mm_storel_epi64((__m128i *)p, (__m128i)a);")
+        AddBranch(*output, Neon, "vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));")
+        AddBranch(*output, Wasm, "wasm_v128_store64_lane(p, (v128_t)a, 0);")
+    } else if store {
+        AddBranch(*output, X86, "_mm_storeu_si128((__m128i *)p, (__m128i)a);")
+        AddBranch(*output, Neon, "vst1q_u8((uint8_t *)p, (uint8x16_t)a);")
+        AddBranch(*output, Wasm, "wasm_v128_store(p, (v128_t)a);")
+    } else if low {
+        AddBranch(*output, X86, Render("return (@0)_mm_loadl_epi64((const __m128i *)p);", t.c))
+        AddBranch(*output, Neon, Render("return (@0)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));", t.c))
+        AddBranch(*output, Wasm, Render("return (@0)wasm_v128_load64_zero(p);", t.c))
+    } else {
+        AddBranch(*output, X86, Render("return (@0)_mm_loadu_si128((const __m128i *)p);", t.c))
+        AddBranch(*output, Neon, Render("return (@0)vld1q_u8((const uint8_t *)p);", t.c))
+        AddBranch(*output, Wasm, Render("return (@0)wasm_v128_load(p);", t.c))
+    }
+    return output
+}
+
+Portable :: (op: string, t: VectorType) -> string {
+    if op == "byte_shuffle" {
+        return Render("@0 r_;\n    for(int i_ = 0; i_ < @1; i_++) {\n        unsigned index_ = ZI_AT(b, i_);\n        ZI_AT(r_, i_) = index_ < 16 ? ZI_AT(a, (i_ & ~15) + (int)index_) : 0;\n    }\n    return r_;",
+            t.c, Decimal(t.lanes))
+    }
+    if op == "make" {
+        lanes: Vec(u8)
+        for i: 0..t.lanes - 1 {
+            if i > 0 { BuilderAppend(lanes, ", ") }
+            BuilderAppend(lanes, Render("l@0", Decimal(i)))
+        }
+        return Render("@0 r_ = {{@1}};\n    return r_;", t.c, BuilderFinish(lanes))
+    }
+    if op == "splat" { return Render("@0 r_;\n    for(int i_ = 0; i_ < @1; i_++) ZI_AT(r_, i_) = x;\n    return r_;", t.c, Decimal(t.lanes)) }
+    if op == "zero" { return Render("@0 r_;\n    memset(&r_, 0, sizeof(r_));\n    return r_;", t.c) }
+    if op == "lane" { return "return ZI_AT(a, i);" }
+    if op == "with_lane" { return "ZI_AT(a, i) = x;\n    return a;" }
+    if op == "shr_round" {
+        return Render("if(n == 0) return a;\n    {\n        @0 s_ = ZI_N(shr_@1)(a, n), t_ = ZI_N(shr_@1)(a, n - 1);\n        return ZI_N(add_@1)(s_, ZI_N(and_@1)(t_, ZI_N(splat_@1)(1)));\n    }", t.c, t.name)
+    }
+    if TextHasPrefix(op, "store") {
+        return Render("memcpy(p, &a, @0);", Decimal(ifx op == "store_low" then 8 else t.bytes))
+    }
+    if op == "load_low" { return Render("@0 r_;\n    memset(&r_, 0, sizeof(r_));\n    memcpy(&r_, p, 8);\n    return r_;", t.c) }
+    if op == "load" { return Render("@0 r_;\n    memcpy(&r_, p, @1);\n    return r_;", t.c, Decimal(t.bytes)) }
+    if op == "all_zero" {
+        return Render("@0 any_ = 0;\n    for(int i_ = 0; i_ < @1; i_++) any_ |= (@0)ZI_AT(a, i_);\n    return any_ == 0;", UnsignedScalar(t), Decimal(t.lanes))
+    }
+    if op == "low" || op == "high" {
+        return Render("@0 r_;\n    memcpy(&r_, (const char *)&a + @1, 16);\n    return r_;", Half(t).c, ifx op == "high" then "16" else "0")
+    }
+    return ""
+}
+
+MaskSpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    if op == "all_zero" {
+        if t.wide { AddBranch(*output, AVX2, "return _mm256_testz_si256((__m256i)a, (__m256i)a);") }
+        else {
+            AddBranch(*output, SSE41, "return _mm_testz_si128((__m128i)a, (__m128i)a);")
+            AddBranch(*output, X86, "return _mm_movemask_epi8(_mm_cmpeq_epi8((__m128i)a, _mm_setzero_si128())) == 0xffff;")
+            AddBranch(*output, A64, "return vmaxvq_u32((uint32x4_t)a) == 0;")
+            AddBranch(*output, Neon, "uint64x2_t v_ = (uint64x2_t)a;\n    return (vgetq_lane_u64(v_, 0) | vgetq_lane_u64(v_, 1)) == 0;")
+            AddBranch(*output, Wasm, "return !wasm_v128_any_true((v128_t)a);")
+        }
+    } else {
+        prefix := ifx t.wide then "_mm256_" else "_mm_"
+        register := ifx t.wide then "__m256i" else "__m128i"
+        AddBranch(*output, ifx t.wide then AVX2 else SSSE3,
+            Render("return (@0)@1shuffle_epi8((@2)a, @1adds_epu8((@2)b, @1set1_epi8(0x70)));", t.c, prefix, register))
+        if !t.wide {
+            AddBranch(*output, A64, Render("return (@0)vqtbl1q_u8((uint8x16_t)a, (uint8x16_t)b);", t.c))
+            AddBranch(*output, Neon, Render("uint8x8x2_t t_ = {{vget_low_u8((uint8x16_t)a), vget_high_u8((uint8x16_t)a)}};\n    return (@0)vcombine_u8(vtbl2_u8(t_, vget_low_u8((uint8x16_t)b)), vtbl2_u8(t_, vget_high_u8((uint8x16_t)b)));", t.c))
+            AddBranch(*output, Wasm, Render("return (@0)wasm_i8x16_swizzle((v128_t)a, (v128_t)b);", t.c))
+        }
+    }
+    return output
+}

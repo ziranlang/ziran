@@ -1,0 +1,454 @@
+// The typed Go bodies of the std/simd value helpers, and the lane functions
+// they call, as the C string tables zir_emit_simd_go.c writes from.
+#import "model"
+#import "operations"
+#import "scalar"
+#import "std/sort"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+LaneFunctions :: struct { names: Vec(string); texts: Vec(string) }
+
+GoLane :: (t: VectorType) -> string {
+    lanes := string.["uint8", "int8", "uint16", "int16", "uint32", "int32", "uint64", "int64", "float32", "float64"]
+    return lanes[t.lane]
+}
+
+GoVector :: (t: VectorType) -> string { return Render("[@0]@1", Decimal(t.lanes), GoLane(t)) }
+
+Define :: (functions: *LaneFunctions, name: string, parameters: string, result: string, body: string) -> string {
+    for existing: functions.names { if existing == name { return name } }
+    VecPush(functions.names, name)
+    VecPush(functions.texts, Render("func @0(@1) @2 {\n@3}\n", name, parameters, result, body))
+    return name
+}
+
+LaneFunction :: (functions: *LaneFunctions, kind: string, t: VectorType, parameters: string,
+    result: string, body: string) -> string {
+    return Define(functions, Render("zi_go_@0_@1", kind, LaneName(t)), parameters, result, body)
+}
+
+MinMax :: (functions: *LaneFunctions, t: VectorType, less: bool) -> string {
+    return LaneFunction(functions, ifx less then "min" else "max", t, Render("x, y @0", GoLane(t)), GoLane(t),
+        Render("\tif x @0 y {\n\t\treturn x\n\t}\n\treturn y\n", ifx less then "<" else ">"))
+}
+
+Highest :: (r: VectorType) -> s64 { return (cast(s64)1 << (r.bits - ifx r.is_signed then 1 else 0)) - 1 }
+
+Saturate :: (functions: *LaneFunctions, r: VectorType) -> string {
+    low := ifx r.is_signed then -(cast(s64)1 << (r.bits - 1)) else cast(s64)0
+    return LaneFunction(functions, "sat", r, "v int64", GoLane(r),
+        Render("\tif v < @0 {\n\t\treturn @0\n\t}\n\tif v > @1 {\n\t\treturn @1\n\t}\n\treturn @2(v)\n",
+            Decimal(low), Decimal(Highest(r)), GoLane(r)))
+}
+
+SaturateUnsigned :: (functions: *LaneFunctions, r: VectorType) -> string {
+    return LaneFunction(functions, "satu", r, "v uint64", GoLane(r),
+        Render("\tif v > @0 {\n\t\treturn @0\n\t}\n\treturn @1(v)\n", Decimal(Highest(r)), GoLane(r)))
+}
+
+Mask :: (functions: *LaneFunctions, r: VectorType) -> string {
+    return LaneFunction(functions, "mask", r, "yes bool", GoLane(r),
+        Render("\tif yes {\n\t\treturn @0\n\t}\n\treturn 0\n", ifx r.is_signed then "-1" else Render("^@0(0)", GoLane(r))))
+}
+
+Absolute :: (functions: *LaneFunctions, t: VectorType) -> string {
+    return LaneFunction(functions, "abs", t, Render("x @0", GoLane(t)), GoLane(t),
+        "\tif x < 0 {\n\t\treturn -x\n\t}\n\treturn x\n")
+}
+
+SignOf :: (functions: *LaneFunctions, t: VectorType) -> string {
+    return LaneFunction(functions, "sign", t, Render("x, s @0", GoLane(t)), GoLane(t),
+        "\tif s < 0 {\n\t\treturn -x\n\t}\n\tif s == 0 {\n\t\treturn 0\n\t}\n\treturn x\n")
+}
+
+AbsoluteDifference :: (functions: *LaneFunctions, t: VectorType) -> string {
+    u := GoLane(Unsigned(t))
+    x := ifx t.is_signed then Render("@0(x)", u) else "x"
+    y := ifx t.is_signed then Render("@0(y)", u) else "y"
+    return LaneFunction(functions, "abs_diff", t, Render("x, y @0", GoLane(t)), u,
+        Render("\tif x < y {\n\t\treturn @1 - @0\n\t}\n\treturn @0 - @1\n", x, y))
+}
+
+// 1 << bits as decimal text, including 2^63 and 2^64.
+PowerOfTwo :: (bits: s32) -> string {
+    if bits == 63 { return "9223372036854775808" }
+    if bits == 64 { return "18446744073709551616" }
+    return Decimal(cast(s64)1 << bits)
+}
+
+// A float lane truncated to r's integers, saturated, NaN as 0.
+ToInteger :: (functions: *LaneFunctions, t: VectorType, r: VectorType) -> string {
+    body := Render("\tif !(v > 0) {\n\t\treturn 0\n\t}\n\tif v >= @0 {\n\t\treturn math.MaxUint@1\n\t}\n\treturn @2(v)\n",
+        PowerOfTwo(r.bits), Decimal(r.bits), GoLane(r))
+    if r.is_signed {
+        body = Render("\tif v != v {\n\t\treturn 0\n\t}\n\tif v >= @0 {\n\t\treturn math.MaxInt@1\n\t}\n\tif v <= -@0 {\n\t\treturn math.MinInt@1\n\t}\n\treturn @2(v)\n",
+            PowerOfTwo(r.bits - 1), Decimal(r.bits), GoLane(r))
+    }
+    return Define(functions, Render("zi_go_@0_@1", LaneName(t), LaneName(r)), Render("v @0", GoLane(t)), GoLane(r), body)
+}
+
+// Lane x of t as an unsigned integer of its width.
+Bits :: (t: VectorType, x: string) -> string {
+    if t.is_float { return Render("math.Float@0bits(@1)", Decimal(t.bits), x) }
+    return ifx t.is_signed then Render("uint@0(@1)", Decimal(t.bits), x) else x
+}
+
+// A lane of r from x, an unsigned integer `width` bits wide.
+FromBits :: (r: VectorType, x: string, width: s32) -> string {
+    if r.is_float {
+        value := ifx width != r.bits then Render("uint@0(@1)", Decimal(r.bits), x) else x
+        return Render("math.Float@0frombits(@1)", Decimal(r.bits), value)
+    }
+    if width == r.bits && !r.is_signed { return x }
+    return Render("@0(@1)", GoLane(r), x)
+}
+
+// prefix{items}suffix, one line if it is short, else wrapped.
+List :: (prefix: string, items: []string, suffix: string) -> string {
+    joined := TextDetach(TextJoin(items, ", "))
+    line := Render("@0{@1}@2", prefix, joined, suffix)
+    if line.count <= 96 { return Render("\t@0\n", line) }
+    output: Vec(u8)
+    BuilderAppend(output, Render("\t@0{\n", prefix))
+    row: Vec(u8)
+    for item: items {
+        if row.count > 0 && row.count + item.count + 2 > 88 {
+            BuilderAppend(output, Render("\t\t@0\n", TextView(row[:])))
+            VecClear(row)
+        }
+        if row.count > 0 { VecPush(row, #char " ") }
+        BuilderAppend(row, item)
+        VecPush(row, #char ",")
+    }
+    BuilderAppend(output, Render("\t\t@0\n\t}@1\n", TextView(row[:]), suffix))
+    return TextDetach(BuilderFinish(output))
+}
+
+Pick :: (r: VectorType, items: []string, setup: string = "") -> string {
+    return Render("@0@1", setup, List(Render("return @0", GoVector(r)), items, ""))
+}
+
+// The expression of lane i of a helper whose lanes all compute alike.
+MapLane :: (functions: *LaneFunctions, op: string, t: VectorType, r: VectorType, i: string) -> string {
+    a := Render("a[@0]", i)
+    b := Render("b[@0]", i)
+    lane := GoLane(t)
+    width := Decimal(t.bits)
+    if op == "add" || op == "sub" || op == "mul" || op == "div" {
+        symbol := ifx op == "add" then "+" else ifx op == "sub" then "-" else ifx op == "mul" then "*" else "/"
+        return ifx t.is_float then Render("@0(@1 @2 @3)", lane, a, symbol, b) else Render("@0 @1 @2", a, symbol, b)
+    }
+    if op == "add_sat" || op == "sub_sat" {
+        return Render("@0(int64(@1) @2 int64(@3))", Saturate(functions, t), a, ifx op == "add_sat" then "+" else "-", b)
+    }
+    if op == "min" || op == "max" { return Render("@0(@1, @2)", MinMax(functions, t, op == "min"), a, b) }
+    if op == "avg" { return Render("@0((uint32(@1) + uint32(@2) + 1) >> 1)", lane, a, b) }
+    if op == "mul_high" {
+        product := ifx t.is_signed then "int32" else "uint32"
+        return Render("@0((@1(@2) * @1(@3)) >> 16)", lane, product, a, b)
+    }
+    if op == "mul_high_round" { return Render("int16((int32(@0)*int32(@1) + 0x4000) >> 15)", a, b) }
+    if op == "and" { return Render("@0 & @1", a, b) }
+    if op == "or" { return Render("@0 | @1", a, b) }
+    if op == "xor" { return Render("@0 ^ @1", a, b) }
+    if op == "and_not" { return Render("@0 &^ @1", a, b) }
+    if op == "not" { return Render("^@0", a) }
+    if (op == "abs" || op == "neg") && t.is_float {
+        return Render("math.Float@0frombits(math.Float@0bits(@1) @2 @3)", width, a, ifx op == "abs" then "&^" else "^",
+            ifx t.bits == 32 then "0x80000000" else "0x8000000000000000")
+    }
+    if op == "abs" { return Render("@0(@1)", Absolute(functions, t), a) }
+    if op == "neg" { return Render("-@0", a) }
+    if op == "sign" { return Render("@0(@1, @2)", SignOf(functions, t), a, b) }
+    if op == "abs_diff" { return Render("@0(@1, @2)", AbsoluteDifference(functions, t), a, b) }
+    if op == "eq" || op == "lt" || op == "gt" {
+        return Render("@0(@1 @2 @3)", Mask(functions, r), a, ifx op == "eq" then "==" else ifx op == "lt" then "<" else ">", b)
+    }
+    if op == "select" {
+        m := Render("m[@0]", i)
+        if t.is_float {
+            return Render("math.Float@0frombits(math.Float@0bits(@1)&@2 | math.Float@0bits(@3)&^@2)", width, a, m, b)
+        }
+        mask := ifx t.is_signed then Render("@0(@1)", lane, m) else m
+        return Render("@0&@1 | @2&^@1", a, mask, b)
+    }
+    // Go shifts give 0, or the sign for a signed right shift, for a count of
+    // the lane width or more, as std/simd does.
+    if op == "shl" { return Render("@0 << n", a) }
+    if op == "shr" { return Render("@0 >> n", a) }
+    // (v >> n) plus the last bit shifted out.
+    if op == "shr_round" { return Render("@0>>n + @0>>m&1", a) }
+    if op == "shl_lanes" || op == "shr_lanes" {
+        count := ifx t.is_signed then Render("uint@0(@1)", width, b) else b
+        return Render("@0 @1 @2", a, ifx op == "shl_lanes" then "<<" else ">>", count)
+    }
+    if op == "splat" { return "l" }
+    if op == "widen" { return Render("@0(@1)", GoLane(r), a) }
+    if op == "convert" {
+        return Render("@0(@1)", ifx t.is_float then ToInteger(functions, t, r) else GoLane(r), a)
+    }
+    if op == "reinterpret" { return FromBits(r, Bits(t, a), t.bits) }
+    return ""
+}
+
+Map :: (functions: *LaneFunctions, op: string, t: VectorType, r: VectorType, setup: string = "") -> string {
+    if r.lanes > 8 {
+        return Render("@0\tvar r @1\n\tfor j := range r {\n\t\tr[j] = @2\n\t}\n\treturn r\n",
+            setup, GoVector(r), MapLane(functions, op, t, r, "j"))
+    }
+    items: Vec(string)
+    for j: 0..r.lanes - 1 { VecPush(items, MapLane(functions, op, t, r, Decimal(j))) }
+    return Pick(r, items[:], setup)
+}
+
+// 64-bit word w of vector v of t, its lanes little-endian.
+Word :: (t: VectorType, v: string, w: s64) -> string {
+    per := 64 / t.bits
+    terms: Vec(string)
+    for j: 0..per - 1 {
+        x := Bits(t, Render("@0[@1]", v, Decimal(w * per + j)))
+        if t.bits < 64 { x = Render("uint64(@0)", x) }
+        VecPush(terms, ifx j == 0 then x else Render("@0<<@1", x, Decimal(t.bits * j)))
+    }
+    return TextDetach(TextJoin(terms[:], " | "))
+}
+
+// ShiftBytesLeft, ShiftBytesRight or AlignBytes on each 128-bit block as two
+// 64-bit words, through Go's shifts, which give 0 for a count of 64 or more.
+ByteShift :: (t: VectorType, op: string) -> string {
+    output: Vec(u8)
+    BuilderAppend(output, "\ts := uint(n) * 8\n")
+    words: Vec(string)
+    for block: 0..ifx t.wide then 1 else 0 {
+        x0 := Decimal(block * 2)
+        x1 := Decimal(block * 2 + 1)
+        BuilderAppend(output, Render("\tx@0 := @1\n\tx@2 := @3\n", x0, Word(t, "a", block * 2), x1, Word(t, "a", block * 2 + 1)))
+        if op == "shr_bytes" {
+            BuilderAppend(output, Render("\ty@0 := x@0>>s | x@1<<(64-s) | x@1>>(s-64)\n\ty@1 := x@1 >> s\n", x0, x1))
+        } else if op == "shl_bytes" {
+            BuilderAppend(output, Render("\ty@0 := x@0 << s\n\ty@1 := x@1<<s | x@0>>(64-s) | x@0<<(s-64)\n", x0, x1))
+        } else {
+            // AlignBytes(a, b, n): the 32 bytes b:a from byte n.
+            BuilderAppend(output, Render("\tz@0 := @1\n\tz@2 := @3\n", x0, Word(t, "b", block * 2), x1, Word(t, "b", block * 2 + 1)))
+            BuilderAppend(output, Render("\ty@0 := z@0>>s | z@1<<(64-s) | z@1>>(s-64) | x@0<<(128-s)\n", x0, x1))
+            BuilderAppend(output, Render("\ty@1 := z@1>>s | x@0<<(64-s) | x@0>>(s-64) | x@1<<(128-s)\n", x0, x1))
+        }
+        VecPush(words, Render("y@0", x0))
+        VecPush(words, Render("y@0", x1))
+    }
+    per := 64 / t.bits
+    items: Vec(string)
+    for j: 0..t.lanes - 1 {
+        word := words[j / per]
+        shift := t.bits * (j % per)
+        VecPush(items, FromBits(t, ifx shift != 0 then Render("@0 >> @1", word, Decimal(shift)) else word, 64))
+    }
+    BuilderAppend(output, Pick(t, items[:]))
+    return TextDetach(BuilderFinish(output))
+}
+
+Reduce :: (functions: *LaneFunctions, op: string, t: VectorType) -> string {
+    if op == "reduce_add" {
+        if t.lanes > 8 { return Render("\tvar s @0\n\tfor _, v := range a {\n\t\ts += v\n\t}\n\treturn s\n", GoLane(t)) }
+        terms: Vec(string)
+        for i: 0..t.lanes - 1 { VecPush(terms, Render("a[@0]", Decimal(i))) }
+        return Render("\treturn @0\n", TextDetach(TextJoin(terms[:], " + ")))
+    }
+    if op == "reduce_max_index" {
+        // The first of equal lanes.
+        if t.lanes > 8 {
+            return "\tm, at := a[0], 0\n\tfor j, v := range a {\n\t\tif v > m {\n\t\t\tm, at = v, j\n\t\t}\n\t}\n\treturn int64(at)\n"
+        }
+        output: Vec(u8)
+        BuilderAppend(output, "\tm, at := a[0], 0\n")
+        for i: 1..t.lanes - 1 { BuilderAppend(output, Render("\tif a[@0] > m {\n\t\tm, at = a[@0], @0\n\t}\n", Decimal(i))) }
+        BuilderAppend(output, "\treturn int64(at)\n")
+        return TextDetach(BuilderFinish(output))
+    }
+    f := MinMax(functions, t, op == "reduce_min")
+    if t.lanes > 8 { return Render("\tm := a[0]\n\tfor _, v := range a {\n\t\tm = @0(m, v)\n\t}\n\treturn m\n", f) }
+    // Integer minimums and maximums, so any order gives the same lane.
+    values: Vec(string)
+    for i: 0..t.lanes - 1 { VecPush(values, Render("a[@0]", Decimal(i))) }
+    count := values.count
+    while count > 1 {
+        count /= 2
+        for i: cast(s64)0..count - 1 { values[i] = Render("@0(@1, @2)", f, values[i * 2], values[i * 2 + 1]) }
+    }
+    return Render("\treturn @0\n", values[0])
+}
+
+// The expression of lane j of a helper whose lanes each read their own places.
+PickLane :: (functions: *LaneFunctions, op: string, t: VectorType, r: VectorType, j: s32) -> string {
+    block := Block(t)
+    if op == "make" { return Render("l@0", Decimal(j)) }
+    if TextHasPrefix(op, "widen_") || TextHasPrefix(op, "mul_wide_") {
+        at := Decimal(BlockLane(t, r, j, ifx TextHasSuffix(op, "_high") then block / 2 else 0))
+        if TextHasPrefix(op, "widen_") { return Render("@0(a[@1])", GoLane(r), at) }
+        return Render("@0(a[@1]) * @0(b[@1])", GoLane(r), at)
+    }
+    if op == "madd" {
+        return Render("int32(a[@0])*int32(b[@0]) + int32(a[@1])*int32(b[@1])", Decimal(j * 2), Decimal(j * 2 + 1))
+    }
+    if op == "madd_sat" {
+        return Render("@0(int64(a[@1])*int64(b[@1]) + int64(a[@2])*int64(b[@2]))",
+            Saturate(functions, r), Decimal(j * 2), Decimal(j * 2 + 1))
+    }
+    if op == "add_pairs" { return Render("@0(a[@1]) + @0(a[@2])", GoLane(r), Decimal(j * 2), Decimal(j * 2 + 1)) }
+    if op == "sad" {
+        terms: Vec(string)
+        f := AbsoluteDifference(functions, t)
+        for k: j * 8..j * 8 + 7 { VecPush(terms, Render("uint64(@0(a[@1], b[@1]))", f, Decimal(k))) }
+        return TextDetach(TextJoin(terms[:], " + "))
+    }
+    if op == "shuffle" {
+        return Render("a[@0k@1]", ifx j >= block then Render("@0+", Decimal(j / block * block)) else "", Decimal(j % block))
+    }
+    if op == "low" || op == "high" { return Render("a[@0]", Decimal(j + ifx op == "high" then r.lanes else 0)) }
+    if op == "combine" { return ifx j < t.lanes then Render("a[@0]", Decimal(j)) else Render("b[@0]", Decimal(j - t.lanes)) }
+    if op == "interleave_low" || op == "interleave_high" {
+        k := j % block
+        at := Decimal(j / block * block + k / 2 + ifx op == "interleave_high" then block / 2 else 0)
+        return Render("@0[@1]", ifx k % 2 == 1 then "b" else "a", at)
+    }
+    if op == "narrow" {
+        unsigned := t.bits == 64 && !t.is_signed
+        k := j % Block(r)
+        value := Render("@0[@1]", ifx k < block then "a" else "b", Decimal(j / Block(r) * block + k % block))
+        return Render("@0(@1)", ifx unsigned then SaturateUnsigned(functions, r) else Saturate(functions, r),
+            ifx unsigned then value else Render("int64(@0)", value))
+    }
+    if op == "reinterpret" && r.bits > t.bits {
+        per := r.bits / t.bits
+        terms: Vec(string)
+        for k: 0..per - 1 {
+            x := Render("uint@0(@1)", Decimal(r.bits), Bits(t, Render("a[@0]", Decimal(j * per + k))))
+            VecPush(terms, ifx k == 0 then x else Render("@0<<@1", x, Decimal(t.bits * k)))
+        }
+        return FromBits(r, TextDetach(TextJoin(terms[:], " | ")), r.bits)
+    }
+    if op == "reinterpret" {
+        per := t.bits / r.bits
+        x := Render("a[@0]", Decimal(j / per))
+        if t.is_float || r.is_float { x = Bits(t, x) }
+        shift := r.bits * (j % per)
+        if shift != 0 { x = Render("@0 >> @1", x, Decimal(shift)) }
+        return FromBits(r, x, t.bits)
+    }
+    return ""
+}
+
+Picked :: (functions: *LaneFunctions, op: string, t: VectorType, r: VectorType) -> string {
+    items: Vec(string)
+    for j: 0..r.lanes - 1 { VecPush(items, PickLane(functions, op, t, r, j)) }
+    return Pick(r, items[:])
+}
+
+Body :: (functions: *LaneFunctions, op: string, t: VectorType, r: VectorType) -> string {
+    if op == "zero" { return Render("\treturn @0{}\n", GoVector(t)) }
+    if op == "lane" { return "\treturn a[i]\n" }
+    if op == "with_lane" { return "\ta[i] = l\n\treturn a\n" }
+    if op == "shr_round" { return Map(functions, op, t, r, "\tif n == 0 {\n\t\treturn a\n\t}\n\tm := n - 1\n") }
+    if TextHasPrefix(op, "reduce_") { return Reduce(functions, op, t) }
+    if TextHasSuffix(op, "_bytes") { return ByteShift(t, op) }
+    if op == "all_zero" {
+        if t.lanes > 8 { return Render("\tvar x @0\n\tfor _, v := range a {\n\t\tx |= v\n\t}\n\treturn x == 0\n", GoLane(t)) }
+        lanes: Vec(string)
+        for i: 0..t.lanes - 1 { VecPush(lanes, Render("a[@0]", Decimal(i))) }
+        return Render("\treturn @0 == 0\n", TextDetach(TextJoin(lanes[:], "|")))
+    }
+    if op == "byte_shuffle" {
+        // An index of 16 or more picks 0.
+        return Render("\tvar r @0\n\tfor j, x := range b {\n\t\tif x < 16 {\n\t\t\tr[j] = a[j&^15+int(x)]\n\t\t}\n\t}\n\treturn r\n", GoVector(t))
+    }
+    if op == "reinterpret" && r.lane == t.lane { return "\treturn a\n" }
+    if op == "reinterpret" && r.bits != t.bits || op == "make" || op == "madd" || op == "madd_sat" ||
+        op == "add_pairs" || op == "sad" || op == "shuffle" || op == "narrow" || op == "low" || op == "high" ||
+        op == "combine" || TextHasPrefix(op, "interleave_") || TextHasPrefix(op, "widen_") ||
+        TextHasPrefix(op, "mul_wide_") {
+        return Picked(functions, op, t, r)
+    }
+    return Map(functions, op, t, r)
+}
+
+Entry :: struct { name: string; body: string }
+
+AddEntry :: (entries: *Vec(Entry), functions: *LaneFunctions, op: string, t: VectorType, r: VectorType, name: string) {
+    VecPush(<<entries, Entry.{Render("zi_@0", name), Body(functions, op, t, r)})
+}
+
+GoEntries :: (functions: *LaneFunctions) -> Vec(Entry) {
+    output: Vec(Entry)
+    operations := Operations()
+    shapes := string.["shl_bytes", "shr_bytes", "align_bytes", "shuffle"]
+    for shape: shapes { VecPush(operations, shape) }
+    types := Types()
+    for op: operations {
+        if TextHasPrefix(op, "load") || TextHasPrefix(op, "store") || op == "gather" { continue }
+        for t: types {
+            if op == "narrow" {
+                if t.is_float || t.bits == 8 { continue }
+                for sign: 0..1 {
+                    r := Type(t.lane - t.lane % 2 - 2 + cast(s32)sign, t.wide)
+                    AddEntry(*output, functions, op, t, r, Render("narrow_@0_@1", t.name, r.name))
+                }
+            } else if op == "reinterpret" || op == "convert" {
+                for r: types {
+                    if op == "reinterpret" && r.bytes == t.bytes ||
+                        op == "convert" && r.lanes == t.lanes && r.bits == t.bits && r.is_float != t.is_float {
+                        AddEntry(*output, functions, op, t, r, Render("@0_@1_@2", op, t.name, r.name))
+                    }
+                }
+            } else if TextHasSuffix(op, "_bytes") && !t.is_float || !TextHasSuffix(op, "_bytes") && Supported(op, t) {
+                AddEntry(*output, functions, op, t, ResultType(op, t), Render("@0_@1", op, t.name))
+            }
+        }
+    }
+    return output
+}
+
+CString :: (text: string) -> string {
+    output: Vec(u8)
+    VecPush(output, #char "\"")
+    for byte: text {
+        if byte == #char "\\" { BuilderAppend(output, "\\\\") }
+        else if byte == #char "\"" { BuilderAppend(output, "\\\"") }
+        else if byte == #char "\t" { BuilderAppend(output, "\\t") }
+        else if byte == #char "\n" { BuilderAppend(output, "\\n") }
+        else { VecPush(output, byte) }
+    }
+    VecPush(output, #char "\"")
+    return TextDetach(BuilderFinish(output))
+}
+
+Table :: (output: *Vec(u8), table: string, names: []string, texts: []string) {
+    AppendLine(output, Render("static const GoSimdText @0[] = {", table))
+    sorted: Vec(string)
+    for name: names { VecPush(sorted, name) }
+    SortText(sorted[:])
+    for name: sorted {
+        for i: cast(s64)0..names.count - 1 {
+            if names[i] == name { AppendLine(output, Render("    {\"@0\",\n     @1},", name, CString(texts[i]))); break }
+        }
+    }
+    AppendLine(output, "};")
+}
+
+GoHeader :: (output: *Vec(u8)) -> bool {
+    functions: LaneFunctions
+    entries := GoEntries(*functions)
+    names: Vec(string)
+    bodies: Vec(string)
+    for entry: entries {
+        if entry.body == "" { print("simd-header: no Go body for %\n", entry.name); return false }
+        VecPush(names, entry.name)
+        VecPush(bodies, entry.body)
+    }
+    AppendLine(output, "/* Generated by scripts/simd/header.zi --go; do not edit. */")
+    AppendLine(output, "/* Typed Go bodies of the std/simd value helpers, sorted by name, and the\n * lane functions they call, for zir_emit_simd_go.c. */\n")
+    Table(output, "go_simd_bodies", names[:], bodies[:])
+    AppendLine(output, "")
+    Table(output, "go_simd_lane_functions", functions.names[:], functions.texts[:])
+    return true
+}

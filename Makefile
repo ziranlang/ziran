@@ -207,6 +207,13 @@ FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c 
     cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c cmd/zir/zir_services.c
 PORTABLE := cmd/zir/zir_link.c cmd/zir/zir_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
+# std/simd's C helpers, vector types and typed Go helpers are generated at
+# build time by scripts/simd/header.zi, compiled from its seed in
+# bootstrap/simd; update-bootstrap refreshes the seed, check-bootstrap checks it.
+SIMD_DIR ?= $(BUILD_DIR)/simd
+SIMD_HEADERS := $(SIMD_DIR)/ziran_simd_ops.h $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/zir_simd_go_bodies.h
+HEADERS += $(SIMD_HEADERS)
+override CFLAGS += -I$(SIMD_DIR)
 LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c cmd/zir/zir_native_memory.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
@@ -326,7 +333,7 @@ force-compiler-flags:
 # zir.h includes the IR records generated from cmd/compiler_ir.zi, and
 # zir_simd.h (included through the checker and emitter headers) the
 # runtime-emit records.
-$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAMES_READY) $(RUNTIME_EMIT_READY)
+$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAMES_READY) $(RUNTIME_EMIT_READY) | $(SIMD_HEADERS)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $($@_CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -562,7 +569,20 @@ $(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) $(
 
 RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
     include/zir_vec.h include/ziran_parallel.h include/ziran_simd.h \
-    include/ziran_simd_types.h include/ziran_simd_ops.h
+    $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/ziran_simd_ops.h
+
+$(SIMD_DIR)/simd-header: $(wildcard bootstrap/simd/*.c bootstrap/simd/*.h)
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(BOOTSTRAP_CFLAGS) -std=c11 -Iinclude -o $@ $(filter %.c,$^) -lm
+
+# Text that did not change keeps its timestamp, so nothing that includes it rebuilds.
+simd_header = @$(SIMD_DIR)/simd-header $(1) > $@.tmp && { cmp -s $@.tmp $@ && rm $@.tmp || mv -f $@.tmp $@; }
+$(SIMD_DIR)/ziran_simd_ops.h: $(SIMD_DIR)/simd-header
+	$(call simd_header,)
+$(SIMD_DIR)/ziran_simd_types.h: $(SIMD_DIR)/simd-header
+	$(call simd_header,--types)
+$(SIMD_DIR)/zir_simd_go_bodies.h: $(SIMD_DIR)/simd-header
+	$(call simd_header,--go)
 
 # Reused builds can be newer than restored or exported source headers.
 # Compare embedded bytes too, retaining timestamps when nothing changed.
@@ -655,7 +675,7 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_native_names/compiler_native_names.h \
     bootstrap/compiler_lowered_ir/compiler_lowered_ir.c bootstrap/compiler_lowered_ir/compiler_lowered_ir.h \
     bootstrap/compiler_zir_lower/compiler_zir_lower.c bootstrap/compiler_zir_lower/compiler_zir_lower.h
-	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
+	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap SIMD_DIR=$(SIMD_DIR) \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=$(call quote,$(BOOTSTRAP_CFLAGS)) \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
 
@@ -769,6 +789,10 @@ DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process
 GENERATE_DARWIN_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main \
     --target-os macos --define __APPLE__ --define __aarch64__ --root cmd \
     -o $(BUILD_DIR)/bootstrap-check-darwin cmd/compiler_$$module.zi
+# The SIMD header generator's seed serves every platform; it compiles against
+# include/'s runtime headers, so it keeps none of zi2c's copies of them.
+GENERATE_SIMD_BOOTSTRAP = rm -rf $(BUILD_DIR)/bootstrap-check-simd && env -u DISPLAY -u WAYLAND_DISPLAY \
+    $(BIN_DIR)/zi2c --root scripts/simd -o $(BUILD_DIR)/bootstrap-check-simd scripts/simd/header.zi
 check-bootstrap: $(BIN_DIR)/zi2c
 	@set -e; for module in $(BOOTSTRAP_MODULES); do \
 	    $(GENERATE_BOOTSTRAP); \
@@ -781,7 +805,10 @@ check-bootstrap: $(BIN_DIR)/zi2c
 	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n' | sort); do \
 	        cmp bootstrap/darwin/compiler_$$module/$$file $(BUILD_DIR)/bootstrap-check-darwin/$$file; \
 	    done; \
-	done; echo "bootstrap matches: $(BOOTSTRAP_MODULES); darwin: $(DARWIN_BOOTSTRAP_MODULES)"
+	done; \
+	$(GENERATE_SIMD_BOOTSTRAP); \
+	diff -rq -x 'zir_*.h' -x .build.lock bootstrap/simd $(BUILD_DIR)/bootstrap-check-simd; \
+	echo "bootstrap matches: $(BOOTSTRAP_MODULES); darwin: $(DARWIN_BOOTSTRAP_MODULES); simd"
 
 update-bootstrap: $(BIN_DIR)/zi2c
 	@set -e; for module in $(BOOTSTRAP_MODULES); do \
@@ -809,7 +836,11 @@ update-bootstrap: $(BIN_DIR)/zi2c
 	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n'); do \
 	        cp $(BUILD_DIR)/bootstrap-check-darwin/$$file bootstrap/darwin/compiler_$$module/; \
 	    done; \
-	done
+	done; \
+	$(GENERATE_SIMD_BOOTSTRAP); \
+	rm -rf bootstrap/simd; mkdir bootstrap/simd; \
+	cp $(BUILD_DIR)/bootstrap-check-simd/*.c $(BUILD_DIR)/bootstrap-check-simd/*.h bootstrap/simd/; \
+	rm -f bootstrap/simd/zir_*.h
 
 endif
 

@@ -1,0 +1,173 @@
+// Typed descriptions shared by the SIMD header generator's emitters.
+#import "std/text_tools"
+#import "std/number_text"
+using Vectors :: #import "std/vec"
+
+VectorType :: struct {
+    lane: s32
+    bits: s32
+    lanes: s32
+    bytes: s32
+    is_signed: bool
+    is_float: bool
+    wide: bool
+    name: string
+    c: string
+    scalar: string
+    kind: string
+}
+
+Parameter :: struct { type: string; name: string }
+Branch :: struct { condition: string; body: string }
+Helper :: struct {
+    name: string
+    result: string
+    parameters: Vec(Parameter)
+    branches: Vec(Branch)
+    split: bool
+}
+
+Decimal :: (value: s64) -> string {
+    buffer: [32]u8
+    return TextDetach(TextCopy(FormatInteger(value, buffer[:])))
+}
+
+// A small fixed-arity template keeps the C emitter's type substitutions
+// explicit. Each numbered placeholder is substituted once, left to right.
+Render :: (text: string, a: string = "", b: string = "", c: string = "",
+    d: string = "", e: string = "", f: string = "", g: string = "",
+    h: string = "") -> string {
+    values := string.[a, b, c, d, e, f, g, h]
+    output: Vec(u8)
+    at: s64 = 0
+    while at < text.count {
+        if at + 1 < text.count && text[at] == #char "@" &&
+            text[at + 1] >= #char "0" && text[at + 1] <= #char "7" {
+            BuilderAppend(output, values[cast(s64)(text[at + 1] - #char "0")])
+            at += 2
+        } else { VecPush(output, text[at]); at += 1 }
+    }
+    return TextDetach(BuilderFinish(output))
+}
+
+Type :: (lane: s32, wide: bool) -> VectorType {
+    names := string.["u8", "s8", "u16", "s16", "u32", "s32", "u64", "s64", "f32", "f64"]
+    scalars := string.["uint8_t", "int8_t", "uint16_t", "int16_t", "uint32_t",
+        "int32_t", "uint64_t", "int64_t", "float", "double"]
+    kinds := string.["ZI_K_U8", "ZI_K_S8", "ZI_K_U16", "ZI_K_S16",
+        "ZI_K_U32", "ZI_K_S32", "ZI_K_U64", "ZI_K_S64", "ZI_K_F32", "ZI_K_F64"]
+    widths := s32.[8, 8, 16, 16, 32, 32, 64, 64, 32, 64]
+    result: VectorType
+    result.lane = lane
+    result.bits = widths[lane]
+    result.bytes = ifx wide then 32 else 16
+    result.lanes = result.bytes * 8 / result.bits
+    result.is_signed = lane < 8 && lane % 2 == 1
+    result.is_float = lane >= 8
+    result.wide = wide
+    result.name = Render("@0x@1", names[lane], Decimal(result.lanes))
+    result.c = Render("zi_@0", result.name)
+    result.scalar = scalars[lane]
+    result.kind = kinds[lane]
+    return result
+}
+
+Types :: () -> Vec(VectorType) {
+    result: Vec(VectorType)
+    for width: 0..1 {
+        for lane: 0..9 { VecPush(result, Type(cast(s32)lane, width == 1)) }
+    }
+    return result
+}
+
+Unsigned :: (type: VectorType) -> VectorType {
+    lane := type.lane - type.lane % 2
+    if type.is_float { lane = ifx type.bits == 32 then 4 else 6 }
+    return Type(lane, type.wide)
+}
+
+Signed :: (type: VectorType) -> VectorType {
+    result := Unsigned(type)
+    return Type(result.lane + 1, type.wide)
+}
+
+Half :: (type: VectorType) -> VectorType { return Type(type.lane, false) }
+Block :: (type: VectorType) -> s32 { return ifx type.wide then type.lanes / 2 else type.lanes }
+UnsignedScalar :: (type: VectorType) -> string { return Unsigned(type).scalar }
+
+Wider :: (type: VectorType) -> VectorType {
+    return Type(type.lane + 2, type.wide)
+}
+
+X86Type :: (type: VectorType) -> string {
+    if type.is_float {
+        if type.bits == 32 { return ifx type.wide then "__m256" else "__m128" }
+        return ifx type.wide then "__m256d" else "__m128d"
+    }
+    return ifx type.wide then "__m256i" else "__m128i"
+}
+
+X86Suffix :: (type: VectorType) -> string {
+    return Render("@0@1", ifx type.is_signed then "epi" else "epu", Decimal(type.bits))
+}
+
+NeonSuffix :: (type: VectorType) -> string {
+    return Render("@0@1", ifx type.is_float then "f" else ifx type.is_signed then "s" else "u",
+        Decimal(type.bits))
+}
+
+NeonType :: (type: VectorType) -> string {
+    return Render("@0@1x@2_t", ifx type.is_float then "float" else ifx type.is_signed then "int" else "uint",
+        Decimal(type.bits), Decimal(type.lanes))
+}
+
+WasmSuffix :: (type: VectorType, integer: bool = false) -> string {
+    return Render("@0@1x@2", ifx type.is_float then "f" else ifx type.is_signed || integer then "i" else "u",
+        Decimal(type.bits), Decimal(type.lanes))
+}
+
+X86 :: "ZI_X86"
+SSSE3 :: "ZI_X86 && ZI_TIER >= 2"
+SSE41 :: "ZI_X86 && ZI_TIER >= 3"
+AVX2 :: "ZI_X86 && ZI_TIER >= 4"
+Neon :: "ZI_NEON"
+A64 :: "ZI_NEON && ZI_A64"
+Wasm :: "ZI_WASM"
+SplitABI :: "ZI_VEC && ZI_X86 && ZI_TIER < 4"
+
+LaneName :: (type: VectorType) -> string {
+    return type.name[:TextFind(type.name, "x")]
+}
+
+ByName :: (name: string) -> VectorType {
+    types := Types()
+    for type: types { if type.name == name { return Type(type.lane, type.wide) } }
+    return .{}
+}
+
+WideParameter :: (parameter: Parameter) -> bool {
+    return TextHasPrefix(parameter.type, "zi_") && ByName(parameter.type[3:]).wide
+}
+
+WideParameters :: (parameters: []Parameter) -> bool {
+    for parameter: parameters { if WideParameter(parameter) { return true } }
+    return false
+}
+
+ParameterList :: (parameters: []Parameter, pointers: bool = false) -> string {
+    output: Vec(u8)
+    for i: cast(s64)0..parameters.count - 1 {
+        parameter := parameters[i]
+        if i > 0 { BuilderAppend(output, ", ") }
+        if pointers && WideParameter(parameter) {
+            BuilderAppend(output, Render("const @0 *@1_p_", parameter.type, parameter.name))
+        } else { BuilderAppend(output, Render("@0 @1", parameter.type, parameter.name)) }
+    }
+    if parameters.count == 0 { BuilderAppend(output, "void") }
+    return TextDetach(BuilderFinish(output))
+}
+
+AppendLine :: (output: *Vec(u8), text: string) {
+    BuilderAppend(<<output, text)
+    VecPush(<<output, #char "\n")
+}

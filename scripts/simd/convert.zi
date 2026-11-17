@@ -1,0 +1,84 @@
+// Numeric conversions use an in-range operand before the vector conversion.
+// Reinterpretation uses canonical little-endian bytes on non-vector targets.
+#import "model"
+#import "arithmetic"
+#import "scalar"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ConvertLimit :: (r: VectorType) -> string {
+    if r.is_signed { return ifx r.bits == 32 then "2147483648.0" else "9223372036854775808.0" }
+    return ifx r.bits == 32 then "4294967296.0" else "18446744073709551616.0"
+}
+
+ConvertScalar :: (t: VectorType, r: VectorType) -> string {
+    output: Vec(u8)
+    BuilderAppend(output, Render("@0 r_;", r.c))
+    limit := Render("@0@1", ConvertLimit(r), ifx t.bits == 32 then "f" else "")
+    for i: 0..r.lanes - 1 {
+        if !t.is_float {
+            BuilderAppend(output, Render("\n    ZI_AT(r_, @0) = (@1)@2;", Decimal(i), r.scalar, Lane("a", i)))
+        } else if r.is_signed {
+            BuilderAppend(output, Render("\n    { @0 v_ = @1; ZI_AT(r_, @2) = v_ != v_ ? 0 : v_ >= @3 ? INT@4_MAX : v_ <= -@3 ? INT@4_MIN : (@5)v_; }",
+                t.scalar, Lane("a", i), Decimal(i), limit, Decimal(r.bits), r.scalar))
+        } else {
+            BuilderAppend(output, Render("\n    { @0 v_ = @1; ZI_AT(r_, @2) = v_ != v_ || v_ <= 0 ? 0 : v_ >= @3 ? UINT@4_MAX : (@5)v_; }",
+                t.scalar, Lane("a", i), Decimal(i), limit, Decimal(r.bits), r.scalar))
+        }
+    }
+    BuilderAppend(output, "\n    return r_;")
+    return TextDetach(BuilderFinish(output))
+}
+
+ConvertGeneric :: (t: VectorType, r: VectorType) -> string {
+    if !t.is_float { return Render("return __builtin_convertvector(a, @0);", r.c) }
+    limit := ConvertLimit(r)
+    low := ifx r.is_signed then Render("-@0", limit) else "-1.0"
+    top := Render("@0@1_MAX", ifx r.is_signed then "INT" else "UINT", Decimal(r.bits))
+    output: Vec(u8)
+    m := Unsigned(t).c
+    BuilderAppend(output, Render("@0 big_ = (@0)(a >= (@1){0} + (@2)@3), small_ = (@0)(a <= (@1){0} + (@2)@4), nan_ = (@0)(a != a);",
+        m, t.c, t.scalar, limit, low))
+    BuilderAppend(output, Render("\n    @0 safe_ = (@0)((@1)a & ~(big_ | small_ | nan_));\n    @2 r_ = __builtin_convertvector(safe_, @2);",
+        t.c, m, r.c))
+    BuilderAppend(output, Render("\n    r_ = (@0)(((@1)r_ & ~big_) | (((@1){0} + (@2)@3) & big_));",
+        r.c, m, UnsignedScalar(r), top))
+    bottom := ifx r.is_signed then Render("(@0)INT@1_MIN", UnsignedScalar(r), Decimal(r.bits)) else "0"
+    BuilderAppend(output, Render("\n    r_ = (@0)(((@1)r_ & ~small_) | (((@1){0} + (@2)@3) & small_));\n    return (@0)((@1)r_ & ~nan_);",
+        r.c, m, UnsignedScalar(r), bottom))
+    return TextDetach(BuilderFinish(output))
+}
+
+Conversion :: (t: VectorType, r: VectorType, reinterpret: bool) -> Helper {
+    helper: Helper
+    helper.name = Render("@0_@1_@2", ifx reinterpret then "reinterpret" else "convert", t.name, r.name)
+    helper.result = r.c
+    VecPush(helper.parameters, Parameter.{t.c, "a"})
+    if reinterpret {
+        AddBranch(*helper.branches, "ZI_VEC", Render("return (@0)a;", r.c))
+        AddBranch(*helper.branches, "ZI_LE", Render("union { @0 a; @1 r; } u_;\n    u_.a = a;\n    return u_.r;", t.c, r.c))
+        AddBranch(*helper.branches, "", Render("unsigned char x_[@0];\n    zi_le_bytes_@1(a, x_);\n    return zi_le_lanes_@2(x_);",
+            Decimal(t.bytes), t.name, r.name))
+    } else {
+        AddBranch(*helper.branches, "ZI_VEC", ConvertGeneric(t, r))
+        AddBranch(*helper.branches, "", ConvertScalar(t, r))
+    }
+    return helper
+}
+
+Gather :: (t: VectorType, r: VectorType) -> Helper {
+    helper: Helper
+    helper.name = Render("gather_@0_@1", t.name, r.name)
+    helper.result = r.c
+    VecPush(helper.parameters, Parameter.{"const void *", "p"})
+    VecPush(helper.parameters, Parameter.{t.c, "a"})
+    if t.is_signed && !r.is_float {
+        AddBranch(*helper.branches, AVX2,
+            Render("return (@0)@1i32gather_epi32((const int *)p, (@2)a, 4);",
+                r.c, ifx t.wide then "_mm256_" else "_mm_", ifx t.wide then "__m256i" else "__m128i"))
+    }
+    AddBranch(*helper.branches, "",
+        Render("@0 r_;\n    for(int i_ = 0; i_ < @1; i_++) {\n        @2 v_;\n        memcpy(&v_, (const char *)p + 4 * (int64_t)ZI_AT(a, i_), 4);\n        ZI_AT(r_, i_) = v_;\n    }\n    return r_;",
+            r.c, Decimal(t.lanes), r.scalar))
+    return helper
+}

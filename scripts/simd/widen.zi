@@ -1,0 +1,64 @@
+// Width changes and 128-bit block boundaries.
+#import "model"
+#import "arithmetic"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+WidenSpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    r := ifx op == "widen" then Type(t.lane + 2, true) else ifx TextHasPrefix(op, "widen") || TextHasPrefix(op, "mul_wide") then Wider(t) else t
+    prefix := ifx t.wide then "_mm256_" else "_mm_"
+    register := ifx t.wide then "__m256i" else "__m128i"
+    high := TextHasSuffix(op, "_high") || op == "high"
+    if op == "widen" {
+        AddBranch(*output, AVX2, Render("return (@0)_mm256_cvt@1@2_epi@3((__m128i)a);",
+            r.c, ifx t.is_signed then "epi" else "epu", Decimal(t.bits), Decimal(t.bits * 2)))
+        AddBranch(*output, Render("@0 || @1 || @2", X86, Neon, Wasm),
+            Render("return ZI_N(combine_@0)(ZI_N(widen_low_@1)(a), ZI_N(widen_high_@1)(a));",
+                Half(r).name, t.name))
+    } else if op == "widen_low" || op == "widen_high" {
+        unpack := Render("@0unpack@1_epi@2", prefix, ifx high then "hi" else "lo", Decimal(t.bits))
+        body: string
+        if !t.is_signed {
+            body = Render("return (@0)@1((@2)a, @3setzero_si@4());", r.c, unpack, register,
+                prefix, Decimal(t.bytes * 8))
+        } else if t.bits < 32 {
+            body = Render("return (@0)@1srai_epi@2(@3((@4)a, (@4)a), @5);",
+                r.c, prefix, Decimal(t.bits * 2), unpack, register, Decimal(t.bits))
+        } else {
+            body = Render("return (@0)@1((@2)a, @3srai_epi32((@2)a, 31));", r.c, unpack, register, prefix)
+        }
+        AddBranch(*output, ifx t.wide then AVX2 else X86, body)
+        if !t.wide {
+            if high {
+                AddBranch(*output, A64, Render("return (@0)vmovl_high_@1((@2)a);", r.c, NeonSuffix(t), NeonType(t)))
+            }
+            AddBranch(*output, Neon, Render("return (@0)vmovl_@1(vget_@2_@1((@3)a));",
+                r.c, NeonSuffix(t), ifx high then "high" else "low", NeonType(t)))
+            letter := ifx t.is_signed then "i" else "u"
+            AddBranch(*output, Wasm, Render("return (@0)wasm_@1@2x@3_extend_@4_@1@5x@6((v128_t)a);",
+                r.c, letter, Decimal(t.bits * 2), Decimal(t.lanes / 2),
+                ifx high then "high" else "low", Decimal(t.bits), Decimal(t.lanes)))
+        }
+    } else if TextHasPrefix(op, "mul_wide") {
+        if t.bits == 16 {
+            AddBranch(*output, ifx t.wide then AVX2 else X86,
+                Render("@0 x_ = (@0)a, y_ = (@0)b;\n    return (@1)@2unpack@3_epi16(@2mullo_epi16(x_, y_), @2mulhi_@4(x_, y_));",
+                    register, r.c, prefix, ifx high then "hi" else "lo", X86Suffix(t)))
+        } else if t.bits == 32 {
+            AddBranch(*output, ifx t.wide then AVX2 else ifx t.is_signed then SSE41 else X86,
+                Render("@4 x_ = (@4)a, y_ = (@4)b;\n    return (@0)@1mul_@2(@1unpack@3_epi32(x_, x_), @1unpack@3_epi32(y_, y_));",
+                    r.c, prefix, X86Suffix(t), ifx high then "hi" else "lo", register))
+        }
+    } else if op == "low" || op == "high" {
+        half := Half(t).c
+        AddBranch(*output, AVX2, ifx high then Render("return (@0)_mm256_extracti128_si256((__m256i)a, 1);", half) else
+            Render("return (@0)_mm256_castsi256_si128((__m256i)a);", half))
+        AddBranch(*output, X86, Render("union { @0 w; __m128i h[2]; } u_;\n    u_.w = a;\n    return (@1)u_.h[@2];",
+            t.c, half, ifx high then "1" else "0"))
+    } else if op == "combine" {
+        AddBranch(*output, AVX2,
+            Render("return (@0)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);", Type(t.lane, true).c))
+    }
+    return output
+}

@@ -1,0 +1,94 @@
+// Pairwise arithmetic, preserving signed widening and saturated products.
+#import "model"
+#import "operations"
+#import "arithmetic"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+PairGeneric :: (op: string, t: VectorType) -> string {
+    r := ResultType(op, t)
+    u := Unsigned(r).c
+    if op == "madd" {
+        return Render("@0 p_ = (@0)__builtin_convertvector(@1, @2) * (@0)__builtin_convertvector(@3, @2);\n    @0 q_ = (@0)__builtin_convertvector(@4, @2) * (@0)__builtin_convertvector(@5, @2);\n    return (@2)(p_ + q_);",
+            u, EvenOdd(t, "a", false), r.c, EvenOdd(t, "b", false),
+            EvenOdd(t, "a", true), EvenOdd(t, "b", true))
+    }
+    if op == "add_pairs" {
+        return Render("return (@0)((@1)__builtin_convertvector(@2, @0) + (@1)__builtin_convertvector(@3, @0));",
+            r.c, u, EvenOdd(t, "a", false), EvenOdd(t, "a", true))
+    }
+    return ""
+}
+
+PairSpecials :: (op: string, t: VectorType) -> Vec(Branch) {
+    output: Vec(Branch)
+    r := ResultType(op, t)
+    prefix := ifx t.wide then "_mm256_" else "_mm_"
+    register := ifx t.wide then "__m256i" else "__m128i"
+    tier := ifx t.wide then AVX2 else X86
+    if op == "madd" {
+        AddBranch(*output, tier, Render("return (@0)@1madd_epi16((@2)a, (@2)b);", r.c, prefix, register))
+        if !t.wide {
+            AddBranch(*output, A64, Render("int16x8_t x_ = (int16x8_t)a, y_ = (int16x8_t)b;\n    return (@0)vpaddq_s32(vmull_s16(vget_low_s16(x_), vget_low_s16(y_)),\n        vmull_s16(vget_high_s16(x_), vget_high_s16(y_)));", r.c))
+            AddBranch(*output, Neon, Render("int16x8_t x_ = (int16x8_t)a, y_ = (int16x8_t)b;\n    int32x4_t lo_ = vmull_s16(vget_low_s16(x_), vget_low_s16(y_));\n    int32x4_t hi_ = vmull_s16(vget_high_s16(x_), vget_high_s16(y_));\n    return (@0)vcombine_s32(vpadd_s32(vget_low_s32(lo_), vget_high_s32(lo_)),\n        vpadd_s32(vget_low_s32(hi_), vget_high_s32(hi_)));", r.c))
+            AddBranch(*output, Wasm, Render("return (@0)wasm_i32x4_dot_i16x8((v128_t)a, (v128_t)b);", r.c))
+        }
+    } else if op == "madd_sat" {
+        AddBranch(*output, ifx t.wide then AVX2 else SSSE3,
+            Render("return (@0)@1maddubs_epi16((@2)a, (@2)b);", r.c, prefix, register))
+        if !t.wide {
+            AddBranch(*output, X86, Render("__m128i x_ = (__m128i)a, y_ = (__m128i)b;\n    __m128i p_ = _mm_mullo_epi16(_mm_and_si128(x_, _mm_set1_epi16(0xff)), _mm_srai_epi16(_mm_slli_epi16(y_, 8), 8));\n    __m128i q_ = _mm_mullo_epi16(_mm_srli_epi16(x_, 8), _mm_srai_epi16(y_, 8));\n    return (@0)_mm_adds_epi16(p_, q_);", r.c))
+            products := "uint8x16_t x_ = (uint8x16_t)a;\n    int8x16_t y_ = (int8x16_t)b;\n    int16x8_t lo_ = vmulq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_low_u8(x_))), vmovl_s8(vget_low_s8(y_)));\n    int16x8_t hi_ = vmulq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(x_))), vmovl_s8(vget_high_s8(y_)));\n"
+            AddBranch(*output, A64, Render("@0    return (@1)vqaddq_s16(vuzp1q_s16(lo_, hi_), vuzp2q_s16(lo_, hi_));", products, r.c))
+            AddBranch(*output, Neon, Render("@0    int16x8x2_t u_ = vuzpq_s16(lo_, hi_);\n    return (@1)vqaddq_s16(u_.val[0], u_.val[1]);", products, r.c))
+            AddBranch(*output, Wasm, Render("v128_t x_ = (v128_t)a, y_ = (v128_t)b;\n    v128_t p_ = wasm_i16x8_mul(wasm_v128_and(x_, wasm_i16x8_splat(0xff)), wasm_i16x8_shr(wasm_i16x8_shl(y_, 8), 8));\n    v128_t q_ = wasm_i16x8_mul(wasm_u16x8_shr(x_, 8), wasm_i16x8_shr(y_, 8));\n    return (@0)wasm_i16x8_add_sat(p_, q_);", r.c))
+        }
+    } else if op == "sad" {
+        AddBranch(*output, tier, Render("return (@0)@1sad_epu8((@2)a, (@2)b);", r.c, prefix, register))
+        if !t.wide {
+            AddBranch(*output, Neon, Render("return (@0)vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vabdq_u8((uint8x16_t)a, (uint8x16_t)b))));", r.c))
+            AddBranch(*output, Wasm, Render("v128_t d_ = wasm_v128_or(wasm_u8x16_sub_sat((v128_t)a, (v128_t)b), wasm_u8x16_sub_sat((v128_t)b, (v128_t)a));\n    @0 s_ = (@0)wasm_u32x4_extadd_pairwise_u16x8(wasm_u16x8_extadd_pairwise_u8x16(d_));\n    return (s_ & 0xffffffffu) + (s_ >> 32);", r.c))
+        }
+    } else if op == "add_pairs" {
+        if t.lane == 0 || t.lane == 1 || t.lane == 3 {
+            fn := ifx t.bits == 8 then "maddubs_epi16" else "madd_epi16"
+            args := (ifx t.lane == 1 then Render("@0set1_epi8(1), (@1)a", prefix, register) else
+                Render("(@0)a, @1set1_epi@2(1)", register, prefix, Decimal(t.bits)))
+            AddBranch(*output, ifx t.wide then AVX2 else ifx t.bits == 8 then SSSE3 else X86,
+                Render("return (@0)@1@2(@3);", r.c, prefix, fn, args))
+        }
+        if !t.wide || !(t.lane == 0 || t.lane == 1 || t.lane == 3) {
+            if t.bits == 8 && !t.wide {
+                even := ifx t.is_signed then "_mm_srai_epi16(_mm_slli_epi16(x_, 8), 8)" else "_mm_and_si128(x_, _mm_set1_epi16(0xff))"
+                AddBranch(*output, X86, Render("__m128i x_ = (__m128i)a;\n    return (@0)_mm_add_epi16(@1, _mm_sr@2i_epi16(x_, 8));",
+                    r.c, even, ifx t.is_signed then "a" else "l"))
+            }
+            if t.lane == 2 || t.lane == 4 {
+                bits := Decimal(t.bits * 2)
+                AddBranch(*output, tier,
+                    Render("@0 x_ = (@0)a;\n    return (@1)@2add_epi@3(@2and_si@4(x_, @2set1_epi@3@5(@6)), @2srli_epi@3(x_, @7));",
+                        register, r.c, prefix, bits, Decimal(t.bytes * 8), ifx t.bits == 32 then "x" else "",
+                        ifx t.bits == 32 then "0xffffffff" else "0xffff", Decimal(t.bits)))
+            }
+            if t.lane == 5 {
+                AddBranch(*output, ifx t.wide then AVX2 else SSE41,
+                    Render("@0 x_ = (@0)a, one_ = @1set1_epi32(1);\n    return (@2)@1add_epi64(@1mul_epi32(x_, one_), @1mul_epi32(@1srli_epi64(x_, 32), one_));",
+                        register, prefix, r.c))
+                if !t.wide {
+                    AddBranch(*output, X86, Render("__m128i x_ = (__m128i)a, s_ = _mm_srai_epi32(x_, 31), lo_ = _mm_set1_epi64x(0xffffffff);\n    __m128i e_ = _mm_or_si128(_mm_and_si128(x_, lo_), _mm_slli_epi64(s_, 32));\n    __m128i o_ = _mm_or_si128(_mm_srli_epi64(x_, 32), _mm_andnot_si128(lo_, s_));\n    return (@0)_mm_add_epi64(e_, o_);", r.c))
+                }
+            }
+            if !t.wide {
+                AddBranch(*output, Neon, Render("return (@0)vpaddlq_@1((@2)a);", r.c, NeonSuffix(t), NeonType(t)))
+                if t.bits < 32 {
+                    AddBranch(*output, Wasm, Render("return (@0)wasm_@1_extadd_pairwise_@2((v128_t)a);", r.c, WasmSuffix(r), WasmSuffix(t)))
+                } else if t.is_signed {
+                    AddBranch(*output, Wasm, Render("v128_t x_ = (v128_t)a;\n    return (@0)wasm_i64x2_add(wasm_i64x2_shr(wasm_i64x2_shl(x_, 32), 32), wasm_i64x2_shr(x_, 32));", r.c))
+                } else {
+                    AddBranch(*output, Wasm, Render("v128_t x_ = (v128_t)a;\n    return (@0)wasm_i64x2_add(wasm_v128_and(x_, wasm_i64x2_splat(0xffffffff)), wasm_u64x2_shr(x_, 32));", r.c))
+                }
+            }
+        }
+    }
+    return output
+}

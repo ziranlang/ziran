@@ -1,0 +1,35 @@
+// Enumerate public helpers in their stable dependency order.
+#import "model"
+#import "operations"
+#import "plan"
+#import "narrow"
+#import "convert"
+using Vectors :: #import "std/vec"
+
+Entries :: () -> Vec(Helper) {
+    output: Vec(Helper)
+    operations := Operations()
+    types := Types()
+    for op: operations {
+        for t: types {
+            if op == "narrow" {
+                if t.is_float || t.bits == 8 { continue }
+                for sign: 0..1 { VecPush(output, Narrow(t, Type(t.lane - t.lane % 2 - 2 + cast(s32)sign, t.wide))) }
+            } else if op == "reinterpret" || op == "convert" {
+                for r: types {
+                    if op == "reinterpret" {
+                        if r.bytes == t.bytes && r.lane != t.lane { VecPush(output, Conversion(t, r, true)) }
+                    } else if r.lanes == t.lanes && r.bits == t.bits && r.is_float != t.is_float {
+                        VecPush(output, Conversion(t, r, false))
+                    }
+                }
+            } else if op == "gather" {
+                if t.lane == 4 || t.lane == 5 {
+                    lanes := s32.[4, 5, 8]
+                    for lane: lanes { VecPush(output, Gather(t, Type(lane, t.wide))) }
+                }
+            } else if Supported(op, t) { VecPush(output, Build(op, t)) }
+        }
+    }
+    return output
+}

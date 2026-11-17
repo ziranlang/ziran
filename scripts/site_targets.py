@@ -261,8 +261,31 @@ def cpu_name():
         return platform.processor() or platform.machine()
 
 
+def cell_texts(data):
+    # Every displayed time and size, formatted once here; targets.js only shows them.
+    runs = data['platforms'].get('desktop', {}).get('examples', {})
+    measured = {(example['id'], target): runs.get(example['id'], {}).get(target, {})
+                for example in data['examples'] for target in example['targets']}
+    units = {'run': time_unit([cell.get('execution_ms') for cell in measured.values()]),
+             'emission': time_unit([cell.get('emission_ms') for example in data['examples']
+                                    for cell in example['targets'].values()], ('ns', 'µs', 'ms'))}
+    cells = {}
+    for example in data['examples']:
+        for target, cell in example['targets'].items():
+            run = measured[example['id'], target]
+            included = run.get('sample_statistics', {}).get('included_samples_ms')
+            cells.setdefault(example['id'], {})[target] = {
+                'run': format_time(run.get('execution_ms'), units['run']),
+                'emission': format_time(cell.get('emission_ms'), units['emission']),
+                'size': '—' if cell.get('bytes') is None else f'{cell["bytes"]:,}',
+                'range': format_time(min(included), units['run']) + '–' + format_time(max(included), units['run'])
+                if included else ''}
+    return {'units': units, 'cells': cells}
+
+
 def render(data):
     escape = html.escape
+    texts = cell_texts(data)
     rows = []
     for example in data['examples']:
         cells = []
@@ -272,8 +295,7 @@ def render(data):
             supported = cell['status'] == 'ok'
             href = (cell.get('inspection') or (cell['files'][0] if supported else cell['diagnostic_file']))['path']
             label = ('Shared stage' if target == 'zir' else 'Verified') if supported else 'Unavailable'
-            measured = data['platforms'].get('desktop', {}).get('examples', {}).get(example['id'], {}).get(target, {})
-            value = format_time(measured.get('execution_ms'))
+            value = texts['cells'][example['id']][target]['run']
             cells.append(f'<td><a href="{escape(href)}" class="matrix-cell" data-example="{example["id"]}" data-target="{target}" '
                          f'aria-label="{escape(example["title"])}: {TARGETS[target]}, {label}">'
                          f'<span class="matrix-state {"is-ok" if supported else "is-limited"}">{label}</span>'
@@ -290,17 +312,59 @@ def render(data):
     source = source[:start] + '\n' + ''.join(rows) + '\n' + source[finish:]
     source = re.sub(r'(?s)(<!-- generated:target_source -->).*?(<!-- /generated:target_source -->)',
                     lambda match: match[1] + escape(content) + match[2], source)
-    return source
+    source = re.sub(r'<small id="matrix-unit">[^<]*</small>',
+                    lambda match: '<small id="matrix-unit">' + texts['units']['run'] + ' per call</small>', source)
+    payload = json.dumps(texts, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+    return re.sub(r'(?s)(<!-- generated:target_texts -->).*?(<!-- /generated:target_texts -->)',
+                  lambda match: match[1] + '<script type="application/json" id="matrix-texts">' + payload + '</script>' + match[2],
+                  source)
 
 
-def format_time(value):
+# One number format for every benchmark table: three significant digits,
+# thousands separators, never scientific notation. scripts/site_numbers.zi
+# implements the same steps for the Ziran renderer; both pass NUMBER_CASES.
+UNIT_SCALE = {'ns': 1e6, 'µs': 1e3, 'ms': 1.0}
+NUMBER_CASES = ((0.0011370088958740235, '0.00114'), (1.1370088958740235, '1.14'), (4.881, '4.88'),
+                (4.8, '4.8'), (56.63, '56.6'), (100.0, '100'), (999.6, '1,000'), (9.996, '10'),
+                (1147.849, '1,150'), (8528.05, '8,530'), (37783425.4, '37,800,000'), (0.0, '0'))
+
+
+def format_number(value):
     if value is None:
         return '—'
-    return format_microseconds(value)
+    if value <= 0:
+        return '0'
+    exponent, scale = 0, 1.0
+    while value >= scale * 10:
+        scale *= 10
+        exponent += 1
+    while value < scale:
+        scale /= 10
+        exponent -= 1
+    decimals = 2 - exponent
+    power = float(10 ** abs(decimals))
+    digits = int((value * power if decimals >= 0 else value / power) + 0.5)
+    if digits >= 1000:  # rounding carried into a fourth digit, as 999.6 does
+        digits //= 10
+        decimals -= 1
+    whole, fraction = (digits // 10 ** decimals, str(digits % 10 ** decimals).rjust(decimals, '0').rstrip('0')) \
+        if decimals > 0 else (digits * 10 ** -decimals, '')
+    return f'{whole:,}' + ('.' + fraction if fraction else '')
 
 
-def format_microseconds(value):
-    return '—' if value is None else f'{value * 1000:.3g}'
+def time_unit(values_ms, units=('ns', 'µs')):
+    # The unit that puts the most cells between 1 and 9,999; ties keep the larger unit.
+    measured = [value for value in values_ms if value is not None]
+    order = sorted(units, key=lambda unit: UNIT_SCALE[unit])
+    return max(order, key=lambda unit: sum(1 <= value * UNIT_SCALE[unit] < 9999.5 for value in measured))
+
+
+def format_time(value_ms, unit):
+    return '—' if value_ms is None else format_number(value_ms * UNIT_SCALE[unit])
+
+
+def format_microseconds(value_ms):
+    return format_time(value_ms, 'µs')
 
 
 def check():
@@ -366,10 +430,14 @@ if __name__ == '__main__':
     parser.add_argument('--bin-dir', type=Path, default=REPO / 'build/bin')
     parser.add_argument('--samples', type=int, default=5)
     parser.add_argument('--check', action='store_true')
+    parser.add_argument('--render', action='store_true', help='rewrite the page from the saved matrix without measuring')
     arguments = parser.parse_args()
     if arguments.samples < 3:
         parser.error('--samples must be at least 3')
     try:
-        check() if arguments.check else build(arguments.bin_dir.resolve(), arguments.samples)
+        if arguments.render:
+            (SITE / 'targets.html').write_text(render(json.loads((OUTPUT / 'matrix.json').read_text())))
+        else:
+            check() if arguments.check else build(arguments.bin_dir.resolve(), arguments.samples)
     except (RuntimeError, AssertionError) as error:
         sys.exit(str(error))

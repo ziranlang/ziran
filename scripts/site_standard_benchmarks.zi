@@ -1,0 +1,210 @@
+// Render retained measurements only. Never build or measure benchmark kernels.
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/number_text"
+#import "std/text_tools"
+Stats :: #import "benchmark_statistics"
+Numbers :: #import "site_numbers"
+using Vectors :: #import "std/vec"
+
+START :: "<!-- generated:standard_benchmarks -->";
+END :: "<!-- /generated:standard_benchmarks -->";
+Field :: (doc: *JsonDocument, node: s32, name: string) -> string {
+    return TextDetach(JsonString(doc, JsonMember(doc,node,name)))
+}
+Real :: (doc: *JsonDocument, node: s32) -> float64 {
+    value, valid := ParseFloat64(JsonNumberText(doc,node))
+    return ifx valid then value else -1.0
+}
+Append :: (out: *Vec(u8), text: string) { unused BuilderAppend(out.*,text) }
+Escape :: (out: *Vec(u8), text: string) {
+    for byte: text {
+        if byte == 38 { Append(out,"&amp;") }
+        else if byte == 60 { Append(out,"&lt;") }
+        else if byte == 62 { Append(out,"&gt;") }
+        else if byte == 34 { Append(out,"&quot;") }
+        else { unused VecPush(out.*,byte) }
+    }
+}
+ValidateMeasurement :: (doc: *JsonDocument, cell: s32, expected: string) -> bool {
+    if Field(doc,cell,"status") != "ok" { return false }
+    m := JsonMember(doc,cell,"measurement")
+    verified, present := JsonBool(doc,JsonMember(doc,m,"stdout_verified"))
+    if !present || !verified || Field(doc,m,"result") != expected { return false }
+    batches, valid := JsonInteger(doc,JsonMember(doc,m,"batches"))
+    raw := JsonMember(doc,m,"batch_samples_ms")
+    if !valid || batches != 1 || JsonCount(doc,raw) != 11 { return false }
+    values: Vec(float64)
+    for i: cast(s32)0..10 { unused VecPush(values,Real(doc,JsonElement(doc,raw,i))) }
+    analyzed := Stats.BenchmarkAnalyze(values[:])
+    if !analyzed.valid { return false }
+    reported := Real(doc,JsonMember(doc,m,"execution_ms"))
+    if Abs(reported-analyzed.median) > 0.000000001 { return false }
+    stats := JsonMember(doc,m,"sample_statistics")
+    excluded := JsonMember(doc,stats,"excluded_indices")
+    if JsonCount(doc,excluded) != analyzed.excluded.count { return false }
+    for i: cast(s32)0..JsonCount(doc,excluded)-1 {
+        index, found := JsonInteger(doc,JsonElement(doc,excluded,i))
+        if !found || index != analyzed.excluded[i] { return false }
+    }
+    return true
+}
+Abs :: (value: float64) -> float64 { return ifx value < 0.0 then -value else value }
+// Published tables share one physical host and clean compiler revision.
+CohortRevision :: () -> string {
+    raw, readable := ReadEntireFile("site/generated/targets/matrix.json")
+    doc: JsonDocument
+    if !readable || !JsonRead(*doc,raw) { return "" }
+    return TextCopy(Field(*doc,doc.root,"revision"))
+}
+InCohort :: (doc: *JsonDocument, revision: string) -> bool {
+    dirty, dirty_valid := JsonBool(doc,JsonMember(doc,doc.root,"compiler_dirty"))
+    return revision.count == 40 && Field(doc,doc.root,"revision") == revision &&
+        dirty_valid && !dirty && Field(doc,doc.root,"host") == "alpha"
+}
+RenderSet :: (out: *Vec(u8), name: string, revision: string, checking: bool) -> bool {
+    path: Vec(u8); Append(*path,"bench/results/standard/"); Append(*path,name); Append(*path,".json")
+    raw, readable := ReadEntireFile(BuilderFinish(path))
+    if !readable { return false }
+    doc: JsonDocument
+    if !JsonRead(*doc,raw) { return false }
+    samples, samples_valid := JsonInteger(*doc,JsonMember(*doc,doc.root,"samples"))
+    checks, checks_valid := JsonBool(*doc,JsonMember(*doc,doc.root,"checks"))
+    if !samples_valid || samples != 11 || !checks_valid || checks ||
+        Field(*doc,doc.root,"learning") != "off" || Field(*doc,doc.root,"virtualization") != "none" { return false }
+    if !InCohort(*doc,revision) { print("% is not in the published compiler cohort\n",name); return false }
+    examples := JsonMember(*doc,doc.root,"examples")
+    if JsonCount(*doc,examples) != 11 { return false }
+    Append(out,"<article><h3>")
+    Append(out,ifx name == "diagnostic" then "Diagnostic sizes" else "Benchmarks Game performance sizes")
+    Append(out,"</h3><p>"); Escape(out,Field(*doc,doc.root,"cpu"))
+    Append(out," · <a href=\"https://github.com/ziranlang/ziran/commit/")
+    Escape(out,Field(*doc,doc.root,"revision")); Append(out,"\">Measured compiler commit</a></p>")
+    columns: [4]string = .["c","go","zx","wasm"]
+    medians: Vec(float64)
+    for i: cast(s32)0..10 {
+        row := JsonElement(*doc,examples,i); expected := Field(*doc,row,"expected")
+        targets := JsonMember(*doc,row,"targets")
+        for column: columns {
+            cell := JsonMember(*doc,targets,column)
+            if !ValidateMeasurement(*doc,cell,expected) { print("invalid measurement: %/%\n",Field(*doc,row,"id"),column); return false }
+            unused VecPush(medians,Real(*doc,JsonMember(*doc,JsonMember(*doc,cell,"measurement"),"execution_ms")))
+        }
+    }
+    unit := Numbers.ChooseUnit(medians[:],1,2)
+    Append(out,"<div class=\"matrix-scroll\" tabindex=\"0\" role=\"region\" aria-label=\"Standard benchmark results\"><table class=\"target-matrix\"><caption class=\"sr-only\">Median ")
+    Append(out,Numbers.UNIT_NAMES[unit]); Append(out," per run; input shown in each row</caption><thead><tr><th scope=\"col\">Benchmark · input<small>")
+    Append(out,Numbers.UNIT_NAMES[unit]); Append(out," per run</small></th><th scope=\"col\">C · cc -O2</th><th scope=\"col\">Go</th><th scope=\"col\">ZX native</th><th scope=\"col\">Wasm · V8</th></tr></thead><tbody>")
+    for i: cast(s32)0..10 {
+        row := JsonElement(*doc,examples,i)
+        input, input_valid := JsonInteger(*doc,JsonMember(*doc,row,"input"))
+        if !input_valid { return false }
+        Append(out,"<tr><th scope=\"row\">"); Escape(out,Field(*doc,row,"id")); Append(out," · ")
+        Append(out,Numbers.FormatCount(input)); Append(out,"</th>")
+        for column: cast(s32)0..3 {
+            Append(out,"<td>"); Append(out,Numbers.FormatTime(medians[i*4+column],unit)); Append(out,"</td>")
+        }
+        Append(out,"</tr>")
+    }
+    Append(out,"</tbody></table></div><p><a href=\"generated/standard/"); Append(out,name)
+    Append(out,".json\">Raw samples, exclusions and provenance</a></p></article>")
+    destination: Vec(u8); Append(*destination,"site/generated/standard/"); Append(*destination,name); Append(*destination,".json")
+    if checking {
+        saved, found := ReadEntireFile(BuilderFinish(destination))
+        return found && saved == raw
+    }
+    return WriteEntireFile(BuilderFinish(destination),raw)
+}
+RenderCompile :: (out: *Vec(u8), revision: string, checking: bool) -> bool {
+    raw, readable := ReadEntireFile("bench/results/standard/compile.json")
+    if !readable { return false }
+    doc: JsonDocument
+    if !JsonRead(*doc,raw) { return false }
+    complete, complete_valid := JsonBool(*doc,JsonMember(*doc,doc.root,"complete"))
+    checks, checks_valid := JsonBool(*doc,JsonMember(*doc,doc.root,"checks"))
+    samples, samples_valid := JsonInteger(*doc,JsonMember(*doc,doc.root,"samples"))
+    if !complete_valid || !complete || !checks_valid || checks || !samples_valid || samples != 11 ||
+        Field(*doc,doc.root,"learning") != "off" || Field(*doc,doc.root,"virtualization") != "none" ||
+        Field(*doc,doc.root,"revision") != revision || Field(*doc,doc.root,"host") != "alpha" { return false }
+    columns: [5]string = .["c","go","generated-c","native","wasm"]
+    builds := JsonMember(*doc,doc.root,"builds")
+    if JsonCount(*doc,builds) != 60 { return false }
+    // Each timed sample must correspond to a successful, validated build.
+    seen: [60]bool
+    for index: cast(s32)0..59 {
+        build := JsonElement(*doc,builds,index)
+        repetition, repetition_valid := JsonInteger(*doc,JsonMember(*doc,build,"repetition"))
+        warmup, warmup_valid := JsonBool(*doc,JsonMember(*doc,build,"warmup"))
+        verified, verified_valid := JsonBool(*doc,JsonMember(*doc,build,"output_verified"))
+        if !repetition_valid || repetition < 0 || repetition > 11 || !warmup_valid ||
+            warmup != (repetition == 0) || !verified_valid || !verified { return false }
+        column: s32 = -1
+        for i: cast(s32)0..4 { if columns[i] == Field(*doc,build,"target") { column = i } }
+        if column < 0 { return false }
+        position := repetition * 5 + column
+        if seen[position] { return false }; seen[position] = true
+        elapsed := Real(*doc,JsonMember(*doc,build,"wall_ms"))
+        if elapsed <= 0.0 { return false }
+        if repetition > 0 {
+            target := JsonMember(*doc,JsonMember(*doc,doc.root,"targets"),columns[column])
+            value := Real(*doc,JsonElement(*doc,JsonMember(*doc,target,"raw_ms"),cast(s32)(repetition-1)))
+            if Abs(value-elapsed) > 0.000000001 { return false }
+        }
+    }
+    Append(out,"<article id=\"standard-compile\"><h3>Compile time</h3><p>")
+    Escape(out,Field(*doc,doc.root,"cpu")); Append(out," · <a href=\"https://github.com/ziranlang/ziran/commit/")
+    Escape(out,Field(*doc,doc.root,"revision")); Append(out,"\">Measured compiler commit</a></p>")
+    Append(out,"<div class=\"matrix-scroll\" tabindex=\"0\" role=\"region\" aria-label=\"Compile time comparison\"><table class=\"target-matrix\"><caption class=\"sr-only\">Median milliseconds per complete build of the standard suite</caption><thead><tr><th scope=\"col\">Program<small>ms per build</small></th><th scope=\"col\">C · cc -O2</th><th scope=\"col\">Go</th><th scope=\"col\">Generated C + cc -O2</th><th scope=\"col\">ZX native</th><th scope=\"col\">Wasm</th></tr></thead><tbody><tr><th scope=\"row\">All 11 workloads</th>")
+    for column: columns {
+        target := JsonMember(*doc,JsonMember(*doc,doc.root,"targets"),column)
+        values := JsonMember(*doc,target,"raw_ms")
+        if JsonCount(*doc,values) != 11 { return false }
+        measured: Vec(float64)
+        for i: cast(s32)0..10 { unused VecPush(measured,Real(*doc,JsonElement(*doc,values,i))) }
+        analyzed := Stats.BenchmarkAnalyze(measured[:])
+        if !analyzed.valid || Abs(analyzed.median-Real(*doc,JsonMember(*doc,target,"median_ms"))) > 0.000000001 { return false }
+        excluded := JsonMember(*doc,target,"excluded_indices")
+        if JsonCount(*doc,excluded) != analyzed.excluded.count { return false }
+        for i: cast(s32)0..JsonCount(*doc,excluded)-1 {
+            value, valid := JsonInteger(*doc,JsonElement(*doc,excluded,i))
+            if !valid || value != analyzed.excluded[i] { return false }
+        }
+        Append(out,"<td>"); Append(out,Numbers.FormatTime(analyzed.median,0)); Append(out,"</td>")
+    }
+    Append(out,"</tr></tbody></table></div><p>One unmeasured warmup, then 11 fresh application builds with rotating target order and symmetric 1.5×IQR filtering. Filesystem and toolchain caches stay warm; Go application source changes to prevent cache hits, and Go runs with GOMAXPROCS=2. Generated C includes compilation and linking; native includes frontend, host compilation, linking and native instantiation. Wasm includes frontend and module emission; V8 compilation is excluded. Artifact validation runs outside timing. No fast compiler mode is available. <a href=\"generated/standard/compile.json\">Raw samples, exclusions and provenance</a>.</p></article>")
+    if checking {
+        saved, found := ReadEntireFile("site/generated/standard/compile.json")
+        return found && saved == raw
+    }
+    return WriteEntireFile("site/generated/standard/compile.json",raw)
+}
+main :: (argc: s32, argv: **u8) -> s32 {
+    checking := argc == 2 && TextFromCString(argv[1]) == "--check"
+    if argc > 1 && !checking { print("site_standard_benchmarks.zi [--check]\n"); return 2 }
+    if !checking && !CreateDirectories("site/generated/standard") { return 1 }
+    revision := CohortRevision()
+    html: Vec(u8)
+    Append(*html,START); Append(*html,"\n<section class=\"section\" id=\"standard-benchmarks\"><h2>Standard scalar benchmarks</h2><p>The same algorithms and runtime inputs in C, Go and Ziran. Ziran runs through native ZX and Wasm. All columns are single-threaded.</p>")
+    if !RenderSet(*html,"diagnostic",revision,checking) { return 1 }
+    unused_full, has_full := ReadEntireFile("bench/results/standard/game-performance.json")
+    if has_full && !RenderSet(*html,"game-performance",revision,checking) { return 1 }
+    unused_compile, has_compile := ReadEntireFile("bench/results/standard/compile.json")
+    if has_compile && !RenderCompile(*html,revision,checking) { return 1 }
+    Append(*html,"<p>Checks off; learning off. At least 150 ms warmup, then 11 in-process samples. Medians exclude symmetric 1.5×IQR outliers. Every result is checked against C; raw samples and excluded indices remain available. Startup and compilation are excluded. Binary trees include allocation and reclamation using each language's allocator or default GC. Mandelbrot and FASTA digest generated bytes, excluding file output; floating results are rounded to nine decimals. Diagnostic sizes are smaller than the Game performance sizes. Sources: <a href=\"https://github.com/ziranlang/ziran/tree/master/bench/standard\">bench/standard</a>.</p></section>\n")
+    Append(*html,END)
+    page, found := ReadEntireFile("site/targets.html")
+    if !found { return 1 }
+    begin := TextFind(page,START); end := TextFind(page,END)
+    if begin < 0 {
+        if checking { return 1 }
+        begin = TextFind(page,"<section class=\"matrix-methodology\" id=\"benchmarks\"")
+        if begin < 0 { return 1 }
+        end = begin
+    } else { if end < begin { return 1 }; end += END.count }
+    result: Vec(u8); Append(*result,page[:begin]); Append(*result,BuilderFinish(html)); Append(*result,page[end:])
+    if checking { if page != BuilderFinish(result) { return 1 }; print("standard benchmark tables, C oracles, samples and IQR verified\n"); return 0 }
+    return ifx WriteEntireFile("site/targets.html",BuilderFinish(result)) then 0 else 1
+}

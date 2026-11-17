@@ -35,9 +35,11 @@
   let revision = 0;
   let worker;
   let deadline;
-  const ms = value => value == null ? '—' : Number((value * 1000).toPrecision(3)).toString();
+  // scripts/site_targets.py formats every time and size once; this page only shows them.
+  const texts = JSON.parse(document.getElementById('matrix-texts').textContent);
+  const text = (example, target) => texts.cells[example.id]?.[target] || {};
+  const withUnit = (value, unit) => !value || value === '—' ? '—' : value + ' ' + unit;
   const measurement = (example, target) => data.platforms[platform]?.examples[example.id]?.[target];
-  const bytes = value => value == null ? '—' : value.toLocaleString() + ' B';
   function stop() {
     if (worker) worker.terminate();
     worker = null;
@@ -99,16 +101,16 @@
     document.getElementById('matrix-details').hidden = view === 'source';
     download.hidden = !supported;
     if (cell) {
-      document.getElementById('matrix-emission').textContent = ms(cell.emission_ms);
-      document.getElementById('matrix-execution').textContent = ms(measurement(example, view)?.execution_ms);
+      const shown = text(example, view);
+      document.getElementById('matrix-emission').textContent = withUnit(shown.emission, texts.units.emission);
+      document.getElementById('matrix-execution').textContent = withUnit(shown.run, texts.units.run);
       const measured = measurement(example, view);
       document.getElementById('matrix-sample-range').textContent = measured ?
         data.platforms[platform].label + ' · ' + measured.batch_samples_ms.length + ' measured batches × ' +
-        measured.batches.toLocaleString() + ' calls · per-call range ' +
-        ms(Math.min(...measured.sample_statistics.included_samples_ms)) + '–' + ms(Math.max(...measured.sample_statistics.included_samples_ms)) +
+        measured.batches.toLocaleString() + ' calls · per-call range ' + shown.range + ' ' + texts.units.run +
         ' · ' + measured.sample_statistics.excluded_indices.length + ' outliers excluded (1.5×IQR)' :
         'ZIR is a shared compiler stage; it has no platform execution samples.';
-      document.getElementById('matrix-size').textContent = bytes(cell.bytes);
+      document.getElementById('matrix-size').textContent = withUnit(shown.size, 'bytes');
       document.getElementById('matrix-verified').textContent = view === 'zir' ? 'Checked' : example.stdout ? 'Output matches' : cell.result;
       document.getElementById('matrix-command').textContent = cell.command + (measurement(example, view)?.command ? '\n\n' + measurement(example, view).command : '');
     }
@@ -148,11 +150,11 @@
     const snapshot = data.platforms[platform];
     document.querySelectorAll('.matrix-cell').forEach(link => {
       const example = byId.get(link.dataset.example), target = link.dataset.target;
-      const cell = example.targets[target];
-      link.querySelector('.matrix-value').textContent = metric === 'size' ? bytes(cell.bytes) :
-        metric === 'emission' ? ms(cell.emission_ms) : ms(measurement(example, target)?.execution_ms);
+      link.querySelector('.matrix-value').textContent = text(example, target)[metric] || '—';
       link.querySelector('.matrix-state').textContent = target === 'zir' ? 'Shared stage' : 'Verified';
     });
+    document.getElementById('matrix-unit').textContent = metric === 'size' ? 'bytes emitted' :
+      metric === 'emission' ? texts.units.emission + ' to emit' : texts.units.run + ' per call';
     document.querySelectorAll('[data-runtime]').forEach(label => {
       label.textContent = snapshot.runtimes[label.dataset.runtime].split(' · ').slice(1).join(' · ');
     });

@@ -209,10 +209,14 @@ if __name__ == '__main__':
                         help='write generated artifacts and the results page under this directory')
     parser.add_argument('--samples', type=int, default=11)
     parser.add_argument('--check', action='store_true')
+    parser.add_argument('--render', action='store_true', help='rewrite the page section from the saved matrix without measuring')
     args = parser.parse_args()
     SITE = args.site_dir.resolve()
     base.SITE = hosts.SITE = SITE
     OUTPUT = SITE / 'generated/json-text'
     if not 3 <= args.samples <= 31:
         parser.error('--samples must be between 3 and 31')
-    check() if args.check else build(args.compiler_root.resolve(), args.samples)
+    if args.render:
+        write_section(json.loads((OUTPUT / 'matrix.json').read_text()))
+    else:
+        check() if args.check else build(args.compiler_root.resolve(), args.samples)

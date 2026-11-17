@@ -19,4 +19,4 @@ def validate(kernel):
     assert all(data['samples'] == 11 for data in (kernel, widgets, workloads, examples))
     return (f'<p class="matrix-footnote">Measured on {html.escape(widgets["host"])} · '
             f'<a href="https://github.com/ziranlang/ziran/commit/{revision}">Compiler revision</a>. '
-            'All published tables use this physical host and compiler revision. Times are in µs.</p>')
+            'All published tables use this physical host and compiler revision. Each table names its unit in its first column.</p>')

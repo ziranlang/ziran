@@ -1,10 +1,12 @@
 #import "native_test"
 #import "check_support"
 #import "std/byte_text_linux"
+#import "std/float_text"
 #import "std/file_tree_linux"
 #import "std/json_document"
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
+Numbers :: #import "site_numbers"
 
 SiteTargetsRun :: (test: *NativeTest, command: []string, expected: string, timeout: s64) -> bool {
     result := NativeInvoke(test, command, "", timeout)
@@ -46,11 +48,45 @@ SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
     return !test.failed
 }
 
+// Python generators and the Ziran renderer share one number format:
+// NUMBER_CASES in scripts/site_targets.py is the vector both must follow.
+SiteNumbersAgree :: (test: *NativeTest) -> bool {
+    script := "import json, sys; sys.path.insert(0, sys.argv[1]); import site_targets; print(json.dumps(site_targets.NUMBER_CASES))"
+    command := string.["python3", "-c", script, CheckPath(test.repo, "scripts")]
+    result := NativeInvoke(test, command[:], "", 30000)
+    cases: JsonDocument
+    if !NativeAssert(test, result.code == 0 && JsonRead(*cases, result.output), "site number cases did not load") { return false }
+    for index: cast(s32)0..JsonCount(*cases, cases.root) - 1 {
+        entry := JsonElement(*cases, cases.root, index)
+        value, valid := ParseFloat64(JsonNumberText(*cases, JsonElement(*cases, entry, 0)))
+        expected := JsonString(*cases, JsonElement(*cases, entry, 1))
+        formatted := Numbers.FormatNumber(value)
+        if !NativeAssert(test, valid && formatted == expected, CheckConcat("Ziran and Python number formats differ: ", CheckConcat(formatted, CheckConcat(" != ", expected)))) { return false }
+    }
+    return true
+}
+
+// No published benchmark figure uses scientific notation.
+SitePlainNumbers :: (test: *NativeTest) -> bool {
+    page := NativeRead(test, CheckPath(test.repo, "site/targets.html"))
+    index: s64 = 1
+    while index + 2 < page.count {
+        byte := page[index]; sign := page[index + 1]
+        if (byte == 101 || byte == 69) && (sign == 43 || sign == 45) &&
+            page[index - 1] >= 48 && page[index - 1] <= 57 && page[index + 2] >= 48 && page[index + 2] <= 57 {
+            return NativeAssert(test, false, CheckConcat("scientific notation on /targets: ", page[index - 8:index + 4]))
+        }
+        index += 1
+    }
+    return true
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "site-targets-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
+    if !SiteNumbersAgree(*test) || !SitePlainNumbers(*test) { return 1 }
     if !SiteTargetsMatrix(*test, false) || !SiteTargetsMatrix(*test, true) { return 1 }
     print("Published ZX/WebAssembly artifacts agree with independent oracles, checked IR decodes and library scenarios execute in local tests\n")
     return 0

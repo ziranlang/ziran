@@ -42,7 +42,7 @@ BENCH_ENVIRONMENT: [9]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DB
     "SESSION_MANAGER", "XDG_SESSION_ID", "XDG_SESSION_TYPE", "ZIRAN_PROFILE", "ZIRAN_LEARN=off"];
 
 // Files in bench/ that a registered benchmark builds or imports.
-SUPPORT_FILES: [10]string = .["bench.zi", "benchmark_statistics.zi", "codec_kernels.py", "json_document.zi",
+SUPPORT_FILES: [11]string = .["bench.zi", "benchmark_statistics.zi", "standard_compile_entry.zi", "codec_kernels.py", "json_document.zi",
     "math_sqrt.zi", "native_cache_fixture.zi", "wasm_tier.zi", "c_teacher_assembly.zi", "c_teacher_profile.zi", "c_teacher_rules.zi"];
 
 Add :: (list: *Vec(Benchmark), name: string, file: string, runner: Runner, place: Place, summary: string) {
@@ -59,6 +59,7 @@ Registry :: () -> Vec(Benchmark) {
     Add(*list, "bundle-assets", "bench/bundle_assets.py", .Python, .Host, "checked resource loading with real bundles")
     Add(*list, "bundle-instances", "bench/bundle_instances.py", .Python, .Host, "bundle loading and fresh-instance costs")
     Add(*list, "compiler-build", "bench/compiler_build.zi", .Ziran, .Host, "full native compiler rebuild")
+    Add(*list, "standard-compile", "bench/standard_compile.zi", .Ziran, .Host, "complete standard suite builds in C, Go, generated C, native ZX and Wasm")
     Add(*list, "c-teacher", "bench/c_teacher.zi", .Ziran, .Host, "generated C versus native assembly and SIGPROF")
     Add(*list, "c-teacher-tune", "bench/c_teacher_tuning.zi", .Ziran, .Host, "offline leaf policies against generated C")
     Add(*list, "compiler-kernels", "bench/compiler_kernel_benchmarks.sh", .Shell, .Host, "timed compiler and codec kernels")

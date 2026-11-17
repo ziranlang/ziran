@@ -1,0 +1,4 @@
+K :: #import "kernels"
+host_api :: #system_library "host_api";
+Input :: (key: s64) -> s64 #foreign host_api;
+main :: () -> s64 { return K.Run(Input(0),Input(1)) }

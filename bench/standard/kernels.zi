@@ -1,0 +1,206 @@
+// Scalar reference algorithms. Runtime sizes enter through Run; no fixed answer.
+#import "std/math"
+#import "std/vec"
+Fib :: (n: s64) -> s64 {
+    if n < 2 { return n }
+    return Fib(n - 1) + Fib(n - 2)
+}
+Queens :: (mask: s64, cols: s64, left: s64, right: s64) -> s64 {
+    if cols == mask { return 1 }
+    available := mask & ~(cols | left | right)
+    total: s64
+    while available != 0 {
+        bit := available & -available
+        available -= bit
+        total += Queens(mask, cols | bit, (left | bit) << 1, (right | bit) >> 1)
+    }
+    return total
+}
+Matrix :: (n: s64) -> s64 {
+    a: Vec(s64); b: Vec(s64); c: Vec(s64)
+    unused VecResize(a, n*n); unused VecResize(b, n*n); unused VecResize(c, n*n)
+    for i: 0..n*n-1 { a[i] = i % 17; b[i] = i % 13 }
+    for i: 0..n-1 { for k: 0..n-1 { for j: 0..n-1 { c[i*n+j] += a[i*n+k]*b[k*n+j] } } }
+    sum: s64
+    for i: 0..n*n-1 { sum += c[i] }
+    return sum
+}
+Quick :: (a: []s64, lo: s64, hi: s64) {
+    i := lo; j := hi; pivot := a[(lo+hi)/2]
+    while i <= j {
+        while a[i] < pivot { i += 1 }
+        while a[j] > pivot { j -= 1 }
+        if i <= j { t := a[i]; a[i] = a[j]; a[j] = t; i += 1; j -= 1 }
+    }
+    if lo < j { Quick(a, lo, j) }
+    if i < hi { Quick(a, i, hi) }
+}
+Sort :: (n: s64) -> s64 {
+    a: Vec(s64); unused VecResize(a, n)
+    seed: s64 = 42
+    for i: 0..n-1 { seed = (seed*1664525+1013904223)&2147483647; a[i] = seed }
+    Quick(a[:], 0, n-1)
+    hash: s64
+    for i: 0..n-1 { hash = (hash*31+a[i])%1000000007 }
+    return hash
+}
+Hash :: (n: s64) -> s64 {
+    text := "the quick brown fox jumps over the lazy dog, again and again"
+    hash: u64 = 1469598103934665603
+    for r: 0..n-1 { for i: 0..text.count-1 { hash = (hash^cast(u64)text[i])*1099511628211 } }
+    return cast(s64)(hash%1000000007)
+}
+A :: (i: s64, j: s64) -> float64 { return 1.0/cast(float64)((i+j)*(i+j+1)/2+i+1) }
+Multiply :: (u: []float64, v: []float64, transpose: bool) {
+    for i: 0..u.count-1 {
+        sum: float64
+        for j: 0..u.count-1 { sum += u[j] * ifx transpose then A(j,i) else A(i,j) }
+        v[i] = sum
+    }
+}
+Spectral :: (n: s64) -> s64 {
+    u: Vec(float64); v: Vec(float64); tmp: Vec(float64)
+    unused VecResize(u,n); unused VecResize(v,n); unused VecResize(tmp,n)
+    for i: 0..n-1 { u[i] = 1.0 }
+    for r: 0..9 {
+        Multiply(u[:],tmp[:],false); Multiply(tmp[:],v[:],true)
+        Multiply(v[:],tmp[:],false); Multiply(tmp[:],u[:],true)
+    }
+    uv: float64; vv: float64
+    for i: 0..n-1 { uv += u[i]*v[i]; vv += v[i]*v[i] }
+    return cast(s64)(Sqrt(uv/vv)*1000000000.0+0.5)
+}
+Mandelbrot :: (n: s64) -> s64 {
+    hash: s64
+    for y: 0..n-1 {
+        byte: s64; bits: s64
+        for x: 0..n-1 {
+            cr := 2.0*cast(float64)x/cast(float64)n-1.5
+            ci := 2.0*cast(float64)y/cast(float64)n-1.0
+            zr: float64; zi: float64; tr: float64; ti: float64; iter: s64
+            while iter < 50 && tr+ti <= 4.0 { zi = 2.0*zr*zi+ci; zr = tr-ti+cr; tr = zr*zr; ti = zi*zi; iter += 1 }
+            byte = byte*2 + ifx tr+ti <= 4.0 then 1 else 0; bits += 1
+            if bits == 8 { hash = (hash*31+byte)%1000000007; byte = 0; bits = 0 }
+        }
+        if bits != 0 { hash = (hash*31+(byte << (8-bits)))%1000000007 }
+    }
+    return hash
+}
+Fannkuch :: (n: s64) -> s64 {
+    perm: [16]s64; work: [16]s64; count: [16]s64
+    for i: 0..n-1 { perm[i] = i }
+    r := n; index: s64; checksum: s64; maximum: s64
+    while true {
+        while r != 1 { count[r-1] = r; r -= 1 }
+        for i: 0..n-1 { work[i] = perm[i] }
+        flips: s64
+        while work[0] != 0 {
+            k := work[0]; i: s64
+            while i < k { t := work[i]; work[i] = work[k]; work[k] = t; i += 1; k -= 1 }
+            flips += 1
+        }
+        if flips > maximum { maximum = flips }
+        checksum += ifx index%2 == 0 then flips else -flips
+        while true {
+            if r == n { return checksum*1000+maximum }
+            first := perm[0]
+            for i: 0..r-1 { perm[i] = perm[i+1] }
+            perm[r] = first; count[r] -= 1
+            if count[r] > 0 { break }
+            r += 1
+        }
+        index += 1
+    }
+}
+Node :: struct { left: *Node; right: *Node }
+Tree :: (depth: s64) -> *Node {
+    node := New(Node)
+    if depth > 0 { node.left = Tree(depth-1); node.right = Tree(depth-1) }
+    return node
+}
+TreeCheck :: (node: *Node) -> s64 {
+    if node.left == null { return 1 }
+    return 1+TreeCheck(node.left)+TreeCheck(node.right)
+}
+TreeFree :: (node: *Node) {
+    if node.left != null { TreeFree(node.left); TreeFree(node.right) }
+    free(node)
+}
+Trees :: (n: s64) -> s64 {
+    stretch := Tree(n+1); sum := TreeCheck(stretch); TreeFree(stretch)
+    longlived := Tree(n)
+    depth: s64 = 4
+    while depth <= n {
+        iterations := cast(s64)1 << (n-depth+4)
+        for i: 0..iterations-1 { tree := Tree(depth); sum += TreeCheck(tree); TreeFree(tree) }
+        depth += 2
+    }
+    sum += TreeCheck(longlived); TreeFree(longlived)
+    return sum
+}
+Body :: struct { x: float64; y: float64; z: float64; vx: float64; vy: float64; vz: float64; mass: float64 }
+Nbody :: (n: s64) -> s64 {
+    pi := 3.141592653589793; solar := 4.0*pi*pi; year := 365.24
+    b: [5]Body
+    b[0] = .{mass=solar}
+    b[1] = .{x=4.84143144246472090, y=-1.16032004402742839, z=-0.103622044471123109, vx=0.00166007664274403694*year, vy=0.00769901118419740425*year, vz=-0.0000690460016972063023*year, mass=0.000954791938424326609*solar}
+    b[2] = .{x=8.34336671824457987, y=4.12479856412430479, z=-0.403523417114321381, vx=-0.00276742510726862411*year, vy=0.00499852801234917238*year, vz=0.0000230417297573763929*year, mass=0.000285885980666130812*solar}
+    b[3] = .{x=12.8943695621391310, y=-15.1111514016986312, z=-0.223307578892655734, vx=0.00296460137564761618*year, vy=0.00237847173959480950*year, vz=-0.0000296589568540237556*year, mass=0.0000436624404335156298*solar}
+    b[4] = .{x=15.3796971148509165, y=-25.9193146099879641, z=0.179258772950371181, vx=0.00268067772490389322*year, vy=0.00162824170038242295*year, vz=-0.0000951592254519715870*year, mass=0.0000515138902046611451*solar}
+    for i: 1..4 { b[0].vx -= b[i].vx*b[i].mass/solar; b[0].vy -= b[i].vy*b[i].mass/solar; b[0].vz -= b[i].vz*b[i].mass/solar }
+    for step: 0..n-1 {
+        for i: 0..3 { for j: i+1..4 {
+            dx := b[i].x-b[j].x; dy := b[i].y-b[j].y; dz := b[i].z-b[j].z
+            d2 := dx*dx+dy*dy+dz*dz; mag := 0.01/(d2*Sqrt(d2))
+            b[i].vx -= dx*b[j].mass*mag; b[i].vy -= dy*b[j].mass*mag; b[i].vz -= dz*b[j].mass*mag
+            b[j].vx += dx*b[i].mass*mag; b[j].vy += dy*b[i].mass*mag; b[j].vz += dz*b[i].mass*mag
+        } }
+        for i: 0..4 { b[i].x += 0.01*b[i].vx; b[i].y += 0.01*b[i].vy; b[i].z += 0.01*b[i].vz }
+    }
+    energy: float64
+    for i: 0..4 {
+        energy += 0.5*b[i].mass*(b[i].vx*b[i].vx+b[i].vy*b[i].vy+b[i].vz*b[i].vz)
+        for j: i+1..4 { dx := b[i].x-b[j].x; dy := b[i].y-b[j].y; dz := b[i].z-b[j].z; energy -= b[i].mass*b[j].mass/Sqrt(dx*dx+dy*dy+dz*dz) }
+    }
+    return cast(s64)(energy*1000000000.0-0.5)
+}
+ALU :: "GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGCGGATCACCTGAGGTCAGGAGTTCGAGACCAGCCTGGCCAACATGGTGAAACCCCGTCTCTACTAAAAATACAAAAATTAGCCGGGCGTGGTGGCGCGCGCCTGTAATCCCAGCTACTCGGGAGGCTGAGGCAGGAGAATCGCTTGAACCCGGGAGGCGGAGGTTGCAGTGAGCCGAGATCGCGCCACTGCACTCCAGCCTGGGCGACAGAGCGAGACTCCGTCTCAAAAA";
+Fasta :: (n: s64) -> s64 {
+    hash: s64; seed: s64 = 42
+    for i: 0..2*n-1 { hash = (hash*31+cast(s64)ALU[i%ALU.count])%1000000007 }
+    chars := "acgtBDHKMNRSVWY"
+    probabilities: [15]float64 = .[0.27,0.12,0.12,0.27,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02]
+    for phase: 0..1 {
+        length := ifx phase == 0 then 3*n else 5*n
+        for i: 0..length-1 {
+            seed = (seed*3877+29573)%139968
+            random := cast(float64)seed/139968.0; cumulative: float64; index: s64
+            while index < 14 {
+                p := probabilities[index]
+                if phase == 1 {
+                    if index == 0 { p = 0.3029549426680 }
+                    if index == 1 { p = 0.1979883004921 }
+                    if index == 2 { p = 0.1975473066391 }
+                    if index == 3 { p = 0.3015094502008 }
+                }
+                cumulative += p
+                if random < cumulative { break }; index += 1
+            }
+            hash = (hash*31+cast(s64)chars[index])%1000000007
+        }
+    }
+    return hash
+}
+Run :: (kind: s64, n: s64) -> s64 {
+    if kind == 0 { return Fib(n) }
+    if kind == 1 { return Nbody(n) }
+    if kind == 2 { return Spectral(n) }
+    if kind == 3 { return Mandelbrot(n) }
+    if kind == 4 { return Fannkuch(n) }
+    if kind == 5 { return Trees(n) }
+    if kind == 6 { return Fasta(n) }
+    if kind == 7 { return Queens((cast(s64)1<<n)-1,0,0,0) }
+    if kind == 8 { return Matrix(n) }
+    if kind == 9 { return Sort(n) }
+    return Hash(n)
+}

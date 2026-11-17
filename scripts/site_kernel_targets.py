@@ -12,9 +12,9 @@ import site_benchmark_cohort as cohort
 import site_target_platforms as platforms
 
 OUTPUT = base.SITE / 'generated/kernel-targets'
-RECEIPTS = ('wasm-tier-targets-2026-11-16-members.json',)
+RECEIPTS = ('wasm-tier-go-2026-11-16.json',)
 MARKER = 'kernel_tiers'
-TARGETS = ('c', 'zx', 'native', 'wasm')
+TARGETS = ('c', 'go', 'zx', 'native', 'wasm')
 
 
 def receipts():
@@ -40,9 +40,6 @@ def render():
         assert data['engine_policy'] == 'explicit-engine'
         rows = []
         for kernel, row in data['kernels'].items():
-            # Older receipts keep the constant-folded Calls row for provenance only.
-            if kernel == 'Calls':
-                continue
             values = ''.join('<td>' + base.format_microseconds(row[t]['execution_ms']) + '</td>' for t in TARGETS)
             rows.append('<tr><th scope="row">' + html.escape(kernel) + '</th>' + values + '</tr>')
         source = 'generated/kernel-targets/' + name
@@ -51,15 +48,16 @@ def render():
             '<p>Measured ' + html.escape(data['measured_at']) + ' · ' + str(data['samples']) +
             ' samples · checks off · learning off.</p>' +
             '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Kernel results"><table class="target-matrix"><caption class="sr-only">Median µs per kernel call</caption>'
-            '<thead><tr><th scope="col">Kernel<small>µs per call</small></th><th scope="col">C · cc -O2</th><th scope="col">Instruction engine</th><th scope="col">Native ELF</th><th scope="col">Wasm · V8</th></tr></thead><tbody>' +
+            '<thead><tr><th scope="col">Kernel<small>µs per call</small></th><th scope="col">C · cc -O2</th><th scope="col">Go</th><th scope="col">Instruction engine</th><th scope="col">Native ELF</th><th scope="col">Wasm · V8</th></tr></thead><tbody>' +
             ''.join(rows) + '</tbody></table></div><p><a href="' + source +
             '">Raw samples, exclusions and provenance</a></p></article>')
     content = ('<section class="section" id="kernel-tiers"><p class="eyebrow">Kernel execution tiers</p>'
-               '<h2>One source, four execution tiers.</h2>' + cohort.validate(receipts()[0][1]) + ''.join(sections) +
+               '<h2>One source plus a Go reference.</h2>' + cohort.validate(receipts()[0][1]) + ''.join(sections) +
                '<p class="matrix-footnote">Medians use symmetric 1.5×IQR filtering. Compilation is excluded. '
-               'C, ZX and Wasm use warm in-process calls. Native ELF runs 32 verified calls per process; '
-               'its figures include one process startup divided by 32. Calls is not listed: '
-               'it folds to a constant at compile time, so it measures nothing. '
+               'C, Go, ZX and Wasm use warm in-process calls. Native ELF runs 32 verified calls per process; '
+               'its figures include one process startup divided by 32. Recursive Fibonacci with a runtime input '
+               'is in the standard suite below. Kernels this short vary noticeably between runs, so compare '
+               'columns within one table. '
                'All tables use the same physical host and compiler revision.</p></section>')
     original = (base.SITE / 'targets.html').read_text()
     pattern = r'(?s)(<!-- generated:' + MARKER + r' -->).*?(<!-- /generated:' + MARKER + r' -->)'

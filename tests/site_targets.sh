@@ -7,4 +7,5 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 python3 "$repo/scripts/site_targets.py" --check
 python3 "$repo/scripts/site_library_targets.py" --check
 python3 "$repo/scripts/site_kernel_targets.py" --check
-exec "$ziran" run --target=c --root "$repo/tests" "$repo/tests/site_targets_cases.zi" -- "$ziran"
+"$ziran" run --target=c --root "$repo/scripts" --module-path "$repo/bench" --module-path "$repo" "$repo/scripts/site_standard_benchmarks.zi" -- --check
+exec "$ziran" run --target=c --root "$repo/tests" --module-path "$repo/scripts" "$repo/tests/site_targets_cases.zi" -- "$ziran"

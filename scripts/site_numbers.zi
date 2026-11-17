@@ -1,0 +1,89 @@
+// The site's one benchmark number format, step for step the same as
+// format_number and time_unit in scripts/site_targets.py: three significant
+// digits, thousands separators, never scientific notation. Both pass
+// NUMBER_CASES in site_targets.py (tests/site_targets_cases.zi checks this).
+#import "std/number_text"
+using Vectors :: #import "std/vec"
+
+// Units from largest to smallest, with the factor that turns milliseconds into each.
+UNIT_NAMES: [3]string = .["ms", "µs", "ns"];
+UNIT_SCALES: [3]float64 = .[1.0, 1000.0, 1000000.0];
+
+PowerOfTen :: (count: s64) -> float64 {
+    power := 1.0
+    remaining := count
+    while remaining > 0 { power *= 10.0; remaining -= 1 }
+    return power
+}
+
+AppendGrouped :: (out: *Vec(u8), value: s64) {
+    buffer: [32]u8
+    digits := FormatInteger(value, buffer[:])
+    index: s64 = 0
+    while index < digits.count {
+        if index > 0 && (digits.count - index) % 3 == 0 { unused VecPush(out.*, 44) }
+        unused VecPush(out.*, digits[index])
+        index += 1
+    }
+}
+
+FormatNumber :: (value: float64) -> string {
+    if value <= 0.0 { return "0" }
+    exponent: s64 = 0
+    scale := 1.0
+    while value >= scale * 10.0 { scale *= 10.0; exponent += 1 }
+    while value < scale { scale /= 10.0; exponent -= 1 }
+    decimals := 2 - exponent
+    power := PowerOfTen(ifx decimals >= 0 then decimals else -decimals)
+    digits := cast(s64)((ifx decimals >= 0 then value * power else value / power) + 0.5)
+    // Rounding can carry into a fourth digit, as 999.6 does.
+    if digits >= 1000 { digits /= 10; decimals -= 1 }
+    out: Vec(u8)
+    if decimals <= 0 {
+        AppendGrouped(*out, digits * cast(s64)PowerOfTen(-decimals))
+        return TextDetach(TextFromBuilder(out))
+    }
+    divisor := cast(s64)PowerOfTen(decimals)
+    AppendGrouped(*out, digits / divisor)
+    fraction := digits % divisor
+    places := decimals
+    while places > 0 && fraction % 10 == 0 { fraction /= 10; places -= 1 }
+    if places > 0 {
+        unused VecPush(out, 46)
+        buffer: [32]u8
+        text := FormatInteger(fraction, buffer[:])
+        padding := places - text.count
+        while padding > 0 { unused VecPush(out, 48); padding -= 1 }
+        unused BuilderAppend(out, text)
+    }
+    return TextDetach(TextFromBuilder(out))
+}
+
+// The unit (index into UNIT_NAMES, from first to last allowed) that puts the
+// most values between 1 and 9,999; ties keep the larger unit.
+ChooseUnit :: (values_ms: []float64, first: s32, last: s32) -> s32 {
+    best := first
+    best_count: s64 = -1
+    unit := first
+    while unit <= last {
+        count: s64 = 0
+        for value: values_ms {
+            scaled := value * UNIT_SCALES[unit]
+            if scaled >= 1.0 && scaled < 9999.5 { count += 1 }
+        }
+        if count > best_count { best = unit; best_count = count }
+        unit += 1
+    }
+    return best
+}
+
+// An exact count, such as an input size, with thousands separators.
+FormatCount :: (value: s64) -> string {
+    out: Vec(u8)
+    AppendGrouped(*out, value)
+    return TextDetach(TextFromBuilder(out))
+}
+
+FormatTime :: (value_ms: float64, unit: s32) -> string {
+    return FormatNumber(value_ms * UNIT_SCALES[unit])
+}

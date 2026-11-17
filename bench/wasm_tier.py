@@ -4,8 +4,8 @@
 For each kernel of bench/wasm_tier.zi this builds generated C (cc -O2), a
 revision-28 bundle, its native ELF (zx2native), and its wasm32 module (zx2wasm),
 checks those and independent Go references against the engine's result and output, and times batched calls with
-the site matrix's harnesses: bench/site_target_host.c for C and the engine,
-scripts/site_target_node.cjs for the module in Node. Medians follow the
+the site matrix's harnesses: bench/site_target_host.c for C, the engine and in-process
+native translation, scripts/site_target_node.cjs for the module in Node. Medians follow the
 symmetric 1.5×IQR rule; raw samples and exclusions are kept.
 
 Run it on Alpha's physical host (AGENTS.md):
@@ -35,7 +35,6 @@ SOURCE = ROOT / 'bench/wasm_tier.zi'
 WORK = ROOT / 'build/wasm-tier'
 KERNELS = ['Sieve', 'Records', 'Hash', 'Vectors', 'Printing']
 TARGETS = ['c', 'go', 'zx', 'native', 'wasm']
-NATIVE_BATCHES = 32
 
 
 def tool(name):
@@ -47,27 +46,6 @@ def loadavg():
         return Path('/proc/loadavg').read_text().split()[:3]
     except OSError:
         return []
-
-
-def host_snapshot():
-    """Read host diagnostics outside the sample's timed interval."""
-    frequencies = {}
-    try:
-        paths = sorted(Path('/sys/devices/system/cpu').glob('cpu[0-9]*/cpufreq/scaling_cur_freq'))
-    except OSError:
-        paths = []
-    for path in paths:
-        try:
-            value = int(path.read_text().strip())
-            frequencies[path.parent.parent.name] = value if value > 0 else None
-        except (OSError, ValueError):
-            frequencies[path.parent.parent.name] = None
-    try:
-        affinity = sorted(os.sched_getaffinity(0))
-    except (AttributeError, OSError):
-        affinity = None
-    return {'monotonic_ns': time.monotonic_ns(), 'loadavg': loadavg(),
-            'allowed_cpus': affinity, 'scaling_cur_freq_khz': frequencies or None}
 
 
 def cpu_ticks(cpu):
@@ -83,7 +61,8 @@ def busy_share(before, after):
     return (after[0] - before[0]) / max(1, after[1] - before[1])
 
 
-GATE_METHOD = (' Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core and is repeated '
+GATE_METHOD = (' Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core, '
+               'chosen again before each attempt once its other hyperthread has settled, and is repeated '
                'unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached '
                '95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; '
                'Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.')
@@ -103,25 +82,33 @@ class HostGate:
     ATTEMPTS = 8
 
     def __init__(self):
-        cpus = sorted(os.sched_getaffinity(0))
-        cores = {}
-        for cpu in cpus:
+        self.cpus = sorted(os.sched_getaffinity(0))
+        self.cores = {}
+        for cpu in self.cpus:
             key = Path(f'/sys/devices/system/cpu/cpu{cpu}/topology/thread_siblings_list').read_text().strip()
-            cores.setdefault(key, []).append(cpu)
-        before = {cpu: cpu_ticks(cpu) for cpu in cpus}
-        time.sleep(1.0)
-        busy = {cpu: busy_share(before[cpu], cpu_ticks(cpu)) for cpu in cpus}
-        core = min(cores.values(), key=lambda members: sum(busy[cpu] for cpu in members) / len(members))
-        self.cpu, self.sibling = core[0], (core[1] if len(core) > 1 else None)
-        # Measured children inherit this thread's CPU (no wrapper process adds to their
-        # time); the clock poller thread runs on the other cores.
-        self.free = set(cpus) - set(core) or set(cpus)
-        os.sched_setaffinity(0, {self.cpu})
+            self.cores.setdefault(key, []).append(cpu)
+        self.choose_core()
         spin = 'import time\nend = time.perf_counter() + 1.0\nwhile time.perf_counter() < end: pass'
         _, observed = self.observe(lambda: subprocess.run([sys.executable, '-c', spin], check=True), settle=0.3)
         self.reference_khz = observed['median_khz']
         if not self.reference_khz:
             raise RuntimeError(f'cpu{self.cpu} reports no scaling_cur_freq')
+
+    def choose_core(self):
+        """Pin to the quietest core over the last second, waiting up to a minute for its other
+        hyperthread to settle, so a job does not start into another process's burst."""
+        for _ in range(60):
+            before = {cpu: cpu_ticks(cpu) for cpu in self.cpus}
+            time.sleep(1.0)
+            busy = {cpu: busy_share(before[cpu], cpu_ticks(cpu)) for cpu in self.cpus}
+            core = min(self.cores.values(), key=lambda members: sum(busy[cpu] for cpu in members) / len(members))
+            if len(core) < 2 or busy[core[1]] <= self.SIBLING / 3:
+                break
+        self.cpu, self.sibling = core[0], (core[1] if len(core) > 1 else None)
+        # Measured children inherit this thread's CPU (no wrapper process adds to their
+        # time); the clock poller thread runs on the other cores.
+        self.free = set(self.cpus) - set(core) or set(self.cpus)
+        os.sched_setaffinity(0, {self.cpu})
 
     def frequency(self):
         return int(Path(f'/sys/devices/system/cpu/cpu{self.cpu}/cpufreq/scaling_cur_freq').read_text())
@@ -185,7 +172,10 @@ class HostGate:
                 return measured
             observed['rejected_because'] = reason
             observed['measurement'] = measured
-            time.sleep(2.0)
+            print(f'host gate: attempt {len(attempts)} rejected on cpu{self.cpu}: {reason} '
+                  f'(median {observed["median_khz"]} kHz, p10 {observed["p10_khz"]}, p90 {observed["p90_khz"]}, '
+                  f'sibling {observed["sibling_busy"]})', file=sys.stderr, flush=True)
+            self.choose_core()
         raise RuntimeError('Host gate rejected every attempt: ' + json.dumps(
             [{key: attempt[key] for key in ('rejected_because', 'median_khz', 'p10_khz', 'p90_khz', 'sibling_busy')}
              for attempt in attempts]) + f' (reference {self.reference_khz} kHz)')
@@ -201,10 +191,14 @@ def build(cc):
     platforms.run(['go', 'build', '-o', go_reference, ROOT / 'bench/wasm_tier_reference.go'], env=env)
     header = generated / 'wasm_tier.h'
     sources = sorted(generated.rglob('*.c'))
-    runner = WORK / 'zx-runner'
-    platforms.runtime_build(cc, ROOT / 'build/libziran.a', runner,
-                            ['-include', ROOT / 'bench/site_target_backend.h',
-                             '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_ENGINE'])
+    # One host, two explicit backends: the engine, and native code translated from the
+    # bundle when it is instantiated (before warmup), so neither pays process startup.
+    runners = {}
+    for target, backend in (('zx', 'BUNDLE_BACKEND_ENGINE'), ('native', 'BUNDLE_BACKEND_NATIVE')):
+        runners[target] = WORK / (target + '-runner')
+        platforms.runtime_build(cc, ROOT / 'build/libziran.a', runners[target],
+                                ['-include', ROOT / 'bench/site_target_backend.h',
+                                 '-DMATRIX_ZX_BACKEND=' + backend])
     kernels = []
     for name in KERNELS:
         bundle, module = WORK / (name + '.zx'), WORK / (name + '.wasm')
@@ -220,30 +214,86 @@ def build(cc):
         if checked.returncode != int(expected) % 256 or checked.stdout != stdout:
             raise RuntimeError(f'{name}/native: output {checked.stdout!r}, status {checked.returncode}; '
                                f'expected {stdout!r}, status {int(expected) % 256}')
-        wrapper = WORK / ('native_' + name + '.zi')
-        call = f'Tier.{name}()'
-        if void:
-            body = f'for iteration: 0..{NATIVE_BATCHES - 1} {{ {call} }}\n    return 42'
-        else:
-            body = (f'checksum: s64\n    for iteration: 0..{NATIVE_BATCHES - 1} '
-                    f'{{ checksum += {call} }}\n    if checksum != {int(expected) * NATIVE_BATCHES} {{ return 1 }}\n    return 42')
-        wrapper.write_text(f'Tier :: #import "wasm_tier";\n#program_export\nmain :: () -> s32 {{\n    {body}\n}}\n')
-        native_bundle = WORK / (name + '-native.zx')
-        native = WORK / (name + '.native')
-        platforms.run([tool('zi2zx'), '--root', WORK, '--module-path', ROOT / 'bench', '--module-path', ROOT / 'std',
-                       '--entry', wrapper.stem + ':main', '-o', native_bundle, wrapper], env=env)
-        platforms.run([tool('zx2native'), '-o', native, native_bundle], env=env)
         symbol = re.search(r'\b(\w*' + name + r')\(void\)', header.read_text())[1]
         program = WORK / (name + '-c')
         platforms.run([cc, '-O2', '-std=c11', '-DMATRIX_NATIVE', '-I' + str(generated), '-DMATRIX_HEADER="wasm_tier.h"',
                        '-DMATRIX_ENTRY=' + symbol, *(['-DMATRIX_VOID'] if void else []), ROOT / 'bench/site_target_host.c',
                        *sources, '-lm', '-o', program], env=env)
         kernels.append({'id': name, 'expected': expected, 'stdout': stdout, 'artifacts': {
-            'c': program, 'go': go_reference, 'zx': bundle, 'native': native, 'wasm': module}, 'commands': {
+            'c': program, 'go': go_reference, 'zx': bundle, 'native': bundle, 'wasm': module}, 'commands': {
             'c': [program, '-', expected],
             'go': [go_reference, name, expected],
-            'zx': [runner, bundle, expected],
-            'native': [native],
+            'zx': [runners['zx'], bundle, expected],
+            'native': [runners['native'], bundle, expected],
+            'wasm': ['node', ROOT / 'scripts/site_target_node.cjs', module, expected]}})
+    return kernels
+
+
+def measure(self, job):
+        attempts = []
+        for _ in range(self.ATTEMPTS):
+            measured, observed = self.observe(job)
+            reason = self.rejection(observed)
+            observed['accepted'] = reason is None
+            attempts.append(observed)
+            if reason is None:
+                measured['host_gate'] = {**self.describe(), 'accepted': True, 'attempts': attempts}
+                return measured
+            observed['rejected_because'] = reason
+            observed['measurement'] = measured
+            print(f'host gate: attempt {len(attempts)} rejected on cpu{self.cpu}: {reason} '
+                  f'(median {observed["median_khz"]} kHz, p10 {observed["p10_khz"]}, p90 {observed["p90_khz"]}, '
+                  f'sibling {observed["sibling_busy"]})', file=sys.stderr, flush=True)
+            self.choose_core()
+        raise RuntimeError('Host gate rejected every attempt: ' + json.dumps(
+            [{key: attempt[key] for key in ('rejected_because', 'median_khz', 'p10_khz', 'p90_khz', 'sibling_busy')}
+             for attempt in attempts]) + f' (reference {self.reference_khz} kHz)')
+
+
+def build(cc):
+    WORK.mkdir(parents=True, exist_ok=True)
+    env = platforms.environment()
+    common = ['--root', ROOT / 'bench', '--module-path', ROOT / 'std']
+    generated = WORK / 'c'
+    platforms.run([tool('ziran'), 'build', '--target=c', *common, '-o', generated, SOURCE], env=env)
+    go_reference = WORK / 'go-reference'
+    platforms.run(['go', 'build', '-o', go_reference, ROOT / 'bench/wasm_tier_reference.go'], env=env)
+    header = generated / 'wasm_tier.h'
+    sources = sorted(generated.rglob('*.c'))
+    # One host, two explicit backends: the engine, and native code translated from the
+    # bundle when it is instantiated (before warmup), so neither pays process startup.
+    runners = {}
+    for target, backend in (('zx', 'BUNDLE_BACKEND_ENGINE'), ('native', 'BUNDLE_BACKEND_NATIVE')):
+        runners[target] = WORK / (target + '-runner')
+        platforms.runtime_build(cc, ROOT / 'build/libziran.a', runners[target],
+                                ['-include', ROOT / 'bench/site_target_backend.h',
+                                 '-DMATRIX_ZX_BACKEND=' + backend])
+    kernels = []
+    for name in KERNELS:
+        bundle, module = WORK / (name + '.zx'), WORK / (name + '.wasm')
+        native_check = WORK / (name + '-check.native')
+        platforms.run([tool('zi2zx'), '--target', 'wasm', *common, '--entry', 'wasm_tier:' + name, '-o', bundle, SOURCE], env=env)
+        platforms.run([tool('zx2wasm'), '-o', module, bundle], env=env)
+        platforms.run([tool('zx2native'), '-o', native_check, bundle], env=env)
+        # The engine's own run is the oracle: its output, then its result line.
+        output = subprocess.run([tool('zi2zx'), 'run', bundle], env=env, check=True, capture_output=True, text=True).stdout
+        void = name == 'Printing'
+        expected, stdout = ('0', output) if void else (output.splitlines()[-1], output[:output.rstrip('\n').rfind('\n') + 1])
+        checked = subprocess.run([native_check], env=env, capture_output=True, text=True)
+        if checked.returncode != int(expected) % 256 or checked.stdout != stdout:
+            raise RuntimeError(f'{name}/native: output {checked.stdout!r}, status {checked.returncode}; '
+                               f'expected {stdout!r}, status {int(expected) % 256}')
+        symbol = re.search(r'\b(\w*' + name + r')\(void\)', header.read_text())[1]
+        program = WORK / (name + '-c')
+        platforms.run([cc, '-O2', '-std=c11', '-DMATRIX_NATIVE', '-I' + str(generated), '-DMATRIX_HEADER="wasm_tier.h"',
+                       '-DMATRIX_ENTRY=' + symbol, *(['-DMATRIX_VOID'] if void else []), ROOT / 'bench/site_target_host.c',
+                       *sources, '-lm', '-o', program], env=env)
+        kernels.append({'id': name, 'expected': expected, 'stdout': stdout, 'artifacts': {
+            'c': program, 'go': go_reference, 'zx': bundle, 'native': bundle, 'wasm': module}, 'commands': {
+            'c': [program, '-', expected],
+            'go': [go_reference, name, expected],
+            'zx': [runners['zx'], bundle, expected],
+            'native': [runners['native'], bundle, expected],
             'wasm': ['node', ROOT / 'scripts/site_target_node.cjs', module, expected]}})
     return kernels
 
@@ -284,20 +334,15 @@ def native_samples(kernel, command, samples, observe_host, env):
     return measured
 
 
-def measure(kernels, samples, *, observe_host=False, gate=None):
+def measure(kernels, samples, *, gate=None):
     jobs = [(kernel, target) for kernel in kernels for target in TARGETS]
     random.Random(42).shuffle(jobs)
     results = {kernel['id']: {} for kernel in kernels}
     env = HostGate.environment() if gate else platforms.environment()
     for kernel, target in jobs:
-        command = kernel['commands'][target]
-        if target != 'native':
-            command = [*command, str(samples)]
-        if target == 'native':
-            job = lambda: native_samples(kernel, command, samples, observe_host, env)
-        else:
-            job = lambda: platforms.summarize(platforms.read_measurement(
-                platforms.run(command, env=env), kernel), kernel['expected'])
+        command = [*kernel['commands'][target], str(samples)]
+        job = lambda: platforms.summarize(platforms.read_measurement(
+            platforms.run(command, env=env), kernel), kernel['expected'])
         measured = gate.measure(job) if gate else job()
         measured['command'] = base.command_text(command)
         measured['artifact_sha256'] = platforms.sha(kernel['artifacts'][target])
@@ -439,8 +484,6 @@ def main():
     parser.add_argument('--samples', type=int, default=11)
     parser.add_argument('--host-gate', action='store_true',
                         help='pin each measured job to a quiet CPU and repeat any run whose clock throttled')
-    parser.add_argument('--observe-host', action='store_true',
-                        help='record untimed CPU frequency/load snapshots around native kernel samples')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--label', default='')
     arguments = parser.parse_args()
@@ -448,18 +491,14 @@ def main():
         parser.error('--samples must be between 3 and 31')
     if (arguments.standard_full or arguments.standard_resume or arguments.standard_case_limit) and not arguments.standard:
         parser.error('--standard-full requires --standard')
-    if arguments.host_gate and arguments.observe_host:
-        parser.error('--host-gate already observes the measured CPU; omit --observe-host')
     if arguments.standard:
-        if arguments.observe_host:
-            parser.error('--observe-host applies to kernel native samples, not the standard suite')
         return standard(arguments)
     os.environ['ZIRAN_LEARN'] = 'off'
     cc = os.environ.get('CC', 'cc')
     kernels = build(cc)
     before = loadavg()
     gate = HostGate() if arguments.host_gate else None
-    results = measure(kernels, arguments.samples, observe_host=arguments.observe_host, gate=gate)
+    results = measure(kernels, arguments.samples, gate=gate)
     data = {'schema_version': 1, 'label': arguments.label, 'host': platform.node() + ' · ' + base.cpu_name(),
             'virtualization': subprocess.run(['systemd-detect-virt'], capture_output=True, text=True).stdout.strip(),
             'measured_at': datetime.now(timezone.utc).isoformat(), 'samples': arguments.samples,
@@ -473,11 +512,12 @@ def main():
             'compiler_dirty': bool(base.git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
             'loadavg_before': before, 'loadavg_after': loadavg(),
             'runtimes': {'c': 'C · cc -O2', 'go': 'Go · go build', 'zx': 'ZX · instruction engine',
-                         'native': 'Native ELF · zx2native', 'wasm': 'WebAssembly · zx2wasm in Node / V8'},
+                         'native': 'ZX native · translated in process', 'wasm': 'WebAssembly · zx2wasm in Node / V8'},
             'methodology': 'Warm in-process calls timed by the site matrix harnesses; median per call after symmetric 1.5×IQR '
                            'outlier filtering, raw samples and exclusions retained. Every timed checksum and the printed output are '
-                           'verified against the instruction engine. Native samples execute 32 checked calls in one ELF process and '
-                           'divide by 32, amortizing one process startup per sample; other targets exclude process startup. Compilation is excluded.' +
+                           'verified against the instruction engine, and the zx2native ELF of each kernel is run once and checked the same way. '
+                           'ZX native times the bundle translated to machine code when it is instantiated, in the same host as C and the engine. '
+                           'Process startup and compilation are excluded for every target.' +
                            (GATE_METHOD if gate else ''),
             'kernels': results}
     if arguments.output:

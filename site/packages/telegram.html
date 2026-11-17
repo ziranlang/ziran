@@ -36,9 +36,11 @@ calling <code>Receive</code> again: update cursors are checkpointed after the qu
 drained so interrupted processing can replay safely.</p>
 <p>The high-level session covers the operations used by account chat mirrors;
 it is not a complete Telegram application. <code>loadChats</code> announces every chat
-with its full name, newest message and mute state. <code>downloadMessageFile</code>
-saves a message's photo or document to a new owner-only file, connecting to
-the file's data center when it differs from the account's;
+with its full name, newest message (normalized, in <code>last_message</code>), mute and
+pin state, group size and profile photo, in Telegram's own order.
+<code>downloadMessageFile</code> saves a message's photo or document to a new
+owner-only file, connecting to the file's data center when it differs from
+the account's; <code>max_edge</code> picks the largest photo size that fits it;
 <code>downloadChatPhoto</code> does the same for a chat's small profile photo.
 <code>sendMessage</code> sends text, or uploads a local photo or document
 (<code>inputMessagePhoto</code> / <code>inputMessageDocument</code> with a <code>path</code>), optionally as a
@@ -235,14 +237,15 @@ account or sending a message.</p>
 <div><code>State :: (value: string)</code></div>
 <div><code>Difference :: () -&gt; bool</code></div>
 <div><code>ChannelDifference :: (slot: s32) -&gt; bool</code></div>
-<div><code>Announce :: (reply: string, folder: s32) -&gt; s32</code><p>Announces each dialog in a messages.getDialogs reply as a chat: its title (a person's full name), type, newest message and mute state.</p></div>
+<div><code>TopMessage :: (reply: string, chat: s64, id: s64) -&gt; string</code><p>Announces each dialog in a messages.getDialogs reply as a chat: its title (a person's full name), type, newest message and mute state. The dialog's newest message, normalized, or "null" when the reply lacks it.</p></div>
+<div><code>Announce :: (reply: string, folder: s32) -&gt; s32</code></div>
 <div><code>Dialogs :: (folder: s32) -&gt; string</code></div>
 <div><code>media: [6]RPC.Client</code><p>Media lives on its own data center; each gets one connection authorized with an authorization exported from the account's data center.</p></div>
 <div><code>media_ready: [6]bool</code></div>
 <div><code>Release :: (value: string)</code><p>Large replies are released at once instead of living until exit.</p></div>
 <div><code>FileRequest :: (dc: s32, query: string) -&gt; string</code></div>
-<div><code>PhotoSize :: (message: string, photo: s32) -&gt; string</code><p>The largest photo size, as (thumb type, bytes).</p></div>
-<div><code>Download :: (request: string) -&gt; string</code><p>Downloads a message's photo or document to a new private file at destination. Files larger than limit bytes are refused before download.</p></div>
+<div><code>PhotoSize :: (message: string, photo: s32, max_edge: s64) -&gt; string</code><p>The largest photo size, as (thumb type, bytes). With max_edge, the largest size whose width and height both fit it, or the smallest when none does.</p></div>
+<div><code>Download :: (request: string) -&gt; string</code><p>Downloads a message's photo or document to a new private file at destination. Files larger than limit bytes are refused before download; max_edge picks a photo size no wider or taller than it.</p></div>
 <div><code>Fetch :: (place: string, dc: s32, destination: string, mime: string, name: string) -&gt; string</code><p>Saves the file at location on data center dc to a new owner-only file.</p></div>
 <div><code>ChatPhoto :: (request: string) -&gt; string</code><p>A chat's small profile photo (160 by 160 JPEG) as a new owner-only file.</p></div>
 <div><code>upload_error: string</code><p>Uploads a local file in 512 KiB parts and returns its InputFile.</p></div>

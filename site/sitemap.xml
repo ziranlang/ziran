@@ -5,6 +5,10 @@
   <url><loc>https://ziran-lang.org/docs</loc></url>
   <url><loc>https://ziran-lang.org/examples</loc></url>
   <url><loc>https://ziran-lang.org/get-started</loc></url>
+  <url><loc>https://ziran-lang.org/language</loc></url>
+  <url><loc>https://ziran-lang.org/modules</loc></url>
+  <url><loc>https://ziran-lang.org/status</loc></url>
+  <url><loc>https://ziran-lang.org/targets</loc></url>
   <url><loc>https://ziran-lang.org/guide/api-discovery</loc></url>
   <url><loc>https://ziran-lang.org/guide/architecture</loc></url>
   <url><loc>https://ziran-lang.org/guide/authoring</loc></url>
@@ -23,18 +27,16 @@
   <url><loc>https://ziran-lang.org/guide/usage</loc></url>
   <url><loc>https://ziran-lang.org/guide/zir</loc></url>
   <url><loc>https://ziran-lang.org/guide/zx</loc></url>
-  <url><loc>https://ziran-lang.org/language</loc></url>
-  <url><loc>https://ziran-lang.org/modules</loc></url>
   <url><loc>https://ziran-lang.org/packages/audio</loc></url>
   <url><loc>https://ziran-lang.org/packages/av1</loc></url>
   <url><loc>https://ziran-lang.org/packages/avif</loc></url>
   <url><loc>https://ziran-lang.org/packages/clip-tokenizer</loc></url>
   <url><loc>https://ziran-lang.org/packages/compression</loc></url>
   <url><loc>https://ziran-lang.org/packages/crypto</loc></url>
-  <url><loc>https://ziran-lang.org/packages/daochi-client</loc></url>
   <url><loc>https://ziran-lang.org/packages/image-codec</loc></url>
   <url><loc>https://ziran-lang.org/packages/lua</loc></url>
   <url><loc>https://ziran-lang.org/packages/mermaid</loc></url>
+  <url><loc>https://ziran-lang.org/packages/mesh-client</loc></url>
   <url><loc>https://ziran-lang.org/packages/noise</loc></url>
   <url><loc>https://ziran-lang.org/packages/oqs</loc></url>
   <url><loc>https://ziran-lang.org/packages/qrcode</loc></url>
@@ -42,7 +44,6 @@
   <url><loc>https://ziran-lang.org/packages/syntax</loc></url>
   <url><loc>https://ziran-lang.org/packages/telegram</loc></url>
   <url><loc>https://ziran-lang.org/packages/webp</loc></url>
-  <url><loc>https://ziran-lang.org/status</loc></url>
   <url><loc>https://ziran-lang.org/std/atomic_go</loc></url>
   <url><loc>https://ziran-lang.org/std/audio</loc></url>
   <url><loc>https://ziran-lang.org/std/audio_android_aaudio</loc></url>
@@ -168,5 +169,4 @@
   <url><loc>https://ziran-lang.org/std/zip_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/zlib_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/zstd_go</loc></url>
-  <url><loc>https://ziran-lang.org/targets</loc></url>
 </urlset>

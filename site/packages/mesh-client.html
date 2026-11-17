@@ -1,17 +1,28 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Native clients can import daochiclient/cryptonative for bounded byte-slice SHA-256, streaming digests, HMAC-SHA-256, XChaCha20-Poly1305, secure random bytes, clearing buffers and compatible Argon2id exports."><title>Daochi Client · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/daochi-client"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Native clients can import meshclient/cryptonative for bounded byte-slice SHA-256, streaming digests, HMAC-SHA-256, XChaCha20-Poly1305, secure random bytes, clearing buffers and compatible Argon2id exports."><title>Mesh Client · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/mesh-client"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
-<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Daochi Client</h1><p>Native clients can import daochiclient/cryptonative for bounded byte-slice SHA-256, streaming digests, HMAC-SHA-256, XChaCha20-Poly1305, secure random bytes, clearing buffers and compatible Argon2id exports. Link libsodium for this optional provider; it uses the same 24-byte nonces and appended authentication tags as existing encrypted content. Applications retain their account and content keys, authenticated schema context, storage, and node policy. keys.ValidateIdentity verifies an existing binary ML-DSA-44 account and private-key proof without creating or replacing keys.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/daochi-client">Repository ↗</a></p></div>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Mesh Client</h1><p>Native clients can import meshclient/cryptonative for bounded byte-slice SHA-256, streaming digests, HMAC-SHA-256, XChaCha20-Poly1305, secure random bytes, clearing buffers and compatible Argon2id exports. Link libsodium for this optional provider; it uses the same 24-byte nonces and appended authentication tags as existing encrypted content. Applications retain their account and content keys, authenticated schema context, storage, and node policy. keys.ValidateIdentity verifies an existing binary ML-DSA-44 account and private-key proof without creating or replacing keys.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/mesh-client">Repository ↗</a></p></div>
 <div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-authorization">authorization</a><a href="#module-authorization_owner">authorization_owner</a><a href="#module-delegated">delegated</a><a href="#module-async_delegated">async_delegated</a><a href="#module-envelope">envelope</a><a href="#module-account">account</a><a href="#module-async_account">async_account</a><a href="#module-async_client">async_client</a><a href="#module-async_sync">async_sync</a><a href="#module-sync_flow">sync_flow</a><a href="#module-auth">auth</a><a href="#module-client">client</a><a href="#module-crypto">crypto</a><a href="#module-crypto_native">crypto_native</a><a href="#module-events">events</a><a href="#module-keys">keys</a><a href="#module-record">record</a><a href="#module-record_codec">record_codec</a><a href="#module-release">release</a><a href="#module-entity">entity</a><a href="#module-social">social</a><a href="#module-rewards">rewards</a><a href="#module-sync">sync</a><a href="#module-transaction">transaction</a><a href="#module-url">url</a><a href="#module-wire">wire</a></aside><div class="article-body api-body">
-<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.daochi_client]
-git = "https://github.com/ziranlang/daochi-client.git"
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.mesh_client]
+git = "https://github.com/ziranlang/mesh-client.git"
 ref = "master"</code></pre></section>
-<section id="overview" class="prose"><h2>Overview</h2><p>Daochi Client is the independent Ziran library for applications that sync with
-Daochi. It contains no server, mesh node, database, or UI implementation.
+<section id="overview" class="prose"><h2>Overview</h2><p>Mesh Client is the independent Ziran library for applications that sync with
+<a href="https://mesh.ziran-lang.org">Mesh</a>. It contains no server, mesh node, database,
+or UI implementation.
 It has no Kryon dependency and lives in the
-<a href="https://github.com/ziranlang/daochi-client">Ziran organization</a>. Add it with
-<code>ziran add https://github.com/ziranlang/daochi-client.git</code>.</p>
+<a href="https://github.com/ziranlang/mesh-client">Ziran organization</a>. Add it with
+<code>ziran add https://github.com/ziranlang/mesh-client.git</code>.</p>
+<p>The package name and public dependency namespace are <code>mesh_client</code>. Release APIs use <code>MeshRelease</code>, <code>MeshParseRelease</code>,
+<code>MeshSha256Matches</code>, and the <code>MESH_RELEASE_*</code> limits. Old <code>daochi_client</code>
+imports and <code>Daochi*</code> source aliases are not provided.</p>
+<p>Released protocol values keep their original spelling: <code>daochi-*</code> signature
+contexts, <code>X-Daochi-*</code> HTTP headers, <code>daochi-record-v1</code> envelopes and
+<code>daochi-entity-v1/*</code> key derivation strings. The <code>account-key-v1</code> and
+<code>ksync-account-key-v2</code> key files, account IDs, stored state and result codes
+also stay unchanged. Renaming these bytes would invalidate signatures or prevent
+existing users from decrypting their data. This source/package rename does not
+migrate stored data or change the wire protocol.</p>
 <p>The protocol modules currently provide:</p>
 <ul>
 <li>canonical challenge, login body, and signed message builders (<code>wire.zi</code>);</li>
@@ -29,7 +40,7 @@ It has no Kryon dependency and lives in the
   native; link libsodium);</li>
 <li>entity data keys and shared chunks (<code>entity.zi</code>): the record key of each kind
   of account data and convergent 8 MiB chunk sealing, so every app of the
-  account stores one copy of each photo or level (Daochi <code>docs/entity-data.md</code>),
+  account stores one copy of each photo or level (Mesh <code>docs/entity-data.md</code>),
   and entity records sealed and opened as <code>daochi-record-v1</code> envelopes in plain
   Ziran, without libsodium;</li>
 <li>polled login, bearer requests, and signed sync operations
@@ -50,7 +61,7 @@ It has no Kryon dependency and lives in the
   <a href="https://github.com/ziranlang/crypto">crypto</a> package.</li>
 </ul>
 <p>The application supplies the account signer and body digest; <code>keys.zi</code>
-provides both for Daochi account keys (<code>SignAccountMessage</code>, <code>Sha256Hex</code>), and
+provides both for Mesh account keys (<code>SignAccountMessage</code>, <code>Sha256Hex</code>), and
 the app still stores the keys. A host supplies
 bounded HTTP requests through <code>SendRequest</code>; the host must NUL terminate every
 response buffer, including on error. This keeps private keys in the app's key
@@ -78,8 +89,8 @@ app's own record limit. Binary media bypass this codec. Native hosts link zlib
 node committed it. Sync recognizes the exact signed-transaction replay response
 and retries with a fresh nonce within its existing bounded recovery budget.
 The node's replay protection remains enforced.</p>
-<p>Import the package modules with <code>#import "daochi_client/client"</code> and
-<code>#import "daochi_client/sync"</code>. Set <code>Client.app_id</code>, supply a <code>Device</code> with a
+<p>Import the package modules with <code>#import "mesh_client/client"</code> and
+<code>#import "mesh_client/sync"</code>. Set <code>Client.app_id</code>, supply a <code>Device</code> with a
 persisted Ed25519 key and signer, and supply a cryptographically random 64-digit
 hex nonce callback. <code>Sync</code> registers the device and signs the exact sync body
 with both the account and device keys. The app owns the payload format and
@@ -98,7 +109,7 @@ context. <code>CancelRequest</code> and <code>CancelSync</code> release an activ
 with <code>AUTH_REQUEST_FAILED</code>. Both request modes share the same one-login retry
 after a <code>401</code>; sync modes share the exact registration and transaction builders.</p>
 <p>Pass a <code>SyncFlow</code> to <code>BeginSync</code> to sync accounts larger than one response
-buffer. Daochi Client switches to the server's encrypted record pages after a
+buffer. Mesh Client switches to the server's encrypted record pages after a
 capacity failure, signs each page request, retries interrupted transfers and
 validates forward cursor progress. It retains a bounded response buffer across
 pages; total account size has no fixed client buffer limit. An optional transport
@@ -143,7 +154,7 @@ hash the body can use <code>sync.SignTransactionHeader</code> with an explicit
 supplied client. <code>PrepareSyncHeader</code> retains the existing POST sync behavior.
 The host still owns transport, pinned-node policy, session/key storage and
 remote acknowledgment handling.</p></section>
-<section id="module-authorization"><p class="eyebrow">daochi-client/authorization.zi</p><h2>authorization</h2><p>Owner-signed authorization wire values. Apps own storage and approval UI.</p><p>Import with <code>#import "daochi_client/authorization"</code>.</p><div class="api-list">
+<section id="module-authorization"><p class="eyebrow">mesh-client/authorization.zi</p><h2>authorization</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Owner-signed authorization wire values. Apps own storage and approval UI.</p><p>Import with <code>#import "mesh_client/authorization"</code>.</p><div class="api-list">
 <div><code>GrantScope :: struct { collection: string; visibility: string; read: bool; write: bool; key_id: string; key_envelope: string; }</code></div>
 <div><code>Grant :: struct { version: s32; account_id: string; grant_id: string; request_id: string; app_id: string; client_id: string; node_id: string; audience: string; signing_key: string; encryption_key: string; issued_at: s64; not_before: s64; expires_at: s64; nonce: string; bot_id: s64; telegram_id: s64; scopes: []GrantScope; signature: string; }</code></div>
 <div><code>ScopeStorage :: struct { collection: [65]u8; visibility: [8]u8; read: bool; write: bool; key_id: [129]u8; key_envelope: [16385]u8; }</code></div>
@@ -183,16 +194,16 @@ remote acknowledgment handling.</p></section>
 <div><code>BuildClaimMessage :: (pending: *PublicRendezvous, client_id: string, signing_key: string, encryption_key: string, init_digest: string, output: []u8) -&gt; bool</code></div>
 <div><code>BuildClaimBody :: (request_id: string, client_id: string, signing_key: string, encryption_key: string, raw_init_data: string, proof: string, output: []u8) -&gt; bool</code></div>
 <div><code>ReadPublicRendezvous :: (json: string, output: *PublicRendezvous) -&gt; bool</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/authorization.zi">Source ↗</a></p></section>
-<section id="module-authorization_owner"><p class="eyebrow">daochi-client/authorization_owner.zi</p><h2>authorization_owner</h2><p>Owner operations retain protocol v6 ML-DSA and registered-device signatures.</p><p>Import with <code>#import "daochi_client/authorization_owner"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/authorization.zi">Source ↗</a></p></section>
+<section id="module-authorization_owner"><p class="eyebrow">mesh-client/authorization_owner.zi</p><h2>authorization_owner</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Owner operations retain protocol v6 ML-DSA and registered-device signatures.</p><p>Import with <code>#import "mesh_client/authorization_owner"</code>.</p><div class="api-list">
 <div><code>OwnerAuthorizationRoute :: (path: string) -&gt; bool</code></div>
 <div><code>BuildOwnerMessage :: (transaction: SyncTransaction, path: string, output: []u8) -&gt; bool</code></div>
 <div><code>BuildOwnerHeader :: (transaction: SyncTransaction, path: string, account_signature: string, device_signature: string, output: []u8) -&gt; bool</code></div>
 <div><code>PrepareOwnerAuthorizationHeader :: (client: Client, session: *Session, device: Device, now: s64, random_context: *void, random: RandomNonce, path: string, body: string, output: []u8) -&gt; AuthResult</code></div>
 <div><code>OwnerAuthorizationRequest :: (client: Client, session: *Session, device: Device, now: s64, random_context: *void, random: RandomNonce, path: string, body: string, output: []u8, status: *s32) -&gt; AuthResult</code></div>
 <div><code>PrepareGrantApproval :: (client: Client, grant: Grant, output: []u8) -&gt; AuthResult</code><p>Approval signs the immutable grant once, rather than signing each mutation.</p></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/authorization_owner.zi">Source ↗</a></p></section>
-<section id="module-delegated"><p class="eyebrow">daochi-client/delegated.zi</p><h2>delegated</h2><p>Key-bound session and scoped sync transports. Never populates HttpRequest.token.</p><p>Import with <code>#import "daochi_client/delegated"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/authorization_owner.zi">Source ↗</a></p></section>
+<section id="module-delegated"><p class="eyebrow">mesh-client/delegated.zi</p><h2>delegated</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Key-bound session and scoped sync transports. Never populates HttpRequest.token.</p><p>Import with <code>#import "mesh_client/delegated"</code>.</p><div class="api-list">
 <div><code>CurrentTime :: #type (context: *void) -&gt; s64</code></div>
 <div><code>RandomID :: #type (context: *void, output: []u8) -&gt; bool</code></div>
 <div><code>DelegateClient :: struct { server_url: string; account_id: string; app_id: string; client_id: string; grant_id: string; node_id: string; audience: string; signing_key: string; encryption_key: string; bot_id: s64; telegram_id: s64; clock_context: *void; clock: CurrentTime; scopes: []RequestedScope; grant: *GrantStorage; signing_context: *void; signer: SignMessage; random_context: *void; random: RandomID; transport_context: *void; send: SendRequest; }</code></div>
@@ -218,8 +229,8 @@ remote acknowledgment handling.</p></section>
 <div><code>PrepareDelegateHeaders :: (client: DelegateClient, session: *DelegateSession, now: s64, method: string, path: string, query: string, body: string, proof_header: []u8, credential: []u8) -&gt; AuthResult</code></div>
 <div><code>RenewDelegateSession :: (client: DelegateClient, session: *DelegateSession, now: s64, response: []u8) -&gt; AuthResult</code></div>
 <div><code>DelegateRequest :: (client: DelegateClient, session: *DelegateSession, now: s64, body: string, output: []u8, status: *s32) -&gt; AuthResult</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/delegated.zi">Source ↗</a></p></section>
-<section id="module-async_delegated"><p class="eyebrow">daochi-client/async_delegated.zi</p><h2>async_delegated</h2><p>Poll-driven counterpart of delegated session renewal and scoped requests.</p><p>Import with <code>#import "daochi_client/async_delegated"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/delegated.zi">Source ↗</a></p></section>
+<section id="module-async_delegated"><p class="eyebrow">mesh-client/async_delegated.zi</p><h2>async_delegated</h2><p>Poll-driven counterpart of delegated session renewal and scoped requests.</p><p>Import with <code>#import "mesh_client/async_delegated"</code>.</p><div class="api-list">
 <div><code>PendingDelegate :: struct { client: DelegateClient; session: *DelegateSession; transport: AsyncTransport; now: s64; body: string; output: []u8; session_only: bool; address: [768]u8; session_body: [512]u8; challenge_json: [2048]u8; proof: [4096]u8; credential: [46]u8; headers: [2]HttpHeader; stage: s32; waiting: bool; done: bool; result: AuthResult; status: s32; }</code></div>
 <div><code>FinishDelegate :: (pending: *PendingDelegate, result: AuthResult)</code></div>
 <div><code>StartDelegateTransfer :: (pending: *PendingDelegate, path: string, body: string, output: []u8, stage: s32, headers: []HttpHeader)</code></div>
@@ -230,8 +241,8 @@ remote acknowledgment handling.</p></section>
 <div><code>BeginDelegateRequest :: (pending: *PendingDelegate, client: DelegateClient, session: *DelegateSession, now: s64, transport: AsyncTransport, body: string, output: []u8) -&gt; bool</code></div>
 <div><code>PollDelegate :: (pending: *PendingDelegate) -&gt; bool</code></div>
 <div><code>CancelDelegate :: (pending: *PendingDelegate)</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/async_delegated.zi">Source ↗</a></p></section>
-<section id="module-envelope"><p class="eyebrow">daochi-client/envelope.zi</p><h2>envelope</h2><p>Approved collection keys only. The host stores the separate recipient key.</p><p>Import with <code>#import "daochi_client/envelope"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/async_delegated.zi">Source ↗</a></p></section>
+<section id="module-envelope"><p class="eyebrow">mesh-client/envelope.zi</p><h2>envelope</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Approved collection keys only. The host stores the separate recipient key.</p><p>Import with <code>#import "mesh_client/envelope"</code>.</p><div class="api-list">
 <div><code>EncryptionKeys :: struct { public_key: [1184]u8; secret_key: [2400]u8; }</code></div>
 <div><code>CreateEncryptionKeys :: (keys: *EncryptionKeys) -&gt; bool</code></div>
 <div><code>EncryptionPublicHex :: (keys: *EncryptionKeys, output: []u8) -&gt; bool</code></div>
@@ -239,20 +250,20 @@ remote acknowledgment handling.</p></section>
 <div><code>BuildEnvelopeAAD :: (grant: Grant, scope: GrantScope, output: []u8) -&gt; bool</code></div>
 <div><code>SealCollectionKey :: (grant: Grant, scope: GrantScope, collection_key: []u8, output: []u8) -&gt; bool</code></div>
 <div><code>OpenCollectionKey :: (grant: Grant, scope: GrantScope, keys: *EncryptionKeys, output: []u8) -&gt; bool</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/envelope.zi">Source ↗</a></p></section>
-<section id="module-account"><p class="eyebrow">daochi-client/account.zi</p><h2>account</h2><p>Account deletion uses a fresh challenge and account signature. No private key or exported backup is sent to Daochi.</p><p>Import with <code>#import "daochi_client/account"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/envelope.zi">Source ↗</a></p></section>
+<section id="module-account"><p class="eyebrow">mesh-client/account.zi</p><h2>account</h2><p>Account deletion uses a fresh challenge and account signature. No private key or exported backup is sent to Mesh.</p><p>Import with <code>#import "mesh_client/account"</code>.</p><div class="api-list">
 <div><code>BuildDeleteBody :: (account_id: string, public_key: string, output: []u8) -&gt; bool</code></div>
 <div><code>PrepareDelete :: (client: Client, challenge: string, body: []u8, signature: []u8) -&gt; AuthResult</code><p>Shared signed deletion preparation for blocking and polled hosts.</p></div>
 <div><code>DeleteAccount :: (client: Client) -&gt; AuthResult</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/account.zi">Source ↗</a></p></section>
-<section id="module-async_account"><p class="eyebrow">daochi-client/async_account.zi</p><h2>async_account</h2><p>Signed account deletion advanced without blocking the host event loop.</p><p>Import with <code>#import "daochi_client/async_account"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/account.zi">Source ↗</a></p></section>
+<section id="module-async_account"><p class="eyebrow">mesh-client/async_account.zi</p><h2>async_account</h2><p>Signed account deletion advanced without blocking the host event loop.</p><p>Import with <code>#import "mesh_client/async_account"</code>.</p><div class="api-list">
 <div><code>PendingDeletion :: struct { client: Client; transport: AsyncTransport; server: [512]u8; address: [768]u8; challenge: [4096]u8; body: [4096]u8; signature: [4841]u8; headers: [2]HttpHeader; response: [4096]u8; status: s32; deleting: bool; waiting: bool; done: bool; result: AuthResult; }</code></div>
 <div><code>FinishDeletion :: (pending: *PendingDeletion, result: AuthResult)</code></div>
 <div><code>BeginDeletion :: (pending: *PendingDeletion, client: Client, transport: AsyncTransport) -&gt; bool</code></div>
 <div><code>PollDeletion :: (pending: *PendingDeletion) -&gt; bool</code></div>
 <div><code>CancelDeletion :: (pending: *PendingDeletion)</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/async_account.zi">Source ↗</a></p></section>
-<section id="module-async_client"><p class="eyebrow">daochi-client/async_client.zi</p><h2>async_client</h2><p>A bounded request operation advanced by the host's frame/event loop. Request data, identity, session, and output remain caller-owned until done.</p><p>Import with <code>#import "daochi_client/async_client"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/async_account.zi">Source ↗</a></p></section>
+<section id="module-async_client"><p class="eyebrow">mesh-client/async_client.zi</p><h2>async_client</h2><p>A bounded request operation advanced by the host's frame/event loop. Request data, identity, session, and output remain caller-owned until done.</p><p>Import with <code>#import "mesh_client/async_client"</code>.</p><div class="api-list">
 <div><code>StartTransfer :: #type (context: *void, request: HttpRequest, output: []u8) -&gt; bool</code></div>
 <div><code>PollTransfer :: #type (context: *void, status: *s32) -&gt; s32</code></div>
 <div><code>CancelTransfer :: #type (context: *void)</code></div>
@@ -272,8 +283,8 @@ remote acknowledgment handling.</p></section>
 <div><code>BeginRequest :: (pending: *PendingRequest, client: Client, session: *Session, now: s64, transport: AsyncTransport, method: string, path: string, body: string, output: []u8, extra_headers: []HttpHeader) -&gt; bool</code></div>
 <div><code>PollRequest :: (pending: *PendingRequest) -&gt; bool</code></div>
 <div><code>CancelRequest :: (pending: *PendingRequest)</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/async_client.zi">Source ↗</a></p></section>
-<section id="module-async_sync"><p class="eyebrow">daochi-client/async_sync.zi</p><h2>async_sync</h2><p>The same v6 registration and signed transaction as Sync, advanced by polls.</p><p>Import with <code>#import "daochi_client/async_sync"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/async_client.zi">Source ↗</a></p></section>
+<section id="module-async_sync"><p class="eyebrow">mesh-client/async_sync.zi</p><h2>async_sync</h2><p>The same v6 registration and signed transaction as Sync, advanced by polls.</p><p>Import with <code>#import "mesh_client/async_sync"</code>.</p><div class="api-list">
 <div><code>PendingSync :: struct { request: PendingRequest; client: Client; session: *Session; transport: AsyncTransport; device: Device; now: s64; random_context: *void; random: RandomNonce; body: string; output: []u8; registration: [6144]u8; registration_response: [2048]u8; transaction_header: [8192]u8; stage: s32; done: bool; result: AuthResult; status: s32; flow: SyncFlow; page: SyncPageState; page_body: *u8; record_limit: s32; transfer_retries: s32; download_only: bool; cached_registration: bool; registration_retried: bool; }</code></div>
 <div><code>FinishSync :: (pending: *PendingSync, result: AuthResult)</code></div>
 <div><code>PrepareNextSync :: (pending: *PendingSync) -&gt; bool</code></div>
@@ -281,8 +292,8 @@ remote acknowledgment handling.</p></section>
 <div><code>BeginSync :: (pending: *PendingSync, client: Client, session: *Session, device: Device, now: s64, random_context: *void, random: RandomNonce, transport: AsyncTransport, body: string, output: []u8, flow: SyncFlow) -&gt; bool</code></div>
 <div><code>PollSync :: (pending: *PendingSync) -&gt; bool</code></div>
 <div><code>CancelSync :: (pending: *PendingSync)</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/async_sync.zi">Source ↗</a></p></section>
-<section id="module-sync_flow"><p class="eyebrow">daochi-client/sync_flow.zi</p><h2>sync_flow</h2><p>Resumable encrypted-record downloads. The host persists account/node-local state and atomically merges each accepted page; protocol policy stays here.</p><p>Import with <code>#import "daochi_client/sync_flow"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/async_sync.zi">Source ↗</a></p></section>
+<section id="module-sync_flow"><p class="eyebrow">mesh-client/sync_flow.zi</p><h2>sync_flow</h2><p>Resumable encrypted-record downloads. The host persists account/node-local state and atomically merges each accepted page; protocol policy stays here.</p><p>Import with <code>#import "mesh_client/sync_flow"</code>.</p><div class="api-list">
 <div><code>SyncPageState :: struct { enabled: bool; pending: bool; cursor: [8192]u8; }</code></div>
 <div><code>LoadSyncState :: #type (context: *void, state: *SyncPageState) -&gt; bool</code></div>
 <div><code>PrepareSyncBody :: #type (context: *void, maximum_records: s32) -&gt; string</code></div>
@@ -299,8 +310,8 @@ remote acknowledgment handling.</p></section>
 <div><code>RestartStaleSyncPage :: (body: string, state: *SyncPageState) -&gt; bool</code><p>A saved cursor behind the request's since_server_version is left from a download that began at an earlier position. The node refuses a cursor before since, so every page request would fail; the download starts again at the request's position instead. True when the cursor was dropped.</p></div>
 <div><code>BuildSyncPageRequest :: (body: string, state: *SyncPageState, limit: s32, output: []u8, download_only: bool) -&gt; bool</code><p>Output borrows the caller's request buffer. Legacy snapshot selectors are deliberately excluded: a page never means replacing an entire local account.</p></div>
 <div><code>AcceptSyncResponse :: (body: string, response: string, state: *SyncPageState, next: *SyncPageState, limit: s32) -&gt; bool</code><p>No cursor may advance until the host has committed this response. The next state is separate so a rejected or interrupted merge cannot skip records.</p></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/sync_flow.zi">Source ↗</a></p></section>
-<section id="module-auth"><p class="eyebrow">daochi-client/auth.zi</p><h2>auth</h2><p>Portable challenge/login protocol. The application owns keys and the host owns HTTP; neither is stored here.</p><p>Import with <code>#import "daochi_client/auth"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/sync_flow.zi">Source ↗</a></p></section>
+<section id="module-auth"><p class="eyebrow">mesh-client/auth.zi</p><h2>auth</h2><p>Portable challenge/login protocol. The application owns keys and the host owns HTTP; neither is stored here.</p><p>Import with <code>#import "mesh_client/auth"</code>.</p><div class="api-list">
 <div><code>AuthResult :: enum { AUTH_OK = 0; AUTH_INVALID_URL = 1; AUTH_NO_ACCOUNT = 2; AUTH_PAYLOAD_FAILED = 3; AUTH_CHALLENGE_FAILED = 4; AUTH_SIGN_FAILED = 5; AUTH_REQUEST_FAILED = 6; AUTH_FAILED = 7; }</code></div>
 <div><code>Identity :: struct { account_id: string; public_key: string; client_id: string; signing_context: *void; restore_hold: bool; }</code></div>
 <div><code>Registration :: struct { server: [512]u8; account: [65]u8; app: [65]u8; client: [129]u8; device: [65]u8; public_key: [65]u8; expires_at: s64; }</code><p>Public registration metadata only. A cache never replaces the server's account/device signatures, revocation checks or transaction replay checks.</p></div>
@@ -313,8 +324,8 @@ remote acknowledgment handling.</p></section>
 <div><code>HexText :: (text: string, digits: s64) -&gt; bool</code></div>
 <div><code>PrepareLogin :: (identity: Identity, challenge_json: string, digest: DigestBody, signer: SignMessage, body: []u8, signature: []u8) -&gt; AuthResult</code></div>
 <div><code>AcceptLogin :: (status: s32, response_json: string, session: *Session) -&gt; AuthResult</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/auth.zi">Source ↗</a></p></section>
-<section id="module-client"><p class="eyebrow">daochi-client/client.zi</p><h2>client</h2><p>Synchronous Daochi client entry points. Hosts provide the bounded request callback, so this module contains no platform or application implementation.</p><p>Import with <code>#import "daochi_client/client"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/auth.zi">Source ↗</a></p></section>
+<section id="module-client"><p class="eyebrow">mesh-client/client.zi</p><h2>client</h2><p>Synchronous Mesh client entry points. Hosts provide the bounded request callback, so this module contains no platform or application implementation.</p><p>Import with <code>#import "mesh_client/client"</code>.</p><div class="api-list">
 <div><code>SendRequest :: #type (context: *void, request: HttpRequest, output: []u8, status: *s32) -&gt; bool</code></div>
 <div><code>Client :: struct { server_url: string; app_id: string; identity: Identity; digest: DigestBody; signer: SignMessage; send: SendRequest; transport_context: *void; }</code></div>
 <div><code>FetchChallengeJson :: (client: Client, output: []u8) -&gt; AuthResult</code></div>
@@ -327,8 +338,8 @@ remote acknowledgment handling.</p></section>
 <div><code>ClearSession :: (session: *Session)</code></div>
 <div><code>BearerRequestWithHeaders :: (client: Client, session: *Session, now: s64, method: string, path: string, body: string, output: []u8, status: *s32, extra_headers: []HttpHeader) -&gt; AuthResult</code><p>A 401 invalidates the bearer token, then performs exactly one fresh login and retries the original request. The caller persists the resulting session.</p></div>
 <div><code>BearerRequest :: (client: Client, session: *Session, now: s64, method: string, path: string, body: string, output: []u8, status: *s32) -&gt; AuthResult</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/client.zi">Source ↗</a></p></section>
-<section id="module-crypto"><p class="eyebrow">daochi-client/crypto.zi</p><h2>crypto</h2><p>Account and record cryptography for Daochi apps: SHA-256, HMAC-SHA-256 and hex encoding from the crypto package, the account key files' PBKDF2-HMAC-SHA-256, RFC 8439 ChaCha20-Poly1305 and its 24-byte nonce form XChaCha20-Poly1305. All of it is plain Ziran; the signatures themselves come from the Oqs package. The functions take byte pointers and lengths and return 1 on success, 0 on invalid input.</p><p>Import with <code>#import "daochi_client/crypto"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/client.zi">Source ↗</a></p></section>
+<section id="module-crypto"><p class="eyebrow">mesh-client/crypto.zi</p><h2>crypto</h2><p>Account and record cryptography for Mesh apps: SHA-256, HMAC-SHA-256 and hex encoding from the crypto package, the account key files' PBKDF2-HMAC-SHA-256, RFC 8439 ChaCha20-Poly1305 and its 24-byte nonce form XChaCha20-Poly1305. All of it is plain Ziran; the signatures themselves come from the Oqs package. The functions take byte pointers and lengths and return 1 on success, 0 on invalid input.</p><p>Import with <code>#import "mesh_client/crypto"</code>.</p><div class="api-list">
 <div><code>Sha256 :: (data: *u8, length: s64, output: *u8)</code></div>
 <div><code>BytesToHex :: (bytes: *u8, length: s64, output: *u8, output_size: s64) -&gt; s32</code></div>
 <div><code>HexToBytes :: (hex: string, output: *u8, output_size: s64) -&gt; s32</code></div>
@@ -362,8 +373,8 @@ remote acknowledgment handling.</p></section>
 <div><code>XChaChaWipe :: (bytes: *u8, length: s32)</code></div>
 <div><code>XChaCha20Poly1305Seal :: (key: *u8, nonce: *u8, plain: *u8, plain_length: s64, aad: *u8, aad_length: s64, output: *u8, output_capacity: s64) -&gt; s32</code><p>XChaCha20-Poly1305 with a 24-byte nonce, the same construction as libsodium's crypto_aead_xchacha20poly1305_ietf and Monocypher's AEAD: output receives the ciphertext and its 16-byte tag.</p></div>
 <div><code>XChaCha20Poly1305Open :: (key: *u8, nonce: *u8, sealed: *u8, sealed_length: s64, aad: *u8, aad_length: s64, plain: *u8, plain_capacity: s64) -&gt; s32</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/crypto.zi">Source ↗</a></p></section>
-<section id="module-crypto_native"><p class="eyebrow">daochi-client/crypto_native.zi</p><h2>crypto_native</h2><p>Native provider for existing Daochi client content encryption. The account, content key, nonce and authenticated context are supplied by the caller; this module never creates identities, persists keys or sends requests. Libsodium supplies the same XChaCha20-Poly1305 bytes used by existing blobs.</p><p>Import with <code>#import "daochi_client/crypto_native"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/crypto.zi">Source ↗</a></p></section>
+<section id="module-crypto_native"><p class="eyebrow">mesh-client/crypto_native.zi</p><h2>crypto_native</h2><p>Native provider for existing Mesh client content encryption. The account, content key, nonce and authenticated context are supplied by the caller; this module never creates identities, persists keys or sends requests. Libsodium supplies the same XChaCha20-Poly1305 bytes used by existing blobs.</p><p>Import with <code>#import "mesh_client/crypto_native"</code>.</p><div class="api-list">
 <div><code>Initialize :: () -&gt; bool</code></div>
 <div><code>Clear :: (bytes: []u8)</code></div>
 <div><code>RandomBytes :: (bytes: []u8) -&gt; bool</code></div>
@@ -378,16 +389,16 @@ remote acknowledgment handling.</p></section>
 <div><code>DerivePassword :: (password: []u8, salt: []u8, output: []u8, operations: u64, memory: usize) -&gt; bool</code><p>Compatibility KDF for existing Argon2id-protected exports. The caller owns the container format and supplies its fixed, trusted work factors.</p></div>
 <div><code>DevicePublic :: (seed: []u8, output: []u8) -&gt; bool</code></div>
 <div><code>SignDevice :: (seed: []u8, input: []u8, output: []u8) -&gt; bool</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/crypto_native.zi">Source ↗</a></p></section>
-<section id="module-events"><p class="eyebrow">daochi-client/events.zi</p><h2>events</h2><p>Remote sync events are transport independent. Hosts open the WebSocket and return one bounded JSON event through ReceiveEvent.</p><p>Import with <code>#import "daochi_client/events"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/crypto_native.zi">Source ↗</a></p></section>
+<section id="module-events"><p class="eyebrow">mesh-client/events.zi</p><h2>events</h2><p>Remote sync events are transport independent. Hosts open the WebSocket and return one bounded JSON event through ReceiveEvent.</p><p>Import with <code>#import "mesh_client/events"</code>.</p><div class="api-list">
 <div><code>EventKind :: enum { EVENT_INVALID = 0; EVENT_READY = 1; EVENT_CHANGED = 2; }</code></div>
 <div><code>RemoteEvent :: struct { kind: EventKind; server_version: s64; }</code></div>
 <div><code>ReceiveEvent :: #type (context: *void, url: string, token: string, output: []u8, status: *s32) -&gt; bool</code></div>
 <div><code>EventUrl :: (server_url: string, output: []u8) -&gt; bool</code></div>
 <div><code>ParseRemoteEvent :: (json: string, account_id: string) -&gt; RemoteEvent</code></div>
 <div><code>WaitForEvent :: (client: Client, session: *Session, now: s64, receive_context: *void, receive: ReceiveEvent, event: *RemoteEvent) -&gt; AuthResult</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/events.zi">Source ↗</a></p></section>
-<section id="module-keys"><p class="eyebrow">daochi-client/keys.zi</p><h2>keys</h2><p>Import with <code>#import "daochi_client/keys"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/events.zi">Source ↗</a></p></section>
+<section id="module-keys"><p class="eyebrow">mesh-client/keys.zi</p><h2>keys</h2><p>Import with <code>#import "mesh_client/keys"</code>.</p><div class="api-list">
 <div><code>ACCOUNT_PUBLIC_ID_HEX_SIZE :: 65</code><p>An account's wire sizes, as hex text with room for a NUL.</p></div>
 <div><code>ACCOUNT_PUBLIC_KEY_HEX_SIZE :: 2625</code></div>
 <div><code>ACCOUNT_PRIVATE_KEY_HEX_SIZE :: 5121</code></div>
@@ -430,8 +441,8 @@ remote acknowledgment handling.</p></section>
 <div><code>AccountKeysEncryptedText :: (account: *AccountKeys, passphrase: string, output: *u8, output_capacity: s64) -&gt; s32</code></div>
 <div><code>ParseEncryptedAccountKeys :: (body: string, passphrase: string, account: *AccountKeys) -&gt; s32</code></div>
 <div><code>AccountCopyText :: (value: string, output: []u8) -&gt; bool</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/keys.zi">Source ↗</a></p></section>
-<section id="module-record"><p class="eyebrow">daochi-client/record.zi</p><h2>record</h2><p>Daochi encrypted record profile v1 ("daochi-record-v1"). The caller supplies the content key and the authoritative routing metadata; this module only seals. Keys and plaintext never leave the caller's buffers.</p><p>Import with <code>#import "daochi_client/record"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/keys.zi">Source ↗</a></p></section>
+<section id="module-record"><p class="eyebrow">mesh-client/record.zi</p><h2>record</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Mesh encrypted record profile v1 ("daochi-record-v1"). The caller supplies the content key and the authoritative routing metadata; this module only seals. Keys and plaintext never leave the caller's buffers.</p><p>Import with <code>#import "mesh_client/record"</code>.</p><div class="api-list">
 <div><code>RecordMetadata :: struct { account_id: string; app_id: string; collection: string; id: string; schema: string; }</code></div>
 <div><code>RecordNonceBytes :: 24</code></div>
 <div><code>RecordPlainMaximum :: 8388608</code></div>
@@ -440,8 +451,8 @@ remote acknowledgment handling.</p></section>
 <div><code>RecordEnvelopeBytes :: (metadata: RecordMetadata, key_id: string, plain_count: s64) -&gt; s64</code><p>Room for the sealed envelope of plain_count bytes, including its NUL.</p></div>
 <div><code>SealRecord :: (metadata: RecordMetadata, key_id: string, key: []u8, plaintext: []u8, nonce: []u8, output: []u8) -&gt; s64</code><p>Seal with a fresh random nonce into the profile's sorted-key JSON envelope: {"aad":{…},"alg":"xchacha20poly1305","ciphertext":"…","key_id":"…", "nonce":"…","profile":"daochi-record-v1"}, base64url without padding. The nonce is also returned because record stores repeat it. Returns the envelope length without its NUL, or -1 with every output cleared.</p></div>
 <div><code>RecordBase64 :: (input: []u8, output: []u8) -&gt; s64</code><p>Base64url without padding, as the profile encodes nonces and ciphertext. Returns the length without its NUL, or -1 when output is too small.</p></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/record.zi">Source ↗</a></p></section>
-<section id="module-record_codec"><p class="eyebrow">daochi-client/record_codec.zi</p><h2>record_codec</h2><p>Optional packed JSON record payloads. Hosts seal both the released JSON and this frame with independent nonces. Nodes serve the packed copy only to a reader that requests gzip-v1; older readers retain the released plaintext.</p><p>Import with <code>#import "daochi_client/record_codec"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/record.zi">Source ↗</a></p></section>
+<section id="module-record_codec"><p class="eyebrow">mesh-client/record_codec.zi</p><h2>record_codec</h2><p>Optional packed JSON record payloads. Hosts seal both the released JSON and this frame with independent nonces. Nodes serve the packed copy only to a reader that requests gzip-v1; older readers retain the released plaintext.</p><p>Import with <code>#import "mesh_client/record_codec"</code>.</p><div class="api-list">
 <div><code>RecordPayloadMaximum :: 8388608</code></div>
 <div><code>RecordPackingHeader :: 12</code></div>
 <div><code>RecordPackingMagic :: "DAOGZIP1"</code></div>
@@ -449,26 +460,26 @@ remote acknowledgment handling.</p></section>
 <div><code>PackRecord :: (input: []u8, output: []u8) -&gt; s64</code><p>Zero means keep the identity representation; -1 means invalid bounds. The caller owns disjoint input/output buffers and caps output to input size.</p></div>
 <div><code>PackedRecordSize :: (input: []u8, maximum: s64) -&gt; s64</code><p>Validate the authenticated frame's claimed length before any allocation.</p></div>
 <div><code>UnpackRecord :: (input: []u8, output: []u8, maximum: s64) -&gt; s64</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/record_codec.zi">Source ↗</a></p></section>
-<section id="module-release"><p class="eyebrow">daochi-client/release.zi</p><h2>release</h2><p>Signed app releases, format "daochi-zib-release-v2". A release names an app, its sequence and version, the runtime and host APIs it needs, the artifacts that deliver it and the packages it depends on, all signed with Ed25519 by the key the publisher registered for the app.  DaochiParseRelease checks the release's shape and signature; the caller checks its own policy: the app it expects, a runtime and API range it supports, and which dependencies it accepts. The signature check is a callback, so applications keep their own Ed25519 implementation.</p><p>Import with <code>#import "daochi_client/release"</code>.</p><div class="api-list">
-<div><code>DAOCHI_RELEASE_ARTIFACTS :: 2</code></div>
-<div><code>DAOCHI_RELEASE_DEPENDENCIES :: 16</code></div>
-<div><code>DAOCHI_RELEASE_JSON_LIMIT :: 65536</code></div>
-<div><code>DaochiReleaseArtifact :: struct { variant: [32]u8; sha256: [65]u8; size: s64; }</code></div>
-<div><code>DaochiReleaseDependency :: struct { app_id: [64]u8; version: [32]u8; sha256: [65]u8; size: s64; }</code></div>
-<div><code>DaochiRelease :: struct { app_id: [64]u8; sequence: s64; version: [32]u8; runtime: [32]u8; host_api: s64; module_api: s64; data_schema: s64; key_id: [64]u8; artifacts: [2]DaochiReleaseArtifact; artifact_count: s32; dependencies: [16]DaochiReleaseDependency; dependency_count: s32; valid: bool; }</code></div>
-<div><code>DaochiReleaseVerify :: #type (signature: *u8, public_key: *u8, message: *u8, length: usize) -&gt; bool</code></div>
-<div><code>DaochiVersionValid :: (version: string) -&gt; bool</code><p>A dotted version of three numbers without leading zeros, such as 2.1.28.</p></div>
-<div><code>DaochiIdentifierValid :: (value: string) -&gt; bool</code><p>Lowercase letters and digits, then also ".", "_" and "-"; at most 63 bytes.</p></div>
-<div><code>DaochiHashValid :: (hash: string) -&gt; bool</code><p>64 lowercase hex digits.</p></div>
-<div><code>DaochiCompare :: (left: string, right: string) -&gt; s32</code><p>Byte order, shorter first.</p></div>
-<div><code>DaochiSha256Matches :: (bytes: string, sha256: string) -&gt; bool</code><p>Whether bytes hash to sha256, 64 lowercase hex digits.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/record_codec.zi">Source ↗</a></p></section>
+<section id="module-release"><p class="eyebrow">mesh-client/release.zi</p><h2>release</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Signed app releases, format "daochi-zib-release-v2". A release names an app, its sequence and version, the runtime and host APIs it needs, the artifacts that deliver it and the packages it depends on, all signed with Ed25519 by the key the publisher registered for the app.  MeshParseRelease checks the release's shape and signature; the caller checks its own policy: the app it expects, a runtime and API range it supports, and which dependencies it accepts. The signature check is a callback, so applications keep their own Ed25519 implementation.</p><p>Import with <code>#import "mesh_client/release"</code>.</p><div class="api-list">
+<div><code>MESH_RELEASE_ARTIFACTS :: 2</code></div>
+<div><code>MESH_RELEASE_DEPENDENCIES :: 16</code></div>
+<div><code>MESH_RELEASE_JSON_LIMIT :: 65536</code></div>
+<div><code>MeshReleaseArtifact :: struct { variant: [32]u8; sha256: [65]u8; size: s64; }</code></div>
+<div><code>MeshReleaseDependency :: struct { app_id: [64]u8; version: [32]u8; sha256: [65]u8; size: s64; }</code></div>
+<div><code>MeshRelease :: struct { app_id: [64]u8; sequence: s64; version: [32]u8; runtime: [32]u8; host_api: s64; module_api: s64; data_schema: s64; key_id: [64]u8; artifacts: [2]MeshReleaseArtifact; artifact_count: s32; dependencies: [16]MeshReleaseDependency; dependency_count: s32; valid: bool; }</code></div>
+<div><code>MeshReleaseVerify :: #type (signature: *u8, public_key: *u8, message: *u8, length: usize) -&gt; bool</code></div>
+<div><code>MeshVersionValid :: (version: string) -&gt; bool</code><p>A dotted version of three numbers without leading zeros, such as 2.1.28.</p></div>
+<div><code>MeshIdentifierValid :: (value: string) -&gt; bool</code><p>Lowercase letters and digits, then also ".", "_" and "-"; at most 63 bytes.</p></div>
+<div><code>MeshHashValid :: (hash: string) -&gt; bool</code><p>64 lowercase hex digits.</p></div>
+<div><code>MeshCompare :: (left: string, right: string) -&gt; s32</code><p>Byte order, shorter first.</p></div>
+<div><code>MeshSha256Matches :: (bytes: string, sha256: string) -&gt; bool</code><p>Whether bytes hash to sha256, 64 lowercase hex digits.</p></div>
 <div><code>ReleaseField :: (json: string, at: s32, key: string, output: []u8) -&gt; string</code></div>
 <div><code>ReleaseNumber :: (json: string, at: s32, key: string) -&gt; s64</code></div>
 <div><code>ReleaseCopy :: (value: string, output: []u8)</code></div>
-<div><code>DaochiParseRelease :: (json: string, public_hex: string, maximum_size: s64, verify: DaochiReleaseVerify) -&gt; DaochiRelease</code><p>Parses json and checks its signature under public_hex, the app key's 64 hex digits. Each artifact and dependency is at least 8 bytes and at most maximum_size. The result is valid only when everything checks out.</p></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/release.zi">Source ↗</a></p></section>
-<section id="module-entity"><p class="eyebrow">daochi-client/entity.zi</p><h2>entity</h2><p>Entity data: the account's own photos, levels and other things, kept once and shared by every app of the account (Daochi docs/entity-data.md). All keys come from the account private key bytes, so every app derives the same ones. Keys and plaintext never leave the caller's buffers.</p><p>Import with <code>#import "daochi_client/entity"</code>.</p><div class="api-list">
+<div><code>MeshParseRelease :: (json: string, public_hex: string, maximum_size: s64, verify: MeshReleaseVerify) -&gt; MeshRelease</code><p>Parses json and checks its signature under public_hex, the app key's 64 hex digits. Each artifact and dependency is at least 8 bytes and at most maximum_size. The result is valid only when everything checks out.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/release.zi">Source ↗</a></p></section>
+<section id="module-entity"><p class="eyebrow">mesh-client/entity.zi</p><h2>entity</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Entity data: the account's own photos, levels and other things, kept once and shared by every app of the account (Mesh docs/entity-data.md). All keys come from the account private key bytes, so every app derives the same ones. Keys and plaintext never leave the caller's buffers.</p><p>Import with <code>#import "mesh_client/entity"</code>.</p><div class="api-list">
 <div><code>ENTITY_KEY_BYTES :: 32</code></div>
 <div><code>ENTITY_RECORD_KEY_ID :: "entity-v1"</code></div>
 <div><code>ENTITY_KIND_MAX :: 48</code></div>
@@ -495,8 +506,8 @@ remote acknowledgment handling.</p></section>
 <div><code>SealEntityRecord :: (private_key: []u8, metadata: EntityRecordMetadata, plain: []u8, nonce: []u8, sealed: []u8, output: []u8) -&gt; s64</code><p>Seals plain (at most ENTITY_RECORD_PLAIN_MAX bytes) under the record key of its kind with nonce, 24 fresh random bytes, and writes the record's sync ciphertext text, the base64url envelope, into output. sealed is scratch of plain.count + 16 bytes. Returns the text's length, or -1 with output cleared.</p></div>
 <div><code>EntityRecordEnvelope :: (text: string, output: []u8) -&gt; s64</code><p>The envelope JSON of a record's sync ciphertext text, decoded into output (3/4 of text.count); its length, or -1.</p></div>
 <div><code>OpenEntityRecord :: (private_key: []u8, metadata: EntityRecordMetadata, envelope: string, schema: []u8, output: []u8) -&gt; s64</code><p>Opens a record's envelope (EntityRecordEnvelope): it must name this account, the entity app, the kind's collection and the record id of metadata (whose schema is ignored), key entity-v1, and authenticate under the kind's record key. The record's schema goes into schema and its plain text into output, which needs room for the sealed bytes (16 more than the plain text); returns the plain length, or -1 with output cleared.</p></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/entity.zi">Source ↗</a></p></section>
-<section id="module-social"><p class="eyebrow">daochi-client/social.zi</p><h2>social</h2><p>Account and friend operations shared by every Daochi application.</p><p>Import with <code>#import "daochi_client/social"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/entity.zi">Source ↗</a></p></section>
+<section id="module-social"><p class="eyebrow">mesh-client/social.zi</p><h2>social</h2><p>Account and friend operations shared by every Mesh application.</p><p>Import with <code>#import "mesh_client/social"</code>.</p><div class="api-list">
 <div><code>SpaceByte :: (byte: u8) -&gt; bool</code></div>
 <div><code>LowerByte :: (byte: u8) -&gt; u8</code></div>
 <div><code>NormalizeFriendTarget :: (target: string, output: []u8) -&gt; bool</code></div>
@@ -515,8 +526,8 @@ remote acknowledgment handling.</p></section>
 <div><code>Friends :: (client: Client, session: *Session, now: s64, output: []u8, status: *s32) -&gt; AuthResult</code></div>
 <div><code>FriendStats :: (client: Client, session: *Session, now: s64, practice: string, metric: string, output: []u8, status: *s32) -&gt; AuthResult</code></div>
 <div><code>RegisterAlias :: (client: Client, session: *Session, now: s64, alias: string, output: []u8, status: *s32) -&gt; AuthResult</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/social.zi">Source ↗</a></p></section>
-<section id="module-rewards"><p class="eyebrow">daochi-client/rewards.zi</p><h2>rewards</h2><p>Rewards an account claims from its node, such as a game's secret chest. The node keeps the catalog and gives each reward to an account once: a client names only the reward, never an amount, and reads back whether this claim credited it. Claiming again is safe and credits nothing.</p><p>Import with <code>#import "daochi_client/rewards"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/social.zi">Source ↗</a></p></section>
+<section id="module-rewards"><p class="eyebrow">mesh-client/rewards.zi</p><h2>rewards</h2><p>Rewards an account claims from its node, such as a game's secret chest. The node keeps the catalog and gives each reward to an account once: a client names only the reward, never an amount, and reads back whether this claim credited it. Claiming again is safe and credits nothing.</p><p>Import with <code>#import "mesh_client/rewards"</code>.</p><div class="api-list">
 <div><code>REWARDS_PATH :: "/api/v1/rewards"</code></div>
 <div><code>RewardClaim :: struct { units: s64; balance: s64; credited: bool; }</code></div>
 <div><code>RewardNameValid :: (reward: string) -&gt; bool</code><p>A reward name as the node accepts one: 1 to 64 letters, digits, '.', '_', ':' or '-'.</p></div>
@@ -526,8 +537,8 @@ remote acknowledgment handling.</p></section>
 <div><code>PendingReward :: struct { request: PendingRequest; body: [128]u8; answer: [1024]u8; }</code><p>A claim advanced without blocking the host's event loop, with its own request body and the node's answer.</p></div>
 <div><code>BeginRewardClaim :: (pending: *PendingReward, client: Client, session: *Session, now: s64, transport: AsyncTransport, reward: string) -&gt; bool</code><p>Starts a claim without blocking; false when the reward name is refused.</p></div>
 <div><code>PollRewardClaim :: (pending: *PendingReward, claim: *RewardClaim) -&gt; bool</code><p>Advances a claim; true once it has finished. A finished claim the node answered fills `claim` and reports whether it credited the account.</p></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/rewards.zi">Source ↗</a></p></section>
-<section id="module-sync"><p class="eyebrow">daochi-client/sync.zi</p><h2>sync</h2><p>Protocol v6 sync orchestration. The host provisions and stores device keys; this module signs the Daochi wire messages and sends them through Client.</p><p>Import with <code>#import "daochi_client/sync"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/rewards.zi">Source ↗</a></p></section>
+<section id="module-sync"><p class="eyebrow">mesh-client/sync.zi</p><h2>sync</h2><p>Protocol v6 sync orchestration. The host provisions and stores device keys; this module signs the Mesh wire messages and sends them through Client.</p><p>Import with <code>#import "mesh_client/sync"</code>.</p><div class="api-list">
 <div><code>RandomNonce :: #type (context: *void, output: []u8) -&gt; bool</code></div>
 <div><code>Device :: struct { key_id: string; public_key_hex: string; signing_context: *void; signer: SignMessage; }</code></div>
 <div><code>RegistrationCurrent :: (client: Client, session: *Session, device: Device, now: s64) -&gt; bool</code></div>
@@ -545,8 +556,8 @@ remote acknowledgment handling.</p></section>
 <div><code>PrepareSyncHeader :: (client: Client, session: *Session, device: Device, now: s64, random_context: *void, random: RandomNonce, body: string, transaction_header: []u8) -&gt; AuthResult</code></div>
 <div><code>PrepareRequestHeader :: (client: Client, session: *Session, device: Device, now: s64, random_context: *void, random: RandomNonce, method: string, path: string, body: string, transaction_header: []u8) -&gt; AuthResult</code><p>Binary bodies and empty GET/HEAD bodies retain their exact byte length. Both platform hosts and sync orchestration use the same signed preparation.</p></div>
 <div><code>SignTransactionHeader :: (client: Client, device: Device, transaction: SyncTransaction, method: string, path: string, transaction_header: []u8) -&gt; AuthResult</code><p>Hosts that stream and hash a body themselves supply the finished digest and expiration. The client owns the account/device signatures and wire format.</p></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/sync.zi">Source ↗</a></p></section>
-<section id="module-transaction"><p class="eyebrow">daochi-client/transaction.zi</p><h2>transaction</h2><p>Protocol v6 device registration and signed sync transaction wire formats.</p><p>Import with <code>#import "daochi_client/transaction"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/sync.zi">Source ↗</a></p></section>
+<section id="module-transaction"><p class="eyebrow">mesh-client/transaction.zi</p><h2>transaction</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Protocol v6 device registration and signed sync transaction wire formats.</p><p>Import with <code>#import "mesh_client/transaction"</code>.</p><div class="api-list">
 <div><code>DeviceRegistration :: struct { account_id: string; app_id: string; device_key_id: string; client_id: string; public_key_hex: string; nonce: string; expires_at: s64; }</code></div>
 <div><code>SyncTransaction :: struct { account_id: string; app_id: string; device_key_id: string; tx_id: string; nonce: string; body_sha256_hex: string; expires_at: s64; }</code></div>
 <div><code>PlainText :: (value: string) -&gt; bool</code></div>
@@ -561,8 +572,8 @@ remote acknowledgment handling.</p></section>
 <div><code>BuildTransactionMessage :: (transaction: SyncTransaction, method: string, path: string, output: []u8) -&gt; bool</code></div>
 <div><code>BuildSyncTransactionHeader :: (transaction: SyncTransaction, account_signature_hex: string, device_signature_hex: string, output: []u8) -&gt; bool</code></div>
 <div><code>BuildTransactionHeader :: (transaction: SyncTransaction, method: string, path: string, account_signature_hex: string, device_signature_hex: string, output: []u8) -&gt; bool</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/transaction.zi">Source ↗</a></p></section>
-<section id="module-url"><p class="eyebrow">daochi-client/url.zi</p><h2>url</h2><p>Daochi server URLs use HTTPS except for loopback and private LAN hosts.</p><p>Import with <code>#import "daochi_client/url"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/transaction.zi">Source ↗</a></p></section>
+<section id="module-url"><p class="eyebrow">mesh-client/url.zi</p><h2>url</h2><p>Mesh server URLs use HTTPS except for loopback and private LAN hosts.</p><p>Import with <code>#import "mesh_client/url"</code>.</p><div class="api-list">
 <div><code>StartsWith :: (value: string, prefix: string) -&gt; bool</code></div>
 <div><code>HostBoundary :: (authority: string, index: s64) -&gt; bool</code></div>
 <div><code>PrivateIpv4Authority :: (authority: string) -&gt; bool</code></div>
@@ -573,8 +584,8 @@ remote acknowledgment handling.</p></section>
 <div><code>WriteUrlText :: (output: []u8, cursor: s64, value: string) -&gt; s64</code></div>
 <div><code>JoinUrl :: (base_url: string, path: string, output: []u8) -&gt; bool</code></div>
 <div><code>JoinWebSocketUrl :: (base_url: string, path: string, output: []u8) -&gt; bool</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/url.zi">Source ↗</a></p></section>
-<section id="module-wire"><p class="eyebrow">daochi-client/wire.zi</p><h2>wire</h2><p>Daochi client wire values shared by apps. The caller owns account keys, hashing, HTTP transport, and the destination buffers.</p><p>Import with <code>#import "daochi_client/wire"</code>.</p><div class="api-list">
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/url.zi">Source ↗</a></p></section>
+<section id="module-wire"><p class="eyebrow">mesh-client/wire.zi</p><h2>wire</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Mesh client wire values shared by apps. The caller owns account keys, hashing, HTTP transport, and the destination buffers.</p><p>Import with <code>#import "mesh_client/wire"</code>.</p><div class="api-list">
 <div><code>Writer :: struct { output: []u8; cursor: s64; valid: bool; }</code></div>
 <div><code>WriteByte :: (writer: Writer, byte: u8) -&gt; Writer</code></div>
 <div><code>WriteText :: (writer: Writer, value: string) -&gt; Writer</code></div>
@@ -588,6 +599,6 @@ remote acknowledgment handling.</p></section>
 <div><code>BuildRestoreLoginBody :: (account_id: string, client_id: string, public_key: string, output: []u8) -&gt; bool</code><p>A login that also asks the node to bring back this key's deleted account while the node still holds it, before any new data.</p></div>
 <div><code>BuildLoginMessageHash :: (body_sha256_hex: string, nonce_hex: string, output: []u8) -&gt; bool</code><p>The caller hashes the exact body bytes. This function fixes the signed message layout and prevents an app from choosing a different path or context.</p></div>
 <div><code>BuildDeleteMessageHash :: (body_sha256_hex: string, nonce_hex: string, output: []u8) -&gt; bool</code></div>
-</div><p><a class="text-link" href="https://github.com/ziranlang/daochi-client/blob/HEAD/wire.zi">Source ↗</a></p></section>
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/wire.zi">Source ↗</a></p></section>
 </div></div></main>
 <footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

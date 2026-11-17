@@ -2686,7 +2686,7 @@
   }
  ],
  "same_revision_remeasurements": {
-  "note": "Retained Alpha receipts of the C-teacher lane. c-teacher-alpha-six-before.json is the very run published as wasm-tier-targets-2026-11-16.json (same measured_at, same samples). Revision 96c23c7d with the identical ELF (e84cba664053) measured 100.52us at 19:35:41 and 47.75us at 21:09:47, both on the physical Alpha with the same harness sha256s; revision 36e6caf9 (includes the constructor placement commit e991274a; ELF f0bc11ac9c8e, 2624 bytes) measured 47.18us and 47.27us. Records native therefore did not slow down between 1fd89e81 and 36e6caf9.",
+  "note": "Retained Alpha receipts of the C-teacher lane. c-teacher-alpha-six-before.json is the very run published as wasm-tier-targets-2026-11-16.json (same measured_at, same samples). Revision 96c23c7d with the identical ELF (e84cba664053) measured 100.52us at 19:35:41 and 47.75us at 21:09:47, both on the physical Alpha with the same settings (checks off, learning off, explicit engine, 11 samples, 32 calls per native process) and measuring code that is identical in the two harness versions; revision 36e6caf9 (includes the constructor placement commit e991274a; ELF f0bc11ac9c8e, 2624 bytes) measured 47.18us and 47.27us. Records native therefore did not slow down between 1fd89e81 and 36e6caf9.",
   "measurements": [
    {
     "receipt": "c-teacher-alpha-six-before.json",
@@ -2748,6 +2748,10 @@
     "records_c_us": 15.74,
     "native_warmup_count": 84
    }
-  ]
+  ],
+  "provenance_check": {
+   "harness_files": "c-teacher-alpha-six-before.json carries the published harness sha256s (bench/wasm_tier.py 6d10d5e2\u2026); c-teacher-alpha-before.json and -after.json carry bench/wasm_tier.py aaa48e7b\u2026 (the standard-suite additions), bench/site_target_host.c, site_target_backend.h and scripts/site_target_node.cjs unchanged; the build(), measure() and summarize() function bodies of wasm_tier.py are identical between 444649ed and the teacher's version (the only differences are the added STANDARD_CASES/standard() code after them and the removal of Calls from KERNELS).",
+   "settings_equal_to_published": "checks False, learning off, engine_policy explicit-engine, samples 11, virtualization none, native batches 32, expected result 68788 in all four receipts"
+  }
  }
 }

@@ -202,11 +202,13 @@ def doc_comment(lines, line, top):
     return ' '.join(block)
 
 
-def module_api(ziran, path, root, module_paths):
-    """The module summary and public declarations of PATH, in source order."""
+def module_api(ziran, path, root, module_paths, project=None):
+    """The module summary and public declarations of PATH, in source order.
+    PROJECT, a package directory, resolves imports through its manifest."""
     name = os.path.basename(path)[:-3]
-    data = json.loads(run([ziran, 'api', '--json', '--module', name] + API_LIMITS + ['--root', root]
-                          + [arg for p in module_paths for arg in ('--module-path', p)] + [path]))
+    where = ['--project'] if project else (['--root', root] + [arg for p in module_paths for arg in ('--module-path', p)])
+    data = json.loads(run([ziran, 'api', '--json', '--module', name] + API_LIMITS + where + [path],
+                          cwd=project or REPO))
     if not data['truncation']['complete']:
         sys.exit(f'ziran api truncated {path}: {data["truncation"]}')
     source = os.path.relpath(path, root)
@@ -401,6 +403,11 @@ def readme_parts(text):
 def package_modules(ziran, directory, manifest, packages):
     roots = [os.path.join(directory, r) for r in manifest['package'].get('module_roots', ['.'])]
     paths = list(roots)
+    # Exported modules that import each other by the package's own name are
+    # read through the package's own manifest.
+    own = manifest['package']['name']
+    exports = manifest.get('exports', {}).values()
+    project = directory if any(f'#import "{own}/' in open(os.path.join(directory, f)).read() for f in exports) else None
     for name, dependency in manifest.get('dependencies', {}).items():
         if dependency.get('source', False):
             continue
@@ -427,7 +434,7 @@ def package_modules(ziran, directory, manifest, packages):
     for export, file in manifest.get('exports', {}).items():
         path = os.path.join(directory, file)
         root = next((r for r in roots if path.startswith(r + os.sep)), roots[0])
-        summary, entries, _ = module_api(ziran, path, root, paths)
+        summary, entries, _ = module_api(ziran, path, root, paths, project)
         modules.append({'name': export, 'file': file, 'summary': summary, 'entries': entries})
     return modules
 

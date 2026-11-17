@@ -82,9 +82,9 @@ $(BUILD_DIR)/obj/native-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(ENGINE_NA
 
 $(call obj,cmd/zx2native/main.c cmd/zi2zx/zx_exec_run.c cmd/zi2zx/main.c): $(BUILD_DIR)/obj/%.o: %.c $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags $(IR_READY)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -I$(ASSEMBLY_C) -Icmd/zi2zx -Icmd/zx2wasm -c -o $@ $<
+	$(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -I$(ASSEMBLY_C) -Icmd/zi2zx -c -o $@ $<
 
-$(BIN_DIR)/zx2native: $(call obj,cmd/zx2native/main.c cmd/zi2zx/zx_exec_run.c) \
+$(BIN_DIR)/zx2native: $(call obj,cmd/zx2native/main.c) \
     $(BUILD_DIR)/obj/assembly-core.o $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 	chmod 755 $@

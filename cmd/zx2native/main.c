@@ -1,21 +1,13 @@
-#include "compiler_zir_lower.h"
-#include "zx_exec_run.h"
-#include "zir_check.h"
+#include "zir_exec_console.h"
 #include "compiler_lowered_verify.h"
 #include "compiler_exec_debug.h"
 #include "compiler_exec_link.h"
-#include "compiler_exec.h"
 #include "compiler_machine_ir.h"
 #include "compiler_machine_pe.h"
 #include "compiler_machine_pipeline.h"
-#include "compiler_opt.h"
 #include "compiler_target.h"
 #include "zir_command.h"
-#include "zir_link.h"
-#include "zir_serial.h"
 #include "zir_sha256.h"
-#include "zir_text.h"
-
 #include <stdlib.h>
 #include <string.h>
 #if defined(__unix__) || defined(__APPLE__)
@@ -85,38 +77,6 @@ assembly_limit(const char *text, int64_t *value)
     }
     *value = amount;
     return 1;
-}
-
-static int
-assembly_machine_source_gap(const ZirProgram *program)
-{
-    for(int module = 0; module < program->module_count; module++) {
-        const ZirModule *current = &program->modules[module];
-        for(int index = 0; index < current->import_count; index++) {
-            const ZirImport *import = &current->imports[index];
-            if(import->kind != ZIR_IMPORT_EXTERN || import->extern_kind == ZIR_EXTERN_HOST) continue;
-            Diagnostic(import->span, "assembly.gap.machine-host",
-                "assembly.gap.machine-host: machine ELF does not implement foreign service %s; no alternate engine was selected",
-                import->extern_symbol[0] ? import->extern_symbol : import->name);
-            return 1;
-        }
-        for(int function = 0; function < current->function_count; function++) {
-            const ZirFunction *body = &current->functions[function];
-            if(body->is_extern && body->extern_kind != ZIR_EXTERN_HOST) {
-                Diagnostic(body->span, "assembly.gap.machine-host",
-                    "assembly.gap.machine-host: machine ELF does not implement foreign service %s; no alternate engine was selected",
-                    body->extern_symbol[0] ? body->extern_symbol : body->name);
-                return 1;
-            }
-            for(int statement = 0; statement < body->stmt_count; statement++) {
-                if(!body->stmts[statement].is_parallel && !body->stmts[statement].is_gpu) continue;
-                Diagnostic(body->stmts[statement].span, "assembly.gap.machine-parallel",
-                    "machine ELF does not implement parallel or GPU statements; no alternate engine was selected");
-                return 1;
-            }
-        }
-    }
-    return 0;
 }
 
 /* A whole file of at most LIMIT bytes, NUL-terminated past its end, or NULL. */
@@ -424,33 +384,6 @@ assembly_select_origin(const LirProgram *program, int origin, unsigned char *sel
     }
 }
 
-static void
-assembly_opt_pass(FILE *stream, const char *name, const LirOptPassCounters *counters)
-{
-    fprintf(stream, "{\"name\":\"%s\",\"runs\":%lld,\"instructions\":%lld,\"values\":%lld,\"blocks\":%lld,\"constants\":%lld}",
-        name, (long long)counters->runs, (long long)counters->instructions, (long long)counters->values,
-        (long long)counters->blocks, (long long)counters->constants);
-}
-
-static int
-assembly_opt_report(FILE *stream, const LirOptResult *result)
-{
-    const LirOptCounters *counters = &result->counters;
-    fprintf(stream, "{\"version\":1,\"work\":%lld,\"scratch_bytes\":%lld,\"input\":{\"functions\":%lld,\"blocks\":%lld,\"values\":%lld,\"instructions\":%lld},",
-        (long long)result->work, (long long)result->scratch_bytes, (long long)counters->input_functions,
-        (long long)counters->input_blocks, (long long)counters->input_values, (long long)counters->input_instructions);
-    fprintf(stream, "\"output\":{\"functions\":%lld,\"blocks\":%lld,\"values\":%lld,\"instructions\":%lld},\"passes\":[",
-        (long long)counters->output_functions, (long long)counters->output_blocks,
-        (long long)counters->output_values, (long long)counters->output_instructions);
-    assembly_opt_pass(stream, "fold", &counters->fold); fputc(',', stream);
-    assembly_opt_pass(stream, "copy", &counters->copy); fputc(',', stream);
-    assembly_opt_pass(stream, "cse", &counters->cse); fputc(',', stream);
-    assembly_opt_pass(stream, "cfg", &counters->cfg); fputc(',', stream);
-    assembly_opt_pass(stream, "dead", &counters->dead);
-    fputs("]}\n", stream);
-    return !ferror(stream);
-}
-
 static int
 assembly_map_range(AssemblyNativeRange *ranges, int64_t capacity, int64_t *count,
                    int function, int block, int instruction, int origin,
@@ -484,7 +417,6 @@ static AssemblyImageFacts
 assembly_image_facts(const LirProgram *program, const MachineNativeOwner *owner, MachineHostLinks links)
 {
     MachineProgram machine = owner->machine.program;
-    MachineX64Image encoded = owner->encoded.image;
     if(machine.target.os == TargetOS_Windows) {
         MachinePeResult pe = compiler_machine_pipeline_MachineNativePeLayout(*program,
             (MachineNativeOwner *)owner, links);
@@ -743,15 +675,10 @@ invalid_map:
 int
 main(int argc, char **argv)
 {
-    const char *root = NULL;
-    const char *entry = NULL;
     const char *output = NULL;
     const char *emit = "elf";
     const char *target = "x86_64";
     const char *platform = "linux";
-    const char *fuel = NULL;
-    const char *work = NULL;
-    const char *frames = NULL;
     const char *function_id = NULL;
     const char *block_id = NULL;
     const char *address_begin = NULL;
@@ -759,16 +686,6 @@ main(int argc, char **argv)
     const char *elf_fuel_text = NULL;
     int64_t elf_fuel = INT64_MAX;
     AssemblyMapSelection selection = {.function = -1, .block = -1, .begin = -1, .end = -1};
-    int run = 0;
-    int heap_report = 0;
-    int optimize = 0;
-    const char **module_paths = CommandModulePaths(argc);
-    int module_path_count = 0;
-    const char *bindings[64];
-    int binding_count = 0;
-    const char *defines[65];
-    int define_count = 0;
-    if(module_paths == NULL) return 1;
     SetDiagnosticFormatFromArguments(argc, argv);
     CommandLowerPriority();
     CommandOption options[] = {
@@ -779,9 +696,6 @@ main(int argc, char **argv)
         COMMAND_TEXT("--fuel", elf_fuel_text)
     };
     int input = ReadCommandOptions(argc, argv, options, sizeof(options) / sizeof(*options));
-    char module[ZIR_NAME_MAX], function[ZIR_NAME_MAX];
-    int serialized = 1;
-    LirExecLimits execution_limits = compiler_exec_LirExecDefaultLimits();
     size_t input_length = input > 0 ? strlen(argv[input]) : 0;
     if(input <= 0 || output == NULL || argc - input != 1 ||
        input_length <= 3 || strcmp(argv[input] + input_length - 3, ".zx") ||
@@ -809,60 +723,33 @@ main(int argc, char **argv)
         return 1;
     }
     int status = 1;
-    ProgramSet sources = {0};
-    ZirProgram merged = {0};
-    AssemblyProgram *lowered = NULL;
     ZxExecOwner zx_owner = {0};
     ZxDebugOwner debug_owner = {0};
     LirProgram decoded = {0};
     LirProgram origins = {0};
-    LirOptOwner optimized_owner = {0};
-    LirOptResult optimization = {0};
-    LirProgram optimized_program = {0};
     MachineNativeOwner machine_owner = {0};
     AssemblyHosts hosts = {0};
     const LirProgram *view = NULL;
     unsigned char *bytes = NULL;
     unsigned char *zx_bytes = NULL;
-    int64_t zx_size = 0;
     FILE *stream = NULL;
     char temporary[ZIR_PATH_MAX] = {0};
-    if(serialized) {
-        size_t input_size = 0;
-        zx_bytes = assembly_read(argv[input], &input_size);
-        if(zx_bytes == NULL) goto done;
-        zx_size = (int64_t)input_size;
-        {
-            ZxExecResult read = compiler_exec_link_ZxExecRead(&zx_owner,
-                (String){(char *)zx_bytes, input_size}, compiler_lowered_ir_LirDefaultLimits());
-            if(read.problem != ZxExecProblem_None) {
-                String problem = compiler_exec_link_ZxExecProblemName(read.problem);
-                String container = compiler_bundle_ExecutableMessage(read.container);
-                Diagnostic((ZirSourceSpan){0}, "assembly.container",
-                    "executable ZX rejected: problem=%.*s container=%.*s codec=%d offset=%lld verifier=%d",
-                    (int)problem.length, problem.data, (int)container.length, container.data,
-                    read.codec, (long long)read.offset, read.diagnostic.problem);
-                goto done;
-            }
-            decoded = compiler_exec_link_ZxExecReadProgram(&zx_owner);
-        }
-        view = &decoded;
-    } else {
-        /* A wasm32 module targets the web, so compile-time conditions on the
-         * target, OS and CPU select its branches. */
-        if(!ProgramsLoadWithDefines(&sources, root, module_paths, module_path_count, defines, define_count,
-                                    (const char *const *)(argv + input), argc - input) ||
-           !CheckCanonicalPrograms(sources.programs, sources.count, (const char *const *)sources.paths) ||
-           !CommandMergePrograms(&sources, &merged)) goto done;
-        ZirProgram *programs[] = {&merged};
-        if(!LinkImports(programs, 1)) goto done;
-        for(int binding = 0; binding < binding_count; binding++)
-            if(!BindHostProvider(&merged, bindings[binding])) goto done;
-        if(assembly_machine_source_gap(&merged)) goto done;
-        lowered = AssemblyLower(&merged, (uint8_t *)module, (uint8_t *)function);
-        if(lowered == NULL) goto done;
-        view = AssemblyView(lowered);
+    size_t input_size = 0;
+    zx_bytes = assembly_read(argv[input], &input_size);
+    if(zx_bytes == NULL) goto done;
+    ZxExecResult read = compiler_exec_link_ZxExecRead(&zx_owner,
+        (String){(char *)zx_bytes, input_size}, compiler_lowered_ir_LirDefaultLimits());
+    if(read.problem != ZxExecProblem_None) {
+        String problem = compiler_exec_link_ZxExecProblemName(read.problem);
+        String container = compiler_bundle_ExecutableMessage(read.container);
+        Diagnostic((ZirSourceSpan){0}, "assembly.container",
+            "executable ZX rejected: problem=%.*s container=%.*s codec=%d offset=%lld verifier=%d",
+            (int)problem.length, problem.data, (int)container.length, container.data,
+            read.codec, (long long)read.offset, read.diagnostic.problem);
+        goto done;
     }
+    decoded = compiler_exec_link_ZxExecReadProgram(&zx_owner);
+    view = &decoded;
     LirDiagnostic diagnostic = compiler_lowered_verify_LirVerify(*view, compiler_lowered_ir_LirDefaultLimits());
     if(diagnostic.problem != LirProblem_None) {
         Diagnostic((ZirSourceSpan){0}, "assembly.verify",
@@ -871,66 +758,9 @@ main(int argc, char **argv)
             diagnostic.value, diagnostic.origin);
         goto done;
     }
-    int listing = !strcmp(emit, "lir");
-    int reporting = !strcmp(emit, "opt-report");
-    int canonical = run || (!listing && !reporting);
-    if(!serialized && (optimize || canonical)) {
-        optimization = compiler_opt_LirOptBuild(&optimized_owner, *view,
-            compiler_lowered_ir_LirDefaultLimits(), compiler_opt_LirOptDefaultOptions());
-        if(optimization.problem != LirOptProblem_None) {
-            LirDiagnostic rejected = optimization.diagnostic;
-            Diagnostic((ZirSourceSpan){0}, "assembly.optimize",
-                "optimization rejected: problem=%d verifier=%d function=%d block=%d instruction=%d value=%d origin=%d",
-                optimization.problem, rejected.problem, rejected.function, rejected.block,
-                rejected.instruction, rejected.value, rejected.origin);
-            goto done;
-        }
-        optimized_program = compiler_opt_LirOptProgram(&optimized_owner);
-        view = &optimized_program;
-    }
     int mapping = !strcmp(emit, "map");
     int executable = !strcmp(emit, "elf");
     int64_t size = 0;
-    if(!serialized && canonical) {
-        size_t interface_length = 0;
-        const char *interface = (const char *)AssemblyHostInterface(lowered, &interface_length);
-        if(interface == NULL) goto done;
-        String interface_text = {interface, interface_length};
-        ZxExecResult measured = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){0}, interface_text,
-            false);
-        if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
-            String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
-            Diagnostic((ZirSourceSpan){0}, "assembly.container",
-                "cannot measure executable ZX output: problem=%.*s container=%d codec=%d verifier=%d",
-                (int)problem.length, problem.data, measured.container, measured.codec, measured.diagnostic.problem);
-            goto done;
-        }
-        zx_size = measured.size;
-        zx_bytes = malloc((size_t)zx_size);
-        if(zx_bytes == NULL) { DiagnosticOutOfMemory(); goto done; }
-        ZxExecResult encoded = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){zx_bytes, zx_size},
-            interface_text, false);
-        if(encoded.problem != ZxExecProblem_None || encoded.size != zx_size) {
-            String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);
-            Diagnostic((ZirSourceSpan){0}, "assembly.container",
-                "cannot encode executable ZX output: problem=%.*s container=%d codec=%d verifier=%d",
-                (int)problem.length, problem.data, encoded.container, encoded.codec, encoded.diagnostic.problem);
-            goto done;
-        }
-        /* Both entry routes lower only the decoded, verified portable image.
-         * Never bypass this boundary with the source-side owner or debug data. */
-        ZxExecResult read = compiler_exec_link_ZxExecRead(&zx_owner,
-            (String){(char *)zx_bytes, (size_t)zx_size}, compiler_lowered_ir_LirDefaultLimits());
-        if(read.problem != ZxExecProblem_None) {
-            Diagnostic((ZirSourceSpan){0}, "assembly.container",
-                "generated executable ZX rejected: problem=%d codec=%d verifier=%d",
-                read.problem, read.codec, read.diagnostic.problem);
-            goto done;
-        }
-        decoded = compiler_exec_link_ZxExecReadProgram(&zx_owner);
-        view = &decoded;
-    }
-    if(run) { status = ZxExecRunProgram(view, execution_limits, heap_report); goto done; }
     /* A map lowers the same verified program with the attachment's checked
      * origins restored, so machine instructions carry them; the encoded
      * bytes are the same either way. */
@@ -948,12 +778,7 @@ main(int argc, char **argv)
             goto done;
         }
     }
-    if(!strcmp(emit, "zx")) {
-        /* Preserve all declared assets and optional sections when rewriting. */
-        bytes = zx_bytes;
-        zx_bytes = NULL;
-        size = zx_size;
-    } else if(executable || mapping) {
+    {
         if(assembly_machine_hosts(view, native_target, &hosts)) goto done;
         MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineNativeBuild(
             *view, native_target, compiler_machine_ir_MachineDefaultLimits(),
@@ -981,10 +806,7 @@ main(int argc, char **argv)
         memcpy(bytes, native.data, (size_t)size);
     }
     if(!strcmp(output, "-") && !executable) {
-        int written = reporting ? assembly_opt_report(stdout, &optimization) :
-            listing ? AssemblyPrintLir((LirProgram *)view, stdout) : mapping ?
-                assembly_machine_map(view, stdout, &selection, &machine_owner, hosts.links, bytes, size, 1) :
-            fwrite(bytes, 1, (size_t)size, stdout) == (size_t)size;
+        int written = assembly_machine_map(view, stdout, &selection, &machine_owner, hosts.links, bytes, size, 1);
         status = written && fflush(stdout) == 0 ? 0 : 1;
         goto done;
     }
@@ -1011,9 +833,7 @@ main(int argc, char **argv)
         Diagnostic((ZirSourceSpan){0}, "assembly.output", "cannot create output: %s", output);
         goto done;
     }
-    int written = reporting ? assembly_opt_report(stream, &optimization) :
-        listing ? AssemblyPrintLir((LirProgram *)view, stream) : mapping ?
-            assembly_machine_map(view, stream, &selection, &machine_owner, hosts.links, bytes, size, 1) :
+    int written = mapping ? assembly_machine_map(view, stream, &selection, &machine_owner, hosts.links, bytes, size, 1) :
         fwrite(bytes, 1, (size_t)size, stream) == (size_t)size;
 #if defined(__unix__) || defined(__APPLE__)
     if(executable && fchmod(fileno(stream), 0755) != 0) written = 0;
@@ -1039,11 +859,7 @@ done:
     free(zx_bytes);
     compiler_machine_pipeline_MachineNativeFree(&machine_owner);
     assembly_hosts_free(&hosts);
-    compiler_opt_LirOptFree(&optimized_owner);
-    AssemblyFree(lowered);
     compiler_exec_debug_ZxDebugFree(&debug_owner);
     compiler_exec_link_ZxExecReadFree(&zx_owner);
-    free(merged.modules);
-    ProgramsFree(&sources);
     return status;
 }

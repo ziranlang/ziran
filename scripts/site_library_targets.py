@@ -97,7 +97,7 @@ def build(project, manifest_path, samples, revision=None):
             'measured_at': datetime.now(timezone.utc).isoformat(), 'host': base.cpu_name(),
             'hostname': platform.node(), 'loadavg_before': loadavg(),
             'versions': {'cc': run(['cc', '--version']).splitlines()[0], 'go': run(['go', 'version'])},
-            'methodology': manifest['methodology'] + ' Symmetric 1.5×IQR filtering excludes outliers from the median; raw samples and excluded indices are retained.', 'samples': samples,
+            'methodology': manifest['methodology'] + ' Symmetric 1.5×IQR filtering excludes outliers from the median; raw samples and excluded indices are retained. The Wasm module is unbounded, like the C and Go builds: it charges no step budget.', 'samples': samples,
             'sources': archive(source_dir, OUTPUT / 'sources.zip'),
             'checked_ir': archive(ir, OUTPUT / 'checked-ir.zip'),
             'compiler': {'library_sha256': base.sha(base.REPO / 'build/libziran.a'),
@@ -107,7 +107,8 @@ def build(project, manifest_path, samples, revision=None):
                          'tools': {name: base.sha(base.REPO / 'build/bin' / name) for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm')},
                          'source_hashes': {str(p.relative_to(base.REPO)): base.sha(p) for p in
                                            sorted([p for p in (base.REPO / 'cmd/zir').iterdir() if p.suffix in ('.c', '.h')] +
-                                                  [base.REPO / 'cmd/zx2wasm/zx_wasm_lower.c', base.REPO / 'cmd/zx2wasm/zx_wasm_lower.h'])}},
+                                                  sorted((base.REPO / 'cmd').glob('compiler_zx_wasm*.zi')) +
+                                                  [base.REPO / 'cmd/zx2wasm/main.c'])}},
             'harnesses': {p: base.sha(base.REPO / p) for p in
                           ['scripts/site_library_targets.py', 'scripts/site_target_platforms.py', 'scripts/benchmark_samples.py',
                            'bench/site_target_host.c', 'bench/site_target_host.go', 'bench/site_target_backend.h',
@@ -135,7 +136,9 @@ def build(project, manifest_path, samples, revision=None):
                        *(['--pkg', 'main'] if target == 'go' else []),
                        *common, *bindings, '--entry', entry, '-o', directory / (module + '.zx') if target == 'zx' else directory, source]
             if target == 'wasm':
-                command = [base.REPO / 'build/bin/zx2wasm', '-o', directory / (module + '.wasm'),
+                # Like the C and Go builds, a run here has no step budget, so
+                # the module is unbounded: no fuel charges, no zx.budget import.
+                command = [base.REPO / 'build/bin/zx2wasm', '--unbounded', '-o', directory / (module + '.wasm'),
                            WORK / case['id'] / 'zx' / (module + '.zx')]
             run(command)
             emitted = []

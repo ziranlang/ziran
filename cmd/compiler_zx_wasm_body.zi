@@ -97,13 +97,30 @@ LowerFunction :: (lower: *Lower, index: s64, output: *Buf) -> bool {
     for value: 0..value_count - 1 { fn.proven[value] = LirProvenIndex(*lower.proven, index, cast(s32)value) }
     at: s64 = 0
     host_area: s64 = 0
+    // Scratch holds the aggregates an edge moves in parallel, so only a
+    // block some edge enters with two or more of them needs it; the entry
+    // block's parameters are the procedure's own arguments.
+    targeted: Vec(bool)
+    defer VecFree(targeted)
+    if !VecResize(targeted, fn.block_count) { return OutOfMemory(lower) }
+    for block: 0..fn.block_count - 1 {
+        for instruction: function.blocks[block].instructions {
+            for edge: instruction.edges {
+                if edge.block >= 0 && cast(s64)edge.block < fn.block_count { targeted[edge.block] = true }
+            }
+        }
+    }
     for block: 0..fn.block_count - 1 {
         code := *function.blocks[block]
         scratch: s64 = 0
+        moved: s64 = 0
         for parameter: code.parameters {
-            if ValueValid(*fn, parameter) && !ValueScalar(*fn, parameter) { scratch += TypeSize(lower, ValueType(*fn, parameter)) }
+            if ValueValid(*fn, parameter) && !ValueScalar(*fn, parameter) {
+                scratch += TypeSize(lower, ValueType(*fn, parameter))
+                moved += 1
+            }
         }
-        if scratch > fn.scratch { fn.scratch = scratch }
+        if targeted[block] && moved > 1 && scratch > fn.scratch { fn.scratch = scratch }
         for item: 0..code.instructions.count - 1 {
             instruction := *code.instructions[item]
             fn.alloca_slot[at] = -1
@@ -184,6 +201,7 @@ LowerFunction :: (lower: *Lower, index: s64, output: *Buf) -> bool {
             }
         }
     }
+    if lower.unbounded { fn.has_budget = false }
     if fn.has_budget { fn.budget = FnLocal(*fn, W_I64) }
     if lower.failed { return false }
     BudgetLoad(*fn)

@@ -280,6 +280,34 @@ test "$heap" = "99000
 }
 test "$("$zi2zx" run --heap-report "$work/heap.zx" 2>/dev/null)" = 99000
 
+# An unbounded module, for a run with no step budget: the same program with
+# no fuel charges and no zx.budget import runs to the same output in a host
+# that supplies no budget at all.
+"$zx2wasm" --unbounded -o "$work/heap-unbounded.wasm" "$work/heap.zx"
+unbounded=$("$nodebin" - "$work/heap-unbounded.wasm" <<'JS'
+const fs = require('fs');
+const module = new WebAssembly.Module(fs.readFileSync(process.argv[2]));
+const imports = WebAssembly.Module.imports(module).map(entry => entry.module + '.' + entry.name);
+if (imports.includes('zx.budget')) throw Error('unbounded module imports zx.budget');
+let memory;
+WebAssembly.instantiate(module, {zx: {
+    overrun() { throw Error('unbounded module charged fuel'); },
+    host_i64(index, value) {
+        if ((index >>> 0) === 0xfffffffe) process.stdout.write(BigInt.asIntN(64, value).toString());
+        else process.stdout.write(Buffer.from(memory.buffer, Number(value & 0xffffffffn), Number(value >> 32n)));
+        return 0n;
+    },
+}}).then(instance => {
+    memory = instance.exports.memory;
+    instance.exports.zx_entry();
+}).catch(error => { console.error(error); process.exitCode = 1; });
+JS
+)
+test "$unbounded" = 99000 || {
+    echo "zx-wasm-test: unbounded heap run gave '$unbounded'"
+    exit 1
+}
+
 # The bundle Wasm tier in a WebAssembly host: libziran built by emcc with
 # the instruction engine, whose web provider lowers each revision-28 bundle
 # through the engine's Wasm lowering and translates its host calls and module state to

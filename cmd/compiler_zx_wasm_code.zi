@@ -833,6 +833,7 @@ LowerResize :: (fn: *Fn, instruction: *LirInstruction) {
 }
 
 LowerFuel :: (fn: *Fn, amount: u64) {
+    if fn.lower.unbounded { return }
     if amount == 0 { return }
     if amount > cast(u64)MAX_S64 { unused Gap(fn.lower, "wasm.gap.fuel", "fuel charge is outside i64"); return }
     // The budget never goes below zero before a charge, so it is spent

@@ -12,7 +12,7 @@ static int
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-        "usage: zx2wasm [-o FILE] INPUT.zx");
+        "usage: zx2wasm [--unbounded] [-o FILE] INPUT.zx");
     return 2;
 }
 
@@ -59,10 +59,13 @@ main(int argc, char **argv)
 {
     const char *output = NULL;
     const char *input = NULL;
+    int unbounded = 0;
     SetDiagnosticFormatFromArguments(argc, argv);
     for(int index = 1; index < argc; index++) {
         if(!strcmp(argv[index], "-o") && index + 1 < argc)
             output = argv[++index];
+        else if(!strcmp(argv[index], "--unbounded"))
+            unbounded = 1;
         else if(!strncmp(argv[index], "--diagnostics=", 14)) {
             if(!SetDiagnosticFormat(argv[index] + 14)) return usage();
         } else if(argv[index][0] == '-' || input != NULL)
@@ -90,7 +93,9 @@ main(int argc, char **argv)
     if(bytes == NULL) return 1;
     ZxWasmImage image = {0};
     int status = 1;
-    if(!compiler_zx_wasm_LowerExecutable(bytes, size, &image)) goto done;
+    /* An unbounded module is for a run with no step budget: no fuel, no zx.budget. */
+    if(!(unbounded ? compiler_zx_wasm_LowerExecutableUnbounded(bytes, size, &image) :
+            compiler_zx_wasm_LowerExecutable(bytes, size, &image))) goto done;
     if(!strcmp(output, "-")) {
         if(fwrite(image.bytes, 1, image.size, stdout) == image.size &&
            fflush(stdout) == 0)

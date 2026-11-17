@@ -174,6 +174,9 @@ Lower :: struct {
     // Suspendable lowering: which procedures can reach a host capability,
     // and so unwind with their caller's stack.
     suspendable: bool
+    // An unbounded module, for a run with no step budget: fuel charges
+    // nothing and global 0 is the module's own, so there is no budget import.
+    unbounded: bool
     suspends: Vec(bool)
     host_index: Vec(u32)
     wasm_function: Vec(u32)

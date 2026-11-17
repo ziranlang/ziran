@@ -245,10 +245,13 @@ through <code>.zx</code> in a private headless Chromium.</p>
 <p><code>zx2wasm</code> lowers the same verified ZX to one wasm32 module, and
 <code>ziran build --target=wasm</code> runs it; source and saved-ZX input give identical
 bytes. The module imports <code>zx.overrun</code> and the mutable <code>zx.budget</code> global that
-every <code>fuel</code> instruction charges, <code>zx.host_i64</code> when the program prints and
-<code>zx.host</code> when it calls a host capability. It exports <code>zx_entry</code>, <code>memory</code>,
-<code>zx_initialize</code> when it has module initializers and <code>zx_reserve</code> when it has a
-heap; a <code>zxhost</code> custom section names each capability. A form it has no code
+every <code>fuel</code> instruction charges. <code>zx2wasm --unbounded</code> makes the module for a
+run with no step budget, as a native executable is: its <code>fuel</code> instructions
+charge nothing and it imports no <code>zx.budget</code>. A module imports <code>zx.host_i64</code>
+when the program prints and <code>zx.host</code> when it calls a host capability. It
+exports <code>zx_entry</code>, <code>memory</code>, <code>zx_initialize</code> when it has module initializers
+and <code>zx_reserve</code> when it has a heap; a <code>zxhost</code> custom section names each
+capability. A form it has no code
 for stops at a named <code>wasm.gap.*</code> diagnostic. The host-call record layout is in
 <code>cmd/compiler_zx_wasm.zi</code>.</p>
 <h2 id="embedded-files-and-application-hosts">Embedded files and application hosts</h2>

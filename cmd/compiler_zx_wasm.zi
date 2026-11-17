@@ -68,17 +68,27 @@ ZxWasmMemory :: struct {
 LowerProgram :: (program: *LirProgram, image: *ZxWasmImage) -> bool {
     if image == null { return false }
     <<image = .{}
-    return program != null && LowerModule(program, image, false)
+    return program != null && LowerModule(program, image, false, false)
 }
 
 LowerProgramSuspendable :: (program: *LirProgram, image: *ZxWasmImage) -> bool {
     if image == null { return false }
     <<image = .{}
-    return program != null && LowerModule(program, image, true)
+    return program != null && LowerModule(program, image, true, false)
 }
 
 // Reads and verifies a revision-28 executable ZX image and lowers its payload.
 LowerExecutable :: (zx: *u8, size: usize, image: *ZxWasmImage) -> bool {
+    return LowerExecutableWith(zx, size, image, false)
+}
+
+// As LowerExecutable, for a run with no step budget, like a native
+// executable: the module charges no fuel and imports no zx.budget.
+LowerExecutableUnbounded :: (zx: *u8, size: usize, image: *ZxWasmImage) -> bool {
+    return LowerExecutableWith(zx, size, image, true)
+}
+
+LowerExecutableWith :: (zx: *u8, size: usize, image: *ZxWasmImage, unbounded: bool) -> bool {
     if image == null { return false }
     <<image = .{}
     if zx == null || size == 0 || size > IMAGE_LIMIT {
@@ -110,7 +120,7 @@ LowerExecutable :: (zx: *u8, size: usize, image: *ZxWasmImage) -> bool {
         WasmDiagnose("wasm.verify",
             Fill("lowered IR rejected: problem=@ function=@ block=@ instruction=@ value=@ origin=@", names[:]))
     } else {
-        ok = LowerModule(*program, image, false)
+        ok = LowerModule(*program, image, false, unbounded)
     }
     ZxExecReadFree(*owner)
     return ok
@@ -376,9 +386,10 @@ Release :: (lower: *Lower) {
 
 Kind :: (lower: *Lower, kind: u32) -> bool { return (lower.print_kinds & (cast(u32)1 << kind)) != 0 }
 
-LowerModule :: (program: *LirProgram, image: *ZxWasmImage, suspendable: bool) -> bool {
+LowerModule :: (program: *LirProgram, image: *ZxWasmImage, suspendable: bool, unbounded: bool) -> bool {
     lower: Lower
     lower.suspendable = suspendable
+    lower.unbounded = unbounded
     lower.program = program
     defer { Release(*lower) }
     types := program.types.count
@@ -570,13 +581,15 @@ LowerModule :: (program: *LirProgram, image: *ZxWasmImage, suspendable: bool) ->
     }
     Section(*module, 1, *content)
     // Import section.
-    Uleb(*content, lower.imports + 1)
+    Uleb(*content, ifx lower.unbounded then lower.imports else lower.imports + 1)
     Name(*content, "zx"); Name(*content, "overrun")
     Byte(*content, 0x00); Uleb(*content, unit_type)
     if lower.uses_print { Name(*content, "zx"); Name(*content, "host_i64"); Byte(*content, 0x00); Uleb(*content, print_type) }
     if lower.uses_capability { Name(*content, "zx"); Name(*content, "host"); Byte(*content, 0x00); Uleb(*content, host_type) }
-    Name(*content, "zx"); Name(*content, "budget")
-    Byte(*content, 0x03); Byte(*content, W_I64); Byte(*content, 0x01)
+    if !lower.unbounded {
+        Name(*content, "zx"); Name(*content, "budget")
+        Byte(*content, 0x03); Byte(*content, W_I64); Byte(*content, 0x01)
+    }
     Section(*module, 2, *content)
     // Function section.
     Uleb(*content, next - lower.imports)
@@ -618,7 +631,9 @@ LowerModule :: (program: *LirProgram, image: *ZxWasmImage, suspendable: bool) ->
     count: s64 = ifx lower.suspendable then 13 else ifx lower.uses_images then 8 else ifx lower.uses_heap then 4 else 3
     initial: [13]s64 = .[cast(s64)cast(s32)stack_base, 0, cast(s64)cast(s32)stack_limit, cast(s64)cast(s32)stack_limit,
         0, 0, 0, 0, ASYNC_NORMAL, cast(s64)cast(s32)async_base, 0, cast(s64)cast(s32)(async_base + ASYNC_SIZE), 0]
-    Uleb(*content, cast(u64)count)
+    // An unbounded module defines global 0, the budget's index, itself.
+    Uleb(*content, ifx lower.unbounded then cast(u64)count + 1 else cast(u64)count)
+    if lower.unbounded { Byte(*content, W_I64); Byte(*content, 0x00); Byte(*content, 0x42); Sleb(*content, 0); Byte(*content, 0x0b) }
     for index: 0..count - 1 {
         Byte(*content, W_I32); Byte(*content, ifx index == 2 then 0x00 else 0x01)
         Byte(*content, 0x41); Sleb(*content, initial[index]); Byte(*content, 0x0b)

@@ -25,7 +25,52 @@ Emit :: (x: u64) {
     print("% % % %\n", x * cast(u64)-128, x * cast(u64)127, x * cast(u64)-129, x * cast(u64)128)
 }
 
+// Recursive entry returns exercise the actual call ABI, including live
+// caller values across both an early return and an ordinary framed call.
+EntryFib :: (n: s64) -> s64 {
+    if n < 2 { return n }
+    return EntryFib(n - 1) + EntryFib(n - 2)
+}
+EntrySigned :: (n: s64) -> s64 {
+    if n < 2 { return n }
+    return n + EntrySigned(1)
+}
+EntryUnsigned :: (n: u64) -> u64 {
+    if n > 1000 { return n }
+    return n + EntryUnsigned(1001)
+}
+EntryConstant :: (n: s64) -> s64 {
+    if n < 2 { return 42 }
+    return EntryConstant(n - 1) + 1
+}
+CallSetupCheck :: () -> bool {
+    previous: s64
+    next: s64 = 1
+    for n: cast(s64)0..20 {
+        if EntryFib(n) != previous { return false }
+        sum := previous + next
+        previous = next
+        next = sum
+    }
+    bits := u64.[0, 1, 2, 3, 1000, 1001, 2147483647, 2147483648,
+        9223372036854775807, 9223372036854775808, 18446744073709551615]
+    for value: bits {
+        signed := cast(s64)value
+        expected_signed := ifx signed < 2 then signed else signed + 1
+        expected_unsigned := ifx value > 1000 then value else value + 1001
+        if EntrySigned(signed) != expected_signed || EntryUnsigned(value) != expected_unsigned { return false }
+        // Repeating calls after the opposite branch also checks preservation.
+        if EntrySigned(12) != 13 || EntryUnsigned(12) != 1013 { return false }
+    }
+    for n: cast(s64)0..12 {
+        expected := ifx n < 2 then cast(s64)42 else 41 + n
+        if EntryConstant(n) != expected { return false }
+    }
+    return true
+}
+
 main :: () -> s32 {
+    if !CallSetupCheck() { return 1 }
     boundaries := u64.[0, 1, 127, 128, 255, 256, 32767, 32768, 65535, 65536,
         2147483647, 2147483648, 4294967295, 4294967296, 9223372036854775807,
         9223372036854775808, 18446744073709551615]

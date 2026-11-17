@@ -59,6 +59,7 @@ Builder :: struct {
     entry: s32
     stage: MachineStage
     target: TargetDescription
+    checks: bool
 }
 
 Mode :: enum s32 { Verify; Validate; Measure; Encode }
@@ -428,7 +429,7 @@ Apply :: (b: *Builder, mode: Mode, owner: *X64.MachineX64Owner, limits: MachineL
         instructions = b.instructions[:], operands = b.operands[:], edges = b.edges[:],
         stack_objects = b.stack_objects[:], relocations = b.relocations[:], calls = b.calls[:],
         entry = b.entry, stage = b.stage, frames = b.frames[:], spills = b.spills[:],
-        scratch_general = 11, scratch_float = 15}
+        scratch_general = 11, scratch_float = 15, checks = b.checks}
     if mode == .Verify { return .{diagnostic = MachineVerifyAllocated(program, limits)} }
     if mode == .Validate { return .{diagnostic = X64.MachineX64Validate(program, limits)} }
     if mode == .Measure { return X64.MachineX64Measure(program, limits) }
@@ -1246,8 +1247,131 @@ SquareRoot :: () -> bool {
         Check(image.relocations.count == 0, "f64 sqrt needs no runtime helper")
 }
 
+EarlyReturnCase :: (variant: s32) -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b)
+    function := Begin(*b, "entry return")
+    b.checks = variant == 7
+    type: s32 = ifx variant == 5 then U64 else ifx variant == 6 then S32 else S64
+    record := b.functions[function]
+    record.result_type = type
+    b.functions[function] = record
+    argument := Parameter(*b, type, RDI)
+    copied := Value(*b, type)
+    result := Value(*b, type)
+    changed := Value(*b, type)
+    blocks := Blocks(*b, 3)
+    Enter(*b, blocks)
+    unused Two(*b, .Move, R12, copied, RDI, argument)
+    input := copied
+    if variant == 1 {
+        instruction := Open(*b, .IntegerAdd)
+        unused Physical(*b, R12, .Define, changed)
+        unused Physical(*b, R12, .Use, copied)
+        unused Immediate(*b, 1)
+        unused Close(*b, instruction)
+        input = changed
+    }
+    if variant == 2 { unused Fuel(*b, 1) }
+    compare := Open(*b, .Compare)
+    b.flags = FlagsValue(*b)
+    compare.flags_def = b.flags
+    unused Physical(*b, R12, .Use, input)
+    unused Immediate(*b, 2)
+    unused Close(*b, compare)
+    if variant == 4 { unused BranchFlags(*b, .Less, blocks + 2, blocks + 1) }
+    else { unused BranchFlags(*b, .Less, blocks + 1, blocks + 2) }
+    Enter(*b, blocks + 1)
+    if variant == 3 { unused Constant(*b, RAX, result, 99) }
+    else { unused Two(*b, .Move, RAX, result, R12, input) }
+    unused Return(*b, RAX, result)
+    Enter(*b, blocks + 2)
+    other := Value(*b, type)
+    increment := Open(*b, .IntegerAdd)
+    unused Physical(*b, R12, .Define, other)
+    unused Physical(*b, R12, .Use, input)
+    unused Immediate(*b, 10)
+    unused Close(*b, increment)
+    returned := Value(*b, type)
+    unused Two(*b, .Move, RAX, returned, R12, other)
+    unused Return(*b, RAX, returned)
+    unused Save(*b, R12, -8)
+    End(*b, 16)
+    b.entry = function
+    owner: X64.MachineX64Owner
+    defer X64.MachineX64Free(*owner)
+    diagnostic := Apply(*b, .Encode, *owner, MachineDefaultLimits()).diagnostic
+    if diagnostic.problem != .None { Report("entry return", diagnostic); return false }
+    image := X64.MachineX64View(*owner)
+    first := image.functions[function].begin
+    if variant == 1 || variant == 2 || variant == 6 || variant == 7 {
+        return Bytes(image.code, first, first + 4, "55 48 89 e5", "effect/fuel/narrow/checked entry keeps frame")
+    }
+    expected := "48 83 ff 02 7d 04 48 89 f8 c3"
+    if variant == 3 { expected = "48 83 ff 02 7d 06 b8 63 00 00 00 c3" }
+    if variant == 4 { expected = "48 83 ff 02 7c 04 48 89 f8 c3" }
+    if variant == 5 { expected = "48 83 ff 02 73 04 48 89 f8 c3" }
+    length: s64 = ifx variant == 3 then 12 else 10
+    return Bytes(image.code, first, first + length, expected, "return before frame uses original argument") &&
+        Bytes(image.code, first + length, first + length + 4, "55 48 89 e5", "ordinary path retains frame") &&
+        Check(Accounted(*b, image), "entry return prologue accounting")
+}
+
+EarlyReturns :: () -> bool {
+    for variant: cast(s32)0..7 { if !EarlyReturnCase(variant) { return false } }
+    return true
+}
+
+CopyArithmetic :: () -> bool {
+    for variant: cast(s32)0..4 {
+        b: Builder
+        defer BuilderFree(*b)
+        Setup(*b)
+        function := Begin(*b, "copy arithmetic")
+        type: s32 = ifx variant == 4 then S32 else S64
+        record := b.functions[function]
+        record.result_type = type
+        b.functions[function] = record
+        argument := Parameter(*b, type, RDI)
+        copied := Value(*b, type)
+        result := Value(*b, type)
+        returned := Value(*b, type)
+        Enter(*b, Blocks(*b, 1))
+        copy := Two(*b, .Move, R8, copied, RDI, argument)
+        instruction := Open(*b, ifx variant == 1 || variant == 3 then MachineOpcode.IntegerSubtract else .IntegerAdd)
+        unused Physical(*b, R8, .Define, result)
+        unused Physical(*b, R8, .Use, copied)
+        amount: u64 = 17
+        if variant == 1 { amount = 1 }
+        if variant == 2 || variant == 3 { amount = cast(u64)cast(s64)-2147483648 }
+        unused Immediate(*b, amount)
+        arithmetic := Close(*b, instruction)
+        unused Two(*b, .Move, RAX, returned, R8, result)
+        unused Return(*b, RAX, returned)
+        End(*b, 0)
+        b.entry = function
+        owner: X64.MachineX64Owner
+        defer X64.MachineX64Free(*owner)
+        diagnostic := Apply(*b, .Encode, *owner, MachineDefaultLimits()).diagnostic
+        if diagnostic.problem != .None { Report("copy arithmetic", diagnostic); return false }
+        image := X64.MachineX64View(*owner)
+        if variant == 3 || variant == 4 {
+            if !Instruction(image, copy, "49 89 f8", "unrepresentable displacement or narrow result keeps copy") { return false }
+        } else {
+            expected := "4c 8d 47 11"
+            if variant == 1 { expected = "4c 8d 47 ff" }
+            if variant == 2 { expected = "4c 8d 87 00 00 00 80" }
+            if !Instruction(image, copy, "", "copy folded into following arithmetic") ||
+                !Instruction(image, arithmetic, expected, "one LEA for copy plus arithmetic") { return false }
+        }
+        if !Check(Accounted(*b, image), "copy arithmetic instruction accounting") { return false }
+    }
+    return true
+}
+
 main :: () -> s32 {
-    if !SquareRoot() || !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
+    if !CopyArithmetic() || !EarlyReturns() || !SquareRoot() || !ConstantDivision() || !ImmediateMultiplication() || !Basics() || !Calls() || !Aggregates() || !Negatives() { return 1 }
     print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, packed aggregates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of invalid call forms and addends, no-output diagnostics and ownership local tests passed\n")
     return 0
 }

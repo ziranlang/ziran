@@ -609,6 +609,37 @@ MoveImmediate :: (state: *State) -> bool {
 
 // destination = left OPCODE right, with destination tied to left; the right
 // operand is a register or a sign-extended 32-bit immediate.
+// Adjacent allocated copy plus 64-bit add/sub immediate: compute directly
+// from the copy's source with LEA. Both original instruction ranges remain
+// represented, with the copy emitting no bytes. No block edge can enter
+// between them, and narrow integer normalization stays on its ordinary path.
+LeaCopy :: (state: *State, at: s32) -> s32 {
+    block := state.program.blocks[state.block]
+    if at < block.instruction_begin || at + 1 >= block.instruction_begin + block.instruction_count {
+        return MachineNoId
+    }
+    copy := state.program.instructions[at]
+    binary := state.program.instructions[at + 1]
+    if copy.opcode != .Move || copy.operand_count != 2 || binary.operand_count != 3 ||
+        (binary.opcode != .IntegerAdd && binary.opcode != .IntegerSubtract) { return MachineNoId }
+    destination := state.program.operands[copy.operand_begin]
+    source := state.program.operands[copy.operand_begin + 1]
+    result := state.program.operands[binary.operand_begin]
+    left := state.program.operands[binary.operand_begin + 1]
+    immediate := state.program.operands[binary.operand_begin + 2]
+    if !EntryInteger(state, destination) || !EntryInteger(state, source) ||
+        !EntryInteger(state, result) || !EntryInteger(state, left) || source.id == destination.id ||
+        result.id != destination.id || left.id != destination.id || immediate.kind != .Immediate ||
+        destination.type != source.type || destination.type != result.type || destination.type != left.type {
+        return MachineNoId
+    }
+    displacement := cast(s64)immediate.immediate
+    if !X86Fits32(displacement) || binary.opcode == .IntegerSubtract && displacement == -2147483648 {
+        return MachineNoId
+    }
+    return source.id
+}
+
 Binary :: (state: *State, opcode: MachineOpcode) -> bool {
     if !Count(state, 3) { return false }
     destination := Register(state, 0, .Define)
@@ -623,6 +654,11 @@ Binary :: (state: *State, opcode: MachineOpcode) -> bool {
     logical := opcode == .IntegerAnd || opcode == .IntegerOr || opcode == .IntegerXor
     if type.kind == .Bool && !logical || type.kind == .Function { return Fail(state, .Unsupported, OperandId(state, 0)) }
     value := cast(s64)immediate.immediate
+    base := LeaCopy(state, state.instruction - 1)
+    if base != MachineNoId {
+        X86Lea(*state.writer, destination, X86At(base, ifx opcode == .IntegerSubtract then -value else value))
+        return true
+    }
     if opcode == .IntegerMultiply {
         if constant { X86MultiplyValue(*state.writer, destination, destination, value) }
         else { X86Multiply(*state.writer, destination, right) }
@@ -2405,6 +2441,7 @@ Instruction :: (state: *State) -> bool {
     instruction := Current(state)
     op := instruction.opcode
     if !Spend(state, 1 + cast(s64)instruction.operand_count) { return false }
+    if op == .Move && LeaCopy(state, state.instruction) != MachineNoId { return true }
     if op == .Move || op == .Spill || op == .Reload { return Transfer(state, instruction) }
     ok := false
     if op == .VectorLoop {
@@ -2460,11 +2497,130 @@ Instruction :: (state: *State) -> bool {
     return ok
 }
 
+// A small pure entry test may return before reserving the frame. Track only
+// exact 64-bit argument values and constants through allocated copies; the
+// normal body is unchanged, including its stack/fuel checks and cold exits.
+EntryValue :: struct { source: s32; bits: u64 }
+EntryValues :: struct { registers: [16]EntryValue }
+
+EntryInteger :: (state: *State, operand: MachineOperand) -> bool {
+    if operand.kind != .Physical || operand.class != .General || !X86Register(operand.id) { return false }
+    type := TypeOf(state, operand)
+    return type.kind == .Integer && type.bits == 64
+}
+
+EntryRead :: (state: *State, values: EntryValues, operand: MachineOperand) -> EntryValue {
+    if operand.kind == .Immediate { return .{source = -1, bits = operand.immediate} }
+    if !EntryInteger(state, operand) { return .{source = -2} }
+    return values.registers[operand.id]
+}
+
+EntryCopy :: (state: *State, values: *EntryValues, instruction: MachineInstruction) -> bool {
+    if (instruction.opcode != .Move && instruction.opcode != .MoveImmediate) || instruction.operand_count != 2 {
+        return false
+    }
+    destination := state.program.operands[instruction.operand_begin]
+    source := state.program.operands[instruction.operand_begin + 1]
+    if !EntryInteger(state, destination) || destination.role != .Define { return false }
+    value := EntryRead(state, <<values, source)
+    if value.source == -2 { return false }
+    values.registers[destination.id] = value
+    return true
+}
+
+EntryReturn :: (state: *State, values: EntryValues, block_id: s32) -> EntryValue {
+    for hop: 0..3 {
+        block := state.program.blocks[block_id]
+        if block.instruction_count > 12 { return .{source = -2} }
+        next: s32 = MachineNoId
+        for at: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+            if !Spend(state, 1) { return .{source = -2} }
+            instruction := state.program.instructions[at]
+            if EntryCopy(state, *values, instruction) { continue }
+            if instruction.opcode == .Return && instruction.operand_count == 1 {
+                return EntryRead(state, values, state.program.operands[instruction.operand_begin])
+            }
+            if instruction.opcode != .Jump || instruction.edge_count != 1 { return .{source = -2} }
+            next = state.program.edges[instruction.edge_begin].target
+            break
+        }
+        if next == MachineNoId { return .{source = -2} }
+        block_id = next
+    }
+    return .{source = -2}
+}
+
+EntryResult :: (state: *State, value: EntryValue) {
+    if value.source == -1 { X86MoveImmediate(*state.writer, X86Rax, value.bits) }
+    else if value.source != X86Rax { X86Move(*state.writer, X86Rax, value.source) }
+    X86Return(*state.writer)
+}
+
+EarlyReturn :: (state: *State) -> bool {
+    function := state.program.functions[state.function]
+    if state.frameless || state.program.checks || function.fuel_register || function.arena_mark != 0 ||
+        function.result_register || function.result_type < 0 ||
+        state.program.frames[state.function].size > MachineX64StackSlack { return true }
+    result_type := state.program.types[function.result_type]
+    if result_type.kind != .Integer || result_type.bits != 64 { return true }
+    entry := state.program.blocks[function.entry]
+    if entry.instruction_count > 16 { return true }
+    values: EntryValues
+    for register: 0..15 { values.registers[register].source = -2 }
+    for parameter: 0..function.parameter_count - 1 {
+        virtual := state.program.virtuals[function.virtual_begin + parameter]
+        if virtual.class != .General || !X86Register(virtual.fixed_register) { continue }
+        type := state.program.types[virtual.type]
+        if type.kind == .Integer && type.bits == 64 {
+            values.registers[virtual.fixed_register] = .{source = virtual.fixed_register}
+        }
+    }
+    comparison: s32 = MachineNoId
+    compared := EntryValue.{source = -2}
+    bound := EntryValue.{source = -2}
+    signed := false
+    for at: entry.instruction_begin..entry.instruction_begin + entry.instruction_count - 1 {
+        if !Spend(state, 1) { return false }
+        instruction := state.program.instructions[at]
+        if EntryCopy(state, *values, instruction) { continue }
+        if comparison == MachineNoId && instruction.opcode == .Compare && instruction.operand_count == 2 {
+            left := state.program.operands[instruction.operand_begin]
+            right := state.program.operands[instruction.operand_begin + 1]
+            if !EntryInteger(state, left) { return true }
+            compared = EntryRead(state, values, left)
+            bound = EntryRead(state, values, right)
+            if compared.source < 0 || bound.source != -1 || !X86Fits32(cast(s64)bound.bits) { return true }
+            signed = Signed(TypeOf(state, left))
+            comparison = instruction.flags_def
+            continue
+        }
+        if comparison == MachineNoId || instruction.opcode != .Branch || instruction.operand_count != 0 ||
+            instruction.flags_use != comparison || instruction.edge_count != 2 { return true }
+        condition := ConditionCode(instruction.condition, signed)
+        if condition == MachineNoId { return true }
+        for edge: 0..1 {
+            returned := EntryReturn(state, values, state.program.edges[instruction.edge_begin + edge].target)
+            if state.diagnostic.problem != .None { return false }
+            if returned.source == -2 { continue }
+            X86CompareImmediate(*state.writer, compared.source, cast(s64)bound.bits)
+            saved := Probe(state)
+            EntryResult(state, returned)
+            length := Unprobe(state, saved)
+            X86JumpCondition8(*state.writer, condition ^ cast(s32)(1 - edge), length)
+            EntryResult(state, returned)
+            return true
+        }
+        return true
+    }
+    return true
+}
+
 Prologue :: (state: *State) -> bool {
     frame := state.program.frames[state.function]
     function := state.program.functions[state.function]
     if frame.dynamic_allocation || frame.callee_saved_float != 0 { return Fail(state, .Frame) }
     if frame.size < 0 || frame.size > 2147483647 { return Fail(state, .Frame) }
+    if !EarlyReturn(state) { return false }
     if !state.frameless {
         X86Push(*state.writer, X86Rbp)
         X86Move(*state.writer, X86Rbp, X86Rsp)

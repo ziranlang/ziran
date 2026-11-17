@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 returns simple integer base cases before allocating a frame or saving registers, while preserving checked and fueled paths. Adjacent 64-bit register copies and constant additions/subtractions use one address instruction, including recursive call arguments.
 - WAV decoding supports mono/stereo IMA ADPCM and Microsoft ADPCM in the core audio module and mixer, with fact-based frame counts, bounded block validation and independent PCM fixture tests.
 - Float64 `sqrt` and `std/math.Sqrt` lower to hardware square root on x86-64, AArch64 and ARMv7, with the same IEEE rounding on the portable engine, generated C/Go and Wasm. An independent integer reference checks every exponent and one million bit patterns.
 - ZX lowering folds signed integer interval checks such as `value > 1000 || value < 0` into one unsigned comparison when both sides read the same stable local, record member or fixed-array element. Calls and other expressions whose second evaluation can matter retain short-circuit evaluation.

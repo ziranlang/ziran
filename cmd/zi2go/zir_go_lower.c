@@ -102,8 +102,6 @@ scalar_byte_width(const char *type)
     return ScalarByteWidth(type);
 }
 
-static const ZirModule *module_constant_owner(const ZirModule *module,
-                                               const char *name);
 
 /* Resolve types through the same owner-aware path used by callback adapters. */
 static int
@@ -945,25 +943,6 @@ resolve_slot_type(void *context, const char *source, char *out, size_t size)
 }
 
 static const ZirModule *
-module_constant_owner(const ZirModule *module, const char *name)
-{
-    for(int pass = 0; pass < 2; pass++) {
-        int count = pass == 0 ? 1 : module->import_count;
-        for(int i = 0; i < count; i++) {
-            const ZirModule *scope = pass == 0 ? module : module->imports[i].resolved_module;
-            if(scope == NULL)
-                continue;
-            for(int j = 0; j < scope->define_count; j++) {
-                if((pass == 0 || scope->defines[j].is_public) &&
-                   !strcmp(scope->defines[j].name, name))
-                    return scope;
-            }
-        }
-    }
-    return NULL;
-}
-
-static const ZirModule *
 module_global_owner(const ZirModule *module, const char *name)
 {
     const ZirModule *owner = NULL;
@@ -1286,9 +1265,9 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                         memcpy(dst + dn, mapped, length);
                         dn += length;
                     }
-                } else if(module_constant_owner(m, ident) != NULL) {
+                } else if(NativeConstantOwner(m, ident) != NULL) {
                     char mapped[ZIR_GO_NAME_MAX];
-                    TargetDefineName(module_constant_owner(m, ident), ZIR_GO,
+                    TargetDefineName(NativeConstantOwner(m, ident), ZIR_GO,
                                      ident, mapped, sizeof(mapped));
                     size_t length = strlen(mapped);
                     if(dn + length + 1 < dst_size) {

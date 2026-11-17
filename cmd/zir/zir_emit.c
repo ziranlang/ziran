@@ -831,8 +831,8 @@ resolve_type_at_use(void *context, const char *source, char *out, size_t size)
         copy_text(out, size, source);
 }
 
-static const ZirModule *
-native_go_constant_owner(const ZirModule *module, const char *name)
+const ZirModule *
+NativeConstantOwner(const ZirModule *module, const char *name)
 {
     for(int pass = 0; pass < 2; pass++) {
         int count = pass == 0 ? 1 : module->import_count;
@@ -883,9 +883,9 @@ NativeGoType(const ZirModule *module, const char *type, char *dst, size_t dst_si
             char bound[ZIR_NAME_MAX * 2];
             snprintf(bound, sizeof(bound), "%.*s", (int)(close - t - 1), t + 1);
             if(module != NULL &&
-               native_go_constant_owner(module, bound) != NULL) {
+               NativeConstantOwner(module, bound) != NULL) {
                 char mapped[ZIR_NAME_MAX * 2];
-                TargetDefineName(native_go_constant_owner(module, bound),
+                TargetDefineName(NativeConstantOwner(module, bound),
                                  ZIR_GO, bound, mapped, sizeof(mapped));
                 snprintf(bound, sizeof(bound), "%s", mapped);
             }

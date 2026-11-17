@@ -1,12 +1,11 @@
 #include "compiler_zx_wasm.h"
 #include "zir.h"
 #include "zir_diagnostic.h"
+#include "zir_command.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-enum { Zx2WasmInputLimit = 268435456 };
 
 static int
 usage(void)
@@ -19,27 +18,10 @@ usage(void)
 static unsigned char *
 read_zx(const char *path, size_t *size)
 {
-    FILE *stream = fopen(path, "rb");
-    unsigned char *bytes = NULL;
-    if(stream == NULL || fseek(stream, 0, SEEK_END) != 0) goto failure;
-    long length = ftell(stream);
-    if(length < 0 || length > Zx2WasmInputLimit ||
-       fseek(stream, 0, SEEK_SET) != 0) goto failure;
-    bytes = malloc((size_t)length + 1);
-    if(bytes == NULL) { DiagnosticOutOfMemory(); goto failure; }
-    if(fread(bytes, 1, (size_t)length, stream) != (size_t)length ||
-       fgetc(stream) != EOF || ferror(stream) || fclose(stream) != 0) {
-        stream = NULL;
-        goto failure;
-    }
-    *size = (size_t)length;
+    unsigned char *bytes = CommandReadBounded(path, 268435456, size);
+    if(bytes == NULL)
+        Diagnostic((ZirSourceSpan){0}, "wasm.input", "cannot read bounded verified ZX input: %s", path);
     return bytes;
-failure:
-    if(stream != NULL) fclose(stream);
-    free(bytes);
-    Diagnostic((ZirSourceSpan){0}, "wasm.input",
-        "cannot read bounded verified ZX input: %s", path);
-    return NULL;
 }
 
 static int

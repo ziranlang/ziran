@@ -302,27 +302,10 @@ is_zx(const char *path)
 static unsigned char *
 read_zx(const char *path, size_t *size)
 {
-    FILE *stream = fopen(path, "rb");
-    unsigned char *bytes = NULL;
-    if(stream == NULL || fseek(stream, 0, SEEK_END) != 0) goto failure;
-    long length = ftell(stream);
-    if(length < 0 || length > 268435456 || fseek(stream, 0, SEEK_SET) != 0)
-        goto failure;
-    bytes = malloc((size_t)length + 1);
-    if(bytes == NULL) { DiagnosticOutOfMemory(); goto failure; }
-    if(fread(bytes, 1, (size_t)length, stream) != (size_t)length ||
-       fgetc(stream) != EOF || ferror(stream) || fclose(stream) != 0) {
-        stream = NULL;
-        goto failure;
-    }
-    *size = (size_t)length;
+    unsigned char *bytes = CommandReadBounded(path, 268435456, size);
+    if(bytes == NULL)
+        Diagnostic((ZirSourceSpan){0}, "zx.input", "cannot read bounded verified ZX input: %s", path);
     return bytes;
-failure:
-    if(stream != NULL) fclose(stream);
-    free(bytes);
-    Diagnostic((ZirSourceSpan){0}, "zx.input",
-        "cannot read bounded verified ZX input: %s", path);
-    return NULL;
 }
 
 static int

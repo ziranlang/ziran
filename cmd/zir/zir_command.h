@@ -144,6 +144,30 @@ CommandConfigureTarget(ZirTargetBackend backend, const char *os_name, const char
     return 1;
 }
 
+/* A whole file of at most LIMIT bytes, NUL-terminated past its end, or NULL. */
+static inline unsigned char *
+CommandReadBounded(const char *path, long limit, size_t *size)
+{
+    FILE *stream = fopen(path, "rb");
+    unsigned char *bytes = NULL;
+    if(stream == NULL) goto failure;
+    if(fseek(stream, 0, SEEK_END) != 0) goto failure;
+    long length = ftell(stream);
+    if(length < 0 || length > limit || fseek(stream, 0, SEEK_SET) != 0) goto failure;
+    bytes = malloc((size_t)length + 1);
+    if(bytes == NULL) { DiagnosticOutOfMemory(); goto failure; }
+    if(fread(bytes, 1, (size_t)length, stream) != (size_t)length ||
+       fgetc(stream) != EOF || ferror(stream)) goto failure;
+    if(fclose(stream) != 0) { stream = NULL; goto failure; }
+    bytes[length] = 0;
+    *size = (size_t)length;
+    return bytes;
+failure:
+    if(stream) fclose(stream);
+    free(bytes);
+    return NULL;
+}
+
 /* --checks: bounds checks in every loaded module. */
 static inline void
 CommandEnableChecks(const ProgramSet *set)

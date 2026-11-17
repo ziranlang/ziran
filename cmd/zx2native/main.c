@@ -79,34 +79,10 @@ assembly_limit(const char *text, int64_t *value)
     return 1;
 }
 
-/* A whole file of at most LIMIT bytes, NUL-terminated past its end, or NULL. */
-static unsigned char *
-assembly_read_bounded(const char *path, long limit, size_t *size)
-{
-    FILE *stream = fopen(path, "rb");
-    unsigned char *bytes = NULL;
-    if(stream == NULL) goto failure;
-    if(fseek(stream, 0, SEEK_END) != 0) goto failure;
-    long length = ftell(stream);
-    if(length < 0 || length > limit || fseek(stream, 0, SEEK_SET) != 0) goto failure;
-    bytes = malloc((size_t)length + 1);
-    if(bytes == NULL) { DiagnosticOutOfMemory(); goto failure; }
-    if(fread(bytes, 1, (size_t)length, stream) != (size_t)length ||
-       fgetc(stream) != EOF || ferror(stream)) goto failure;
-    if(fclose(stream) != 0) { stream = NULL; goto failure; }
-    bytes[length] = 0;
-    *size = (size_t)length;
-    return bytes;
-failure:
-    if(stream) fclose(stream);
-    free(bytes);
-    return NULL;
-}
-
 static unsigned char *
 assembly_read(const char *path, size_t *size)
 {
-    unsigned char *bytes = assembly_read_bounded(path, 268435456, size);
+    unsigned char *bytes = CommandReadBounded(path, 268435456, size);
     if(bytes == NULL)
         Diagnostic((ZirSourceSpan){0}, "assembly.codec", "cannot read bounded instruction input: %s", path);
     return bytes;
@@ -162,7 +138,7 @@ static int
 assembly_hosts_register(AssemblyHosts *hosts, const char *registration)
 {
     size_t size = 0;
-    char *text = (char *)assembly_read_bounded(registration, 16384, &size);
+    char *text = (char *)CommandReadBounded(registration, 16384, &size);
     if(text == NULL) return 1;
     size_t begin = 0, end = size;
     while(begin < end && (text[begin] == ' ' || text[begin] == '\t' || text[begin] == '\n' || text[begin] == '\r')) begin++;
@@ -174,7 +150,7 @@ assembly_hosts_register(AssemblyHosts *hosts, const char *registration)
     memmove(text, text + begin, end - begin);
     text[end - begin] = 0;
     AssemblyHostLibrary library = {.path = text, .linked = -1};
-    library.bytes = assembly_read_bounded(text, 268435456, &library.size);
+    library.bytes = CommandReadBounded(text, 268435456, &library.size);
     if(library.bytes == NULL) { free(text); return 1; }
     if(hosts->count == hosts->capacity) {
         size_t capacity = hosts->capacity ? hosts->capacity * 2 : 4;

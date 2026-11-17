@@ -174,13 +174,15 @@ OffsetFits :: (fn: *Fn, offset: s64) -> bool {
 }
 
 // Copies `size` bytes between two places that do not overlap: unrolled loads
-// and stores for a small value, memory.copy otherwise.
+// and stores up to a few hundred bytes, memory.copy beyond. An engine runs
+// memory.copy out of line, which costs more than a record's worth of moves,
+// so a paint command or text record is copied inline.
 CopyFixed :: (fn: *Fn, destination: Addr, source: Addr, size: s64) {
     if size <= 0 || destination.kind == source.kind && destination.local == source.local &&
         destination.offset == source.offset {
         return
     }
-    if size > 64 || !OffsetFits(fn, destination.offset + size) || !OffsetFits(fn, source.offset + size) {
+    if size > 320 || !OffsetFits(fn, destination.offset + size) || !OffsetFits(fn, source.offset + size) {
         PushFull(fn, destination)
         PushFull(fn, source)
         I32Const(fn, size)

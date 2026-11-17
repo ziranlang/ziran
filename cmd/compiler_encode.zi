@@ -171,3 +171,147 @@ WriteGlobalImage :: (program: MachineProgram, global_id: s32, bytes: []u8, at: s
     }
     return true
 }
+
+// Relocations, numbered alike on every target; the image builder maps each
+// to its machine-image kind and field width.
+NativeRelocationKind :: enum s32 {
+    Invalid; GlobalAddress; ConstantAddress; FuelCounter; TrapHandler; PlatformService; HostCapability; RuntimeResize; FunctionAddress
+    StackLimit; PointerRuntime; RuntimeHelper
+}
+
+NativeRelocation :: struct {
+    offset: s64
+    kind: NativeRelocationKind
+    symbol: s32
+    addend: s64
+    instruction: s32
+}
+
+// Maps encoder relocations onto image relocations.
+ImageRelocationKind :: (kind: NativeRelocationKind) -> Image.MachineRelocationKind {
+    if kind == .FunctionAddress { return .FunctionAddress }
+    if kind == .GlobalAddress { return .GlobalAddress }
+    if kind == .ConstantAddress { return .ConstantAddress }
+    if kind == .FuelCounter { return .FuelCounter }
+    if kind == .TrapHandler { return .RuntimeTrap }
+    if kind == .PlatformService { return .PlatformService }
+    if kind == .HostCapability { return .HostCapability }
+    if kind == .RuntimeResize { return .RuntimeResize }
+    if kind == .StackLimit { return .StackLimit }
+    if kind == .PointerRuntime { return .PointerRuntime }
+    if kind == .RuntimeHelper { return .RuntimeHelper }
+    return .Invalid
+}
+
+// Symbolic addresses materialize as halfword fields; direct calls, trap
+// dispatch and the runtime resize call patch whole words.
+ImageRelocationWidth :: (kind: NativeRelocationKind) -> s32 {
+    if kind == .GlobalAddress || kind == .ConstantAddress ||
+        kind == .FunctionAddress || kind == .FuelCounter ||
+        kind == .StackLimit || kind == .PointerRuntime { return 2 }
+    return 4
+}
+
+// Finds the machine operand of the source relocation matching the image
+// relocation's kind, or any relocation for the runtime trap handler.
+ImageOperand :: (program: MachineProgram, relocation: NativeRelocation,
+    kind: Image.MachineRelocationKind) -> s32 {
+    for source: program.relocations {
+        if source.instruction != relocation.instruction || source.symbol != relocation.symbol { continue }
+        if cast(s32)source.kind == cast(s32)kind ||
+            kind == .RuntimeTrap && source.kind != .Invalid { return source.operand }
+    }
+    return MachineNoId
+}
+
+// Builds the runtime image: code, aligned constant and data sections with
+// the fuel counter at the end of data, initializers, and relocations.
+BuildMachineImage :: (program: MachineProgram, output: *$O,
+    limits: MachineLimits) -> bool {
+    owner := *output.machine_image
+    code_count := output.code.count
+    globals := program.globals.count
+    functions := program.functions.count
+    if !VecResizeBounded(owner.code, code_count, limits.bytes) ||
+        !VecResizeBounded(owner.function_offsets, functions, limits.bytes) ||
+        !VecResizeBounded(owner.global_offsets, globals, limits.bytes) ||
+        !VecResizeBounded(owner.constant_offsets, globals, limits.bytes) ||
+        !VecResizeBounded(owner.initializers, program.initializers.count, limits.bytes) ||
+        !VecResizeBounded(owner.relocations, output.relocations.count, limits.bytes) {
+        return false
+    }
+    for index: cast(s64)0..code_count - 1 { owner.code[index] = output.code[index] }
+    for index: cast(s64)0..functions - 1 {
+        owner.function_offsets[index] = -1
+        if program.functions[index].calling == .Internal {
+            owner.function_offsets[index] = output.functions[index].begin
+        }
+    }
+    constants_size: s64 = 0
+    data_size: s64 = 0
+    for index: cast(s64)0..globals - 1 {
+        global := program.globals[index]
+        type := program.types[global.type]
+        if type.size <= 0 || type.alignment <= 0 { return false }
+        owner.global_offsets[index] = -1
+        owner.constant_offsets[index] = -1
+        if global.writable {
+            data_size = AlignValue(data_size, type.alignment)
+            owner.global_offsets[index] = data_size
+            data_size += type.size
+        } else {
+            constants_size = AlignValue(constants_size, type.alignment)
+            owner.constant_offsets[index] = constants_size
+            constants_size += type.size
+        }
+        if data_size < 0 || constants_size < 0 || data_size > limits.bytes || constants_size > limits.bytes {
+            return false
+        }
+    }
+    // Fuel, the last trap code, the stack limit word, then the pointer
+    // runtime header, as on x86-64.
+    fuel := AlignValue(data_size, 8)
+    if fuel > limits.bytes - 24 - MachinePointerHeaderBytes { return false }
+    stack_limit := fuel + 16
+    pointer_header := stack_limit + 8
+    data_size = pointer_header + MachinePointerHeaderBytes
+    if !VecResizeBounded(owner.constants, constants_size, limits.bytes) ||
+        !VecResizeBounded(owner.data, data_size, limits.bytes) { return false }
+    for index: cast(s64)0..globals - 1 {
+        global := program.globals[index]
+        at := ifx global.writable then owner.global_offsets[index] else owner.constant_offsets[index]
+        destination := ifx global.writable then owner.data[:] else owner.constants[:]
+        if !WriteGlobalImage(program, cast(s32)index, destination, at) { return false }
+    }
+    for index: cast(s64)0..program.initializers.count - 1 {
+        owner.initializers[index] = program.initializers[index]
+    }
+    for index: cast(s64)0..output.relocations.count - 1 {
+        relocation := output.relocations[index]
+        kind := ImageRelocationKind(relocation.kind)
+        if kind == .Invalid { return false }
+        owner.relocations[index] = .{section = .Code, offset = relocation.offset,
+            width = ImageRelocationWidth(relocation.kind),
+            instruction = relocation.instruction,
+            operand = ImageOperand(program, relocation, kind), kind = kind,
+            symbol = relocation.symbol, addend = relocation.addend}
+    }
+    stack_bytes: s64 = 16
+    for frame: program.frames { if frame.size > stack_bytes { stack_bytes = frame.size } }
+    stack_bytes = AlignValue(stack_bytes, 16)
+    owner.image = .{version = MachineImageVersion, target = program.target,
+        runtime_abi = .Revision1,
+        code = .{bytes = owner.code[:], alignment = 16},
+        constants = .{bytes = owner.constants[:], alignment = 16},
+        data = .{bytes = owner.data[:], alignment = 8},
+        function_offsets = owner.function_offsets[:], global_offsets = owner.global_offsets[:],
+        constant_offsets = owner.constant_offsets[:], initializers = owner.initializers[:],
+        relocations = owner.relocations[:], entry = program.entry,
+        stack_alignment = 16, stack_bytes = stack_bytes, fuel_offset = fuel,
+        stack_limit_offset = stack_limit, pointer_offset = pointer_header,
+        host_symbols = cast(s32)functions, platform_symbols = cast(s32)functions,
+        trap_symbols = 1}
+    if MachineImageValidate(owner.image).problem != .None { return false }
+    owner.valid = true
+    return true
+}

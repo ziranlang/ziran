@@ -4,6 +4,7 @@ using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 using A64 :: #import "compiler_aarch64"
+using Encode :: #import "compiler_encode"
 #import "machine_encoder_build"
 
 // Local tests for the direct AArch64 machine-IR encoder. Programs are built
@@ -740,7 +741,7 @@ Calls :: () -> bool {
     if call_delta >= 0x2000000 { call_delta -= 0x4000000 }
     if !Check(image.instructions[forward].begin + call_delta * 4 == image.functions[later].begin,
             "forward call reaches callee") { return false }
-    kinds: [24]A64.MachineA64RelocationKind = .[.FuelCounter, .FuelCounter, .FuelCounter, .FuelCounter,
+    kinds: [24]Encode.NativeRelocationKind = .[.FuelCounter, .FuelCounter, .FuelCounter, .FuelCounter,
         .TrapHandler, .StackLimit, .StackLimit, .StackLimit, .StackLimit, .TrapHandler, .FunctionAddress, .FunctionAddress, .FunctionAddress, .FunctionAddress,
         .GlobalAddress, .GlobalAddress, .GlobalAddress, .GlobalAddress,
         .FuelCounter, .FuelCounter, .FuelCounter, .FuelCounter, .TrapHandler, .TrapHandler]

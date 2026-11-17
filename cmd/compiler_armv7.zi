@@ -49,19 +49,6 @@ MachineV7StackSlack :: 4096
 // MOVW, MOVT, BL, UDF.
 MachineV7TrapSize :: 16
 
-MachineV7RelocationKind :: enum s32 {
-    Invalid; GlobalAddress; ConstantAddress; FuelCounter; TrapHandler; PlatformService; HostCapability; RuntimeResize; FunctionAddress
-    StackLimit; PointerRuntime; RuntimeHelper
-}
-
-MachineV7Relocation :: struct {
-    offset: s64
-    kind: MachineV7RelocationKind
-    symbol: s32
-    addend: s64
-    instruction: s32
-}
-
 // Byte offsets of a function, the first byte after its prologue, and its end.
 MachineV7Function :: struct { begin: s64; body: s64; end: s64 }
 MachineV7Range :: struct { begin: s64; end: s64 }
@@ -71,7 +58,7 @@ MachineV7Image :: struct {
     functions: []MachineV7Function
     blocks: []s64
     instructions: []MachineV7Range
-    relocations: []MachineV7Relocation
+    relocations: []NativeRelocation
     entry: s32
 }
 
@@ -89,7 +76,7 @@ MachineV7Owner :: struct {
     functions: Vec(MachineV7Function)
     blocks: Vec(s64)
     instructions: Vec(MachineV7Range)
-    relocations: Vec(MachineV7Relocation)
+    relocations: Vec(NativeRelocation)
     machine_image: MachineImageOwner
 }
 
@@ -159,7 +146,7 @@ State :: struct {
     instruction_begin: []s64
     instruction_end: []s64
     relocation_of: []s32
-    relocations: []MachineV7Relocation
+    relocations: []NativeRelocation
     relocation_count: s64
     consumed: s64
     function: s32
@@ -181,7 +168,7 @@ Place :: (state: *State, slots: []s64, index: s64) -> bool {
     return true
 }
 
-Relocate :: (state: *State, kind: MachineV7RelocationKind, symbol: s32, addend: s64, field: s64) {
+Relocate :: (state: *State, kind: NativeRelocationKind, symbol: s32, addend: s64, field: s64) {
     if state.emit && state.relocation_count < state.relocations.count {
         state.relocations[state.relocation_count] = .{offset = field, kind = kind, symbol = symbol,
             addend = addend, instruction = state.instruction}
@@ -333,7 +320,7 @@ MoveHalf :: (state: *State, rd: s32, half: u32, top: bool, cond: s32 = CondAl) {
 
 // The address the loader computes for KIND and SYMBOL into RD, as MOVW and
 // MOVT each carrying a width-2 relocation (addend 0 low half, 2 high half).
-MaterializeRelocated :: (state: *State, rd: s32, kind: MachineV7RelocationKind, symbol: s32) {
+MaterializeRelocated :: (state: *State, rd: s32, kind: NativeRelocationKind, symbol: s32) {
     if state.diagnostic.problem != .None { return }
     Relocate(state, kind, symbol, 0, state.writer.at)
     MoveHalf(state, rd, 0, false)
@@ -372,7 +359,7 @@ Branch :: (state: *State, target: s64, link: bool = false, cond: s32 = CondAl) {
 }
 
 // BL to a veneer the loader places, with a width-4 relocation.
-CallVeneer :: (state: *State, kind: MachineV7RelocationKind, symbol: s32) {
+CallVeneer :: (state: *State, kind: NativeRelocationKind, symbol: s32) {
     if state.diagnostic.problem != .None { return }
     Relocate(state, kind, symbol, -8, state.writer.at)
     Emit(state, 0xEB000000)
@@ -1699,7 +1686,7 @@ Relocation :: (state: *State, kind: MachineRelocationKind, operand: s32, zero_ad
 
 // An address relocated into the destination's low register; a 64-bit
 // destination's high word is zero.
-RelocatedAddress :: (state: *State, kind: MachineV7RelocationKind, symbol: s32) -> bool {
+RelocatedAddress :: (state: *State, kind: NativeRelocationKind, symbol: s32) -> bool {
     destination := Register(state, 0, .Define)
     if destination == MachineNoId { return false }
     MaterializeRelocated(state, Low(destination), kind, symbol)
@@ -1726,7 +1713,7 @@ GlobalAddress :: (state: *State) -> bool {
         return Fail(state, .Relocation, OperandId(state, 1))
     }
     if Relocation(state, machine_kind, OperandId(state, 1), true) == MachineNoId { return false }
-    kind: MachineV7RelocationKind = ifx machine_kind == .GlobalAddress then .GlobalAddress else .ConstantAddress
+    kind: NativeRelocationKind = ifx machine_kind == .GlobalAddress then .GlobalAddress else .ConstantAddress
     return RelocatedAddress(state, kind, symbol.id)
 }
 
@@ -2294,7 +2281,7 @@ Call :: (state: *State) -> bool {
         return true
     }
     machine_kind := MachineRelocationKind.FunctionCall
-    image_kind: MachineV7RelocationKind = .Invalid
+    image_kind: NativeRelocationKind = .Invalid
     if call.calling == .Platform { machine_kind = .PlatformService; image_kind = .PlatformService }
     else if call.calling == .Host { machine_kind = .HostCapability; image_kind = .HostCapability }
     if Relocation(state, machine_kind, target, true) == MachineNoId { return false }
@@ -2569,135 +2556,6 @@ Failure :: (problem: MachineProblem) -> MachineV7Result {
     result := MachineV7Result.{diagnostic = NoDiagnostic()}
     result.diagnostic.problem = problem
     return result
-}
-
-// Maps encoder relocations onto image relocations.
-ImageRelocationKind :: (kind: MachineV7RelocationKind) -> Image.MachineRelocationKind {
-    if kind == .FunctionAddress { return .FunctionAddress }
-    if kind == .GlobalAddress { return .GlobalAddress }
-    if kind == .ConstantAddress { return .ConstantAddress }
-    if kind == .FuelCounter { return .FuelCounter }
-    if kind == .TrapHandler { return .RuntimeTrap }
-    if kind == .PlatformService { return .PlatformService }
-    if kind == .HostCapability { return .HostCapability }
-    if kind == .RuntimeResize { return .RuntimeResize }
-    if kind == .StackLimit { return .StackLimit }
-    if kind == .PointerRuntime { return .PointerRuntime }
-    if kind == .RuntimeHelper { return .RuntimeHelper }
-    return .Invalid
-}
-
-// Symbolic addresses materialize as halfword fields; direct calls, trap
-// dispatch and the runtime resize call patch whole words.
-ImageRelocationWidth :: (kind: MachineV7RelocationKind) -> s32 {
-    if kind == .GlobalAddress || kind == .ConstantAddress ||
-        kind == .FunctionAddress || kind == .FuelCounter ||
-        kind == .StackLimit || kind == .PointerRuntime { return 2 }
-    return 4
-}
-
-// Finds the machine operand of the source relocation matching the image
-// relocation's kind, or any relocation for the runtime trap handler.
-ImageOperand :: (program: MachineProgram, relocation: MachineV7Relocation,
-    kind: Image.MachineRelocationKind) -> s32 {
-    for source: program.relocations {
-        if source.instruction != relocation.instruction || source.symbol != relocation.symbol { continue }
-        if cast(s32)source.kind == cast(s32)kind ||
-            kind == .RuntimeTrap && source.kind != .Invalid { return source.operand }
-    }
-    return MachineNoId
-}
-
-// Builds the runtime image: code, aligned constant and data sections with
-// the fuel counter at the end of data, initializers, and relocations.
-BuildMachineImage :: (program: MachineProgram, output: *MachineV7Owner,
-    limits: MachineLimits) -> bool {
-    owner := *output.machine_image
-    code_count := output.code.count
-    globals := program.globals.count
-    functions := program.functions.count
-    if !VecResizeBounded(owner.code, code_count, limits.bytes) ||
-        !VecResizeBounded(owner.function_offsets, functions, limits.bytes) ||
-        !VecResizeBounded(owner.global_offsets, globals, limits.bytes) ||
-        !VecResizeBounded(owner.constant_offsets, globals, limits.bytes) ||
-        !VecResizeBounded(owner.initializers, program.initializers.count, limits.bytes) ||
-        !VecResizeBounded(owner.relocations, output.relocations.count, limits.bytes) {
-        return false
-    }
-    for index: cast(s64)0..code_count - 1 { owner.code[index] = output.code[index] }
-    for index: cast(s64)0..functions - 1 {
-        owner.function_offsets[index] = -1
-        if program.functions[index].calling == .Internal {
-            owner.function_offsets[index] = output.functions[index].begin
-        }
-    }
-    constants_size: s64 = 0
-    data_size: s64 = 0
-    for index: cast(s64)0..globals - 1 {
-        global := program.globals[index]
-        type := program.types[global.type]
-        if type.size <= 0 || type.alignment <= 0 { return false }
-        owner.global_offsets[index] = -1
-        owner.constant_offsets[index] = -1
-        if global.writable {
-            data_size = AlignValue(data_size, type.alignment)
-            owner.global_offsets[index] = data_size
-            data_size += type.size
-        } else {
-            constants_size = AlignValue(constants_size, type.alignment)
-            owner.constant_offsets[index] = constants_size
-            constants_size += type.size
-        }
-        if data_size < 0 || constants_size < 0 || data_size > limits.bytes || constants_size > limits.bytes {
-            return false
-        }
-    }
-    // Fuel, the last trap code, the stack limit word, then the pointer
-    // runtime header, as on x86-64.
-    fuel := AlignValue(data_size, 8)
-    if fuel > limits.bytes - 24 - MachinePointerHeaderBytes { return false }
-    stack_limit := fuel + 16
-    pointer_header := stack_limit + 8
-    data_size = pointer_header + MachinePointerHeaderBytes
-    if !VecResizeBounded(owner.constants, constants_size, limits.bytes) ||
-        !VecResizeBounded(owner.data, data_size, limits.bytes) { return false }
-    for index: cast(s64)0..globals - 1 {
-        global := program.globals[index]
-        at := ifx global.writable then owner.global_offsets[index] else owner.constant_offsets[index]
-        destination := ifx global.writable then owner.data[:] else owner.constants[:]
-        if !WriteGlobalImage(program, cast(s32)index, destination, at) { return false }
-    }
-    for index: cast(s64)0..program.initializers.count - 1 {
-        owner.initializers[index] = program.initializers[index]
-    }
-    for index: cast(s64)0..output.relocations.count - 1 {
-        relocation := output.relocations[index]
-        kind := ImageRelocationKind(relocation.kind)
-        if kind == .Invalid { return false }
-        owner.relocations[index] = .{section = .Code, offset = relocation.offset,
-            width = ImageRelocationWidth(relocation.kind),
-            instruction = relocation.instruction,
-            operand = ImageOperand(program, relocation, kind), kind = kind,
-            symbol = relocation.symbol, addend = relocation.addend}
-    }
-    stack_bytes: s64 = 16
-    for frame: program.frames { if frame.size > stack_bytes { stack_bytes = frame.size } }
-    stack_bytes = AlignValue(stack_bytes, 16)
-    owner.image = .{version = MachineImageVersion, target = program.target,
-        runtime_abi = .Revision1,
-        code = .{bytes = owner.code[:], alignment = 16},
-        constants = .{bytes = owner.constants[:], alignment = 16},
-        data = .{bytes = owner.data[:], alignment = 8},
-        function_offsets = owner.function_offsets[:], global_offsets = owner.global_offsets[:],
-        constant_offsets = owner.constant_offsets[:], initializers = owner.initializers[:],
-        relocations = owner.relocations[:], entry = program.entry,
-        stack_alignment = 16, stack_bytes = stack_bytes, fuel_offset = fuel,
-        stack_limit_offset = stack_limit, pointer_offset = pointer_header,
-        host_symbols = cast(s32)functions, platform_symbols = cast(s32)functions,
-        trap_symbols = 1}
-    if MachineImageValidate(owner.image).problem != .None { return false }
-    owner.valid = true
-    return true
 }
 
 // Verifies and measures PROGRAM; with an OUTPUT, writes and publishes the

@@ -48,44 +48,6 @@ raw(const char *value)
     }
 }
 
-/* Each expression's statement: the first whose expression trees reach it,
- * or -1. */
-static int *
-expression_owners(const ZirFunction *function)
-{
-    int count = function->expr_count;
-    if(count <= 0) return NULL;
-    int *owners = malloc((size_t)count * sizeof(*owners));
-    int *stack = malloc((size_t)count * sizeof(*stack));
-    if(owners == NULL || stack == NULL) {
-        free(owners);
-        free(stack);
-        return NULL;
-    }
-    for(int i = 0; i < count; i++) owners[i] = -1;
-    for(int s = 0; s < function->stmt_count; s++) {
-        int top = 0;
-        int roots[2] = {function->stmts[s].expr_root, function->stmts[s].lhs_root};
-        for(int r = 0; r < 2; r++)
-            if(roots[r] >= 0 && roots[r] < count && owners[roots[r]] < 0) {
-                owners[roots[r]] = s;
-                stack[top++] = roots[r];
-            }
-        while(top > 0) {
-            const ZirExpr *expression = &function->exprs[stack[--top]];
-            int links[5] = {expression->left, expression->right, expression->first_child,
-                            expression->next_sibling, expression->third};
-            for(int l = 0; l < 5; l++)
-                if(links[l] >= 0 && links[l] < count && owners[links[l]] < 0) {
-                    owners[links[l]] = s;
-                    stack[top++] = links[l];
-                }
-        }
-    }
-    free(stack);
-    return owners;
-}
-
 /* Whether an expression's text only repeats part of its statement's, which
  * the listing already shows once. */
 static int
@@ -246,7 +208,7 @@ show_module(const ZirModule *module)
             }
             putchar('\n');
         }
-        int *owners = expression_owners(function);
+        int *owners = ExpressionOwners(function);
         for(int e = 0; e < function->expr_count; e++)
             show_expression(function, owners, e);
         free(owners);

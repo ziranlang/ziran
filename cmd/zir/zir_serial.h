@@ -5,6 +5,9 @@
 
 /* Versioned, pointer-free checked IR serialization. */
 int ProgramWrite(const ZirProgram *program, FILE *out);
+/* Each expression's statement: the first whose expression trees reach it,
+ * or -1; NULL without expressions or memory. The caller frees it. */
+int *ExpressionOwners(const ZirFunction *function);
 /* The portable view keeps checked bodies and procedure #asm variants, which
  * run only where the host trusts the bundle, and writes local #asm blocks as
  * plain blocks. Measurement allocates no payload buffer; both calls borrow an

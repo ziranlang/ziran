@@ -976,9 +976,8 @@ saved_statement_text(const ZirStmt *statement)
     return statement->text ? statement->text : "";
 }
 
-/* Each expression's statement: the first whose expression trees reach it. */
-static int *
-expression_owners(const ZirFunction *function)
+int *
+ExpressionOwners(const ZirFunction *function)
 {
     int count = function->expr_count;
     if(count <= 0) return NULL;
@@ -1335,7 +1334,7 @@ write_function(Writer *out, const ZirFunction *function)
     if(!write_fields(out, function, function_fields, FIELD_COUNT(function_fields)) ||
        !WRITE_ARRAY(out, function, stmts, stmt_count, statement_fields))
         return 0;
-    int *owners = expression_owners(function);
+    int *owners = ExpressionOwners(function);
     if(function->expr_count > 0 && owners == NULL) {
         out->problem = "out of memory writing IR";
         return 0;

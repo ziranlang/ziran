@@ -125,6 +125,25 @@ CommandMergePrograms(const ProgramSet *set, ZirProgram *merged)
     return 1;
 }
 
+/* Configure the translation target from --target-os and --target-cpu: the
+ * host's by default, none for portable ZX, and wasm32 for a web OS named
+ * without a CPU. 0 for a name no target has. */
+static inline int
+CommandConfigureTarget(ZirTargetBackend backend, const char *os_name, const char *cpu_name,
+                       ZirTargetOS *os)
+{
+    ZirTargetOS target_os = backend == ZIR_TARGET_ZX ? ZIR_OS_NONE : CompilerHostOS();
+    ZirTargetCPU target_cpu = backend == ZIR_TARGET_ZX ? ZIR_CPU_NONE : CompilerHostCPU();
+    if((os_name != NULL && !CompilerParseTargetOS(os_name, &target_os)) ||
+       (cpu_name != NULL && !CompilerParseTargetCPU(cpu_name, &target_cpu)))
+        return 0;
+    if(target_os == ZIR_OS_WEB && cpu_name == NULL)
+        target_cpu = ZIR_CPU_WASM32;
+    CompilerConfigureTarget(backend, target_os, target_cpu);
+    *os = target_os;
+    return 1;
+}
+
 /* --checks: bounds checks in every loaded module. */
 static inline void
 CommandEnableChecks(const ProgramSet *set)

@@ -93,18 +93,11 @@ main(int argc, char **argv)
     }
     EmitUseMinifiedOutput(minify);
 
-    ZirTargetOS target_os = CompilerHostOS();
-    ZirTargetCPU target_cpu = CompilerHostCPU();
-    if((target_os_name != NULL &&
-        !CompilerParseTargetOS(target_os_name, &target_os)) ||
-       (target_cpu_name != NULL &&
-        !CompilerParseTargetCPU(target_cpu_name, &target_cpu))) {
+    ZirTargetOS target_os;
+    if(!CommandConfigureTarget(ZIR_TARGET_GO, target_os_name, target_cpu_name, &target_os)) {
         usage();
         return 1;
     }
-    if(target_os == ZIR_OS_WEB && target_cpu_name == NULL)
-        target_cpu = ZIR_CPU_WASM32;
-    CompilerConfigureTarget(ZIR_TARGET_GO, target_os, target_cpu);
 
     command_context = CompilerContextOpen();
     if(command_context == NULL) { DiagnosticOutOfMemory(); goto done; }

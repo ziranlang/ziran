@@ -151,20 +151,11 @@ main(int argc, char **argv)
     }
     ZirTargetBackend target_backend = target == NULL || !strcmp(target, "zx") ?
         ZIR_TARGET_ZX : !strcmp(target, "go") ? ZIR_TARGET_GO : ZIR_TARGET_C;
-    ZirTargetOS target_os = target_backend == ZIR_TARGET_ZX ?
-        ZIR_OS_NONE : CompilerHostOS();
-    ZirTargetCPU target_cpu = target_backend == ZIR_TARGET_ZX ?
-        ZIR_CPU_NONE : CompilerHostCPU();
-    if((target_os_name != NULL &&
-        !CompilerParseTargetOS(target_os_name, &target_os)) ||
-       (target_cpu_name != NULL &&
-        !CompilerParseTargetCPU(target_cpu_name, &target_cpu))) {
+    ZirTargetOS target_os;
+    if(!CommandConfigureTarget(target_backend, target_os_name, target_cpu_name, &target_os)) {
         usage();
         return 1;
     }
-    if(target_os == ZIR_OS_WEB && target_cpu_name == NULL)
-        target_cpu = ZIR_CPU_WASM32;
-    CompilerConfigureTarget(target_backend, target_os, target_cpu);
     /* Explicit native IR freezes the same capability adapters as a source
      * build. Untargeted IR remains portable. */
     int posix_threads = target_backend == ZIR_TARGET_C &&

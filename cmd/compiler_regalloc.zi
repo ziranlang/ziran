@@ -1286,27 +1286,6 @@ FixedBlocked :: (state: *Alloc, bank: s32, register: s32, position: s32) -> s32 
 HintRegister :: (state: *Alloc, interval: s32) -> s32 {
     it := state.intervals[interval]
     if it.hint != MachineNoId { return it.hint }
-    // A tied operation inherits this copy's register. Prefer the result's
-    // fixed consumer (for example, a call argument) when that register stays
-    // free through the result's whole part, not just the short input copy.
-    // Otherwise retain the source/previous-part preference below.
-    if it.internal && it.prev == MachineNoId {
-        item := state.items[it.start / 2]
-        if item.kind == .TieCopy {
-            instruction := state.input.instructions[item.instruction]
-            local := state.input.operands[item.operand].tied_to
-            result := state.input.operands[instruction.operand_begin + local]
-            if result.kind == .Virtual {
-                root := state.root_of[Local(state, result.id)]
-                if root != MachineNoId {
-                    part := Covering(state, root, state.item_of_instruction[item.instruction] * 2 + 1)
-                    hint := state.intervals[root].hint
-                    if part != MachineNoId && hint != MachineNoId &&
-                        state.free_until[hint] > state.intervals[part].end { return hint }
-                }
-            }
-        }
-    }
     if it.prev != MachineNoId && state.intervals[it.prev].register != MachineNoId {
         return state.intervals[it.prev].register
     }

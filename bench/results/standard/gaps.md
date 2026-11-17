@@ -173,14 +173,19 @@ attributing it to the conversion dependency fix; code layout and run-to-run
 variation need separate isolation. The smaller differences on the other rows
 are not evidence of improvements to their hot loops.
 
-Assembly research still identifies larger remaining problems:
+Assembly research at the conversion revision identified larger remaining problems:
 
-- Spectral-norm retains calls to `A` and spills around them. In representative
-  standalone output, the CFG inliner copies the original `Multiply` into
+- Spectral-norm retained calls to `A` and spills around them. In representative
+  standalone output at that revision, the CFG inliner copies the original `Multiply` into
   `Spectral`, retaining its `A` calls, while separately expanding `A` inside
   the original `Multiply`. The pass explicitly expands one level from input
   callees. Optimizing callees before copying them is a separate optimizer
-  change, reported to that lane.
+  change, reported to that lane. The subsequent
+  [single-block inliner fix](https://github.com/ziranlang/ziran/commit/4a488a44f32e01f7cc9e9cdd90b6efff9272e139)
+  and [callee-first expansion](https://github.com/ziranlang/ziran/commit/1ac1653faa89ad65966ef395ad68a0b706f1dc4c)
+  address that ordering. A later whole-source Alpha cohort must measure their
+  effect; the frozen-bundle native A/B results here do not measure those
+  frontend changes.
 - Native matrix multiplication repeatedly spills general registers in the
   inner loop and reloads `a[i*n+k]`, while GCC keeps that reused element in a
   register and advances row pointers. Loop liveness, invariant-load legality
@@ -197,6 +202,39 @@ explain zeroing before scalar conversions.
 separately describes prologue placement, induction-variable optimization and
 using registers that a known callee does not overwrite. These are engineering
 leads; only the matched measurements above establish the changes' effect here.
+
+## Rejected tied argument-register preference
+
+A fully locally validated [allocator candidate](https://github.com/ziranlang/ziran/commit/b9b66c1b8a7c44f815c073175192fd803f1a77d2)
+propagated a result's fixed argument-register preference into its tied input
+copy, only when that register stayed free for the full result interval. The
+[Alpha receipt](native-tied-argument-alpha.json) retains eleven interleaved
+C/before/after samples at the immediate published parent and candidate, using
+the same frozen ZX bundle, standard host/gate and private interleaving driver
+as above. Learning and checks are off; all 165 timed results match C.
+
+| Benchmark | C µs | Native before µs | Candidate µs | Candidate/C |
+| --- | ---: | ---: | ---: | ---: |
+| n-body | 29,550 | 62,154 | 62,030 | 2.10× |
+| spectral-norm | 10,047 | 60,740 | 58,228 | 5.80× |
+| matmul | 3,877 | 19,014 | 18,780 | 4.84× |
+| fib | 19,017 | 71,051 | 80,428 | 4.23× |
+| mandelbrot | 68,869 | 116,606 | 116,029 | 1.68× |
+
+Standalone fib assembly confirmed that both argument moves disappeared:
+`lea n-1,rax; mov rax,rdi` became `lea n-1,rdi`, and the second decrement
+also computed directly into RDI. Nevertheless, fib took 13.20% more time in
+the matched cohort. Spectral-norm took 4.14% less time, and the other rows
+changed little. Fewer instructions alone did not establish an improvement;
+the experiment does not isolate the microarchitectural cause of the fib
+regression. The candidate's allocator, fixture and Unreleased line were
+removed, restoring the prior allocation policy. The negative result is kept
+to prevent the same unmeasured change being reintroduced.
+
+Before the candidate push, the full local suite passed 284/284 in 217.5
+seconds, bootstrap comparisons matched, and a regression fixture failed with
+the old allocator and passed with the candidate, including an occupied
+argument-register case. These correctness tests did not predict throughput.
 
 ## Hypotheses to test (timing alone does not prove them)
 

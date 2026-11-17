@@ -136,6 +136,68 @@ Darwin bootstrap comparisons match), all with learning off and desktop display
 variables removed. The final full-suite and bootstrap commands shared one
 build-queue slot. These are local test results; GitHub CI was not inspected.
 
+## Scalar conversion dependency A/B
+
+The [scalar conversion change](https://github.com/ziranlang/ziran/commit/d647525b07629691f83ea5836349494f4c8d4730)
+was measured against its immediate published parent. The
+[raw receipt](native-conversion-dependency-alpha.json) retains eleven
+interleaved C/before/after samples, the standard host gate, all raw samples and
+symmetric inclusive 1.5×IQR exclusions. The same frozen ZX bundle used by the
+call setup experiment runs on both revisions; learning and checks are off,
+and all 165 timed results match C. As above, the private driver uses the
+standard workloads and host to alternate the two native runtimes.
+
+| Benchmark | C µs | Native before µs | Native after µs | After/C |
+| --- | ---: | ---: | ---: | ---: |
+| n-body | 29,131 | 62,155 | 62,570 | 2.15× |
+| spectral-norm | 10,008 | 69,923 | 60,243 | 6.02× |
+| matmul | 3,839 | 20,957 | 18,824 | 4.90× |
+| fib | 18,393 | 66,763 | 67,785 | 3.69× |
+| mandelbrot | 69,969 | 118,559 | 116,022 | 1.66× |
+
+Spectral-norm takes 13.84% less time. Its legacy `cvtsi2sd` instruction
+preserves the unused upper lanes of its destination and can therefore wait
+on an earlier floating-point value. A preceding `xorps` clears those lanes
+without changing the scalar result or integer condition flags. This applies
+to integer conversions to both float32 and float64, including both paths of
+the unsigned-64 conversion. The exact encoder fixtures cover high registers,
+measurement/write agreement and output limits; execution parity checks signed
+and unsigned rounding boundaries and random integers against an integer
+round-to-nearest, ties-to-even reference. The full local suite passed 284/284
+in 213.9 seconds and bootstrap comparisons matched before the source push.
+GitHub CI was not inspected.
+
+Matmul also measures faster in this cohort, but its integer hot loop has no
+integer-to-float conversion. That timing difference is retained without
+attributing it to the conversion dependency fix; code layout and run-to-run
+variation need separate isolation. The smaller differences on the other rows
+are not evidence of improvements to their hot loops.
+
+Assembly research still identifies larger remaining problems:
+
+- Spectral-norm retains calls to `A` and spills around them. In representative
+  standalone output, the CFG inliner copies the original `Multiply` into
+  `Spectral`, retaining its `A` calls, while separately expanding `A` inside
+  the original `Multiply`. The pass explicitly expands one level from input
+  callees. Optimizing callees before copying them is a separate optimizer
+  change, reported to that lane.
+- Native matrix multiplication repeatedly spills general registers in the
+  inner loop and reloads `a[i*n+k]`, while GCC keeps that reused element in a
+  register and advances row pointers. Loop liveness, invariant-load legality
+  and induction-variable selection remain open.
+- Fib now returns its simple base case before the frame, but still makes both
+  recursive calls. GCC's recursive accumulation and partial inlining reduce
+  that overhead further; they require a distinct optimizer transformation.
+
+Primary implementation references:
+[LLVM's dependency-breaking example](https://llvm.org/doxygen/TargetInstrInfo_8h_source.html)
+and [x86 implementation](https://llvm.org/doxygen/X86InstrInfo_8cpp_source.html)
+explain zeroing before scalar conversions.
+[GCC's optimization documentation](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html)
+separately describes prologue placement, induction-variable optimization and
+using registers that a known callee does not overwrite. These are engineering
+leads; only the matched measurements above establish the changes' effect here.
+
 ## Hypotheses to test (timing alone does not prove them)
 
 1. **n-body, spectral-norm:** float-heavy inner loops. Beyond `Sqrt`, native

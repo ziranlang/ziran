@@ -1,4 +1,4 @@
-#import "parallel_linux"
+#import "std/parallel"
 
 libc :: #system_library "libc";
 #if #defined(_WIN32) {
@@ -50,5 +50,15 @@ SelfTest :: () -> s32 {
     ParallelRun(*pool, 0, 513, procedure, cast(*void)*data)
     ParallelClose(*pool)
     if data.visits[0] != 129 || data.visits[512] != 130 { return 7 }
+    if ParallelProcessors() < 1 || ParallelInitLanes(null, 2) { return 11 }
+    if !ParallelInitLanes(*pool, 0) || pool.workers != 0 { return 12 }
+    if !ParallelInitLanes(*pool, 2) || pool.workers != 0 { return 13 }
+    ParallelRun(*pool, 0, 4, procedure, cast(*void)*data)
+    if data.identities[0] != data.identities[3] { return 14 }
+    ParallelClose(*pool)
+    if !ParallelInitLanes(*pool, 2) || pool.workers != 1 { return 15 }
+    ParallelRun(*pool, 0, 4, procedure, cast(*void)*data)
+    if data.identities[0] == data.identities[3] { return 16 }
+    ParallelClose(*pool)
     return 42
 }

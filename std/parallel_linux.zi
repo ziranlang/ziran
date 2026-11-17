@@ -67,8 +67,34 @@ ParallelPool :: struct {
     stopping: bool
 }
 
-// Matches checked #parallel regions: four lanes by default, including the
-// submitting thread. ZIRAN_PAR_THREADS=1 is useful for parity and profiling.
+#scope_file
+#if #defined(_WIN32) {
+    ActiveProcessorCount :: (group: u16) -> u32 #foreign kernel32 "GetActiveProcessorCount";
+} else {
+    SystemConfiguration :: (name: s32) -> isize #foreign libc "sysconf";
+    // _SC_NPROCESSORS_ONLN has different values in the supported C libraries.
+    #if OS == .ANDROID {
+        OnlineProcessors :: 0x0061;
+    } else #if #defined(__APPLE__) {
+        OnlineProcessors :: 58;
+    } else {
+        OnlineProcessors :: 84;
+    }
+}
+#scope_export
+
+// Reports online logical processors, with one lane as the fallback.
+ParallelProcessors :: () -> s32 {
+    #if #defined(_WIN32) {
+        count := ActiveProcessorCount(0xffff)
+    } else {
+        count := SystemConfiguration(OnlineProcessors)
+    }
+    return ifx count > 0 then cast(s32)count else 1
+}
+
+// Implicit pools default to four lanes, including the submitting thread.
+// ZIRAN_PAR_THREADS=1 is useful for parity and profiling.
 ParallelCount :: () -> s32 {
     name: [18]u8 = .{90,73,82,65,78,95,80,65,82,95,84,72,82,69,65,68,83,0}
     value := EnvironmentValue(*name[0]); if value == null { return 4 }
@@ -109,6 +135,12 @@ ParallelWorker :: (argument: *void) {
 }
 
 ParallelInit :: (pool: *ParallelPool) -> bool {
+    return pool != null && (pool.initialized || ParallelInitLanes(pool, ParallelCount()))
+}
+
+// The lane count includes the owner. A pool retains its size until closed.
+ParallelInitLanes :: (pool: *ParallelPool, lanes: s32) -> bool {
+    if pool == null { return false }
     if pool.initialized { return true }
     if MutexInit(ParallelLock(pool), null) != 0 { return false }
     if ConditionInit(ParallelWake(pool), null) != 0 {
@@ -118,7 +150,8 @@ ParallelInit :: (pool: *ParallelPool) -> bool {
         unused ConditionDestroy(ParallelWake(pool)); unused MutexDestroy(ParallelLock(pool)); return false
     }
     pool.stopping = false; pool.generation = cast(u64)0; pool.workers = 0
-    count := ParallelCount(); procedure: ThreadProcedure = ParallelWorker
+    count := ifx lanes < 1 then 1 else ifx lanes > 64 then 64 else lanes
+    procedure: ThreadProcedure = ParallelWorker
     for i: 0..count - 2 {
         pool.lanes[i] = .{pool, i}
         if !ThreadStart(*pool.threads[i], procedure, cast(*void)*pool.lanes[i]) { break }

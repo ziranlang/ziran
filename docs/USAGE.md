@@ -2257,13 +2257,17 @@ its cleanup finish. Keep its record and arguments at stable addresses until
 completion, including while a canceled request is being collected.
 `tests/thread_windows.sh` compiles and links C source and saved IR with
 MinGW against the thread completion host.
-`std/parallel_linux.zi` supplies a reusable `ParallelPool` for independent
+`std/parallel` supplies a reusable `ParallelPool` for independent
 half-open ranges. `ParallelRun` divides a range among persistent workers and
 the submitting thread, then waits for every lane before returning. Short ranges
 use a subset of the pool instead of becoming serial when more lanes are
 configured. Keep the pool at one address, submit from one owner, and call `ParallelClose` before
 releasing it. Callbacks must write only their own range and keep shared inputs
 immutable. Four lanes run by default; `ZIRAN_PAR_THREADS` selects 1–64 lanes.
+`ParallelProcessors()` reports the online logical processor count and returns
+one if the system cannot report it. To choose a pool size explicitly, call
+`ParallelInitLanes(*pool, lanes)` before running any work. It clamps the request
+to 1–64 lanes including the caller. A pool keeps its size until closed.
 Native C source builds define the genuine `POSIX_THREADS` capability
 automatically when pthread-compatible threads are available, including
 Windows. On `_WIN32`, the pool uses `std/thread_windows.zi`, native SRW locks

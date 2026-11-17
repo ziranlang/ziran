@@ -79,6 +79,12 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
         for argument: command { VecPush(result, argument) }
         return result
     }
+    if name == "native_worker_pool" {
+        command := string.[CheckPath(bin, "ziran"), "run", "--target=c", "--root", tests,
+            CheckPath(tests, "spec/native_parallel_windows_test.zi")]
+        for argument: command { VecPush(result, argument) }
+        return result
+    }
     if name == "native_backend_policy" || name == "x86_encoder" || name == "aarch64_encoder" ||
         name == "armv7_encoder" {
         VecPush(result, CheckPath(bin, "ziran"))
@@ -158,6 +164,9 @@ DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) 
     }
     if TextContains("native_backend_policy", filter) {
         VecPush(checks, CheckCase.{.name = "native_backend_policy"})
+    }
+    if TextContains("native_worker_pool", filter) {
+        VecPush(checks, CheckCase.{.name = "native_worker_pool"})
     }
     if TextContains("x86_encoder", filter) {
         VecPush(checks, CheckCase.{.name = "x86_encoder", .cost = 2})

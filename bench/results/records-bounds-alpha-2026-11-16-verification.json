@@ -1,0 +1,22 @@
+{
+  "host": "alpha",
+  "series_verified": 50,
+  "samples_per_series": 11,
+  "quartiles": "inclusive linear interpolation",
+  "filter": "symmetric 1.5xIQR",
+  "raw_samples_and_exclusions_recomputed": true,
+  "records_result": "68788",
+  "native_batch_checksum": "2201216",
+  "native_batches": 32,
+  "c_artifact_identical": true,
+  "unchanged_native_controls": [
+    "Sieve",
+    "Hash",
+    "Vectors",
+    "Printing"
+  ],
+  "compiler_and_standard_restoration_guards": true,
+  "causal_speedup_proven": false,
+  "c_parity_achieved": false,
+  "limitation": "Sequential unpinned cohorts. Unchanged Hash native ELF also became faster; earlier identical Records baseline measured differently. Frequency snapshots cannot establish child clock or migration."
+}

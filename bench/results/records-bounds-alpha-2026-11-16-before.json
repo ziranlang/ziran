@@ -1,0 +1,5687 @@
+{
+  "schema_version": 1,
+  "label": "Physical Alpha signed interval lowering before",
+  "host": "alpha \u00b7 Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "virtualization": "none",
+  "measured_at": "2026-11-17T00:43:58.288121+00:00",
+  "samples": 11,
+  "revision": "6a066abdb26d1579bcb1e786ccc42f50fa40f970",
+  "checks": false,
+  "learning": "off",
+  "engine_policy": "explicit-engine",
+  "harness_sha256": {
+    "bench/wasm_tier.py": "5aacc2f712a9a6947c598434dba96156fdb37dcd1e086271b78e6f2a8726910b",
+    "bench/wasm_tier_reference.go": "12bf7226a91eaf198540c95acde47b32b6f0370fc63ec0487aa5a0ad6405d75b",
+    "bench/site_target_host.c": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
+    "bench/site_target_backend.h": "95533f9193a0756044d4ccee581e007c1b119f5c2b3bf71a090792b1a047a5db",
+    "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202"
+  },
+  "compiler_dirty": false,
+  "loadavg_before": [
+    "3.20",
+    "3.02",
+    "3.00"
+  ],
+  "loadavg_after": [
+    "3.18",
+    "3.02",
+    "3.00"
+  ],
+  "runtimes": {
+    "c": "C \u00b7 cc -O2",
+    "go": "Go \u00b7 go build",
+    "zx": "ZX \u00b7 instruction engine",
+    "native": "Native ELF \u00b7 zx2native",
+    "wasm": "WebAssembly \u00b7 zx2wasm in Node / V8"
+  },
+  "methodology": "Warm in-process calls timed by the site matrix harnesses; median per call after symmetric 1.5\u00d7IQR outlier filtering, raw samples and exclusions retained. Every timed checksum and the printed output are verified against the instruction engine. Native samples execute 32 checked calls in one ELF process and divide by 32, amortizing one process startup per sample; other targets exclude process startup. Compilation is excluded.",
+  "kernels": {
+    "Sieve": {
+      "go": {
+        "batch_samples_ms": [
+          17.179142,
+          17.171551,
+          17.050282,
+          17.009753,
+          17.418087,
+          16.982366,
+          17.176056,
+          17.315041,
+          16.964053,
+          16.951369,
+          17.449174
+        ],
+        "batches": 512,
+        "load_ms": 0,
+        "result": "2262",
+        "warmup_count": 4461,
+        "warmup_ms": 150.019878,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.03355301171875,
+          0.033538185546875,
+          0.03330133203125,
+          0.033222173828125,
+          0.034019701171875,
+          0.03316868359375,
+          0.033546984375,
+          0.033818439453125,
+          0.033132916015625,
+          0.033108142578125,
+          0.03408041796875
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0324599833984375,
+          "upper_ms": 0.03442117089843749,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.03355301171875,
+            0.033538185546875,
+            0.03330133203125,
+            0.033222173828125,
+            0.034019701171875,
+            0.03316868359375,
+            0.033546984375,
+            0.033818439453125,
+            0.033132916015625,
+            0.033108142578125,
+            0.03408041796875
+          ],
+          "median_ms": 0.033538185546875
+        },
+        "execution_ms": 0.033538185546875,
+        "checksum": "1158144",
+        "command": "build/wasm-tier/go-reference Sieve 2262 11",
+        "artifact_sha256": "740ad514c2f08200594b97012995919a13633ac87edeae9c87a86251cc52c4dd",
+        "artifact_bytes": 2821362
+      },
+      "zx": {
+        "result": "2262",
+        "batches": 16,
+        "load_ms": 0.261131018,
+        "warmup_ms": 150.291570008,
+        "warmup_count": 123,
+        "batch_samples_ms": [
+          18.745094001,
+          18.424878001,
+          18.56773901,
+          19.088086993,
+          18.405181974,
+          18.893068999,
+          18.468748003,
+          18.551008999,
+          18.950836003,
+          18.510872006,
+          18.47687
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          1.1715683750625,
+          1.1515548750625,
+          1.160483688125,
+          1.1930054370625,
+          1.150323873375,
+          1.1808168124375,
+          1.1542967501875,
+          1.1594380624375,
+          1.1844272501875,
+          1.156929500375,
+          1.154804375
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 1.1220875158593757,
+          "upper_ms": 1.2086556404843747,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            1.1715683750625,
+            1.1515548750625,
+            1.160483688125,
+            1.1930054370625,
+            1.150323873375,
+            1.1808168124375,
+            1.1542967501875,
+            1.1594380624375,
+            1.1844272501875,
+            1.156929500375,
+            1.154804375
+          ],
+          "median_ms": 1.1594380624375
+        },
+        "execution_ms": 1.1594380624375,
+        "checksum": "36192",
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Sieve.zx 2262 11",
+        "artifact_sha256": "5b0943fcf2600ca9977e4cc800d99928f4f0692f2e0013ab8024702dfb9b2a68",
+        "artifact_bytes": 2923
+      },
+      "wasm": {
+        "result": "2262",
+        "batches": 128,
+        "warmup_ms": 150.02608,
+        "warmup_count": 1641,
+        "batch_samples_ms": [
+          11.68574700000002,
+          11.416117000000042,
+          11.576436999999999,
+          11.59325199999995,
+          11.381665999999996,
+          11.33285699999999,
+          11.366810999999984,
+          11.827531999999962,
+          11.712030000000027,
+          11.397917000000007,
+          11.400100000000009
+        ],
+        "load_ms": 1.643220999999997,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.09129489843750016,
+          0.08918841406250033,
+          0.09044091406249999,
+          0.09057228124999961,
+          0.08891926562499997,
+          0.08853794531249992,
+          0.08880321093749988,
+          0.0924025937499997,
+          0.09150023437500021,
+          0.08904622656250005,
+          0.08906328125000007
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0860564804687502,
+          "upper_ms": 0.0938598554687497,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.09129489843750016,
+            0.08918841406250033,
+            0.09044091406249999,
+            0.09057228124999961,
+            0.08891926562499997,
+            0.08853794531249992,
+            0.08880321093749988,
+            0.0924025937499997,
+            0.09150023437500021,
+            0.08904622656250005,
+            0.08906328125000007
+          ],
+          "median_ms": 0.08918841406250033
+        },
+        "execution_ms": 0.08918841406250033,
+        "checksum": "289536",
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Sieve.wasm 2262 11",
+        "artifact_sha256": "3c828b18d899332054bc7cdf38326e284a6e983cd483f81358387fcc87b8ff39",
+        "artifact_bytes": 591
+      },
+      "c": {
+        "result": "2262",
+        "batches": 512,
+        "load_ms": 0.000118017,
+        "warmup_ms": 150.004430979,
+        "warmup_count": 3921,
+        "batch_samples_ms": [
+          17.507833004,
+          17.839718014,
+          17.469309002,
+          17.554592013,
+          17.983014017,
+          17.504857004,
+          17.522573024,
+          17.874430001,
+          17.530015022,
+          17.909740001,
+          17.502705991
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0341949863359375,
+          0.03484319924609375,
+          0.03411974414453125,
+          0.034286312525390626,
+          0.03512307425195312,
+          0.0341891738359375,
+          0.0342237754375,
+          0.034910996095703126,
+          0.03423831058984375,
+          0.034979960939453124,
+          0.03418497263867187
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.033164553708496095,
+          "upper_ms": 0.03590462404833984,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0341949863359375,
+            0.03484319924609375,
+            0.03411974414453125,
+            0.034286312525390626,
+            0.03512307425195312,
+            0.0341891738359375,
+            0.0342237754375,
+            0.034910996095703126,
+            0.03423831058984375,
+            0.034979960939453124,
+            0.03418497263867187
+          ],
+          "median_ms": 0.03423831058984375
+        },
+        "execution_ms": 0.03423831058984375,
+        "checksum": "1158144",
+        "command": "build/wasm-tier/Sieve-c - 2262 11",
+        "artifact_sha256": "1f1c0a605bcd841935120de6df959ecdcbe358c076c5e5ac5393eff4642519de",
+        "artifact_bytes": 17424
+      },
+      "native": {
+        "result": "2262",
+        "batches": 32,
+        "batch_samples_ms": [
+          1.801812,
+          1.795193,
+          1.798524,
+          1.807048,
+          1.795315,
+          1.86418,
+          1.807171,
+          1.787766,
+          1.801773,
+          1.800337,
+          1.783674
+        ],
+        "execution_samples_ms": [
+          0.056306625,
+          0.05609978125,
+          0.056203875,
+          0.05647025,
+          0.05610359375,
+          0.058255625,
+          0.05647409375,
+          0.0558676875,
+          0.05630540625,
+          0.05626053125,
+          0.0557398125
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.055671562499999994,
+          "upper_ms": 0.0568185625,
+          "excluded_indices": [
+            5
+          ],
+          "included_samples_ms": [
+            0.056306625,
+            0.05609978125,
+            0.056203875,
+            0.05647025,
+            0.05610359375,
+            0.05647409375,
+            0.0558676875,
+            0.05630540625,
+            0.05626053125,
+            0.0557398125
+          ],
+          "median_ms": 0.056232203125000005
+        },
+        "execution_ms": 0.056232203125000005,
+        "checksum": "72384",
+        "stdout_verified": true,
+        "warmup_count": 82,
+        "warmup_ms": 182.101031,
+        "host_observations": [
+          {
+            "sample_index": 0,
+            "before": {
+              "monotonic_ns": 267886784988130,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4293836,
+                "cpu1": 4292482,
+                "cpu10": 4288429,
+                "cpu11": 4297556,
+                "cpu2": 4307958,
+                "cpu3": 4300006,
+                "cpu4": 4299621,
+                "cpu5": 4297897,
+                "cpu6": 4300122,
+                "cpu7": 4297397,
+                "cpu8": 4302163,
+                "cpu9": 4309722
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886787317531,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4297170,
+                "cpu1": 4299948,
+                "cpu10": 4297730,
+                "cpu11": 4299577,
+                "cpu2": 4293649,
+                "cpu3": 4299875,
+                "cpu4": 4297785,
+                "cpu5": 4310695,
+                "cpu6": 4307398,
+                "cpu7": 4298857,
+                "cpu8": 4302163,
+                "cpu9": 4296602
+              }
+            }
+          },
+          {
+            "sample_index": 1,
+            "before": {
+              "monotonic_ns": 267886787788785,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4297281,
+                "cpu1": 4299948,
+                "cpu10": 4297730,
+                "cpu11": 4299577,
+                "cpu2": 4293649,
+                "cpu3": 4299875,
+                "cpu4": 4297785,
+                "cpu5": 4310695,
+                "cpu6": 4307398,
+                "cpu7": 4298857,
+                "cpu8": 4302163,
+                "cpu9": 4296602
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886790087830,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4297810,
+                "cpu1": 4300725,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4299987,
+                "cpu3": 4298897,
+                "cpu4": 4297785,
+                "cpu5": 4313111,
+                "cpu6": 4303142,
+                "cpu7": 4303782,
+                "cpu8": 4302163,
+                "cpu9": 4296212
+              }
+            }
+          },
+          {
+            "sample_index": 2,
+            "before": {
+              "monotonic_ns": 267886790556428,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4287473,
+                "cpu1": 4299937,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4299988,
+                "cpu3": 4297991,
+                "cpu4": 4297785,
+                "cpu5": 4304471,
+                "cpu6": 4300658,
+                "cpu7": 4303782,
+                "cpu8": 4302163,
+                "cpu9": 4296212
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886792847199,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4300826,
+                "cpu1": 4293025,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4296523,
+                "cpu3": 4300026,
+                "cpu4": 4297785,
+                "cpu5": 4282806,
+                "cpu6": 4299156,
+                "cpu7": 4309449,
+                "cpu8": 4302163,
+                "cpu9": 4289391
+              }
+            }
+          },
+          {
+            "sample_index": 3,
+            "before": {
+              "monotonic_ns": 267886793328895,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4296682,
+                "cpu1": 4300028,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4302027,
+                "cpu3": 4299834,
+                "cpu4": 4297785,
+                "cpu5": 4307185,
+                "cpu6": 4302195,
+                "cpu7": 4294565,
+                "cpu8": 4302163,
+                "cpu9": 4301080
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886795632496,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4297423,
+                "cpu1": 4298596,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4296122,
+                "cpu3": 4300004,
+                "cpu4": 4297785,
+                "cpu5": 4294411,
+                "cpu6": 4301011,
+                "cpu7": 4300805,
+                "cpu8": 4302163,
+                "cpu9": 4297679
+              }
+            }
+          },
+          {
+            "sample_index": 4,
+            "before": {
+              "monotonic_ns": 267886796111104,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4297423,
+                "cpu1": 4298596,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4296122,
+                "cpu3": 4300004,
+                "cpu4": 4297785,
+                "cpu5": 4294411,
+                "cpu6": 4301011,
+                "cpu7": 4307295,
+                "cpu8": 4302163,
+                "cpu9": 4299000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886798414027,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298841,
+                "cpu1": 4299883,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4300011,
+                "cpu3": 4307826,
+                "cpu4": 4297785,
+                "cpu5": 4293558,
+                "cpu6": 4308841,
+                "cpu7": 4304597,
+                "cpu8": 800000,
+                "cpu9": 4293050
+              }
+            }
+          },
+          {
+            "sample_index": 5,
+            "before": {
+              "monotonic_ns": 267886798878227,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298841,
+                "cpu1": 4299883,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4300011,
+                "cpu3": 4307826,
+                "cpu4": 4297785,
+                "cpu5": 4293558,
+                "cpu6": 4308841,
+                "cpu7": 4304597,
+                "cpu8": 800000,
+                "cpu9": 4293050
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886801292864,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298841,
+                "cpu1": 4300093,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4300102,
+                "cpu3": 4293144,
+                "cpu4": 4297785,
+                "cpu5": 4299264,
+                "cpu6": 4312806,
+                "cpu7": 4299032,
+                "cpu8": 800000,
+                "cpu9": 4293050
+              }
+            }
+          },
+          {
+            "sample_index": 6,
+            "before": {
+              "monotonic_ns": 267886801765397,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298841,
+                "cpu1": 4300093,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4300102,
+                "cpu3": 4293144,
+                "cpu4": 4297785,
+                "cpu5": 4299264,
+                "cpu6": 4312806,
+                "cpu7": 4299032,
+                "cpu8": 800000,
+                "cpu9": 4293050
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886804080721,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298841,
+                "cpu1": 4299112,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4299707,
+                "cpu3": 4300010,
+                "cpu4": 4297785,
+                "cpu5": 4297720,
+                "cpu6": 4295434,
+                "cpu7": 4301203,
+                "cpu8": 800000,
+                "cpu9": 4293050
+              }
+            }
+          },
+          {
+            "sample_index": 7,
+            "before": {
+              "monotonic_ns": 267886804556578,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298841,
+                "cpu1": 4300007,
+                "cpu10": 4296182,
+                "cpu11": 4297898,
+                "cpu2": 4296740,
+                "cpu3": 4299952,
+                "cpu4": 4297785,
+                "cpu5": 4306344,
+                "cpu6": 4305069,
+                "cpu7": 4301203,
+                "cpu8": 800000,
+                "cpu9": 4293050
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886806840717,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298841,
+                "cpu1": 4301686,
+                "cpu10": 4300137,
+                "cpu11": 4297898,
+                "cpu2": 4300010,
+                "cpu3": 4293998,
+                "cpu4": 4297785,
+                "cpu5": 4286492,
+                "cpu6": 4301522,
+                "cpu7": 4301306,
+                "cpu8": 800000,
+                "cpu9": 4300568
+              }
+            }
+          },
+          {
+            "sample_index": 8,
+            "before": {
+              "monotonic_ns": 267886807316901,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298841,
+                "cpu1": 4300079,
+                "cpu10": 4300137,
+                "cpu11": 4297898,
+                "cpu2": 4299885,
+                "cpu3": 4287813,
+                "cpu4": 4297785,
+                "cpu5": 4307099,
+                "cpu6": 4294081,
+                "cpu7": 4301704,
+                "cpu8": 800000,
+                "cpu9": 4304035
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886809612498,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298591,
+                "cpu1": 4305101,
+                "cpu10": 4300137,
+                "cpu11": 800000,
+                "cpu2": 4288918,
+                "cpu3": 4310385,
+                "cpu4": 800000,
+                "cpu5": 4307099,
+                "cpu6": 4303255,
+                "cpu7": 4300372,
+                "cpu8": 4299530,
+                "cpu9": 4299974
+              }
+            }
+          },
+          {
+            "sample_index": 9,
+            "before": {
+              "monotonic_ns": 267886810090233,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298591,
+                "cpu1": 4305101,
+                "cpu10": 4300137,
+                "cpu11": 800000,
+                "cpu2": 4288918,
+                "cpu3": 4310385,
+                "cpu4": 800000,
+                "cpu5": 4307099,
+                "cpu6": 4303255,
+                "cpu7": 4316136,
+                "cpu8": 4299408,
+                "cpu9": 4300219
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886812413609,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298591,
+                "cpu1": 4300418,
+                "cpu10": 4300137,
+                "cpu11": 800000,
+                "cpu2": 4306089,
+                "cpu3": 4292592,
+                "cpu4": 800000,
+                "cpu5": 4307099,
+                "cpu6": 4306275,
+                "cpu7": 4301780,
+                "cpu8": 4299993,
+                "cpu9": 4302914
+              }
+            }
+          },
+          {
+            "sample_index": 10,
+            "before": {
+              "monotonic_ns": 267886812880380,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298591,
+                "cpu1": 4300418,
+                "cpu10": 4300137,
+                "cpu11": 800000,
+                "cpu2": 4306089,
+                "cpu3": 4292592,
+                "cpu4": 800000,
+                "cpu5": 4307099,
+                "cpu6": 4306275,
+                "cpu7": 4301780,
+                "cpu8": 4299993,
+                "cpu9": 4302914
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886815302043,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298591,
+                "cpu1": 4299316,
+                "cpu10": 4300240,
+                "cpu11": 800000,
+                "cpu2": 4299462,
+                "cpu3": 4292617,
+                "cpu4": 800000,
+                "cpu5": 4299118,
+                "cpu6": 4297360,
+                "cpu7": 4300076,
+                "cpu8": 4299994,
+                "cpu9": 4302289
+              }
+            }
+          }
+        ],
+        "host_observation_scope": "Untimed Linux sysfs snapshots for all logical CPUs, not the clock frequency of the child process; an unpinned process can migrate. Missing readings are null. Observations do not filter timing samples or change affinity or governor.",
+        "command": "build/wasm-tier/Sieve.native",
+        "artifact_sha256": "3c2a0502fafd3b966a99ebc6062a38b48b89a9288917ad218b57280e013f49c3",
+        "artifact_bytes": 928
+      }
+    },
+    "Records": {
+      "wasm": {
+        "result": "68788",
+        "batches": 256,
+        "warmup_ms": 150.016545,
+        "warmup_count": 3349,
+        "batch_samples_ms": [
+          11.113599999999991,
+          11.087571000000025,
+          10.807934999999986,
+          10.931973999999968,
+          10.853394999999978,
+          10.517180999999994,
+          10.924533999999994,
+          10.937220000000025,
+          10.647033000000022,
+          10.850682999999947,
+          10.96858199999997
+        ],
+        "load_ms": 1.7170190000000005,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.043412499999999965,
+          0.0433108242187501,
+          0.042218496093749946,
+          0.042703023437499876,
+          0.04239607421874991,
+          0.041082738281249975,
+          0.04267396093749998,
+          0.0427235156250001,
+          0.041589972656250085,
+          0.04238548046874979,
+          0.04284602343749988
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.04157781640624969,
+          "upper_ms": 0.04350894140625017,
+          "excluded_indices": [
+            5
+          ],
+          "included_samples_ms": [
+            0.043412499999999965,
+            0.0433108242187501,
+            0.042218496093749946,
+            0.042703023437499876,
+            0.04239607421874991,
+            0.04267396093749998,
+            0.0427235156250001,
+            0.041589972656250085,
+            0.04238548046874979,
+            0.04284602343749988
+          ],
+          "median_ms": 0.04268849218749993
+        },
+        "execution_ms": 0.04268849218749993,
+        "checksum": "17609728",
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Records.wasm 68788 11",
+        "artifact_sha256": "58a1a5f42e31f3fb7b0211c1326552a8797633f0b2197037f0836ae4a52404f5",
+        "artifact_bytes": 3388
+      },
+      "go": {
+        "batch_samples_ms": [
+          13.89348,
+          13.529875,
+          13.464694,
+          13.931121,
+          13.531587,
+          13.468109,
+          13.451969,
+          13.925125,
+          13.476253,
+          13.47263,
+          13.476391
+        ],
+        "batches": 1024,
+        "load_ms": 0,
+        "result": "68788",
+        "warmup_count": 11051,
+        "warmup_ms": 150.006343,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0135678515625,
+          0.0132127685546875,
+          0.013149115234375,
+          0.0136046103515625,
+          0.0132144404296875,
+          0.0131524501953125,
+          0.0131366884765625,
+          0.0135987548828125,
+          0.0131604033203125,
+          0.013156865234375,
+          0.0131605380859375
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.012799925292968752,
+          "upper_ms": 0.013745878417968748,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0135678515625,
+            0.0132127685546875,
+            0.013149115234375,
+            0.0136046103515625,
+            0.0132144404296875,
+            0.0131524501953125,
+            0.0131366884765625,
+            0.0135987548828125,
+            0.0131604033203125,
+            0.013156865234375,
+            0.0131605380859375
+          ],
+          "median_ms": 0.0131605380859375
+        },
+        "execution_ms": 0.0131605380859375,
+        "checksum": "70438912",
+        "command": "build/wasm-tier/go-reference Records 68788 11",
+        "artifact_sha256": "740ad514c2f08200594b97012995919a13633ac87edeae9c87a86251cc52c4dd",
+        "artifact_bytes": 2821362
+      },
+      "c": {
+        "result": "68788",
+        "batches": 1024,
+        "load_ms": 5.3018e-05,
+        "warmup_ms": 150.005313009,
+        "warmup_count": 9097,
+        "batch_samples_ms": [
+          17.509667993,
+          17.116757989,
+          17.00208202,
+          16.839697987,
+          16.738501996,
+          16.787338018,
+          16.802778006,
+          16.845501006,
+          16.955134004,
+          16.789590001,
+          16.747819006
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.017099285149414063,
+          0.016715583973632812,
+          0.01660359572265625,
+          0.01644501756542969,
+          0.01634619335546875,
+          0.016393884783203125,
+          0.016408962896484375,
+          0.016450684576171874,
+          0.01655774805078125,
+          0.016396083985351563,
+          0.016355291998046875
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.01611645313061523,
+          "upper_ms": 0.016859203140380863,
+          "excluded_indices": [
+            0
+          ],
+          "included_samples_ms": [
+            0.016715583973632812,
+            0.01660359572265625,
+            0.01644501756542969,
+            0.01634619335546875,
+            0.016393884783203125,
+            0.016408962896484375,
+            0.016450684576171874,
+            0.01655774805078125,
+            0.016396083985351563,
+            0.016355291998046875
+          ],
+          "median_ms": 0.016426990230957034
+        },
+        "execution_ms": 0.016426990230957034,
+        "checksum": "70438912",
+        "command": "build/wasm-tier/Records-c - 68788 11",
+        "artifact_sha256": "e29201073a45f1245e5ccd37ccad74a5c2e0e1d16178638c3ef4e0aa20e8cd78",
+        "artifact_bytes": 17368
+      },
+      "zx": {
+        "result": "68788",
+        "batches": 8,
+        "load_ms": 0.540174991,
+        "warmup_ms": 151.858399987,
+        "warmup_count": 71,
+        "batch_samples_ms": [
+          16.434100002,
+          16.471848011,
+          16.957620978,
+          16.468245,
+          16.450232983,
+          16.769253016,
+          16.244491011,
+          16.632917017,
+          18.794428021,
+          17.077749014,
+          16.404206991
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          2.05426250025,
+          2.058981001375,
+          2.11970262225,
+          2.058530625,
+          2.056279122875,
+          2.096156627,
+          2.030561376375,
+          2.079114627125,
+          2.349303502625,
+          2.13471862675,
+          2.050525873875
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 1.97628259196875,
+          "upper_ms": 2.1869178442187502,
+          "excluded_indices": [
+            8
+          ],
+          "included_samples_ms": [
+            2.05426250025,
+            2.058981001375,
+            2.11970262225,
+            2.058530625,
+            2.056279122875,
+            2.096156627,
+            2.030561376375,
+            2.079114627125,
+            2.13471862675,
+            2.050525873875
+          ],
+          "median_ms": 2.0587558131875
+        },
+        "execution_ms": 2.0587558131875,
+        "checksum": "550304",
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Records.zx 68788 11",
+        "artifact_sha256": "15e46388bcf71ed16d291e745d1d57c7d2893ff2e41e81d42e6f5e1300e10c0e",
+        "artifact_bytes": 11643
+      },
+      "native": {
+        "result": "68788",
+        "batches": 32,
+        "batch_samples_ms": [
+          2.154982,
+          2.217051,
+          2.162915,
+          2.152455,
+          2.151294,
+          2.157192,
+          2.148669,
+          2.154716,
+          2.169306,
+          2.222429,
+          2.169967
+        ],
+        "execution_samples_ms": [
+          0.0673431875,
+          0.06928284375,
+          0.06759109375,
+          0.06726421875,
+          0.0672279375,
+          0.06741225,
+          0.06714590625,
+          0.067334875,
+          0.0677908125,
+          0.06945090625,
+          0.06781146875
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.06654715625,
+          "upper_ms": 0.06855353125000001,
+          "excluded_indices": [
+            1,
+            9
+          ],
+          "included_samples_ms": [
+            0.0673431875,
+            0.06759109375,
+            0.06726421875,
+            0.0672279375,
+            0.06741225,
+            0.06714590625,
+            0.067334875,
+            0.0677908125,
+            0.06781146875
+          ],
+          "median_ms": 0.0673431875
+        },
+        "execution_ms": 0.0673431875,
+        "checksum": "2201216",
+        "stdout_verified": true,
+        "warmup_count": 112,
+        "warmup_ms": 195.271091,
+        "host_observations": [
+          {
+            "sample_index": 0,
+            "before": {
+              "monotonic_ns": 267886209344849,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500594,
+                "cpu1": 3401044,
+                "cpu10": 2501390,
+                "cpu11": 800000,
+                "cpu2": 3287617,
+                "cpu3": 2808277,
+                "cpu4": 800000,
+                "cpu5": 2500903,
+                "cpu6": 2500016,
+                "cpu7": 2499939,
+                "cpu8": 2500267,
+                "cpu9": 3700753
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886212525712,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2501986,
+                "cpu1": 3401044,
+                "cpu10": 2499968,
+                "cpu11": 800000,
+                "cpu2": 3287617,
+                "cpu3": 2808277,
+                "cpu4": 800000,
+                "cpu5": 2500903,
+                "cpu6": 2500007,
+                "cpu7": 2500302,
+                "cpu8": 2500097,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 1,
+            "before": {
+              "monotonic_ns": 267886213472617,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500166,
+                "cpu1": 3401044,
+                "cpu10": 2499968,
+                "cpu11": 800000,
+                "cpu2": 3287617,
+                "cpu3": 2738576,
+                "cpu4": 800000,
+                "cpu5": 2500903,
+                "cpu6": 2500017,
+                "cpu7": 2500012,
+                "cpu8": 2499971,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886216613408,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500610,
+                "cpu1": 2613263,
+                "cpu10": 2500052,
+                "cpu11": 2499996,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2500012,
+                "cpu7": 2499009,
+                "cpu8": 2501537,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 2,
+            "before": {
+              "monotonic_ns": 267886217463793,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500610,
+                "cpu1": 2613263,
+                "cpu10": 2500783,
+                "cpu11": 2500396,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2499999,
+                "cpu7": 2500524,
+                "cpu8": 2500109,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886220550839,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500264,
+                "cpu1": 2613263,
+                "cpu10": 2500489,
+                "cpu11": 2499982,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2500092,
+                "cpu7": 2500731,
+                "cpu8": 2501097,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 3,
+            "before": {
+              "monotonic_ns": 267886221402047,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500264,
+                "cpu1": 2613263,
+                "cpu10": 2500489,
+                "cpu11": 2499982,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2499997,
+                "cpu7": 2500028,
+                "cpu8": 2500462,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886224459318,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500080,
+                "cpu1": 2613263,
+                "cpu10": 2500640,
+                "cpu11": 2499998,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2500006,
+                "cpu7": 2500833,
+                "cpu8": 2499818,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 4,
+            "before": {
+              "monotonic_ns": 267886225329750,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500108,
+                "cpu1": 2613263,
+                "cpu10": 2501557,
+                "cpu11": 2499998,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2499983,
+                "cpu7": 2500542,
+                "cpu8": 2500843,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886228407576,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500236,
+                "cpu1": 2613263,
+                "cpu10": 2500635,
+                "cpu11": 2500007,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2500014,
+                "cpu7": 2500311,
+                "cpu8": 2501461,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 5,
+            "before": {
+              "monotonic_ns": 267886229269167,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500219,
+                "cpu1": 2613263,
+                "cpu10": 2500699,
+                "cpu11": 2499977,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2499987,
+                "cpu7": 2500311,
+                "cpu8": 2500184,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886232348040,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2499920,
+                "cpu1": 2613263,
+                "cpu10": 2500699,
+                "cpu11": 2500003,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2499988,
+                "cpu7": 2500311,
+                "cpu8": 2499752,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 6,
+            "before": {
+              "monotonic_ns": 267886233195124,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2501282,
+                "cpu1": 2613263,
+                "cpu10": 2500699,
+                "cpu11": 2500001,
+                "cpu2": 2516394,
+                "cpu3": 2500005,
+                "cpu4": 800000,
+                "cpu5": 2500006,
+                "cpu6": 2500031,
+                "cpu7": 2500311,
+                "cpu8": 2500282,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886236273051,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500070,
+                "cpu1": 800000,
+                "cpu10": 2500699,
+                "cpu11": 2500004,
+                "cpu2": 800000,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2500048,
+                "cpu7": 2500311,
+                "cpu8": 2500898,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 7,
+            "before": {
+              "monotonic_ns": 267886237123393,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500070,
+                "cpu1": 800000,
+                "cpu10": 2500699,
+                "cpu11": 2499989,
+                "cpu2": 800000,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2500048,
+                "cpu7": 2500311,
+                "cpu8": 2500668,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886240194896,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500157,
+                "cpu1": 800000,
+                "cpu10": 2500699,
+                "cpu11": 2500006,
+                "cpu2": 800000,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2500012,
+                "cpu7": 2500374,
+                "cpu8": 2501184,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 8,
+            "before": {
+              "monotonic_ns": 267886241060718,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500002,
+                "cpu1": 800000,
+                "cpu10": 2500699,
+                "cpu11": 2499973,
+                "cpu2": 800000,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2500012,
+                "cpu7": 2500374,
+                "cpu8": 2501184,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886244122780,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500001,
+                "cpu1": 800000,
+                "cpu10": 2500699,
+                "cpu11": 2500009,
+                "cpu2": 800000,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2495705,
+                "cpu7": 2500374,
+                "cpu8": 2500005,
+                "cpu9": 2647103
+              }
+            }
+          },
+          {
+            "sample_index": 9,
+            "before": {
+              "monotonic_ns": 267886244942261,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500001,
+                "cpu1": 800000,
+                "cpu10": 2500699,
+                "cpu11": 2500016,
+                "cpu2": 800000,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2500038,
+                "cpu7": 2500009,
+                "cpu8": 2500005,
+                "cpu9": 2647103
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886248032567,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2499941,
+                "cpu1": 800000,
+                "cpu10": 2500699,
+                "cpu11": 2500010,
+                "cpu2": 800000,
+                "cpu3": 2500024,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2498046,
+                "cpu7": 2500000,
+                "cpu8": 2499995,
+                "cpu9": 2647103
+              }
+            }
+          },
+          {
+            "sample_index": 10,
+            "before": {
+              "monotonic_ns": 267886248839275,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2499941,
+                "cpu1": 800000,
+                "cpu10": 2500699,
+                "cpu11": 2499980,
+                "cpu2": 800000,
+                "cpu3": 2500024,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2502426,
+                "cpu7": 2500002,
+                "cpu8": 2500008,
+                "cpu9": 2647103
+              }
+            },
+            "after": {
+              "monotonic_ns": 267886251868110,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 2500386,
+                "cpu1": 800000,
+                "cpu10": 800000,
+                "cpu11": 2499999,
+                "cpu2": 800000,
+                "cpu3": 2500024,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 2500033,
+                "cpu7": 2499998,
+                "cpu8": 2500471,
+                "cpu9": 2647103
+              }
+            }
+          }
+        ],
+        "host_observation_scope": "Untimed Linux sysfs snapshots for all logical CPUs, not the clock frequency of the child process; an unpinned process can migrate. Missing readings are null. Observations do not filter timing samples or change affinity or governor.",
+        "command": "build/wasm-tier/Records.native",
+        "artifact_sha256": "1c93e584ee03d9adf5559f232ad2d4c3182c1c79b09b44bbfbcdc67458fb5d72",
+        "artifact_bytes": 2816
+      }
+    },
+    "Hash": {
+      "zx": {
+        "result": "117287868",
+        "batches": 8,
+        "load_ms": 0.19015801,
+        "warmup_ms": 150.567588001,
+        "warmup_count": 111,
+        "batch_samples_ms": [
+          10.620914996,
+          10.55944398,
+          11.048777014,
+          10.543099999,
+          10.57286498,
+          10.686655998,
+          10.660664976,
+          10.976841003,
+          10.573357999,
+          10.756063998,
+          10.739163995
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          1.3276143745,
+          1.3199304975,
+          1.38109712675,
+          1.317887499875,
+          1.3216081225,
+          1.33583199975,
+          1.332583122,
+          1.372105125375,
+          1.321669749875,
+          1.34450799975,
+          1.342395499375
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 1.2889197161250001,
+          "upper_ms": 1.376170969625,
+          "excluded_indices": [
+            2
+          ],
+          "included_samples_ms": [
+            1.3276143745,
+            1.3199304975,
+            1.317887499875,
+            1.3216081225,
+            1.33583199975,
+            1.332583122,
+            1.372105125375,
+            1.321669749875,
+            1.34450799975,
+            1.342395499375
+          ],
+          "median_ms": 1.33009874825
+        },
+        "execution_ms": 1.33009874825,
+        "checksum": "938302944",
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Hash.zx 117287868 11",
+        "artifact_sha256": "ca8aff0b70601f140f3a152b440141d17d378f120679ed425f25b62766cc8334",
+        "artifact_bytes": 3331
+      },
+      "c": {
+        "result": "117287868",
+        "batches": 512,
+        "load_ms": 6.1005e-05,
+        "warmup_ms": 150.016445994,
+        "warmup_count": 5414,
+        "batch_samples_ms": [
+          14.002765,
+          13.993612975,
+          13.998685002,
+          14.249361992,
+          13.990146995,
+          14.10680598,
+          14.189365,
+          14.28895399,
+          14.389420003,
+          14.509691,
+          14.536653012
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.027349150390625,
+          0.027331275341796874,
+          0.02734118164453125,
+          0.027830785140625,
+          0.027324505849609375,
+          0.0275523554296875,
+          0.027713603515625,
+          0.02790811326171875,
+          0.028104335943359374,
+          0.028339240234375,
+          0.0283919004140625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.026353578140136714,
+          "upper_ms": 0.028997812479980473,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.027349150390625,
+            0.027331275341796874,
+            0.02734118164453125,
+            0.027830785140625,
+            0.027324505849609375,
+            0.0275523554296875,
+            0.027713603515625,
+            0.02790811326171875,
+            0.028104335943359374,
+            0.028339240234375,
+            0.0283919004140625
+          ],
+          "median_ms": 0.027713603515625
+        },
+        "execution_ms": 0.027713603515625,
+        "checksum": "60051388416",
+        "command": "build/wasm-tier/Hash-c - 117287868 11",
+        "artifact_sha256": "f20dab4369f77891b4fb19a96f2b149ead59e1c9ae790fa9de59d1be2f704923",
+        "artifact_bytes": 17368
+      },
+      "go": {
+        "batch_samples_ms": [
+          14.027627,
+          14.027611,
+          14.392602,
+          14.07951,
+          14.024027,
+          14.083097,
+          14.149287,
+          14.004351,
+          14.012306,
+          14.00709,
+          14.154196
+        ],
+        "batches": 512,
+        "load_ms": 0,
+        "result": "117287868",
+        "warmup_count": 5355,
+        "warmup_ms": 150.020009,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.027397708984375,
+          0.027397677734375,
+          0.02811055078125,
+          0.02749904296875,
+          0.027390677734375,
+          0.027506048828125,
+          0.027635326171875,
+          0.027352248046875,
+          0.02736778515625,
+          0.02735759765625,
+          0.0276449140625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.027092047363281246,
+          "upper_ms": 0.02785787158203125,
+          "excluded_indices": [
+            2
+          ],
+          "included_samples_ms": [
+            0.027397708984375,
+            0.027397677734375,
+            0.02749904296875,
+            0.027390677734375,
+            0.027506048828125,
+            0.027635326171875,
+            0.027352248046875,
+            0.02736778515625,
+            0.02735759765625,
+            0.0276449140625
+          ],
+          "median_ms": 0.027397693359375003
+        },
+        "execution_ms": 0.027397693359375003,
+        "checksum": "60051388416",
+        "command": "build/wasm-tier/go-reference Hash 117287868 11",
+        "artifact_sha256": "740ad514c2f08200594b97012995919a13633ac87edeae9c87a86251cc52c4dd",
+        "artifact_bytes": 2821362
+      },
+      "wasm": {
+        "result": "117287868",
+        "batches": 512,
+        "warmup_ms": 150.01593200000002,
+        "warmup_count": 4509,
+        "batch_samples_ms": [
+          16.578624999999988,
+          16.466711999999973,
+          16.334912999999972,
+          16.686480000000017,
+          16.314937999999984,
+          16.438965999999994,
+          17.44617599999998,
+          16.915955999999994,
+          16.297260999999992,
+          16.528662000000054,
+          16.70847200000003
+        ],
+        "load_ms": 1.753664999999991,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.03238012695312498,
+          0.03216154687499995,
+          0.031904126953124945,
+          0.032590781250000034,
+          0.03186511328124997,
+          0.03210735546874999,
+          0.03407456249999996,
+          0.03303897656249999,
+          0.031830587890624984,
+          0.032282542968750105,
+          0.032633734375000056
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.031095966308593598,
+          "upper_ms": 0.03352203271484391,
+          "excluded_indices": [
+            6
+          ],
+          "included_samples_ms": [
+            0.03238012695312498,
+            0.03216154687499995,
+            0.031904126953124945,
+            0.032590781250000034,
+            0.03186511328124997,
+            0.03210735546874999,
+            0.03303897656249999,
+            0.031830587890624984,
+            0.032282542968750105,
+            0.032633734375000056
+          ],
+          "median_ms": 0.032222044921875026
+        },
+        "execution_ms": 0.032222044921875026,
+        "checksum": "60051388416",
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Hash.wasm 117287868 11",
+        "artifact_sha256": "825e3d56451e82d0955e568fb61d34cd6bf7c0f4481ef19c7d34871aeaa72b0c",
+        "artifact_bytes": 622
+      },
+      "native": {
+        "result": "117287868",
+        "batches": 32,
+        "batch_samples_ms": [
+          1.365938,
+          1.356573,
+          1.45674,
+          1.472074,
+          1.472224,
+          1.460057,
+          1.454606,
+          1.481656,
+          1.481862,
+          1.453949,
+          1.477754
+        ],
+        "execution_samples_ms": [
+          0.0426855625,
+          0.04239290625,
+          0.045523125,
+          0.0460023125,
+          0.046007,
+          0.04562678125,
+          0.0454564375,
+          0.04630175,
+          0.0463081875,
+          0.04543590625,
+          0.0461798125
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0444753203125,
+          "upper_ms": 0.047064257812499996,
+          "excluded_indices": [
+            0,
+            1
+          ],
+          "included_samples_ms": [
+            0.045523125,
+            0.0460023125,
+            0.046007,
+            0.04562678125,
+            0.0454564375,
+            0.04630175,
+            0.0463081875,
+            0.04543590625,
+            0.0461798125
+          ],
+          "median_ms": 0.0460023125
+        },
+        "execution_ms": 0.0460023125,
+        "checksum": "3753211776",
+        "stdout_verified": true,
+        "warmup_count": 127,
+        "warmup_ms": 180.950386,
+        "host_observations": [
+          {
+            "sample_index": 0,
+            "before": {
+              "monotonic_ns": 267884280775048,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3848661,
+                "cpu1": 3936263,
+                "cpu10": 4299932,
+                "cpu11": 800000,
+                "cpu2": 3931138,
+                "cpu3": 4300073,
+                "cpu4": 3837263,
+                "cpu5": 3925788,
+                "cpu6": 3983247,
+                "cpu7": 3841638,
+                "cpu8": 800000,
+                "cpu9": 4311682
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884282740695,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3848661,
+                "cpu1": 3701784,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3703324,
+                "cpu3": 800000,
+                "cpu4": 3701682,
+                "cpu5": 3700022,
+                "cpu6": 3700442,
+                "cpu7": 3841638,
+                "cpu8": 800000,
+                "cpu9": 4311682
+              }
+            }
+          },
+          {
+            "sample_index": 1,
+            "before": {
+              "monotonic_ns": 267884283338536,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3848661,
+                "cpu1": 3701784,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3699612,
+                "cpu3": 800000,
+                "cpu4": 3701096,
+                "cpu5": 3699953,
+                "cpu6": 3699998,
+                "cpu7": 3841638,
+                "cpu8": 800000,
+                "cpu9": 4311682
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884285376539,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3848661,
+                "cpu1": 3700893,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3559663,
+                "cpu3": 800000,
+                "cpu4": 3615480,
+                "cpu5": 3698769,
+                "cpu6": 3487973,
+                "cpu7": 3841638,
+                "cpu8": 800000,
+                "cpu9": 3528205
+              }
+            }
+          },
+          {
+            "sample_index": 2,
+            "before": {
+              "monotonic_ns": 267884285985477,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3848661,
+                "cpu1": 3569243,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3559663,
+                "cpu3": 800000,
+                "cpu4": 3615480,
+                "cpu5": 3698769,
+                "cpu6": 3487973,
+                "cpu7": 3841638,
+                "cpu8": 800000,
+                "cpu9": 3528205
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884288130363,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3400405,
+                "cpu1": 3400502,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400591,
+                "cpu3": 800000,
+                "cpu4": 3400230,
+                "cpu5": 3400025,
+                "cpu6": 3400023,
+                "cpu7": 3841638,
+                "cpu8": 800000,
+                "cpu9": 3399946
+              }
+            }
+          },
+          {
+            "sample_index": 3,
+            "before": {
+              "monotonic_ns": 267884288736912,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3400405,
+                "cpu1": 3400262,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400764,
+                "cpu3": 800000,
+                "cpu4": 3401496,
+                "cpu5": 3400021,
+                "cpu6": 3400042,
+                "cpu7": 3841638,
+                "cpu8": 800000,
+                "cpu9": 3399946
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884290856477,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3402368,
+                "cpu1": 3402492,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3402095,
+                "cpu3": 800000,
+                "cpu4": 3403043,
+                "cpu5": 3399996,
+                "cpu6": 3399683,
+                "cpu7": 3445720,
+                "cpu8": 800000,
+                "cpu9": 3399946
+              }
+            }
+          },
+          {
+            "sample_index": 4,
+            "before": {
+              "monotonic_ns": 267884291510068,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3402368,
+                "cpu1": 3402492,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3402095,
+                "cpu3": 800000,
+                "cpu4": 3400128,
+                "cpu5": 3400080,
+                "cpu6": 3400022,
+                "cpu7": 3403651,
+                "cpu8": 800000,
+                "cpu9": 3399946
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884293632081,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3402368,
+                "cpu1": 3402492,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400094,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3399997,
+                "cpu6": 3400296,
+                "cpu7": 3403651,
+                "cpu8": 800000,
+                "cpu9": 3399946
+              }
+            }
+          },
+          {
+            "sample_index": 5,
+            "before": {
+              "monotonic_ns": 267884294250801,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3402368,
+                "cpu1": 3402492,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400094,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400264,
+                "cpu6": 3399975,
+                "cpu7": 3403651,
+                "cpu8": 4215031,
+                "cpu9": 3399946
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884296382323,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401529,
+                "cpu1": 3402492,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400094,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400014,
+                "cpu6": 3400023,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 3399946
+              }
+            }
+          },
+          {
+            "sample_index": 6,
+            "before": {
+              "monotonic_ns": 267884296991611,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401529,
+                "cpu1": 3402492,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400094,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400014,
+                "cpu6": 3400023,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 3399946
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884299132256,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401529,
+                "cpu1": 3402492,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400094,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400018,
+                "cpu6": 3399973,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 3399946
+              }
+            }
+          },
+          {
+            "sample_index": 7,
+            "before": {
+              "monotonic_ns": 267884299730505,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401529,
+                "cpu1": 3402492,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400094,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400004,
+                "cpu6": 3399973,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 3399946
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884301855980,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401529,
+                "cpu1": 3399983,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400094,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400479,
+                "cpu6": 3399887,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 3399946
+              }
+            }
+          },
+          {
+            "sample_index": 8,
+            "before": {
+              "monotonic_ns": 267884302507685,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401529,
+                "cpu1": 3400094,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3400173,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400964,
+                "cpu6": 3400013,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 3399946
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884304645843,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401471,
+                "cpu1": 3399398,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3399335,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400004,
+                "cpu6": 3400693,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 3399946
+              }
+            }
+          },
+          {
+            "sample_index": 9,
+            "before": {
+              "monotonic_ns": 267884305266906,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401471,
+                "cpu1": 3399398,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3399335,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400198,
+                "cpu6": 3400016,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 3399946
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884307396389,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3401471,
+                "cpu1": 3402422,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3399335,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3399993,
+                "cpu6": 3400097,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 800000
+              }
+            }
+          },
+          {
+            "sample_index": 10,
+            "before": {
+              "monotonic_ns": 267884308012755,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3400611,
+                "cpu1": 3402422,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3399335,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3399993,
+                "cpu6": 3400097,
+                "cpu7": 3403651,
+                "cpu8": 3400893,
+                "cpu9": 800000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884310220171,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 3399988,
+                "cpu1": 3400009,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 3399335,
+                "cpu3": 800000,
+                "cpu4": 3400157,
+                "cpu5": 3400272,
+                "cpu6": 3400036,
+                "cpu7": 3400002,
+                "cpu8": 3399881,
+                "cpu9": 800000
+              }
+            }
+          }
+        ],
+        "host_observation_scope": "Untimed Linux sysfs snapshots for all logical CPUs, not the clock frequency of the child process; an unpinned process can migrate. Missing readings are null. Observations do not filter timing samples or change affinity or governor.",
+        "command": "build/wasm-tier/Hash.native",
+        "artifact_sha256": "5cd683acb893f414640535410d7a9ea4ff35660953e38c12301fd4d66ae243a3",
+        "artifact_bytes": 704
+      }
+    },
+    "Vectors": {
+      "go": {
+        "batch_samples_ms": [
+          14.863088,
+          15.55872,
+          15.17835,
+          14.801661,
+          14.843567,
+          14.843169,
+          14.711226,
+          15.216253,
+          15.186152,
+          15.341458,
+          15.508074
+        ],
+        "batches": 256,
+        "load_ms": 0,
+        "result": "94905000",
+        "warmup_count": 2510,
+        "warmup_ms": 150.03309,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0580589375,
+          0.06077625,
+          0.0592904296875,
+          0.05781898828125,
+          0.05798268359375,
+          0.05798112890625,
+          0.0574657265625,
+          0.05943848828125,
+          0.05932090625,
+          0.0599275703125,
+          0.0605784140625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0554302216796875,
+          "upper_ms": 0.062234713867187486,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0580589375,
+            0.06077625,
+            0.0592904296875,
+            0.05781898828125,
+            0.05798268359375,
+            0.05798112890625,
+            0.0574657265625,
+            0.05943848828125,
+            0.05932090625,
+            0.0599275703125,
+            0.0605784140625
+          ],
+          "median_ms": 0.0592904296875
+        },
+        "execution_ms": 0.0592904296875,
+        "checksum": "24295680000",
+        "command": "build/wasm-tier/go-reference Vectors 94905000 11",
+        "artifact_sha256": "740ad514c2f08200594b97012995919a13633ac87edeae9c87a86251cc52c4dd",
+        "artifact_bytes": 2821362
+      },
+      "wasm": {
+        "result": "94905000",
+        "batches": 256,
+        "warmup_ms": 150.05487899999997,
+        "warmup_count": 2542,
+        "batch_samples_ms": [
+          15.175889999999981,
+          15.133027999999968,
+          14.908458000000053,
+          15.157744000000037,
+          14.89855799999998,
+          14.849455999999975,
+          15.003387999999973,
+          15.001369999999952,
+          14.828945999999974,
+          14.841088000000013,
+          15.097473999999977
+        ],
+        "load_ms": 1.7997319999999988,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.05928082031249993,
+          0.05911339062499987,
+          0.058236164062500206,
+          0.05920993750000014,
+          0.05819749218749992,
+          0.0580056874999999,
+          0.05860698437499989,
+          0.05859910156249981,
+          0.0579255703124999,
+          0.05797300000000005,
+          0.05897450781249991
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.05668805078124994,
+          "upper_ms": 0.06045748828124986,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.05928082031249993,
+            0.05911339062499987,
+            0.058236164062500206,
+            0.05920993750000014,
+            0.05819749218749992,
+            0.0580056874999999,
+            0.05860698437499989,
+            0.05859910156249981,
+            0.0579255703124999,
+            0.05797300000000005,
+            0.05897450781249991
+          ],
+          "median_ms": 0.05859910156249981
+        },
+        "execution_ms": 0.05859910156249981,
+        "checksum": "24295680000",
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Vectors.wasm 94905000 11",
+        "artifact_sha256": "89c3f747e905d01b71b7f4d2f9ec0a27f1bfb4d2a5ac24ce46c7790b1bdf2caa",
+        "artifact_bytes": 1559
+      },
+      "native": {
+        "result": "94905000",
+        "batches": 32,
+        "batch_samples_ms": [
+          2.879022,
+          2.878576,
+          2.846766,
+          2.842903,
+          2.841397,
+          2.839061,
+          2.903029,
+          2.82018,
+          2.841574,
+          2.860245,
+          2.839285
+        ],
+        "execution_samples_ms": [
+          0.0899694375,
+          0.0899555,
+          0.0889614375,
+          0.08884071875,
+          0.08879365625,
+          0.08872065625,
+          0.09071965625,
+          0.088130625,
+          0.0887991875,
+          0.08938265625,
+          0.08872765625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0873980234375,
+          "upper_ms": 0.09103171093749998,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0899694375,
+            0.0899555,
+            0.0889614375,
+            0.08884071875,
+            0.08879365625,
+            0.08872065625,
+            0.09071965625,
+            0.088130625,
+            0.0887991875,
+            0.08938265625,
+            0.08872765625
+          ],
+          "median_ms": 0.08884071875
+        },
+        "execution_ms": 0.08884071875,
+        "checksum": "3036960000",
+        "stdout_verified": true,
+        "warmup_count": 52,
+        "warmup_ms": 192.759344,
+        "host_observations": [
+          {
+            "sample_index": 0,
+            "before": {
+              "monotonic_ns": 267880429942855,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298174,
+                "cpu1": 4299728,
+                "cpu10": 800000,
+                "cpu11": 800000,
+                "cpu2": 4300000,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 4289572,
+                "cpu6": 4298613,
+                "cpu7": 4299377,
+                "cpu8": 800000,
+                "cpu9": 4299976
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880433366423,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4290839,
+                "cpu1": 4299728,
+                "cpu10": 800000,
+                "cpu11": 4300580,
+                "cpu2": 4300013,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 4289572,
+                "cpu6": 4298613,
+                "cpu7": 4304146,
+                "cpu8": 800000,
+                "cpu9": 4300398
+              }
+            }
+          },
+          {
+            "sample_index": 1,
+            "before": {
+              "monotonic_ns": 267880433865434,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4290839,
+                "cpu1": 4299728,
+                "cpu10": 800000,
+                "cpu11": 4300580,
+                "cpu2": 4300013,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 4289572,
+                "cpu6": 4298613,
+                "cpu7": 4304146,
+                "cpu8": 800000,
+                "cpu9": 4300398
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880437256552,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299984,
+                "cpu1": 4299728,
+                "cpu10": 800000,
+                "cpu11": 4300580,
+                "cpu2": 4294401,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 4289572,
+                "cpu6": 4298613,
+                "cpu7": 4304146,
+                "cpu8": 800000,
+                "cpu9": 4299888
+              }
+            }
+          },
+          {
+            "sample_index": 2,
+            "before": {
+              "monotonic_ns": 267880437722863,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299900,
+                "cpu1": 4299728,
+                "cpu10": 800000,
+                "cpu11": 4300580,
+                "cpu2": 4294401,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 4289572,
+                "cpu6": 4298613,
+                "cpu7": 4304146,
+                "cpu8": 800000,
+                "cpu9": 4299888
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880441070344,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299972,
+                "cpu1": 4299801,
+                "cpu10": 800000,
+                "cpu11": 4300580,
+                "cpu2": 4291579,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 4298613,
+                "cpu7": 4302823,
+                "cpu8": 800000,
+                "cpu9": 4299979
+              }
+            }
+          },
+          {
+            "sample_index": 3,
+            "before": {
+              "monotonic_ns": 267880441530600,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299912,
+                "cpu1": 4299801,
+                "cpu10": 800000,
+                "cpu11": 4300580,
+                "cpu2": 4308658,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 4298613,
+                "cpu7": 4302527,
+                "cpu8": 800000,
+                "cpu9": 4299979
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880444867244,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298746,
+                "cpu1": 4299801,
+                "cpu10": 800000,
+                "cpu11": 4300580,
+                "cpu2": 4300011,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 4298613,
+                "cpu7": 4300956,
+                "cpu8": 800000,
+                "cpu9": 4303861
+              }
+            }
+          },
+          {
+            "sample_index": 4,
+            "before": {
+              "monotonic_ns": 267880445351354,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4301408,
+                "cpu1": 4299801,
+                "cpu10": 800000,
+                "cpu11": 4300580,
+                "cpu2": 4300002,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300956,
+                "cpu8": 800000,
+                "cpu9": 4300000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880448690505,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4293525,
+                "cpu1": 4299801,
+                "cpu10": 4299035,
+                "cpu11": 4300580,
+                "cpu2": 4299986,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300956,
+                "cpu8": 800000,
+                "cpu9": 4299548
+              }
+            }
+          },
+          {
+            "sample_index": 5,
+            "before": {
+              "monotonic_ns": 267880449168864,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4293525,
+                "cpu1": 4299801,
+                "cpu10": 4299035,
+                "cpu11": 4300580,
+                "cpu2": 4299986,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4302299,
+                "cpu8": 800000,
+                "cpu9": 4300068
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880452506363,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4288340,
+                "cpu1": 4299802,
+                "cpu10": 4299035,
+                "cpu11": 800000,
+                "cpu2": 4300060,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4302112,
+                "cpu8": 800000,
+                "cpu9": 4311310
+              }
+            }
+          },
+          {
+            "sample_index": 6,
+            "before": {
+              "monotonic_ns": 267880453009948,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4288340,
+                "cpu1": 4299802,
+                "cpu10": 4299035,
+                "cpu11": 800000,
+                "cpu2": 4300060,
+                "cpu3": 800000,
+                "cpu4": 800000,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4302112,
+                "cpu8": 800000,
+                "cpu9": 4311310
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880456433102,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299992,
+                "cpu1": 4299647,
+                "cpu10": 4300490,
+                "cpu11": 4313676,
+                "cpu2": 4301490,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4300582
+              }
+            }
+          },
+          {
+            "sample_index": 7,
+            "before": {
+              "monotonic_ns": 267880456905067,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299992,
+                "cpu1": 4299647,
+                "cpu10": 4300490,
+                "cpu11": 4313676,
+                "cpu2": 4301490,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4300582
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880460225947,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4298719,
+                "cpu1": 4299647,
+                "cpu10": 4304604,
+                "cpu11": 4313676,
+                "cpu2": 4299982,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4299892
+              }
+            }
+          },
+          {
+            "sample_index": 8,
+            "before": {
+              "monotonic_ns": 267880460684417,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4296277,
+                "cpu1": 4299647,
+                "cpu10": 4304604,
+                "cpu11": 4313676,
+                "cpu2": 4299982,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4299892
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880464045716,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4289792,
+                "cpu1": 4299466,
+                "cpu10": 4304604,
+                "cpu11": 4313676,
+                "cpu2": 4299970,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4300000
+              }
+            }
+          },
+          {
+            "sample_index": 9,
+            "before": {
+              "monotonic_ns": 267880464510370,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4301644,
+                "cpu1": 4299466,
+                "cpu10": 4304604,
+                "cpu11": 4313676,
+                "cpu2": 4299999,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4300000
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880467875026,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4296569,
+                "cpu1": 4299466,
+                "cpu10": 4304604,
+                "cpu11": 4313676,
+                "cpu2": 4299970,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4313137
+              }
+            }
+          },
+          {
+            "sample_index": 10,
+            "before": {
+              "monotonic_ns": 267880468358718,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4296877,
+                "cpu1": 4299466,
+                "cpu10": 4304604,
+                "cpu11": 4313676,
+                "cpu2": 4299944,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4299953
+              }
+            },
+            "after": {
+              "monotonic_ns": 267880471692754,
+              "loadavg": [
+                "3.20",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4295587,
+                "cpu1": 4299466,
+                "cpu10": 4304604,
+                "cpu11": 4313676,
+                "cpu2": 4300001,
+                "cpu3": 4299280,
+                "cpu4": 4299904,
+                "cpu5": 800000,
+                "cpu6": 800000,
+                "cpu7": 4300575,
+                "cpu8": 4301148,
+                "cpu9": 4304445
+              }
+            }
+          }
+        ],
+        "host_observation_scope": "Untimed Linux sysfs snapshots for all logical CPUs, not the clock frequency of the child process; an unpinned process can migrate. Missing readings are null. Observations do not filter timing samples or change affinity or governor.",
+        "command": "build/wasm-tier/Vectors.native",
+        "artifact_sha256": "67f7c0d6a61abd45d054471aaa9203ac32e4e840f88b73c93a0a42ab215012af",
+        "artifact_bytes": 2944
+      },
+      "c": {
+        "result": "94905000",
+        "batches": 512,
+        "load_ms": 6.4999e-05,
+        "warmup_ms": 150.032201022,
+        "warmup_count": 4329,
+        "batch_samples_ms": [
+          17.793763995,
+          17.739966005,
+          17.696231008,
+          17.789184004,
+          17.681284994,
+          17.700322986,
+          17.743706018,
+          17.944997013,
+          17.880110025,
+          17.679028004,
+          17.656782001
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.03475344530273437,
+          0.034648371103515624,
+          0.0345629511875,
+          0.0347445000078125,
+          0.03453375975390625,
+          0.03457094333203125,
+          0.03465567581640625,
+          0.03504882229101562,
+          0.034922089892578126,
+          0.0345293515703125,
+          0.034485902345703125
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.034247429693847656,
+          "upper_ms": 0.0350498984321289,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.03475344530273437,
+            0.034648371103515624,
+            0.0345629511875,
+            0.0347445000078125,
+            0.03453375975390625,
+            0.03457094333203125,
+            0.03465567581640625,
+            0.03504882229101562,
+            0.034922089892578126,
+            0.0345293515703125,
+            0.034485902345703125
+          ],
+          "median_ms": 0.034648371103515624
+        },
+        "execution_ms": 0.034648371103515624,
+        "checksum": "48591360000",
+        "command": "build/wasm-tier/Vectors-c - 94905000 11",
+        "artifact_sha256": "69c61f1d1718f9a2a0e55c8e0d4a28f963d231c8789f9df07cd9493dd2f2a187",
+        "artifact_bytes": 17368
+      },
+      "zx": {
+        "result": "94905000",
+        "batches": 8,
+        "load_ms": 0.303511977,
+        "warmup_ms": 150.795112997,
+        "warmup_count": 92,
+        "batch_samples_ms": [
+          13.446199983,
+          12.988945991,
+          12.920058995,
+          12.963057011,
+          13.545139998,
+          12.897875994,
+          12.908038974,
+          13.303436011,
+          12.930844009,
+          12.950500995,
+          12.921036005
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          1.680774997875,
+          1.623618248875,
+          1.615007374375,
+          1.620382126375,
+          1.69314249975,
+          1.61223449925,
+          1.61350487175,
+          1.662929501375,
+          1.616355501125,
+          1.618812624375,
+          1.615129500625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 1.5727602810624999,
+          "upper_ms": 1.6855820315625,
+          "excluded_indices": [
+            4
+          ],
+          "included_samples_ms": [
+            1.680774997875,
+            1.623618248875,
+            1.615007374375,
+            1.620382126375,
+            1.61223449925,
+            1.61350487175,
+            1.662929501375,
+            1.616355501125,
+            1.618812624375,
+            1.615129500625
+          ],
+          "median_ms": 1.61758406275
+        },
+        "execution_ms": 1.61758406275,
+        "checksum": "759240000",
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Vectors.zx 94905000 11",
+        "artifact_sha256": "7ebf85e6cc09718ba16cb9c9eda3190fe615b69f5564da21b276e6e6a6f8e8dc",
+        "artifact_bytes": 5307
+      }
+    },
+    "Printing": {
+      "go": {
+        "batch_samples_ms": [
+          18.071485,
+          18.023182,
+          17.583894,
+          17.939319,
+          18.150485,
+          17.787795,
+          17.900957,
+          17.902767,
+          17.900699,
+          18.104204,
+          18.153729
+        ],
+        "batches": 256,
+        "load_ms": 0,
+        "result": "0",
+        "warmup_count": 2106,
+        "warmup_ms": 150.069225,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.07059173828125,
+          0.0704030546875,
+          0.0686870859375,
+          0.07007546484375,
+          0.07090033203125,
+          0.06948357421875,
+          0.06992561328125,
+          0.06993268359375,
+          0.06992460546875,
+          0.070719546875,
+          0.07091300390625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.06882930957031247,
+          "upper_ms": 0.0717514423828125,
+          "excluded_indices": [
+            2
+          ],
+          "included_samples_ms": [
+            0.07059173828125,
+            0.0704030546875,
+            0.07007546484375,
+            0.07090033203125,
+            0.06948357421875,
+            0.06992561328125,
+            0.06993268359375,
+            0.06992460546875,
+            0.070719546875,
+            0.07091300390625
+          ],
+          "median_ms": 0.070239259765625
+        },
+        "execution_ms": 0.070239259765625,
+        "checksum": "0",
+        "command": "build/wasm-tier/go-reference Printing 0 11",
+        "artifact_sha256": "740ad514c2f08200594b97012995919a13633ac87edeae9c87a86251cc52c4dd",
+        "artifact_bytes": 2821362
+      },
+      "zx": {
+        "result": "0",
+        "batches": 1024,
+        "load_ms": 0.15684098,
+        "warmup_ms": 150.013500988,
+        "warmup_count": 10325,
+        "batch_samples_ms": [
+          14.250191987,
+          14.305404007,
+          14.852472007,
+          14.302655995,
+          14.254337996,
+          14.264696002,
+          14.177976012,
+          13.946177989,
+          14.043137997,
+          14.226934999,
+          13.924795002
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.013916203112304687,
+          0.013970121100585937,
+          0.014504367194335937,
+          0.013967437495117188,
+          0.01392025194921875,
+          0.013930367189453126,
+          0.01384567969921875,
+          0.013619314442382813,
+          0.013714001950195313,
+          0.013893491209960937,
+          0.013598432619140625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.013526248548339843,
+          "upper_ms": 0.014202494618652348,
+          "excluded_indices": [
+            2
+          ],
+          "included_samples_ms": [
+            0.013916203112304687,
+            0.013970121100585937,
+            0.013967437495117188,
+            0.01392025194921875,
+            0.013930367189453126,
+            0.01384567969921875,
+            0.013619314442382813,
+            0.013714001950195313,
+            0.013893491209960937,
+            0.013598432619140625
+          ],
+          "median_ms": 0.013904847161132812
+        },
+        "execution_ms": 0.013904847161132812,
+        "checksum": "0",
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Printing.zx 0 11",
+        "artifact_sha256": "2aed9806fd279c7622caf65a7ac8d89a80cb3a0430e0d758abe10f39fd2c3515",
+        "artifact_bytes": 2764
+      },
+      "native": {
+        "result": "0",
+        "batches": 32,
+        "batch_samples_ms": [
+          0.358766,
+          0.378052,
+          0.375386,
+          0.378,
+          0.427642,
+          0.377492,
+          0.413145,
+          0.359423,
+          0.410033,
+          0.377603,
+          0.362104
+        ],
+        "execution_samples_ms": [
+          0.0112114375,
+          0.011814125,
+          0.0117308125,
+          0.0118125,
+          0.0133638125,
+          0.011796625,
+          0.01291078125,
+          0.01123196875,
+          0.01281353125,
+          0.01180009375,
+          0.01131575
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.010337460937500001,
+          "upper_ms": 0.013499648437499998,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0112114375,
+            0.011814125,
+            0.0117308125,
+            0.0118125,
+            0.0133638125,
+            0.011796625,
+            0.01291078125,
+            0.01123196875,
+            0.01281353125,
+            0.01180009375,
+            0.01131575
+          ],
+          "median_ms": 0.01180009375
+        },
+        "execution_ms": 0.01180009375,
+        "checksum": "0",
+        "stdout_verified": true,
+        "warmup_count": 402,
+        "warmup_ms": 165.62919,
+        "host_observations": [
+          {
+            "sample_index": 0,
+            "before": {
+              "monotonic_ns": 267884855328873,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4297826,
+                "cpu1": 4303177,
+                "cpu10": 4294942,
+                "cpu11": 800000,
+                "cpu2": 4291630,
+                "cpu3": 4300002,
+                "cpu4": 4288587,
+                "cpu5": 4299961,
+                "cpu6": 4300074,
+                "cpu7": 4299252,
+                "cpu8": 4300368,
+                "cpu9": 4300819
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884856203346,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4297826,
+                "cpu1": 4303177,
+                "cpu10": 4294942,
+                "cpu11": 800000,
+                "cpu2": 4291630,
+                "cpu3": 4300002,
+                "cpu4": 4288587,
+                "cpu5": 4299975,
+                "cpu6": 4287614,
+                "cpu7": 4289207,
+                "cpu8": 4300368,
+                "cpu9": 4298785
+              }
+            }
+          },
+          {
+            "sample_index": 1,
+            "before": {
+              "monotonic_ns": 267884856682251,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4300665,
+                "cpu1": 4303177,
+                "cpu10": 4300553,
+                "cpu11": 800000,
+                "cpu2": 4310195,
+                "cpu3": 4300002,
+                "cpu4": 4288587,
+                "cpu5": 4299975,
+                "cpu6": 4287614,
+                "cpu7": 4289207,
+                "cpu8": 4300368,
+                "cpu9": 4298785
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884857616449,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299939,
+                "cpu1": 4303177,
+                "cpu10": 4301053,
+                "cpu11": 800000,
+                "cpu2": 4295286,
+                "cpu3": 4300002,
+                "cpu4": 4288587,
+                "cpu5": 4299968,
+                "cpu6": 4299276,
+                "cpu7": 4300486,
+                "cpu8": 4300368,
+                "cpu9": 4305836
+              }
+            }
+          },
+          {
+            "sample_index": 2,
+            "before": {
+              "monotonic_ns": 267884858247078,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299939,
+                "cpu1": 4303177,
+                "cpu10": 4301053,
+                "cpu11": 4299812,
+                "cpu2": 4301114,
+                "cpu3": 4300015,
+                "cpu4": 4288587,
+                "cpu5": 4299996,
+                "cpu6": 4300489,
+                "cpu7": 4300383,
+                "cpu8": 4300421,
+                "cpu9": 4294716
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884859128924,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299939,
+                "cpu1": 800000,
+                "cpu10": 4304009,
+                "cpu11": 4299812,
+                "cpu2": 4301114,
+                "cpu3": 4300015,
+                "cpu4": 4288587,
+                "cpu5": 4299925,
+                "cpu6": 4299935,
+                "cpu7": 4299096,
+                "cpu8": 4300113,
+                "cpu9": 4304240
+              }
+            }
+          },
+          {
+            "sample_index": 3,
+            "before": {
+              "monotonic_ns": 267884859602178,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4296889,
+                "cpu1": 800000,
+                "cpu10": 4311215,
+                "cpu11": 4299625,
+                "cpu2": 4283345,
+                "cpu3": 4300015,
+                "cpu4": 4288587,
+                "cpu5": 4299925,
+                "cpu6": 4299935,
+                "cpu7": 4299096,
+                "cpu8": 4300113,
+                "cpu9": 4304240
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884860471858,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4296889,
+                "cpu1": 4299215,
+                "cpu10": 4301156,
+                "cpu11": 4315078,
+                "cpu2": 4298001,
+                "cpu3": 4300015,
+                "cpu4": 4288587,
+                "cpu5": 4300004,
+                "cpu6": 4306547,
+                "cpu7": 4298626,
+                "cpu8": 4299957,
+                "cpu9": 4300989
+              }
+            }
+          },
+          {
+            "sample_index": 4,
+            "before": {
+              "monotonic_ns": 267884860944446,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4296889,
+                "cpu1": 4299215,
+                "cpu10": 4301156,
+                "cpu11": 4315078,
+                "cpu2": 4298001,
+                "cpu3": 4300015,
+                "cpu4": 4288587,
+                "cpu5": 4300004,
+                "cpu6": 4306547,
+                "cpu7": 4298626,
+                "cpu8": 4299957,
+                "cpu9": 4300989
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884861985086,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4296889,
+                "cpu1": 4300504,
+                "cpu10": 4300444,
+                "cpu11": 4298764,
+                "cpu2": 4298696,
+                "cpu3": 4300015,
+                "cpu4": 4288587,
+                "cpu5": 4299951,
+                "cpu6": 4299940,
+                "cpu7": 4299877,
+                "cpu8": 4303838,
+                "cpu9": 4300677
+              }
+            }
+          },
+          {
+            "sample_index": 5,
+            "before": {
+              "monotonic_ns": 267884862488523,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4300304,
+                "cpu11": 4300285,
+                "cpu2": 4300011,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4300049,
+                "cpu6": 4300159,
+                "cpu7": 4300053,
+                "cpu8": 4300211,
+                "cpu9": 4300235
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884863366016,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4302182,
+                "cpu11": 4299240,
+                "cpu2": 4294082,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4300026,
+                "cpu6": 4301106,
+                "cpu7": 4299945,
+                "cpu8": 4286160,
+                "cpu9": 4302392
+              }
+            }
+          },
+          {
+            "sample_index": 6,
+            "before": {
+              "monotonic_ns": 267884863844585,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4302182,
+                "cpu11": 4299240,
+                "cpu2": 4294082,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4300026,
+                "cpu6": 4301106,
+                "cpu7": 4299945,
+                "cpu8": 4286160,
+                "cpu9": 4302392
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884864774402,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4299714,
+                "cpu11": 4307463,
+                "cpu2": 4303524,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4299950,
+                "cpu6": 4306481,
+                "cpu7": 4294344,
+                "cpu8": 4309164,
+                "cpu9": 4308684
+              }
+            }
+          },
+          {
+            "sample_index": 7,
+            "before": {
+              "monotonic_ns": 267884865304279,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4301381,
+                "cpu11": 4308428,
+                "cpu2": 4295432,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4299952,
+                "cpu6": 4305437,
+                "cpu7": 4303151,
+                "cpu8": 4307058,
+                "cpu9": 4300049
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884866179130,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4301381,
+                "cpu11": 4308428,
+                "cpu2": 4295432,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4300071,
+                "cpu6": 4305437,
+                "cpu7": 4299432,
+                "cpu8": 4299404,
+                "cpu9": 4301369
+              }
+            }
+          },
+          {
+            "sample_index": 8,
+            "before": {
+              "monotonic_ns": 267884866652529,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4300416,
+                "cpu11": 4302721,
+                "cpu2": 4299846,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4300071,
+                "cpu6": 4305437,
+                "cpu7": 4299432,
+                "cpu8": 4299404,
+                "cpu9": 4301369
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884867568682,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4300416,
+                "cpu11": 4298170,
+                "cpu2": 4300190,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4299999,
+                "cpu6": 4305437,
+                "cpu7": 4305575,
+                "cpu8": 4299404,
+                "cpu9": 4295381
+              }
+            }
+          },
+          {
+            "sample_index": 9,
+            "before": {
+              "monotonic_ns": 267884868063342,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4300416,
+                "cpu11": 4298170,
+                "cpu2": 4300190,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4299999,
+                "cpu6": 4305437,
+                "cpu7": 4305575,
+                "cpu8": 4299404,
+                "cpu9": 4312990
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884868929035,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4300504,
+                "cpu10": 4300416,
+                "cpu11": 4303553,
+                "cpu2": 4299635,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4299975,
+                "cpu6": 4305437,
+                "cpu7": 4299323,
+                "cpu8": 4299404,
+                "cpu9": 4312990
+              }
+            }
+          },
+          {
+            "sample_index": 10,
+            "before": {
+              "monotonic_ns": 267884869439361,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4299519,
+                "cpu10": 4300416,
+                "cpu11": 4294263,
+                "cpu2": 4299729,
+                "cpu3": 4299938,
+                "cpu4": 4288587,
+                "cpu5": 4300049,
+                "cpu6": 4305437,
+                "cpu7": 4304518,
+                "cpu8": 4299404,
+                "cpu9": 4299457
+              }
+            },
+            "after": {
+              "monotonic_ns": 267884870307463,
+              "loadavg": [
+                "3.18",
+                "3.02",
+                "3.00"
+              ],
+              "allowed_cpus": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11
+              ],
+              "scaling_cur_freq_khz": {
+                "cpu0": 4299857,
+                "cpu1": 4299519,
+                "cpu10": 4300416,
+                "cpu11": 4305413,
+                "cpu2": 4299979,
+                "cpu3": 4299938,
+                "cpu4": 800000,
+                "cpu5": 4300019,
+                "cpu6": 4305437,
+                "cpu7": 4311111,
+                "cpu8": 4299404,
+                "cpu9": 4307967
+              }
+            }
+          }
+        ],
+        "host_observation_scope": "Untimed Linux sysfs snapshots for all logical CPUs, not the clock frequency of the child process; an unpinned process can migrate. Missing readings are null. Observations do not filter timing samples or change affinity or governor.",
+        "command": "build/wasm-tier/Printing.native",
+        "artifact_sha256": "61ad864ccff5458ce988c2ccc8eae2348cfd6ed89f0e7fade4ca7220d5d58654",
+        "artifact_bytes": 1152
+      },
+      "wasm": {
+        "result": "0",
+        "batches": 2048,
+        "warmup_ms": 150.004171,
+        "warmup_count": 21940,
+        "batch_samples_ms": [
+          12.735352000000006,
+          14.101234999999974,
+          12.852244999999982,
+          12.84187700000001,
+          12.709566000000052,
+          13.479578000000004,
+          12.752796000000046,
+          12.779346999999973,
+          12.771141,
+          14.763729000000012,
+          12.254175999999973
+        ],
+        "load_ms": 1.8304309999999973,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.006218433593750003,
+          0.006885368652343737,
+          0.006275510253906241,
+          0.006270447753906255,
+          0.0062058427734375254,
+          0.006581825195312502,
+          0.0062269511718750226,
+          0.006239915527343737,
+          0.00623590869140625,
+          0.007208852050781256,
+          0.005983484374999987
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005913729370117225,
+          "upper_ms": 0.00673763073730466,
+          "excluded_indices": [
+            1,
+            9
+          ],
+          "included_samples_ms": [
+            0.006218433593750003,
+            0.006275510253906241,
+            0.006270447753906255,
+            0.0062058427734375254,
+            0.006581825195312502,
+            0.0062269511718750226,
+            0.006239915527343737,
+            0.00623590869140625,
+            0.005983484374999987
+          ],
+          "median_ms": 0.00623590869140625
+        },
+        "execution_ms": 0.00623590869140625,
+        "checksum": "0",
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Printing.wasm 0 11",
+        "artifact_sha256": "8139a2b1448bdaad232de1db2c0ad0cce3a16cac63f280105fe75b2c15566366",
+        "artifact_bytes": 757
+      },
+      "c": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 6.9022e-05,
+        "warmup_ms": 150.003006011,
+        "warmup_count": 14695,
+        "batch_samples_ms": [
+          19.931723982,
+          19.88419199,
+          19.86057198,
+          19.524443001,
+          19.421689004,
+          19.667147994,
+          19.412923992,
+          19.461270988,
+          19.890029013,
+          19.419155002,
+          19.880546004
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.009732287100585938,
+          0.009709078120117188,
+          0.009697544912109375,
+          0.009533419434082032,
+          0.009483246583984375,
+          0.009603099606445313,
+          0.00947896679296875,
+          0.009502573724609375,
+          0.009711928229003906,
+          0.009482009278320313,
+          0.009707297853515625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.009169993405517576,
+          "upper_ms": 0.010031104735595705,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.009732287100585938,
+            0.009709078120117188,
+            0.009697544912109375,
+            0.009533419434082032,
+            0.009483246583984375,
+            0.009603099606445313,
+            0.00947896679296875,
+            0.009502573724609375,
+            0.009711928229003906,
+            0.009482009278320313,
+            0.009707297853515625
+          ],
+          "median_ms": 0.009603099606445313
+        },
+        "execution_ms": 0.009603099606445313,
+        "checksum": "0",
+        "command": "build/wasm-tier/Printing-c - 0 11",
+        "artifact_sha256": "eb6bc78902cca398c5c1fd44b307834844b7a0a466a05823d8a798b2e8c5b56e",
+        "artifact_bytes": 17264
+      }
+    }
+  },
+  "compiler_provenance": {
+    "note": "Compiler source checkout stays at revision; after arm overlays only the generated lowering module. See the companion state receipt for guards and complete tool hashes.",
+    "epoch": "before",
+    "source_lower_sha256": "a7fe9ff8cd66c7a4db0ae3ac90eeeedf2d5505793aa8b00b68fd9e1b2c30f3c1",
+    "generated_lower_sha256": "46e4acff03925cc5d711a75ee14577b8a4cbe59ff1f1720b199c9cb6fd7ede4d",
+    "tools_sha256": {
+      "build/bin/ziran": "6f2433eefc3721145be0a6527a77156067b45e78f092d9c8c3e08c40b69c2e39",
+      "build/bin/zi2c": "72f2bfb5b4e35fc5e16563503a86c400597026de54e9b08096a6a30a66efd0a0",
+      "build/bin/zi2zx": "c840f0a428ac4521b6f6d25aa762797dafdebfe72dfc9a10c2f47270cdb7e3ad",
+      "build/bin/zx2native": "bc732c79819c3cd1411cc0030efc051d6217e79535bc7aebdb2559296f8249b3",
+      "build/bin/zx2wasm": "3f16f42e09d5d4fa60ce699b5dcc5da9d681c514ed4b6de08a1958fc7f84c66a",
+      "build/libziran.a": "94c7ea90edfc78ca6fc62c72ea521d0800390efa5f867026e4225f58a15d7f90"
+    }
+  }
+}

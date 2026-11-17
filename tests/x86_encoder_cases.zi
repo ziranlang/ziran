@@ -475,6 +475,26 @@ Instruction :: (image: X64.MachineX64Image, id: s32, hex: string, message: strin
     return Bytes(image.code, range.begin, range.end, hex, message)
 }
 
+HexLength :: (hex: string) -> s64 {
+    digits: s64 = 0
+    for byte: hex { if byte != 32 { digits += 1 } }
+    return digits / 2
+}
+
+// A check: BEFORE, then jcc rel32 on CONDITION to a trap past the function's
+// blocks whose bytes are TRAP, then AFTER.
+Checked :: (image: X64.MachineX64Image, id: s32, before: string, condition: s32, trap: string, after: string,
+    message: string) -> bool {
+    range := image.instructions[id]
+    split := range.begin + HexLength(before)
+    if !Bytes(image.code, range.begin, split, before, message) ||
+        !Check(split + 6 <= range.end && image.code[split] == 0x0f && cast(s32)image.code[split + 1] == 0x80 + condition,
+            message) { return false }
+    target := split + 6 + Displacement(image.code, split + 2)
+    return Bytes(image.code, target, target + HexLength(trap), trap, message) &&
+        Bytes(image.code, split + 6, range.end, after, message)
+}
+
 Displacement :: (code: []u8, at: s64) -> s64 {
     value: u64 = 0
     for index: 0..3 { value = value | (cast(u64)code[at + index] << cast(u64)(index * 8)) }
@@ -510,6 +530,15 @@ Accounted :: (b: *Builder, image: X64.MachineX64Image) -> bool {
                 if range.begin != at || range.end < range.begin { return false }
                 at = range.end
             }
+        }
+        // Checks branch to traps emitted after the function's blocks: each a
+        // trap sequence, optionally after its write-back of the fuel register.
+        while at < record.end {
+            if at + 7 <= record.end && image.code[at] == 0x4c && image.code[at + 1] == 0x89 &&
+                image.code[at + 2] == 0x3d { at += 7 }
+            if at + 12 > record.end || image.code[at] != 0xbf || image.code[at + 5] != 0xe8 ||
+                image.code[at + 10] != 0x0f || image.code[at + 11] != 0x0b { return false }
+            at += 12
         }
         if record.end != at { return false }
     }
@@ -814,26 +843,26 @@ Basics :: () -> bool {
     loop := image.functions[ids.loop]
     fuel_range := image.instructions[ids.loop_ops[1]]
     if !Instruction(image, ids.loop_ops[0], "", "fallthrough into loop") ||
-        !Bytes(image.code, fuel_range.begin, fuel_range.end, "48 83 2d 00 00 00 00 01 73 0c bf 04 00 ff ff e8 00 00 00 00 0f 0b", "fuel imm8") ||
+        !Checked(image, ids.loop_ops[1], "48 83 2d 00 00 00 00 01", 2, TRAP_FUEL, "", "fuel imm8") ||
         !Instruction(image, ids.loop_ops[2], "48 39 f8", "loop compare") ||
         !Instruction(image, ids.loop_ops[3], "0f 8d 0d 00 00 00", "signed inverse branch") ||
         !Instruction(image, ids.loop_ops[4], "48 01 c8", "loop add") ||
-        !Instruction(image, ids.loop_ops[5], "e9 d4 ff ff ff", "backward jump") ||
+        !Instruction(image, ids.loop_ops[5], "e9 dc ff ff ff", "backward jump") ||
         !Check(Displacement(image.code, image.instructions[ids.loop_ops[5]].begin + 1) ==
             image.blocks[b.functions[ids.loop].block_begin + 1] - image.instructions[ids.loop_ops[5]].end,
             "backward jump reaches the loop head") ||
-        !Check(loop.end - loop.begin == 52, "loop function size") { return false }
-    if !Instruction(image, ids.fuel_ops[0], "48 81 2d 00 00 00 00 e8 03 00 00 73 0c bf 04 00 ff ff e8 00 00 00 00 0f 0b", "fuel imm32") ||
-        !Instruction(image, ids.fuel_ops[1], "49 bb 00 00 00 00 01 00 00 00 4c 29 1d 00 00 00 00 73 0c bf 04 00 ff ff e8 00 00 00 00 0f 0b",
+        !Check(loop.end - loop.begin == 56, "loop function size") { return false }
+    if !Checked(image, ids.fuel_ops[0], "48 81 2d 00 00 00 00 e8 03 00 00", 2, TRAP_FUEL, "", "fuel imm32") ||
+        !Checked(image, ids.fuel_ops[1], "49 bb 00 00 00 00 01 00 00 00 4c 29 1d 00 00 00 00", 2, TRAP_FUEL, "",
             "fuel through scratch") { return false }
 
     if !Instruction(image, ids.divide[0], "48 89 f8", "dividend move") ||
-        !Instruction(image, ids.divide[1], "48 85 f6 75 0c bf 02 00 ff ff e8 00 00 00 00 0f 0b 48 83 fe ff 75 05 48 f7 d8 eb 05 48 99 48 f7 fe", "signed divide") ||
-        !Instruction(image, ids.divide[3], "48 85 f6 75 0c bf 02 00 ff ff e8 00 00 00 00 0f 0b 48 83 fe ff 75 04 31 c0 eb 08 48 99 48 f7 fe 48 89 d0", "signed remainder") ||
-        !Instruction(image, ids.unsigned_divide[1], "49 89 d3 4d 85 db 75 0c bf 02 00 ff ff e8 00 00 00 00 0f 0b 31 d2 49 f7 f3 48 89 d0 8b c0", "unsigned remainder with divisor in rdx") ||
-        !Instruction(image, ids.shift[0], "48 83 f9 20 72 0c bf 03 00 ff ff e8 00 00 00 00 0f 0b 48 d3 ff 48 63 ff", "sar s32") ||
-        !Instruction(image, ids.shift[1], "48 83 f9 40 72 0c bf 03 00 ff ff e8 00 00 00 00 0f 0b 48 d3 ee", "shr u64") ||
-        !Instruction(image, ids.shift[2], "48 83 f9 20 72 0c bf 03 00 ff ff e8 00 00 00 00 0f 0b 48 d3 e2 48 63 d2", "shl s32") {
+        !Checked(image, ids.divide[1], "48 85 f6", 4, TRAP_DIVIDE, "48 83 fe ff 75 05 48 f7 d8 eb 05 48 99 48 f7 fe", "signed divide") ||
+        !Checked(image, ids.divide[3], "48 85 f6", 4, TRAP_DIVIDE, "48 83 fe ff 75 04 31 c0 eb 08 48 99 48 f7 fe 48 89 d0", "signed remainder") ||
+        !Checked(image, ids.unsigned_divide[1], "49 89 d3 4d 85 db", 4, TRAP_DIVIDE, "31 d2 49 f7 f3 48 89 d0 8b c0", "unsigned remainder with divisor in rdx") ||
+        !Checked(image, ids.shift[0], "48 83 f9 20", 3, TRAP_SHIFT, "48 d3 ff 48 63 ff", "sar s32") ||
+        !Checked(image, ids.shift[1], "48 83 f9 40", 3, TRAP_SHIFT, "48 d3 ee", "shr u64") ||
+        !Checked(image, ids.shift[2], "48 83 f9 20", 3, TRAP_SHIFT, "48 d3 e2 48 63 d2", "shl s32") {
         return false
     }
 
@@ -857,9 +886,15 @@ Basics :: () -> bool {
     for index: cast(s64)0..image.relocations.count - 1 {
         relocation := image.relocations[index]
         if relocation.kind == .FuelCounter && relocation.instruction == ids.loop_ops[1] {
-            trap := image.relocations[index + 1]
-            found = Check(relocation.offset == fuel_range.begin + 3 && relocation.addend == -5 &&
-                trap.kind == .TrapHandler && trap.offset == fuel_range.begin + 16 && trap.instruction == ids.loop_ops[1],
+            // The check's jb reaches its trap past the function's blocks:
+            // mov edi, code is 5 bytes, then call's field.
+            stub := fuel_range.begin + 14 + Displacement(image.code, fuel_range.begin + 10)
+            trapped := false
+            for later: index + 1..image.relocations.count - 1 {
+                trap := image.relocations[later]
+                if trap.kind == .TrapHandler && trap.instruction == ids.loop_ops[1] { trapped = trap.offset == stub + 6 }
+            }
+            found = Check(relocation.offset == fuel_range.begin + 3 && relocation.addend == -5 && trapped,
                 "fuel counter and fuel trap relocation offsets")
             if !found { return false }
         }
@@ -931,24 +966,24 @@ Calls :: () -> bool {
     image := X64.MachineX64View(*owner)
     measured := Apply(*b, .Measure, null, limits)
     // Only the caller calls, so only its prologue checks the stack limit:
-    // cmp rsp, [rip + limit]; jae; then the stack trap.
-    if !Check(measured.code_bytes == 146 && image.code.count == 146 && measured.relocations == 8,
+    // cmp rsp, [rip + limit]; jb to the stack trap after its body.
+    if !Check(measured.code_bytes == 158 && image.code.count == 158 && measured.relocations == 8,
             "call image size") ||
         !Check(Accounted(*b, image), "call image accounting") ||
-        !Check(image.functions[caller].begin == 31 && image.functions[later].begin == 99 &&
-            image.functions[failing].begin == 130, "function offsets") ||
-        !Instruction(image, backward, "e8 be ff ff ff", "backward direct call") ||
-        !Instruction(image, forward, "e8 17 00 00 00", "forward direct call") ||
+        !Check(image.functions[caller].begin == 35 && image.functions[later].begin == 107 &&
+            image.functions[failing].begin == 142, "function offsets") ||
+        !Instruction(image, backward, "e8 c2 ff ff ff", "backward direct call") ||
+        !Instruction(image, forward, "e8 23 00 00 00", "forward direct call") ||
         !Check(Displacement(image.code, image.instructions[forward].begin + 1) ==
             image.functions[later].begin - image.instructions[forward].end, "forward call reaches callee") ||
-        !Instruction(image, address, "48 8d 0d ad ff ff ff", "rip-relative function address") ||
+        !Instruction(image, address, "48 8d 0d b1 ff ff ff", "rip-relative function address") ||
         !Instruction(image, indirect, "ff d1", "indirect call") ||
         !Instruction(image, global, "48 8d 15 00 00 00 00", "relocated global address") ||
         !Instruction(image, explicit, "bf 09 00 00 00 e8 00 00 00 00 0f 0b", "explicit trap") { return false }
-    kinds: [8]X64.MachineX64RelocationKind = .[.FuelCounter, .TrapHandler, .StackLimit, .TrapHandler,
-        .GlobalAddress, .FuelCounter, .TrapHandler, .TrapHandler]
-    offsets: [8]s64 = .[7, 20, 38, 50, 93, 106, 119, 140]
-    addends: [8]s64 = .[-5, -4, -4, -4, 4, -5, -4, -4]
+    kinds: [8]X64.MachineX64RelocationKind = .[.FuelCounter, .TrapHandler, .StackLimit, .GlobalAddress,
+        .TrapHandler, .FuelCounter, .TrapHandler, .TrapHandler]
+    offsets: [8]s64 = .[7, 29, 42, 89, 101, 114, 136, 152]
+    addends: [8]s64 = .[-5, -4, -4, 4, -4, -5, -4, -4]
     for index: 0..7 {
         relocation := image.relocations[index]
         if !Check(relocation.kind == kinds[index] && relocation.offset == offsets[index] &&
@@ -958,9 +993,9 @@ Calls :: () -> bool {
             return false
         }
     }
-    return Check(image.relocations[4].symbol == 0 && image.relocations[4].instruction == global,
+    return Check(image.relocations[3].symbol == 0 && image.relocations[3].instruction == global,
         "global relocation symbol") &&
-        Check(image.relocations[2].instruction == MachineNoId && image.relocations[3].instruction == MachineNoId,
+        Check(image.relocations[2].instruction == MachineNoId && image.relocations[4].instruction == MachineNoId,
             "prologue relocations name no instruction")
 }
 

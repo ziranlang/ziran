@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 checks no longer branch around their traps: a passing check falls through, and its trap call sits after the function's blocks, so loops with bounds, division, shift, stack and step checks keep one straight path. Trap reports still name the check's function, block and source line.
 - Native x86-64 additions can write a separate result register with LEA, keeping reused inputs live without tied copies; narrow integer results retain their normalization.
 - Register allocation keeps spilled values in memory through blocks that only carry them to the next control-flow edge, avoiding a reload and another spill before the next call. Joins retain their register allocation.
 - Native x86-64 integer-to-float conversions clear unused XMM lanes before converting, removing the legacy SSE instruction's dependency on an earlier floating-point value while preserving rounding and condition flags.

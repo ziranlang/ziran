@@ -66,8 +66,9 @@ MachineX64Relocation :: struct {
     instruction: s32
 }
 
-// Byte offsets of a function, the first byte after its prologue, and its end.
-MachineX64Function :: struct { begin: s64; body: s64; end: s64 }
+// Byte offsets of a function, the first byte after its prologue, the first
+// byte of the traps its checks branch to after its blocks, and its end.
+MachineX64Function :: struct { begin: s64; body: s64; cold: s64; end: s64 }
 MachineX64Range :: struct { begin: s64; end: s64 }
 
 MachineX64Image :: struct {
@@ -104,11 +105,22 @@ CodeLimit :: 2147483647
 Layout :: struct {
     function_begin: Vec(s64)
     function_body: Vec(s64)
+    function_cold: Vec(s64)
     function_end: Vec(s64)
     block_begin: Vec(s64)
     instruction_begin: Vec(s64)
     instruction_end: Vec(s64)
     relocation_of: Vec(s32)
+    cold: Vec(ColdTrap)
+    cold_offsets: Vec(s64)
+}
+
+// A trap a check reaches through a branch its passing path does not take:
+// its code, whether the fuel register was live there, and the check.
+ColdTrap :: struct {
+    code: u64
+    fuel_live: bool
+    instruction: s32
 }
 
 State :: struct {
@@ -120,6 +132,7 @@ State :: struct {
     emit: bool
     function_begin: []s64
     function_body: []s64
+    function_cold: []s64
     function_end: []s64
     block_begin: []s64
     instruction_begin: []s64
@@ -144,6 +157,12 @@ State :: struct {
     // a tail call, already left, emits nothing.
     frameless: bool
     tail_returned: bool
+    // The current function's out-of-line traps, emitted after its last
+    // block, and where every such trap starts, in emission order across the
+    // program: recorded while measuring, required while writing.
+    cold: *Vec(ColdTrap)
+    cold_offsets: *Vec(s64)
+    cold_count: s64
 }
 
 NoDiagnostic :: () -> MachineDiagnostic {
@@ -171,11 +190,14 @@ Spend :: (state: *State, count: s64) -> bool {
 LayoutFree :: (layout: *Layout) {
     VecFree(layout.function_begin)
     VecFree(layout.function_body)
+    VecFree(layout.function_cold)
     VecFree(layout.function_end)
     VecFree(layout.block_begin)
     VecFree(layout.instruction_begin)
     VecFree(layout.instruction_end)
     VecFree(layout.relocation_of)
+    VecFree(layout.cold)
+    VecFree(layout.cold_offsets)
 }
 
 Filled :: (values: *Vec(s64), count: s64) -> bool {
@@ -470,14 +492,43 @@ TrapSequence :: (state: *State, code: u64) {
     X86Undefined(*state.writer)
 }
 
-// Continues past an inline trap when CONDITION holds.
 // A trap that first writes back a register step budget, mov [rip + fuel],
 // r15, is that many bytes longer.
 FuelStoreBytes :: 7
 
+// Continues when CONDITION holds; otherwise branches to a trap emitted after
+// the function (Cold), so the passing path, a loop's included, takes no branch.
 TrapUnless :: (state: *State, condition: s32, code: u64) {
-    X86JumpCondition8(*state.writer, condition, MachineX64TrapSize + ifx state.fuel_live then FuelStoreBytes else 0)
-    TrapSequence(state, code)
+    target: s64 = 0
+    // A probe only measures this jump; the real emission records the trap.
+    if state.suppress == 0 {
+        index := state.cold_count
+        state.cold_count += 1
+        if state.emit {
+            if index >= state.cold_offsets.count { unused Fail(state, .Instruction) }
+            else { target = (<<state.cold_offsets)[index] }
+        }
+        trap := ColdTrap.{code = code, fuel_live = state.fuel_live, instruction = state.instruction}
+        if !VecPush(<<state.cold, trap) { unused Fail(state, .Allocation) }
+    }
+    X86JumpCondition32(*state.writer, condition ^ 1, target)
+}
+
+// Emits the current function's out-of-line traps in the order their checks
+// ran, each with the fuel state and instruction of its check.
+Cold :: (state: *State) -> bool {
+    first := state.cold_count - state.cold.count
+    for at: cast(s64)0..state.cold.count - 1 {
+        trap := (<<state.cold)[at]
+        if state.emit {
+            if (<<state.cold_offsets)[first + at] != state.writer.at { return Fail(state, .Instruction) }
+        } else if !VecPush(<<state.cold_offsets, state.writer.at) { return Fail(state, .Allocation) }
+        state.instruction = trap.instruction
+        state.fuel_live = trap.fuel_live
+        TrapSequence(state, trap.code)
+    }
+    if !VecResize(<<state.cold, 0) { return Fail(state, .Allocation) }
+    return true
 }
 
 // Where jumps enter BLOCK: its first byte, or past the fuel trap placed at
@@ -2687,6 +2738,7 @@ Pass :: (state: *State) -> bool {
         if function.calling != .Internal {
             if !Spend(state, 1) || !Place(state, state.function_begin, function_index) ||
                 !Place(state, state.function_body, function_index) ||
+                !Place(state, state.function_cold, function_index) ||
                 !Place(state, state.function_end, function_index) { return false }
             continue
         }
@@ -2717,6 +2769,7 @@ Pass :: (state: *State) -> bool {
             }
         }
         state.block = MachineNoId
+        if !Place(state, state.function_cold, function_index) || !Cold(state) { return false }
         state.instruction = MachineNoId
         if !Place(state, state.function_end, function_index) { return false }
     }
@@ -2896,6 +2949,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     defer LayoutFree(*layout)
     if !Filled(*layout.function_begin, program.functions.count) ||
         !Filled(*layout.function_body, program.functions.count) ||
+        !Filled(*layout.function_cold, program.functions.count) ||
         !Filled(*layout.function_end, program.functions.count) ||
         !Filled(*layout.block_begin, program.blocks.count) ||
         !Filled(*layout.instruction_begin, program.instructions.count) ||
@@ -2919,9 +2973,10 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     state := State.{program = program, writer = .{limit = limit}, diagnostic = NoDiagnostic(),
         remaining = limits.work,
         function_begin = layout.function_begin[:], function_body = layout.function_body[:],
-        function_end = layout.function_end[:], block_begin = layout.block_begin[:],
+        function_cold = layout.function_cold[:], function_end = layout.function_end[:], block_begin = layout.block_begin[:],
         instruction_begin = layout.instruction_begin[:], instruction_end = layout.instruction_end[:],
         relocation_of = layout.relocation_of[:],
+        cold = *layout.cold, cold_offsets = *layout.cold_offsets,
         function = MachineNoId, block = MachineNoId, instruction = MachineNoId,
         flags_value = MachineNoId}
     if !Pass(*state) {
@@ -2947,6 +3002,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     state.relocations = output.relocations[:]
     state.relocation_count = 0
     state.consumed = 0
+    state.cold_count = 0
     state.remaining = limits.work
     state.used = 0
     if !Pass(*state) || state.writer.at != measured.code_bytes || state.relocation_count != measured.relocations {
@@ -2957,7 +3013,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     }
     for index: cast(s64)0..program.functions.count - 1 {
         output.functions[index] = .{begin = layout.function_begin[index], body = layout.function_body[index],
-            end = layout.function_end[index]}
+            cold = layout.function_cold[index], end = layout.function_end[index]}
     }
     for index: cast(s64)0..program.instructions.count - 1 {
         output.instructions[index] = .{begin = layout.instruction_begin[index], end = layout.instruction_end[index]}

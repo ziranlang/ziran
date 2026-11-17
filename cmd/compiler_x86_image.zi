@@ -362,17 +362,40 @@ StartupSize :: (program: MachineProgram, layout: MachineX64ImageLayout) -> s64 {
 
 Code :: (layout: MachineX64ImageLayout) -> s64 { return layout.text + layout.startup_size }
 
+// Whether FUNCTION's prologue checks its stack or keeps checked frame storage.
+PrologueChecks :: (program: MachineProgram, function: s64) -> bool {
+    return MachineX64StackChecked(program, cast(s32)function) ||
+        program.functions[function].arena_mark != 0 || program.functions[function].fuel_register
+}
+
 // Whether a field at OFFSET lies inside the prologue of a function that
 // checks its stack or keeps checked frame storage.
 InPrologue :: (program: MachineProgram, image: MachineX64Image, offset: s64) -> bool {
     for function_id: cast(s64)0..image.functions.count - 1 {
         function := image.functions[function_id]
-        if offset >= function.begin && offset + 4 <= function.body {
-            return MachineX64StackChecked(program, cast(s32)function_id) ||
-                program.functions[function_id].arena_mark != 0 || program.functions[function_id].fuel_register
-        }
+        if offset >= function.begin && offset + 4 <= function.body { return PrologueChecks(program, function_id) }
     }
     return false
+}
+
+// Whether RELOCATION's field lies in the traps after OWNER's blocks, where
+// only a trap call and the fuel store before it have fields.
+InColdTraps :: (image: MachineX64Image, owner: s64, relocation: MachineX64Relocation) -> bool {
+    if relocation.kind != .TrapHandler && relocation.kind != .FuelCounter || owner >= image.functions.count {
+        return false
+    }
+    function := image.functions[owner]
+    return relocation.offset >= function.cold && relocation.offset + 4 <= function.end
+}
+
+// Whether RELOCATION's field lies inside its instruction, or in the traps
+// after the blocks of the function that holds the checking instruction.
+WithinInstruction :: (image: MachineX64Image, owner: s64, relocation: MachineX64Relocation) -> bool {
+    range := image.instructions[relocation.instruction]
+    if relocation.offset >= range.begin && relocation.offset + 4 <= range.end { return true }
+    if !InColdTraps(image, owner, relocation) { return false }
+    function := image.functions[owner]
+    return range.begin >= function.begin && range.end <= function.cold
 }
 
 // The index of FUNCTION's import among HOSTS, which are in function order,
@@ -651,8 +674,8 @@ MachineX64ImageMeasure :: (program: MachineProgram, image: MachineX64Image,
     }
     previous: s64 = 0
     for function: image.functions {
-        if function.begin < previous || function.body < function.begin || function.end < function.body ||
-            function.end > image.code.count {
+        if function.begin < previous || function.body < function.begin || function.cold < function.body ||
+            function.end < function.cold || function.end > image.code.count {
             return Problem(.Relocation)
         }
         previous = function.end
@@ -724,16 +747,21 @@ MachineX64ImageResolve :: (program: MachineProgram, image: MachineX64Image,
         return Problem(.Relocation)
     }
     previous: s64 = -1
+    // The function whose end follows the current field; fields ascend.
+    owner: s64 = 0
     for relocation: image.relocations {
+        while owner < image.functions.count && image.functions[owner].end <= relocation.offset { owner += 1 }
         if relocation.instruction == MachineNoId {
             // Only a prologue has relocations outside an instruction: its stack
-            // check, pointer frame and the load of a register step budget.
+            // check, pointer frame and the load of a register step budget, and
+            // the stack check's trap after the function's blocks.
             if relocation.offset <= previous || relocation.offset < 0 ||
                 relocation.offset > image.code.count - 4 ||
                 (relocation.kind != .StackLimit && relocation.kind != .TrapHandler &&
                  relocation.kind != .PointerRuntime && relocation.kind != .FuelCounter) ||
                 relocation.symbol != 0 || relocation.addend != -4 ||
-                !InPrologue(program, image, relocation.offset) {
+                !InPrologue(program, image, relocation.offset) &&
+                    !(InColdTraps(image, owner, relocation) && PrologueChecks(program, owner)) {
                 return Problem(.Relocation)
             }
             previous = relocation.offset
@@ -746,8 +774,7 @@ MachineX64ImageResolve :: (program: MachineProgram, image: MachineX64Image,
             relocation.offset <= previous || relocation.offset < 0 ||
             relocation.offset > image.code.count - 4 || relocation.instruction < 0 ||
             relocation.instruction >= image.instructions.count ||
-            relocation.offset < image.instructions[relocation.instruction].begin ||
-            relocation.offset + 4 > image.instructions[relocation.instruction].end {
+            !WithinInstruction(image, owner, relocation) {
             return Problem(.Relocation, relocation.instruction)
         }
         previous = relocation.offset

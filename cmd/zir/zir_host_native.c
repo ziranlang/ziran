@@ -854,11 +854,21 @@ native_trap_site_in(const NativeInstance *instance, const MachineNativeOwner *ow
     for(int64_t id = 0; id < image.functions.length && id < program.functions.length; id++) {
         if(offset < extents[id].begin || offset >= extents[id].end) continue;
         MachineFunction function = functions[id];
-        int32_t block = -1, origin = function.origin;
+        int32_t block = -1, origin = function.origin, check = -1;
+#if defined(__x86_64__)
+        /* An x86-64 check's trap lies after its function's blocks; the
+         * call there to the trap handler names the check. */
+        const MachineX64Relocation *relocations = image.relocations.data;
+        for(int64_t at = 0; at < image.relocations.length; at++)
+            if(relocations[at].kind == MachineX64RelocationKind_TrapHandler &&
+               relocations[at].offset == offset - 3)
+                check = relocations[at].instruction;
+#endif
         for(int32_t at = function.block_begin; at < function.block_begin + function.block_count; at++)
             for(int32_t instruction = blocks[at].instruction_begin;
                 instruction < blocks[at].instruction_begin + blocks[at].instruction_count; instruction++)
-                if(offset >= ranges[instruction].begin && offset < ranges[instruction].end) {
+                if(instruction == check ||
+                   (check < 0 && offset >= ranges[instruction].begin && offset < ranges[instruction].end)) {
                     block = blocks[at].lir_block;
                     if(instructions[instruction].origin >= 0) origin = instructions[instruction].origin;
                 }

@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native verification distinguishes integer and floating-point scratch registers when checking parallel copies, so valid floating-point argument copies are accepted even when register numbers match across banks.
 - Core audio builds share SHA256-pinned Xiph Vorbis archives across native targets; Windows uses the correct C-long ABI, verified against every public field offset and actual streaming/seek decoding.
 
 - Native register allocation resolves values across block edges without copying a register from an unrelated block laid out earlier. This fixes tied floating-point results in inlined control flow.

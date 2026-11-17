@@ -1216,9 +1216,11 @@ Transfer :: (state: *State, program: MachineProgram, function_id: s32, block_id:
                 pending = true
             }
             current[to] = moved
-            // Parking copies a register into the scratch register itself; a
-            // spill slot that happens to share its number does not park.
-            if destination.kind == .Physical && destination.id == program.scratch_general &&
+            // Register numbers are local to a bank: a float register sharing
+            // the general scratch register's number does not park a value.
+            // A spill slot sharing a scratch register's number does not either.
+            scratch := ifx destination.class == .Float || destination.class == .Vector then program.scratch_float else program.scratch_general
+            if destination.kind == .Physical && destination.id == scratch &&
                 destination.class != .Stack && source.kind == .Physical {
                 parked_location = from
             }

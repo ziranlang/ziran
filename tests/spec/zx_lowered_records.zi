@@ -21,7 +21,31 @@ Moved :: (point: Point, by: s64) -> Point { point.x += by; return point }
 Mover :: #type (point: Point, by: s64) -> Point;
 Holder :: struct { move: Mover; point: Point }
 
+// Repeated conditional float arguments need copies into several registers.
+// A copy into XMM11 must leave its source available for later copies, even
+// though XMM11 shares the general scratch register R11's number.
+WeightedCoordinates :: (x: float32, y: float32, width: float32, height: float32,
+    u0: float32, v0: float32, u1: float32, v1: float32) -> s32 {
+    return cast(s32)(x + y + width + height + u0 * 2.0 + v0 * 3.0 + u1 * 5.0 + v1 * 7.0)
+}
+ConditionalCoordinates :: (x0: s32, y0: s32, x1: s32, y1: s32, side: s32,
+    u0: float32, v0: float32, u1: float32, v1: float32) -> s32 {
+    total: s32
+    for corner: cast(s32)0..3 {
+        right := (corner & 1) != 0
+        bottom := corner >= 2
+        left := ifx right then x1 - side else x0
+        top := ifx bottom then y1 - side else y0
+        total += WeightedCoordinates(cast(float32)left, cast(float32)top,
+            cast(float32)(left + side), cast(float32)(top + side),
+            ifx right then u1 else u0, ifx bottom then v1 else v0,
+            ifx right then u0 else u1, ifx bottom then v0 else v1)
+    }
+    return total
+}
+
 main :: () -> s32 {
+    if ConditionalCoordinates(10, 20, 80, 90, 4, 1.0, 2.0, 3.0, 4.0) != 976 { return 1 }
     points: [4]Point
     for i: 0..3 { points[i] = Point.{x = i, y = 10 * i} }
 

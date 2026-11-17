@@ -2636,6 +2636,91 @@ Binary :: (op: *u8) -> LIR.LirOp {
     return LirOp.Invalid
 }
 
+// Repeating a local value, record member or fixed-array element cannot change
+// it between two comparisons. Do not extend this to calls, pointer reads,
+// slices, moves or arbitrary expressions: their second evaluation matters.
+SameBoundsValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
+                    left: s32, right: s32, depth: s32) -> bool {
+    if depth > 32 || left < 0 || right < 0 ||
+       left >= function.source.expr_count || right >= function.source.expr_count { return false }
+    a := *function.source.exprs[left]
+    b := *function.source.exprs[right]
+    if Spend(program, a.span) == 0 { return false }
+    if a.kind != b.kind || a.is_move != 0 || b.is_move != 0 ||
+       a.checked != b.checked || IR.CText(a.type) != IR.CText(b.type) { return false }
+    if a.kind == ZirExprKind.IDENT {
+        if a.is_global_value != 0 || b.is_global_value != 0 ||
+           IR.CText(a.name) != IR.CText(b.name) { return false }
+        return Binding(function, a.name) >= 0
+    }
+    if a.kind == ZirExprKind.INT { return IR.CText(a.text) == IR.CText(b.text) }
+    if a.kind != ZirExprKind.MEMBER && a.kind != ZirExprKind.INDEX { return false }
+    if !SameBoundsValue(program, function, a.left, b.left, depth + 1) { return false }
+    parent := Type(program, function, function.source.exprs[a.left].type, a.span)
+    if parent < 0 { return false }
+    if a.kind == ZirExprKind.MEMBER {
+        return TypeAt(program, parent).kind == LirTypeKind.Record &&
+            IR.CText(a.name) == IR.CText(b.name)
+    }
+    return TypeAt(program, parent).kind == LirTypeKind.Array &&
+        SameBoundsValue(program, function, a.right, b.right, depth + 1)
+}
+
+// For a signed integer x and a nonnegative literal U that fits x,
+// x > U || x < 0 is exactly unsigned(x) > U. Both comparisons must read
+// the same stable local value; otherwise retain normal short circuiting.
+BoundsDisjunction :: (program: *AssemblyProgram, function: *AssemblyFunction,
+                      expression: *IR.ZirExpr, depth: s32) -> s32 {
+    if IR.CText(*expression.op[0]) != "||" || expression.left < 0 || expression.right < 0 ||
+       expression.left >= function.source.expr_count || expression.right >= function.source.expr_count { return -1 }
+    high := *function.source.exprs[expression.left]
+    low := *function.source.exprs[expression.right]
+    if IR.CText(*high.op[0]) == "<" {
+        high = *function.source.exprs[expression.right]
+        low = *function.source.exprs[expression.left]
+    }
+    if high.kind != ZirExprKind.BINARY || low.kind != ZirExprKind.BINARY || high.checked != low.checked ||
+       IR.CText(*high.op[0]) != ">" || IR.CText(*low.op[0]) != "<" ||
+       high.right < 0 || low.right < 0 || high.right >= function.source.expr_count ||
+       low.right >= function.source.expr_count { return -1 }
+    upper := *function.source.exprs[high.right]
+    zero := *function.source.exprs[low.right]
+    if upper.kind != ZirExprKind.INT || zero.kind != ZirExprKind.INT { return -1 }
+    bound: u64
+    bottom: u64
+    if CZirIntegerLiteral(upper.text, *bound) == 0 ||
+       CZirIntegerLiteral(zero.text, *bottom) == 0 || bottom != 0 { return -1 }
+    if !SameBoundsValue(program, function, high.left, low.left, 0) { return -1 }
+    value_type := Type(program, function, function.source.exprs[high.left].type, expression.span)
+    upper_type := Type(program, function, upper.type, upper.span)
+    zero_type := Type(program, function, zero.type, zero.span)
+    if value_type < 0 || upper_type < 0 || zero_type < 0 { return -1 }
+    shape := TypeAt(program, value_type)
+    if shape.kind != LirTypeKind.Integer || !shape.is_signed || shape.bits < 1 || shape.bits > 64 ||
+       TypeAt(program, upper_type).kind != LirTypeKind.Integer || !TypeAt(program, upper_type).is_signed ||
+       TypeAt(program, zero_type).kind != LirTypeKind.Integer || !TypeAt(program, zero_type).is_signed ||
+       bound > (cast(u64)1 << cast(u64)(shape.bits - 1)) - 1 { return -1 }
+    unsigned_type: s32 = -1
+    for at: cast(s32)0..program.types.count - 1 {
+        if Spend(program, expression.span) == 0 { return -1 }
+        candidate := TypeAt(program, at)
+        if candidate.kind == LirTypeKind.Integer && !candidate.is_signed && candidate.bits == shape.bits {
+            unsigned_type = at
+            break
+        }
+    }
+    if unsigned_type < 0 { return -1 }
+    first := *function.source.exprs[expression.left]
+    saved_checking := function.checking
+    if first.checked != 0 { function.checking = true }
+    value := Expression(program, function, first.left, depth + 1)
+    function.checking = saved_checking
+    if value < 0 { return -1 }
+    value = Emit(program, function, LirOp.Bitcast, unsigned_type, *value, 1, -1, expression.span)
+    operands: [2]s32 = .[value, Constant(program, function, unsigned_type, bound, expression.span)]
+    return Emit(program, function, LirOp.Greater, 1, *operands[0], 2, -1, expression.span)
+}
+
 // Both arms of a conditional or short-circuiting expression, joined on one
 // block that receives the selected value as a parameter.
 Select :: (program: *AssemblyProgram, function: *AssemblyFunction, expression: *IR.ZirExpr,
@@ -5844,6 +5929,10 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
                 return Emit(program, function, Binary(*expression.op[0]), 1,
                             compared, 2, -1, expression.span)
             }
+        }
+        if IR.CText(*expression.op[0]) == "||" {
+            folded := BoundsDisjunction(program, function, expression, depth)
+            if folded >= 0 || program.failed != 0 { return folded }
         }
         operands := cast(*s32)Allocate(program, 2, size_of(s32))
         if operands == null { return -1 }

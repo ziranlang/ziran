@@ -2159,17 +2159,6 @@ ImportKindName(ZirImportKind kind)
 }
 
 const char *
-ExternKindName(ZirExternKind kind)
-{
-    switch(kind) {
-    case ZIR_EXTERN_HOST: return "host";
-    case ZIR_EXTERN_GO: return "go";
-    case ZIR_EXTERN_C: return "c";
-    default: return "none";
-    }
-}
-
-const char *
 ExprKindName(ZirExprKind kind)
 {
     switch(kind) {

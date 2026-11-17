@@ -835,43 +835,6 @@ loop_body_reads(const Emitter *e, int begin, int end, int loop, const char *name
     }
     return 0;
 }
-/* Whether statements begin..end can leave loop (a while at loop, or a loop
- * holding it) early: a return, or a break or named continue that does not
- * stop at a loop nested inside. */
-static int
-loop_leaves_early(const ZirFunction *fn, int loop, int begin, int end)
-{
-    int ends[64], ids[64], depth = 0;
-    for(int s = begin; s < end; s++) {
-        const ZirStmt *st = &fn->stmts[s];
-        while(depth > 0 && s > ends[depth - 1])
-            depth--;
-        if(st->kind == ZIR_STMT_RETURN)
-            return 1;
-        if(st->kind == ZIR_STMT_WHILE) {
-            if(depth == 64)
-                return 1;
-            ends[depth] = block_end(fn, s, end);
-            ids[depth++] = st->loop_id;
-            continue;
-        }
-        if(st->kind != ZIR_STMT_BREAK && st->kind != ZIR_STMT_CONTINUE)
-            continue;
-        int inner = 0;
-        if(st->target_id == 0)
-            inner = depth > 0;
-        else
-            for(int d = 0; d < depth && !inner; d++)
-                inner = ids[d] == st->target_id;
-        if(inner)
-            continue;
-        if(st->kind == ZIR_STMT_BREAK ||
-           (st->target_id != 0 && st->target_id != fn->stmts[loop].loop_id))
-            return 1;
-    }
-    return 0;
-}
-
 /* A literal integer operand: n or -n. */
 static int
 literal_operand(const ZirFunction *fn, int index, int64_t *value)

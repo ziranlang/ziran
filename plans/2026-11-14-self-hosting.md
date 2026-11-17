@@ -274,15 +274,12 @@ No in-scope C file remains after S18.
    removes the files it replaces in the same session. Diagnostics and generated
    bytes must remain identical except where a named, reviewed format bug is fixed.
 
-### Path rule shared with the tool-name cutover
+### Driver paths
 
-Run the sibling [tool-name plan](2026-11-14-tool-names.md) first when possible,
-so the translated drivers are born as `cmd/zi2zir`, `cmd/zi2c`, `cmd/zi2go`,
-`cmd/zi2zx`, `cmd/zx2wasm`, and `cmd/zx2native`. The old paths in the map above
-are dated evidence for the current C files. After the cutover, translate the
-same named functions at their permanent paths; never recreate an old folder or
-C implementation. If self-hosting starts first, complete S1/S2 without moving
-unrelated files, then the naming cutover moves the new Ziran modules once.
+The tool-name cutover is complete. Translate the drivers at `cmd/zi2zir`,
+`cmd/zi2c`, `cmd/zi2go`, `cmd/zi2zx`, `cmd/zx2wasm`, and `cmd/zx2native`.
+The old paths in the map above are dated evidence; apply each named function
+change at its permanent path.
 
 ## Ordered implementation steps
 

@@ -185,14 +185,10 @@ There are no intermediate commits. Each session ends with its focused local
 proof; the last integration session runs the full gates before one coherent
 commit per affected repository.
 
-Path coordination: the sibling
-[`2026-11-14-tool-names.md`](2026-11-14-tool-names.md) cutover should establish
-`cmd/zi2zx`, `cmd/zx2native`, and `cmd/zx2wasm` before player integration.
-References below to `cmd/zir-asm` and `cmd/zir-zx` cite the current 2026-11-14
-checkout. If that cutover has landed, apply the named function change in its
-permanent folder; do not restore an old directory or compatibility executable.
-Sessions 1-4 may precede the rename when their files do not overlap the moved
-drivers, but Session 5 and later must use the final tool paths.
+The tool-name cutover is complete: use `cmd/zi2zx`, `cmd/zx2native`, and
+`cmd/zx2wasm` for player integration. References below to `cmd/zir-asm` and
+`cmd/zir-zx` cite the 2026-11-14 checkout; apply each named function change
+in its permanent folder.
 
 ### Session 1 — Freeze backend selection and native image contracts
 

@@ -15,7 +15,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER
 export HARMONY_DESKTOP_RECOVERY=0
 
-for entry in Answer Spin Overflow Bump Long Trapper Retain Grow Fields; do
+for entry in Answer Quiet Spin Overflow Bump Long Trapper Retain Grow Fields; do
     "$zi2zx" --root "$repo/tests/spec" -I "$repo/std" --entry "native_bundle:$entry" \
         -o "$work/$entry.zx" "$repo/tests/spec/native_bundle.zi"
 done

@@ -1764,7 +1764,9 @@ NativeInstanceRun(NativeInstance *instance, long long *result, int *has_result)
     }
     fflush(stdout);
     fflush(stderr);
-    *result = value;
+    /* An entry without a result leaves whatever its last call put in the
+     * result register; it reports zero, as the engine does. */
+    *result = instance->has_result ? value : 0;
     *has_result = instance->has_result;
     return 1;
 }

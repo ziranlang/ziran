@@ -52,6 +52,16 @@ Fields :: () -> s32 {
 #program_export
 Answer :: () -> s32 { return 42 }
 
+// Calls itself, so it stays a call: its 42 is in the result register when
+// Quiet returns, and a run of Quiet still has no result.
+Countdown :: (n: s64) -> s64 {
+    if n == 0 { return 42 }
+    return Countdown(n - 1)
+}
+
+#program_export
+Quiet :: () { unused Countdown(3) }
+
 // Stops only when its fuel runs out.
 #program_export
 Spin :: () -> s32 {

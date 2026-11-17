@@ -36,6 +36,24 @@ instantiate(const Bundle *bundle, BundleBackendPolicy policy, int max_steps,
     return BundleInstantiateWithOptions(bundle, bindings, binding_count, &options);
 }
 
+/* An entry without a result reports none, and zero, whatever its last call
+ * left in the result register. */
+static void
+voids(void)
+{
+    Bundle *bundle = open_entry("Quiet");
+    BundleInstance *instance = instantiate(bundle, BUNDLE_BACKEND_NATIVE, 0, NULL, 0);
+    long long result = -1;
+    int present = 1;
+    assert(instance != NULL && BundleInstanceBackend(instance) == BUNDLE_EXECUTION_NATIVE_X86_64);
+    for(int round = 0; round < 3; round++) {
+        assert(BundleInstanceRun(instance, &result, &present));
+        assert(!present && result == 0);
+    }
+    BundleInstanceClose(instance);
+    BundleClose(bundle);
+}
+
 static void
 run(BundleInstance *instance, BundleExecutionBackend backend, long long expected)
 {
@@ -313,6 +331,7 @@ main(int argc, char **argv)
     strcpy(directory, argv[1]);
 #if defined(__x86_64__) && defined(__linux__)
     policies();
+    voids();
     limits();
     state();
     checked();

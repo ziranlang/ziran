@@ -726,6 +726,8 @@ LowerBinary :: (state: *LowerState, function: *MachineFunction, source: LirInstr
 
 // A compare makes a 0/1 value, or only flags when its branch follows.
 LowerCompare :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    // Its one use, the branch, became a jump.
+    if state.select.known[source.result] { return true }
     left := GlobalVirtual(state, function, source.operands[0])
     result := GlobalVirtual(state, function, source.result)
     flags := AddVirtual(state, .{class = .Flags, type = state.owner.virtuals[result].type,
@@ -1143,6 +1145,11 @@ LowerControl :: (state: *LowerState, function: *MachineFunction, source: LirInst
     opcode: MachineOpcode) -> bool {
     if opcode == .Jump && state.select.thread[state.select_block] >= 0 {
         return LowerThreaded(state, function, source)
+    }
+    if opcode == .Branch && state.select.known[source.operands[0]] {
+        // The test always holds (MachineSelectPlan.known): jump on its edge.
+        jump := BeginInstruction(state, .Jump, source.origin)
+        return AddEdges(state, function, source.edges[0:1]) && FinishInstruction(state, jump) != MachineNoId
     }
     if opcode == .Branch && state.select.fused[source.operands[0]] {
         return FlagsBranch(state, function, source.edges, source.origin)

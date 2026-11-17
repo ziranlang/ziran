@@ -27,6 +27,9 @@ MachineSelectPlan :: struct {
     bits: Vec(u64)
     loaded: Vec(bool)
     fused: Vec(bool)
+    // A fused compare whose branch always takes its first edge (Known): the
+    // compare is not emitted and the branch is a jump.
+    known: Vec(bool)
     // Per instruction, numbered through the blocks in order: which operand of
     // a binary operation or compare is an immediate.
     fold: Vec(MachineSelectFold)
@@ -230,6 +233,78 @@ Fusable :: (context: *Context, instructions: []LirInstruction, item: s64, value:
     return Scalar(type)
 }
 
+// The instruction of the function defining VALUE, or a zero one.
+Definition :: (context: *Context, value: s32) -> LirInstruction {
+    for block: context.function.blocks {
+        if !Spend(context, block.instructions.count) { return .{} }
+        for instruction: block.instructions { if instruction.result == value { return instruction } }
+    }
+    return .{}
+}
+
+// Whether TEST, a fused `less.equal` (`greater.equal` counting down) in a
+// latch, always holds. The latch must test cursor + 1 (cursor - 1) against
+// LAST, run only after a branch has left the loop on cursor == LAST, and
+// every edge into the block whose parameter cursor is must have just tested
+// the value it passes in that order against LAST. Then cursor <= LAST on
+// every entry and cursor != LAST here, so cursor + 1 <= LAST without
+// overflow. An inclusive range's rotated loop is exactly this; the LIR keeps
+// the test, which the vectorizer reads (compiler_vectorize.zi).
+KnownTest :: (context: *Context, latch: s32, test: LirInstruction) -> bool {
+    function := context.function
+    if test.op != .LessEqual && test.op != .GreaterEqual || test.operands.count != 2 { return false }
+    step := Definition(context, test.operands[0])
+    last := test.operands[1]
+    advance := ifx test.op == .LessEqual then LirOp.Add else LirOp.Subtract
+    if step.op != advance || step.operands.count != 2 || !context.plan.constant[step.operands[1]] ||
+        context.plan.bits[step.operands[1]] != 1 { return false }
+    cursor := step.operands[0]
+    entries: s64
+    home: s64 = -1
+    slot: s64 = -1
+    for block, index: function.blocks {
+        if !Spend(context, block.parameters.count + 1) { return false }
+        for value, at: block.parameters { if value == cursor { home = index; slot = at } }
+        terminal := block.instructions[block.instructions.count - 1]
+        for edge, at: terminal.edges {
+            if edge.block != latch { continue }
+            entries += 1
+            if terminal.op != .Branch || at != 1 || terminal.operands.count != 1 { return false }
+            exit := Definition(context, terminal.operands[0])
+            if exit.op != .Equal || exit.operands.count != 2 ||
+                !(exit.operands[0] == cursor && exit.operands[1] == last ||
+                  exit.operands[0] == last && exit.operands[1] == cursor) { return false }
+        }
+    }
+    if entries != 1 || home < 0 { return false }
+    for block: function.blocks {
+        terminal := block.instructions[block.instructions.count - 1]
+        for edge, at: terminal.edges {
+            if edge.block != home { continue }
+            if terminal.op != .Branch || at != 0 || terminal.operands.count != 1 ||
+                slot >= edge.arguments.count { return false }
+            entry := Definition(context, terminal.operands[0])
+            if entry.op != test.op || entry.operands.count != 2 || entry.operands[1] != last ||
+                entry.operands[0] != edge.arguments[slot] { return false }
+        }
+    }
+    return true
+}
+
+Known :: (context: *Context) -> bool {
+    for block, index: context.function.blocks {
+        if block.instructions.count < 2 { continue }
+        branch := block.instructions[block.instructions.count - 1]
+        if branch.op != .Branch || branch.operands.count != 1 || branch.edges.count != 2 ||
+            !context.plan.fused[branch.operands[0]] { continue }
+        test := block.instructions[block.instructions.count - 2]
+        if test.result != branch.operands[0] { continue }
+        if KnownTest(context, cast(s32)index, test) { context.plan.known[test.result] = true }
+        if context.problem != .None { return false }
+    }
+    return true
+}
+
 Plan :: (context: *Context) -> bool {
     plan := context.plan
     at: s64 = 0
@@ -343,6 +418,7 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
     for block: function.blocks { instructions += block.instructions.count }
     if !VecResizeBounded(plan.constant, count, bytes) || !VecResizeBounded(plan.bits, count, bytes) ||
         !VecResizeBounded(plan.loaded, count, bytes) || !VecResizeBounded(plan.fused, count, bytes) ||
+        !VecResizeBounded(plan.known, count, bytes) ||
         !VecResizeBounded(plan.uses, count, bytes) || !VecResizeBounded(plan.folded, count, bytes) ||
         !VecResizeBounded(plan.address_base, count, bytes) || !VecResizeBounded(plan.address_index, count, bytes) ||
         !VecResizeBounded(plan.address_shift, count, bytes) ||
@@ -360,6 +436,7 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
         plan.constant[value] = false
         plan.bits[value] = 0
         plan.fused[value] = false
+        plan.known[value] = false
         plan.uses[value] = 0
         plan.folded[value] = 0
         plan.address_base[value] = -1
@@ -373,7 +450,7 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
         plan.incoming[at] = 0
         plan.threaded[at] = 0
     }
-    if !Count(*context) || enabled && !Plan(*context) { return context.problem }
+    if !Count(*context) || enabled && (!Plan(*context) || !Known(*context)) { return context.problem }
     for value: cast(s64)0..count - 1 { plan.loaded[value] = !enabled || plan.uses[value] > plan.folded[value] }
     for at: cast(s64)0..function.blocks.count - 1 {
         plan.dead[at] = plan.threaded[at] > 0 && plan.threaded[at] == plan.incoming[at]
@@ -394,6 +471,7 @@ MachineSelectPlanFree :: (plan: *MachineSelectPlan) {
     VecFree(plan.bits)
     VecFree(plan.loaded)
     VecFree(plan.fused)
+    VecFree(plan.known)
     VecFree(plan.fold)
     VecFree(plan.thread)
     VecFree(plan.dead)

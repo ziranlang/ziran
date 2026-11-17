@@ -9,6 +9,7 @@ using Induction :: #import "compiler_opt_induction"
 using Layout :: #import "compiler_opt_layout"
 using Inline :: #import "compiler_opt_inline"
 using Thread :: #import "compiler_opt_thread"
+using Dominators :: #import "compiler_opt_dom"
 #import "compiler_learning"
 
 LirOptProblem :: enum s32 {
@@ -1256,6 +1257,8 @@ CseEntry :: struct {
     operand_count: s32
     value: s32
     next: s32
+    bucket: s32
+    block: s32
 }
 
 CseHash :: (hash: u64, value: u64) -> u64 {
@@ -1293,153 +1296,183 @@ CseSame :: (state: *OptState, program: LirProgram, function: LirFunction,
     return true
 }
 
-// Common-subexpression elimination: within one block, a pure instruction
-// whose operation, type, immediates and operand values repeat an earlier one
-// computes the same value or raises the same trap, so the later copy is
-// dropped and every use reads the earlier result. The earlier instruction
-// still runs, so trapping behavior and the effectful order never change.
+// Common-subexpression elimination over the dominator tree: a pure
+// instruction whose operation, type, immediates and operand values repeat
+// one earlier in its block, or in a block that dominates it, computes the
+// same value or raises the same trap, so the later copy is dropped and every
+// use reads the earlier result. The earlier instruction runs first on every
+// path to the later one, so trapping behavior and the effectful order never
+// change. Byte comparisons, constants and addresses are reused only within
+// their own block (see CseBlockLocal).
 CsePass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     state.counters.cse.runs += 1
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
-        if !Scratch(state, function.values.count, 4) { return false }
+        blocks := function.blocks.count
+        if blocks == 0 { continue }
+        total: s64
+        total_operands: s64
+        for block: function.blocks {
+            total += block.instructions.count
+            for instruction: block.instructions { total_operands += instruction.operands.count }
+        }
+        buckets := 16
+        while buckets < total * 4 && buckets < 268435456 { buckets *= 2 }
+        if !Scratch(state, function.values.count, 4) || !Scratch(state, blocks, 28) ||
+            !Scratch(state, total, 57) || !Scratch(state, total_operands, 4) || !Scratch(state, buckets, 4) {
+            return false
+        }
         aliases: Vec(s32)
-        if !VecResizeBounded(aliases, function.values.count, function.values.count) {
-            VecFree(aliases)
+        order: Vec(s32)
+        ends: Vec(s32)
+        offsets: Vec(s64)
+        scopes: Vec(CseScope)
+        seen: Vec(CseEntry)
+        keys: Vec(s32)
+        heads: Vec(s32)
+        dropped: Vec(u8)
+        if !VecResizeBounded(aliases, function.values.count, function.values.count) ||
+            !VecResizeBounded(order, blocks, blocks) || !VecResizeBounded(ends, blocks, blocks) ||
+            !VecResizeBounded(offsets, blocks, blocks) || !VecResizeBounded(scopes, blocks, blocks) ||
+            !VecResizeBounded(seen, total, total) || !VecResizeBounded(keys, total_operands, total_operands) ||
+            !VecResizeBounded(heads, buckets, buckets) || !VecResizeBounded(dropped, total, total) {
+            VecFree(aliases); VecFree(order); VecFree(ends); VecFree(offsets); VecFree(scopes)
+            VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
             return Fail(state, .Allocation)
         }
-        for value: 0..function.values.count - 1 { aliases[value] = cast(s32)value }
-        merged: s64 = 0
-        for block_index: 0..function.blocks.count - 1 {
-            block := function.blocks[block_index]
-            count := block.instructions.count
-            if count == 0 { continue }
-            total_operands: s64
-            for instruction: block.instructions { total_operands += instruction.operands.count }
-            buckets := 16
-            while buckets < count * 4 && buckets < 268435456 { buckets *= 2 }
-            if !Scratch(state, count, 48) || !Scratch(state, count, 5) ||
-                !Scratch(state, total_operands, 4) || !Scratch(state, buckets, 4) {
-                VecFree(aliases)
-                return false
-            }
-            seen: Vec(CseEntry)
-            keys: Vec(s32)
-            heads: Vec(s32)
-            dropped: Vec(u8)
-            if !VecResizeBounded(seen, count, count) ||
-                !VecResizeBounded(keys, total_operands, total_operands) ||
-                !VecResizeBounded(heads, buckets, buckets) ||
-                !VecResizeBounded(dropped, count, count) {
-                VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
-                VecFree(aliases)
-                return Fail(state, .Allocation)
-            }
-            for bucket: 0..heads.count - 1 { heads[bucket] = LirNoId }
-            seen_count: s64
-            key_count: s64
-            for read: 0..count - 1 {
-                dropped[read] = 0
-                instruction := block.instructions[read]
-                if LirTerminator(instruction.op) || instruction.result == LirNoId || instruction.effect != 0 { continue }
-                if !Spend(state, 1) {
-                    VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
-                    VecFree(aliases)
-                    return false
-                }
-                hash := CseHash(CseHash(CseHash(1469598103934665603,
-                    cast(u64)cast(s32)instruction.op), instruction.immediate),
-                    cast(u64)cast(s32)function.values[instruction.result])
-                for operand: instruction.operands { hash = CseHash(hash, cast(u64)cast(s32)operand) }
-                if instruction.op == .Constant {
-                    constant := program.constants[instruction.symbol]
-                    hash = CseHash(CseHash(hash, cast(u64)cast(s32)constant.type), constant.bits)
-                } else {
-                    hash = CseHash(hash, cast(u64)cast(s32)instruction.symbol)
-                }
-                bucket := cast(s32)(hash & cast(u64)(heads.count - 1))
-                found: s32 = LirNoId
-                at := heads[bucket]
-                while at != LirNoId {
-                    entry := seen[at]
-                    same := CseSame(state, program, function, instruction, entry, keys[:])
-                    if state.problem != .None {
-                        VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
-                        VecFree(aliases)
-                        return false
-                    }
-                    if same { found = entry.value; break }
-                    at = entry.next
-                }
-                if found != LirNoId {
-                    aliases[instruction.result] = found
-                    dropped[read] = 1
-                    merged += 1
-                    state.counters.cse.instructions += 1
-                    continue
-                }
-                if seen_count >= seen.count || key_count + instruction.operands.count > keys.count {
-                    VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
-                    VecFree(aliases)
-                    return Fail(state, .Limit)
-                }
-                entry := CseEntry.{op = instruction.op, immediate = instruction.immediate,
-                    symbol = instruction.symbol, alignment = instruction.alignment,
-                    result_type = function.values[instruction.result],
-                    operands = cast(s32)key_count, operand_count = cast(s32)instruction.operands.count,
-                    value = instruction.result, next = heads[bucket]}
-                seen[seen_count] = entry
-                for operand: instruction.operands {
-                    keys[key_count] = operand
-                    key_count += 1
-                }
-                heads[bucket] = cast(s32)seen_count
-                seen_count += 1
-            }
-            if merged > 0 {
-                write: s64
-                for read: 0..count - 1 {
-                    instruction := block.instructions[read]
-                    if dropped[read] != 0 { continue }
-                    block.instructions[write] = instruction
-                    write += 1
-                }
-                block.instructions = block.instructions[:write]
-                function.blocks[block_index] = block
-            }
-            VecFree(seen)
-            VecFree(keys)
-            VecFree(heads)
-            VecFree(dropped)
-        }
-        if merged > 0 {
-            for block_index: 0..function.blocks.count - 1 {
-                block := function.blocks[block_index]
-                for instruction_index: 0..block.instructions.count - 1 {
-                    instruction := block.instructions[instruction_index]
-                    for at: 0..instruction.operands.count - 1 {
-                        instruction.operands[at] = ResolveAlias(state, aliases[:], instruction.operands[at])
-                        if state.problem != .None { VecFree(aliases); return false }
-                    }
-                    for edge_index: 0..instruction.edges.count - 1 {
-                        edge := instruction.edges[edge_index]
-                        for at: 0..edge.arguments.count - 1 {
-                            edge.arguments[at] = ResolveAlias(state, aliases[:], edge.arguments[at])
-                            if state.problem != .None { VecFree(aliases); return false }
-                        }
-                        instruction.edges[edge_index] = edge
-                    }
-                    block.instructions[instruction_index] = instruction
-                }
-                function.blocks[block_index] = block
-            }
-            empty: []u8
-            if !CompactValues(state, *function, empty, *state.counters.cse) { return false }
-        }
+        ok := CseFunction(state, program, *function, order[:], ends[:], offsets[:], scopes[:],
+            seen[:], keys[:], heads[:], dropped[:], aliases[:])
+        VecFree(order); VecFree(ends); VecFree(offsets); VecFree(scopes)
+        VecFree(seen); VecFree(keys); VecFree(heads); VecFree(dropped)
         VecFree(aliases)
+        if !ok { return false }
         program.functions[function_index] = function
     }
     return VerifyPass(state, program, limits)
+}
+
+// Operations reused only within their own block: a byte comparison reads
+// memory, which may change between blocks. Constants, conversions and
+// addresses cost less to compute again than to keep live across blocks,
+// where the backend would no longer fold them into the instruction that
+// uses them, nor prove an index converted beside its access in range.
+CseBlockLocal :: (op: LirOp) -> bool {
+    return op == .BytesEqual || op == .Constant || op == .Null || op == .GlobalAddress ||
+        op == .FunctionAddress || op == .FieldAddress || op == .ElementAddress ||
+        op == .Convert || op == .Bitcast
+}
+
+// One open dominator subtree: where it ends in the preorder, and the table
+// sizes to restore when it does.
+CseScope :: struct { end: s32; seen: s64; keys: s64 }
+
+CseFunction :: (state: *OptState, program: LirProgram, function: *LirFunction, order: []s32, ends: []s32,
+    offsets: []s64, scopes: []CseScope, seen: []CseEntry, keys: []s32, heads: []s32, dropped: []u8,
+    aliases: []s32) -> bool {
+    analysis := LirSsaBudget.{work = state.remaining, bytes = state.maximum_bytes - state.scratch_bytes}
+    reached := LirDominatorPreorder(function.*, order, ends, *analysis)
+    if !Spend(state, analysis.used) { return false }
+    if reached < 0 { return Fail(state, ifx analysis.problem == .Allocation then .Allocation else .Limit) }
+    for value: 0..function.values.count - 1 { aliases[value] = cast(s32)value }
+    for bucket: 0..heads.count - 1 { heads[bucket] = LirNoId }
+    flat: s64
+    for b: 0..function.blocks.count - 1 {
+        offsets[b] = flat
+        for at: 0..function.blocks[b].instructions.count - 1 { dropped[flat + at] = 0 }
+        flat += function.blocks[b].instructions.count
+    }
+    merged: s64
+    seen_count: s64
+    key_count: s64
+    depth: s64
+    for position: 0..reached - 1 {
+        while depth > 0 && cast(s64)scopes[depth - 1].end <= position {
+            while seen_count > scopes[depth - 1].seen {
+                seen_count -= 1
+                heads[seen[seen_count].bucket] = seen[seen_count].next
+            }
+            key_count = scopes[depth - 1].keys
+            depth -= 1
+        }
+        scopes[depth] = .{end = ends[position], seen = seen_count, keys = key_count}
+        depth += 1
+        block_index := order[position]
+        block := function.blocks[block_index]
+        for read: 0..block.instructions.count - 1 {
+            instruction := block.instructions[read]
+            if LirTerminator(instruction.op) || instruction.result == LirNoId || instruction.effect != 0 { continue }
+            if !Spend(state, 1) { return false }
+            hash := CseHash(CseHash(CseHash(1469598103934665603,
+                cast(u64)cast(s32)instruction.op), instruction.immediate),
+                cast(u64)cast(s32)function.values[instruction.result])
+            for operand: instruction.operands { hash = CseHash(hash, cast(u64)cast(s32)operand) }
+            if instruction.op == .Constant {
+                constant := program.constants[instruction.symbol]
+                hash = CseHash(CseHash(hash, cast(u64)cast(s32)constant.type), constant.bits)
+            } else {
+                hash = CseHash(hash, cast(u64)cast(s32)instruction.symbol)
+            }
+            bucket := cast(s32)(hash & cast(u64)(heads.count - 1))
+            found: s32 = LirNoId
+            at := heads[bucket]
+            while at != LirNoId {
+                entry := seen[at]
+                local := entry.block == block_index || !CseBlockLocal(entry.op)
+                same := local && CseSame(state, program, function.*, instruction, entry, keys)
+                if state.problem != .None { return false }
+                if same { found = entry.value; break }
+                at = entry.next
+            }
+            if found != LirNoId {
+                aliases[instruction.result] = found
+                dropped[offsets[block_index] + read] = 1
+                merged += 1
+                state.counters.cse.instructions += 1
+                continue
+            }
+            if seen_count >= seen.count || key_count + instruction.operands.count > keys.count {
+                return Fail(state, .Limit)
+            }
+            seen[seen_count] = .{op = instruction.op, immediate = instruction.immediate,
+                symbol = instruction.symbol, alignment = instruction.alignment,
+                result_type = function.values[instruction.result],
+                operands = cast(s32)key_count, operand_count = cast(s32)instruction.operands.count,
+                value = instruction.result, next = heads[bucket], bucket = bucket, block = block_index}
+            for operand: instruction.operands {
+                keys[key_count] = operand
+                key_count += 1
+            }
+            heads[bucket] = cast(s32)seen_count
+            seen_count += 1
+        }
+    }
+    if merged == 0 { return true }
+    for block_index: 0..function.blocks.count - 1 {
+        block := function.blocks[block_index]
+        write: s64
+        for read: 0..block.instructions.count - 1 {
+            instruction := block.instructions[read]
+            if dropped[offsets[block_index] + read] != 0 { continue }
+            for at: 0..instruction.operands.count - 1 {
+                instruction.operands[at] = ResolveAlias(state, aliases, instruction.operands[at])
+                if state.problem != .None { return false }
+            }
+            for edge_index: 0..instruction.edges.count - 1 {
+                edge := instruction.edges[edge_index]
+                for at: 0..edge.arguments.count - 1 {
+                    edge.arguments[at] = ResolveAlias(state, aliases, edge.arguments[at])
+                    if state.problem != .None { return false }
+                }
+                instruction.edges[edge_index] = edge
+            }
+            block.instructions[write] = instruction
+            write += 1
+        }
+        block.instructions = block.instructions[:write]
+        function.blocks[block_index] = block
+    }
+    empty: []u8
+    return CompactValues(state, function, empty, *state.counters.cse)
 }
 
 DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
@@ -1936,24 +1969,32 @@ Result :: (state: OptState) -> LirOptResult {
         scratch_bytes = state.peak_scratch_bytes}
 }
 
+// Instructions in PROGRAM.
+ProgramSize :: (program: LirProgram) -> s64 {
+    size: s64
+    for function: program.functions {
+        for block: function.blocks { size += block.instructions.count }
+    }
+    return size
+}
+
 // Member reads of a joined record move into the edges that join it, the
 // copy pass folds them, and a pure callee whose result is then read only
 // member by member is inlined for those reads: a theme lookup's colour
 // becomes the constant its builder stores. Each round needs the last, so a
-// nested builder takes three. This runs on folded code, where callees have
-// their final size, and only while the work left is ample for the passes
-// after it; with nothing inlined or sunk there is nothing new to fold.
+// nested builder takes several. This runs on folded code, where callees
+// have their final size, and only while the work left is ample for the
+// passes after it; with nothing inlined or sunk there is nothing new to
+// fold. Most of an inlined builder folds away again, so the program may
+// grow by a quarter of its size as measured after each round's cleanup,
+// not by what each inline copied.
 MemberRounds :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits, options: LirOptOptions,
     inlined: s64, changed: *s64) -> bool {
-    growth: s64
-    for round: 1..3 {
-        size: s64
-        for function: LirReadProgram(*owner.storage).functions {
-            for block: function.blocks { size += block.instructions.count }
-        }
+    limit: s64
+    for round: 1..4 {
+        size := ProgramSize(LirReadProgram(*owner.storage))
         if state.remaining / 8192 < size { return true }
-        // Projected inlining grows the program by a quarter at most.
-        if round == 1 { growth = ifx size / 4 < 256 then 256 else size / 4 }
+        if round == 1 { limit = size + (ifx size / 4 < 256 then 256 else size / 4) }
         sunk := LirSinkFieldReads(*owner.storage, limits, state.remaining, 2)
         if !SharedPassResult(state, sunk.problem, sunk.codec, sunk.work, sunk.scratch_bytes) { return false }
         if round == 1 && inlined == 0 && sunk.calls == 0 { return true }
@@ -1964,17 +2005,18 @@ MemberRounds :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits, optio
         // a callee's result count as read member by member.
         ScratchReset(state)
         if options.eliminate_dead && !DeadPass(state, LirReadProgram(*owner.storage), limits) { return false }
+        growth := limit - ProgramSize(LirReadProgram(*owner.storage))
+        if growth <= 0 { return true }
         projected := LirInlineCalls(*owner.storage, limits, state.remaining, cast(s64)options.inline_calls, true, growth)
         state.counters.inline_calls.runs += 1
         state.counters.inline_calls.instructions += projected.calls
         if !SharedPassResult(state, projected.problem, projected.codec, projected.work, projected.scratch_bytes) {
             return false
         }
-        growth -= projected.grown
         changed.* += projected.calls
         ScratchReset(state)
         if projected.calls > 0 && !CopyPass(state, LirReadProgram(*owner.storage), limits) { return false }
-        if projected.calls == 0 || growth <= 0 { return true }
+        if projected.calls == 0 { return true }
     }
     return true
 }
@@ -2042,6 +2084,13 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         if !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
     }
     inlined: s64
+    // Callees are measured for inlining as they will be after cleanup.
+    if options.inline_calls > 0 && options.propagate_copies && options.simplify_cfg {
+        ScratchReset(*state)
+        if !CopyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+        ScratchReset(*state)
+        if !CfgRound(*state, owner, limits) { LirOptFree(owner); return Result(state) }
+    }
     if options.inline_calls > 0 {
         expanded := LirInlineCalls(*owner.storage, limits, state.remaining, cast(s64)options.inline_calls)
         state.counters.inline_calls.runs += 1

@@ -1,0 +1,110 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
+
+#scope_file
+// Calls FUNCTION with the one s64 argument VALUE.
+Call :: (program: LirProgram, function: s32, value: s64) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 811, *instance)
+    if opened.problem != .None { return opened }
+    // The optimizer may renumber types; the parameter names its own.
+    arguments := LirExecArgument.[.{type = program.functions[function].parameters[0], bits = cast(u64)value}]
+    return LirExecCall(*instance, function, arguments[:])
+}
+
+Count :: (function: LirFunction, op: LirOp) -> s64 {
+    count: s64
+    for block: function.blocks {
+        for instruction: block.instructions { if instruction.op == op { count += 1 } }
+    }
+    return count
+}
+
+#scope_export
+// Common subexpressions across blocks. f(x) computes x * x in its entry,
+// branches on x > 0, and each side computes x * x again plus x * 3. The
+// entry's product dominates both sides, so their copies go; the two sides
+// do not dominate each other, so each keeps its own x * 3, and a repeat of
+// it in the block after the join is merged with neither.
+CseCases :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1}]
+    modules := string.["cse"]
+    constants := LirConstant.[.{type = 1, bits = 0}, .{type = 1, bits = 3}]
+    // v0 x, v1 x*x, v2 0, v3 x>0, v4 3, v5 x*x, v6 x*3, v7 sum, v8 x*x, v9 x*3,
+    // v10 sum, v11 join, v12 x*3, v13 total.
+    values := s32.[1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    x := s32.[0]
+    square := s32.[0, 0]
+    positive := s32.[0, 2]
+    flag := s32.[3]
+    triple := s32.[0, 4]
+    left_sum := s32.[5, 6]
+    right_sum := s32.[8, 9]
+    final_sum := s32.[11, 12]
+    total := s32.[13]
+    to_sides := LirEdge.[.{block = 1}, .{block = 2}]
+    left_value := s32.[7]
+    right_value := s32.[10]
+    left_join := LirEdge.[.{block = 3, arguments = left_value[:]}]
+    right_join := LirEdge.[.{block = 3, arguments = right_value[:]}]
+    join_parameters := s32.[11]
+    b0 := LirInstruction.[
+        .{op = .Multiply, result = 1, operands = square[:], symbol = -1, origin = -1},
+        .{op = .Constant, result = 2, symbol = 0, origin = -1},
+        .{op = .Greater, result = 3, operands = positive[:], symbol = -1, origin = -1},
+        .{op = .Constant, result = 4, symbol = 1, origin = -1},
+        .{op = .Branch, result = -1, operands = flag[:], edges = to_sides[:], symbol = -1, origin = -1}]
+    b1 := LirInstruction.[
+        .{op = .Multiply, result = 5, operands = square[:], symbol = -1, origin = -1},
+        .{op = .Multiply, result = 6, operands = triple[:], symbol = -1, origin = -1},
+        .{op = .Add, result = 7, operands = left_sum[:], symbol = -1, origin = -1},
+        .{op = .Jump, result = -1, edges = left_join[:], symbol = -1, origin = -1}]
+    b2 := LirInstruction.[
+        .{op = .Multiply, result = 8, operands = square[:], symbol = -1, origin = -1},
+        .{op = .Multiply, result = 9, operands = triple[:], symbol = -1, origin = -1},
+        .{op = .Add, result = 10, operands = right_sum[:], symbol = -1, origin = -1},
+        .{op = .Jump, result = -1, edges = right_join[:], symbol = -1, origin = -1}]
+    b3 := LirInstruction.[
+        .{op = .Multiply, result = 12, operands = triple[:], symbol = -1, origin = -1},
+        .{op = .Add, result = 13, operands = final_sum[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = total[:], symbol = -1, origin = -1}]
+    blocks := LirBlock.[.{parameters = x[:], instructions = b0[:]}, .{instructions = b1[:]},
+        .{instructions = b2[:]}, .{parameters = join_parameters[:], instructions = b3[:]}]
+    parameters := s32.[1]
+    functions := LirFunction.[.{module = 0, name = "f", parameters = parameters[:], result = 1,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = LirNoId}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 81 }
+    inputs := s64.[4, -2, 0, 7]
+    for at: 0..inputs.count - 1 {
+        x := inputs[at]
+        expected := x * x + x * 3 + x * 3
+        result := Call(program, 0, x)
+        if result.problem != .None || result.value.bits != cast(u64)expected { return 82 }
+    }
+    options := LirOptDefaultOptions()
+    options.inline_calls = 0
+    options.inline_leaf_operations = 0
+    owner: LirOptOwner
+    defer LirOptFree(*owner)
+    optimized := LirOptBuild(*owner, program, LirDefaultLimits(), options)
+    if optimized.problem != .None || !owner.valid { return 83 }
+    output := LirOptProgram(*owner)
+    // One x * x for the entry, and x * 3 in each side and after the join.
+    if Count(output.functions[0], .Multiply) != 4 { return 84 }
+    for at: 0..inputs.count - 1 {
+        x := inputs[at]
+        expected := x * x + x * 3 + x * 3
+        result := Call(output, 0, x)
+        if result.problem != .None || result.value.bits != cast(u64)expected { return 85 }
+    }
+    return 0
+}

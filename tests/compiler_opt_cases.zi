@@ -9,6 +9,7 @@ using Rotation :: #import "compiler_opt_rotate_cases"
 using Inlining :: #import "compiler_opt_inline_cases"
 using Fields :: #import "compiler_opt_fields_cases"
 using Threading :: #import "compiler_opt_thread_cases"
+using Common :: #import "compiler_opt_cse_cases"
 using FloatFolds :: #import "compiler_opt_float_cases"
 using LoopLayout :: #import "compiler_opt_layout_cases"
 using LicmCases :: #import "compiler_opt_licm_cases"
@@ -211,9 +212,9 @@ OptRegressionCases :: () -> s32 {
         optimized.types[4].fields[1] != 1 || optimized.types[5].element != 4 ||
         optimized.types[6].kind != .Float || optimized.types[7].bits != 16 ||
         optimized.types[7].is_signed || optimized.constants[0].type != 0 ||
-        optimized.constants[0].bits != 7 || optimized.constants[5].type != 7 ||
-        optimized.constants[5].bits != 65535 || optimized.constants[6].type != 2 ||
-        optimized.constants[6].bits != 14 {
+        optimized.constants[0].bits != 7 || optimized.constants[5].type != 2 ||
+        optimized.constants[5].bits != 14 || optimized.constants[6].type != 7 ||
+        optimized.constants[6].bits != 65535 {
         print("compaction shape types=% constants=% c5=(%,%) c6=(%,%)\n",
             optimized.types.count, optimized.constants.count,
             optimized.constants[5].type, optimized.constants[5].bits,
@@ -253,6 +254,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if themes != 0 { print("theme read case % failed\n", themes); return 1 }
     threads := ThreadCases()
     if threads != 0 { print("thread case % failed\n", threads); return 1 }
+    common := CseCases()
+    if common != 0 { print("cse case % failed\n", common); return 1 }
     rotation := OptRotateCases()
     if rotation != 0 { return rotation }
     floats := OptFloatCases()

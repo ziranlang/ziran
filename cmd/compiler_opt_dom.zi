@@ -1,0 +1,155 @@
+using IR :: #import "compiler_lowered_ir"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+#scope_file
+Intersect :: (idom: []s32, number: []s32, left: s32, right: s32) -> s32 {
+    a := left
+    b := right
+    while a != b {
+        while number[a] > number[b] { a = idom[a] }
+        while number[b] > number[a] { b = idom[b] }
+    }
+    return a
+}
+
+#scope_export
+// The blocks FUNCTION reaches from its entry, in dominator-tree preorder:
+// ORDER[i] is a block and ENDS[i] the position just past the blocks it
+// dominates, which are exactly ORDER[i + 1] to ORDER[ENDS[i] - 1]. Both
+// slices hold a slot per block. Returns how many blocks are reached, or -1
+// when the budget runs out. Immediate dominators come from the iterative
+// method of Cooper, Harvey and Kennedy over reverse postorder.
+LirDominatorPreorder :: (function: LirFunction, order: []s32, ends: []s32, budget: *LirSsaBudget) -> s64 {
+    count := function.blocks.count
+    edges: s64
+    for block: function.blocks {
+        if !LirSsaSpend(budget, 1) { return -1 }
+        edges += block.instructions[block.instructions.count - 1].edges.count
+    }
+    if !LirSsaReserve(budget, count, 41) || !LirSsaReserve(budget, edges, 4) { return -1 }
+    number: Vec(s32)
+    by_number: Vec(s32)
+    idom: Vec(s32)
+    cursor: Vec(s64)
+    path: Vec(s32)
+    first: Vec(s32)
+    sibling: Vec(s32)
+    visited: Vec(u8)
+    offsets: Vec(s32)
+    predecessors: Vec(s32)
+    defer VecFree(number)
+    defer VecFree(by_number)
+    defer VecFree(idom)
+    defer VecFree(cursor)
+    defer VecFree(path)
+    defer VecFree(first)
+    defer VecFree(sibling)
+    defer VecFree(visited)
+    defer VecFree(offsets)
+    defer VecFree(predecessors)
+    if !VecResizeBounded(number, count, count) || !VecResizeBounded(by_number, count, count) ||
+        !VecResizeBounded(idom, count, count) || !VecResizeBounded(cursor, count, count) ||
+        !VecResizeBounded(path, count, count) || !VecResizeBounded(first, count, count) ||
+        !VecResizeBounded(sibling, count, count) || !VecResizeBounded(visited, count, count) ||
+        !VecResizeBounded(offsets, count + 1, count + 1) ||
+        !VecResizeBounded(predecessors, edges, edges) {
+        budget.problem = .Allocation
+        return -1
+    }
+    // Postorder by an explicit depth-first walk; number[b] becomes the
+    // reverse-postorder position, -1 for a block never reached.
+    for b: 0..count - 1 { number[b] = -1; idom[b] = -1; first[b] = -1; sibling[b] = -1 }
+    visited[function.entry] = 1
+    path[0] = function.entry
+    depth: s64 = 1
+    finished: s64
+    while depth > 0 {
+        if !LirSsaSpend(budget, 1) { return -1 }
+        b := path[depth - 1]
+        terminal := function.blocks[b].instructions[function.blocks[b].instructions.count - 1]
+        k := cursor[depth - 1]
+        if k >= terminal.edges.count {
+            by_number[finished] = b
+            finished += 1
+            depth -= 1
+            continue
+        }
+        cursor[depth - 1] = k + 1
+        target := terminal.edges[k].block
+        if visited[target] == 0 {
+            visited[target] = 1
+            path[depth] = target
+            cursor[depth] = 0
+            depth += 1
+        }
+    }
+    // Reverse the postorder in place.
+    for at: 0..finished / 2 - 1 {
+        swap := by_number[at]
+        by_number[at] = by_number[finished - 1 - at]
+        by_number[finished - 1 - at] = swap
+    }
+    for at: 0..finished - 1 { number[by_number[at]] = cast(s32)at }
+    // Predecessors among reached blocks, grouped by target.
+    for b: 0..count - 1 {
+        if number[b] < 0 { continue }
+        for edge: function.blocks[b].instructions[function.blocks[b].instructions.count - 1].edges {
+            offsets[edge.block + 1] += 1
+        }
+    }
+    for b: 0..count - 1 { offsets[b + 1] += offsets[b] }
+    for b: 0..count - 1 { cursor[b] = cast(s64)offsets[b] }
+    for b: 0..count - 1 {
+        if number[b] < 0 { continue }
+        for edge: function.blocks[b].instructions[function.blocks[b].instructions.count - 1].edges {
+            predecessors[cursor[edge.block]] = cast(s32)b
+            cursor[edge.block] += 1
+        }
+    }
+    idom[function.entry] = function.entry
+    changed := true
+    while changed {
+        changed = false
+        for at: 1..finished - 1 {
+            b := by_number[at]
+            chosen: s32 = -1
+            for p: offsets[b]..offsets[b + 1] - 1 {
+                if !LirSsaSpend(budget, 1) { return -1 }
+                predecessor := predecessors[p]
+                if idom[predecessor] < 0 { continue }
+                if chosen < 0 { chosen = predecessor }
+                else { chosen = Intersect(idom[:], number[:], predecessor, chosen) }
+            }
+            if idom[b] != chosen { idom[b] = chosen; changed = true }
+        }
+    }
+    // Each block's children, then the preorder. first[b] walks b's
+    // children as they are visited; path holds the positions of the
+    // subtrees still open.
+    for at: 1..finished - 1 {
+        b := by_number[at]
+        sibling[b] = first[idom[b]]
+        first[idom[b]] = b
+    }
+    order[0] = function.entry
+    path[0] = 0
+    position: s64 = 1
+    depth = 1
+    while depth > 0 {
+        if !LirSsaSpend(budget, 1) { return -1 }
+        root := order[path[depth - 1]]
+        next := first[root]
+        if next < 0 {
+            ends[path[depth - 1]] = cast(s32)position
+            depth -= 1
+            continue
+        }
+        first[root] = sibling[next]
+        order[position] = next
+        path[depth] = cast(s32)position
+        position += 1
+        depth += 1
+    }
+    return finished
+}

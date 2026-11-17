@@ -286,7 +286,8 @@ FixtureCases :: () -> s32 {
         built.counters.dead.instructions < 1 || built.counters.cfg.instructions != 1 ||
         built.counters.cfg.blocks != 1 ||
         built.counters.output_instructions >= built.counters.input_instructions { return 5 }
-    if optimized.functions[0].blocks.count != 2 || HasOp(optimized, 0, .Branch) ||
+    // The folded branch leaves a jump, and its target joins the entry.
+    if optimized.functions[0].blocks.count != 1 || HasOp(optimized, 0, .Branch) ||
         !HasOp(optimized, 1, .Divide) || !HasOp(optimized, 2, .ShiftLeft) ||
         !HasOp(optimized, 3, .Fuel) || !HasOp(optimized, 4, .Branch) ||
         !HasOp(optimized, 5, .Aggregate) || !HasOp(optimized, 5, .FunctionAddress) ||

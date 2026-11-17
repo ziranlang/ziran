@@ -2,6 +2,7 @@ using IR :: #import "compiler_lowered_ir"
 using Codec :: #import "compiler_exec_serial"
 using SSA :: #import "compiler_opt_ssa"
 using Loop :: #import "compiler_opt_loop"
+using Dominators :: #import "compiler_opt_dom"
 using Vectors :: #import "std/vec"
 
 LirLicmResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; loops: s64; instructions: s64; work: s64; scratch_bytes: s64 }
@@ -146,14 +147,29 @@ LirLicm :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLicmResu
     result: LirLicmResult
     budget := LirSsaBudget.{work = work, bytes = limits.bytes}
     functions := LirReadProgram(storage).functions.count
+    // Only a block some edge leads back to can head a loop, so the loop
+    // finder, which walks the whole function, runs for those alone.
+    headers: Vec(u8)
+    defer VecFree(headers)
+    widest: s64
+    for function: LirReadProgram(storage).functions {
+        if function.blocks.count > widest { widest = function.blocks.count }
+    }
     for fi: 0..functions - 1 {
-        blocks := LirReadProgram(storage).functions[fi].blocks.count
+        first := LirReadProgram(storage).functions[fi]
+        if first.external || first.blocks.count == 0 { continue }
+        blocks := first.blocks.count
+        budget.reserved = 0
+        if !VecResizeBounded(headers, blocks, widest) { budget.problem = .Allocation; break }
+        if !LirLoopHeaders(first, headers[:], *budget) { break }
+        stale := false
         for header: 0..blocks - 1 {
+            if stale { break }
+            if headers[header] == 0 { continue }
             budget.reserved = 0
             program := LirReadProgram(storage)
             function := program.functions[fi]
             if !LirSsaSpend(*budget, 1) { break }
-            if function.external { continue }
             plan: LirLoopPlan
             homes: Vec(s32)
             selected: Vec(u8)
@@ -170,6 +186,11 @@ LirLicm :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLicmResu
                         if budget.problem == .None && result.codec.problem == .None {
                             result.loops += 1
                             result.instructions += count
+                            // Hoisting moved instructions; find the headers again,
+                            // and leave a function whose blocks changed as it is.
+                            changed := LirReadProgram(storage).functions[fi]
+                            if changed.blocks.count != blocks { stale = true }
+                            else { unused LirLoopHeaders(changed, headers[:], *budget) }
                         }
                     }
                 }

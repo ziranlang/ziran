@@ -153,3 +153,49 @@ LirDominatorPreorder :: (function: LirFunction, order: []s32, ends: []s32, budge
     }
     return finished
 }
+
+// Marks HEADERS[b] = 1 for each block a depth-first walk from the entry
+// reaches again through an edge back to a block still on its path. Every
+// natural loop's header is one, since its latch's edge leads back to a
+// block that dominates it; a block never so marked heads no loop. HEADERS
+// holds a slot per block. Returns false when the budget runs out.
+LirLoopHeaders :: (function: LirFunction, headers: []u8, budget: *LirSsaBudget) -> bool {
+    count := function.blocks.count
+    if !LirSsaReserve(budget, count, 13) { return false }
+    mark: Vec(u8)
+    path: Vec(s32)
+    next: Vec(s64)
+    defer VecFree(mark)
+    defer VecFree(path)
+    defer VecFree(next)
+    if !VecResizeBounded(mark, count, count) || !VecResizeBounded(path, count, count) ||
+        !VecResizeBounded(next, count, count) {
+        budget.problem = .Allocation
+        return false
+    }
+    for b: 0..count - 1 { headers[b] = 0 }
+    mark[function.entry] = 1
+    path[0] = function.entry
+    depth: s64 = 1
+    while depth > 0 {
+        if !LirSsaSpend(budget, 1) { return false }
+        b := path[depth - 1]
+        terminal := function.blocks[b].instructions[function.blocks[b].instructions.count - 1]
+        k := next[depth - 1]
+        if k >= terminal.edges.count {
+            mark[b] = 2
+            depth -= 1
+            continue
+        }
+        next[depth - 1] = k + 1
+        target := terminal.edges[k].block
+        if mark[target] == 1 { headers[target] = 1 }
+        else if mark[target] == 0 {
+            mark[target] = 1
+            path[depth] = target
+            next[depth] = 0
+            depth += 1
+        }
+    }
+    return true
+}

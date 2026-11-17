@@ -1,6 +1,7 @@
 using IR :: #import "compiler_lowered_ir"
 using Codec :: #import "compiler_exec_serial"
 using SSA :: #import "compiler_opt_ssa"
+using Dominators :: #import "compiler_opt_dom"
 using Vectors :: #import "std/vec"
 
 // What LirThread changed: edges sent past a block that only jumps or
@@ -142,49 +143,7 @@ Prepare :: (function: LirFunction, work: *Work, budget: *LirSsaBudget) -> bool {
         }
         work.terms[b] = term
     }
-    return Headers(function, work, budget)
-}
-
-// Marks the targets of edges back to a block still on the depth-first path
-// from the entry: the loop headers.
-Headers :: (function: LirFunction, work: *Work, budget: *LirSsaBudget) -> bool {
-    blocks := function.blocks.count
-    if !LirSsaReserve(budget, blocks, 13) { return false }
-    mark: Vec(u8)
-    path: Vec(s32)
-    next: Vec(s64)
-    defer VecFree(mark)
-    defer VecFree(path)
-    defer VecFree(next)
-    if !VecResizeBounded(mark, blocks, blocks) || !VecResizeBounded(path, blocks, blocks) ||
-        !VecResizeBounded(next, blocks, blocks) {
-        budget.problem = .Allocation
-        return false
-    }
-    mark[function.entry] = 1
-    path[0] = function.entry
-    depth: s64 = 1
-    while depth > 0 {
-        if !LirSsaSpend(budget, 1) { return false }
-        b := path[depth - 1]
-        term := work.terms[b]
-        k := next[depth - 1]
-        if !Branching(term.instruction.op) || k >= term.count {
-            mark[b] = 2
-            depth -= 1
-            continue
-        }
-        next[depth - 1] = k + 1
-        target := work.edges[term.first + k].block
-        if mark[target] == 1 { work.header[target] = 1 }
-        else if mark[target] == 0 {
-            mark[target] = 1
-            path[depth] = target
-            next[depth] = 0
-            depth += 1
-        }
-    }
-    return true
+    return LirLoopHeaders(function, work.header[:], budget)
 }
 
 // VALUE of TARGET's terminal as seen at the end of the edge INTO it.

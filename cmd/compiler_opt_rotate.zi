@@ -1,6 +1,7 @@
 using IR :: #import "compiler_lowered_ir"
 using Codec :: #import "compiler_exec_serial"
 using SSA :: #import "compiler_opt_ssa"
+using Dominators :: #import "compiler_opt_dom"
 using Vectors :: #import "std/vec"
 
 LirRotateResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; loops: s64; work: s64; scratch_bytes: s64 }
@@ -274,6 +275,8 @@ LirRotate :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirRotate
     defer VecFree(latest)
     defer VecFree(versions)
     defer FreeVersions(versions[:])
+    headers: Vec(u8)
+    defer VecFree(headers)
     if !VecResizeBounded(functions, program.functions.count, program.functions.count) ||
         !VecResizeBounded(latest, program.functions.count, program.functions.count) {
         result.problem = .Allocation
@@ -285,11 +288,16 @@ LirRotate :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirRotate
     }
     for fi: 0..program.functions.count - 1 {
         block_count := functions[fi].blocks.count
+        if functions[fi].external || block_count == 0 { continue }
+        // Only a block some edge leads back to can head a loop.
+        if !VecResizeBounded(headers, block_count, limits.blocks) { budget.problem = .Allocation; break }
+        budget.reserved = 0
+        if !LirLoopHeaders(functions[fi], headers[:], *budget) { break }
         for h: 0..block_count - 1 {
+            if headers[h] == 0 { continue }
             budget.reserved = 0
             if !LirSsaSpend(*budget, 1) { break }
             function := functions[fi]
-            if function.external || function.blocks.count == 0 { continue }
             seen: Vec(u8)
             if !LirSsaReserve(*budget, function.blocks.count, 1) { break }
             if !VecResizeBounded(seen, function.blocks.count, function.blocks.count) { budget.problem = .Allocation; break }
@@ -307,6 +315,9 @@ LirRotate :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirRotate
             }
             functions[fi] = rebuilt.function
             VecPush(versions, rebuilt)
+            // Rotation added blocks; mark the headers of the new shape.
+            if !VecResizeBounded(headers, functions[fi].blocks.count, limits.blocks) { budget.problem = .Allocation; break }
+            if !LirLoopHeaders(functions[fi], headers[:], *budget) { break }
             if latest[fi] >= 0 { RotatedFree(*versions[latest[fi]]) }
             latest[fi] = versions.count - 1
             result.loops += 1

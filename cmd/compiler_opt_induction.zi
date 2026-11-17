@@ -2,6 +2,7 @@ using IR :: #import "compiler_lowered_ir"
 using Codec :: #import "compiler_exec_serial"
 using SSA :: #import "compiler_opt_ssa"
 using Loop :: #import "compiler_opt_loop"
+using Dominators :: #import "compiler_opt_dom"
 using Vectors :: #import "std/vec"
 
 LirInductionResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; products: s64; work: s64; scratch_bytes: s64 }
@@ -210,14 +211,29 @@ LirInduction :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirInd
     result: LirInductionResult
     budget := LirSsaBudget.{work = work, bytes = limits.bytes}
     functions := LirReadProgram(storage).functions.count
+    // Only a block some edge leads back to can head a loop, so the loop
+    // finder, which walks the whole function, runs for those alone.
+    headers: Vec(u8)
+    defer VecFree(headers)
+    widest: s64
+    for function: LirReadProgram(storage).functions {
+        if function.blocks.count > widest { widest = function.blocks.count }
+    }
     for fi: 0..functions - 1 {
-        blocks := LirReadProgram(storage).functions[fi].blocks.count
+        first := LirReadProgram(storage).functions[fi]
+        if first.external || first.blocks.count == 0 { continue }
+        blocks := first.blocks.count
+        budget.reserved = 0
+        if !VecResizeBounded(headers, blocks, widest) { budget.problem = .Allocation; break }
+        if !LirLoopHeaders(first, headers[:], *budget) { break }
+        stale := false
         for header: 0..blocks - 1 {
+            if stale { break }
+            if headers[header] == 0 { continue }
             budget.reserved = 0
             program := LirReadProgram(storage)
             function := program.functions[fi]
             if !LirSsaSpend(*budget, 1) { break }
-            if function.external { continue }
             plan: LirLoopPlan
             homes: Vec(s32)
             supported := LirLoopFind(*plan, function, cast(s32)header, *budget)
@@ -227,7 +243,14 @@ LirInduction :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirInd
                     product := Find(program, function, *plan, homes[:], *budget)
                     if product.block >= 0 && budget.problem == .None {
                         result.codec = Rebuild(storage, program, fi, *plan, product, limits, *budget)
-                        if result.codec.problem == .None && budget.problem == .None { result.products += 1 }
+                        if result.codec.problem == .None && budget.problem == .None {
+                            result.products += 1
+                            // The rewrite changed the loop; find the headers again,
+                            // and leave a function whose blocks changed as it is.
+                            changed := LirReadProgram(storage).functions[fi]
+                            if changed.blocks.count != blocks { stale = true }
+                            else { unused LirLoopHeaders(changed, headers[:], *budget) }
+                        }
                     }
                 }
             }

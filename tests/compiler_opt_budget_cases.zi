@@ -1,0 +1,150 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
+using Vectors :: #import "std/vec"
+
+#scope_file
+Call :: (program: LirProgram, function: s32, value: s64) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 811, *instance)
+    if opened.problem != .None { return opened }
+    arguments := LirExecArgument.[.{type = program.functions[function].parameters[0], bits = cast(u64)value}]
+    return LirExecCall(*instance, function, arguments[:])
+}
+
+#scope_export
+BUDGET_CHAIN :: 3000
+
+// The loop passes look for loops only at blocks an edge leads back to.
+// f(x) is a chain of BUDGET_CHAIN blocks, block i returning i when x == i
+// and going on otherwise, then one loop that counts x down to 0. Looking
+// for a loop at every block walked the whole function once per block, so
+// the optimizer's work grew with the square of a function's size and a
+// large program ran out of budget. The work used is returned in *USED.
+BudgetCases :: (used: *s64) -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1}]
+    modules := string.["budget"]
+    chain: s64 = BUDGET_CHAIN
+    // Constants 0 .. chain - 1 are the chain's i, then 1 and 0. Values: v0 is
+    // x; chain block i defines v(1 + 2i) = i and v(2 + 2i) = x == i; then the
+    // loop's n, n == 0, 1, n - 1 and 0, and the exit's result.
+    base := 1 + 2 * chain
+    value_count := base + 6
+    constants: Vec(LirConstant)
+    values: Vec(s32)
+    operands: Vec(s32)
+    edges: Vec(LirEdge)
+    code: Vec(LirInstruction)
+    blocks: Vec(LirBlock)
+    defer VecFree(constants)
+    defer VecFree(values)
+    defer VecFree(operands)
+    defer VecFree(edges)
+    defer VecFree(code)
+    defer VecFree(blocks)
+    if !VecResizeBounded(constants, chain + 2, chain + 2) ||
+        !VecResizeBounded(values, value_count, value_count) ||
+        !VecResizeBounded(operands, 4 * chain + 8, 4 * chain + 8) ||
+        !VecResizeBounded(edges, 2 * chain + 2, 2 * chain + 2) ||
+        !VecResizeBounded(code, 3 * chain + 7, 3 * chain + 7) ||
+        !VecResizeBounded(blocks, chain + 2, chain + 2) { return 91 }
+    for i: 0..chain - 1 {
+        constants[i] = .{type = 1, bits = cast(u64)i}
+        values[1 + 2 * i] = 1
+        values[2 + 2 * i] = 2
+    }
+    constants[chain] = .{type = 1, bits = 1}
+    constants[chain + 1] = .{type = 1, bits = 0}
+    values[0] = 1
+    values[base] = 1
+    values[base + 1] = 2
+    values[base + 2] = 1
+    values[base + 3] = 1
+    values[base + 4] = 1
+    values[base + 5] = 1
+    loop_block := cast(s32)chain
+    exit_block := cast(s32)chain + 1
+    n := cast(s32)base
+    entry_parameters := s32.[0]
+    loop_parameters := s32.[n]
+    exit_parameters := s32.[n + 5]
+    op: s64 = 1
+    ep: s64
+    ip: s64
+    operands[0] = 0
+    for i: 0..chain - 1 {
+        start := ip
+        constant := cast(s32)(1 + 2 * i)
+        test := constant + 1
+        operands[op] = 0
+        operands[op + 1] = constant
+        operands[op + 2] = test
+        code[ip] = .{op = .Constant, result = constant, symbol = cast(s32)i, origin = -1}
+        code[ip + 1] = .{op = .Equal, result = test, operands = operands[op:op + 2], symbol = -1, origin = -1}
+        edges[ep] = .{block = exit_block, arguments = operands[op + 1:op + 2]}
+        if i + 1 < chain { edges[ep + 1] = .{block = cast(s32)(i + 1)} }
+        else { edges[ep + 1] = .{block = loop_block, arguments = operands[0:1]} }
+        code[ip + 2] = .{op = .Branch, result = -1, operands = operands[op + 2:op + 3],
+            edges = edges[ep:ep + 2], symbol = -1, origin = -1}
+        ip += 3
+        op += 3
+        ep += 2
+        if i == 0 { blocks[i] = .{parameters = entry_parameters[:], instructions = code[start:ip]} }
+        else { blocks[i] = .{instructions = code[start:ip]} }
+    }
+    // The loop: with n == 0 it leaves with 0, otherwise n - 1 goes round again.
+    start := ip
+    operands[op] = n
+    operands[op + 1] = n + 4
+    operands[op + 2] = n + 2
+    operands[op + 3] = n + 1
+    operands[op + 4] = n + 3
+    operands[op + 5] = n
+    operands[op + 6] = n + 2
+    code[ip] = .{op = .Fuel, result = -1, immediate = 1, effect = 1, symbol = -1, origin = -1}
+    code[ip + 1] = .{op = .Constant, result = n + 4, symbol = cast(s32)(chain + 1), origin = -1}
+    code[ip + 2] = .{op = .Equal, result = n + 1, operands = operands[op:op + 2], symbol = -1, origin = -1}
+    code[ip + 3] = .{op = .Constant, result = n + 2, symbol = cast(s32)chain, origin = -1}
+    code[ip + 4] = .{op = .Subtract, result = n + 3, operands = operands[op + 5:op + 7], symbol = -1, origin = -1}
+    edges[ep] = .{block = exit_block, arguments = operands[op + 1:op + 2]}
+    edges[ep + 1] = .{block = loop_block, arguments = operands[op + 4:op + 5]}
+    code[ip + 5] = .{op = .Branch, result = -1, operands = operands[op + 3:op + 4], edges = edges[ep:ep + 2],
+        symbol = -1, origin = -1}
+    ip += 6
+    blocks[chain] = .{parameters = loop_parameters[:], instructions = code[start:ip]}
+    start = ip
+    code[ip] = .{op = .Return, result = -1, operands = exit_parameters[:], symbol = -1, origin = -1}
+    ip += 1
+    blocks[chain + 1] = .{parameters = exit_parameters[:], instructions = code[start:ip]}
+    parameters := s32.[1]
+    functions := LirFunction.[.{module = 0, name = "f", parameters = parameters[:], result = 1,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = LirNoId}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 92 }
+    inputs := s64.[5, 0, 2999, 4000]
+    expected := s64.[5, 0, 2999, 0]
+    for at: 0..inputs.count - 1 {
+        result := Call(program, 0, inputs[at])
+        if result.problem != .None || result.value.bits != cast(u64)expected[at] { return 93 }
+    }
+    owner: LirOptOwner
+    defer LirOptFree(*owner)
+    optimized := LirOptBuild(*owner, program, LirDefaultLimits(), LirOptDefaultOptions())
+    used.* = optimized.work
+    if optimized.problem != .None || !owner.valid { return 94 }
+    // About half a million units now; a loop search at every block took 250 million.
+    if optimized.work > 20000000 { return 96 }
+    output := LirOptProgram(*owner)
+    for at: 0..inputs.count - 1 {
+        result := Call(output, 0, inputs[at])
+        if result.problem != .None || result.value.bits != cast(u64)expected[at] { return 95 }
+    }
+    return 0
+}

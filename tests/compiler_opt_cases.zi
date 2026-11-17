@@ -241,6 +241,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if calls != 0 { print("call inline case % failed\n", calls); return 1 }
     places := PlaceCases()
     if places != 0 { print("in-place inline case % failed\n", places); return 1 }
+    bottom := BottomCases()
+    if bottom != 0 { print("callee-first inline case % failed\n", bottom); return 1 }
     rotation := OptRotateCases()
     if rotation != 0 { return rotation }
     floats := OptFloatCases()

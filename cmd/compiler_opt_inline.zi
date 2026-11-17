@@ -371,6 +371,64 @@ Expand :: (program: LirProgram, function: LirFunction, sites: []s32, limits: Lir
 
 // Write once, while every expanded table and the borrowed input still exist;
 // only LirRead may replace the owner's storage.
+// Fills ORDER with every function, each after the functions it calls
+// (except along a cycle), by depth-first search without recursion.
+CalleesFirst :: (program: LirProgram, order: []s32, budget: *LirSsaBudget) -> bool {
+    count := program.functions.count
+    stack: Vec(s32)
+    state: Vec(u8)
+    block_at: Vec(s64)
+    instruction_at: Vec(s64)
+    defer VecFree(stack)
+    defer VecFree(state)
+    defer VecFree(block_at)
+    defer VecFree(instruction_at)
+    if !LirSsaReserve(budget, count, 21) { return false }
+    if !VecResizeBounded(stack, count, count) || !VecResizeBounded(state, count, count) ||
+        !VecResizeBounded(block_at, count, count) || !VecResizeBounded(instruction_at, count, count) {
+        budget.problem = .Allocation
+        return false
+    }
+    for f: 0..count - 1 { state[f] = 0; block_at[f] = 0; instruction_at[f] = 0 }
+    placed: s64
+    for root: 0..count - 1 {
+        if state[root] != 0 { continue }
+        depth: s64
+        stack[0] = cast(s32)root
+        state[root] = 1
+        while depth >= 0 {
+            f := stack[depth]
+            function := program.functions[f]
+            pushed := false
+            while block_at[f] < function.blocks.count {
+                block := function.blocks[block_at[f]]
+                if instruction_at[f] >= block.instructions.count {
+                    block_at[f] += 1
+                    instruction_at[f] = 0
+                    continue
+                }
+                instruction := block.instructions[instruction_at[f]]
+                instruction_at[f] += 1
+                if !LirSsaSpend(budget, 1) { return false }
+                callee := instruction.symbol
+                if instruction.op == .Call && callee >= 0 && cast(s64)callee < count && state[callee] == 0 {
+                    state[callee] = 1
+                    depth += 1
+                    stack[depth] = callee
+                    pushed = true
+                    break
+                }
+            }
+            if pushed { continue }
+            state[f] = 2
+            order[placed] = f
+            placed += 1
+            depth -= 1
+        }
+    }
+    return true
+}
+
 Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
     budget: *LirSsaBudget) -> LirCodecResult {
     empty: []u8
@@ -386,8 +444,10 @@ Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
 }
 
 #scope_export
-// Inlines direct calls to procedures of at most MAXIMUM instructions, one
-// level deep: callees are the input versions. The program grows by at most
+// Inlines direct calls to procedures of at most MAXIMUM instructions.
+// Callees are expanded before their callers, and a call copies its callee
+// as expanded, so a helper's own inlined helpers come with it and a callee
+// that grew past MAXIMUM stays a call. The program grows by at most
 // half its instructions, or 256 for a small one, and never beyond what the
 // remaining work budget admits; it is written and verified once.
 LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum: s64) -> LirInlineCallsResult {
@@ -412,18 +472,26 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
     functions: Vec(LirFunction)
     versions: Vec(Expanded)
     sites: Vec(s32)
+    order: Vec(s32)
     defer VecFree(functions)
     defer VecFree(sites)
+    defer VecFree(order)
     defer VecFree(versions)
     defer FreeExpanded(versions[:])
     if !LirSsaReserve(*budget, largest, 4) { result.problem = budget.problem; return result }
     if !VecResizeBounded(functions, program.functions.count, program.functions.count) ||
-        !VecResizeBounded(sites, largest, largest) {
+        !VecResizeBounded(sites, largest, largest) ||
+        !VecResizeBounded(order, program.functions.count, program.functions.count) {
         result.problem = .Allocation
         return result
     }
     for fi: 0..program.functions.count - 1 { functions[fi] = program.functions[fi] }
-    for fi: 0..program.functions.count - 1 {
+    if !CalleesFirst(program, order[:], *budget) { result.problem = budget.problem; return result }
+    // The program as expanded so far: callers see their callees' new bodies.
+    current := program
+    current.functions = functions[:]
+    for position: 0..program.functions.count - 1 {
+        fi := cast(s64)order[position]
         function := program.functions[fi]
         if function.external || function.blocks.count == 0 { continue }
         count := Measure(function).instructions
@@ -434,8 +502,8 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
         for block: function.blocks {
             for instruction: block.instructions {
                 sites[flat] = -1
-                if allowance > 0 && Expandable(program, fi, instruction, maximum) {
-                    size := Measure(program.functions[instruction.symbol]).instructions
+                if allowance > 0 && Expandable(current, fi, instruction, maximum) {
+                    size := Measure(current.functions[instruction.symbol]).instructions
                     if size <= allowance {
                         sites[flat] = instruction.symbol
                         allowance -= size
@@ -447,7 +515,7 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
         }
         if found == 0 { continue }
         expanded: Expanded
-        built := Expand(program, function, sites[:count], limits, *budget, *expanded)
+        built := Expand(current, function, sites[:count], limits, *budget, *expanded)
         if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
         if !built {
             ExpandedFree(*expanded)

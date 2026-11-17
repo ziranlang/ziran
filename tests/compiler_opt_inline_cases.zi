@@ -194,3 +194,71 @@ PlaceCases :: () -> s32 {
     if after.problem != .None || after.value.bits != before.value.bits { return 58 }
     return 0
 }
+
+// main calls outer, which calls inner. Callees are expanded first, so main
+// takes outer with inner already inside it and makes no call at all.
+BottomCases :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}]
+    modules := string.["bottom"]
+    constants := LirConstant.[.{type = 1, bits = 5}]
+    main_values := s32.[1, 1]
+    argument := s32.[0]
+    returned := s32.[1]
+    main_code := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 0, origin = -1},
+        .{op = .Call, result = 1, operands = argument[:], symbol = 1, effect = 1, origin = -1},
+        .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}]
+    outer_values := s32.[1, 1, 1]
+    outer_parameters := s32.[1]
+    outer_entry := s32.[0]
+    inner_argument := s32.[0]
+    outer_sum := s32.[1, 0]
+    outer_result := s32.[2]
+    outer_code := LirInstruction.[
+        .{op = .Call, result = 1, operands = inner_argument[:], symbol = 2, effect = 1, origin = -1},
+        .{op = .Add, result = 2, operands = outer_sum[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = outer_result[:], symbol = -1, origin = -1}]
+    inner_values := s32.[1, 1]
+    inner_parameters := s32.[1]
+    inner_entry := s32.[0]
+    pair := s32.[0, 0]
+    doubled := s32.[1]
+    inner_code := LirInstruction.[
+        .{op = .Add, result = 1, operands = pair[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = doubled[:], symbol = -1, origin = -1}]
+    main_blocks := LirBlock.[.{instructions = main_code[:]}]
+    outer_blocks := LirBlock.[.{parameters = outer_entry[:], instructions = outer_code[:]}]
+    inner_blocks := LirBlock.[.{parameters = inner_entry[:], instructions = inner_code[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "main", result = 1, values = main_values[:], blocks = main_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "outer", parameters = outer_parameters[:], result = 1, values = outer_values[:],
+            blocks = outer_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "inner", parameters = inner_parameters[:], result = 1, values = inner_values[:],
+            blocks = inner_blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 61 }
+    before := Run(program)
+    if before.problem != .None || before.value.bits != 15 { return 62 }
+    empty: []u8
+    measured := LirWrite(program, empty)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if measured.problem != .None || !VecResize(bytes, measured.size) ||
+        LirWrite(program, bytes[:]).problem != .None { return 63 }
+    owner: LirReadOwner
+    defer LirReadFree(*owner)
+    if LirRead(*owner, TextView(bytes[:]), LirDefaultLimits()).problem != .None { return 63 }
+    inlined := LirInlineCalls(*owner, LirDefaultLimits(), 1000000, 48)
+    if inlined.problem != .None || inlined.codec.problem != .None || inlined.calls != 2 { return 64 }
+    output := LirReadProgram(*owner)
+    if LirVerify(output, LirDefaultLimits()).problem != .None { return 65 }
+    for f: 0..1 {
+        for block: output.functions[f].blocks {
+            for instruction: block.instructions { if instruction.op == .Call { return 66 } }
+        }
+    }
+    after := Run(output)
+    if after.problem != .None || after.value.bits != before.value.bits { return 67 }
+    return 0
+}

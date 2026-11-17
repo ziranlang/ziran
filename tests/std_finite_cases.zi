@@ -1,0 +1,47 @@
+// std/math's Finite32 and Finite64 (from std/finite) keep their NaN and
+// infinity results on the C target and in native ZX, and generated C gets
+// their inline copies in finite.h instead of a call per use.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+
+Source :: #string ZI
+#import "std/math"
+main :: () {
+    zero := 0.0
+    wide := float64.[0.0, -0.0, 1.0, -2.5, 1.7976931348623157e308, -1.7976931348623157e308,
+        4.9e-324, 1.0 / zero, -1.0 / zero, zero / zero]
+    finite64: s32
+    for value: wide { if Finite64(value) { finite64 += 1 } }
+    narrow := float32.[0.0, 1.5, 3.402823e38, -3.402823e38, 1.0e-45]
+    finite32: s32
+    for value: narrow { if Finite32(value) { finite32 += 1 } }
+    limit: float32 = 3.402823e38
+    huge := limit * 4.0
+    if Finite32(huge) || Finite32(-huge) || Finite32(huge - huge) { finite32 = -1 }
+    print("finite % %\n", finite64, finite32)
+}
+ZI
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "std-finite-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    std := CheckPath(test.repo, "std")
+    app := CheckPath(test.work, "app.zi")
+    if !NativeWrite(*test, app, Source) { return 1 }
+    expected := "finite 7 5\n"
+    run_c := string.[test.ziran, "run", "--target=c", "--root", test.work, "--module-path", std, app]
+    run_native := string.[test.ziran, "run", "--root", test.work, "--module-path", std, app]
+    if !NativeExpect(*test, run_c[:], expected) || !NativeExpect(*test, run_native[:], expected) { return 1 }
+    output := CheckPath(test.work, "c")
+    build := string.[test.ziran, "build", "--target=c", "--root", test.work, "--module-path", std, "-o", output, app]
+    unused NativeRun(*test, build[:])
+    if test.failed { return 1 }
+    header := NativeRead(*test, CheckPath(output, "finite.h"))
+    if !NativeAssert(*test, TextContains(header, "finite_Finite64_ziran_inline") &&
+        TextContains(header, "finite_Finite32_ziran_inline"), "finite.h holds the inline copies") { return 1 }
+    print("std/finite: NaN and infinities on C and native ZX; inline copies in finite.h\n")
+    return 0
+}

@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- `Finite32` and `Finite64` live in the new `std/finite` module, which `std/math` re-exports, and are `#inline`: generated C gets a static inline copy of each in `finite.h`, so callers no longer make an out-of-line call per component. NaN and infinities still give false.
 - An in-process native run of an entry without a result reports zero instead of whatever its last call left in the result register, as the portable engine does.
 - In-process native x86-64 code allocates and frees blocks of up to 256 bytes itself: 16-byte classes with free lists and chunks per instance, behind a 16-byte header that still rejects a block with the wrong count or element size. Larger blocks and growth go through the host as before. Binary-trees runs in under half the time of the C reference (46 ms against 98 ms on Alpha), down from 223 ms.
 - Native x86-64 division and remainder by any other positive constant use a high multiply instead of `idiv`, signed and unsigned at every integer width. FASTA, whose generator takes `%139968` and `%1000000007` per byte, runs in less than half the time.

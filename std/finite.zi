@@ -1,0 +1,12 @@
+// Whether a float is finite: false for NaN and either infinity. Three
+// comparisons, inlined where they are used: generated C gets a static
+// inline copy in this module's header for every caller. std/math
+// re-exports both.
+Finite32 :: (value: float32) -> bool #inline {
+    limit: float32 = 3.402823e38
+    return value == value && value <= limit && value >= -limit
+}
+
+Finite64 :: (value: float64) -> bool #inline {
+    return value == value && value <= 1.7976931348623157e308 && value >= -1.7976931348623157e308
+}

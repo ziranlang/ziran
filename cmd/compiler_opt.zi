@@ -996,7 +996,16 @@ CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     state.counters.copy.runs += 1
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
-        if !Scratch(state, function.values.count, 19) { return false }
+        if !Scratch(state, function.values.count, 27) { return false }
+        // The insert defining a value, for member reads through updates.
+        insert_block: Vec(s32)
+        insert_instruction: Vec(s32)
+        defer VecFree(insert_block)
+        defer VecFree(insert_instruction)
+        if !VecResizeBounded(insert_block, function.values.count, function.values.count) ||
+            !VecResizeBounded(insert_instruction, function.values.count, function.values.count) {
+            return Fail(state, .Allocation)
+        }
         aliases: Vec(s32)
         changed: Vec(u8)
         aggregate_block: Vec(s32)
@@ -1019,6 +1028,7 @@ CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
             aliases[value] = cast(s32)value
             aggregate_block[value] = LirNoId
             aggregate_instruction[value] = LirNoId
+            insert_block[value] = LirNoId
             symbols[value] = LirNoId
         }
         for block_index: 0..function.blocks.count - 1 {
@@ -1040,6 +1050,10 @@ CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                 if instruction.op == .Aggregate {
                     aggregate_block[instruction.result] = cast(s32)block_index
                     aggregate_instruction[instruction.result] = cast(s32)instruction_index
+                }
+                if instruction.op == .Insert && instruction.operands.count == 2 && instruction.result != LirNoId {
+                    insert_block[instruction.result] = cast(s32)block_index
+                    insert_instruction[instruction.result] = cast(s32)instruction_index
                 }
             }
         }
@@ -1064,8 +1078,22 @@ CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
             for instruction_index: 0..block.instructions.count - 1 {
                 instruction := block.instructions[instruction_index]
                 if instruction.op == .Extract && instruction.operands.count == 1 {
+                    // Record values never change: a member read past inserts of
+                    // other members reads what the insert of that member
+                    // stored, or the constructor's operand beneath them.
                     aggregate := instruction.operands[0]
-                    if aggregate_block[aggregate] != LirNoId && escapes[aggregate] == 0 {
+                    stored: s32 = LirNoId
+                    walked := false
+                    for step: 0..63 {
+                        if insert_block[aggregate] == LirNoId { break }
+                        put := function.blocks[insert_block[aggregate]].instructions[insert_instruction[aggregate]]
+                        if put.immediate == instruction.immediate { stored = put.operands[1]; break }
+                        aggregate = put.operands[0]
+                        walked = true
+                    }
+                    if stored != LirNoId {
+                        aliases[instruction.result] = stored
+                    } else if aggregate_block[aggregate] != LirNoId && (walked || escapes[aggregate] == 0) {
                         definition := function.blocks[aggregate_block[aggregate]].instructions[
                             aggregate_instruction[aggregate]]
                         aliases[instruction.result] = definition.operands[instruction.immediate]
@@ -1413,8 +1441,87 @@ CsePass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     return VerifyPass(state, program, limits)
 }
 
+// Whether FUNCTION's blocks form no cycle: every block leaves the
+// topological order Kahn's method builds from the entry.
+Acyclic :: (state: *OptState, function: LirFunction) -> bool {
+    count := function.blocks.count
+    indegree: Vec(s32)
+    queue: Vec(s32)
+    defer VecFree(indegree)
+    defer VecFree(queue)
+    if !VecResizeBounded(indegree, count, count) || !VecResizeBounded(queue, count, count) { return false }
+    for block: function.blocks {
+        for edge: block.instructions[block.instructions.count - 1].edges { indegree[edge.block] += 1 }
+    }
+    head: s64
+    tail: s64
+    for at: 0..count - 1 { if indegree[at] == 0 { queue[tail] = cast(s32)at; tail += 1 } }
+    while head < tail {
+        if !Spend(state, 1) { return false }
+        block := function.blocks[queue[head]]
+        head += 1
+        for edge: block.instructions[block.instructions.count - 1].edges {
+            indegree[edge.block] -= 1
+            if indegree[edge.block] == 0 { queue[tail] = edge.block; tail += 1 }
+        }
+    }
+    return tail == count
+}
+
+// Procedures a caller cannot observe: no stores, host or indirect calls,
+// traps or operations that may trap, no loops, and calls only to such
+// procedures. An unused call to one can go; its fuel goes with it, as an
+// inlined leaf's does.
+PureProcedures :: (state: *OptState, program: LirProgram, pure: []u8) -> bool {
+    for function_index: 0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        pure[function_index] = 0
+        if function.external || function.variadic || function.calling != .Portable || function.blocks.count == 0 { continue }
+        candidate := true
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if !Spend(state, 1) { return false }
+                op := instruction.op
+                memory := op == .Load || op == .ElementAddress || op == .FieldAddress || op == .BytesEqual
+                trapping := op == .Divide || op == .Remainder || op == .Trap || op == .Unreachable ||
+                    instruction.checked || program.checks && memory ||
+                    op == .Convert && program.types[function.values[instruction.operands[0]]].kind == .Float &&
+                    program.types[function.values[instruction.result]].kind == .Integer
+                effect := op == .Store || op == .Copy || op == .Zero || op == .Allocate || op == .HostCall ||
+                    op == .CallIndirect || op == .Resize
+                if trapping || effect || op == .Call && cast(s64)instruction.symbol == function_index { candidate = false }
+            }
+        }
+        if candidate && Acyclic(state, function) { pure[function_index] = 1 }
+        if state.problem != .None { return false }
+    }
+    changed := true
+    while changed {
+        changed = false
+        for function_index: 0..program.functions.count - 1 {
+            if pure[function_index] == 0 { continue }
+            for block: program.functions[function_index].blocks {
+                for instruction: block.instructions {
+                    if !Spend(state, 1) { return false }
+                    if instruction.op == .Call && pure[function_index] != 0 &&
+                        (instruction.symbol < 0 || pure[instruction.symbol] == 0) {
+                        pure[function_index] = 0
+                        changed = true
+                    }
+                }
+            }
+        }
+    }
+    return true
+}
+
 DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     state.counters.dead.runs += 1
+    pure: Vec(u8)
+    defer VecFree(pure)
+    if !Scratch(state, program.functions.count, 1) { return false }
+    if !VecResizeBounded(pure, program.functions.count, program.functions.count) { return Fail(state, .Allocation) }
+    if !PureProcedures(state, program, pure[:]) { return false }
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
         count := function.values.count
@@ -1478,7 +1585,8 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                     }
                     result := instruction.result
                     if result == LirNoId || removed[result] != 0 || uses[result] != 0 ||
-                        !(DeadOperation(program, function, instruction) || safe_element[result] != 0) { continue }
+                        !(DeadOperation(program, function, instruction) || safe_element[result] != 0 ||
+                          instruction.op == .Call && instruction.symbol >= 0 && pure[instruction.symbol] != 0) { continue }
                     removed[result] = 1
                     for operand: instruction.operands {
                         if uses[operand] <= 0 {
@@ -1502,6 +1610,12 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                 write += 1
             }
             block.instructions = block.instructions[:write]
+            // A removed call leaves a gap in the block's effect order.
+            effect: s32
+            for at: 0..write - 1 {
+                if LirEffectful(block.instructions[at].op) { effect += 1; block.instructions[at].effect = effect }
+                else { block.instructions[at].effect = 0 }
+            }
             function.blocks[block_index] = block
         }
         VecFree(uses)

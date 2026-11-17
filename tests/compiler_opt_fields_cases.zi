@@ -1,0 +1,106 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
+
+#scope_file
+Run :: (program: LirProgram) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 811, *instance)
+    if opened.problem != .None { return opened }
+    arguments: [0]LirExecArgument
+    return LirExecCall(*instance, 0, arguments[:])
+}
+
+Has :: (function: LirFunction, op: LirOp) -> bool {
+    for block: function.blocks {
+        for instruction: block.instructions { if instruction.op == op { return true } }
+    }
+    return false
+}
+
+#scope_export
+// Member reads through inserts of other members: mix(a, b, c) builds {a, b},
+// replaces the second member with c and reads both members back. Record
+// values never change, so the reads become a and c, and the record is dead.
+// main also calls the pure twice(a) and ignores the result: that call goes.
+FieldCases :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}]
+    record_fields := s32.[1, 1]
+    record := LirType.{kind = .Record, fields = record_fields[:]}
+    all_types := LirType.[types[0], types[1], record]
+    modules := string.["fields"]
+    constants := LirConstant.[.{type = 1, bits = 3}, .{type = 1, bits = 5}, .{type = 1, bits = 7}]
+    main_values := s32.[1, 1, 1, 1, 1]
+    doubled := s32.[0]
+    arguments := s32.[0, 1, 2]
+    returned := s32.[3]
+    main_code := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 0, origin = -1},
+        .{op = .Constant, result = 1, symbol = 1, origin = -1},
+        .{op = .Constant, result = 2, symbol = 2, origin = -1},
+        .{op = .Call, result = 3, operands = arguments[:], symbol = 1, effect = 1, origin = -1},
+        .{op = .Call, result = 4, operands = doubled[:], symbol = 2, effect = 2, origin = -1},
+        .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}]
+    twice_values := s32.[1, 1]
+    twice_parameters := s32.[1]
+    twice_entry := s32.[0]
+    pair := s32.[0, 0]
+    twice_result := s32.[1]
+    twice_code := LirInstruction.[
+        .{op = .Add, result = 1, operands = pair[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = twice_result[:], symbol = -1, origin = -1}]
+    twice_blocks := LirBlock.[.{parameters = twice_entry[:], instructions = twice_code[:]}]
+    mix_values := s32.[1, 1, 1, 2, 2, 1, 1, 1]
+    mix_parameters := s32.[1, 1, 1]
+    entry_parameters := s32.[0, 1, 2]
+    built := s32.[0, 1]
+    replaced := s32.[3, 2]
+    read := s32.[4]
+    sum := s32.[5, 6]
+    total := s32.[7]
+    mix_code := LirInstruction.[
+        .{op = .Aggregate, result = 3, operands = built[:], symbol = -1, origin = -1},
+        .{op = .Insert, result = 4, operands = replaced[:], immediate = 1, symbol = -1, origin = -1},
+        .{op = .Extract, result = 5, operands = read[:], immediate = 0, symbol = -1, origin = -1},
+        .{op = .Extract, result = 6, operands = read[:], immediate = 1, symbol = -1, origin = -1},
+        .{op = .Add, result = 7, operands = sum[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = total[:], symbol = -1, origin = -1}]
+    main_blocks := LirBlock.[.{instructions = main_code[:]}]
+    mix_blocks := LirBlock.[.{parameters = entry_parameters[:], instructions = mix_code[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "main", result = 1, values = main_values[:], blocks = main_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "mix", parameters = mix_parameters[:], result = 1, values = mix_values[:],
+            blocks = mix_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "twice", parameters = twice_parameters[:], result = 1, values = twice_values[:],
+            blocks = twice_blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = all_types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 31 }
+    before := Run(program)
+    if before.problem != .None || before.value.bits != 10 { return 32 }
+    // Keep the call so the reads stay in mix, where the copy pass must fold them.
+    options := LirOptDefaultOptions()
+    options.inline_calls = 0
+    options.inline_leaf_operations = 0
+    owner: LirOptOwner
+    defer LirOptFree(*owner)
+    optimized := LirOptBuild(*owner, program, LirDefaultLimits(), options)
+    if optimized.problem != .None || !owner.valid { return 33 }
+    output := LirOptProgram(*owner)
+    mix := output.functions[1]
+    if Has(mix, .Extract) || Has(mix, .Insert) || Has(mix, .Aggregate) { return 34 }
+    calls: s64
+    for block: output.functions[0].blocks {
+        for instruction: block.instructions { if instruction.op == .Call { calls += 1 } }
+    }
+    if calls != 1 { return 36 }
+    after := Run(output)
+    if after.problem != .None || after.value.bits != before.value.bits { return 35 }
+    return 0
+}

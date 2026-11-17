@@ -7,6 +7,7 @@ using Exec :: #import "compiler_exec"
 using Vectors :: #import "std/vec"
 using Rotation :: #import "compiler_opt_rotate_cases"
 using Inlining :: #import "compiler_opt_inline_cases"
+using Fields :: #import "compiler_opt_fields_cases"
 using FloatFolds :: #import "compiler_opt_float_cases"
 using LoopLayout :: #import "compiler_opt_layout_cases"
 using LicmCases :: #import "compiler_opt_licm_cases"
@@ -243,6 +244,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if places != 0 { print("in-place inline case % failed\n", places); return 1 }
     bottom := BottomCases()
     if bottom != 0 { print("callee-first inline case % failed\n", bottom); return 1 }
+    fields := FieldCases()
+    if fields != 0 { print("field read case % failed\n", fields); return 1 }
     rotation := OptRotateCases()
     if rotation != 0 { return rotation }
     floats := OptFloatCases()

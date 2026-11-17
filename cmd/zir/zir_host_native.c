@@ -81,6 +81,7 @@ void NativeInstanceClose(NativeInstance *instance) { (void)instance; }
 #include "compiler_target.h"
 #include "compiler_aarch64.h"
 #include "compiler_x86_64.h"
+#include "compiler_x86_runtime.h"
 #include "zir_exec_console.h"
 #include "zir_profile.h"
 #include "zir_host_native_arch.h"
@@ -101,7 +102,10 @@ enum {
     NATIVE_HOST_STUB_SIZE = 256,
     NATIVE_TRAP_STUB_SIZE = 64,
     NATIVE_RESIZE_STUB_SIZE = 384,
-    NATIVE_HEAP_MAGIC = 0x5a58,
+    /* Small blocks: 16-byte classes up to MachineX64HeapSmall bytes, carved
+     * from chunks of this size. */
+    NATIVE_HEAP_CLASSES = MachineX64HeapSmall / 16,
+    NATIVE_HEAP_CHUNK = 1024 * 1024,
     /* Code compiled for a file nobody holds, kept for a reopen. */
     NATIVE_CACHE_IDLE = 4,
     /* Entries the disk cache keeps; the oldest go first. */
@@ -150,17 +154,46 @@ struct NativeBundleCode {
     NativeBundleCode *next;
 };
 
-/* The header before each block Resize returns. */
-typedef struct NativeBlock {
-    uint64_t magic;
+/* The header before each block Resize returns: its element count and its
+ * element size xor the heap's cookie, zero once the block is freed. */
+typedef struct NativeHeader {
     uint64_t count;
-    uint64_t element;
+    uint64_t tag;
+} NativeHeader;
+
+/* A block above MachineX64HeapSmall bytes is its own allocation, listed so
+ * the instance frees it at close; smaller ones come from heap chunks. */
+typedef struct NativeBlock {
     struct NativeBlock *previous, *next;
-    const struct NativeInstance *owner;
+    NativeHeader header;
 } NativeBlock;
+
+typedef struct NativeChunk {
+    struct NativeChunk *next;
+    uint64_t unused;
+} NativeChunk;
+
+/* What the x86-64 Resize fast path (compiler_x86_runtime.zi) reads and
+ * writes: the cookie, live bytes and their limit, the chunk's free bytes
+ * and the free list of each 16-byte class. */
+typedef struct NativeHeap {
+    uint64_t cookie;
+    uint64_t live;
+    uint64_t limit;
+    unsigned char *top;
+    unsigned char *end;
+    unsigned char *lists[NATIVE_HEAP_CLASSES];
+} NativeHeap;
 
 /* Block data keeps calloc's alignment. */
 _Static_assert(sizeof(NativeBlock) % _Alignof(max_align_t) == 0, "block data alignment");
+_Static_assert(sizeof(NativeChunk) % 16 == 0 && sizeof(NativeHeader) == 16, "chunk data alignment");
+_Static_assert(offsetof(NativeHeap, cookie) == MachineX64HeapCookie &&
+               offsetof(NativeHeap, live) == MachineX64HeapLive &&
+               offsetof(NativeHeap, limit) == MachineX64HeapLimit &&
+               offsetof(NativeHeap, top) == MachineX64HeapTop &&
+               offsetof(NativeHeap, end) == MachineX64HeapEnd &&
+               offsetof(NativeHeap, lists) == MachineX64HeapLists, "native heap layout");
 
 struct NativeInstance {
     const NativeBundleCode *code;
@@ -189,7 +222,8 @@ struct NativeInstance {
     uintptr_t trap_pc;
     NativeActiveCall *active;
     NativeBlock *blocks;
-    size_t heap_bytes;
+    NativeChunk *chunks;
+    NativeHeap heap;
     /* Bytes of the program's globals, which the engine counts as live. */
     size_t global_bytes;
     /* The pointer table and frame arena; the header is in data. */
@@ -1134,33 +1168,113 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
 
 /* ---- Resizable storage --------------------------------------------------- */
 
+/* A per-instance tag for its blocks' headers; the top bit keeps every tag
+ * nonzero, unlike a freed block's. */
+static uint64_t
+native_cookie(const NativeInstance *instance)
+{
+    static uint64_t counter;
+    uint64_t value = (uint64_t)(uintptr_t)instance ^ ((uint64_t)time(NULL) << 32) ^
+                     __atomic_add_fetch(&counter, 0x9e3779b97f4a7c15ull, __ATOMIC_RELAXED);
+    value ^= value >> 31;
+    value *= 0xbf58476d1ce4e5b9ull;
+    value ^= value >> 29;
+    return value | ((uint64_t)1 << 63);
+}
+
+static NativeHeader *
+native_header_of(uint64_t data)
+{
+    return (NativeHeader *)(uintptr_t)(data - sizeof(NativeHeader));
+}
+
+static int
+native_small(size_t bytes)
+{
+    return bytes > 0 && bytes <= MachineX64HeapSmall;
+}
+
+/* A small block of BYTES: a recycled one, cleared, or fresh chunk bytes,
+ * which are zero. The fast path takes the same way first. */
+static unsigned char *
+native_small_take(NativeInstance *instance, size_t bytes)
+{
+    NativeHeap *heap = &instance->heap;
+    size_t unit = (bytes - 1) / 16;
+    unsigned char *data = heap->lists[unit];
+    if(data != NULL) {
+        memcpy(&heap->lists[unit], data, sizeof(heap->lists[unit]));
+        memset(data, 0, (unit + 1) * 16);
+        return data;
+    }
+    size_t need = (unit + 2) * 16;
+    if(heap->top == NULL || (size_t)(heap->end - heap->top) < need) {
+        NativeChunk *chunk = calloc(1, NATIVE_HEAP_CHUNK);
+        if(chunk == NULL) return NULL;
+        chunk->next = instance->chunks;
+        instance->chunks = chunk;
+        heap->top = (unsigned char *)(chunk + 1);
+        heap->end = (unsigned char *)chunk + NATIVE_HEAP_CHUNK;
+    }
+    data = heap->top + sizeof(NativeHeader);
+    heap->top += need;
+    return data;
+}
+
+static unsigned char *
+native_large_take(NativeInstance *instance, size_t bytes)
+{
+    NativeBlock *block = calloc(1, sizeof(NativeBlock) + bytes);
+    if(block == NULL) return NULL;
+    block->next = instance->blocks;
+    if(block->next) block->next->previous = block;
+    instance->blocks = block;
+    return (unsigned char *)(block + 1);
+}
+
+/* Frees the block at DATA holding BYTES; its tag no longer matches. */
+static void
+native_release(NativeInstance *instance, uint64_t data, size_t bytes)
+{
+    native_header_of(data)->tag = 0;
+    if(native_small(bytes)) {
+        NativeHeap *heap = &instance->heap;
+        size_t unit = (bytes - 1) / 16;
+        memcpy((void *)(uintptr_t)data, &heap->lists[unit], sizeof(heap->lists[unit]));
+        heap->lists[unit] = (unsigned char *)(uintptr_t)data;
+        return;
+    }
+    NativeBlock *block = (NativeBlock *)(uintptr_t)(data - sizeof(NativeBlock));
+    if(block->previous) block->previous->next = block->next;
+    else instance->blocks = block->next;
+    if(block->next) block->next->previous = block->previous;
+    free(block);
+}
+
 /* Resize(DATA, OLD_COUNT, NEW_COUNT, ELEMENT): a block of NEW_COUNT elements
  * holding the first OLD_COUNT, or none for zero. DATA is null with no
  * elements, or a block this instance returned with exactly OLD_COUNT of them;
- * anything else traps. New elements are zero. */
+ * anything else traps. New elements are zero. On x86-64 the code's fast path
+ * handles small allocations and frees and comes here for the rest. */
 static uint64_t
 NativeResize(uint64_t data, uint64_t old_count, uint64_t new_count, uint64_t element,
              NativeInstance *instance)
 {
     if(instance == NULL || instance->active == NULL) abort();
-    NativeBlock *old = NULL;
+    NativeHeap *heap = &instance->heap;
+    NativeHeader *old = NULL;
     if(data == 0) {
         if(old_count != 0) NativeTrap(instance, NATIVE_TRAP_BOUNDS, 0);
     } else {
-        old = (NativeBlock *)(uintptr_t)(data - sizeof(NativeBlock));
-        if(data < sizeof(NativeBlock) || old->magic != NATIVE_HEAP_MAGIC ||
-           old->owner != instance || old->count != old_count || old->element != element)
+        old = native_header_of(data);
+        if(data < sizeof(NativeBlock) || old->count != old_count || old->tag != (element ^ heap->cookie))
             NativeTrap(instance, NATIVE_TRAP_BOUNDS, 0);
     }
     size_t old_bytes = (size_t)(old_count * element);
     if(new_count == 0) {
         if(old != NULL) {
-            if(old->previous) old->previous->next = old->next;
-            else instance->blocks = old->next;
-            if(old->next) old->next->previous = old->previous;
-            old->magic = 0;
-            instance->heap_bytes -= old_bytes;
-            free(old);
+            native_release(instance, data, old_bytes);
+            heap->live -= old_bytes;
         }
         return 0;
     }
@@ -1169,27 +1283,29 @@ NativeResize(uint64_t data, uint64_t old_count, uint64_t new_count, uint64_t ele
     if(element != 0 && new_count > (NATIVE_HEAP_LIMIT - sizeof(NativeBlock)) / element)
         return 0;
     size_t new_bytes = (size_t)(new_count * element);
-    if(instance->heap_bytes - old_bytes > NATIVE_HEAP_LIMIT - new_bytes)
+    if(heap->live - old_bytes > NATIVE_HEAP_LIMIT - new_bytes)
         return 0;
-    NativeBlock *block = calloc(1, sizeof(NativeBlock) + new_bytes);
-    if(block == NULL) return 0;
-    block->magic = NATIVE_HEAP_MAGIC;
-    block->owner = instance;
-    block->count = new_count;
-    block->element = element;
-    if(old != NULL) {
-        memcpy(block + 1, old + 1, old_bytes < new_bytes ? old_bytes : new_bytes);
-        if(old->previous) old->previous->next = old->next;
-        else instance->blocks = old->next;
-        if(old->next) old->next->previous = old->previous;
-        old->magic = 0;
-        free(old);
+    if(old != NULL && native_small(old_bytes) && native_small(new_bytes) &&
+       (old_bytes - 1) / 16 == (new_bytes - 1) / 16) {
+        /* The same class keeps its block; a shrink clears what it drops. */
+        if(new_bytes < old_bytes)
+            memset((unsigned char *)(uintptr_t)data + new_bytes, 0, old_bytes - new_bytes);
+        old->count = new_count;
+        heap->live = heap->live - old_bytes + new_bytes;
+        return data;
     }
-    block->next = instance->blocks;
-    if(block->next) block->next->previous = block;
-    instance->blocks = block;
-    instance->heap_bytes = instance->heap_bytes - old_bytes + new_bytes;
-    return (uint64_t)(uintptr_t)(block + 1);
+    unsigned char *block = native_small(new_bytes) ? native_small_take(instance, new_bytes)
+                                                   : native_large_take(instance, new_bytes);
+    if(block == NULL) return 0;
+    NativeHeader *header = native_header_of((uint64_t)(uintptr_t)block);
+    header->count = new_count;
+    header->tag = element ^ heap->cookie;
+    if(old != NULL) {
+        memcpy(block, (void *)(uintptr_t)data, old_bytes < new_bytes ? old_bytes : new_bytes);
+        native_release(instance, data, old_bytes);
+    }
+    heap->live = heap->live - old_bytes + new_bytes;
+    return (uint64_t)(uintptr_t)block;
 }
 
 /* ---- Checked pointers ---------------------------------------------------- */
@@ -1443,6 +1559,8 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     NativeInstance *instance = calloc(1, sizeof(*instance));
     if(instance == NULL) return NULL;
     instance->code = code;
+    instance->heap.cookie = native_cookie(instance);
+    instance->heap.limit = NATIVE_HEAP_LIMIT;
     instance->bundle = bundle;
     instance->hosts = ExecHostsOpen(bundle, (ExecFindBinding)find, context);
     if(instance->hosts == NULL) goto failed;
@@ -1452,11 +1570,18 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     if(page == 0 || stubs > (SIZE_MAX - code_size) / NATIVE_HOST_STUB_SIZE)
         goto failed;
     code_size += stubs * NATIVE_HOST_STUB_SIZE;
-    if(code_size > SIZE_MAX - NATIVE_TRAP_STUB_SIZE - NATIVE_RESIZE_STUB_SIZE) goto failed;
+    if(code_size > SIZE_MAX - NATIVE_TRAP_STUB_SIZE - NATIVE_RESIZE_STUB_SIZE - MachineX64HeapStubBytes)
+        goto failed;
     size_t trap_at = code_size;
     code_size += NATIVE_TRAP_STUB_SIZE;
     size_t resize_at = code_size;
     code_size += NATIVE_RESIZE_STUB_SIZE;
+    /* x86-64 code resizes through its heap fast path, whose other requests
+     * go to the resize veneer. */
+    size_t heap_at = code_size;
+#if defined(__x86_64__)
+    code_size += MachineX64HeapStubBytes;
+#endif
     size_t constants_at = align_size(code_size,
         image.constants.alignment > 0 ? (size_t)image.constants.alignment : 1);
     if(constants_at == 0 ||
@@ -1505,6 +1630,12 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     if(!ZirNativeTrapVeneer(&trap_stub, &calls) ||
        !ZirNativeResizeVeneer(&resize_stub, &calls))
         goto failed;
+#if defined(__x86_64__)
+    Slice heap_stub = {base + heap_at, MachineX64HeapStubBytes};
+    if(compiler_x86_runtime_MachineX64HeapEmit(heap_stub, (uint64_t)(uintptr_t)&instance->heap,
+                                               (uint64_t)(uintptr_t)(base + resize_at)) < 0)
+        goto failed;
+#endif
     MachineRelocation *relocations = image.relocations.data;
     size_t stub_at = (size_t)image.code.bytes.length;
 #if defined(__arm__)
@@ -1548,7 +1679,12 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
             target = (uintptr_t)(base + trap_at);
         } else if(relocation.kind == MachineRelocationKind_RuntimeResize &&
                   relocation.symbol == 0) {
+#if defined(__x86_64__)
+            target = (uintptr_t)(base + heap_at);
+#else
             target = (uintptr_t)(base + resize_at);
+            (void)heap_at;
+#endif
         } else if(relocation.kind == MachineRelocationKind_FunctionAddress) {
             int32_t symbol = relocation.symbol;
             int64_t *offsets = image.function_offsets.data;
@@ -1698,7 +1834,7 @@ NativeInstanceStateStore(NativeInstance *instance, const struct HostValue *const
 size_t
 NativeInstanceLiveBytes(const NativeInstance *instance)
 {
-    return instance != NULL ? instance->global_bytes + instance->heap_bytes : 0;
+    return instance != NULL ? instance->global_bytes + (size_t)instance->heap.live : 0;
 }
 
 void
@@ -1707,9 +1843,13 @@ NativeInstanceClose(NativeInstance *instance)
     if(instance == NULL) return;
     for(NativeBlock *block = instance->blocks; block != NULL;) {
         NativeBlock *next = block->next;
-        block->magic = 0;
         free(block);
         block = next;
+    }
+    for(NativeChunk *chunk = instance->chunks; chunk != NULL;) {
+        NativeChunk *next = chunk->next;
+        free(chunk);
+        chunk = next;
     }
     ExecHostsClose(instance->hosts);
     ZirNativeRelease(&instance->pointers);

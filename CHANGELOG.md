@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- In-process native x86-64 code allocates and frees blocks of up to 256 bytes itself: 16-byte classes with free lists and chunks per instance, behind a 16-byte header that still rejects a block with the wrong count or element size. Larger blocks and growth go through the host as before. Binary-trees runs in under half the time of the C reference (46 ms against 98 ms on Alpha), down from 223 ms.
 - Native x86-64 division and remainder by any other positive constant use a high multiply instead of `idiv`, signed and unsigned at every integer width. FASTA, whose generator takes `%139968` and `%1000000007` per byte, runs in less than half the time.
 - Native x86-64 code starts every function on a 32-byte boundary and keeps each branch, compare-and-branch pair, call and return inside one 32-byte block, with NOPs where needed. Intel cores with the jump-erratum microcode fix keep such loops in their decoded-instruction cache, so a change elsewhere in a program no longer moves a hot loop's speed by up to a third.
 - Native x86-64 branches on an ordered float comparison (`<`, `<=`, `>`, `>=`) jump on the compare's flags, NaN included, instead of first building a bool and testing it.

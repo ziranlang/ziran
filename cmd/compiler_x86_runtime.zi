@@ -117,9 +117,10 @@ Label :: enum s32 {
     Resize; CheckOld; Checked; Null; Done; Size; InPlace; Take; Bump; Carve; Fill; Kept; Cleared
     Released; Large; Remapped; NewMapping; Release; Unmap; Map; Trap
     Exit; WriteLoop; WriteAgain; WriteDone; WriteFail; Flush; WriteAll; StdoutBytes; Stdout; Known
-    Fits; Bytes; Long; Appended; Signed; Unsigned; Format; Digit; Emit; Bool; True
+    Fits; Bytes; Long; Appended; Signed; Unsigned; Format; Digit; Emit; Bool
+    HeapRelease; HeapBump; HeapClear; HeapHeader; HeapSlowAllocate; HeapSlowRelease; HeapSlow; True
 }
-LabelCount :: 42
+LabelCount :: 49
 
 Emitter :: struct {
     writer: X86Writer
@@ -434,6 +435,105 @@ EmitResize :: (emitter: *Emitter) {
     X86MoveImmediate32(writer, Rdi, TrapPointer)
     X86Call32(writer, emitter.places.trap)
     X86Undefined(writer)
+}
+
+// The in-process Resize fast path (cmd/zir/zir_host_native.c): rdi data,
+// rsi old count, rdx new count, rcx element size; rax the block, clobbering
+// only rcx, rdx, rsi, rdi and r8-r11. It allocates and frees blocks of at
+// most MachineX64HeapSmall bytes in 16-byte classes, from the free lists
+// or the chunk of the heap at HEAP; everything else, including any block
+// whose header does not describe it, jumps to SLOW with the arguments
+// unchanged. A block's 16-byte header holds its count and its element size
+// xor the heap's cookie; a freed block's tag is zero.
+EmitHeap :: (emitter: *Emitter, heap: u64, slow: u64) {
+    writer := *emitter.writer
+    X86Arithmetic(writer, X86Test, Rdi, Rdi)
+    JumpIf(emitter, X86NotEqual, .HeapRelease)
+    X86Arithmetic(writer, X86Test, Rsi, Rsi)
+    JumpIf(emitter, X86NotEqual, .HeapSlow)
+    // r8 = count, rax = bytes, r9 = bytes - 1 then the class, r11 = live.
+    X86Move(writer, R8, Rdx)
+    X86Move(writer, Rax, Rdx)
+    X86Group3(writer, 4, Rcx)
+    JumpIf(emitter, X86Below, .HeapSlowAllocate)
+    X86Lea(writer, R9, X86At(Rax, -1))
+    X86CompareImmediate(writer, R9, MachineX64HeapSmall - 1)
+    JumpIf(emitter, X86Above, .HeapSlowAllocate)
+    X86MoveImmediate(writer, R10, heap)
+    X86Load(writer, R11, X86At(R10, MachineX64HeapLive), 8, false)
+    X86Arithmetic(writer, X86Add, R11, Rax)
+    X86Encode(writer, 0, true, 0x3b, 1, R11, X86At(R10, MachineX64HeapLimit))
+    JumpIf(emitter, X86Above, .HeapSlowAllocate)
+    X86ShiftImmediate(writer, 5, R9, 4)
+    X86Load(writer, Rsi, X86Indexed(R10, R9, MachineX64HeapLists, 3), 8, false)
+    X86Arithmetic(writer, X86Test, Rsi, Rsi)
+    JumpIf(emitter, X86Equal, .HeapBump)
+    X86Load(writer, Rdi, X86At(Rsi, 0), 8, false)
+    X86Store(writer, X86Indexed(R10, R9, MachineX64HeapLists, 3), Rdi, 8)
+    // A recycled block: clear its r9 + 1 sixteen-byte units.
+    X86Move(writer, Rax, Rsi)
+    X86Lea(writer, Rdi, X86At(R9, 1))
+    Mark(emitter, .HeapClear)
+    X86StoreImmediate(writer, X86At(Rax, 0), 0, 8)
+    X86StoreImmediate(writer, X86At(Rax, 8), 0, 8)
+    X86ArithmeticImmediate(writer, X86Add, Rax, 16)
+    X86ArithmeticImmediate(writer, X86Subtract, Rdi, 1)
+    JumpIf(emitter, X86NotEqual, .HeapClear)
+    Jump(emitter, .HeapHeader)
+    // Chunk bytes are zero: a header unit, then r9 + 1 units of data.
+    Mark(emitter, .HeapBump)
+    X86Load(writer, Rsi, X86At(R10, MachineX64HeapTop), 8, false)
+    X86Lea(writer, Rdi, X86At(R9, 2))
+    X86ShiftImmediate(writer, 4, Rdi, 4)
+    X86Arithmetic(writer, X86Add, Rdi, Rsi)
+    X86Encode(writer, 0, true, 0x3b, 1, Rdi, X86At(R10, MachineX64HeapEnd))
+    JumpIf(emitter, X86Above, .HeapSlowAllocate)
+    X86Store(writer, X86At(R10, MachineX64HeapTop), Rdi, 8)
+    X86ArithmeticImmediate(writer, X86Add, Rsi, 16)
+    Mark(emitter, .HeapHeader)
+    X86Store(writer, X86At(Rsi, -16), R8, 8)
+    X86Move(writer, Rax, Rcx)
+    X86Encode(writer, 0, true, 0x33, 1, Rax, X86At(R10, MachineX64HeapCookie))
+    X86Store(writer, X86At(Rsi, -8), Rax, 8)
+    X86Store(writer, X86At(R10, MachineX64HeapLive), R11, 8)
+    X86Move(writer, Rax, Rsi)
+    X86Return(writer)
+    Mark(emitter, .HeapSlowAllocate)
+    X86Move(writer, Rdx, R8)
+    Clear(writer, Rsi)
+    Clear(writer, Rdi)
+    Jump(emitter, .HeapSlow)
+
+    // Release: a block and no new count whose header names this heap.
+    Mark(emitter, .HeapRelease)
+    X86Arithmetic(writer, X86Test, Rdx, Rdx)
+    JumpIf(emitter, X86NotEqual, .HeapSlow)
+    X86MoveImmediate(writer, R10, heap)
+    CompareAt(writer, Rdi, -16, Rsi)
+    JumpIf(emitter, X86NotEqual, .HeapSlow)
+    X86Move(writer, Rax, Rcx)
+    X86Encode(writer, 0, true, 0x33, 1, Rax, X86At(R10, MachineX64HeapCookie))
+    CompareAt(writer, Rdi, -8, Rax)
+    JumpIf(emitter, X86NotEqual, .HeapSlow)
+    X86Move(writer, Rax, Rsi)
+    X86Group3(writer, 4, Rcx)
+    JumpIf(emitter, X86Below, .HeapSlowRelease)
+    X86Lea(writer, R9, X86At(Rax, -1))
+    X86CompareImmediate(writer, R9, MachineX64HeapSmall - 1)
+    JumpIf(emitter, X86Above, .HeapSlowRelease)
+    X86Encode(writer, 0, true, X86Subtract, 1, Rax, X86At(R10, MachineX64HeapLive))
+    X86ShiftImmediate(writer, 5, R9, 4)
+    X86Load(writer, R8, X86Indexed(R10, R9, MachineX64HeapLists, 3), 8, false)
+    X86Store(writer, X86At(Rdi, 0), R8, 8)
+    X86Store(writer, X86Indexed(R10, R9, MachineX64HeapLists, 3), Rdi, 8)
+    X86StoreImmediate(writer, X86At(Rdi, -8), 0, 8)
+    Clear(writer, Rax)
+    X86Return(writer)
+    Mark(emitter, .HeapSlowRelease)
+    Clear(writer, Rdx)
+    Mark(emitter, .HeapSlow)
+    X86MoveImmediate(writer, R11, slow)
+    X86Encode(writer, 0, false, 255, 1, 4, X86Direct(R11))
 }
 
 // A large block grows or shrinks in place by mremap; a null or small one
@@ -775,6 +875,34 @@ MachineX64RuntimeImports :: (uses: MachineX64RuntimeUses) -> u32 {
 
 // Measures, then with a non-empty OUTPUT writes, the routines USES names at
 // position AT. Writing reproduces the measured positions exactly.
+// The in-process heap a native instance keeps (cmd/zir/zir_host_native.c):
+// its cookie, live and limit bytes, the chunk's top and end, then the free
+// lists of the 16-byte classes up to MachineX64HeapSmall bytes.
+MachineX64HeapSmall :: 256
+MachineX64HeapCookie :: 0
+MachineX64HeapLive :: 8
+MachineX64HeapLimit :: 16
+MachineX64HeapTop :: 24
+MachineX64HeapEnd :: 32
+MachineX64HeapLists :: 40
+MachineX64HeapStubBytes :: 512
+
+// Measures, then with a non-empty OUTPUT writes, the in-process Resize fast
+// path for the heap at HEAP whose other requests go to SLOW (EmitHeap). The
+// bytes written, or -1.
+MachineX64HeapEmit :: (output: []u8, heap: u64, slow: u64) -> s64 {
+    measure: Emitter
+    measure.writer = .{at = 0, limit = MachineX64HeapStubBytes}
+    EmitHeap(*measure, heap, slow)
+    if measure.writer.failed { return -1 }
+    if output.count == 0 { return measure.writer.at }
+    write := measure
+    write.writer = .{output = output, at = 0, limit = output.count}
+    EmitHeap(*write, heap, slow)
+    if write.writer.failed || write.writer.at != measure.writer.at { return -1 }
+    return write.writer.at
+}
+
 MachineX64RuntimeEmit :: (output: []u8, at: s64, uses: MachineX64RuntimeUses,
     places: MachineX64RuntimePlaces, entries: *MachineX64RuntimeEntries) -> bool {
     // One recorded position per label.

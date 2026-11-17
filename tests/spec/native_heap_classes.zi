@@ -1,0 +1,54 @@
+// Allocation and release across the in-process native heap's 16-byte
+// classes and past them: rebuilt trees come from the free lists, recycled
+// blocks read as zero, and growth keeps what a vector held. Every route
+// gives the same digest.
+#import "std/vec"
+
+Node :: struct { left: *Node; right: *Node }
+// 160 bytes, a small class; 320 bytes, its own allocation.
+Wide :: struct { values: [20]s64 }
+Big :: struct { values: [40]s64 }
+
+Mix :: (hash: u64, value: u64) -> u64 { return (hash ^ value) * 1099511628211 }
+
+Tree :: (depth: s64) -> *Node {
+    node := New(Node)
+    if depth > 0 { node.left = Tree(depth - 1); node.right = Tree(depth - 1) }
+    return node
+}
+Count :: (node: *Node) -> s64 {
+    if node.left == null { return 1 }
+    return 1 + Count(node.left) + Count(node.right)
+}
+Release :: (node: *Node) {
+    if node.left != null { Release(node.left); Release(node.right) }
+    free(node)
+}
+
+main :: () -> s32 {
+    hash: u64 = 14695981039346656037
+    for round: 0..5 {
+        tree := Tree(10)
+        hash = Mix(hash, cast(u64)Count(tree))
+        Release(tree)
+    }
+    for round: 0..99 {
+        wide := New(Wide)
+        for at: 0..19 { hash = Mix(hash, cast(u64)wide.values[at]); wide.values[at] = round * 20 + at + 1 }
+        free(wide)
+        big := New(Big)
+        for at: 0..39 { hash = Mix(hash, cast(u64)big.values[at]); big.values[at] = at - round }
+        free(big)
+    }
+    values: Vec(s64)
+    for at: 0..999 {
+        unused VecPush(values, at * 7)
+        if at % 97 == 0 { for value: values { hash = Mix(hash, cast(u64)value) } }
+    }
+    unused VecResize(values, 3)
+    unused VecResize(values, 40)
+    for value: values { hash = Mix(hash, cast(u64)value) }
+    VecFree(values)
+    print("heap classes %\n", hash)
+    return 0
+}

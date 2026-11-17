@@ -130,6 +130,15 @@ Fold :: (context: *Context, instruction: LirInstruction) -> MachineSelectFold {
             !Immediate(context, instruction.operands[1]) { return .None }
         return .Right
     }
+    if (op == .ShiftLeft || op == .ShiftRight) && instruction.operands.count == 2 {
+        // A constant count inside the width shifts by an immediate: no cl,
+        // and no range check, since it cannot trap.
+        type := TypeOf(context, instruction.operands[0])
+        count := instruction.operands[1]
+        if type.kind == .Integer && type.bits > 0 && context.plan.constant[count] &&
+            context.plan.bits[count] < cast(u64)type.bits { return .Right }
+        return .None
+    }
     if !Compare(op) && !Commutative(op) && op != .Subtract || instruction.operands.count != 2 {
         return .None
     }

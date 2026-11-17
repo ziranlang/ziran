@@ -40,7 +40,12 @@ the host call, `calloc` and block list on every `New` and `free`.
 3. **spectral-norm** (10,539 / 24,374): `A(i, j)` and the transpose select
    are duplicated into two copies of the loop body that jump back into each
    other; no vectorization under step metering.
-4. **n-body** (32,288 / 64,742), **nqueens** (5,331 / 7,912),
+4. **nqueens** (5,324 / 7,568). gcc's recursion keeps `cols`, `left`,
+   `right` and the running total in callee-saved registers and computes
+   `(left | bit) << 1` as `add %rdx,%rdx`. Native still spills two values
+   across the recursive call (register allocation, native lane) and stores
+   and reloads the step counter around every call.
+5. **n-body** (32,288 / 64,742),
    **fannkuch-redux** (16,329 / 20,689), **quicksort** (12,780 / 14,372):
    not yet profiled. String-hash is at C (5,607 / 5,618).
 

@@ -1015,9 +1015,23 @@ Shift :: (state: *State, opcode: MachineOpcode) -> bool {
     if !Count(state, 3) { return false }
     destination := Register(state, 0, .Define)
     left := Register(state, 1, .Use)
-    right := Register(state, 2, .Use)
-    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    if destination == MachineNoId || left == MachineNoId { return false }
     if destination != left { return Fail(state, .Tie, OperandId(state, 0)) }
+    extension: s32 = 4
+    count := OperandAt(state, 2)
+    if count.kind == .Immediate {
+        // A constant count the selection plan checked against the width.
+        type := TypeOf(state, OperandAt(state, 1))
+        if !Integer(type) || count.immediate >= cast(u64)(ScalarSize(type) * 8) {
+            return Fail(state, .Unsupported, OperandId(state, 2))
+        }
+        if opcode == .ShiftRight { extension = ifx Signed(type) then 7 else 5 }
+        if count.immediate > 0 { X86ShiftImmediate(*state.writer, extension, destination, cast(s32)count.immediate) }
+        Normalize(state, destination, type)
+        return true
+    }
+    right := Register(state, 2, .Use)
+    if right == MachineNoId { return false }
     if right != X86Rcx { return Fail(state, .Constraint, OperandId(state, 2)) }
     type := TypeOf(state, OperandAt(state, 1))
     count_type := TypeOf(state, OperandAt(state, 2))
@@ -1025,7 +1039,6 @@ Shift :: (state: *State, opcode: MachineOpcode) -> bool {
     if !Integer(count_type) { return Fail(state, .Unsupported, OperandId(state, 2)) }
     X86CompareByte(*state.writer, X86Rcx, ScalarSize(type) * 8)
     TrapUnless(state, X86Below, MachineX64TrapShift)
-    extension: s32 = 4
     if opcode == .ShiftRight { extension = ifx Signed(type) then 7 else 5 }
     X86ShiftCl(*state.writer, extension, destination)
     Normalize(state, destination, type)

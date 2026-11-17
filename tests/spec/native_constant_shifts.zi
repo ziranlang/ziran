@@ -1,0 +1,37 @@
+// Shifts by constant counts inside the width at every integer width and
+// signedness give C's results. Native x86-64 code shifts by an immediate,
+// with no count register and no range check.
+Mix :: (hash: u64, value: u64) -> u64 { return (hash ^ value) * 1099511628211 }
+
+Wide :: (n: s64, u: u64, hash: u64) -> u64 {
+    h := hash
+    h = Mix(h, cast(u64)(n << 0)); h = Mix(h, cast(u64)(n << 1)); h = Mix(h, cast(u64)(n << 13)); h = Mix(h, cast(u64)(n << 63))
+    h = Mix(h, cast(u64)(n >> 0)); h = Mix(h, cast(u64)(n >> 1)); h = Mix(h, cast(u64)(n >> 31)); h = Mix(h, cast(u64)(n >> 63))
+    h = Mix(h, u << 1); h = Mix(h, u << 40); h = Mix(h, u >> 1); h = Mix(h, u >> 63)
+    return h
+}
+
+Narrow :: (n: s64, hash: u64) -> u64 {
+    h := hash
+    a := cast(s32)n; b := cast(u32)n; c := cast(s16)n; d := cast(u16)n; e := cast(s8)n; f := cast(u8)n
+    h = Mix(h, cast(u64)(a << 1)); h = Mix(h, cast(u64)(a << 31)); h = Mix(h, cast(u64)(a >> 5)); h = Mix(h, cast(u64)(a >> 31))
+    h = Mix(h, cast(u64)(b << 3)); h = Mix(h, cast(u64)(b >> 31))
+    h = Mix(h, cast(u64)(c << 9)); h = Mix(h, cast(u64)(c >> 15))
+    h = Mix(h, cast(u64)(d << 15)); h = Mix(h, cast(u64)(d >> 4))
+    h = Mix(h, cast(u64)(e << 7)); h = Mix(h, cast(u64)(e >> 3))
+    h = Mix(h, cast(u64)(f << 1)); h = Mix(h, cast(u64)(f >> 7))
+    return h
+}
+
+main :: () -> s32 {
+    hash: u64 = 14695981039346656037
+    seed: u64 = 88172645463325252
+    edges := s64.[0, 1, -1, 9223372036854775807, -9223372036854775807 - 1, 255, -128, 65535, -32768]
+    for edge: edges { hash = Narrow(edge, Wide(edge, cast(u64)edge, hash)) }
+    for i: 0..999 {
+        seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
+        hash = Narrow(cast(s64)seed, Wide(cast(s64)seed, seed, hash))
+    }
+    print("constant shifts %\n", hash)
+    return 0
+}

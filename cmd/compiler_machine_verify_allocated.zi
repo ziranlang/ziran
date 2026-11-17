@@ -92,6 +92,43 @@ MachineFrameResident :: (kind: MachineStackKind) -> bool {
 }
 
 
+// Collect a conservative x86 XMM mask from structurally valid allocated IR.
+// Every physical FP operand and the cycle scratch are included; nested calls
+// contribute their verified masks. Unknown vector lowering keeps the ABI set.
+// The caller supplies a shared work budget and scans each function only once.
+MachineX64FunctionFloatClobbers :: (program: MachineProgram, function_id: s32,
+    mask: *u64, remaining: *s64) -> bool {
+    <<mask = MachineAbiCallFloatClobbers(program.target)
+    function := program.functions[function_id]
+    if program.target.arch != .X86_64 || function.calling != .Internal || function.entry == MachineNoId { return true }
+    used: u64 = 0
+    if program.scratch_float >= 0 { used = cast(u64)1 << cast(u64)program.scratch_float }
+    for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+        if <<remaining < 1 { return false }
+        <<remaining -= 1
+        block := program.blocks[block_id]
+        for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+            instruction := program.instructions[instruction_id]
+            cost := cast(s64)instruction.operand_count + 1
+            if <<remaining < cost { return false }
+            <<remaining -= cost
+            if instruction.opcode == .VectorLoop { used |= MachineAbiCallFloatClobbers(program.target) }
+            if instruction.call != MachineNoId {
+                call := program.calls[instruction.call]
+                used |= call.clobber_float | call.clobber_vector
+            }
+            for operand_id: instruction.operand_begin..instruction.operand_begin + instruction.operand_count - 1 {
+                operand := program.operands[operand_id]
+                if operand.kind == .Physical && (operand.class == .Float || operand.class == .Vector) {
+                    used |= cast(u64)1 << cast(u64)operand.id
+                }
+            }
+        }
+    }
+    <<mask = used
+    return true
+}
+
 #scope_file
 
 // A block-parameter copy writes a new instance of its destination while the
@@ -564,6 +601,20 @@ CallsAndRelocations :: (state: *State, program: MachineProgram, limits: MachineL
     target := program.target
     general_abi := MachineBankCallerSaved(target, 0)
     float_abi := MachineBankCallerSaved(target, 1)
+    float_masks: Vec(u64)
+    targets: Vec(s32)
+    defer VecFree(float_masks)
+    defer VecFree(targets)
+    if !VecResizeBounded(float_masks, program.functions.count, limits.bytes) ||
+        !VecResizeBounded(targets, program.calls.count, limits.bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..program.calls.count - 1 { targets[at] = MachineNoId }
+    for at: cast(s64)0..program.functions.count - 1 {
+        mask: u64
+        if !Spend(state, 1) || !MachineX64FunctionFloatClobbers(program, cast(s32)at, *mask, *state.remaining) {
+            return Fail(state, .Limit)
+        }
+        float_masks[at] = mask
+    }
     // Relocations first, so a malformed one is reported as such.
     for relocation_id: cast(s64)0..program.relocations.count - 1 {
         if !Spend(state, 1) { return false }
@@ -582,6 +633,13 @@ CallsAndRelocations :: (state: *State, program: MachineProgram, limits: MachineL
             relocation.kind == .FuelCounter && relocation.operand != instruction.operand_begin + 1 ||
             !MachineAbiRelocationAddend(target, relocation.kind, relocation.addend) {
             return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
+        }
+    }
+    for relocation: program.relocations {
+        if !Spend(state, 1) { return false }
+        if relocation.kind == .FunctionCall {
+            call := program.instructions[relocation.instruction].call
+            if call >= 0 { targets[call] = relocation.symbol }
         }
     }
     references: Vec(s32)
@@ -611,13 +669,19 @@ CallsAndRelocations :: (state: *State, program: MachineProgram, limits: MachineL
         if call.indirect && references[call_id] != 0 || !call.indirect && references[call_id] != 1 {
             return Fail(state, .Call, instruction = call.instruction)
         }
-        // Calls clobber the full ABI caller-saved set, which overlaps the
-        // target reserved mask on AArch64 (intra-call scratch x16/x17).
-        // Only reserved registers outside the ABI set must survive a call.
+        // A reduced x86 XMM mask must cover the actual direct callee,
+        // including its outgoing calls. Other forms retain the full ABI set.
+        required_float := float_abi
+        callee := targets[call_id]
+        if target.arch == .X86_64 && !call.indirect && call.calling == .Internal && callee >= 0 &&
+            program.functions[callee].calling == .Internal && program.functions[callee].entry != MachineNoId {
+            required_float = float_masks[callee]
+        }
+        // General masks retain the ABI set, including reserved call scratch.
         if (call.clobber_general & general_abi) != general_abi ||
             (call.clobber_general & target.reserved_general & ~general_abi) != 0 ||
             (call.clobber_general & ~MachineBankLimit(target, 0)) != 0 ||
-            (call.clobber_float & float_abi) != float_abi ||
+            (call.clobber_float & required_float) != required_float ||
             (call.clobber_float & ~MachineBankLimit(target, 1)) != 0 ||
             (call.clobber_vector & ~MachineBankLimit(target, MachineRegisterBank(target, .Vector))) != 0 {
             return Fail(state, .Clobber, instruction = call.instruction)

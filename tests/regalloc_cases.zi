@@ -87,9 +87,9 @@ Return :: (operands: []s32) -> Lir.LirInstruction {
 LowerProgram :: (owner: *Machine.MachineOwner, functions: []Lir.LirFunction, entry: s32) -> Machine.MachineResult {
     modules: [1]string = .["regalloc"]
     record_fields: [2]s32 = .[2, 2]
-    types: [5]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
+    types: [6]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
         .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Float, bits = 64},
-        .{kind = .Record, fields = record_fields[:]}]
+        .{kind = .Record, fields = record_fields[:]}, .{kind = .Function, result = TypeFloat}]
     constants: [6]Lir.LirConstant = .[.{type = 2, bits = 0}, .{type = 2, bits = 1}, .{type = 2, bits = 7},
         .{type = 3, bits = 0x3ff0000000000000}, .{type = 3, bits = 0x4000000000000000},
         .{type = 2, bits = 0x0000010000000007}]
@@ -109,8 +109,8 @@ LiveThroughFixture :: (owner: *Machine.MachineOwner, bridges: s32) -> Machine.Ma
     callee_blocks := Lir.LirBlock.[.{instructions = callee_body[:]}]
     values := s32.[TypeFloat, TypeInteger, TypeInteger, TypeFloat, TypeFloat, TypeInteger, TypeInteger, TypeInteger]
     entry_edges := Lir.LirEdge.[.{block = 1}]
-    entry := Lir.LirInstruction.[Fuel(1), Constant(0, 3), Call(1, 0, storage[0:0], 2), Jump(entry_edges[:])]
-    finish := Lir.LirInstruction.[Call(2, 0, storage[0:0], 1), Constant(3, 4),
+    entry := Lir.LirInstruction.[Fuel(1), Constant(0, 3), Call(1, 1, storage[0:0], 2), Jump(entry_edges[:])]
+    finish := Lir.LirInstruction.[Call(2, 1, storage[0:0], 1), Constant(3, 4),
         Op(.Add, 4, Two(storage[:], *at, 3, 0)), Return(One(storage[:], *at, 4))]
     edges: [3]Lir.LirEdge
     jumps: [6]Lir.LirInstruction
@@ -118,7 +118,7 @@ LiveThroughFixture :: (owner: *Machine.MachineOwner, bridges: s32) -> Machine.Ma
     blocks[0] = .{instructions = entry[:]}
     for index: 0..bridges - 1 {
         edges[index] = .{block = index + 2}
-        jumps[index * 2] = Call(5 + index, 0, storage[0:0], 1)
+        jumps[index * 2] = Call(5 + index, 1, storage[0:0], 1)
         jumps[index * 2 + 1] = Jump(edges[index:index + 1])
         blocks[index + 1] = .{instructions = jumps[index * 2:index * 2 + 2]}
     }
@@ -128,6 +128,8 @@ LiveThroughFixture :: (owner: *Machine.MachineOwner, bridges: s32) -> Machine.Ma
             blocks = callee_blocks[:], entry = 0, origin = -1},
         .{module = 0, name = "live_through", result = TypeFloat, values = values[0:5 + bridges],
             blocks = blocks[0:bridges + 2], entry = 0, origin = -1}]
+    // The later callee has no allocated mask yet: this fixture needs the full ABI clobber.
+    saved := functions[0]; functions[0] = functions[1]; functions[1] = saved
     return LowerProgram(owner, functions[:], -1)
 }
 
@@ -175,10 +177,10 @@ MergedSpillFixture :: (owner: *Machine.MachineOwner, reverse: bool) -> Machine.M
     entry: [3]Lir.LirInstruction = .[Fuel(1), Constant(0, 3), Jump(entry_edges[:])]
     first_parameters: [1]s32 = .[1]
     first_edges: [1]Lir.LirEdge = .[.{block = second, arguments = One(storage[:], *at, 1)}]
-    first_body: [3]Lir.LirInstruction = .[Call(5, 0, storage[0:0], 1),
+    first_body: [3]Lir.LirInstruction = .[Call(5, 1, storage[0:0], 1),
         Op(.Add, 3, Two(storage[:], *at, 1, 1)), Jump(first_edges[:])]
     second_parameters: [1]s32 = .[2]
-    second_body: [3]Lir.LirInstruction = .[Call(6, 0, storage[0:0], 1),
+    second_body: [3]Lir.LirInstruction = .[Call(6, 1, storage[0:0], 1),
         Op(.Add, 4, Two(storage[:], *at, 2, 3)), Return(One(storage[:], *at, 4))]
     blocks: [3]Lir.LirBlock
     blocks[0] = .{instructions = entry[:]}
@@ -189,6 +191,8 @@ MergedSpillFixture :: (owner: *Machine.MachineOwner, reverse: bool) -> Machine.M
             blocks = callee_blocks[:], entry = 0, origin = -1},
         .{module = 0, name = "merged_spill", result = TypeFloat, values = values[:],
             blocks = blocks[:], entry = 0, origin = -1}]
+    // The later callee has no allocated mask yet: this fixture needs the full ABI clobber.
+    saved := functions[0]; functions[0] = functions[1]; functions[1] = saved
     return LowerProgram(owner, functions[:], -1)
 }
 
@@ -216,7 +220,7 @@ ColdJoinFixture :: (owner: *Machine.MachineOwner, reverse: bool, swap: bool) -> 
     header := Lir.LirInstruction.[Fuel(1), Op(.GreaterEqual, 8, Two(storage[:], *at, 5, 6)),
         .{op = .Branch, result = -1, operands = One(storage[:], *at, 8), edges = header_edges[:], symbol = -1, origin = -1}]
     grow_edges := Lir.LirEdge.[.{block = store, arguments = Four(storage[:], *at, 4, 5, 6, 7)}]
-    growth := Lir.LirInstruction.[Call(9, 0, storage[0:0], 1), Jump(grow_edges[:])]
+    growth := Lir.LirInstruction.[Call(9, 1, storage[0:0], 1), Jump(grow_edges[:])]
     store_parameters := s32.[10, 11, 12, 13]
     store_edges := Lir.LirEdge.[.{block = carry, arguments = Four(storage[:], *at, 10, 15, 12, 16)}]
     storing := Lir.LirInstruction.[Constant(14, 3), Op(.Add, 15, Two(storage[:], *at, 11, 14)),
@@ -243,6 +247,8 @@ ColdJoinFixture :: (owner: *Machine.MachineOwner, reverse: bool, swap: bool) -> 
             blocks = callee_blocks[:], entry = 0, origin = -1},
         .{module = 0, name = "scalar_header", result = TypeFloat, values = values[:],
             blocks = blocks[:], entry = 0, origin = -1}]
+    // The later callee has no allocated mask yet: this fixture needs the full ABI clobber.
+    saved := functions[0]; functions[0] = functions[1]; functions[1] = saved
     return LowerProgram(owner, functions[:], -1)
 }
 
@@ -646,7 +652,7 @@ MergedSpillCases :: () -> bool {
                     if view.copies[index].class == .Float { view.copies[index].class = .Vector }
                 }
             }
-            first := view.functions[1].virtual_begin + 1
+            first := view.functions[0].virtual_begin + 1
             second := first + 1
             if !Allocate("merged spill", *owner) { return false }
             program := Lower.MachineProgramView(*owner)
@@ -684,7 +690,7 @@ ColdJoinCases :: () -> bool {
         program := Lower.MachineProgramView(*owner)
         if !Allocated(program, "multi-member cold growth joins verify") { return false }
         growth: s32 = ifx reverse then 4 else 2
-        function := program.functions[1]
+        function := program.functions[0]
         cold_spills: s32 = 0
         for b: function.block_begin..function.block_begin + function.block_count - 1 {
             block := program.blocks[b]
@@ -735,7 +741,7 @@ LiveThroughCases :: () -> bool {
         reloads: s32 = 0
         stores: s32 = 0
         for spill: program.spills {
-            if spill.function != 1 { continue }
+            if spill.function != 0 { continue }
             opcode := program.instructions[spill.instruction].opcode
             if opcode == .Reload { reloads += 1 }
             if opcode == .Spill { stores += 1 }
@@ -812,14 +818,14 @@ CallCases :: () -> bool {
     defer Lower.MachineFree(*owner)
     if !Lowered("calls", CallsFixture(*owner, true)) || !Allocate("calls", *owner) { return false }
     program := Lower.MachineProgramView(*owner)
+    // Unproven calls split live values with a call reason (KnownFloatCalls).
     if !Allocated(program, "call allocation verifies") ||
-        !Check(CountSpills(program, .Call) > 0, "values live across a call are split with a call reason") ||
         !Check(program.frames[1].callee_saved_general != 0, "live-across values use callee-saved registers") { return false }
     float_spill := false
     for spill: program.spills {
         if program.virtuals[spill.virtual].class == .Float && spill.reason == .Call { float_spill = true }
     }
-    if !Check(float_spill, "float values live across a call are spilled (no callee-saved XMM)") { return false }
+    if !Check(!float_spill, "integer leaf preserves live XMM values without spills") { return false }
     call := FindOpcode(program, .CallDirect)
     argument := Operand(program, call, 2)
     if !Check(argument.kind == .Physical && argument.id == 7 && argument.fixed_register == 7,
@@ -1308,8 +1314,74 @@ IndependentAddCase :: () -> bool {
     return Check(moves == 0 && program.spills.count == 0, "reused additions need no copies or spills")
 }
 
+// A floating-point leaf, a wrapper, and a caller with an XMM value live
+// across direct, transitive, indirect, recursive or later-allocated calls.
+KnownFloatFixture :: (owner: *Machine.MachineOwner, mode: s32) -> Machine.MachineResult {
+    storage: [40]s32
+    at: s64 = 0
+    leaf_values := s32.[TypeFloat, TypeFloat, TypeFloat]
+    leaf_body := Lir.LirInstruction.[Fuel(1), Constant(0, 3), Constant(1, 4),
+        Op(.Add, 2, Two(storage[:], *at, 0, 1)), Return(One(storage[:], *at, 2))]
+    leaf_blocks := Lir.LirBlock.[.{instructions = leaf_body[:]}]
+    middle_values := s32.[TypeFloat]
+    middle_body := Lir.LirInstruction.[Fuel(1), Call(0, 0, storage[0:0], 2), Return(One(storage[:], *at, 0))]
+    middle_blocks := Lir.LirBlock.[.{instructions = middle_body[:]}]
+    values := s32.[TypeFloat, 5, TypeFloat, TypeFloat]
+    target: s32 = 0
+    if mode == 2 { target = 1 }
+    if mode == 3 { target = 2 }
+    if mode == 4 { target = 3 }
+    address := Lir.LirInstruction.{op = .FunctionAddress, result = 1, symbol = target, origin = -1}
+    call := Call(2, target, storage[0:0], 2)
+    if mode == 1 { call.op = .CallIndirect; call.symbol = -1; call.operands = One(storage[:], *at, 1) }
+    body := Lir.LirInstruction.[Fuel(1), Constant(0, 3), address, call,
+        Op(.Add, 3, Two(storage[:], *at, 0, 2)), Return(One(storage[:], *at, 3))]
+    blocks := Lir.LirBlock.[.{instructions = body[:]}]
+    functions := Lir.LirFunction.[
+        .{module = 0, name = "float leaf", result = TypeFloat, values = leaf_values[:], blocks = leaf_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "float wrapper", result = TypeFloat, values = middle_values[:], blocks = middle_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "float caller", result = TypeFloat, values = values[:], blocks = blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "later leaf", result = TypeFloat, values = leaf_values[:], blocks = leaf_blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
+KnownFloatCalls :: () -> bool {
+    for mode: cast(s32)0..4 {
+        owner: Machine.MachineOwner
+        defer Lower.MachineFree(*owner)
+        if !Lowered("known float call", KnownFloatFixture(*owner, mode)) ||
+            !Allocate("known float call", *owner) { return false }
+        program := Lower.MachineProgramView(*owner)
+        if !Allocated(program, "known float call verifies") { return false }
+        known := mode == 0 || mode == 2
+        if !Check((CountSpills(program, .Call) == 0) == known,
+            "only proven direct and transitive calls preserve live XMM values") { return false }
+        caller := program.functions[2]
+        call_id: s32 = -1
+        for b: caller.block_begin..caller.block_begin + caller.block_count - 1 {
+            block := program.blocks[b]
+            for i: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+                if program.instructions[i].call >= 0 { call_id = program.instructions[i].call }
+            }
+        }
+        if !Check(call_id >= 0 && (program.calls[call_id].clobber_float != 0xffff) == known,
+            "unknown, recursive and later calls retain the ABI mask") { return false }
+        saved := program.calls[call_id]
+        program.calls[call_id].clobber_float = 0
+        program.calls[call_id].clobber_vector = 0
+        if !Rejects(program, .Clobber, "missing callee XMM clobber is rejected") { return false }
+        program.calls[call_id] = saved
+        before := Fingerprint(program)
+        remaining: s64 = 0
+        mask: u64
+        if !Check(!Allocated.MachineX64FunctionFloatClobbers(program, 2, *mask, *remaining) &&
+            Fingerprint(program) == before, "XMM mask collection obeys its budget without changing code") { return false }
+    }
+    return true
+}
+
 main :: () -> s32 {
-    if !IndependentAddCase() || !BackwardDefinitionCase() || !LiveThroughCases() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+    if !KnownFloatCalls() || !IndependentAddCase() || !BackwardDefinitionCase() || !LiveThroughCases() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
         !VectorCases() { return 1 }
     print("register allocation: merged float/vector spills in both block orders, work limits, pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
     return 0

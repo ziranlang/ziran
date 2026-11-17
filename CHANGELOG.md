@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 callers keep floating-point values in XMM registers across a direct call to a function whose allocated code, including its own calls, leaves those registers untouched, instead of spilling them around the call. The allocated-code verifier checks each reduced mask against the callee; indirect, recursive and not-yet-allocated callees keep the full ABI clobber set.
 - Native x86-64 code shifts by a constant count inside the width with an immediate `shl`, `shr` or `sar`, without loading the count into `cl` or checking its range. nqueens, which shifts its diagonals by one per placement, runs 4% faster.
 - Native x86-64 code tests an inclusive `for` range with a computed end once per iteration instead of twice: after leaving on the last value, the copy of the header test that loop rotation leaves in the latch always holds and becomes a jump. The LIR keeps the test, which the vectorizer reads.
 - `Finite32` and `Finite64` live in the new `std/finite` module, which `std/math` re-exports, and are `#inline`: generated C gets a static inline copy of each in `finite.h`, so callers no longer make an out-of-line call per component. NaN and infinities still give false.

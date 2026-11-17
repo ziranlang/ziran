@@ -98,6 +98,8 @@ Alloc :: struct {
     callee_saved: [3]u64
     instruction_map: Vec(s32)
     item_of_instruction: Vec(s32)
+    call_target: Vec(s32)
+    function_float: Vec(u64)
     function_id: s32
     function: MachineFunction
     block_out_begin: s32
@@ -1106,6 +1108,20 @@ AddClobbers :: (state: *Alloc, bank: s32, mask: u64, position: s32) -> bool {
     return true
 }
 
+// Only an already allocated direct internal callee has a proven XMM mask.
+// Later, recursive and indirect calls keep their original ABI contract.
+EffectiveCall :: (state: *Alloc, call_id: s32) -> MachineCall {
+    call := state.input.calls[call_id]
+    target := state.call_target[call_id]
+    if state.target.arch == .X86_64 && !call.indirect && call.calling == .Internal &&
+        target >= 0 && target < state.function_id {
+        mask := state.function_float[target]
+        call.clobber_float = call.clobber_float & mask
+        call.clobber_vector = call.clobber_vector & mask
+    }
+    return call
+}
+
 BuildFixed :: (state: *Alloc) -> bool {
     program := state.input
     function := state.function
@@ -1149,7 +1165,7 @@ BuildFixed :: (state: *Alloc) -> bool {
                 }
             }
             if instruction.call != MachineNoId {
-                call := program.calls[instruction.call]
+                call := EffectiveCall(state, instruction.call)
                 if !AddClobbers(state, 0, call.clobber_general, position + 1) { return false }
                 if float_bank == vector_bank {
                     if !AddClobbers(state, float_bank, call.clobber_float | call.clobber_vector, position + 1) { return false }
@@ -1995,7 +2011,7 @@ RewriteOriginal :: (state: *Alloc, item_index: s32) -> bool {
         if OutOperand(state, rewritten) == MachineNoId { return false }
     }
     if source.call != MachineNoId {
-        call := program.calls[source.call]
+        call := EffectiveCall(state, source.call)
         call.instruction = cast(s32)state.out.instructions.count
         call.argument_begin = instruction.operand_begin + (call.argument_begin - source.operand_begin)
         if call.result_operand != MachineNoId {
@@ -2427,6 +2443,8 @@ InputLocation :: (state: *Alloc, found: MachineDiagnostic) -> MachineDiagnostic 
 FreeScratch :: (state: *Alloc) {
     VecFree(state.instruction_map)
     VecFree(state.item_of_instruction)
+    VecFree(state.call_target)
+    VecFree(state.function_float)
     VecFree(state.items)
     VecFree(state.block_start)
     VecFree(state.block_end)
@@ -2482,9 +2500,33 @@ Run :: (state: *Alloc) -> bool {
         state.instruction_map[index] = MachineNoId
         state.item_of_instruction[index] = MachineNoId
     }
+    if !Reserve(state, program.calls.count, size_of(s32)) ||
+        !Reserve(state, program.functions.count, size_of(u64)) ||
+        !VecResizeBounded(state.call_target, program.calls.count, state.limits.bytes) ||
+        !VecResizeBounded(state.function_float, program.functions.count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..program.calls.count - 1 { state.call_target[at] = MachineNoId }
+    for at: cast(s64)0..program.functions.count - 1 {
+        state.function_float[at] = MachineAbiCallFloatClobbers(state.target)
+    }
+    for relocation: program.relocations {
+        if !Spend(state, 1) { return false }
+        if relocation.kind == .FunctionCall {
+            call := program.instructions[relocation.instruction].call
+            if call >= 0 { state.call_target[call] = relocation.symbol }
+        }
+    }
     if !CopyTables(state) { return false }
     for function_id: cast(s64)0..program.functions.count - 1 {
         if !AllocateFunction(state, cast(s32)function_id) { return false }
+        // The private output has structurally valid allocated functions so far.
+        view := MachineProgram.{target = state.target, functions = state.out.functions[:],
+            blocks = state.out.blocks[:], instructions = state.out.instructions[:],
+            operands = state.out.operands[:], calls = state.out.calls[:], scratch_float = state.scratch[1]}
+        mask: u64
+        if !MachineX64FunctionFloatClobbers(view, cast(s32)function_id, *mask, *state.remaining) {
+            return Fail(state, .Limit)
+        }
+        state.function_float[function_id] = mask
     }
     state.function_id = MachineNoId
     return Relocations(state)

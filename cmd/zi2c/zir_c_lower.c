@@ -1816,6 +1816,18 @@ inline_type_ok(const ZirModule *m, const char *type)
     return 1;
 }
 
+/* Whether every type a procedure's signature names is one the header
+ * declares outside its _PRIVATE guard. */
+static int
+signature_public(const ZirModule *m, const ZirFunction *fn)
+{
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    if(!inline_type_ok(m, fn->return_type)) return 0;
+    for(int i = 0; i < parameters->count; i++)
+        if(!inline_type_ok(m, parameters->items[i].type)) return 0;
+    return 1;
+}
+
 static const ZirFunction *
 public_function(const ZirModule *m, const char *name)
 {
@@ -2639,12 +2651,17 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             PruneMark(h, NativeProgramMain(m, fn) || fn->exported || fn == lowering_entry ?
                       PRUNE_ROOT : PRUNE_DECLARATION, names);
         }
+        /* A generic's copy for a type the module keeps private is the
+         * module's own, so it stays behind the _PRIVATE guard too. */
+        int hidden = !pruned && fn->is_specialization && !signature_public(m, fn);
+        if(hidden) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         if(symbol != NULL)
             EmitSymbolDeclaration(h, cret[0] ? cret : "void", cname,
                                   buffers->cargs, symbol);
         else
             fprintf(h, "%s%s %s(%s);\n", fn->inlining == ZIR_INLINE_COLD ? "ZIRAN_COLD " : "",
                     cret[0] ? cret : "void", cname, buffers->cargs);
+        if(hidden) fputs("#endif\n", h);
         if(NativeProgramMain(m, fn))
             EmitNativeMainDeclaration(h);
     }

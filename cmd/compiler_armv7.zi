@@ -1,5 +1,6 @@
 using Allocated :: #import "compiler_machine_verify_allocated"
 using Bytes :: #import "compiler_arm_bytes"
+using Encode :: #import "compiler_encode"
 using Image :: #import "compiler_machine_image"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
@@ -94,8 +95,6 @@ MachineV7Owner :: struct {
 
 #scope_file
 
-CodeLimit :: 2147483647
-
 // Encoder registers outside allocation.
 Temp :: 10
 FramePointer :: 11
@@ -139,16 +138,6 @@ OpMvn :: 15
 // byte displacement.
 V7Memory :: struct { base: s32; displacement: s64 }
 
-Layout :: struct {
-    function_begin: Vec(s64)
-    function_body: Vec(s64)
-    function_end: Vec(s64)
-    block_begin: Vec(s64)
-    instruction_begin: Vec(s64)
-    instruction_end: Vec(s64)
-    relocation_of: Vec(s32)
-}
-
 // How the flags of the latest compare are read: a 32-bit or float compare
 // reads every condition; a 64-bit equality or unsigned compare is CMP of the
 // high words then CMPEQ of the low; a 64-bit signed compare is SUBS/SBCS,
@@ -182,44 +171,6 @@ State :: struct {
     flags_swapped: bool
 }
 
-NoDiagnostic :: () -> MachineDiagnostic {
-    return .{problem = .None, function = MachineNoId, block = MachineNoId,
-        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
-}
-
-Fail :: (state: *State, problem: MachineProblem, operand: s32 = MachineNoId) -> bool {
-    if state.diagnostic.problem == .None {
-        value: s32 = MachineNoId
-        if operand >= 0 && operand < state.program.operands.count { value = state.program.operands[operand].value }
-        state.diagnostic = .{problem = problem, function = state.function, block = state.block,
-            instruction = state.instruction, operand = operand, virtual = value}
-    }
-    return false
-}
-
-Spend :: (state: *State, count: s64) -> bool {
-    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
-    state.remaining -= count
-    state.used += count
-    return true
-}
-
-LayoutFree :: (layout: *Layout) {
-    VecFree(layout.function_begin)
-    VecFree(layout.function_body)
-    VecFree(layout.function_end)
-    VecFree(layout.block_begin)
-    VecFree(layout.instruction_begin)
-    VecFree(layout.instruction_end)
-    VecFree(layout.relocation_of)
-}
-
-Filled :: (values: *Vec(s64), count: s64) -> bool {
-    if !VecResizeBounded(<<values, count, count) { return false }
-    for index: cast(s64)0..count - 1 { (<<values)[index] = -1 }
-    return true
-}
-
 // Records the current offset while measuring; while writing, requires it.
 Place :: (state: *State, slots: []s64, index: s64) -> bool {
     if state.emit {
@@ -236,29 +187,6 @@ Relocate :: (state: *State, kind: MachineV7RelocationKind, symbol: s32, addend: 
             addend = addend, instruction = state.instruction}
     }
     state.relocation_count += 1
-}
-
-Current :: (state: *State) -> MachineInstruction {
-    return state.program.instructions[state.instruction]
-}
-
-OperandId :: (state: *State, local: s32) -> s32 {
-    return Current(state).operand_begin + local
-}
-
-OperandAt :: (state: *State, local: s32) -> MachineOperand {
-    return state.program.operands[OperandId(state, local)]
-}
-
-TypeOf :: (state: *State, operand: MachineOperand) -> MachineType {
-    return state.program.types[state.program.virtuals[operand.value].type]
-}
-
-TypeIdOf :: (state: *State, operand: MachineOperand) -> s32 {
-    if operand.value >= 0 { return state.program.virtuals[operand.value].type }
-    if operand.type >= 0 { return operand.type }
-    if operand.kind == .StackObject { return state.program.stack_objects[operand.id].type }
-    return MachineNoId
 }
 
 // Byte size of a general scalar the encoder can hold, or -1: booleans, 8 to
@@ -285,11 +213,6 @@ FloatSize :: (type: MachineType) -> s64 {
 Signed :: (type: MachineType) -> bool { return type.kind == .Integer && type.is_signed }
 
 Integer :: (type: MachineType) -> bool { return type.kind == .Integer && ScalarSize(type) > 0 }
-
-StackArgumentSize :: (value: s64) -> s64 {
-    if value < 0 || value > 9223372036854775799 { return -1 }
-    return (value + 7) & ~cast(s64)7
-}
 
 // The low and high ARM registers of an allocated pair.
 Low :: (pair: s32) -> s32 { return ifx pair == 5 then 12 else pair * 2 }
@@ -328,11 +251,6 @@ FloatRegister :: (state: *State, local: s32, role: MachineOperandRole) -> s32 {
     return operand.id
 }
 
-Count :: (state: *State, count: s32) -> bool {
-    if Current(state).operand_count != count { return Fail(state, .Unsupported) }
-    return true
-}
-
 // A declared physical clobber or scratch operand naming REGISTER.
 PhysicalScratch :: (operand: MachineOperand, class: MachineRegisterClass, register: s32,
     role: MachineOperandRole) -> bool {
@@ -341,11 +259,6 @@ PhysicalScratch :: (operand: MachineOperand, class: MachineRegisterClass, regist
 }
 
 // ---- Words ----------------------------------------------------------------
-
-Emit :: (state: *State, word: u32) {
-    if state.diagnostic.problem != .None { return }
-    Bytes.ArmWord(*state.writer, word)
-}
 
 // Data processing with a register operand: OP{S}{cond} rd, rn, rm.
 Data :: (state: *State, op: s32, set: bool, rd: s32, rn: s32, rm: s32, cond: s32 = CondAl) {
@@ -563,11 +476,6 @@ StackMemory :: (state: *State, object_id: s32, operand: s32) -> V7Memory {
     base: s32 = FramePointer
     if object.kind == .OutgoingArgument { base = StackPointer }
     return .{base = base, displacement = object.offset}
-}
-
-AtOffset :: (memory: V7Memory, offset: s64) -> V7Memory {
-    memory.displacement += offset
-    return memory
 }
 
 // A memory operand whose displacement fits RANGE, rebasing into r10 when it
@@ -2398,16 +2306,6 @@ Call :: (state: *State) -> bool {
     return true
 }
 
-NextBlock :: (state: *State) -> s32 {
-    function := state.program.functions[state.function]
-    if state.block + 1 < function.block_begin + function.block_count { return state.block + 1 }
-    return MachineNoId
-}
-
-BlockTarget :: (state: *State, block: s32) -> s64 { return state.block_begin[block] }
-
-FunctionTarget :: (state: *State, function: s32) -> s64 { return state.function_begin[function] }
-
 JumpTo :: (state: *State, target: s32) {
     if target != NextBlock(state) { Branch(state, BlockTarget(state, target)) }
 }
@@ -2586,26 +2484,6 @@ Instruction :: (state: *State) -> bool {
     return ok && state.diagnostic.problem == .None
 }
 
-ProbeSaved :: struct { writer: Bytes.ArmWriter; relocations: s64 }
-
-// Measures a sequence without writing it or recording its relocations, so a
-// branch can skip it.
-Probe :: (state: *State) -> ProbeSaved {
-    saved := ProbeSaved.{writer = state.writer, relocations = state.relocation_count}
-    empty: []u8
-    state.writer = .{output = empty, at = saved.writer.at, limit = saved.writer.limit}
-    return saved
-}
-
-Unprobe :: (state: *State, saved: ProbeSaved) -> s64 {
-    length := state.writer.at - saved.writer.at
-    failed := state.writer.failed
-    state.writer = saved.writer
-    state.relocation_count = saved.relocations
-    if failed { state.writer.failed = true }
-    return length
-}
-
 // The frame byte count the prologue reserves: the frame rounded to 16.
 ReservedSize :: (frame: MachineFrame) -> s64 {
     if frame.size < 0 { return -1 }
@@ -2691,40 +2569,6 @@ Failure :: (problem: MachineProblem) -> MachineV7Result {
     result := MachineV7Result.{diagnostic = NoDiagnostic()}
     result.diagnostic.problem = problem
     return result
-}
-
-Copy :: (destination: *Vec(s64), source: []s64) -> bool {
-    if !VecResizeBounded(<<destination, source.count, source.count) { return false }
-    for index: cast(s64)0..source.count - 1 { (<<destination)[index] = source[index] }
-    return true
-}
-
-AlignValue :: (value: s64, alignment: s32) -> s64 {
-    return (value + alignment - 1) & ~cast(s64)(alignment - 1)
-}
-
-PutSectionLittle :: (bytes: []u8, at: s64, value: u64, count: s64) {
-    for index: cast(s64)0..count - 1 {
-        bytes[at + index] = cast(u8)((value >> cast(u64)(index * 8)) & 255)
-    }
-}
-
-// Writes one global's initializer bytes into its image section.
-WriteGlobalImage :: (program: MachineProgram, global_id: s32, bytes: []u8, at: s64) -> bool {
-    global := program.globals[global_id]
-    if global.constant < 0 { return global.writable }
-    constant := program.constants[global.constant]
-    size := program.types[global.type].size
-    if constant.bytes_count == 0 {
-        if size > 8 { return false }
-        PutSectionLittle(bytes, at, constant.bits, size)
-        return true
-    }
-    if constant.bytes_count != size { return false }
-    for index: cast(s64)0..size - 1 {
-        bytes[at + index] = program.data[constant.bytes_begin + index]
-    }
-    return true
 }
 
 // Maps encoder relocations onto image relocations.

@@ -1,0 +1,173 @@
+// The pieces every direct native encoder shares: the measuring and writing
+// passes' bookkeeping (Fail, Spend, Count, Emit, Probe), operand and type
+// lookups, block and function targets, relocation records, the layout arrays
+// and the global image writer. Procedures over the encoder state take it as
+// *$S, so each target keeps its own State record and gets its own copy.
+using Bytes :: #import "compiler_arm_bytes"
+using Image :: #import "compiler_machine_image"
+using Machine :: #import "compiler_machine_ir"
+using Vectors :: #import "std/vec"
+
+CodeLimit :: 2147483647
+
+Layout :: struct {
+    function_begin: Vec(s64)
+    function_body: Vec(s64)
+    function_end: Vec(s64)
+    block_begin: Vec(s64)
+    instruction_begin: Vec(s64)
+    instruction_end: Vec(s64)
+    relocation_of: Vec(s32)
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+// A polymorphic default cannot name an import yet: -1 is MachineNoId.
+Fail :: (state: *$S, problem: MachineProblem, operand: s32 = -1) -> bool {
+    if state.diagnostic.problem == .None {
+        value: s32 = MachineNoId
+        if operand >= 0 && operand < state.program.operands.count { value = state.program.operands[operand].value }
+        state.diagnostic = .{problem = problem, function = state.function, block = state.block,
+            instruction = state.instruction, operand = operand, virtual = value}
+    }
+    return false
+}
+
+Spend :: (state: *$S, count: s64) -> bool {
+    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
+    state.remaining -= count
+    state.used += count
+    return true
+}
+
+LayoutFree :: (layout: *Layout) {
+    VecFree(layout.function_begin)
+    VecFree(layout.function_body)
+    VecFree(layout.function_end)
+    VecFree(layout.block_begin)
+    VecFree(layout.instruction_begin)
+    VecFree(layout.instruction_end)
+    VecFree(layout.relocation_of)
+}
+
+Filled :: (values: *Vec(s64), count: s64) -> bool {
+    if !VecResizeBounded(<<values, count, count) { return false }
+    for index: cast(s64)0..count - 1 { (<<values)[index] = -1 }
+    return true
+}
+
+Current :: (state: *$S) -> MachineInstruction {
+    return state.program.instructions[state.instruction]
+}
+
+OperandId :: (state: *$S, local: s32) -> s32 {
+    return Current(state).operand_begin + local
+}
+
+OperandAt :: (state: *$S, local: s32) -> MachineOperand {
+    return state.program.operands[OperandId(state, local)]
+}
+
+TypeOf :: (state: *$S, operand: MachineOperand) -> MachineType {
+    return state.program.types[state.program.virtuals[operand.value].type]
+}
+
+TypeIdOf :: (state: *$S, operand: MachineOperand) -> s32 {
+    if operand.value >= 0 { return state.program.virtuals[operand.value].type }
+    if operand.type >= 0 { return operand.type }
+    if operand.kind == .StackObject { return state.program.stack_objects[operand.id].type }
+    return MachineNoId
+}
+
+// One 32-bit encoding word in measure or write mode.
+Emit :: (state: *$S, word: u32) {
+    if state.diagnostic.problem != .None { return }
+    Bytes.ArmWord(*state.writer, word)
+}
+
+// Adds a byte offset to a frame-relative memory operand.
+AtOffset :: (memory: $M, offset: s64) -> M {
+    memory.displacement += offset
+    return memory
+}
+
+StackArgumentSize :: (value: s64) -> s64 {
+    if value < 0 || value > 9223372036854775799 { return -1 }
+    return (value + 7) & ~cast(s64)7
+}
+
+Count :: (state: *$S, count: s32) -> bool {
+    if Current(state).operand_count != count { return Fail(state, .Unsupported) }
+    return true
+}
+
+NextBlock :: (state: *$S) -> s32 {
+    function := state.program.functions[state.function]
+    if state.block + 1 < function.block_begin + function.block_count { return state.block + 1 }
+    return MachineNoId
+}
+
+BlockTarget :: (state: *$S, block: s32) -> s64 {
+    return state.block_begin[block]
+}
+
+FunctionTarget :: (state: *$S, function: s32) -> s64 {
+    return state.function_begin[function]
+}
+
+ProbeSaved :: struct { writer: Bytes.ArmWriter; relocations: s64 }
+
+// Measures a sequence without writing it or recording its relocations, so a
+// branch can skip it.
+Probe :: (state: *$S) -> ProbeSaved {
+    saved := ProbeSaved.{writer = state.writer, relocations = state.relocation_count}
+    empty: []u8
+    state.writer = .{output = empty, at = saved.writer.at, limit = saved.writer.limit}
+    return saved
+}
+
+Unprobe :: (state: *$S, saved: ProbeSaved) -> s64 {
+    length := state.writer.at - saved.writer.at
+    failed := state.writer.failed
+    state.writer = saved.writer
+    state.relocation_count = saved.relocations
+    if failed { state.writer.failed = true }
+    return length
+}
+
+Copy :: (destination: *Vec(s64), source: []s64) -> bool {
+    if !VecResizeBounded(<<destination, source.count, source.count) { return false }
+    for index: cast(s64)0..source.count - 1 { (<<destination)[index] = source[index] }
+    return true
+}
+
+AlignValue :: (value: s64, alignment: s32) -> s64 {
+    return (value + alignment - 1) & ~cast(s64)(alignment - 1)
+}
+
+PutSectionLittle :: (bytes: []u8, at: s64, value: u64, count: s64) {
+    for index: cast(s64)0..count - 1 {
+        bytes[at + index] = cast(u8)((value >> cast(u64)(index * 8)) & 255)
+    }
+}
+
+// Writes one global's initializer bytes into its image section.
+WriteGlobalImage :: (program: MachineProgram, global_id: s32, bytes: []u8, at: s64) -> bool {
+    global := program.globals[global_id]
+    if global.constant < 0 { return global.writable }
+    constant := program.constants[global.constant]
+    size := program.types[global.type].size
+    if constant.bytes_count == 0 {
+        if size > 8 { return false }
+        PutSectionLittle(bytes, at, constant.bits, size)
+        return true
+    }
+    if constant.bytes_count != size { return false }
+    for index: cast(s64)0..size - 1 {
+        bytes[at + index] = program.data[constant.bytes_begin + index]
+    }
+    return true
+}

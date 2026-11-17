@@ -72,6 +72,70 @@ invalid copies between unrelated layout-adjacent block parts and allows the
 neighboring inliner to preserve floating-point results. Hardware square root,
 call elimination, matrix induction and recursive-call overhead remain open.
 
+## Hardware square root A/B
+
+The [hardware square root change](https://github.com/ziranlang/ziran/commit/515449986e40fd9da7fb324f96cbf6d1c906a696)
+was measured against the preceding native division fix. The
+[raw receipt](native-hardware-sqrt-alpha.json) retains eleven interleaved
+C/before/after samples on physical Alpha, with the standard host gate,
+150 ms process warmup, learning and checks off, symmetric inclusive 1.5×IQR
+exclusions, and every result matching C. This uses the standard workloads and
+host through a private interleaving driver, rather than the literal
+`bench/wasm_tier.py --standard` command. The native bundle was rebuilt for the
+new square root intrinsic; the unchanged benchmark kernel source and both
+bundle/tool fingerprints are retained in the receipt.
+
+| Benchmark | C µs | Native before µs | Native after µs | After/C |
+| --- | ---: | ---: | ---: | ---: |
+| n-body | 29,676 | 324,196 | 46,806 | 1.58× |
+| spectral-norm | 9,985 | 67,468 | 68,312 | 6.84× |
+| matmul | 3,915 | 20,421 | 20,491 | 5.23× |
+| fib | 18,304 | 73,836 | 72,675 | 3.97× |
+| mandelbrot | 69,164 | 115,857 | 117,005 | 1.69× |
+
+Replacing normalization and six Newton divisions with `sqrtsd` makes n-body
+6.93× faster in this comparison. The other kernels do not use square root in
+their hot loops and show little change. The earlier software-square-root
+observation describes the baseline; the current compiler and standard math
+module use the hardware operation.
+
+## Recursive entry and address instruction A/B
+
+The [native call setup change](https://github.com/ziranlang/ziran/commit/84a89f4c8ee2359d8677b2601d9708c84b5d38fd)
+was measured against its immediate published parent, after the intervening
+CFG inliner changes. The [raw receipt](native-call-setup-alpha.json) uses the
+same interleaving procedure and eleven samples per target. Before and after
+run one frozen ZX bundle, with all checksums matching C. The runtime and
+compiler build metadata are retained separately for each revision.
+
+| Benchmark | C µs | Native before µs | Native after µs | After/C |
+| --- | ---: | ---: | ---: | ---: |
+| n-body | 28,748 | 61,768 | 62,407 | 2.17× |
+| spectral-norm | 10,011 | 69,955 | 69,980 | 6.99× |
+| matmul | 3,894 | 21,426 | 20,809 | 5.34× |
+| fib | 18,006 | 71,639 | 67,015 | 3.72× |
+| mandelbrot | 69,451 | 115,573 | 117,013 | 1.68× |
+
+Simple integer base cases return before saving callee-saved registers and
+allocating a frame; effectful, checked and fueled paths retain their ordinary
+entry. Adjacent integer register copies and constant additions/subtractions
+use one `lea`. Fib is 6.46% faster, while its remaining recursive calls still
+need frames and saved values. GCC also transforms recursive accumulation and
+partially inlines recursion, which this backend change does not implement.
+
+N-body is slower in this later cohort than in the hardware-square-root
+cohort, including the before revision. The intervening compiler changes need
+a separate matched comparison; these two cohorts do not identify which
+change caused that regression. They must not be combined into a single
+before/after claim for the call setup change.
+
+Local validation before the source changes were pushed: `build-queue -- make
+check CHECK_FILTER=zx_native`, encoder and lowered execution parity fixtures,
+then the full `make check` (284/284) and `make check-bootstrap` (Linux and
+Darwin bootstrap comparisons match), all with learning off and desktop display
+variables removed. The final full-suite and bootstrap commands shared one
+build-queue slot. These are local test results; GitHub CI was not inspected.
+
 ## Hypotheses to test (timing alone does not prove them)
 
 1. **n-body, spectral-norm:** float-heavy inner loops. Beyond `Sqrt`, native

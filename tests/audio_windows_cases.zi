@@ -1,0 +1,78 @@
+// Cross-target Xiph ABI and actual decoder contracts; private Wine/Xvfb only.
+#import "native_test"
+#import "check_support"
+#import "check_cache"
+#import "std/text_tools"
+#import "std/file_tree_linux"
+#import "std/environment_linux"
+using Vectors :: #import "std/vec"
+
+CompileWindows :: (test: *NativeTest, cc: string, source: string, name: string) -> string {
+    generated := CheckPath(test.work, CheckConcat(name, "-c"))
+    module := PathName(source)
+    entry := CheckConcat(module[:module.count - 3], ":main")
+    generate := string.[test.ziran, "build", "--target=c", "--entry", entry, "--target-os", "windows", "--target-cpu", "x64",
+        "--define", "_WIN32", "--define", "__x86_64__", "--root", PathParent(source), "-o", generated, source]
+    unused NativeRun(test, generate[:])
+    executable := CheckPath(test.work, CheckConcat(name, ".exe"))
+    compile: Vec(string)
+    flags := string.[cc, "-O2", "-std=c11", CheckConcat("-I", generated), CheckConcat("-I", CheckPath(test.repo, "include"))]
+    for flag: flags { VecPush(compile, flag) }
+    files := NativeFiles(generated, ".c", true)
+    for file: files { VecPush(compile, file) }
+    libs := string.["libvorbisfile.a", "libvorbis.a", "libogg.a"]
+    for lib: libs { VecPush(compile, CheckPath(CheckPath(test.work, "native"), lib)) }
+    options := string.["-static", "-static-libgcc", "-lm", "-o", executable]
+    for option: options { VecPush(compile, option) }
+    unused NativeRun(test, compile[:])
+    return executable
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "audio-windows-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    cc := EnvironmentText("WINDOWS_CC")
+    if cc == "" { cc = CheckExecutable("x86_64-w64-mingw32-gcc") }
+    if !NativeAssert(*test, cc != "", "Windows audio tests need MinGW") { return 1 }
+    native := CheckPath(test.work, "native")
+    configure := string.["cmake", "-S", CheckPath(test.repo, "std/native"), "-B", native,
+        "-DCMAKE_SYSTEM_NAME=Windows", "-DCMAKE_BUILD_TYPE=Release", CheckConcat("-DCMAKE_C_COMPILER=", cc),
+        "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY", "-DZIRAN_AUDIO_VORBIS=ON"]
+    unused NativeRun(*test, configure[:])
+    build := string.["cmake", "--build", native, "--target", "vorbisfile", "--parallel", "2"]
+    unused NativeRun(*test, build[:])
+    if test.failed { return 1 }
+    source := CheckPath(test.work, "layout.zi")
+    unused NativeWrite(*test, source, NativeRead(*test, CheckPath(test.repo, "tests/fixtures/vorbis/client.zi.in")))
+    mirror := CompileWindows(*test, cc, source, "mirror")
+    decoder := CompileWindows(*test, cc, CheckPath(test.repo, "tests/audio_vorbis_cases.zi"), "decoder")
+    layout := CheckPath(test.work, "layout.c")
+    unused NativeWrite(*test, layout, NativeRead(*test, CheckPath(test.repo, "tests/fixtures/vorbis/layout.c.in")))
+    xiph := CheckPath(test.work, "xiph.exe")
+    compile := string.[cc, CheckConcat("-I", CheckPath(native, "_deps/ziran_core_vorbis-src/include")),
+        CheckConcat("-I", CheckPath(native, "_deps/ziran_core_ogg-src/include")),
+        CheckConcat("-I", CheckPath(native, "_deps/ziran_core_ogg-build/include")), layout, "-static", "-static-libgcc", "-o", xiph]
+    unused NativeRun(*test, compile[:])
+    if test.failed { return 1 }
+    // The isolated Wine prefix also isolates wineserver cleanup. No inherited
+    // display, authorization or desktop-recovery environment reaches Xvfb.
+    NativeUnset(*test, "SESSION_MANAGER")
+    NativeUnset(*test, "WINELOADER")
+    NativeUnset(*test, "WINEDLLPATH")
+    NativeUnset(*test, "WINEDLLOVERRIDES")
+    VecPush(test.environment, CheckConcat("WINEPREFIX=", CheckPath(test.work, "wine")))
+    VecPush(test.environment, "WINEARCH=win64"); VecPush(test.environment, "WINEDEBUG=-all")
+    report := CheckPath(test.work, "mirror.txt")
+    expected := CheckPath(test.work, "xiph.txt")
+    script := "set -eu; trap 'wineserver -k; wineserver -w' EXIT; wine wineboot.exe --init; wine \"$1\" sizes \"$2\"; wine \"$3\" >\"$4\"; wine \"$5\""
+    run := string.["xvfb-run", "-a", "-n", "400", "-s", "-screen 0 640x480x24", "env", "-u", "TMPDIR", "sh", "-c", script,
+        "audio-windows", mirror, report, xiph, expected, decoder]
+    unused NativeRun(*test, run[:])
+    actual := NativeRead(*test, report); official := TextReplace(NativeRead(*test, expected), "\r", "")
+    if !NativeAssert(*test, actual == official && actual != "", "Windows Vorbis record sizes and every field offset must match Xiph") { return 1 }
+    if test.failed { return 1 }
+    print("Windows LLP64 Xiph layout and Vorbis streaming/seek/corruption local tests passed\n")
+    return 0
+}

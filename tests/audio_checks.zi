@@ -26,7 +26,8 @@ Compile :: (test: *NativeTest, source: string, name: string, fake: bool, sdl: bo
     if sdl { VecPush(compile, "-lSDL2"); VecPush(compile, "-Wl,--wrap=SDL_InitSubSystem") }
     if codecs {
         VecPush(compile, CheckPath(test.repo, "build/audio/native/libziran_mp3.a"))
-        VecPush(compile, "-l:libvorbisfile.so.3")
+        libraries := string.["libvorbisfile.a", "libvorbis.a", "libogg.a"]
+        for library: libraries { VecPush(compile, CheckPath(CheckPath(test.repo, "build/audio/native"), library)) }
     }
     options := string.["-pthread", "-ldl", "-lm", "-o", client]
     for option: options { VecPush(compile, option) }
@@ -35,7 +36,7 @@ Compile :: (test: *NativeTest, source: string, name: string, fake: bool, sdl: bo
 }
 
 CodecTest :: (test: *NativeTest) {
-    archive := string.["make", "audio-mp3"]; unused NativeRun(test, archive[:])
+    archive := string.["make", "audio-codecs"]; unused NativeRun(test, archive[:])
     client := Compile(test, "tests/audio_decode_cases.zi", "decode", false, false, true)
     mp3 := CheckPath(test.work, "tone.mp3"); vorbis := CheckPath(test.work, "tone.ogg")
     names := string.[mp3, vorbis]; codecs := string.["libmp3lame", "libvorbis"]

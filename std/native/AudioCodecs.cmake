@@ -28,3 +28,44 @@ function(ziran_audio_mp3)
     target_compile_options(ziran_mp3 PRIVATE -ffunction-sections -fdata-sections)
     set_target_properties(ziran_mp3 PROPERTIES POSITION_INDEPENDENT_CODE ON C_STANDARD 99)
 endfunction()
+
+# Reusable native Vorbis decoder. Callers link vorbisfile; its public target
+# dependencies supply vorbis and ogg. Sources and licenses stay in the build.
+function(ziran_audio_vorbis)
+    if(TARGET vorbisfile)
+        return()
+    endif()
+    include(FetchContent)
+    if(POLICY CMP0135)
+        cmake_policy(SET CMP0135 NEW)
+    endif()
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    set(BUILD_SHARED_LIBS OFF)
+    set(BUILD_TESTING OFF)
+    set(INSTALL_DOCS OFF)
+    set(INSTALL_PKG_CONFIG_MODULE OFF)
+    set(INSTALL_CMAKE_PACKAGE_MODULE OFF)
+    FetchContent_Declare(ziran_core_ogg
+        URL https://downloads.xiph.org/releases/ogg/libogg-1.3.6.tar.xz
+        URL_HASH SHA256=5c8253428e181840cd20d41f3ca16557a9cc04bad4a3d04cce84808677fa1061)
+    FetchContent_MakeAvailable(ziran_core_ogg)
+    # Vorbis's FindOgg must use this target, including generated config_types.h,
+    # rather than a host library when cross compiling.
+    if(NOT TARGET Ogg::ogg)
+        add_library(Ogg::ogg ALIAS ogg)
+    endif()
+    set(OGG_INCLUDE_DIR "${ziran_core_ogg_SOURCE_DIR}/include")
+    set(OGG_LIBRARY ogg)
+    FetchContent_Declare(ziran_core_vorbis
+        URL https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz
+        URL_HASH SHA256=b33cc4934322bcbf6efcbacf49e3ca01aadbea4114ec9589d1b1e9d20f72954b)
+    FetchContent_MakeAvailable(ziran_core_vorbis)
+    set_target_properties(vorbisenc PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    foreach(target IN ITEMS ogg vorbis vorbisfile)
+        set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON
+            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+        if(NOT MSVC)
+            target_compile_options(${target} PRIVATE -ffunction-sections -fdata-sections)
+        endif()
+    endforeach()
+endfunction()

@@ -942,3 +942,14 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 include assembly.mk
+
+# Explicit MinGW/Wine gate; window setup is confined to private Xvfb.
+.PHONY: audio-windows-test
+audio-windows-test: all
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/ziran run --target=c --root tests tests/audio_windows_cases.zi -- $(abspath $(BIN_DIR)/ziran) $(abspath $(BUILD_DIR)/audio/windows)
+
+# Headless consumers can reuse both core native codec archives.
+.PHONY: audio-codecs
+audio-codecs:
+	cmake -S std/native -B $(BUILD_DIR)/audio/native -DCMAKE_C_COMPILER=$(CC) -DZIRAN_AUDIO_VORBIS=ON
+	cmake --build $(BUILD_DIR)/audio/native --target ziran_mp3 vorbisfile

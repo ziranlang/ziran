@@ -34,6 +34,43 @@ main :: (argc: s32, argv: **u8) -> s32 {
     mode := string.["adb", "-s", serial, "shell", "chmod", "700", destination]; unused NativeRun(*test, mode[:])
     run := string.["adb", "-s", serial, "shell", destination]; unused NativeRun(*test, run[:])
     if test.failed { return 1 }
-    print("armv7 Android PCM playback contract passed on %\n", serial)
+    // The same pinned Xiph sources and std decoder must work on API-21 armv7.
+    native := CheckPath(test.work, "native")
+    configure := string.["cmake", "-S", CheckPath(test.repo, "std/native"), "-B", native,
+        CheckConcat("-DCMAKE_TOOLCHAIN_FILE=", CheckPath(ndk, "build/cmake/android.toolchain.cmake")),
+        "-DANDROID_ABI=armeabi-v7a", "-DANDROID_PLATFORM=android-21", "-DCMAKE_BUILD_TYPE=Release", "-DZIRAN_AUDIO_VORBIS=ON"]
+    unused NativeRun(*test, configure[:])
+    build := string.["cmake", "--build", native, "--target", "vorbisfile", "--parallel", "2"]
+    unused NativeRun(*test, build[:])
+    codec_c := CheckPath(test.work, "codec-c")
+    codec_generate := string.[test.ziran, "build", "--target=c", "--root", CheckPath(test.repo, "tests"),
+        "--define", "ANDROID_BUILD", "--define", "__arm__", "--target-os", "android", "--target-cpu", "none",
+        "-o", codec_c, CheckPath(test.repo, "tests/audio_vorbis_cases.zi")]
+    unused NativeRun(*test, codec_generate[:])
+    codec := CheckPath(test.work, "codec")
+    codec_compile: Vec(string)
+    codec_flags := string.[compiler, "-std=c11", "-O2", CheckConcat("-I", codec_c), CheckConcat("-I", CheckPath(test.repo, "include"))]
+    for flag: codec_flags { VecPush(codec_compile, flag) }
+    codec_files := NativeFiles(codec_c, ".c", true)
+    for file: codec_files { VecPush(codec_compile, file) }
+    libraries := string.["libvorbisfile.a", "libvorbis.a", "libogg.a"]
+    for library: libraries { VecPush(codec_compile, CheckPath(native, library)) }
+    codec_options := string.["-lm", "-o", codec]
+    for option: codec_options { VecPush(codec_compile, option) }
+    unused NativeRun(*test, codec_compile[:])
+    if test.failed { return 1 }
+    folder := "/data/local/tmp/ziran-audio-codec-contract"
+    prepare := string.["adb", "-s", serial, "shell", CheckConcat("mkdir -p ", CheckConcat(folder, "/tests/fixtures"))]
+    unused NativeRun(*test, prepare[:])
+    codec_push := string.["adb", "-s", serial, "push", codec, CheckConcat(folder, "/codec")]
+    unused NativeRun(*test, codec_push[:])
+    fixtures := string.["adb", "-s", serial, "push", CheckPath(test.repo, "tests/fixtures/vorbis"), CheckConcat(folder, "/tests/fixtures/")]
+    unused NativeRun(*test, fixtures[:])
+    codec_run := string.["adb", "-s", serial, "shell", CheckConcat("cd ", CheckConcat(folder, " && chmod 700 codec && ./codec"))]
+    unused NativeRun(*test, codec_run[:])
+    cleanup := string.["adb", "-s", serial, "shell", "rm", "-rf", folder]
+    unused NativeRun(*test, cleanup[:])
+    if test.failed { return 1 }
+    print("armv7 Android PCM playback and Vorbis streaming/seek/corruption contracts passed on %\n", serial)
     return 0
 }

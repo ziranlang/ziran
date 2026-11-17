@@ -18,6 +18,8 @@ using Vorbis :: #import "vorbis"
 using AudioTypes :: #import "audio_types"
 Files :: #import "file";
 
+// Xiph C long stays 32 bits on Win64 (LLP64). POSIX uses pointer width.
+
 // ogg_sync_state.
 OggSyncState :: struct {
     data: *u8
@@ -32,43 +34,77 @@ OggSyncState :: struct {
 // ogg_stream_state.
 OggStreamState :: struct {
     body_data: *u8
-    body_storage: isize
-    body_fill: isize
-    body_returned: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        body_storage: s32
+        body_fill: s32
+        body_returned: s32
+    } else {
+        body_storage: isize
+        body_fill: isize
+        body_returned: isize
+    }
     lacing_vals: *s32
     granule_vals: *s64
-    lacing_storage: isize
-    lacing_fill: isize
-    lacing_packet: isize
-    lacing_returned: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        lacing_storage: s32
+        lacing_fill: s32
+        lacing_packet: s32
+        lacing_returned: s32
+    } else {
+        lacing_storage: isize
+        lacing_fill: isize
+        lacing_packet: isize
+        lacing_returned: isize
+    }
     header: [282]u8
     header_fill: s32
     e_o_s: s32
     b_o_s: s32
-    serialno: isize
-    pageno: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        serialno: s32
+        pageno: s32
+    } else {
+        serialno: isize
+        pageno: isize
+    }
     packetno: s64
     granulepos: s64
 }
 
 // oggpack_buffer.
 OggPackBuffer :: struct {
-    endbyte: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        endbyte: s32
+    } else {
+        endbyte: isize
+    }
     endbit: s32
     buffer: *u8
     ptr: *u8
-    storage: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        storage: s32
+    } else {
+        storage: isize
+    }
 }
 
 // vorbis_info.
 VorbisInfo :: struct {
     version: s32
     channels: s32
-    rate: isize
-    bitrate_upper: isize
-    bitrate_nominal: isize
-    bitrate_lower: isize
-    bitrate_window: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        rate: s32
+        bitrate_upper: s32
+        bitrate_nominal: s32
+        bitrate_lower: s32
+        bitrate_window: s32
+    } else {
+        rate: isize
+        bitrate_upper: isize
+        bitrate_nominal: isize
+        bitrate_lower: isize
+        bitrate_window: isize
+    }
     codec_setup: *void
 }
 
@@ -83,10 +119,17 @@ VorbisDspState :: struct {
     pcm_returned: s32
     preextrapolate: s32
     eofflag: s32
-    lW: isize
-    W: isize
-    nW: isize
-    centerW: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        lW: s32
+        W: s32
+        nW: s32
+        centerW: s32
+    } else {
+        lW: isize
+        W: isize
+        nW: isize
+        centerW: isize
+    }
     granulepos: s64
     sequence: s64
     glue_bits: s64
@@ -100,9 +143,15 @@ VorbisDspState :: struct {
 VorbisBlock :: struct {
     pcm: **float32
     opb: OggPackBuffer
-    lW: isize
-    W: isize
-    nW: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        lW: s32
+        W: s32
+        nW: s32
+    } else {
+        lW: isize
+        W: isize
+        nW: isize
+    }
     pcmend: s32
     mode: s32
     eofflag: s32
@@ -110,21 +159,38 @@ VorbisBlock :: struct {
     sequence: s64
     vd: *VorbisDspState
     localstore: *void
-    localtop: isize
-    localalloc: isize
-    totaluse: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        localtop: s32
+        localalloc: s32
+        totaluse: s32
+    } else {
+        localtop: isize
+        localalloc: isize
+        totaluse: isize
+    }
     reap: *void
-    glue_bits: isize
-    time_bits: isize
-    floor_bits: isize
-    res_bits: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        glue_bits: s32
+        time_bits: s32
+        floor_bits: s32
+        res_bits: s32
+    } else {
+        glue_bits: isize
+        time_bits: isize
+        floor_bits: isize
+        res_bits: isize
+    }
     internal: *void
 }
 
 VorbisRead :: #type (destination: *void, size: usize, count: usize, source: *void) -> usize #c_call;
 VorbisSeek :: #type (source: *void, offset: s64, whence: s32) -> s32 #c_call;
 VorbisClose :: #type (source: *void) -> s32 #c_call;
-VorbisTell :: #type (source: *void) -> isize #c_call;
+#if OS == .WINDOWS || #defined(_WIN32) {
+    VorbisTell :: #type (source: *void) -> s32 #c_call;
+} else {
+    VorbisTell :: #type (source: *void) -> isize #c_call;
+}
 
 // ov_callbacks.
 VorbisCallbacks :: struct {
@@ -144,13 +210,21 @@ VorbisFile :: struct {
     links: s32
     offsets: *s64
     dataoffsets: *s64
-    serialnos: *isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        serialnos: *s32
+    } else {
+        serialnos: *isize
+    }
     pcmlengths: *s64
     vi: *VorbisInfo
     vc: *void
     pcm_offset: s64
     ready_state: s32
-    current_serialno: isize
+    #if OS == .WINDOWS || #defined(_WIN32) {
+        current_serialno: s32
+    } else {
+        current_serialno: isize
+    }
     current_link: s32
     bittrack: float64
     samptrack: float64
@@ -163,15 +237,33 @@ VorbisFile :: struct {
 #scope_file
 vorbisfile :: #system_library "vorbisfile";
 libc :: #system_library "libc";
-OpenCallbacks :: (source: *void, file: *VorbisFile, initial: *u8, initial_bytes: isize,
-    callbacks: VorbisCallbacks) -> s32 #foreign vorbisfile "ov_open_callbacks";
+#if OS == .WINDOWS || #defined(_WIN32) {
+    OpenCallbacks :: (source: *void, file: *VorbisFile, initial: *u8, initial_bytes: s32,
+        callbacks: VorbisCallbacks) -> s32 #foreign vorbisfile "ov_open_callbacks";
+} else {
+    OpenCallbacks :: (source: *void, file: *VorbisFile, initial: *u8, initial_bytes: isize,
+        callbacks: VorbisCallbacks) -> s32 #foreign vorbisfile "ov_open_callbacks";
+}
 Clear :: (file: *VorbisFile) -> s32 #foreign vorbisfile "ov_clear";
-Streams :: (file: *VorbisFile) -> isize #foreign vorbisfile "ov_streams";
+#if OS == .WINDOWS || #defined(_WIN32) {
+    Streams :: (file: *VorbisFile) -> s32 #foreign vorbisfile "ov_streams";
+} else {
+    Streams :: (file: *VorbisFile) -> isize #foreign vorbisfile "ov_streams";
+}
 Info :: (file: *VorbisFile, link: s32) -> *VorbisInfo #foreign vorbisfile "ov_info";
 PcmTotal :: (file: *VorbisFile, link: s32) -> s64 #foreign vorbisfile "ov_pcm_total";
-Read :: (file: *VorbisFile, buffer: *u8, length: s32, big_endian: s32, word: s32, signed: s32,
-    stream: *s32) -> isize #foreign vorbisfile "ov_read";
-ReadFloat :: (file: *VorbisFile, pcm: ***float32, samples: s32, stream: *s32) -> isize #foreign vorbisfile "ov_read_float";
+#if OS == .WINDOWS || #defined(_WIN32) {
+    Read :: (file: *VorbisFile, buffer: *u8, length: s32, big_endian: s32, word: s32, signed: s32,
+        stream: *s32) -> s32 #foreign vorbisfile "ov_read";
+} else {
+    Read :: (file: *VorbisFile, buffer: *u8, length: s32, big_endian: s32, word: s32, signed: s32,
+        stream: *s32) -> isize #foreign vorbisfile "ov_read";
+}
+#if OS == .WINDOWS || #defined(_WIN32) {
+    ReadFloat :: (file: *VorbisFile, pcm: ***float32, samples: s32, stream: *s32) -> s32 #foreign vorbisfile "ov_read_float";
+} else {
+    ReadFloat :: (file: *VorbisFile, pcm: ***float32, samples: s32, stream: *s32) -> isize #foreign vorbisfile "ov_read_float";
+}
 SeekPCM :: (file: *VorbisFile, frame: s64) -> s32 #foreign vorbisfile "ov_pcm_seek";
 Allocate :: (count: usize, size: usize) -> *void #foreign libc "calloc";
 Free :: (value: *void) #foreign libc "free";
@@ -216,7 +308,11 @@ MemorySeek :: (source: *void, offset: s64, whence: s32) -> s32 {
 
 MemoryClose :: (source: *void) -> s32 { unused source; return 0 }
 
-MemoryTell :: (source: *void) -> isize { return cast(isize)(cast(*Memory)source).at }
+#if OS == .WINDOWS || #defined(_WIN32) {
+    MemoryTell :: (source: *void) -> s32 { return cast(s32)(cast(*Memory)source).at }
+} else {
+    MemoryTell :: (source: *void) -> isize { return cast(isize)(cast(*Memory)source).at }
+}
 
 GuardIntact :: (state: *Guarded) -> bool {
     for at: 0..GUARD - 1 {
@@ -261,7 +357,7 @@ VorbisDecode :: (input: []u8, output: *Vec(u8), max_frames: s64, audio: *VorbisA
 Decode :: (file: *VorbisFile, output: *Vec(u8), declared: VorbisAudio, audio: *VorbisAudio) -> bool {
     if Streams(file) != 1 { return false }
     info := Info(file, -1)
-    if info == null || info.channels != declared.channels || info.rate != cast(isize)declared.rate { return false }
+    if info == null || info.channels != declared.channels || cast(s64)info.rate != cast(s64)declared.rate { return false }
     frames := PcmTotal(file, -1)
     if frames != declared.frames || frames > (cast(s64)1 << 40) { return false }
     bytes := frames * cast(s64)info.channels * 2
@@ -328,7 +424,7 @@ VorbisDecoderOpen :: (decoder: *VorbisDecoder, input: []u8, max_frames: s64) -> 
     if OpenCallbacks(cast(*void)*state.memory, file, null, 0, callbacks) != 0 { Free(cast(*void)state); return Malformed }
     info := Info(file, -1)
     if !GuardIntact(*state.guarded) || Streams(file) != 1 || info == null ||
-        info.channels != audio.channels || info.rate != cast(isize)audio.rate || PcmTotal(file, -1) != audio.frames {
+        info.channels != audio.channels || cast(s64)info.rate != cast(s64)audio.rate || PcmTotal(file, -1) != audio.frames {
         unused Clear(file); Free(cast(*void)state); return Malformed
     }
     decoder.state = cast(*void)state; decoder.info = audio; decoder.position = 0

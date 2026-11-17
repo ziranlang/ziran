@@ -111,6 +111,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
     layout: Vec(string); VecPush(layout, NativeCompiler())
     include := EnvironmentText("VORBIS_INCLUDE")
     if include != "" { VecPush(layout, CheckConcat("-I", include)) }
+    ogg_include := EnvironmentText("OGG_INCLUDE")
+    if ogg_include != "" { VecPush(layout, CheckConcat("-I", ogg_include)) }
+    ogg_config := EnvironmentText("OGG_CONFIG_INCLUDE")
+    if ogg_config != "" { VecPush(layout, CheckConcat("-I", ogg_config)) }
     executable := CheckPath(test.work, "layout")
     VecPush(layout, probe_source); VecPush(layout, "-o"); VecPush(layout, executable)
     built := NativeInvoke(*test, layout[:])
@@ -119,7 +123,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
         expected := NativeRun(*test, run[:])
         if !NativeAssert(*test, NativeRead(*test, sizes_path) == expected.output, "mirrored Vorbis records differ from official Xiph headers") { return 1 }
         print("Vorbis record sizes match the official Xiph headers\n")
-    } else { print("Xiph headers unavailable; mirrored record sizes are guarded by actual decoding\n") }
+    } else {
+        if include != "" { unused NativeAssert(*test, false, "explicit Xiph layout headers failed to compile"); return 1 }
+        print("Xiph headers unavailable; mirrored record sizes are guarded by actual decoding\n")
+    }
     names := string.["speech", "short", "stereo"]
     durations := float64.[1.5, 0.05, 0.7]
     rates := s64.[22050, 22050, 44100]

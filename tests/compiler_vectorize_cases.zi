@@ -111,6 +111,20 @@ Inspect :: (test: *NativeTest, path: string, checked: bool, elf: string) -> bool
     if !checked {
         allocated := RegAllocAllocate(*machine, TargetLinuxX64(), MachineDefaultLimits())
         if !NativeAssert(test, allocated.problem == .None, "allocate vector fixture") { return false }
+        allocated_program := MachineProgramView(*machine)
+        growth_tested: bool
+        for f: 0..allocated_program.functions.count - 1 {
+            if program.functions[allocated_program.functions[f].lir_function].name != "GrowthSum" { continue }
+            growth_tested = true
+            spills: s64
+            for spill: allocated_program.spills { if spill.function == f { spills += 1 } }
+            print("growth loop spills=%\n", spills)
+            // Hoisting standalone constants made 53 spill/reload events here.
+            // Keep room above the six needed by the growth call, while still
+            // rejecting the long-lived constant pressure regression.
+            if !NativeAssert(test, spills <= 12, "growth loop keeps bounded spill traffic") { return false }
+        }
+        if !NativeAssert(test, growth_tested, "growth spill regression is reachable") { return false }
         invalid_at: s32 = -1
         for instruction: MachineProgramView(*machine).instructions {
             if instruction.opcode == .VectorLoop { invalid_at = instruction.operand_begin + 8; break }

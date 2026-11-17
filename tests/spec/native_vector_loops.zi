@@ -1,3 +1,5 @@
+using GrowthVectors :: #import "std/vec"
+
 // Counted loops remain separate from data generation and scalar fingerprints.
 Sum :: (values: []$T, seed: T) -> T {
     result := seed
@@ -159,6 +161,16 @@ CheckedSum :: (values: []u64) -> u64 {
     }
     return result
 }
+GrowthSum :: () -> s64 {
+    total: s64
+    for round: 0..19 {
+        values: Vec(s64)
+        for i: 0..999 { if !VecPush(values, i * round) { return -1 } }
+        for i: 0..999 { total += values[i] }
+        VecFree(values)
+    }
+    return total
+}
 main :: () -> s32 {
     IntegerCases(cast(u8)0x81); IntegerCases(cast(s8)-97)
     IntegerCases(cast(u16)0x8001); IntegerCases(cast(s16)-32001)
@@ -168,5 +180,6 @@ main :: () -> s32 {
     guarded: [67]u64
     Fill(guarded[:], cast(u64)17)
     print("checked %\n", CheckedSum(guarded[:]))
+    print("growth %\n", GrowthSum())
     return 0
 }

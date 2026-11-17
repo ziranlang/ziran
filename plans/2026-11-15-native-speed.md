@@ -992,3 +992,42 @@ instead of success with an empty image. New loop passes, the closed scalar
 allocator repair and returned-record construction pass together in the
 canonical gate. No new Alpha timing or C-parity result is claimed for these
 passes. The tracked validation receipt records exact commands and limits.
+
+## SSE2 loop vectorization (in progress)
+
+`compiler_vectorize.zi` analyzes the pushed block-argument SSA and rotated
+counted loops. Native lowering emits a `VectorLoop` prefix before the original
+entry comparison; the original loop runs the remaining scalar iterations. The
+prefix retains at least one scalar iteration so existing exit values remain
+defined. It handles contiguous unit-stride integer reductions and slice
+fills/copies/maps, with runtime overlap guards for stores. Checked and finite
+fuel programs retain scalar loops. Integer arithmetic keeps wrapping lane
+semantics; floating sums retain their original order.
+
+The encoder uses baseline SSE2, with no AVX2 requirement. The pass and native
+form are separate modules from the x86 encoder. Remaining implementation work
+includes min/max recognition and direct fixed-array forms; their scalar
+fallback is intentional until those forms have their own correctness coverage.
+
+Focused validation passes: lengths 0–67, deterministic random signed/unsigned
+8/16/32/64-bit values, scalar tails, overlapping copies, exact in-place maps,
+float32/64 element maps and ordered floating sums against the C target. The
+focused test also rejects malformed vector forms and checks scalar fallback
+under `--checks`. Full retained parity, `make check`, and `make check-bootstrap`
+run on Omega through the build queue. After resolving stale generated guide
+pages and a changelog version mismatch, the final shared run passed 284/284
+local tests and bootstrap validation matched.
+
+Physical Alpha diagnosis found that standalone constant hoisting, rather than
+the SSE2 prefix, caused the Vectors regression. LICM now retains cheap values
+at their uses unless a useful invariant expression needs them. The retained
+growth-loop regression falls from 53 spill/reload events to 6. A fresh-source,
+interleaved comparison reduces Vectors from 85.823 to 42.497 µs, also below the
+older 56.438 µs executable; Sieve, Records and Hash show no material slowdown.
+See `bench/results/vector-profitability-alpha-2026-11-16.md` for controls,
+methodology and raw sample links. Remaining min/max and direct-array coverage
+above is unchanged by this register-pressure fix.
+
+AArch64 NEON is a follow-up: reuse the counted-loop plan and scalar epilogue,
+add a NEON form/encoder, and run the same differential fixtures on AArch64.
+It is outside this SSE2 change.

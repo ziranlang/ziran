@@ -31,14 +31,14 @@ Fixture :: (iterations: s64, trapping: bool) -> s32 {
         .{file = 0, line = 2, column = 1, begin = 1, end = 2, parent = -1},
         .{file = 0, line = 3, column = 1, begin = 2, end = 3, parent = -1},
         .{file = 0, line = 4, column = 1, begin = 3, end = 4, parent = -1}]
-    values := s32.[1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1]
+    values := s32.[1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1]
     parameters := s32.[6, 7]
     initial := s32.[0, 0]
     cmp := s32.[6, 2]
     invariant_add := s32.[3, 4]
-    invariant_mul := s32.[9, 4]
+    invariant_mul := s32.[9, 15]
     sum := s32.[7, 10]
-    inc := s32.[6, 1]
+    inc := s32.[6, 14]
     divide := s32.[3, 5]
     next := s32.[12, 11]
     condition := s32.[8]
@@ -55,6 +55,8 @@ Fixture :: (iterations: s64, trapping: bool) -> s32 {
         .{op = .Less, result = 8, symbol = -1, operands = cmp[:]},
         .{op = .Branch, result = -1, symbol = -1, operands = condition[:], edges = header_edges[:]}]
     body := LirInstruction.[.{op = .Fuel, result = -1, symbol = -1, immediate = 5, effect = 1, origin = 2},
+        .{op = .Constant, result = 14, symbol = 1, origin = 2},
+        .{op = .Constant, result = 15, symbol = 4, origin = 2},
         .{op = .Multiply, result = 10, symbol = -1, operands = invariant_mul[:], origin = 2},
         .{op = .Divide, result = 13, symbol = -1, operands = divide[:], origin = 3},
         .{op = .Add, result = 11, symbol = -1, operands = sum[:]},
@@ -83,13 +85,15 @@ Fixture :: (iterations: s64, trapping: bool) -> s32 {
     tiny := LirLicm(*owner, LirDefaultLimits(), 0)
     if tiny.problem != .Limit || LirReadProgram(*owner).functions[0].blocks[3].instructions.count != 7 { return 6 }
     moved := LirLicm(*owner, LirDefaultLimits(), 100000)
-    if moved.problem != .None || moved.codec.problem != .None || moved.loops != 1 || moved.instructions != 2 { return 7 }
+    if moved.problem != .None || moved.codec.problem != .None || moved.loops != 1 || moved.instructions != 3 { return 7 }
     output := LirReadProgram(*owner)
     if LirVerify(output, LirDefaultLimits()).problem != .None { return 8 }
     f := output.functions[0]
     pre := f.blocks[3].instructions
-    if pre.count != 9 || pre[6].result != 9 || pre[7].result != 10 || pre[6].origin != 1 || pre[7].origin != 2 ||
-        f.blocks[1].instructions[1].op != .Divide || f.blocks[1].instructions[1].origin != 3 ||
+    if pre.count != 10 || pre[6].result != 15 || pre[7].result != 9 || pre[8].result != 10 ||
+        pre[6].origin != 2 || pre[7].origin != 1 || pre[8].origin != 2 ||
+        f.blocks[1].instructions[1].op != .Constant || f.blocks[1].instructions[1].result != 14 ||
+        f.blocks[1].instructions[2].op != .Divide || f.blocks[1].instructions[2].origin != 3 ||
         f.blocks[2].instructions[0].op != .Fuel || f.blocks[2].instructions[0].effect != 1 { return 9 }
     after := Execute(output)
     if after.problem != before.problem || after.origin != before.origin || after.value.bits != before.value.bits { return 10 }

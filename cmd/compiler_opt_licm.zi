@@ -55,7 +55,31 @@ Select :: (program: LirProgram, function: LirFunction, plan: *LirLoopPlan,
             }
         }
     }
-    return count
+    // Constants, nulls and symbolic addresses are cheap to materialize near
+    // their uses. Hoisting them alone extends their live ranges through every
+    // iteration and call. Move these only as dependencies of useful invariant
+    // expressions. Selection order is topological, so a reverse walk closes
+    // the dependency set without another allocation or fixed point.
+    for at: 0..count - 1 {
+        if !LirSsaSpend(budget, 1) { return -1 }
+        if hoisted[at].operands.count > 0 { selected[hoisted[at].result] = 2 }
+    }
+    reverse := count
+    while reverse > 0 {
+        reverse -= 1
+        instruction := hoisted[reverse]
+        if !LirSsaSpend(budget, instruction.operands.count + 1) { return -1 }
+        if selected[instruction.result] != 2 { continue }
+        for value: instruction.operands { if selected[value] != 0 { selected[value] = 2 } }
+    }
+    kept: s64
+    for at: 0..count - 1 {
+        if !LirSsaSpend(budget, 1) { return -1 }
+        instruction := hoisted[at]
+        if selected[instruction.result] == 2 { hoisted[kept] = instruction; kept += 1 }
+        else { selected[instruction.result] = 0 }
+    }
+    return kept
 }
 
 Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64,

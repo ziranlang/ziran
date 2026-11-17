@@ -153,6 +153,22 @@ Expandable :: (program: LirProgram, caller: s64, call: LirInstruction, maximum: 
     return returns
 }
 
+// A single-block callee whose result, if any, an instruction of its block
+// defines is copied into the caller's block in place: no blocks, jumps or
+// block parameters. Returns that instruction's index, -2 for a void return,
+// or -1 when the callee needs its own blocks.
+InPlace :: (callee: LirFunction) -> s64 {
+    if callee.blocks.count != 1 { return -1 }
+    block := callee.blocks[0]
+    terminal := block.instructions[block.instructions.count - 1]
+    if terminal.op != .Return { return -1 }
+    if terminal.operands.count == 0 { return -2 }
+    for at: 0..block.instructions.count - 2 {
+        if block.instructions[at].result == terminal.operands[0] { return at }
+    }
+    return -1
+}
+
 // Copies each site's callee into FUNCTION. sites[i] names the callee of the
 // i-th instruction in block order, or is -1. The call's block ends with a
 // jump to the copied entry; every copied return jumps to the rest of the
@@ -162,29 +178,35 @@ Expand :: (program: LirProgram, function: LirFunction, sites: []s32, limits: Lir
     shape := Measure(function)
     block_count := function.blocks.count
     value_count := function.values.count
+    widest: s64
     for site: sites {
         if site < 0 { continue }
         callee := program.functions[site]
         inner := Measure(callee)
-        block_count += 1 + callee.blocks.count
+        if callee.values.count > widest { widest = callee.values.count }
         value_count += callee.values.count
         shape.instructions += inner.instructions
-        shape.edges += 1 + inner.edges + inner.returns
         shape.words += inner.words + 1
+        if InPlace(callee) != -1 { continue }
+        block_count += 1 + callee.blocks.count
+        shape.edges += 1 + inner.edges + inner.returns
     }
     if value_count > limits.values || shape.instructions > limits.instructions || block_count > limits.blocks ||
         !LirSsaReserve(budget, value_count, 4) || !LirSsaReserve(budget, shape.instructions, 112) ||
         !LirSsaReserve(budget, shape.edges, 24) || !LirSsaReserve(budget, shape.words, 4) ||
         !LirSsaReserve(budget, block_count + function.blocks.count, 36) { budget.problem = .Limit; return false }
     first: Vec(s32)
+    map: Vec(s32)
     defer VecFree(first)
+    defer VecFree(map)
     // The caller frees `out` whether or not the expansion succeeds.
     if !VecResizeBounded(out.values, value_count, value_count) ||
         !VecResizeBounded(out.instructions, shape.instructions, shape.instructions) ||
         !VecResizeBounded(out.edges, shape.edges, shape.edges) ||
         !VecResizeBounded(out.data, shape.words, shape.words) ||
         !VecResizeBounded(out.blocks, block_count, block_count) ||
-        !VecResizeBounded(first, function.blocks.count, function.blocks.count) {
+        !VecResizeBounded(first, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(map, widest + 1, widest + 1) {
         budget.problem = .Allocation; return false
     }
     values := out.values[:]
@@ -201,7 +223,9 @@ Expand :: (program: LirProgram, function: LirFunction, sites: []s32, limits: Lir
         first[b] = cast(s32)next_block
         next_block += 1
         for instruction: function.blocks[b].instructions {
-            if sites[flat] >= 0 { next_block += 1 + program.functions[sites[flat]].blocks.count }
+            if sites[flat] >= 0 && InPlace(program.functions[sites[flat]]) == -1 {
+                next_block += 1 + program.functions[sites[flat]].blocks.count
+            }
             flat += 1
         }
     }
@@ -240,6 +264,35 @@ Expand :: (program: LirProgram, function: LirFunction, sites: []s32, limits: Lir
                 continue
             }
             callee := program.functions[site]
+            returned := InPlace(callee)
+            if returned != -1 {
+                // Parameters become the call's operands; each result gets a
+                // new value, except that the returned one is the call's.
+                source := callee.blocks[0]
+                for at: 0..source.parameters.count - 1 { map[source.parameters[at]] = instruction.operands[at] }
+                for at: 0..source.instructions.count - 2 {
+                    copied := source.instructions[at]
+                    if copied.result == LirNoId { continue }
+                    if at == returned && instruction.result != LirNoId {
+                        map[copied.result] = instruction.result
+                    } else {
+                        map[copied.result] = cast(s32)next_value
+                        values[next_value] = callee.values[copied.result]
+                        next_value += 1
+                    }
+                }
+                for at: 0..source.instructions.count - 2 {
+                    if !LirSsaSpend(budget, 1) { return false }
+                    item := source.instructions[at]
+                    if item.result != LirNoId { item.result = map[item.result] }
+                    operand_start := wp
+                    for value: item.operands { data[wp] = map[value]; wp += 1 }
+                    item.operands = data[operand_start:wp]
+                    instructions[ip] = item
+                    ip += 1
+                }
+                continue
+            }
             continuation := following
             copy := following + 1
             following += 1 + callee.blocks.count
@@ -309,7 +362,7 @@ Expand :: (program: LirProgram, function: LirFunction, sites: []s32, limits: Lir
             }
         }
     }
-    function.values = values
+    function.values = values[:next_value]
     function.blocks = blocks
     function.entry = first[function.entry]
     out.function = function

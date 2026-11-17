@@ -140,3 +140,57 @@ CallCases :: () -> s32 {
     if after.problem != .None || after.value.bits != before.value.bits { return 20 }
     return 0
 }
+
+// A single-block callee is copied into the caller's block in place: no new
+// blocks, jumps or values, and the call's result is the returned value.
+PlaceCases :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}]
+    modules := string.["place"]
+    constants := LirConstant.[.{type = 1, bits = 21}]
+    main_values := s32.[1, 1]
+    argument := s32.[0]
+    returned := s32.[1]
+    main_code := LirInstruction.[
+        .{op = .Constant, result = 0, symbol = 0, origin = -1},
+        .{op = .Call, result = 1, operands = argument[:], symbol = 1, effect = 1, origin = -1},
+        .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}]
+    twice_values := s32.[1, 1]
+    twice_parameters := s32.[1]
+    entry_parameters := s32.[0]
+    pair := s32.[0, 0]
+    doubled := s32.[1]
+    twice_code := LirInstruction.[
+        .{op = .Fuel, result = -1, immediate = 1, effect = 1, symbol = -1, origin = -1},
+        .{op = .Add, result = 1, operands = pair[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = doubled[:], symbol = -1, origin = -1}]
+    main_blocks := LirBlock.[.{instructions = main_code[:]}]
+    twice_blocks := LirBlock.[.{parameters = entry_parameters[:], instructions = twice_code[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "main", result = 1, values = main_values[:], blocks = main_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "twice", parameters = twice_parameters[:], result = 1, values = twice_values[:],
+            blocks = twice_blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 51 }
+    before := Run(program)
+    if before.problem != .None || before.value.bits != 42 { return 52 }
+    empty: []u8
+    measured := LirWrite(program, empty)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if measured.problem != .None || !VecResize(bytes, measured.size) ||
+        LirWrite(program, bytes[:]).problem != .None { return 53 }
+    owner: LirReadOwner
+    defer LirReadFree(*owner)
+    if LirRead(*owner, TextView(bytes[:]), LirDefaultLimits()).problem != .None { return 53 }
+    placed := LirInlineCalls(*owner, LirDefaultLimits(), 1000000, 48)
+    if placed.problem != .None || placed.codec.problem != .None || placed.calls != 1 { return 54 }
+    output := LirReadProgram(*owner)
+    if LirVerify(output, LirDefaultLimits()).problem != .None { return 55 }
+    caller := output.functions[0]
+    if caller.blocks.count != 1 || caller.values.count != 2 { return 56 }
+    for instruction: caller.blocks[0].instructions { if instruction.op == .Call { return 57 } }
+    after := Run(output)
+    if after.problem != .None || after.value.bits != before.value.bits { return 58 }
+    return 0
+}

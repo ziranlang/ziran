@@ -3,7 +3,7 @@
  * Source input is checked .zi or saved .zir.
  */
 #include "zir_c_lower.h"
-#include "zir_c_prune.h"
+#include "compiler_c_prune.h"
 #include "zir_simd.h"
 #include "zir.h"
 #include "zir_scratch.h"
@@ -188,11 +188,55 @@ static const ZirProgram *lowering_program;
 static ZirSimdUses *lowering_simd;
 /* A closed program's marked texts, one per module, and its entry, which
  * the executable wrapper calls. Headers and sources wait here until pruning
- * knows what each header must declare; see zir_c_prune.h. */
+ * knows what each header must declare; see cmd/compiler_c_prune.zi. */
 static ZirCPruneModule *lowering_prune;
 static const ZirFunction *lowering_entry;
 /* The procedure written as C's main itself, with no wrapper; see c_lower. */
 static const ZirFunction *lowering_main;
+
+/* Writes a chunk mark of KIND declaring NAMES, which may be NULL. */
+static void
+PruneMark(FILE *out, int kind, const char *names)
+{
+    fprintf(out, "%c%c%s%s\n", PRUNE_MARK, kind, names ? " " : "", names ? names : "");
+}
+
+/* A header's inline section around DECLARATIONS and BODIES as malloc'ed
+ * text, or NULL; compiler_c_prune writes it for a closed program. */
+char *PruneInlineText(const char *stem, const char *guard, int vector_operations,
+                      const char *declarations, const char *bodies, ZirSimdUses *simd);
+char *
+PruneInlineText(const char *stem, const char *guard, int vector_operations,
+                const char *declarations, const char *bodies, ZirSimdUses *simd)
+{
+    TextStream stream;
+    char *text = NULL;
+    size_t size = 0;
+    FILE *out = TextStreamOpen(&stream, &text, &size);
+    if(out == NULL)
+        return NULL;
+    size_t length = strlen(RUNTIME_INCLUDES_MARK) + strlen(NUMBER_HELPERS_MARK) +
+                    strlen(declarations) + strlen(bodies) + 1;
+    char *section = AllocateOrExit(length);
+    snprintf(section, length, "%s%s%s%s", RUNTIME_INCLUDES_MARK, NUMBER_HELPERS_MARK,
+             declarations, bodies);
+    /* ZIRAN_NO_HEADER_INLINE keeps every call on the external symbol,
+     * so link-time interposition such as ld --wrap still sees it. */
+    fprintf(out, "\n/* Small procedures other modules inline; %s.c defines them. */\n"
+                 "#if !defined(__cplusplus) && !defined(%s_SOURCE) && "
+                 "!defined(ZIRAN_NO_HEADER_INLINE)\n",
+            stem, guard);
+    if(vector_operations)
+        fputs("#include \"zir_vec.h\"\n", out);
+    int failed = EmitNativeHelpers(out, section, simd) != 0;
+    fputs("#endif\n", out);
+    free(section);
+    if(TextStreamClose(&stream) != 0 || failed) {
+        free(text);
+        return NULL;
+    }
+    return text;
+}
 
 /* A host capability bound to an exported Ziran provider calls the
  * provider's C function, under whatever name collisions gave it. */
@@ -2197,11 +2241,14 @@ emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
     if(count && lowering_prune != NULL) {
         fputs(declaration_text, h);
         fputs(body_text, h);
-    } else if(count && HeaderInlineSection(h, buffers->stem, buffers->guard,
-                                           ModuleUsesVecOperations(m), declaration_text,
-                                           body_text, lowering_simd) != 0) {
-        perror("inline header");
-        exit(1);
+    } else if(count) {
+        char *section = PruneInlineText(buffers->stem, buffers->guard, ModuleUsesVecOperations(m),
+                                        declaration_text, body_text, lowering_simd);
+        if(section == NULL || fputs(section, h) < 0) {
+            perror("inline header");
+            exit(1);
+        }
+        free(section);
     }
     free(declaration_text);
     free(body_text);
@@ -3050,7 +3097,7 @@ write_pruned_program(const ZirProgram *program, const char *out_dir)
     int count = program->module_count;
     for(int i = 0; i < count; i++)
         prune_scopes(program, &program->modules[i], &lowering_prune[i]);
-    if(!PruneProgram(lowering_prune, count, lowering_simd)) {
+    if(!compiler_c_prune_PruneProgram(lowering_prune, count, lowering_simd)) {
         Diagnostic(program->modules[0].span, "zir_c.global",
                    "cannot prune the C output in %s", out_dir);
         return 0;
@@ -3059,9 +3106,9 @@ write_pruned_program(const ZirProgram *program, const char *out_dir)
     SimdNames used = {0};
     for(int i = 0; i < count; i++) {
         if(lowering_prune[i].final_header != NULL)
-            PruneNoteNames(lowering_prune[i].final_header, &used);
+            compiler_c_prune_PruneNoteNames((uint8_t *)lowering_prune[i].final_header, &used);
         if(lowering_prune[i].final_source != NULL)
-            PruneNoteNames(lowering_prune[i].final_source, &used);
+            compiler_c_prune_PruneNoteNames((uint8_t *)lowering_prune[i].final_source, &used);
     }
     int written = 1;
     for(int i = 0; written && i < count; i++) {
@@ -3121,7 +3168,7 @@ c_lower_in_context(const ZirProgram *program, const char *root, const char *out_
     header_table_close();
     if(lowering_prune != NULL) {
         for(i = 0; i < program->module_count; i++)
-            PruneModuleFree(&lowering_prune[i]);
+            compiler_c_prune_PruneModuleFree(&lowering_prune[i]);
         free(lowering_prune);
     }
     lowering_prune = NULL;

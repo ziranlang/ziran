@@ -199,6 +199,18 @@ $(NATIVE_NAMES_C)/%.c: $(NATIVE_NAMES_C)/.generated
 endif
 override CFLAGS += -I$(BACKEND_CACHE_C) -I$(BACKEND_PROCESS_C)
 override CFLAGS += -I$(NATIVE_NAMES_C)
+# zi2c's pruning of a closed program's C (cmd/compiler_c_prune.zi). Its std
+# text_tools and vec code is already linked through the backend modules.
+ifeq ($(BOOTSTRAP),1)
+C_PRUNE_C := bootstrap/compiler_c_prune
+C_PRUNE_READY := $(filter %.c %.h,$(wildcard $(C_PRUNE_C)/*))
+else
+C_PRUNE_C := $(BUILD_DIR)/c-prune
+C_PRUNE_READY := $(C_PRUNE_C)/.generated
+$(C_PRUNE_C)/%.c $(C_PRUNE_C)/%.h: $(C_PRUNE_C)/.generated
+	@test -f $@
+endif
+C_PRUNE_OBJECTS := $(addprefix $(BUILD_DIR)/obj/c-prune/,compiler_c_prune.o hash_map.o)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
@@ -426,6 +438,10 @@ $(BACKEND_CACHE_OBJECT): $(BACKEND_CACHE_C)/compiler_backend_cache.c \
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
+$(C_PRUNE_OBJECTS): $(BUILD_DIR)/obj/c-prune/%.o: $(C_PRUNE_C)/%.c $(BUILD_DIR)/.compiler-flags $(C_PRUNE_READY)
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) -I$(C_PRUNE_C) $(DEPFLAGS) -c -o $@ $<
+
 $(NATIVE_NAMES_OBJECT): $(NATIVE_NAMES_C)/compiler_native_names.c \
     $(BUILD_DIR)/.compiler-flags $(NATIVE_NAMES_READY)
 	@mkdir -p $(dir $@)
@@ -620,7 +636,14 @@ $(NATIVE_NAMES_C)/.generated: cmd/compiler_native_names.zi cmd/compiler_ir.zi cm
 	    -o $(NATIVE_NAMES_C) cmd/compiler_native_names.zi
 	touch $@
 
-$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c cmd/zi2c/zir_c_prune.c) \
+$(C_PRUNE_C)/.generated: cmd/compiler_c_prune.zi std/vec.zi std/hash_map.zi std/text_tools.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(C_PRUNE_C) cmd/compiler_c_prune.zi
+	touch $@
+
+$(call obj,cmd/zi2c/zir_c_lower.c): $(C_PRUNE_READY)
+$(call obj,cmd/zi2c/zir_c_lower.c)_CFLAGS += -I$(C_PRUNE_C)
+$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c) $(C_PRUNE_OBJECTS) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 	chmod 755 $@
@@ -644,7 +667,7 @@ ifneq ($(BOOTSTRAP),1)
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
-    cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c cmd/zi2c/zir_c_prune.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
     cmd/compiler_native_names.zi \
     bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \
@@ -674,7 +697,8 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_native_names/compiler_native_names.c \
     bootstrap/compiler_native_names/compiler_native_names.h \
     bootstrap/compiler_lowered_ir/compiler_lowered_ir.c bootstrap/compiler_lowered_ir/compiler_lowered_ir.h \
-    bootstrap/compiler_zir_lower/compiler_zir_lower.c bootstrap/compiler_zir_lower/compiler_zir_lower.h
+    bootstrap/compiler_zir_lower/compiler_zir_lower.c bootstrap/compiler_zir_lower/compiler_zir_lower.h \
+    $(wildcard bootstrap/compiler_c_prune/*.c bootstrap/compiler_c_prune/*.h)
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap SIMD_DIR=$(SIMD_DIR) \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=$(call quote,$(BOOTSTRAP_CFLAGS)) \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -779,7 +803,7 @@ $(LINK_C)/.generated: cmd/compiler_link.zi cmd/compiler_services.zi cmd/compiler
 # The checked-in bootstrap C must match what the current compiler generates
 # from cmd/compiler_*.zi; update-bootstrap refreshes it. A seed also keeps the
 # generated headers of standard modules it uses, such as vec.h.
-BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names lowered_ir zir_lower
+BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names lowered_ir zir_lower c_prune
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse

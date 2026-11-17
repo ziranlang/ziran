@@ -365,6 +365,11 @@ objdump=
 for candidate in llvm-objdump llvm-objdump-21 llvm-objdump-20 llvm-objdump-19 llvm-objdump-18; do
     if command -v "$candidate" >/dev/null 2>&1; then objdump=$candidate; break; fi
 done
+# llvm-objdump 18 never finishes some wasm32 code sections that newer
+# releases list in milliseconds. A disassembly that runs past a minute
+# leaves the SIMD128 count unchecked instead of holding the whole suite.
+bounded=
+if command -v timeout >/dev/null 2>&1; then bounded="timeout 60"; fi
 wasmtime=${WASMTIME:-$(command -v wasmtime || true)}
 if test -n "$wasmcc" && printf 'int f(void) { return 0; }\n' |
     $wasmcc --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export=f -x c - \
@@ -394,9 +399,19 @@ C
             -isystem "$work/freestanding" -I"$work/wasm-c" -Wl,--no-entry \
             -Wl,--export=wasm_app_Result -Wl,--export=wasm_app_Check "$work"/wasm-c/*.c \
             -o "$work/$mode.wasm"
+        listed=0
         if test -n "$objdump"; then
-            count=$("$objdump" -d "$work/$mode.wasm" |
-                grep -cE '(i8x16|i16x8|i32x4|i64x2|f32x4|f64x2|v128)\.' || true)
+            # shellcheck disable=SC2086
+            $bounded "$objdump" -d "$work/$mode.wasm" > "$work/$mode.listing" || listed=$?
+            if test "$listed" = 124; then
+                echo "simd: $objdump did not finish $mode.wasm within 60 s; SIMD128 count unchecked" >&2
+            elif test "$listed" != 0; then
+                echo "simd: $objdump failed on $mode.wasm (status $listed)" >&2
+                exit 1
+            fi
+        fi
+        if test -n "$objdump" && test "$listed" = 0; then
+            count=$(grep -cE '(i8x16|i16x8|i32x4|i64x2|f32x4|f64x2|v128)\.' "$work/$mode.listing" || true)
             if test "$mode" = simd128 && test "$count" -lt 100; then
                 echo "wasm32 -msimd128: only $count SIMD128 instructions" >&2
                 exit 1

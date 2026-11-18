@@ -1804,10 +1804,12 @@ NativeInstanceRun(NativeInstance *instance, long long *result, int *has_result)
         if(called < 0) native_report(instance, 0);
         return 0;
     }
-    fflush(stdout);
-    fflush(stderr);
-    /* An entry without a result leaves whatever its last call put in the
-     * result register; it reports zero, as the engine does. */
+    /* A run that ends normally leaves its output to the stream's own
+     * buffering, as the engine and a C program do: a flush per run would
+     * cost a write per call. A trap's report flushes first, and closing the
+     * instance flushes what it wrote. An entry without a result leaves
+     * whatever its last call put in the result register; it reports zero,
+     * as the engine does. */
     *result = instance->has_result ? value : 0;
     *has_result = instance->has_result;
     return 1;
@@ -1885,6 +1887,8 @@ void
 NativeInstanceClose(NativeInstance *instance)
 {
     if(instance == NULL) return;
+    /* What the instance wrote is out by the time it closes. */
+    fflush(stdout);
     for(NativeBlock *block = instance->blocks; block != NULL;) {
         NativeBlock *next = block->next;
         free(block);

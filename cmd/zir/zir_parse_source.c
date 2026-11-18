@@ -2337,7 +2337,6 @@ parse_operation(const char *path, const char *root, const char *source,
     recovery->previous = ZirParseRecovery;
     recovery->arrays = ZirSourceUsesResizableArrays;
     recovery->law = ZirLawEvaluation;
-    recovery->defaults = ZirDefaultExpansionDepth;
     recovery->expression_cache = ParseCacheEnter();
     if(!recovery->expression_cache) {
         free(recovery); CompilerContextSelect(previous);
@@ -2365,7 +2364,6 @@ parse_operation(const char *path, const char *root, const char *source,
     ZirParseRecovery = recovery->previous;
     ZirSourceUsesResizableArrays = recovery->arrays;
     ZirLawEvaluation = recovery->law;
-    ZirDefaultExpansionDepth = recovery->defaults;
     CompilerMemoryEnd(recovery->memory, program != NULL);
     free(recovery);
     SymbolLookupsChanged();

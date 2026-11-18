@@ -226,7 +226,7 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
-    cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
+    cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_cleanup.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
@@ -397,7 +397,6 @@ $(TYPE_OBJECT): $(TYPE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TYPE_C)/compiler_type.c
 
-$(call obj,cmd/zir/zir_expr.c): $(EXPRESSION_READY) $(PARSE_READY)
 $(EXPRESSION_OBJECT): $(EXPRESSION_READY) $(SCANNER_READY) $(SOURCE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(EXPRESSION_C)/compiler_expression.c
@@ -765,7 +764,7 @@ $(EXPRESSION_C)/.generated: cmd/compiler_expression.zi cmd/compiler_scan.zi cmd/
 	    -o $(EXPRESSION_C) cmd/compiler_expression.zi
 	touch $@
 
-$(PARSE_C)/.generated: cmd/compiler_parse.zi cmd/compiler_token.zi cmd/compiler_expression.zi cmd/compiler_ir.zi cmd/compiler_services.zi cmd/compiler_scan.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
+$(PARSE_C)/.generated: cmd/compiler_parse.zi cmd/compiler_token.zi cmd/compiler_expr_ir.zi cmd/compiler_expression.zi cmd/compiler_ir.zi cmd/compiler_services.zi cmd/compiler_scan.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
 	    -o $(PARSE_C) cmd/compiler_parse.zi
 	touch $@

@@ -2,7 +2,6 @@
 #ifndef ZIRAN_COMPILER_SERVICES_H
 #define ZIRAN_COMPILER_SERVICES_H
 
-#include <stdbool.h>
 #include "zir_string_types.h"
 #include "zir_slice.h"
 #include "compiler_ir.h"
@@ -24,7 +23,6 @@ ZirExpr* compiler_services_AddExpr(ZirFunction* fn, ZirExprKind kind, String tex
 ZirType* compiler_services_FindType(ZirModule* module, String name, ZirModule** owner);
 int32_t compiler_services_NextField(ZirType* record, size_t* offset, ZirTypeField* field);
 void compiler_services_Fatal(ZirSourceSpan span, String code, String message);
-bool compiler_services_ExpandDefaults(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last);
 
 #ifdef __cplusplus
 }

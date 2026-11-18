@@ -92,8 +92,8 @@ C ABI/storage boundary:
   `:1227`, and `cmd/zir/zir_parse_declaration.c:750`, `:781`, `:787`, `:797`;
   steps S13/S14/S15 delete those C callers.
 - Expressions: `cmd/compiler_expression.zi` and `cmd/compiler_parse.zi` parse
-  expressions; `cmd/zir/zir_expr.c:275` and `:353` still invoke them from C.
-  Step S14 replaces this adapter.
+  expressions. `cmd/compiler_expr_ir.zi` builds the expression IR through the
+  parser seed. `cmd/zir/zir_expr.h` adapts the remaining C callers.
 - Types/enums: `cmd/compiler_type.zi` and `cmd/compiler_enum.zi` implement the
   rules; C caching/adapters remain at `cmd/zir/zir.c:137`, `:145`, `:176`,
   `:193`; `cmd/zir/zir_type.c:278`, `:363`, `:395`, `:404`; and
@@ -197,7 +197,7 @@ C ABI/storage boundary:
 | `zir_emit_value.c` | output/format controls from `:8` | `compiler_c_emit_value` | S5 |
 | `zir_enum.c` | enum snapshot cache; generated arithmetic call `:92`; public `EnumMemberValue:113` | `compiler_frontend_ir` cache | S15 |
 | `zir_exec_console.h` | portable failure text | `compiler_zx_run` | S16 |
-| `zir_expr.c` / `.h` | expression IR construction/parser bridge `parse_expr:16`, generated calls `:275`, `:353` | `compiler_frontend_ir` + parser | S14 |
+| `zir_expr.h` | C adapters to the Ziran expression IR parser | `compiler_expr_ir` | S14 |
 | `zir_files.c` / `.h` | filesystem/path policy `PathIsAbsolute:19`, status `:7` | `compiler_files` | S15 |
 | `zir_host.c` | embedding API `BundleOpen:46`, instances `:335`, run `:348`, state/components `:653`, `:868` | `compiler_host_api` | S16 |
 | `zir_host_exec.c` / `.h` | executable ZX engine facade; bundle open `ExecBundleOpen:421`, host instances `:1399`; no-engine stubs `:1396` onward | `compiler_zx_exec` | S16 |
@@ -452,13 +452,13 @@ No step commits before its implementation and proof are complete.
 - Add `cmd/compiler_frontend_parse_declaration.zi`,
   `cmd/compiler_frontend_parse_eval.zi`,
   `cmd/compiler_frontend_parse_typed.zi`, `cmd/compiler_frontend_parse.zi`,
-  `cmd/compiler_ir_cleanup.zi`, and `cmd/compiler_expr_ir.zi`; port
+  and `cmd/compiler_ir_cleanup.zi`; port
   `zir_parse_declaration.c`, `zir_parse_eval.c`, `zir_parse_typed.c`,
-  `zir_parse.c`, `zir_cleanup.c`, `zir_expr.c`, and their headers/internal ABI.
+  `zir_parse.c`, `zir_cleanup.c`, and their headers/internal ABI.
 - Change tools to the frontend parse API; remove generated parse/check/emit
   merge rules only when their C parts disappear (defer to S15/S16 if the checker
   or emitter object remains).
-- Delete all parser files listed in S14 plus `zir_cleanup.c/.h`, `zir_expr.c/.h`,
+- Delete all parser files listed in S14 plus `zir_cleanup.c/.h`, `zir_expr.h`,
   and `zir_parse_internal.h`.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=compiler_declaration`.
 

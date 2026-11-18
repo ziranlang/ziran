@@ -108,7 +108,7 @@ Sum :: (first: s32, second: s32) -> s32 { return first + second }
 FIXTURE_END;
 
 named_arguments_unknown :: #string FIXTURE_END
-Pack :: (first: s32, second: s32) -> s32 { return first + second }
+Pack :: (first: s32, second: s32 = 2) -> s32 { return first + second }
 Answer :: () -> s32 { return Pack(unknown = 1, second = 2) }
 FIXTURE_END;
 

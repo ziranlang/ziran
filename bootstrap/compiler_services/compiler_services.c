@@ -174,20 +174,6 @@ zir_f_91ae99e11753ff79_exit(int32_t status)
     zir_foreign_zir_f_91ae99e11753ff79_exit(status);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_ExpandDefaultArguments_fb474e95
-#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_ExpandDefaultArguments_fb474e95
-#ifdef __APPLE__
-bool zir_foreign_zir_f_91ae99e11753ff79_ExpandDefaultArguments(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last) __asm__("_ExpandDefaultArguments");
-#else
-bool zir_foreign_zir_f_91ae99e11753ff79_ExpandDefaultArguments(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last) __asm__("ExpandDefaultArguments");
-#endif
-static bool
-zir_f_91ae99e11753ff79_ExpandDefaultArguments(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last)
-{
-    return zir_foreign_zir_f_91ae99e11753ff79_ExpandDefaultArguments(fn, module, span, 
-stmt_index, callee, first, last);
-}
-#endif
 
 void
 compiler_services_Diagnose__overload_1(ZirSourceSpan span, String code, String message)
@@ -293,10 +279,4 @@ compiler_services_Fatal(ZirSourceSpan span, String code, String message)
 {
     zir_f_91ae99e11753ff79_ZiranDiagnose(span, code, message);
     zir_f_91ae99e11753ff79_exit(1);
-}
-
-bool
-compiler_services_ExpandDefaults(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last)
-{
-    return zir_f_91ae99e11753ff79_ExpandDefaultArguments(fn, module, span, stmt_index, callee, first, last);
 }

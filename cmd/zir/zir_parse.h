@@ -1,7 +1,7 @@
 #ifndef ZIRAN_ZIR_PARSE_H
 #define ZIRAN_ZIR_PARSE_H
 
-#include "zir.h"
+#include "zir_expr.h"
 
 /*
  * Parse a .zi source file into a ZirProgram. Returns a heap-allocated
@@ -60,11 +60,6 @@ int TemplateBinderPrefix(const char *type);
 /* Index of NAME (LENGTH bytes) in a polymorphic procedure's comma-separated
  * type parameter list, such as "A,B", or -1. */
 int TemplateParameterIndex(const char *list, const char *name, size_t length);
-int ParseExprNoDefaults(ZirFunction *fn, const ZirModule *module,
-                const char *text, ZirSourceSpan span);
-int ParseExprTyped(ZirFunction *fn, const ZirModule *module,
-               const char *text, ZirSourceSpan span,
-               const char *expected_type);
 int EvaluateCompileExpression(const ZirModule *module, const char *source,
                               ZirSourceSpan span, int executing, int64_t *value);
 /* The step budget of one #run evaluation. */

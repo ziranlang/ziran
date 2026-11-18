@@ -19,6 +19,12 @@ extern "C" {
 typedef struct TokenText TokenText;
 #endif
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+typedef struct ExprText ExprText;
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+typedef struct PreparedDefault PreparedDefault;
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
 typedef struct Parser Parser;
 #endif
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
@@ -30,6 +36,20 @@ struct TokenText {
 #endif
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
 
+struct ExprText {
+    uint8_t* data;
+    size_t count;
+};
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+
+struct PreparedDefault {
+    String text;
+    bool valid;
+};
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+
 struct Parser {
     ZirFunction* fn;
     ZirModule* module;
@@ -37,7 +57,7 @@ struct Parser {
     String source;
     String expected_type;
     int32_t stmt_index;
-    bool expand_defaults;
+    int32_t default_depth;
     bool failed;
     int32_t depth;
     Scan token;
@@ -50,7 +70,16 @@ void CompilerLexerInit(ZirLexer* lexer, void* source, void* path);
 ZirToken LexerNext(ZirLexer* lexer);
 ZirToken LexerNextCode(ZirLexer* lexer);
 uint8_t* CompilerTokenKindName(int32_t kind);
-int32_t compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected_type, int32_t stmt_index, bool expand_defaults);
+int32_t CompilerParseExpr(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span);
+int32_t CompilerParseExprNoDefaults(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span);
+int32_t CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected);
+int32_t ParseExprNoDefaults(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span);
+int32_t ParseExprTyped(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span, uint8_t* expected);
+int32_t CompilerDefineIsAggregate(ZirModule* module, ZirDefine* definition);
+int32_t CompilerCallerLocationLiteral(ZirModule* module, ZirSourceSpan span, void* output, size_t capacity);
+void CompilerStructureFunction(ZirFunction* fn, ZirModule* module);
+bool compiler_parse_ExpandCallDefaults(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last, int32_t depth);
+int32_t compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected_type, int32_t stmt_index, int32_t default_depth);
 
 #ifdef __cplusplus
 }

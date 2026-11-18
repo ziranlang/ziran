@@ -1,5 +1,5 @@
 // Expression parsing into one function's IR. C keeps node storage, type
-// lookups, default arguments and diagnostics behind compiler_services.
+// lookups and diagnostics behind compiler_services.
 Expression :: #import "compiler_expression";
 IR :: #import "compiler_ir";
 Scan :: #import "compiler_scan";
@@ -7,16 +7,17 @@ Services :: #import "compiler_services";
 Text :: #import "compiler_text";
 Type :: #import "compiler_type";
 #load "compiler_token.zi";
+#load "compiler_expr_ir.zi";
 
 // The root of TEXT's expression, added to FN: an unknown node when TEXT does
-// not parse, -1 when it is blank. A call expands its default arguments when
-// EXPAND_DEFAULTS is set, unless STMT_INDEX's scope shadows the callee.
+// not parse, -1 when it is blank. A negative DEFAULT_DEPTH disables default
+// expansion. STMT_INDEX identifies the caller's lexical scope.
 ParseExpression :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: string,
-    span: IR.ZirSourceSpan, expected_type: string, stmt_index: s32, expand_defaults: bool) -> s32 {
+    span: IR.ZirSourceSpan, expected_type: string, stmt_index: s32, default_depth: s32) -> s32 {
     if Text.SkipSpace(text, 0, false) == text.count { return -1 }
     p: Parser = .{fn = fn, module = module, span = span, source = text,
         expected_type = expected_type, stmt_index = stmt_index,
-        expand_defaults = expand_defaults, span_cursor = span}
+        default_depth = default_depth, span_cursor = span}
     if stmt_index >= 0 && stmt_index < fn.stmt_count && fn.stmts[stmt_index].checks != 0 { p.checks = 1 }
     initial := fn.expr_count
     Advance(*p)
@@ -38,7 +39,7 @@ Parser :: struct {
     source: string
     expected_type: string
     stmt_index: s32
-    expand_defaults: bool
+    default_depth: s32
     failed: bool
     depth: s32
     token: Scan.Scan
@@ -219,8 +220,8 @@ ParsePostfix :: (p: *Parser, start: s64, initial: s32) -> s32 {
                 }
             }
             Expect(p, ")")
-            if !p.failed && p.expand_defaults &&
-                !Services.ExpandDefaults(p.fn, p.module, p.span, p.stmt_index, callee, *first, *last) {
+            if !p.failed && p.default_depth >= 0 &&
+                !ExpandCallDefaults(p.fn, p.module, p.span, p.stmt_index, callee, *first, *last, p.default_depth) {
                 p.failed = true
             }
             left := callee

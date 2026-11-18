@@ -4,6 +4,7 @@
 #define ZIRAN_COMPILER_PARSE_H_PRIVATE 1
 #include "compiler_parse.h"
 #undef ZIRAN_COMPILER_PARSE_H_PRIVATE
+#include "compiler_source.h"
 #ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_TokenLength_b24a2871
 #define ZIR_FOREIGN_zir_f_1c72792874eb8388_TokenLength_b24a2871
 #ifdef __APPLE__
@@ -43,6 +44,136 @@ zir_f_1c72792874eb8388_TokenSpan(uint8_t* path, int32_t line, int32_t column)
     return zir_foreign_zir_f_1c72792874eb8388_TokenSpan(path, line, column);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprMalloc_1d57e165
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprMalloc_1d57e165
+#ifdef __APPLE__
+void* zir_foreign_zir_f_1c72792874eb8388_ExprMalloc(size_t bytes) __asm__("_CompilerMalloc");
+#else
+void* zir_foreign_zir_f_1c72792874eb8388_ExprMalloc(size_t bytes) __asm__("CompilerMalloc");
+#endif
+static void*
+zir_f_1c72792874eb8388_ExprMalloc(size_t bytes)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprMalloc(bytes);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprAllocate_5810995e
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprAllocate_5810995e
+#ifdef __APPLE__
+void* zir_foreign_zir_f_1c72792874eb8388_ExprAllocate(size_t bytes) __asm__("_AllocateOrExit");
+#else
+void* zir_foreign_zir_f_1c72792874eb8388_ExprAllocate(size_t bytes) __asm__("AllocateOrExit");
+#endif
+static void*
+zir_f_1c72792874eb8388_ExprAllocate(size_t bytes)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprAllocate(bytes);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprFree_544d5753
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprFree_544d5753
+#ifdef __APPLE__
+void zir_foreign_zir_f_1c72792874eb8388_ExprFree(void* memory) __asm__("_CompilerFree");
+#else
+void zir_foreign_zir_f_1c72792874eb8388_ExprFree(void* memory) __asm__("CompilerFree");
+#endif
+static void
+zir_f_1c72792874eb8388_ExprFree(void* memory)
+{
+    zir_foreign_zir_f_1c72792874eb8388_ExprFree(memory);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprRawExpand_fd5cf42b
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprRawExpand_fd5cf42b
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_1c72792874eb8388_ExprRawExpand(uint8_t* text) __asm__("_RawTextExpand");
+#else
+uint8_t* zir_foreign_zir_f_1c72792874eb8388_ExprRawExpand(uint8_t* text) __asm__("RawTextExpand");
+#endif
+static uint8_t*
+zir_f_1c72792874eb8388_ExprRawExpand(uint8_t* text)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprRawExpand(text);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprAbsolutePath_6cb5b62a
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprAbsolutePath_6cb5b62a
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_1c72792874eb8388_ExprAbsolutePath(uint8_t* path) __asm__("_PathIsAbsolute");
+#else
+int32_t zir_foreign_zir_f_1c72792874eb8388_ExprAbsolutePath(uint8_t* path) __asm__("PathIsAbsolute");
+#endif
+static int32_t
+zir_f_1c72792874eb8388_ExprAbsolutePath(uint8_t* path)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprAbsolutePath(path);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprCanonicalPath_b6c5e0cb
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprCanonicalPath_b6c5e0cb
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_1c72792874eb8388_ExprCanonicalPath(uint8_t* path) __asm__("_CanonicalPath");
+#else
+uint8_t* zir_foreign_zir_f_1c72792874eb8388_ExprCanonicalPath(uint8_t* path) __asm__("CanonicalPath");
+#endif
+static uint8_t*
+zir_f_1c72792874eb8388_ExprCanonicalPath(uint8_t* path)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprCanonicalPath(path);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprAssemblyBlockText_c443893d
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprAssemblyBlockText_c443893d
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_1c72792874eb8388_ExprAssemblyBlockText(uint8_t* text, ZirSourceSpan span) __asm__("_AssemblyBlockText");
+#else
+uint8_t* zir_foreign_zir_f_1c72792874eb8388_ExprAssemblyBlockText(uint8_t* text, ZirSourceSpan span) __asm__("AssemblyBlockText");
+#endif
+static uint8_t*
+zir_f_1c72792874eb8388_ExprAssemblyBlockText(uint8_t* text, ZirSourceSpan span)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprAssemblyBlockText(text, span);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprDefaultIsLiteral_f4a76758
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprDefaultIsLiteral_f4a76758
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_1c72792874eb8388_ExprDefaultIsLiteral(uint8_t* text) __asm__("_DefaultIsLiteral");
+#else
+int32_t zir_foreign_zir_f_1c72792874eb8388_ExprDefaultIsLiteral(uint8_t* text) __asm__("DefaultIsLiteral");
+#endif
+static int32_t
+zir_f_1c72792874eb8388_ExprDefaultIsLiteral(uint8_t* text)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprDefaultIsLiteral(text);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprDefaultHelperName_c5927346
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprDefaultHelperName_c5927346
+#ifdef __APPLE__
+void zir_foreign_zir_f_1c72792874eb8388_ExprDefaultHelperName(ZirFunction* function, int32_t parameter, uint8_t* output, size_t size) __asm__("_FunctionDefaultHelperName");
+#else
+void zir_foreign_zir_f_1c72792874eb8388_ExprDefaultHelperName(ZirFunction* function, int32_t parameter, uint8_t* output, size_t size) __asm__("FunctionDefaultHelperName");
+#endif
+static void
+zir_f_1c72792874eb8388_ExprDefaultHelperName(ZirFunction* function, int32_t parameter, uint8_t* output, size_t size)
+{
+    zir_foreign_zir_f_1c72792874eb8388_ExprDefaultHelperName(function, parameter, output, size);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprExit_1120afe9
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprExit_1120afe9
+#ifdef __APPLE__
+void zir_foreign_zir_f_1c72792874eb8388_ExprExit(int32_t status) __asm__("_exit");
+#else
+void zir_foreign_zir_f_1c72792874eb8388_ExprExit(int32_t status) __asm__("exit");
+#endif
+static void
+zir_f_1c72792874eb8388_ExprExit(int32_t status)
+{
+    zir_foreign_zir_f_1c72792874eb8388_ExprExit(status);
+}
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -53,6 +184,20 @@ zir_f_1c72792874eb8388_TokenSpan(uint8_t* path, int32_t line, int32_t column)
 static uint8_t* compiler_parse_TokenCString(String text) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_LexerSource(ZirLexer* lexer) ZIRAN_MAYBE_UNUSED;
 static ZirToken compiler_parse_StoreToken(ZirLexer* lexer, Scan scan) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_parse_ExprCString(String text) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_parse_ByteIndex(String text, uint8_t wanted) ZIRAN_MAYBE_UNUSED;
+static bool compiler_parse_HasPrefix(String text, String prefix) ZIRAN_MAYBE_UNUSED;
+static String compiler_parse_TrimExpression(String text) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_parse_ExprName(String text) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_parse_ParseSourceExpr(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected, int32_t stmt_index, int32_t default_depth) ZIRAN_MAYBE_UNUSED;
+static bool compiler_parse_ExprAppend(Slice output, int64_t* at, String text) ZIRAN_MAYBE_UNUSED;
+static String compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice output) ZIRAN_MAYBE_UNUSED;
+static String compiler_parse_CallTarget(ZirFunction* fn, int32_t callee, Slice output) ZIRAN_MAYBE_UNUSED;
+static String compiler_parse_ParameterName(String declaration) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_parse_SplitParameterText(String text, Slice output) ZIRAN_MAYBE_UNUSED;
+static bool compiler_parse_CallNameShadowed(ZirFunction* fn, int32_t stmt_index, String name) ZIRAN_MAYBE_UNUSED;
+static bool compiler_parse_QualifiedFieldDefault(String value, String helper, String target, int64_t dot, Slice output) ZIRAN_MAYBE_UNUSED;
+static PreparedDefault compiler_parse_PrepareDefault(ZirModule* module, ZirSourceSpan span, ZirFunction* function, ZirModule* owner, String target, int32_t index, String value, Slice output) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_Token(Parser* p) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_Advance(Parser* p) ZIRAN_MAYBE_UNUSED;
 static bool compiler_parse_Take(Parser* p, String wanted) ZIRAN_MAYBE_UNUSED;
@@ -198,14 +343,895 @@ compiler_parse_StoreToken(ZirLexer* lexer, Scan scan)
 }
 
 int32_t
-compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected_type, int32_t stmt_index, bool expand_defaults)
+CompilerParseExpr(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span)
+{
+    return compiler_parse_ParseSourceExpr(fn, module, compiler_ir_CText((uint8_t*)(text)), span, StringLiteral(""), -1, 0);
+}
+
+int32_t
+CompilerParseExprNoDefaults(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span)
+{
+    return compiler_parse_ParseSourceExpr(fn, module, compiler_ir_CText((uint8_t*)(text)), span, StringLiteral(""), -1, -1);
+}
+
+int32_t
+CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected)
+{
+    String value_0 = compiler_ir_CText((uint8_t*)(text));
+    return compiler_parse_ParseSourceExpr(fn, module, value_0, span, compiler_ir_CText((uint8_t*)(expected)), -1, -1);
+}
+
+int32_t
+ParseExprNoDefaults(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span)
+{
+    return CompilerParseExprNoDefaults(fn, module, (void*)(text), span);
+}
+
+int32_t
+ParseExprTyped(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span, uint8_t* expected)
+{
+    return CompilerParseExprTyped(fn, module, (void*)(text), span, (void*)(expected));
+}
+
+int32_t
+CompilerDefineIsAggregate(ZirModule* module, ZirDefine* definition)
+{
+    ZirFunction probe = {0};
+    int32_t root = CompilerParseExpr(&(probe), module, (void*)(((uint8_t*)definition->value)), definition->span);
+    int32_t value_0 = 0;
+    if (root >= 0 && ((ZirExprKind)((probe.exprs[root]).kind)) == ((ZirExprKind)(12))) {
+        value_0 = 1;
+    } else {
+        value_0 = 0;
+    }
+    int32_t cleanup_return_0 = value_0;
+    zir_f_1c72792874eb8388_ExprFree((void*)(probe.exprs));
+    return cleanup_return_0;
+}
+
+int32_t
+CompilerCallerLocationLiteral(ZirModule* module, ZirSourceSpan span, void* output, size_t capacity)
+{
+    String value_0 = compiler_parse_CallerLocationText(module, span, compiler_ir_CBuffer((uint8_t*)(output), capacity));
+    int64_t value_1 = (int64_t)(value_0).length;
+    int32_t value_2 = 0;
+    if (value_1 > 0LL) {
+        value_2 = 1;
+    } else {
+        value_2 = 0;
+    }
+    return value_2;
+}
+
+void
+CompilerStructureFunction(ZirFunction* fn, ZirModule* module)
+{
+    zir_f_1c72792874eb8388_ExprFree((void*)(fn->exprs));
+    ZirExpr** value_0 = &(fn->exprs);
+    (*value_0) = (void *)0;
+    int32_t* value_1 = &(fn->expr_count);
+    (*value_1) = 0;
+    int32_t* value_2 = &(fn->expr_cap);
+    (*value_2) = 0;
+    {
+        int32_t range_first_4 = 0;
+        int32_t range_last_4 = (int32_t)((uint32_t)(fn->stmt_count) - 1u);
+        int32_t i = range_first_4;
+        if (i <= range_last_4) for (;;) {
+            ZirStmt* statement = &(fn->stmts[i]);
+            int32_t* value_3 = &(statement->expr_root);
+            (*value_3) = -1;
+            int32_t* value_4 = &(statement->lhs_root);
+            (*value_4) = -1;
+            String text = compiler_ir_CText((uint8_t*)statement->text);
+            if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(1))) {
+                String value_5 = text;
+                String value_6 = StringLiteral("#asm");
+                bool value_7 = false;
+                {
+                    String text = value_5;
+                    String prefix = value_6;
+                    value_7 = (int64_t)(text).length >= (int64_t)(prefix).length && StringEqual(StringRangeAt(text, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
+                }
+                bool value_9 = value_7;
+                if (value_9) {
+                    bool value_10 = (int64_t)(text).length == 4LL;
+                    bool value_11 = value_10;
+                    if (!value_11) {
+                        bool value_12 = compiler_text_IdentifierByte((uint8_t)text.data[4]);
+                        value_11 = !value_12;
+                    }
+                    value_9 = value_11;
+                }
+                if (value_9) {
+                    String value_13 = compiler_ir_CText((uint8_t*)statement->names.assembly_text);
+                    int64_t value_14 = (int64_t)(value_13).length;
+                    if (value_14 == 0LL) {
+                        uint8_t* assembly = zir_f_1c72792874eb8388_ExprAssemblyBlockText((uint8_t*)statement->text, statement->span);
+                        ZirStmtNames* value_15 = &(statement->names);
+                        (*value_15) = (ZirStmtNames){.assembly_text = (const char *)(assembly)};
+                    }
+                    if (((uint8_t*)statement->names.assembly_text) == ((void *)0)) {
+                        zir_f_1c72792874eb8388_ExprExit(1);
+                    }
+                    if (i == range_last_4) {
+                        break;
+                    }
+                    i = (int32_t)((uint32_t)i + 1u);
+                    continue;
+                }
+                String value_16 = StringLiteral("");
+                uint8_t* value_17 = (void *)0;
+                {
+                    String text = value_16;
+                    value_17 = ((ExprText*)(&(text)))->data;
+                }
+                uint8_t* empty = value_17;
+                ZirStmtNames* value_19 = &(statement->names);
+                (*value_19) = (ZirStmtNames){.assembly_text = (const char *)(empty)};
+            }
+            if (statement->is_using != 0 && ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(5))) {
+                int32_t* value_20 = &(statement->expr_root);
+                int32_t value_21 = compiler_parse_ParseExpression(fn, module, StringLiteral("0"), statement->span, StringLiteral(""), -1, -1);
+                (*value_20) = value_21;
+                if (i == range_last_4) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+                continue;
+            }
+            StatementExpression parts = compiler_expression_StatementParts(text, (StatementKind)((int32_t)(((ZirStmtKind)(statement->kind)))));
+            int32_t* value_22 = &(statement->is_else);
+            int32_t value_23 = 0;
+            if (parts.is_else) {
+                value_23 = 1;
+            } else {
+                value_23 = 0;
+            }
+            (*value_22) = value_23;
+            if (((StatementExpressionError)(parts.error)) == ((StatementExpressionError)(1))) {
+                String prefix = StringLiteral("unknown declaration modifier: ");
+                uint8_t message[8192] = {0};
+                Slice value_24 = {message, 8192};
+                compiler_ir_CopyText(value_24, prefix);
+                Slice value_25 = {message, 8192};
+                Slice value_26 = SliceRangeAt(value_25, (int64_t)(int64_t)(prefix).length, (int64_t)value_25.length, sizeof(uint8_t));
+                compiler_ir_CopyText(value_26, parts.modifier);
+                ZirSourceSpan value_27 = statement->span;
+                Slice value_28 = {message, 8192};
+                compiler_services_Fatal(value_27, StringLiteral("parse.modifier"), compiler_ir_BufferText(value_28));
+            }
+            if (((StatementExpressionError)(parts.error)) == ((StatementExpressionError)(2))) {
+                compiler_services_Fatal(statement->span, StringLiteral("parse.jai_syntax"), StringLiteral("C-style array literal is not valid Jai syntax; use .[...]"));
+            }
+            if (parts.has_declaration) {
+                String value_29 = parts.name;
+                uint8_t* value_30 = (void *)0;
+                {
+                    String text = value_29;
+                    int64_t limit = 127LL;
+                    String value_32 = StringView(NULL, 0);
+                    if ((int64_t)(text).length <= limit) {
+                        value_32 = text;
+                    } else {
+                        value_32 = StringRangeAt(text, (int64_t)0LL, (int64_t)limit);
+                    }
+                    value_30 = compiler_services_KeepName(value_32);
+                }
+                uint8_t* name = value_30;
+                String value_33 = parts.type;
+                uint8_t* value_34 = (void *)0;
+                {
+                    String text = value_33;
+                    int64_t limit = 127LL;
+                    String value_36 = StringView(NULL, 0);
+                    if ((int64_t)(text).length <= limit) {
+                        value_36 = text;
+                    } else {
+                        value_36 = StringRangeAt(text, (int64_t)0LL, (int64_t)limit);
+                    }
+                    value_34 = compiler_services_KeepName(value_36);
+                }
+                uint8_t* type = value_34;
+                ZirStmtNames* value_37 = &(statement->names);
+                (*value_37) = (ZirStmtNames){.name = (const char *)(name)};
+                const char ** value_38 = &(statement->type);
+                (*value_38) = (const char *)(type);
+            }
+            if ((int64_t)(parts.assignment).length != 0LL) {
+                Slice value_39 = {statement->assignment_op, 4};
+                compiler_ir_CopyText(value_39, parts.assignment);
+                int32_t* value_40 = &(statement->lhs_root);
+                int32_t value_41 = compiler_parse_ParseSourceExpr(fn, module, parts.lhs, statement->span, StringLiteral(""), i, 0);
+                (*value_40) = value_41;
+            }
+            if (parts.has_value) {
+                String value_42 = StringView(NULL, 0);
+                if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(3))) {
+                    String value_43 = compiler_ir_CText((uint8_t*)statement->type);
+                    value_42 = value_43;
+                } else {
+                    value_42 = StringLiteral("");
+                }
+                String expected = value_42;
+                int32_t* value_44 = &(statement->expr_root);
+                int32_t value_45 = compiler_parse_ParseSourceExpr(fn, module, parts.value, statement->span, expected, i, 0);
+                (*value_44) = value_45;
+            }
+            if (i == range_last_4) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+}
+
+bool
+compiler_parse_ExpandCallDefaults(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last, int32_t depth)
+{
+    if (module == ((void *)0) || depth >= 32 || callee < 0) {
+        return true;
+    }
+    uint8_t target_buffer[128] = {0};
+    Slice value_0 = {target_buffer, 128};
+    String target = compiler_parse_CallTarget(fn, callee, value_0);
+    if ((int64_t)(target).length == 0LL) {
+        return true;
+    }
+    ZirModule* owner = (void *)0;
+    ZirFunction* function = (void *)0;
+    uint8_t* value_1 = (void *)0;
+    {
+        String text = target;
+        value_1 = ((ExprText*)(&(text)))->data;
+    }
+    bool value_3 = compiler_services_ResolveFunction(module, value_1, compiler_services_SpanPath(span), &(owner), &(function)) != 1;
+    if (value_3 || function == ((void *)0)) {
+        return true;
+    }
+    String defaults = compiler_ir_CText((uint8_t*)function->default_args_text);
+    if ((int64_t)(defaults).length == 0LL || compiler_parse_CallNameShadowed(fn, stmt_index, target)) {
+        return true;
+    }
+    String parameters[64] = {0};
+    String values[64] = {0};
+    String value_4 = compiler_ir_CText((uint8_t*)function->args_text);
+    Slice value_5 = {parameters, 64};
+    int64_t count = compiler_parse_SplitParameterText(value_4, value_5);
+    Slice value_6 = {values, 64};
+    int64_t value_7 = compiler_parse_SplitParameterText(defaults, value_6);
+    if (count != value_7) {
+        return true;
+    }
+    bool bound[64] = {0};
+    int32_t child = *(first);
+    while (child >= 0) {
+        String name = compiler_ir_CText((uint8_t*)(fn->exprs[child]).argument_name);
+        int64_t index = 0LL;
+        while (index < count) {
+            bool value_8 = false;
+            if ((int64_t)(name).length != 0LL) {
+                String value_9 = (parameters)[index];
+                String value_10 = StringView(NULL, 0);
+                {
+                    String declaration = value_9;
+                    int64_t colon = compiler_parse_ByteIndex(declaration, 58);
+                    if (colon < 0LL) {
+                        value_10 = StringLiteral("");
+                        goto value_11;
+                    }
+                    String value_12 = StringRangeAt(declaration, (int64_t)0LL, (int64_t)colon);
+                    String value_13 = StringView(NULL, 0);
+                    {
+                        String text = value_12;
+                        SourceRange range = compiler_text_TrimRange(text);
+                        value_13 = StringRangeAt(text, (int64_t)range.begin, (int64_t)range.end);
+                    }
+                    value_10 = value_13;
+                value_11: ;
+                }
+                value_8 = StringEqual(value_10, name);
+            } else {
+                value_8 = !(bound)[index];
+            }
+            if (value_8) {
+                break;
+            }
+            index = (int64_t)((uint64_t)index + UINT64_C(1));
+        }
+        if (index == count || (bound)[index]) {
+            return true;
+        }
+        bool* value_15 = &(bound[index]);
+        (*value_15) = true;
+        child = (fn->exprs[child]).next_sibling;
+    }
+    void* value_16 = zir_f_1c72792874eb8388_ExprMalloc(4096);
+    uint8_t* scratch = (uint8_t*)(value_16);
+    if (scratch == ((void *)0)) {
+        return false;
+    }
+    Slice buffer = compiler_ir_CBuffer(scratch, 4096);
+    {
+        int64_t range_first_45 = 0LL;
+        int64_t range_last_45 = (int64_t)((uint64_t)count - UINT64_C(1));
+        int64_t i = range_first_45;
+        if (i <= range_last_45) for (;;) {
+            if ((bound)[i]) {
+                if (i == range_last_45) {
+                    break;
+                }
+                i = (int64_t)((uint64_t)i + UINT64_C(1));
+                continue;
+            }
+            String declaration = (values)[i];
+            int64_t assignment = compiler_text_TopLevelAssignment(declaration);
+            String parameter = (parameters)[i];
+            int64_t colon = compiler_parse_ByteIndex(parameter, 58);
+            if (assignment < 0LL || colon < 0LL) {
+                if (i == range_last_45) {
+                    break;
+                }
+                i = (int64_t)((uint64_t)i + UINT64_C(1));
+                continue;
+            }
+            ZirSourceSpan value_17 = (fn->exprs[callee]).span;
+            ZirFunction* value_18 = function;
+            ZirModule* value_19 = owner;
+            String value_20 = declaration;
+            int64_t value_21 = compiler_text_SkipSpace(declaration, (int64_t)((uint64_t)assignment + UINT64_C(1)), false);
+            PreparedDefault prepared = compiler_parse_PrepareDefault(module, value_17, value_18, value_19, target, (int32_t)(i), StringRangeAt(value_20, (int64_t)value_21, (int64_t)(int64_t)(declaration).length), buffer);
+            if (!prepared.valid) {
+                bool cleanup_return_0 = false;
+                zir_f_1c72792874eb8388_ExprFree((void*)(scratch));
+                return cleanup_return_0;
+            }
+            int32_t argument = compiler_parse_ParseSourceExpr(fn, module, prepared.text, span, StringLiteral(""), stmt_index, (int32_t)((uint32_t)depth + 1u));
+            if (argument < 0) {
+                bool cleanup_return_1 = false;
+                zir_f_1c72792874eb8388_ExprFree((void*)(scratch));
+                return cleanup_return_1;
+            }
+            String value_22 = StringRangeAt(parameter, (int64_t)0LL, (int64_t)colon);
+            String value_23 = StringView(NULL, 0);
+            {
+                String text = value_22;
+                SourceRange range = compiler_text_TrimRange(text);
+                value_23 = StringRangeAt(text, (int64_t)range.begin, (int64_t)range.end);
+            }
+            uint8_t* name = compiler_services_KeepName(value_23);
+            const char ** value_25 = &((fn->exprs[argument]).argument_name);
+            (*value_25) = (const char *)(name);
+            if (*(last) >= 0) {
+                int32_t* value_26 = &((fn->exprs[*(last)]).next_sibling);
+                (*value_26) = argument;
+            } else {
+                int32_t* value_27 = &((*(first)));
+                (*value_27) = argument;
+            }
+            int32_t* value_28 = &((*(last)));
+            (*value_28) = argument;
+            if (i == range_last_45) {
+                break;
+            }
+            i = (int64_t)((uint64_t)i + UINT64_C(1));
+        }
+    }
+    bool cleanup_return_2 = true;
+    zir_f_1c72792874eb8388_ExprFree((void*)(scratch));
+    return cleanup_return_2;
+}
+
+static uint8_t*
+compiler_parse_ExprCString(String text)
+{
+    return ((ExprText*)(&(text)))->data;
+}
+
+static int64_t
+compiler_parse_ByteIndex(String text, uint8_t wanted)
+{
+    for (int64_t index = 0LL; index < (int64_t)(text).length; index++) {
+        uint8_t byte = (uint8_t)text.data[index];
+        if (byte == wanted) {
+            return index;
+        }
+    }
+    return -1LL;
+}
+
+static bool
+compiler_parse_HasPrefix(String text, String prefix)
+{
+    return (int64_t)(text).length >= (int64_t)(prefix).length && StringEqual(StringRangeAt(text, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
+}
+
+static String
+compiler_parse_TrimExpression(String text)
+{
+    SourceRange range = compiler_text_TrimRange(text);
+    return StringRangeAt(text, (int64_t)range.begin, (int64_t)range.end);
+}
+
+static uint8_t*
+compiler_parse_ExprName(String text)
+{
+    int64_t limit = 127LL;
+    String value_0 = StringView(NULL, 0);
+    if ((int64_t)(text).length <= limit) {
+        value_0 = text;
+    } else {
+        value_0 = StringRangeAt(text, (int64_t)0LL, (int64_t)limit);
+    }
+    return compiler_services_KeepName(value_0);
+}
+
+static int32_t
+compiler_parse_ParseSourceExpr(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected, int32_t stmt_index, int32_t default_depth)
+{
+    int64_t value_0 = compiler_parse_ByteIndex(text, 31);
+    if (value_0 < 0LL) {
+        return compiler_parse_ParseExpression(fn, module, text, span, expected, stmt_index, default_depth);
+    }
+    size_t size = (size_t)((int64_t)(text).length) + 1;
+    void* value_1 = zir_f_1c72792874eb8388_ExprAllocate(size);
+    uint8_t* copy = (uint8_t*)(value_1);
+    compiler_ir_CopyText(compiler_ir_CBuffer(copy, size), text);
+    uint8_t* expanded = zir_f_1c72792874eb8388_ExprRawExpand(copy);
+    String value_2 = StringView(NULL, 0);
+    if (expanded == ((void *)0)) {
+        value_2 = text;
+    } else {
+        String value_3 = compiler_ir_CText(expanded);
+        value_2 = value_3;
+    }
+    String source = value_2;
+    int32_t cleanup_return_0 = compiler_parse_ParseExpression(fn, module, source, span, expected, stmt_index, default_depth);
+    zir_f_1c72792874eb8388_ExprFree((void*)(expanded));
+    zir_f_1c72792874eb8388_ExprFree((void*)(copy));
+    return cleanup_return_0;
+}
+
+static bool
+compiler_parse_ExprAppend(Slice output, int64_t* at, String text)
+{
+    int64_t value_0 = (int64_t)(text).length;
+    int64_t value_1 = (int64_t)((uint64_t)((int64_t)(output).length) - (uint64_t)(*(at)));
+    if (value_0 >= value_1) {
+        return false;
+    }
+    Slice value_2 = output;
+    compiler_ir_CopyText(SliceRangeAt(value_2, (int64_t)*(at), (int64_t)(int64_t)(output).length, sizeof(uint8_t)), text);
+    int64_t* value_3 = &((*(at)));
+    (*value_3) = (int64_t)((uint64_t)((*value_3)) + (uint64_t)((int64_t)(text).length));
+    return true;
+}
+
+static String
+compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice output)
+{
+    uint8_t candidate[2048] = {0};
+    uint8_t* path = compiler_services_SpanPath(span);
+    Slice value_0 = {module->source_root, 1024};
+    String root = compiler_ir_BufferText(value_0);
+    bool value_1 = zir_f_1c72792874eb8388_ExprAbsolutePath(path) == 0;
+    if (value_1 && (int64_t)(root).length != 0LL) {
+        int64_t used = 0LL;
+        Slice value_2 = {candidate, 2048};
+        bool value_3 = compiler_parse_ExprAppend(value_2, &(used), root);
+        bool value_4 = !value_3;
+        if (!value_4) {
+            Slice value_5 = {candidate, 2048};
+            bool value_6 = compiler_parse_ExprAppend(value_5, &(used), StringLiteral("/"));
+            value_4 = !value_6;
+        }
+        bool value_7 = value_4;
+        if (!value_7) {
+            Slice value_8 = {candidate, 2048};
+            Slice value_9 = value_8;
+            bool value_10 = compiler_parse_ExprAppend(value_9, &(used), compiler_ir_CText(path));
+            value_7 = !value_10;
+        }
+        if (value_7) {
+            return StringLiteral("");
+        }
+        path = &(candidate[0]);
+    }
+    uint8_t* canonical = zir_f_1c72792874eb8388_ExprCanonicalPath(path);
+    if (canonical != ((void *)0)) {
+        path = canonical;
+    }
+    String text = compiler_ir_CText(path);
+    bool value_11 = zir_f_1c72792874eb8388_ExprAbsolutePath(path) == 0;
+    if (value_11 || (int64_t)(text).length >= 1024LL) {
+        String cleanup_return_0 = StringLiteral("");
+        zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
+        return cleanup_return_0;
+    }
+    uint8_t escaped[4096] = {0};
+    Slice value_12 = {escaped, 4096};
+    int64_t length = compiler_text_EscapeCString(text, value_12);
+    if (length >= 4095LL) {
+        String cleanup_return_1 = StringLiteral("");
+        zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
+        return cleanup_return_1;
+    }
+    uint8_t line[12] = {0};
+    int64_t i = 12LL;
+    int64_t remaining = (int64_t)(span.line);
+    if (remaining < 0LL) {
+        remaining = (int64_t)(UINT64_C(0) - (uint64_t)remaining);
+    }
+    while (true) {
+        i = (int64_t)((uint64_t)i - UINT64_C(1));
+        uint8_t* value_13 = &(line[i]);
+        (*value_13) = (uint8_t)(((int64_t)(UINT64_C(48) + (uint64_t)((remaining % 10LL)))));
+        remaining = remaining / 10LL;
+        if (remaining == 0LL) {
+            break;
+        }
+    }
+    if (span.line < 0) {
+        i = (int64_t)((uint64_t)i - UINT64_C(1));
+        uint8_t* value_14 = &(line[i]);
+        (*value_14) = 45;
+    }
+    int64_t used = 0LL;
+    bool value_15 = compiler_parse_ExprAppend(output, &(used), StringLiteral("Source_Code_Location.{.fully_pathed_filename = \""));
+    bool value_16 = !value_15;
+    if (!value_16) {
+        Slice value_17 = output;
+        Slice value_18 = {escaped, 4096};
+        Slice value_19 = SliceRangeAt(value_18, (int64_t)0LL, (int64_t)length, sizeof(uint8_t));
+        bool value_20 = compiler_parse_ExprAppend(value_17, &(used), StringView((const char *)(value_19).data, (size_t)(value_19).length));
+        value_16 = !value_20;
+    }
+    bool value_21 = value_16;
+    if (!value_21) {
+        bool value_22 = compiler_parse_ExprAppend(output, &(used), StringLiteral("\", .line_number = "));
+        value_21 = !value_22;
+    }
+    bool value_23 = value_21;
+    if (!value_23) {
+        Slice value_24 = output;
+        Slice value_25 = {line, 12};
+        Slice value_26 = SliceRangeAt(value_25, (int64_t)i, (int64_t)12, sizeof(uint8_t));
+        bool value_27 = compiler_parse_ExprAppend(value_24, &(used), StringView((const char *)(value_26).data, (size_t)(value_26).length));
+        value_23 = !value_27;
+    }
+    bool value_28 = value_23;
+    if (!value_28) {
+        bool value_29 = compiler_parse_ExprAppend(output, &(used), StringLiteral("}"));
+        value_28 = !value_29;
+    }
+    if (value_28) {
+        String cleanup_return_2 = StringLiteral("");
+        zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
+        return cleanup_return_2;
+    }
+    Slice value_30 = output;
+    Slice value_31 = SliceRangeAt(value_30, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
+    String cleanup_return_3 = StringView((const char *)(value_31).data, (size_t)(value_31).length);
+    zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
+    return cleanup_return_3;
+}
+
+static String
+compiler_parse_CallTarget(ZirFunction* fn, int32_t callee, Slice output)
+{
+    ZirExpr* node = &(fn->exprs[callee]);
+    if (((ZirExprKind)(node->kind)) == ((ZirExprKind)(1))) {
+        return compiler_ir_CText((uint8_t*)node->name);
+    }
+    if (((ZirExprKind)(node->kind)) != ((ZirExprKind)(8)) || node->left < 0 || ((ZirExprKind)((fn->exprs[node->left]).kind)) != ((ZirExprKind)(1))) {
+        return StringLiteral("");
+    }
+    int64_t used = 0LL;
+    Slice value_0 = output;
+    bool value_1 = compiler_parse_ExprAppend(value_0, &(used), compiler_ir_CText((uint8_t*)(fn->exprs[node->left]).name));
+    bool value_2 = !value_1;
+    if (!value_2) {
+        bool value_3 = compiler_parse_ExprAppend(output, &(used), StringLiteral("."));
+        value_2 = !value_3;
+    }
+    bool value_4 = value_2;
+    if (!value_4) {
+        Slice value_5 = output;
+        bool value_6 = compiler_parse_ExprAppend(value_5, &(used), compiler_ir_CText((uint8_t*)node->name));
+        value_4 = !value_6;
+    }
+    if (value_4) {
+        return StringLiteral("");
+    }
+    Slice value_7 = output;
+    Slice value_8 = SliceRangeAt(value_7, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
+    return StringView((const char *)(value_8).data, (size_t)(value_8).length);
+}
+
+static String
+compiler_parse_ParameterName(String declaration)
+{
+    int64_t colon = compiler_parse_ByteIndex(declaration, 58);
+    if (colon < 0LL) {
+        return StringLiteral("");
+    }
+    String value_0 = StringRangeAt(declaration, (int64_t)0LL, (int64_t)colon);
+    String value_1 = StringView(NULL, 0);
+    {
+        String text = value_0;
+        SourceRange range = compiler_text_TrimRange(text);
+        value_1 = StringRangeAt(text, (int64_t)range.begin, (int64_t)range.end);
+    }
+    return value_1;
+}
+
+static int64_t
+compiler_parse_SplitParameterText(String text, Slice output)
+{
+    int64_t count = 0LL;
+    int64_t at = 0LL;
+    while (at >= 0LL && count < (int64_t)(output).length) {
+        SourcePart part = compiler_text_NextSourcePart(text, at);
+        if ((int64_t)((uint64_t)(part.end) - (uint64_t)(part.begin)) < 4096LL) {
+            String* value_0 = &(((String *)output.data)[count]);
+            String value_1 = StringRangeAt(text, (int64_t)part.begin, (int64_t)part.end);
+            String value_2 = StringView(NULL, 0);
+            {
+                String text = value_1;
+                SourceRange range = compiler_text_TrimRange(text);
+                value_2 = StringRangeAt(text, (int64_t)range.begin, (int64_t)range.end);
+            }
+            (*value_0) = value_2;
+            count = (int64_t)((uint64_t)count + UINT64_C(1));
+        }
+        at = part.next;
+    }
+    return count;
+}
+
+static bool
+compiler_parse_CallNameShadowed(ZirFunction* fn, int32_t stmt_index, String name)
+{
+    bool value_0 = stmt_index < 0;
+    bool value_1 = value_0;
+    if (!value_1) {
+        int64_t value_2 = compiler_parse_ByteIndex(name, 46);
+        value_1 = (value_2 >= 0LL);
+    }
+    if (value_1) {
+        return false;
+    }
+    String parameters[64] = {0};
+    String value_3 = compiler_ir_CText((uint8_t*)fn->args_text);
+    Slice value_4 = {parameters, 64};
+    int64_t count = compiler_parse_SplitParameterText(value_3, value_4);
+    {
+        int64_t range_first_5 = 0LL;
+        int64_t range_last_5 = (int64_t)((uint64_t)count - UINT64_C(1));
+        int64_t i = range_first_5;
+        if (i <= range_last_5) for (;;) {
+            String value_5 = (parameters)[i];
+            String value_6 = StringView(NULL, 0);
+            {
+                String declaration = value_5;
+                int64_t colon = compiler_parse_ByteIndex(declaration, 58);
+                if (colon < 0LL) {
+                    value_6 = StringLiteral("");
+                    goto value_7;
+                }
+                String value_8 = StringRangeAt(declaration, (int64_t)0LL, (int64_t)colon);
+                String value_9 = StringView(NULL, 0);
+                {
+                    String text = value_8;
+                    SourceRange range = compiler_text_TrimRange(text);
+                    value_9 = StringRangeAt(text, (int64_t)range.begin, (int64_t)range.end);
+                }
+                value_6 = value_9;
+            value_7: ;
+            }
+            if (StringEqual(value_6, name)) {
+                return true;
+            }
+            if (i == range_last_5) {
+                break;
+            }
+            i = (int64_t)((uint64_t)i + UINT64_C(1));
+        }
+    }
+    int32_t depth = 0;
+    int64_t bindings = 0LL;
+    int32_t binding_depths[128] = {0};
+    {
+        int32_t range_first_13 = 0;
+        int32_t range_last_13 = (int32_t)((uint32_t)stmt_index - 1u);
+        int32_t i = range_first_13;
+        if (i <= range_last_13) for (;;) {
+            ZirStmt* statement = &(fn->stmts[i]);
+            if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(2))) {
+                while (bindings > 0LL && (binding_depths)[((int64_t)((uint64_t)bindings - UINT64_C(1)))] == depth) {
+                    bindings = (int64_t)((uint64_t)bindings - UINT64_C(1));
+                }
+                if (depth > 0) {
+                    depth = (int32_t)((uint32_t)depth - 1u);
+                }
+            }
+            bool value_11 = ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(3));
+            bool value_12 = value_11;
+            if (value_12) {
+                String value_13 = compiler_ir_CText((uint8_t*)statement->names.name);
+                value_12 = (StringEqual(value_13, name));
+            }
+            if (value_12 && bindings < 128) {
+                int32_t* value_14 = &(binding_depths[bindings]);
+                (*value_14) = depth;
+                bindings = (int64_t)((uint64_t)bindings + UINT64_C(1));
+            }
+            bool value_15 = ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(1)) || ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(6));
+            if (value_15 || ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(7)) || ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(8))) {
+                depth = (int32_t)((uint32_t)depth + 1u);
+            }
+            if (i == range_last_13) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    return bindings > 0LL;
+}
+
+static bool
+compiler_parse_QualifiedFieldDefault(String value, String helper, String target, int64_t dot, Slice output)
+{
+    int64_t at = 0LL;
+    int64_t copied = 0LL;
+    int64_t used = 0LL;
+    while (dot >= 0LL) {
+        Scan token = compiler_scan_NextToken(value, at, 1, 1);
+        if (((TokenKind)(token.kind)) == ((TokenKind)(0))) {
+            break;
+        }
+        at = token.end;
+        String name = StringRangeAt(value, (int64_t)token.begin, (int64_t)token.end);
+        bool value_0 = ((TokenKind)(token.kind)) != ((TokenKind)(1)) || (int64_t)(name).length >= 4096LL || (int64_t)(name).length <= (int64_t)((uint64_t)((int64_t)(helper).length) + UINT64_C(7));
+        bool value_1 = value_0;
+        if (!value_1) {
+            bool value_2 = false;
+            {
+                String text = name;
+                String prefix = helper;
+                value_2 = (int64_t)(text).length >= (int64_t)(prefix).length && StringEqual(StringRangeAt(text, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
+            }
+            value_1 = !value_2;
+        }
+        if (value_1 || !StringEqual(StringRangeAt(name, (int64_t)(int64_t)(helper).length, (int64_t)((int64_t)((uint64_t)((int64_t)(helper).length) + UINT64_C(7)))), StringLiteral("_field_"))) {
+            continue;
+        }
+        bool digits = true;
+        {
+            String value_4 = StringRangeAt(name, (int64_t)((int64_t)((uint64_t)((int64_t)(helper).length) + UINT64_C(7))), (int64_t)(int64_t)(name).length);
+            String loop_view_14 = StringRangeAt(value_4, (int64_t)0, (int64_t)value_4.length);
+            int64_t loop_count_14 = (int64_t)(loop_view_14).length;
+            int64_t loop_cursor_14 = 0LL;
+            while (loop_cursor_14 < loop_count_14) {
+                int64_t loop_index_14 = loop_cursor_14;
+                uint8_t byte = (uint8_t)loop_view_14.data[loop_index_14];
+                if (byte < 48 || byte > 57) {
+                    digits = false;
+                    break;
+                }
+                loop_cursor_14 = (int64_t)((uint64_t)loop_cursor_14 + UINT64_C(1));
+            }
+        }
+        if (!digits) {
+            continue;
+        }
+        bool value_5 = compiler_parse_ExprAppend(output, &(used), StringRangeAt(value, (int64_t)copied, (int64_t)token.begin));
+        bool value_6 = !value_5;
+        if (!value_6) {
+            bool value_7 = compiler_parse_ExprAppend(output, &(used), StringRangeAt(target, (int64_t)0LL, (int64_t)dot));
+            value_6 = !value_7;
+        }
+        bool value_8 = value_6;
+        if (!value_8) {
+            bool value_9 = compiler_parse_ExprAppend(output, &(used), StringLiteral("."));
+            value_8 = !value_9;
+        }
+        bool value_10 = value_8;
+        if (!value_10) {
+            bool value_11 = compiler_parse_ExprAppend(output, &(used), name);
+            value_10 = !value_11;
+        }
+        if (value_10) {
+            return false;
+        }
+        copied = token.end;
+    }
+    return compiler_parse_ExprAppend(output, &(used), StringRangeAt(value, (int64_t)copied, (int64_t)(int64_t)(value).length));
+}
+
+static PreparedDefault
+compiler_parse_PrepareDefault(ZirModule* module, ZirSourceSpan span, ZirFunction* function, ZirModule* owner, String target, int32_t index, String value, Slice output)
+{
+    if (StringEqual(value, StringLiteral("#caller_location"))) {
+        String location = compiler_parse_CallerLocationText(module, span, output);
+        return (PreparedDefault){.text = location, .valid = (int64_t)(location).length > 0LL};
+    }
+    compiler_ir_CopyText(output, value);
+    if (zir_f_1c72792874eb8388_ExprDefaultIsLiteral(&(((uint8_t *)output.data)[0])) != 0) {
+        return (PreparedDefault){.text = value, .valid = true};
+    }
+    uint8_t helper[128] = {0};
+    zir_f_1c72792874eb8388_ExprDefaultHelperName(function, index, &(helper[0]), 128);
+    Slice value_0 = {helper, 128};
+    String name = compiler_ir_BufferText(value_0);
+    bool has_helper = function->is_template == 0;
+    if (!has_helper && owner != ((void *)0)) {
+        {
+            int32_t range_first_13 = 0;
+            int32_t range_last_13 = (int32_t)((uint32_t)(owner->function_count) - 1u);
+            int32_t i = range_first_13;
+            if (i <= range_last_13) for (;;) {
+                Slice value_1 = {(owner->functions[i]).name, 128};
+                String value_2 = compiler_ir_BufferText(value_1);
+                if (StringEqual(value_2, name)) {
+                    has_helper = true;
+                    break;
+                }
+                if (i == range_last_13) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+            }
+        }
+    }
+    int64_t dot = compiler_parse_ByteIndex(target, 46);
+    if (has_helper) {
+        int64_t used = 0LL;
+        bool value_3 = dot >= 0LL;
+        bool value_4 = value_3;
+        if (value_4) {
+            bool value_5 = compiler_parse_ExprAppend(output, &(used), StringRangeAt(target, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)dot + UINT64_C(1)))));
+            value_4 = !value_5;
+        }
+        if (value_4) {
+            return (PreparedDefault){0};
+        }
+        bool value_6 = compiler_parse_ExprAppend(output, &(used), name);
+        bool value_7 = !value_6;
+        if (!value_7) {
+            bool value_8 = compiler_parse_ExprAppend(output, &(used), StringLiteral("()"));
+            value_7 = !value_8;
+        }
+        if (value_7) {
+            return (PreparedDefault){0};
+        }
+        PreparedDefault value_9 = {0};
+        Slice value_10 = output;
+        Slice value_11 = SliceRangeAt(value_10, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
+        value_9.text = StringView((const char *)(value_11).data, (size_t)(value_11).length);
+        value_9.valid = true;
+        return value_9;
+    }
+    bool value_12 = compiler_parse_QualifiedFieldDefault(value, name, target, dot, output);
+    if (!value_12) {
+        return (PreparedDefault){0};
+    }
+    PreparedDefault value_13 = {0};
+    String value_14 = compiler_ir_BufferText(output);
+    value_13.text = value_14;
+    value_13.valid = true;
+    return value_13;
+}
+
+int32_t
+compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected_type, int32_t stmt_index, int32_t default_depth)
 {
     int64_t value_0 = compiler_text_SkipSpace(text, 0LL, false);
     int64_t value_1 = (int64_t)(text).length;
     if (value_0 == value_1) {
         return -1;
     }
-    Parser p = {.fn = fn, .module = module, .span = span, .source = text, .expected_type = expected_type, .stmt_index = stmt_index, .expand_defaults = expand_defaults, .span_cursor = span};
+    Parser p = {.fn = fn, .module = module, .span = span, .source = text, .expected_type = expected_type, .stmt_index = stmt_index, .default_depth = default_depth, .span_cursor = span};
     if (stmt_index >= 0 && stmt_index < fn->stmt_count && (fn->stmts[stmt_index]).checks != 0) {
         int32_t* value_2 = &(p.checks);
         (*value_2) = 1;
@@ -1147,10 +2173,10 @@ compiler_parse_ParsePostfix(Parser* p, int64_t start, int32_t initial)
                                 (*value_172) = true;
                             }
                         }
-                        bool value_173 = !p->failed && p->expand_defaults;
+                        bool value_173 = !p->failed && p->default_depth >= 0;
                         bool value_174 = value_173;
                         if (value_174) {
-                            bool value_175 = compiler_services_ExpandDefaults(p->fn, p->module, p->span, p->stmt_index, callee, &(first), &(last));
+                            bool value_175 = compiler_parse_ExpandCallDefaults(p->fn, p->module, p->span, p->stmt_index, callee, &(first), &(last), p->default_depth);
                             value_174 = !value_175;
                         }
                         if (value_174) {

@@ -32,10 +32,9 @@ typedef struct ParseRecovery {
     struct ParseRecovery *previous;
     CompilerMemory *memory;
     void *expression_cache;
-    int arrays, law, defaults;
+    int arrays, law;
 } ParseRecovery;
 extern _Thread_local ParseRecovery *ZirParseRecovery;
-extern _Thread_local int ZirDefaultExpansionDepth;
 void *ParseCacheEnter(void);
 void ParseCacheLeave(void *previous);
 

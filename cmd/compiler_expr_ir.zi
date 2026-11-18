@@ -1,0 +1,346 @@
+// Build expression IR for C frontend callers and expand call-site defaults.
+#scope_export
+#program_export "CompilerParseExpr"
+ExprUntyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *void, span: IR.ZirSourceSpan) -> s32 {
+    return ParseSourceExpr(fn, module, IR.CText(cast(*u8)text), span, "", -1, 0)
+}
+
+#program_export "CompilerParseExprNoDefaults"
+ExprNoDefaults :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *void, span: IR.ZirSourceSpan) -> s32 {
+    return ParseSourceExpr(fn, module, IR.CText(cast(*u8)text), span, "", -1, -1)
+}
+
+#program_export "CompilerParseExprTyped"
+ExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *void, span: IR.ZirSourceSpan, expected: *void) -> s32 {
+    return ParseSourceExpr(fn, module, IR.CText(cast(*u8)text), span, IR.CText(cast(*u8)expected), -1, -1)
+}
+
+// The proof and lowering modules import these signatures through #foreign.
+#program_export "ParseExprNoDefaults"
+ExprForProof :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 {
+    return ExprNoDefaults(fn, module, cast(*void)text, span)
+}
+
+#program_export "ParseExprTyped"
+ExprForLowering :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan, expected: *u8) -> s32 {
+    return ExprTyped(fn, module, cast(*void)text, span, cast(*void)expected)
+}
+
+#program_export "CompilerDefineIsAggregate"
+ExprDefineIsAggregate :: (module: *IR.ZirModule, definition: *IR.ZirDefine) -> s32 {
+    probe: IR.ZirFunction
+    defer ExprFree(cast(*void)probe.exprs)
+    root := ExprUntyped(*probe, module, cast(*void)definition.value, definition.span)
+    return ifx root >= 0 && probe.exprs[root].kind == IR.ZirExprKind.COMPOUND then 1 else 0
+}
+
+#program_export "CompilerCallerLocationLiteral"
+ExprCallerLocation :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, output: *void, capacity: usize) -> s32 {
+    return ifx CallerLocationText(module, span, IR.CBuffer(cast(*u8)output, capacity)).count > 0 then 1 else 0
+}
+
+#program_export "CompilerStructureFunction"
+ExprStructureFunction :: (fn: *IR.ZirFunction, module: *IR.ZirModule) {
+    ExprFree(cast(*void)fn.exprs)
+    fn.exprs = null; fn.expr_count = 0; fn.expr_cap = 0
+    for i: cast(s32)0..fn.stmt_count - 1 {
+        statement := *fn.stmts[i]
+        statement.expr_root = -1; statement.lhs_root = -1
+        text := IR.CText(statement.text)
+        if statement.kind == IR.ZirStmtKind.BLOCK_OPEN {
+            if HasPrefix(text, "#asm") && (text.count == 4 || !Text.IdentifierByte(text[4])) {
+                // An existing resolved block belongs to the checked function.
+                if IR.CText(statement.assembly_text).count == 0 {
+                    assembly := ExprAssemblyBlockText(statement.text, statement.span)
+                    statement.names = .{assembly_text = assembly}
+                }
+                if statement.assembly_text == null { ExprExit(1) }
+                continue
+            }
+            empty := ExprCString("")
+            statement.names = .{assembly_text = empty}
+        }
+        if statement.is_using != 0 && statement.kind == IR.ZirStmtKind.EXPR {
+            statement.expr_root = ParseExpression(fn, module, "0", statement.span, "", -1, -1)
+            continue
+        }
+        parts := Expression.StatementParts(text, cast(ExprSource.StatementKind)statement.kind)
+        statement.is_else = ifx parts.is_else then 1 else 0
+        if parts.error == Expression.StatementExpressionError.Modifier {
+            prefix := "unknown declaration modifier: "
+            message: [IR.ZIR_TEXT_MAX * 2]u8
+            unused IR.CopyText(message[:], prefix)
+            unused IR.CopyText(message[prefix.count:], parts.modifier)
+            Services.Fatal(statement.span, "parse.modifier", IR.BufferText(message[:]))
+        }
+        if parts.error == Expression.StatementExpressionError.ArrayLiteral {
+            Services.Fatal(statement.span, "parse.jai_syntax", "C-style array literal is not valid Jai syntax; use .[...]")
+        }
+        if parts.has_declaration {
+            name := ExprName(parts.name)
+            type := ExprName(parts.type)
+            statement.names = .{name = name}
+            statement.type = type
+        }
+        if parts.assignment.count != 0 {
+            unused IR.CopyText(statement.assignment_op[:], parts.assignment)
+            statement.lhs_root = ParseSourceExpr(fn, module, parts.lhs, statement.span, "", i, 0)
+        }
+        if parts.has_value {
+            expected := ifx statement.kind == IR.ZirStmtKind.DECL then IR.CText(statement.type) else ""
+            statement.expr_root = ParseSourceExpr(fn, module, parts.value, statement.span, expected, i, 0)
+        }
+    }
+}
+
+// Depth belongs to this parse. Parser recovery can discard the call stack
+// without restoring a thread-local default expansion counter.
+ExpandCallDefaults :: (fn: *IR.ZirFunction, module: *IR.ZirModule, span: IR.ZirSourceSpan,
+    stmt_index: s32, callee: s32, first: *s32, last: *s32, depth: s32) -> bool {
+    if module == null || depth >= 32 || callee < 0 { return true }
+    target_buffer: [IR.ZIR_NAME_MAX]u8
+    target := CallTarget(fn, callee, target_buffer[:])
+    if target.count == 0 { return true }
+    owner: *IR.ZirModule
+    function: *IR.ZirFunction
+    if Services.ResolveFunction(module, ExprCString(target), Services.SpanPath(span), *owner, *function) != 1 || function == null { return true }
+    defaults := IR.CText(function.default_args_text)
+    if defaults.count == 0 || CallNameShadowed(fn, stmt_index, target) { return true }
+
+    parameters: [64]string
+    values: [64]string
+    count := SplitParameterText(IR.CText(function.args_text), parameters[:])
+    // Signature and argument errors belong to the checker.
+    if count != SplitParameterText(defaults, values[:]) { return true }
+    bound: [64]bool
+    child := <<first
+    while child >= 0 {
+        name := IR.CText(fn.exprs[child].argument_name)
+        index: s64 = 0
+        while index < count {
+            if ifx name.count != 0 then ParameterName(parameters[index]) == name else !bound[index] { break }
+            index += 1
+        }
+        if index == count || bound[index] { return true }
+        bound[index] = true
+        child = fn.exprs[child].next_sibling
+    }
+    scratch := cast(*u8)ExprMalloc(IR.ZIR_TEXT_MAX)
+    if scratch == null { return false }
+    defer ExprFree(cast(*void)scratch)
+    buffer := IR.CBuffer(scratch, IR.ZIR_TEXT_MAX)
+    for i: 0..count - 1 {
+        if bound[i] { continue }
+        declaration := values[i]
+        assignment := Text.TopLevelAssignment(declaration)
+        parameter := parameters[i]
+        colon := ByteIndex(parameter, #char ":")
+        if assignment < 0 || colon < 0 { continue }
+        prepared := PrepareDefault(module, fn.exprs[callee].span, function, owner, target,
+            cast(s32)i, declaration[Text.SkipSpace(declaration, assignment + 1, false):declaration.count], buffer)
+        if !prepared.valid { return false }
+        argument := ParseSourceExpr(fn, module, prepared.text, span, "", stmt_index, depth + 1)
+        if argument < 0 { return false }
+        name := Services.KeepName(TrimExpression(parameter[0:colon]))
+        fn.exprs[argument].argument_name = name
+        if <<last >= 0 { fn.exprs[<<last].next_sibling = argument }
+        else { <<first = argument }
+        <<last = argument
+    }
+    return true
+}
+
+#scope_file
+ExprSource :: #import "compiler_source";
+expr_compiler :: #system_library "ziran";
+expr_libc :: #system_library "libc";
+ExprMalloc :: (bytes: usize) -> *void #foreign expr_compiler "CompilerMalloc";
+ExprAllocate :: (bytes: usize) -> *void #foreign expr_compiler "AllocateOrExit";
+ExprFree :: (memory: *void) #foreign expr_compiler "CompilerFree";
+ExprRawExpand :: (text: *u8) -> *u8 #foreign expr_compiler "RawTextExpand";
+ExprAbsolutePath :: (path: *u8) -> s32 #foreign expr_compiler "PathIsAbsolute";
+ExprCanonicalPath :: (path: *u8) -> *u8 #foreign expr_compiler "CanonicalPath";
+ExprAssemblyBlockText :: (text: *u8, span: IR.ZirSourceSpan) -> *u8 #foreign expr_compiler "AssemblyBlockText";
+ExprDefaultIsLiteral :: (text: *u8) -> s32 #foreign expr_compiler "DefaultIsLiteral";
+ExprDefaultHelperName :: (function: *IR.ZirFunction, parameter: s32, output: *u8, size: usize) #foreign expr_compiler "FunctionDefaultHelperName";
+ExprExit :: (status: s32) #foreign expr_libc "exit";
+
+ExprText :: struct { data: *u8; count: usize }
+ExprCString :: (text: string) -> *u8 { return (cast(*ExprText)(*text)).data }
+
+ByteIndex :: (text: string, wanted: u8) -> s64 {
+    for byte, index: text { if byte == wanted { return index } }
+    return -1
+}
+HasPrefix :: (text: string, prefix: string) -> bool {
+    return text.count >= prefix.count && text[0:prefix.count] == prefix
+}
+TrimExpression :: (text: string) -> string {
+    range := Text.TrimRange(text)
+    return text[range.begin:range.end]
+}
+ExprName :: (text: string) -> *u8 {
+    limit := cast(s64)(IR.ZIR_NAME_MAX - 1)
+    return Services.KeepName(ifx text.count <= limit then text else text[0:limit])
+}
+
+ParseSourceExpr :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: string, span: IR.ZirSourceSpan,
+    expected: string, stmt_index: s32, default_depth: s32) -> s32 {
+    if ByteIndex(text, 31) < 0 { return ParseExpression(fn, module, text, span, expected, stmt_index, default_depth) }
+    size := cast(usize)text.count + 1
+    copy := cast(*u8)ExprAllocate(size)
+    defer ExprFree(cast(*void)copy)
+    unused IR.CopyText(IR.CBuffer(copy, size), text)
+    expanded := ExprRawExpand(copy)
+    defer ExprFree(cast(*void)expanded)
+    source := ifx expanded == null then text else IR.CText(expanded)
+    return ParseExpression(fn, module, source, span, expected, stmt_index, default_depth)
+}
+
+// Append text while maintaining a terminating NUL for C boundary calls.
+ExprAppend :: (output: []u8, at: *s64, text: string) -> bool {
+    if text.count >= output.count - <<at { return false }
+    unused IR.CopyText(output[<<at:output.count], text)
+    <<at += text.count
+    return true
+}
+
+CallerLocationText :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, output: []u8) -> string {
+    candidate: [IR.ZIR_PATH_MAX * 2]u8
+    path := Services.SpanPath(span)
+    root := IR.BufferText(module.source_root[:])
+    if ExprAbsolutePath(path) == 0 && root.count != 0 {
+        used: s64 = 0
+        if !ExprAppend(candidate[:], *used, root) || !ExprAppend(candidate[:], *used, "/") ||
+            !ExprAppend(candidate[:], *used, IR.CText(path)) { return "" }
+        path = *candidate[0]
+    }
+    canonical := ExprCanonicalPath(path)
+    defer ExprFree(cast(*void)canonical)
+    if canonical != null { path = canonical }
+    text := IR.CText(path)
+    if ExprAbsolutePath(path) == 0 || text.count >= IR.ZIR_PATH_MAX { return "" }
+    escaped: [IR.ZIR_TEXT_MAX]u8
+    length := Text.EscapeCString(text, escaped[:])
+    if length >= escaped.count - 1 { return "" }
+    line: [12]u8
+    i := cast(s64)line.count
+    remaining := cast(s64)span.line
+    if remaining < 0 { remaining = -remaining }
+    while true {
+        i -= 1
+        line[i] = cast(u8)(48 + remaining % 10)
+        remaining /= 10
+        if remaining == 0 { break }
+    }
+    if span.line < 0 { i -= 1; line[i] = #char "-" }
+    used: s64 = 0
+    if !ExprAppend(output, *used, "Source_Code_Location.{.fully_pathed_filename = \"") ||
+        !ExprAppend(output, *used, TextView(escaped[0:length])) ||
+        !ExprAppend(output, *used, "\", .line_number = ") ||
+        !ExprAppend(output, *used, TextView(line[i:line.count])) || !ExprAppend(output, *used, "}") { return "" }
+    return TextView(output[0:used])
+}
+
+CallTarget :: (fn: *IR.ZirFunction, callee: s32, output: []u8) -> string {
+    node := *fn.exprs[callee]
+    if node.kind == IR.ZirExprKind.IDENT { return IR.CText(node.name) }
+    if node.kind != IR.ZirExprKind.MEMBER || node.left < 0 || fn.exprs[node.left].kind != IR.ZirExprKind.IDENT { return "" }
+    used: s64 = 0
+    if !ExprAppend(output, *used, IR.CText(fn.exprs[node.left].name)) ||
+        !ExprAppend(output, *used, ".") || !ExprAppend(output, *used, IR.CText(node.name)) { return "" }
+    return TextView(output[0:used])
+}
+
+ParameterName :: (declaration: string) -> string {
+    colon := ByteIndex(declaration, #char ":")
+    if colon < 0 { return "" }
+    return TrimExpression(declaration[0:colon])
+}
+
+SplitParameterText :: (text: string, output: []string) -> s64 {
+    count: s64 = 0
+    at: s64 = 0
+    while at >= 0 && count < output.count {
+        part := Text.NextSourcePart(text, at)
+        if part.end - part.begin < IR.ZIR_TEXT_MAX {
+            output[count] = TrimExpression(text[part.begin:part.end])
+            count += 1
+        }
+        at = part.next
+    }
+    return count
+}
+
+CallNameShadowed :: (fn: *IR.ZirFunction, stmt_index: s32, name: string) -> bool {
+    if stmt_index < 0 || ByteIndex(name, #char ".") >= 0 { return false }
+    parameters: [64]string
+    count := SplitParameterText(IR.CText(fn.args_text), parameters[:])
+    for i: 0..count - 1 { if ParameterName(parameters[i]) == name { return true } }
+    depth: s32 = 0
+    bindings: s64 = 0
+    binding_depths: [128]s32
+    for i: cast(s32)0..stmt_index - 1 {
+        statement := *fn.stmts[i]
+        if statement.kind == IR.ZirStmtKind.BLOCK_CLOSE {
+            while bindings > 0 && binding_depths[bindings - 1] == depth { bindings -= 1 }
+            if depth > 0 { depth -= 1 }
+        }
+        if statement.kind == IR.ZirStmtKind.DECL && IR.CText(statement.name) == name && bindings < binding_depths.count {
+            binding_depths[bindings] = depth; bindings += 1
+        }
+        if statement.kind == IR.ZirStmtKind.BLOCK_OPEN || statement.kind == IR.ZirStmtKind.IF ||
+            statement.kind == IR.ZirStmtKind.WHILE || statement.kind == IR.ZirStmtKind.FOR { depth += 1 }
+    }
+    return bindings > 0
+}
+
+QualifiedFieldDefault :: (value: string, helper: string, target: string, dot: s64, output: []u8) -> bool {
+    at: s64 = 0
+    copied: s64 = 0
+    used: s64 = 0
+    while dot >= 0 {
+        token := Scan.NextToken(value, at, 1, 1)
+        if token.kind == Scan.TokenKind.Eof { break }
+        at = token.end
+        name := value[token.begin:token.end]
+        if token.kind != Scan.TokenKind.Ident || name.count >= IR.ZIR_TEXT_MAX ||
+            name.count <= helper.count + 7 || !HasPrefix(name, helper) || name[helper.count:helper.count + 7] != "_field_" { continue }
+        digits := true
+        for byte: name[helper.count + 7:name.count] { if byte < #char "0" || byte > #char "9" { digits = false; break } }
+        if !digits { continue }
+        if !ExprAppend(output, *used, value[copied:token.begin]) || !ExprAppend(output, *used, target[0:dot]) ||
+            !ExprAppend(output, *used, ".") || !ExprAppend(output, *used, name) { return false }
+        copied = token.end
+    }
+    return ExprAppend(output, *used, value[copied:value.count])
+}
+
+PreparedDefault :: struct { text: string; valid: bool }
+PrepareDefault :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, function: *IR.ZirFunction,
+    owner: *IR.ZirModule, target: string, index: s32, value: string, output: []u8) -> PreparedDefault {
+    if value == "#caller_location" {
+        location := CallerLocationText(module, span, output)
+        return .{location, location.count > 0}
+    }
+    unused IR.CopyText(output, value)
+    if ExprDefaultIsLiteral(*output[0]) != 0 { return .{value, true} }
+    helper: [IR.ZIR_NAME_MAX]u8
+    ExprDefaultHelperName(function, index, *helper[0], IR.ZIR_NAME_MAX)
+    name := IR.BufferText(helper[:])
+    has_helper := function.is_template == 0
+    if !has_helper && owner != null {
+        for i: cast(s32)0..owner.function_count - 1 {
+            if IR.BufferText(owner.functions[i].name[:]) == name { has_helper = true; break }
+        }
+    }
+    dot := ByteIndex(target, #char ".")
+    if has_helper {
+        used: s64 = 0
+        if dot >= 0 && !ExprAppend(output, *used, target[0:dot + 1]) { return .{} }
+        if !ExprAppend(output, *used, name) || !ExprAppend(output, *used, "()") { return .{} }
+        return .{TextView(output[0:used]), true}
+    }
+    if !QualifiedFieldDefault(value, name, target, dot, output) { return .{} }
+    return .{IR.BufferText(output), true}
+}

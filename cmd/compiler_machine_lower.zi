@@ -64,6 +64,9 @@ AggregateLowering :: struct {
     stack_size: Vec(s64)
     size: Vec(s64)
     pointer_to: Vec(s32)
+    // Per value: ZeroBuildLowered or ZeroBuildSkipped for an all-zero
+    // aggregate build (see PlanZeroBuilds), else 0.
+    zero: Vec(u8)
 }
 
 AggregateLoweringFree :: (lowering: *AggregateLowering) {
@@ -71,6 +74,7 @@ AggregateLoweringFree :: (lowering: *AggregateLowering) {
     VecFree(lowering.view_address)
     VecFree(lowering.field_begin)
     VecFree(lowering.fields)
+    VecFree(lowering.zero)
     VecFree(lowering.alias)
     VecFree(lowering.stack_size)
     VecFree(lowering.size)
@@ -1498,6 +1502,120 @@ DropCovered :: (state: *LowerState, source: LirFunction) -> bool {
     return true
 }
 
+// An aggregate build whose every member is a zero constant or another such
+// build holds only zero bytes, so unchecked code zeroes its frame object in
+// one loop instead of storing each member: a zeroed [241]ShoveyGame was
+// 289,200 stores, megabytes of code. A zero build used only as a member of
+// zero builds emits nothing, as its parent's zeroing covers it, and the zero
+// constants these builds no longer read lose those uses.
+ZeroBuildLowered :: 1
+ZeroBuildSkipped :: 2
+// Members are defined before their builds, so sweeps in block order reach
+// any realistic nesting quickly; a deeper build keeps its member stores.
+ZeroBuildSweeps :: 16
+
+// The class of VALUE, or one it is built inside, lies in the caller's result
+// memory, where no frame address reaches it.
+InResult :: (plan: *MachineAggregatePlan, value: s32) -> bool {
+    at := plan.slot[value]
+    for step: 0..63 {
+        if at < 0 { return false }
+        root := plan.place_root[at]
+        if root == MachineAggregateInResult { return true }
+        if root == MachineNoId { return false }
+        at = plan.slot[root]
+    }
+    return true
+}
+
+PlanZeroBuilds :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
+    lowering := state.aggregates
+    plan := *lowering.plan
+    count := source.values.count
+    if !VecResizeBounded(lowering.zero, count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..count - 1 { lowering.zero[at] = 0 }
+    if state.checks { return true }
+    // Integer, Boolean, float and null zeros all have zero bits.
+    zeros: Vec(bool)
+    defer VecFree(zeros)
+    if !VecResizeBounded(zeros, count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..count - 1 { zeros[at] = false }
+    for block: source.blocks {
+        if !Spend(state, block.instructions.count) { return false }
+        for instruction: block.instructions {
+            if instruction.result < 0 { continue }
+            if instruction.op == .Null ||
+                instruction.op == .Constant && state.lir.constants[instruction.symbol].bits == 0 { zeros[instruction.result] = true }
+        }
+    }
+    changed := true
+    sweeps: s64
+    while changed && sweeps < ZeroBuildSweeps {
+        changed = false
+        sweeps += 1
+        for block: source.blocks {
+            if !Spend(state, block.instructions.count) { return false }
+            for instruction: block.instructions {
+                result := instruction.result
+                // A split record keeps its fields in registers and emits
+                // nothing here, but can still be a zero member.
+                if instruction.op != .Aggregate || result < 0 || lowering.zero[result] != 0 ||
+                    instruction.operands.count == 0 || lowering.stack_size[source.values[result]] <= 0 ||
+                    plan.covered[result] || !plan.split[result] && (InResult(plan, result) ||
+                    state.owner.virtuals[function.virtual_begin + result].stack_object == MachineNoId) { continue }
+                if !Spend(state, instruction.operands.count) { return false }
+                zero := true
+                for operand: instruction.operands {
+                    if operand < 0 || lowering.zero[operand] == 0 && !zeros[operand] { zero = false; break }
+                }
+                if zero { lowering.zero[result] = ZeroBuildLowered; changed = true }
+            }
+        }
+    }
+    members: Vec(s32)
+    defer VecFree(members)
+    if !VecResizeBounded(members, count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..count - 1 { members[at] = 0 }
+    for block: source.blocks {
+        for instruction: block.instructions {
+            if instruction.op != .Aggregate || instruction.result < 0 || lowering.zero[instruction.result] == 0 { continue }
+            for operand: instruction.operands { if lowering.zero[operand] != 0 { members[operand] += 1 } }
+        }
+    }
+    for value: cast(s64)0..count - 1 {
+        if lowering.zero[value] != 0 && members[value] == state.select.uses[value] { lowering.zero[value] = ZeroBuildSkipped }
+    }
+    // A split zero record read elsewhere keeps its constant fields. A
+    // constant is left unloaded only once nothing uses it, so one a vector
+    // prefix must materialize stays loaded.
+    for block: source.blocks {
+        for instruction: block.instructions {
+            result := instruction.result
+            if instruction.op != .Aggregate || result < 0 || lowering.zero[result] == 0 ||
+                plan.split[result] && lowering.zero[result] != ZeroBuildSkipped { continue }
+            for operand: instruction.operands {
+                if lowering.zero[operand] != 0 { continue }
+                if state.select.uses[operand] > 0 { state.select.uses[operand] -= 1 }
+                if state.select.uses[operand] == 0 { state.select.loaded[operand] = false }
+            }
+        }
+    }
+    return true
+}
+
+// A zero build zeroes its frame object through its frame address.
+LowerZeroBuild :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> bool {
+    if state.aggregates.zero[source.result] == ZeroBuildSkipped { return true }
+    stored := state.owner.virtuals[GlobalVirtual(state, function, source.result)]
+    address := AddressVirtual(state, function, stored.type)
+    if address == MachineNoId { return false }
+    frame := BeginInstruction(state, .StackAddress, source.origin)
+    if VirtualOperand(state, address, .Define) == MachineNoId || StackOperand(state, stored.stack_object) == MachineNoId ||
+        FinishInstruction(state, frame) == MachineNoId { return false }
+    zero := BeginInstruction(state, .Zero, source.origin)
+    return VirtualOperand(state, address, .Use) != MachineNoId && FinishInstruction(state, zero) != MachineNoId
+}
+
 // Each view that computes an address gets the virtual holding it; every other
 // view takes the virtual of the view whose address it shares.
 ViewAddresses :: (state: *LowerState, function: *MachineFunction, source: LirFunction) -> bool {
@@ -1647,6 +1765,7 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
     // A forwarded extract stands for the value it reads.
     if source.op == .Extract && source.result >= 0 && state.aggregates.alias[source.result] != MachineNoId { return true }
     if source.op == .Aggregate && state.aggregates.plan.covered[source.result] { return true }
+    if source.op == .Aggregate && state.aggregates.zero[source.result] != 0 { return LowerZeroBuild(state, function, source) }
     if source.op == .Aggregate { return LowerMove(state, function, source, .AggregateBuild) }
     if source.op == .Extract { return LowerExtract(state, function, source) }
     if source.op == .Insert { return LowerInsert(state, function, source) }
@@ -1758,10 +1877,11 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
         if !Spend(state, vectors.work) { return false }
     }
     function := state.owner.functions[function_id]
-    // Views read and change members in place through x86-64 address
-    // registers; other targets share storage only.
+    // Views read and change members in place through an address register on
+    // every target, so reading a member of a large record or global never
+    // copies the whole aggregate into the frame.
     problem := MachineAggregatePlanBuild(*state.aggregates.plan, state.lir, source, state.aggregates.stack_size[:],
-        state.aggregates.size[:], state.target.arch == .X86_64,
+        state.aggregates.size[:], true,
         state.target.arch == .X86_64 && MachineAbiResultPointerRegister(state.target) >= 0,
         state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
@@ -1784,7 +1904,7 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
         state.select.loaded[loop.seed] = true
     }
     problem = MachineFieldsPlanBuild(state.fields, source, *state.aggregates.plan, state.aggregates.stack_size[:],
-        state.select.address_shift[:], x86 && !state.checks, state.remaining, state.limits.bytes)
+        state.select.address_shift[:], !state.checks, state.remaining, state.limits.bytes)
     if problem != .None { return Fail(state, problem) }
     if !Spend(state, state.fields.work) || !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]
@@ -1792,7 +1912,7 @@ LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     function.result_register = state.aggregates.plan.result_placed
     if !ViewAddresses(state, *function, source) || !SplitFields(state, *function, source) ||
         !FoldZeroElements(state, *function, source) || !DropCovered(state, source) ||
-        !ForwardExtracts(state, *function, source) { return false }
+        !PlanZeroBuilds(state, *function, source) || !ForwardExtracts(state, *function, source) { return false }
     ResolveAliasChains(state, *function)
     // A function that allocates keeps the frame arena's top at entry and
     // the head of its pointer chain in two frame words. Each `allocate` gets

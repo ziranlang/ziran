@@ -3,6 +3,7 @@ using Lower :: #import "compiler_machine_lower"
 using Machine :: #import "compiler_machine_ir"
 using Verify :: #import "compiler_machine_verify"
 using Target :: #import "compiler_target"
+using Pipeline :: #import "compiler_machine_pipeline"
 
 #scope_file
 
@@ -10,10 +11,43 @@ Instruction :: (op: Lir.LirOp, result: s32 = -1) -> Lir.LirInstruction {
     return .{op = op, result = result, symbol = -1, origin = -1}
 }
 
+// Every native target reads and changes members in place: ARM code once
+// copied the whole record for each member read, which made frames larger
+// than a thread's stack (Shovey's LevelReplayPump).
+Targets :: () -> [3]Target.TargetDescription {
+    return Target.TargetDescription.[Target.TargetLinuxX64(), Target.TargetDescribe(.ArmV7, .Android).target,
+        Target.TargetDescribe(.AArch64, .Android).target]
+}
+
+// PROGRAM lowers, verifies and encodes for TARGET; its lowered form is in OWNER.
+Lowered :: (owner: *Machine.MachineOwner, program: Lir.LirProgram, target: Target.TargetDescription,
+    what: string) -> bool {
+    limits := Machine.MachineDefaultLimits()
+    lowered := Lower.MachineLower(owner, program, target, Machine.MachineDefaultOptions(), limits)
+    if lowered.problem != .None {
+        print("% lowering failed: arch % problem % lir %\n", what, cast(s32)target.arch,
+            cast(s32)lowered.problem, lowered.lir_diagnostic_problem)
+        return false
+    }
+    if Verify.MachineVerify(Lower.MachineProgramView(owner), limits).problem != .None {
+        print("% verification failed: arch %\n", what, cast(s32)target.arch)
+        return false
+    }
+    native: Pipeline.MachineNativeOwner
+    defer Pipeline.MachineNativeFree(*native)
+    built := Pipeline.MachineCodeBuild(program, target, limits, *native)
+    if built.problem != .None {
+        print("% encoding failed: arch % problem % instruction %\n", what, cast(s32)target.arch,
+            cast(s32)built.problem, built.instruction)
+        return false
+    }
+    return true
+}
+
 // A 128 KiB record read by one scalar field, through a nested array, across
 // a write/call, through a nested view across a write, across blocks, or
 // as a complete escaping snapshot.
-Fixture :: (owner: *Machine.MachineOwner, mode: s32, checks: bool) -> bool {
+Fixture :: (owner: *Machine.MachineOwner, target: Target.TargetDescription, mode: s32, checks: bool) -> bool {
     modules := string.["fields"]
     fields := s32.[2, 1]
     types := Lir.LirType.[.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true},
@@ -84,15 +118,8 @@ Fixture :: (owner: *Machine.MachineOwner, mode: s32, checks: bool) -> bool {
         .{module = 0, name = "barrier", result = 0, blocks = empty_blocks[:], entry = 0, origin = -1}]
     program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
         constants = constants[:], globals = globals[:], functions = functions[:], entry = 0, checks = checks}
-    limits := Machine.MachineDefaultLimits()
-    lowered := Lower.MachineLower(owner, program, Target.TargetLinuxX64(), Machine.MachineDefaultOptions(), limits)
-    if lowered.problem != .None {
-        print("field lowering failed: mode % checks % problem % lir %\n", mode, checks,
-            cast(s32)lowered.problem, lowered.lir_diagnostic_problem)
-        return false
-    }
+    if !Lowered(owner, program, target, "field") { return false }
     mir := Lower.MachineProgramView(owner)
-    if Verify.MachineVerify(mir, limits).problem != .None { return false }
     copies: s64
     for instruction: mir.instructions {
         if instruction.opcode != .Load { continue }
@@ -101,8 +128,75 @@ Fixture :: (owner: *Machine.MachineOwner, mode: s32, checks: bool) -> bool {
     }
     preserve := checks || mode == 1 || mode == 2 || mode == 4 || mode == 5 || mode == 6
     if (copies > 0) != preserve || !preserve && mir.stack_objects.count != 0 {
-        print("field snapshot failed: mode % checks % copies % objects %\n",
-            mode, checks, copies, mir.stack_objects.count)
+        print("field snapshot failed: arch % mode % checks % copies % objects %\n",
+            cast(s32)target.arch, mode, checks, copies, mir.stack_objects.count)
+        return false
+    }
+    return true
+}
+
+// Zero builds stored to a global. A record of a 64-element zero array and
+// an s32 member: all zero (one zeroing, no member stores), with a nonzero
+// member (the array alone is zeroed, then the record built), or with
+// --checks (every member stored, as checked code zeroes nothing through a
+// raw address). An array of 8 small records, each kept as split fields, is
+// zeroed once too.
+ZeroFixture :: (owner: *Machine.MachineOwner, target: Target.TargetDescription, nonzero: bool, checks: bool,
+    records: bool = false) -> bool {
+    modules := string.["zero"]
+    fields := s32.[2, 1]
+    small := s32.[1, 6]
+    types := Lir.LirType.[.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true},
+        .{kind = .Array, element = 1, count = 64}, .{kind = .Record, fields = fields[:]},
+        .{kind = .Pointer, element = 3}, .{kind = .Record, fields = small[:]}, .{kind = .Float, bits = 64},
+        .{kind = .Array, element = 5, count = 8}, .{kind = .Pointer, element = 7}]
+    constants := Lir.LirConstant.[.{type = 1, bits = 0}, .{type = 1, bits = 42}, .{type = 6, bits = 0}]
+    globals := Lir.LirGlobal.[.{module = 0, name = "record", type = ifx records then cast(s32)7 else 3,
+        constant = -1, writable = true}]
+    values := s32.[4, 1, 2, 3, 1]
+    // Records: the global's address, the s32 and float64 zeros, one small
+    // record and the array of them.
+    record_values := s32.[8, 1, 6, 5, 7]
+    zeros: [64]s32
+    for at: 0..63 { zeros[at] = 1 }
+    members := s32.[2, ifx nonzero then cast(s32)4 else 1]
+    pair := s32.[1, 2]
+    cells := s32.[3, 3, 3, 3, 3, 3, 3, 3]
+    storing := s32.[0, ifx records then cast(s32)4 else 3]
+    instructions: [10]Lir.LirInstruction
+    instructions[0] = Instruction(.GlobalAddress, 0); instructions[0].symbol = 0
+    instructions[1] = Instruction(.Constant, 1); instructions[1].symbol = 0
+    instructions[2] = Instruction(.Constant, 4); instructions[2].symbol = 1
+    at: s64 = 3
+    if records {
+        instructions[2] = Instruction(.Constant, 2); instructions[2].symbol = 2
+        instructions[at] = Instruction(.Aggregate, 3); instructions[at].operands = pair[:]; at += 1
+        instructions[at] = Instruction(.Aggregate, 4); instructions[at].operands = cells[:]; at += 1
+    } else {
+        instructions[at] = Instruction(.Aggregate, 2); instructions[at].operands = zeros[:]; at += 1
+        instructions[at] = Instruction(.Aggregate, 3); instructions[at].operands = members[:]; at += 1
+    }
+    instructions[at] = Instruction(.Store); instructions[at].operands = storing[:]; instructions[at].effect = 1; at += 1
+    instructions[at] = Instruction(.Return); at += 1
+    blocks := Lir.LirBlock.[.{instructions = instructions[:at]}]
+    functions := Lir.LirFunction.[.{module = 0, name = "clear", result = 0,
+        values = ifx records then record_values[:] else values[:],
+        blocks = blocks[:], entry = 0, origin = -1}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], globals = globals[:], functions = functions[:], entry = 0, checks = checks}
+    if !Lowered(owner, program, target, "zero build") { return false }
+    mir := Lower.MachineProgramView(owner)
+    zeroed: s64
+    built: s64
+    for instruction: mir.instructions {
+        if instruction.opcode == .Zero { zeroed += 1 }
+        if instruction.opcode == .AggregateBuild { built += 1 }
+    }
+    expected_zeroed: s64 = ifx checks then 0 else 1
+    expected_built: s64 = ifx checks then 2 else ifx nonzero then 1 else 0
+    if zeroed != expected_zeroed || built != expected_built {
+        print("zero build failed: arch % nonzero % checks % records % zeroes % builds %\n", cast(s32)target.arch,
+            nonzero, checks, records, zeroed, built)
         return false
     }
     return true
@@ -113,8 +207,13 @@ Fixture :: (owner: *Machine.MachineOwner, mode: s32, checks: bool) -> bool {
 MachineFieldsCases :: () -> bool {
     owner: Machine.MachineOwner
     defer Lower.MachineFree(*owner)
-    for mode: cast(s32)0..6 { if !Fixture(*owner, mode, false) { return false } }
-    if !Fixture(*owner, 0, true) { return false }
-    print("machine fields: scalar and nested reads avoid aggregate copies; nested writes, calls, cross-block uses, escapes and checks retain snapshots\n")
+    targets := Targets()
+    for target: targets {
+        for mode: cast(s32)0..6 { if !Fixture(*owner, target, mode, false) { return false } }
+        if !Fixture(*owner, target, 0, true) { return false }
+        if !ZeroFixture(*owner, target, false, false) || !ZeroFixture(*owner, target, true, false) ||
+            !ZeroFixture(*owner, target, false, true) || !ZeroFixture(*owner, target, false, false, true) { return false }
+    }
+    print("machine fields: on x86-64, ARMv7 and AArch64, scalar and nested reads avoid aggregate copies; nested writes, calls, cross-block uses, escapes and checks retain snapshots; all-zero builds zero their storage once\n")
     return true
 }

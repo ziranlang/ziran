@@ -1,0 +1,140 @@
+// Members of a large global record are read and changed in place, and
+// all-zero records are zeroed in one pass, on every native target. ARM code
+// once copied the whole global into the frame for each member read, which
+// gave Shovey's LevelReplayPump a 12 MB frame and a frame-limit trap at
+// entry on ARMv7 and AArch64 (tests/machine_fields_cases.zi checks the frame
+// and the zeroing). The checksum must match C, through fixed and dynamic
+// indexes, nested records, 64-bit and float members, member copies, local
+// records and a zeroed array of records rebuilt on every iteration.
+Cell :: struct {
+    kind: s32
+    weight: s64
+    heat: float64
+    marks: [6]u8
+}
+
+Board :: struct {
+    cells: [64]Cell
+    player: s32
+    won: bool
+}
+
+Huge :: struct {
+    level: s32
+    trace: [200000]u8
+    history: [200000]u8
+    trace_count: s32
+    trace_at: s32
+    same: bool
+    total: s64
+    scale: float64
+    board: Board
+    spare: [200000]u8
+}
+
+huge: Huge;
+
+Mix :: (hash: u64, value: u64) -> u64 { return (hash ^ value) * 1099511628211 }
+
+// Each member read and write here once copied the whole record.
+Step :: (cell: s32) -> bool {
+    at := huge.trace_at
+    if at + 2 > huge.trace_count || cast(s32)huge.trace[at] != cell { huge.same = false }
+    huge.trace_at += 2
+    huge.total += cast(s64)huge.trace[at + 1] * 1000003 + cast(s64)huge.history[at % 1000]
+    huge.spare[at] = cast(u8)cell
+    huge.scale = huge.scale * 0.5 + cast(float64)huge.level
+    return huge.same
+}
+
+Fill :: (count: s32) {
+    huge.trace_count = count
+    for at: cast(s32)0..count - 1 {
+        huge.trace[at] = cast(u8)((at * 37 + 11) % 251)
+        huge.history[at] = cast(u8)(at % 13)
+    }
+    for at: cast(s32)0..63 {
+        huge.board.cells[at].kind = at % 7
+        huge.board.cells[at].weight = cast(s64)at * 4294967311
+        huge.board.cells[at].heat = cast(float64)at * 0.25
+        huge.board.cells[at].marks[at % 6] = cast(u8)at
+    }
+}
+
+// A member copied out of the global, changed, and stored back.
+Swap :: (left: s32, right: s32) {
+    keep := huge.board.cells[left]
+    huge.board.cells[left] = huge.board.cells[right]
+    keep.weight += 1
+    keep.marks[2] += 9
+    huge.board.cells[right] = keep
+}
+
+// Local records read through dynamic indexes.
+Local :: (seed: s32) -> u64 {
+    cells: [16]Cell
+    for at: cast(s32)0..15 {
+        cells[at].kind = (seed + at) % 5
+        cells[at].weight = cast(s64)(seed * at)
+        cells[at].heat = cast(float64)at * 0.5
+    }
+    hash: u64 = 1469598103934665603
+    for at: cast(s32)0..15 {
+        pick := (at * 7 + seed) % 16
+        hash = Mix(hash, cast(u64)cells[pick].kind)
+        hash = Mix(hash, cast(u64)cells[pick].weight)
+        hash = Mix(hash, cast(u64)(cells[pick].heat * 8.0))
+    }
+    return hash
+}
+
+// A loop-local array of records starts zeroed on every iteration.
+Fresh :: (rounds: s32) -> u64 {
+    hash: u64 = 1099511628211
+    for round: cast(s32)0..rounds - 1 {
+        boards: [8]Board
+        boards[round % 8].cells[round % 64].weight += cast(s64)round + 1
+        boards[(round + 3) % 8].player = round
+        for board: boards[:] {
+            hash = Mix(hash, cast(u64)board.player)
+            hash = Mix(hash, cast(u64)board.cells[round % 64].weight)
+            hash = Mix(hash, cast(u64)board.cells[63].marks[5])
+        }
+    }
+    return hash
+}
+
+main :: () -> s32 {
+    huge.level = 3
+    huge.scale = 1.0
+    huge.same = true
+    Fill(4000)
+    for at: cast(s32)0..499 {
+        cell := cast(s32)huge.trace[huge.trace_at]
+        if at % 97 == 13 { cell += 1 }
+        unused Step(cell)
+        huge.same = true
+    }
+    Swap(3, 60)
+    Swap(10, 11)
+    huge.board.player = huge.board.cells[60].kind + huge.board.cells[3].kind
+    huge.board.won = huge.board.cells[60].marks[2] > 9
+    hash: u64 = 14695981039346656037
+    hash = Mix(hash, cast(u64)huge.trace_at)
+    hash = Mix(hash, cast(u64)huge.total)
+    hash = Mix(hash, cast(u64)(huge.scale * 1000000.0))
+    for at: cast(s32)0..63 {
+        cell := huge.board.cells[at]
+        hash = Mix(hash, cast(u64)cell.kind)
+        hash = Mix(hash, cast(u64)cell.weight)
+        hash = Mix(hash, cast(u64)(cell.heat * 4.0))
+        for mark: cell.marks { hash = Mix(hash, cast(u64)mark) }
+    }
+    hash = Mix(hash, cast(u64)huge.board.player)
+    hash = Mix(hash, cast(u64)huge.spare[huge.trace_at - 2])
+    hash = Mix(hash, ifx huge.board.won then cast(u64)1 else cast(u64)0)
+    hash = Mix(hash, Local(5))
+    hash = Mix(hash, Fresh(20))
+    print("large global fields %\n", hash)
+    return 0
+}

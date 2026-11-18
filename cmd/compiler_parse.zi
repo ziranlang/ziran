@@ -6,6 +6,7 @@ Scan :: #import "compiler_scan";
 Services :: #import "compiler_services";
 Text :: #import "compiler_text";
 Type :: #import "compiler_type";
+#load "compiler_token.zi";
 
 // The root of TEXT's expression, added to FN: an unknown node when TEXT does
 // not parse, -1 when it is blank. A call expands its default arguments when

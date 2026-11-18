@@ -17,6 +17,8 @@ typedef int32_t ZirExternKind;
 typedef int32_t ZirStmtKind;
 typedef int32_t ZirExprKind;
 typedef struct ZirSourceSpan ZirSourceSpan;
+typedef struct ZirToken ZirToken;
+typedef struct ZirLexer ZirLexer;
 typedef struct ZirImport ZirImport;
 typedef union ZirStmtNames ZirStmtNames;
 typedef struct ZirStmt ZirStmt;
@@ -106,6 +108,23 @@ struct ZirSourceSpan {
     int32_t column;
     int32_t end_line;
     int32_t end_column;
+};
+
+struct ZirToken {
+    int32_t kind;
+    int32_t truncated;
+    size_t length;
+    char text[4096];
+    ZirSourceSpan span;
+};
+
+struct ZirLexer {
+    const char * src;
+    const char * path;
+    size_t length;
+    size_t pos;
+    int32_t line;
+    int32_t column;
 };
 
 struct ZirImport {

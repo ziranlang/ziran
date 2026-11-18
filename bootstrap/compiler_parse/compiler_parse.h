@@ -16,7 +16,17 @@
 extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+typedef struct TokenText TokenText;
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
 typedef struct Parser Parser;
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
+
+struct TokenText {
+    uint8_t* data;
+    size_t count;
+};
 #endif
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
 
@@ -36,6 +46,10 @@ struct Parser {
     int32_t checks;
 };
 #endif
+void CompilerLexerInit(ZirLexer* lexer, void* source, void* path);
+ZirToken LexerNext(ZirLexer* lexer);
+ZirToken LexerNextCode(ZirLexer* lexer);
+uint8_t* CompilerTokenKindName(int32_t kind);
 int32_t compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected_type, int32_t stmt_index, bool expand_defaults);
 
 #ifdef __cplusplus

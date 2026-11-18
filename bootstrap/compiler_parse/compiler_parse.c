@@ -4,6 +4,45 @@
 #define ZIRAN_COMPILER_PARSE_H_PRIVATE 1
 #include "compiler_parse.h"
 #undef ZIRAN_COMPILER_PARSE_H_PRIVATE
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_TokenLength_b24a2871
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_TokenLength_b24a2871
+#ifdef __APPLE__
+size_t zir_foreign_zir_f_1c72792874eb8388_TokenLength(uint8_t* text) __asm__("_strlen");
+#else
+size_t zir_foreign_zir_f_1c72792874eb8388_TokenLength(uint8_t* text) __asm__("strlen");
+#endif
+static size_t
+zir_f_1c72792874eb8388_TokenLength(uint8_t* text)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_TokenLength(text);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_CopyToken_d3838e83
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_CopyToken_d3838e83
+#ifdef __APPLE__
+void* zir_foreign_zir_f_1c72792874eb8388_CopyToken(void* output, void* source, size_t count) __asm__("_memcpy");
+#else
+void* zir_foreign_zir_f_1c72792874eb8388_CopyToken(void* output, void* source, size_t count) __asm__("memcpy");
+#endif
+static void*
+zir_f_1c72792874eb8388_CopyToken(void* output, void* source, size_t count)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_CopyToken(output, source, count);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_TokenSpan_f91e3ba7
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_TokenSpan_f91e3ba7
+#ifdef __APPLE__
+ZirSourceSpan zir_foreign_zir_f_1c72792874eb8388_TokenSpan(uint8_t* path, int32_t line, int32_t column) __asm__("_Span");
+#else
+ZirSourceSpan zir_foreign_zir_f_1c72792874eb8388_TokenSpan(uint8_t* path, int32_t line, int32_t column) __asm__("Span");
+#endif
+static ZirSourceSpan
+zir_f_1c72792874eb8388_TokenSpan(uint8_t* path, int32_t line, int32_t column)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_TokenSpan(path, line, column);
+}
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -11,6 +50,9 @@
 #define ZIRAN_MAYBE_UNUSED
 #endif
 #endif
+static uint8_t* compiler_parse_TokenCString(String text) ZIRAN_MAYBE_UNUSED;
+static String compiler_parse_LexerSource(ZirLexer* lexer) ZIRAN_MAYBE_UNUSED;
+static ZirToken compiler_parse_StoreToken(ZirLexer* lexer, Scan scan) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_Token(Parser* p) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_Advance(Parser* p) ZIRAN_MAYBE_UNUSED;
 static bool compiler_parse_Take(Parser* p, String wanted) ZIRAN_MAYBE_UNUSED;
@@ -41,6 +83,119 @@ static String compiler_parse_QualifiedName(Slice output, String first, String se
 static bool compiler_parse_NameStart(String text) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_Trim(String source) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_parse_FindByte(String source, uint8_t wanted) ZIRAN_MAYBE_UNUSED;
+
+void
+CompilerLexerInit(ZirLexer* lexer, void* source, void* path)
+{
+    uint8_t* value_0 = (void *)0;
+    if (source == ((void *)0)) {
+        String value_1 = StringLiteral("");
+        uint8_t* value_2 = (void *)0;
+        {
+            String text = value_1;
+            value_2 = ((TokenText*)(&(text)))->data;
+        }
+        value_0 = value_2;
+    } else {
+        value_0 = (uint8_t*)(source);
+    }
+    uint8_t* src = value_0;
+    ZirLexer* value_4 = &((*(lexer)));
+    ZirLexer value_5 = {0};
+    value_5.src = (const char *)(src);
+    uint8_t* value_6 = (void *)0;
+    if (path == ((void *)0)) {
+        String value_7 = StringLiteral("");
+        uint8_t* value_8 = (void *)0;
+        {
+            String text = value_7;
+            value_8 = ((TokenText*)(&(text)))->data;
+        }
+        value_6 = value_8;
+    } else {
+        value_6 = (uint8_t*)(path);
+    }
+    value_5.path = (const char *)(value_6);
+    size_t value_10 = zir_f_1c72792874eb8388_TokenLength(src);
+    value_5.length = value_10;
+    value_5.line = 1;
+    value_5.column = 1;
+    (*value_4) = value_5;
+}
+
+ZirToken
+LexerNext(ZirLexer* lexer)
+{
+    String value_0 = compiler_parse_LexerSource(lexer);
+    return compiler_parse_StoreToken(lexer, compiler_scan_NextToken(value_0, (int64_t)(lexer->pos), lexer->line, lexer->column));
+}
+
+ZirToken
+LexerNextCode(ZirLexer* lexer)
+{
+    String value_0 = compiler_parse_LexerSource(lexer);
+    return compiler_parse_StoreToken(lexer, compiler_scan_NextCodeToken(value_0, (int64_t)(lexer->pos), lexer->line, lexer->column));
+}
+
+uint8_t*
+CompilerTokenKindName(int32_t kind)
+{
+    String value_0 = compiler_scan_KindName((TokenKind)(kind));
+    uint8_t* value_1 = (void *)0;
+    {
+        String text = value_0;
+        value_1 = ((TokenText*)(&(text)))->data;
+    }
+    return value_1;
+}
+
+static uint8_t*
+compiler_parse_TokenCString(String text)
+{
+    return ((TokenText*)(&(text)))->data;
+}
+
+static String
+compiler_parse_LexerSource(ZirLexer* lexer)
+{
+    Slice value_0 = compiler_ir_CBuffer((uint8_t*)lexer->src, lexer->length);
+    Slice value_1 = value_0;
+    return StringView((const char *)(value_1).data, (size_t)(value_1).length);
+}
+
+static ZirToken
+compiler_parse_StoreToken(ZirLexer* lexer, Scan scan)
+{
+    int64_t length = (int64_t)((uint64_t)(scan.end) - (uint64_t)(scan.begin));
+    int64_t value_0 = 0;
+    if (length < 4096LL) {
+        value_0 = length;
+    } else {
+        value_0 = 4095LL;
+    }
+    int64_t copied = value_0;
+    ZirToken value_1 = {0};
+    value_1.kind = (int32_t)(((TokenKind)(scan.kind)));
+    value_1.length = (size_t)(length);
+    int32_t value_2 = 0;
+    if (copied != length) {
+        value_2 = 1;
+    } else {
+        value_2 = 0;
+    }
+    value_1.truncated = value_2;
+    ZirSourceSpan value_3 = zir_f_1c72792874eb8388_TokenSpan((uint8_t*)lexer->path, scan.line, scan.column);
+    value_1.span = value_3;
+    ZirToken result = value_1;
+    zir_f_1c72792874eb8388_CopyToken((void*)(&(result.text[0])), (void*)(&(lexer->src[scan.begin])), (size_t)(copied));
+    size_t* value_4 = &(lexer->pos);
+    (*value_4) = (size_t)(scan.end);
+    int32_t* value_5 = &(lexer->line);
+    (*value_5) = scan.after_line;
+    int32_t* value_6 = &(lexer->column);
+    (*value_6) = scan.after_column;
+    return result;
+}
 
 int32_t
 compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected_type, int32_t stmt_index, bool expand_defaults)

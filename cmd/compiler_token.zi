@@ -1,0 +1,41 @@
+// Adapt scanner offsets to the C frontend's borrowed cursor and token buffer.
+#program_export "CompilerLexerInit"
+LexerInit :: (lexer: *IR.ZirLexer, source: *void, path: *void) {
+    src := ifx source == null then TokenCString("") else cast(*u8)source
+    <<lexer = .{src = src, path = ifx path == null then TokenCString("") else cast(*u8)path,
+        length = TokenLength(src), line = 1, column = 1}
+}
+
+#program_export "LexerNext"
+LexerNext :: (lexer: *IR.ZirLexer) -> IR.ZirToken {
+    return StoreToken(lexer, Scan.NextToken(LexerSource(lexer), cast(s64)lexer.pos, lexer.line, lexer.column))
+}
+
+#program_export "LexerNextCode"
+LexerNextCode :: (lexer: *IR.ZirLexer) -> IR.ZirToken {
+    return StoreToken(lexer, Scan.NextCodeToken(LexerSource(lexer), cast(s64)lexer.pos, lexer.line, lexer.column))
+}
+
+#program_export "CompilerTokenKindName"
+TokenKindName :: (kind: s32) -> *u8 { return TokenCString(Scan.KindName(cast(Scan.TokenKind)kind)) }
+
+#scope_file
+token_libc :: #system_library "libc";
+token_compiler :: #system_library "ziran";
+TokenLength :: (text: *u8) -> usize #foreign token_libc "strlen";
+CopyToken :: (output: *void, source: *void, count: usize) -> *void #foreign token_libc "memcpy";
+TokenSpan :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign token_compiler "Span";
+TokenText :: struct { data: *u8; count: usize }
+TokenCString :: (text: string) -> *u8 { return (cast(*TokenText)(*text)).data }
+LexerSource :: (lexer: *IR.ZirLexer) -> string { return TextView(IR.CBuffer(lexer.src, lexer.length)) }
+
+StoreToken :: (lexer: *IR.ZirLexer, scan: Scan.Scan) -> IR.ZirToken {
+    length := scan.end - scan.begin
+    copied := ifx length < IR.ZIR_TEXT_MAX then length else cast(s64)(IR.ZIR_TEXT_MAX - 1)
+    result: IR.ZirToken = .{kind = cast(s32)scan.kind, length = cast(usize)length,
+        truncated = ifx copied != length then 1 else 0, span = TokenSpan(lexer.path, scan.line, scan.column)}
+    unused CopyToken(cast(*void)*result.text[0], cast(*void)*lexer.src[scan.begin], cast(usize)copied)
+    lexer.pos = cast(usize)scan.end; lexer.line = scan.after_line; lexer.column = scan.after_column
+    return result
+}
+#scope_export

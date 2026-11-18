@@ -63,6 +63,25 @@ ZirSourceSpan :: struct {
     end_column: s32
 }
 
+// The fixed token buffer belongs to the C frontend. Length is the full
+// source length even when the spelling is truncated to fit.
+ZirToken :: struct {
+    kind: s32
+    truncated: s32
+    length: usize
+    text: [ZIR_TEXT_MAX]u8 #c "char"
+    span: ZirSourceSpan
+}
+
+ZirLexer :: struct {
+    src: *u8 #c "const char *"
+    path: *u8 #c "const char *"
+    length: usize
+    pos: usize
+    line: s32
+    column: s32
+}
+
 ZirImport :: struct {
     kind: ZirImportKind
     extern_kind: ZirExternKind

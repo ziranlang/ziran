@@ -2,44 +2,36 @@
 #define ZIRAN_ZIR_TOKEN_H
 
 #include "zir.h"
+#include "compiler_scan.h"
 
-#include <stddef.h>
+typedef TokenKind ZirTokenKind;
+enum {
+    ZIR_TOKEN_EOF = TokenKind_Eof,
+    ZIR_TOKEN_IDENT = TokenKind_Ident,
+    ZIR_TOKEN_INT = TokenKind_Int,
+    ZIR_TOKEN_FLOAT = TokenKind_Float,
+    ZIR_TOKEN_STRING = TokenKind_String,
+    ZIR_TOKEN_CHAR = TokenKind_Char,
+    ZIR_TOKEN_DIRECTIVE = TokenKind_Directive,
+    ZIR_TOKEN_OPERATOR = TokenKind_Operator,
+    ZIR_TOKEN_PUNCT = TokenKind_Punct,
+    ZIR_TOKEN_UNKNOWN = TokenKind_Unknown
+};
 
-typedef enum ZirTokenKind {
-    ZIR_TOKEN_EOF = 0,
-    ZIR_TOKEN_IDENT,
-    ZIR_TOKEN_INT,
-    ZIR_TOKEN_FLOAT,
-    ZIR_TOKEN_STRING,
-    ZIR_TOKEN_CHAR,
-    ZIR_TOKEN_DIRECTIVE,
-    ZIR_TOKEN_OPERATOR,
-    ZIR_TOKEN_PUNCT,
-    ZIR_TOKEN_UNKNOWN
-} ZirTokenKind;
+void CompilerLexerInit(ZirLexer *lexer, void *source, void *path);
+static inline void LexerInit(ZirLexer *lexer, const char *source, const char *path)
+{
+    CompilerLexerInit(lexer, (void *)source, (void *)path);
+}
 
-typedef struct ZirToken {
-    ZirTokenKind kind;
-    int truncated;   /* token text exceeded the buffer and was cut */
-    size_t length;   /* full length in the source, even when cut */
-    char text[ZIR_TEXT_MAX];
-    ZirSourceSpan span;
-} ZirToken;
-
-typedef struct ZirLexer {
-    const char *src;
-    const char *path;
-    size_t length;
-    size_t pos;
-    int line;
-    int column;
-} ZirLexer;
-
-void LexerInit(ZirLexer *lx, const char *src, const char *path);
 ZirToken LexerNext(ZirLexer *lx);
 /* Raw source tooling: skip line/block comments, retaining physical UTF-8 byte
  * coordinates. LexerNext itself retains its expression-scanner semantics. */
 ZirToken LexerNextCode(ZirLexer *lx);
-const char *TokenKindName(ZirTokenKind kind);
+uint8_t *CompilerTokenKindName(ZirTokenKind kind);
+static inline const char *TokenKindName(ZirTokenKind kind)
+{
+    return (const char *)CompilerTokenKindName(kind);
+}
 
 #endif /* ZIRAN_ZIR_TOKEN_H */

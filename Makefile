@@ -226,7 +226,7 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
-    cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
+    cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
@@ -361,13 +361,11 @@ $(BUILD_DIR)/.compiler-flags: force-compiler-flags
 force-compiler-flags:
 
 # zir.h includes the IR records generated from cmd/compiler_ir.zi, and
-# zir_simd.h (included through the checker and emitter headers) the
-# runtime-emit records.
-$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAMES_READY) $(RUNTIME_EMIT_READY) | $(SIMD_HEADERS)
+# zir_simd.h the runtime-emit records, and zir_token.h the scanner kinds.
+$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAMES_READY) $(RUNTIME_EMIT_READY) | $(SIMD_HEADERS) $(SCANNER_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $($@_CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
-$(call obj,cmd/zir/zir_token.c): $(SCANNER_READY)
 $(call obj,cmd/zi2c/main.c): $(BACKEND_PROCESS_READY)
 $(call obj,cmd/zir/zir.c): $(TYPE_READY)
 $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
@@ -767,7 +765,7 @@ $(EXPRESSION_C)/.generated: cmd/compiler_expression.zi cmd/compiler_scan.zi cmd/
 	    -o $(EXPRESSION_C) cmd/compiler_expression.zi
 	touch $@
 
-$(PARSE_C)/.generated: cmd/compiler_parse.zi cmd/compiler_expression.zi cmd/compiler_ir.zi cmd/compiler_services.zi cmd/compiler_scan.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
+$(PARSE_C)/.generated: cmd/compiler_parse.zi cmd/compiler_token.zi cmd/compiler_expression.zi cmd/compiler_ir.zi cmd/compiler_services.zi cmd/compiler_scan.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
 	    -o $(PARSE_C) cmd/compiler_parse.zi
 	touch $@

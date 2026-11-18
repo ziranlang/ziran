@@ -7,11 +7,15 @@ using Vectors :: #import "std/vec"
 LirRotateResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; loops: s64; work: s64; scratch_bytes: s64 }
 
 #scope_file
-// Only short nontrapping tests are duplicated. Fuel stays in its original
-// order relative to the test, and is executed once per original header visit.
+// Only short tests are duplicated. The copy at the latch runs where the
+// header's test ran, so each instruction, fuel included, keeps its order
+// and runs once per original header visit; a load or an address that can
+// trap therefore traps at the same point. Calls and stores stay out.
 TestOp :: (op: LirOp) -> bool {
     return op == .Constant || op == .Null || op == .Equal || op == .NotEqual ||
-        op == .Less || op == .LessEqual || op == .Greater || op == .GreaterEqual || op == .Fuel
+        op == .Less || op == .LessEqual || op == .Greater || op == .GreaterEqual || op == .Fuel ||
+        op == .Add || op == .Subtract || op == .BitAnd || op == .Convert ||
+        op == .FieldAddress || op == .ElementAddress || op == .Load
 }
 
 Reach :: (function: LirFunction, start: s32, stop: s32, seen: []u8, budget: *LirSsaBudget) -> bool {

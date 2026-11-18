@@ -43,7 +43,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     status := NativeRead(*test, CheckPath(test.repo, "site/status.html"))
     usage := NativeRead(*test, CheckPath(test.repo, "site/guide/usage.html"))
     index := NativeRead(*test, CheckPath(test.repo, "site/docs.html"))
-    if !NativeAssert(*test, TextContains(status, "v0.6.0 and Unreleased") &&
+    version := TextTrim(NativeRead(*test, CheckPath(test.repo, "VERSION")))
+    released := CheckConcat(CheckConcat("v", version), " and Unreleased")
+    if !NativeAssert(*test, TextContains(status, released) &&
         TextContains(status, "Source → ZIR → LIR → optimized LIR → ZX → native") &&
         TextContains(status, "Safety is manual by default") && TextContains(usage, "--checks") &&
         !TextContains(index, "migration.html") && !TextContains(usage, ".lirb") &&

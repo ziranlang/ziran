@@ -307,7 +307,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
         bundle_command := string.[test.ziran, "bundle", "--root", input_root,
             "--module-path", modules, "--entry", CheckConcat(module, ":Run"),
             "-o", bundle, input]
-        unused NativeRun(*test, bundle_command[:])
+        // Bundling the whole optimizer takes several minutes in the sanitizer build.
+        unused NativeRun(*test, bundle_command[:], "", 0, 600000)
         bundle_run := string.[test.ziran, "run", bundle]
         if test.failed || !NativeExpect(*test, bundle_run[:], bundle_expected) { return 1 }
         c_output := CheckPath(test.work, CheckConcat(form, "-c"))

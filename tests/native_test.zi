@@ -170,8 +170,9 @@ NativeInvoke :: (test: *NativeTest, arguments: []string, directory: string = "",
     return result
 }
 
-NativeRun :: (test: *NativeTest, arguments: []string, directory: string = "", expected: s32 = 0) -> NativeCommand {
-    result := NativeInvoke(test, arguments, directory)
+NativeRun :: (test: *NativeTest, arguments: []string, directory: string = "", expected: s32 = 0,
+    timeout: s64 = 180000) -> NativeCommand {
+    result := NativeInvoke(test, arguments, directory, timeout)
     if test.failed { return result }
     if result.code != expected {
         test.failed = true

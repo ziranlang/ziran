@@ -8,6 +8,9 @@ DARWIN_TARGET := $(findstring darwin,$(TARGET_MACHINE))
 # Merged groups localize their shared helpers. Apple's ld -r already turns
 # hidden symbols into local ones; other object formats need objcopy.
 OBJCOPY ?= $(if $(DARWIN_TARGET),true,objcopy)
+# The shell's lookup skips a directory named cmake on PATH, as in the Emscripten
+# tree; make's own lookup may try to run that directory.
+CMAKE ?= $(or $(shell command -v cmake),cmake)
 # Ziran platform conditions are fixed when its sources compile, so the
 # tools written in Ziran name the Darwin host explicitly.
 ZIRAN_DEFINES ?= $(if $(DARWIN_TARGET),--define __APPLE__ --define $(if $(findstring x86_64,$(TARGET_MACHINE)),__x86_64__,__aarch64__))
@@ -968,8 +971,8 @@ zx-wasm-test: all
 # Optional decoder for std/audio_mp3; no SDL or other UI dependency.
 .PHONY: audio-mp3
 audio-mp3:
-	cmake -S std/native -B $(BUILD_DIR)/audio/native -DCMAKE_C_COMPILER=$(CC)
-	cmake --build $(BUILD_DIR)/audio/native --target ziran_mp3
+	$(CMAKE) -S std/native -B $(BUILD_DIR)/audio/native -DCMAKE_C_COMPILER=$(CC)
+	$(CMAKE) --build $(BUILD_DIR)/audio/native --target ziran_mp3
 
 # Native ZX on an Android device: ANDROID_ARCH is aarch64 or armv7.
 # android-build cross-builds libziran.a and zi2zx with the NDK for
@@ -1054,5 +1057,5 @@ audio-windows-test: all
 # Headless consumers can reuse both core native codec archives.
 .PHONY: audio-codecs
 audio-codecs:
-	cmake -S std/native -B $(BUILD_DIR)/audio/native -DCMAKE_C_COMPILER=$(CC) -DZIRAN_AUDIO_VORBIS=ON
-	cmake --build $(BUILD_DIR)/audio/native --target ziran_mp3 vorbisfile
+	$(CMAKE) -S std/native -B $(BUILD_DIR)/audio/native -DCMAKE_C_COMPILER=$(CC) -DZIRAN_AUDIO_VORBIS=ON
+	$(CMAKE) --build $(BUILD_DIR)/audio/native --target ziran_mp3 vorbisfile

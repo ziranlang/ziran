@@ -35,6 +35,9 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: steps.credentials.outputs.present == 'true'
+        with:
+          # Receipt checks read inputs at the commits that measured and published them.
+          fetch-depth: 0
       - name: Set up Emscripten
         if: steps.credentials.outputs.present == 'true'
         uses: emscripten-core/setup-emsdk@v15

@@ -36,6 +36,43 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def committed_sha(revision, paths):
+    """Hash each path as the measured revision commits it, so later edits do
+    not invalidate an older receipt."""
+    paths = list(paths)
+    query = ''.join(f'{revision}:{path}\n' for path in paths).encode()
+    output = subprocess.run(['git', 'cat-file', '--batch'], cwd=REPO, input=query,
+                            capture_output=True, check=True).stdout
+    digests, at = {}, 0
+    for path in paths:
+        end = output.index(b'\n', at)
+        header = output[at:end].split()
+        assert header[-1] != b'missing', f'Measured revision {revision} has no {path}; fetch it'
+        size = int(header[2])
+        digests[path] = hashlib.sha256(output[end + 1:end + 1 + size]).hexdigest()
+        at = end + 2 + size
+    return digests
+
+
+def published_revision(receipt):
+    """The commit that published a receipt, or None while it is uncommitted."""
+    try:
+        path = receipt.resolve().relative_to(REPO)
+    except ValueError:
+        return None
+    if git('status', '--porcelain', '--', path):
+        return None
+    return git('log', '-1', '--format=%H', '--', path) or None
+
+
+def check_committed(revision, recorded, label):
+    """Compiler inputs are checked at the measured revision, harnesses at the
+    commit that published their receipt; None checks the working tree."""
+    committed = committed_sha(revision, recorded) if revision else {path: sha(REPO / path) for path in recorded}
+    for path, digest in recorded.items():
+        assert committed[path] == digest, f'{label} differs from {revision or "the working tree"}: {path}'
+
+
 def execute(command, *, cwd=REPO, env=None, allow_failure=False):
     started = time.perf_counter_ns()
     result = subprocess.run([str(x) for x in command], cwd=cwd, env=env,
@@ -380,14 +417,12 @@ def check():
     assert {example['id'] for example in data['examples']} == set(expected)
     for group in ('harnesses', 'platform_harnesses'):
         assert data.get(group), f'Missing {group}'
-        for path, digest in data[group].items():
-            assert sha(REPO / path) == digest, f'Stale harness: {path}'
+        check_committed(published_revision(OUTPUT / 'matrix.json'), data[group], 'Harness')
     for snapshot in data['platforms'].values():
         assert 3 <= snapshot['samples'] <= 31
         assert set(snapshot['examples']) == set(expected)
         assert snapshot['host'] and snapshot['measured_at'] and snapshot['methodology']
-    for path, digest in data.get('source_inputs', {}).items():
-        assert sha(REPO / path) == digest, f'Stale input: {path}'
+    check_committed(data['revision'], data.get('source_inputs', {}), 'Input')
     for example in data['examples']:
         assert (example['source'], example['expected']) == expected[example['id']], 'Fixture oracle changed; regenerate the snapshot'
         assert set(example['targets']) == set(TARGETS)

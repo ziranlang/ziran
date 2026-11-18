@@ -187,8 +187,7 @@ def build(project, manifest_path, samples, revision=None):
 def check():
     data = json.loads((OUTPUT / 'matrix.json').read_text())
     assert data['schema_version'] == 1 and data['samples'] >= 3 and data.get('zx_backend') == 'native'
-    for name, digest in data['harnesses'].items():
-        assert base.sha(base.REPO / name) == digest, f'Stale library harness: {name}'
+    base.check_committed(base.published_revision(OUTPUT / 'matrix.json'), data['harnesses'], 'Library harness')
     files = [data['sources'], data['checked_ir']]
     for row in data['examples']:
         assert set(row['targets']) == set(TARGETS)

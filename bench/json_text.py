@@ -150,11 +150,11 @@ def check():
     data = json.loads((OUTPUT / 'matrix.json').read_text())
     assert data['schema_version'] == 1 and data['host'].startswith('alpha · ') and 3 <= data['samples'] <= 31
     assert [(row['id'], row['expected']) for row in data['examples']] == [(name, str(oracle)) for name, _, oracle in CASES]
-    for path, digest in {**data['harnesses'], **data['stdlib']}.items():
-        assert base.sha(ROOT / path) == digest, 'Stale benchmark input: ' + path
+    base.check_committed(base.published_revision(OUTPUT / 'matrix.json'), data['harnesses'], 'Benchmark harness')
+    base.check_committed(data['revision'], data['stdlib'], 'Standard library')
+    base.check_committed(data['revision'], {row['source_input']: row['source_sha256'] for row in data['examples']}, 'Workload')
     for row in data['examples']:
         assert base.sha(SITE / row['source']) == row['source_sha256']
-        assert base.sha(ROOT / row['source_input']) == row['source_sha256']
         assert set(row['targets']) == {'c', 'go', 'zx', 'wasm'}
         for cell in row['targets'].values():
             if cell['status']=='unavailable':

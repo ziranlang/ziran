@@ -586,13 +586,73 @@ PlanInitialStores :: (fn: *Fn) -> bool {
     return true
 }
 
+// Zero scalar constants and constructors built only from zero values hold
+// all-zero bytes, so stores and enclosing constructors write them as zero
+// runs. A zero constructor that only those read is then never built.
+PlanZeroValues :: (fn: *Fn) -> bool {
+    count := fn.function.values.count
+    reads: Vec(bool)
+    defer VecFree(reads)
+    if !VecResize(fn.zero, count) || !VecResize(reads, count) { return OutOfMemory(fn.lower) }
+    changed := true
+    while changed {
+        changed = false
+        for block: fn.function.blocks {
+            for instruction: block.instructions {
+                value := instruction.result
+                if !ValueValid(fn, value) || fn.zero[value] { continue }
+                zero := false
+                if instruction.op == .Null { zero = true }
+                else if instruction.op == .Constant && ValueScalar(fn, value) && instruction.symbol >= 0 &&
+                    instruction.symbol < fn.lower.program.constants.count {
+                    bits := fn.lower.program.constants[instruction.symbol].bits
+                    type := ValueLir(fn, value)
+                    if type.kind == .Integer || type.kind == .Float { bits &= IntegerMask(type.bits) }
+                    zero = bits == 0
+                } else if instruction.op == .Aggregate && !ValueScalar(fn, value) {
+                    zero = true
+                    for operand: instruction.operands {
+                        if !ValueValid(fn, operand) || !fn.zero[operand] { zero = false }
+                    }
+                }
+                if zero {
+                    fn.zero[value] = true
+                    changed = true
+                }
+            }
+        }
+    }
+    for block: fn.function.blocks {
+        for instruction: block.instructions {
+            if ValueValid(fn, instruction.result) && fn.elided[instruction.result] { continue }
+            for at: 0..instruction.operands.count - 1 {
+                value := instruction.operands[at]
+                if !ValueValid(fn, value) { continue }
+                written := instruction.op == .Store && at == 1 || instruction.op == .Aggregate ||
+                    instruction.op == .Allocate && at == 0
+                if !written { reads[value] = true }
+            }
+            for edge: instruction.edges {
+                for value: edge.arguments {
+                    if ValueValid(fn, value) { reads[value] = true }
+                }
+            }
+        }
+    }
+    for block: fn.function.blocks {
+        for instruction: block.instructions {
+            value := instruction.result
+            if instruction.op == .Aggregate && ValueValid(fn, value) && fn.zero[value] && !reads[value] {
+                fn.elided[value] = true
+            }
+        }
+    }
+    return true
+}
+
 // The storage a value occupies: its frame slot, or the root of the place it views.
 StorageRoot :: (fn: *Fn, value: s32) -> s64 {
     return ifx fn.view[value].kind >= 0 then fn.view_root[value] else fn.value_slot[value]
-}
-
-SamePlace :: (left: Addr, right: Addr) -> bool {
-    return left.kind == right.kind && left.local == right.local && left.offset == right.offset
 }
 
 // Checks instructions [from, to) of one block before a member class moves

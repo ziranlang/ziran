@@ -43,6 +43,8 @@ Fn :: struct {
     omitted: Vec(s64)
     load_window: Vec(LoadWindow)
     omitted_bits: Vec(bool)
+    // Values whose bytes are all zero; see PlanZeroValues.
+    zero: Vec(bool)
     alloca_slot: Vec(s64)
     frame: s64
     scratch: s64
@@ -158,6 +160,10 @@ AddrOfSlot :: (fn: *Fn, value: s32) -> Addr {
     return .{.kind = ADDR_FRAME, .offset = ifx ValueValid(fn, value) then fn.value_slot[value] else 0}
 }
 
+SamePlace :: (left: Addr, right: Addr) -> bool {
+    return left.kind == right.kind && left.local == right.local && left.offset == right.offset
+}
+
 PushBase :: (fn: *Fn, address: Addr) {
     if address.kind == ADDR_LOCAL { LocalGet(fn, address.local) }
     else if address.kind == ADDR_FRAME { LocalGet(fn, fn.fp) }
@@ -207,6 +213,31 @@ CopyFixed :: (fn: *Fn, destination: Addr, source: Addr, size: s64) {
     }
 }
 
+// Writes `size` zero bytes: unrolled stores up to a few hundred bytes, like
+// CopyFixed, and memory.fill beyond.
+ZeroFixed :: (fn: *Fn, destination: Addr, size: s64) {
+    if size <= 0 { return }
+    if size > 320 || !OffsetFits(fn, destination.offset + size) {
+        PushFull(fn, destination)
+        I32Const(fn, 0)
+        I32Const(fn, size)
+        MemoryFill(fn)
+        return
+    }
+    stores: [4]u64 = .[0x37, 0x36, 0x3b, 0x3a]
+    at: s64 = 0
+    width: s64 = 8
+    for kind: 0..3 {
+        while size - at >= width {
+            PushBase(fn, destination)
+            if kind == 0 { I64Const(fn, 0) } else { I32Const(fn, 0) }
+            MemArg(fn, stores[kind], cast(u32)(destination.offset + at))
+            at += width
+        }
+        width /= 2
+    }
+}
+
 // Scalar memory access of one LIR type at base + memarg offset.
 LoadScalar :: (fn: *Fn, type: s32, offset: u32) {
     value := TypeAt(fn.lower, type)
@@ -238,7 +269,15 @@ StoreValue :: (fn: *Fn, destination: Addr, value: s32) {
         StoreScalar(fn, ValueType(fn, value), cast(u32)destination.offset)
         return
     }
-    CopyFixed(fn, destination, AddrOfSlot(fn, value), TypeSize(fn.lower, ValueType(fn, value)))
+    size := TypeSize(fn.lower, ValueType(fn, value))
+    if ValueValid(fn, value) && fn.zero.count > 0 && fn.zero[value] {
+        // An elided zero value was never built; one built in place is there.
+        if fn.elided.count > 0 && fn.elided[value] || !SamePlace(destination, AddrOfSlot(fn, value)) {
+            ZeroFixed(fn, destination, size)
+        }
+        return
+    }
+    CopyFixed(fn, destination, AddrOfSlot(fn, value), size)
 }
 
 LoadValue :: (fn: *Fn, source: Addr, value: s32) {

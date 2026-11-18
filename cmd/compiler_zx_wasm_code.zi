@@ -412,13 +412,28 @@ LowerAggregate :: (fn: *Fn, instruction: *LirInstruction) {
     }
     base := AddrOfSlot(fn, instruction.result)
     skips := fn.omitted[instruction.result]
+    // Adjacent zero members are written together, as wide stores.
     at: s64 = 0
+    zeros: s64 = 0
     for index: 0..instruction.operands.count - 1 {
+        operand := instruction.operands[index]
+        size := TypeSize(fn.lower, ValueType(fn, operand))
+        omitted := skips >= 0 && fn.omitted_bits[skips + index]
+        if !omitted && ValueValid(fn, operand) && fn.zero.count > 0 && fn.zero[operand] {
+            at += size
+            continue
+        }
         place := base
-        place.offset += at
-        if skips < 0 || !fn.omitted_bits[skips + index] { StoreValue(fn, place, instruction.operands[index]) }
-        at += TypeSize(fn.lower, ValueType(fn, instruction.operands[index]))
+        place.offset += zeros
+        ZeroFixed(fn, place, at - zeros)
+        place.offset = base.offset + at
+        if !omitted { StoreValue(fn, place, operand) }
+        at += size
+        zeros = at
     }
+    place := base
+    place.offset += zeros
+    ZeroFixed(fn, place, at - zeros)
 }
 
 LowerAddress :: (fn: *Fn, instruction: *LirInstruction) {

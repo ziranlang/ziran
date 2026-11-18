@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Wasm writes zeroed records with wide stores, or `memory.fill` past 320 bytes, instead of one byte store per member, and a zero record that is only stored or nested is never built. The Kryon Text widget scenario measured 3.604 µs against 3.890 µs in five alternating Alpha rounds, with the paint result checked on every call.
 - Wasm lowering copies fewer record bytes when a snapshot only supplies fixed member reads or a later replacement. It can also initialize a fresh allocation directly from a member and write a single field back to the original address. Snapshot values survive intervening writes.
 - ZX reads the length of a local fixed array without loading its elements. Iterating an address-backed array no longer copies it at every loop condition.
 - The ZX optimizer specializes direct calls that pass a literal Boolean controlling a loop branch. Spectral-norm took 19.9% less time across 11 matched rounds on Alpha, with identical output. It makes no copy in which folding the literal leaves a record load without its field read, and it drops an unused load when the same block loads that address again before anything else takes effect. This keeps the Button and Input widgets from copying the whole widget tree.

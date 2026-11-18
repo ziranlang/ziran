@@ -202,9 +202,39 @@ VectorMemberStores :: () -> bool {
         clear_vectors[1].count == 1 && clear_vectors[1][0] == 17
 }
 
+// Zeroed records are written as zero runs, or filled past 320 bytes; a
+// zero member beside other members keeps their values.
+ZeroBlock :: struct { length: s32; bytes: [40]u8 }
+ZeroLarge :: struct { tag: s32; bytes: [400]u8 }
+ZeroMixed :: struct { first: s32; middle: s64; flag: bool; inner: Point; last: s32 }
+zero_blocks: Vec(ZeroBlock);
+zero_large: Vec(ZeroLarge);
+ZeroMixedAt :: (middle: s64) -> ZeroMixed { return ZeroMixed.{middle = middle, last = 3} }
+ZeroRecords :: () -> bool {
+    VecClear(zero_blocks)
+    VecClear(zero_large)
+    for round: 0..2 {
+        extra: ZeroBlock
+        if !VecPush(zero_blocks, extra) { return false }
+        zero_blocks[round].bytes[39] = cast(u8)(round + 7)
+        zero_blocks[round].length = cast(s32)round + 1
+        large: ZeroLarge
+        if !VecPush(zero_large, large) { return false }
+        zero_large[round].bytes[399] = cast(u8)(round + 9)
+    }
+    mixed := ZeroMixedAt(5)
+    kept: ZeroBlock
+    kept.bytes[1] = 4
+    kept = ZeroBlock.{}
+    return zero_blocks[1].bytes[39] == 8 && zero_blocks[2].length == 3 && zero_blocks[2].bytes[0] == 0 &&
+        zero_large[2].bytes[399] == 11 && zero_large[1].tag == 0 && zero_large[1].bytes[0] == 0 &&
+        mixed.first == 0 && mixed.middle == 5 && !mixed.flag && mixed.inner.y == 0 && mixed.last == 3 &&
+        kept.bytes[1] == 0
+}
+
 #program_export
 Answer :: () -> s64 {
-    if !FieldViews() || !ConstructorViews() || !MemberPlaces() || !VectorMemberStores() { return -1 }
+    if !FieldViews() || !ConstructorViews() || !MemberPlaces() || !VectorMemberStores() || !ZeroRecords() { return -1 }
     total: s64 = 0
 
     u: u16 = 65535

@@ -71,55 +71,9 @@ def build(cc):
         bundle, module = WORK / (name + '.zx'), WORK / (name + '.wasm')
         native_check = WORK / (name + '-check.native')
         platforms.run([tool('zi2zx'), '--target', 'wasm', *common, '--entry', 'wasm_tier:' + name, '-o', bundle, SOURCE], env=env)
-        platforms.run([tool('zx2wasm'), '-o', module, bundle], env=env)
-        platforms.run([tool('zx2native'), '-o', native_check, bundle], env=env)
-        # The engine's own run is the oracle: its output, then its result line.
-        output = subprocess.run([tool('zi2zx'), 'run', bundle], env=env, check=True, capture_output=True, text=True).stdout
-        void = name == 'Printing'
-        expected, stdout = ('0', output) if void else (output.splitlines()[-1], output[:output.rstrip('\n').rfind('\n') + 1])
-        checked = subprocess.run([native_check], env=env, capture_output=True, text=True)
-        if checked.returncode != int(expected) % 256 or checked.stdout != stdout:
-            raise RuntimeError(f'{name}/native: output {checked.stdout!r}, status {checked.returncode}; '
-                               f'expected {stdout!r}, status {int(expected) % 256}')
-        symbol = re.search(r'\b(\w*' + name + r')\(void\)', header.read_text())[1]
-        program = WORK / (name + '-c')
-        platforms.run([cc, '-O2', '-std=c11', '-DMATRIX_NATIVE', '-I' + str(generated), '-DMATRIX_HEADER="wasm_tier.h"',
-                       '-DMATRIX_ENTRY=' + symbol, *(['-DMATRIX_VOID'] if void else []), ROOT / 'bench/site_target_host.c',
-                       *sources, '-lm', '-o', program], env=env)
-        kernels.append({'id': name, 'expected': expected, 'stdout': stdout, 'artifacts': {
-            'c': program, 'go': go_reference, 'zx': bundle, 'native': bundle, 'wasm': module}, 'commands': {
-            'c': [program, '-', expected],
-            'go': [go_reference, name, expected],
-            'zx': [runners['zx'], bundle, expected],
-            'native': [runners['native'], bundle, expected],
-            'wasm': ['node', ROOT / 'scripts/site_target_node.cjs', module, expected]}})
-    return kernels
-
-
-def build(cc):
-    WORK.mkdir(parents=True, exist_ok=True)
-    env = platforms.environment()
-    common = ['--root', ROOT / 'bench', '--module-path', ROOT / 'std']
-    generated = WORK / 'c'
-    platforms.run([tool('ziran'), 'build', '--target=c', *common, '-o', generated, SOURCE], env=env)
-    go_reference = WORK / 'go-reference'
-    platforms.run(['go', 'build', '-o', go_reference, ROOT / 'bench/wasm_tier_reference.go'], env=env)
-    header = generated / 'wasm_tier.h'
-    sources = sorted(generated.rglob('*.c'))
-    # One host, two explicit backends: the engine, and native code translated from the
-    # bundle when it is instantiated (before warmup), so neither pays process startup.
-    runners = {}
-    for target, backend in (('zx', 'BUNDLE_BACKEND_ENGINE'), ('native', 'BUNDLE_BACKEND_NATIVE')):
-        runners[target] = WORK / (target + '-runner')
-        platforms.runtime_build(cc, ROOT / 'build/libziran.a', runners[target],
-                                ['-include', ROOT / 'bench/site_target_backend.h',
-                                 '-DMATRIX_ZX_BACKEND=' + backend])
-    kernels = []
-    for name in KERNELS:
-        bundle, module = WORK / (name + '.zx'), WORK / (name + '.wasm')
-        native_check = WORK / (name + '-check.native')
-        platforms.run([tool('zi2zx'), '--target', 'wasm', *common, '--entry', 'wasm_tier:' + name, '-o', bundle, SOURCE], env=env)
-        platforms.run([tool('zx2wasm'), '-o', module, bundle], env=env)
+        # Like C, Go and the in-process ZX runners, a timed call has no step
+        # budget, so the module charges none: no fuel, no zx.budget import.
+        platforms.run([tool('zx2wasm'), '--unbounded', '-o', module, bundle], env=env)
         platforms.run([tool('zx2native'), '-o', native_check, bundle], env=env)
         # The engine's own run is the oracle: its output, then its result line.
         output = subprocess.run([tool('zi2zx'), 'run', bundle], env=env, check=True, capture_output=True, text=True).stdout
@@ -239,7 +193,7 @@ def standard(arguments):
         run([cc, '-O2', '-std=c11', '-DSTANDARD_REFERENCE', src/'reference.c', src/'host.c', '-lm', '-o', work/'c'])
         run(['go', 'build', '-o', work/'go', src/'reference.go', src/'reference_extra.go', src/'host.go'])
         run([tool('zi2zx'), '--root', src, '--module-path', ROOT/'std', '--entry', 'entry:main', '-o', work/'suite.zx', src/'entry.zi'])
-        run([tool('zx2wasm'), '-o', work/'suite.wasm', work/'suite.zx'])
+        run([tool('zx2wasm'), '--unbounded', '-o', work/'suite.wasm', work/'suite.zx'])
         # Instantiate explicitly selects native; compilation occurs before warmup/timing.
         run([cc, '-O2', '-std=c11', '-I'+str(ROOT/'include'), src/'host.c',
              ROOT/'build/libziran.a', '-lm', '-pthread', '-ldl', '-o', work/'native'])
@@ -312,7 +266,7 @@ def standard(arguments):
             'measured_at': datetime.now(timezone.utc).isoformat(), 'samples': 11,
             'checks': False, 'learning': 'off', 'sources': provenance['sources'],
             'compiler_provenance': 'artifact-build-epoch; immutable native runner statically contains runtime',
-            'methodology': 'Single thread, 150 ms warmup; 11 in-process single-call samples; process startup and compilation excluded. Every result checked against independent cc -O2 C reference. Symmetric 1.5×IQR inclusive interpolated quartiles; raw samples and excluded indices retained. Binary trees include allocation and reclamation (Go GC). Mandelbrot and FASTA digest output bytes without I/O; floats rounded to nine decimals.' +
+            'methodology': 'Single thread, 150 ms warmup; 11 in-process single-call samples; process startup and compilation excluded; the Wasm module charges no step budget. Every result checked against independent cc -O2 C reference. Symmetric 1.5×IQR inclusive interpolated quartiles; raw samples and excluded indices retained. Binary trees include allocation and reclamation (Go GC). Mandelbrot and FASTA digest output bytes without I/O; floats rounded to nine decimals.' +
                            (GATE_METHOD if provenance['host_gate'] else ''),
             'examples': rows}
     output = arguments.output or ROOT/'bench/results/standard/matrix.json'
@@ -369,7 +323,7 @@ def main():
                            'outlier filtering, raw samples and exclusions retained. Every timed checksum and the printed output are '
                            'verified against the instruction engine, and the zx2native ELF of each kernel is run once and checked the same way. '
                            'ZX native times the bundle translated to machine code when it is instantiated, in the same host as C and the engine. '
-                           'Process startup and compilation are excluded for every target.' +
+                           'Process startup and compilation are excluded for every target. The Wasm module charges no step budget.' +
                            (GATE_METHOD if gate else ''),
             'kernels': results}
     if arguments.output:

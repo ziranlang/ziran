@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "revision": "45b74b4e31479b74dc025ba9f12a771670386872",
+  "revision": "4f49aa9affcc360217797888b3c3e37208e174dd",
   "checks": false,
   "learning": "off",
   "host": "alpha \u00b7 Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
-  "measured_at": "2026-11-18T01:16:33.780321+00:00",
+  "measured_at": "2026-11-18T07:00:42.384260+00:00",
   "samples": 11,
   "compiler": {
-    "zi2c": "9eac048ec1e295250394e85a306bd1805308fc998c00e48dba281222189a2853",
-    "zi2go": "87ae414b573bf5aaaf30ed917bee6d3b31f80c6d58213671b6f2ca63a67cea49",
-    "zi2zx": "26373848bf6437a76c24a14b2143c0e569a747568997ba17c0c4021782b8995e",
-    "zx2wasm": "b2fd446fd24f4078407dcbf7c0ec289c42fac1d30aa7d16de2a7342620528d0e"
+    "zi2c": "b307d56d117a7906b87e950bc2537089e657e6b82efae4029abe245e9348a47b",
+    "zi2go": "6d9a31c161f4719d9ea2b8cf1bd28e0f2b92afda472b6e4ffeb6354edb4f623b",
+    "zi2zx": "8b309493f9d7474fbd7f0cf8f51fb2635a48260f67ad90152fcf1f09c9056840",
+    "zx2wasm": "c9dead18c84ce8027f6031efd6d76d73caf16d44ee514c886d6e9f3b7967268b"
   },
   "stdlib": {
     "std/atomic_go.zi": "8e65dcd9289cff694d257488e9368b564958fade6a1b5fb57746efeb3410b916",
@@ -30,6 +30,7 @@
     "std/audio_sink_web.zi": "ca96eca18d62183192e418dbb76c9edbafc77c308b619ec789a11ff2ef6604a7",
     "std/audio_types.zi": "4d8a2a1dcb23e865811352f3e76077a045e6903e386850f9054c4ba42da20613",
     "std/audio_wav.zi": "0c17544f134d67fa462c9a7c58ace2416bdc3c7bb5f637f64bcbb7a3b1ee3bcd",
+    "std/base64.zi": "1a87ae97d4cd5d8ed8852bc4355066dab063b150829356e6c3e5e52524d7467f",
     "std/binary.zi": "01ebf672c5cbeab04305a25c4937c6ac054d42c1940288e4ab091a74d8cad978",
     "std/binary_linux.zi": "47b562893efee0da3390fd2b3b1d76135051bf3000cfea2e9e250dfa0d514cbe",
     "std/bundle_host.zi": "740468802e9d944bb11d6233fe8b573ae8ce2062909cb40a137fe32e3afef177",
@@ -67,7 +68,7 @@
     "std/http_go.zi": "c08446c6ae91d1563fc983131e4c5a816183bc98ec71318d2bfbe4fa4486a0c1",
     "std/image.zi": "228dd453d97c2efbc1964c2732f394095aba9b29209eab2f6244640a017c8dbd",
     "std/io_go.zi": "b8d03bc36a121157099e2ed17ada474cea874fd1c4878810c9c3696eacd38f44",
-    "std/jpeg.zi": "dea4b6fe8431384dc75cabda1fe6f2f06ba26179dcec4c49095c1de7d6e49772",
+    "std/jpeg.zi": "46250385678c73fe19cc2facf3a1e0001025aa96cfedcb28acfb755debb1700c",
     "std/json_bytes.zi": "5a03a9b2b61226ca7d0ca3a3a7592ffbfec42ec842152ea511132e9d398c94ee",
     "std/json_document.zi": "fdda8dc02b9c7190ad68e61e94a33b32b979f5470e61d6c1a64b22bfedfae2ba",
     "std/json_go.zi": "e32aa2c374b4280b5ad57632009e995d6cdb7499a327b2547ba9f9a5f7778981",
@@ -83,14 +84,14 @@
     "std/net_http_curl_linux.zi": "5495eb0256be70e419ca77f078c174ebf1fda7adc2d7710b1c1db585572f3e5a",
     "std/net_http_linux.zi": "748906ebe5397e93674c08d2a7e7a7072686f0a683f34efafce6eb82c73db869",
     "std/net_ws_curl_linux.zi": "da2b2481b1a5922910035b7321e49e702c5762b4452d844b76604bd61eec5876",
-    "std/number_text.zi": "f00a82c9b34a59c858dbede56b79bd64a2d8a63918e757a4edbed6660f5e13a2",
+    "std/number_text.zi": "30f8ba21aa557daf01ac7e07a4d0a13dbc1f61813bd8fbb2b3e3b1b0b6e26de8",
     "std/ogg.zi": "4e74fcc2542ef0025471df842f575914784e11c3ec173ada77a8b9352ac3ca47",
     "std/option.zi": "00be98050954cbc2e62061e28c5db00d7541ab03753d9a98d3fe79dbc2820a0a",
     "std/pair.zi": "75a9d1a6311cbfa69a977cf00f1f40a969733b98d80e39f5ce515e828c36c726",
     "std/parallel.zi": "b24201962fdc01a780fc784f4ca6d1f17b06508647eb7d93e52681568840053e",
     "std/parallel_linux.zi": "a848cd4b0fb656f626a3fa4d427044b305b92e1076e38605f7abe3a5f665409a",
     "std/path.zi": "b462ae6baeb698580d1f502ffa46e3b922a7753b2752871fa66dfc0b54165825",
-    "std/png_linux.zi": "d61038cd2a47f4f3da5675af6aae39cddde18dc66c3cc03a24c417c0716ccb88",
+    "std/png_linux.zi": "56ae7aba81c41632c5c2cf9c3ceb4bc10679a64cc7e76ae2760bf270f72e6add",
     "std/process.zi": "45b7ef79a6da6e6cab39fc21f630288600b529305685b4635165a5b2d52cdd86",
     "std/process_capture_linux.zi": "3c5d0c23ce92b3e8f23048612c32777edd64219d00ef302728dc0d82a0563939",
     "std/process_channel_linux.zi": "8dd9b33384facd630610af2fb38ce8d56a39018a25457fbf6efccdaddd15262d",
@@ -141,9 +142,9 @@
     "std/zstd_go.zi": "b777bd6d3261f0a2f0c6ff6d08b3c1ba6483549272b1a70783652f279318454a"
   },
   "harnesses": {
-    "bench/json_text.py": "1a79d128949544acdc404f0eec22ade74477429665b9d7a96ad629208aa3ccd2",
+    "bench/json_text.py": "a8a30003c5db2ba750e7de9e710f78b0d90a544fbc4d4747fc9ec6cca9f840d0",
     "scripts/site_target_platforms.py": "4d70573d7731e0fc7cbf882285625e16f455010f948dd0aedcee671ead4a25c3",
-    "scripts/site_targets.py": "3cf815f6854f2d6e4dbacf0af768b83efce006e3cb5310cbdcbc03b7dd7f6fa6",
+    "scripts/site_targets.py": "9eb4d3070c05a6bce69851c8a1669993a660111cc11d926974a521d37abb2ac8",
     "scripts/benchmark_samples.py": "7e30d0da03bf6056a460705ccfb9c425a2ff2901e38d8b3fe6a0503ed9b6ab6e",
     "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202",
     "bench/site_target_host.c": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
@@ -233,67 +234,67 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_string_scan:Answer -o build/benchmarks/json-text/json_string_scan/c bench/json_text/json_string_scan.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/c '-DMATRIX_HEADER=\"json_string_scan.h\"' -DMATRIX_ENTRY=json_string_scan_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/c/json_string_scan.c -lm -o build/benchmarks/json-text/json_string_scan/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_string_scan/c '-DMATRIX_HEADER=\"json_string_scan.h\"' -DMATRIX_ENTRY=json_string_scan_Answer bench/site_target_host.c site/generated/json-text/json_string_scan/c/json_bytes.c site/generated/json-text/json_string_scan/c/json_string_scan.c -lm -o build/benchmarks/json-text/json_string_scan/c-program",
           "measurement": {
             "result": "16418",
             "batches": 16384,
-            "load_ms": 6.0022e-05,
-            "warmup_ms": 150.000986993,
-            "warmup_count": 152422,
+            "load_ms": 5.5969e-05,
+            "warmup_ms": 150.000069976,
+            "warmup_count": 156819,
             "batch_samples_ms": [
-              14.891089022,
-              14.908559024,
-              14.931193054,
-              14.890432954,
-              14.992909014,
-              14.873718023,
-              14.881187022,
-              14.876221001,
-              14.803025007,
-              14.851405025,
-              14.61887598
+              14.202064991,
+              14.409864008,
+              14.413151026,
+              14.297158003,
+              14.277444005,
+              14.543537974,
+              14.215012968,
+              14.228470981,
+              14.470791996,
+              15.146097004,
+              14.274786055
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0009088799451904296,
-              0.0009099462294921875,
-              0.0009113277010498047,
-              0.000908839901977539,
-              0.0009150945443115235,
-              0.0009078197035522461,
-              0.0009082755750732422,
-              0.0009079724732055664,
-              0.0009035049442749024,
-              0.0009064578262329102,
-              0.0008922653796386719
+              0.0008668252557983399,
+              0.0008795083012695312,
+              0.0008797089249267578,
+              0.000872629272644043,
+              0.0008714260256958008,
+              0.0008876671126708984,
+              0.0008676155375976562,
+              0.0008684369495239257,
+              0.0008832270505371094,
+              0.0009244443972167968,
+              0.0008712637973022461
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0009037272812194824,
-              "upper_ms": 0.0009128245710144044,
+              "lower_ms": 0.0008524239519348146,
+              "upper_ms": 0.0008988944092102051,
               "excluded_indices": [
-                4,
-                8,
-                10
+                9
               ],
               "included_samples_ms": [
-                0.0009088799451904296,
-                0.0009099462294921875,
-                0.0009113277010498047,
-                0.000908839901977539,
-                0.0009078197035522461,
-                0.0009082755750732422,
-                0.0009079724732055664,
-                0.0009064578262329102
+                0.0008668252557983399,
+                0.0008795083012695312,
+                0.0008797089249267578,
+                0.000872629272644043,
+                0.0008714260256958008,
+                0.0008876671126708984,
+                0.0008676155375976562,
+                0.0008684369495239257,
+                0.0008832270505371094,
+                0.0008712637973022461
               ],
-              "median_ms": 0.0009085577385253906
+              "median_ms": 0.0008720276491699219
             },
-            "execution_ms": 0.0009085577385253906,
+            "execution_ms": 0.0008720276491699219,
             "checksum": "268992512",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -303,12 +304,12 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 15,
-                  "median_khz": 4300013,
-                  "p10_khz": 4299966,
-                  "p90_khz": 4400005,
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 14,
+                  "median_khz": 4499984,
+                  "p10_khz": 4499908,
+                  "p90_khz": 4500039,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -345,64 +346,64 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/json_string_scan/go-program build/benchmarks/json-text/json_string_scan/go-host/json_bytes.go build/benchmarks/json-text/json_string_scan/go-host/json_string_scan.go build/benchmarks/json-text/json_string_scan/go-host/vec.go build/benchmarks/json-text/json_string_scan/go-host/ziran_simd.go build/benchmarks/json-text/json_string_scan/go-host/matrix_host.go build/benchmarks/json-text/json_string_scan/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              18.400147,
-              18.369794,
-              18.376846,
-              18.394125,
-              18.523755,
-              18.148554,
-              18.304696,
-              18.284409,
-              18.411775,
-              18.285995,
-              19.626041
+              17.577765,
+              17.551908,
+              17.622824,
+              17.486778,
+              17.521684,
+              17.481628,
+              18.12021,
+              18.226544,
+              17.495491,
+              17.474308,
+              17.482144
             ],
             "batches": 256,
             "load_ms": 0,
             "result": "16418",
-            "warmup_count": 2033,
-            "warmup_ms": 150.060093,
+            "warmup_count": 2103,
+            "warmup_ms": 150.043902,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.07187557421875,
-              0.0717570078125,
-              0.0717845546875,
-              0.07185205078125,
-              0.07235841796875,
-              0.0708927890625,
-              0.07150271875,
-              0.07142347265625,
-              0.07192099609375,
-              0.07142966796875,
-              0.07666422265625
+              0.06866314453125,
+              0.068562140625,
+              0.06883915625,
+              0.0683077265625,
+              0.068444078125,
+              0.068287609375,
+              0.0707820703125,
+              0.0711974375,
+              0.06834176171875,
+              0.068259015625,
+              0.068289625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.07081805566406252,
-              "upper_ms": 0.07254642285156249,
+              "lower_ms": 0.06761996386718752,
+              "upper_ms": 0.06942986230468748,
               "excluded_indices": [
-                10
+                6,
+                7
               ],
               "included_samples_ms": [
-                0.07187557421875,
-                0.0717570078125,
-                0.0717845546875,
-                0.07185205078125,
-                0.07235841796875,
-                0.0708927890625,
-                0.07150271875,
-                0.07142347265625,
-                0.07192099609375,
-                0.07142966796875
+                0.06866314453125,
+                0.068562140625,
+                0.06883915625,
+                0.0683077265625,
+                0.068444078125,
+                0.068287609375,
+                0.06834176171875,
+                0.068259015625,
+                0.068289625
               ],
-              "median_ms": 0.07177078125
+              "median_ms": 0.06834176171875
             },
-            "execution_ms": 0.07177078125,
+            "execution_ms": 0.06834176171875,
             "checksum": "4203008",
             "host_gate": {
               "cpu": 5,
               "sibling": 11,
-              "reference_khz": 4300007,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -415,9 +416,9 @@
                   "cpu": 5,
                   "sibling": 11,
                   "readings": 21,
-                  "median_khz": 4399998,
-                  "p10_khz": 4394697,
-                  "p90_khz": 4400008,
+                  "median_khz": 4499995,
+                  "p10_khz": 4495287,
+                  "p90_khz": 4500036,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -439,62 +440,62 @@
           "measurement": {
             "result": "16418",
             "batches": 256,
-            "load_ms": 1.227497995,
-            "warmup_ms": 150.044293046,
-            "warmup_count": 3258,
+            "load_ms": 1.303467989,
+            "warmup_ms": 150.028798997,
+            "warmup_count": 3289,
             "batch_samples_ms": [
-              11.74021101,
-              11.556414962,
-              11.744288027,
-              11.785617054,
-              11.655223966,
-              11.692461014,
-              11.759023011,
-              11.701300025,
-              11.658484995,
-              11.662230015,
-              11.691650987
+              11.41763103,
+              11.390534997,
+              11.390976965,
+              11.415282965,
+              11.318265975,
+              11.154579997,
+              11.138804018,
+              11.188336968,
+              11.137834013,
+              11.309643984,
+              11.330331981
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0458601992578125,
-              0.0451422459453125,
-              0.04587612510546875,
-              0.0460375666171875,
-              0.0455282186171875,
-              0.0456736758359375,
-              0.04593368363671875,
-              0.04570820322265625,
-              0.04554095701171875,
-              0.04555558599609375,
-              0.04567051166796875
+              0.0446001212109375,
+              0.04449427733203125,
+              0.04449600376953125,
+              0.04459094908203125,
+              0.04421197646484375,
+              0.04357257811328125,
+              0.0435109531953125,
+              0.04370444128125,
+              0.04350716411328125,
+              0.0441782968125,
+              0.04425910930078125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.045068435487304694,
-              "upper_ms": 0.04634799819824218,
+              "lower_ms": 0.04235356341699219,
+              "upper_ms": 0.04578008683105468,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.0458601992578125,
-                0.0451422459453125,
-                0.04587612510546875,
-                0.0460375666171875,
-                0.0455282186171875,
-                0.0456736758359375,
-                0.04593368363671875,
-                0.04570820322265625,
-                0.04554095701171875,
-                0.04555558599609375,
-                0.04567051166796875
+                0.0446001212109375,
+                0.04449427733203125,
+                0.04449600376953125,
+                0.04459094908203125,
+                0.04421197646484375,
+                0.04357257811328125,
+                0.0435109531953125,
+                0.04370444128125,
+                0.04350716411328125,
+                0.0441782968125,
+                0.04425910930078125
               ],
-              "median_ms": 0.0456736758359375
+              "median_ms": 0.04421197646484375
             },
-            "execution_ms": 0.0456736758359375,
+            "execution_ms": 0.04421197646484375,
             "checksum": "4203008",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -506,16 +507,83 @@
                 {
                   "cpu": 5,
                   "sibling": 11,
-                  "readings": 11,
-                  "median_khz": 4299997,
-                  "p10_khz": 4299966,
-                  "p90_khz": 4395762,
-                  "sibling_busy": 0.0,
+                  "readings": 12,
+                  "median_khz": 4300020,
+                  "p10_khz": 4299968,
+                  "p90_khz": 4465248,
+                  "sibling_busy": 0.0312,
+                  "accepted": false,
+                  "rejected_because": "clock not steady",
+                  "measurement": {
+                    "result": "16418",
+                    "batches": 256,
+                    "load_ms": 7.335910022,
+                    "warmup_ms": 150.026868999,
+                    "warmup_count": 3373,
+                    "batch_samples_ms": [
+                      12.805236995,
+                      12.220223963,
+                      12.874688983,
+                      13.06585598,
+                      11.851092994,
+                      11.670356035,
+                      11.713445961,
+                      11.759499967,
+                      11.698294044,
+                      11.808248997,
+                      11.728347003
+                    ],
+                    "stdout_verified": true,
+                    "execution_samples_ms": [
+                      0.05002045701171875,
+                      0.04773524985546875,
+                      0.05029175383984375,
+                      0.051038499921875,
+                      0.0462933320078125,
+                      0.04558732826171875,
+                      0.04575564828515625,
+                      0.04593554674609375,
+                      0.045696461109375,
+                      0.04612597264453125,
+                      0.04581385548046875
+                    ],
+                    "sample_statistics": {
+                      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                      "lower_ms": 0.04114509955664063,
+                      "upper_ms": 0.05351750575976562,
+                      "excluded_indices": [],
+                      "included_samples_ms": [
+                        0.05002045701171875,
+                        0.04773524985546875,
+                        0.05029175383984375,
+                        0.051038499921875,
+                        0.0462933320078125,
+                        0.04558732826171875,
+                        0.04575564828515625,
+                        0.04593554674609375,
+                        0.045696461109375,
+                        0.04612597264453125,
+                        0.04581385548046875
+                      ],
+                      "median_ms": 0.04612597264453125
+                    },
+                    "execution_ms": 0.04612597264453125,
+                    "checksum": "4203008"
+                  }
+                },
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 10,
+                  "median_khz": 4499999,
+                  "p10_khz": 4400002,
+                  "p90_khz": 4500041,
+                  "sibling_busy": 0.0333,
                   "accepted": true
                 }
               ]
             },
-            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/zx/json_string_scan.zx 16418 11"
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_string_scan/zx/json_string_scan.zx 16418 11"
           }
         },
         "wasm": {
@@ -531,63 +599,62 @@
           "measurement": {
             "result": "16418",
             "batches": 512,
-            "warmup_ms": 150.033183,
-            "warmup_count": 4189,
+            "warmup_ms": 151.537773,
+            "warmup_count": 4344,
             "batch_samples_ms": [
-              17.694101000000018,
-              17.695588000000015,
-              17.690699000000023,
-              18.13364999999999,
-              17.63383399999998,
-              17.614471999999978,
-              17.645781999999997,
-              17.64407,
-              17.62954499999995,
-              17.884937999999977,
-              17.85123900000002
+              16.912694000000016,
+              16.972914000000003,
+              16.859591999999992,
+              17.392421999999954,
+              16.814482999999996,
+              17.926427999999987,
+              17.122271000000012,
+              17.527986,
+              17.403324999999995,
+              17.928316999999993,
+              17.318149000000005
             ],
-            "load_ms": 1.161572999999997,
+            "load_ms": 1.2414839999999998,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.034558791015625034,
-              0.03456169531250003,
-              0.034552146484375046,
-              0.03541728515624998,
-              0.03444108203124996,
-              0.03440326562499996,
-              0.034464417968749994,
-              0.03446107421875,
-              0.0344327050781249,
-              0.034931519531249955,
-              0.03486570117187504
+              0.03303260546875003,
+              0.033150222656250006,
+              0.032928890624999985,
+              0.03396957421874991,
+              0.03284078710937499,
+              0.035012554687499975,
+              0.03344193554687502,
+              0.03423434765625,
+              0.03399086914062499,
+              0.035016244140624986,
+              0.03382450976562501
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.034057147949218644,
-              "upper_ms": 0.03510762841796887,
-              "excluded_indices": [
-                3
-              ],
+              "lower_ms": 0.031559622558593806,
+              "upper_ms": 0.03564439990234371,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.034558791015625034,
-                0.03456169531250003,
-                0.034552146484375046,
-                0.03444108203124996,
-                0.03440326562499996,
-                0.034464417968749994,
-                0.03446107421875,
-                0.0344327050781249,
-                0.034931519531249955,
-                0.03486570117187504
+                0.03303260546875003,
+                0.033150222656250006,
+                0.032928890624999985,
+                0.03396957421874991,
+                0.03284078710937499,
+                0.035012554687499975,
+                0.03344193554687502,
+                0.03423434765625,
+                0.03399086914062499,
+                0.035016244140624986,
+                0.03382450976562501
               ],
-              "median_ms": 0.03450828222656252
+              "median_ms": 0.03382450976562501
             },
-            "execution_ms": 0.03450828222656252,
+            "execution_ms": 0.03382450976562501,
             "checksum": "8406016",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -597,18 +664,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 22,
-                  "median_khz": 4300006,
-                  "p10_khz": 4299953,
-                  "p90_khz": 4300019,
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 21,
+                  "median_khz": 4499973,
+                  "p10_khz": 4400001,
+                  "p90_khz": 4599989,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/wasm/json_string_scan.wasm 16418 11"
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_string_scan/wasm/json_string_scan.wasm 16418 11"
           }
         }
       }
@@ -713,66 +780,67 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/c bench/json_text/json_parse.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c '-DMATRIX_HEADER=\"json_parse.h\"' -DMATRIX_ENTRY=json_parse_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c/json_document.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c/json_parse.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c/vec.c -lm -o build/benchmarks/json-text/json_parse/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_parse/c '-DMATRIX_HEADER=\"json_parse.h\"' -DMATRIX_ENTRY=json_parse_Answer bench/site_target_host.c site/generated/json-text/json_parse/c/json_bytes.c site/generated/json-text/json_parse/c/json_document.c site/generated/json-text/json_parse/c/json_parse.c site/generated/json-text/json_parse/c/vec.c -lm -o build/benchmarks/json-text/json_parse/c-program",
           "measurement": {
             "result": "16624",
-            "batches": 8192,
-            "load_ms": 0.000129044,
-            "warmup_ms": 150.000333011,
-            "warmup_count": 112631,
+            "batches": 16384,
+            "load_ms": 5.2989e-05,
+            "warmup_ms": 150.000909984,
+            "warmup_count": 120629,
             "batch_samples_ms": [
-              9.96757102,
-              9.923927009,
-              9.80261302,
-              9.861187994,
-              9.976975977,
-              10.152647018,
-              10.097084045,
-              9.963647008,
-              10.138360977,
-              9.902649999,
-              9.725786984
+              19.135623038,
+              18.939562976,
+              18.937568963,
+              19.359798014,
+              19.079191983,
+              18.899381995,
+              19.700744033,
+              19.223526001,
+              18.72282505,
+              19.018623054,
+              19.159208953
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0012167445092773437,
-              0.0012114168712158203,
-              0.0011966080346679688,
-              0.001203758300048828,
-              0.0012178925753173829,
-              0.001239336794189453,
-              0.0012325542047119142,
-              0.00121626550390625,
-              0.0012375928927001953,
-              0.0012088195799560546,
-              0.0011872298564453126
+              0.0011679457420654296,
+              0.001155979185546875,
+              0.0011558574806518555,
+              0.0011816282967529296,
+              0.0011645014638061524,
+              0.0011535267330932616,
+              0.0012024379902954101,
+              0.0011733109131469726,
+              0.0011427505523681641,
+              0.0011608046297607421,
+              0.001169385312072754
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0011778872649841306,
-              "upper_ms": 0.0012536250650329592,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.0012167445092773437,
-                0.0012114168712158203,
-                0.0011966080346679688,
-                0.001203758300048828,
-                0.0012178925753173829,
-                0.001239336794189453,
-                0.0012325542047119142,
-                0.00121626550390625,
-                0.0012375928927001953,
-                0.0012088195799560546,
-                0.0011872298564453126
+              "lower_ms": 0.0011327736638336184,
+              "upper_ms": 0.0011944927818756104,
+              "excluded_indices": [
+                6
               ],
-              "median_ms": 0.00121626550390625
+              "included_samples_ms": [
+                0.0011679457420654296,
+                0.001155979185546875,
+                0.0011558574806518555,
+                0.0011816282967529296,
+                0.0011645014638061524,
+                0.0011535267330932616,
+                0.0011733109131469726,
+                0.0011427505523681641,
+                0.0011608046297607421,
+                0.001169385312072754
+              ],
+              "median_ms": 0.0011626530467834474
             },
-            "execution_ms": 0.00121626550390625,
-            "checksum": "136183808",
+            "execution_ms": 0.0011626530467834474,
+            "checksum": "272367616",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -782,12 +850,12 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 8,
-                  "median_khz": 4397403,
-                  "p10_khz": 4394326,
-                  "p90_khz": 4399995,
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 20,
+                  "median_khz": 4550301,
+                  "p10_khz": 4499967,
+                  "p90_khz": 4600007,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -849,64 +917,63 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/json_parse/go-program build/benchmarks/json-text/json_parse/go-host/finite.go build/benchmarks/json-text/json_parse/go-host/float_text.go build/benchmarks/json-text/json_parse/go-host/json_bytes.go build/benchmarks/json-text/json_parse/go-host/json_document.go build/benchmarks/json-text/json_parse/go-host/json_parse.go build/benchmarks/json-text/json_parse/go-host/json_quote.go build/benchmarks/json-text/json_parse/go-host/math.go build/benchmarks/json-text/json_parse/go-host/vec.go build/benchmarks/json-text/json_parse/go-host/ziran_simd.go build/benchmarks/json-text/json_parse/go-host/matrix_host.go build/benchmarks/json-text/json_parse/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              21.483356,
-              20.413302,
-              20.060494,
-              19.678029,
-              20.001625,
-              19.726193,
-              19.694236,
-              20.006295,
-              19.789559,
-              20.194412,
-              20.762881
+              18.717658,
+              18.622371,
+              19.158397,
+              18.745025,
+              18.742211,
+              19.172582,
+              18.904691,
+              18.700694,
+              18.886328,
+              18.638426,
+              18.987896
             ],
             "batches": 256,
             "load_ms": 0,
             "result": "16624",
-            "warmup_count": 1929,
-            "warmup_ms": 150.059812,
+            "warmup_count": 1958,
+            "warmup_ms": 150.016144,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.083919359375,
-              0.0797394609375,
-              0.0783613046875,
-              0.07686730078125,
-              0.07813134765625,
-              0.07705544140625,
-              0.076930609375,
-              0.07814958984375,
-              0.07730296484375,
-              0.078884421875,
-              0.08110500390625
+              0.0731158515625,
+              0.07274363671875,
+              0.07483748828125,
+              0.07322275390625,
+              0.07321176171875,
+              0.0748928984375,
+              0.07384644921875,
+              0.0730495859375,
+              0.07377471875,
+              0.0728063515625,
+              0.07417146875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.073980095703125,
-              "upper_ms": 0.08251104882812502,
-              "excluded_indices": [
-                0
-              ],
+              "lower_ms": 0.07169335839843749,
+              "upper_ms": 0.07539831933593749,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.0797394609375,
-                0.0783613046875,
-                0.07686730078125,
-                0.07813134765625,
-                0.07705544140625,
-                0.076930609375,
-                0.07814958984375,
-                0.07730296484375,
-                0.078884421875,
-                0.08110500390625
+                0.0731158515625,
+                0.07274363671875,
+                0.07483748828125,
+                0.07322275390625,
+                0.07321176171875,
+                0.0748928984375,
+                0.07384644921875,
+                0.0730495859375,
+                0.07377471875,
+                0.0728063515625,
+                0.07417146875
               ],
-              "median_ms": 0.07814046875
+              "median_ms": 0.07322275390625
             },
-            "execution_ms": 0.07814046875,
+            "execution_ms": 0.07322275390625,
             "checksum": "4255744",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 4,
+              "sibling": 10,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -916,12 +983,12 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 23,
-                  "median_khz": 4300012,
-                  "p10_khz": 4299967,
-                  "p90_khz": 4388033,
+                  "cpu": 4,
+                  "sibling": 10,
+                  "readings": 22,
+                  "median_khz": 4593026,
+                  "p10_khz": 4499985,
+                  "p90_khz": 4600003,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -943,63 +1010,62 @@
           "measurement": {
             "result": "16624",
             "batches": 256,
-            "load_ms": 7.048465014,
-            "warmup_ms": 150.023841023,
-            "warmup_count": 2707,
+            "load_ms": 38.287832975,
+            "warmup_ms": 150.01819998,
+            "warmup_count": 2824,
             "batch_samples_ms": [
-              14.115261972,
-              13.985769033,
-              14.051090002,
-              13.922353983,
-              13.911566019,
-              13.878920019,
-              13.911629975,
-              13.92037499,
-              13.770847023,
-              13.928074002,
-              13.586143017
+              13.978793979,
+              14.372150004,
+              14.234618008,
+              13.993894994,
+              13.802526951,
+              13.731739998,
+              13.703713,
+              13.799073994,
+              13.687462986,
+              13.688634038,
+              13.679501951
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.055137742078125,
-              0.05463191028515625,
-              0.0548870703203125,
-              0.05438419524609375,
-              0.05434205476171875,
-              0.05421453132421875,
-              0.05434230458984375,
-              0.0543764648046875,
-              0.05379237118359375,
-              0.0544065390703125,
-              0.05307087116015625
+              0.05460466398046875,
+              0.056141210953125,
+              0.05560397659375,
+              0.0546636523203125,
+              0.05391612090234375,
+              0.0536396093671875,
+              0.05353012890625,
+              0.0539026327890625,
+              0.0534666522890625,
+              0.0534712267109375,
+              0.05343555449609375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.053916895590820316,
-              "upper_ms": 0.0548806221298828,
-              "excluded_indices": [
-                0,
-                2,
-                8,
-                10
-              ],
+              "lower_ms": 0.05180045729589844,
+              "upper_ms": 0.05633437866308594,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.05463191028515625,
-                0.05438419524609375,
-                0.05434205476171875,
-                0.05421453132421875,
-                0.05434230458984375,
-                0.0543764648046875,
-                0.0544065390703125
+                0.05460466398046875,
+                0.056141210953125,
+                0.05560397659375,
+                0.0546636523203125,
+                0.05391612090234375,
+                0.0536396093671875,
+                0.05353012890625,
+                0.0539026327890625,
+                0.0534666522890625,
+                0.0534712267109375,
+                0.05343555449609375
               ],
-              "median_ms": 0.0543764648046875
+              "median_ms": 0.0539026327890625
             },
-            "execution_ms": 0.0543764648046875,
+            "execution_ms": 0.0539026327890625,
             "checksum": "4255744",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 3,
+              "sibling": 9,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1009,18 +1075,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 14,
-                  "median_khz": 4300012,
+                  "cpu": 3,
+                  "sibling": 9,
+                  "readings": 17,
+                  "median_khz": 4300035,
                   "p10_khz": 4299988,
-                  "p90_khz": 4399992,
+                  "p90_khz": 4399994,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/zx/json_parse.zx 16624 11"
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_parse/zx/json_parse.zx 16624 11"
           }
         },
         "wasm": {
@@ -1028,70 +1094,71 @@
           "files": [
             {
               "path": "generated/json-text/json_parse/wasm/json_parse.wasm",
-              "bytes": 51622,
-              "sha256": "091a91ca304ed603c0d186378fc38ea80bacd7d997f7421d22364a16c98f7fbe"
+              "bytes": 49970,
+              "sha256": "9f4e81555f4ad8e2f3585123b066b011eabcc69cd598b2f0ab8135cdc15bc985"
             }
           ],
           "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/wasm/json_parse.zx bench/json_text/json_parse.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_parse/wasm/json_parse.wasm build/benchmarks/json-text/json_parse/wasm/json_parse.zx",
           "measurement": {
             "result": "16624",
             "batches": 256,
-            "warmup_ms": 150.003898,
-            "warmup_count": 2776,
+            "warmup_ms": 150.02114400000002,
+            "warmup_count": 2859,
             "batch_samples_ms": [
-              12.251761000000016,
-              12.176362000000012,
-              12.194716999999997,
-              12.69520399999999,
-              12.338678999999956,
-              11.814678999999956,
-              11.770753999999954,
-              11.761987999999974,
-              12.032178999999985,
-              12.010330999999951,
-              11.836049000000003
+              12.02223699999999,
+              11.946771000000012,
+              12.062698000000012,
+              12.717056999999983,
+              11.671547999999973,
+              11.957569999999976,
+              11.788254999999992,
+              11.852942999999982,
+              11.830202999999983,
+              11.97715199999999,
+              12.140650999999991
             ],
-            "load_ms": 1.4396440000000013,
+            "load_ms": 1.6118699999999997,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.04785844140625006,
-              0.047563914062500046,
-              0.04763561328124999,
-              0.04959064062499996,
-              0.04819796484374983,
-              0.046151089843749826,
-              0.04597950781249982,
-              0.0459452656249999,
-              0.04700069921874994,
-              0.04691535546874981,
-              0.04623456640625001
+              0.04696186328124996,
+              0.04666707421875005,
+              0.047119914062500046,
+              0.04967600390624993,
+              0.045591984374999894,
+              0.046709257812499905,
+              0.04604787109374997,
+              0.04630055859374993,
+              0.046211730468749934,
+              0.04678574999999996,
+              0.047424417968749966
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.04386152929687476,
-              "upper_ms": 0.05007832617187519,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.04785844140625006,
-                0.047563914062500046,
-                0.04763561328124999,
-                0.04959064062499996,
-                0.04819796484374983,
-                0.046151089843749826,
-                0.04597950781249982,
-                0.0459452656249999,
-                0.04700069921874994,
-                0.04691535546874981,
-                0.04623456640625001
+              "lower_ms": 0.045079028320312325,
+              "upper_ms": 0.04821800488281261,
+              "excluded_indices": [
+                3
               ],
-              "median_ms": 0.04700069921874994
+              "included_samples_ms": [
+                0.04696186328124996,
+                0.04666707421875005,
+                0.047119914062500046,
+                0.045591984374999894,
+                0.046709257812499905,
+                0.04604787109374997,
+                0.04630055859374993,
+                0.046211730468749934,
+                0.04678574999999996,
+                0.047424417968749966
+              ],
+              "median_ms": 0.04668816601562498
             },
-            "execution_ms": 0.04700069921874994,
+            "execution_ms": 0.04668816601562498,
             "checksum": "4255744",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1101,18 +1168,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 16,
-                  "median_khz": 4399043,
-                  "p10_khz": 4386302,
-                  "p90_khz": 4400010,
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 15,
+                  "median_khz": 4499995,
+                  "p10_khz": 4396883,
+                  "p90_khz": 4599995,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/wasm/json_parse.wasm 16624 11"
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_parse/wasm/json_parse.wasm 16624 11"
           }
         }
       }
@@ -1217,67 +1284,67 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/c bench/json_text/json_escaped.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c '-DMATRIX_HEADER=\"json_escaped.h\"' -DMATRIX_ENTRY=json_escaped_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c/json_document.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c/json_escaped.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c/vec.c -lm -o build/benchmarks/json-text/json_escaped/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_escaped/c '-DMATRIX_HEADER=\"json_escaped.h\"' -DMATRIX_ENTRY=json_escaped_Answer bench/site_target_host.c site/generated/json-text/json_escaped/c/json_bytes.c site/generated/json-text/json_escaped/c/json_document.c site/generated/json-text/json_escaped/c/json_escaped.c site/generated/json-text/json_escaped/c/vec.c -lm -o build/benchmarks/json-text/json_escaped/c-program",
           "measurement": {
             "result": "43904",
             "batches": 512,
-            "load_ms": 6.9022e-05,
-            "warmup_ms": 150.021830976,
-            "warmup_count": 5190,
+            "load_ms": 5.9009e-05,
+            "warmup_ms": 150.00584197,
+            "warmup_count": 5181,
             "batch_samples_ms": [
-              14.616703987,
-              14.621798992,
-              14.623329997,
-              14.857652009,
-              15.045226991,
-              14.686846018,
-              14.599943995,
-              14.483676016,
-              14.511454999,
-              14.372280002,
-              14.735536993
+              15.827820003,
+              14.607429981,
+              14.709825993,
+              14.577592969,
+              14.664031982,
+              14.730974972,
+              14.563547969,
+              14.566823959,
+              15.575358033,
+              14.667171001,
+              14.571965992
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.028548249974609374,
-              0.02855820115625,
-              0.028561191400390627,
-              0.029018851580078126,
-              0.029385208966796875,
-              0.02868524612890625,
-              0.028515515615234376,
-              0.02828842971875,
-              0.028342685544921874,
-              0.02807085937890625,
-              0.028780345689453125
+              0.030913710943359374,
+              0.028530136681640623,
+              0.028730128892578127,
+              0.028471861267578124,
+              0.02864068746484375,
+              0.0287714354921875,
+              0.028444429626953125,
+              0.028450828044921876,
+              0.030420621158203126,
+              0.028646818361328125,
+              0.028460871078125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.027973557586425776,
-              "upper_ms": 0.029188338902832036,
+              "lower_ms": 0.02803974214355469,
+              "upper_ms": 0.02917740622167969,
               "excluded_indices": [
-                4
+                0,
+                8
               ],
               "included_samples_ms": [
-                0.028548249974609374,
-                0.02855820115625,
-                0.028561191400390627,
-                0.029018851580078126,
-                0.02868524612890625,
-                0.028515515615234376,
-                0.02828842971875,
-                0.028342685544921874,
-                0.02807085937890625,
-                0.028780345689453125
+                0.028530136681640623,
+                0.028730128892578127,
+                0.028471861267578124,
+                0.02864068746484375,
+                0.0287714354921875,
+                0.028444429626953125,
+                0.028450828044921876,
+                0.028646818361328125,
+                0.028460871078125
               ],
-              "median_ms": 0.028553225565429687
+              "median_ms": 0.028530136681640623
             },
-            "execution_ms": 0.028553225565429687,
+            "execution_ms": 0.028530136681640623,
             "checksum": "22478848",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1287,12 +1354,12 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
+                  "cpu": 2,
+                  "sibling": 8,
                   "readings": 14,
-                  "median_khz": 4397911,
-                  "p10_khz": 4299979,
-                  "p90_khz": 4400000,
+                  "median_khz": 4300000,
+                  "p10_khz": 4299968,
+                  "p90_khz": 4300034,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -1354,64 +1421,64 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/json_escaped/go-program build/benchmarks/json-text/json_escaped/go-host/finite.go build/benchmarks/json-text/json_escaped/go-host/float_text.go build/benchmarks/json-text/json_escaped/go-host/json_bytes.go build/benchmarks/json-text/json_escaped/go-host/json_document.go build/benchmarks/json-text/json_escaped/go-host/json_escaped.go build/benchmarks/json-text/json_escaped/go-host/json_quote.go build/benchmarks/json-text/json_escaped/go-host/math.go build/benchmarks/json-text/json_escaped/go-host/vec.go build/benchmarks/json-text/json_escaped/go-host/ziran_simd.go build/benchmarks/json-text/json_escaped/go-host/matrix_host.go build/benchmarks/json-text/json_escaped/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              12.991565,
-              13.021204,
-              13.124239,
-              12.894608,
-              13.265316,
-              13.311079,
-              12.487646,
-              12.91531,
-              13.053959,
-              12.437607,
-              13.14669
+              11.810794,
+              12.374531,
+              11.777446,
+              12.012644,
+              11.957154,
+              11.774275,
+              11.976332,
+              11.580448,
+              12.042313,
+              11.760219,
+              11.95281
             ],
             "batches": 16,
             "load_ms": 0,
             "result": "43904",
-            "warmup_count": 188,
-            "warmup_ms": 150.238297,
+            "warmup_count": 194,
+            "warmup_ms": 150.774675,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.8119728125,
-              0.81382525,
-              0.8202649375,
-              0.805913,
-              0.82908225,
-              0.8319424375,
-              0.780477875,
-              0.807206875,
-              0.8158724375,
-              0.7773504375,
-              0.821668125
+              0.738174625,
+              0.7734081875,
+              0.736090375,
+              0.75079025,
+              0.747322125,
+              0.7358921875,
+              0.74852075,
+              0.723778,
+              0.7526445625,
+              0.7350136875,
+              0.747050625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.784950046875,
-              "upper_ms": 0.8425764218749999,
+              "lower_ms": 0.715494953125,
+              "upper_ms": 0.770151828125,
               "excluded_indices": [
-                6,
-                9
+                1
               ],
               "included_samples_ms": [
-                0.8119728125,
-                0.81382525,
-                0.8202649375,
-                0.805913,
-                0.82908225,
-                0.8319424375,
-                0.807206875,
-                0.8158724375,
-                0.821668125
+                0.738174625,
+                0.736090375,
+                0.75079025,
+                0.747322125,
+                0.7358921875,
+                0.74852075,
+                0.723778,
+                0.7526445625,
+                0.7350136875,
+                0.747050625
               ],
-              "median_ms": 0.8158724375
+              "median_ms": 0.742612625
             },
-            "execution_ms": 0.8158724375,
+            "execution_ms": 0.742612625,
             "checksum": "702464",
             "host_gate": {
               "cpu": 5,
               "sibling": 11,
-              "reference_khz": 4300007,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1421,12 +1488,79 @@
               "accepted": true,
               "attempts": [
                 {
+                  "cpu": 3,
+                  "sibling": 9,
+                  "readings": 14,
+                  "median_khz": 4497373,
+                  "p10_khz": 4327158,
+                  "p90_khz": 4500007,
+                  "sibling_busy": 0.0294,
+                  "accepted": false,
+                  "rejected_because": "clock not steady",
+                  "measurement": {
+                    "batch_samples_ms": [
+                      12.283012,
+                      11.691116,
+                      11.773284,
+                      11.787674,
+                      13.33196,
+                      12.588997,
+                      11.663115,
+                      13.308096,
+                      14.616905,
+                      12.909295,
+                      13.662941
+                    ],
+                    "batches": 16,
+                    "load_ms": 0,
+                    "result": "43904",
+                    "warmup_count": 191,
+                    "warmup_ms": 150.396344,
+                    "stdout_verified": true,
+                    "execution_samples_ms": [
+                      0.76768825,
+                      0.73069475,
+                      0.73583025,
+                      0.736729625,
+                      0.8332475,
+                      0.7868123125,
+                      0.7289446875,
+                      0.831756,
+                      0.9135565625,
+                      0.8068309375,
+                      0.8539338125
+                    ],
+                    "sample_statistics": {
+                      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                      "lower_ms": 0.5919472187499999,
+                      "upper_ms": 0.9768344687500001,
+                      "excluded_indices": [],
+                      "included_samples_ms": [
+                        0.76768825,
+                        0.73069475,
+                        0.73583025,
+                        0.736729625,
+                        0.8332475,
+                        0.7868123125,
+                        0.7289446875,
+                        0.831756,
+                        0.9135565625,
+                        0.8068309375,
+                        0.8539338125
+                      ],
+                      "median_ms": 0.7868123125
+                    },
+                    "execution_ms": 0.7868123125,
+                    "checksum": "702464"
+                  }
+                },
+                {
                   "cpu": 5,
                   "sibling": 11,
-                  "readings": 14,
-                  "median_khz": 4300043,
-                  "p10_khz": 4299965,
-                  "p90_khz": 4396479,
+                  "readings": 11,
+                  "median_khz": 4500032,
+                  "p10_khz": 4499978,
+                  "p90_khz": 4595864,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -1448,63 +1582,63 @@
           "measurement": {
             "result": "43904",
             "batches": 64,
-            "load_ms": 7.416319013,
-            "warmup_ms": 150.180880964,
-            "warmup_count": 715,
+            "load_ms": 7.553640962,
+            "warmup_ms": 150.106436014,
+            "warmup_count": 743,
             "batch_samples_ms": [
-              13.676931977,
-              13.973936021,
-              14.171352029,
-              13.557289004,
-              13.305716991,
-              13.288778007,
-              13.286698997,
-              13.266386986,
-              13.274851978,
-              13.419375002,
-              13.272193015
+              12.809891999,
+              12.812605023,
+              12.864356995,
+              12.780019999,
+              13.183847964,
+              13.585802972,
+              12.826701999,
+              12.831691027,
+              12.922338963,
+              12.810217977,
+              12.795483053
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.213702062140625,
-              0.218342750328125,
-              0.221427375453125,
-              0.2118326406875,
-              0.207901827984375,
-              0.207637156359375,
-              0.207604671828125,
-              0.20728729665625,
-              0.20741956215625,
-              0.20967773440625,
-              0.207378015859375
+              0.200154562484375,
+              0.200196953484375,
+              0.201005578046875,
+              0.199687812484375,
+              0.2059976244375,
+              0.2122781714375,
+              0.200417218734375,
+              0.200495172296875,
+              0.201911546296875,
+              0.200159655890625,
+              0.199929422703125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.19962926535937497,
-              "upper_ms": 0.220650203046875,
+              "lower_ms": 0.19820492971093756,
+              "upper_ms": 0.20341074164843748,
               "excluded_indices": [
-                2
+                4,
+                5
               ],
               "included_samples_ms": [
-                0.213702062140625,
-                0.218342750328125,
-                0.2118326406875,
-                0.207901827984375,
-                0.207637156359375,
-                0.207604671828125,
-                0.20728729665625,
-                0.20741956215625,
-                0.20967773440625,
-                0.207378015859375
+                0.200154562484375,
+                0.200196953484375,
+                0.201005578046875,
+                0.199687812484375,
+                0.200417218734375,
+                0.200495172296875,
+                0.201911546296875,
+                0.200159655890625,
+                0.199929422703125
               ],
-              "median_ms": 0.20776949217187501
+              "median_ms": 0.200196953484375
             },
-            "execution_ms": 0.20776949217187501,
+            "execution_ms": 0.200196953484375,
             "checksum": "2809856",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 1,
+              "sibling": 7,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1514,18 +1648,86 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 14,
-                  "median_khz": 4300024,
-                  "p10_khz": 4299997,
-                  "p90_khz": 4391921,
+                  "cpu": 4,
+                  "sibling": 10,
+                  "readings": 16,
+                  "median_khz": 4493077,
+                  "p10_khz": 4299989,
+                  "p90_khz": 4499992,
+                  "sibling_busy": 0.0,
+                  "accepted": false,
+                  "rejected_because": "clock not steady",
+                  "measurement": {
+                    "result": "43904",
+                    "batches": 64,
+                    "load_ms": 39.688829005,
+                    "warmup_ms": 150.179034054,
+                    "warmup_count": 752,
+                    "batch_samples_ms": [
+                      13.031476021,
+                      13.267858982,
+                      12.981269002,
+                      12.889512002,
+                      12.93681103,
+                      12.789265037,
+                      12.495573997,
+                      12.802114964,
+                      12.898680985,
+                      12.887246013,
+                      12.889958024
+                    ],
+                    "stdout_verified": true,
+                    "execution_samples_ms": [
+                      0.203616812828125,
+                      0.20731029659375,
+                      0.20283232815625,
+                      0.20139862503125,
+                      0.20213767234375,
+                      0.199832266203125,
+                      0.195243343703125,
+                      0.2000330463125,
+                      0.201541890390625,
+                      0.201363218953125,
+                      0.201405594125
+                    ],
+                    "sample_statistics": {
+                      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                      "lower_ms": 0.19801783120703126,
+                      "upper_ms": 0.20516530167578123,
+                      "excluded_indices": [
+                        1,
+                        6
+                      ],
+                      "included_samples_ms": [
+                        0.203616812828125,
+                        0.20283232815625,
+                        0.20139862503125,
+                        0.20213767234375,
+                        0.199832266203125,
+                        0.2000330463125,
+                        0.201541890390625,
+                        0.201363218953125,
+                        0.201405594125
+                      ],
+                      "median_ms": 0.201405594125
+                    },
+                    "execution_ms": 0.201405594125,
+                    "checksum": "2809856"
+                  }
+                },
+                {
+                  "cpu": 1,
+                  "sibling": 7,
+                  "readings": 13,
+                  "median_khz": 4499989,
+                  "p10_khz": 4497338,
+                  "p90_khz": 4500008,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/zx/json_escaped.zx 43904 11"
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_escaped/zx/json_escaped.zx 43904 11"
           }
         },
         "wasm": {
@@ -1533,71 +1735,71 @@
           "files": [
             {
               "path": "generated/json-text/json_escaped/wasm/json_escaped.wasm",
-              "bytes": 54090,
-              "sha256": "a10cea0fd93809993a38f68773bbe3a4482c3cee728b498cbfb0b4504ac8505c"
+              "bytes": 52429,
+              "sha256": "e1658c9bba8dcd9e067f65db177b9c7c7932b837e04320e4b131a9d401002a33"
             }
           ],
           "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/wasm/json_escaped.zx bench/json_text/json_escaped.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_escaped/wasm/json_escaped.wasm build/benchmarks/json-text/json_escaped/wasm/json_escaped.zx",
           "measurement": {
             "result": "43904",
             "batches": 128,
-            "warmup_ms": 150.084798,
-            "warmup_count": 1272,
+            "warmup_ms": 150.054213,
+            "warmup_count": 1277,
             "batch_samples_ms": [
-              12.464870999999988,
-              12.054019000000011,
-              12.014317000000005,
-              12.275277000000017,
-              13.330894999999998,
-              12.088351999999986,
-              12.177440000000047,
-              12.42703499999999,
-              12.059048000000018,
-              12.11281200000002,
-              12.322362999999996
+              13.807094000000006,
+              12.001508000000001,
+              12.930251999999996,
+              11.970990999999998,
+              11.962463000000014,
+              12.01701300000002,
+              12.157567000000029,
+              11.982165000000009,
+              11.95860799999997,
+              12.223842999999988,
+              11.994226000000026
             ],
-            "load_ms": 1.558647999999998,
+            "load_ms": 1.4786180000000009,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0973818046874999,
-              0.09417202343750009,
-              0.09386185156250004,
-              0.09590060156250013,
-              0.10414761718749999,
-              0.09444024999999989,
-              0.09513625000000037,
-              0.09708621093749992,
-              0.09421131250000014,
-              0.09463134375000015,
-              0.09626846093749997
+              0.10786792187500005,
+              0.09376178125000001,
+              0.10101759374999997,
+              0.09352336718749998,
+              0.09345674218750011,
+              0.09388291406250016,
+              0.09498099218750022,
+              0.09361066406250007,
+              0.09342662499999976,
+              0.0954987734374999,
+              0.0937048906250002
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.09079844921875013,
-              "upper_ms": 0.10020466796874983,
+              "lower_ms": 0.09105771484374997,
+              "upper_ms": 0.09774918359375012,
               "excluded_indices": [
-                4
+                0,
+                2
               ],
               "included_samples_ms": [
-                0.0973818046874999,
-                0.09417202343750009,
-                0.09386185156250004,
-                0.09590060156250013,
-                0.09444024999999989,
-                0.09513625000000037,
-                0.09708621093749992,
-                0.09421131250000014,
-                0.09463134375000015,
-                0.09626846093749997
+                0.09376178125000001,
+                0.09352336718749998,
+                0.09345674218750011,
+                0.09388291406250016,
+                0.09498099218750022,
+                0.09361066406250007,
+                0.09342662499999976,
+                0.0954987734374999,
+                0.0937048906250002
               ],
-              "median_ms": 0.09488379687500026
+              "median_ms": 0.0937048906250002
             },
-            "execution_ms": 0.09488379687500026,
+            "execution_ms": 0.0937048906250002,
             "checksum": "5619712",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 1,
+              "sibling": 7,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1607,18 +1809,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 16,
-                  "median_khz": 4399988,
-                  "p10_khz": 4300024,
-                  "p90_khz": 4400004,
-                  "sibling_busy": 0.0,
+                  "cpu": 1,
+                  "sibling": 7,
+                  "readings": 15,
+                  "median_khz": 4299991,
+                  "p10_khz": 4299969,
+                  "p90_khz": 4300039,
+                  "sibling_busy": 0.0286,
                   "accepted": true
                 }
               ]
             },
-            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/wasm/json_escaped.wasm 43904 11"
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_escaped/wasm/json_escaped.wasm 43904 11"
           }
         }
       }
@@ -1708,66 +1910,66 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/c bench/json_text/json_write.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/c '-DMATRIX_HEADER=\"json_write.h\"' -DMATRIX_ENTRY=json_write_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/c/json_quote.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/c/json_write.c -lm -o build/benchmarks/json-text/json_write/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_write/c '-DMATRIX_HEADER=\"json_write.h\"' -DMATRIX_ENTRY=json_write_Answer bench/site_target_host.c site/generated/json-text/json_write/c/json_bytes.c site/generated/json-text/json_write/c/json_quote.c site/generated/json-text/json_write/c/json_write.c -lm -o build/benchmarks/json-text/json_write/c-program",
           "measurement": {
             "result": "5446",
             "batches": 1024,
-            "load_ms": 6.1035e-05,
-            "warmup_ms": 150.009561956,
-            "warmup_count": 10869,
+            "load_ms": 0.000333011,
+            "warmup_ms": 150.003381014,
+            "warmup_count": 11318,
             "batch_samples_ms": [
-              13.844606996,
-              13.814426005,
-              13.827996016,
-              13.860349,
-              13.820982993,
-              13.862866998,
-              13.875169992,
-              13.701990962,
-              13.592015982,
-              13.738101006,
-              13.600731015
+              13.256914973,
+              13.260487974,
+              13.206596017,
+              13.221020997,
+              14.073733032,
+              13.600858986,
+              13.321586013,
+              13.282487988,
+              13.775648057,
+              13.462069988,
+              14.176156044
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.01352012401953125,
-              0.013490650395507812,
-              0.013503902359375,
-              0.0135354970703125,
-              0.013497053704101562,
-              0.013537956052734374,
-              0.0135499706953125,
-              0.013380850548828125,
-              0.013273453107421875,
-              0.013416114263671876,
-              0.013281963881835937
+              0.012946206028320313,
+              0.012949695287109375,
+              0.012897066422851563,
+              0.012911153317382813,
+              0.0137438799140625,
+              0.013282088853515625,
+              0.013009361340820312,
+              0.01297117967578125,
+              0.013452781305664062,
+              0.01314655272265625,
+              0.01384390238671875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.01320449019824219,
-              "upper_ms": 0.013721802752929686,
+              "lower_ms": 0.012318724024902344,
+              "upper_ms": 0.013996661712402342,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.01352012401953125,
-                0.013490650395507812,
-                0.013503902359375,
-                0.0135354970703125,
-                0.013497053704101562,
-                0.013537956052734374,
-                0.0135499706953125,
-                0.013380850548828125,
-                0.013273453107421875,
-                0.013416114263671876,
-                0.013281963881835937
+                0.012946206028320313,
+                0.012949695287109375,
+                0.012897066422851563,
+                0.012911153317382813,
+                0.0137438799140625,
+                0.013282088853515625,
+                0.013009361340820312,
+                0.01297117967578125,
+                0.013452781305664062,
+                0.01314655272265625,
+                0.01384390238671875
               ],
-              "median_ms": 0.013497053704101562
+              "median_ms": 0.013009361340820312
             },
-            "execution_ms": 0.013497053704101562,
+            "execution_ms": 0.013009361340820312,
             "checksum": "5576704",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 3,
+              "sibling": 9,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1780,10 +1982,78 @@
                   "cpu": 5,
                   "sibling": 11,
                   "readings": 13,
-                  "median_khz": 4300022,
-                  "p10_khz": 4299978,
-                  "p90_khz": 4400009,
+                  "median_khz": 4300001,
+                  "p10_khz": 4299966,
+                  "p90_khz": 4599997,
                   "sibling_busy": 0.0,
+                  "accepted": false,
+                  "rejected_because": "clock not steady",
+                  "measurement": {
+                    "result": "5446",
+                    "batches": 1024,
+                    "load_ms": 6.2943e-05,
+                    "warmup_ms": 150.010897994,
+                    "warmup_count": 10865,
+                    "batch_samples_ms": [
+                      13.830489993,
+                      13.80755502,
+                      13.831207037,
+                      13.813917994,
+                      13.820793033,
+                      13.781040967,
+                      13.846671999,
+                      13.701231003,
+                      13.445046008,
+                      13.223675966,
+                      14.863092959
+                    ],
+                    "stdout_verified": true,
+                    "execution_samples_ms": [
+                      0.013506337883789063,
+                      0.01348394044921875,
+                      0.013507038122070313,
+                      0.013490154291015626,
+                      0.013496868196289062,
+                      0.013458047819335937,
+                      0.013522140624023437,
+                      0.013380108401367188,
+                      0.0131299277421875,
+                      0.012913746060546875,
+                      0.014514739217773437
+                    ],
+                    "sample_statistics": {
+                      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                      "lower_ms": 0.013287663271484375,
+                      "upper_ms": 0.013638102841796874,
+                      "excluded_indices": [
+                        8,
+                        9,
+                        10
+                      ],
+                      "included_samples_ms": [
+                        0.013506337883789063,
+                        0.01348394044921875,
+                        0.013507038122070313,
+                        0.013490154291015626,
+                        0.013496868196289062,
+                        0.013458047819335937,
+                        0.013522140624023437,
+                        0.013380108401367188
+                      ],
+                      "median_ms": 0.013493511243652345
+                    },
+                    "execution_ms": 0.013493511243652345,
+                    "checksum": "5576704"
+                  }
+                },
+                {
+                  "cpu": 3,
+                  "sibling": 9,
+                  "readings": 13,
+                  "median_khz": 4499990,
+                  "p10_khz": 4497083,
+                  "p90_khz": 4500030,
+                  "sibling_busy": 0.0294,
                   "accepted": true
                 }
               ]
@@ -1824,63 +2094,63 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/json_write/go-program build/benchmarks/json-text/json_write/go-host/json_bytes.go build/benchmarks/json-text/json_write/go-host/json_quote.go build/benchmarks/json-text/json_write/go-host/json_write.go build/benchmarks/json-text/json_write/go-host/vec.go build/benchmarks/json-text/json_write/go-host/ziran_simd.go build/benchmarks/json-text/json_write/go-host/matrix_host.go build/benchmarks/json-text/json_write/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              15.487499,
-              13.458465,
-              15.715238,
-              13.423618,
-              13.58997,
-              13.303138,
-              14.928172,
-              13.079844,
-              15.704077,
-              13.49176,
-              13.852082
+              12.76898,
+              12.751028,
+              14.281209,
+              12.492329,
+              14.071301,
+              14.884278,
+              13.472221,
+              16.286093,
+              13.195831,
+              14.500212,
+              12.411455
             ],
             "batches": 256,
             "load_ms": 0,
             "result": "5446",
-            "warmup_count": 2503,
-            "warmup_ms": 150.013703,
+            "warmup_count": 2692,
+            "warmup_ms": 150.012509,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.06049804296875,
-              0.05257212890625,
-              0.0613876484375,
-              0.0524360078125,
-              0.0530858203125,
-              0.0519653828125,
-              0.058313171875,
-              0.051093140625,
-              0.06134405078125,
-              0.0527021875,
-              0.0541096953125
+              0.049878828125,
+              0.049808703125,
+              0.05578597265625,
+              0.04879816015625,
+              0.05496601953125,
+              0.0581417109375,
+              0.05262586328125,
+              0.06361755078125,
+              0.05154621484375,
+              0.056641453125,
+              0.04848224609375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.042151759765625005,
-              "upper_ms": 0.06975791601562499,
+              "lower_ms": 0.040288844726562495,
+              "upper_ms": 0.0657686337890625,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.06049804296875,
-                0.05257212890625,
-                0.0613876484375,
-                0.0524360078125,
-                0.0530858203125,
-                0.0519653828125,
-                0.058313171875,
-                0.051093140625,
-                0.06134405078125,
-                0.0527021875,
-                0.0541096953125
+                0.049878828125,
+                0.049808703125,
+                0.05578597265625,
+                0.04879816015625,
+                0.05496601953125,
+                0.0581417109375,
+                0.05262586328125,
+                0.06361755078125,
+                0.05154621484375,
+                0.056641453125,
+                0.04848224609375
               ],
-              "median_ms": 0.0530858203125
+              "median_ms": 0.05262586328125
             },
-            "execution_ms": 0.0530858203125,
+            "execution_ms": 0.05262586328125,
             "checksum": "1394176",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 4,
+              "sibling": 10,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1890,13 +2160,13 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
+                  "cpu": 4,
+                  "sibling": 10,
                   "readings": 15,
-                  "median_khz": 4399065,
-                  "p10_khz": 4389758,
-                  "p90_khz": 4400001,
-                  "sibling_busy": 0.0278,
+                  "median_khz": 4496996,
+                  "p10_khz": 4445337,
+                  "p90_khz": 4500027,
+                  "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
@@ -1916,63 +2186,63 @@
           "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/zx/json_write.zx bench/json_text/json_write.zi",
           "measurement": {
             "result": "5446",
-            "batches": 256,
-            "load_ms": 4.036607027,
-            "warmup_ms": 150.006552994,
-            "warmup_count": 3708,
+            "batches": 512,
+            "load_ms": 23.417807996,
+            "warmup_ms": 150.016216993,
+            "warmup_count": 3877,
             "batch_samples_ms": [
-              10.363931954,
-              10.391748011,
-              10.35156697,
-              10.36908704,
-              10.369583964,
-              10.329457998,
-              10.30081296,
-              10.363065958,
-              10.322369039,
-              10.409123003,
-              10.358614028
+              19.789130986,
+              19.168487012,
+              19.665120959,
+              19.185045004,
+              20.114458025,
+              20.649949014,
+              19.533653975,
+              20.045479953,
+              19.172935009,
+              19.471360981,
+              19.175695002
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0404841091953125,
-              0.04059276566796875,
-              0.0404358084765625,
-              0.04050424625,
-              0.040506187359375,
-              0.0403494453046875,
-              0.040237550625,
-              0.0404807263984375,
-              0.04032175405859375,
-              0.04066063673046875,
-              0.040463336046875
+              0.03865064645703125,
+              0.0374384511953125,
+              0.038408439373046874,
+              0.0374707910234375,
+              0.03928605083007813,
+              0.04033193166796875,
+              0.038151667919921875,
+              0.03915132803320313,
+              0.037447138689453124,
+              0.038030001916015625,
+              0.03745252930078125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.04022374201953126,
-              "upper_ms": 0.04067410167578124,
+              "lower_ms": 0.035302669537597656,
+              "upper_ms": 0.04105997786962891,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.0404841091953125,
-                0.04059276566796875,
-                0.0404358084765625,
-                0.04050424625,
-                0.040506187359375,
-                0.0403494453046875,
-                0.040237550625,
-                0.0404807263984375,
-                0.04032175405859375,
-                0.04066063673046875,
-                0.040463336046875
+                0.03865064645703125,
+                0.0374384511953125,
+                0.038408439373046874,
+                0.0374707910234375,
+                0.03928605083007813,
+                0.04033193166796875,
+                0.038151667919921875,
+                0.03915132803320313,
+                0.037447138689453124,
+                0.038030001916015625,
+                0.03745252930078125
               ],
-              "median_ms": 0.0404807263984375
+              "median_ms": 0.038151667919921875
             },
-            "execution_ms": 0.0404807263984375,
-            "checksum": "1394176",
+            "execution_ms": 0.038151667919921875,
+            "checksum": "2788352",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 1,
+              "sibling": 7,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -1982,18 +2252,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 9,
-                  "median_khz": 4299994,
-                  "p10_khz": 4299974,
-                  "p90_khz": 4300041,
-                  "sibling_busy": 0.0,
+                  "cpu": 1,
+                  "sibling": 7,
+                  "readings": 23,
+                  "median_khz": 4499983,
+                  "p10_khz": 4497972,
+                  "p90_khz": 4500031,
+                  "sibling_busy": 0.0233,
                   "accepted": true
                 }
               ]
             },
-            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/zx/json_write.zx 5446 11"
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_write/zx/json_write.zx 5446 11"
           }
         },
         "wasm": {
@@ -2001,71 +2271,70 @@
           "files": [
             {
               "path": "generated/json-text/json_write/wasm/json_write.wasm",
-              "bytes": 20662,
-              "sha256": "6fa8b1d00e9110bb12bc4589f4b799f16b508c885bb04c058b36cc7abb8562fc"
+              "bytes": 20625,
+              "sha256": "ad7a34998bfec11cb52df92a6db8ded5c637b663aac9e6133595f42badac21ad"
             }
           ],
           "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/wasm/json_write.zx bench/json_text/json_write.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_write/wasm/json_write.wasm build/benchmarks/json-text/json_write/wasm/json_write.zx",
           "measurement": {
             "result": "5446",
-            "batches": 256,
-            "warmup_ms": 150.002972,
-            "warmup_count": 3345,
+            "batches": 512,
+            "warmup_ms": 150.025968,
+            "warmup_count": 3419,
             "batch_samples_ms": [
-              10.235590000000002,
-              10.201986000000005,
-              10.193067000000013,
-              10.230868000000015,
-              10.227064000000013,
-              10.183830999999998,
-              10.191251000000022,
-              10.688791999999978,
-              10.183965,
-              10.195897000000002,
-              10.18387100000001
+              19.45936900000001,
+              19.620139000000023,
+              20.101571999999976,
+              19.521146000000044,
+              19.396830999999963,
+              19.179087000000038,
+              19.640107,
+              19.45612399999999,
+              19.940619000000027,
+              19.683389000000034,
+              19.779043
             ],
-            "load_ms": 1.6185459999999985,
+            "load_ms": 1.3000110000000014,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.03998277343750001,
-              0.03985150781250002,
-              0.03981666796875005,
-              0.03996432812500006,
-              0.03994946875000005,
-              0.03978058984374999,
-              0.03980957421875009,
-              0.041753093749999914,
-              0.03978111328125,
-              0.03982772265625001,
-              0.03978074609375004
+              0.03800658007812502,
+              0.038320583984375045,
+              0.03926088281249995,
+              0.038127238281250087,
+              0.03788443554687493,
+              0.037459154296875075,
+              0.038359583984375,
+              0.03800024218749998,
+              0.03894652148437505,
+              0.038444119140625066,
+              0.038630943359375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.03955301171875003,
-              "upper_ms": 0.04019923046875007,
-              "excluded_indices": [
-                7
-              ],
+              "lower_ms": 0.03720223095703119,
+              "upper_ms": 0.03933871142578134,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.03998277343750001,
-                0.03985150781250002,
-                0.03981666796875005,
-                0.03996432812500006,
-                0.03994946875000005,
-                0.03978058984374999,
-                0.03980957421875009,
-                0.03978111328125,
-                0.03982772265625001,
-                0.03978074609375004
+                0.03800658007812502,
+                0.038320583984375045,
+                0.03926088281249995,
+                0.038127238281250087,
+                0.03788443554687493,
+                0.037459154296875075,
+                0.038359583984375,
+                0.03800024218749998,
+                0.03894652148437505,
+                0.038444119140625066,
+                0.038630943359375
               ],
-              "median_ms": 0.03982219531250003
+              "median_ms": 0.038320583984375045
             },
-            "execution_ms": 0.03982219531250003,
-            "checksum": "1394176",
+            "execution_ms": 0.038320583984375045,
+            "checksum": "2788352",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 4,
+              "sibling": 10,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -2075,18 +2344,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 13,
-                  "median_khz": 4300003,
-                  "p10_khz": 4299963,
-                  "p90_khz": 4300026,
+                  "cpu": 4,
+                  "sibling": 10,
+                  "readings": 25,
+                  "median_khz": 4500017,
+                  "p10_khz": 4499002,
+                  "p90_khz": 4596293,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/wasm/json_write.wasm 5446 11"
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_write/wasm/json_write.wasm 5446 11"
           }
         }
       }
@@ -2176,67 +2445,66 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/c bench/json_text/json_quote_plain.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/c '-DMATRIX_HEADER=\"json_quote_plain.h\"' -DMATRIX_ENTRY=json_quote_plain_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/c/json_quote.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/c/json_quote_plain.c -lm -o build/benchmarks/json-text/json_quote_plain/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_quote_plain/c '-DMATRIX_HEADER=\"json_quote_plain.h\"' -DMATRIX_ENTRY=json_quote_plain_Answer bench/site_target_host.c site/generated/json-text/json_quote_plain/c/json_bytes.c site/generated/json-text/json_quote_plain/c/json_quote.c site/generated/json-text/json_quote_plain/c/json_quote_plain.c -lm -o build/benchmarks/json-text/json_quote_plain/c-program",
           "measurement": {
             "result": "65606",
             "batches": 1024,
-            "load_ms": 6.6996e-05,
-            "warmup_ms": 150.001449049,
-            "warmup_count": 14670,
+            "load_ms": 0.000333965,
+            "warmup_ms": 150.003493011,
+            "warmup_count": 15163,
             "batch_samples_ms": [
-              10.366439998,
-              10.575480044,
-              10.366549969,
-              10.331924021,
-              10.323594034,
-              10.338545978,
-              10.478078008,
-              10.322637975,
-              10.347093999,
-              10.329834998,
-              10.314384997
+              9.854174018,
+              9.855982006,
+              9.881861985,
+              9.856590033,
+              9.853064001,
+              9.851960957,
+              9.855673969,
+              10.156994998,
+              10.065231025,
+              10.003228009,
+              10.068633974
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.010123476560546876,
-              0.01032761723046875,
-              0.010123583954101562,
-              0.010089769551757813,
-              0.010081634798828124,
-              0.010096236306640626,
-              0.0102324980546875,
-              0.010080701147460937,
-              0.010104583983398438,
-              0.010087729490234376,
-              0.010072641598632812
+              0.009623216814453125,
+              0.009624982427734375,
+              0.009650255844726563,
+              0.009625576204101562,
+              0.009622132813476562,
+              0.009621055622070312,
+              0.009624681610351562,
+              0.009918940427734375,
+              0.009829327172851562,
+              0.009768777352539063,
+              0.009832650365234376
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.010026409975341793,
-              "upper_ms": 0.010181802426513675,
-              "excluded_indices": [
-                1,
-                6
-              ],
+              "lower_ms": 0.009361294636962891,
+              "upper_ms": 0.010061706838134767,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.010123476560546876,
-                0.010123583954101562,
-                0.010089769551757813,
-                0.010081634798828124,
-                0.010096236306640626,
-                0.010080701147460937,
-                0.010104583983398438,
-                0.010087729490234376,
-                0.010072641598632812
+                0.009623216814453125,
+                0.009624982427734375,
+                0.009650255844726563,
+                0.009625576204101562,
+                0.009622132813476562,
+                0.009621055622070312,
+                0.009624681610351562,
+                0.009918940427734375,
+                0.009829327172851562,
+                0.009768777352539063,
+                0.009832650365234376
               ],
-              "median_ms": 0.010089769551757813
+              "median_ms": 0.009625576204101562
             },
-            "execution_ms": 0.010089769551757813,
+            "execution_ms": 0.009625576204101562,
             "checksum": "67180544",
             "host_gate": {
               "cpu": 5,
               "sibling": 11,
-              "reference_khz": 4300007,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -2246,12 +2514,79 @@
               "accepted": true,
               "attempts": [
                 {
+                  "cpu": 1,
+                  "sibling": 7,
+                  "readings": 9,
+                  "median_khz": 4590203,
+                  "p10_khz": 4399983,
+                  "p90_khz": 4597111,
+                  "sibling_busy": 0.0345,
+                  "accepted": false,
+                  "rejected_because": "clock not steady",
+                  "measurement": {
+                    "result": "65606",
+                    "batches": 1024,
+                    "load_ms": 6.4969e-05,
+                    "warmup_ms": 150.000172973,
+                    "warmup_count": 15216,
+                    "batch_samples_ms": [
+                      10.404919982,
+                      10.20925504,
+                      9.793717027,
+                      10.197533011,
+                      10.119607031,
+                      10.278838992,
+                      10.057565033,
+                      10.511793017,
+                      10.022418976,
+                      10.053510964,
+                      10.06934303
+                    ],
+                    "stdout_verified": true,
+                    "execution_samples_ms": [
+                      0.010161054669921874,
+                      0.009969975625,
+                      0.009564176784179687,
+                      0.009958528331054688,
+                      0.009882428741210937,
+                      0.010037928703125,
+                      0.009821840852539062,
+                      0.010265422868164063,
+                      0.00978751853125,
+                      0.00981788180078125,
+                      0.009833342802734376
+                    ],
+                    "sample_statistics": {
+                      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                      "lower_ms": 0.009543725070556642,
+                      "upper_ms": 0.010280088420166015,
+                      "excluded_indices": [],
+                      "included_samples_ms": [
+                        0.010161054669921874,
+                        0.009969975625,
+                        0.009564176784179687,
+                        0.009958528331054688,
+                        0.009882428741210937,
+                        0.010037928703125,
+                        0.009821840852539062,
+                        0.010265422868164063,
+                        0.00978751853125,
+                        0.00981788180078125,
+                        0.009833342802734376
+                      ],
+                      "median_ms": 0.009882428741210937
+                    },
+                    "execution_ms": 0.009882428741210937,
+                    "checksum": "67180544"
+                  }
+                },
+                {
                   "cpu": 5,
                   "sibling": 11,
                   "readings": 9,
-                  "median_khz": 4299990,
-                  "p10_khz": 4299963,
-                  "p90_khz": 4300029,
+                  "median_khz": 4500016,
+                  "p10_khz": 4494712,
+                  "p90_khz": 4599993,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -2293,64 +2628,64 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/json_quote_plain/go-program build/benchmarks/json-text/json_quote_plain/go-host/json_bytes.go build/benchmarks/json-text/json_quote_plain/go-host/json_quote.go build/benchmarks/json-text/json_quote_plain/go-host/json_quote_plain.go build/benchmarks/json-text/json_quote_plain/go-host/vec.go build/benchmarks/json-text/json_quote_plain/go-host/ziran_simd.go build/benchmarks/json-text/json_quote_plain/go-host/matrix_host.go build/benchmarks/json-text/json_quote_plain/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              15.040285,
-              15.192227,
-              14.973451,
-              14.868559,
-              14.645283,
-              14.687844,
-              14.813774,
-              14.593923,
-              14.608173,
-              15.617161,
-              14.980576
+              14.65397,
+              14.876515,
+              14.780418,
+              15.460234,
+              14.911612,
+              14.915012,
+              15.465969,
+              14.941965,
+              14.527377,
+              14.514732,
+              14.753698
             ],
             "batches": 32,
             "load_ms": 0,
             "result": "65606",
-            "warmup_count": 317,
-            "warmup_ms": 150.170227,
+            "warmup_count": 330,
+            "warmup_ms": 150.340848,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.47000890625,
-              0.47475709375,
-              0.46792034375,
-              0.46464246875,
-              0.45766509375,
-              0.458995125,
-              0.4629304375,
-              0.45606009375,
-              0.45650540625,
-              0.48803628125,
-              0.468143
+              0.4579365625,
+              0.46489109375,
+              0.4618880625,
+              0.4831323125,
+              0.465987875,
+              0.466094125,
+              0.48331153125,
+              0.46693640625,
+              0.45398053125,
+              0.453585375,
+              0.4610530625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.44221134374999993,
-              "upper_ms": 0.4851947187500001,
+              "lower_ms": 0.4489641328125,
+              "upper_ms": 0.4770459453125,
               "excluded_indices": [
-                9
+                3,
+                6
               ],
               "included_samples_ms": [
-                0.47000890625,
-                0.47475709375,
-                0.46792034375,
-                0.46464246875,
-                0.45766509375,
-                0.458995125,
-                0.4629304375,
-                0.45606009375,
-                0.45650540625,
-                0.468143
+                0.4579365625,
+                0.46489109375,
+                0.4618880625,
+                0.465987875,
+                0.466094125,
+                0.46693640625,
+                0.45398053125,
+                0.453585375,
+                0.4610530625
               ],
-              "median_ms": 0.463786453125
+              "median_ms": 0.4618880625
             },
-            "execution_ms": 0.463786453125,
+            "execution_ms": 0.4618880625,
             "checksum": "2099392",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 1,
+              "sibling": 7,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -2360,12 +2695,12 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 16,
-                  "median_khz": 4399997,
-                  "p10_khz": 4396883,
-                  "p90_khz": 4400010,
+                  "cpu": 1,
+                  "sibling": 7,
+                  "readings": 17,
+                  "median_khz": 4493096,
+                  "p10_khz": 4399995,
+                  "p90_khz": 4499017,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -2387,63 +2722,62 @@
           "measurement": {
             "result": "65606",
             "batches": 64,
-            "load_ms": 3.245682001,
-            "warmup_ms": 150.294475019,
-            "warmup_count": 510,
+            "load_ms": 22.396232009,
+            "warmup_ms": 150.13330096,
+            "warmup_count": 528,
             "batch_samples_ms": [
-              18.665425003,
-              18.954914987,
-              18.688416004,
-              18.638158977,
-              18.695214987,
-              18.77342099,
-              18.721228004,
-              18.674422026,
-              18.679796994,
-              18.210304022,
-              18.239367008
+              18.076263011,
+              18.307338953,
+              18.719117999,
+              18.520859003,
+              18.486951053,
+              18.243812025,
+              18.307071984,
+              18.314630032,
+              18.304648995,
+              18.307213008,
+              18.706299007
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.291647265671875,
-              0.296170546671875,
-              0.2920065000625,
-              0.291221234015625,
-              0.292112734171875,
-              0.29333470296875,
-              0.2925191875625,
-              0.29178784415625,
-              0.29187182803125,
-              0.28453600034375,
-              0.2849901095
+              0.282441609546875,
+              0.286052171140625,
+              0.292486218734375,
+              0.289388421921875,
+              0.288858610203125,
+              0.285059562890625,
+              0.28604799975,
+              0.28616609425,
+              0.286010140546875,
+              0.28605020325,
+              0.292285921984375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.29011168330859377,
-              "upper_ms": 0.2936385274023437,
-              "excluded_indices": [
-                1,
-                9,
-                10
-              ],
+              "lower_ms": 0.28138740127734374,
+              "upper_ms": 0.2937651849335937,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.291647265671875,
-                0.2920065000625,
-                0.291221234015625,
-                0.292112734171875,
-                0.29333470296875,
-                0.2925191875625,
-                0.29178784415625,
-                0.29187182803125
+                0.282441609546875,
+                0.286052171140625,
+                0.292486218734375,
+                0.289388421921875,
+                0.288858610203125,
+                0.285059562890625,
+                0.28604799975,
+                0.28616609425,
+                0.286010140546875,
+                0.28605020325,
+                0.292285921984375
               ],
-              "median_ms": 0.29193916404687503
+              "median_ms": 0.286052171140625
             },
-            "execution_ms": 0.29193916404687503,
+            "execution_ms": 0.286052171140625,
             "checksum": "4198784",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 4,
+              "sibling": 10,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -2453,18 +2787,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 20,
-                  "median_khz": 4300020,
-                  "p10_khz": 4299970,
-                  "p90_khz": 4400004,
+                  "cpu": 4,
+                  "sibling": 10,
+                  "readings": 21,
+                  "median_khz": 4400003,
+                  "p10_khz": 4397422,
+                  "p90_khz": 4497135,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/zx/json_quote_plain.zx 65606 11"
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_quote_plain/zx/json_quote_plain.zx 65606 11"
           }
         },
         "wasm": {
@@ -2472,70 +2806,71 @@
           "files": [
             {
               "path": "generated/json-text/json_quote_plain/wasm/json_quote_plain.wasm",
-              "bytes": 20099,
-              "sha256": "c3176d56d83be494e9ae5376f673947cc1916fda425dbe2065298d31d5104d1c"
+              "bytes": 20068,
+              "sha256": "84c3c24281176671e9c44c3bcaac303ef07a0c84d710bf2cad25896042d05c61"
             }
           ],
           "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/wasm/json_quote_plain.zx bench/json_text/json_quote_plain.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/json_quote_plain/wasm/json_quote_plain.wasm build/benchmarks/json-text/json_quote_plain/wasm/json_quote_plain.zx",
           "measurement": {
             "result": "65606",
             "batches": 64,
-            "warmup_ms": 150.066005,
-            "warmup_count": 556,
+            "warmup_ms": 150.09159100000002,
+            "warmup_count": 589,
             "batch_samples_ms": [
-              15.612844999999993,
-              15.627299000000022,
-              15.608025999999995,
-              15.616655999999978,
-              15.739936,
-              15.471623000000022,
-              15.367995000000008,
-              15.580392999999958,
-              15.265259000000015,
-              15.310526000000038,
-              15.83211
+              14.741843999999986,
+              14.989197999999988,
+              15.507889999999975,
+              15.126081,
+              15.045642999999984,
+              15.350540000000024,
+              14.935134000000005,
+              14.92200600000001,
+              15.026041999999961,
+              14.958010000000002,
+              15.097667000000001
             ],
-            "load_ms": 0.8268550000000019,
+            "load_ms": 1.2078209999999991,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.2439507031249999,
-              0.24417654687500034,
-              0.24387540624999993,
-              0.24401024999999965,
-              0.2459365,
-              0.24174410937500035,
-              0.24012492187500012,
-              0.24344364062499935,
-              0.23851967187500023,
-              0.2392269687500006,
-              0.24737671875
+              0.23034131249999978,
+              0.2342062187499998,
+              0.2423107812499996,
+              0.236345015625,
+              0.23508817187499975,
+              0.23985218750000037,
+              0.23336146875000008,
+              0.23315634375000016,
+              0.2347819062499994,
+              0.23371890625000002,
+              0.23590104687500002
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.2361961914062506,
-              "upper_ms": 0.24883172265624964,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.2439507031249999,
-                0.24417654687500034,
-                0.24387540624999993,
-                0.24401024999999965,
-                0.2459365,
-                0.24174410937500035,
-                0.24012492187500012,
-                0.24344364062499935,
-                0.23851967187500023,
-                0.2392269687500006,
-                0.24737671875
+              "lower_ms": 0.22966592187500012,
+              "upper_ms": 0.23999729687499993,
+              "excluded_indices": [
+                2
               ],
-              "median_ms": 0.24387540624999993
+              "included_samples_ms": [
+                0.23034131249999978,
+                0.2342062187499998,
+                0.236345015625,
+                0.23508817187499975,
+                0.23985218750000037,
+                0.23336146875000008,
+                0.23315634375000016,
+                0.2347819062499994,
+                0.23371890625000002,
+                0.23590104687500002
+              ],
+              "median_ms": 0.2344940624999996
             },
-            "execution_ms": 0.24387540624999993,
+            "execution_ms": 0.2344940624999996,
             "checksum": "4198784",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -2545,18 +2880,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 20,
-                  "median_khz": 4300026,
-                  "p10_khz": 4299984,
-                  "p90_khz": 4400000,
-                  "sibling_busy": 0.025,
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 19,
+                  "median_khz": 4500016,
+                  "p10_khz": 4493588,
+                  "p90_khz": 4600008,
+                  "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/wasm/json_quote_plain.wasm 65606 11"
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_quote_plain/wasm/json_quote_plain.wasm 65606 11"
           }
         }
       }
@@ -2636,67 +2971,66 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/c bench/json_text/text_processing.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c '-DMATRIX_HEADER=\"text_processing.h\"' -DMATRIX_ENTRY=text_processing_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c/text_processing.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c/text_tools.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c/utf8.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c/vec.c -lm -o build/benchmarks/json-text/text_processing/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/text_processing/c '-DMATRIX_HEADER=\"text_processing.h\"' -DMATRIX_ENTRY=text_processing_Answer bench/site_target_host.c site/generated/json-text/text_processing/c/text_processing.c site/generated/json-text/text_processing/c/text_tools.c site/generated/json-text/text_processing/c/utf8.c site/generated/json-text/text_processing/c/vec.c -lm -o build/benchmarks/json-text/text_processing/c-program",
           "measurement": {
             "result": "33788",
             "batches": 64,
-            "load_ms": 5.6982e-05,
-            "warmup_ms": 150.01997,
-            "warmup_count": 845,
+            "load_ms": 0.000110984,
+            "warmup_ms": 150.142037988,
+            "warmup_count": 869,
             "batch_samples_ms": [
-              11.404945016,
-              11.264577031,
-              11.196794987,
-              11.194580019,
-              11.24002701,
-              11.205202997,
-              11.315097034,
-              11.360136986,
-              11.755846024,
-              11.238150001,
-              11.192897975
+              10.942766011,
+              10.822513044,
+              10.718435049,
+              10.745315015,
+              10.746899009,
+              10.716853023,
+              10.802015007,
+              11.072887003,
+              11.284630001,
+              10.90953505,
+              11.027758002
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.178202265875,
-              0.176009016109375,
-              0.174949921671875,
-              0.174915312796875,
-              0.17562542203125,
-              0.175081296828125,
-              0.17679839115625,
-              0.17750214040625,
-              0.183685094125,
-              0.175596093765625,
-              0.174889030859375
+              0.170980718921875,
+              0.1691017663125,
+              0.167475547640625,
+              0.167895547109375,
+              0.167920297015625,
+              0.167450828484375,
+              0.168781484484375,
+              0.173013859421875,
+              0.176322343765625,
+              0.17046148515625,
+              0.17230871878125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.171813624453125,
-              "upper_ms": 0.180352250578125,
-              "excluded_indices": [
-                8
-              ],
+              "lower_ms": 0.1623027268789062,
+              "upper_ms": 0.1772499140351563,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.178202265875,
-                0.176009016109375,
-                0.174949921671875,
-                0.174915312796875,
-                0.17562542203125,
-                0.175081296828125,
-                0.17679839115625,
-                0.17750214040625,
-                0.175596093765625,
-                0.174889030859375
+                0.170980718921875,
+                0.1691017663125,
+                0.167475547640625,
+                0.167895547109375,
+                0.167920297015625,
+                0.167450828484375,
+                0.168781484484375,
+                0.173013859421875,
+                0.176322343765625,
+                0.17046148515625,
+                0.17230871878125
               ],
-              "median_ms": 0.1756107578984375
+              "median_ms": 0.1691017663125
             },
-            "execution_ms": 0.1756107578984375,
+            "execution_ms": 0.1691017663125,
             "checksum": "2162432",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -2706,13 +3040,13 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
+                  "cpu": 2,
+                  "sibling": 8,
                   "readings": 10,
-                  "median_khz": 4299995,
-                  "p10_khz": 4299979,
-                  "p90_khz": 4300022,
-                  "sibling_busy": 0.0333,
+                  "median_khz": 4499975,
+                  "p10_khz": 4496022,
+                  "p90_khz": 4500025,
+                  "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
@@ -2748,63 +3082,64 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/text_processing/go-program build/benchmarks/json-text/text_processing/go-host/text_processing.go build/benchmarks/json-text/text_processing/go-host/text_tools.go build/benchmarks/json-text/text_processing/go-host/utf8.go build/benchmarks/json-text/text_processing/go-host/vec.go build/benchmarks/json-text/text_processing/go-host/matrix_host.go build/benchmarks/json-text/text_processing/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              13.220156,
-              13.246629,
-              13.285058,
-              13.143975,
-              13.230129,
-              13.241621,
-              13.585257,
-              13.510288,
-              13.659039,
-              13.292954,
-              13.207057
+              12.791247,
+              13.054616,
+              12.522362,
+              12.690319,
+              12.436916,
+              12.417819,
+              12.357486,
+              12.226755,
+              12.486486,
+              12.334534,
+              13.464158
             ],
             "batches": 128,
             "load_ms": 0,
             "result": "33788",
-            "warmup_count": 1413,
-            "warmup_ms": 150.055087,
+            "warmup_count": 1435,
+            "warmup_ms": 150.050204,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.10328246875,
-              0.1034892890625,
-              0.103789515625,
-              0.1026873046875,
-              0.1033603828125,
-              0.1034501640625,
-              0.1061348203125,
-              0.105549125,
-              0.1067112421875,
-              0.103851203125,
-              0.1031801328125
+              0.0999316171875,
+              0.1019891875,
+              0.097830953125,
+              0.0991431171875,
+              0.09716340625,
+              0.0970142109375,
+              0.096542859375,
+              0.0955215234375,
+              0.097550671875,
+              0.096363546875,
+              0.105188734375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.10125331835937502,
-              "upper_ms": 0.10676827148437497,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.10328246875,
-                0.1034892890625,
-                0.103789515625,
-                0.1026873046875,
-                0.1033603828125,
-                0.1034501640625,
-                0.1061348203125,
-                0.105549125,
-                0.1067112421875,
-                0.103851203125,
-                0.1031801328125
+              "lower_ms": 0.092640287109375,
+              "upper_ms": 0.10367561523437502,
+              "excluded_indices": [
+                10
               ],
-              "median_ms": 0.1034892890625
+              "included_samples_ms": [
+                0.0999316171875,
+                0.1019891875,
+                0.097830953125,
+                0.0991431171875,
+                0.09716340625,
+                0.0970142109375,
+                0.096542859375,
+                0.0955215234375,
+                0.097550671875,
+                0.096363546875
+              ],
+              "median_ms": 0.0973570390625
             },
-            "execution_ms": 0.1034892890625,
+            "execution_ms": 0.0973570390625,
             "checksum": "4324864",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 3,
+              "sibling": 9,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -2814,12 +3149,12 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
+                  "cpu": 3,
+                  "sibling": 9,
                   "readings": 14,
-                  "median_khz": 4299998,
-                  "p10_khz": 4299974,
-                  "p90_khz": 4300016,
+                  "median_khz": 4595754,
+                  "p10_khz": 4486168,
+                  "p90_khz": 4599986,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
@@ -2841,63 +3176,62 @@
           "measurement": {
             "result": "33788",
             "batches": 64,
-            "load_ms": 2.264702022,
-            "warmup_ms": 150.17859298,
-            "warmup_count": 738,
+            "load_ms": 13.213794053,
+            "warmup_ms": 150.186011016,
+            "warmup_count": 782,
             "batch_samples_ms": [
-              12.800733984,
-              12.87301904,
-              12.805445015,
-              12.826363981,
-              12.81379199,
-              12.823616982,
-              12.828145027,
-              12.785353005,
-              12.785039961,
-              12.784577966,
-              13.072663963
+              12.31615001,
+              12.687024951,
+              12.646236002,
+              12.438408971,
+              12.293599963,
+              12.045684993,
+              12.034416974,
+              12.710210025,
+              12.203850031,
+              12.051424026,
+              12.385648966
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.2000114685,
-              0.2011409225,
-              0.200085078359375,
-              0.200411937203125,
-              0.20021549984375,
-              0.20036901534375,
-              0.200439766046875,
-              0.199771140703125,
-              0.199766249390625,
-              0.19975903071875,
-              0.204260374421875
+              0.19243984390625,
+              0.198234764859375,
+              0.19759743753125,
+              0.194350140171875,
+              0.192087499421875,
+              0.188213828015625,
+              0.18803776521875,
+              0.198597031640625,
+              0.190685156734375,
+              0.18830350040625,
+              0.19352576509375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.1990894840664063,
-              "upper_ms": 0.2012276721601562,
-              "excluded_indices": [
-                10
-              ],
+              "lower_ms": 0.17977513814843754,
+              "upper_ms": 0.2056929792734375,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.2000114685,
-                0.2011409225,
-                0.200085078359375,
-                0.200411937203125,
-                0.20021549984375,
-                0.20036901534375,
-                0.200439766046875,
-                0.199771140703125,
-                0.199766249390625,
-                0.19975903071875
+                0.19243984390625,
+                0.198234764859375,
+                0.19759743753125,
+                0.194350140171875,
+                0.192087499421875,
+                0.188213828015625,
+                0.18803776521875,
+                0.198597031640625,
+                0.190685156734375,
+                0.18830350040625,
+                0.19352576509375
               ],
-              "median_ms": 0.20015028910156252
+              "median_ms": 0.19243984390625
             },
-            "execution_ms": 0.20015028910156252,
+            "execution_ms": 0.19243984390625,
             "checksum": "2162432",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -2907,18 +3241,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
+                  "cpu": 2,
+                  "sibling": 8,
                   "readings": 13,
-                  "median_khz": 4299994,
-                  "p10_khz": 4299971,
-                  "p90_khz": 4300038,
+                  "median_khz": 4499979,
+                  "p10_khz": 4494033,
+                  "p90_khz": 4500026,
                   "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/zx/text_processing.zx 33788 11"
+            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/text_processing/zx/text_processing.zx 33788 11"
           }
         },
         "wasm": {
@@ -2926,71 +3260,70 @@
           "files": [
             {
               "path": "generated/json-text/text_processing/wasm/text_processing.wasm",
-              "bytes": 12001,
-              "sha256": "08cba674f1375df2c47e9682c42f6f5157c6739530009116ed96de659c643086"
+              "bytes": 11990,
+              "sha256": "dcef231e311f2f3b511272dd160f32c602029dbee4c860bc141af0bac9be1ef2"
             }
           ],
           "command": "build/bin/zi2zx --target wasm --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/wasm/text_processing.zx bench/json_text/text_processing.zi\nbuild/bin/zx2wasm -o build/benchmarks/json-text/text_processing/wasm/text_processing.wasm build/benchmarks/json-text/text_processing/wasm/text_processing.zx",
           "measurement": {
             "result": "33788",
             "batches": 64,
-            "warmup_ms": 150.076951,
-            "warmup_count": 688,
+            "warmup_ms": 150.066005,
+            "warmup_count": 715,
             "batch_samples_ms": [
-              13.25211999999999,
-              13.599772000000002,
-              13.420085,
-              13.445172000000014,
-              14.632528999999977,
-              13.530596000000003,
-              13.275161000000026,
-              13.280660999999952,
-              13.543597000000034,
-              13.903062999999975,
-              14.141914999999983
+              12.911739000000011,
+              12.590955000000008,
+              12.662203000000005,
+              13.098196000000002,
+              12.554434000000015,
+              12.500801999999965,
+              12.575645000000009,
+              12.493335000000002,
+              12.873380999999995,
+              12.912729000000013,
+              12.251190000000008
             ],
-            "load_ms": 0.804862,
+            "load_ms": 1.2817180000000015,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.20706437499999986,
-              0.21249643750000002,
-              0.209688828125,
-              0.2100808125000002,
-              0.22863326562499964,
-              0.21141556250000004,
-              0.2074243906250004,
-              0.20751032812499925,
-              0.21161870312500053,
-              0.2172353593749996,
-              0.22096742187499974
+              0.20174592187500018,
+              0.19673367187500013,
+              0.19784692187500008,
+              0.20465931250000002,
+              0.19616303125000023,
+              0.19532503124999945,
+              0.19649445312500013,
+              0.19520835937500003,
+              0.20114657812499992,
+              0.2017613906250002,
+              0.19142484375000013
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.19920009765624935,
-              "upper_ms": 0.2242653789062501,
-              "excluded_indices": [
-                4
-              ],
+              "lower_ms": 0.18719070312499952,
+              "upper_ms": 0.20999957812500036,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.20706437499999986,
-                0.21249643750000002,
-                0.209688828125,
-                0.2100808125000002,
-                0.21141556250000004,
-                0.2074243906250004,
-                0.20751032812499925,
-                0.21161870312500053,
-                0.2172353593749996,
-                0.22096742187499974
+                0.20174592187500018,
+                0.19673367187500013,
+                0.19784692187500008,
+                0.20465931250000002,
+                0.19616303125000023,
+                0.19532503124999945,
+                0.19649445312500013,
+                0.19520835937500003,
+                0.20114657812499992,
+                0.2017613906250002,
+                0.19142484375000013
               ],
-              "median_ms": 0.21074818750000013
+              "median_ms": 0.19673367187500013
             },
-            "execution_ms": 0.21074818750000013,
+            "execution_ms": 0.19673367187500013,
             "checksum": "2162432",
             "host_gate": {
-              "cpu": 5,
-              "sibling": 11,
-              "reference_khz": 4300007,
+              "cpu": 4,
+              "sibling": 10,
+              "reference_khz": 4499972,
               "rules": {
                 "steady": 0.03,
                 "floor": 0.95,
@@ -3000,18 +3333,18 @@
               "accepted": true,
               "attempts": [
                 {
-                  "cpu": 5,
-                  "sibling": 11,
-                  "readings": 17,
-                  "median_khz": 4300003,
-                  "p10_khz": 4299982,
-                  "p90_khz": 4300038,
-                  "sibling_busy": 0.0263,
+                  "cpu": 4,
+                  "sibling": 10,
+                  "readings": 16,
+                  "median_khz": 4400004,
+                  "p10_khz": 4299980,
+                  "p90_khz": 4500000,
+                  "sibling_busy": 0.0,
                   "accepted": true
                 }
               ]
             },
-            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/wasm/text_processing.wasm 33788 11"
+            "command": "node scripts/site_target_node.cjs site/generated/json-text/text_processing/wasm/text_processing.wasm 33788 11"
           }
         }
       }

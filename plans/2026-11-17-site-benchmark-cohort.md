@@ -8,16 +8,6 @@ published diagnostic run uses `--standard --host-gate --samples 11`, with
 learning disabled. Keep the raw receipts until the complete cohort has been
 copied from the measurement host.
 
-## Widget cohort
-
-Wasm now writes zeroed records as wide stores or memory.fill instead of one
-byte store per member. In five alternating Alpha rounds, Text measured
-3.604 µs against 3.890 µs before, with the paint result checked on every
-call; Go measured about 3.84 µs in the earlier cohort. The Button and Input
-regression from Boolean specialization is fixed on master. Regenerate the
-widget, kernel, JSON/text and example tables at one clean pushed revision on
-Alpha, then publish Targets and check the live page.
-
 ## Kryon visual workloads
 
 The shader lane's pinned GPU visual suite covers lit meshes, a skinned

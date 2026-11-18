@@ -1,0 +1,2486 @@
+{
+  "schema_version": 1,
+  "label": "",
+  "host": "alpha \u00b7 Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "virtualization": "none",
+  "measured_at": "2026-11-18T06:56:09.082911+00:00",
+  "samples": 11,
+  "revision": "4f49aa9affcc360217797888b3c3e37208e174dd",
+  "checks": false,
+  "learning": "off",
+  "engine_policy": "explicit-engine",
+  "host_gate": {
+    "cpu": 5,
+    "sibling": 11,
+    "reference_khz": 4500030,
+    "rules": {
+      "steady": 0.03,
+      "floor": 0.95,
+      "sibling_busy_max": 0.15,
+      "attempts": 8
+    }
+  },
+  "harness_sha256": {
+    "bench/wasm_tier.py": "a699d7449c606f9d238d14fa167dd6c8dd779021b5d1dc32d0176b6c1d830913",
+    "bench/wasm_tier_reference.go": "12bf7226a91eaf198540c95acde47b32b6f0370fc63ec0487aa5a0ad6405d75b",
+    "bench/site_target_host.c": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
+    "bench/site_target_backend.h": "95533f9193a0756044d4ccee581e007c1b119f5c2b3bf71a090792b1a047a5db",
+    "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202"
+  },
+  "compiler_dirty": false,
+  "loadavg_before": [
+    "3.41",
+    "3.60",
+    "3.13"
+  ],
+  "loadavg_after": [
+    "3.08",
+    "3.52",
+    "3.11"
+  ],
+  "runtimes": {
+    "c": "C \u00b7 cc -O2",
+    "go": "Go \u00b7 go build",
+    "zx": "ZX \u00b7 instruction engine",
+    "native": "ZX native \u00b7 translated in process",
+    "wasm": "WebAssembly \u00b7 zx2wasm in Node / V8"
+  },
+  "methodology": "Warm in-process calls timed by the site matrix harnesses; median per call after symmetric 1.5\u00d7IQR outlier filtering, raw samples and exclusions retained. Every timed checksum and the printed output are verified against the instruction engine, and the zx2native ELF of each kernel is run once and checked the same way. ZX native times the bundle translated to machine code when it is instantiated, in the same host as C and the engine. Process startup and compilation are excluded for every target. Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core, chosen again before each attempt once its other hyperthread has settled, and is repeated unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached 95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.",
+  "kernels": {
+    "Sieve": {
+      "go": {
+        "batch_samples_ms": [
+          11.09027,
+          10.735395,
+          10.507109,
+          10.541047,
+          11.176607,
+          11.071898,
+          12.822923,
+          11.389334,
+          11.396377,
+          11.27626,
+          11.111117
+        ],
+        "batches": 256,
+        "load_ms": 0,
+        "result": "2262",
+        "warmup_count": 3611,
+        "warmup_ms": 150.036866,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0433213671875,
+          0.04193513671875,
+          0.04104339453125,
+          0.04117596484375,
+          0.04365862109375,
+          0.0432496015625,
+          0.05008954296875,
+          0.0444895859375,
+          0.04451709765625,
+          0.044047890625,
+          0.04340280078125
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.04007781542968751,
+          "upper_ms": 0.04678329199218749,
+          "excluded_indices": [
+            6
+          ],
+          "included_samples_ms": [
+            0.0433213671875,
+            0.04193513671875,
+            0.04104339453125,
+            0.04117596484375,
+            0.04365862109375,
+            0.0432496015625,
+            0.0444895859375,
+            0.04451709765625,
+            0.044047890625,
+            0.04340280078125
+          ],
+          "median_ms": 0.043362083984375
+        },
+        "execution_ms": 0.043362083984375,
+        "checksum": "579072",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 10,
+              "median_khz": 4299985,
+              "p10_khz": 4299976,
+              "p90_khz": 4493694,
+              "sibling_busy": 0.0,
+              "accepted": false,
+              "rejected_because": "clock not steady",
+              "measurement": {
+                "batch_samples_ms": [
+                  11.017926,
+                  11.207345,
+                  10.918424,
+                  10.89705,
+                  10.925301,
+                  10.878267,
+                  10.870881,
+                  10.877603,
+                  10.885109,
+                  10.889515,
+                  10.898304
+                ],
+                "batches": 256,
+                "load_ms": 0,
+                "result": "2262",
+                "warmup_count": 3602,
+                "warmup_ms": 150.03584,
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.0430387734375,
+                  0.04377869140625,
+                  0.04265009375,
+                  0.0425666015625,
+                  0.04267695703125,
+                  0.04249323046875,
+                  0.04246437890625,
+                  0.04249063671875,
+                  0.04251995703125,
+                  0.04253716796875,
+                  0.0425715
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.04227119628906251,
+                  "upper_ms": 0.04289892285156249,
+                  "excluded_indices": [
+                    0,
+                    1
+                  ],
+                  "included_samples_ms": [
+                    0.04265009375,
+                    0.0425666015625,
+                    0.04267695703125,
+                    0.04249323046875,
+                    0.04246437890625,
+                    0.04249063671875,
+                    0.04251995703125,
+                    0.04253716796875,
+                    0.0425715
+                  ],
+                  "median_ms": 0.04253716796875
+                },
+                "execution_ms": 0.04253716796875,
+                "checksum": "579072"
+              }
+            },
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 10,
+              "median_khz": 4396894,
+              "p10_khz": 4384341,
+              "p90_khz": 4499983,
+              "sibling_busy": 0.0333,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/go-reference Sieve 2262 11",
+        "artifact_sha256": "b06419b8178c503dc557d741dc94b3c1fffa921d32b33cbe9159a607bfab92db",
+        "artifact_bytes": 3941951
+      },
+      "zx": {
+        "result": "2262",
+        "batches": 8,
+        "load_ms": 0.172901034,
+        "warmup_ms": 150.249011993,
+        "warmup_count": 111,
+        "batch_samples_ms": [
+          10.574407041,
+          10.394654036,
+          10.366077006,
+          10.753997982,
+          10.696143985,
+          10.824903011,
+          10.364396989,
+          10.368483007,
+          10.382277012,
+          10.364859998,
+          10.397655964
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          1.321800880125,
+          1.2993317545,
+          1.29575962575,
+          1.34424974775,
+          1.337017998125,
+          1.353112876375,
+          1.295549623625,
+          1.296060375875,
+          1.2977846265,
+          1.29560749975,
+          1.2997069955
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 1.24566084334375,
+          "upper_ms": 1.37965859659375,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            1.321800880125,
+            1.2993317545,
+            1.29575962575,
+            1.34424974775,
+            1.337017998125,
+            1.353112876375,
+            1.295549623625,
+            1.296060375875,
+            1.2977846265,
+            1.29560749975,
+            1.2997069955
+          ],
+          "median_ms": 1.2993317545
+        },
+        "execution_ms": 1.2993317545,
+        "checksum": "18096",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 9,
+              "median_khz": 4499999,
+              "p10_khz": 4499004,
+              "p90_khz": 4500019,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Sieve.zx 2262 11",
+        "artifact_sha256": "fa1408afdea4abd318b8c6eb024b8ddb07bbcd0fa6f8690ae1eda23e3efdd441",
+        "artifact_bytes": 2907
+      },
+      "wasm": {
+        "result": "2262",
+        "batches": 256,
+        "warmup_ms": 150.02052600000002,
+        "warmup_count": 2468,
+        "batch_samples_ms": [
+          15.419295000000005,
+          15.251441999999997,
+          15.271473999999984,
+          15.176690999999977,
+          15.090154000000041,
+          15.21973700000001,
+          15.08014700000001,
+          15.205473999999981,
+          14.978016000000025,
+          14.87737199999998,
+          15.187959000000035
+        ],
+        "load_ms": 1.0859769999999997,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.06023162109375002,
+          0.05957594531249999,
+          0.059654195312499936,
+          0.05928394921874991,
+          0.05894591406250016,
+          0.059452097656250036,
+          0.05890682421875004,
+          0.059396382812499926,
+          0.0585078750000001,
+          0.05811473437499992,
+          0.059327964843750136
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.058044890625000234,
+          "upper_ms": 0.06039549999999988,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.06023162109375002,
+            0.05957594531249999,
+            0.059654195312499936,
+            0.05928394921874991,
+            0.05894591406250016,
+            0.059452097656250036,
+            0.05890682421875004,
+            0.059396382812499926,
+            0.0585078750000001,
+            0.05811473437499992,
+            0.059327964843750136
+          ],
+          "median_ms": 0.059327964843750136
+        },
+        "execution_ms": 0.059327964843750136,
+        "checksum": "579072",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 18,
+              "median_khz": 4500018,
+              "p10_khz": 4499978,
+              "p90_khz": 4599994,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Sieve.wasm 2262 11",
+        "artifact_sha256": "b68ea6badd816d0e5cf83fea0698053ac7fca1f1e631bab1dbb9224dc03d5591",
+        "artifact_bytes": 577
+      },
+      "c": {
+        "result": "2262",
+        "batches": 512,
+        "load_ms": 6.8963e-05,
+        "warmup_ms": 150.020135999,
+        "warmup_count": 4357,
+        "batch_samples_ms": [
+          17.240594029,
+          17.207086027,
+          17.10491395,
+          17.575765014,
+          17.170920014,
+          16.97330302,
+          17.117196977,
+          17.150170982,
+          17.640097976,
+          17.286319971,
+          17.493272007
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.033673035212890626,
+          0.03360758989648437,
+          0.03340803505859375,
+          0.03432766604296875,
+          0.03353695315234375,
+          0.0331509824609375,
+          0.03343202534570312,
+          0.03349642769921875,
+          0.034453316359375,
+          0.03376234369335938,
+          0.03416654688867188
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0327138983696289,
+          "upper_ms": 0.03471477344384766,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.033673035212890626,
+            0.03360758989648437,
+            0.03340803505859375,
+            0.03432766604296875,
+            0.03353695315234375,
+            0.0331509824609375,
+            0.03343202534570312,
+            0.03349642769921875,
+            0.034453316359375,
+            0.03376234369335938,
+            0.03416654688867188
+          ],
+          "median_ms": 0.03360758989648437
+        },
+        "execution_ms": 0.03360758989648437,
+        "checksum": "1158144",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 18,
+              "median_khz": 4593215,
+              "p10_khz": 4496644,
+              "p90_khz": 4600006,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/Sieve-c - 2262 11",
+        "artifact_sha256": "1f1c0a605bcd841935120de6df959ecdcbe358c076c5e5ac5393eff4642519de",
+        "artifact_bytes": 17424
+      },
+      "native": {
+        "result": "2262",
+        "batches": 512,
+        "load_ms": 1.174107969,
+        "warmup_ms": 150.037109971,
+        "warmup_count": 3753,
+        "batch_samples_ms": [
+          19.869426012,
+          19.954430997,
+          19.783142984,
+          19.423655987,
+          19.747366011,
+          19.375953972,
+          19.460069001,
+          19.821672976,
+          19.485924006,
+          19.470749974,
+          19.300589979
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0388074726796875,
+          0.038973498041015624,
+          0.038638951140625,
+          0.037936828099609375,
+          0.038569074240234376,
+          0.0378436601015625,
+          0.03800794726757813,
+          0.03871420503125,
+          0.03805844532421875,
+          0.03802880854296875,
+          0.03769646480273438
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.036916102080078124,
+          "upper_ms": 0.03973286368945312,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0388074726796875,
+            0.038973498041015624,
+            0.038638951140625,
+            0.037936828099609375,
+            0.038569074240234376,
+            0.0378436601015625,
+            0.03800794726757813,
+            0.03871420503125,
+            0.03805844532421875,
+            0.03802880854296875,
+            0.03769646480273438
+          ],
+          "median_ms": 0.03805844532421875
+        },
+        "execution_ms": 0.03805844532421875,
+        "checksum": "1158144",
+        "host_gate": {
+          "cpu": 5,
+          "sibling": 11,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 21,
+              "median_khz": 4499980,
+              "p10_khz": 4299990,
+              "p90_khz": 4597384,
+              "sibling_busy": 0.0,
+              "accepted": false,
+              "rejected_because": "clock not steady",
+              "measurement": {
+                "result": "2262",
+                "batches": 512,
+                "load_ms": 0.503811002,
+                "warmup_ms": 150.005227983,
+                "warmup_count": 3895,
+                "batch_samples_ms": [
+                  19.423258007,
+                  20.16832602,
+                  20.399200022,
+                  19.847297013,
+                  19.895721018,
+                  20.488635957,
+                  21.366834998,
+                  20.418364048,
+                  20.582789004,
+                  20.461483002,
+                  20.37025398
+                ],
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.03793605079492188,
+                  0.0393912617578125,
+                  0.03984218754296875,
+                  0.03876425197851562,
+                  0.03885883011328125,
+                  0.040016867103515624,
+                  0.04173209960546875,
+                  0.03987961728125,
+                  0.0402007597734375,
+                  0.03996383398828125,
+                  0.0397856523046875
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.03782708902001952,
+                  "upper_ms": 0.04128830746142578,
+                  "excluded_indices": [
+                    6
+                  ],
+                  "included_samples_ms": [
+                    0.03793605079492188,
+                    0.0393912617578125,
+                    0.03984218754296875,
+                    0.03876425197851562,
+                    0.03885883011328125,
+                    0.040016867103515624,
+                    0.03987961728125,
+                    0.0402007597734375,
+                    0.03996383398828125,
+                    0.0397856523046875
+                  ],
+                  "median_ms": 0.03981391992382813
+                },
+                "execution_ms": 0.03981391992382813,
+                "checksum": "1158144"
+              }
+            },
+            {
+              "cpu": 5,
+              "sibling": 11,
+              "readings": 21,
+              "median_khz": 4500003,
+              "p10_khz": 4399996,
+              "p90_khz": 4597020,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/native-runner build/wasm-tier/Sieve.zx 2262 11",
+        "artifact_sha256": "fa1408afdea4abd318b8c6eb024b8ddb07bbcd0fa6f8690ae1eda23e3efdd441",
+        "artifact_bytes": 2907
+      }
+    },
+    "Records": {
+      "wasm": {
+        "result": "68788",
+        "batches": 256,
+        "warmup_ms": 150.03693299999998,
+        "warmup_count": 2659,
+        "batch_samples_ms": [
+          10.778175999999974,
+          10.768681000000015,
+          10.86239599999999,
+          10.81201900000002,
+          10.928698999999995,
+          10.787395000000004,
+          10.77027499999997,
+          10.773702999999955,
+          10.779747999999984,
+          10.764046000000008,
+          10.759945000000016
+        ],
+        "load_ms": 3.5378529999999984,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0421022499999999,
+          0.04206516015625006,
+          0.04243123437499996,
+          0.04223444921875008,
+          0.04269023046874998,
+          0.042138261718750014,
+          0.04207138671874988,
+          0.042084777343749824,
+          0.042108390624999936,
+          0.04204705468750003,
+          0.04203103515625006
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.041891150390624854,
+          "upper_ms": 0.042363478515625164,
+          "excluded_indices": [
+            2,
+            4
+          ],
+          "included_samples_ms": [
+            0.0421022499999999,
+            0.04206516015625006,
+            0.04223444921875008,
+            0.042138261718750014,
+            0.04207138671874988,
+            0.042084777343749824,
+            0.042108390624999936,
+            0.04204705468750003,
+            0.04203103515625006
+          ],
+          "median_ms": 0.042084777343749824
+        },
+        "execution_ms": 0.042084777343749824,
+        "checksum": "17609728",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 23,
+              "median_khz": 4299999,
+              "p10_khz": 4299949,
+              "p90_khz": 4300041,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Records.wasm 68788 11",
+        "artifact_sha256": "b315633f40574238a5e798d2e8671508e3007efd713ad6a7aab5214d67d85f13",
+        "artifact_bytes": 1413
+      },
+      "go": {
+        "batch_samples_ms": [
+          14.430517,
+          14.064719,
+          14.059693,
+          14.112173,
+          14.197039,
+          14.978058,
+          15.027933,
+          14.493436,
+          14.298075,
+          14.364343,
+          14.400413
+        ],
+        "batches": 1024,
+        "load_ms": 0,
+        "result": "68788",
+        "warmup_count": 10661,
+        "warmup_ms": 150.007488,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0140923017578125,
+          0.0137350771484375,
+          0.0137301689453125,
+          0.0137814189453125,
+          0.0138642958984375,
+          0.014627009765625,
+          0.0146757158203125,
+          0.01415374609375,
+          0.0139629638671875,
+          0.0140276787109375,
+          0.0140629033203125
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.013372607666015626,
+          "upper_ms": 0.014573273681640624,
+          "excluded_indices": [
+            5,
+            6
+          ],
+          "included_samples_ms": [
+            0.0140923017578125,
+            0.0137350771484375,
+            0.0137301689453125,
+            0.0137814189453125,
+            0.0138642958984375,
+            0.01415374609375,
+            0.0139629638671875,
+            0.0140276787109375,
+            0.0140629033203125
+          ],
+          "median_ms": 0.0139629638671875
+        },
+        "execution_ms": 0.0139629638671875,
+        "checksum": "70438912",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 14,
+              "median_khz": 4494463,
+              "p10_khz": 4399995,
+              "p90_khz": 4500009,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/go-reference Records 68788 11",
+        "artifact_sha256": "b06419b8178c503dc557d741dc94b3c1fffa921d32b33cbe9159a607bfab92db",
+        "artifact_bytes": 3941951
+      },
+      "c": {
+        "result": "68788",
+        "batches": 1024,
+        "load_ms": 6.5029e-05,
+        "warmup_ms": 150.003832996,
+        "warmup_count": 9241,
+        "batch_samples_ms": [
+          16.139915943,
+          16.406408966,
+          16.106948018,
+          16.029256999,
+          16.190014005,
+          16.892760992,
+          16.795601964,
+          17.256179035,
+          17.083179057,
+          17.065015018,
+          16.409903049
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.015761636663085936,
+          0.016021883755859376,
+          0.015729441423828126,
+          0.01565357128808594,
+          0.01581056055175781,
+          0.01649683690625,
+          0.01640195504296875,
+          0.016851737338867186,
+          0.01668279204785156,
+          0.016665053728515625,
+          0.016025295946289063
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.014593828542480466,
+          "upper_ms": 0.017773215382324223,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.015761636663085936,
+            0.016021883755859376,
+            0.015729441423828126,
+            0.01565357128808594,
+            0.01581056055175781,
+            0.01649683690625,
+            0.01640195504296875,
+            0.016851737338867186,
+            0.01668279204785156,
+            0.016665053728515625,
+            0.016025295946289063
+          ],
+          "median_ms": 0.016025295946289063
+        },
+        "execution_ms": 0.016025295946289063,
+        "checksum": "70438912",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 17,
+              "median_khz": 4496068,
+              "p10_khz": 4399996,
+              "p90_khz": 4500021,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/Records-c - 68788 11",
+        "artifact_sha256": "e29201073a45f1245e5ccd37ccad74a5c2e0e1d16178638c3ef4e0aa20e8cd78",
+        "artifact_bytes": 17368
+      },
+      "zx": {
+        "result": "68788",
+        "batches": 16,
+        "load_ms": 0.437937021,
+        "warmup_ms": 150.653510034,
+        "warmup_count": 127,
+        "batch_samples_ms": [
+          18.678837001,
+          18.373242974,
+          18.466360986,
+          18.544166028,
+          18.773858011,
+          18.763144016,
+          18.517264009,
+          19.183875978,
+          19.271842003,
+          18.532011986,
+          19.017475009
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          1.1674273125625,
+          1.148327685875,
+          1.154147561625,
+          1.15901037675,
+          1.1733661256875,
+          1.172696501,
+          1.1573290005625,
+          1.198992248625,
+          1.2044901251875,
+          1.158250749125,
+          1.1885921880625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 1.1230059517968751,
+          "upper_ms": 1.2157630799218753,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            1.1674273125625,
+            1.148327685875,
+            1.154147561625,
+            1.15901037675,
+            1.1733661256875,
+            1.172696501,
+            1.1573290005625,
+            1.198992248625,
+            1.2044901251875,
+            1.158250749125,
+            1.1885921880625
+          ],
+          "median_ms": 1.1674273125625
+        },
+        "execution_ms": 1.1674273125625,
+        "checksum": "1100608",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 20,
+              "median_khz": 4500005,
+              "p10_khz": 4495903,
+              "p90_khz": 4500028,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Records.zx 68788 11",
+        "artifact_sha256": "975c0b45549a506894ccd986f6d6b3782a5db94d046fafe8c074a9a4c004b9e5",
+        "artifact_bytes": 10779
+      },
+      "native": {
+        "result": "68788",
+        "batches": 512,
+        "load_ms": 0.845344007,
+        "warmup_ms": 150.008810997,
+        "warmup_count": 4769,
+        "batch_samples_ms": [
+          15.911526978,
+          16.772585988,
+          16.74780798,
+          16.462599039,
+          16.382739961,
+          15.844344974,
+          16.068238974,
+          16.140523016,
+          16.525286019,
+          16.390432,
+          16.320701003
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.03107720112890625,
+          0.0327589570078125,
+          0.0327105624609375,
+          0.032153513748046876,
+          0.03199753898632812,
+          0.03094598627734375,
+          0.03138327924609375,
+          0.031524459015625,
+          0.032275949255859374,
+          0.0320125625,
+          0.031876369146484375
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.030312575574218743,
+          "upper_ms": 0.03335602505859376,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.03107720112890625,
+            0.0327589570078125,
+            0.0327105624609375,
+            0.032153513748046876,
+            0.03199753898632812,
+            0.03094598627734375,
+            0.03138327924609375,
+            0.031524459015625,
+            0.032275949255859374,
+            0.0320125625,
+            0.031876369146484375
+          ],
+          "median_ms": 0.03199753898632812
+        },
+        "execution_ms": 0.03199753898632812,
+        "checksum": "35219456",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 16,
+              "median_khz": 4495663,
+              "p10_khz": 4399053,
+              "p90_khz": 4500020,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/native-runner build/wasm-tier/Records.zx 68788 11",
+        "artifact_sha256": "975c0b45549a506894ccd986f6d6b3782a5db94d046fafe8c074a9a4c004b9e5",
+        "artifact_bytes": 10779
+      }
+    },
+    "Hash": {
+      "zx": {
+        "result": "117287868",
+        "batches": 8,
+        "load_ms": 0.195920944,
+        "warmup_ms": 150.579868019,
+        "warmup_count": 119,
+        "batch_samples_ms": [
+          9.827454984,
+          9.643373966,
+          9.905629992,
+          9.682489991,
+          9.597817004,
+          9.985321999,
+          10.04854399,
+          10.297342002,
+          10.012959957,
+          9.897456944,
+          9.888247967
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          1.228431873,
+          1.20542174575,
+          1.238203749,
+          1.210311248875,
+          1.1997271255,
+          1.248165249875,
+          1.25606799875,
+          1.28716775025,
+          1.251619994625,
+          1.237182118,
+          1.236030995875
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 1.17358996896875,
+          "upper_ms": 1.2956742142187498,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            1.228431873,
+            1.20542174575,
+            1.238203749,
+            1.210311248875,
+            1.1997271255,
+            1.248165249875,
+            1.25606799875,
+            1.28716775025,
+            1.251619994625,
+            1.237182118,
+            1.236030995875
+          ],
+          "median_ms": 1.237182118
+        },
+        "execution_ms": 1.237182118,
+        "checksum": "938302944",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 8,
+              "median_khz": 4492313,
+              "p10_khz": 4407505,
+              "p90_khz": 4499991,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Hash.zx 117287868 11",
+        "artifact_sha256": "1a07c77cbcfd41035b60613da7f58669fdeb280327f8350dbe442e8d340de030",
+        "artifact_bytes": 3259
+      },
+      "c": {
+        "result": "117287868",
+        "batches": 512,
+        "load_ms": 5.5969e-05,
+        "warmup_ms": 150.015568018,
+        "warmup_count": 5495,
+        "batch_samples_ms": [
+          14.652772009,
+          14.487201035,
+          14.049796999,
+          13.708920002,
+          13.991937995,
+          13.802267969,
+          13.93027097,
+          13.937141001,
+          13.988029003,
+          14.178193986,
+          14.444090962
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.028618695330078124,
+          0.028295314521484375,
+          0.027441009763671875,
+          0.02677523437890625,
+          0.027328003896484376,
+          0.026957554626953126,
+          0.02720756048828125,
+          0.027220978517578126,
+          0.027320369146484374,
+          0.02769178512890625,
+          0.02821111516015625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.02610849854052735,
+          "upper_ms": 0.02905722110693359,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.028618695330078124,
+            0.028295314521484375,
+            0.027441009763671875,
+            0.02677523437890625,
+            0.027328003896484376,
+            0.026957554626953126,
+            0.02720756048828125,
+            0.027220978517578126,
+            0.027320369146484374,
+            0.02769178512890625,
+            0.02821111516015625
+          ],
+          "median_ms": 0.027328003896484376
+        },
+        "execution_ms": 0.027328003896484376,
+        "checksum": "60051388416",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 14,
+              "median_khz": 4493879,
+              "p10_khz": 4397365,
+              "p90_khz": 4500009,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/Hash-c - 117287868 11",
+        "artifact_sha256": "f20dab4369f77891b4fb19a96f2b149ead59e1c9ae790fa9de59d1be2f704923",
+        "artifact_bytes": 17368
+      },
+      "go": {
+        "batch_samples_ms": [
+          13.78296,
+          13.884498,
+          13.699812,
+          13.942336,
+          13.910926,
+          13.756106,
+          14.028673,
+          13.708876,
+          13.710841,
+          14.294092,
+          14.050098
+        ],
+        "batches": 512,
+        "load_ms": 0,
+        "result": "117287868",
+        "warmup_count": 5457,
+        "warmup_ms": 150.024075,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.02691984375,
+          0.02711816015625,
+          0.0267574453125,
+          0.027231125,
+          0.02716977734375,
+          0.02686739453125,
+          0.027399751953125,
+          0.0267751484375,
+          0.026778986328125,
+          0.0279181484375,
+          0.02744159765625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.026084818359375005,
+          "upper_ms": 0.028053810546874995,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.02691984375,
+            0.02711816015625,
+            0.0267574453125,
+            0.027231125,
+            0.02716977734375,
+            0.02686739453125,
+            0.027399751953125,
+            0.0267751484375,
+            0.026778986328125,
+            0.0279181484375,
+            0.02744159765625
+          ],
+          "median_ms": 0.02711816015625
+        },
+        "execution_ms": 0.02711816015625,
+        "checksum": "60051388416",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 13,
+              "median_khz": 4499995,
+              "p10_khz": 4490608,
+              "p90_khz": 4500031,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/go-reference Hash 117287868 11",
+        "artifact_sha256": "b06419b8178c503dc557d741dc94b3c1fffa921d32b33cbe9159a607bfab92db",
+        "artifact_bytes": 3941951
+      },
+      "wasm": {
+        "result": "117287868",
+        "batches": 512,
+        "warmup_ms": 150.049577,
+        "warmup_count": 3867,
+        "batch_samples_ms": [
+          20.025230000000022,
+          19.959520999999995,
+          19.343399999999974,
+          19.334069,
+          19.248786999999993,
+          19.226144000000033,
+          19.20777899999996,
+          19.219169999999963,
+          19.218271000000016,
+          19.326122999999995,
+          18.75885199999999
+        ],
+        "load_ms": 1.2960150000000006,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.03911177734375004,
+          0.03898343945312499,
+          0.03778007812499995,
+          0.037761853515625,
+          0.037595287109374986,
+          0.037551062500000065,
+          0.03751519335937492,
+          0.03753744140624993,
+          0.03753568554687503,
+          0.03774633398437499,
+          0.03663838281249998
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.037184959960937486,
+          "upper_ms": 0.03812256933593747,
+          "excluded_indices": [
+            0,
+            1,
+            10
+          ],
+          "included_samples_ms": [
+            0.03778007812499995,
+            0.037761853515625,
+            0.037595287109374986,
+            0.037551062500000065,
+            0.03751519335937492,
+            0.03753744140624993,
+            0.03753568554687503,
+            0.03774633398437499
+          ],
+          "median_ms": 0.037573174804687526
+        },
+        "execution_ms": 0.037573174804687526,
+        "checksum": "60051388416",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 23,
+              "median_khz": 4300002,
+              "p10_khz": 4299960,
+              "p90_khz": 4300043,
+              "sibling_busy": 0.0227,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Hash.wasm 117287868 11",
+        "artifact_sha256": "be29ccb36dbdf10a443a98da056f67bd070c532981c6fd269e112709d9cd0bbb",
+        "artifact_bytes": 619
+      },
+      "native": {
+        "result": "117287868",
+        "batches": 512,
+        "load_ms": 1.167161047,
+        "warmup_ms": 150.021850049,
+        "warmup_count": 5061,
+        "batch_samples_ms": [
+          14.775416017,
+          14.741689026,
+          14.800861955,
+          14.705834985,
+          14.87509501,
+          14.725757003,
+          14.746776998,
+          14.704963982,
+          15.781713009,
+          14.777957022,
+          14.756124973
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.028858234408203124,
+          0.02879236137890625,
+          0.028907933505859375,
+          0.028722333955078123,
+          0.02905291994140625,
+          0.028761244146484375,
+          0.02880229882421875,
+          0.02872063277734375,
+          0.030823658220703126,
+          0.02886319730859375,
+          0.028820556587890626
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.028613658795898438,
+          "upper_ms": 0.029048709374023436,
+          "excluded_indices": [
+            4,
+            8
+          ],
+          "included_samples_ms": [
+            0.028858234408203124,
+            0.02879236137890625,
+            0.028907933505859375,
+            0.028722333955078123,
+            0.028761244146484375,
+            0.02880229882421875,
+            0.02872063277734375,
+            0.02886319730859375,
+            0.028820556587890626
+          ],
+          "median_ms": 0.02880229882421875
+        },
+        "execution_ms": 0.02880229882421875,
+        "checksum": "60051388416",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 4,
+              "sibling": 10,
+              "readings": 14,
+              "median_khz": 4583596,
+              "p10_khz": 4399997,
+              "p90_khz": 4599996,
+              "sibling_busy": 0.0,
+              "accepted": false,
+              "rejected_because": "clock not steady",
+              "measurement": {
+                "result": "117287868",
+                "batches": 512,
+                "load_ms": 0.487034976,
+                "warmup_ms": 150.007309973,
+                "warmup_count": 5201,
+                "batch_samples_ms": [
+                  14.457216024,
+                  14.378112018,
+                  14.394389033,
+                  14.365810037,
+                  14.418731034,
+                  14.458232045,
+                  14.025086999,
+                  13.928839028,
+                  13.969383001,
+                  13.85908401,
+                  14.509433031
+                ],
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.028236750046875,
+                  0.02808225003515625,
+                  0.028114041080078124,
+                  0.028058222728515624,
+                  0.02816158405078125,
+                  0.028238734462890627,
+                  0.027392748044921877,
+                  0.0272047637265625,
+                  0.027283951173828126,
+                  0.02706852345703125,
+                  0.028338736388671876
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.02604712345019531,
+                  "upper_ms": 0.029490393208007816,
+                  "excluded_indices": [],
+                  "included_samples_ms": [
+                    0.028236750046875,
+                    0.02808225003515625,
+                    0.028114041080078124,
+                    0.028058222728515624,
+                    0.02816158405078125,
+                    0.028238734462890627,
+                    0.027392748044921877,
+                    0.0272047637265625,
+                    0.027283951173828126,
+                    0.02706852345703125,
+                    0.028338736388671876
+                  ],
+                  "median_ms": 0.02808225003515625
+                },
+                "execution_ms": 0.02808225003515625,
+                "checksum": "60051388416"
+              }
+            },
+            {
+              "cpu": 4,
+              "sibling": 10,
+              "readings": 14,
+              "median_khz": 4400007,
+              "p10_khz": 4399991,
+              "p90_khz": 4600004,
+              "sibling_busy": 0.0,
+              "accepted": false,
+              "rejected_because": "clock not steady",
+              "measurement": {
+                "result": "117287868",
+                "batches": 512,
+                "load_ms": 0.220803976,
+                "warmup_ms": 150.026461005,
+                "warmup_count": 5429,
+                "batch_samples_ms": [
+                  14.940892994,
+                  14.221903026,
+                  14.742703021,
+                  14.366201997,
+                  14.372702956,
+                  14.368113995,
+                  14.414534986,
+                  14.366495013,
+                  14.55924499,
+                  14.295264006,
+                  14.019657016
+                ],
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.02918143162890625,
+                  0.02777715434765625,
+                  0.028794341837890626,
+                  0.028058988275390623,
+                  0.0280716854609375,
+                  0.028062722646484375,
+                  0.02815338864453125,
+                  0.028059560572265625,
+                  0.02843602537109375,
+                  0.02792043751171875,
+                  0.027382142609375
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.027532221722167974,
+                  "upper_ms": 0.028752198179199218,
+                  "excluded_indices": [
+                    0,
+                    2,
+                    10
+                  ],
+                  "included_samples_ms": [
+                    0.02777715434765625,
+                    0.028058988275390623,
+                    0.0280716854609375,
+                    0.028062722646484375,
+                    0.02815338864453125,
+                    0.028059560572265625,
+                    0.02843602537109375,
+                    0.02792043751171875
+                  ],
+                  "median_ms": 0.028061141609375
+                },
+                "execution_ms": 0.028061141609375,
+                "checksum": "60051388416"
+              }
+            },
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 15,
+              "median_khz": 4300007,
+              "p10_khz": 4299968,
+              "p90_khz": 4300041,
+              "sibling_busy": 0.0286,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/native-runner build/wasm-tier/Hash.zx 117287868 11",
+        "artifact_sha256": "1a07c77cbcfd41035b60613da7f58669fdeb280327f8350dbe442e8d340de030",
+        "artifact_bytes": 3259
+      }
+    },
+    "Vectors": {
+      "go": {
+        "batch_samples_ms": [
+          14.877585,
+          14.875742,
+          15.266013,
+          15.052828,
+          15.18909,
+          14.871674,
+          14.803765,
+          16.027915,
+          15.247082,
+          14.780801,
+          14.745398
+        ],
+        "batches": 256,
+        "load_ms": 0,
+        "result": "94905000",
+        "warmup_count": 2443,
+        "warmup_ms": 150.022718,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.05811556640625,
+          0.0581083671875,
+          0.05963286328125,
+          0.058800109375,
+          0.0593323828125,
+          0.0580924765625,
+          0.05782720703125,
+          0.06260904296875,
+          0.0595589140625,
+          0.05773750390625,
+          0.0575992109375
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0557311318359375,
+          "upper_ms": 0.06167435839843749,
+          "excluded_indices": [
+            7
+          ],
+          "included_samples_ms": [
+            0.05811556640625,
+            0.0581083671875,
+            0.05963286328125,
+            0.058800109375,
+            0.0593323828125,
+            0.0580924765625,
+            0.05782720703125,
+            0.0595589140625,
+            0.05773750390625,
+            0.0575992109375
+          ],
+          "median_ms": 0.058111966796875
+        },
+        "execution_ms": 0.058111966796875,
+        "checksum": "24295680000",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 16,
+              "median_khz": 4595103,
+              "p10_khz": 4499962,
+              "p90_khz": 4599998,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/go-reference Vectors 94905000 11",
+        "artifact_sha256": "b06419b8178c503dc557d741dc94b3c1fffa921d32b33cbe9159a607bfab92db",
+        "artifact_bytes": 3941951
+      },
+      "wasm": {
+        "result": "94905000",
+        "batches": 256,
+        "warmup_ms": 150.013138,
+        "warmup_count": 2519,
+        "batch_samples_ms": [
+          14.407675000000012,
+          14.522158999999988,
+          14.474986999999999,
+          14.307362000000012,
+          14.158603000000028,
+          14.032171000000005,
+          14.063415999999961,
+          14.294810999999982,
+          14.003203000000042,
+          14.073477000000025,
+          13.930289000000016
+        ],
+        "load_ms": 1.250199000000002,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.056279980468750046,
+          0.05672718359374995,
+          0.056542917968749995,
+          0.055888132812500046,
+          0.05530704296875011,
+          0.05481316796875002,
+          0.05493521874999985,
+          0.05583910546874993,
+          0.05470001171875016,
+          0.0549745195312501,
+          0.05441519140625006
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.053059398437499766,
+          "upper_ms": 0.057898851562500214,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.056279980468750046,
+            0.05672718359374995,
+            0.056542917968749995,
+            0.055888132812500046,
+            0.05530704296875011,
+            0.05481316796875002,
+            0.05493521874999985,
+            0.05583910546874993,
+            0.05470001171875016,
+            0.0549745195312501,
+            0.05441519140625006
+          ],
+          "median_ms": 0.05530704296875011
+        },
+        "execution_ms": 0.05530704296875011,
+        "checksum": "24295680000",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 17,
+              "median_khz": 4499990,
+              "p10_khz": 4479506,
+              "p90_khz": 4500055,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Vectors.wasm 94905000 11",
+        "artifact_sha256": "028c5b22beba4403697b20154edf05d9cda3cc3f6516fc1062ae62d44d04a8fb",
+        "artifact_bytes": 1550
+      },
+      "native": {
+        "result": "94905000",
+        "batches": 256,
+        "load_ms": 0.625748038,
+        "warmup_ms": 150.025177002,
+        "warmup_count": 3733,
+        "batch_samples_ms": [
+          10.389894962,
+          10.234907031,
+          10.183479011,
+          10.177927971,
+          10.17759496,
+          10.287222028,
+          10.302480042,
+          10.193578005,
+          10.231553972,
+          10.753521025,
+          10.235352993
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0405855271953125,
+          0.03998010558984375,
+          0.03977921488671875,
+          0.03975753113671875,
+          0.0397562303125,
+          0.040184461046875,
+          0.0402440626640625,
+          0.03981866408203125,
+          0.039967007703125,
+          0.04200594150390625,
+          0.03998184762890625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.03917595592773438,
+          "upper_ms": 0.040837245412109376,
+          "excluded_indices": [
+            9
+          ],
+          "included_samples_ms": [
+            0.0405855271953125,
+            0.03998010558984375,
+            0.03977921488671875,
+            0.03975753113671875,
+            0.0397562303125,
+            0.040184461046875,
+            0.0402440626640625,
+            0.03981866408203125,
+            0.039967007703125,
+            0.03998184762890625
+          ],
+          "median_ms": 0.03997355664648437
+        },
+        "execution_ms": 0.03997355664648437,
+        "checksum": "24295680000",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 9,
+              "median_khz": 4500003,
+              "p10_khz": 4495813,
+              "p90_khz": 4500029,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/native-runner build/wasm-tier/Vectors.zx 94905000 11",
+        "artifact_sha256": "109e4d4c7c10df24700f59ca7e9a163825ab426d7d16b79cf6c55da4092aefc6",
+        "artifact_bytes": 5315
+      },
+      "c": {
+        "result": "94905000",
+        "batches": 512,
+        "load_ms": 5.6028e-05,
+        "warmup_ms": 150.032280982,
+        "warmup_count": 4422,
+        "batch_samples_ms": [
+          16.895219982,
+          17.06742698,
+          17.248156011,
+          17.569893003,
+          17.323436022,
+          17.438910007,
+          17.10145998,
+          16.935272992,
+          16.867582977,
+          17.278213024,
+          17.573796988
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.03299847652734375,
+          0.0333348183203125,
+          0.03368780470898437,
+          0.034316197271484376,
+          0.03383483598046875,
+          0.034060371107421876,
+          0.0334012890234375,
+          0.0330767050625,
+          0.03294449800195313,
+          0.0337465098125,
+          0.0343238222421875
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.03209299891259766,
+          "upper_ms": 0.0350603663227539,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.03299847652734375,
+            0.0333348183203125,
+            0.03368780470898437,
+            0.034316197271484376,
+            0.03383483598046875,
+            0.034060371107421876,
+            0.0334012890234375,
+            0.0330767050625,
+            0.03294449800195313,
+            0.0337465098125,
+            0.0343238222421875
+          ],
+          "median_ms": 0.03368780470898437
+        },
+        "execution_ms": 0.03368780470898437,
+        "checksum": "48591360000",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 18,
+              "median_khz": 4499988,
+              "p10_khz": 4473150,
+              "p90_khz": 4500003,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/Vectors-c - 94905000 11",
+        "artifact_sha256": "69c61f1d1718f9a2a0e55c8e0d4a28f963d231c8789f9df07cd9493dd2f2a187",
+        "artifact_bytes": 17368
+      },
+      "zx": {
+        "result": "94905000",
+        "batches": 8,
+        "load_ms": 0.288957,
+        "warmup_ms": 150.448189974,
+        "warmup_count": 91,
+        "batch_samples_ms": [
+          12.841105998,
+          12.797505975,
+          12.76205802,
+          12.763345003,
+          12.829254985,
+          12.759983003,
+          12.736634016,
+          12.888711989,
+          12.824244022,
+          12.743355989,
+          12.678430974
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          1.60513824975,
+          1.599688246875,
+          1.5952572525,
+          1.595418125375,
+          1.603656873125,
+          1.594997875375,
+          1.592079252,
+          1.611088998625,
+          1.60303050275,
+          1.592919498625,
+          1.58480387175
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 1.57988118559375,
+          "upper_ms": 1.6174211893437502,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            1.60513824975,
+            1.599688246875,
+            1.5952572525,
+            1.595418125375,
+            1.603656873125,
+            1.594997875375,
+            1.592079252,
+            1.611088998625,
+            1.60303050275,
+            1.592919498625,
+            1.58480387175
+          ],
+          "median_ms": 1.595418125375
+        },
+        "execution_ms": 1.595418125375,
+        "checksum": "759240000",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 12,
+              "median_khz": 4399998,
+              "p10_khz": 4397696,
+              "p90_khz": 4400007,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Vectors.zx 94905000 11",
+        "artifact_sha256": "109e4d4c7c10df24700f59ca7e9a163825ab426d7d16b79cf6c55da4092aefc6",
+        "artifact_bytes": 5315
+      }
+    },
+    "Printing": {
+      "go": {
+        "batch_samples_ms": [
+          17.791505,
+          17.804282,
+          17.481052,
+          17.651488,
+          17.561447,
+          19.091856,
+          17.990322,
+          17.456082,
+          17.601883,
+          17.700937,
+          18.366074
+        ],
+        "batches": 256,
+        "load_ms": 0,
+        "result": "0",
+        "warmup_count": 2177,
+        "warmup_ms": 150.017548,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.06949806640625,
+          0.0695479765625,
+          0.068285359375,
+          0.068951125,
+          0.06859940234375,
+          0.0745775625,
+          0.0702746953125,
+          0.0681878203125,
+          0.06875735546875,
+          0.06914428515625,
+          0.0717424765625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.066828943359375,
+          "upper_ms": 0.07176077148437499,
+          "excluded_indices": [
+            5
+          ],
+          "included_samples_ms": [
+            0.06949806640625,
+            0.0695479765625,
+            0.068285359375,
+            0.068951125,
+            0.06859940234375,
+            0.0702746953125,
+            0.0681878203125,
+            0.06875735546875,
+            0.06914428515625,
+            0.0717424765625
+          ],
+          "median_ms": 0.069047705078125
+        },
+        "execution_ms": 0.069047705078125,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 18,
+              "median_khz": 4499991,
+              "p10_khz": 4484641,
+              "p90_khz": 4500033,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/go-reference Printing 0 11",
+        "artifact_sha256": "b06419b8178c503dc557d741dc94b3c1fffa921d32b33cbe9159a607bfab92db",
+        "artifact_bytes": 3941951
+      },
+      "zx": {
+        "result": "0",
+        "batches": 1024,
+        "load_ms": 0.79124403,
+        "warmup_ms": 150.014023006,
+        "warmup_count": 9651,
+        "batch_samples_ms": [
+          17.133826017,
+          17.018386006,
+          18.038820982,
+          15.843919039,
+          15.636314034,
+          15.618233025,
+          15.607266963,
+          15.598744035,
+          15.580142975,
+          15.598286033,
+          15.607849002
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.016732251969726563,
+          0.016619517583984375,
+          0.017616036115234376,
+          0.015472577186523437,
+          0.015269837923828125,
+          0.015252180688476563,
+          0.015241471643554688,
+          0.015233148471679687,
+          0.015214983374023437,
+          0.015232701204101563,
+          0.015242040041015625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.014024204066162109,
+          "upper_ms": 0.017259153376708983,
+          "excluded_indices": [
+            2
+          ],
+          "included_samples_ms": [
+            0.016732251969726563,
+            0.016619517583984375,
+            0.015472577186523437,
+            0.015269837923828125,
+            0.015252180688476563,
+            0.015241471643554688,
+            0.015233148471679687,
+            0.015214983374023437,
+            0.015232701204101563,
+            0.015242040041015625
+          ],
+          "median_ms": 0.015247110364746094
+        },
+        "execution_ms": 0.015247110364746094,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 4,
+          "sibling": 10,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 13,
+              "median_khz": 4300033,
+              "p10_khz": 4299966,
+              "p90_khz": 4500015,
+              "sibling_busy": 0.0,
+              "accepted": false,
+              "rejected_because": "clock not steady",
+              "measurement": {
+                "result": "0",
+                "batches": 1024,
+                "load_ms": 0.154510975,
+                "warmup_ms": 150.00188297,
+                "warmup_count": 10558,
+                "batch_samples_ms": [
+                  14.051298976,
+                  14.058417976,
+                  14.047267973,
+                  14.041671038,
+                  14.067807972,
+                  14.155609012,
+                  13.959695995,
+                  13.697565019,
+                  14.137767971,
+                  13.956929982,
+                  13.584070027
+                ],
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.01372197165625,
+                  0.0137289238046875,
+                  0.013718035129882813,
+                  0.013712569373046875,
+                  0.01373809372265625,
+                  0.01382383692578125,
+                  0.013632515620117188,
+                  0.013376528338867188,
+                  0.013806414034179688,
+                  0.013629814435546875,
+                  0.013265693385742187
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.01347764942407227,
+                  "upper_ms": 0.013887024367431637,
+                  "excluded_indices": [
+                    7,
+                    10
+                  ],
+                  "included_samples_ms": [
+                    0.01372197165625,
+                    0.0137289238046875,
+                    0.013718035129882813,
+                    0.013712569373046875,
+                    0.01373809372265625,
+                    0.01382383692578125,
+                    0.013632515620117188,
+                    0.013806414034179688,
+                    0.013629814435546875
+                  ],
+                  "median_ms": 0.01372197165625
+                },
+                "execution_ms": 0.01372197165625,
+                "checksum": "0"
+              }
+            },
+            {
+              "cpu": 4,
+              "sibling": 10,
+              "readings": 17,
+              "median_khz": 4300018,
+              "p10_khz": 4299960,
+              "p90_khz": 4363646,
+              "sibling_busy": 0.0263,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/zx-runner build/wasm-tier/Printing.zx 0 11",
+        "artifact_sha256": "e4b906265794d242842f2990406426425c583158480f26445638bef9c2102a2a",
+        "artifact_bytes": 2804
+      },
+      "native": {
+        "result": "0",
+        "batches": 256,
+        "load_ms": 0.555893004,
+        "warmup_ms": 150.023698032,
+        "warmup_count": 3365,
+        "batch_samples_ms": [
+          11.436052024,
+          11.443369985,
+          11.198172987,
+          11.599294007,
+          11.887558043,
+          11.789300025,
+          11.435687959,
+          11.356972992,
+          11.414000988,
+          11.394357979,
+          11.355475008
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.04467207821875,
+          0.04470066400390625,
+          0.04374286323046875,
+          0.04530974221484375,
+          0.04643577360546875,
+          0.04605195322265625,
+          0.04467065608984375,
+          0.04436317575,
+          0.044585941359375,
+          0.04450921085546875,
+          0.04435732425
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.04358267859277344,
+          "upper_ms": 0.04585871781933594,
+          "excluded_indices": [
+            4,
+            5
+          ],
+          "included_samples_ms": [
+            0.04467207821875,
+            0.04470066400390625,
+            0.04374286323046875,
+            0.04530974221484375,
+            0.04467065608984375,
+            0.04436317575,
+            0.044585941359375,
+            0.04450921085546875,
+            0.04435732425
+          ],
+          "median_ms": 0.044585941359375
+        },
+        "execution_ms": 0.044585941359375,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 10,
+              "median_khz": 4499994,
+              "p10_khz": 4499982,
+              "p90_khz": 4599999,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/native-runner build/wasm-tier/Printing.zx 0 11",
+        "artifact_sha256": "e4b906265794d242842f2990406426425c583158480f26445638bef9c2102a2a",
+        "artifact_bytes": 2804
+      },
+      "wasm": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.01383700000002,
+        "warmup_count": 26356,
+        "batch_samples_ms": [
+          21.255267000000003,
+          19.86813699999996,
+          19.257961000000023,
+          19.629064000000028,
+          19.307305999999983,
+          19.28877200000005,
+          19.934215999999992,
+          19.742103999999983,
+          20.09317999999996,
+          20.077639999999974,
+          19.70251399999995
+        ],
+        "load_ms": 1.1607830000000021,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005189274169921876,
+          0.004850619384765616,
+          0.004701650634765631,
+          0.004792251953125007,
+          0.004713697753906246,
+          0.0047091728515625125,
+          0.004866751953124998,
+          0.004819849609374996,
+          0.0049055615234374905,
+          0.004901767578124994,
+          0.004810184082031238
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.004556047485351572,
+          "upper_ms": 0.00508118713378905,
+          "excluded_indices": [
+            0
+          ],
+          "included_samples_ms": [
+            0.004850619384765616,
+            0.004701650634765631,
+            0.004792251953125007,
+            0.004713697753906246,
+            0.0047091728515625125,
+            0.004866751953124998,
+            0.004819849609374996,
+            0.0049055615234374905,
+            0.004901767578124994,
+            0.004810184082031238
+          ],
+          "median_ms": 0.004815016845703117
+        },
+        "execution_ms": 0.004815016845703117,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 1,
+          "sibling": 7,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 1,
+              "sibling": 7,
+              "readings": 25,
+              "median_khz": 4495386,
+              "p10_khz": 4400005,
+              "p90_khz": 4500031,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "node scripts/site_target_node.cjs build/wasm-tier/Printing.wasm 0 11",
+        "artifact_sha256": "28dc90ef40d509aa16c258fe27d299ba1b8e969157e099e173f4a0c32dab98af",
+        "artifact_bytes": 762
+      },
+      "c": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 5.6982e-05,
+        "warmup_ms": 150.001672983,
+        "warmup_count": 15466,
+        "batch_samples_ms": [
+          18.954994023,
+          18.823023975,
+          18.856715977,
+          19.676971018,
+          19.172816992,
+          20.409575999,
+          19.37420702,
+          19.198952019,
+          20.746954024,
+          21.041186988,
+          20.157661974
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.00925536817529297,
+          0.00919092967529297,
+          0.009207380848144531,
+          0.009607896004882812,
+          0.009361727046875,
+          0.00996561328076172,
+          0.009460062021484375,
+          0.009374488290527344,
+          0.01013034864453125,
+          0.010274017083984375,
+          0.009842608385742187
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.008415202777832033,
+          "upper_ms": 0.010797455666503907,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.00925536817529297,
+            0.00919092967529297,
+            0.009207380848144531,
+            0.009607896004882812,
+            0.009361727046875,
+            0.00996561328076172,
+            0.009460062021484375,
+            0.009374488290527344,
+            0.01013034864453125,
+            0.010274017083984375,
+            0.009842608385742187
+          ],
+          "median_ms": 0.009460062021484375
+        },
+        "execution_ms": 0.009460062021484375,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 5,
+          "sibling": 11,
+          "reference_khz": 4500030,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 5,
+              "sibling": 11,
+              "readings": 21,
+              "median_khz": 4492437,
+              "p10_khz": 4384520,
+              "p90_khz": 4500020,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        },
+        "command": "build/wasm-tier/Printing-c - 0 11",
+        "artifact_sha256": "eb6bc78902cca398c5c1fd44b307834844b7a0a466a05823d8a798b2e8c5b56e",
+        "artifact_bytes": 17264
+      }
+    }
+  }
+}

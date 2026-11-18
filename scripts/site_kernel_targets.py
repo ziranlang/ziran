@@ -9,7 +9,7 @@ import site_benchmark_cohort as cohort
 import site_target_platforms as platforms
 
 OUTPUT = base.SITE / 'generated/kernel-targets'
-RECEIPTS = ('wasm-tier-gated-2026-11-17.json',)
+RECEIPTS = ('wasm-tier-gated-2026-11-18.json',)
 TARGETS = ('c', 'go', 'zx', 'native', 'wasm')
 
 

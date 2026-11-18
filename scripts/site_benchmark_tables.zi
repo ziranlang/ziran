@@ -9,7 +9,7 @@ using Vectors :: #import "std/vec"
 
 WIDGETS :: "generated/library-targets/matrix.json";
 JSON_TEXT :: "generated/json-text/matrix.json";
-KERNELS :: "generated/kernel-targets/wasm-tier-gated-2026-11-17.json";
+KERNELS :: "generated/kernel-targets/wasm-tier-gated-2026-11-18.json";
 COLUMNS: [4]string = .["c", "go", "zx", "wasm"];
 
 Load :: (doc: *JsonDocument, file: string) -> bool {

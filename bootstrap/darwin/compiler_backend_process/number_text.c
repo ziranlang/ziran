@@ -58,28 +58,31 @@ FormatInteger(int64_t value, Slice output)
     uint8_t* value_0 = &(((uint8_t *)output.data)[end]);
     (*value_0) = 0;
     bool negative = value < 0LL;
-    int64_t remaining = value;
+    int64_t value_1 = 0;
     if (negative) {
-        remaining = (int64_t)(UINT64_C(0) - (uint64_t)value);
+        value_1 = value;
+    } else {
+        value_1 = (int64_t)(UINT64_C(0) - (uint64_t)value);
     }
+    int64_t remaining = value_1;
     if (remaining == 0LL) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_1 = &(((uint8_t *)output.data)[end]);
-        (*value_1) = 48;
-    }
-    while (remaining > 0LL) {
-        end = (int64_t)((uint64_t)end - UINT64_C(1));
         uint8_t* value_2 = &(((uint8_t *)output.data)[end]);
-        (*value_2) = (uint8_t)(((int32_t)(48u + (uint32_t)((remaining % 10LL)))));
+        (*value_2) = 48;
+    }
+    while (remaining < 0LL) {
+        end = (int64_t)((uint64_t)end - UINT64_C(1));
+        uint8_t* value_3 = &(((uint8_t *)output.data)[end]);
+        (*value_3) = (uint8_t)(((int32_t)(48u - (uint32_t)((remaining % 10LL)))));
         remaining = remaining / 10LL;
     }
     if (negative) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
-        uint8_t* value_3 = &(((uint8_t *)output.data)[end]);
-        (*value_3) = 45;
+        uint8_t* value_4 = &(((uint8_t *)output.data)[end]);
+        (*value_4) = 45;
     }
-    Slice value_4 = output;
-    return TextUntilNul(SliceRangeAt(value_4, (int64_t)end, (int64_t)(int64_t)(output).length, sizeof(uint8_t)));
+    Slice value_5 = output;
+    return TextUntilNul(SliceRangeAt(value_5, (int64_t)end, (int64_t)(int64_t)(output).length, sizeof(uint8_t)));
 }
 
 Results__s64__s64

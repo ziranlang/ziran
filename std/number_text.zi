@@ -9,15 +9,15 @@ FormatInteger :: (value: s64, output: []u8) -> string {
     end: s64 = cast(s64)output.count - 1
     output[end] = cast(u8)0
     negative: bool = value < cast(s64)0
-    remaining: s64 = value
-    if negative { remaining = cast(s64)0 - value }
+    // Keep the magnitude negative so the smallest s64 is representable.
+    remaining := ifx negative then value else cast(s64)0 - value
     if remaining == cast(s64)0 {
         end -= 1
         output[end] = cast(u8)48
     }
-    while remaining > cast(s64)0 {
+    while remaining < cast(s64)0 {
         end -= 1
-        output[end] = cast(u8)(48 + cast(s32)(remaining % cast(s64)10))
+        output[end] = cast(u8)(48 - cast(s32)(remaining % cast(s64)10))
         remaining = remaining / cast(s64)10
     }
     if negative {

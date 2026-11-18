@@ -3,9 +3,11 @@
 #program_export
 SelfTest :: () -> s32 {
     bytes: [32]u8
-    if FormatInteger(cast(s64)0, bytes[:]) != "0" { return 1 }
-    if FormatInteger(cast(s64)1234567, bytes[:]) != "1234567" { return 2 }
-    if FormatInteger(cast(s64)-42, bytes[:]) != "-42" { return 3 }
+    values := s64.[0, 1234567, -42, -9223372036854775808, 9223372036854775807]
+    spellings := string.["0", "1234567", "-42", "-9223372036854775808", "9223372036854775807"]
+    for at: 0..values.count - 1 {
+        if FormatInteger(values[at], bytes[0:21]) != spellings[at] { return cast(s32)(14 + at) }
+    }
     if FormatDecimal(0.0, 3, bytes[:]) != "0" { return 4 }
     if FormatDecimal(12.0, 3, bytes[:]) != "12" { return 5 }
     if FormatDecimal(0.5, 3, bytes[:]) != "0.5" { return 6 }

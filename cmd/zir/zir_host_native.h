@@ -23,9 +23,10 @@ typedef struct NativeBundleSlot {
 } NativeBundleSlot;
 
 /* The code, compiling it under a lock on first use; NULL when native
- * execution cannot run this bundle. */
+ * execution cannot run this bundle. UNBOUNDED code has no fuel checks, so
+ * its instances take no step limit; a slot holds one kind. */
 const NativeBundleCode *NativeBundleSlotCode(NativeBundleSlot *slot, const ExecBundle *bundle,
-                                             const unsigned char digest[32]);
+                                             const unsigned char digest[32], int unbounded);
 /* "" when the code exists, else the stable preflight diagnostic. */
 const char *NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle,
                                     const unsigned char digest[32]);

@@ -94,6 +94,10 @@ typedef enum BundleExecutionBackend {
 typedef struct BundleInstanceOptions {
     BundleBackendPolicy backend;
     int max_steps;
+    /* Nonzero: the instance never limits its steps, so native code is built
+     * without fuel checks, like an unbounded executable. max_steps must be
+     * zero, and BundleInstanceLimitSteps has no effect on native code. */
+    int unbounded;
 } BundleInstanceOptions;
 
 typedef struct BundleStateValue {

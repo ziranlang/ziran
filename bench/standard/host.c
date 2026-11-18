@@ -56,6 +56,8 @@ int main(int argc,char **argv) {
     }
     ;
     options.backend=BUNDLE_BACKEND_NATIVE;
+    /* Like the C reference and an unbounded executable: no step metering. */
+    options.unbounded=1;
     instance=BundleInstantiateWithOptions(bundle,&binding,1,&options);
     if(!instance)return 4;
     if(BundleInstanceBackend(instance)!=BUNDLE_EXECUTION_NATIVE_X86_64 && BundleInstanceBackend(instance)!=BUNDLE_EXECUTION_NATIVE_AARCH64)return 5;

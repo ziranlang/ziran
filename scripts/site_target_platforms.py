@@ -158,7 +158,8 @@ def desktop(data, samples, *, host_gate=False):
     library = ROOT / 'build/libziran.a'
     zx = out / 'zx-runner'
     runtime_build(os.environ.get('CC', 'cc'), library, zx,
-                  ['-include', ROOT / 'bench/site_target_backend.h', '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_NATIVE'])
+                  ['-include', ROOT / 'bench/site_target_backend.h', '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_NATIVE',
+                   '-DMATRIX_ZX_UNBOUNDED'])
     result = metadata('Desktop', platform.system() + ' ' + platform.machine() + ' · ' + base.cpu_name(),
                       {'c': 'C · cc -O2', 'go': 'Go · native', 'zx': 'ZX · native', 'wasm': 'WebAssembly · Node / V8'}, samples)
     jobs = []

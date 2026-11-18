@@ -252,7 +252,9 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     if output == null { return Problem(.Owner) }
     built: MachineNativeOwner
     options := MachineDefaultOptions()
-    options.fuel = !emit_executable || fuel != MachineX64InitialFuel
+    // Code charges fuel unless its budget is the unbounded one: an AOT
+    // executable started without a budget, or code a host runs unmetered.
+    options.fuel = fuel != MachineX64InitialFuel
     options.executable = emit_executable
     lowered := MachineLower(*built.machine, lir, target, options, limits)
     if lowered.problem != .None {
@@ -316,6 +318,14 @@ MachineCodeBuild :: (lir: LirProgram, target: TargetDescription, limits: Machine
     output: *MachineNativeOwner) -> MachineDiagnostic {
     none: MachineHostLinks
     return Build(lir, target, limits, output, false, 0, none)
+}
+
+// In-process code for a host that never limits its steps: no fuel checks,
+// as in an unbounded executable.
+MachineCodeBuildUnbounded :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
+    output: *MachineNativeOwner) -> MachineDiagnostic {
+    none: MachineHostLinks
+    return Build(lir, target, limits, output, false, MachineX64InitialFuel, none)
 }
 
 // The host libraries a Linux x86-64 executable links its host capabilities

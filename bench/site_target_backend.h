@@ -10,7 +10,11 @@
 static inline BundleInstance *MatrixInstantiate(const Bundle *bundle,
         const HostBinding *bindings, size_t count)
 {
-    const BundleInstanceOptions options = {MATRIX_ZX_BACKEND, 0};
+#ifdef MATRIX_ZX_UNBOUNDED
+    const BundleInstanceOptions options = {MATRIX_ZX_BACKEND, 0, 1};
+#else
+    const BundleInstanceOptions options = {MATRIX_ZX_BACKEND, 0, 0};
+#endif
     return BundleInstantiateWithOptions(bundle, bindings, count, &options);
 }
 #define BundleInstantiate MatrixInstantiate

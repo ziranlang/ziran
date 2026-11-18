@@ -22,6 +22,8 @@ struct Bundle {
     /* Native code, compiled the first time an instance or the preflight
      * query asks for it. */
     NativeBundleSlot native;
+    /* The same code without fuel checks, for unbounded instances. */
+    NativeBundleSlot unbounded;
     size_t references;
     /* SHA-256 of the file's bytes. */
     unsigned char digest[32];
@@ -85,6 +87,7 @@ BundleClose(Bundle *bundle)
     if(bundle == NULL || --bundle->references != 0)
         return;
     NativeBundleSlotClose(&bundle->native);
+    NativeBundleSlotClose(&bundle->unbounded);
     ExecBundleClose(bundle->exec);
     free(bundle);
 }
@@ -308,9 +311,9 @@ validate_bindings(const Bundle *bundle, BindingSet *set)
 static BundleInstance *
 instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings,
                                size_t binding_count, int max_steps,
-                               BundleBackendPolicy policy)
+                               BundleBackendPolicy policy, int unbounded)
 {
-    if(bundle == NULL || (binding_count != 0 && bindings == NULL) ||
+    if(bundle == NULL || (binding_count != 0 && bindings == NULL) || (unbounded && max_steps > 0) ||
        binding_count > SIZE_MAX / sizeof(HostBinding) ||
        (policy != BUNDLE_BACKEND_AUTO && policy != BUNDLE_BACKEND_ENGINE &&
         policy != BUNDLE_BACKEND_NATIVE))
@@ -370,8 +373,8 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
         instance->backend = BUNDLE_EXECUTION_WASM;
     } else if(selected == NATIVE_PLATFORM_BACKEND) {
         Bundle *mutable_bundle = (Bundle *)bundle;
-        const NativeBundleCode *code = NativeBundleSlotCode(&mutable_bundle->native,
-                                                            bundle->exec, bundle->digest);
+        NativeBundleSlot *slot = unbounded ? &mutable_bundle->unbounded : &mutable_bundle->native;
+        const NativeBundleCode *code = NativeBundleSlotCode(slot, bundle->exec, bundle->digest, unbounded);
         if(code == NULL) {
             BundleInstanceClose(instance);
             return NULL;
@@ -395,7 +398,7 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
                    size_t binding_count, int max_steps)
 {
     return instantiate_bundle_with_policy(bundle, bindings, binding_count,
-                                          max_steps, BUNDLE_BACKEND_AUTO);
+                                          max_steps, BUNDLE_BACKEND_AUTO, 0);
 }
 
 BundleInstance *
@@ -418,7 +421,7 @@ BundleInstantiateWithOptions(const Bundle *bundle, const HostBinding *bindings,
     if(options == NULL || options->max_steps < 0)
         return NULL;
     return instantiate_bundle_with_policy(bundle, bindings, binding_count,
-                                          options->max_steps, options->backend);
+                                          options->max_steps, options->backend, options->unbounded);
 }
 
 BundleExecutionBackend

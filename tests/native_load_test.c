@@ -146,6 +146,26 @@ limits(void)
     /* More iterations than any fixed fuel budget run to the end. */
     Bundle *long_loop = open_entry("Long");
     run(instantiate(long_loop, BUNDLE_BACKEND_NATIVE, 0, NULL, 0), BUNDLE_EXECUTION_NATIVE_X86_64, 20);
+
+    /* Unbounded code has no fuel checks: it takes no limit, ignores a later
+     * one, still stops runaway recursion, and the bounded code stays. */
+    BundleInstanceOptions unbounded = {BUNDLE_BACKEND_NATIVE, 5, 1};
+    assert(BundleInstantiateWithOptions(long_loop, NULL, 0, &unbounded) == NULL);
+    unbounded.max_steps = 0;
+    instance = BundleInstantiateWithOptions(long_loop, NULL, 0, &unbounded);
+    assert(instance != NULL);
+    BundleInstanceLimitSteps(instance, 3);
+    run(instance, BUNDLE_EXECUTION_NATIVE_X86_64, 20);
+    instance = instantiate(long_loop, BUNDLE_BACKEND_NATIVE, 0, NULL, 0);
+    BundleInstanceLimitSteps(instance, 3);
+    assert(!BundleInstanceRun(instance, &result, &present));
+    BundleInstanceClose(instance);
+    overflow = open_entry("Overflow");
+    instance = BundleInstantiateWithOptions(overflow, NULL, 0, &unbounded);
+    assert(instance != NULL);
+    assert(!BundleInstanceRun(instance, &result, &present));
+    BundleInstanceClose(instance);
+    BundleClose(overflow);
     BundleClose(long_loop);
 }
 

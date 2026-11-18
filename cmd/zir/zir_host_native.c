@@ -13,6 +13,7 @@
  * and leaves the instance terminal; nothing retries in another engine.
  */
 #include "zir_host_native.h"
+#include "zir_sha256.h"
 
 #include "zir_diagnostic.h"
 #include "zir_host_exec.h"
@@ -36,9 +37,9 @@ static const char native_unavailable[] =
 
 const NativeBundleCode *
 NativeBundleSlotCode(NativeBundleSlot *slot, const ExecBundle *bundle,
-                     const unsigned char digest[32])
+                     const unsigned char digest[32], int unbounded)
 {
-    (void)slot; (void)bundle; (void)digest;
+    (void)slot; (void)bundle; (void)digest; (void)unbounded;
     return NULL;
 }
 const char *
@@ -147,6 +148,8 @@ struct NativeBundleCode {
     unsigned char digest[32];
     uint64_t cpu;
     int has_result;
+    /* Built without fuel checks, for instances that never limit steps. */
+    int unbounded;
     size_t references;
     /* While unreferenced: when it was released, for eviction order. */
     unsigned long long idle;
@@ -209,6 +212,8 @@ struct NativeInstance {
     void *entry;
     int has_result;
     int terminal;
+    /* Code without fuel checks: no step limit can apply. */
+    int unbounded;
     /* Built with --checks: pointers are tokens of the slot table. */
     int checked;
     /* The read-only constants beside the code. */
@@ -368,7 +373,7 @@ native_check_image(const ExecBundle *bundle, const LirProgram *lir, MachineImage
 /* Compiles BUNDLE, with its debug attachment's origins when it has one: the
  * code is the same either way, and traps can then name source lines. */
 static NativeBundleCode *
-native_compile(const ExecBundle *bundle, char *problem, size_t capacity)
+native_compile(const ExecBundle *bundle, int unbounded, char *problem, size_t capacity)
 {
     const LirProgram *lir = ExecBundleProgram(bundle);
     if(lir == NULL) {
@@ -388,9 +393,12 @@ native_compile(const ExecBundle *bundle, char *problem, size_t capacity)
         restored = compiler_exec_debug_ZxDebugProgram(&debug);
         source = &restored;
     }
-    MachineDiagnostic diagnostic = compiler_machine_pipeline_MachineCodeBuild(
-        *source, native_target(),
-        compiler_machine_ir_MachineDefaultLimits(), &code->owner);
+    code->unbounded = unbounded;
+    MachineDiagnostic diagnostic = unbounded ?
+        compiler_machine_pipeline_MachineCodeBuildUnbounded(*source, native_target(),
+            compiler_machine_ir_MachineDefaultLimits(), &code->owner) :
+        compiler_machine_pipeline_MachineCodeBuild(*source, native_target(),
+            compiler_machine_ir_MachineDefaultLimits(), &code->owner);
     compiler_exec_debug_ZxDebugFree(&debug);
     if(diagnostic.problem != MachineProblem_None) {
         const LirFunction *functions = lir->functions.data;
@@ -736,10 +744,29 @@ native_evict(void)
     }
 }
 
+/* Unbounded code is a separate compilation of the same bundle, so it caches
+ * under its own content key. */
+static void
+native_variant_digest(const unsigned char digest[32], int unbounded, unsigned char out[32])
+{
+    if(!unbounded) {
+        memcpy(out, digest, 32);
+        return;
+    }
+    static const char tag[] = "ziran native code without fuel checks";
+    Sha256 hash;
+    Sha256Begin(&hash);
+    Sha256Add(&hash, tag, sizeof(tag) - 1);
+    Sha256Add(&hash, digest, 32);
+    Sha256End(&hash, out);
+}
+
 static void
 native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
-                    const unsigned char digest[32])
+                    const unsigned char bundle_digest[32], int unbounded)
 {
+    unsigned char digest[32];
+    native_variant_digest(bundle_digest, unbounded, digest);
     pthread_mutex_lock(&native_lock);
     if(!slot->ready) {
         uint64_t cpu = ZirNativeCpuKey();
@@ -754,12 +781,13 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
             int keyed = native_disk_key(digest, cpu, &key);
             NativeBundleCode *code = keyed ? native_disk_load(bundle, &key) : NULL;
             if(code == NULL) {
-                code = native_compile(bundle, slot->problem, sizeof(slot->problem));
+                code = native_compile(bundle, unbounded, slot->problem, sizeof(slot->problem));
                 if(code != NULL && keyed) native_disk_store(code, &key);
             }
             if(code != NULL) {
                 memcpy(code->digest, digest, 32);
                 code->cpu = cpu;
+                code->unbounded = unbounded;
                 code->references = 1;
                 code->next = native_cache;
                 native_cache = code;
@@ -774,10 +802,10 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
 
 const NativeBundleCode *
 NativeBundleSlotCode(NativeBundleSlot *slot, const ExecBundle *bundle,
-                     const unsigned char digest[32])
+                     const unsigned char digest[32], int unbounded)
 {
     if(slot == NULL || bundle == NULL || digest == NULL) return NULL;
-    native_slot_prepare(slot, bundle, digest);
+    native_slot_prepare(slot, bundle, digest, unbounded);
     return slot->code;
 }
 
@@ -786,7 +814,7 @@ NativeBundleSlotProblem(NativeBundleSlot *slot, const ExecBundle *bundle,
                         const unsigned char digest[32])
 {
     if(slot == NULL || bundle == NULL || digest == NULL) return "assembly.native.input: no bundle";
-    native_slot_prepare(slot, bundle, digest);
+    native_slot_prepare(slot, bundle, digest, 0);
     return slot->problem;
 }
 
@@ -851,7 +879,7 @@ native_trap_site(const NativeInstance *instance, char *text, size_t capacity)
         return;
     }
     char problem[512];
-    NativeBundleCode *named = native_compile(instance->bundle, problem, sizeof(problem));
+    NativeBundleCode *named = native_compile(instance->bundle, instance->unbounded, problem, sizeof(problem));
     if(named == NULL) { snprintf(text, capacity, "function=? block=?"); return; }
     native_trap_site_in(instance, &named->owner, text, capacity);
     native_free_code(named);
@@ -1563,7 +1591,7 @@ NativeInstance *
 NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
                    NativeFindBinding find, void *context, long long max_steps)
 {
-    if(code == NULL || bundle == NULL) return NULL;
+    if(code == NULL || bundle == NULL || (code->unbounded && max_steps > 0)) return NULL;
     MachineImage image = code->image;
     if(image.code.bytes.data == NULL || image.code.bytes.length <= 0 ||
        image.entry < 0 || image.entry >= image.function_offsets.length ||
@@ -1615,6 +1643,7 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     instance->trap_offset = image.fuel_offset + 8;
     instance->stack_limit_offset = image.stack_limit_offset;
     instance->has_result = code->has_result;
+    instance->unbounded = code->unbounded;
     instance->limit = max_steps > 0 ? max_steps : 0;
     instance->cumulative = max_steps > 0;
     if(instance->data_size < 8 ||
@@ -1787,7 +1816,7 @@ NativeInstanceRun(NativeInstance *instance, long long *result, int *has_result)
 void
 NativeInstanceLimitSteps(NativeInstance *instance, long long max_steps)
 {
-    if(instance == NULL || instance->terminal) return;
+    if(instance == NULL || instance->terminal || instance->unbounded) return;
     instance->limit = max_steps > 0 ? max_steps : 0;
 }
 

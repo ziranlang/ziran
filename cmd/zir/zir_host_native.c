@@ -470,6 +470,38 @@ typedef struct NativeBuildSearch {
     size_t length;
 } NativeBuildSearch;
 
+/* An object linked without a build ID (a reproducible APK's library) is
+ * identified by its loaded code: a 64-bit FNV-1a hash of every executable
+ * segment's bytes, a few milliseconds even for a 12 MB library. */
+static void
+native_code_identity(struct dl_phdr_info *info, NativeBuildSearch *search)
+{
+    uint64_t hash = 14695981039346656037ull;
+    uint64_t bytes = 0;
+    for(int at = 0; at < info->dlpi_phnum; at++) {
+        const ElfW(Phdr) *header = &info->dlpi_phdr[at];
+        // Execute-only memory cannot be read, so only readable code is hashed.
+        if(header->p_type != PT_LOAD || (header->p_flags & PF_X) == 0 || (header->p_flags & PF_R) == 0 ||
+           header->p_filesz == 0) continue;
+        const unsigned char *code = (const unsigned char *)(info->dlpi_addr + header->p_vaddr);
+        size_t length = (size_t)header->p_filesz;
+        size_t words = length / 4;
+        for(size_t word = 0; word < words; word++) {
+            uint32_t value;
+            memcpy(&value, code + word * 4, 4);
+            hash = (hash ^ value) * 1099511628211ull;
+        }
+        for(size_t tail = words * 4; tail < length; tail++) hash = (hash ^ code[tail]) * 1099511628211ull;
+        hash = (hash ^ (uint64_t)length) * 1099511628211ull;
+        bytes += length;
+    }
+    if(bytes == 0) return;
+    static const char tag[] = "code";
+    memcpy(search->id, tag, 4);
+    for(int at = 0; at < 8; at++) search->id[4 + at] = (unsigned char)(hash >> (8 * at));
+    search->length = 12;
+}
+
 static int
 native_build_note(struct dl_phdr_info *info, size_t size, void *data)
 {
@@ -504,11 +536,41 @@ native_build_note(struct dl_phdr_info *info, size_t size, void *data)
             left -= sizeof(*entry) + name + description;
         }
     }
+    native_code_identity(info, search);
     return 1;
 }
 
+#if defined(__ANDROID__)
+/* An Android app process has no HOME; its own cache directory is
+ * /data/data/PACKAGE/cache, and its command line is PACKAGE, or
+ * PACKAGE:PROCESS for a secondary process. A command such as zi2zx run from
+ * a shell is no package and gets 0. */
+static int
+native_android_cache(char *path, size_t capacity)
+{
+    char name[256];
+    int file = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
+    if(file < 0) return 0;
+    ssize_t got = read(file, name, sizeof(name) - 1);
+    close(file);
+    if(got <= 0) return 0;
+    name[got] = 0;
+    char *process = strchr(name, ':');
+    if(process != NULL) *process = 0;
+    if(name[0] == 0 || strchr(name, '.') == NULL || strchr(name, '/') != NULL) return 0;
+    char cache[320];
+    struct stat info;
+    int written = snprintf(cache, sizeof(cache), "/data/data/%s/cache", name);
+    if(written <= 0 || (size_t)written >= sizeof(cache) || stat(cache, &info) != 0 || !S_ISDIR(info.st_mode))
+        return 0;
+    written = snprintf(path, capacity, "%s/ziran/native", cache);
+    return written > 0 && (size_t)written < capacity;
+}
+#endif
+
 /* The cache directory: ZIRAN_NATIVE_CACHE names it, or "off" disables the
- * cache; otherwise $XDG_CACHE_HOME/ziran/native or ~/.cache/ziran/native. */
+ * cache; otherwise $XDG_CACHE_HOME/ziran/native, an Android app's own cache
+ * directory, or ~/.cache/ziran/native. */
 static int
 native_disk_directory(char *path, size_t capacity)
 {
@@ -520,6 +582,9 @@ native_disk_directory(char *path, size_t capacity)
         const char *cache = getenv("XDG_CACHE_HOME");
         const char *home = getenv("HOME");
         if(cache != NULL && cache[0] == '/') written = snprintf(path, capacity, "%s/ziran/native", cache);
+#if defined(__ANDROID__)
+        else if(native_android_cache(path, capacity)) written = (int)strlen(path);
+#endif
         else if(home != NULL && home[0] == '/') written = snprintf(path, capacity, "%s/.cache/ziran/native", home);
         else return 0;
     }

@@ -145,6 +145,18 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, off.output == engine.output && !Counted(off, "native_cache_disk_store") &&
         !Counted(off, "native_cache_disk_hit"), "ZIRAN_NATIVE_CACHE=off still used the disk") { return 1 }
 
+    // A tool linked without a GNU build ID, as reproducible Android
+    // libraries are, is keyed by its code and caches too.
+    plain := CheckPath(test.work, "zi2zx-plain")
+    strip := string.["objcopy", "--remove-section", ".note.gnu.build-id", tool, plain]
+    unused NativeRun(*test, strip[:])
+    plain_cache := CheckPath(test.work, "plain-cache")
+    plain_cold := DiskRunWith(*test, plain, bundle, plain_cache, "plain-cold")
+    plain_warm := DiskRunWith(*test, plain, bundle, plain_cache, "plain-warm")
+    if test.failed || !NativeAssert(*test, plain_cold.output == engine.output && Counted(plain_cold, "native_cache_disk_store") &&
+        plain_warm.output == engine.output && Counted(plain_warm, "native_cache_disk_hit") && OnlyEntry(plain_cache) != "",
+        "a tool without a build ID did not store and map its entry") { return 1 }
+
     // A trap in code read from disk still names its function.
     trap := CheckPath(test.work, "trap.zx")
     trap_build := string.[tool, "--checks", "--root", spec, "--module-path", std, "--entry", "std_string_bad:main",
@@ -176,6 +188,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     NativeUnset(*test, "ZIRAN_NATIVE_CACHE")
     if !NativeAssert(*test, OnlyEntry(shared) != "", "racing runs left other than one entry") { return 1 }
-    print("native disk cache: cold store, warm hit, abandoned writer, edited, truncated, oversized, wrong-format, wrong-key, wrong-length, wrong-digest and wrong-structure entries named, refused and replaced; off switch, trap sites and racing writers match the engine\n")
+    print("native disk cache: cold store, warm hit, a tool without a build ID, abandoned writer, edited, truncated, oversized, wrong-format, wrong-key, wrong-length, wrong-digest and wrong-structure entries named, refused and replaced; off switch, trap sites and racing writers match the engine\n")
     return 0
 }

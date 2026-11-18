@@ -2648,9 +2648,11 @@ Failure :: (problem: MachineProblem) -> MachineA64Result {
 // Verifies and measures PROGRAM; with an OUTPUT, writes and publishes the
 // image there. Every diagnostic from verification, form checks or measuring
 // returns before OUTPUT is touched.
-Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineA64Owner) -> MachineA64Result {
-    verified := MachineVerifyAllocated(program, limits)
-    if verified.problem != .None { return .{diagnostic = verified} }
+Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineA64Owner, verify: bool = true) -> MachineA64Result {
+    if verify {
+        verified := MachineVerifyAllocated(program, limits)
+        if verified.problem != .None { return .{diagnostic = verified} }
+    }
     if (program.target.arch != .AArch64 || program.target.abi != .Aapcs64) ||
         (program.target.os != .Linux && program.target.os != .Android) {
         return Failure(.UnsupportedTarget)
@@ -2771,4 +2773,11 @@ MachineA64Measure :: (program: MachineProgram, limits: MachineLimits) -> Machine
 MachineA64Encode :: (program: MachineProgram, limits: MachineLimits, output: *MachineA64Owner) -> MachineDiagnostic {
     if output == null { return Failure(.Owner).diagnostic }
     return Process(program, limits, output).diagnostic
+}
+
+// MachineA64Encode for the program RegAllocAllocate just published, which it
+// verified, so it is not verified again.
+MachineA64EncodeAllocated :: (program: MachineProgram, limits: MachineLimits, output: *MachineA64Owner) -> MachineDiagnostic {
+    if output == null { return Failure(.Owner).diagnostic }
+    return Process(program, limits, output, false).diagnostic
 }

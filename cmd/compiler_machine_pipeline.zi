@@ -271,15 +271,16 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
             MachineNativeFree(*built)
             return Problem(.UnsupportedTarget)
         }
-        if target.arch == .ArmV7 { diagnostic = MachineV7Encode(program, limits, *built.encoded_v7) }
-        else { diagnostic = MachineA64Encode(program, limits, *built.encoded_a64) }
+        if target.arch == .ArmV7 { diagnostic = MachineV7EncodeAllocated(program, limits, *built.encoded_v7) }
+        else { diagnostic = MachineA64EncodeAllocated(program, limits, *built.encoded_a64) }
         if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
         built.valid = true
         NativeExchange(output, *built)
         MachineNativeFree(*built)
         return NoDiagnostic()
     }
-    diagnostic = MachineX64Encode(program, limits, *built.encoded)
+    // Allocation verified PROGRAM; the encoders do not verify it again.
+    diagnostic = MachineX64EncodeAllocated(program, limits, *built.encoded)
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     if emit_executable {
         image := MachineX64View(*built.encoded)

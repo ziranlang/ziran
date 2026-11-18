@@ -3155,9 +3155,11 @@ BuildMachineImage :: (program: MachineProgram, output: *MachineX64Owner,
 // Verifies and measures PROGRAM; with an OUTPUT, writes and publishes the
 // image there. Every diagnostic from verification, form checks or measuring
 // returns before OUTPUT is touched.
-Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner) -> MachineX64Result {
-    verified := MachineVerifyAllocated(program, limits)
-    if verified.problem != .None { return .{diagnostic = verified} }
+Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner, verify: bool = true) -> MachineX64Result {
+    if verify {
+        verified := MachineVerifyAllocated(program, limits)
+        if verified.problem != .None { return .{diagnostic = verified} }
+    }
     if program.target.arch != .X86_64 || !TargetMachineLoweringSupported(program.target) {
         return Failure(.UnsupportedTarget)
     }
@@ -3323,4 +3325,11 @@ MachineX64Measure :: (program: MachineProgram, limits: MachineLimits) -> Machine
 MachineX64Encode :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner) -> MachineDiagnostic {
     if output == null { return Failure(.Owner).diagnostic }
     return Process(program, limits, output).diagnostic
+}
+
+// MachineX64Encode for the program RegAllocAllocate just published, which it
+// verified, so it is not verified again.
+MachineX64EncodeAllocated :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner) -> MachineDiagnostic {
+    if output == null { return Failure(.Owner).diagnostic }
+    return Process(program, limits, output, false).diagnostic
 }

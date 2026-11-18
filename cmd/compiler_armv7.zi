@@ -2565,9 +2565,11 @@ Failure :: (problem: MachineProblem) -> MachineV7Result {
 // Verifies and measures PROGRAM; with an OUTPUT, writes and publishes the
 // image there. Every diagnostic from verification, form checks or measuring
 // returns before OUTPUT is touched.
-Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner) -> MachineV7Result {
-    verified := MachineVerifyAllocated(program, limits)
-    if verified.problem != .None { return .{diagnostic = verified} }
+Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner, verify: bool = true) -> MachineV7Result {
+    if verify {
+        verified := MachineVerifyAllocated(program, limits)
+        if verified.problem != .None { return .{diagnostic = verified} }
+    }
     if (program.target.arch != .ArmV7 || program.target.abi != .Aapcs32) ||
         (program.target.os != .Linux && program.target.os != .Android) {
         return Failure(.UnsupportedTarget)
@@ -2688,6 +2690,13 @@ MachineV7Measure :: (program: MachineProgram, limits: MachineLimits) -> MachineV
 MachineV7Encode :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner) -> MachineDiagnostic {
     if output == null { return Failure(.Owner).diagnostic }
     return Process(program, limits, output).diagnostic
+}
+
+// MachineV7Encode for the program RegAllocAllocate just published, which it
+// verified, so it is not verified again.
+MachineV7EncodeAllocated :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner) -> MachineDiagnostic {
+    if output == null { return Failure(.Owner).diagnostic }
+    return Process(program, limits, output, false).diagnostic
 }
 
 // Exchanges two complete owners; their borrowed views move with the vectors

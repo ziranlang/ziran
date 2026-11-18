@@ -138,7 +138,7 @@ Excerpt :: (text: string) -> string { return text[0:ifx text.count > 300 then 30
 // Runs EXE under Wine and ELF natively; they must print and exit alike.
 Agrees :: (test: *NativeTest, wine: string, label: string, elf: string, exe: string) -> NativeCommand {
     native := string.[elf]
-    emulated := string.[wine, exe]
+    emulated := string.["env", "-u", "TMPDIR", wine, exe]
     reference := NativeInvoke(test, native[:])
     actual := NativeInvoke(test, emulated[:])
     parts := string.[label, ": under Wine status ", CheckNumber(actual.code), " (Linux ", CheckNumber(reference.code),
@@ -186,7 +186,7 @@ WindowsHosts :: (test: *NativeTest, tools: string, wine: string) -> bool {
     build := string.[CheckPath(tools, "zx2native"), "--target", "x86_64", "--platform", "windows", "-o", exe, zx]
     unused NativeRun(test, build[:])
     if test.failed { return false }
-    execute := string.[wine, exe]
+    execute := string.["env", "-u", "TMPDIR", wine, exe]
     unused NativeExpect(test, execute[:], "Windows host DLL imports passed\n")
     if test.failed { return false }
     // Exact DLL groups and terminating descriptor; import symbols must use
@@ -249,6 +249,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     NativeSet(*test, "WINEPREFIX", prefix)
     NativeSet(*test, "WINEDEBUG", "-all")
     NativeSet(*test, "WINEDLLOVERRIDES", "mscoree,mshtml=")
+    // Wine commands start without the check's private TMPDIR: Wine 9.0 run as
+    // root (CI containers) aborts with "free(): invalid pointer" whenever
+    // TMPDIR is set, and Wine needs none.
     tools := TextDetach(TextCopy(PathParent(test.ziran)))
     zi2zx := CheckPath(tools, "zi2zx")
     std := CheckPath(test.repo, "std")
@@ -292,12 +295,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
     unused NativeAssert(*test, WindowsHosts(*test, tools, wine), "Windows external hosts failed")
     server := CheckExecutable("wineserver")
     if server != "" {
-        stop := string.[server, "-k"]
+        stop := string.["env", "-u", "TMPDIR", server, "-k"]
         unused NativeInvoke(*test, stop[:])
     }
     if test.failed { return 1 }
     print("Windows named DLL hosts: two providers, Win64 scalar/record/float arguments, IAT/map/determinism and explicit gaps passed\n")
-    version := string.[wine, "--version"]
+    version := string.["env", "-u", "TMPDIR", wine, "--version"]
     print("Windows parity: % programs print and exit as their Linux native ELFs, as PE32+ executables under %",
         cases.count + 1, NativeInvoke(*test, version[:]).output)
     return 0

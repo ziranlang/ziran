@@ -188,12 +188,14 @@ typedef struct NativeHeap {
 /* Block data keeps calloc's alignment. */
 _Static_assert(sizeof(NativeBlock) % _Alignof(max_align_t) == 0, "block data alignment");
 _Static_assert(sizeof(NativeChunk) % 16 == 0 && sizeof(NativeHeader) == 16, "chunk data alignment");
+#if defined(__x86_64__)
 _Static_assert(offsetof(NativeHeap, cookie) == MachineX64HeapCookie &&
                offsetof(NativeHeap, live) == MachineX64HeapLive &&
                offsetof(NativeHeap, limit) == MachineX64HeapLimit &&
                offsetof(NativeHeap, top) == MachineX64HeapTop &&
                offsetof(NativeHeap, end) == MachineX64HeapEnd &&
                offsetof(NativeHeap, lists) == MachineX64HeapLists, "native heap layout");
+#endif
 
 struct NativeInstance {
     const NativeBundleCode *code;

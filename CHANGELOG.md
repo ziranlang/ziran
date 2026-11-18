@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- The native runtime builds on ARMv7 again. Only x86-64 checks the heap offsets used by its generated allocator.
 - Native x86-64 code divides by a constant divisor folded into the instruction instead of first loading it into a register the division never reads, and starts every loop on a 32-byte boundary, so a change before a loop no longer moves its speed.
 - Native x86-64 callers keep floating-point values in XMM registers across a direct call to a function whose allocated code, including its own calls, leaves those registers untouched, instead of spilling them around the call. The allocated-code verifier checks each reduced mask against the callee; indirect, recursive and not-yet-allocated callees keep the full ABI clobber set.
 - `std/parallel` can report the online logical processor count with `ParallelProcessors()` and initialize a worker pool with an explicit lane count using `ParallelInitLanes`.

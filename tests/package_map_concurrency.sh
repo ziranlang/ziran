@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 ziran=${1:?pass the native Ziran launcher}
+tool=$(dirname -- "$ziran")/zi2zir
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo"
 mkdir -p "$repo/build/tests"
@@ -20,5 +21,6 @@ for form in source saved; do
     output=$work/$form-c
     "$ziran" build "$@" --target=c --no-main --entry "$entry:main" -o "$output" "$input"
     "${CC:-cc}" -O2 -std=c11 -I"$repo/include" "$output"/*.c -o "$output/probe" -lcrypto -lm
-    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/package_map_concurrency_cases.zi" -- "$output/probe"
+    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/package_map_concurrency_cases.zi" -- \
+        "$output/probe" "" "$tool"
 done

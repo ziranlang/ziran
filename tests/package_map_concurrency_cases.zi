@@ -72,11 +72,39 @@ MapParallel :: (test: *NativeTest, root: string) -> bool {
     return MapNoTemporary(test, root)
 }
 
+MapSymlink :: (test: *NativeTest, compiler: string) -> bool {
+    root := CheckPath(test.work, "temp-real")
+    alias := CheckPath(test.work, "temp-alias")
+    if !MapSetup(test, root) { return false }
+    link := string.["ln", "-s", root, alias]
+    unused NativeRun(test, link[:])
+    NativeSet(test, "TMPDIR", alias)
+    real := MapProbe(test, root, "left")
+    linked := MapProbe(test, alias, "left")
+    if !NativeAssert(test, !test.failed && real == linked && NativeRead(test, linked) == MapExpected(root, "left"),
+        "package map identity changed through a symlinked temporary root") { return false }
+
+    // The compiler can also receive an existing map with lexical root rows.
+    lexical := CheckPath(root, "lexical.tsv")
+    content := TextReplace(MapExpected(root, "left"),
+        CheckConcat("\t", CheckConcat(root, "\n")), CheckConcat("\t", CheckConcat(alias, "\n")))
+    if !NativeWrite(test, lexical, content) { return false }
+    for map: string.[linked, lexical] {
+        NativeSet(test, "ZIRAN_PACKAGE_MAP", map)
+        source := CheckPath(alias, "left")
+        command := string.[compiler, "--root", source, "-o", CheckPath(test.work, "temp-ir"), CheckPath(source, "Value.zi")]
+        unused NativeRun(test, command[:])
+        if test.failed { return false }
+    }
+    return true
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "package-map-concurrency-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc == 4, "pass the map probe and checked-IR compiler") { return 1 }
     root := CheckPath(test.work, "immutable")
     if !MapSetup(*test, root) { return 1 }
     left := MapProbe(*test, root, "left"); right := MapProbe(*test, root, "right")
@@ -96,7 +124,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     latest := CheckPath(test.work, "blocked-latest")
     if !MapSetup(*test, latest) || !NativeAssert(*test, CreateDirectories(CheckPath(latest, "build/.ziran/module-map.tsv")), "block latest map publication") { return 1 }
     unused MapProbe(*test, latest, "left", false)
-    if !MapNoTemporary(*test, latest) || test.failed { return 1 }
-    print("Local package-map tests: immutable selection, atomic publication and failure cleanup passed\n")
+    if !MapNoTemporary(*test, latest) || test.failed || !MapSymlink(*test, TextFromCString(argv[3])) { return 1 }
+    print("Local package-map tests: immutable selection, atomic publication, symlinked roots and failure cleanup passed\n")
     return 0
 }

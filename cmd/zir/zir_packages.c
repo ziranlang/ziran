@@ -113,7 +113,10 @@ ZirPackageMap *PackageMapLoad(const char *path)
             map->roots = items;
             PackageRoot *item = &map->roots[map->root_count++];
             item->id = strdup(field(&cursor));
-            item->path = cursor == NULL ? NULL : strdup(field(&cursor));
+            char *directory = cursor == NULL ? NULL : field(&cursor);
+            item->path = directory == NULL ? NULL : CanonicalPath(directory);
+            if(directory != NULL && item->path == NULL)
+                item->path = strdup(directory);
             okay = item->id != NULL && item->path != NULL;
         } else if(strcmp(kind, "M") == 0) {
             PackageModule *items = realloc(map->modules,

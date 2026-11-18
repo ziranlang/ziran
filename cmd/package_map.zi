@@ -134,8 +134,10 @@ PkgAddGeneratedModules :: (current: *PkgManifest, output: *PkgModuleSet) -> bool
 
 PkgAppendModuleSet :: (builder: *PkgBuilder, id: string, directory: string,
     set: *PkgModuleSet) -> void {
+    canonical := PkgCanonical(directory)
+    if canonical == "" { builder.valid = false; return }
     PkgAppend(builder, PkgJoin3("P\t", id, "\t"))
-    PkgAppend(builder, directory)
+    PkgAppend(builder, canonical)
     PkgAppend(builder, "\n")
     index: s32 = 0
     while index < set.count {
@@ -283,6 +285,8 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
 }
 
 PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string {
+    root = PkgCanonical(root)
+    if root == "" { return "" }
     graph: *PkgModuleGraph = cast(*PkgModuleGraph)(PkgAllocZero(cast(u64)size_of(PkgModuleGraph)))
     memory: *u8 = PkgAlloc(33554432)
     if graph == null || memory == null { return "" }

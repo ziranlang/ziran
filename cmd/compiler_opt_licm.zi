@@ -13,19 +13,6 @@ Integer :: (program: LirProgram, type: s32) -> bool {
     return kind == .Integer || kind == .Bool
 }
 
-// Whether a loop member block calls anything, which clobbers every
-// caller-saved register a hoisted value could stay in.
-LoopCalls :: (function: LirFunction, plan: *LirLoopPlan) -> bool {
-    for block, b: function.blocks {
-        if plan.members[b] == 0 { continue }
-        for instruction: block.instructions {
-            op := instruction.op
-            if op == .Call || op == .CallIndirect || op == .HostCall { return true }
-        }
-    }
-    return false
-}
-
 // These operations are total: executing one on a zero-trip path cannot
 // introduce a trap, memory access, allocation or observable effect. In
 // particular, division, shifts, float conversions and addresses derived
@@ -77,18 +64,6 @@ Select :: (program: LirProgram, function: LirFunction, plan: *LirLoopPlan,
     for at: 0..count - 1 {
         if !LirSsaSpend(budget, 1) { return -1 }
         if hoisted[at].operands.count > 0 { selected[hoisted[at].result] = 2 }
-    }
-    // A float constant has no immediate form on x86-64: each use rebuilds
-    // it from a general register. In a loop without calls it stays in a
-    // register across iterations instead.
-    if !LoopCalls(function, plan) {
-        if !LirSsaSpend(budget, count) { return -1 }
-        for at: 0..count - 1 {
-            instruction := hoisted[at]
-            if instruction.op == .Constant && program.types[function.values[instruction.result]].kind == .Float {
-                selected[instruction.result] = 2
-            }
-        }
     }
     reverse := count
     while reverse > 0 {

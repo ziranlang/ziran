@@ -1137,9 +1137,13 @@ Redundancies C skips, ranked:
    within noise. Calls halve, but the loop still has a back-edge copy
    (`mov %rax,%r12` in its own block, two jumps), the base case now always
    builds a frame, and GCC also unrolls the remaining recursion.
-2. Mandelbrot 2 and 4, in review: float constants stay in registers through
-   call-free loops, and `x*2.0` is `x+x`. The inner loop has no constant
-   rebuilds left.
+2. Mandelbrot 2 and 4: `x*2.0` is `x+x` (kept). Hoisting float constants
+   out of call-free loops (96ce8d50) removed the in-loop rebuilds but was
+   reverted: Alpha, C / before / with it µs, spectral-norm 10,457 / 20,924 /
+   33,951, mandelbrot 69,062 / 110,890 / 139,693, n-body 29,940 / 62,720 /
+   67,040. The cause is not isolated yet; a retry should hoist only into
+   the innermost loop's preheader and check register pressure first.
+   Back-edge hint (512ddb2e): fib 43,233 -> 40,629 µs (C 16,134).
 3. Next: back-edge copies (mandelbrot's five `movsd` with a swap, fib's
    accumulator copy): coalesce a loop-carried value's new definition with
    its block parameter's register when the old value dies there.

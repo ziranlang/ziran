@@ -174,6 +174,32 @@ zir_f_1c72792874eb8388_ExprExit(int32_t status)
     zir_foreign_zir_f_1c72792874eb8388_ExprExit(status);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprStrlen_8a8a282e
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprStrlen_8a8a282e
+#ifdef __APPLE__
+size_t zir_foreign_zir_f_1c72792874eb8388_ExprStrlen(void* text) __asm__("_strlen");
+#else
+size_t zir_foreign_zir_f_1c72792874eb8388_ExprStrlen(void* text) __asm__("strlen");
+#endif
+static size_t
+zir_f_1c72792874eb8388_ExprStrlen(void* text)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprStrlen(text);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprMemchr_4ab2f3e7
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprMemchr_4ab2f3e7
+#ifdef __APPLE__
+void* zir_foreign_zir_f_1c72792874eb8388_ExprMemchr(void* text, int32_t byte, size_t bytes) __asm__("_memchr");
+#else
+void* zir_foreign_zir_f_1c72792874eb8388_ExprMemchr(void* text, int32_t byte, size_t bytes) __asm__("memchr");
+#endif
+static void*
+zir_f_1c72792874eb8388_ExprMemchr(void* text, int32_t byte, size_t bytes)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprMemchr(text, byte, bytes);
+}
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -184,6 +210,7 @@ zir_f_1c72792874eb8388_ExprExit(int32_t status)
 static uint8_t* compiler_parse_TokenCString(String text) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_LexerSource(ZirLexer* lexer) ZIRAN_MAYBE_UNUSED;
 static ZirToken compiler_parse_StoreToken(ZirLexer* lexer, Scan scan) ZIRAN_MAYBE_UNUSED;
+static void compiler_parse_QueueOwner(int32_t* owners, int32_t* pending, int32_t* top, int32_t count, int32_t expr, int32_t stmt) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_parse_ExprCString(String text) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_parse_ByteIndex(String text, uint8_t wanted) ZIRAN_MAYBE_UNUSED;
 static bool compiler_parse_HasPrefix(String text, String prefix) ZIRAN_MAYBE_UNUSED;
@@ -401,6 +428,185 @@ CompilerCallerLocationLiteral(ZirModule* module, ZirSourceSpan span, void* outpu
         value_2 = 0;
     }
     return value_2;
+}
+
+int32_t*
+ExpressionOwnersZiran(ZirFunction* fn)
+{
+    int32_t count = fn->expr_count;
+    if (count <= 0) {
+        return (void *)0;
+    }
+    size_t width = (size_t)(sizeof(int32_t));
+    size_t bytes = (size_t)(count) * width;
+    if (bytes / width != (size_t)(count)) {
+        return (void *)0;
+    }
+    void* value_0 = zir_f_1c72792874eb8388_ExprMalloc(bytes);
+    int32_t* owners = (int32_t*)(value_0);
+    void* value_1 = zir_f_1c72792874eb8388_ExprMalloc(bytes);
+    int32_t* pending = (int32_t*)(value_1);
+    if (owners == ((void *)0) || pending == ((void *)0)) {
+        zir_f_1c72792874eb8388_ExprFree((void*)(owners));
+        int32_t* cleanup_return_0 = (void *)0;
+        zir_f_1c72792874eb8388_ExprFree((void*)(pending));
+        return cleanup_return_0;
+    }
+    {
+        int32_t range_first_17 = 0;
+        int32_t range_last_17 = (int32_t)((uint32_t)count - 1u);
+        int32_t index = range_first_17;
+        if (index <= range_last_17) for (;;) {
+            int32_t* value_2 = &(owners[index]);
+            (*value_2) = -1;
+            if (index == range_last_17) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    {
+        int32_t range_first_20 = 0;
+        int32_t range_last_20 = (int32_t)((uint32_t)(fn->stmt_count) - 1u);
+        int32_t index = range_first_20;
+        if (index <= range_last_20) for (;;) {
+            int64_t it_index = (int64_t)(((int32_t)((uint32_t)index - (uint32_t)range_first_20)));
+            ZirStmt* stmt = &(fn->stmts[index]);
+            int32_t top = 0;
+            int32_t* value_3 = owners;
+            int32_t* value_4 = pending;
+            int32_t* value_5 = &(top);
+            int32_t value_6 = count;
+            int32_t value_7 = stmt->expr_root;
+            {
+                int32_t* owners = value_3;
+                int32_t* pending = value_4;
+                int32_t* top = value_5;
+                int32_t count = value_6;
+                int32_t expr = value_7;
+                int32_t stmt = index;
+                if (expr >= 0 && expr < count && owners[expr] < 0) {
+                    int32_t* value_9 = &(owners[expr]);
+                    (*value_9) = stmt;
+                    int32_t* value_10 = &(pending[*(top)]);
+                    (*value_10) = expr;
+                    int32_t* value_11 = &((*(top)));
+                    (*value_11) = (int32_t)((uint32_t)((*value_11)) + 1u);
+                }
+            }
+            int32_t* value_12 = owners;
+            int32_t* value_13 = pending;
+            int32_t* value_14 = &(top);
+            int32_t value_15 = count;
+            int32_t value_16 = stmt->lhs_root;
+            {
+                int32_t* owners = value_12;
+                int32_t* pending = value_13;
+                int32_t* top = value_14;
+                int32_t count = value_15;
+                int32_t expr = value_16;
+                int32_t stmt = index;
+                if (expr >= 0 && expr < count && owners[expr] < 0) {
+                    int32_t* value_18 = &(owners[expr]);
+                    (*value_18) = stmt;
+                    int32_t* value_19 = &(pending[*(top)]);
+                    (*value_19) = expr;
+                    int32_t* value_20 = &((*(top)));
+                    (*value_20) = (int32_t)((uint32_t)((*value_20)) + 1u);
+                }
+            }
+            while (top > 0) {
+                top = (int32_t)((uint32_t)top - 1u);
+                ZirExpr* expr = &(fn->exprs[pending[top]]);
+                int32_t links[5] = {expr->left, expr->right, expr->first_child, expr->next_sibling, expr->third};
+                for (int64_t it_index = 0LL; it_index < 5; it_index++) {
+                    int32_t link = (links)[it_index];
+                    int32_t* value_21 = owners;
+                    int32_t* value_22 = pending;
+                    int32_t* value_23 = &(top);
+                    int32_t value_24 = count;
+                    {
+                        int32_t* owners = value_21;
+                        int32_t* pending = value_22;
+                        int32_t* top = value_23;
+                        int32_t count = value_24;
+                        int32_t expr = link;
+                        int32_t stmt = index;
+                        if (expr >= 0 && expr < count && owners[expr] < 0) {
+                            int32_t* value_26 = &(owners[expr]);
+                            (*value_26) = stmt;
+                            int32_t* value_27 = &(pending[*(top)]);
+                            (*value_27) = expr;
+                            int32_t* value_28 = &((*(top)));
+                            (*value_28) = (int32_t)((uint32_t)((*value_28)) + 1u);
+                        }
+                    }
+                }
+            }
+            if (index == range_last_20) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    int32_t* cleanup_return_1 = owners;
+    zir_f_1c72792874eb8388_ExprFree((void*)(pending));
+    return cleanup_return_1;
+}
+
+size_t
+ExprSavedCursorLength(ExprStatementCursor* cursor, void* text, int32_t line)
+{
+    if (cursor->text != text || cursor->base_line != line) {
+        ExprStatementCursor* value_0 = &((*(cursor)));
+        ExprStatementCursor value_1 = {0};
+        value_1.text = text;
+        size_t value_2 = zir_f_1c72792874eb8388_ExprStrlen(text);
+        value_1.length = value_2;
+        value_1.base_line = line;
+        value_1.line = line;
+        value_1.at = 0;
+        (*value_0) = value_1;
+    }
+    return cursor->length;
+}
+
+int64_t
+ExprSavedSourceOffset(ExprStatementCursor* cursor, void* text, ZirSourceSpan base, ZirSourceSpan span)
+{
+    int32_t base_line = base.line;
+    int32_t line = span.line;
+    size_t length = ExprSavedCursorLength(cursor, text, base_line);
+    if (line < base_line) {
+        return 0LL;
+    }
+    if (cursor->line > line) {
+        int32_t* value_0 = &(cursor->line);
+        (*value_0) = base_line;
+        size_t* value_1 = &(cursor->at);
+        (*value_1) = 0;
+    }
+    while (cursor->line < line) {
+        void* newline = zir_f_1c72792874eb8388_ExprMemchr((void*)(((size_t)(text) + cursor->at)), 10, length - cursor->at);
+        if (newline == ((void *)0)) {
+            return 0LL;
+        }
+        size_t* value_2 = &(cursor->at);
+        (*value_2) = ((size_t)(newline) - (size_t)(text)) + 1;
+        int32_t* value_3 = &(cursor->line);
+        (*value_3) = (int32_t)((uint32_t)((*value_3)) + 1u);
+    }
+    int32_t value_4 = 0;
+    if (line == base_line) {
+        value_4 = base.column;
+    } else {
+        value_4 = 1;
+    }
+    int64_t relative = (int64_t)((uint64_t)(span.column) - (uint64_t)(value_4));
+    if (relative < 0LL || (size_t)(relative) > length - cursor->at) {
+        return 0LL;
+    }
+    return (int64_t)((uint64_t)(cursor->at) + (uint64_t)relative);
 }
 
 void
@@ -720,6 +926,19 @@ compiler_parse_ExpandCallDefaults(ZirFunction* fn, ZirModule* module, ZirSourceS
     bool cleanup_return_2 = true;
     zir_f_1c72792874eb8388_ExprFree((void*)(scratch));
     return cleanup_return_2;
+}
+
+static void
+compiler_parse_QueueOwner(int32_t* owners, int32_t* pending, int32_t* top, int32_t count, int32_t expr, int32_t stmt)
+{
+    if (expr >= 0 && expr < count && owners[expr] < 0) {
+        int32_t* value_0 = &(owners[expr]);
+        (*value_0) = stmt;
+        int32_t* value_1 = &(pending[*(top)]);
+        (*value_1) = expr;
+        int32_t* value_2 = &((*(top)));
+        (*value_2) = (int32_t)((uint32_t)((*value_2)) + 1u);
+    }
 }
 
 static uint8_t*

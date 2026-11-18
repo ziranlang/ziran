@@ -381,6 +381,7 @@ $(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAME
 
 $(call obj,cmd/zi2c/main.c): $(BACKEND_PROCESS_READY)
 $(call obj,cmd/zir/zir.c): $(TYPE_READY)
+$(call obj,cmd/zir/zir_serial.c): $(PARSE_READY)
 $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCANNER_C)/compiler_scan.c

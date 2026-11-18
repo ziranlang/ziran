@@ -1,7 +1,7 @@
 #ifndef ZIRAN_ZIR_PARSE_H
 #define ZIRAN_ZIR_PARSE_H
 
-#include "zir_expr.h"
+#include "zir.h"
 
 /*
  * Parse a .zi source file into a ZirProgram. Returns a heap-allocated

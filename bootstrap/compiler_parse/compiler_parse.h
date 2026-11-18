@@ -18,6 +18,7 @@ extern "C" {
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
 typedef struct TokenText TokenText;
 #endif
+typedef struct ExprStatementCursor ExprStatementCursor;
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
 typedef struct ExprText ExprText;
 #endif
@@ -34,6 +35,14 @@ struct TokenText {
     size_t count;
 };
 #endif
+
+struct ExprStatementCursor {
+    void* text;
+    size_t length;
+    int32_t base_line;
+    int32_t line;
+    size_t at;
+};
 #ifdef ZIRAN_COMPILER_PARSE_H_PRIVATE
 
 struct ExprText {
@@ -77,6 +86,9 @@ int32_t ParseExprNoDefaults(ZirFunction* fn, ZirModule* module, uint8_t* text, Z
 int32_t ParseExprTyped(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span, uint8_t* expected);
 int32_t CompilerDefineIsAggregate(ZirModule* module, ZirDefine* definition);
 int32_t CompilerCallerLocationLiteral(ZirModule* module, ZirSourceSpan span, void* output, size_t capacity);
+int32_t* ExpressionOwnersZiran(ZirFunction* fn);
+size_t ExprSavedCursorLength(ExprStatementCursor* cursor, void* text, int32_t line);
+int64_t ExprSavedSourceOffset(ExprStatementCursor* cursor, void* text, ZirSourceSpan base, ZirSourceSpan span);
 void CompilerStructureFunction(ZirFunction* fn, ZirModule* module);
 bool compiler_parse_ExpandCallDefaults(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last, int32_t depth);
 int32_t compiler_parse_ParseExpression(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected_type, int32_t stmt_index, int32_t default_depth);

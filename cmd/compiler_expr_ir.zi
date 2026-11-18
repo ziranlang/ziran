@@ -39,6 +39,74 @@ ExprCallerLocation :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, output: *v
     return ifx CallerLocationText(module, span, IR.CBuffer(cast(*u8)output, capacity)).count > 0 then 1 else 0
 }
 
+// A shared expression belongs to the first statement whose graph reaches it.
+#program_export "ExpressionOwnersZiran"
+ExprStatementOwners :: (fn: *IR.ZirFunction) -> *s32 {
+    count := fn.expr_count
+    if count <= 0 { return null }
+    width := cast(usize)size_of(s32)
+    bytes := cast(usize)count * width
+    if bytes / width != cast(usize)count { return null }
+    owners := cast(*s32)ExprMalloc(bytes)
+    pending := cast(*s32)ExprMalloc(bytes)
+    defer ExprFree(cast(*void)pending)
+    if owners == null || pending == null {
+        ExprFree(cast(*void)owners)
+        return null
+    }
+    for index: cast(s32)0..count - 1 { owners[index] = -1 }
+    for index: cast(s32)0..fn.stmt_count - 1 {
+        stmt := *fn.stmts[index]
+        top: s32 = 0
+        QueueOwner(owners, pending, *top, count, stmt.expr_root, index)
+        QueueOwner(owners, pending, *top, count, stmt.lhs_root, index)
+        while top > 0 {
+            top -= 1
+            expr := *fn.exprs[pending[top]]
+            links := s32.[expr.left, expr.right, expr.first_child, expr.next_sibling, expr.third]
+            for link: links { QueueOwner(owners, pending, *top, count, link, index) }
+        }
+    }
+    return owners
+}
+
+// Cache the statement's length and resume line walks at the previous offset.
+ExprStatementCursor :: struct {
+    text: *void
+    length: usize
+    base_line: s32
+    line: s32
+    at: usize
+}
+
+#program_export "ExprSavedCursorLength"
+ExprSavedLength :: (cursor: *ExprStatementCursor, text: *void, line: s32) -> usize {
+    if cursor.text != text || cursor.base_line != line {
+        <<cursor = .{text, ExprStrlen(text), line, line, 0}
+    }
+    return cursor.length
+}
+
+// Spans name byte columns from one. A span outside the text returns zero.
+#program_export "ExprSavedSourceOffset"
+ExprSavedOffset :: (cursor: *ExprStatementCursor, text: *void,
+    base: IR.ZirSourceSpan, span: IR.ZirSourceSpan) -> s64 {
+    base_line := base.line
+    line := span.line
+    length := ExprSavedLength(cursor, text, base_line)
+    if line < base_line { return 0 }
+    if cursor.line > line { cursor.line = base_line; cursor.at = 0 }
+    while cursor.line < line {
+        newline := ExprMemchr(cast(*void)(cast(usize)text + cursor.at), 10, length - cursor.at)
+        if newline == null { return 0 }
+        cursor.at = cast(usize)newline - cast(usize)text + 1
+        cursor.line += 1
+    }
+    relative := cast(s64)span.column - (ifx line == base_line then base.column else 1)
+    if relative < 0 || cast(usize)relative > length - cursor.at { return 0 }
+    return cast(s64)cursor.at + relative
+}
+
 #program_export "CompilerStructureFunction"
 ExprStructureFunction :: (fn: *IR.ZirFunction, module: *IR.ZirModule) {
     ExprFree(cast(*void)fn.exprs)
@@ -164,6 +232,16 @@ ExprAssemblyBlockText :: (text: *u8, span: IR.ZirSourceSpan) -> *u8 #foreign exp
 ExprDefaultIsLiteral :: (text: *u8) -> s32 #foreign expr_compiler "DefaultIsLiteral";
 ExprDefaultHelperName :: (function: *IR.ZirFunction, parameter: s32, output: *u8, size: usize) #foreign expr_compiler "FunctionDefaultHelperName";
 ExprExit :: (status: s32) #foreign expr_libc "exit";
+ExprStrlen :: (text: *void) -> usize #foreign expr_libc "strlen";
+ExprMemchr :: (text: *void, byte: s32, bytes: usize) -> *void #foreign expr_libc "memchr";
+
+QueueOwner :: (owners: *s32, pending: *s32, top: *s32, count: s32, expr: s32, stmt: s32) {
+    if expr >= 0 && expr < count && owners[expr] < 0 {
+        owners[expr] = stmt
+        pending[<<top] = expr
+        <<top += 1
+    }
+}
 
 ExprText :: struct { data: *u8; count: usize }
 ExprCString :: (text: string) -> *u8 { return (cast(*ExprText)(*text)).data }

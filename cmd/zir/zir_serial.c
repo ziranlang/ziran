@@ -4,6 +4,7 @@
 #include "zir_serial.h"
 #include "zir_check.h"
 #include "compiler_native_names.h"
+#include "compiler_parse.h"
 #include "zir_diagnostic.h"
 #include "zir_parse.h"
 #include "zir_text.h"
@@ -53,16 +54,6 @@ typedef struct SerialString {
     const char *kept;
 } SerialString;
 
-/* The statement text an expression was last located in: its length and the
- * last line reached, so a long statement is measured and walked once. */
-typedef struct StatementCursor {
-    const char *text;
-    size_t length;
-    int base_line;
-    int line;
-    size_t at;
-} StatementCursor;
-
 typedef struct Reader {
     FILE *in;
     const char *path;
@@ -85,7 +76,7 @@ typedef struct Reader {
     const ZirFunction *function;
     int last_owner;
     int64_t last_bias;
-    StatementCursor cursor;
+    ExprStatementCursor cursor;
 } Reader;
 
 typedef struct Writer {
@@ -119,7 +110,7 @@ typedef struct Writer {
     const int *owners;
     int last_owner;
     int64_t last_bias;
-    StatementCursor cursor;
+    ExprStatementCursor cursor;
 } Writer;
 
 static int
@@ -930,86 +921,10 @@ read_span(Reader *reader, ZirSourceSpan *span)
     return 1;
 }
 
-/* Where LINE:COLUMN falls in TEXT, the saved text of a statement that starts
- * at BASE_LINE:BASE_COLUMN, or 0 when it falls outside. Columns count bytes
- * from 1, and later lines of TEXT start at column 1. Expression columns are
- * offset by their statement's header, so a saved bias corrects this. */
-static size_t
-cursor_length(StatementCursor *cursor, const char *text, int base_line)
-{
-    if(cursor->text != text || cursor->base_line != base_line) {
-        cursor->text = text;
-        cursor->length = strlen(text);
-        cursor->base_line = base_line;
-        cursor->line = base_line;
-        cursor->at = 0;
-    }
-    return cursor->length;
-}
-
-static int64_t
-source_offset(StatementCursor *cursor, const char *text, const ZirSourceSpan *statement,
-              const ZirSourceSpan *span)
-{
-    size_t length = cursor_length(cursor, text, statement->line);
-    if(span->line < statement->line) return 0;
-    if(cursor->line > span->line) {
-        cursor->line = statement->line;
-        cursor->at = 0;
-    }
-    while(cursor->line < span->line) {
-        const char *newline = memchr(text + cursor->at, '\n', length - cursor->at);
-        if(newline == NULL) return 0;
-        cursor->at = (size_t)(newline - text) + 1;
-        cursor->line++;
-    }
-    size_t at = cursor->at;
-    int64_t column = span->line == statement->line ? (int64_t)span->column - statement->column
-                                                   : (int64_t)span->column - 1;
-    if(column < 0 || (uint64_t)column > length - at) return 0;
-    return (int64_t)at + column;
-}
-
-static const char *
-saved_statement_text(const ZirStmt *statement)
-{
-    return statement->text ? statement->text : "";
-}
-
 int *
 ExpressionOwners(const ZirFunction *function)
 {
-    int count = function->expr_count;
-    if(count <= 0) return NULL;
-    int *owners = malloc((size_t)count * sizeof(*owners));
-    int *stack = malloc((size_t)count * sizeof(*stack));
-    if(owners == NULL || stack == NULL) {
-        free(owners);
-        free(stack);
-        return NULL;
-    }
-    for(int i = 0; i < count; i++) owners[i] = -1;
-    for(int s = 0; s < function->stmt_count; s++) {
-        int top = 0;
-        int roots[2] = {function->stmts[s].expr_root, function->stmts[s].lhs_root};
-        for(int r = 0; r < 2; r++)
-            if(roots[r] >= 0 && roots[r] < count && owners[roots[r]] < 0) {
-                owners[roots[r]] = s;
-                stack[top++] = roots[r];
-            }
-        while(top > 0) {
-            const ZirExpr *expression = &function->exprs[stack[--top]];
-            int links[5] = {expression->left, expression->right, expression->first_child,
-                            expression->next_sibling, expression->third};
-            for(int l = 0; l < 5; l++)
-                if(links[l] >= 0 && links[l] < count && owners[links[l]] < 0) {
-                    owners[links[l]] = s;
-                    stack[top++] = links[l];
-                }
-        }
-    }
-    free(stack);
-    return owners;
+    return ExpressionOwnersZiran((ZirFunction *)function);
 }
 
 static uint32_t
@@ -1060,10 +975,11 @@ write_expression_text(Writer *out, const ZirExpr *expression)
             int owner = candidates[c];
             if(owner < 0 || owner >= function->stmt_count || (c == 1 && owner == candidates[0])) continue;
             const ZirStmt *statement = &function->stmts[owner];
-            const char *saved = saved_statement_text(statement);
-            size_t saved_size = cursor_length(&out->cursor, saved, statement->span.line);
+            const char *saved = statement->text ? statement->text : "";
+            size_t saved_size = ExprSavedCursorLength(&out->cursor, (void *)saved, statement->span.line);
             if(saved_size > INT32_MAX || size > saved_size) continue;
-            int64_t base = source_offset(&out->cursor, saved, &statement->span, &expression->span);
+            int64_t base = ExprSavedSourceOffset(&out->cursor, (void *)saved, statement->span,
+                                                 expression->span);
             int64_t low = base > EXPRESSION_TEXT_WINDOW ? base - EXPRESSION_TEXT_WINDOW : 0;
             int64_t high = base + EXPRESSION_TEXT_WINDOW;
             if(high > (int64_t)(saved_size - size)) high = (int64_t)(saved_size - size);
@@ -1129,9 +1045,10 @@ read_expression_text(Reader *reader, ZirExpr *expression)
     const ZirFunction *function = reader->function;
     const char *saved = function != NULL && owner >= 0 && owner < function->stmt_count
                             ? function->stmts[owner].text : NULL;
-    size_t saved_size = saved ? cursor_length(&reader->cursor, saved, function->stmts[owner].span.line) : 0;
-    int64_t at = saved ? source_offset(&reader->cursor, saved, &function->stmts[owner].span,
-                                       &expression->span) + bias : -1;
+    size_t saved_size = saved ? ExprSavedCursorLength(&reader->cursor, (void *)saved,
+                                                     function->stmts[owner].span.line) : 0;
+    int64_t at = saved ? ExprSavedSourceOffset(&reader->cursor, (void *)saved,
+                                            function->stmts[owner].span, expression->span) + bias : -1;
     if(saved == NULL || length == 0 || ((measure & 1) && change == 0) ||
        at < 0 || (uint64_t)at > saved_size || length > saved_size - (size_t)at) {
         reader->problem = "invalid expression text reference";

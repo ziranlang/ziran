@@ -1,4 +1,4 @@
-// Type spelling and record-field rules. Returned text borrows the input.
+// Type spelling and record-field rules. Record fields borrow the input.
 // Field scans accept bounded, zero-terminated IR buffers without measuring
 // the whole record again for each field.
 Text :: #import "compiler_text";
@@ -155,29 +155,99 @@ ArrayElement :: (type: string) -> ElementType {
 // spelling has zero lanes.
 VectorShape :: struct { lanes: s32; lane: string }
 
-VectorType :: (name: string) -> VectorShape {
-    if name.count < 4 || name.count > 6 { return .{} }
-    x := Find(name, #char "x", 2)
-    if x < 0 || x > 3 || x + 1 >= name.count || name[x + 1] == #char "0" { return .{} }
-    native := x + 2 == name.count && name[x + 1] == #char "N"
-    prefix := name[0:x]
-    lane := ""
-    bits: s64 = 0
-    if prefix == "u8" || prefix == "s8" { lane = prefix; bits = 8 }
-    else if prefix == "u16" || prefix == "s16" { lane = prefix; bits = 16 }
-    else if prefix == "u32" || prefix == "s32" { lane = prefix; bits = 32 }
-    else if prefix == "u64" || prefix == "s64" { lane = prefix; bits = 64 }
-    else if prefix == "f32" { lane = "float32"; bits = 32 }
-    else if prefix == "f64" { lane = "float64"; bits = 64 }
-    else { return .{} }
-    if native { return .{cast(s32)(128 / bits), lane} }
-    count: s64 = 0
-    for byte: name[x + 1:] {
-        if byte < #char "0" || byte > #char "9" { return .{} }
-        count = count * 10 + cast(s64)(byte - #char "0")
+VectorSpelling :: struct {
+    name: string
+    lane: string
+    c: string
+    go: string
+    block: string // the 128-bit spelling for a native vector
+    lanes: s32
+    bits: s32
+}
+
+#scope_file
+Vectors: [30]VectorSpelling = .{
+    .{name = "u8x16", lane = "u8", c = "zi_u8x16", go = "[16]uint8", lanes = 16, bits = 8},
+    .{name = "s8x16", lane = "s8", c = "zi_s8x16", go = "[16]int8", lanes = 16, bits = 8},
+    .{name = "u16x8", lane = "u16", c = "zi_u16x8", go = "[8]uint16", lanes = 8, bits = 16},
+    .{name = "s16x8", lane = "s16", c = "zi_s16x8", go = "[8]int16", lanes = 8, bits = 16},
+    .{name = "u32x4", lane = "u32", c = "zi_u32x4", go = "[4]uint32", lanes = 4, bits = 32},
+    .{name = "s32x4", lane = "s32", c = "zi_s32x4", go = "[4]int32", lanes = 4, bits = 32},
+    .{name = "u64x2", lane = "u64", c = "zi_u64x2", go = "[2]uint64", lanes = 2, bits = 64},
+    .{name = "s64x2", lane = "s64", c = "zi_s64x2", go = "[2]int64", lanes = 2, bits = 64},
+    .{name = "f32x4", lane = "float32", c = "zi_f32x4", go = "[4]float32", lanes = 4, bits = 32},
+    .{name = "f64x2", lane = "float64", c = "zi_f64x2", go = "[2]float64", lanes = 2, bits = 64},
+    .{name = "u8x32", lane = "u8", c = "zi_u8x32", go = "[32]uint8", lanes = 32, bits = 8},
+    .{name = "s8x32", lane = "s8", c = "zi_s8x32", go = "[32]int8", lanes = 32, bits = 8},
+    .{name = "u16x16", lane = "u16", c = "zi_u16x16", go = "[16]uint16", lanes = 16, bits = 16},
+    .{name = "s16x16", lane = "s16", c = "zi_s16x16", go = "[16]int16", lanes = 16, bits = 16},
+    .{name = "u32x8", lane = "u32", c = "zi_u32x8", go = "[8]uint32", lanes = 8, bits = 32},
+    .{name = "s32x8", lane = "s32", c = "zi_s32x8", go = "[8]int32", lanes = 8, bits = 32},
+    .{name = "u64x4", lane = "u64", c = "zi_u64x4", go = "[4]uint64", lanes = 4, bits = 64},
+    .{name = "s64x4", lane = "s64", c = "zi_s64x4", go = "[4]int64", lanes = 4, bits = 64},
+    .{name = "f32x8", lane = "float32", c = "zi_f32x8", go = "[8]float32", lanes = 8, bits = 32},
+    .{name = "f64x4", lane = "float64", c = "zi_f64x4", go = "[4]float64", lanes = 4, bits = 64},
+    .{name = "u8xN", lane = "u8", c = "zi_u8xN", go = "[16]uint8", block = "u8x16", lanes = 16, bits = 8},
+    .{name = "s8xN", lane = "s8", c = "zi_s8xN", go = "[16]int8", block = "s8x16", lanes = 16, bits = 8},
+    .{name = "u16xN", lane = "u16", c = "zi_u16xN", go = "[8]uint16", block = "u16x8", lanes = 8, bits = 16},
+    .{name = "s16xN", lane = "s16", c = "zi_s16xN", go = "[8]int16", block = "s16x8", lanes = 8, bits = 16},
+    .{name = "u32xN", lane = "u32", c = "zi_u32xN", go = "[4]uint32", block = "u32x4", lanes = 4, bits = 32},
+    .{name = "s32xN", lane = "s32", c = "zi_s32xN", go = "[4]int32", block = "s32x4", lanes = 4, bits = 32},
+    .{name = "u64xN", lane = "u64", c = "zi_u64xN", go = "[2]uint64", block = "u64x2", lanes = 2, bits = 64},
+    .{name = "s64xN", lane = "s64", c = "zi_s64xN", go = "[2]int64", block = "s64x2", lanes = 2, bits = 64},
+    .{name = "f32xN", lane = "float32", c = "zi_f32xN", go = "[4]float32", block = "f32x4", lanes = 4, bits = 32},
+    .{name = "f64xN", lane = "float64", c = "zi_f64xN", go = "[2]float64", block = "f64x2", lanes = 2, bits = 64},
+};
+
+VectorIndex :: (name: string) -> s64 {
+    if name.count < 4 || name.count > 6 { return -1 }
+    if name[0] != #char "u" && name[0] != #char "s" && name[0] != #char "f" { return -1 }
+    for i: 0..Vectors.count - 1 {
+        if Vectors[i].name == name { return i }
     }
-    if count * bits != 128 && count * bits != 256 { return .{} }
-    return .{cast(s32) count, lane}
+    return -1
+}
+
+#scope_export
+FindVector :: (name: string) -> *VectorSpelling {
+    index := VectorIndex(name)
+    return ifx index < 0 then null else *Vectors[index]
+}
+
+VectorType :: (name: string) -> VectorShape {
+    index := VectorIndex(name)
+    if index < 0 { return .{} }
+    return .{Vectors[index].lanes, Vectors[index].lane}
+}
+
+// Zero lanes selects the native spelling for this lane type.
+VectorForLane :: (lane: string, lanes: s32) -> *VectorSpelling {
+    for i: 0..Vectors.count - 1 {
+        vector := *Vectors[i]
+        width := ifx vector.block.count > 0 then 0 else vector.lanes
+        if width == lanes && vector.lane == lane { return vector }
+    }
+    return null
+}
+
+VectorForBlocks :: (vector: *VectorSpelling, blocks: s32) -> *VectorSpelling {
+    if vector != null && vector.block.count > 0 {
+        if blocks == 1 { return FindVector(vector.block) }
+        if blocks == 2 { return VectorForLane(vector.lane, vector.lanes * 2) }
+    }
+    return vector
+}
+
+HoldsNativeVector :: (name: string) -> bool {
+    if FindVector(name) != null { return false }
+    for at: 0..name.count - 2 {
+        if name[at] != #char "x" || name[at + 1] != #char "N" { continue }
+        if at + 2 < name.count && VectorIdentifierByte(name[at + 2]) { continue }
+        start := at
+        while start > 0 && VectorIdentifierByte(name[start - 1]) { start -= 1 }
+        if FindVector(name[start:at + 2]) != null { return true }
+    }
+    return false
 }
 
 BuiltinName :: (name: string) -> bool {
@@ -255,6 +325,9 @@ GoTypeTarget :: (target: string) -> bool {
 }
 
 #scope_file
+libc :: #system_library "libc";
+IsAlnum :: (byte: s32) -> s32 #foreign libc "isalnum";
+VectorIdentifierByte :: (byte: u8) -> bool { return byte == #char "_" || IsAlnum(cast(s32)byte) != 0 }
 Byte :: (source: string, at: s64) -> u8 {
     if at < 0 || at >= source.count { return 0 }
     return source[at]

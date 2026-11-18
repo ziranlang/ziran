@@ -11,24 +11,14 @@
 extern "C" {
 #endif
 typedef int32_t ZirTarget;
-typedef struct NativeVector NativeVector;
 typedef struct TargetName TargetName;
+#ifdef ZIRAN_COMPILER_NATIVE_NAMES_H_PRIVATE
+typedef struct StaticText StaticText;
+#endif
 
 enum {
     ZirTarget_ZIR_C = 0,
     ZirTarget_ZIR_GO = 1,
-};
-
-struct NativeVector {
-    const char * name;
-    const char * lane;
-    int32_t lanes;
-    int32_t lane_bits;
-    int32_t bytes;
-    int32_t is_signed;
-    int32_t is_float;
-    int32_t is_native;
-    const char * block;
 };
 
 struct TargetName {
@@ -36,11 +26,18 @@ struct TargetName {
     String c;
     String go;
 };
-extern TargetName FixedVectors[30];
+#ifdef ZIRAN_COMPILER_NATIVE_NAMES_H_PRIVATE
+
+struct StaticText {
+    uint8_t* data;
+    size_t count;
+};
+#endif
 extern TargetName ScalarNames[16];
 extern int32_t native_blocks;
 void compiler_native_names_SetBlocks(int32_t blocks);
 int32_t compiler_native_names_Blocks(void);
+int32_t compiler_native_names_BlocksHere(ZirTarget target);
 void* VectorTypeHereZiran(void* type, ZirTarget target);
 void* TargetTypeZiran(void* type, ZirTarget target);
 int32_t PrepareNativeNames(ZirProgram** programs, int32_t count);
@@ -52,6 +49,8 @@ static inline void compiler_native_names_SetBlocks_ziran_inline(int32_t blocks);
 #define compiler_native_names_SetBlocks(...) compiler_native_names_SetBlocks_ziran_inline(__VA_ARGS__)
 static inline int32_t compiler_native_names_Blocks_ziran_inline(void);
 #define compiler_native_names_Blocks(...) compiler_native_names_Blocks_ziran_inline(__VA_ARGS__)
+static inline int32_t compiler_native_names_BlocksHere_ziran_inline(ZirTarget target);
+#define compiler_native_names_BlocksHere(...) compiler_native_names_BlocksHere_ziran_inline(__VA_ARGS__)
 
 static inline void
 compiler_native_names_SetBlocks_ziran_inline(int32_t blocks)
@@ -63,6 +62,18 @@ static inline int32_t
 compiler_native_names_Blocks_ziran_inline(void)
 {
     return native_blocks;
+}
+
+static inline int32_t
+compiler_native_names_BlocksHere_ziran_inline(ZirTarget target)
+{
+    int32_t value_0 = 0;
+    if (target == ZirTarget_ZIR_GO) {
+        value_0 = 1;
+    } else {
+        value_0 = native_blocks;
+    }
+    return value_0;
 }
 #endif
 

@@ -818,6 +818,11 @@ prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
             if(module->imports[i].kind == ZIR_IMPORT_EXTERN)
                 mark_signature_fields(module, module->imports[i].args,
                     module->imports[i].return_type, uses, use_count);
+        /* Global initializers are kept as source text and checked again
+         * after linking. Their layout is used even without member reads. */
+        for(int g = 0; g < module->global_count; g++)
+            if(module->globals[g].init[0])
+                mark_all_fields(module, module->globals[g].type, uses, use_count);
         for(int l = 0; l < module->law_count; l++) {
             const ZirLaw *law = &module->laws[l];
             if(!strcmp(law->kind, "size") || !strcmp(law->kind, "type")) {

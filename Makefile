@@ -461,7 +461,7 @@ $(RANGE_OBJECTS): $(BUILD_DIR)/obj/c-range/%.o: $(RANGE_C)/%.c $(BUILD_DIR)/.com
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(NATIVE_NAMES_OBJECT): $(NATIVE_NAMES_C)/compiler_native_names.c \
-    $(BUILD_DIR)/.compiler-flags $(NATIVE_NAMES_READY)
+    $(BUILD_DIR)/.compiler-flags $(NATIVE_NAMES_READY) $(TYPE_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -651,7 +651,7 @@ $(BACKEND_PROCESS_C)/.generated: cmd/compiler_backend_process.zi cmd/compiler_ba
 	    -o $(BACKEND_PROCESS_C) cmd/compiler_backend_process.zi
 	touch $@
 
-$(NATIVE_NAMES_C)/.generated: cmd/compiler_native_names.zi cmd/compiler_ir.zi cmd/compiler_services.zi $(BOOTSTRAP_BIN)
+$(NATIVE_NAMES_C)/.generated: cmd/compiler_native_names.zi cmd/compiler_ir.zi cmd/compiler_services.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
 	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
 	    -o $(NATIVE_NAMES_C) cmd/compiler_native_names.zi
 	touch $@

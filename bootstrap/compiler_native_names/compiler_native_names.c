@@ -2,33 +2,10 @@
 #define ZIRAN_COMPILER_NATIVE_NAMES_H_SOURCE 1
 #include <stdbool.h>
 #include "zir_string.h"
+#define ZIRAN_COMPILER_NATIVE_NAMES_H_PRIVATE 1
 #include "compiler_native_names.h"
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CVectorType_bbf04424
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CVectorType_bbf04424
-#ifdef __APPLE__
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CVectorType(uint8_t* type, NativeVector* vector) __asm__("_VectorType");
-#else
-int32_t zir_foreign_zir_f_ab9febbcabff1329_CVectorType(uint8_t* type, NativeVector* vector) __asm__("VectorType");
-#endif
-static int32_t
-zir_f_ab9febbcabff1329_CVectorType(uint8_t* type, NativeVector* vector)
-{
-    return zir_foreign_zir_f_ab9febbcabff1329_CVectorType(type, vector);
-}
-#endif
-#ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CVectorTypeName_35dc2868
-#define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CVectorTypeName_35dc2868
-#ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_ab9febbcabff1329_CVectorTypeName(uint8_t* lane, int32_t lanes) __asm__("_VectorTypeName");
-#else
-uint8_t* zir_foreign_zir_f_ab9febbcabff1329_CVectorTypeName(uint8_t* lane, int32_t lanes) __asm__("VectorTypeName");
-#endif
-static uint8_t*
-zir_f_ab9febbcabff1329_CVectorTypeName(uint8_t* lane, int32_t lanes)
-{
-    return zir_foreign_zir_f_ab9febbcabff1329_CVectorTypeName(lane, lanes);
-}
-#endif
+#undef ZIRAN_COMPILER_NATIVE_NAMES_H_PRIVATE
+#include "compiler_type.h"
 #ifndef ZIR_FOREIGN_zir_f_ab9febbcabff1329_CScalarType_9055c366
 #define ZIR_FOREIGN_zir_f_ab9febbcabff1329_CScalarType_9055c366
 #ifdef __APPLE__
@@ -160,7 +137,6 @@ static int32_t compiler_native_names_CSameTypeApplication(ZirModule* target_owne
 static int32_t compiler_native_names_CSameMapType(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source) ZIRAN_MAYBE_UNUSED;
 static void* compiler_native_names_Literal(String text) ZIRAN_MAYBE_UNUSED;
 static bool compiler_native_names_StartsText(String text, String prefix) ZIRAN_MAYBE_UNUSED;
-TargetName FixedVectors[30] = {{.source = {"u8x16", sizeof("u8x16") - 1}, .c = {"zi_u8x16", sizeof("zi_u8x16") - 1}, .go = {"[16]uint8", sizeof("[16]uint8") - 1}}, {.source = {"s8x16", sizeof("s8x16") - 1}, .c = {"zi_s8x16", sizeof("zi_s8x16") - 1}, .go = {"[16]int8", sizeof("[16]int8") - 1}}, {.source = {"u16x8", sizeof("u16x8") - 1}, .c = {"zi_u16x8", sizeof("zi_u16x8") - 1}, .go = {"[8]uint16", sizeof("[8]uint16") - 1}}, {.source = {"s16x8", sizeof("s16x8") - 1}, .c = {"zi_s16x8", sizeof("zi_s16x8") - 1}, .go = {"[8]int16", sizeof("[8]int16") - 1}}, {.source = {"u32x4", sizeof("u32x4") - 1}, .c = {"zi_u32x4", sizeof("zi_u32x4") - 1}, .go = {"[4]uint32", sizeof("[4]uint32") - 1}}, {.source = {"s32x4", sizeof("s32x4") - 1}, .c = {"zi_s32x4", sizeof("zi_s32x4") - 1}, .go = {"[4]int32", sizeof("[4]int32") - 1}}, {.source = {"u64x2", sizeof("u64x2") - 1}, .c = {"zi_u64x2", sizeof("zi_u64x2") - 1}, .go = {"[2]uint64", sizeof("[2]uint64") - 1}}, {.source = {"s64x2", sizeof("s64x2") - 1}, .c = {"zi_s64x2", sizeof("zi_s64x2") - 1}, .go = {"[2]int64", sizeof("[2]int64") - 1}}, {.source = {"f32x4", sizeof("f32x4") - 1}, .c = {"zi_f32x4", sizeof("zi_f32x4") - 1}, .go = {"[4]float32", sizeof("[4]float32") - 1}}, {.source = {"f64x2", sizeof("f64x2") - 1}, .c = {"zi_f64x2", sizeof("zi_f64x2") - 1}, .go = {"[2]float64", sizeof("[2]float64") - 1}}, {.source = {"u8x32", sizeof("u8x32") - 1}, .c = {"zi_u8x32", sizeof("zi_u8x32") - 1}, .go = {"[32]uint8", sizeof("[32]uint8") - 1}}, {.source = {"s8x32", sizeof("s8x32") - 1}, .c = {"zi_s8x32", sizeof("zi_s8x32") - 1}, .go = {"[32]int8", sizeof("[32]int8") - 1}}, {.source = {"u16x16", sizeof("u16x16") - 1}, .c = {"zi_u16x16", sizeof("zi_u16x16") - 1}, .go = {"[16]uint16", sizeof("[16]uint16") - 1}}, {.source = {"s16x16", sizeof("s16x16") - 1}, .c = {"zi_s16x16", sizeof("zi_s16x16") - 1}, .go = {"[16]int16", sizeof("[16]int16") - 1}}, {.source = {"u32x8", sizeof("u32x8") - 1}, .c = {"zi_u32x8", sizeof("zi_u32x8") - 1}, .go = {"[8]uint32", sizeof("[8]uint32") - 1}}, {.source = {"s32x8", sizeof("s32x8") - 1}, .c = {"zi_s32x8", sizeof("zi_s32x8") - 1}, .go = {"[8]int32", sizeof("[8]int32") - 1}}, {.source = {"u64x4", sizeof("u64x4") - 1}, .c = {"zi_u64x4", sizeof("zi_u64x4") - 1}, .go = {"[4]uint64", sizeof("[4]uint64") - 1}}, {.source = {"s64x4", sizeof("s64x4") - 1}, .c = {"zi_s64x4", sizeof("zi_s64x4") - 1}, .go = {"[4]int64", sizeof("[4]int64") - 1}}, {.source = {"f32x8", sizeof("f32x8") - 1}, .c = {"zi_f32x8", sizeof("zi_f32x8") - 1}, .go = {"[8]float32", sizeof("[8]float32") - 1}}, {.source = {"f64x4", sizeof("f64x4") - 1}, .c = {"zi_f64x4", sizeof("zi_f64x4") - 1}, .go = {"[4]float64", sizeof("[4]float64") - 1}}, {.source = {"u8xN", sizeof("u8xN") - 1}, .c = {"zi_u8xN", sizeof("zi_u8xN") - 1}, .go = {"[16]uint8", sizeof("[16]uint8") - 1}}, {.source = {"s8xN", sizeof("s8xN") - 1}, .c = {"zi_s8xN", sizeof("zi_s8xN") - 1}, .go = {"[16]int8", sizeof("[16]int8") - 1}}, {.source = {"u16xN", sizeof("u16xN") - 1}, .c = {"zi_u16xN", sizeof("zi_u16xN") - 1}, .go = {"[8]uint16", sizeof("[8]uint16") - 1}}, {.source = {"s16xN", sizeof("s16xN") - 1}, .c = {"zi_s16xN", sizeof("zi_s16xN") - 1}, .go = {"[8]int16", sizeof("[8]int16") - 1}}, {.source = {"u32xN", sizeof("u32xN") - 1}, .c = {"zi_u32xN", sizeof("zi_u32xN") - 1}, .go = {"[4]uint32", sizeof("[4]uint32") - 1}}, {.source = {"s32xN", sizeof("s32xN") - 1}, .c = {"zi_s32xN", sizeof("zi_s32xN") - 1}, .go = {"[4]int32", sizeof("[4]int32") - 1}}, {.source = {"u64xN", sizeof("u64xN") - 1}, .c = {"zi_u64xN", sizeof("zi_u64xN") - 1}, .go = {"[2]uint64", sizeof("[2]uint64") - 1}}, {.source = {"s64xN", sizeof("s64xN") - 1}, .c = {"zi_s64xN", sizeof("zi_s64xN") - 1}, .go = {"[2]int64", sizeof("[2]int64") - 1}}, {.source = {"f32xN", sizeof("f32xN") - 1}, .c = {"zi_f32xN", sizeof("zi_f32xN") - 1}, .go = {"[4]float32", sizeof("[4]float32") - 1}}, {.source = {"f64xN", sizeof("f64xN") - 1}, .c = {"zi_f64xN", sizeof("zi_f64xN") - 1}, .go = {"[2]float64", sizeof("[2]float64") - 1}}};
 TargetName ScalarNames[16] = {{.source = {"s8", sizeof("s8") - 1}, .c = {"int8_t", sizeof("int8_t") - 1}, .go = {"int8", sizeof("int8") - 1}}, {.source = {"s16", sizeof("s16") - 1}, .c = {"int16_t", sizeof("int16_t") - 1}, .go = {"int16", sizeof("int16") - 1}}, {.source = {"s32", sizeof("s32") - 1}, .c = {"int32_t", sizeof("int32_t") - 1}, .go = {"int32", sizeof("int32") - 1}}, {.source = {"s64", sizeof("s64") - 1}, .c = {"int64_t", sizeof("int64_t") - 1}, .go = {"int64", sizeof("int64") - 1}}, {.source = {"isize", sizeof("isize") - 1}, .c = {"ptrdiff_t", sizeof("ptrdiff_t") - 1}, .go = {"int", sizeof("int") - 1}}, {.source = {"usize", sizeof("usize") - 1}, .c = {"size_t", sizeof("size_t") - 1}, .go = {"uint", sizeof("uint") - 1}}, {.source = {"u8", sizeof("u8") - 1}, .c = {"uint8_t", sizeof("uint8_t") - 1}, .go = {"uint8", sizeof("uint8") - 1}}, {.source = {"u16", sizeof("u16") - 1}, .c = {"uint16_t", sizeof("uint16_t") - 1}, .go = {"uint16", sizeof("uint16") - 1}}, {.source = {"u32", sizeof("u32") - 1}, .c = {"uint32_t", sizeof("uint32_t") - 1}, .go = {"uint32", sizeof("uint32") - 1}}, {.source = {"u64", sizeof("u64") - 1}, .c = {"uint64_t", sizeof("uint64_t") - 1}, .go = {"uint64", sizeof("uint64") - 1}}, {.source = {"float32", sizeof("float32") - 1}, .c = {"float", sizeof("float") - 1}, .go = {"float32", sizeof("float32") - 1}}, {.source = {"float64", sizeof("float64") - 1}, .c = {"double", sizeof("double") - 1}, .go = {"float64", sizeof("float64") - 1}}, {.source = {"bool", sizeof("bool") - 1}, .c = {"bool", sizeof("bool") - 1}, .go = {"bool", sizeof("bool") - 1}}, {.source = {"void", sizeof("void") - 1}, .c = {"void", sizeof("void") - 1}, .go = {"", sizeof("") - 1}}, {.source = {"char", sizeof("char") - 1}, .c = {"char", sizeof("char") - 1}, .go = {"byte", sizeof("byte") - 1}}, {.source = {"string", sizeof("string") - 1}, .c = {"String", sizeof("String") - 1}, .go = {"string", sizeof("string") - 1}}};
 int32_t native_blocks = 0;
 
@@ -176,77 +152,68 @@ compiler_native_names_Blocks(void)
     return native_blocks;
 }
 
+int32_t
+compiler_native_names_BlocksHere(ZirTarget target)
+{
+    int32_t value_0 = 0;
+    if (target == ZirTarget_ZIR_GO) {
+        value_0 = 1;
+    } else {
+        value_0 = native_blocks;
+    }
+    return value_0;
+}
+
 void*
 VectorTypeHereZiran(void* type, ZirTarget target)
 {
-    NativeVector vector = {0};
-    if (zir_f_ab9febbcabff1329_CVectorType((uint8_t*)(type), &(vector)) == 0) {
+    VectorSpelling* vector = compiler_type_FindVector(compiler_ir_CText((uint8_t*)(type)));
+    bool value_0 = vector == ((void *)0);
+    if (!value_0) {
+        int64_t value_1 = (int64_t)(vector->block).length;
+        value_0 = (value_1 == 0LL);
+    }
+    if (value_0) {
         return type;
     }
-    if (vector.is_native == 0) {
-        return type;
+    VectorSpelling* value_2 = vector;
+    VectorSpelling* here = compiler_type_VectorForBlocks(value_2, compiler_native_names_BlocksHere(target));
+    if (here == ((void *)0)) {
+        return (void *)0;
     }
-    if (target == ZirTarget_ZIR_GO || native_blocks == 1) {
-        return (void*)(((uint8_t*)vector.block));
-    }
-    if (native_blocks == 2) {
-        uint8_t* value_0 = zir_f_ab9febbcabff1329_CVectorTypeName((uint8_t*)vector.lane, (int32_t)((uint32_t)(vector.lanes) * 2u));
-        return (void*)(value_0);
-    }
-    return (void*)(((uint8_t*)vector.name));
+    return (void*)(((StaticText*)(&(here->name)))->data);
 }
 
 void*
 TargetTypeZiran(void* type, ZirTarget target)
 {
     String text = compiler_ir_CText((uint8_t*)(type));
-    NativeVector vector = {0};
-    if (zir_f_ab9febbcabff1329_CVectorType((uint8_t*)(type), &(vector)) != 0) {
-        void* value_0 = VectorTypeHereZiran(type, target);
-        uint8_t* here = (uint8_t*)(value_0);
-        NativeVector here_vector = {0};
-        if (zir_f_ab9febbcabff1329_CVectorType(here, &(here_vector)) != 0) {
-            for (int64_t index = 0LL; index <= 29LL; index++) {
-                bool value_1 = ((uint8_t*)here_vector.name) == ((void *)0);
-                bool value_2 = value_1;
-                if (!value_2) {
-                    String value_3 = compiler_ir_CText((uint8_t*)here_vector.name);
-                    value_2 = (!StringEqual(value_3, (FixedVectors[index]).source));
-                }
-                if (value_2) {
-                    continue;
-                }
-                if (target == ZirTarget_ZIR_C) {
-                    String value_4 = (FixedVectors[index]).c;
-                    void* value_5 = (void *)0;
-                    {
-                        String text = value_4;
-                        uint8_t* value_7 = compiler_services_Keep(text);
-                        value_5 = (void*)(value_7);
-                    }
-                    return value_5;
-                }
-                String value_8 = (FixedVectors[index]).go;
-                void* value_9 = (void *)0;
-                {
-                    String text = value_8;
-                    uint8_t* value_11 = compiler_services_Keep(text);
-                    value_9 = (void*)(value_11);
-                }
-                return value_9;
-            }
-            return (void *)0;
+    VectorSpelling* value_0 = compiler_type_FindVector(text);
+    VectorSpelling* vector = compiler_type_VectorForBlocks(value_0, compiler_native_names_BlocksHere(target));
+    if (vector != ((void *)0)) {
+        String value_1 = StringView(NULL, 0);
+        if (target == ZirTarget_ZIR_C) {
+            value_1 = vector->c;
+        } else {
+            value_1 = vector->go;
         }
+        void* value_2 = (void *)0;
+        {
+            String text = value_1;
+            uint8_t* value_4 = compiler_services_Keep(text);
+            value_2 = (void*)(value_4);
+        }
+        return value_2;
     }
     uint8_t* scalar = zir_f_ab9febbcabff1329_CScalarType((uint8_t*)(type));
-    bool value_12 = scalar != ((void *)0);
-    bool value_13 = value_12;
-    if (value_13) {
-        String value_14 = compiler_ir_CText(scalar);
-        int64_t value_15 = (int64_t)(value_14).length;
-        value_13 = (value_15 > 0LL);
+    bool value_5 = scalar != ((void *)0);
+    bool value_6 = value_5;
+    if (value_6) {
+        String value_7 = compiler_ir_CText(scalar);
+        int64_t value_8 = (int64_t)(value_7).length;
+        value_6 = (value_8 > 0LL);
     }
-    if (value_13) {
+    if (value_6) {
         text = compiler_ir_CText(scalar);
     }
     if (StringEqual(text, StringLiteral("integer"))) {
@@ -255,37 +222,37 @@ TargetTypeZiran(void* type, ZirTarget target)
         text = StringLiteral("float64");
     }
     if (target == ZirTarget_ZIR_C && zir_f_ab9febbcabff1329_CSliceElementType((uint8_t*)(type), (void *)0, 0) != 0) {
-        String value_16 = StringLiteral("Slice");
-        void* value_17 = (void *)0;
+        String value_9 = StringLiteral("Slice");
+        void* value_10 = (void *)0;
         {
-            String text = value_16;
-            uint8_t* value_19 = compiler_services_Keep(text);
-            value_17 = (void*)(value_19);
+            String text = value_9;
+            uint8_t* value_12 = compiler_services_Keep(text);
+            value_10 = (void*)(value_12);
         }
-        return value_17;
+        return value_10;
     }
     for (int64_t index = 0LL; index <= 15LL; index++) {
         if (!StringEqual(text, (ScalarNames[index]).source)) {
             continue;
         }
         if (target == ZirTarget_ZIR_GO) {
-            String value_20 = (ScalarNames[index]).go;
-            void* value_21 = (void *)0;
+            String value_13 = (ScalarNames[index]).go;
+            void* value_14 = (void *)0;
             {
-                String text = value_20;
-                uint8_t* value_23 = compiler_services_Keep(text);
-                value_21 = (void*)(value_23);
+                String text = value_13;
+                uint8_t* value_16 = compiler_services_Keep(text);
+                value_14 = (void*)(value_16);
             }
-            return value_21;
+            return value_14;
         }
-        String value_24 = (ScalarNames[index]).c;
-        void* value_25 = (void *)0;
+        String value_17 = (ScalarNames[index]).c;
+        void* value_18 = (void *)0;
         {
-            String text = value_24;
-            uint8_t* value_27 = compiler_services_Keep(text);
-            value_25 = (void*)(value_27);
+            String text = value_17;
+            uint8_t* value_20 = compiler_services_Keep(text);
+            value_18 = (void*)(value_20);
         }
-        return value_25;
+        return value_18;
     }
     return (void *)0;
 }

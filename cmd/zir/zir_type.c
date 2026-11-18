@@ -2,7 +2,6 @@
 #include "zir.h"
 #include "zir_thread.h"
 #include "compiler_type.h"
-#include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdatomic.h>
@@ -281,81 +280,41 @@ int ArrayElementType(const char *type, char *element, size_t element_size, int *
     return 1;
 }
 
-/* The vector types compiler_type.zi's VectorType accepts, which every
- * backend spells the same way. The VM asks of each vector value it
- * coerces, so this reads a table rather than parsing the spelling. */
-static const struct VectorSpelling {
-    const char *name, *lane;
-    int lanes, lane_bits;
-} vector_types[] = {
-    {"u8x16", "u8", 16, 8}, {"s8x16", "s8", 16, 8}, {"u16x8", "u16", 8, 16},
-    {"s16x8", "s16", 8, 16}, {"u32x4", "u32", 4, 32}, {"s32x4", "s32", 4, 32},
-    {"u64x2", "u64", 2, 64}, {"s64x2", "s64", 2, 64}, {"f32x4", "float32", 4, 32},
-    {"f64x2", "float64", 2, 64}, {"u8x32", "u8", 32, 8}, {"s8x32", "s8", 32, 8},
-    {"u16x16", "u16", 16, 16}, {"s16x16", "s16", 16, 16}, {"u32x8", "u32", 8, 32},
-    {"s32x8", "s32", 8, 32}, {"u64x4", "u64", 4, 64}, {"s64x4", "s64", 4, 64},
-    {"f32x8", "float32", 8, 32}, {"f64x4", "float64", 4, 64},
-    /* Native vectors, with one block's lanes. */
-    {"u8xN", "u8", 16, 8}, {"s8xN", "s8", 16, 8}, {"u16xN", "u16", 8, 16},
-    {"s16xN", "s16", 8, 16}, {"u32xN", "u32", 4, 32}, {"s32xN", "s32", 4, 32},
-    {"u64xN", "u64", 2, 64}, {"s64xN", "s64", 2, 64}, {"f32xN", "float32", 4, 32},
-    {"f64xN", "float64", 2, 64}
-};
-enum { FIXED_VECTOR_TYPES = 20 };
-
 int VectorType(const char *type, ZirVector *vector)
 {
     if(type == NULL || (type[0] != 'u' && type[0] != 's' && type[0] != 'f'))
         return 0;
-    for(size_t i = 0; i < sizeof(vector_types) / sizeof(*vector_types); i++) {
-        const struct VectorSpelling *spelling = &vector_types[i];
-        if(spelling->name[1] != type[1] || strcmp(type, spelling->name))
-            continue;
-        int native = i >= FIXED_VECTOR_TYPES;
-        if(vector != NULL)
-            *vector = (ZirVector){.name = spelling->name, .lane = spelling->lane,
-                .lanes = spelling->lanes, .lane_bits = spelling->lane_bits,
-                .bytes = spelling->lanes * spelling->lane_bits / 8,
-                .is_signed = spelling->lane[0] == 's', .is_float = spelling->lane[0] == 'f',
-                .is_native = native,
-                .block = native ? vector_types[i - FIXED_VECTOR_TYPES].name : spelling->name};
-        return 1;
+    const VectorSpelling *spelling = compiler_type_FindVector(StringView(type, strnlen(type, 7)));
+    if(spelling == NULL) return 0;
+    if(vector != NULL) {
+        const char *lane = (const char *)spelling->lane.data;
+        const char *name = (const char *)spelling->name.data;
+        int native = spelling->block.length != 0;
+        *vector = (ZirVector){.name = name, .lane = lane,
+            .lanes = spelling->lanes, .lane_bits = spelling->bits,
+            .bytes = spelling->lanes * spelling->bits / 8,
+            .is_signed = lane[0] == 's', .is_float = lane[0] == 'f',
+            .is_native = native, .block = native ? (const char *)spelling->block.data : name};
     }
-    return 0;
+    return 1;
 }
 
 const char *VectorTypeName(const char *lane, int lanes)
 {
-    for(size_t i = 0; lane != NULL && i < FIXED_VECTOR_TYPES; i++)
-        if(vector_types[i].lanes == lanes && !strcmp(vector_types[i].lane, lane))
-            return vector_types[i].name;
-    return NULL;
+    if(lanes <= 0) return NULL;
+    const VectorSpelling *vector = compiler_type_VectorForLane(type_text(lane), lanes);
+    return vector == NULL ? NULL : (const char *)vector->name.data;
 }
 
 const char *NativeVectorName(const char *lane)
 {
-    for(size_t i = FIXED_VECTOR_TYPES; lane != NULL && i < sizeof(vector_types) / sizeof(*vector_types); i++)
-        if(!strcmp(vector_types[i].lane, lane))
-            return vector_types[i].name;
-    return NULL;
+    const VectorSpelling *vector = compiler_type_VectorForLane(type_text(lane), 0);
+    return vector == NULL ? NULL : (const char *)vector->name.data;
 }
 
 int HoldsNativeVector(const char *type)
 {
-    if(type == NULL || VectorType(type, NULL)) return 0;
-    for(const char *at = strstr(type, "xN"); at != NULL; at = strstr(at + 2, "xN")) {
-        if(isalnum((unsigned char)at[2]) || at[2] == '_') continue;
-        const char *start = at;
-        while(start > type && (isalnum((unsigned char)start[-1]) || start[-1] == '_')) start--;
-        char name[8];
-        size_t length = (size_t)(at + 2 - start);
-        if(length < sizeof(name)) {
-            memcpy(name, start, length);
-            name[length] = '\0';
-            if(VectorType(name, NULL)) return 1;
-        }
-    }
-    return 0;
+    return compiler_type_HoldsNativeVector(type_text(type));
 }
 
 int BuiltinTypeName(const char *name)

@@ -14,6 +14,7 @@ typedef struct RecordField RecordField;
 typedef struct ElementType ElementType;
 typedef struct ForeignCall ForeignCall;
 typedef struct VectorShape VectorShape;
+typedef struct VectorSpelling VectorSpelling;
 
 struct RecordField {
     int32_t status;
@@ -42,6 +43,16 @@ struct VectorShape {
     int32_t lanes;
     String lane;
 };
+
+struct VectorSpelling {
+    String name;
+    String lane;
+    String c;
+    String go;
+    String block;
+    int32_t lanes;
+    int32_t bits;
+};
 bool compiler_type_TargetKnown(String target);
 String compiler_type_ForeignTypeTarget(String foreign, bool is_map);
 bool compiler_type_ForeignImportSupported(String target, String foreign);
@@ -51,12 +62,43 @@ String compiler_type_CSpelling(String directive);
 RecordField compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name_limit, int64_t type_limit, Slice tag_workspace);
 ElementType compiler_type_SliceElement(String type);
 ElementType compiler_type_ArrayElement(String type);
+VectorSpelling* compiler_type_FindVector(String name);
 VectorShape compiler_type_VectorType(String name);
+VectorSpelling* compiler_type_VectorForLane(String lane, int32_t lanes);
+VectorSpelling* compiler_type_VectorForBlocks(VectorSpelling* vector, int32_t blocks);
+bool compiler_type_HoldsNativeVector(String name);
 bool compiler_type_BuiltinName(String name);
 bool compiler_type_BuiltinValueName(String name);
 bool compiler_type_MapPrimitive(String name);
 ForeignCall compiler_type_GoCall(String target, int64_t receiver_limit);
 bool compiler_type_GoTypeTarget(String target);
+
+/* Small procedures other modules inline; compiler_type.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_TYPE_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include <stdint.h>
+#include <stdbool.h>
+static inline VectorSpelling* compiler_type_VectorForBlocks_ziran_inline(VectorSpelling* vector, int32_t blocks);
+#define compiler_type_VectorForBlocks(...) compiler_type_VectorForBlocks_ziran_inline(__VA_ARGS__)
+
+static inline VectorSpelling*
+compiler_type_VectorForBlocks_ziran_inline(VectorSpelling* vector, int32_t blocks)
+{
+    bool value_0 = vector != ((void *)0);
+    if (value_0) {
+        int64_t value_1 = (int64_t)(vector->block).length;
+        value_0 = (value_1 > 0LL);
+    }
+    if (value_0) {
+        if (blocks == 1) {
+            return compiler_type_FindVector(vector->block);
+        }
+        if (blocks == 2) {
+            return compiler_type_VectorForLane(vector->lane, (int32_t)((uint32_t)(vector->lanes) * 2u));
+        }
+    }
+    return vector;
+}
+#endif
 
 #ifdef __cplusplus
 }

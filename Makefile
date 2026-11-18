@@ -325,7 +325,6 @@ LEAN ?= lean
 CHECK_JOBS ?=
 CHECK_FILTER ?=
 all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native $(BUILD_DIR)/libziran.a
-	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zx-vm $(BIN_DIR)/zi2wasm $(BIN_DIR)/zi2asm
 
 proof-model: $(PROOF_KERNEL_OBJECT)
 	mkdir -p $(BUILD_DIR)/proofs
@@ -346,8 +345,6 @@ install-user: all
 	done
 	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include $(USER_SHARE)/templates
 	cp -r std include templates $(USER_SHARE)/
-	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
-	$(RM) $(USER_SHARE)/build/bin/zi2py $(USER_SHARE)/build/bin/zi2zib $(USER_SHARE)/build/bin/zi2cpp $(USER_SHARE)/build/bin/zi2rust $(USER_SHARE)/build/bin/zi2zx-vm $(USER_SHARE)/build/bin/zi2wasm $(USER_SHARE)/build/bin/zi2asm
 	@# Another tool's launcher, such as a build queue wrapper, stays in place.
 	@set -e; for tool in ziran zi2zx; do \
 		launcher="exec \"$(USER_SHARE)/build/bin/$$tool\" \"\$$@\""; \
@@ -381,7 +378,7 @@ $(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAME
 
 $(call obj,cmd/zi2c/main.c): $(BACKEND_PROCESS_READY)
 $(call obj,cmd/zir/zir.c): $(TYPE_READY)
-$(call obj,cmd/zir/zir_serial.c): $(PARSE_READY)
+$(call obj,cmd/zir/zir_serial.c cmd/zir-inspect/main.c): $(PARSE_READY)
 $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCANNER_C)/compiler_scan.c

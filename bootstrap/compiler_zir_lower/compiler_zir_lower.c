@@ -315,15 +315,15 @@ zir_f_0fe5ce4064831140_ResolveDefine(ZirModule* module, uint8_t* name, ZirDefine
 owner, selected);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_0fe5ce4064831140_ParseExprTyped_c924219d
-#define ZIR_FOREIGN_zir_f_0fe5ce4064831140_ParseExprTyped_c924219d
+#ifndef ZIR_FOREIGN_zir_f_0fe5ce4064831140_ParseExprTyped_4b6c2a98
+#define ZIR_FOREIGN_zir_f_0fe5ce4064831140_ParseExprTyped_4b6c2a98
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_0fe5ce4064831140_ParseExprTyped(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span, uint8_t* expected_type) __asm__("_ParseExprTyped");
+int32_t zir_foreign_zir_f_0fe5ce4064831140_ParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected_type) __asm__("_CompilerParseExprTyped");
 #else
-int32_t zir_foreign_zir_f_0fe5ce4064831140_ParseExprTyped(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span, uint8_t* expected_type) __asm__("ParseExprTyped");
+int32_t zir_foreign_zir_f_0fe5ce4064831140_ParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected_type) __asm__("CompilerParseExprTyped");
 #endif
 static int32_t
-zir_f_0fe5ce4064831140_ParseExprTyped(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span, uint8_t* expected_type)
+zir_f_0fe5ce4064831140_ParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSourceSpan span, void* expected_type)
 {
     return zir_foreign_zir_f_0fe5ce4064831140_ParseExprTyped(fn, module, text, 
 span, expected_type);
@@ -2990,7 +2990,7 @@ compiler_zir_lower_ConstantInitializer(AssemblyProgram* program, ZirModule* owne
     if (probe == ((void *)0) || function == ((void *)0)) {
         return 0;
     }
-    int32_t root = zir_f_0fe5ce4064831140_ParseExprTyped(probe, owner, (uint8_t*)source->init, source->span, &(source->type[0]));
+    int32_t root = zir_f_0fe5ce4064831140_ParseExprTyped(probe, owner, (void*)(((uint8_t*)source->init)), source->span, (void*)(&(source->type[0])));
     AssemblyProgram* value_2 = program;
     __type_9059301564cb61cc* value_3 = &(program->probes);
     bool value_4 = false;

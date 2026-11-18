@@ -15,17 +15,6 @@ ExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *void, span: IR.
     return ParseSourceExpr(fn, module, IR.CText(cast(*u8)text), span, IR.CText(cast(*u8)expected), -1, -1)
 }
 
-// The proof and lowering modules import these signatures through #foreign.
-#program_export "ParseExprNoDefaults"
-ExprForProof :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 {
-    return ExprNoDefaults(fn, module, cast(*void)text, span)
-}
-
-#program_export "ParseExprTyped"
-ExprForLowering :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan, expected: *u8) -> s32 {
-    return ExprTyped(fn, module, cast(*void)text, span, cast(*void)expected)
-}
-
 #program_export "CompilerDefineIsAggregate"
 ExprDefineIsAggregate :: (module: *IR.ZirModule, definition: *IR.ZirDefine) -> s32 {
     probe: IR.ZirFunction
@@ -40,7 +29,8 @@ ExprCallerLocation :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, output: *v
 }
 
 // A shared expression belongs to the first statement whose graph reaches it.
-#program_export "ExpressionOwnersZiran"
+// Unreached expressions have owner -1. The caller frees the result.
+#program_export "ExpressionOwners"
 ExprStatementOwners :: (fn: *IR.ZirFunction) -> *s32 {
     count := fn.expr_count
     if count <= 0 { return null }

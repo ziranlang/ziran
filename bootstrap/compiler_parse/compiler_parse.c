@@ -389,18 +389,6 @@ CompilerParseExprTyped(ZirFunction* fn, ZirModule* module, void* text, ZirSource
 }
 
 int32_t
-ParseExprNoDefaults(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span)
-{
-    return CompilerParseExprNoDefaults(fn, module, (void*)(text), span);
-}
-
-int32_t
-ParseExprTyped(ZirFunction* fn, ZirModule* module, uint8_t* text, ZirSourceSpan span, uint8_t* expected)
-{
-    return CompilerParseExprTyped(fn, module, (void*)(text), span, (void*)(expected));
-}
-
-int32_t
 CompilerDefineIsAggregate(ZirModule* module, ZirDefine* definition)
 {
     ZirFunction probe = {0};
@@ -431,7 +419,7 @@ CompilerCallerLocationLiteral(ZirModule* module, ZirSourceSpan span, void* outpu
 }
 
 int32_t*
-ExpressionOwnersZiran(ZirFunction* fn)
+ExpressionOwners(ZirFunction* fn)
 {
     int32_t count = fn->expr_count;
     if (count <= 0) {

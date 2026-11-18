@@ -68,15 +68,15 @@ zir_f_5116a9a569c28f15_ResolveFunction(ZirModule* m, uint8_t* name, ZirModule** 
     return zir_foreign_zir_f_5116a9a569c28f15_ResolveFunction(m, name, owner, fn);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_ParseExpr_4616b936
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_ParseExpr_4616b936
+#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_ParseExpr_2a41d9e4
+#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_ParseExpr_2a41d9e4
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, uint8_t* text, ZirSourceSpan span) __asm__("_ParseExprNoDefaults");
+int32_t zir_foreign_zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, void* text, ZirSourceSpan span) __asm__("_CompilerParseExprNoDefaults");
 #else
-int32_t zir_foreign_zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, uint8_t* text, ZirSourceSpan span) __asm__("ParseExprNoDefaults");
+int32_t zir_foreign_zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, void* text, ZirSourceSpan span) __asm__("CompilerParseExprNoDefaults");
 #endif
 static int32_t
-zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, uint8_t* text, ZirSourceSpan span)
+zir_f_5116a9a569c28f15_ParseExpr(ZirFunction* fn, ZirModule* m, void* text, ZirSourceSpan span)
 {
     return zir_foreign_zir_f_5116a9a569c28f15_ParseExpr(fn, m, text, span);
 }
@@ -1115,7 +1115,7 @@ compiler_proof_Expression(Context* c, ZirModule* m, ZirFunction* fn, int32_t ind
             Environment empty = {0};
             Context* value_37 = c;
             ZirModule* value_38 = m;
-            int32_t value_39 = zir_f_5116a9a569c28f15_ParseExpr(&(probe), m, (uint8_t*)define->value, define->span);
+            int32_t value_39 = zir_f_5116a9a569c28f15_ParseExpr(&(probe), m, (void*)(((uint8_t*)define->value)), define->span);
             result = compiler_proof_Expression(value_37, value_38, &(probe), value_39, &(empty), expected, (int32_t)((uint32_t)depth + 1u));
             zir_f_5116a9a569c28f15_free((uint8_t*)(probe.exprs));
         }
@@ -2704,7 +2704,7 @@ compiler_proof_ParseSteps(ZirProof* p, ZirModule* m)
         if (((ZirProofStepKind)(step.kind)) == ((ZirProofStepKind)(3)) || ((ZirProofStepKind)(step.kind)) == ((ZirProofStepKind)(4))) {
             Long spelled = compiler_proof_CLong(operand);
             int32_t* value_11 = &(step.term_root);
-            int32_t value_12 = zir_f_5116a9a569c28f15_ParseExpr(&(p->terms), m, &(spelled.bytes[0]), step.span);
+            int32_t value_12 = zir_f_5116a9a569c28f15_ParseExpr(&(p->terms), m, (void*)(&(spelled.bytes[0])), step.span);
             (*value_11) = value_12;
             bool value_13 = step.term_root < 0 || ((ZirExprKind)((p->terms.exprs[step.term_root]).kind)) != ((ZirExprKind)(5));
             bool value_14 = value_13;
@@ -2803,7 +2803,7 @@ compiler_proof_PrepareClaim(ZirModule* module, ZirLaw* law)
         ZirSourceSpan* value_19 = &(law->claim->span);
         (*value_19) = law->span;
         Long text = compiler_proof_CLong(proposition);
-        int32_t root = zir_f_5116a9a569c28f15_ParseExpr(law->claim, module, &(text.bytes[0]), law->span);
+        int32_t root = zir_f_5116a9a569c28f15_ParseExpr(law->claim, module, (void*)(&(text.bytes[0])), law->span);
         ZirStmt* s = zir_f_5116a9a569c28f15_FunctionAddStmt(law->claim, (ZirStmtKind)(10), &(text.bytes[0]), law->span);
         if (s != ((void *)0)) {
             int32_t* value_20 = &(s->expr_root);

@@ -16,7 +16,7 @@ libc :: #system_library "libc";
 FindType :: (m: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign zir "FindType";
 EnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign zir "EnumMemberValue";
 ResolveFunction :: (m: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, fn: **IR.ZirFunction) -> s32 #foreign zir "ResolveFunction";
-ParseExpr :: (fn: *IR.ZirFunction, m: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 #foreign zir "ParseExprNoDefaults";
+ParseExpr :: (fn: *IR.ZirFunction, m: *IR.ZirModule, text: *void, span: IR.ZirSourceSpan) -> s32 #foreign zir "CompilerParseExprNoDefaults";
 FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign zir "FunctionAddStmt";
 ModuleAddProof :: (m: *IR.ZirModule, name: *u8, body: *u8, span: IR.ZirSourceSpan) -> s32 #foreign zir "ModuleAddProof";
 calloc :: (count: usize, size: usize) -> *u8 #foreign libc "calloc";
@@ -214,7 +214,7 @@ Expression :: (c: *Context, m: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, e
             if define == null { return Unsupported(c, "proof expressions cannot read runtime globals or unresolved names") }
             probe: IR.ZirFunction
             empty: Environment
-            result = Expression(c, m, *probe, ParseExpr(*probe, m, define.value, define.span), *empty, expected, depth + 1)
+            result = Expression(c, m, *probe, ParseExpr(*probe, m, cast(*void)define.value, define.span), *empty, expected, depth + 1)
             free(cast(*u8)probe.exprs)
         }
     } else if e.kind == IR.ZirExprKind.MEMBER {
@@ -472,7 +472,7 @@ ParseSteps :: (p: *IR.ZirProof, m: *IR.ZirModule) -> bool {
         closed = step.kind >= IR.ZirProofStepKind.USE
         if step.kind == IR.ZirProofStepKind.REWRITE || step.kind == IR.ZirProofStepKind.USE {
             spelled := CLong(operand)
-            step.term_root = ParseExpr(*p.terms, m, *spelled.bytes[0], step.span)
+            step.term_root = ParseExpr(*p.terms, m, cast(*void)(*spelled.bytes[0]), step.span)
             if step.term_root < 0 || p.terms.exprs[step.term_root].kind != IR.ZirExprKind.CALL ||
                !CallName(*p.terms, *p.terms.exprs[step.term_root], step.target[:]) { return false }
         } else if step.kind == IR.ZirProofStepKind.UNFOLD { if !IR.CopyText(step.target[:], operand) { return false } }
@@ -505,7 +505,7 @@ PrepareClaim :: (module: *IR.ZirModule, law: *IR.ZirLaw) -> bool {
         IR.CopyText(law.claim.return_type[:], "bool")
         law.claim.span = law.span
         text := CLong(proposition)
-        root := ParseExpr(law.claim, module, *text.bytes[0], law.span)
+        root := ParseExpr(law.claim, module, cast(*void)(*text.bytes[0]), law.span)
         s := FunctionAddStmt(law.claim, IR.ZirStmtKind.RETURN, *text.bytes[0], law.span)
         if s != null { s.expr_root = root }
         ok = root >= 0 && s != null

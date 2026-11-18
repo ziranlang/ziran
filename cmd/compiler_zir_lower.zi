@@ -40,8 +40,8 @@ ResolveGlobalAt :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.Zir
                     global: **IR.ZirGlobal) -> s32 #foreign compiler "ResolveGlobalAt";
 ResolveDefine :: (module: *IR.ZirModule, name: *u8, definition: **IR.ZirDefine,
                   owner: **IR.ZirModule, selected: **IR.ZirImport) -> s32 #foreign compiler "ResolveDefine";
-ParseExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8,
-                   span: IR.ZirSourceSpan, expected_type: *u8) -> s32 #foreign compiler "ParseExprTyped";
+ParseExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *void,
+                   span: IR.ZirSourceSpan, expected_type: *void) -> s32 #foreign compiler "CompilerParseExprTyped";
 EvaluateCompileExpression :: (module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan,
                               executing: s32, value: *s64) -> s32 #foreign compiler "EvaluateCompileExpression";
 CZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign compiler "ZirIntegerLiteral";
@@ -1249,7 +1249,7 @@ ConstantInitializer :: (program: *AssemblyProgram, owner: *IR.ZirModule,
     probe := cast(*IR.ZirFunction)Allocate(program, 1, size_of(IR.ZirFunction))
     function := cast(*AssemblyFunction)Allocate(program, 1, size_of(AssemblyFunction))
     if probe == null || function == null { return 0 }
-    root := ParseExprTyped(probe, owner, source.init, source.span, *source.type[0])
+    root := ParseExprTyped(probe, owner, cast(*void)source.init, source.span, cast(*void)(*source.type[0]))
     if PushProbe(program, *program.probes, probe) == false { return 0 }
     if root < 0 {
         Fail(program, source.span, "global initializer is not a lowered constant expression")

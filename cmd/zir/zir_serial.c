@@ -107,7 +107,7 @@ typedef struct Writer {
     /* The function whose expressions are being written, the statement whose
      * tree holds each expression, or -1, and the last statement referenced. */
     const ZirFunction *function;
-    const int *owners;
+    const int32_t *owners;
     int last_owner;
     int64_t last_bias;
     ExprStatementCursor cursor;
@@ -921,12 +921,6 @@ read_span(Reader *reader, ZirSourceSpan *span)
     return 1;
 }
 
-int *
-ExpressionOwners(const ZirFunction *function)
-{
-    return ExpressionOwnersZiran((ZirFunction *)function);
-}
-
 static uint32_t
 zigzag32(int64_t value)
 {
@@ -1251,7 +1245,7 @@ write_function(Writer *out, const ZirFunction *function)
     if(!write_fields(out, function, function_fields, FIELD_COUNT(function_fields)) ||
        !WRITE_ARRAY(out, function, stmts, stmt_count, statement_fields))
         return 0;
-    int *owners = ExpressionOwners(function);
+    int32_t *owners = ExpressionOwners((ZirFunction *)function);
     if(function->expr_count > 0 && owners == NULL) {
         out->problem = "out of memory writing IR";
         return 0;

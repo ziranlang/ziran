@@ -1,4 +1,5 @@
 #include "zir.h"
+#include "compiler_parse.h"
 #include "zir_serial.h"
 #include "zir_link.h"
 #include "zir_diagnostic.h"
@@ -51,7 +52,7 @@ raw(const char *value)
 /* Whether an expression's text only repeats part of its statement's, which
  * the listing already shows once. */
 static int
-text_in_statement(const ZirFunction *function, const int *owners, int index)
+text_in_statement(const ZirFunction *function, const int32_t *owners, int index)
 {
     const char *text = function->exprs[index].text;
     if(text == NULL || !text[0]) return 1;
@@ -63,7 +64,7 @@ text_in_statement(const ZirFunction *function, const int *owners, int index)
 }
 
 static void
-show_expression(const ZirFunction *function, const int *owners, int e)
+show_expression(const ZirFunction *function, const int32_t *owners, int e)
 {
     const ZirExpr *expression = &function->exprs[e];
     printf("    %%%d %s", e, ExprKindName(expression->kind));
@@ -208,7 +209,7 @@ show_module(const ZirModule *module)
             }
             putchar('\n');
         }
-        int *owners = ExpressionOwners(function);
+        int32_t *owners = ExpressionOwners((ZirFunction *)function);
         for(int e = 0; e < function->expr_count; e++)
             show_expression(function, owners, e);
         free(owners);

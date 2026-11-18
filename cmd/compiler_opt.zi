@@ -1229,6 +1229,39 @@ DeadOperation :: (program: LirProgram, function: LirFunction,
         op == .FunctionAddress
 }
 
+// Two address values name the same storage when their pure global, field and
+// element address chains match; element indexes must be the same values.
+// BLOCKS and POSITIONS locate each value's defining instruction (-1: none).
+SameAddress :: (function: LirFunction, blocks: []s32, positions: []s32, left: s32, right: s32, depth: s32) -> bool {
+    if left == right { return true }
+    if depth == 0 || blocks[left] < 0 || blocks[right] < 0 ||
+        function.values[left] != function.values[right] { return false }
+    a := function.blocks[blocks[left]].instructions[positions[left]]
+    b := function.blocks[blocks[right]].instructions[positions[right]]
+    if a.op != b.op || a.immediate != b.immediate || a.checked != b.checked ||
+        a.operands.count != b.operands.count { return false }
+    if a.op == .GlobalAddress { return a.symbol == b.symbol }
+    if a.op != .FieldAddress && a.op != .ElementAddress || a.operands.count == 0 { return false }
+    for at: 1..a.operands.count - 1 { if a.operands[at] != b.operands[at] { return false } }
+    return SameAddress(function, blocks, positions, a.operands[0], b.operands[0], depth - 1)
+}
+
+// An unused load can go when its block reads the same type at the same
+// address again before anything effectful: that later load raises any trap
+// this one would, with nothing observable in between. Folding a literal
+// argument leaves this shape, and an unused aggregate load would otherwise
+// copy a whole record in every backend.
+ReloadedLater :: (function: LirFunction, blocks: []s32, positions: []s32, block: LirBlock, at: s64) -> bool {
+    load := block.instructions[at]
+    for later: at + 1..block.instructions.count - 1 {
+        next := block.instructions[later]
+        if next.op == .Load && function.values[next.result] == function.values[load.result] &&
+            SameAddress(function, blocks, positions, next.operands[0], load.operands[0], 8) { return true }
+        if LirEffectful(next.op) || LirTerminator(next.op) { return false }
+    }
+    return false
+}
+
 CompactValues :: (state: *OptState, function: *LirFunction, keep: []u8,
     counter: *LirOptPassCounters) -> bool {
     old_count := function.values.count
@@ -1503,6 +1536,22 @@ CseFunction :: (state: *OptState, program: LirProgram, function: *LirFunction, o
     return CompactValues(state, function, empty, *state.counters.cse)
 }
 
+DeadValues :: struct {
+    uses: Vec(s64)
+    removed: Vec(u8)
+    symbols: Vec(s32)
+    non_null: Vec(u8)
+    safe_element: Vec(u8)
+    // The block and position of each value's defining instruction, or -1.
+    blocks: Vec(s32)
+    positions: Vec(s32)
+}
+
+DeadValuesFree :: (values: *DeadValues) {
+    VecFree(values.uses); VecFree(values.removed); VecFree(values.symbols); VecFree(values.non_null)
+    VecFree(values.safe_element); VecFree(values.blocks); VecFree(values.positions)
+}
+
 DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     state.counters.dead.runs += 1
     pure: Vec(u8)
@@ -1516,30 +1565,28 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
         count := function.values.count
-        if !Scratch(state, count, 19) { return false }
-        uses: Vec(s64)
-        removed: Vec(u8)
-        symbols: Vec(s32)
-        non_null: Vec(u8)
-        safe_element: Vec(u8)
-        if !VecResizeBounded(uses, count, count) || !VecResizeBounded(removed, count, count) ||
-            !VecResizeBounded(symbols, count, count) || !VecResizeBounded(non_null, count, count) ||
-            !VecResizeBounded(safe_element, count, count) {
-            VecFree(uses); VecFree(removed); VecFree(symbols); VecFree(non_null); VecFree(safe_element)
+        if !Scratch(state, count, 27) { return false }
+        values: DeadValues
+        if !VecResizeBounded(values.uses, count, count) || !VecResizeBounded(values.removed, count, count) ||
+            !VecResizeBounded(values.symbols, count, count) || !VecResizeBounded(values.non_null, count, count) ||
+            !VecResizeBounded(values.safe_element, count, count) || !VecResizeBounded(values.blocks, count, count) ||
+            !VecResizeBounded(values.positions, count, count) {
+            DeadValuesFree(*values)
             return Fail(state, .Allocation)
         }
-        for value: 0..count - 1 { symbols[value] = LirNoId }
-        for block: function.blocks {
-            for instruction: block.instructions {
-                if !Spend(state, 1) {
-                    VecFree(uses); VecFree(removed); VecFree(symbols); VecFree(non_null); VecFree(safe_element)
-                    return false
+        for value: 0..count - 1 { values.symbols[value] = LirNoId; values.blocks[value] = -1 }
+        for block, block_index: function.blocks {
+            for instruction, at: block.instructions {
+                if !Spend(state, 1) { DeadValuesFree(*values); return false }
+                for value: instruction.operands { values.uses[value] += 1 }
+                for edge: instruction.edges { for value: edge.arguments { values.uses[value] += 1 } }
+                if instruction.result != LirNoId {
+                    values.blocks[instruction.result] = cast(s32)block_index
+                    values.positions[instruction.result] = cast(s32)at
                 }
-                for value: instruction.operands { uses[value] += 1 }
-                for edge: instruction.edges { for value: edge.arguments { uses[value] += 1 } }
-                if instruction.op == .Constant { symbols[instruction.result] = instruction.symbol }
-                if instruction.op == .GlobalAddress { non_null[instruction.result] = 1 }
-                if instruction.op == .Allocate { non_null[instruction.result] = 2 }
+                if instruction.op == .Constant { values.symbols[instruction.result] = instruction.symbol }
+                if instruction.op == .GlobalAddress { values.non_null[instruction.result] = 1 }
+                if instruction.op == .Allocate { values.non_null[instruction.result] = 2 }
             }
         }
         for block: function.blocks {
@@ -1547,21 +1594,21 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                 if instruction.op != .ElementAddress ||
                     instruction.operands.count < 2 || instruction.operands.count > 3 { continue }
                 base := instruction.operands[0]
-                index_symbol := symbols[instruction.operands[1]]
+                index_symbol := values.symbols[instruction.operands[1]]
                 safe := false
                 if instruction.operands.count == 3 {
-                    count_symbol := symbols[instruction.operands[2]]
-                    safe = non_null[base] != 0 && index_symbol != LirNoId && count_symbol != LirNoId &&
+                    count_symbol := values.symbols[instruction.operands[2]]
+                    safe = values.non_null[base] != 0 && index_symbol != LirNoId && count_symbol != LirNoId &&
                         program.constants[index_symbol].bits == 0 &&
                         program.constants[count_symbol].bits == 1 &&
                         function.values[base] == function.values[instruction.result]
                 } else {
-                    safe = non_null[base] == 1 && index_symbol != LirNoId &&
+                    safe = values.non_null[base] == 1 && index_symbol != LirNoId &&
                         SafeConstantElement(program, function, base,
                             instruction.result, index_symbol) != LirNoId
                 }
                 if safe {
-                    safe_element[instruction.result] = 1
+                    values.safe_element[instruction.result] = 1
                 }
             }
         }
@@ -1569,22 +1616,18 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
         while changed {
             changed = false
             for block: function.blocks {
-                for instruction: block.instructions {
-                    if !Spend(state, 1) {
-                        VecFree(uses); VecFree(removed); VecFree(symbols); VecFree(non_null); VecFree(safe_element)
-                        return false
-                    }
+                for instruction, at: block.instructions {
+                    if !Spend(state, 1) { DeadValuesFree(*values); return false }
                     result := instruction.result
-                    if result == LirNoId || removed[result] != 0 || uses[result] != 0 ||
-                        !(DeadOperation(program, function, instruction) || safe_element[result] != 0 ||
-                          instruction.op == .Call && instruction.symbol >= 0 && pure[instruction.symbol] != 0) { continue }
-                    removed[result] = 1
+                    if result == LirNoId || values.removed[result] != 0 || values.uses[result] != 0 { continue }
+                    if !(DeadOperation(program, function, instruction) || values.safe_element[result] != 0 ||
+                          instruction.op == .Call && instruction.symbol >= 0 && pure[instruction.symbol] != 0 ||
+                          instruction.op == .Load &&
+                          ReloadedLater(function, values.blocks[:], values.positions[:], block, at)) { continue }
+                    values.removed[result] = 1
                     for operand: instruction.operands {
-                        if uses[operand] <= 0 {
-                            VecFree(uses); VecFree(removed); VecFree(symbols); VecFree(non_null); VecFree(safe_element)
-                            return Fail(state, .VerifyPass)
-                        }
-                        uses[operand] -= 1
+                        if values.uses[operand] <= 0 { DeadValuesFree(*values); return Fail(state, .VerifyPass) }
+                        values.uses[operand] -= 1
                     }
                     changed = true
                     state.counters.dead.instructions += 1
@@ -1596,12 +1639,12 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
             write: s64
             for read: 0..block.instructions.count - 1 {
                 instruction := block.instructions[read]
-                if instruction.result != LirNoId && removed[instruction.result] != 0 { continue }
+                if instruction.result != LirNoId && values.removed[instruction.result] != 0 { continue }
                 block.instructions[write] = instruction
                 write += 1
             }
             block.instructions = block.instructions[:write]
-            // A removed call leaves a gap in the block's effect order.
+            // A removed call or load leaves a gap in the block's effect order.
             effect: s32
             for at: 0..write - 1 {
                 if LirEffectful(block.instructions[at].op) { effect += 1; block.instructions[at].effect = effect }
@@ -1609,11 +1652,7 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
             }
             function.blocks[block_index] = block
         }
-        VecFree(uses)
-        VecFree(removed)
-        VecFree(symbols)
-        VecFree(non_null)
-        VecFree(safe_element)
+        DeadValuesFree(*values)
         empty: []u8
         if !CompactValues(state, *function, empty, *state.counters.dead) { return false }
         program.functions[function_index] = function

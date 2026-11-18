@@ -117,6 +117,26 @@ Spectral-norm improved in all 18 rounds. In the seven-round cohort the
 other paired medians ranged from −1.15% to +1.84%. Fib and binary-trees
 had the largest increases at +1.84% and +1.46%, respectively.
 
+The first version slowed the Button and Input widgets about 3×. Its copy
+`TreeLayerAt$1` folded `committed`, which removed the field read of the
+first `trees[slot]` load but left the load, so both backends copied the
+whole widget tree before loading it again. A copy is now made only when
+folding leaves no record or array load without its use, and DeadPass
+drops an unused load that its block repeats at the same address before
+any effect. On Alpha, with stdout and result checked in every run, the
+fix ran faster than master in all 7 rounds of each widget and target
+(µs; [raw samples](../bench/results/standard/bool-guard-alpha.json)):
+
+| Widget | Before specialization | Master | Fixed |
+| --- | ---: | ---: | ---: |
+| Button native | 4.701 | 14.423 | 4.848 |
+| Button Wasm | 2.641 | 8.576 | 2.563 |
+| Input native | 6.768 | 18.813 | 6.470 |
+| Input Wasm | 3.944 | 10.830 | 3.792 |
+
+Spectral-norm still uses both `Multiply` copies: 12.944 ms before and
+12.954 ms after, against 10.076 ms in C, over 7 matched rounds.
+
 ## Fixed-array count on Alpha
 
 ZX lowering now folds the count of a plain local fixed array before

@@ -12,6 +12,31 @@ Sum :: (n: s64, increase: bool) -> s64 {
     return result
 }
 
+// Folding `committed` in a copy would leave the first record load without
+// its field read, so only the copy for `false` may exist. Reread overwrites
+// one field read with another through the same record.
+Node :: struct { kind: s32; parent: s32 }
+Tree :: struct { pad: [64]s64; submitted: [8]Node; committed: [8]Node; submitted_count: s32; committed_count: s32 }
+trees: [2]Tree;
+
+Layer :: (slot: s32, index: s32, committed: bool) -> s32 {
+    count := trees[slot].submitted_count
+    if committed { count = trees[slot].committed_count }
+    while index > 0 && index < count {
+        node: *Node
+        if committed { node = *trees[slot].committed[index] } else { node = *trees[slot].submitted[index] }
+        if node.kind == 7 { return index + 1 }
+        index = node.parent
+    }
+    return 0
+}
+
+Reread :: (slot: s32) -> s32 {
+    count := trees[slot].submitted_count
+    count = trees[slot].committed_count
+    return count
+}
+
 Operation :: #type (n: s64, increase: bool) -> s64;
 Keep :: (n: s64, increase: bool) -> s64 { return n + ifx increase then 1 else 2 }
 
@@ -25,5 +50,10 @@ Answer :: () -> s32 {
     if a > b { operation = Sum }
     f := operation(3, a < b)
     if a != 123 || b != -133 || c != 5 || d != 5 || e != 56 || f != -50 { return 1 }
+    trees[1].submitted_count = 4
+    trees[1].committed_count = 3
+    trees[1].committed[2] = .{kind = 7}
+    trees[1].submitted[3] = .{kind = 1, parent = 1}
+    if Layer(1, 2, true) != 3 || Layer(1, 3, false) != 0 || Layer(1, 3, true) != 0 || Reread(1) != 3 { return 1 }
     return 42
 }

@@ -225,7 +225,22 @@ handler clears the inherited one. Same bundles and runner source on Alpha,
 | enums.zi | 1.764 | 1.242 |
 | loops.zi | 4.274 | 3.727 |
 
-Still open: arrays, enums and loops run 6–10× slower than C, while Wasm
-is about even with C. Next, run the in-process column unbounded like C and
-Wasm, then compare the loop code with V8's.
+Unbounded instances now run code without fuel checks, as C and Wasm run
+unmetered, and a normal run no longer flushes stdout and stderr: strace
+counted one `write` per entry. Against master on Alpha, µs per call
+([raw samples](../bench/results/standard/native-unbounded-alpha.json)):
+
+| Example | Before | After |
+| --- | ---: | ---: |
+| score.zi | 0.0326 | 0.0224 |
+| text_demo.zi | 0.0319 | 0.0227 |
+| arrays.zi | 2.563 | 2.059 |
+| enums.zi | 1.213 | 0.688 |
+| loops.zi | 3.633 | 3.165 |
+
+Unbounded code also took 24% off dijkstra, 14% off fannkuch-redux, 11% off
+binary-trees and 7% off nqueens and JSON round trips.
+
+Still open: arrays, enums and loops are mostly printing and remain 3–5×
+slower than C. Next, the print path: formatting and each host call.
 

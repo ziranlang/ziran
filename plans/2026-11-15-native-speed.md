@@ -1128,9 +1128,20 @@ Redundancies C skips, ranked:
 5. In-process: the step check per iteration (`sub $1,%r15 ; jb`) and, with
    fuel on, no loop vectorization anywhere.
 
-### Order of work
+### Order of work and status
 
-Fib 1 (accumulator transformation in the optimizer), then mandelbrot 2 and 4
-(constants), 1 and 3 (back-edge copies and layout), then the in-process step
-checks for unbounded runs, then the fib frame items. Each lands with a
-retained test and a matched Alpha A/B.
+1. Fib 1, done: `compiler_opt_accumulate.zi` turns `F(a) + F(b)` into an
+   accumulator loop (functions with a base case only, so runaway recursion
+   keeps its stack trap). Alpha standard-ab, 5 shuffled rounds, C / before /
+   after µs: fib 18,779 / 54,539 / 44,612 (-18%); the other ten workloads
+   within noise. Calls halve, but the loop still has a back-edge copy
+   (`mov %rax,%r12` in its own block, two jumps), the base case now always
+   builds a frame, and GCC also unrolls the remaining recursion.
+2. Mandelbrot 2 and 4, in review: float constants stay in registers through
+   call-free loops, and `x*2.0` is `x+x`. The inner loop has no constant
+   rebuilds left.
+3. Next: back-edge copies (mandelbrot's five `movsd` with a swap, fib's
+   accumulator copy): coalesce a loop-carried value's new definition with
+   its block parameter's register when the old value dies there.
+4. Then layout (one taken branch per iteration), the in-process step checks
+   for unbounded runs, and the fib frame items.

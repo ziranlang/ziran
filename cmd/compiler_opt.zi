@@ -583,6 +583,20 @@ FoldInstruction :: (program: LirProgram, function: LirFunction,
     return .{known = true, type = result_type_id, bits = bits & Mask(result_type.bits)}
 }
 
+// Which operand of a float multiply is the constant 2.0, or -1.
+DoubledOperand :: (program: LirProgram, function: LirFunction, instruction: LirInstruction,
+    facts: []ConstantFact) -> s64 {
+    if instruction.op != .Multiply || instruction.operands.count != 2 || instruction.result < 0 { return -1 }
+    type := program.types[function.values[instruction.result]]
+    if type.kind != .Float || type.bits != 64 && type.bits != 32 { return -1 }
+    two: u64 = ifx type.bits == 64 then 0x4000000000000000 else 0x40000000
+    for at: 0..1 {
+        fact := facts[instruction.operands[at]]
+        if fact.known && fact.bits == two && !facts[instruction.operands[1 - at]].known { return at }
+    }
+    return -1
+}
+
 FoldPass :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits,
     options: LirOptOptions) -> bool {
     program := LirReadProgram(*owner.storage)
@@ -710,6 +724,18 @@ FoldPass :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits,
                                 continue
                             }
                         }
+                        continue
+                    }
+                    doubled := DoubledOperand(program, function, instruction, facts[:function.values.count])
+                    if doubled >= 0 {
+                        // x*2.0 is exactly x+x, NaN, infinities and signed
+                        // zeros included, and needs no constant.
+                        instruction.operands[doubled] = instruction.operands[1 - doubled]
+                        instruction.op = .Add
+                        block.instructions[instruction_index] = instruction
+                        changed += 1
+                        function_changed += 1
+                        total += 1
                         continue
                     }
                     folded := FoldInstruction(program, function, instruction, facts[:function.values.count])

@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- In a loop without calls, a float constant moves out of the loop and stays in a register instead of being rebuilt from a general register on every use, and `x * 2.0` becomes `x + x` (exact for every value). Mandelbrot's inner loop no longer rebuilds 4.0 and 2.0 per iteration.
 - The optimizer turns a self call whose integer result is added to another value and returned, as in `Fib(n-1) + Fib(n-2)`, into an accumulator loop, as GCC does at `-O2`: the remaining call runs once per iteration and the other becomes a jump back. Fib makes half as many calls. Effects keep their order, a run charges the same steps, and a function with no base case is left alone so runaway recursion still takes the stack trap.
 - The native runtime builds on ARMv7 again. Only x86-64 checks the heap offsets used by its generated allocator.
 - Native x86-64 code divides by a constant divisor folded into the instruction instead of first loading it into a register the division never reads, and starts every loop on a 32-byte boundary, so a change before a loop no longer moves its speed.

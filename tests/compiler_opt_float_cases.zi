@@ -1,5 +1,6 @@
 using IR :: #import "compiler_lowered_ir"
 using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
 
 #scope_file
 
@@ -31,6 +32,60 @@ Table :: () -> [28]Vector {
     .{1, 0x7fc00000, 0, false},
     .{2, 0x3ff0000000000000, 0xbff0000000000000, true}, .{2, 0x0000000000000000, 0x8000000000000000, true},
     .{3, 0x3f800000, 0xbf800000, true}]
+}
+
+// double(x) = x * 2.0 at INPUT, run by the portable engine.
+Doubled :: (program: LirProgram, input: u64) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 813, *instance)
+    if opened.problem != .None { return opened }
+    arguments := LirExecArgument.[.{type = 0, bits = input}]
+    return LirExecCall(*instance, 0, arguments[:])
+}
+
+// x * 2.0 becomes x + x: the same value for every input, signed zeros,
+// infinities and NaNs included, without the constant.
+DoublingCase :: () -> s32 {
+    types := LirType.[.{kind = .Float, bits = 64}]
+    constants := LirConstant.[.{type = 0, bits = 0x4000000000000000}]
+    modules := string.["optimizer"]
+    parameter := s32.[0]
+    values := s32.[0, 0, 0]
+    product := s32.[0, 1]
+    result := s32.[2]
+    body := LirInstruction.[.{op = .Constant, result = 1, symbol = 0, origin = -1},
+        .{op = .Multiply, result = 2, operands = product[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = result[:], symbol = -1, origin = -1}]
+    blocks := LirBlock.[.{parameters = parameter[:], instructions = body[:]}]
+    functions := LirFunction.[.{module = 0, name = "double", parameters = parameter[:], result = 0,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = LirNoId}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 11 }
+    owner: LirOptOwner
+    defer LirOptFree(*owner)
+    built := LirOptBuild(*owner, program, LirDefaultLimits(), LirOptDefaultOptions())
+    if built.problem != .None || !owner.valid { return 12 }
+    optimized := LirOptProgram(*owner)
+    if LirVerify(optimized, LirDefaultLimits()).problem != .None { return 13 }
+    added := false
+    for instruction: optimized.functions[0].blocks[0].instructions {
+        if instruction.op == .Multiply || instruction.op == .Constant { return 14 }
+        if instruction.op == .Add && instruction.operands[0] == instruction.operands[1] { added = true }
+    }
+    if !added { return 15 }
+    inputs := u64.[0x3ff8000000000000, 0x8000000000000000, 0x7ff0000000000000, 0x7ff8000000000001, 0x0000000000000001]
+    for input: inputs {
+        x := Doubled(program, input)
+        y := Doubled(optimized, input)
+        if x.problem != .None || y.problem != .None || x.value.bits != y.value.bits { return 16 }
+    }
+    return 0
 }
 
 #scope_export
@@ -95,6 +150,8 @@ OptFloatCases :: () -> s32 {
         }
     }
     LirOptFree(*owner)
-    print("compiler optimizer: float conversions and negations fold to the hardware's patterns, NaNs stay\n")
+    doubling := DoublingCase()
+    if doubling != 0 { print("float doubling case % failed\n", doubling); return doubling }
+    print("compiler optimizer: float conversions and negations fold to the hardware's patterns, NaNs stay, x*2.0 is x+x\n")
     return 0
 }

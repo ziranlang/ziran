@@ -122,6 +122,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
     large := NewImage(37, 21, 90, 160, 200, 255)
     if !WriteJPEG(*large, *jpeg, 82) || jpeg.count < 200 { return 15 }
     if jpeg[0] != 255 || jpeg[1] != 216 || jpeg[jpeg.count - 2] != 255 || jpeg[jpeg.count - 1] != 217 { return 16 }
+    decoded_jpeg := ReadJPEG(VecSlice(jpeg, 0, jpeg.count))
+    if !ImageValid(*decoded_jpeg) || decoded_jpeg.width != 37 || decoded_jpeg.height != 21 { return 18 }
+    mid := (10 * 37 + 18) * 4
+    dr := cast(s32)decoded_jpeg.pixels[mid] - 90
+    dg := cast(s32)decoded_jpeg.pixels[mid + 1] - 160
+    db := cast(s32)decoded_jpeg.pixels[mid + 2] - 200
+    if dr < -4 || dr > 4 || dg < -4 || dg > 4 || db < -4 || db > 4 || decoded_jpeg.pixels[mid + 3] != 255 { return 19 }
+    broken_jpeg := ReadJPEG(VecSlice(jpeg, 0, 10))
+    if ImageValid(*broken_jpeg) { return 20 }
     return 0
 }
 ZI

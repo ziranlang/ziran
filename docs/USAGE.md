@@ -1944,11 +1944,12 @@ runs an Emscripten `.js` such as `node`, or `WASI_RUN`, one that runs a
 standalone `.wasm` such as `wasmtime run`, with `EMCC` for WebAssembly) to
 compare every kernel with the scalar loops and those with std/image.
 `std/png_linux.zi` reads every standard PNG into an `Image` and writes RGBA,
-RGB and palette files; `std/jpeg.zi` writes baseline JPEGs at an IJG quality;
-`std/zlib_linux.zi` compresses and decompresses whole zlib, gzip or raw
-deflate streams into growing vectors. The PNG and zlib modules link `-lz`.
-Run `sh tests/std_image_linux.sh build/bin/ziran`, which also compares with
-Pillow when it is installed.
+RGB and palette files; `std/jpeg.zi` reads baseline and progressive JPEGs into
+an `Image` (`ReadJPEG`) and writes baseline JPEGs at an IJG quality
+(`WriteJPEG`); `std/zlib_linux.zi` compresses and decompresses whole zlib,
+gzip or raw deflate streams into growing vectors. The PNG writer and zlib
+modules link `-lz`. Run `sh tests/std_image_linux.sh build/bin/ziran`, which
+also compares with Pillow when it is installed.
 `std/vorbis.zi` reads what an Ogg Vorbis stream in memory declares without
 decoding it: `VorbisProbe(bytes, *audio)` checks that the bytes are whole
 pages of one stream with a Vorbis identification header and gives its
@@ -2056,6 +2057,9 @@ and NaN, so native targets and portable bundles agree without reinterpreting
 memory. Run `sh tests/std_binary.sh build/bin/ziran`, which also compares the
 decoding with the C compiler's over a million random patterns.
 `std/binary_linux.zi` keeps 64-bit fields for native Linux programs.
+`std/base64.zi` encodes and decodes RFC 4648 base64 (`Base64EncodeInto`,
+`Base64Encode`, `Base64DecodeInto`, `Base64Decode`) for `data:` URIs and binary
+payloads; run `sh tests/std_base64.sh build/bin/ziran`.
 
 ### Constant tables
 

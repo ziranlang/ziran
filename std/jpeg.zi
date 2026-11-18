@@ -1,9 +1,11 @@
-// Baseline JPEG files from std/image pictures, on every target: JFIF with
-// 4:2:0 chroma subsampling, the standard Huffman tables and the IJG quality
-// scale that libjpeg and Pillow use. Alpha is ignored.
+// Baseline and progressive JPEG files to and from std/image pictures, on every
+// target: JFIF writing with 4:2:0 chroma subsampling, standard Huffman tables
+// and the IJG quality scale that libjpeg and Pillow use; reading accepts
+// baseline (SOF0/SOF1) and progressive (SOF2) greyscale and YCbCr JPEGs.
 //
 //     bytes: Vec(u8)
 //     if WriteJPEG(*title, *bytes, 82) { WriteEntireFile("title.jpg", BuilderFinish(bytes)) }
+//     decoded := ReadJPEG(VecSlice(bytes, 0, bytes.count))
 #import "image"
 #import "math"
 using Vectors :: #import "vec"
@@ -246,4 +248,617 @@ WriteJPEG :: (image: *Image, output: *Vec(u8), quality: s32 = 75) -> bool {
     if writer.count > 0 { Bits(output, *writer, 127, 8 - writer.count) }
     Word(output, 65497)
     return true
+}
+
+#scope_file
+JpegHuff :: struct {
+    counts: [16]s32
+    symbols: [256]u8
+    valid: bool
+}
+
+JpegBuildHuff :: (table: *JpegHuff, counts: []u8, symbols: []u8) -> bool {
+    if counts.count < 16 { return false }
+    total: s32 = 0
+    left: s32 = 1
+    for i: 0..15 {
+        c := cast(s32)counts[i]
+        table.counts[i] = c
+        total += c
+        left = (left << 1) - c
+        if left < 0 { return false }
+    }
+    if total > 256 || symbols.count < total { return false }
+    for i: 0..total - 1 { table.symbols[i] = symbols[i] }
+    table.valid = true
+    return true
+}
+
+JpegReader :: struct {
+    bytes: []u8
+    pos: s64
+    bits: u32
+    count: s32
+    hit_marker: bool
+    corrupt: bool
+}
+
+JpegFillBits :: (r: *JpegReader) {
+    while r.count <= 24 && !r.hit_marker {
+        if r.pos >= r.bytes.count {
+            r.hit_marker = true
+            break
+        }
+        b := r.bytes[r.pos]
+        if b == 255 {
+            if r.pos + 1 >= r.bytes.count {
+                r.hit_marker = true
+                break
+            }
+            b2 := r.bytes[r.pos + 1]
+            if b2 == 0 {
+                r.pos += 2
+                r.bits = (r.bits << 8) | 255
+                r.count += 8
+            } else if b2 == 255 {
+                r.pos += 1
+            } else {
+                r.hit_marker = true
+                break
+            }
+        } else {
+            r.pos += 1
+            r.bits = (r.bits << 8) | cast(u32)b
+            r.count += 8
+        }
+    }
+}
+
+JpegReceive :: (r: *JpegReader, n: s32) -> s32 {
+    if n == 0 { return 0 }
+    if r.count < n { JpegFillBits(r) }
+    if r.count < n {
+        r.corrupt = true
+        return 0
+    }
+    r.count -= n
+    return cast(s32)((r.bits >> cast(u32)r.count) & ((cast(u32)1 << cast(u32)n) - 1))
+}
+
+JpegExtend :: (val: s32, n: s32) -> s32 {
+    if n <= 0 { return 0 }
+    vt := 1 << (n - 1)
+    if val < vt { return val + ((-1) << n) + 1 }
+    return val
+}
+
+JpegDecodeHuff :: (r: *JpegReader, table: *JpegHuff) -> s32 {
+    if !table.valid { r.corrupt = true; return 0 }
+    code: s32 = 0
+    first: s32 = 0
+    index: s32 = 0
+    for len: 0..15 {
+        if r.count < 1 { JpegFillBits(r) }
+        if r.count < 1 { r.corrupt = true; return 0 }
+        r.count -= 1
+        bit := cast(s32)((r.bits >> cast(u32)r.count) & 1)
+        code = (code << 1) | bit
+        c := table.counts[len]
+        if code - c < first {
+            return cast(s32)table.symbols[index + (code - first)]
+        }
+        index += c
+        first = (first + c) << 1
+    }
+    r.corrupt = true
+    return 0
+}
+
+JpegComp :: struct {
+    id: s32
+    h_samp: s32
+    v_samp: s32
+    tq: s32
+    blocks_w: s32
+    blocks_h: s32
+    stride: s32
+    dc_pred: s32
+    coeffs: Vec(s32)
+    pixels: Vec(u8)
+}
+
+JpegClampByte :: (v: float64) -> u8 {
+    n := cast(s32)(ifx v < 0.0 then v - 0.5 else v + 0.5)
+    if n < 0 { return 0 }
+    if n > 255 { return 255 }
+    return cast(u8)n
+}
+
+JpegDecodeBlockSeq :: (r: *JpegReader, dc: *JpegHuff, ac: *JpegHuff, pred: *s32, coeffs: *Vec(s32), base: s64) -> bool {
+    s := JpegDecodeHuff(r, dc)
+    if r.corrupt || s > 15 { return false }
+    diff := ifx s > 0 then JpegExtend(JpegReceive(r, s), s) else 0
+    if r.corrupt { return false }
+    <<pred += diff
+    (<<coeffs)[base] = <<pred
+    k: s32 = 1
+    while k <= 63 {
+        rs := JpegDecodeHuff(r, ac)
+        if r.corrupt { return false }
+        run := (rs >> 4) & 15
+        sz := rs & 15
+        if sz == 0 {
+            if run == 15 { k += 16 }
+            else { break }
+        } else {
+            k += run
+            if k > 63 || sz > 15 { return false }
+            (<<coeffs)[base + k] = JpegExtend(JpegReceive(r, sz), sz)
+            if r.corrupt { return false }
+            k += 1
+        }
+    }
+    return true
+}
+
+JpegDecodeBlockProgDC :: (r: *JpegReader, dc: *JpegHuff, pred: *s32, coeffs: *Vec(s32), base: s64, ah: s32, al: s32) -> bool {
+    if ah == 0 {
+        s := JpegDecodeHuff(r, dc)
+        if r.corrupt || s > 15 { return false }
+        diff := ifx s > 0 then JpegExtend(JpegReceive(r, s), s) else 0
+        if r.corrupt { return false }
+        <<pred += diff
+        (<<coeffs)[base] = <<pred << al
+    } else {
+        bit := JpegReceive(r, 1)
+        if r.corrupt { return false }
+        (<<coeffs)[base] = (<<coeffs)[base] | (bit << al)
+    }
+    return true
+}
+
+JpegDecodeBlockProgACFirst :: (r: *JpegReader, ac: *JpegHuff, eob_run: *s32, coeffs: *Vec(s32), base: s64, ss: s32, se: s32, al: s32) -> bool {
+    if <<eob_run > 0 {
+        <<eob_run -= 1
+        return true
+    }
+    k := ss
+    while k <= se {
+        rs := JpegDecodeHuff(r, ac)
+        if r.corrupt { return false }
+        run := (rs >> 4) & 15
+        sz := rs & 15
+        if sz == 0 {
+            if run == 15 {
+                k += 16
+            } else {
+                <<eob_run = (1 << run) - 1
+                if run > 0 {
+                    <<eob_run += JpegReceive(r, run)
+                    if r.corrupt { return false }
+                }
+                break
+            }
+        } else {
+            k += run
+            if k > se || sz > 15 { return false }
+            (<<coeffs)[base + k] = JpegExtend(JpegReceive(r, sz), sz) << al
+            if r.corrupt { return false }
+            k += 1
+        }
+    }
+    return true
+}
+
+JpegDecodeBlockProgACRefine :: (r: *JpegReader, ac: *JpegHuff, eob_run: *s32, coeffs: *Vec(s32), base: s64, ss: s32, se: s32, al: s32) -> bool {
+    p1 := 1 << al
+    m1 := (-1) << al
+    k := ss
+    if <<eob_run == 0 {
+        while k <= se {
+            rs := JpegDecodeHuff(r, ac)
+            if r.corrupt { return false }
+            run := (rs >> 4) & 15
+            sz := rs & 15
+            val: s32 = 0
+            if sz == 0 {
+                if run < 15 {
+                    <<eob_run = 1 << run
+                    if run > 0 {
+                        <<eob_run += JpegReceive(r, run)
+                        if r.corrupt { return false }
+                    }
+                    break
+                }
+            } else if sz == 1 {
+                bit := JpegReceive(r, 1)
+                if r.corrupt { return false }
+                val = ifx bit != 0 then p1 else m1
+            } else {
+                return false
+            }
+            while k <= se {
+                cur := (<<coeffs)[base + k]
+                if cur != 0 {
+                    bit := JpegReceive(r, 1)
+                    if r.corrupt { return false }
+                    if bit != 0 && (cur & p1) == 0 {
+                        (<<coeffs)[base + k] = cur + (ifx cur > 0 then p1 else m1)
+                    }
+                    k += 1
+                } else {
+                    if run == 0 { break }
+                    run -= 1
+                    k += 1
+                }
+            }
+            if val != 0 && k <= se {
+                (<<coeffs)[base + k] = val
+                k += 1
+            }
+        }
+    }
+    if <<eob_run > 0 {
+        while k <= se {
+            cur := (<<coeffs)[base + k]
+            if cur != 0 {
+                bit := JpegReceive(r, 1)
+                if r.corrupt { return false }
+                if bit != 0 && (cur & p1) == 0 {
+                    (<<coeffs)[base + k] = cur + (ifx cur > 0 then p1 else m1)
+                }
+            }
+            k += 1
+        }
+        <<eob_run -= 1
+    }
+    return true
+}
+
+JpegCheckRestart :: (r: *JpegReader, comps: []JpegComp, eob_run: *s32) {
+    r.bits = 0
+    r.count = 0
+    r.hit_marker = false
+    for c: 0..2 { comps[c].dc_pred = 0 }
+    <<eob_run = 0
+    while r.pos < r.bytes.count && r.bytes[r.pos] == 255 { r.pos += 1 }
+    if r.pos < r.bytes.count && r.bytes[r.pos] >= 208 && r.bytes[r.pos] <= 215 {
+        r.pos += 1
+    } else if r.pos > 0 && r.bytes[r.pos - 1] == 255 {
+        r.pos -= 1
+    }
+}
+
+#scope_export
+// Decodes a baseline or progressive JPEG file's bytes (1-channel greyscale or
+// 3-channel YCbCr with any standard chroma subsampling) into an Image.
+// Returns an invalid Image (see ImageValid) when BYTES is not a supported JPEG.
+ReadJPEG :: (bytes: []u8) -> Image {
+    if bytes.count < 4 || bytes[0] != 255 || bytes[1] != 216 { return NewImage(0, 0) }
+    q_tables: [4][64]s32
+    q_valid: [4]bool
+    dc_huff: [4]JpegHuff
+    ac_huff: [4]JpegHuff
+    unused JpegBuildHuff(*dc_huff[0], DC_LUMINANCE_COUNTS[:], DC_SYMBOLS[:])
+    unused JpegBuildHuff(*dc_huff[1], DC_CHROMINANCE_COUNTS[:], DC_SYMBOLS[:])
+    unused JpegBuildHuff(*ac_huff[0], AC_LUMINANCE_COUNTS[:], AC_LUMINANCE_SYMBOLS[:])
+    unused JpegBuildHuff(*ac_huff[1], AC_CHROMINANCE_COUNTS[:], AC_CHROMINANCE_SYMBOLS[:])
+
+    comps: [3]JpegComp
+    defer {
+        VecFree(comps[0].coeffs); VecFree(comps[0].pixels)
+        VecFree(comps[1].coeffs); VecFree(comps[1].pixels)
+        VecFree(comps[2].coeffs); VecFree(comps[2].pixels)
+    }
+    n_comp: s32 = 0
+    width: s32 = 0
+    height: s32 = 0
+    h_max: s32 = 1
+    v_max: s32 = 1
+    mcu_cols: s32 = 0
+    mcu_rows: s32 = 0
+    restart_interval: s32 = 0
+    have_sof := false
+    progressive := false
+    have_scan := false
+
+    at: s64 = 2
+    while at < bytes.count {
+        while at < bytes.count && bytes[at] != 255 { at += 1 }
+        while at < bytes.count && bytes[at] == 255 { at += 1 }
+        if at >= bytes.count { break }
+        marker := bytes[at]
+        at += 1
+        if marker == 0 || (marker >= 208 && marker <= 215) || marker == 216 { continue }
+        if marker == 217 { break }
+        if at + 2 > bytes.count { return NewImage(0, 0) }
+        seg_len := (cast(s64)bytes[at] << 8) | cast(s64)bytes[at + 1]
+        if seg_len < 2 || at + seg_len > bytes.count { return NewImage(0, 0) }
+        seg_start := at + 2
+        seg_end := at + seg_len
+
+        if marker == 219 {
+            p := seg_start
+            while p < seg_end {
+                pq_tq := bytes[p]
+                p += 1
+                pq := (pq_tq >> 4) & 15
+                tq := pq_tq & 15
+                if tq > 3 || (pq != 0 && pq != 1) { return NewImage(0, 0) }
+                need: s64 = ifx pq == 0 then 64 else 128
+                if p + need > seg_end { return NewImage(0, 0) }
+                for i: 0..63 {
+                    q_tables[tq][i] = ifx pq == 0 then cast(s32)bytes[p + i] else (cast(s32)bytes[p + i * 2] << 8) | cast(s32)bytes[p + i * 2 + 1]
+                }
+                q_valid[tq] = true
+                p += need
+            }
+        } else if marker == 196 {
+            p := seg_start
+            while p < seg_end {
+                if p + 17 > seg_end { return NewImage(0, 0) }
+                tc_th := bytes[p]
+                p += 1
+                tc := (tc_th >> 4) & 15
+                th := tc_th & 15
+                if (tc != 0 && tc != 1) || th > 3 { return NewImage(0, 0) }
+                total: s64 = 0
+                for i: 0..15 { total += cast(s64)bytes[p + i] }
+                if total > 256 || p + 16 + total > seg_end { return NewImage(0, 0) }
+                target := ifx tc == 0 then *dc_huff[th] else *ac_huff[th]
+                if !JpegBuildHuff(target, bytes[p:p + 16], bytes[p + 16:p + 16 + total]) { return NewImage(0, 0) }
+                p += 16 + total
+            }
+        } else if marker == 221 {
+            if seg_len != 4 { return NewImage(0, 0) }
+            restart_interval = (cast(s32)bytes[seg_start] << 8) | cast(s32)bytes[seg_start + 1]
+        } else if marker == 192 || marker == 193 || marker == 194 {
+            if have_sof || seg_len < 8 { return NewImage(0, 0) }
+            prec := bytes[seg_start]
+            height = (cast(s32)bytes[seg_start + 1] << 8) | cast(s32)bytes[seg_start + 2]
+            width = (cast(s32)bytes[seg_start + 3] << 8) | cast(s32)bytes[seg_start + 4]
+            n_comp = cast(s32)bytes[seg_start + 5]
+            if prec != 8 || width <= 0 || height <= 0 || cast(s64)width * height > 67108864 ||
+               (n_comp != 1 && n_comp != 3) || seg_len != 8 + cast(s64)n_comp * 3 { return NewImage(0, 0) }
+            progressive = marker == 194
+            h_max = 1
+            v_max = 1
+            for c: 0..n_comp - 1 {
+                cp := seg_start + 6 + c * 3
+                comps[c].id = cast(s32)bytes[cp]
+                samp := cast(s32)bytes[cp + 1]
+                comps[c].h_samp = (samp >> 4) & 15
+                comps[c].v_samp = samp & 15
+                comps[c].tq = cast(s32)bytes[cp + 2]
+                if comps[c].h_samp < 1 || comps[c].h_samp > 4 ||
+                   comps[c].v_samp < 1 || comps[c].v_samp > 4 || comps[c].tq > 3 { return NewImage(0, 0) }
+                if comps[c].h_samp > h_max { h_max = comps[c].h_samp }
+                if comps[c].v_samp > v_max { v_max = comps[c].v_samp }
+            }
+            if n_comp == 1 {
+                comps[0].h_samp = 1
+                comps[0].v_samp = 1
+                h_max = 1
+                v_max = 1
+            }
+            mcu_cols = (width + 8 * h_max - 1) / (8 * h_max)
+            mcu_rows = (height + 8 * v_max - 1) / (8 * v_max)
+            for c: 0..n_comp - 1 {
+                comps[c].stride = mcu_cols * comps[c].h_samp
+                comps[c].blocks_w = (cast(s32)((cast(s64)width * comps[c].h_samp + h_max - 1) / h_max) + 7) / 8
+                comps[c].blocks_h = (cast(s32)((cast(s64)height * comps[c].v_samp + v_max - 1) / v_max) + 7) / 8
+                total_coeffs := cast(s64)comps[c].stride * (mcu_rows * comps[c].v_samp) * 64
+                if !VecResize(comps[c].coeffs, total_coeffs) { return NewImage(0, 0) }
+                for idx: 0..total_coeffs - 1 { comps[c].coeffs[idx] = 0 }
+            }
+            have_sof = true
+        } else if marker >= 195 && marker <= 207 {
+            return NewImage(0, 0)
+        } else if marker == 218 {
+            if !have_sof || seg_len < 6 { return NewImage(0, 0) }
+            ns := cast(s32)bytes[seg_start]
+            if ns < 1 || ns > n_comp || seg_len != 6 + cast(s64)ns * 2 { return NewImage(0, 0) }
+            scan_comp: [3]s32
+            scan_td: [3]s32
+            scan_ta: [3]s32
+            for j: 0..ns - 1 {
+                cid := cast(s32)bytes[seg_start + 1 + j * 2]
+                td_ta := cast(s32)bytes[seg_start + 2 + j * 2]
+                td := (td_ta >> 4) & 15
+                ta := td_ta & 15
+                if td > 3 || ta > 3 { return NewImage(0, 0) }
+                found: s32 = -1
+                for c: 0..n_comp - 1 {
+                    if comps[c].id == cid { found = c; break }
+                }
+                if found < 0 { return NewImage(0, 0) }
+                scan_comp[j] = found
+                scan_td[j] = td
+                scan_ta[j] = ta
+            }
+            ss := cast(s32)bytes[seg_start + 1 + ns * 2]
+            se := cast(s32)bytes[seg_start + 2 + ns * 2]
+            ah_al := cast(s32)bytes[seg_start + 3 + ns * 2]
+            ah := (ah_al >> 4) & 15
+            al := ah_al & 15
+            if !progressive {
+                if ss != 0 || se != 63 || ah != 0 || al != 0 { return NewImage(0, 0) }
+            } else {
+                if ss < 0 || se > 63 || ss > se || (ss == 0 && se != 0) || (ss > 0 && ns != 1) || al > 13 || ah > 13 { return NewImage(0, 0) }
+            }
+
+            reader: JpegReader
+            reader.bytes = bytes
+            reader.pos = seg_end
+            for c: 0..2 { comps[c].dc_pred = 0 }
+            eob_run: s32 = 0
+            mcu_count: s32 = 0
+
+            if ns == 1 {
+                c := scan_comp[0]
+                td := scan_td[0]
+                ta := scan_ta[0]
+                total_units := comps[c].blocks_w * comps[c].blocks_h
+                for by: 0..comps[c].blocks_h - 1 {
+                    for bx: 0..comps[c].blocks_w - 1 {
+                        if restart_interval > 0 && mcu_count > 0 && (mcu_count % restart_interval) == 0 {
+                            JpegCheckRestart(*reader, comps[:], *eob_run)
+                        }
+                        base := (cast(s64)by * comps[c].stride + bx) * 64
+                        ok := false
+                        if !progressive {
+                            ok = JpegDecodeBlockSeq(*reader, *dc_huff[td], *ac_huff[ta], *comps[c].dc_pred, *comps[c].coeffs, base)
+                        } else if ss == 0 {
+                            ok = JpegDecodeBlockProgDC(*reader, *dc_huff[td], *comps[c].dc_pred, *comps[c].coeffs, base, ah, al)
+                        } else if ah == 0 {
+                            ok = JpegDecodeBlockProgACFirst(*reader, *ac_huff[ta], *eob_run, *comps[c].coeffs, base, ss, se, al)
+                        } else {
+                            ok = JpegDecodeBlockProgACRefine(*reader, *ac_huff[ta], *eob_run, *comps[c].coeffs, base, ss, se, al)
+                        }
+                        if !ok { return NewImage(0, 0) }
+                        mcu_count += 1
+                        unused total_units
+                    }
+                }
+            } else {
+                for mcu_y: 0..mcu_rows - 1 {
+                    for mcu_x: 0..mcu_cols - 1 {
+                        if restart_interval > 0 && mcu_count > 0 && (mcu_count % restart_interval) == 0 {
+                            JpegCheckRestart(*reader, comps[:], *eob_run)
+                        }
+                        for j: 0..ns - 1 {
+                            c := scan_comp[j]
+                            td := scan_td[j]
+                            ta := scan_ta[j]
+                            for by: 0..comps[c].v_samp - 1 {
+                                for bx: 0..comps[c].h_samp - 1 {
+                                    blk_x := mcu_x * comps[c].h_samp + bx
+                                    blk_y := mcu_y * comps[c].v_samp + by
+                                    base := (cast(s64)blk_y * comps[c].stride + blk_x) * 64
+                                    ok := false
+                                    if !progressive {
+                                        ok = JpegDecodeBlockSeq(*reader, *dc_huff[td], *ac_huff[ta], *comps[c].dc_pred, *comps[c].coeffs, base)
+                                    } else {
+                                        ok = JpegDecodeBlockProgDC(*reader, *dc_huff[td], *comps[c].dc_pred, *comps[c].coeffs, base, ah, al)
+                                    }
+                                    if !ok { return NewImage(0, 0) }
+                                }
+                            }
+                        }
+                        mcu_count += 1
+                    }
+                }
+            }
+            have_scan = true
+            at = reader.pos
+            continue
+        }
+        at = seg_end
+    }
+
+    if !have_sof || !have_scan { return NewImage(0, 0) }
+    for c: 0..n_comp - 1 {
+        if !q_valid[comps[c].tq] { return NewImage(0, 0) }
+    }
+
+    basis: [64]float64
+    for x: 0..7 {
+        for u: 0..7 {
+            scale := ifx u == 0 then 0.35355339059327376 else 0.5
+            basis[x * 8 + u] = scale * Cos((2.0 * cast(float64)x + 1.0) * cast(float64)u * 3.14159265358979323846 / 16.0)
+        }
+    }
+
+    for c: 0..n_comp - 1 {
+        pw := comps[c].stride * 8
+        ph := mcu_rows * comps[c].v_samp * 8
+        if !VecResize(comps[c].pixels, cast(s64)pw * ph) { return NewImage(0, 0) }
+        qt := q_tables[comps[c].tq][:]
+        total_blocks_h := mcu_rows * comps[c].v_samp
+        deq: [64]float64
+        tmp: [64]float64
+        for by: 0..total_blocks_h - 1 {
+            for bx: 0..comps[c].stride - 1 {
+                base := (cast(s64)by * comps[c].stride + bx) * 64
+                ac_nonzero := false
+                for k: 1..63 {
+                    if comps[c].coeffs[base + k] != 0 { ac_nonzero = true; break }
+                }
+                if !ac_nonzero {
+                    dc_val := JpegClampByte(cast(float64)(comps[c].coeffs[base] * qt[0]) * 0.125 + 128.0)
+                    for py: 0..7 {
+                        row_off := cast(s64)(by * 8 + py) * pw + bx * 8
+                        for px: 0..7 { comps[c].pixels[row_off + px] = dc_val }
+                    }
+                } else {
+                    for k: 0..63 {
+                        deq[ZIGZAG[k]] = cast(float64)(comps[c].coeffs[base + k] * qt[k])
+                    }
+                    for y: 0..7 {
+                        row := y * 8
+                        for x: 0..7 {
+                            sum: float64 = 0.0
+                            for u: 0..7 { sum += deq[row + u] * basis[x * 8 + u] }
+                            tmp[row + x] = sum
+                        }
+                    }
+                    for y: 0..7 {
+                        row_off := cast(s64)(by * 8 + y) * pw + bx * 8
+                        for x: 0..7 {
+                            sum: float64 = 0.0
+                            for v: 0..7 { sum += tmp[v * 8 + x] * basis[y * 8 + v] }
+                            comps[c].pixels[row_off + x] = JpegClampByte(sum + 128.0)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    result := NewImage(width, height)
+    if n_comp == 1 {
+        pw := comps[0].stride * 8
+        for y: 0..height - 1 {
+            src_row := cast(s64)y * pw
+            dst_row := cast(s64)y * width * 4
+            for x: 0..width - 1 {
+                g := comps[0].pixels[src_row + x]
+                at_px := dst_row + x * 4
+                result.pixels[at_px] = g
+                result.pixels[at_px + 1] = g
+                result.pixels[at_px + 2] = g
+                result.pixels[at_px + 3] = 255
+            }
+        }
+    } else {
+        pw0 := comps[0].stride * 8
+        pw1 := comps[1].stride * 8
+        pw2 := comps[2].stride * 8
+        h0 := comps[0].h_samp; v0 := comps[0].v_samp
+        h1 := comps[1].h_samp; v1 := comps[1].v_samp
+        h2 := comps[2].h_samp; v2 := comps[2].v_samp
+        for y: 0..height - 1 {
+            y0 := (y * v0) / v_max
+            y1 := (y * v1) / v_max
+            y2 := (y * v2) / v_max
+            row0 := cast(s64)y0 * pw0
+            row1 := cast(s64)y1 * pw1
+            row2 := cast(s64)y2 * pw2
+            dst_row := cast(s64)y * width * 4
+            for x: 0..width - 1 {
+                x0 := (x * h0) / h_max
+                x1 := (x * h1) / h_max
+                x2 := (x * h2) / h_max
+                yv := cast(float64)comps[0].pixels[row0 + x0]
+                cb := cast(float64)comps[1].pixels[row1 + x1] - 128.0
+                cr := cast(float64)comps[2].pixels[row2 + x2] - 128.0
+                at_px := dst_row + x * 4
+                result.pixels[at_px] = JpegClampByte(yv + 1.402 * cr)
+                result.pixels[at_px + 1] = JpegClampByte(yv - 0.344136 * cb - 0.714136 * cr)
+                result.pixels[at_px + 2] = JpegClampByte(yv + 1.772 * cb)
+                result.pixels[at_px + 3] = 255
+            }
+        }
+    }
+    return result
 }

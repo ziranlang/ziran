@@ -81,6 +81,204 @@ Scale :: (value: s32, depth: s32) -> u8 {
     return cast(u8)(value * 255 / ((1 << depth) - 1))
 }
 
+PNG_LEN_BASE: [29]s32 = .[3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
+    35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+PNG_LEN_EXTRA: [29]s32 = .[0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
+    3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+PNG_DIST_BASE: [30]s32 = .[1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
+    257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+PNG_DIST_EXTRA: [30]s32 = .[0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
+    7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+PNG_CL_ORDER: [19]s32 = .[16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+
+PngHuff :: struct {
+    counts: [16]s32
+    symbols: [288]s32
+}
+
+PngBuildHuff :: (tree: *PngHuff, lengths: []s32, count: s32) -> bool {
+    for i: 0..15 { tree.counts[i] = 0 }
+    for i: 0..count - 1 {
+        len := lengths[i]
+        if len < 0 || len > 15 { return false }
+        tree.counts[len] += 1
+    }
+    if tree.counts[0] == count { return true }
+    left: s32 = 1
+    for len: 1..15 {
+        left = (left << 1) - tree.counts[len]
+        if left < 0 { return false }
+    }
+    offsets: [16]s32
+     sum: s32 = 0
+    for len: 1..15 {
+        offsets[len] = sum
+        sum += tree.counts[len]
+    }
+    for i: 0..count - 1 {
+        len := lengths[i]
+        if len != 0 {
+            tree.symbols[offsets[len]] = i
+            offsets[len] += 1
+        }
+    }
+    return true
+}
+
+PngBits :: (input: []u8, bit_pos: *s64, count: s32) -> s32 {
+    if count == 0 { return 0 }
+    pos := <<bit_pos
+    if pos + count > input.count * 8 { return -1 }
+    val: s32 = 0
+    for i: 0..count - 1 {
+        b := pos + i
+        bit := (cast(s32)input[b >> 3] >> cast(s32)(b & 7)) & 1
+        val |= bit << i
+    }
+    <<bit_pos = pos + count
+    return val
+}
+
+PngDecodeSym :: (input: []u8, bit_pos: *s64, tree: *PngHuff) -> s32 {
+    pos := <<bit_pos
+    total_bits := input.count * 8
+    code: s32 = 0
+    first: s32 = 0
+    index: s32 = 0
+    for len: 1..15 {
+        if pos >= total_bits { return -1 }
+        bit := (cast(s32)input[pos >> 3] >> cast(s32)(pos & 7)) & 1
+        pos += 1
+        code |= bit
+        count := tree.counts[len]
+        if code - count < first {
+            <<bit_pos = pos
+            return tree.symbols[index + (code - first)]
+        }
+        index += count
+        first = (first + count) << 1
+        code = code << 1
+    }
+    return -1
+}
+
+PngInflate :: (input: []u8, output: *Vec(u8), expected: s64) -> bool {
+    if input.count < 6 || expected < 0 { return false }
+    cmf := cast(u32)input[0]
+    flg := cast(u32)input[1]
+    if (cmf & 15) != 8 || (cmf >> 4) > 7 || ((cmf << 8 | flg) % 31) != 0 || (flg & 32) != 0 { return false }
+    bit_pos: s64 = 16
+    lit_tree: PngHuff
+    dist_tree: PngHuff
+    cl_tree: PngHuff
+    lengths: [320]s32
+    while true {
+        bfinal := PngBits(input, *bit_pos, 1)
+        btype := PngBits(input, *bit_pos, 2)
+        if bfinal < 0 || btype < 0 || btype == 3 { return false }
+        if btype == 0 {
+            bit_pos = (bit_pos + 7) & ~cast(s64)7
+            byte_pos := bit_pos >> 3
+            if byte_pos + 4 > input.count { return false }
+            len := cast(s32)input[byte_pos] | (cast(s32)input[byte_pos + 1] << 8)
+            nlen := cast(s32)input[byte_pos + 2] | (cast(s32)input[byte_pos + 3] << 8)
+            if (len ^ 65535) != nlen { return false }
+            byte_pos += 4
+            if byte_pos + len > input.count || output.count + len > expected { return false }
+            for i: 0..len - 1 { VecPush(<<output, input[byte_pos + i]) }
+            bit_pos = (byte_pos + len) * 8
+        } else {
+            if btype == 1 {
+                for i: 0..143 { lengths[i] = 8 }
+                for i: 144..255 { lengths[i] = 9 }
+                for i: 256..279 { lengths[i] = 7 }
+                for i: 280..287 { lengths[i] = 8 }
+                if !PngBuildHuff(*lit_tree, lengths[0:288], 288) { return false }
+                for i: 0..31 { lengths[i] = 5 }
+                if !PngBuildHuff(*dist_tree, lengths[0:32], 32) { return false }
+            } else {
+                hlit := PngBits(input, *bit_pos, 5)
+                hdist := PngBits(input, *bit_pos, 5)
+                hclen := PngBits(input, *bit_pos, 4)
+                if hlit < 0 || hdist < 0 || hclen < 0 { return false }
+                hlit += 257; hdist += 1; hclen += 4
+                if hlit > 286 || hdist > 30 { return false }
+                cl_lengths: [19]s32
+                for i: 0..hclen - 1 {
+                    v := PngBits(input, *bit_pos, 3)
+                    if v < 0 { return false }
+                    cl_lengths[PNG_CL_ORDER[i]] = v
+                }
+                if !PngBuildHuff(*cl_tree, cl_lengths[:], 19) { return false }
+                total := hlit + hdist
+                idx: s32 = 0
+                while idx < total {
+                    sym := PngDecodeSym(input, *bit_pos, *cl_tree)
+                    if sym < 0 { return false }
+                    if sym < 16 {
+                        lengths[idx] = sym
+                        idx += 1
+                    } else if sym == 16 {
+                        if idx == 0 { return false }
+                        rep := PngBits(input, *bit_pos, 2)
+                        if rep < 0 || idx + rep + 3 > total { return false }
+                        prev := lengths[idx - 1]
+                        for r: 0..rep + 2 { lengths[idx] = prev; idx += 1 }
+                    } else if sym == 17 {
+                        rep := PngBits(input, *bit_pos, 3)
+                        if rep < 0 || idx + rep + 3 > total { return false }
+                        for r: 0..rep + 2 { lengths[idx] = 0; idx += 1 }
+                    } else {
+                        rep := PngBits(input, *bit_pos, 7)
+                        if rep < 0 || idx + rep + 11 > total { return false }
+                        for r: 0..rep + 10 { lengths[idx] = 0; idx += 1 }
+                    }
+                }
+                if lengths[256] == 0 { return false }
+                if !PngBuildHuff(*lit_tree, lengths[0:hlit], hlit) { return false }
+                if !PngBuildHuff(*dist_tree, lengths[hlit:hlit + hdist], hdist) { return false }
+            }
+            while true {
+                sym := PngDecodeSym(input, *bit_pos, *lit_tree)
+                if sym < 0 { return false }
+                if sym < 256 {
+                    if output.count >= expected { return false }
+                    VecPush(<<output, cast(u8)sym)
+                } else if sym == 256 {
+                    break
+                } else {
+                    len_idx := sym - 257
+                    if len_idx < 0 || len_idx >= 29 { return false }
+                    extra := PngBits(input, *bit_pos, PNG_LEN_EXTRA[len_idx])
+                    if extra < 0 { return false }
+                    length := PNG_LEN_BASE[len_idx] + extra
+                    dist_sym := PngDecodeSym(input, *bit_pos, *dist_tree)
+                    if dist_sym < 0 || dist_sym >= 30 { return false }
+                    dist_extra := PngBits(input, *bit_pos, PNG_DIST_EXTRA[dist_sym])
+                    if dist_extra < 0 { return false }
+                    dist := PNG_DIST_BASE[dist_sym] + dist_extra
+                    if dist > output.count || output.count + length > expected { return false }
+                    for i: 0..length - 1 {
+                        b := (<<output)[output.count - dist]
+                        VecPush(<<output, b)
+                    }
+                }
+            }
+        }
+        if bfinal == 1 { break }
+    }
+    byte_pos := (bit_pos + 7) >> 3
+    if byte_pos + 4 != input.count || output.count != expected { return false }
+    s1: u32 = 1
+    s2: u32 = 0
+    for i: 0..output.count - 1 {
+        s1 = (s1 + cast(u32)(<<output)[i]) % 65521
+        s2 = (s2 + s1) % 65521
+    }
+    adler := (s2 << 16) | s1
+    return adler == Big32(input, byte_pos)
+}
+
 #scope_export
 // The picture a whole PNG file's bytes hold; an invalid Image (see
 // ImageValid) when they are not a PNG this reads.
@@ -95,6 +293,7 @@ ReadPNG :: (bytes: []u8) -> Image {
     transparent := false
     key: [3]s32
     packed: Vec(u8)
+    defer VecFree(packed)
     at: s64 = 8
     ended := false
     while at + 12 <= bytes.count {
@@ -172,7 +371,8 @@ ReadPNG :: (bytes: []u8) -> Image {
         if width > 0 && height > 0 { expected += cast(s64)height * (RowBytes(header, width) + 1) }
     }
     data: Vec(u8)
-    if !ZlibDecompress(VecSlice(packed, 0, packed.count), *data, expected) || data.count != expected { return NewImage(0, 0) }
+    defer VecFree(data)
+    if !PngInflate(VecSlice(packed, 0, packed.count), *data, expected) || data.count != expected { return NewImage(0, 0) }
     result := NewImage(header.width, header.height)
     step := cast(s64)((header.channels * header.depth + 7) / 8)
     offset: s64 = 0
@@ -193,13 +393,13 @@ ReadPNG :: (bytes: []u8) -> Image {
         previous: s64 = -1
         for y: 0..height - 1 {
             row := offset + 1
-            if !Unfilter(*data, row, previous, size, step, data[offset]) { return NewImage(0, 0) }
+            if !Unfilter(*data, row, previous, size, step, data[offset]) { VecFree(result.pixels); return NewImage(0, 0) }
             for x: 0..width - 1 {
                 to := (cast(s64)(start_y + y * step_y) * header.width + start_x + x * step_x) * 4
                 depth := header.depth
                 if header.color == 3 {
                     entry := Sample(*data, row, x, depth)
-                    if entry >= palette_count { return NewImage(0, 0) }
+                    if entry >= palette_count { VecFree(result.pixels); return NewImage(0, 0) }
                     for channel: 0..3 { result.pixels[to + channel] = palette[entry][channel] }
                 } else if header.color == 0 || header.color == 4 {
                     grey := Sample(*data, row, cast(s64)x * header.channels, depth)
@@ -346,6 +546,7 @@ WriteIndexedPNG :: (image: *IndexedImage, output: *Vec(u8), level: s32 = 9) -> b
 // The picture in a PNG file; invalid when it cannot be read.
 ReadPNGFile :: (path: string) -> Image {
     bytes: Vec(u8)
+    defer VecFree(bytes)
     if !ReadFileInto(path, *bytes) { return NewImage(0, 0) }
     return ReadPNG(VecSlice(bytes, 0, bytes.count))
 }

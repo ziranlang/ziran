@@ -1,0 +1,70 @@
+#import "base64"
+using Vectors :: #import "vec"
+
+CheckDecode :: (encoded: string, expected: string) -> bool {
+    ok := false
+    decoded := Base64Decode(encoded, *ok)
+    return ok && decoded == expected
+}
+
+// RFC 4648 test vectors ("", "f", "fo", "foo", "foob", "fooba", "foobar"),
+// whitespace tolerance, URL-safe alphabet and rejection of malformed inputs.
+#program_export
+SelfTest :: () -> s32 {
+    empty_vec: Vec(u8)
+    if Base64Encode(VecSlice(empty_vec, 0, 0)) != "" { return 1 }
+
+    f1: [1]u8 = .[#char "f"]
+    f2: [2]u8 = .[#char "f", #char "o"]
+    f3: [3]u8 = .[#char "f", #char "o", #char "o"]
+    f4: [4]u8 = .[#char "f", #char "o", #char "o", #char "b"]
+    f5: [5]u8 = .[#char "f", #char "o", #char "o", #char "b", #char "a"]
+    f6: [6]u8 = .[#char "f", #char "o", #char "o", #char "b", #char "a", #char "r"]
+    if Base64Encode(f1[:]) != "Zg==" ||
+       Base64Encode(f2[:]) != "Zm8=" ||
+       Base64Encode(f3[:]) != "Zm9v" ||
+       Base64Encode(f4[:]) != "Zm9vYg==" ||
+       Base64Encode(f5[:]) != "Zm9vYmE=" ||
+       Base64Encode(f6[:]) != "Zm9vYmFy" {
+        return 2
+    }
+
+    if !CheckDecode("", "") ||
+       !CheckDecode("Zg==", "f") ||
+       !CheckDecode("Zm8=", "fo") ||
+       !CheckDecode("Zm9v", "foo") ||
+       !CheckDecode("Zm9vYg==", "foob") ||
+       !CheckDecode("Zm9vYmE=", "fooba") ||
+       !CheckDecode("Zm9v\r\n YmFy\t", "foobar") {
+        return 3
+    }
+
+    // URL-safe '-' (62) and '_' (63) decode to 0xfb, 0xff, 0xbf.
+    raw_url: [3]u8 = .[251, 255, 191]
+    if Base64Encode(raw_url[:]) != "+/+/" { return 4 }
+    url_out: Vec(u8)
+    defer VecFree(url_out)
+    if !Base64DecodeInto("-_-_", *url_out) || url_out.count != 3 ||
+       url_out[0] != 251 || url_out[1] != 255 || url_out[2] != 191 {
+        return 5
+    }
+
+    // Malformed inputs are rejected and leave output untouched.
+    before := url_out.count
+    bad_ok := true
+    bad_text := Base64Decode("Zm$v", *bad_ok)
+    if Base64DecodeInto("A", *url_out) ||
+       Base64DecodeInto("AB", *url_out) ||
+       Base64DecodeInto("ABC", *url_out) ||
+       Base64DecodeInto("====", *url_out) ||
+       Base64DecodeInto("A===", *url_out) ||
+       Base64DecodeInto("Zg==Zg==", *url_out) ||
+       Base64DecodeInto("Zm=v", *url_out) ||
+       Base64DecodeInto("Zm$v", *url_out) ||
+       bad_ok || bad_text != "" ||
+       url_out.count != before {
+        return 6
+    }
+
+    return 42
+}

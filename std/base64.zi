@@ -1,0 +1,132 @@
+// RFC 4648 base64 encoding and decoding on every target, for data: URIs,
+// embedded binary payloads and wire protocols.
+//
+//     bytes: Vec(u8)
+//     if !Base64DecodeInto(encoded, *bytes) { ... }
+//     text := Base64Encode(VecSlice(bytes, 0, bytes.count))
+using Vectors :: #import "vec"
+
+#scope_file
+Space :: (byte: u8) -> bool {
+    return byte == 32 || byte == 9 || byte == 10 || byte == 13
+}
+
+Sextet :: (byte: u8) -> s32 {
+    if byte >= #char "A" && byte <= #char "Z" { return cast(s32)(byte - #char "A") }
+    if byte >= #char "a" && byte <= #char "z" { return cast(s32)(byte - #char "a") + 26 }
+    if byte >= #char "0" && byte <= #char "9" { return cast(s32)(byte - #char "0") + 52 }
+    if byte == #char "+" || byte == #char "-" { return 62 }
+    if byte == #char "/" || byte == #char "_" { return 63 }
+    return -1
+}
+
+#scope_export
+// Appends the standard padded RFC 4648 base64 encoding of BYTES to OUTPUT.
+#program_export
+Base64EncodeInto :: (bytes: []u8, output: *Vec(u8)) {
+    alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    at: s64 = 0
+    while at + 3 <= bytes.count {
+        b0 := cast(u32)bytes[at]
+        b1 := cast(u32)bytes[at + 1]
+        b2 := cast(u32)bytes[at + 2]
+        word := (b0 << 16) | (b1 << 8) | b2
+        VecPush(<<output, alphabet[(word >> 18) & 63])
+        VecPush(<<output, alphabet[(word >> 12) & 63])
+        VecPush(<<output, alphabet[(word >> 6) & 63])
+        VecPush(<<output, alphabet[word & 63])
+        at += 3
+    }
+    remaining := bytes.count - at
+    if remaining == 1 {
+        b0 := cast(u32)bytes[at]
+        VecPush(<<output, alphabet[(b0 >> 2) & 63])
+        VecPush(<<output, alphabet[(b0 << 4) & 63])
+        VecPush(<<output, #char "=")
+        VecPush(<<output, #char "=")
+    } else if remaining == 2 {
+        b0 := cast(u32)bytes[at]
+        b1 := cast(u32)bytes[at + 1]
+        word := (b0 << 8) | b1
+        VecPush(<<output, alphabet[(word >> 10) & 63])
+        VecPush(<<output, alphabet[(word >> 4) & 63])
+        VecPush(<<output, alphabet[(word << 2) & 63])
+        VecPush(<<output, #char "=")
+    }
+}
+
+// The standard padded RFC 4648 base64 text for BYTES.
+#program_export
+Base64Encode :: (bytes: []u8) -> Text {
+    output: Vec(u8)
+    Base64EncodeInto(bytes, *output)
+    return BuilderFinish(output)
+}
+
+// Appends the bytes decoded from TEXT to OUTPUT. Accepts standard (+/) and
+// URL-safe (-_) alphabets and skips ASCII whitespace; refuses bad characters,
+// truncated groups or misplaced '=' padding.
+#program_export
+Base64DecodeInto :: (text: string, output: *Vec(u8)) -> bool {
+    start := output.count
+    quad: [4]s32
+    pads: s32 = 0
+    in_quad: s32 = 0
+    padded := false
+    for index: 0..text.count - 1 {
+        byte := text[index]
+        if Space(byte) { continue }
+        if padded {
+            output.count = start
+            return false
+        }
+        if byte == #char "=" {
+            if in_quad < 2 {
+                output.count = start
+                return false
+            }
+            quad[in_quad] = 0
+            pads += 1
+            in_quad += 1
+        } else {
+            if pads > 0 {
+                output.count = start
+                return false
+            }
+            value := Sextet(byte)
+            if value < 0 {
+                output.count = start
+                return false
+            }
+            quad[in_quad] = value
+            in_quad += 1
+        }
+        if in_quad == 4 {
+            word := (cast(u32)quad[0] << 18) | (cast(u32)quad[1] << 12) | (cast(u32)quad[2] << 6) | cast(u32)quad[3]
+            VecPush(<<output, cast(u8)((word >> 16) & 255))
+            if pads < 2 { VecPush(<<output, cast(u8)((word >> 8) & 255)) }
+            if pads == 0 { VecPush(<<output, cast(u8)(word & 255)) }
+            else { padded = true }
+            in_quad = 0
+            pads = 0
+        }
+    }
+    if in_quad != 0 {
+        output.count = start
+        return false
+    }
+    return true
+}
+
+// Decodes TEXT into byte text and sets OK to whether TEXT was valid base64.
+#program_export
+Base64Decode :: (text: string, ok: *bool) -> Text {
+    output: Vec(u8)
+    valid := Base64DecodeInto(text, *output)
+    if ok != null { <<ok = valid }
+    if !valid {
+        VecFree(output)
+        return TextCopy("")
+    }
+    return BuilderFinish(output)
+}

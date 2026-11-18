@@ -94,7 +94,6 @@ void NativeInstanceClose(NativeInstance *instance) { (void)instance; }
 #include <link.h>
 #include <pthread.h>
 #include <sys/stat.h>
-#include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -1441,6 +1440,31 @@ native_pointers_open(NativeInstance *instance, MachineImage image, unsigned char
 
 /* ---- Running ------------------------------------------------------------- */
 
+/* pthread_getattr_np may scan /proc for the main thread, so each thread keeps
+ * its one stack range, never an instance limit: the depth cap still follows
+ * each entry's frame, and a switched or alternate stack misses the range.
+ * Linux derives the main stack's bottom from RLIMIT_STACK. Checking that
+ * limit on every entry costs a system call, most of a warm entry, so a
+ * forked child forgets the range it inherited and looks it up again under
+ * its own limit; a host that lowers the limit in place does so before the
+ * thread's first entry. Failed queries and fallback limits are not kept. */
+static _Thread_local struct {
+    uintptr_t bottom;
+    size_t size;
+} native_stack_range;
+
+static void
+native_stack_forget(void)
+{
+    native_stack_range.size = 0;
+}
+
+static void
+native_stack_watch_forks(void)
+{
+    (void)pthread_atfork(NULL, NULL, native_stack_forget);
+}
+
 /* The lowest stack address generated code may reach on this thread, leaving
  * NATIVE_STACK_RESERVE for host calls and the C runtime. */
 static uintptr_t
@@ -1448,38 +1472,25 @@ native_stack_limit(void)
 {
     uintptr_t here = (uintptr_t)__builtin_frame_address(0);
     uintptr_t floor = here > NATIVE_STACK_MAXIMUM ? here - NATIVE_STACK_MAXIMUM : 0;
-    /* pthread_getattr_np may scan /proc for the main thread. Keep only one
-     * range per thread, never an instance limit: the depth cap above must
-     * still follow each entry's frame. A switched/alternate stack misses.
-     * Linux derives the main stack's bottom from RLIMIT_STACK, which hosts
-     * may reduce between entries, so validate that inexpensive value too.
-     * Failed queries and fallback limits are deliberately not cached. */
-    static _Thread_local struct {
-        uintptr_t bottom;
-        size_t size;
-        rlim_t stack_size;
-    } cached;
-    struct rlimit resource;
-    int have_resource = getrlimit(RLIMIT_STACK, &resource) == 0;
     void *low = NULL;
     size_t size = 0;
-    if(have_resource && cached.size != 0 && cached.stack_size == resource.rlim_cur &&
-       here > cached.bottom && here - cached.bottom <= cached.size) {
-        low = (void *)cached.bottom;
-        size = cached.size;
+    if(native_stack_range.size != 0 && here > native_stack_range.bottom &&
+       here - native_stack_range.bottom <= native_stack_range.size) {
+        low = (void *)native_stack_range.bottom;
+        size = native_stack_range.size;
     } else {
+        static pthread_once_t watching = PTHREAD_ONCE_INIT;
+        (void)pthread_once(&watching, native_stack_watch_forks);
         pthread_attr_t attributes;
-        /* Invalidate even on failure, including a changed resource limit. */
-        cached.size = 0;
+        native_stack_range.size = 0;
         if(pthread_getattr_np(pthread_self(), &attributes) == 0) {
             if(pthread_attr_getstack(&attributes, &low, &size) != 0) low = NULL;
             pthread_attr_destroy(&attributes);
         }
-        if(have_resource && low != NULL && size > NATIVE_STACK_RESERVE &&
+        if(low != NULL && size > NATIVE_STACK_RESERVE &&
            here > (uintptr_t)low && here - (uintptr_t)low <= size) {
-            cached.bottom = (uintptr_t)low;
-            cached.stack_size = resource.rlim_cur;
-            cached.size = size;
+            native_stack_range.bottom = (uintptr_t)low;
+            native_stack_range.size = size;
         }
     }
     uintptr_t bottom = (uintptr_t)low;

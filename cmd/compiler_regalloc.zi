@@ -113,6 +113,9 @@ Alloc :: struct {
     param_edges: Vec(s32)
     param_source: Vec(s32)
     param_pred: Vec(s32)
+    // The block parameter a value is passed to on an edge, preferring a
+    // back edge's, or -1.
+    copy_target: Vec(s32)
     param_begin: Vec(s32)
     param_list: Vec(s32)
     def_item: Vec(s32)
@@ -458,6 +461,7 @@ ResetFunction :: (state: *Alloc) -> bool {
         !VecResizeBounded(state.param_begin, blocks + 1, bound) ||
         !VecResizeBounded(state.param_block, count, bound) || !VecResizeBounded(state.param_edges, count, bound) ||
         !VecResizeBounded(state.param_source, count, bound) || !VecResizeBounded(state.param_pred, count, bound) ||
+        !VecResizeBounded(state.copy_target, count, bound) ||
         !VecResizeBounded(state.def_item, count, bound) || !VecResizeBounded(state.used, count, bound) ||
         !VecResizeBounded(state.root_of, count, bound) ||
         !VecResizeBounded(state.value_storage, count, bound) ||
@@ -473,6 +477,7 @@ ResetFunction :: (state: *Alloc) -> bool {
         state.param_edges[index] = 0
         state.param_source[index] = MachineNoId
         state.param_pred[index] = MachineNoId
+        state.copy_target[index] = MachineNoId
         state.def_item[index] = MachineNoId
         state.used[index] = 0
         state.root_of[index] = MachineNoId
@@ -523,6 +528,11 @@ CollectParameters :: (state: *Alloc) -> bool {
                         state.param_pred[destination] = block_id - function.block_begin
                     }
                     state.param_edges[destination] += 1
+                    // A back edge's parameter is assigned before the value, so it wins.
+                    source := Local(state, copy.source)
+                    if state.copy_target[source] == MachineNoId || target <= block_id - function.block_begin {
+                        state.copy_target[source] = copy.destination
+                    }
                 }
             }
         }
@@ -1082,6 +1092,19 @@ BuildIntervals :: (state: *Alloc) -> bool {
         if root == MachineNoId || source == MachineNoId || !AllocatedValue(state, source) { continue }
         state.intervals[root].hint_value = source
         state.intervals[root].hint_position = state.block_end[state.param_pred[local]] * 2
+    }
+    // A value an edge passes on prefers its parameter's register once that
+    // is assigned, as on a back edge: a loop-carried value is made where the
+    // next iteration expects it, and the edge needs no copy.
+    for local: 0..function.virtual_count - 1 {
+        root := state.root_of[local]
+        target := state.copy_target[local]
+        if root == MachineNoId || target == MachineNoId || state.intervals[root].hint_value != MachineNoId ||
+            !AllocatedValue(state, target) { continue }
+        block := state.param_block[Local(state, target)]
+        if block == MachineNoId { continue }
+        state.intervals[root].hint_value = target
+        state.intervals[root].hint_position = state.block_start[block] * 2 + 1
     }
     // Static hints from fixed transfers.
     for index: cast(s64)0..state.items.count - 1 {
@@ -2453,6 +2476,7 @@ FreeScratch :: (state: *Alloc) {
     VecFree(state.param_edges)
     VecFree(state.param_source)
     VecFree(state.param_pred)
+    VecFree(state.copy_target)
     VecFree(state.param_begin)
     VecFree(state.param_list)
     VecFree(state.def_item)

@@ -1290,6 +1290,79 @@ VectorCases :: () -> bool {
 }
 
 // Reused row indices must survive additions without copies into tied temporaries.
+// acc += leaf() in a counted loop. The sum is made in the register the
+// loop's parameter holds, so the back edge carries no copy, as the
+// accumulator of a rewritten Fib needs.
+BackEdgeCase :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    storage: [48]s32
+    at: s64 = 0
+    leaf_values := s32.[TypeInteger]
+    leaf_parameters := s32.[TypeInteger]
+    leaf_entry := s32.[0]
+    leaf_body := Lir.LirInstruction.[Fuel(1), Return(One(storage[:], *at, 0))]
+    leaf_blocks := Lir.LirBlock.[.{parameters = leaf_entry[:], instructions = leaf_body[:]}]
+    // The shape the accumulator pass leaves for Fib: b1 tests once, b2 is
+    // its own latch, and both pass the sum to the exit b3 first.
+    values: [17]s32
+    for v: 0..16 { values[v] = TypeInteger }
+    values[1] = TypeBool; values[16] = TypeBool
+    parameters := s32.[TypeInteger]
+    entry_parameters := s32.[0]
+    loop_parameters := s32.[13, 14]
+    exit_parameters := s32.[11, 12]
+    to_test := Lir.LirEdge.[.{block = 1}]
+    first := Lir.LirEdge.[.{block = 3, arguments = Two(storage[:], *at, 0, 8)},
+        .{block = 2, arguments = Two(storage[:], *at, 0, 8)}]
+    latch := Lir.LirEdge.[.{block = 3, arguments = Two(storage[:], *at, 6, 7)},
+        .{block = 2, arguments = Two(storage[:], *at, 6, 7)}]
+    entry := Lir.LirInstruction.[Fuel(1), Constant(8, 0), Jump(to_test[:])]
+    test := Lir.LirInstruction.[Constant(9, 1), Op(.Less, 1, Two(storage[:], *at, 0, 9)),
+        .{op = .Branch, result = -1, operands = One(storage[:], *at, 1), edges = first[:], symbol = -1, origin = -1}]
+    body := Lir.LirInstruction.[Constant(2, 1), Op(.Subtract, 3, Two(storage[:], *at, 13, 2)),
+        Call(4, 1, One(storage[:], *at, 3), 1), Constant(5, 1), Op(.Subtract, 6, Two(storage[:], *at, 13, 5)),
+        Op(.Add, 7, Two(storage[:], *at, 14, 4)), Fuel(2), Constant(15, 1),
+        Op(.Less, 16, Two(storage[:], *at, 6, 15)),
+        .{op = .Branch, result = -1, operands = One(storage[:], *at, 16), edges = latch[:], symbol = -1, origin = -1}]
+    exit := Lir.LirInstruction.[Op(.Add, 10, Two(storage[:], *at, 12, 11)), Return(One(storage[:], *at, 10))]
+    blocks := Lir.LirBlock.[.{parameters = entry_parameters[:], instructions = entry[:]}, .{instructions = test[:]},
+        .{parameters = loop_parameters[:], instructions = body[:]}, .{parameters = exit_parameters[:], instructions = exit[:]}]
+    functions := Lir.LirFunction.[
+        .{module = 0, name = "leaf", parameters = leaf_parameters[:], result = TypeInteger, values = leaf_values[:],
+            blocks = leaf_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "accumulate", parameters = parameters[:], result = TypeInteger, values = values[:],
+            blocks = blocks[:], entry = 0, origin = -1}]
+    if !Lowered("back edge", LowerProgram(*owner, functions[:], -1)) || !Allocate("back edge", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "back edge allocation verifies") { return false }
+    // The loop is LIR block 2; its back edge runs through a split block
+    // whose jump returns to it. Only same-register moves may stay there.
+    function := program.functions[1]
+    loop := function.block_begin + 2
+    moved: s32 = 0
+    looped := false
+    loop_block := program.blocks[loop]
+    term := program.instructions[loop_block.instruction_begin + loop_block.instruction_count - 1]
+    for e: term.edge_begin..term.edge_begin + term.edge_count - 1 {
+        split := program.blocks[program.edges[e].target]
+        last := program.instructions[split.instruction_begin + split.instruction_count - 1]
+        back := false
+        for f: last.edge_begin..last.edge_begin + last.edge_count - 1 {
+            if program.edges[f].target == loop { back = true }
+        }
+        if !back || program.edges[e].target == loop { continue }
+        looped = true
+        for i: split.instruction_begin..split.instruction_begin + split.instruction_count - 1 {
+            instruction := program.instructions[i]
+            if instruction.opcode == .Move &&
+                program.operands[instruction.operand_begin].id != program.operands[instruction.operand_begin + 1].id { moved += 1 }
+        }
+    }
+    if !Check(looped, "the back edge runs through its own block") { return false }
+    return Check(moved == 0, "a loop-carried sum is made in its parameter's register")
+}
+
 IndependentAddCase :: () -> bool {
     owner: Machine.MachineOwner
     defer Lower.MachineFree(*owner)
@@ -1381,7 +1454,7 @@ KnownFloatCalls :: () -> bool {
 }
 
 main :: () -> s32 {
-    if !KnownFloatCalls() || !IndependentAddCase() || !BackwardDefinitionCase() || !LiveThroughCases() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+    if !KnownFloatCalls() || !BackEdgeCase() || !IndependentAddCase() || !BackwardDefinitionCase() || !LiveThroughCases() || !PressureCases() || !MergedSpillCases() || !ColdJoinCases() || !MergedSpillLimitCase() || !CallCases() || !UnusedFixedResultCase() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
         !VectorCases() { return 1 }
     print("register allocation: merged float/vector spills in both block orders, work limits, pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
     return 0

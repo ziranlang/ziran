@@ -214,6 +214,10 @@ struct NativeInstance {
     int terminal;
     /* Code without fuel checks: no step limit can apply. */
     int unbounded;
+    /* For each function: its host capability's index, or -1; and the
+     * platform service it names, resolved once instead of per call. */
+    int32_t *capabilities;
+    unsigned char *services;
     /* Built with --checks: pointers are tokens of the slot table. */
     int checked;
     /* The read-only constants beside the code. */
@@ -1040,10 +1044,12 @@ round_eight(size_t value)
     return value <= SIZE_MAX - 7 ? (value + 7) & ~(size_t)7 : 0;
 }
 
+/* Up to LOCAL_COUNT arguments go in LOCAL; more are allocated, and the
+ * caller frees *VALUES when it is not LOCAL. */
 static int
 native_arguments(NativeInstance *instance, int32_t function,
-                 NativeAbiFrame *frame, ExecHostNativeValue **values,
-                 size_t *count, unsigned char **aggregate_result)
+                 NativeAbiFrame *frame, ExecHostNativeValue *local, size_t local_count,
+                 ExecHostNativeValue **values, size_t *count, unsigned char **aggregate_result)
 {
     const LirProgram *program = ExecBundleProgram(instance->bundle);
     if(function < 0 || function >= program->functions.length)
@@ -1053,8 +1059,11 @@ native_arguments(NativeInstance *instance, int32_t function,
     const LirType *types = program->types.data;
     const int32_t *parameters = declared->parameters.data;
     size_t parameters_count = (size_t)declared->parameters.length;
-    ExecHostNativeValue *arguments =
-        calloc(parameters_count ? parameters_count : 1, sizeof(*arguments));
+    ExecHostNativeValue *arguments = local;
+    if(parameters_count > local_count)
+        arguments = calloc(parameters_count, sizeof(*arguments));
+    else
+        memset(local, 0, parameters_count * sizeof(*local));
     if(arguments == NULL) return 0;
     int general = 0, floating = 0;
     size_t stack = 0;
@@ -1064,7 +1073,7 @@ native_arguments(NativeInstance *instance, int32_t function,
        result->kind == LirTypeKind_Record) {
         *aggregate_result = frame->result_address;
         if(*aggregate_result == NULL) {
-            free(arguments);
+            if(arguments != local) free(arguments);
             return 0;
         }
     }
@@ -1102,16 +1111,27 @@ native_arguments(NativeInstance *instance, int32_t function,
     *count = parameters_count;
     return 1;
 failed:
-    free(arguments);
+    if(arguments != local) free(arguments);
     return 0;
 }
 
+/* Decimal digits of VALUE at the end of TEXT[20]; returns where they start. */
+static char *
+native_digits(char *end, uint64_t value)
+{
+    do {
+        *--end = (char)('0' + value % 10);
+        value /= 10;
+    } while(value != 0);
+    return end;
+}
+
 static int
-native_platform_call(NativeInstance *instance, int32_t function,
+native_platform_call(NativeInstance *instance, int service,
                      ExecHostNativeValue *arguments, size_t count,
                      ExecHostNativeValue *result)
 {
-    int service = ZxPlatformService(ExecBundleProgram(instance->bundle), function);
+    (void)instance;
     result->bits = 0;
     if(service == ZX_SERVICE_PRINT_BYTES) {
         if(count != 3 ||
@@ -1133,12 +1153,15 @@ native_platform_call(NativeInstance *instance, int32_t function,
     }
     if(count != 1) return 0;
     char text[64];
-    if(service == ZX_SERVICE_PRINT_SIGNED)
-        snprintf(text, sizeof(text), "%lld", (long long)arguments[0].bits);
-    else if(service == ZX_SERVICE_PRINT_UNSIGNED)
-        snprintf(text, sizeof(text), "%llu",
-                 (unsigned long long)arguments[0].bits);
-    else if(service == ZX_SERVICE_PRINT_BOOL)
+    if(service == ZX_SERVICE_PRINT_SIGNED || service == ZX_SERVICE_PRINT_UNSIGNED) {
+        uint64_t magnitude = arguments[0].bits;
+        int negative = service == ZX_SERVICE_PRINT_SIGNED && (int64_t)magnitude < 0;
+        if(negative) magnitude = ~magnitude + 1;
+        char *start = native_digits(text + sizeof(text), magnitude);
+        if(negative) *--start = '-';
+        size_t length = (size_t)(text + sizeof(text) - start);
+        return fwrite(start, 1, length, stdout) == length;
+    } else if(service == ZX_SERVICE_PRINT_BOOL)
         snprintf(text, sizeof(text), "%s",
                  arguments[0].bits ? "true" : "false");
     else if(service == ZX_SERVICE_PRINT_FLOAT32) {
@@ -1160,21 +1183,20 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
 {
     if(instance == NULL || frame == NULL || instance->active == NULL)
         abort();
-    ExecHostNativeValue *arguments = NULL, returned = {0};
+    ExecHostNativeValue local[8], *arguments = NULL, returned = {0};
     size_t count = 0;
     unsigned char *aggregate_result = NULL;
-    if(!native_arguments(instance, function, frame, &arguments, &count,
+    if(!native_arguments(instance, function, frame, local, 8, &arguments, &count,
                          &aggregate_result))
         NativeTrap(instance, NATIVE_TRAP_HOST, 0);
-    size_t host = 0;
     int ok;
-    if(capability_index(instance->bundle, function, &host))
-        ok = ExecHostsCallNative(instance->hosts, host, arguments, count,
-                                 &returned);
+    if(instance->capabilities[function] >= 0)
+        ok = ExecHostsCallNative(instance->hosts, (size_t)instance->capabilities[function],
+                                 arguments, count, &returned);
     else
-        ok = native_platform_call(instance, function, arguments, count,
+        ok = native_platform_call(instance, instance->services[function], arguments, count,
                                   &returned);
-    free(arguments);
+    if(arguments != local) free(arguments);
     if(!ok)
         NativeTrap(instance, NATIVE_TRAP_HOST, 0);
     const LirProgram *program = ExecBundleProgram(instance->bundle);
@@ -1605,6 +1627,16 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     instance->bundle = bundle;
     instance->hosts = ExecHostsOpen(bundle, (ExecFindBinding)find, context);
     if(instance->hosts == NULL) goto failed;
+    const LirProgram *lir = ExecBundleProgram(bundle);
+    size_t function_count = lir != NULL ? (size_t)lir->functions.length : 0;
+    instance->capabilities = calloc(function_count ? function_count : 1, sizeof(*instance->capabilities));
+    instance->services = calloc(function_count ? function_count : 1, sizeof(*instance->services));
+    if(instance->capabilities == NULL || instance->services == NULL) goto failed;
+    for(size_t at = 0; at < function_count; at++) {
+        size_t host = 0;
+        instance->capabilities[at] = capability_index(bundle, (int32_t)at, &host) ? (int32_t)host : -1;
+        instance->services[at] = (unsigned char)ZxPlatformService(lir, (int64_t)at);
+    }
     size_t page = ZirNativePageSize();
     size_t code_size = (size_t)image.code.bytes.length;
     size_t stubs = (size_t)image.relocations.length;
@@ -1900,6 +1932,8 @@ NativeInstanceClose(NativeInstance *instance)
         chunk = next;
     }
     ExecHostsClose(instance->hosts);
+    free(instance->capabilities);
+    free(instance->services);
     ZirNativeRelease(&instance->pointers);
     ZirNativeRelease(&instance->arena);
     free(instance);

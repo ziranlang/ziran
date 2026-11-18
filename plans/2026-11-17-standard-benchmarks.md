@@ -241,6 +241,20 @@ counted one `write` per entry. Against master on Alpha, µs per call
 Unbounded code also took 24% off dijkstra, 14% off fannkuch-redux, 11% off
 binary-trees and 7% off nqueens and JSON round trips.
 
-Still open: arrays, enums and loops are mostly printing and remain 3–5×
-slower than C. Next, the print path: formatting and each host call.
+Each host call then resolved its route by scanning capabilities and
+comparing service names, allocated its arguments, and formatted integers
+with `snprintf`. Resolving routes once, keeping arguments on the stack and
+formatting digits directly, µs per call
+([raw samples](../bench/results/standard/native-print-alpha.json)):
+
+| Example | Before | After | C | Wasm |
+| --- | ---: | ---: | ---: | ---: |
+| arrays.zi | 2.075 | 1.122 | 0.397 | 0.398 |
+| enums.zi | 0.686 | 0.378 | 0.143 | 0.224 |
+| loops.zi | 3.155 | 1.718 | 0.690 | 0.506 |
+
+Still open: each print piece is one host call through the generic native
+host veneer (frame spill, typed argument decoding) and a locked stdio
+write; C formats a whole line in one `printf`. Next, batch the pieces of
+one print in the console buffer and call the host once per line.
 

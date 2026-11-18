@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native host calls resolve each function's capability or platform service once per instance, keep up to eight arguments on the stack instead of allocating them, and format printed integers directly. On Alpha, arrays.zi went from 2.075 to 1.122 µs per call, enums.zi from 0.686 to 0.378 and loops.zi from 3.155 to 1.718.
 - `BundleInstanceOptions.unbounded` runs an instance without step metering: native code for it is built without fuel checks, like an unbounded executable, and takes no step limit. The standard and example benchmark hosts use it, as C and Wasm run unmetered. A normal native run now leaves its output to stdio buffering, as the engine does, instead of flushing stdout and stderr on every call. On Alpha, enums.zi went from 1.213 to 0.688 µs per call, arrays.zi from 2.563 to 2.059, score.zi from 0.033 to 0.022, dijkstra by 24% and fannkuch-redux by 14%.
 - In-process native ZX no longer makes a system call on every entry: each thread keeps its stack range, and a forked child looks it up again under its own limit. Records & calls (score.zi) went from 0.511 to 0.032 µs per call on Alpha and text_demo.zi from 0.512 to 0.033 µs; arrays, enums and loops took 13–30% less time.
 ## [0.7.0] - 2026-11-18
